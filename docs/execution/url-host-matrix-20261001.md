@@ -1,5 +1,10 @@
 # URL and host matrix — 2026-10-01
 
+**Historical snapshot, superseded for hostname policy on 2026-10-19.** Earlier
+measurements below remain evidence of their dated state. Current wildcard
+forwarding keeps two exact hostnames excluded; see [the restoration record](wildcard-restoration-20261019.md)
+and the current probe matrix. Do not recreate old redirects or DNS from this snapshot.
+
 Measured against AWS account `775261844268` (`wecare-prod`, `us-east-1`), Amplify app
 `d22dm4b0jn71jw` branch `stack`, and the live public site. Every `before` and `after` value in
 this document was probed. Where something could not be measured it says so rather than

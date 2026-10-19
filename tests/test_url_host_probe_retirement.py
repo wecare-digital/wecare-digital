@@ -1,4 +1,4 @@
-"""Retired-host HTTP checks must not require forwarding or hide a proxy response."""
+"""Fallback restoration preserves exact exclusions and reports proxy responses."""
 
 import importlib.util
 from pathlib import Path
@@ -14,20 +14,40 @@ spec.loader.exec_module(probe)
 
 
 def retired_row():
-    return next(row for row in probe.matrix() if urlsplit(row["url"]).hostname == "store.wecare.digital")
+    rows = [row for row in probe.matrix() if urlsplit(row["url"]).hostname == "www.wecare.digital"]
+    assert rows, "The exact excluded hostname must stay in the probe matrix"
+    return rows[0]
 
 
-def test_retired_hosts_expect_no_http_service_and_never_a_canonical_redirect():
-    hosts = {
-        "www.wecare.digital", "shop.wecare.digital", "store.wecare.digital",
-        "xout.wecare.digital", "release-check-unknown.wecare.digital",
-        "www.xout.wecare.digital", "a.b.wecare.digital",
-    }
+def test_exact_excluded_hosts_expect_no_http_service_and_never_a_canonical_redirect():
+    hosts = {"www.wecare.digital", "www.xout.wecare.digital"}
     rows = [row for row in probe.matrix() if urlsplit(row["url"]).hostname in hosts]
     assert {urlsplit(row["url"]).hostname for row in rows} == hosts
     assert all(row["expect_status"] == 0 for row in rows)
     assert all(row["expect_terminal_url"] is None for row in rows)
     assert all(not row["informational"] for row in rows)
+
+
+def test_allowed_fallback_hosts_expect_the_canonical_home():
+    hosts = {f"{host}.wecare.digital" for host in ("shop", "store", "xout", "release-check-unknown")}
+    rows = [row for row in probe.matrix() if urlsplit(row["url"]).hostname in hosts]
+    assert {urlsplit(row["url"]).hostname for row in rows} == hosts
+    assert all(row["expect_status"] == 200 for row in rows)
+    assert all(row["expect_terminal_url"] == probe.SITE + "/" for row in rows)
+    assert all(not row["informational"] for row in rows)
+
+
+@pytest.mark.parametrize(("terminal_status", "ok"), [(200, True), (0, False), (503, False)])
+def test_allowed_redirect_requires_a_successful_home_response(monkeypatch, terminal_status, ok):
+    def response(url, _method):
+        return (terminal_status, "", "") if url == probe.SITE + "/" else (302, probe.SITE + "/", "")
+
+    monkeypatch.setattr(probe, "_one_hop", response)
+    rows = [row for row in probe.matrix() if urlsplit(row["url"]).hostname == "store.wecare.digital"]
+    assert rows
+    result = probe.follow(rows[0])
+    assert result["hop_count"] == 2
+    assert result["ok"] is ok
 
 
 @pytest.mark.parametrize(("status", "ok"), [(0, True), (503, False)])

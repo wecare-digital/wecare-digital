@@ -137,7 +137,7 @@ All Lambda functions use Python 3.12 runtime with prefix `wecare-*`:
 
 - [FAQ System](docs/FAQ-SYSTEM.md)
 - [OpenAPI Spec](docs/openapi.yaml)
-- [Wildcard fallback retirement](docs/execution/wildcard-retirement-20261019.md)
+- [Wildcard fallback and hostname exclusions](docs/execution/wildcard-restoration-20261019.md)
 
 ## Admin Scripts
 

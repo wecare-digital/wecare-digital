@@ -1,5 +1,10 @@
 # Live link and subdomain audit - 2026-10-02
 
+**Historical snapshot, superseded for hostname policy on 2026-10-19.** The
+measurements and companion JSON below retain their original evidence. For the
+restored wildcard and two excluded names, use [the current restoration record](wildcard-restoration-20261019.md).
+The old host rows are not an active link directory or recovery input.
+
 Checked 2026-10-02T09:28:57.008869+05:30 (Asia/Kolkata). Read-only audit; no DNS, redirect, certificate, page or provider configuration changed.
 
 AWS account 775261844268, us-east-1. Amplify latest build 1215 succeeded for commit 863c6ebd. Route 53 public zone has 32 records, zero exact wecare.digital records. Existing wildcard A/AAAA records remain.

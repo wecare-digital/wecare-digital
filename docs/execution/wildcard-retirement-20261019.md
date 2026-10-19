@@ -1,10 +1,14 @@
 # Wildcard fallback retirement
 
+**Historical deletion record — superseded later on 19 October 2026.** The owner
+subsequently requested wildcard forwarding again while keeping two hostnames
+excluded. Follow [the restoration record](wildcard-restoration-20261019.md) for
+current configuration and recovery. The deletion evidence below is retained
+unchanged; it does not authorize restoring the deleted distribution or its DNS target.
+
 On 19 October 2026 the owner confirmed that wildcard forwarding is unused and
-authorized live testing and cleanup. The desired state is no `*.wecare.digital`
+authorized live testing and cleanup. At that point the requested state was no `*.wecare.digital`
 DNS alias and no home-fallback CloudFront distribution or redirect function.
-Older inventory and cutover documents remain historical snapshots; they are not
-instructions to restore the wildcard.
 
 ## Verified boundary before retirement
 
@@ -35,25 +39,15 @@ subtracting only the two wildcard aliases. The shared certificate remains in
 use by apex Amplify and MTA-STS. The retained log bucket keeps its existing
 30-day expiration policy.
 
-## Repository behavior
+## Repository behavior at that point
 
-The creation template `amplify/infra/home-fallback.json` and obsolete redirect
-source `scripts/home-fallback-function.js` have been removed. The retained
-`scripts/home_fallback_dns.py` is a pure retirement planner: it makes no AWS calls
-and returns only `DELETE` entries for exact wildcard A/AAAA aliases to the known
-retired distribution. Empty or already retired inventories return no changes.
-Unexpected wildcard addresses, CNAMEs, service records or routing policies stop
-the plan for review. Explicit names such as `xout.wecare.digital`, apex/service
-records and certificate-validation records are outside its deletion scope.
+The retirement change removed the creation template and redirect source and
+replaced the DNS helper with a deletion-only planner. The later owner instruction
+supersedes that source policy: the current template creates a new distribution,
+reuses the retained log bucket and shared certificate, and owns six DNS records
+including two exclusions. The current pure helper validates that topology without
+calling AWS. Tests now protect these restoration and preservation requirements.
 
-The planner must receive a freshly saved Route53 inventory. Review its output,
-remove only those exact aliases, verify the DNS change, then delete the known
-stack with its log-retention policy intact. A repository test cannot establish
-that AWS deletion has completed: confirm Route53, CloudFormation and CloudFront
-readbacks, then repeat canonical public-page and service checks. The completion
-above records the control-plane readback; public-page and service test results
-are recorded separately in the cleanup audit.
-
-`tests/test_home_fallback_dns.py` exercises deletion-only behavior, preservation
-of explicit services and rejection of unexpected records, and prevents restoring
-the retired CloudFront template or edge function.
+The old distribution `E1ZZ786I3YH65O` and its hostname remain retired. Never replay
+their aliases from an old snapshot. See the restoration record for current
+validation, CloudFormation ownership and rollback instructions.
