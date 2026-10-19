@@ -15,7 +15,6 @@ import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import PageShell, { ShellTab } from '../../../components/PageShell';
 import PayFlowPage from '../../../components/workspace/pay/PayFlow';
-import InvoiceRecordsPage from '../../../components/workspace/pay/InvoiceRecords';
 import PaymentsActivity from '../../../components/workspace/pay/PaymentsActivity';
 
 interface PageProps { signOut?: () => void; user?: any; }
@@ -56,8 +55,8 @@ const PaymentsPage: React.FC<PageProps> = ( { signOut, user } ) => {
       >
         { ( tab ) => (
           <>
-            { tab === 'collect' && <PayFlowPage signOut={ signOut } user={ user } embedded /> }
-            { tab === 'invoices' && <InvoiceRecordsPage signOut={ signOut } user={ user } embedded /> }
+            { tab === 'collect' && <PayFlowPage signOut={ signOut } user={ user } embedded mode="collect" /> }
+            { tab === 'invoices' && <PayFlowPage signOut={ signOut } user={ user } embedded mode="invoices" /> }
             { tab === 'activity' && <PaymentsActivity /> }
           </>
         ) }

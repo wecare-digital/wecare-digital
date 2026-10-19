@@ -165,35 +165,27 @@ export const navigationConfig: NavItem[] = [
     ],
   },
   {
-    // OWN top-level item. It is the conversation-meta work queue, real data the inbox
-    // already writes.
-    path: '/workspace/task',
-    label: 'Tasks',
-    icon: 'checklist',
-  },
-  {
-    // Tools + blog pipeline + managers as in-page tabs on /workspace/seo. This is the
-    // AWS-native SeoToolsTable surface (seoToolsFetch), NOT the old Wix SEO. The dense
-    // blog-production pipeline and the SEO managers stay reachable through these child
-    // entries for the palette.
-    path: '/workspace/seo',
-    label: 'SEO',
+    // One content workspace. Blog Studio and production stage URLs remain contextual deep links
+    // because those jobs carry their own record/stage parameters; they are not primary apps.
+    path: '/workspace/content',
+    label: 'Content',
     icon: 'search',
     children: [
-      // Tools / Blog SEO / Site Pages SEO are in-page tabs on the SEO hub (FEAT-005 relocated
-      // their bodies out of the routes tree), so they deep-link the hub with a ?tab= id. The
-      // staged blog pipeline keeps its own queue routes.
-      { path: '/workspace/seo?tab=tools', label: 'Tools' },
-      { path: '/workspace/seo?tab=blog', label: 'Blog SEO' },
-      { path: '/workspace/seo?tab=pages', label: 'Site Pages SEO' },
+      { path: '/workspace/content?view=blog', label: 'Blog' },
       { path: '/workspace/seo/blog-studio', label: 'Blog Studio' },
-      { path: '/workspace/seo/blog-production', label: 'Production waves' },
-      // FEAT-006: the staged pipeline folded into one hub with step tabs; each stage is a
-      // ?tab= deep-link that pageExists resolves (query stripped) to the one hub route.
+      { path: '/workspace/content?view=production', label: 'Production' },
       { path: '/workspace/seo/blog-production?tab=review', label: 'Source review' },
       { path: '/workspace/seo/blog-production?tab=qa', label: 'QA review' },
       { path: '/workspace/seo/blog-production?tab=publish', label: 'Publish queue' },
+      { path: '/workspace/content?view=seo&area=tools', label: 'SEO Tools' },
+      { path: '/workspace/content?view=seo&area=pages', label: 'SEO Pages' },
+      { path: '/workspace/content?view=links', label: 'Short links' },
     ],
+  },
+  {
+    path: '/workspace/task',
+    label: 'Tasks',
+    icon: 'checklist',
   },
 ];
 
@@ -298,9 +290,8 @@ export const settingsConfig: SettingsGroup[] = [
       { path: '/workspace/communications?view=manage&section=usage', label: 'Cost & Usage' },
       { path: '/workspace/communications?view=manage&section=search', label: 'Message Search' },
       { path: '/workspace/communications?view=manage&section=ai', label: 'Meta AI Agent' },
-      { path: '/workspace/communications?view=manage&section=whatsapp&tool=ai-agent', label: 'AI Agent' },
       { path: '/workspace/communications?view=manage&section=docs', label: 'Docs Scraper' },
-      { path: '/workspace/communications?view=manage&section=links', label: 'Short Links' },
+      { path: '/workspace/link', label: 'Short Links' },
     ],
   },
   {
@@ -469,6 +460,26 @@ export const moduleHomes: ModuleHome[] = [
   // [retired public path]/analytics, [retired public path]/tracking, [retired public path]/schema, [retired public path]/whatsapp/ctwa-ads and
   // [retired public path]/whatsapp/conversions-api each have their own nav entry — so nothing became
   // unreachable, only the grouping page went.
+  {
+    id: 'payments', label: 'Payments', path: '/workspace/payments',
+    innerPages: [
+      '/workspace/payments?view=collect',
+      '/workspace/payments?view=invoices',
+      '/workspace/payments?view=activity',
+    ],
+    note: 'Collect, Invoices and Activity are the three primary money modes; the invoice engine remains authoritative.',
+  },
+  {
+    id: 'content', label: 'Content', path: '/workspace/content',
+    innerPages: [
+      '/workspace/content?view=blog',
+      '/workspace/content?view=production',
+      '/workspace/content?view=seo&area=tools',
+      '/workspace/content?view=seo&area=pages',
+      '/workspace/content?view=links',
+    ],
+    note: 'Blog, Production, supported AWS-native SEO and Short Links share one content workspace.',
+  },
   {
     id: 'service-operations', label: 'Service', path: '/workspace/service',
     innerPages: [
