@@ -9,7 +9,7 @@ describe( 'Customers consent safety', () => {
   it( 'never infers consent or allowlisting from message-history fallback rows', () => {
     const fallback = customers.slice(
       customers.indexOf( '// API failed — try messages fallback' ),
-      customers.indexOf( 'toast.warning(\`Contacts API error', customers.indexOf( '// API failed — try messages fallback' ) ),
+      customers.indexOf( "toast.warning(`Contacts API error", customers.indexOf( '// API failed — try messages fallback' ) ),
     );
     expect( fallback ).toContain( 'optInWhatsApp: false' );
     expect( fallback ).toContain( 'allowlistWhatsApp: false' );
