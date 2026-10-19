@@ -644,17 +644,8 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                     { filteredCust.map( c => (
                       <div key={ c.id } onClick={ () => {
                         setSelCustomer( c );
-                        // Don't auto-set goods type — default is digital-goods.
-                        // Admin should explicitly select physical-goods when needed.
-                        // Auto-switching caused invoices to incorrectly trigger address collection.
-                        // Auto-append Green Packing + Notification Fee as last items
-                        setInvForm( prev => {
-                          const items = [ ...prev.items ];
-                          const names = items.map( it => it.name.toLowerCase() );
-                          if ( !names.some( n => n.includes( 'green' ) && n.includes( 'pack' ) ) ) items.push( { name: 'Green Packing', unitPrice: '49', quantity: '1', gstRate: '18' } );
-                          if ( !names.some( n => n.includes( 'notification' ) || n.includes( 'alert' ) ) ) items.push( { name: 'Notification Fee', unitPrice: '19', quantity: '1', gstRate: '18' } );
-                          return { ...prev, items };
-                        } );
+                        // Selecting a customer never mutates price lines. The operator supplies
+                        // invoice inputs; the invoice engine owns Delight, convenience fee and total.
                       } } className="pf-cust-card">
                         <div className="pf-cust-avatar">{ ( c.name || '?' )[ 0 ].toUpperCase() }</div>
                         <div className="pf-cust-info">
@@ -707,16 +698,10 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                   </div>
                   <Button variant="secondary" size="sm" onClick={ addItem } style={ { marginBottom: 4 } }>+ Add Item</Button>
                   { ' ' }
-                  <Button variant="ghost" size="sm" onClick={ () => {
-                    const items = [ ...invForm.items ];
-                    const names = items.map( it => it.name.toLowerCase() );
-                    if ( !names.some( n => n.includes( 'green' ) && n.includes( 'pack' ) ) ) items.push( { name: 'Green Packing', unitPrice: '49', quantity: '1', gstRate: '18' } );
-                    if ( !names.some( n => n.includes( 'notification' ) || n.includes( 'alert' ) ) ) items.push( { name: 'Notification Fee', unitPrice: '19', quantity: '1', gstRate: '18' } );
-                    setInvForm( { ...invForm, items } );
-                  } } style={ { marginBottom: 4, fontSize: 'var(--text-xs)', color: 'var(--accent)' } }>+ Green Packing & Notification Fee</Button>
+
                   <h4 style={ { margin: '12px 0 8px', fontSize: 'var(--text-md)' } }>Additional Charges</h4>
                   <div className="pf-form-grid">
-                    <div className="form-group"><label htmlFor="pf-shipping">Express / Shipping ({ '\u20B9' })</label><input id="pf-shipping" type="number" value={ invForm.shipping } onChange={ e => setInvForm( { ...invForm, shipping: e.target.value } ) } /></div>
+                    <div className="form-group"><label htmlFor="pf-shipping">Shipping input ({ '\u20B9' })</label><input id="pf-shipping" type="number" value={ invForm.shipping } onChange={ e => setInvForm( { ...invForm, shipping: e.target.value } ) } /></div>
                   </div>
                   {/* No coupon field and no manual-adjustment field: there is no coupon system and
                       manual discount entry is retired. The always-on Delight discount (0.5% up to
