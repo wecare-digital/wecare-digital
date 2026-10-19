@@ -684,7 +684,7 @@ const WorkflowTerminal: React.FC = () => {
           position:absolute;top:0;right:0;z-index:3;height:47px;
           display:inline-flex;align-items:center;gap:7px;
           padding:0 15px;margin:0;border:0;background:transparent;
-          font:inherit;font-size:12px;letter-spacing:.02em;color:#f2efe9;
+          font:inherit;font-size:13px;letter-spacing:.02em;color:#f2efe9;
           cursor:pointer;
           border-top-right-radius:14px;
           transition:background .2s cubic-bezier(.33,0,.24,1),color .2s cubic-bezier(.33,0,.24,1);
@@ -787,8 +787,15 @@ const WorkflowTerminal: React.FC = () => {
         .wt-light-1{background:#f0a818}
         .wt-light-2{background:#9849e8}
         .wt-light-3{background:#3da35a}
-        .wt-bar-title{margin-left:8px;color:rgba(255,255,255,.80);font-size:14px}
-        .wt-bar-state{margin-left:auto;display:flex;align-items:center;gap:7px;color:rgba(255,255,255,.70);font-size:13px}
+        /* CHROME STATUS LEGIBILITY (user: the browser-chrome title and the footer "1 / 8"
+           status read as the same faint grey and blended into the panel). These are window
+           chrome, not body prose, so they are raised toward a solidly-legible muted white by
+           OPACITY ONLY (no new hex, palette unchanged): .wt-bar-title .80 -> .88, .wt-bar-state
+           .70 -> .86. Both stay BELOW the solid-#fff step content so the content headings remain
+           the loudest glyphs; sizes are untouched (title stays 14px, state stays the 13.5px
+           small-text floor). .88/.86 on #000 clear AA comfortably (~18:1 / ~17:1). */
+        .wt-bar-title{margin-left:8px;color:rgba(255,255,255,.88);font-size:14px}
+        .wt-bar-state{margin-left:auto;display:flex;align-items:center;gap:7px;color:rgba(255,255,255,.86);font-size:13.5px}
         /* GREEN, NOT LIME, and only this dot changes - see the note below on the two that
            deliberately do not.
            This sits in the same 47px strip as the three window lights, beside the copy
@@ -827,7 +834,7 @@ const WorkflowTerminal: React.FC = () => {
            same nominal size, so matching the body number would still have read small.
            SIZES RAISED AGAIN, on owner instruction: the panel read too small on both
            desktop and - worse - on a phone, where the request line had been dropped BELOW
-           its desktop size. The floor is now 13px and the readable body/request/command
+           its desktop size. The floor is now 13.5px and the readable body/request/command
            lines sit at ~15-16px. The request line uses clamp() so it scales fluidly
            between phone and desktop instead of being stepped DOWN on mobile, per
            .kiro/steering/20-device-compat.md which favours clamp() over fixed sizes. */
@@ -985,8 +992,24 @@ const WorkflowTerminal: React.FC = () => {
            hue belongs on shapes, text belongs at maximum contrast - applied one level down.
 
            --ink SURVIVES for .wt-tick, which still needs a legible hue. */
-        .wt-svc{padding:2px 7px;border-radius:4px;background:rgba(var(--rgb),.20);border:1px solid rgba(var(--rgb),.60);color:#fff;font-size:12.5px;letter-spacing:.02em}
-        .wt-name{color:#fff;font-size:18px;font-weight:600}
+        /* Service pills (gateway / auth / contacts / messaging ...). These were the smallest
+           glyphs in the panel at 12.5px and read as "less" next to the enlarged rows, so they
+           go to 13.5px - still a compact badge below .wt-name and .wt-desc, now legible. The
+           hue note above is unchanged: colour lives on the pill fill/border, the text stays
+           solid white at maximum contrast. */
+        .wt-svc{padding:2px 7px;border-radius:4px;background:rgba(var(--rgb),.20);border:1px solid rgba(var(--rgb),.60);color:#fff;font-size:13.5px;letter-spacing:.02em}
+        /* .wt-name is the per-step heading (the step title, e.g. "Request accepted").
+           SIZED 16px/600, back to the pre-#904 value. #904 bumped it 16px -> 18px, but the
+           owner reported the heading "looks very big, not matching with the site": at 18px it
+           read as a full section heading rather than a step label, out of keeping with the
+           site's restrained scale (public card titles 22px/700, body 20px, while this dark mock
+           panel deliberately runs its own smaller compact scale). It still stays the LARGEST
+           glyph in the panel - 16px sits above .wt-desc 15.5px and .wt-cmd/.wt-lane-name 15px -
+           and its 600 weight plus solid white keeps a clear step down to the muted .74 sub-line,
+           so the heading/subtext hierarchy restored in commit 57ef2daa is preserved. Colour
+           stays #fff (21:1 on the #000 panel). .wt-head keeps min-height:20px + align-items:
+           center, so the step dot alignment is unaffected by the smaller heading. */
+        .wt-name{color:#fff;font-size:16px;font-weight:600}
         /* THE TICK TAKES THE STEP'S OWN HUE. THE NAME STAYS WHITE ON ALL EIGHT ROWS.
            Both the name and the tick were #d1f470 while the dots were lime too, so the row
            agreed with itself. Once the dots became one hue per service, lime here was the last
@@ -1047,10 +1070,13 @@ const WorkflowTerminal: React.FC = () => {
            stays dimmer than .wt-infra, which also came up (see below), and dimmer than .wt-desc.
            flowprobe.js asserts the measured ratios and cannot run in this sandbox (no headless
            browser); re-run it on a machine with playwright to refresh the recorded numbers. */
-        .wt-time{color:rgba(255,255,255,.66);font-size:13px}
-        /* .wt-desc is the primary step prose, so it takes the highest muted alpha - pushed to
-           .82 (~16:1) so the sentences the panel exists to deliver read crisply. */
-        .wt-desc{max-width:780px;margin:7px 0 0;color:rgba(255,255,255,.82);font-size:15.5px;line-height:1.65}
+        .wt-time{color:rgba(255,255,255,.66);font-size:13.5px}
+        /* .wt-desc is the primary step prose. It was .82 (~16:1), but at that alpha it sat so
+           close to the solid-white .wt-name heading above it that the heading and its sub-line
+           read as the same white, with no hierarchy - the owner reported "heading also white and
+           subtext also white". Dropped to .74 (~9:1) so it stays clearly a muted sub-line BELOW
+           the #fff name while remaining well clear of AA 4.5:1 on #000. Size stays 15.5px. */
+        .wt-desc{max-width:780px;margin:7px 0 0;color:rgba(255,255,255,.74);font-size:15.5px;line-height:1.65}
 
         .wt-cmd{margin-top:11px;padding:12px 14px;overflow-x:auto;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.14);border-radius:7px;color:#fff;font-size:15px;line-height:1.7;white-space:nowrap}
         .wt-sh{margin-right:7px;color:rgba(255,255,255,.66)}
@@ -1061,26 +1087,31 @@ const WorkflowTerminal: React.FC = () => {
         .wt-cm{color:rgba(255,255,255,.66)}
 
         /* The infra comment. Dim on purpose - it is the substrate, not the event - but
-           still above the 12px floor because it carries the actual message.
-           .50, NOT .44, AND THE REASON IS MEASURED. This line is the one that makes the
-           section's argument - "# dynamodb · single-table · on-demand capacity", the shared
-           foundation named under every step - and at rgba(255,255,255,.44) it composited to
-           4.25:1 on #000, below the 4.5:1 WCAG 1.4.3 requires at 12.5px/400. It was the only
-           one of the fourteen text styles in this panel that failed; .50 measures 5.28:1.
-           Deliberately NOT .62: that is .wt-desc's value, and this line must stay dimmer than
-           the description it sits under, which is the whole point of the "dim on purpose"
-           above. RAISED TO .70 on the same owner instruction that lifted the other faint
-           lines: this is the line that carries the section's argument, so it has to be solidly
-           legible, not a bare pass. .70 measures ~8.2:1 and still sits BELOW .wt-desc's .82, so
-           the "dim on purpose, but above the floor" order the comment describes is preserved.
+           still at the panel's unified 13.5px small-text floor because it carries the actual
+           message. This line sits at font-size:13.5px now (it was reasoned about at smaller
+           sizes in earlier passes, but the unified floor move raised it to 13.5px).
+           THE ALPHA HISTORY IS WORTH KEEPING. This line is the one that makes the section's
+           argument - "# dynamodb · single-table · on-demand capacity", the shared foundation
+           named under every step - and at a much lower alpha (rgba(255,255,255,.44)) it had
+           composited to roughly 4.25:1 on #000, which reasons out as below the 4.5:1 WCAG
+           1.4.3 asks for body text. It was the only one of the panel's text styles that read
+           as a bare pass, so it was lifted. Deliberately NOT .62: that is near .wt-desc's
+           territory, and this line must stay dimmer than the description it sits under, which
+           is the whole point of the "dim on purpose" above. RAISED TO .70 on the same owner
+           instruction that lifted the other faint lines: this is the line that carries the
+           section's argument, so it has to be solidly legible, not a bare pass. .70 on #000
+           reasons out to roughly ~8:1 (approximate - see the probe note below) and still sits
+           BELOW .wt-desc's .74, so the "dim on purpose, but above the floor" order the comment
+           describes is preserved, now at the 13.5px floor.
            Re-measure with: node tools/browser/flowprobe.js - it asserts every ratio here, and
-           cannot run in this sandbox (no headless browser), so refresh it on a machine with one.
+           cannot run in this sandbox (no headless browser), so the ratios above are reasoned,
+           not re-measured; refresh them on a machine with one.
            (No backticks in this comment: this sits inside a style jsx template literal, where
            one stray backtick ends the literal and the build fails at type-check.) */
         .wt-infra{margin-top:9px;color:rgba(255,255,255,.70);font-size:13.5px;line-height:1.6}
 
         .wt-results{margin-top:11px;display:flex;flex-wrap:wrap;gap:7px}
-        .wt-chip{padding:5px 9px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.14);border-radius:5px;color:rgba(255,255,255,.74);font-size:13px}
+        .wt-chip{padding:5px 9px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.14);border-radius:5px;color:rgba(255,255,255,.74);font-size:13.5px}
         .wt-chip.is-ok{color:#d1f470;border-color:rgba(209,244,112,.34)}
         /* A warning is carried by weight, not by a second hue: brighter text on a
            brighter border, still neutral, so lime stays the only accent in the panel body. */
@@ -1094,16 +1125,29 @@ const WorkflowTerminal: React.FC = () => {
         /* A short lime rule at the top of each lane, so the four read as parallel tracks
            starting together rather than as four unrelated cards. */
         .wt-lane-bar{display:block;width:22px;height:2px;border-radius:2px;background:#d1f470;margin-bottom:3px}
-        .wt-lane-name{color:#fff;font-size:13.5px;font-weight:600}
-        .wt-lane-detail{color:rgba(255,255,255,.70);font-size:13px;line-height:1.45}
+        /* FOUR-CHANNEL lanes (whatsapp / sms / email / voice) were the smallest body text left
+           after the earlier size passes, so they still read as "less" than the rest of the panel.
+           Lane-name goes 13.5px->15px and lane-detail 13px->14px, staying under .wt-desc's 15.5px
+           and keeping label >= detail. Lane-detail opacity is .74 - lifted from the old faint .70
+           for legibility (~9:1 on #000, well past AA) but deliberately held as a muted white BELOW
+           the solid-white lane-name so the label and its sub-line keep a clear hierarchy rather
+           than both reading as plain white. No new hex: palette unchanged. */
+        .wt-lane-name{color:#fff;font-size:15px;font-weight:600}
+        .wt-lane-detail{color:rgba(255,255,255,.74);font-size:14px;line-height:1.45}
 
         .wt-checks{margin-top:11px;display:grid;gap:8px}
         .wt-check{display:flex;align-items:center;gap:8px;color:rgba(255,255,255,.74);font-size:13.5px}
         .wt-check-tick{color:#d1f470}
 
         /* Fades the stream out under the footer rather than letting rows collide with
-           it. The gradient has to end in the panel's own #000 or it shows a seam. */
-        .wt-foot{flex:0 0 auto;height:50px;padding:0 24px;display:flex;align-items:center;background:#000;border-top:1px solid rgba(209,244,112,.30);color:rgba(255,255,255,.70);font-size:13px}
+           it. The gradient has to end in the panel's own #000 or it shows a seam.
+           FOOTER STATUS LEGIBILITY (user: the footer "1 / 8" status read the same faint grey
+           as the chrome title and blended in): color raised .70 -> .86 by OPACITY ONLY, so the
+           footer state line (left running/complete and right-side .wt-foot-right "1 / 8
+           services", which inherits this colour) reads as deliberate, legible chrome rather than
+           near-invisible. Still a muted white BELOW the solid-#fff step content, size unchanged
+           at the 13.5px small-text floor. .86 on #000 is ~17:1, well past AA. */
+        .wt-foot{flex:0 0 auto;height:50px;padding:0 24px;display:flex;align-items:center;background:#000;border-top:1px solid rgba(209,244,112,.30);color:rgba(255,255,255,.86);font-size:13.5px}
         .wt-foot-left{display:flex;align-items:center;gap:7px}
         /* STAYS LIME, DELIBERATELY, and this is the boundary of the recolour.
            This dot sits beside "running" / "complete" on the BLACK footer, not the brown title
