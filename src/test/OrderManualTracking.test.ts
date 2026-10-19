@@ -20,6 +20,7 @@ describe( 'manual Order shipment tracking', () => {
   it( 'uses the native-safe external browser only for a validated saved HTTPS URL', () => {
     expect( ORDERS ).toContain( "import { openExternal } from '../../../lib/capacitor'" );
     expect( ORDERS ).toContain( "parsed.protocol !== 'https:'" );
+    expect( ORDERS ).toContain( "raw.includes( '\\\\' )" );
     expect( ORDERS ).toContain( 'openExternal( savedTrackingUrl )' );
     expect( ORDERS ).not.toMatch( /window\.open\([^)]*tracking/i );
   } );
