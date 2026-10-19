@@ -60,13 +60,13 @@ import React, { useEffect, useRef, useState } from 'react';
  *            TIME is right-aligned on this line on desktop and stacks under it on mobile.
  *   '->'     a RETURN value. Readable white (.82).
  *   '#'      a NOTE / comment. Muted white (.70).
- *   '!'      an ERROR. Red #dc2626 (step 16, queue, only).
- *   'tick'   a verification ROLLUP (step 19, platform). Lime ticks before each item.
+ *   '!'      an ERROR. Red #dc2626 (step 17, queue, only).
+ *   'tick'   a verification ROLLUP (step 21, platform). Lime ticks before each item.
  *   'ai'     an "ai >" DECISION. The "ai >" tag is lime; the decision text is readable
- *            white (.82). Exactly nine steps carry one - 4,7,8,9,10,11,12,14,19 (contacts,
+ *            white (.82). Exactly nine steps carry one - 4,7,8,9,11,12,13,15,21 (contacts,
  *            media, commerce, payments, attribution, kb, ai, messaging, platform).
- *   '>'      a SUBSTEP (step 12, ai, compose). Muted-ish white.
- *   'lanes'  the nested 5-channel dispatch box (step 14, messaging, only).
+ *   '>'      a SUBSTEP (step 13, ai, compose). Muted-ish white.
+ *   'lanes'  the nested 5-channel dispatch box (step 15, messaging, only).
  */
 type LineType = '$' | '->' | '#' | '!' | 'tick' | 'ai' | '>' | 'lanes';
 type Lane = { name: string; detail: string; on?: boolean };
@@ -84,7 +84,7 @@ interface Step {
   /** The service that did the work, shown in the call-line pill and the hue rail. */
   service: string;
   /** The cumulative ELAPSED time at this step - a monotonically non-decreasing running
-   *  clock across the 19 steps ending at ~2.1s, not a per-step duration - right-aligned on
+   *  clock across the 21 steps ending at ~2.1s, not a per-step duration - right-aligned on
    *  the "$" call line (stacked under it on mobile). */
   time: string;
   /** The ordered code/log lines that make up this step. */
@@ -96,12 +96,13 @@ interface Step {
 /**
  * WHAT THIS PANEL SAYS ABOUT THE COMPANY, which is the whole reason it was rewritten AGAIN.
  *
- * THIS IS A 19-SERVICE AI-EXECUTION TRACE that shows AI AT EVERY DECISION, rendered as a
+ * THIS IS A 21-SERVICE AI-EXECUTION TRACE that shows AI AT EVERY DECISION, rendered as a
  * machine log rather than a labelled plan (recorded learning 75c80121-7ead-4c49-b900-
  * a0817515f2db set the AI-at-every-decision framing; this pass makes the surface pure
- * code). The stream shows one order (#WD-4821) executing end to end across nineteen
+ * code). The stream shows one order (#WD-4821) executing end to end across twenty-one
  * services - inbound, gateway, auth, contacts, crm, catalog, media, commerce, payments,
- * attribution, kb, ai, shortener, messaging, automation, queue, analytics, sla, platform.
+ * whatsapp (wa.pay), attribution, kb, ai, shortener, messaging, automation, queue, analytics,
+ * sla, whatsapp (wa.order_status), platform.
  * It opens where a real order opens: a WhatsApp message arrives (inbound), and the note
  * on that step is honest - WhatsApp is the conversation surface, the website is where the
  * payment happens. At each step that involves a judgement the panel names the AI decision
@@ -111,19 +112,22 @@ interface Step {
  * evidence, channels are selected, and the whole run is verified against one model. AI
  * understands and decides; the platform executes.
  *
- * NINE STEPS CARRY AN ai DECISION (4,7,8,9,10,11,12,14,19 - contacts, media, commerce,
+ * NINE STEPS CARRY AN ai DECISION (4,7,8,9,11,12,13,15,21 - contacts, media, commerce,
  * payments, attribution, kb, ai, messaging, platform), which is the "AI at 9 decisions"
- * the done footer reports. The remaining steps are platform mechanics - inbound receiving
+ * the done footer reports. The two WhatsApp beats inserted at step 10 (wa.pay, native
+ * in-chat payment offered) and step 20 (wa.order_status, status pushed outside the 24h
+ * window) carry NO ai marker - they are surface mechanics, not judgements, so the count
+ * stays nine. The remaining steps are platform mechanics - inbound receiving
  * a message, a gateway accepting a request, auth verifying access, a CRM write, a catalog
  * read, a link being shortened, an automation rule, a queue recovering a failed send,
  * analytics tracking an outcome, an SLA check - and they carry no ai marker on purpose.
  * Those are resilience and plumbing, not intelligence, and claiming AI there would be the
  * kind of overreach the panel is careful to avoid.
  *
- * THE CODE LINES CARRY THE DETAIL. Step 11 (kb) retrieves the sources the reply is grounded
- * in; step 12 (ai) composes the draft from them; step 14 (messaging) nests the five-channel
- * dispatch box under the dispatch call; step 16 (queue) shows the retry recovering a failed
- * send; step 19 (platform) rolls up the verification ticks. The five lanes in the messaging
+ * THE CODE LINES CARRY THE DETAIL. Step 12 (kb) retrieves the sources the reply is grounded
+ * in; step 13 (ai) composes the draft from them; step 15 (messaging) nests the five-channel
+ * dispatch box under the dispatch call; step 17 (queue) shows the retry recovering a failed
+ * send; step 21 (platform) rolls up the verification ticks. The five lanes in the messaging
  * step show the channel OPTIONS evaluated at once - a vertical list would have read as five
  * more sequential steps, which is precisely the wrong impression.
  *
@@ -205,6 +209,14 @@ const STEPS: Step[] = [
       { type: '$', text: 'payments.capture(#WD-4821)  gateway=razorpay' },
       { type: '->', text: 'paid  invoice=#INV-4821' },
       { type: 'ai', text: 'risk_score=0.03 -> clear' },
+    ],
+  },
+  {
+    service: 'whatsapp', time: '384ms',
+    lines: [
+      { type: '$', text: 'wa.pay(#WD-4821)  in_chat' },
+      { type: '->', text: 'offered  provider=razorpay  config=active' },
+      { type: '#', text: 'native payment · live config · invoice/service path' },
     ],
   },
   {
@@ -290,14 +302,22 @@ const STEPS: Step[] = [
     ],
   },
   {
+    service: 'whatsapp', time: '2.1s',
+    lines: [
+      { type: '$', text: 'wa.order_status(#WD-4821)' },
+      { type: '->', text: 'processing -> shipped' },
+      { type: '#', text: 'status in-chat · outside the 24h window' },
+    ],
+  },
+  {
     service: 'platform', time: '2.1s', complete: true,
     lines: [
       { type: '$', text: 'trace.verify(#WD-4821)' },
       { type: 'tick', ticks: [
         'inbound', 'order', 'payment', 'catalog', 'media',
-        'crm', 'attribution', 'kb', 'ai', 'channels', 'sla',
+        'crm', 'attribution', 'kb', 'ai', 'channels', 'wa pay', 'status', 'sla',
       ] },
-      { type: '->', text: '19/19 services · one identity · one trace · one foundation' },
+      { type: '->', text: '21/21 services · one identity · one trace · one foundation' },
       { type: 'ai', text: 'one model across all of it' },
     ],
   },
@@ -307,9 +327,10 @@ const STEPS: Step[] = [
 // the step CONTAINS - how many lines, whether it carries the lane box, a rollup or substeps -
 // rather than its index, so reordering STEPS does not silently retime the sequence. The lane
 // step, the verification rollup and the multi-line ai/queue steps hold longest (>=900ms so
-// they stay readable), the plain three-line calls are quickest. A full 19-step pass runs
-// roughly 19-20s of stepping plus the inter-loop hold; the richest steps stay above 900ms so
-// nothing flashes past.
+// they stay readable), the plain three-line calls are quickest. The two WhatsApp beats added
+// at steps 10 and 20 are plain three-line calls, so each dwells 750ms. A full 21-step pass
+// runs roughly 22.4s of stepping (17150ms of dwell plus the 250ms inter-step gap per step)
+// plus the 1500ms inter-loop hold; the richest steps stay above 900ms so nothing flashes past.
 const dwell = ( step: Step ): number => {
   if ( step.lines.some( l => l.type === 'lanes' ) ) return 1200;
   if ( step.complete || step.lines.some( l => l.type === 'tick' ) ) return 1150;
@@ -340,12 +361,12 @@ const WorkflowTerminal: React.FC = () => {
    * These were 0 / -1 / false, so the static export rendered ZERO rows. Measured on the built
    * HTML: a grep for the first step's content in out/index.html returned nothing, and with
    * JavaScript disabled the largest element on the home page was a black rectangle holding one
-   * line of text and a footer reading "running 0 / 19". Every line of the nineteen steps
+   * line of text and a footer reading "running 0 / 21". Every line of the twenty-one steps
    * existed only after hydration, so a no-JS reader, a WebView with scripting off, and anything
    * reading the HTML rather than running it all got an empty panel - on the same site that just
    * started publishing llms.txt and an /mcp endpoint for exactly those readers.
    *
-   * Shipping the COMPLETE state fixes it with no new markup: nineteen rows, all settled, footer
+   * Shipping the COMPLETE state fixes it with no new markup: twenty-one rows, all settled, footer
    * reading "complete". It is also the most meaningful single frame the panel has, it is
    * byte-identical to what a reduced-motion visitor already gets, and it removes the last place
    * the panel was ever nearly empty - the first-load state, which the loop was already fixed
@@ -450,7 +471,7 @@ const WorkflowTerminal: React.FC = () => {
   // Owner asked for continuous play. BOTH DEFECTS ARE FIXED RATHER THAN RE-ACCEPTED:
   //   1. is answered by .wt-play, a real pause control rendered outside the aria-hidden window
   //      so it is exposed to assistive tech rather than focusable-but-invisible.
-  //   2. is answered by never rewinding `shown`. Only `settled` rewinds, so all nineteen rows
+  //   2. is answered by never rewinding `shown`. Only `settled` rewinds, so all twenty-one rows
   //      stay mounted for the whole cycle and the panel is never empty at any moment.
   //
   // The closing band's reveal stays one-shot for its own stated reason - it did not want to
@@ -471,7 +492,7 @@ const WorkflowTerminal: React.FC = () => {
   /* STEPS.length, NOT 0, and that is what makes the static complete state seamless. The stepper
    * resumes from here, so its first act is to enter the end-of-pass branch: hold the finished
    * panel, then rewind and replay, then loop. A visitor therefore reads a completed run first
-   * and watches it replay - rather than seeing nineteen settled rows blink back to running one
+   * and watches it replay - rather than seeing twenty-one settled rows blink back to running one
    * frame after hydration, which is what starting at 0 would have produced. */
   const resumeRef = useRef( STEPS.length );
 
@@ -493,7 +514,7 @@ const WorkflowTerminal: React.FC = () => {
          * the end-of-pass branch ALWAYS schedules a restart, so the only thing that stops the
          * motion is a reader pressing Pause (which tears this effect down before the restart
          * fires) or the tab going hidden. The never-empty invariant is preserved: `shown` was
-         * never rewound, so all nineteen rows remain mounted and settled - the exact frame of
+         * never rewound, so all twenty-one rows remain mounted and settled - the exact frame of
          * the initial and reduced-motion render - during the hold. */
         /*
          * IT LOOPS AGAIN, ON OWNER INSTRUCTION - BUT NOT THE LOOP THAT WAS REMOVED.
@@ -503,13 +524,13 @@ const WorkflowTerminal: React.FC = () => {
          * largest element on the home page periodically showed nothing and anyone arriving
          * mid-reset met a black rectangle.
          *
-         * THIS RESTART LEAVES `shown` AT STEPS.length AND ONLY REWINDS `settled`. All nineteen
+         * THIS RESTART LEAVES `shown` AT STEPS.length AND ONLY REWINDS `settled`. All twenty-one
          * rows stay mounted and on screen for the entire cycle; what replays is the
          * running-to-done pass travelling down them. The panel is never empty at any point,
          * which is the whole objection answered rather than accepted.
          *
          * What a reader sees at the restart edge is the stack going live at once and then
-         * settling row by row - a heartbeat rather than a rebuild. Stated because nineteen dots
+         * settling row by row - a heartbeat rather than a rebuild. Stated because twenty-one dots
          * pulsing for one beat is a real visual event and someone reading this file should
          * know it is intended, not a race.
          *
@@ -548,7 +569,7 @@ const WorkflowTerminal: React.FC = () => {
         }, 1500 );
         return;
       }
-      // Only the first pass reveals rows. Every later pass finds all nineteen already mounted,
+      // Only the first pass reveals rows. Every later pass finds all twenty-one already mounted,
       // which is what keeps the panel from emptying itself.
       setShown( prev => ( prev > index + 1 ? prev : index + 1 ) );
       timer = window.setTimeout( () => {
@@ -702,25 +723,28 @@ const WorkflowTerminal: React.FC = () => {
       aria-label="How a workflow runs"
     >
       {/* One static sentence for assistive tech. The stream below is aria-hidden: a
-          screen reader should not receive nineteen nodes appearing on timers. */}
+          screen reader should not receive twenty-one nodes appearing on timers. */}
       <p className="wt-sr">
-        An illustration of one customer order moving through nineteen of our services with
+        An illustration of one customer order moving through twenty-one of our services with
         AI at each decision: a WhatsApp message arrives on the conversation surface while the
         website remains where payment happens; the request is accepted at the edge; access is
         verified against one scoped identity; the customer context is loaded while AI reads the
         intent; the interaction is logged to the CRM against one customer record; the catalog
         item is resolved and synced so the app and Meta read the same record; a product image
         is generated by AI to match the request; the order is committed; payment is captured on
-        the website; the order is attributed to the campaign that drove it; the knowledge base
-        is queried and the reply is grounded in the retrieved sources; AI drafts the response
-        from that evidence rather than a template; a tracked short link is generated; five
-        channels are evaluated and the eligible ones deliver the reply with a pay-link in
-        parallel; an automation rule fires a follow-up on its own; a failed send is retried and
-        confirmed by the platform so nothing is dropped; engagement is tracked back to
-        attribution; the service level is checked against its target; and finally all nineteen
-        services and the AI are verified on one shared foundation. The AI understands, decides
-        and drafts while the platform executes, and the timings shown are illustrative rather
-        than measured.
+        the website; a native in-chat payment is also offered on the invoice/service path with
+        live config, while the cart money flow stays the website Razorpay capture and WhatsApp
+        remains the conversation and status surface; the order is attributed to the campaign
+        that drove it; the knowledge base is queried and the reply is grounded in the retrieved
+        sources; AI drafts the response from that evidence rather than a template; a tracked
+        short link is generated; five channels are evaluated and the eligible ones deliver the
+        reply with a pay-link in parallel; an automation rule fires a follow-up on its own; a
+        failed send is retried and confirmed by the platform so nothing is dropped; engagement
+        is tracked back to attribution; the service level is checked against its target; the
+        order status is pushed to WhatsApp outside the 24-hour window; and finally all
+        twenty-one services and the AI are verified on one shared foundation. The AI
+        understands, decides and drafts while the platform executes, and the timings shown are
+        illustrative rather than measured.
       </p>
 
       {/* dir="ltr" LOCKS THE TERMINAL, and it is a correctness fix rather than a preference.
@@ -738,7 +762,7 @@ const WorkflowTerminal: React.FC = () => {
           and from mirroring for one reason. */}
       {/* THE PAUSE CONTROL SITS OUTSIDE .wt-window ON PURPOSE, and the purpose is not layout.
           The window carries aria-hidden="true" because a screen reader should not receive
-          nineteen nodes appearing on timers - the static .wt-sr paragraph above is what it
+          twenty-one nodes appearing on timers - the static .wt-sr paragraph above is what it
           gets instead. A <button> placed inside that subtree would still be in the tab order
           while absent from the accessibility tree: reachable by keyboard, announced as nothing.
           So the control is a sibling and is positioned over the title bar with CSS.
@@ -797,7 +821,12 @@ const WorkflowTerminal: React.FC = () => {
               const state = i <= settled ? 'is-done' : 'is-running';
               const last = i === STEPS.length - 1;
               return (
-                <div key={ step.service } className={ `wt-step ${state} ${last ? 'is-last' : ''}`.trim() }>
+                /* KEY IS THE INDEX, NOT step.service. The service label is no longer unique:
+                   both WhatsApp beats (wa.pay, wa.order_status) carry service: 'whatsapp', so
+                   keying on the name would collide. The list is a fixed, ordered sequence that
+                   is never reordered or filtered - only sliced from the front by `shown` - so
+                   the positional index is a stable, correct key here. */
+                <div key={ i } className={ `wt-step ${state} ${last ? 'is-last' : ''}`.trim() }>
                   <span className="wt-dot" />
                   {/* THE STEP'S CODE BLOCK. overflow-x:auto so an over-long line scrolls on its
                       OWN and never the page (.wt-space keeps overflow-x:hidden). ALL line
@@ -862,7 +891,7 @@ const WorkflowTerminal: React.FC = () => {
                         );
                       }
                       if ( line.type === 'tick' ) {
-                        /* THE VERIFICATION ROLLUP (step 19, platform). Lime ticks before each
+                        /* THE VERIFICATION ROLLUP (step 21, platform). Lime ticks before each
                            verified service, wrapping inline. CSS-drawn checkmark would be ideal but the
                            tick glyph is already used elsewhere in the panel and renders here. */
                         return (
@@ -876,7 +905,7 @@ const WorkflowTerminal: React.FC = () => {
                         );
                       }
                       if ( line.type === 'lanes' ) {
-                        /* THE NESTED 5-CHANNEL BOX (step 14, messaging, only). Parallel lanes, side by side
+                        /* THE NESTED 5-CHANNEL BOX (step 15, messaging, only). Parallel lanes, side by side
                            on purpose - stacked they would read as five more sequential steps,
                            the opposite of the point. auto-fit minmax grid so they wrap cleanly
                            with no whole-page horizontal scroll at 320/375/768/1024/1440. Each
@@ -915,16 +944,16 @@ const WorkflowTerminal: React.FC = () => {
             for free. */}
         {/* THE COUNT LIVES ONLY HERE, AND IT IS LIVE. The chrome bar carries no count, so this
             is the one place the panel reports progress. Running: the lime dot + "running" and a
-            live "N / 19" counter where N is the count of SETTLED rows, not `shown`. `shown` is
-            pinned at STEPS.length by the never-empty invariant (it starts at 19 and never
-            rewinds so all nineteen rows stay mounted), so it cannot report progress - it would
-            read 19 / 19 for the whole pass. The quantity that actually advances during a pass is
-            `settled`: it rewinds to -1 at a restart and climbs to 18, so Math.max(settled + 1, 0)
-            counts 1 / 19 -> 19 / 19 as each row settles, clamped to STEPS.length as a guard. It
+            live "N / 21" counter where N is the count of SETTLED rows, not `shown`. `shown` is
+            pinned at STEPS.length by the never-empty invariant (it starts at 21 and never
+            rewinds so all twenty-one rows stay mounted), so it cannot report progress - it would
+            read 21 / 21 for the whole pass. The quantity that actually advances during a pass is
+            `settled`: it rewinds to -1 at a restart and climbs to 20, so Math.max(settled + 1, 0)
+            counts 1 / 21 -> 21 / 21 as each row settles, clamped to STEPS.length as a guard. It
             is FROZEN while paused because the stepper that advances `settled` is gated by the
-            pause control. Done: a single CSS-safe tick + the locked done string. The 19/19 is
+            pause control. Done: a single CSS-safe tick + the locked done string. The 21/21 is
             derived from STEPS.length (the live counter); the rest are literal descriptors - AI
-            fires at 9 of the 19 steps, one retry was recovered, order #WD-4821. */}
+            fires at 9 of the 21 steps, one retry was recovered, order #WD-4821. */}
         <div className="wt-foot">
           { done ? (
             <span className="wt-foot-left">
@@ -1073,11 +1102,12 @@ const WorkflowTerminal: React.FC = () => {
            signals, so WCAG 1.4.1 is not engaged: hue says WHICH service, motion and text say
            WHETHER it ran.
 
-           FIVE HUES CYCLE ACROSS THE NINETEEN STEPS, ordered so no two adjacent steps repeat
+           FIVE HUES CYCLE ACROSS THE TWENTY-ONE STEPS, ordered so no two adjacent steps repeat
            (blue, purple, amber, lime, green, blue, amber, purple, green, lime, amber, blue,
-           purple, lime, amber, blue, purple, lime, green). Step 19 (platform) lands on GREEN
-           because that is the one hue whose convention matches "verified / healthy". RED IS
-           EXCLUDED from the rail deliberately - the error on step 16 (queue) is shown as a red
+           purple, lime, amber, blue, purple, lime, green, amber, green). Step 21 (platform)
+           lands on GREEN because that is the one hue whose convention matches "verified /
+           healthy". RED IS
+           EXCLUDED from the rail deliberately - the error on step 17 (queue) is shown as a red
            "!" line inside the code block, where it means a transient failure that was recovered,
            not an unresolved alarm about the service itself.
 
@@ -1117,6 +1147,8 @@ const WorkflowTerminal: React.FC = () => {
         .wt-step:nth-child(17){--rgb:152,73,232;--ink:#9f56ea}
         .wt-step:nth-child(18){--rgb:209,244,112}
         .wt-step:nth-child(19){--rgb:61,163,90}
+        .wt-step:nth-child(20){--rgb:240,168,24}
+        .wt-step:nth-child(21){--rgb:61,163,90}
 
         /* Running fills and pulses; done fills. The glow is NEUTRAL white at .10 rather than a
            lime halo: a lime halo around a blue or purple dot reads as two colours fighting. */
@@ -1147,11 +1179,11 @@ const WorkflowTerminal: React.FC = () => {
            .70 (~8:1 on #000), well clear of AA, so it is legible rather than a bare pass. */
         .wt-note .wt-glyph{flex:0 0 auto;color:rgba(255,255,255,.52)}
         .wt-note .wt-line-text{color:rgba(255,255,255,.70);font-size:14px}
-        /* THE SUBSTEP (step 12, ai, compose). Muted-ish white .72 (~8.6:1 on #000), the ">"
+        /* THE SUBSTEP (step 13, ai, compose). Muted-ish white .72 (~8.6:1 on #000), the ">"
            glyph in the step hue so it reads as nested under the call. */
         .wt-sub .wt-glyph{flex:0 0 auto;color:var(--ink);font-weight:600}
         .wt-sub .wt-line-text{color:rgba(255,255,255,.72);font-size:14px}
-        /* THE ERROR (step 16, queue, only). Red #dc2626 (4.35:1 on #000) - it is a transient failure
+        /* THE ERROR (step 17, queue, only). Red #dc2626 (4.35:1 on #000) - it is a transient failure
            that the next line recovers, so it reads as a logged error, not an alarm. The error
            TEXT is kept readable by pairing the red glyph with brighter white text. */
         .wt-error .wt-glyph{flex:0 0 auto;color:#dc2626;font-weight:700}
@@ -1162,7 +1194,7 @@ const WorkflowTerminal: React.FC = () => {
         .wt-ai{align-items:baseline}
         .wt-ai-tag{flex:0 0 auto;color:#d1f470;font-size:13px;font-weight:600;letter-spacing:.04em}
         .wt-ai-text{color:rgba(255,255,255,.82);font-size:14.5px}
-        /* THE VERIFICATION ROLLUP (step 19, platform). Lime ticks before each verified service, wrapping
+        /* THE VERIFICATION ROLLUP (step 21, platform). Lime ticks before each verified service, wrapping
            inline. The item text is readable white at .82; the tick is lime. */
         .wt-rollup{flex-wrap:wrap;white-space:normal;gap:5px 14px}
         .wt-rollup-item{display:inline-flex;align-items:baseline;gap:5px;color:rgba(255,255,255,.82);font-size:14px}
@@ -1203,7 +1235,7 @@ const WorkflowTerminal: React.FC = () => {
         .wt-lane-detail{color:rgba(255,255,255,.74);font-size:14px;line-height:1.45}
 
         /* THE FOOTER - the ONLY count, and it is live. Running shows the lime dot + "running"
-           on the left and the live "N / 19" counter on the right (N = the shown state, frozen while
+           on the left and the live "N / 21" counter on the right (N = the shown state, frozen while
            paused). Done replaces both with a single CSS-tick + the locked complete string; the
            row height grows to fit it and the text wraps on a narrow panel.
            color raised to .86 by OPACITY ONLY so the footer reads as deliberate chrome rather
