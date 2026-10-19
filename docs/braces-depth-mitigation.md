@@ -35,3 +35,27 @@ The application source has no direct braces/micromatch/fast-glob imports; curren
 transitive tooling. `scripts/check_braces_advisory.py --check-upstream` reports when an
 upstream patch becomes available. Review that release, replace the mitigation deliberately,
 and update the pinned hash and tests rather than suppressing the advisory.
+
+## Reachability and the accept-with-mitigation decision (2026-10-19)
+
+Verified facts behind the standing decision, so this is a recorded risk-accept rather than an
+open question:
+
+- **No patched release exists.** `npm view braces versions` returns `3.0.0 … 3.0.3` and nothing
+  higher; `npm view braces@">3.0.3"` 404s. An `overrides` pin is therefore impossible — the
+  patched version it would point at does not exist. The only npm-offered remediation is
+  `npm audit fix --force`, a **breaking major upgrade of `@aws-amplify/backend` to 1.21.0**.
+- **No runtime reachability.** braces reaches only through `@aws-amplify/backend`,
+  `aws-cdk-lib` and `@aws-amplify/backend-cli` — the Amplify Gen2 / CDK **build toolchain**.
+  (These sit in `dependencies` by Amplify convention, which is why the advisory tracker shows
+  `devOnly: false`, but they are never packaged into a Lambda zip.) Every deployed Lambda
+  handler is **Python**; no JavaScript braces code executes at runtime. The stack-exhaustion DoS
+  requires feeding braces a deeply-nested glob pattern, which on this project can only happen on
+  the **build host** processing build inputs — not from any customer or request path.
+
+**Decision: ACCEPT the mitigation.** Given no patch exists, zero runtime reachability, and a
+depth guard that bounds the one place braces runs (the build host), forcing a breaking Amplify
+framework major upgrade to close a build-tooling advisory is not justified ad hoc. The advisory
+stays **OPEN and tracked** (not dismissed as upstream-fixed). Revisit only when either an upstream
+braces patch ships (the tracker will report it) or an Amplify Gen2 major upgrade is scheduled for
+its own reasons — at which point the guard is replaced deliberately, not suppressed.
