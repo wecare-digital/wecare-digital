@@ -97,6 +97,13 @@ def test_both_service_handlers_use_the_shared_patch_guard_and_stale_write_condit
         assert "order_patch.validate_order_patch(current, body)" in block
         assert "ConsistentRead=True" in block
         assert "ORDER_PATCH_STALE" in block
+        # A status mutation is validated against the exact row read above. Every fulfilment
+        # alias plus payment state must be pinned by the conditional write, including legacy rows
+        # that have not yet been canonicalised onto orderStatus.
+        assert "('order_status', 'orderStatus')" in block
+        assert "('fulfilment_status', 'fulfillmentStatus')" in block
+        assert "('status_alias', 'status')" in block
+        assert "('payment', 'paymentStatus')" in block
         # paymentStatus is legitimately referenced by the optimistic stale-write guard.
         # What must never return is a handler-side write that bypasses the shared validator.
         assert "updates['paymentStatus']" not in block
