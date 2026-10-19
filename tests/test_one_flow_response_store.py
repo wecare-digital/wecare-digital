@@ -193,6 +193,7 @@ def test_a_staff_request_is_a_staff_flow_response_linked_to_the_order(service_ap
     db.Table(ORDERS).put_item(Item={'orderId': 'WD-ORD-ABCD1234', 'contactId': 'wa1',
                                     'customerPhone': '+918100640044'})
     status, body = _body(module._submit_request({'orderId': 'WD-ORD-ABCD1234',
+                                                 'requestType': 'General Inquiry',
                                                  'subject': 'Change', 'description': 'x'}))
     assert status == 201 and body['submissionId'] == body['submissionNumber']
     row = db.tables[SUBMISSIONS][body['submissionId']]
