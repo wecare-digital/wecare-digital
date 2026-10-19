@@ -411,7 +411,7 @@ describe( 'WECARE.DIGITAL Home', () => {
     // phone reference treatment, not an unreviewed desktop redesign.
     expect( css ).toContain( 'font-size:var(--public-hero-size)' );
     expect( css ).toContain( 'font-size:var(--public-section-size)' );
-    expect( css ).toContain( '.home-flow-list strong{display:block;margin:0 0 6px;font-size:24px' );
+    expect( css ).toContain( '.home-flow-list strong{display:block;margin:0 0 6px;font-size:max(var(--public-card-size),24px)' );
   } );
 
   it( 'pins final Home app-hardening and foldable-hinge contracts', () => {
