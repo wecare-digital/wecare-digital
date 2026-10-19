@@ -1145,6 +1145,18 @@ export default function App ( { Component, pageProps }: AppProps ) {
             box-sizing:border-box;
             font-family:var(--font-sans);
             color:var(--public-text);
+            /* CONTAIN THE SHARED RAIL. PublicShare renders a fixed-width icon row whose
+               children (the share trigger and its nowrap hover tooltip) carry an intrinsic
+               width that, at 200 percent zoom on a 320 device (layout viewport near 160 CSS
+               px), set a page-level min-width floor and gave the document about 18px of
+               horizontal scroll. min-width:0 stops this wrapper from passing that intrinsic
+               floor up to the page, and overflow-x:clip lets the rail (and the tooltip that
+               pops off its trigger) overflow THIS box instead of widening the document.
+               overflow-x:hidden is declared first as the pre-clip fallback; clip wins where
+               supported and, unlike hidden, never creates a scroll container. */
+            min-width:0;
+            overflow-x:hidden;
+            overflow-x:clip;
           }
           @media(max-width:767px){
             .public-action-tail{padding-inline:16px;padding-bottom:40px}
