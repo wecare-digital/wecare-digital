@@ -414,7 +414,7 @@ const InternalChatTab: React.FC = () => {
 
       {/* CHAT SUB-TAB */}
       {subTab === 'chat' && (
-        <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 320px)', minHeight: '400px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 320px)', minHeight: '400px' }}>
           {/* Quick Actions */}
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
             {[
