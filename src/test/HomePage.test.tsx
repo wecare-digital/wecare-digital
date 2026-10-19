@@ -343,4 +343,56 @@ describe( 'WECARE.DIGITAL Home', () => {
     expect( css ).toContain( 'padding:48px 16px 40px' );
     expect( css ).toContain( 'gap:64px' );
   } );
+
+  it( 'contains the hero so 200%-zoom reflow cannot give the page horizontal scroll', () => {
+    const { container } = render( <HomePage /> );
+    const css = cssOf( container );
+
+    /**
+     * REGRESSION GUARD for the unified-mobile Phase 1 zoom fix.
+     *
+     * At 200% zoom a <=375px phone reflows to a ~160-188 CSS-px layout viewport. The rotating
+     * pill is a nowrap lozenge whose active word returns to flow (position:static), so its
+     * measured intrinsic width could not shrink and made .home-head set a ~234px page floor -
+     * measured 74px of horizontal overflow at a 160px viewport, 46px at 188px.
+     *
+     * The fix is containment, not a width change: .home-hero gets min-width:0 (so the flex item
+     * may shrink below its content) plus overflow-x:clip (so the pill overflows its OWN box, not
+     * the page), and .home-head keeps its 900px cap as min(900px,100%) with min-width:0. Removing
+     * any of these brings back the horizontal scroll a unit test cannot see directly, so the
+     * declarations are pinned here. overflow-x:hidden is the clip fallback and must stay too.
+     */
+    const heroRule = /\.home-hero\{([^}]*)\}/.exec( css );
+    expect( heroRule, '.home-hero rule not found' ).not.toBeNull();
+    expect( heroRule![ 1 ] ).toContain( 'min-width:0' );
+    expect( heroRule![ 1 ] ).toContain( 'overflow-x:hidden' );
+    expect( heroRule![ 1 ] ).toContain( 'overflow-x:clip' );
+
+    const headRule = /\.home-head\{([^}]*)\}/.exec( css );
+    expect( headRule, '.home-head rule not found' ).not.toBeNull();
+    expect( headRule![ 1 ] ).toContain( 'max-width:min(900px, 100%)' );
+    expect( headRule![ 1 ] ).toContain( 'min-width:0' );
+
+    // The shared pill caps its own box so it cannot exceed the (now shrinkable) hero.
+    expect( css ).toContain( 'max-width:100%' );
+  } );
+
+  it( 'declares the unified-mobile shared primitives in tokens.css', () => {
+    const tokens = readFileSync( resolve( process.cwd(), 'src/styles/tokens.css' ), 'utf8' );
+
+    /**
+     * UNIFIED-MOBILE PHASE 1 PRIMITIVES.
+     *
+     * --tap-min is the canonical 44px tap-target name the pass standardises on; --tap-target
+     * stays as an alias that reads it, so existing consumers (form-controls.css) and the
+     * pinning tests keep resolving to 44px and the two cannot drift. The safe-area insets are
+     * centralised into named --safe-* tokens as the single referenced contract.
+     */
+    expect( tokens ).toContain( '--tap-min: 44px' );
+    expect( tokens ).toContain( '--tap-target: var(--tap-min)' );
+    expect( tokens ).toContain( '--safe-top: env(safe-area-inset-top)' );
+    expect( tokens ).toContain( '--safe-right: env(safe-area-inset-right)' );
+    expect( tokens ).toContain( '--safe-bottom: env(safe-area-inset-bottom)' );
+    expect( tokens ).toContain( '--safe-left: env(safe-area-inset-left)' );
+  } );
 } );

@@ -124,6 +124,14 @@ const RotatingPill: React.FC<RotatingPillProps> = ( { words, phase = 'final', bl
           position:relative;display:inline-block;border-radius:9999px;
           padding:.02em .3em .02em .22em;margin-top:.08em;white-space:nowrap;
           transition:background-color .52s cubic-bezier(.16,1,.3,1);
+          /* ZOOM CONTAINMENT (unified-mobile Phase 1). max-width:100% caps the lozenge to its
+             host at a 200%-zoom reflow (a ~160-188 CSS-px layout viewport) so the nowrap pill
+             cannot set a page min-width floor. The host hero carries overflow-x:clip, so at that
+             extreme the pill overflows its own box rather than pushing the page into horizontal
+             scroll. The measured-width glide is untouched (the effect still writes an inline
+             width); this only caps the visual box, and normal-zoom layout is unchanged because
+             the pill never reaches 100% there. NO backtick in this comment. */
+          max-width:100%;
         }
         /* The white shutter. scaleX(0) (finished) by default, so the tint is never left covered. */
         .rp-mark::before{

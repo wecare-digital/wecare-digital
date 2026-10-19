@@ -115,6 +115,14 @@
   --public-accent-red: #dc2626;
   --public-accent-red-tint: #fee2e2;
 
+  /* FLUID SCALE - the --public-* type/spacing scale below is the fluid scale the unified-mobile
+   * pass ADOPTS as canonical for every public surface: fluid clamp() sizes (--public-hero-size,
+   * --public-section-size, --public-body-size) and the shared spacing rungs (--public-section-gap,
+   * --public-page-gutter). Home already reads these. Where a home-shell rule still hard-codes a px
+   * value that a token covers, migrate it to the token in future units - but only values NOT pinned
+   * by a test literal (HomePage.test.tsx pins .home-layout padding 80px 24px 48px / gap 96px and the
+   * <=767px padding 48px 16px 40px / gap 64px, so those stay until their assertions are updated).
+   * Other public pages migrate in later unified-mobile units; do not churn them here. */
   --public-hero-size: clamp(36px, 4.3vw, 60px);
   --public-hero-weight: 600;
   --public-hero-leading: 1.04;
@@ -317,7 +325,26 @@
    * LAYOUT EXTRAS
    * ======================================== */
   --max-width-wide: 1400px;
-  --tap-target: 44px;
+
+  /* TAP TARGET - the minimum hit area the device-compat contract (.kiro/steering/20-device-compat.md)
+   * requires: 44x44px. --tap-min is the canonical NAME the unified-mobile pass standardises on;
+   * --tap-target is kept as an alias so existing consumers (form-controls.css, DesignReference.tsx)
+   * and the pinning tests (FormControlsCss.test.ts, OrdersPage.test.tsx) keep resolving to 44px and
+   * the two values CANNOT drift. Change the number in one place - here on --tap-min - and both move. */
+  --tap-min: 44px;
+  --tap-target: var(--tap-min);
+
+  /* SAFE-AREA INSET CONTRACT - the single NAMED source for the notch/home-bar insets the
+   * device-compat contract requires (env(safe-area-inset-*) with viewport-fit=cover). The raw
+   * env() calls were already applied and @supports-guarded across tokens.css, Header, Footer,
+   * BottomNav and Layout.css; these tokens centralise them so in-scope surfaces reference one
+   * name instead of repeating the env() call. On a non-notch device env() resolves to 0, so a
+   * bare reference is safe; the @supports guard stays only where a browser might not know env()
+   * at all. */
+  --safe-top: env(safe-area-inset-top);
+  --safe-right: env(safe-area-inset-right);
+  --safe-bottom: env(safe-area-inset-bottom);
+  --safe-left: env(safe-area-inset-left);
 
   /* The house lime state tint. One declaration; --scrollbar-track and --control-tint both
    * read it, so a change to the tint cannot move one and not the other. */
@@ -723,18 +750,21 @@ textarea,
   touch-action: manipulation;
 }
 
-/* Safe area insets for notch devices */
+/* Safe area insets for notch devices. These now read the named --safe-* tokens declared on
+ * :root above, which are the single source the unified-mobile pass references; the @supports
+ * guard stays because a browser that does not know env() at all should skip the padding rather
+ * than compute it as nothing. */
 @supports (padding: env(safe-area-inset-top)) {
   .layout {
-    padding-top: env(safe-area-inset-top);
+    padding-top: var(--safe-top);
   }
 
   .sidebar {
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-bottom: var(--safe-bottom);
   }
 
   .main-content {
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-bottom: var(--safe-bottom);
   }
 }
 

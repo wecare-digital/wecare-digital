@@ -426,7 +426,24 @@ const HomePage: React.FC = () => {
           gap:44px;
           align-items:start;
         }
-        .home-flow-panel{min-width:0}
+        /* min-width:0 lets this grid child shrink below the terminal's intrinsic width (PR #932);
+           overflow-x:clip is the ZOOM-CONTAINMENT addition - at a 200%-zoom reflow (~160 CSS-px
+           viewport) the terminal's own fixed-size monospace lines overflow the shrunken panel,
+           and without a clip here that overflow became the page floor (a .wt-request line reached
+           ~181px against a 128px panel). Clipping at the panel - the home-shell box this page owns
+           - contains it WITHOUT touching WorkflowTerminal, which styles itself. Normal-zoom layout
+           is unchanged: the panel is wide enough there that nothing reaches the clip. overflow-x:
+           hidden is the fallback for engines without clip. NO backtick in this comment. */
+        .home-flow-panel{min-width:0;overflow-x:hidden;overflow-x:clip}
+        /* ZOOM CONTAINMENT (unified-mobile Phase 1). The copy column is the OTHER grid child,
+           and a grid item defaults to min-width:auto, so at a 200%-zoom reflow (~160 CSS-px
+           layout viewport) its list rows could not shrink below their content and became the
+           page floor after the hero was contained (measured 170.5px-wide rows at a 160px
+           viewport). min-width:0 lets it shrink like the panel beside it; overflow-wrap on the
+           list text lets a long body line break rather than set an intrinsic floor. Normal-zoom
+           layout is unchanged - the column only shrinks when the viewport forces it. */
+        .home-flow-copy{min-width:0}
+        .home-flow-list li{overflow-wrap:break-word}
         /* NOT STICKY, AND THE STICKY IT REPLACES WAS DOING NOTHING IT CLAIMED TO.
            This was position:sticky;top:128px under a comment saying the explanation "stays level
            with the panel while the eye follows the stream". It cannot. A sticky element only
@@ -478,7 +495,13 @@ const HomePage: React.FC = () => {
            The cost is honest: the two shorter beats gain the difference as whitespace, so the
            band grows by that much. Cheaper than copy edited to equal length, which would be
            changing what the page says to fix how it looks. */
-        .home-flow-list{margin:0;padding:0;list-style:none;display:grid;grid-auto-rows:1fr;gap:18px}
+        /* grid-template-columns:minmax(0,1fr) is the ZOOM-CONTAINMENT half of this rule. The
+           single implicit column was auto-sized (minmax(min-content,max-content)), so each row
+           grew to its content's max-content width and set the page floor at a 200%-zoom reflow
+           (~160 CSS-px viewport). minmax(0,1fr) lets the column shrink to the container width so
+           the rows wrap instead; the grid-auto-rows:1fr equal-height behaviour below is
+           unaffected, and normal-zoom layout is unchanged because 1fr equals the full width there. */
+        .home-flow-list{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:minmax(0,1fr);grid-auto-rows:1fr;gap:18px}
         /* LIME, AND 3px RATHER THAN 1px - both parts are deliberate.
            This was a 1px #e5e7eb hairline. The owner asked for the separating line to be
            lime green, and lime simply does not survive at 1px: #d1f470 measures about
@@ -616,16 +639,43 @@ const HomePage: React.FC = () => {
           display:flex;
           flex-direction:column;
           gap:var(--public-section-gap);
+          /* ZOOM CONTAINMENT (unified-mobile Phase 1) - the page-level backstop. Each section
+             above is contained on its own, but .home-layout wraps them all and clipping here
+             guarantees no descendant can give the PAGE horizontal scroll at a 200%-zoom reflow,
+             which is the device-compat contract (no horizontal scroll from 320px up, honoured to
+             200% zoom). min-width:0 keeps this flex-column item from being floored by a child's
+             intrinsic width. At normal zoom nothing overflows the 1300px canvas, so the clip never
+             bites and layout is unchanged. overflow-x:hidden is the fallback for engines without
+             clip. NO backtick in this comment. */
+          min-width:0;
+          overflow-x:hidden;
+          overflow-x:clip;
         }
         /* align-items:flex-start replaces the align-self the eyebrow used to carry.
            Without it the badge is stretched to the full 1300px measure by the flex
            default. It has to be handled on a wrapper rather than passed to the badge:
            styled-jsx does not scope composite components, so anything sent in from
            this page arrives unstyled. */
+        /* ZOOM CONTAINMENT (unified-mobile Phase 1). At 200% zoom a phone reflows to a
+           ~160-188 CSS-px layout viewport, and the hero was the one home-shell box that set a
+           ~234px page floor: the rotating pill is a nowrap lozenge whose active word returns to
+           flow (position:static), so its measured intrinsic width could not shrink and pushed
+           document.scrollWidth past the viewport (measured 74px over at 160, 46px at 188).
+           min-width:0 lets this flex item shrink below its content's intrinsic width, and
+           overflow-x:clip lets the pill overflow its OWN box at that extreme without the page
+           gaining horizontal scroll - the pill keeps its measured-width glide, the h1 keeps a
+           constant height, and normal-zoom layout is unchanged because nothing overflows there.
+           clip (not scroll) so no stray scrollbar appears; overflow-x:hidden is the fallback for
+           engines without clip and behaves the same for this case (no programmatic scroll here).
+           NO backtick in this comment - a stray one ends the styled-jsx CSS literal. */
         .home-hero{
           display:flex;
           flex-direction:column;
           align-items:flex-start;
+          min-width:0;
+          max-width:100%;
+          overflow-x:hidden;
+          overflow-x:clip;
         }
         /* Hero h1 rung from the design contract: 600, which is LIGHTER than the 700
            section level. That inversion is notion's and is intentional - the same
@@ -652,7 +702,14 @@ const HomePage: React.FC = () => {
           letter-spacing:var(--public-hero-tracking);
           color:var(--public-heading);
           margin:0;
-          max-width:900px;
+          /* 900px CAPS the measure; min(...,100%) also keeps it within a reflowed viewport at
+             200% zoom (the cap never floors the width). min-width:0 lets the h1 shrink below the
+             nowrap pill's intrinsic width so it no longer sets a page min-width floor - paired
+             with overflow-x:clip on .home-hero above, the pill overflows its own box, not the
+             page. The headline text still wraps normally; the pill still glides to its measured
+             width. */
+          max-width:min(900px, 100%);
+          min-width:0;
         }
         /* The single body rung, matching .hero-left p on Grahak OS exactly. The
            contract allows ONE body level across a page and this is it.

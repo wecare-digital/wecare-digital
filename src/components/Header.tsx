@@ -802,7 +802,17 @@ const Header: React.FC = () => {
         @supports ((backdrop-filter:blur(20px)) or (-webkit-backdrop-filter:blur(20px))){
           .hdr{background:rgba(255,255,255,.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
         }
-        .hdr-in{max-width:var(--public-content-max);margin:0 auto;padding:18px 24px;display:flex;align-items:center;box-sizing:border-box;height:108px}
+        /* overflow-x:clip is ZOOM CONTAINMENT (unified-mobile Phase 1). The header is position:
+           fixed, so its content is NOT clipped by html's overflow-x guard - at a 200%-zoom reflow
+           to a ~160 CSS-px layout viewport the nowrap brand lockup (WECARE.DIGITAL ~158px) plus the
+           46px menu trigger overflow the bar and let the PAGE scroll ~18px horizontally. Clipping
+           on the x axis only (overflow-y stays visible, so this is not a scroll container) contains
+           that without reflowing the lockup. The desktop mega-menu is position:absolute and
+           width:min(760px,...), which fits inside this 1300px box, so it is not clipped; at
+           max-width:767px it is position:fixed and escapes this box entirely. Normal-zoom layout is
+           unchanged - nothing reaches the clip there. overflow-x:hidden is the clip fallback. NO
+           backtick in this comment. */
+        .hdr-in{max-width:var(--public-content-max);margin:0 auto;padding:18px 24px;display:flex;align-items:center;box-sizing:border-box;height:108px;min-width:0;overflow-x:hidden;overflow-x:clip}
         .logo{display:flex;align-items:center;text-decoration:none}
         .logo-nav{display:flex;align-items:center;gap:10px}
         .nav-dropdown{position:relative}
