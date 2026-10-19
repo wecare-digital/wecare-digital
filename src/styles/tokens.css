@@ -689,8 +689,8 @@ textarea:focus {
   input[type="radio"],
   select,
   [role="button"] {
-    min-height: 44px;
-    min-width: 44px;
+    min-height: var(--tap-min);
+    min-width: var(--tap-min);
   }
 
   .btn,
@@ -798,14 +798,14 @@ body {
   input,
   select,
   textarea {
-    font-size: 16px !important;
+    font-size: var(--public-mobile-form-font-size) !important;
   }
 
   /* Larger touch targets for mobile app */
   button,
   a,
   [role="button"] {
-    min-height: 44px;
+    min-height: var(--tap-min);
   }
 }
 
