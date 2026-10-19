@@ -5090,8 +5090,16 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
           .vl-live-mobile-copy b{font-weight:750}
           .vl-live-mobile-copy small{margin-top:2px;color:var(--muted);font-size:10.5px}
           .vl-live-mobile-empty{margin:12px 0 0;padding-top:12px;border-top:1px solid var(--hair);color:var(--muted);font-size:12px}
-          .vl-live-air-card-wrap{display:block;position:relative;z-index:12;width:100%;margin:20px 0 56px;filter:none}
-          .vl-live-air-card{padding:20px}
+          .vl-live-air-card-wrap{display:block;position:relative;z-index:12;width:100%;max-width:100%;min-width:0;margin:20px 0 56px;filter:none}
+          .vl-live-air-card{width:100%;max-width:100%;min-width:0;padding:20px}
+          .vl-live-air-panel{min-width:0;max-width:100%}
+          .vl-live-air-gauge-row{grid-template-columns:4px 64px minmax(0,1fr);gap:10px;min-width:0;max-width:100%}
+          .vl-live-air-aqi-score{min-width:0}
+          .vl-live-air-gauge-meta{min-width:0;max-width:100%}
+          .vl-live-air-gauge-word{max-width:100%;font-size:clamp(18px,5.2vw,22px);white-space:normal;overflow-wrap:anywhere;word-break:normal}
+          .vl-live-air-summary-meta{min-width:0;max-width:100%}
+          .vl-live-air-summary-chip{min-width:0;max-width:100%;white-space:normal}
+          .vl-live-air-summary-chip>span{min-width:0;overflow-wrap:anywhere}
           .vl-live-air-context{align-items:flex-start}
           .vl-live-air-context-item.is-location{max-width:56%}
           .vl-live-air-context-item.is-time{margin-left:auto}
@@ -5136,7 +5144,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
           .vl-live-air-history-head-meta{width:100%;justify-content:space-between}
           .vl-live-air-range{max-width:100%;overflow-x:auto}
           .vl-live-air-health-tab{scroll-snap-align:start}
-          .vl-live-air-gauge-row{gap:12px}
+
         }
         @media(max-height:500px) and (orientation:landscape){
           .vl-live-map-shell{height:auto;min-height:250px}
