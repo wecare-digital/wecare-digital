@@ -100,6 +100,9 @@ describe( 'Grahak OS typography matches the Home public-page ladder', () => {
     expect( rotatingHero ).toContain( 'mobileFoundation?: boolean' );
     expect( rotatingHero ).toContain( "mobileFoundation ? 'uses-mobile-foundation' : ''" );
     expect( rotatingHero ).toContain( '.rh-shell.uses-mobile-foundation .rh-head{font-size:var(--public-mobile-hero-size)}' );
+    expect( rotatingHero ).toContain( '@media(max-width:400px){\n          .rh-head{font-size:32px}\n          .rh-shell.uses-mobile-foundation .rh-head{font-size:32px}' );
+    expect( rotatingHero ).toContain( '@media(max-width:340px){\n          .rh-head{font-size:28px}\n          .rh-shell.uses-mobile-foundation .rh-head{font-size:28px}' );
+    expect( rotatingHero ).toContain( '@media(max-width:300px){\n          .rh-head.has-prefix{font-size:26px}\n          .rh-shell.uses-mobile-foundation .rh-head.has-prefix{font-size:26px}' );
     expect( rotatingHero ).toContain( 'padding:var(--public-mobile-hero-top) var(--public-mobile-page-gutter) 40px' );
     expect( rotatingHero ).toContain( 'gap:var(--public-mobile-section-gap)' );
     expect( rotatingHero ).toContain( '@media(horizontal-viewport-segments:2)' );
