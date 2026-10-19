@@ -22,9 +22,9 @@ interface BreadcrumbsProps {
 function getBreadcrumbs(pathname: string): BreadcrumbItem[] {
   const crumbs: BreadcrumbItem[] = [];
   
-  // Always start with Messages (the workspace root)
-  if (pathname !== '/workspace/engage/inbox') {
-    crumbs.push({ label: 'Messages', path: '/workspace/engage/inbox', isLast: false });
+  // Workspace Home is the navigation root. Domains such as Communications and Payments are peers.
+  if (pathname !== '/workspace') {
+    crumbs.push({ label: 'Workspace', path: '/workspace', isLast: false });
   }
   
   // Find matching nav items
@@ -73,8 +73,8 @@ const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ className }) => {
   const router = useRouter();
   const breadcrumbs = getBreadcrumbs(router.pathname);
   
-  // Don't show breadcrumbs on the workspace root or if only one item
-  if (router.pathname === '/workspace/engage/inbox' || breadcrumbs.length <= 1) {
+  // Don't show breadcrumbs on Workspace Home or if only one item.
+  if (router.pathname === '/workspace' || breadcrumbs.length <= 1) {
     return null;
   }
   

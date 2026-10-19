@@ -70,8 +70,8 @@ describe( 'the sidebar is short and holds only daily streams', () => {
     expect( navigationConfig.length ).toBeLessThanOrEqual( 9 );
   } );
 
-  it( 'leads with the inbox', () => {
-    expect( navigationConfig[ 0 ].path ).toBe( '/workspace/engage/inbox' );
+  it( 'leads with the canonical Communications workspace', () => {
+    expect( navigationConfig[ 0 ].path ).toBe( '/workspace/communications' );
   } );
 
   it( 'no longer carries the 30-item WhatsApp branch', () => {
@@ -80,11 +80,16 @@ describe( 'the sidebar is short and holds only daily streams', () => {
     expect( waInSidebar ).toHaveLength( 0 );
   } );
 
-  it( 'offers Calls as an inbox filter, not a page', () => {
-    const inbox = navigationConfig.find( ( i ) => i.path === '/workspace/engage/inbox' );
-    const calls = inbox?.children?.find( ( c ) => c.label === 'Calls' );
-    expect( calls?.path ).toBe( '/workspace/engage/inbox?channel=voice' );
-    // dm/calls must be gone, not merely unlinked.
+  it( 'keeps only Inbox and Manage as Communications navigation modes', () => {
+    const communications = navigationConfig.find( ( i ) => i.path === '/workspace/communications' );
+    expect( communications?.children?.map( ( c ) => c.label ) )
+      .toEqual( [ 'Inbox', 'Manage communications' ] );
+    expect( communications?.children?.map( ( c ) => c.path ) )
+      .toEqual( [
+        '/workspace/communications?view=inbox',
+        '/workspace/communications?view=manage',
+      ] );
+    // The already-retired standalone Calls route must stay gone.
     expect( fs.existsSync( path.join( PAGES, 'workspace/engage/calls/index.tsx' ) ) ).toBe( false );
   } );
 } );
@@ -236,22 +241,20 @@ describe( 'no entry point lands on a redirect signpost', () => {
 } );
 
 describe( 'active-state matching survives the query strings', () => {
-  // The inbox children are one page with six query strings. Comparing a path
-  // against path-plus-query never matches, so without stripping the query the
-  // sidebar would highlight nothing on the page you are looking at.
-  it( 'marks the inbox active when a channel filter is applied', () => {
-    const inbox = navigationConfig.find( ( i ) => i.path === '/workspace/engage/inbox' )!;
-    expect( isNavItemActive( inbox, '/workspace/engage/inbox' ) ).toBe( true );
+  // Inbox and Manage are query-string modes of one canonical Communications page.
+  it( 'marks Communications active on its canonical page', () => {
+    const communications = navigationConfig.find( ( i ) => i.path === '/workspace/communications' )!;
+    expect( isNavItemActive( communications, '/workspace/communications' ) ).toBe( true );
   } );
 
   it( 'marks a query-string child active on its base route', () => {
-    const child = { path: '/workspace/engage/inbox?channel=voice', label: 'Calls' };
-    expect( isSubItemActive( child, '/workspace/engage/inbox' ) ).toBe( true );
+    const child = { path: '/workspace/communications?view=manage', label: 'Manage communications' };
+    expect( isSubItemActive( child, '/workspace/communications' ) ).toBe( true );
   } );
 
   it( 'does not mark an unrelated route active', () => {
     const contacts = navigationConfig.find( ( i ) => i.path === '/workspace/contacts' )!;
-    expect( isNavItemActive( contacts, '/workspace/engage/inbox' ) ).toBe( false );
+    expect( isNavItemActive( contacts, '/workspace/communications' ) ).toBe( false );
   } );
 } );
 

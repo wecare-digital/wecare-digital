@@ -88,28 +88,14 @@ export interface SettingsGroup {
  */
 export const navigationConfig: NavItem[] = [
   {
-    // The landing. Channel filters are query strings on this ONE page, surfaced as the
-    // inbox's own in-page selector rather than sidebar rows. The WhatsApp hub and the
-    // Channels page hang here for the palette, not as visible children.
-    path: '/workspace/engage/inbox',
-    label: 'Messages',
+    // Canonical daily communication workspace. Channels are filters/capabilities inside
+    // Inbox/Manage, not separate top-level destinations.
+    path: '/workspace/communications',
+    label: 'Communications',
     icon: 'message',
     children: [
-      { path: '/workspace/engage/inbox?channel=whatsapp', label: 'WhatsApp' },
-      { path: '/workspace/engage/inbox?channel=sms', label: 'SMS' },
-      { path: '/workspace/engage/inbox?channel=rcs', label: 'RCS' },
-      { path: '/workspace/engage/inbox?channel=email', label: 'Email' },
-      { path: '/workspace/engage/inbox?channel=voice', label: 'Calls' },
-      { path: '/workspace/engage/broadcast', label: 'Broadcast' },
-      // Scheduled and Contact 360 are tabs on the Messages hub (FEAT-005), reached as ?tab= on
-      // /workspace/engage. Broadcast and Message logs keep their own routes (the channel tabs
-      // embed them).
-      { path: '/workspace/engage?tab=scheduled', label: 'Scheduled' },
-      // FEAT-003: Message logs is a tab on the Messages hub now (beside Analytics), not a
-      // standalone sidebar destination; reached as a ?tab= deep-link. The logs route still
-      // exists (the per-channel hubs embed it); it is simply no longer its own nav row.
-      { path: '/workspace/engage?tab=logs', label: 'Message logs' },
-      { path: '/workspace/engage?tab=contact-360', label: 'Contact 360' },
+      { path: '/workspace/communications?view=inbox', label: 'Inbox' },
+      { path: '/workspace/communications?view=manage', label: 'Manage communications' },
     ],
   },
   {
@@ -130,16 +116,13 @@ export const navigationConfig: NavItem[] = [
     ],
   },
   {
-    // Pay Flow + invoice records as in-page tabs on /workspace/pay (FEAT-005: tab bodies
-    // relocated, deep-links are ?tab= queries on the hub).
-    path: '/workspace/pay',
+    // Canonical Payments workspace: Collect for money-moving initiation, Ledger for read/audit.
+    path: '/workspace/payments',
     label: 'Payments',
     icon: 'payment',
     children: [
-      // The ledger: what was billed, paid and delivered. Read-only on purpose -
-      // cancel, delete and resend all move money or message a customer.
-      { path: '/workspace/pay?tab=records', label: 'Invoice records' },
-      { path: '/workspace/pay?tab=flow', label: 'Pay Flow' },
+      { path: '/workspace/payments?view=collect', label: 'Collect' },
+      { path: '/workspace/payments?view=ledger', label: 'Ledger' },
     ],
   },
   {
@@ -463,23 +446,19 @@ export interface ModuleHome {
 
 export const moduleHomes: ModuleHome[] = [
   {
-    id: 'home', label: 'Home', path: '/workspace/engage/inbox',
+    id: 'home', label: 'Home', path: '/workspace',
     innerPages: [],
-    note: 'The Dashboard section was removed; the workspace landing is now the common '
-      + 'inbox. The former platform tabs live under /workspace/settings/platform/* and '
-      + 'are listed by the platform-operations module home below.',
+    note: 'Workspace Home is the operator launchpad. It owns attention queues, quick actions, '
+      + 'recent work and discovery of the small set of operational workspaces.',
   },
   {
-    id: 'communications', label: 'Communications', path: '/workspace/engage',
-    // The master prompt is explicit: Communications exposes EXACTLY these three.
-    // WhatsApp Business was `/workspace/engage/whatsapp` until 2026-10-15, when that route
-    // became a signpost to the common inbox (the first entry here) - so naming it would
-    // have listed the common inbox twice and WhatsApp Business not at all. It is now the
-    // WhatsApp hub: every WhatsApp capability except the inbox, as lazy tabs.
-    innerPages: ['/workspace/engage/inbox', '/workspace/engage/whatsapp/settings', '/workspace/engage/channels?tab=voice'],
-    note: 'Common Inbox, WhatsApp Business and Business Calling — exactly three, as '
-      + 'specified. The other channels (SMS, RCS, Email, Push) are filters on the '
-      + 'common inbox plus configuration under the gear, not peers of these three.',
+    id: 'communications', label: 'Communications', path: '/workspace/communications',
+    innerPages: [
+      '/workspace/communications?view=inbox',
+      '/workspace/communications?view=manage',
+    ],
+    note: 'Exactly two primary modes: Inbox for daily conversation work and Manage for channels, '
+      + 'content, automation and communications operations.',
   },
   {
     id: 'customers', label: 'Customers', path: '/workspace/contacts',
@@ -487,8 +466,8 @@ export const moduleHomes: ModuleHome[] = [
   },
   {
     id: 'commerce', label: 'Commerce', path: '/workspace/commerce',
-    innerPages: ['/workspace/commerce?tab=catalog', '/workspace/commerce?tab=engine', '/workspace/pay', '/workspace/pay?tab=records'],
-    note: 'Catalog, orders and payment tools are always available from Commerce.',
+    innerPages: ['/workspace/commerce?tab=catalog', '/workspace/commerce?tab=engine', '/workspace/payments', '/workspace/payments?view=ledger'],
+    note: 'Catalog and orders remain Commerce; money collection and the ledger live in Payments.',
   },
   // The 'growth' module home was here, gated on NEXT_PUBLIC_ENABLE_GROWTH_MODULE.
   // Removed 2026-09-25 with /growth/index.tsx on owner instruction. The pages it listed
