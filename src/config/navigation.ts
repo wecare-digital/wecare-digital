@@ -132,30 +132,23 @@ export const navigationConfig: NavItem[] = [
     ],
   },
   {
-    // SERVICE — the unified customer-request front door. The former Forms destinations
-    // (responses, self-service hub) and the request submit/track/amend flows are in-page
-    // tabs on this hub. FEAT-005 relocated the tab bodies out of the routes tree, so each
-    // child deep-links the hub with its ?tab= id; request/responses keeps its own route.
-    path: '/workspace/engage/service-ops',
+    // Service is one workspace. Requests are the operational queue; customer-facing
+    // submit/track/amend steps and service tools are contextual deep-links, not primary tabs.
+    path: '/workspace/service',
     label: 'Service',
     icon: 'order',
     children: [
-      { path: '/workspace/engage/service-ops?tab=responses', label: 'Responses' },
-      { path: '/workspace/engage/service-ops?tab=form-responses', label: 'Form responses' },
-      { path: '/workspace/engage/service-ops?tab=selfservice', label: 'Customer Service Hub' },
-      { path: '/workspace/engage/service-ops?tab=orders', label: 'Orders' },
-      { path: '/workspace/engage/service-ops?tab=submit', label: 'Submit Request' },
-      { path: '/workspace/engage/service-ops?tab=track', label: 'Track Request' },
-      { path: '/workspace/engage/service-ops?tab=amend', label: 'Amend Request' },
-      { path: '/workspace/engage/service-ops?tab=appointments', label: 'Appointments' },
-      { path: '/workspace/engage/service-ops?tab=rx-slots', label: 'RX Slots' },
-      { path: '/workspace/engage/service-ops?tab=documents', label: 'Drop Docs' },
-      // Beside Drop Docs because the two are the same errand in opposite directions:
-      // Drop Docs collects a file from a customer, Secure Files delivers one to them.
-      { path: '/workspace/engage/service-ops?tab=secure-files', label: 'Secure Files' },
-      { path: '/workspace/engage/service-ops?tab=enterprise', label: 'Enterprise' },
-      { path: '/workspace/engage/service-ops?tab=reviews', label: 'Reviews' },
-      { path: '/workspace/engage/service-ops?tab=faq', label: 'FAQ' },
+      { path: '/workspace/service?view=requests', label: 'Requests' },
+      { path: '/workspace/service?view=requests&action=submit', label: 'Submit Request' },
+      { path: '/workspace/service?view=requests&action=track', label: 'Track Request' },
+      { path: '/workspace/service?view=requests&action=amend', label: 'Amend Request' },
+      { path: '/workspace/service?view=appointments', label: 'Appointments' },
+      { path: '/workspace/service?view=appointments&action=rx-slots', label: 'RX Slots' },
+      { path: '/workspace/service?view=documents', label: 'Documents' },
+      { path: '/workspace/service?view=documents&action=secure-files', label: 'Secure Files' },
+      { path: '/workspace/service?view=requests&action=enterprise', label: 'Enterprise Cases' },
+      { path: '/workspace/service?view=requests&action=reviews', label: 'Reviews' },
+      { path: '/workspace/service?view=requests&action=faq', label: 'FAQ' },
     ],
   },
   {
@@ -477,10 +470,13 @@ export const moduleHomes: ModuleHome[] = [
   // [retired public path]/whatsapp/conversions-api each have their own nav entry — so nothing became
   // unreachable, only the grouping page went.
   {
-    id: 'service-operations', label: 'Service Operations', path: '/workspace/engage/service-ops',
-    innerPages: ['/workspace/engage/service-ops?tab=submit', '/workspace/engage/service-ops?tab=track',
-      '/workspace/engage/service-ops?tab=amend', '/workspace/engage/service-ops?tab=appointments', '/workspace/engage/service-ops?tab=rx-slots',
-      '/workspace/engage/service-ops?tab=documents', '/workspace/engage/service-ops?tab=enterprise', '/workspace/engage/service-ops?tab=reviews', '/workspace/engage/service-ops?tab=faq'],
+    id: 'service-operations', label: 'Service', path: '/workspace/service',
+    innerPages: [
+      '/workspace/service?view=requests',
+      '/workspace/service?view=appointments',
+      '/workspace/service?view=documents',
+    ],
+    note: 'Requests, Appointments and Documents are the three primary service modes; the remaining capabilities open contextually.',
   },
   {
     id: 'platform-operations', label: 'Platform Operations',
