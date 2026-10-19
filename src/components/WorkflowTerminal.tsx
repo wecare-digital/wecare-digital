@@ -38,7 +38,7 @@ import React, { useEffect, useRef, useState } from 'react';
  */
 
 type Result = { label: string; kind?: 'ok' | 'warn' };
-type Lane = { name: string; detail: string };
+type Lane = { name: string; detail: string; on?: boolean };
 
 interface Step {
   /** The service that did the work, shown as the lane label. */
@@ -49,6 +49,12 @@ interface Step {
   /** Shared infrastructure this step ran on, rendered as a code comment. */
   infra?: string;
   command?: React.ReactNode;
+  /** The inline AI decision for this step, e.g. 'intent read -> order confirmation'.
+      Rendered as the lime "ai >" thread marker plus white decision text. Steps that are
+      deliberately NOT AI (01, 02, 09) carry no ai field - that honesty boundary is the point. */
+  ai?: string;
+  /** A small indented micro-trace under the step (step 06's draft provenance, step 09's retry). */
+  subtrace?: string[];
   results?: Result[];
   /** Concurrent services. Rendered as parallel lanes, not a sequence. */
   lanes?: Lane[];
@@ -57,82 +63,112 @@ interface Step {
 }
 
 /**
- * WHAT THIS PANEL SAYS ABOUT THE COMPANY, which is the whole reason it was rewritten.
+ * WHAT THIS PANEL SAYS ABOUT THE COMPANY, which is the whole reason it was rewritten AGAIN.
  *
- * It used to run an agent loop: Plan, Read configuration, Call tool, Inspect result,
- * "confidence 0.71", Retry, Optimize, Run checks. Every one of those beats is the visual
- * grammar of an autonomous-agent demo, and a visitor reading it would reasonably conclude
- * this is an agentic AI product. The owner's position is the opposite: WECARE.DIGITAL runs
- * many services on one shared platform, and the AI parts are a feature of a few of them,
- * not the thing being sold.
+ * THIS REVERSES THE PANEL'S PREVIOUS DECISION, on owner instruction (recorded learning
+ * 75c80121-7ead-4c49-b900-a0817515f2db). The panel used to be a deliberately NOT-AI
+ * infrastructure trace: eight services on one shared platform, with a note that "AI is a
+ * feature inside a few of them rather than the thing being sold". The owner has decided the
+ * opposite framing is the one to ship: this is a 10-service AI-EXECUTION trace that shows
+ * AI AT EVERY DECISION. The reversal is kept visible the way this file keeps every reversal
+ * readable - the prior reasoning is not deleted elsewhere, it is simply outranked here.
  *
- * So the stream now shows what the backend actually does on a single request - gateway,
- * auth, contacts, four messaging workers in parallel, commerce, billing, the queue
- * absorbing a provider failure, and the health rollup. These are the real service
- * families in this repo (amplify/functions/{core,messaging,ecommerce,operations}), not
- * invented ones.
+ * So the stream now shows one order (#WD-4821) executing end to end, and at each step that
+ * involves a judgement the panel names the AI decision inline with a lime "ai >" marker:
+ * the intent is read, the request is validated, the transaction is risk-checked, the reply
+ * is drafted from the knowledge base, channels are selected and tailored, a follow-up is
+ * judged warranted, and the whole run is verified against one model. AI understands and
+ * decides; the platform executes.
  *
- * THE INFRA IS NAMED IN COMMENT LINES. Each step carries a "#" line listing the shared
- * components it used, which is what makes the point the headline makes in words: the
- * services are different, the foundation underneath them is the same one. The parallel
- * lanes in the messaging step exist to show concurrency directly - a vertical list would
- * have read as four more sequential steps, which is precisely the wrong impression.
+ * THE HONESTY BOUNDARY IS DELIBERATE. Three steps carry NO ai marker on purpose - gateway
+ * accepting the request (01), auth verifying access (02), and the queue recovering a failed
+ * send (09). Those are platform resilience, not intelligence, and claiming AI there would be
+ * the kind of overreach the panel is careful to avoid. Six steps carry an ai decision, which
+ * is the "AI at 6 decisions" the done footer reports.
  *
- * Nothing here claims a benchmark. The timings are illustrative and the panel is
- * aria-hidden with a static summary, so no assistive technology is told these are
- * measurements.
+ * THE INFRA/SUB-TRACE LINES carry the detail. Step 06 shows the draft's provenance as a
+ * four-line micro-trace; step 09 shows the retry sequence; step 10 rolls up the verification
+ * checks. The parallel lanes in the messaging step (07) show the five channel OPTIONS
+ * evaluated at once - a vertical list would have read as five more sequential steps, which is
+ * precisely the wrong impression.
+ *
+ * Nothing here claims a benchmark. The timings are illustrative - the sub-caption says so in
+ * words - and the panel is aria-hidden with a static summary, so no assistive technology is
+ * told these are measurements.
  */
 const STEPS: Step[] = [
   {
-    service: 'gateway', name: 'Request accepted', time: '12ms',
-    description: 'One HTTPS request arrives and is routed to the handler for this account.',
-    infra: 'your request is accepted securely',
+    service: 'gateway', name: 'REQUEST ACCEPTED', time: '12ms',
+    description: 'Order #WD-4821 arrives over one secure connection.',
+    results: [ { label: 'received' }, { label: 'routed' } ],
   },
   {
-    service: 'auth', name: 'Account resolved', time: '31ms',
-    description: 'The caller is verified and scoped, so every later step is limited to their data.',
-    infra: 'your account is verified and isolated',
-    results: [ { label: 'verified', kind: 'ok' }, { label: 'scope: account_2841' } ],
+    service: 'auth', name: 'ACCESS VERIFIED', time: '31ms',
+    description: 'Identity verified. Account boundaries enforced.',
+    results: [ { label: 'authorized', kind: 'ok' }, { label: 'tenant isolated' } ],
   },
   {
-    service: 'contacts', name: 'Customer looked up', time: '18ms',
-    description: 'A single-key read returns the customer and the channels they agreed to.',
-    infra: 'your record is read in one step',
-    command: <><span className="wt-sh">$</span><span className="wt-fn">contacts.get</span>(<span className="wt-str">&quot;cust_2841&quot;</span>) <span className="wt-cm">— 1 read unit</span></>,
+    service: 'contacts', name: 'CONTEXT LOADED', time: '18ms',
+    description: 'Customer, history and consent resolved in one read.',
+    ai: 'intent read → order confirmation',
+    results: [ { label: 'context ready', kind: 'ok' }, { label: 'intent known' } ],
   },
   {
-    service: 'messaging', name: 'Four services pick it up at once', time: '46ms',
-    description: 'Independent workers run in parallel. None of them waits for another to finish.',
-    infra: 'four channels are queued, each independent',
-    lanes: [
-      { name: 'whatsapp', detail: 'template delivered' },
-      { name: 'sms', detail: 'queued with operator' },
-      { name: 'email', detail: 'sent' },
-      { name: 'voice', detail: 'callback scheduled' },
+    service: 'commerce', name: 'ORDER COMMITTED', time: '54ms',
+    description: 'Order confirmed, inventory adjusted, in one write.',
+    ai: 'request validated against order',
+    results: [ { label: '#WD-4821 confirmed', kind: 'ok' }, { label: 'stock −1' } ],
+  },
+  {
+    service: 'payments', name: 'PAYMENT CAPTURED', time: '240ms',
+    description: 'Payment captured; invoice issued against the order.',
+    ai: 'transaction risk-checked → clear',
+    results: [ { label: 'paid', kind: 'ok' }, { label: 'invoice #INV-4821' } ],
+  },
+  {
+    service: 'ai', name: 'RESPONSE GENERATED', time: '420ms',
+    description: 'AI drafts the reply, grounded in our knowledge base.',
+    ai: 'drafted from 2 sources',
+    subtrace: [
+      'intent → order confirmation',
+      'context → customer + order',
+      'knowledge → 2 sources',
+      'output → response drafted',
     ],
+    results: [ { label: 'draft ready', kind: 'ok' } ],
   },
   {
-    service: 'commerce', name: 'Order and catalog updated', time: '54ms',
-    description: 'Stock and order state change together, so the two cannot disagree.',
-    infra: 'the order and stock update together',
-    results: [ { label: 'order confirmed', kind: 'ok' }, { label: 'stock −1' } ],
+    service: 'messaging', name: 'CHANNELS ORCHESTRATED', time: '46ms',
+    description: 'Eligible channels dispatched independently.',
+    ai: 'selected channels · tailored each',
+    infra: 'one messaging foundation, five channel options',
+    lanes: [
+      { name: 'whatsapp', detail: 'Delivered', on: true },
+      { name: 'rcs', detail: 'Available · not selected', on: true },
+      { name: 'sms', detail: 'Sent', on: true },
+      { name: 'email', detail: 'Sent', on: true },
+      { name: 'voice', detail: 'Skipped', on: false },
+    ],
+    results: [ { label: 'parallel dispatch', kind: 'ok' }, { label: 'tracked' } ],
   },
   {
-    service: 'billing', name: 'Usage metered', time: '9ms',
-    description: 'What was actually sent is recorded against this account for the period.',
-    infra: 'usage is metered from the same stream',
+    service: 'automation', name: 'RULES APPLIED', time: '11ms',
+    description: 'A follow-up fires on its own.',
+    ai: 'follow-up judged warranted',
+    results: [ { label: '1 rule matched', kind: 'ok' }, { label: 'scheduled' } ],
   },
   {
-    service: 'queue', name: 'A provider failed, nobody noticed', time: '1.2s',
-    description: 'One carrier returned an error. The message went back on the queue and left on the next attempt.',
-    infra: 'a failed send retries and is watched',
-    results: [ { label: 'attempt 2 of 5', kind: 'warn' }, { label: 'delivered', kind: 'ok' }, { label: 'dead-letter empty', kind: 'ok' } ],
+    service: 'queue', name: 'FAILURE RECOVERED', time: '1.2s',
+    description: 'A failed send retried safely and delivered.',
+    subtrace: [ '503 → backoff → retry 2/5 → accepted' ],
+    results: [ { label: 'retry handled', kind: 'warn' }, { label: 'accepted', kind: 'ok' } ],
   },
   {
-    service: 'platform', name: 'All services healthy', time: '2.1s', complete: true,
-    description: 'Every service above reported success, on the same logs, metrics and traces.',
-    infra: 'every service reports to one place',
-    checks: [ 'eight services, one deployment', 'one identity, one audit trail', 'one bill' ],
+    service: 'platform', name: 'EXECUTION VERIFIED', time: '2.1s', complete: true,
+    description: 'One AI, every service, one foundation.',
+    ai: 'one model across all of it',
+    checks: [ 'order', 'payment', 'AI response', 'channels', 'rules', 'recovery', 'one foundation' ],
+    results: [ { label: 'one shared foundation', kind: 'ok' } ],
   },
 ];
 
@@ -140,11 +176,12 @@ const STEPS: Step[] = [
 // the step contains rather than its index, so reordering STEPS does not silently retime
 // the sequence.
 const dwell = ( step: Step ): number => {
-  if ( step.lanes ) return 1650;
-  if ( step.complete ) return 1600;
-  if ( step.checks ) return 1450;
-  if ( step.command ) return 1400;
-  return 1050;
+  if ( step.lanes ) return 1350;
+  if ( step.complete ) return 1350;
+  if ( step.checks ) return 1200;
+  if ( step.command ) return 1200;
+  if ( step.subtrace ) return 1200;
+  return 900;
 };
 
 /**
@@ -159,16 +196,18 @@ const dwell = ( step: Step ): number => {
  * COUNTING, because the off-by-one is not obvious. `cycle` starts at 0 and is bumped once per
  * RESTART, so it counts restarts, not passes. The visitor's FIRST completed run is the static
  * finished state the panel renders on load and holds for 3.2s during the cycle-0 effect run -
- * see the resumeRef note: "a visitor therefore reads a completed run first". So:
+ * see the resumeRef note: "a visitor therefore reads a completed run first". With MAX_CYCLES 2:
  *   cycle 0  -> 1st completed run (the initial static hold)        -> restart -> cycle 1
- *   cycle 1  -> 2nd completed run (first streamed replay)          -> restart -> cycle 2
- *   cycle 2  -> 3rd completed run (second streamed replay)         -> STOP, hold the finished state
- * Three completed runs land when cycle reaches MAX_CYCLES - 1, so the end-of-pass branch restarts
+ *   cycle 1  -> 2nd completed run (the one streamed replay)        -> STOP, hold the finished state
+ * Two completed runs land when cycle reaches MAX_CYCLES - 1, so the end-of-pass branch restarts
  * only while cycle < MAX_CYCLES - 1. At cycle === MAX_CYCLES - 1 it leaves `done` true and does not
  * bump `cycle`, so the panel holds the finished state - byte-identical to the initial and
  * reduced-motion render, and the never-empty invariant is untouched because `shown` never rewinds.
+ * Dropped 3 -> 2 with the longer 10-step trace: the visitor sees the completed run, then watches
+ * it stream through once, which is enough for the point to land without the panel moving for a
+ * third pass over a sequence that now runs ~16-18s per pass.
  */
-const MAX_CYCLES = 3;
+const MAX_CYCLES = 2;
 
 /**
  * Is this document in a tab nobody can see?
@@ -189,14 +228,14 @@ const WorkflowTerminal: React.FC = () => {
    * the home page already uses for its hero and its closing band, applied here at last.
    *
    * These were 0 / -1 / false, so the static export rendered ZERO rows. Measured on the built
-   * HTML: `grep -c "Request accepted" out/index.html` returned 0, and with JavaScript disabled
-   * the largest element on the home page was a 650px black rectangle holding one line of text
-   * and a footer reading "running 0 / 8 services". Every word of the eight steps existed only
-   * after hydration, so a no-JS reader, a WebView with scripting off, and anything reading the
-   * HTML rather than running it all got an empty panel - on the same site that just started
+   * HTML: a grep for the first step's name in out/index.html returned 0, and with JavaScript
+   * disabled the largest element on the home page was a 650px black rectangle holding one line
+   * of text and a footer reading "running 0 / 10 services". Every word of the ten steps existed
+   * only after hydration, so a no-JS reader, a WebView with scripting off, and anything reading
+   * the HTML rather than running it all got an empty panel - on the same site that just started
    * publishing llms.txt and an /mcp endpoint for exactly those readers.
    *
-   * Shipping the COMPLETE state fixes it with no new markup: eight rows, all settled, footer
+   * Shipping the COMPLETE state fixes it with no new markup: ten rows, all settled, footer
    * reading "complete". It is also the most meaningful single frame the panel has, it is
    * byte-identical to what a reduced-motion visitor already gets, and it removes the last place
    * the panel was ever nearly empty - the first-load state, which the loop was already fixed
@@ -306,7 +345,7 @@ const WorkflowTerminal: React.FC = () => {
   // Owner asked for continuous play. BOTH DEFECTS ARE FIXED RATHER THAN RE-ACCEPTED:
   //   1. is answered by .wt-play, a real pause control rendered outside the aria-hidden window
   //      so it is exposed to assistive tech rather than focusable-but-invisible.
-  //   2. is answered by never rewinding `shown`. Only `settled` rewinds, so all eight rows stay
+  //   2. is answered by never rewinding `shown`. Only `settled` rewinds, so all ten rows stay
   //      mounted for the whole cycle and the panel is never empty at any moment.
   //
   // The closing band's reveal stays one-shot for its own stated reason - it did not want to
@@ -351,7 +390,7 @@ const WorkflowTerminal: React.FC = () => {
          * note for the full off-by-one. At that point we schedule NO restart: `done` stays true,
          * `cycle` is not bumped, and the finished state holds. No timer is left pending, so the
          * cancelled/clearTimeout cleanup stays correct. `stopped` flips the control to "Replay".
-         * The never-empty invariant is preserved: `shown` was never rewound, so all eight rows
+         * The never-empty invariant is preserved: `shown` was never rewound, so all ten rows
          * remain mounted and settled - the exact frame of the initial and reduced-motion render. */
         if ( cycle >= MAX_CYCLES - 1 ) {
           setStopped( true );
@@ -365,13 +404,13 @@ const WorkflowTerminal: React.FC = () => {
          * largest element on the home page periodically showed nothing and anyone arriving
          * mid-reset met a black rectangle.
          *
-         * THIS RESTART LEAVES `shown` AT STEPS.length AND ONLY REWINDS `settled`. All eight
+         * THIS RESTART LEAVES `shown` AT STEPS.length AND ONLY REWINDS `settled`. All ten
          * rows stay mounted and on screen for the entire cycle; what replays is the
          * running-to-done pass travelling down them. The panel is never empty at any point,
          * which is the whole objection answered rather than accepted.
          *
          * What a reader sees at the restart edge is the stack going live at once and then
-         * settling row by row - a heartbeat rather than a rebuild. Stated because eight dots
+         * settling row by row - a heartbeat rather than a rebuild. Stated because ten dots
          * pulsing for one beat is a real visual event and someone reading this file should
          * know it is intended, not a race.
          *
@@ -405,7 +444,7 @@ const WorkflowTerminal: React.FC = () => {
         }, 3200 );
         return;
       }
-      // Only the first pass reveals rows. Every later pass finds all eight already mounted,
+      // Only the first pass reveals rows. Every later pass finds all ten already mounted,
       // which is what keeps the panel from emptying itself.
       setShown( prev => ( prev > index + 1 ? prev : index + 1 ) );
       timer = window.setTimeout( () => {
@@ -579,19 +618,23 @@ const WorkflowTerminal: React.FC = () => {
       aria-label="How a workflow runs"
     >
       {/* One static sentence for assistive tech. The stream below is aria-hidden: a
-          screen reader should not receive eight nodes appearing on timers. */}
+          screen reader should not receive ten nodes appearing on timers. */}
       <p className="wt-sr">
-        An illustration of one customer request moving through our services: the request is
-        accepted, the account is verified, the customer record is read, four channels deliver
-        at once, the order and stock are written together, usage is metered, a failed send is
-        retried and watched, and all eight services report healthy — every one of them on the
+        An illustration of one customer order moving through our services with AI at each
+        decision: the request is accepted, access is verified, the customer context is loaded
+        while AI reads the intent, the order is committed, payment is captured, AI generates a
+        response grounded in our knowledge base, five channels are evaluated and the eligible
+        ones deliver, an automation rule fires a follow-up on its own, a failed send is retried
+        and confirmed by the platform, and all ten services report healthy — the AI
+        understands, decides and drafts while the platform executes, every one of them on the
         same shared foundation.
       </p>
 
       {/* dir="ltr" LOCKS THE TERMINAL, and it is a correctness fix rather than a preference.
-          This panel draws literal machine output - a shell prompt, "platform / production",
-          $contacts.get("cust_2841"), "# dynamodb · single-table". None of that is prose and
-          none of it is left-to-right by convention: it is left-to-right by SYNTAX. With the
+          This panel draws literal machine output - a shell prompt, "platform · illustration",
+          an "ai >" decision thread, "503 -> backoff -> retry 2/5 -> accepted". None of that is
+          prose and none of it is left-to-right by convention: it is left-to-right by SYNTAX.
+          With the
           document mirrored for an Arabic reader the flex rows inside reversed, so the window
           lights moved to the right, the prompt reversed, and the punctuation in the call
           reordered - a reader who knows the API would see code that no longer parses.
@@ -602,7 +645,7 @@ const WorkflowTerminal: React.FC = () => {
           panel - it is a picture of a machine, not text - so it is exempt from translation
           and from mirroring for one reason. */}
       {/* THE PAUSE CONTROL SITS OUTSIDE .wt-window ON PURPOSE, and the purpose is not layout.
-          The window carries aria-hidden="true" because a screen reader should not receive eight
+          The window carries aria-hidden="true" because a screen reader should not receive ten
           nodes appearing on timers - the static .wt-sr paragraph above is what it gets instead.
           A <button> placed inside that subtree would still be in the tab order while absent
           from the accessibility tree: reachable by keyboard, announced as nothing. So the
@@ -652,12 +695,16 @@ const WorkflowTerminal: React.FC = () => {
           <span className="wt-light wt-light-1" />
           <span className="wt-light wt-light-2" />
           <span className="wt-light wt-light-3" />
-          <span className="wt-bar-title">platform / production</span>
-          <span className="wt-bar-state"><i className="wt-state-dot" />8 services · 1 foundation</span>
+          <span className="wt-bar-title">platform · illustration</span>
+          <span className="wt-bar-state"><i className="wt-state-dot" />live trace</span>
         </div>
 
         <div className="wt-space">
-          <div className="wt-request"><span className="wt-caret">›</span><span>One customer places an order. Watch what runs behind it.</span></div>
+          <div className="wt-request"><span className="wt-caret">›</span><span>One request. Intelligence at every decision.</span></div>
+          {/* Illustrative-trace caption. Verbatim UI copy from the locked spec; the em dash is
+              intentional and part of that string, not prose written here. Smaller and dimmer
+              than .wt-request so it reads as a subordinate caption. */}
+          <div className="wt-caption">Illustrative trace — timings are not measured.</div>
 
           <div ref={ streamRef }>
             { visible.map( ( step, i ) => {
@@ -676,12 +723,37 @@ const WorkflowTerminal: React.FC = () => {
                   </div>
                   <p className="wt-desc">{ step.description }</p>
 
+                  { /* THE INLINE AI DECISION, inline in the map on purpose - styled-jsx only
+                       scopes elements statically present in this return tree, so building this
+                       in a helper would silently drop every .wt-ai rule. The "ai >" tag is the
+                       one place lime is spent in the panel body as a thread marker; the decision
+                       TEXT stays white so it reads as a sentence, not an accent. Steps 01/02/09
+                       carry no ai field, so this renders nothing on them - the honesty boundary. */ }
+                  { step.ai && (
+                    <div className="wt-ai">
+                      <span className="wt-ai-tag">ai ▸</span>
+                      <span className="wt-ai-text">{ step.ai }</span>
+                    </div>
+                  ) }
+
                   { step.command && <div className="wt-cmd">{ step.command }</div> }
 
                   { /* The shared foundation, written the way it would appear in code. This
                        is the line that carries the actual claim: different services,
                        same infrastructure underneath. */ }
                   { step.infra && <div className="wt-infra"># { step.infra }</div> }
+
+                  { /* THE MICRO-TRACE, inline in the map for the same styled-jsx reason as the
+                       ai marker. Step 06 shows the draft's provenance (four lines); step 09 shows
+                       the retry sequence (one line). A small indented muted monospace block that
+                       reads as a detail under the step. */ }
+                  { step.subtrace && (
+                    <div className="wt-subtrace">
+                      { step.subtrace.map( line => (
+                        <div key={ line } className="wt-subtrace-line">{ line }</div>
+                      ) ) }
+                    </div>
+                  ) }
 
                   { step.results && (
                     <div className="wt-results">
@@ -692,14 +764,19 @@ const WorkflowTerminal: React.FC = () => {
                   ) }
 
                   { /* PARALLEL LANES, side by side on purpose. Stacked vertically these
-                       four would read as four more sequential steps, which is the exact
-                       opposite of the point - they run at the same time. */ }
+                       five would read as five more sequential steps, which is the exact
+                       opposite of the point - they run at the same time. Each lane carries a
+                       CSS-drawn status dot: green for a channel that was used, a hollow/dimmed
+                       white dot for one that was available but not selected (voice). */ }
                   { step.lanes && (
                     <div className="wt-lanes">
                       { step.lanes.map( lane => (
                         <div key={ lane.name } className="wt-lane">
                           <span className="wt-lane-bar" />
-                          <span className="wt-lane-name">{ lane.name }</span>
+                          <span className="wt-lane-head">
+                            <span className={ `wt-lane-dot ${lane.on ? 'is-on' : 'is-off'}` } />
+                            <span className="wt-lane-name">{ lane.name }</span>
+                          </span>
                           <span className="wt-lane-detail">{ lane.detail }</span>
                         </div>
                       ) ) }
@@ -730,9 +807,26 @@ const WorkflowTerminal: React.FC = () => {
             As a flex sibling of the scroll area it is pinned to the window for free,
             and the gradient becomes unnecessary - a solid panel-coloured bar with a
             hairline above it is what actually separates the two. */}
+        {/* THE COUNT LIVES ONLY HERE. The chrome bar dropped its count, so this is the one
+            place the panel reports progress. Running: the left is the lime dot + "running"
+            and the right counts up `${shown} / ${STEPS.length} services` - with ten steps
+            STEPS.length is 10, so it animates 1 / 10 -> 10 / 10 as each row settles, driven by
+            `shown` and frozen while paused because the stepper that advances `shown` is gated by
+            the pause control. Done: a single CSS-safe tick + the locked done string. The "10 / 10"
+            is still derived from STEPS.length (the live counter), the rest of the descriptors are
+            literal: AI fires at 6 of the 10 steps, one retry was handled, order #WD-4821. */}
         <div className="wt-foot">
-          <span className="wt-foot-left"><i className="wt-foot-dot" />{ done ? 'complete' : 'running' }</span>
-          <span className="wt-foot-right">{ done ? '8 services · 1 retry absorbed · 1 platform' : `${shown} / ${STEPS.length} services` }</span>
+          { done ? (
+            <span className="wt-foot-left">
+              <span className="wt-check-tick">✓</span>
+              EXECUTION COMPLETE — { STEPS.length } / { STEPS.length } services · AI at 6 decisions · 1 retry handled · order #WD-4821
+            </span>
+          ) : (
+            <>
+              <span className="wt-foot-left"><i className="wt-foot-dot" />running</span>
+              <span className="wt-foot-right">{ `${shown} / ${STEPS.length} services` }</span>
+            </>
+          ) }
         </div>
       </div>
 
@@ -853,7 +947,7 @@ const WorkflowTerminal: React.FC = () => {
         .wt-light-1{background:#f0a818}
         .wt-light-2{background:#9849e8}
         .wt-light-3{background:#3da35a}
-        /* CHROME STATUS LEGIBILITY (user: the browser-chrome title and the footer "1 / 8"
+        /* CHROME STATUS LEGIBILITY (user: the browser-chrome title and the footer "N / 10"
            status read as the same faint grey and blended into the panel). These are window
            chrome, not body prose, so they are raised toward a solidly-legible muted white by
            OPACITY ONLY (no new hex, palette unchanged): .wt-bar-title .80 -> .88, .wt-bar-state
@@ -864,13 +958,13 @@ const WorkflowTerminal: React.FC = () => {
         .wt-bar-state{margin-left:auto;display:flex;align-items:center;gap:7px;color:rgba(255,255,255,.86);font-size:13.5px}
         /* GREEN, NOT LIME, and only this dot changes - see the note below on the two that
            deliberately do not.
-           This sits in the same 47px strip as the three window lights, beside the copy
-           "8 services · 1 foundation". Once those lights became amber/purple/green it was the
-           only lime left in a bar that no longer uses lime, which read as a leftover rather
-           than as a colour anyone chose.
+           This sits in the same 47px strip as the three window lights, beside the chrome copy
+           "live trace" (the count that used to live here moved to the footer). Once those lights
+           became amber/purple/green it was the only lime left in a bar that no longer uses lime,
+           which read as a leftover rather than as a colour anyone chose.
            #3da35a is the third light's own value, so no new colour enters the file, and green
-           for "8 services healthy" is the one hue here that already means what the sentence
-           says. Measured on this bar's #3b271a: 4.42:1, down from lime's 11.32:1. That drop is
+           for a "live trace" status is the one hue here that already means "healthy/running".
+           Measured on this bar's #3b271a: 4.42:1, down from lime's 11.32:1. That drop is
            the cost and it is well clear of 3:1 on a 6px decorative dot inside an aria-hidden
            window. */
         .wt-state-dot{width:6px;height:6px;border-radius:50%;background:#3da35a}
@@ -904,8 +998,14 @@ const WorkflowTerminal: React.FC = () => {
            lines sit at ~15-16px. The request line uses clamp() so it scales fluidly
            between phone and desktop instead of being stepped DOWN on mobile, per
            .kiro/steering/20-device-compat.md which favours clamp() over fixed sizes. */
-        .wt-request{margin-bottom:32px;display:flex;gap:10px;color:#fff;font-size:clamp(16px,1.1vw + 14px,18px);line-height:1.7}
+        .wt-request{margin-bottom:10px;display:flex;gap:10px;color:#fff;font-size:clamp(16px,1.1vw + 14px,18px);line-height:1.7}
         .wt-caret{color:#d1f470}
+        /* THE ILLUSTRATIVE-TRACE CAPTION. A muted line directly under the intro, smaller and
+           dimmer than .wt-request so it reads as a subordinate caption rather than a second
+           headline. 12.5px, white at .62 -> ~13.4:1 on #000, comfortably past AA while still
+           reading as secondary. The margin-bottom here carries the gap the intro line used to
+           own (it was 32px on .wt-request), so the stream still starts a clear beat below. */
+        .wt-caption{margin-bottom:28px;color:rgba(255,255,255,.62);font-size:12.5px;line-height:1.5}
 
         /* Each step fades up as it arrives. The connector is a ::before rule so it
            cannot be knocked out of alignment by content height. */
@@ -922,9 +1022,9 @@ const WorkflowTerminal: React.FC = () => {
 
         /* ONE HUE PER SERVICE, and this is a system rather than decoration - which is the
            difference that makes it defensible here after the window lights took three colours.
-           Each step IS a named service (gateway, auth, contacts, messaging, commerce, billing,
-           queue, platform), so a hue that identifies the service is the same use the rotating
-           hero pill puts this palette to: one colour per subject.
+           Each step IS a named service (gateway, auth, contacts, commerce, payments, ai,
+           messaging, automation, queue, platform), so a hue that identifies the service is the
+           same use the rotating hero pill puts this palette to: one colour per subject.
 
            STATE IS STILL NOT CARRIED BY HUE, which is the constraint that had to hold. Before
            this, lime meant "ran", so the hue was doing two jobs at once. What separates the two
@@ -938,7 +1038,7 @@ const WorkflowTerminal: React.FC = () => {
            THIS LINE USED TO CLAIM ".wt-name.is-complete turns the service name lime", and both
            halves went stale as the panel changed: the rule moved off lime onto the step's own
            hue, and then off the name entirely when option A was chosen. Names are #fff on all
-           eight rows now - see the note beside .wt-tick. Corrected rather than deleted because
+           ten rows now - see the note beside .wt-tick. Corrected rather than deleted because
            the count of non-colour signals is the load-bearing part of this paragraph.
 
            The hollow .wt-dot default above is a fallback that NO rendered step uses - the
@@ -953,11 +1053,12 @@ const WorkflowTerminal: React.FC = () => {
              blue   #2563eb   4.06:1    red    #dc2626  4.35:1
 
            RED IS EXCLUDED DELIBERATELY, and it is the only one that clears contrast and is
-           still wrong. Step 7 reads "A provider failed, nobody noticed" - the whole point of
-           that line is that the failure was absorbed - and step 6 is "Usage metered". A red dot
-           on either reads as an alarm about the thing being described. Five hues cycle instead,
-           ordered so no two adjacent steps repeat, and step 8 "All services healthy" lands on
-           green because that is the one hue whose convention matches its sentence. */
+           still wrong. Step 09 reads "FAILURE RECOVERED" - the whole point of that line is that
+           the failure was absorbed - so a red dot on it would read as an unresolved alarm about
+           the thing that was just resolved. Five hues cycle across the ten steps instead,
+           ordered so no two adjacent steps repeat (1 blue, 2 purple, 3 amber, 4 lime, 5 green,
+           6 blue, 7 amber, 8 purple, 9 lime, 10 green), and step 10 "EXECUTION VERIFIED" lands
+           on green because that is the one hue whose convention matches its sentence. */
         /* THREE PROPERTIES PER STEP, FROM ONE SOURCE OF TRUTH.
            --rgb   the hue as bare channels, so a tint can be mixed with rgba() without a
                    second literal to keep in sync. There is no color-mix() anywhere in this
@@ -978,7 +1079,7 @@ const WorkflowTerminal: React.FC = () => {
            "blue at 4.06:1. Well clear of 4.5:1 for 15px/600 text". 4.06 is not clear of 4.5,
            it is BELOW it - so the rule as shipped was a latent AA failure waiting for a data
            change: mark step 1 or 6 complete and its name renders blue at 4.06:1. Nothing was
-           visibly broken only because step 8, the single complete step, happens to be green.
+           visibly broken only because step 10, the single complete step, happens to be green.
            Purple was the same story with less margin to spare, at 4.45:1.
 
            The lift is the smallest that clears 4.5:1 on the pill's own tinted background:
@@ -995,7 +1096,9 @@ const WorkflowTerminal: React.FC = () => {
         .wt-step:nth-child(5){--rgb:61,163,90}
         .wt-step:nth-child(6){--rgb:37,99,235;--ink:#3d74ed}
         .wt-step:nth-child(7){--rgb:240,168,24}
-        .wt-step:nth-child(8){--rgb:61,163,90}
+        .wt-step:nth-child(8){--rgb:152,73,232;--ink:#9f56ea}
+        .wt-step:nth-child(9){--rgb:209,244,112}
+        .wt-step:nth-child(10){--rgb:61,163,90}
 
         /* Running fills and pulses; done fills. The glow is NEUTRAL white at .10 rather than
            the lime rgba(209,244,112,.14) it was: a lime halo around a blue or purple dot reads
@@ -1010,11 +1113,11 @@ const WorkflowTerminal: React.FC = () => {
            is which service ran, not which phase of a plan it was.
 
            THE PILL NOW CARRIES ITS SERVICE'S OWN HUE, and this reverses an earlier call.
-           It was lime on all eight, with the reasoning that "giving it five colours would
+           It was lime on all rows, with the reasoning that "giving it five colours would
            turn a label into a legend the reader is expected to decode". Owner overruled it,
            three times, and on reflection the objection was answering the wrong question.
            This pill contains the service's own name - gateway, auth, contacts - so it IS the
-           service identity, which is precisely what the dot hue encodes. Lime on all eight meant the
+           service identity, which is precisely what the dot hue encodes. Lime on every row meant the
            one element naming the service was the one element refusing to colour it, and lime
            there had stopped meaning anything at all: it was the last survivor of the old
            "lime = ran" scheme that the per-service dots replaced.
@@ -1068,7 +1171,7 @@ const WorkflowTerminal: React.FC = () => {
            would be fragile). On the pure #000 panel a .20 fill of the two low-luminance inks
            (blue 37,99,235 and purple 152,73,232) composited very dark and the pill read as a
            faint badge, while the lime/amber pills read strong - inconsistent weight across the
-           eight steps. The small uniform alpha lift makes the fill/border read as a badge of
+           ten steps. The small uniform alpha lift makes the fill/border read as a badge of
            consistent weight across all five hues without inventing any new colour and without
            touching the white label (kept #fff for max contrast - the text was never the issue).
            Kept modest on purpose so the pill stays a subtle badge below the step name, not a
@@ -1092,31 +1195,30 @@ const WorkflowTerminal: React.FC = () => {
            Both the name and the tick were #d1f470 while the dots were lime too, so the row
            agreed with itself. Once the dots became one hue per service, lime here was the last
            thing in the panel still claiming the old meaning - and measured, only ONE row was
-           affected, because the rule is gated on step.complete and step 8 is the only step whose
-           data sets it. Names were #fff on steps 1-7 and lime on step 8 alone. That is why the
-           recolour was reported as "not showing": it moved a single line from lime to green, two
-           greens, while all eight .wt-svc pills stayed lime. "The text is still lime" was three
-           separate things - this name, this tick, and the pill - and the pill was the one the
-           report was actually looking at.
+           affected, because the rule is gated on step.complete and the last step (now step 10,
+           EXECUTION VERIFIED) is the only step whose data sets it. Names were #fff on every
+           earlier step and lime on the complete step alone. That is why the recolour was
+           reported as "not showing": it moved a single line from lime to green, two greens,
+           while all the .wt-svc pills stayed lime. "The text is still lime" was three separate
+           things - this name, this tick, and the pill - and the pill was the one the report was
+           actually looking at.
 
            THE PILL IS NOW IN THE SAME SCHEME - see the note on .wt-svc. It used to be excluded
-           and held lime on all eight, which meant this rule recoloured exactly ONE line in the
-           whole panel (step 8, the only step whose data says complete:true) while the eight
-           pills stayed lime. That is why the change was reported as "not showing" after it
-           shipped correct: it was a single row moving from lime to green, two greens, against
-           eight unchanged lime chips.
+           and held lime on every row, which meant this rule recoloured exactly ONE line in the
+           whole panel (the one step whose data says complete:true) while the pills stayed lime.
+           That is why the change was reported as "not showing" after it shipped correct: it was
+           a single row moving from lime to green, two greens, against unchanged lime chips.
 
            THE NAME IS NO LONGER IN THIS RULE. Owner picked option A from docs/step-review.md
            after seeing all five panels rendered, and the deciding argument only became visible
            once they were pictures rather than contrast figures:
 
            ON A SENTENCE, A HUE STOPS READING AS AN IDENTIFIER AND STARTS READING AS A SEVERITY.
-           Colouring all eight names put step 7, "A provider failed, nobody noticed", in amber -
-           which reads as a warning badge, when the entire point of that line is that the failure
-           was absorbed and needed no attention. Step 6, "Usage metered", came out blue, which
-           reads as an info notice. That is the same reasoning already recorded above for
-           EXCLUDING RED from the dot palette, and it applies with more force to a full sentence
-           than to a 12px dot.
+           Colouring every name put the recovery step ("FAILURE RECOVERED") on a hue that reads
+           as a warning badge, when the entire point of that line is that the failure was
+           absorbed and needed no attention. That is the same reasoning already recorded above
+           for EXCLUDING RED from the dot palette, and it applies with more force to a full
+           sentence than to a 12px dot.
 
            The pill does not have the problem and the distinction is worth stating: a chip
            containing the single word "queue" is self-evidently an identifier and cannot be
@@ -1124,11 +1226,11 @@ const WorkflowTerminal: React.FC = () => {
            it can be. So hue lives on the dot and the chip - two labels - and never on prose.
 
            WHAT THIS BUYS. Every name holds #fff at 21:1, the most readable text on the panel,
-           and step 8 stops being the one visibly dim row: it used to be the ONLY name that left
-           white, which is why recolouring it read as a defect rather than as a signal. "Complete"
-           is still carried three ways without colour - the tick below, the dot going static
-           instead of pulsing, and the footer's "running"/"complete" wording - so WCAG 1.4.1
-           stays unengaged and nothing that colour was uniquely saying has been lost.
+           and the complete step stops being the one visibly dim row: it used to be the ONLY name
+           that left white, which is why recolouring it read as a defect rather than as a signal.
+           "Complete" is still carried three ways without colour - the tick below, the dot going
+           static instead of pulsing, and the footer's "running"/"complete" wording - so WCAG
+           1.4.1 stays unengaged and nothing that colour was uniquely saying has been lost.
 
            .is-complete IS DELIBERATELY STILL IN THE MARKUP with no paint of its own. It is the
            DOM's record of which step finished, tools/browser/replaycheck.js reads it to report
@@ -1155,6 +1257,22 @@ const WorkflowTerminal: React.FC = () => {
            subtext also white". Dropped to .74 (~9:1) so it stays clearly a muted sub-line BELOW
            the #fff name while remaining well clear of AA 4.5:1 on #000. Size stays 15.5px. */
         .wt-desc{max-width:780px;margin:7px 0 0;color:rgba(255,255,255,.74);font-size:15.5px;line-height:1.65}
+
+        /* THE INLINE AI DECISION. The "ai >" tag is the one place lime is spent in the panel
+           body as a thread marker - the same emphasis .wt-chip.is-ok puts lime to - so a reader
+           scanning the stream can pick out where intelligence acted. The decision TEXT stays
+           white at .82 (~16:1 on #000) so it reads as a legible sentence rather than an accent;
+           lime is deliberately reserved for the tag and not spent on descriptive prose. */
+        .wt-ai{margin-top:9px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;line-height:1.55}
+        .wt-ai-tag{flex:0 0 auto;color:#d1f470;font-size:13px;font-weight:600;letter-spacing:.04em}
+        .wt-ai-text{color:rgba(255,255,255,.82);font-size:14px}
+
+        /* THE MICRO-TRACE. A small indented muted monospace block that reads as a detail under
+           the step - the draft provenance on step 06, the retry sequence on step 09. White at
+           .70 (~8:1 on #000), 13px, with a faint lime rule on the inline-start edge so it reads
+           as nested under its step rather than as a sibling line. */
+        .wt-subtrace{margin-top:9px;padding-left:12px;border-left:1px solid rgba(209,244,112,.30);display:grid;gap:4px}
+        .wt-subtrace-line{color:rgba(255,255,255,.70);font-size:13px;line-height:1.5}
 
         /* .wt-cmd is the monospace command line (e.g. "$ contacts.get(...)") - the words
            auth / gateway / contacts live INSIDE this line, as .wt-fn / .wt-key / .wt-str spans
@@ -1206,21 +1324,46 @@ const WorkflowTerminal: React.FC = () => {
            brighter border, still neutral, so lime stays the only accent in the panel body. */
         .wt-chip.is-warn{color:rgba(255,255,255,.92);border-color:rgba(255,255,255,.38)}
 
-        /* CONCURRENCY, SHOWN AS COLUMNS. auto-fit rather than a fixed four so the lanes
-           wrap to two-by-two on a narrow panel instead of overflowing - they still read as
-           simultaneous, which a horizontal scrollbar would destroy. */
-        .wt-lanes{margin-top:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:8px}
+        /* CONCURRENCY, SHOWN AS COLUMNS. auto-fit rather than a fixed count so the lanes
+           wrap cleanly instead of overflowing - they still read as simultaneous, which a
+           horizontal scrollbar would destroy.
+           FIVE CHANNELS NOW (whatsapp / rcs / sms / email / voice), where it was four - RCS was
+           added. The min dropped 132px -> 108px so five lanes balance across the measure without
+           a horizontal scrollbar. Reasoned at the breakpoints (the panel's inner width is the
+           viewport minus the page gutters and the panel's own 34px/18px side padding; browser
+           probes cannot run here so this is by arithmetic):
+             320px  phone: inner ~= 248px -> floor(248/108) = 2 per row, 3 rows, no overflow.
+             375px  phone: inner ~= 303px -> 2 per row (108*3 = 324 > 303), 3 rows, no overflow.
+             768px  single-column band, panel full width: inner ~= 650px+ -> 5 fit (108*5 = 540),
+                    so all five sit on one row with room to spare.
+             1024px two-column collapses to one here, panel full width -> 5 across comfortably.
+             1440px two-column, panel is the 1fr left column (~800px+): 5 across easily.
+           auto-fit means no row ever exceeds the track count that fits, so there is never a
+           horizontal scroll; the worst case is 2-per-row on the narrowest phone, which still
+           reads as parallel tracks. */
+        .wt-lanes{margin-top:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(108px,1fr));gap:8px}
         .wt-lane{padding:9px 10px;background:rgba(255,255,255,.04);border:1px solid rgba(209,244,112,.22);border-radius:6px;display:flex;flex-direction:column;gap:3px}
-        /* A short lime rule at the top of each lane, so the four read as parallel tracks
-           starting together rather than as four unrelated cards. */
+        /* A short lime rule at the top of each lane, so the five read as parallel tracks
+           starting together rather than as five unrelated cards. */
         .wt-lane-bar{display:block;width:22px;height:2px;border-radius:2px;background:#d1f470;margin-bottom:3px}
-        /* FOUR-CHANNEL lanes (whatsapp / sms / email / voice) were the smallest body text left
-           after the earlier size passes, so they still read as "less" than the rest of the panel.
-           Lane-name goes 13.5px->15px and lane-detail 13px->14px, staying under .wt-desc's 15.5px
-           and keeping label >= detail. Lane-detail opacity is .74 - lifted from the old faint .70
-           for legibility (~9:1 on #000, well past AA) but deliberately held as a muted white BELOW
-           the solid-white lane-name so the label and its sub-line keep a clear hierarchy rather
-           than both reading as plain white. No new hex: palette unchanged. */
+        /* The lane header: a CSS-drawn status dot beside the channel name. The dot is NOT a
+           glyph - several of this site's fonts have no symbol coverage, so a literal circle
+           would render as tofu somewhere, the same trap the tick and the window lights avoid. */
+        .wt-lane-head{display:flex;align-items:center;gap:7px}
+        /* STATUS, CSS-DRAWN. A used channel takes the green third-light value #3da35a (6.58:1
+           on #000, the same hue the chrome state dot uses for "healthy"); an available-but-not-
+           selected channel (voice) takes a hollow, dimmed white dot - a ring at .30 alpha with
+           no fill - so "not selected" reads as off/muted without introducing a new colour. */
+        .wt-lane-dot{width:7px;height:7px;flex:0 0 auto;border-radius:50%}
+        .wt-lane-dot.is-on{background:#3da35a}
+        .wt-lane-dot.is-off{background:transparent;border:1px solid rgba(255,255,255,.30)}
+        /* FIVE-CHANNEL lanes (whatsapp / rcs / sms / email / voice) were the smallest body text
+           left after the earlier size passes, so they still read as "less" than the rest of the
+           panel. Lane-name goes 13.5px->15px and lane-detail 13px->14px, staying under .wt-desc's
+           15.5px and keeping label >= detail. Lane-detail opacity is .74 - lifted from the old
+           faint .70 for legibility (~9:1 on #000, well past AA) but deliberately held as a muted
+           white BELOW the solid-white lane-name so the label and its sub-line keep a clear
+           hierarchy rather than both reading as plain white. No new hex: palette unchanged. */
         .wt-lane-name{color:#fff;font-size:15px;font-weight:600}
         .wt-lane-detail{color:rgba(255,255,255,.74);font-size:14px;line-height:1.45}
 
@@ -1230,14 +1373,19 @@ const WorkflowTerminal: React.FC = () => {
 
         /* Fades the stream out under the footer rather than letting rows collide with
            it. The gradient has to end in the panel's own #000 or it shows a seam.
-           FOOTER STATUS LEGIBILITY (user: the footer "1 / 8" status read the same faint grey
+           FOOTER STATUS LEGIBILITY (user: the footer "N / 10" status read the same faint grey
            as the chrome title and blended in): color raised .70 -> .86 by OPACITY ONLY, so the
-           footer state line (left running/complete and right-side .wt-foot-right "1 / 8
+           footer state line (left running/complete and right-side .wt-foot-right "N / 10
            services", which inherits this colour) reads as deliberate, legible chrome rather than
            near-invisible. Still a muted white BELOW the solid-#fff step content, size unchanged
-           at the 13.5px small-text floor. .86 on #000 is ~17:1, well past AA. */
-        .wt-foot{flex:0 0 auto;height:50px;padding:0 24px;display:flex;align-items:center;background:#000;border-top:1px solid rgba(209,244,112,.30);color:rgba(255,255,255,.86);font-size:13.5px}
-        .wt-foot-left{display:flex;align-items:center;gap:7px}
+           at the 13.5px small-text floor. .86 on #000 is ~17:1, well past AA.
+           THE DONE STATE IS ONE LONG LINE, not a left/right split. Running shows the lime dot +
+           "running" on the left and the live "N / 10 services" counter on the right. Done
+           replaces both with a single CSS-tick + "EXECUTION COMPLETE - 10 / 10 services ..."
+           line; the row height grows to fit it and the text is allowed to wrap on a narrow
+           panel (the min-height floor keeps the chrome bar shape when it is one line). */
+        .wt-foot{flex:0 0 auto;min-height:50px;padding:9px 24px;display:flex;align-items:center;background:#000;border-top:1px solid rgba(209,244,112,.30);color:rgba(255,255,255,.86);font-size:13.5px}
+        .wt-foot-left{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
         /* STAYS LIME, DELIBERATELY, and this is the boundary of the recolour.
            This dot sits beside "running" / "complete" on the BLACK footer, not the brown title
            bar, and it reports live state - it is the same claim the lime .wt-dot step markers

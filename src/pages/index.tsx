@@ -236,13 +236,14 @@ const HomePage: React.FC = () => {
                 it was the first thing anyone read on the site.
 
                 WHY NOT SIMPLY RE-LABEL IT, which was the original plan. The candidate copy
-                was "8 services · 1 foundation" - accurate, since STEPS.length is 8 - but
-                that exact string is already rendered by WorkflowTerminal on this same page,
-                about 380px further down (WorkflowTerminal.tsx:251). Re-labelling would have
-                traded a brand duplication for a copy duplication rather than removing one.
-                Dropping the mark only (keeping the words) was the other candidate, and it
-                halves the problem while leaving the brand name still stated twice inside
-                109px.
+                was a short "services · 1 foundation" lockup echoing the terminal below - but
+                it duplicated the brand name the header already carries, and the terminal (now
+                a 10-service AI-execution trace rather than the old 8-service count) states its
+                own foundation line in its done footer about 380px down the page. Re-labelling
+                would have traded a brand duplication for a copy duplication rather than
+                removing one. Dropping the mark only (keeping the words) was the other
+                candidate, and it halves the problem while leaving the brand name still stated
+                twice inside 109px.
 
                 So the slot is removed. Colour above the fold is unaffected: the rotating
                 pill carries its own tint through amber, violet, green and red. The headline
@@ -290,6 +291,12 @@ const HomePage: React.FC = () => {
           <section className="home-flow" aria-labelledby="home-flow-title">
             <div className="home-flow-panel">
               <WorkflowTerminal />
+              {/* THE PAYOFF LINE, directly under the panel so it reads as the panel's caption
+                  rather than part of the copy column's h2/lead/beats. It names the division of
+                  labour the terminal above just illustrated - AI decides, the platform executes
+                  - which is the one sentence the trace is making. Muted body line using the
+                  shared public-body tokens so it matches the section's type without a new size. */}
+              <p className="home-flow-payoff">AI understands the request. The platform handles the execution.</p>
             </div>
             { /* THE COPY FOLLOWS THE PANEL'S NEW SUBJECT. It used to describe an agent -
                  "work that runs itself", plans, low-confidence results - which together
@@ -426,6 +433,15 @@ const HomePage: React.FC = () => {
           align-items:start;
         }
         .home-flow-panel{min-width:0}
+        /* THE PAYOFF LINE. A muted caption under the panel, smaller than the body rung so it
+           reads as a note on the illustration above it rather than a competing claim. Centred
+           under the panel, with a little space above to separate it from the terminal's own
+           chrome. No new colour: it uses the body colour token at a slightly smaller size. */
+        .home-flow-payoff{
+          margin:16px 0 0;text-align:center;
+          font-size:15px;font-weight:var(--public-body-weight);line-height:1.5;
+          letter-spacing:var(--public-body-tracking);color:var(--public-body);
+        }
         /* NOT STICKY, AND THE STICKY IT REPLACES WAS DOING NOTHING IT CLAIMED TO.
            This was position:sticky;top:128px under a comment saying the explanation "stays level
            with the panel while the eye follows the stream". It cannot. A sticky element only
