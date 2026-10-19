@@ -3788,10 +3788,12 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
             'status': 'pending',
             'items': order_items,
             'subtotal': {'value': subtotal_paise, 'offset': 100},
-            # The description is the only place the customer can see WHY the figure is what it
-            # is, since Meta has one discount row and this one may carry two different things.
+            # Name the one current automatic discount truthfully. Legacy invoice rows with a
+            # non-Delight discount keep the generic label rather than being misrepresented.
             'discount': {'value': discount_paise, 'offset': 100,
-                         'description': 'Promo'},
+                         'description': ('Delight'
+                                         if invoice.get('couponCode') == default_coupon.DELIGHT_CODE
+                                         else 'Discount')},
             'shipping': {'value': shipping_paise, 'offset': 100, 'description': 'Express'},
             'tax': {'value': gst_paise, 'offset': 100, 'description': f'GSTIN: {COMPANY["gstin"]}'},
         },
