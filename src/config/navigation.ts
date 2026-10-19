@@ -165,34 +165,7 @@ export const navigationConfig: NavItem[] = [
     ],
   },
   {
-    // One content workspace. Blog Studio and production stage URLs remain contextual deep links
-    // because those jobs carry their own record/stage parameters; they are not primary apps.
-    path: '/workspace/content',
-    label: 'Content',
-    icon: 'search',
-    children: [
-      { path: '/workspace/content?view=blog', label: 'Blog' },
-      { path: '/workspace/seo/blog-studio', label: 'Blog Studio' },
-      { path: '/workspace/content?view=production', label: 'Production' },
-      { path: '/workspace/seo/blog-production?tab=review', label: 'Source review' },
-      { path: '/workspace/seo/blog-production?tab=qa', label: 'QA review' },
-      { path: '/workspace/seo/blog-production?tab=publish', label: 'Publish queue' },
-      { path: '/workspace/content?view=seo&area=tools', label: 'SEO Tools' },
-      { path: '/workspace/content?view=seo&area=pages', label: 'SEO Pages' },
-      { path: '/workspace/content?view=links', label: 'Short links' },
-    ],
-  },
-  {
-    path: '/workspace/automation',
-    label: 'Automation & AI',
-    icon: 'settings',
-    children: [
-      { path: '/workspace/automation?view=agent', label: 'Staff agent' },
-      { path: '/workspace/automation?view=rules', label: 'Rules' },
-      { path: '/workspace/automation?view=schedules', label: 'Schedules' },
-      { path: '/workspace/automation?view=knowledge', label: 'Knowledge' },
-    ],
-  },
+
 ];
 
 // ---------------------------------------------------------------------------
@@ -419,27 +392,6 @@ export const moduleHomes: ModuleHome[] = [
     note: 'Collect, Invoices and Activity are the three primary money modes; the invoice engine remains authoritative.',
   },
   {
-    id: 'content', label: 'Content', path: '/workspace/content',
-    innerPages: [
-      '/workspace/content?view=blog',
-      '/workspace/content?view=production',
-      '/workspace/content?view=seo&area=tools',
-      '/workspace/content?view=seo&area=pages',
-      '/workspace/content?view=links',
-    ],
-    note: 'Blog, Production, supported AWS-native SEO and Short Links share one content workspace.',
-  },
-  {
-    id: 'automation', label: 'Automation & AI', path: '/workspace/automation',
-    innerPages: [
-      '/workspace/automation?view=agent',
-      '/workspace/automation?view=rules',
-      '/workspace/automation?view=schedules',
-      '/workspace/automation?view=knowledge',
-    ],
-    note: 'Staff agent operations are separate from the customer-facing Meta Business Agent; true configuration remains contextual.',
-  },
-  {
     id: 'service-operations', label: 'Service', path: '/workspace/service',
     innerPages: [
       '/workspace/service?view=requests',
@@ -475,6 +427,23 @@ export const moduleHomes: ModuleHome[] = [
  * here becomes genuinely unreachable once the sidebar is short. `getAllNavItems`
  * therefore walks both trees, and a test asserts the settings paths are present.
  */
+export const contextualRoutes: { path: string; label: string; parent: string }[] = [
+  { path: '/workspace/content', label: 'Publishing', parent: 'Contextual workflows' },
+  { path: '/workspace/content?view=blog', label: 'Blog', parent: 'Publishing' },
+  { path: '/workspace/seo/blog-studio', label: 'Blog Studio', parent: 'Publishing' },
+  { path: '/workspace/content?view=production', label: 'Production', parent: 'Publishing' },
+  { path: '/workspace/seo/blog-production?tab=review', label: 'Source review', parent: 'Publishing' },
+  { path: '/workspace/seo/blog-production?tab=qa', label: 'QA review', parent: 'Publishing' },
+  { path: '/workspace/seo/blog-production?tab=publish', label: 'Publish queue', parent: 'Publishing' },
+  { path: '/workspace/content?view=seo&area=tools', label: 'SEO Tools', parent: 'Publishing' },
+  { path: '/workspace/content?view=seo&area=pages', label: 'SEO Pages', parent: 'Publishing' },
+  { path: '/workspace/automation', label: 'Automation & AI', parent: 'Contextual workflows' },
+  { path: '/workspace/automation?view=agent', label: 'Staff agent', parent: 'Automation & AI' },
+  { path: '/workspace/automation?view=rules', label: 'Rules', parent: 'Automation & AI' },
+  { path: '/workspace/automation?view=schedules', label: 'Schedules', parent: 'Automation & AI' },
+  { path: '/workspace/automation?view=knowledge', label: 'Knowledge', parent: 'Automation & AI' },
+];
+
 export function getAllNavItems (): { path: string; label: string; parent?: string }[] {
   const items: { path: string; label: string; parent?: string }[] = [];
   const traverse = ( navItems: ( NavItem | NavSubItem )[], parentLabel?: string ) => {
@@ -491,6 +460,10 @@ export function getAllNavItems (): { path: string; label: string; parent?: strin
   for ( const group of settingsConfig )
   {
     traverse( group.items, group.label );
+  }
+  for ( const item of contextualRoutes )
+  {
+    if ( !items.some( ( existing ) => existing.path === item.path ) ) items.push( item );
   }
   return items;
 }
