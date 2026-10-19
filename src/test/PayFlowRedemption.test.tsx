@@ -41,7 +41,6 @@ vi.mock( '../api/client', async importOriginal => ( {
 } ) );
 
 import PayFlowPage from '../components/workspace/pay/PayFlow';
-import { ADDRESS_FIELDS, formatAddress } from '../lib/address-format';
 
 const CUSTOMER = {
   id: 'c_1', contactId: 'c_1', name: 'Asha Rao', phone: '+919812345678',
@@ -136,38 +135,12 @@ describe( 'the Delight discount is server-authoritative', () => {
   } );
 } );
 
-describe( 'one address format, one input group', () => {
-  it( 'renders the eight shared fields in the customer modal and no free-text address textarea', async () => {
+describe( 'Collect does not recreate Customers', () => {
+  it( 'uses an existing canonical customer and offers no second customer editor', async () => {
     render( <PayFlowPage embedded mode="collect" /> );
-    fireEvent.click( await screen.findByRole( 'button', { name: '+ New Customer' } ) );
-    for ( const spec of ADDRESS_FIELDS )
-    {
-      expect( screen.getByLabelText( spec.label ) ).toBeInTheDocument();
-    }
-    // Every address control is an <input>; no textarea is an address input any more.
-    for ( const node of screen.getAllByLabelText( /Address line|Landmark|City|State|Postal Code|Country/ ) )
-    {
-      expect( node.tagName ).toBe( 'INPUT' );
-    }
-  } );
-  it( 'composes the preview through formatAddress from the shared module', async () => {
-    render( <PayFlowPage embedded mode="collect" /> );
-    fireEvent.click( await screen.findByRole( 'button', { name: '+ New Customer' } ) );
-    const typed = {
-      addressLine1: '12 MG Road', addressLine2: 'Flat 3B', locality: 'Near the park',
-      city: 'Bengaluru', state: 'Karnataka', postalCode: '560001',
-      country: 'India', countryCode: 'IN',
-    };
-    for ( const spec of ADDRESS_FIELDS )
-    {
-      fireEvent.change( screen.getByLabelText( spec.label ), {
-        target: { value: typed[ spec.key ] },
-      } );
-    }
-    const preview = document.querySelector( '[data-address-preview="pf-cust-addr"]' );
-    expect( preview?.textContent ).toBe( formatAddress( typed ) );
-    // And the composition is a real composition, not an echo of one field.
-    expect( preview?.textContent ).toBe( '12 MG Road, Flat 3B, Near the park, Bengaluru, Karnataka 560001, India' );
+    expect( await screen.findByText( 'Asha Rao' ) ).toBeInTheDocument();
+    expect( screen.queryByRole( 'button', { name: '+ New Customer' } ) ).toBeNull();
+    expect( screen.queryByLabelText( 'Address line 1' ) ).toBeNull();
   } );
 } );
 
