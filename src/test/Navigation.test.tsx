@@ -131,6 +131,8 @@ describe( 'nothing became unreachable', () => {
     expect( unique ).toContain( '/workspace/commerce?view=orders' );
     expect( unique ).toContain( '/workspace/payments?view=invoices' );
     expect( unique ).toContain( '/workspace/service?view=requests' );
+    expect( unique ).toContain( '/workspace/content?view=blog' );
+    expect( unique ).toContain( '/workspace/content?view=links' );
   } );
 
   it( 'keeps the pages that have no link anywhere else', () => {
@@ -203,8 +205,9 @@ describe( 'no entry point lands on a redirect signpost', () => {
   // old URLs resolve instead of 404ing through the static-export catch-all. Each forwards to a
   // destination a nav row reaches (verified below).
   const SIGNPOSTS = [ '/workspace/admin', '/workspace/forms', '/workspace/docs',
-    '/workspace/access', '/workspace/contacts', '/workspace/engage/whatsapp',
-    '/workspace/engage/service-ops', '/workspace/dashboard/waba-usernames' ];
+    '/workspace/access', '/workspace/contacts', '/workspace/link', '/workspace/seo',
+    '/workspace/engage/whatsapp', '/workspace/engage/service-ops',
+    '/workspace/dashboard/waba-usernames' ];
 
   it( 'keeps every signpost, and each forwards to a destination the nav reaches', () => {
     const all = getAllNavItems().map( ( i ) => i.path );
