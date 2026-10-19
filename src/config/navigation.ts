@@ -88,28 +88,14 @@ export interface SettingsGroup {
  */
 export const navigationConfig: NavItem[] = [
   {
-    // The landing. Channel filters are query strings on this ONE page, surfaced as the
-    // inbox's own in-page selector rather than sidebar rows. The WhatsApp hub and the
-    // Channels page hang here for the palette, not as visible children.
-    path: '/workspace/engage/inbox',
-    label: 'Messages',
+    // Canonical daily communication workspace. Channels are filters/capabilities inside
+    // Inbox/Manage, not separate top-level destinations.
+    path: '/workspace/communications',
+    label: 'Communications',
     icon: 'message',
     children: [
-      { path: '/workspace/engage/inbox?channel=whatsapp', label: 'WhatsApp' },
-      { path: '/workspace/engage/inbox?channel=sms', label: 'SMS' },
-      { path: '/workspace/engage/inbox?channel=rcs', label: 'RCS' },
-      { path: '/workspace/engage/inbox?channel=email', label: 'Email' },
-      { path: '/workspace/engage/inbox?channel=voice', label: 'Calls' },
-      { path: '/workspace/engage/broadcast', label: 'Broadcast' },
-      // Scheduled and Contact 360 are tabs on the Messages hub (FEAT-005), reached as ?tab= on
-      // /workspace/engage. Broadcast and Message logs keep their own routes (the channel tabs
-      // embed them).
-      { path: '/workspace/engage?tab=scheduled', label: 'Scheduled' },
-      // FEAT-003: Message logs is a tab on the Messages hub now (beside Analytics), not a
-      // standalone sidebar destination; reached as a ?tab= deep-link. The logs route still
-      // exists (the per-channel hubs embed it); it is simply no longer its own nav row.
-      { path: '/workspace/engage?tab=logs', label: 'Message logs' },
-      { path: '/workspace/engage?tab=contact-360', label: 'Contact 360' },
+      { path: '/workspace/communications?view=inbox', label: 'Inbox' },
+      { path: '/workspace/communications?view=manage', label: 'Manage communications' },
     ],
   },
   {
