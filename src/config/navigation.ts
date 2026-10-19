@@ -267,11 +267,9 @@ export const settingsConfig: SettingsGroup[] = [
       { path: '/workspace/communications?view=manage&section=search', label: 'Message Search' },
       { path: '/workspace/communications?view=manage&section=ai', label: 'Meta AI Agent' },
       { path: '/workspace/communications?view=manage&section=docs', label: 'Docs Scraper' },
-      // #956 (Rebuild Content as one publishing workspace): /workspace/link is now a
-      // router.replace compatibility redirect to /workspace/content, so this row pointed
-      // at a signpost. Repointed to the canonical Short Links route in the Content
-      // workspace. The Links panel is still embeddable in Communications, but its
-      // canonical destination is /workspace/content?view=links.
+      // /workspace/link remains a compatibility redirect, while the canonical
+      // operator destination is Communications > Manage > Short Links. Keep the
+      // command palette pointed at the live embedded panel rather than the signpost.
       { path: '/workspace/communications?view=manage&section=links', label: 'Short Links' },
     ],
   },
