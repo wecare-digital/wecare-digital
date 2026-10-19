@@ -121,9 +121,16 @@ interface RotatingHeroProps {
    * keeping additional page-specific sections inside one main landmark.
    */
   insideMain?: boolean;
+  /**
+   * Opt into the canonical public mobile foundation without changing every existing
+   * RotatingHero consumer at once. Migrated page families use the shared 40px hero,
+   * 16px gutter, 48px top air and 64px section rhythm; unaudited routes keep the
+   * established RotatingHero mobile behavior until their own migration.
+   */
+  mobileFoundation?: boolean;
 }
 
-const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPrefix, words, pillKey, sub, ariaLabel, visual, children, subordinate = false, insideMain = false } ) => {
+const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPrefix, words, pillKey, sub, ariaLabel, visual, children, subordinate = false, insideMain = false, mobileFoundation = false } ) => {
   /**
    * 'final' is the CSS default: shutter gone, dot popped, nothing animating. 'armed' puts
    * the start state back, 'shown' plays it. Starting at 'final' is what makes the entrance
@@ -192,7 +199,11 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
   const Head = subordinate ? 'h2' : 'h1';
 
   return (
-    <Shell className={ insideMain ? 'rh-shell is-inside-main' : 'rh-shell' } aria-label={ ariaLabel }>
+    <Shell className={ [
+      'rh-shell',
+      insideMain ? 'is-inside-main' : '',
+      mobileFoundation ? 'uses-mobile-foundation' : '',
+    ].filter( Boolean ).join( ' ' ) } aria-label={ ariaLabel }>
       <div className={ [
         'rh-layout',
         phase === 'armed' || phase === 'shown' ? 'is-armed' : '',
@@ -296,6 +307,30 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
           .rh-shell{min-height:100vh;min-height:100dvh;padding-top:96px}
           .rh-layout{padding:48px 16px 40px;gap:64px}
           .rh-head{line-height:1.1}
+          /* Opt-in only: migrated page families consume the shared mobile foundation.
+             Higher specificity deliberately keeps the 40px canonical hero on normal phones;
+             device/reflow CI decides whether an individual narrow-foldable exception is needed. */
+          .rh-shell.uses-mobile-foundation .rh-layout{
+            padding:var(--public-mobile-hero-top) var(--public-mobile-page-gutter) 40px;
+            gap:var(--public-mobile-section-gap);
+          }
+          .rh-shell.uses-mobile-foundation .rh-head{font-size:var(--public-mobile-hero-size)}
+        }
+        /* A width-only viewport cannot represent an occluded hinge. Migrated hero families stay
+           wholly inside one reported pane when the browser exposes two horizontal segments. */
+        @media(horizontal-viewport-segments:2){
+          .rh-shell.uses-mobile-foundation .rh-layout{
+            width:env(viewport-segment-width 0 0);
+            max-width:env(viewport-segment-width 0 0);
+            margin-left:env(viewport-segment-left 0 0);
+            margin-right:auto;
+          }
+          :global([dir='rtl']) .rh-shell.uses-mobile-foundation .rh-layout{
+            width:env(viewport-segment-width 1 0);
+            max-width:env(viewport-segment-width 1 0);
+            margin-left:env(viewport-segment-left 1 0);
+            margin-right:0;
+          }
         }
         /* 320px OVERFLOWED BY 11px, and the cause is content rather than layout.
            /contact/ rotates "amend a request" - 279px at the 36px clamp floor - and the pill
