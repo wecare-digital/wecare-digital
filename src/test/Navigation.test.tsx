@@ -148,7 +148,7 @@ describe( 'nothing became unreachable', () => {
     for ( const p of [ '/workspace/communications?view=manage&section=sms',
       '/workspace/communications?view=manage&section=search',
       '/workspace/communications?view=manage&section=whatsapp&tool=catalog-builder', '/workspace/communications?view=manage&section=whatsapp&tool=embedded-signup',
-      '/workspace/settings/platform?tab=design-reference',
+      '/workspace/platform?view=design-reference',
       '/workspace/communications?view=manage&section=ai', '/workspace/service?view=requests&action=faq' ] )
     {
       expect( all ).toContain( p );
@@ -163,7 +163,7 @@ describe( 'nothing became unreachable', () => {
     // FEAT-005/006: same destinations, now reached as hub?tab= deep-links — CORS under the
     // Platform hub, the two WhatsApp tools under the WhatsApp hub, Form responses under the
     // Service hub.
-    for ( const p of [ '/workspace/settings/platform?tab=cors-settings', '/workspace/communications?view=manage&section=whatsapp&tool=ai-agent',
+    for ( const p of [ '/workspace/platform?view=cors-settings', '/workspace/communications?view=manage&section=whatsapp&tool=ai-agent',
       '/workspace/communications?view=manage&section=whatsapp&tool=scripts', '/workspace/service?view=requests' ] )
     {
       expect( all ).toContain( p );
@@ -205,8 +205,8 @@ describe( 'no entry point lands on a redirect signpost', () => {
   // old URLs resolve instead of 404ing through the static-export catch-all. Each forwards to a
   // destination a nav row reaches (verified below).
   const SIGNPOSTS = [ '/workspace/admin', '/workspace/forms', '/workspace/docs',
-    '/workspace/access', '/workspace/contacts', '/workspace/engage/whatsapp',
-    '/workspace/engage/service-ops', '/workspace/dashboard/waba-usernames' ];
+    '/workspace/access', '/workspace/contacts', '/workspace/link', '/workspace/settings/platform',
+    '/workspace/engage/whatsapp', '/workspace/engage/service-ops', '/workspace/dashboard/waba-usernames' ];
 
   it( 'keeps every signpost, and each forwards to a destination the nav reaches', () => {
     const all = getAllNavItems().map( ( i ) => i.path );
