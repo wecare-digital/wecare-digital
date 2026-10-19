@@ -41,13 +41,14 @@ def test_unpaid_order_cannot_enter_fulfilment():
     assert error["errorCode"] == "ORDER_PAYMENT_NOT_CAPTURED"
 
 
-def test_paid_order_cannot_be_cancelled_through_generic_patch():
-    updates, error = _validate(
+def test_order_cancellation_requires_audited_workflow_regardless_of_payment_state():
+    for current in (
         {"paymentStatus": "captured", "orderStatus": "processing"},
-        {"status": "canceled"},
-    )
-    assert updates is None
-    assert error["errorCode"] == "PAID_ORDER_CANCEL_REQUIRES_WORKFLOW"
+        {"paymentStatus": "pending", "orderStatus": "pending"},
+    ):
+        updates, error = _validate(current, {"status": "canceled"})
+        assert updates is None
+        assert error["errorCode"] == "ORDER_CANCEL_REQUIRES_WORKFLOW"
 
 
 def test_unknown_existing_status_fails_closed_even_when_paid():
