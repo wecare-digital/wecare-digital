@@ -223,6 +223,11 @@ describe( 'support widget wiring', () => {
     expect( widgetCode ).not.toContain( 'savedLang' );
   } );
 
+  it( 'keeps the floating support widget clear of side safe areas', () => {
+    expect( widget ).toContain( 'right:max(var(--wc-inset),env(safe-area-inset-right))' );
+    expect( widget ).toContain( "left:max(var(--wc-inset),env(safe-area-inset-left))" );
+  } );
+
   it( 'has no hover tint on the chip', () => {
     // Removed on instruction, and correct for a reason worth keeping: the same tint marks the
     // ACTIVE ROW inside the panel, so using it on the trigger meant one colour saying two
