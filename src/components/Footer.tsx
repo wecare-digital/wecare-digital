@@ -324,8 +324,13 @@ const Footer: React.FC = () => {
       .ft-brand{display:flex;flex-direction:column;align-items:flex-start;gap:14px;min-width:0}
 
       /* inline-flex, not block: a block anchor would stretch to the full measure and give
-         the lockup a click target running the width of the page. */
-      .ft-home{display:inline-flex;text-decoration:none;border-radius:10px}
+         the lockup a click target running the width of the page.
+         min-height:44px IS THE TAP TARGET. The lockup's logo measures ~40px tall, so the anchor
+         shrank to fit it and fell below the 44px minimum a touch target needs (WCAG 2.5.8 / the
+         repo's device-compat contract), most visibly at <768px. min-height:44px floors the hit
+         area at every width; align-items:center keeps the logo vertically centred inside it so
+         the lockup does not shift. border-radius, focus-visible ring and layout are unchanged. */
+      .ft-home{display:inline-flex;align-items:center;min-height:44px;text-decoration:none;border-radius:10px}
       /* OPAQUE #1a3a2a, not the .22 alpha this used to carry. rgba(26,58,42,.22) composites
          to rgb(205,212,208) over the white footer and measures 1.51:1 against it, well under
          the 3:1 WCAG 1.4.11 requires of a focus indicator - the ring was visible to someone
