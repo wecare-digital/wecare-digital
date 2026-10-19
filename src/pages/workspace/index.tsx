@@ -23,13 +23,13 @@ const attention = [
 
 const start = [
   { label: 'Message', detail: 'Open the unified inbox', href: '/workspace/communications?view=inbox' },
-  { label: 'Customer', detail: 'Find or create a customer record', href: '/workspace/contacts' },
+  { label: 'Customer', detail: 'Find or create a customer record', href: '/workspace/customers' },
   { label: 'Order', detail: 'Work with catalog and orders', href: '/workspace/commerce' },
   { label: 'Collect payment', detail: 'Create an authoritative payment request', href: '/workspace/payments?view=collect' },
 ];
 
 const workspaces = [
-  { label: 'Customers', detail: 'Identity, address, consent and customer history', href: '/workspace/contacts' },
+  { label: 'Customers', detail: 'Identity, address, consent and customer history', href: '/workspace/customers' },
   { label: 'Communications', detail: 'Inbox and communications management', href: '/workspace/communications' },
   { label: 'Commerce', detail: 'Orders and catalog', href: '/workspace/commerce' },
   { label: 'Payments', detail: 'Collect and ledger', href: '/workspace/payments' },
