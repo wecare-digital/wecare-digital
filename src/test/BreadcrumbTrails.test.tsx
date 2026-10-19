@@ -50,7 +50,7 @@ describe( 'the product-family trails', () => {
 
   it( 'covers every ProductPage that renders a visible trail, and nothing else', () => {
     const withCrumbs = walk( PAGES )
-      .filter( f => f.endsWith( '.tsx' ) && !f.includes( `${path.sep}workspace${path.sep}` ) )
+      .filter( f => f.endsWith( '.tsx' ) && !path.relative( PAGES, f ).startsWith( `workspace${path.sep}` ) )
       .filter( f => /\bcrumbs=\{ breadcrumbTrail\(/.test( fs.readFileSync( f, 'utf8' ) ) )
       .map( f => '/' + path.relative( PAGES, f ).replace( /\\/g, '/' ).replace( /(\/index)?\.tsx$/, '' ) );
     expect( withCrumbs.sort() ).toEqual( [ ...routes ].sort() );

@@ -1,35 +1,34 @@
-"""Guarded DNS cutover for the owner-approved home redirect distribution.
+"""Build a retirement-only plan for the unused home-fallback wildcard.
 
-The distribution is provisioned by amplify/infra/home-fallback.json. Cut over
-only after CloudFront reports Deployed; never change explicit service records.
-Both names are owned by the alias records this module writes, so any existing
-CNAME there is unexpected and refuses the change rather than being replaced.
-Call apply(client, domain, existing) after saving existing to a rollback file.
+This pure helper performs no AWS calls and never creates or upserts DNS. Pass a
+fresh saved Route53 record inventory; the caller must review the returned plan
+before applying it. Only aliases to the retired distribution can be removed.
+Explicit service names, xout and certificate-validation records are preserved.
+See docs/execution/wildcard-retirement-20261019.md for the stack boundary.
 """
 
 ZONE_ID = "Z03939753QJGZ6ZD6BXO8"
 CLOUDFRONT_ZONE_ID = "Z2FDTNDATAQYW2"
-NAMES = ("*.wecare.digital.", "xout.wecare.digital.")
+RETIRED_DOMAIN = "d27evp2npt2kzr.cloudfront.net"
+RETIRED_NAME = "*.wecare.digital."
 
 
 def changes(domain: str, existing: list[dict]) -> list[dict]:
-    if not domain.endswith(".cloudfront.net"):
-        raise ValueError("Expected a CloudFront distribution hostname")
+    if domain.rstrip(".").lower() != RETIRED_DOMAIN:
+        raise ValueError("Only the retired home-fallback distribution may be removed")
+    expected_alias = {
+        "HostedZoneId": CLOUDFRONT_ZONE_ID,
+        "DNSName": RETIRED_DOMAIN + ".",
+        "EvaluateTargetHealth": False,
+    }
     result = []
-    for name in NAMES:
-        current = [r for r in existing if r["Name"].replace("\\052", "*") == name]
-        for record in current:
-            if record["Type"] not in ("A", "AAAA", "CNAME"):
-                raise ValueError("Refusing cutover over a service/verification record")
-            if record["Type"] in ("A", "AAAA") and record.get("AliasTarget", {}).get("DNSName", "").rstrip(".") != domain:
-                raise ValueError("Unexpected existing address; rediscover before changing DNS")
-            if record["Type"] == "CNAME":
-                raise ValueError("Unexpected existing CNAME; rediscover before changing DNS")
-        for kind in ("A", "AAAA"):
-            desired = {"Name": name, "Type": kind, "AliasTarget": {
-                "HostedZoneId": CLOUDFRONT_ZONE_ID, "DNSName": domain + ".",
-                "EvaluateTargetHealth": False,
-            }}
-            if not any({**r, "Name": r["Name"].replace("\\052", "*")} == desired for r in current):
-                result.append({"Action": "UPSERT", "ResourceRecordSet": desired})
+    for record in existing:
+        if record["Name"].replace("\\052", "*").lower() != RETIRED_NAME:
+            continue
+        if (set(record) != {"Name", "Type", "AliasTarget"}
+                or record["Type"] not in ("A", "AAAA")
+                or record.get("AliasTarget") != expected_alias):
+            raise ValueError("Unexpected wildcard record; rediscover before changing DNS")
+        # Route53 DELETE must match the saved record exactly, including escaped Name.
+        result.append({"Action": "DELETE", "ResourceRecordSet": record})
     return result
