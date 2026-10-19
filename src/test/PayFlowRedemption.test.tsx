@@ -11,6 +11,10 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
  * amount; it renders only the server-owned Delight figure returned on create.
  */
 const confirmAction = vi.fn();
+const routerPush = vi.fn();
+vi.mock( 'next/router', () => ( {
+  useRouter: () => ( { push: routerPush, query: {}, pathname: '/workspace/payments' } ),
+} ) );
 vi.mock( '../contexts/ConfirmContext', () => ( { useConfirm: () => confirmAction } ) );
 
 const listContacts = vi.fn();
@@ -55,6 +59,7 @@ const SERVER_CREATE = {
 
 beforeEach( () => {
   vi.clearAllMocks();
+  routerPush.mockResolvedValue( true );
   window.localStorage.clear();
   confirmAction.mockResolvedValue( true );
   cancelInvoice.mockResolvedValue( { status: 'cancelled' } );
