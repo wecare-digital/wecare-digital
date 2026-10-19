@@ -438,9 +438,13 @@ describe( 'Header', () => {
     const cssWithoutComments = css.replace( /\/\*[\s\S]*?\*\//g, '' );
     expect( cssWithoutComments ).not.toContain( 'calc(100vw - 256px)' );
     expect( css ).toContain( 'max-height:calc(100vh - 140px)' );
-    expect( css ).toContain( 'max-height:calc(100dvh - 140px - env(safe-area-inset-bottom, 0px))' );
-    expect( css ).toContain( 'env(safe-area-inset-left,0px)' );
-    expect( css ).toContain( 'env(safe-area-inset-right,0px)' );
+    // The safe-area insets now reference the single --safe-* token contract (src/styles/tokens.css,
+    // unified-mobile Phase 1) rather than repeating the raw env(safe-area-inset-*) literal. The
+    // tokens are defined as exactly env(safe-area-inset-*), so the resolved value is identical; the
+    // max(16px, ...) guards on the mobile panel are preserved.
+    expect( css ).toContain( 'max-height:calc(100dvh - 140px - var(--safe-bottom))' );
+    expect( css ).toContain( 'max(16px,var(--safe-left))' );
+    expect( css ).toContain( 'max(16px,var(--safe-right))' );
     expect( css ).toContain( 'touch-action:pan-y' );
   } );
 

@@ -813,9 +813,23 @@ const Header: React.FC = () => {
            unchanged - nothing reaches the clip there. overflow-x:hidden is the clip fallback. NO
            backtick in this comment. */
         .hdr-in{max-width:var(--public-content-max);margin:0 auto;padding:18px 24px;display:flex;align-items:center;box-sizing:border-box;height:108px;min-width:0;overflow-x:hidden;overflow-x:clip}
-        .logo{display:flex;align-items:center;text-decoration:none}
-        .logo-nav{display:flex;align-items:center;gap:10px}
-        .nav-dropdown{position:relative}
+        /* min-width:0 for the same reason as .logo-nav below: the brand lockup inside is nowrap,
+           so this flex item would otherwise hold its full intrinsic width and keep the cluster
+           from compressing at a 200%-zoom reflow. The overflow is absorbed by .hdr-in's
+           overflow-x:clip, not reflowed onto the page. */
+        .logo{display:flex;align-items:center;text-decoration:none;min-width:0}
+        /* min-width:0 is the ZOOM-CONTAINMENT floor (unified-mobile Phase 1, unit 3). A flex item
+           defaults to min-width:auto, which refuses to shrink below the intrinsic width of its
+           content - here the nowrap brand lockup (WECARE.DIGITAL ~158px) plus the 46px menu
+           trigger. Without this, .logo-nav keeps its full intrinsic width at a 200%-zoom reflow to
+           a ~160 CSS-px layout viewport and, because .hdr-cart is pushed to the end with
+           margin-inline-start:auto, the cart glyph's right edge is driven past the viewport
+           (measured ~265px at a 160 CSS-px reflow) and the PAGE scrolls horizontally. min-width:0
+           lets this cluster compress so the overflow lands inside .hdr-in's overflow-x:clip
+           instead of reaching the page. max-width:100% keeps it from ever exceeding the row.
+           Normal-zoom layout is unchanged - nothing reaches this floor there. */
+        .logo-nav{display:flex;align-items:center;gap:10px;min-width:0;max-width:100%}
+        .nav-dropdown{position:relative;min-width:0}
         /* SOFT NEUTRAL CHIP at rest, not a bare invisible button. It was
            background:none, so the chevron floated with no target - it read as
            decoration rather than a control. A soft #f4f7ee fill with a #e3ecc9
@@ -984,7 +998,7 @@ const Header: React.FC = () => {
            NO BACKTICKS IN THIS COMMENT: it sits inside a styled-jsx template literal, and a
            single backtick closes it - turning the rest of the stylesheet into JSX and failing
            the build hundreds of lines later with an unrelated-looking "Unexpected token". */
-        .nav-menu{--nav-menu-inset:0px;position:absolute;top:calc(100% + 8px);left:var(--nav-menu-inset);right:auto;z-index:1002;width:min(760px,var(--nav-menu-available-width,760px));max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px - env(safe-area-inset-bottom, 0px));overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;background:#fcfdfb;border:0;border-radius:14px;padding:14px;opacity:0;visibility:hidden;transform:translateY(4px);transition:opacity .2s,transform .2s,visibility 0s linear .2s;box-shadow:0 8px 28px rgba(0,0,0,.10)}
+        .nav-menu{--nav-menu-inset:0px;position:absolute;top:calc(100% + 8px);left:var(--nav-menu-inset);right:auto;z-index:1002;width:min(760px,var(--nav-menu-available-width,760px));max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px - var(--safe-bottom));overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;background:#fcfdfb;border:0;border-radius:14px;padding:14px;opacity:0;visibility:hidden;transform:translateY(4px);transition:opacity .2s,transform .2s,visibility 0s linear .2s;box-shadow:0 8px 28px rgba(0,0,0,.10)}
         .nav-menu.open{opacity:1;visibility:visible;transform:translateY(0);transition:opacity .2s,transform .2s,visibility 0s}
 
         /* Search field. Sized off the language panel's input rather than a new set of
@@ -1162,7 +1176,7 @@ const Header: React.FC = () => {
            variable - symmetric, therefore direction-neutral, therefore no rtl override
            needed. It still has to beat the base rule's compiled :lang() selector, which the
            extra .hdr-in ancestor class does. */
-        @media(max-width:767px){.hdr-in{height:96px;padding:14px 16px}.logo-nav{gap:8px}.hdr-in .nav-menu{position:fixed;top:100px;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));width:auto;max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px - env(safe-area-inset-bottom,0px))}.nav-cols,.nav-results{grid-template-columns:minmax(0,1fr)}.nav-item,.nav-child{font-size:19px;font-weight:600;min-height:52px}.nav-products-scroll{max-height:none;overflow:visible;overscroll-behavior:auto;background:transparent;padding:0;border-radius:0}.nav-products-cue-row{display:none}.nav-products-more{display:none}}
+        @media(max-width:767px){.hdr-in{height:96px;padding:14px 16px}.logo-nav{gap:8px}.hdr-in .nav-menu{position:fixed;top:100px;left:max(16px,var(--safe-left));right:max(16px,var(--safe-right));width:auto;max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px - var(--safe-bottom))}.nav-cols,.nav-results{grid-template-columns:minmax(0,1fr)}.nav-item,.nav-child{font-size:19px;font-weight:600;min-height:52px}.nav-products-scroll{max-height:none;overflow:visible;overscroll-behavior:auto;background:transparent;padding:0;border-radius:0}.nav-products-cue-row{display:none}.nav-products-more{display:none}}
 
         /* ROOM FOR THE SHOPPING BAG ON THE NARROWEST DEVICE THAT SHIPS, derived rather than
            nudged. Measured on the built header at 280px (Galaxy Fold, folded) before the bag
