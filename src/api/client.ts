@@ -567,6 +567,31 @@ export async function deleteContact ( contactId: string ): Promise<boolean> {
   return data !== null && !data.error;
 }
 
+export interface CustomerMergeResult {
+  merged: boolean;
+  idempotent?: boolean;
+  sourceContactId: string;
+  targetContactId: string;
+  customerUuid?: string;
+  preservedFinancialHistory?: boolean;
+}
+
+export async function mergeContacts (
+  sourceContactId: string,
+  targetContactId: string,
+  reason: string,
+): Promise<ApiResult<CustomerMergeResult>> {
+  return apiCallResult<CustomerMergeResult>( `${API_BASE}/contacts`, {
+    method: 'POST',
+    body: JSON.stringify( {
+      _action: 'merge',
+      sourceContactId,
+      targetContactId,
+      reason,
+    } ),
+  } );
+}
+
 function normalizeContact ( item: any ): Contact {
   return {
     id: item.id || item.contactId || '',
