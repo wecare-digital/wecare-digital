@@ -65,12 +65,9 @@ function signpostTarget ( navPath: string ): string | null {
 
 describe( 'the sidebar is short and holds only daily streams', () => {
   it( 'has far fewer top-level entries than the 11 it had', () => {
-    // The bound moved 8 -> 9 on 2026-10-07 to carry the Content section, which puts the
-    // blog-production queue (source review, QA, publish) in the sidebar — queue-shaped
-    // daily work, and five pages that reached neither the nav nor the command palette
-    // before. The test's claim is untouched: 9 is still far fewer than 11, and it is a
-    // CEILING rather than a target. A tenth section needs its own argument, made here.
-    expect( navigationConfig.length ).toBeLessThanOrEqual( 9 );
+    // Publishing and Automation remain searchable contextual workflows, not permanent
+    // operating areas. Keep the primary list bounded to Home plus the six domain workspaces.
+    expect( navigationConfig.length ).toBeLessThanOrEqual( 7 );
   } );
 
   it( 'leads with canonical Workspace Home', () => {
@@ -132,7 +129,7 @@ describe( 'nothing became unreachable', () => {
     expect( unique ).toContain( '/workspace/payments?view=activity' );
     expect( unique ).toContain( '/workspace/service?view=requests' );
     expect( unique ).toContain( '/workspace/content?view=blog' );
-    expect( unique ).toContain( '/workspace/content?view=links' );
+    expect( unique ).toContain( '/workspace/automation?view=rules' );
   } );
 
   it( 'keeps the pages that have no link anywhere else', () => {
