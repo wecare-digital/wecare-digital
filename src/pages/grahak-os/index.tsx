@@ -1215,16 +1215,19 @@ response = requests.post(
                device --safe-top resolves to 0, so the calc() is unaffected. */
             .hero{padding:calc(115px + var(--safe-top)) 20px 50px}
             .hero-content{display:flex;flex-direction:column;gap:32px;text-align:left;align-items:flex-start}
-            .hero-right{order:-1;width:100%;display:flex;justify-content:center}
-            /* On the stacked mobile hero the below-code link re-centres under the mockup
+            .hero-right{width:100%;display:flex;justify-content:center}
+            /* Mobile hero stacks in source order: text (.hero-left) on top, the phone/code
+               mockup (.hero-right) below it. The earlier order:-1/order:1 reversal floated the
+               mockup above the heading, which read as the hero "coming below" the mock; natural
+               order puts the headline first. The below-code link re-centres under the mockup
                (desktop right-aligns it; here flex-end would push it to the column edge). */
             .hero-visual-col{align-items:center}
-            .hero-left{text-align:left;order:1}
+            .hero-left{text-align:left}
             .hero-left h1{margin:0 0 20px;line-height:1.1;max-width:100%;text-align:left}
             .hero-left p{margin:0 0 16px;max-width:100%;text-align:left}
 
-            .mockup-wrapper{display:flex;flex-direction:column;gap:14px;width:100%;max-width:380px;margin:8px auto 0;aspect-ratio:auto;padding:16px;background:#fff;border-radius:16px;border:2px solid var(--public-hairline);align-items:flex-start;transition:all .25s;cursor:default}
-            .mockup-wrapper:hover{border-color:var(--public-brand-lime);transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
+            .mockup-wrapper{display:flex;flex-direction:column;gap:14px;width:100%;max-width:380px;margin:8px auto 0;aspect-ratio:auto;padding:16px;background:#fff;border-radius:16px;border:0;align-items:flex-start;transition:all .25s;cursor:default}
+            .mockup-wrapper:hover{transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
             .phone{position:relative;left:auto;top:auto;width:100%;max-width:100%;margin:0;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,.08)}
             .phone-header{padding:14px 16px;gap:10px}
             .avatar{width:42px;height:42px;font-size:18px}

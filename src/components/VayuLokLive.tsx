@@ -5008,7 +5008,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
           .vl-live-shell{padding:0 max(10px,env(safe-area-inset-right)) max(44px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left))}
           .vl-live-map-shell{height:auto;min-height:min(460px,62svh);max-height:none}
           .vl-live-map-search{width:calc(100% - 20px);margin:10px auto 16px;padding:0}
-          .vl-live-air-card-wrap{width:calc(100% - 20px - env(safe-area-inset-left) - env(safe-area-inset-right));margin:10px 0 112px max(10px,env(safe-area-inset-left))}
+          .vl-live-air-card-wrap{justify-self:center;width:calc(100% - 20px - env(safe-area-inset-left) - env(safe-area-inset-right));margin:10px auto 112px}
           .vl-live-air-card{padding:20px}
           .vl-live-air-context{align-items:flex-start}
           .vl-live-air-context-item.is-location{max-width:56%}
