@@ -82,9 +82,18 @@ describe( 'support widget wiring', () => {
     // WhatsApp takes the palette's own-surface pairing, NOT WhatsApp green.
     expect( widget ).toContain( 'background:#d1f470;color:#1a3a2a' );
     expect( widget ).not.toContain( '#25D366' );
-    // 40px controls, down from the 56px pair they replace.
-    expect( widget ).toContain( '.wc-wa{width:40px;height:40px' );
-    expect( widget ).toContain( 'height:40px' );
+    // 44px controls: the shared app-first touch floor, still smaller than the retired 56px pair.
+    expect( widget ).toContain( '.wc-wa{width:44px;height:44px' );
+    expect( widget ).toContain( 'height:44px' );
+  } );
+
+  it( 'uses the app-first readable type scale in the shared support and translation widget', () => {
+    expect( widget ).toContain( '.wc-chip{position:relative;display:inline-flex;align-items:center;height:44px;min-width:56px' );
+    expect( widget ).toContain( 'font-size:16px;font-weight:700' );
+    expect( widget ).toContain( '.wc-panel{order:-1;display:flex;flex-direction:column;width:232px' );
+    expect( widget ).toContain( '.wc-row-code{flex:0 0 auto;font-size:12px' );
+    expect( widget ).toContain( '.wc-empty,.wc-more{margin:0;padding:11px 14px;font-size:14px' );
+    expect( widget ).toContain( '.wc-wa svg{width:23px;height:23px' );
   } );
 
   it( 'uses a searchable panel, and owns the keyboard that the native select used to give free', () => {
@@ -235,7 +244,7 @@ describe( 'support widget wiring', () => {
     expect( widget ).toMatch( /\.wc-search input\{[^}]*border-radius:0/ );
     // And the row height is declared rather than inherited from a global button rule, which
     // is how the WhatsApp circle previously ended up a 44x40 oval.
-    expect( widget ).toMatch( /\.wc-row\{[^}]*min-height:44px/ );
+    expect( widget ).toMatch( /\.wc-row\{[^}]*min-height:48px/ );
   } );
 
   it( 'signals translating with lime motion, not a dark inversion', () => {
