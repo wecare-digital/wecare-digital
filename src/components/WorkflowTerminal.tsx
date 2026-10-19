@@ -901,12 +901,16 @@ const WorkflowTerminal: React.FC = () => {
             for free. */}
         {/* THE COUNT LIVES ONLY HERE, AND IT IS LIVE. The chrome bar carries no count, so this
             is the one place the panel reports progress. Running: the lime dot + "running" and a
-            live "N / 13" counter where N is the `shown` state - with thirteen steps STEPS.length
-            is 13, so it animates 1 / 13 -> 13 / 13 as each row settles, driven by `shown` and
-            FROZEN while paused because the stepper that advances `shown` is gated by the pause
-            control. Done: a single CSS-safe tick + the locked done string. The 13/13 is derived
-            from STEPS.length (the live counter); the rest are literal descriptors - AI fires at
-            7 of the 13 steps, one retry was recovered, order #WD-4821. */}
+            live "N / 13" counter where N is the count of SETTLED rows, not `shown`. `shown` is
+            pinned at STEPS.length by the never-empty invariant (it starts at 13 and never
+            rewinds so all thirteen rows stay mounted), so it cannot report progress - it would
+            read 13 / 13 for the whole pass. The quantity that actually advances during a pass is
+            `settled`: it rewinds to -1 at a restart and climbs to 12, so Math.max(settled + 1, 0)
+            counts 1 / 13 -> 13 / 13 as each row settles, clamped to STEPS.length as a guard. It
+            is FROZEN while paused because the stepper that advances `settled` is gated by the
+            pause control. Done: a single CSS-safe tick + the locked done string. The 13/13 is
+            derived from STEPS.length (the live counter); the rest are literal descriptors - AI
+            fires at 7 of the 13 steps, one retry was recovered, order #WD-4821. */}
         <div className="wt-foot">
           { done ? (
             <span className="wt-foot-left">
@@ -916,7 +920,7 @@ const WorkflowTerminal: React.FC = () => {
           ) : (
             <>
               <span className="wt-foot-left"><i className="wt-foot-dot" />running</span>
-              <span className="wt-foot-right">{ `${shown} / ${STEPS.length}` }</span>
+              <span className="wt-foot-right">{ `${Math.min( Math.max( settled + 1, 0 ), STEPS.length )} / ${STEPS.length}` }</span>
             </>
           ) }
         </div>
