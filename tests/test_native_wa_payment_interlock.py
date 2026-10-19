@@ -420,3 +420,48 @@ def test_transaction_validation_error_is_not_reported_as_an_existing_payment(fak
                     invoice_reference_id=REFERENCE)
     assert refused.value.code == wpr.WA_PAY_IDENTITY_UNAVAILABLE
     assert fake.count(ATTEMPTS) == 0
+
+
+
+def test_cancel_retry_is_idempotent_and_does_not_bump_collection_sequence(engine, fake):
+    _seed(fake)
+    first = _cancel(engine, fake)
+    second = _cancel(engine, fake)
+
+    assert first['statusCode'] == 200
+    assert second['statusCode'] == 200
+    assert _body(first)['collectionSeq'] == 1
+    assert _body(first)['idempotent'] is False
+    assert _body(second)['collectionSeq'] == 1
+    assert _body(second)['idempotent'] is True
+    row = fake.tables[INVOICES][INVOICE_ID]
+    assert row['status'] == 'cancelled'
+    assert row['paymentStatus'] == 'cancelled'
+    assert row[order_keys.INVOICE_COLLECT_SEQ_ATTR] == 1
+
+
+def test_concurrent_capture_wins_over_invoice_cancel(engine, fake):
+    _seed(fake)
+    table = fake.Table(INVOICES)
+    original_update = table.update_item
+    raced = {'done': False}
+
+    def capture_before_cancel(**kwargs):
+        if not raced['done']:
+            raced['done'] = True
+            row = fake.tables[INVOICES][INVOICE_ID]
+            row['status'] = 'paid'
+            row['paymentStatus'] = 'captured'
+        return original_update(**kwargs)
+
+    with patch.object(table, 'update_item', side_effect=capture_before_cancel):
+        with patch.object(engine, 'dynamodb') as ddb:
+            ddb.Table.side_effect = fake.Table
+            response = engine.cancel_invoice(INVOICE_ID, 'operator cancel', 'req-race')
+
+    assert response['statusCode'] == 409
+    assert _body(response)['errorCode'] == 'INVOICE_CANCEL_PAYMENT_CHANGED'
+    row = fake.tables[INVOICES][INVOICE_ID]
+    assert row['status'] == 'paid'
+    assert row['paymentStatus'] == 'captured'
+    assert order_keys.INVOICE_COLLECT_SEQ_ATTR not in row
