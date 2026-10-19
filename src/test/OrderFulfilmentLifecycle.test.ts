@@ -13,6 +13,7 @@ describe( 'order fulfilment lifecycle', () => {
     expect( canonicalFulfilmentStatus( 'fulfilled', 'paid' ) ).toBe( 'completed' );
     expect( canonicalFulfilmentStatus( 'cancelled', 'pending' ) ).toBe( 'canceled' );
     expect( canonicalFulfilmentStatus( 'partially_shipped', 'paid' ) ).toBe( 'partially-shipped' );
+    expect( canonicalFulfilmentStatus( 'unknown-garbage', 'captured' ) ).toBe( 'pending' );
   } );
 
   it( 'matches the backend legal forward transitions for paid fulfilment', () => {
