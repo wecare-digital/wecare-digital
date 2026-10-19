@@ -44,7 +44,7 @@ const Arrow = () => (
 const WorkspacePage: React.FC<PageProps> = ( { signOut, user } ) => (
   <Layout user={ user } onSignOut={ signOut } showBreadcrumbs={ false }>
     <SEO title="Workspace" description="WECARE.DIGITAL operational workspace." noindex />
-    <main className="workspace-home">
+    <div className="workspace-home">
       <header className="home-intro">
         <p className="eyebrow">WECARE.DIGITAL</p>
         <h1>Workspace</h1>
@@ -91,7 +91,7 @@ const WorkspacePage: React.FC<PageProps> = ( { signOut, user } ) => (
           ) ) }
         </div>
       </section>
-    </main>
+    </div>
 
     <style jsx>{`
       .workspace-home{width:min(100%,1180px);margin:0 auto;padding:clamp(20px,4vw,48px);box-sizing:border-box}
