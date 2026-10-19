@@ -42,6 +42,7 @@ const SearchPanel = lazyTab<PageProps>( () => import( '../../../components/works
 const LogsPanel = lazyTab<PageProps>( () => import( '../engage/logs' ) );
 const MetaAgentPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/messaging/MetaAgent' ) );
 const DocsPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/messaging/DocsScraper' ) );
+const LinksPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/messaging/Links' ) );
 
 const WhatsAppProfilePanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/business-profile' ) );
 const CallingPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/calling' ) );
@@ -89,6 +90,7 @@ type SectionId =
   | 'usage'
   | 'search'
   | 'docs'
+  | 'links'
   | 'calling'
   | 'webhooks';
 
@@ -125,7 +127,7 @@ type WhatsAppTool =
 const MANAGE_GROUPS: Array<{
   title: string;
   hint: string;
-  items: Array<{ id: SectionId | 'links'; label: string; detail: string; status?: string }>;
+  items: Array<{ id: SectionId; label: string; detail: string; status?: string }>;
 }> = [
   {
     title: 'Channels & identities',
@@ -245,14 +247,7 @@ const CommunicationsPage: React.FC<PageProps> = ( { signOut, user } ) => {
     void router.push( { pathname: '/workspace/communications', query } );
   };
 
-  const openManageItem = ( id: SectionId | 'links' ) => {
-    if ( id === 'links' ) {
-      // Short-links already have a real backend-backed editor. It is migrated into this Manage
-      // surface in a later batch; until then this is a truthful existing destination, not a fake
-      // control.
-      void router.push( '/workspace/link' );
-      return;
-    }
+  const openManageItem = ( id: SectionId ) => {
     go( 'manage', id );
   };
 
@@ -331,6 +326,7 @@ const CommunicationsPage: React.FC<PageProps> = ( { signOut, user } ) => {
       case 'usage': return <UsagePanel signOut={ signOut } user={ user } embedded />;
       case 'search': return <SearchPanel signOut={ signOut } user={ user } embedded />;
       case 'docs': return <DocsPanel signOut={ signOut } user={ user } embedded />;
+      case 'links': return <LinksPanel signOut={ signOut } user={ user } embedded />;
       default: return null;
     }
   };
