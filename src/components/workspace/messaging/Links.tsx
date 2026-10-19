@@ -283,7 +283,7 @@ const LinksPanel: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
       <div className="link-page">
         <div className="link-page-header">
           <div>
-            <h1>Link</h1>
+            <h1>Links</h1>
             <p>URL shortener &amp; deep links via <strong>{ SHORT_LINK_BASE }</strong></p>
           </div>
           <Button variant="primary" onClick={ openCreate }>
@@ -442,7 +442,6 @@ const LinksPanel: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
 
       </div>
 
-      {/* Styles now in flex-layout.css — no inline styles needed */ }
   );
 
   if ( embedded ) return content;
