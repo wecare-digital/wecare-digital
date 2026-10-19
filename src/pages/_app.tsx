@@ -93,6 +93,7 @@ import PublicPolicyDetails from '../components/public/PublicPolicyDetails';
 import { ToastProvider } from '../contexts/ToastContext';
 import { ConfirmProvider } from '../contexts/ConfirmContext';
 import { initCapacitor, isNative } from '../lib/capacitor';
+import { registerPushToken } from '../lib/pushRegistration';
 import { VERIFICATION } from '../config/analytics';
 import { ORGANIZATION, WEBSITE, ORG_ID, ld } from '../lib/schema';
 import { breadcrumbTrail } from '../content/breadcrumbTrails';
@@ -872,8 +873,14 @@ export default function App ( { Component, pageProps }: AppProps ) {
         }
       }
     }
-    // Init Capacitor native plugins
-    initCapacitor( { push: ( p ) => router.push( p ), back: () => router.back() } );
+    // Init Capacitor native plugins. onPushToken arms push registration (OS permission prompt
+    // + SNS endpoint via POST /push/register); it is a no-op on the web, where initCapacitor
+    // returns early.
+    initCapacitor( {
+      push: ( p ) => router.push( p ),
+      back: () => router.back(),
+      onPushToken: ( token, platform ) => { void registerPushToken( token, platform ); },
+    } );
   }, [] );
 
   // NO client-mount gate here, deliberately.

@@ -173,12 +173,39 @@ export function initKeyboard(
 }
 
 /* ── Master Init ── */
-export async function initCapacitor(router: { push: (path: string) => void; back: () => void }) {
+export interface InitCapacitorOptions {
+  push: (path: string) => void;
+  back: () => void;
+  /**
+   * Called with the device's native push token (FCM on Android, APNs on iOS) once the user
+   * grants permission and registration succeeds. The caller forwards it to the backend
+   * (POST /push/register) so it can create the SNS platform endpoint. Optional: omit it and
+   * push is simply not initialised (the previous behaviour). It lives in _app.tsx rather than
+   * here so this module stays free of the API client — the token-to-backend hop needs the
+   * authenticated fetch, and keeping that dependency out of the native-init module avoids
+   * pulling the whole client into the plugin layer.
+   */
+  onPushToken?: (token: string, platform: 'ios' | 'android') => void;
+  /** Called when a push notification is received or tapped (optional). */
+  onPushNotification?: (data: unknown) => void;
+}
+
+export async function initCapacitor(opts: InitCapacitorOptions) {
   if (!isNative()) return;
 
   await configureStatusBar(true);
   await hideSplash();
-  initDeepLinks((path) => router.push(path));
-  initBackButton(() => router.back());
+  initDeepLinks((path) => opts.push(path));
+  initBackButton(() => opts.back());
   initKeyboard();
+
+  // Push: only armed when the caller supplies a token sink. requestPermissions() shows the OS
+  // prompt, so gating on onPushToken keeps a build that does not wire delivery from asking.
+  if (opts.onPushToken) {
+    const platform: 'ios' | 'android' = isIOS() ? 'ios' : 'android';
+    await initPushNotifications(
+      (token) => opts.onPushToken!(token, platform),
+      (data) => opts.onPushNotification?.(data),
+    );
+  }
 }
