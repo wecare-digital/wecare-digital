@@ -20,7 +20,6 @@ from typing import Any, Dict
 
 import boto3
 
-API_BASE = "https://api.razorpay.com/v1"
 API_SECRET_ID = os.environ.get("RAZORPAY_API_SECRET_ID", "wecare/razorpay/api")
 _PAYMENT_ID = re.compile(r"^pay_[A-Za-z0-9]+$")
 
@@ -101,7 +100,7 @@ def create_full_refund(
         separators=(",", ":"),
     ).encode("utf-8")
     request = urllib.request.Request(
-        f"{API_BASE}/payments/{payment_id}/refund",
+        f"https://api.razorpay.com/v1/payments/{payment_id}/refund",
         data=body,
         method="POST",
         headers={
