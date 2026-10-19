@@ -164,8 +164,6 @@ export const navigationConfig: NavItem[] = [
       { path: '/workspace/platform?view=design-reference', label: 'Design Reference' },
     ],
   },
-  {
-
 ];
 
 // ---------------------------------------------------------------------------
@@ -275,7 +273,7 @@ export const settingsConfig: SettingsGroup[] = [
       // at a signpost. Repointed to the canonical Short Links route in the Content
       // workspace. The Links panel is still embeddable in Communications, but its
       // canonical destination is /workspace/content?view=links.
-      { path: '/workspace/content?view=links', label: 'Short Links' },
+      { path: '/workspace/communications?view=manage&section=links', label: 'Short Links' },
     ],
   },
   {
