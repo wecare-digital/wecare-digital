@@ -16,8 +16,8 @@
  * The fourth name, api.Contact, is not a capability: it is the exported `Contact`
  * interface used in a type assertion, has no call site in src/, and stays in api/client.ts.
  *
- * WHERE IT LIVES NOW. FEAT-003 folded the WhatsApp sub-routes into the one WhatsApp hub
- * (/workspace/engage/whatsapp/settings) as ?tab= views, so this body moved OUT of the routes
+ * WHERE IT LIVES NOW. FEAT-003 folded the WhatsApp sub-routes into the one Communications WhatsApp management
+ * (/workspace/communications?view=manage&section=whatsapp) as ?tab= views, so this body moved OUT of the routes
  * tree (it was src/pages/workspace/engage/whatsapp/inbox.tsx) into the hub's component
  * directory and is now the hub's `inbox` tab. src/test/CssDrivenMotion.test.tsx reads this
  * exact path and asserts it hardcodes no smooth scroll behaviour — a TEXT match over the

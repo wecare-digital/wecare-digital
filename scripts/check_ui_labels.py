@@ -81,7 +81,7 @@ AUTHORISED_SURFACES = {
         "Technical Details tab: system state per resource.",
     "src/components/dashboard/tabs/DataTab.tsx":
         "Technical Details tab: per-table row counts.",
-    "src/pages/workspace/settings/platform/index.tsx":
+    "src/pages/workspace/platform/index.tsx":
         "Operator Platform hub shell that hosts the Technical Details tabs "
         "(workspace redesign FEAT-006; replaced the removed dashboard shell).",
     "src/config/constants.ts":
