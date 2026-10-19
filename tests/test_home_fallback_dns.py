@@ -82,3 +82,14 @@ def test_retired_fallback_has_no_creation_template_or_edge_function():
             if resource.get("Type") == "AWS::CloudFront::Distribution":
                 aliases = resource["Properties"]["DistributionConfig"].get("Aliases", [])
                 assert "*.wecare.digital" not in aliases, path.name
+
+
+def test_active_migration_export_cannot_restore_retired_wildcard_routing():
+    export = json.loads((ROOT / "docs/migrations/domain/wecare-digital-zone-export.json").read_text())
+    wildcard_addresses = [
+        (record["Name"], record["Type"])
+        for record in export["ResourceRecordSets"]
+        if record["Name"].replace("\\052", "*").lower() == "*.wecare.digital."
+        and record["Type"] in ("A", "AAAA", "CNAME")
+    ]
+    assert wildcard_addresses == [], "Active migration input must preserve wildcard retirement"

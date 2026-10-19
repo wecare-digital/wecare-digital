@@ -7,14 +7,15 @@ WHOLE host-and-path surface still behave the way it was measured to behave, incl
 rows that are supposed to be boring. Hosts, the 404 fallback, the provider passthroughs, the
 staff entry, and the aliases the owner retired, all in one pass with one exit code.
 
-ONLY THE LAST STATUS IN A CHAIN MEANS ANYTHING, and that is the lesson this file is built
-around rather than a detail of it. `next.config.js` sets `trailingSlash: true`, so an
+ACTIVE ROUTES ARE JUDGED ON THEIR TERMINAL STATUS. `next.config.js` sets
+`trailingSlash: true`, so an
 extensionless path ALWAYS 301s to add the slash before any page lookup happens. A probe that
 records the first status reads `/admin` as "301, fine" when the chain actually terminates on
 a 404 - and reads it as "301, fine" equally when the chain terminates on a staff login at
 200, which is the exact defect this matrix was built to catch. So every row follows the chain
 to a terminal response and judges THAT, while still recording the hops so a new hop is
-visible.
+visible. Retired-host rows expecting status 0 require no HTTP response on the first and
+only hop: a redirect followed by a connection failure still means the retired host answered.
 
 LOOPS ARE CHECKED, NOT ASSUMED. A redirect whose target redirects back is the one failure a
 status-code assertion cannot see: both codes look correct in isolation. Every chain is walked
@@ -27,6 +28,10 @@ by POST and a rewrite can behave differently per method - `GET /mcp` is 405 whil
 
 CURRENT POLICY: current pages resolve normally. Missing pages return HTTP 404 and the
 shared browser fallback goes home. No individual retired-path redirects are maintained.
+The unused wildcard hosts, including www, are retired. Their expected status 0 records no
+HTTP response; it does not prove NXDOMAIN or distinguish DNS from TLS failure. An HTTP 503
+from an egress proxy remains 503 and fails that expectation. Verify DNS and CloudFront
+retirement separately through their control planes.
 
 Usage:
     .venv/bin/python scripts/probe_url_host_matrix.py            # human table
@@ -44,7 +49,7 @@ import urllib.parse
 import urllib.request
 
 SITE = "https://wecare.digital"
-WWW = "https://wecare.digital"
+WWW = "https://www.wecare.digital"
 UA = "wecare-url-host-matrix-probe/1"
 MAX_HOPS = 5
 
@@ -82,38 +87,23 @@ def matrix() -> list[dict]:
 
     # ── hosts ────────────────────────────────────────────────────────────────────────
     rows.append(_row("host", f"{SITE}/", 200, "the canonical home"))
-    rows.append(_row("host", f"{WWW}/", 200, "www must canonicalise to the apex",
-                     terminal_url=f"{SITE}/"))
-    # The row the whole host rule exists for. Restored 2026-10-01 after the redirect removal
-    # left www serving the entire site at 200 under a second hostname - duplicate content, not
-    # a redirect cleanup. The source is a bare origin, which is what preserves the path; a
-    # source with a path would collapse every www URL onto the apex home page.
-    # SAMPLE RETARGETED 2026-10-04, and this is not cosmetic. This row read `{WWW}/shop/` ->
-    # `{SITE}/shop/`. The owner has since withdrawn the catalogue index, so www /shop/ now chains
-    # 301 -> apex /shop/ -> 301 -> apex /, and the row would be SATISFIED by landing on home -
-    # which is the exact path-loss failure it exists to catch. /contact/ terminates at 200, so it
-    # still separates path preservation from path collapse. /blog/ below stays the second sample.
-    rows.append(_row("host", f"{WWW}/contact/", 200, "www must preserve the PATH, not land on home",
-                     terminal_url=f"{SITE}/contact/"))
-    rows.append(_row("host", f"{WWW}/blog/", 200, "path preservation, second sample",
-                     terminal_url=f"{SITE}/blog/"))
+    # www was retired with the unused wildcard on 2026-10-19. These are negative HTTP
+    # checks against the actual www host, not duplicate probes of the canonical apex.
+    rows.append(_row("host", f"{WWW}/", 0, "retired www host has no HTTP service"))
+    rows.append(_row("host", f"{WWW}/contact/", 0, "retired www path must not redirect to the apex"))
+    rows.append(_row("host", f"{WWW}/blog/", 0, "retired www path, second sample"))
     rows.append(_row("host", f"http://{SITE.split('://')[1]}/", 200,
                      "http apex reaches https apex", terminal_url=f"{SITE}/"))
-    # ADDED 2026-10-01, third convergence pass. The apex IS the Cognito OAuth redirect URI:
+    # The apex is the Cognito OAuth redirect URI:
     # src/pages/_app.tsx registers `redirectSignIn`/`redirectSignOut` as
     # NEXT_PUBLIC_APP_URL || 'https://wecare.digital/', and that URI is registered on the
-    # stack-wecare-digital-web client. So the apex answering 200 is not just "the home page is
-    # up" - it is the sign-in round trip's landing surface, and these two rows say so.
-    # The second row is the one that matters: Cognito returns the authorization code in the
-    # QUERY STRING, so the www canonicalisation must carry `?code=` across or sign-in breaks for
-    # anyone who began at www. The host rule's source is a bare origin, which is what preserves
-    # both path and query; a source with a path would drop them. `zzz`-prefixed values are
-    # deliberately invalid - nothing is exchanged, the probe only measures where they land.
+    # stack-wecare-digital-web client. The apex remains the sign-in round trip's landing
+    # surface; www has no active sign-in route. `zzz`-prefixed values are deliberately
+    # invalid - nothing is exchanged, the probe only measures the HTTP response.
     rows.append(_row("host", f"{SITE}/?code=zzztest&state=zzz", 200,
                      "the Cognito OAuth redirect URI itself (_app.tsx redirectSignIn)"))
-    rows.append(_row("host", f"{WWW}/?code=zzztest&state=zzz", 200,
-                     "the www 301 must preserve the OAuth ?code=, or sign-in breaks from www",
-                     terminal_url=f"{SITE}/?code=zzztest&state=zzz"))
+    rows.append(_row("host", f"{WWW}/?code=zzztest&state=zzz", 0,
+                     "retired www has no OAuth landing route"))
 
     # ── the 404 fallback ─────────────────────────────────────────────────────────────
     # 404 is load-bearing and must never become 200: a non-404 status on /<*> matches
@@ -212,29 +202,16 @@ def matrix() -> list[dict]:
     rows.append(_row("api", f"{SITE}/api/definitely/no/route", 404,
                      "unknown multi-segment API path stays 404"))
 
-    # First-level unused hosts are owned by our wildcard fallback distribution.
-    # A failed DNS or TLS connection is a release failure, never a successful fallback.
+    # The owner retired wildcard forwarding on 2026-10-19. These hosts must not serve
+    # HTTP or resume a redirect to home. Status 0 records transport failure only;
+    # the DNS/control-plane retirement check is separate from this HTTP matrix.
     for host in ('shop', 'store', 'xout', 'release-check-unknown'):
         rows.append(_row('subdomain', f'https://{host}.wecare.digital/old/path?old=1',
-                         200, 'unused host must discard path/query and reach canonical home',
-                         terminal_url=f'{SITE}/'))
-    # A nested hostname under a fallback host is the same second-label case as a.b below:
-    # measured 2026-10-15, it resolves through the wildcard and fails at TLS (status 0).
+                         0, 'retired wildcard host has no HTTP service'))
     rows.append(_row('subdomain', 'https://www.xout.wecare.digital/old/path?old=1', 0,
-                     'second-label host under xout: resolves, but no certificate covers it - '
-                     'same documented coverage gap as a.b.wecare.digital'))
-    # The residual gap, now the only one: the certificate covers ONE label. a.b.wecare.digital
-    # DOES resolve - a DNS wildcard matches multiple labels (RFC 4592) - so the failure is at
-    # TLS, not at DNS: `curl` reports "no alternative certificate subject name matches target
-    # host name". That terminates as status 0 here, same code as the old no-address state but a
-    # different cause, which is why the cause is written down. Closing it needs a new SAN on a
-    # re-requested certificate re-associated on BOTH consumers of
-    # f75d0db0-d476-443a-b787-96c4931862d2 - the Amplify app AND CloudFront E1SZBXLQ4XNLJ7,
-    # which is the MTA-STS policy endpoint under `mode: enforce`, where a failure makes senders
-    # refuse inbound mail. Outside this task's authority and not a change to make casually.
+                     'retired nested hostname has no HTTP service'))
     rows.append(_row("subdomain", "https://a.b.wecare.digital/", 0,
-                     "second-label host: resolves, but no certificate covers it - documented "
-                     "coverage gap, NOT fixed here"))
+                     "retired nested hostname has no HTTP service"))
     # mta-sts is the MTA-STS policy endpoint under mode: enforce. Probed at / ONLY, read-only,
     # to confirm nothing about it moved. Its policy path is not touched by this or any probe.
     rows.append(_row("subdomain", "https://mta-sts.wecare.digital/", 403,
@@ -307,6 +284,8 @@ def follow(row: dict) -> dict:
         failures.append(f"chain did not terminate within {MAX_HOPS} hops")
     if terminal["status"] != row["expect_status"]:
         failures.append(f"terminal status {terminal['status']}, expected {row['expect_status']}")
+    if row["expect_status"] == 0 and (len(hops) != 1 or hops[0]["status"] != 0):
+        failures.append("retired host returned an HTTP response")
     if row["expect_terminal_url"] and terminal["url"] != row["expect_terminal_url"]:
         failures.append(f"terminal url {terminal['url']}, expected {row['expect_terminal_url']}")
     for needle in row["expect_body_contains"]:
