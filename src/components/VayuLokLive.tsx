@@ -3293,6 +3293,63 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                   every class is vl-live- prefixed, and it renders live Air content only when
                   `air` is present - on the keyless path (air === null) only the static shell
                   (header + toggle + honest empty state) shows, firing no fetch of its own. */}
+              <div className="vl-live-mobile-snapshot" aria-label="Current VayuLok summary">
+                <div className="vl-live-mobile-snapshot-head" data-wc-no-translate="true">
+                  <span>
+                    <strong>{ place.name }</strong>
+                    <small suppressHydrationWarning>{ locationClock } · { locationZoneLabel }</small>
+                  </span>
+                  <div className="vl-live-mobile-mode" role="group" aria-label="Air or weather">
+                    <button
+                      type="button"
+                      className={ detailTab === 'air' ? 'is-active is-air' : 'is-air' }
+                      aria-pressed={ detailTab === 'air' }
+                      onClick={ () => { setDetailTab( 'air' ); onModeChange?.( 'air' ); } }
+                    >Air</button>
+                    <button
+                      type="button"
+                      className={ detailTab === 'weather' ? 'is-active is-weather' : 'is-weather' }
+                      aria-pressed={ detailTab === 'weather' }
+                      onClick={ () => { setDetailTab( 'weather' ); onModeChange?.( 'weather' ); } }
+                    >Weather</button>
+                  </div>
+                </div>
+
+                { detailTab === 'air' ? (
+                  air ? (
+                    <div className="vl-live-mobile-snapshot-body is-air">
+                      <div className="vl-live-mobile-primary">
+                        <strong data-wc-no-translate="true">{ air.aqiDisplay || Math.round( air.aqi ) }</strong>
+                        <span>AQI</span>
+                      </div>
+                      <div className="vl-live-mobile-copy">
+                        <strong>{ air.word } air quality</strong>
+                        { air.dominant && <span><b>Dominant</b> { dominantPollutantLabel( air.dominant, air.pollutants ) }</span> }
+                        { air.pollutants.slice( 0, 2 ).map( pollutant => (
+                          <span key={ `mobile-${pollutant.code}` }>
+                            <b>{ pollutant.label }</b>{' '}
+                            <span data-wc-no-translate="true">{ formatPollutantValue( pollutant.value ) } { pollutant.unit }</span>
+                          </span>
+                        ) ) }
+                        { air.updatedAt && <small>{ relativeAgeLabel( air.updatedAt ).label }</small> }
+                      </div>
+                    </div>
+                  ) : <p className="vl-live-mobile-empty">Air quality will appear after a place is selected.</p>
+                ) : weather ? (
+                  <div className="vl-live-mobile-snapshot-body is-weather">
+                    <div className="vl-live-mobile-primary">
+                      <strong data-wc-no-translate="true">{ Number.isFinite( weather.temp ) ? `${weather.temp}°` : '—' }</strong>
+                      <span>{ weather.condition || 'Weather' }</span>
+                    </div>
+                    <div className="vl-live-mobile-copy">
+                      { Number.isFinite( weather.feelsLike ) && <span><b>Feels</b> <span data-wc-no-translate="true">{ weather.feelsLike }°</span></span> }
+                      { Number.isFinite( weather.humidity ) && <span><b>Humidity</b> <span data-wc-no-translate="true">{ weather.humidity }%</span></span> }
+                      { Number.isFinite( weather.windSpeed ) && <span><b>Wind</b> <span data-wc-no-translate="true">{ weather.windSpeed } { weather.windUnit || 'km/h' }</span></span> }
+                    </div>
+                  </div>
+                ) : <p className="vl-live-mobile-empty">Weather will appear after a place is selected.</p> }
+              </div>
+
               <div className="vl-live-air-card-wrap">
               <aside className="vl-live-air-card" aria-label="Air quality details" onScroll={ () => setPollutantTip( null ) }>
                 {/* Place name (as Google returned it), the live clock and the zone label are raw
@@ -4657,6 +4714,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
            inset so it clears Google's bottom-left logo and bottom-right legal notices.
            Scrollable so a long pollutant list never spills past the map. NO red. */
         .vl-live-air-card-wrap{position:relative;z-index:12;grid-area:1/1;align-self:start;justify-self:start;width:min(416px,calc(100% - 32px));margin:16px 0 112px 16px;filter:drop-shadow(0 8px 18px rgba(26,58,42,.10))}
+        .vl-live-mobile-snapshot{display:none}
         .vl-live-air-card{position:relative;width:100%;overflow:visible;padding:24px;border:1px solid var(--hair);border-radius:var(--panel-r);background:#fff;box-shadow:none;color:var(--body)}
 
         .vl-live-air-context{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 18px;padding:0 0 16px;border-bottom:1px solid var(--hair)}
@@ -5006,9 +5064,33 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         }
         @media(max-width:700px){
           .vl-live-shell{padding:0 max(10px,env(safe-area-inset-right)) max(44px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left))}
-          .vl-live-map-shell{height:auto;min-height:min(460px,62svh);max-height:none}
+          .vl-live-map-shell{display:block;height:auto;min-height:0;max-height:none;padding-top:360px;background:transparent;contain:layout}
+          .vl-live-map-canvas,.vl-live-map-placeholder,.vl-live-map-fallback,.vl-live-weather-visual{inset:0 0 auto;height:360px}
           .vl-live-map-search{width:calc(100% - 20px);margin:10px auto 16px;padding:0}
-          .vl-live-air-card-wrap{justify-self:center;width:calc(100% - 20px - env(safe-area-inset-left) - env(safe-area-inset-right));margin:10px auto 112px}
+          .vl-live-mobile-snapshot{
+            display:block;position:absolute;z-index:13;left:20px;right:20px;top:94px;
+            padding:14px;border:1px solid var(--hair);border-radius:var(--panel-r);
+            background:rgba(255,255,255,.96);backdrop-filter:blur(8px);
+            box-shadow:0 8px 20px rgba(26,58,42,.08)
+          }
+          .vl-live-mobile-snapshot-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+          .vl-live-mobile-snapshot-head>span{display:flex;min-width:0;flex-direction:column;gap:2px}
+          .vl-live-mobile-snapshot-head strong{overflow:hidden;color:var(--heading);font-size:15px;font-weight:700;text-overflow:ellipsis;white-space:nowrap}
+          .vl-live-mobile-snapshot-head small{color:var(--muted);font-size:11px;font-weight:600}
+          .vl-live-mobile-mode{display:grid;flex:0 0 auto;grid-template-columns:1fr 1fr;gap:3px;padding:3px;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff}
+          .vl-live-mobile-mode button{min-height:32px;padding:0 11px;border:0;border-radius:var(--pill-r);background:transparent;color:var(--green);font-size:12px;font-weight:750}
+          .vl-live-mobile-mode .is-air.is-active{background:#e0f7c8}
+          .vl-live-mobile-mode .is-weather.is-active{background:#dbeafe;color:#1e3a5f}
+          .vl-live-mobile-snapshot-body{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:14px;margin-top:12px;padding-top:12px;border-top:1px solid var(--hair)}
+          .vl-live-mobile-primary{display:flex;min-width:74px;flex-direction:column}
+          .vl-live-mobile-primary strong{color:#000;font-size:38px;font-weight:700;line-height:1;letter-spacing:-1.2px}
+          .vl-live-mobile-primary span{margin-top:4px;color:var(--muted);font-size:11px;font-weight:700}
+          .vl-live-mobile-copy{display:flex;min-width:0;flex-direction:column;gap:3px;color:var(--body);font-size:12px;line-height:1.35}
+          .vl-live-mobile-copy>strong{color:#000;font-size:14px}
+          .vl-live-mobile-copy b{font-weight:750}
+          .vl-live-mobile-copy small{margin-top:2px;color:var(--muted);font-size:10.5px}
+          .vl-live-mobile-empty{margin:12px 0 0;padding-top:12px;border-top:1px solid var(--hair);color:var(--muted);font-size:12px}
+          .vl-live-air-card-wrap{display:block;position:relative;z-index:12;width:100%;margin:20px 0 56px;filter:none}
           .vl-live-air-card{padding:20px}
           .vl-live-air-context{align-items:flex-start}
           .vl-live-air-context-item.is-location{max-width:56%}
