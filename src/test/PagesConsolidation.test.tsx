@@ -122,8 +122,8 @@ describe( 'public page consolidation contracts', () => {
     for ( const path of [ '/workspace/access', '/workspace/docs', '/workspace/engage/whatsapp', '/workspace/dashboard/waba-usernames' ] ) {
       expect( paths ).not.toContain( path );
     }
-    // FEAT-005: BSUID & Usernames is a tab on the WhatsApp hub now, reached as a ?tab= deep-link.
-    expect( paths ).toContain( '/workspace/engage/whatsapp/settings?tab=bsuid' );
+    // BSUID & Usernames now deep-links the canonical Communications WhatsApp management surface.
+    expect( paths ).toContain( '/workspace/communications?view=manage&section=whatsapp&tool=bsuid' );
     // FEAT-003: Sign-in & MFA relocated OUT of the routes tree into the gear panel, so it is no
     // longer a URL in getAllNavItems. It is reached through the gear (SettingsGear mounts
     // TotpSetup inline for the account group's mfaPanel) — asserted below so reachability holds.

@@ -508,7 +508,7 @@ describe( 'a Popover inside an above-popover container uses layer="overlay"', ()
     expect( payFlow ).toMatch( /<input[^>]*aria-label="Brand"[^>]*readOnly/ );
     expect( payFlow ).not.toMatch( /<Select[^>]*ariaLabel="Brand"/ );
 
-    const link = codeOnly( readFileSync( join( SRC, 'pages', 'workspace', 'link', 'index.tsx' ), 'utf8' ) );
+    const link = codeOnly( readFileSync( join( SRC, 'components', 'workspace', 'messaging', 'Links.tsx' ), 'utf8' ) );
     expect( link ).toMatch( /<DateField[\s\S]{0,200}?label="Expiry Date \(optional\)"[\s\S]{0,200}?layer="overlay"/ );
   } );
 } );

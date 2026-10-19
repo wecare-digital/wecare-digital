@@ -151,12 +151,6 @@ export const navigationConfig: NavItem[] = [
     ],
   },
   {
-    // OWN top-level item on owner instruction (not folded under Settings).
-    path: '/workspace/link',
-    label: 'Links',
-    icon: 'link',
-  },
-  {
     // OWN top-level item. It is the conversation-meta work queue, real data the inbox
     // already writes.
     path: '/workspace/task',
@@ -290,9 +284,8 @@ export const settingsConfig: SettingsGroup[] = [
       { path: '/workspace/communications?view=manage&section=usage', label: 'Cost & Usage' },
       { path: '/workspace/communications?view=manage&section=search', label: 'Message Search' },
       { path: '/workspace/communications?view=manage&section=ai', label: 'Meta AI Agent' },
-      { path: '/workspace/communications?view=manage&section=whatsapp&tool=ai-agent', label: 'AI Agent' },
       { path: '/workspace/communications?view=manage&section=docs', label: 'Docs Scraper' },
-      { path: '/workspace/link', label: 'Short Links' },
+      { path: '/workspace/communications?view=manage&section=links', label: 'Short Links' },
     ],
   },
   {

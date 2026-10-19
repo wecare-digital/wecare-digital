@@ -405,7 +405,7 @@ const FRONTEND_ROUTES: FrontendRoute[] = [
   { path: '/workspace/engage/whatsapp/webhooks', label: 'WA Webhooks', backend: 'inbound-whatsapp-handler', tables: 'WebhookDedup, SystemEvent' },
   { path: '/workspace/engage/whatsapp/migration', label: 'WA Migration', backend: 'waba-management', tables: '-' },
   { path: '/workspace/engage/logs', label: 'Message Logs (all channels)', backend: 'messages-read', tables: 'MessagesTable' },
-  { path: '/workspace/engage/whatsapp/settings', label: 'WA Settings', backend: 'waba-management', tables: 'SystemConfig' },
+  { path: '/workspace/communications?view=manage&section=whatsapp', label: 'WA Management', backend: 'waba-management', tables: 'SystemConfig' },
   // SMS
   // Voice
   { path: '/workspace/engage/voice', label: 'Voice Out', backend: 'voice-aws', tables: 'VoiceAws' },

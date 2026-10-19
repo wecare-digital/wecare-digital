@@ -59,6 +59,8 @@ function signpostTarget ( navPath: string ): string | null {
   const source = fs.readFileSync( file, 'utf8' );
   const literal = source.match( /router\.replace\(\s*'([^']+)'/ );
   if ( literal ) return literal[ 1 ];
+  // Query-preserving compatibility redirects use Next's object form:
+  // router.replace({ pathname: '/workspace/customers', query }).
   const objectForm = source.match( /router\.replace\(\s*\{\s*pathname:\s*'([^']+)'/ );
   return objectForm ? objectForm[ 1 ] : null;
 }
@@ -129,7 +131,7 @@ describe( 'nothing became unreachable', () => {
     expect( unique ).toContain( '/workspace' );
     expect( unique ).toContain( '/workspace/communications?view=manage' );
     expect( unique ).toContain( '/workspace/commerce?view=orders' );
-    expect( unique ).toContain( '/workspace/payments?view=invoices' );
+    expect( unique ).toContain( '/workspace/payments?view=activity' );
     expect( unique ).toContain( '/workspace/service?view=requests' );
   } );
 
@@ -203,7 +205,7 @@ describe( 'no entry point lands on a redirect signpost', () => {
   // old URLs resolve instead of 404ing through the static-export catch-all. Each forwards to a
   // destination a nav row reaches (verified below).
   const SIGNPOSTS = [ '/workspace/admin', '/workspace/forms', '/workspace/docs',
-    '/workspace/access', '/workspace/contacts', '/workspace/engage/whatsapp',
+    '/workspace/access', '/workspace/contacts', '/workspace/link', '/workspace/engage/whatsapp',
     '/workspace/engage/service-ops', '/workspace/dashboard/waba-usernames' ];
 
   it( 'keeps every signpost, and each forwards to a destination the nav reaches', () => {
