@@ -9,6 +9,7 @@ import { useRouter } from 'next/router';
 import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import { SkeletonTable } from '../../../components/Skeleton';
+import CustomerManageData from '../../../components/workspace/customers/ManageData';
 import { useToastContext } from '../../../contexts/ToastContext';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 import * as api from '../../../api/client';
@@ -402,6 +403,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
   const [showTagMenu, setShowTagMenu] = useState<string | null>(null);
   const [tagMenuPos, setTagMenuPos] = useState<{ top: number; left: number; flipUp: boolean }>({ top: 0, left: 0, flipUp: false });
   const [showOptIn, setShowOptIn] = useState(false);
+  const [showManageData, setShowManageData] = useState(false);
 
   // Fix #10: Close tag menu on scroll to prevent stale positioning
   useEffect(() => {
@@ -1138,6 +1140,10 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
           <button onClick={() => loadContacts()} title="Refresh" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '8px', background: '#fff', border: '2px solid #f3f4f6', borderRadius: 13, cursor: 'pointer' }}>
             <RefreshIcon />
           </button>
+          <button type="button" onClick={() => setShowManageData(true)} title="Review customer data quality"
+            style={{ minHeight: 40, padding: '8px 12px', background: '#fff', color: 'var(--accent)', border: '2px solid var(--accent)', borderRadius: 13, cursor: 'pointer', fontSize: 'var(--text-sm)', fontWeight: 650 }}>
+            Manage data
+          </button>
 
           {/* Column visibility */}
           <div style={{ position: 'relative' }}>
@@ -1578,6 +1584,19 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
             </div>
           </div>
         </div>
+      )}
+
+
+      {showManageData && (
+        <CustomerManageData
+          contacts={contacts}
+          onClose={() => setShowManageData(false)}
+          onOpenCustomer={(contactId) => {
+            const customer = contacts.find(contact => contact.contactId === contactId);
+            setShowManageData(false);
+            if (customer) setDetailContact(customer);
+          }}
+        />
       )}
 
 
