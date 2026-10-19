@@ -573,7 +573,7 @@ const HomePage: React.FC = () => {
            carried no letter-spacing while every other body rung uses -.125px.
            Both are now on their proper rungs. Everything here is Inter, as it already was -
            there was never a font-family mismatch, only a size one. */
-        .home-flow-list strong{display:block;margin:0 0 6px;font-size:var(--public-card-size);font-weight:var(--public-card-weight);letter-spacing:var(--public-card-tracking);line-height:var(--public-card-leading);color:var(--public-heading)}
+        .home-flow-list strong{display:block;margin:0 0 6px;font-size:max(var(--public-card-size),24px);font-weight:var(--public-card-weight);letter-spacing:var(--public-card-tracking);line-height:var(--public-card-leading);color:var(--public-heading)}
         /* Body rung at the neutral colour rgba(0,0,0,.898), matching .home-flow-lead,
            .home-sub and .home-close-lead. It was rgba(0,0,0,.54) (muted grey), which made
            this the only body copy on the page at that colour and read as a different, lighter
@@ -746,6 +746,10 @@ const HomePage: React.FC = () => {
            occluded physical hinge. If a browser exposes two side-by-side viewport segments,
            keep Home's single-column reading surface wholly inside one pane rather than spanning
            critical copy/controls across the hinge. Unsupported browsers ignore this safely. */
+        /* Home closing CTA is meaningful action copy, not metadata; keep the 18px app rung
+           on desktop/tablet as well as phones. */
+        :global(.home-close-cta){font-size:18px}
+
         @media(horizontal-viewport-segments:2){
           .home-layout{
             width:env(viewport-segment-width 0 0);
@@ -773,12 +777,10 @@ const HomePage: React.FC = () => {
              can move to 42px later; do not shrink it pre-emptively. */
           .home-head{font-size:40px;line-height:1.1}
           .home-flow-title{font-size:32px}
-          .home-flow-list strong{font-size:24px}
           /* HOME-ONLY overrides for shared child components. They apply only while Home is
              mounted, so other public routes stay visually unchanged until the later unification
              pass. */
           :global(.home-close-title){font-size:32px}
-          :global(.home-close-cta){font-size:18px}
           :global(.public-share .ps-menu-sub),
           :global(.public-share .ps-menu-note){font-size:15px}
         }

@@ -1,5 +1,19 @@
 apply plugin: 'com.android.application'
 
+// Resolve version metadata before entering the Android DSL. Keeping null-coalescing inside
+// versionCode was accepted syntactically but AGP evaluated that method-style expression as a
+// null value on GitHub's runner before compilation started.
+def envVersionCode = System.getenv("WECARE_ANDROID_VERSION_CODE")
+def propVersionCode = project.findProperty("versionCodeOverride")
+def resolvedVersionCode = (envVersionCode != null && !envVersionCode.trim().isEmpty())
+        ? envVersionCode.trim()
+        : (propVersionCode != null ? propVersionCode.toString() : "1")
+def envVersionName = System.getenv("WECARE_ANDROID_VERSION_NAME")
+def propVersionName = project.findProperty("versionNameOverride")
+def resolvedVersionName = (envVersionName != null && !envVersionName.trim().isEmpty())
+        ? envVersionName.trim()
+        : (propVersionName != null ? propVersionName.toString() : "1.0")
+
 android {
     namespace = "digital.wecare.stackcrm"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -10,8 +24,8 @@ android {
         // versionCode MUST strictly increase on every Play upload. CI derives it from the run
         // number and passes -PversionCodeOverride (or the env) so repeated uploads never collide
         // without hand-editing this file; absent an override it falls back to 1 for local builds.
-        versionCode (System.getenv("WECARE_ANDROID_VERSION_CODE") ?: project.findProperty("versionCodeOverride") ?: "1").toString().toInteger()
-        versionName (System.getenv("WECARE_ANDROID_VERSION_NAME") ?: project.findProperty("versionNameOverride") ?: "1.0").toString()
+        versionCode Integer.parseInt(resolvedVersionCode)
+        versionName resolvedVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

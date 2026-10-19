@@ -133,6 +133,10 @@ const PROBE = () => {
   // element rather than only the number.
   const strays = [];
   for ( const el of document.querySelectorAll( 'header, footer, main, .wc-langbar, .nav-menu, section, .home-mark, .home-cycle' ) ) {
+    const cs = getComputedStyle( el );
+    // Hidden menus still have geometry in Firefox/WebKit. They are not paintable or
+    // interactive and must not count as viewport strays until opened.
+    if ( cs.display === 'none' || cs.visibility === 'hidden' ) continue;
     const r = el.getBoundingClientRect();
     if ( r.width === 0 && r.height === 0 ) continue;
     if ( r.right > vw + 1 || r.left < -1 ) {

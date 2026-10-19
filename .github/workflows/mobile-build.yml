@@ -125,8 +125,12 @@ jobs:
       - name: Export public web app and sync both public shells
         run: |
           NODE_ENV=production npm run build
-          npx cap sync android --config capacitor.public.config.ts
-          npx cap sync ios --config capacitor.public.config.ts
+          # Capacitor 8 does not expose a --config CLI flag. For this isolated CI job,
+          # make the public config the canonical filename the CLI loads, then sync both
+          # already-added platform projects. The worktree is disposable.
+          cp capacitor.public.config.ts capacitor.config.ts
+          npx cap sync android
+          npx cap sync ios
 
   ios-sync-check:
     name: iOS cap sync check

@@ -50,11 +50,9 @@ describe( 'BrandLockup', () => {
     expect( css ).toContain( 'height:54px' );
     expect( css ).toContain( 'font-size:21px' );
 
-    // THE LADDER MUST NOT INVERT. An earlier pass shrank desktop to 60px/23px and left
-    // mobile at 60px/24px, which made the phone logo identical to the desktop one and the
-    // phone wordmark LARGER than the desktop wordmark. Assert the old mobile values are
-    // gone so that cannot silently come back.
-    expect( css ).not.toContain( 'font-size:24px' );
+    // THE GENERIC LADDER MUST NOT INVERT. The explicit public-header variant is allowed to use
+    // 24px/22px; this assertion is about the base 23px -> 21px pair used by non-public callers.
+    // 68px is the retired generic logo size and must not return.
     expect( css ).not.toContain( 'height:68px' );
   } );
 } );

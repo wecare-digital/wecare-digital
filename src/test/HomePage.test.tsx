@@ -401,9 +401,9 @@ describe( 'WECARE.DIGITAL Home', () => {
 
     expect( css ).toContain( '.home-head{font-size:40px;line-height:1.1}' );
     expect( css ).toContain( '.home-flow-title{font-size:32px}' );
-    expect( css ).toContain( '.home-flow-list strong{font-size:24px}' );
+    expect( css ).toContain( '.home-flow-list strong{display:block;margin:0 0 6px;font-size:max(var(--public-card-size),24px)' );
     expect( css ).toContain( ':global(.home-close-title){font-size:32px}' );
-    expect( css ).toContain( ':global(.home-close-cta){font-size:18px}' );
+    expect( css.match( /:global\(\.home-close-cta\)\{font-size:18px\}/g )?.length ).toBe( 1 );
     expect( css ).toContain( ':global(.public-share .ps-menu-sub)' );
     expect( css ).toContain( ':global(.public-share .ps-menu-note){font-size:15px}' );
 
@@ -411,7 +411,7 @@ describe( 'WECARE.DIGITAL Home', () => {
     // phone reference treatment, not an unreviewed desktop redesign.
     expect( css ).toContain( 'font-size:var(--public-hero-size)' );
     expect( css ).toContain( 'font-size:var(--public-section-size)' );
-    expect( css ).toContain( 'font-size:var(--public-card-size)' );
+    expect( css ).toContain( '.home-flow-list strong{display:block;margin:0 0 6px;font-size:max(var(--public-card-size),24px)' );
   } );
 
   it( 'pins final Home app-hardening and foldable-hinge contracts', () => {

@@ -711,7 +711,11 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       expect( within( snapshot ).getByText( 'Loading air quality…' ) ).toBeTruthy();
     } );
 
-    fireEvent.click( within( snapshot ).getByRole( 'button', { name: 'Weather' } ) );
+    // The mobile snapshot is CSS-hidden in JSDOM's default desktop layout, so an accessible-role
+    // query deliberately excludes these buttons. This test exercises state/copy, not visibility.
+    const weatherButton = snapshot.querySelector( 'button.is-weather' ) as HTMLButtonElement | null;
+    expect( weatherButton ).toBeTruthy();
+    fireEvent.click( weatherButton as HTMLButtonElement );
     await waitFor( () => {
       expect( within( snapshot ).getByText( 'Loading weather…' ) ).toBeTruthy();
     } );
