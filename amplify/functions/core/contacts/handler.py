@@ -28,6 +28,7 @@ from botocore.exceptions import ClientError
 
 from lambda_utils.response import cors_response, options_response, extract_origin
 from lambda_utils.logging import get_logger, log_event
+from lambda_utils.audit import record_audit
 # `normalize_phone` is deliberately NOT imported here. It strips non-digits BEFORE it looks for a
 # country code, so a ten-digit foreign number arrives looking like an Indian mobile and gets +91
 # prepended - measured, `+6591234567` became `+916591234567`. This surface uses
@@ -174,9 +175,20 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     if _auth is not None:
         return _auth
 
-    # Unlocking retention is an Admin + MFA capability, not a generic Operator edit.
-    if method == 'POST' and (str(event.get('rawPath') or '').rstrip('/').endswith('/unlock')
-                             or str(event.get('resource') or '').rstrip('/').endswith('/unlock')):
+    # Unlocking retention and customer merge are Admin + MFA capabilities, not generic edits.
+    merge_command = False
+    if method == 'POST':
+        try:
+            preauth_body = json.loads(event.get('body', '{}') or '{}')
+        except (json.JSONDecodeError, TypeError, ValueError):
+            preauth_body = {}
+        merge_command = str(preauth_body.get('_action') or '').strip().lower() == 'merge'
+
+    if method == 'POST' and (
+        str(event.get('rawPath') or '').rstrip('/').endswith('/unlock')
+        or str(event.get('resource') or '').rstrip('/').endswith('/unlock')
+        or merge_command
+    ):
         denied = require_auth(event, required_role='Admin')
         if denied is not None:
             return denied
@@ -222,6 +234,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return cors_response(400, {'error': 'contactId is required'}, origin)
             return _unlock_contact(contact_id, request_id, origin)
 
+        # POST /contacts with _action=merge — resumable identity merge on the existing route.
+        if method == 'POST' and merge_command:
+            body = json.loads(event.get('body', '{}') or '{}')
+            return _merge_contacts(body, event.get('_auth') or {}, request_id, origin)
+
         # POST [retired public path] — Fix #14: rate limited
         if method == 'POST':
             source_ip = (event.get('requestContext', {}).get('identity', {}) or {}).get('sourceIp', 'unknown')
@@ -263,6 +280,252 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     except Exception as e:
         log_event(logger, 'contacts_error', level='error', error=str(e), method=method, requestId=request_id)
         return cors_response(500, {'error': 'Internal server error'}, origin)
+
+
+
+# ─── CUSTOMER MERGE ──────────────────────────────────────────────────────────
+
+def _merge_identity_evidence(source: Dict[str, Any], target: Dict[str, Any]) -> tuple:
+    """Return exact shared identity evidence or a fail-closed merge error code."""
+    source_phone = str(source.get('phone') or '').strip()
+    target_phone = str(target.get('phone') or '').strip()
+    source_email = str(source.get('email') or '').strip().lower()
+    target_email = str(target.get('email') or '').strip().lower()
+
+    shared = []
+    if source_phone and target_phone and source_phone == target_phone:
+        shared.append('phone')
+    if source_email and target_email and source_email == target_email:
+        shared.append('email')
+    if not shared:
+        return (), 'CUSTOMER_MERGE_EXACT_IDENTITY_REQUIRED'
+
+    # A shared email plus two different phones (or vice versa) may be a household/shared inbox,
+    # not one human. Refuse instead of collapsing ambiguous people.
+    if source_phone and target_phone and source_phone != target_phone:
+        return (), 'CUSTOMER_MERGE_IDENTITY_CONFLICT'
+    if source_email and target_email and source_email != target_email:
+        return (), 'CUSTOMER_MERGE_IDENTITY_CONFLICT'
+    return tuple(shared), ''
+
+
+def _merge_contacts(body: Dict[str, Any], auth: Dict[str, Any],
+                    request_id: str, origin: str = '') -> Dict[str, Any]:
+    """Resumable contact merge without rewriting financial history.
+
+    Source is first CLAIMED but remains active. Target alias history is then appended. Only after
+    that succeeds is source archived. A failure between steps is therefore safely retryable: no
+    order/invoice/payment row is rewritten, and no source contact disappears before its alias has
+    a canonical target.
+    """
+    source_id = str(body.get('sourceContactId') or '').strip()
+    target_id = str(body.get('targetContactId') or '').strip()
+    reason = str(body.get('reason') or '').strip()
+    actor = str((auth or {}).get('username') or (auth or {}).get('email') or '').strip()
+
+    if not source_id or not target_id:
+        return cors_response(400, {
+            'error': 'sourceContactId and targetContactId are required',
+            'errorCode': 'CUSTOMER_MERGE_IDS_REQUIRED',
+        }, origin)
+    if source_id == target_id:
+        return cors_response(400, {
+            'error': 'Source and target must be different contacts',
+            'errorCode': 'CUSTOMER_MERGE_SAME_CONTACT',
+        }, origin)
+    if not actor:
+        return cors_response(403, {
+            'error': 'Authenticated Admin staff actor required',
+            'errorCode': 'CUSTOMER_MERGE_ACTOR_REQUIRED',
+        }, origin)
+    if not reason:
+        return cors_response(400, {
+            'error': 'Merge reason is required',
+            'errorCode': 'CUSTOMER_MERGE_REASON_REQUIRED',
+        }, origin)
+    if len(reason) > 500 or any(
+        (ord(ch) < 32 and ch not in '\r\n\t') or ord(ch) == 127 for ch in reason
+    ):
+        return cors_response(400, {
+            'error': 'Merge reason is invalid or overlong',
+            'errorCode': 'CUSTOMER_MERGE_REASON_INVALID',
+        }, origin)
+
+    table = dynamodb.Table(CONTACTS_TABLE)
+    source = table.get_item(Key=contact_key.key(source_id), ConsistentRead=True).get('Item')
+    target = table.get_item(Key=contact_key.key(target_id), ConsistentRead=True).get('Item')
+    if not source or not target:
+        return cors_response(404, {'error': 'Source or target contact not found'}, origin)
+
+    try:
+        contact_key.assert_consistent(source)
+        contact_key.assert_consistent(target)
+    except contact_key.ContactKeyMismatch:
+        return cors_response(409, {
+            'error': 'Contact key integrity needs repair before merge',
+            'errorCode': 'CUSTOMER_MERGE_KEY_REVIEW_REQUIRED',
+        }, origin)
+
+    existing_target = str(source.get('mergedIntoContactId') or '').strip()
+    existing_state = str(source.get('mergeState') or '').strip().lower()
+    if existing_target and existing_target != target_id:
+        return cors_response(409, {
+            'error': 'Source contact is already claimed by another merge target',
+            'errorCode': 'CUSTOMER_MERGE_ALREADY_CLAIMED',
+        }, origin)
+    if existing_state == 'merged' and existing_target == target_id:
+        return cors_response(200, {
+            'merged': True, 'idempotent': True,
+            'sourceContactId': source_id, 'targetContactId': target_id,
+            'customerUuid': customer_uuid.from_contact(target),
+        }, origin)
+
+    if target.get('deletedAt') is not None or str(target.get('mergedIntoContactId') or '').strip():
+        return cors_response(409, {
+            'error': 'Target must be an active canonical contact',
+            'errorCode': 'CUSTOMER_MERGE_TARGET_NOT_CANONICAL',
+        }, origin)
+    if contact_lock.is_locked(source) or contact_lock.is_locked(target):
+        return cors_response(409, {
+            'error': 'Locked contacts cannot be merged',
+            'errorCode': 'CUSTOMER_MERGE_CONTACT_LOCKED',
+        }, origin)
+
+    evidence, evidence_error = _merge_identity_evidence(source, target)
+    if evidence_error:
+        return cors_response(409, {
+            'error': 'Contacts do not have unambiguous exact identity evidence',
+            'errorCode': evidence_error,
+        }, origin)
+
+    now = Decimal(str(int(time.time())))
+
+    # Step 1: claim source. It is deliberately NOT archived here.
+    if not existing_target:
+        try:
+            table.update_item(
+                Key=contact_key.key(source_id),
+                UpdateExpression=(
+                    'SET mergeState = :claimed, mergedIntoContactId = :target, '
+                    'mergeStartedAt = :now, mergeStartedBy = :actor, mergeReason = :reason, '
+                    'updatedAt = :now'
+                ),
+                ConditionExpression=(
+                    'attribute_exists(id) AND attribute_not_exists(mergedIntoContactId) '
+                    'AND (attribute_not_exists(deletedAt) OR deletedAt = :null)'
+                ),
+                ExpressionAttributeValues={
+                    ':claimed': 'claimed', ':target': target_id, ':now': now,
+                    ':actor': actor, ':reason': reason, ':null': None,
+                },
+            )
+        except ClientError as exc:
+            if exc.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
+                return cors_response(409, {
+                    'error': 'Source contact changed while merge was being claimed; reload and retry',
+                    'errorCode': 'CUSTOMER_MERGE_STALE',
+                }, origin)
+            raise
+
+    # Step 2: append aliases to target. list_append is atomic for concurrent different sources;
+    # a consistent read makes retry idempotent for this source.
+    target_fresh = table.get_item(Key=contact_key.key(target_id), ConsistentRead=True).get('Item') or {}
+    contact_aliases = list(target_fresh.get('mergedContactIds') or [])
+    uuid_aliases = list(target_fresh.get('mergedCustomerUuids') or [])
+    source_uuid = customer_uuid.from_contact(source)
+    add_contact_alias = source_id not in contact_aliases
+    add_uuid_alias = bool(source_uuid and source_uuid != customer_uuid.from_contact(target_fresh)
+                          and source_uuid not in uuid_aliases)
+
+    sets = ['updatedAt = :now']
+    names: Dict[str, str] = {}
+    values: Dict[str, Any] = {
+        ':now': now, ':target': target_id, ':null': None,
+    }
+    if add_contact_alias:
+        sets.append('mergedContactIds = list_append(if_not_exists(mergedContactIds, :empty), :contact_alias)')
+        values[':empty'] = []
+        values[':contact_alias'] = [source_id]
+    if add_uuid_alias:
+        sets.append('mergedCustomerUuids = list_append(if_not_exists(mergedCustomerUuids, :empty_uuid), :uuid_alias)')
+        values[':empty_uuid'] = []
+        values[':uuid_alias'] = [source_uuid]
+
+    try:
+        table.update_item(
+            Key=contact_key.key(target_id),
+            UpdateExpression='SET ' + ', '.join(sets),
+            ConditionExpression=(
+                'attribute_exists(id) AND attribute_not_exists(mergedIntoContactId) '
+                'AND (attribute_not_exists(deletedAt) OR deletedAt = :null)'
+            ),
+            **({'ExpressionAttributeNames': names} if names else {}),
+            ExpressionAttributeValues=values,
+        )
+    except ClientError as exc:
+        if exc.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
+            return cors_response(409, {
+                'error': 'Canonical target changed; source remains active and merge can be reviewed safely',
+                'errorCode': 'CUSTOMER_MERGE_TARGET_STALE',
+                'retryable': True,
+            }, origin)
+        raise
+
+    # Step 3: archive source only after target aliases are durable.
+    try:
+        table.update_item(
+            Key=contact_key.key(source_id),
+            UpdateExpression=(
+                'SET mergeState = :merged, mergedAt = :now, deletedAt = :now, updatedAt = :now'
+            ),
+            ConditionExpression='mergedIntoContactId = :target AND mergeState = :claimed',
+            ExpressionAttributeValues={
+                ':merged': 'merged', ':claimed': 'claimed', ':target': target_id, ':now': now,
+            },
+        )
+    except ClientError as exc:
+        if exc.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
+            fresh = table.get_item(
+                Key=contact_key.key(source_id), ConsistentRead=True).get('Item') or {}
+            if not (
+                str(fresh.get('mergeState') or '').strip().lower() == 'merged'
+                and str(fresh.get('mergedIntoContactId') or '').strip() == target_id
+            ):
+                return cors_response(503, {
+                    'error': 'Target aliases are saved but source archive needs a safe retry',
+                    'errorCode': 'CUSTOMER_MERGE_ARCHIVE_RETRY',
+                    'retryable': True,
+                }, origin)
+        else:
+            raise
+
+    try:
+        record_audit(
+            action='customer.merge',
+            actor=actor,
+            resource_type='contact',
+            resource_id=target_id,
+            details={
+                'sourceContactId': source_id,
+                'evidence': list(evidence),
+                'requestId': request_id,
+            },
+        )
+    except Exception as exc:  # source row itself contains durable actor/reason/timestamps
+        log_event(logger, 'customer_merge_secondary_audit_failed', level='warning',
+                  targetContactId=target_id, error=type(exc).__name__, requestId=request_id)
+
+    log_event(logger, 'customer_merged', sourceContactId=source_id,
+              targetContactId=target_id, evidence=list(evidence), requestId=request_id)
+    return cors_response(200, {
+        'merged': True,
+        'idempotent': False,
+        'sourceContactId': source_id,
+        'targetContactId': target_id,
+        'customerUuid': customer_uuid.from_contact(target_fresh),
+        'preservedFinancialHistory': True,
+    }, origin)
+
 
 
 # ─── CREATE ─────────────────────────────────────────────────────────────────
@@ -387,8 +650,24 @@ def _read_one(contact_id: str, request_id: str, origin: str = '') -> Dict[str, A
     resp = table.get_item(Key={'id': contact_id})
     item = resp.get('Item')
 
-    if not item or item.get('deletedAt') is not None:
+    if not item:
         return cors_response(404, {'error': 'Contact not found'}, origin)
+
+    merged_target = str(item.get('mergedIntoContactId') or '').strip()
+    if item.get('deletedAt') is not None:
+        if not merged_target:
+            return cors_response(404, {'error': 'Contact not found'}, origin)
+        target = table.get_item(Key=contact_key.key(merged_target), ConsistentRead=True).get('Item')
+        if not target or target.get('deletedAt') is not None:
+            return cors_response(409, {
+                'error': 'Merged customer target is unavailable',
+                'errorCode': 'CUSTOMER_MERGE_TARGET_UNAVAILABLE',
+            }, origin)
+        resolved = _from_dynamo(target)
+        resolved['resolvedFromMergedContactId'] = contact_id
+        log_event(logger, 'contact_read_merged_alias', contactId=contact_id,
+                  targetContactId=merged_target, requestId=request_id)
+        return cors_response(200, resolved, origin)
 
     log_event(logger, 'contact_read', contactId=contact_id, requestId=request_id)
     return cors_response(200, _from_dynamo(item), origin)
