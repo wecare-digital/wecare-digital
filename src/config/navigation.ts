@@ -110,15 +110,13 @@ export const navigationConfig: NavItem[] = [
     icon: 'contacts',
   },
   {
-    // Catalog + commerce engine as in-page tabs on /workspace/commerce. FEAT-005 moved the
-    // tab bodies OUT of the routes tree, so the palette deep-links the hub with a ?tab= query
-    // (Navigation.test's pageExists strips the query, resolving each to the commerce hub).
+    // Commerce is one operational workspace with exactly two modes.
     path: '/workspace/commerce',
     label: 'Commerce',
     icon: 'store',
     children: [
-      { path: '/workspace/commerce?tab=catalog', label: 'Catalog' },
-      { path: '/workspace/commerce?tab=engine', label: 'Commerce engine' },
+      { path: '/workspace/commerce?view=orders', label: 'Orders' },
+      { path: '/workspace/commerce?view=catalog', label: 'Catalog' },
     ],
   },
   {
@@ -460,8 +458,8 @@ export const moduleHomes: ModuleHome[] = [
   },
   {
     id: 'commerce', label: 'Commerce', path: '/workspace/commerce',
-    innerPages: ['/workspace/commerce?tab=catalog', '/workspace/commerce?tab=engine', '/workspace/payments', '/workspace/payments?view=ledger'],
-    note: 'Catalog and orders remain Commerce; money collection and the ledger live in Payments.',
+    innerPages: ['/workspace/commerce?view=orders', '/workspace/commerce?view=catalog'],
+    note: 'Orders and Catalog are the two Commerce modes; money collection and the ledger live in Payments.',
   },
   // The 'growth' module home was here, gated on NEXT_PUBLIC_ENABLE_GROWTH_MODULE.
   // Removed 2026-09-25 with /growth/index.tsx on owner instruction. The pages it listed
