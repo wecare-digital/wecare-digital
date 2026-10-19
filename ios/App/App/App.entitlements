@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  App capabilities that MUST be granted by a real entitlements file, not by Info.plist.
+	  Info.plist also lists associated-domains, but that is informational; iOS only grants the
+	  capability when the signed binary carries it here (Phase 3, native app shell).
+	-->
+
+	<!-- Push Notifications. 'development' is correct for Debug/TestFlight-sandbox APNs; the
+	     App Store distribution build is re-signed to the 'production' APNs environment by the
+	     release signing/export step. Without this key the @capacitor/push-notifications
+	     registration callback never fires. -->
+	<key>aps-environment</key>
+	<string>development</string>
+
+	<!-- Universal Links + shared web credentials. Mirrors Info.plist; this is the copy iOS
+	     actually enforces. Apex only (apple-app-site-association is fetched directly with no
+	     redirect follow, so a 301'd host can never verify). -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:wecare.digital</string>
+		<string>applinks:r.wecare.digital</string>
+		<string>webcredentials:wecare.digital</string>
+	</array>
+</dict>
+</plist>
