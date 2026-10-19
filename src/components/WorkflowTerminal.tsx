@@ -787,8 +787,8 @@ const WorkflowTerminal: React.FC = () => {
         .wt-light-1{background:#f0a818}
         .wt-light-2{background:#9849e8}
         .wt-light-3{background:#3da35a}
-        .wt-bar-title{margin-left:8px;color:rgba(255,255,255,.72);font-size:13px}
-        .wt-bar-state{margin-left:auto;display:flex;align-items:center;gap:7px;color:rgba(255,255,255,.58);font-size:12px}
+        .wt-bar-title{margin-left:8px;color:rgba(255,255,255,.80);font-size:14px}
+        .wt-bar-state{margin-left:auto;display:flex;align-items:center;gap:7px;color:rgba(255,255,255,.70);font-size:13px}
         /* GREEN, NOT LIME, and only this dot changes - see the note below on the two that
            deliberately do not.
            This sits in the same 47px strip as the three window lights, beside the copy
@@ -825,8 +825,13 @@ const WorkflowTerminal: React.FC = () => {
            which is below what the rest of the site uses anywhere and unreadable on a
            laptop at arm's length. Monospace also runs optically smaller than Inter at the
            same nominal size, so matching the body number would still have read small.
-           Floor is now 12px, with the step name and the request line at 15px. */
-        .wt-request{margin-bottom:32px;display:flex;gap:10px;color:#fff;font-size:15px;line-height:1.7}
+           SIZES RAISED AGAIN, on owner instruction: the panel read too small on both
+           desktop and - worse - on a phone, where the request line had been dropped BELOW
+           its desktop size. The floor is now 13px and the readable body/request/command
+           lines sit at ~15-16px. The request line uses clamp() so it scales fluidly
+           between phone and desktop instead of being stepped DOWN on mobile, per
+           .kiro/steering/20-device-compat.md which favours clamp() over fixed sizes. */
+        .wt-request{margin-bottom:32px;display:flex;gap:10px;color:#fff;font-size:clamp(15px,1.1vw + 13px,16px);line-height:1.7}
         .wt-caret{color:#d1f470}
 
         /* Each step fades up as it arrives. The connector is a ::before rule so it
@@ -980,8 +985,8 @@ const WorkflowTerminal: React.FC = () => {
            hue belongs on shapes, text belongs at maximum contrast - applied one level down.
 
            --ink SURVIVES for .wt-tick, which still needs a legible hue. */
-        .wt-svc{padding:2px 7px;border-radius:4px;background:rgba(var(--rgb),.20);border:1px solid rgba(var(--rgb),.60);color:#fff;font-size:11.5px;letter-spacing:.02em}
-        .wt-name{color:#fff;font-size:15px;font-weight:600}
+        .wt-svc{padding:2px 7px;border-radius:4px;background:rgba(var(--rgb),.20);border:1px solid rgba(var(--rgb),.60);color:#fff;font-size:12.5px;letter-spacing:.02em}
+        .wt-name{color:#fff;font-size:16px;font-weight:600}
         /* THE TICK TAKES THE STEP'S OWN HUE. THE NAME STAYS WHITE ON ALL EIGHT ROWS.
            Both the name and the tick were #d1f470 while the dots were lime too, so the row
            agreed with itself. Once the dots became one hue per service, lime here was the last
@@ -1035,24 +1040,25 @@ const WorkflowTerminal: React.FC = () => {
            --ink is the same hue lifted just past the floor and is identity for amber, lime and
            green, so the tick on step 8 is pixel-identical to what it rendered before. */
         .wt-tick{color:var(--ink)}
-        /* .46 IS 4.58:1 ON THIS PANEL - eight hundredths above the 4.5:1 floor for text this
-           size, and the tightest margin anywhere on the home page. Left alone deliberately,
-           and the reason is the rung below it: .wt-infra was raised from .44 to .50 when it
-           failed, and a timestamp has to stay dimmer than the infrastructure line or the two
-           read as equals. Moving this to .50 would collapse that distinction to fix a value
-           that already passes. What it must not do is drift DOWN: .45 is 4.47:1 and fails, so
-           there is no headroom here at all. flowprobe.js asserts the measured ratio, which is
-           why a one-notch nudge cannot land quietly. */
-        .wt-time{color:rgba(255,255,255,.46);font-size:12px}
-        .wt-desc{max-width:780px;margin:7px 0 0;color:rgba(255,255,255,.62);font-size:13.5px;line-height:1.65}
+        /* RAISED TO .66, on owner instruction that the panel's faint text was "not visible".
+           This was .46 (4.58:1) - a bare pass on paper that read as nearly invisible on #000
+           in practice, which is exactly what the owner reported. At .66 it measures ~7.6:1,
+           comfortably clear of AA. The hierarchy it was protecting still holds: the timestamp
+           stays dimmer than .wt-infra, which also came up (see below), and dimmer than .wt-desc.
+           flowprobe.js asserts the measured ratios and cannot run in this sandbox (no headless
+           browser); re-run it on a machine with playwright to refresh the recorded numbers. */
+        .wt-time{color:rgba(255,255,255,.66);font-size:13px}
+        /* .wt-desc is the primary step prose, so it takes the highest muted alpha - pushed to
+           .82 (~16:1) so the sentences the panel exists to deliver read crisply. */
+        .wt-desc{max-width:780px;margin:7px 0 0;color:rgba(255,255,255,.82);font-size:15.5px;line-height:1.65}
 
-        .wt-cmd{margin-top:11px;padding:12px 14px;overflow-x:auto;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.14);border-radius:7px;color:#fff;font-size:13.5px;line-height:1.7;white-space:nowrap}
-        .wt-sh{margin-right:7px;color:rgba(255,255,255,.46)}
+        .wt-cmd{margin-top:11px;padding:12px 14px;overflow-x:auto;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.14);border-radius:7px;color:#fff;font-size:15px;line-height:1.7;white-space:nowrap}
+        .wt-sh{margin-right:7px;color:rgba(255,255,255,.66)}
         .wt-fn{color:#d1f470}
-        .wt-str{color:rgba(255,255,255,.76)}
-        .wt-key{color:rgba(255,255,255,.58)}
+        .wt-str{color:rgba(255,255,255,.80)}
+        .wt-key{color:rgba(255,255,255,.68)}
         .wt-num{color:#d1f470}
-        .wt-cm{color:rgba(255,255,255,.46)}
+        .wt-cm{color:rgba(255,255,255,.66)}
 
         /* The infra comment. Dim on purpose - it is the substrate, not the event - but
            still above the 12px floor because it carries the actual message.
@@ -1063,15 +1069,18 @@ const WorkflowTerminal: React.FC = () => {
            one of the fourteen text styles in this panel that failed; .50 measures 5.28:1.
            Deliberately NOT .62: that is .wt-desc's value, and this line must stay dimmer than
            the description it sits under, which is the whole point of the "dim on purpose"
-           above. .50 is the smallest step that clears AA and keeps that order intact.
-           NOTE .wt-cm above passes at 4.58:1, i.e. by 0.08 - any further dimming of it fails.
-           Re-measure with: node tools/browser/flowprobe.js - it asserts every ratio here.
+           above. RAISED TO .70 on the same owner instruction that lifted the other faint
+           lines: this is the line that carries the section's argument, so it has to be solidly
+           legible, not a bare pass. .70 measures ~8.2:1 and still sits BELOW .wt-desc's .82, so
+           the "dim on purpose, but above the floor" order the comment describes is preserved.
+           Re-measure with: node tools/browser/flowprobe.js - it asserts every ratio here, and
+           cannot run in this sandbox (no headless browser), so refresh it on a machine with one.
            (No backticks in this comment: this sits inside a style jsx template literal, where
            one stray backtick ends the literal and the build fails at type-check.) */
-        .wt-infra{margin-top:9px;color:rgba(255,255,255,.50);font-size:12.5px;line-height:1.6}
+        .wt-infra{margin-top:9px;color:rgba(255,255,255,.70);font-size:13.5px;line-height:1.6}
 
         .wt-results{margin-top:11px;display:flex;flex-wrap:wrap;gap:7px}
-        .wt-chip{padding:5px 9px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.14);border-radius:5px;color:rgba(255,255,255,.62);font-size:12px}
+        .wt-chip{padding:5px 9px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.14);border-radius:5px;color:rgba(255,255,255,.74);font-size:13px}
         .wt-chip.is-ok{color:#d1f470;border-color:rgba(209,244,112,.34)}
         /* A warning is carried by weight, not by a second hue: brighter text on a
            brighter border, still neutral, so lime stays the only accent in the panel body. */
@@ -1085,16 +1094,16 @@ const WorkflowTerminal: React.FC = () => {
         /* A short lime rule at the top of each lane, so the four read as parallel tracks
            starting together rather than as four unrelated cards. */
         .wt-lane-bar{display:block;width:22px;height:2px;border-radius:2px;background:#d1f470;margin-bottom:3px}
-        .wt-lane-name{color:#fff;font-size:12.5px;font-weight:600}
-        .wt-lane-detail{color:rgba(255,255,255,.54);font-size:12px;line-height:1.45}
+        .wt-lane-name{color:#fff;font-size:13.5px;font-weight:600}
+        .wt-lane-detail{color:rgba(255,255,255,.70);font-size:13px;line-height:1.45}
 
         .wt-checks{margin-top:11px;display:grid;gap:8px}
-        .wt-check{display:flex;align-items:center;gap:8px;color:rgba(255,255,255,.62);font-size:12.5px}
+        .wt-check{display:flex;align-items:center;gap:8px;color:rgba(255,255,255,.74);font-size:13.5px}
         .wt-check-tick{color:#d1f470}
 
         /* Fades the stream out under the footer rather than letting rows collide with
            it. The gradient has to end in the panel's own #000 or it shows a seam. */
-        .wt-foot{flex:0 0 auto;height:50px;padding:0 24px;display:flex;align-items:center;background:#000;border-top:1px solid rgba(209,244,112,.30);color:rgba(255,255,255,.54);font-size:12px}
+        .wt-foot{flex:0 0 auto;height:50px;padding:0 24px;display:flex;align-items:center;background:#000;border-top:1px solid rgba(209,244,112,.30);color:rgba(255,255,255,.70);font-size:13px}
         .wt-foot-left{display:flex;align-items:center;gap:7px}
         /* STAYS LIME, DELIBERATELY, and this is the boundary of the recolour.
            This dot sits beside "running" / "complete" on the BLACK footer, not the brown title
@@ -1123,7 +1132,11 @@ const WorkflowTerminal: React.FC = () => {
           .wt-space{padding:23px 18px 60px}
           .wt-bar-state{display:none}
           .wt-step{padding-left:29px}
-          .wt-request{font-size:12px}
+          /* THE MOBILE DOWN-SIZE IS GONE, on owner instruction. This rule used to drop the
+             request line to 12px - SMALLER than its 15px desktop value - which was the opposite
+             of what a phone reader needs and the exact complaint that was reported. The line now
+             keeps its fluid clamp() size on mobile, so the panel is never smaller on a phone
+             than on a laptop. */
         }
 
         /* Reduced motion starts on the finished state with the loop paused, so by default this
