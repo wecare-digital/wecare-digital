@@ -1,90 +1,27 @@
 /**
- * Platform — ONE tabbed hub for every infrastructure / diagnostics surface.
+ * Compatibility redirect for the retired Settings/Platform route.
  *
- * Workspace redesign (FEAT-006): the Platform group used to be seven standalone
- * routes under the gear (MCP Connections, Architecture snapshot, Lambda Functions,
- * Code Repo, WA Graph Tools, CORS Settings, Design Reference). They are now in-page
- * tabs on this single hub, each rendering the EXISTING page body via its `embedded`
- * prop — so every src/api/client.ts / workspaceMCP call site inside those pages is
- * unchanged. Architecture snapshot is a large document with its own internal tab
- * system; it renders here as a tab body unchanged.
- *
- * The tab bodies live in src/components/workspace/platform/** (relocated out of the
- * routes tree so each stops being its own route). The gear's settingsConfig
- * deep-links this hub with a ?tab= id; PageShell opens the matching tab.
+ * Platform is a first-class workspace at /workspace/platform. Preserve the old ?tab= intent
+ * for bookmarks and deep links while keeping Settings from becoming a product-navigation bucket.
  */
-import React, { Suspense } from 'react';
-import dynamic from 'next/dynamic';
+import { useEffect } from 'react';
 import { useRouter } from 'next/router';
-import Layout from '../../../../components/Layout';
-import SEO from '../../../../components/SEO';
-import PageShell, { ShellTab } from '../../../../components/PageShell';
 
-// Loaded per tab: these infra pages are heavy (static registries, Graph tools, a
-// 1,600-line design reference), so a static import would download all seven before
-// showing one. Generic loader keeps each module's own props (signOut/user/embedded).
-function lazyTab<P> ( loader: () => Promise<{ default: React.ComponentType<P> }> ) {
-    return dynamic( loader, { ssr: false } );
-}
+const PlatformSettingsCompatibilityRedirect = () => {
+  const router = useRouter();
 
-const MCPConnectionsPage = lazyTab( () => import( '../../../../components/workspace/platform/MCPConnections' ) );
-const SystemArchitecturePage = lazyTab( () => import( '../../../../components/workspace/platform/SystemArchitecture' ) );
-const LambdaFunctionsPage = lazyTab( () => import( '../../../../components/workspace/platform/LambdaFunctions' ) );
-const CodeRepoPage = lazyTab( () => import( '../../../../components/workspace/platform/CodeRepo' ) );
-const WaGraphToolsPage = lazyTab( () => import( '../../../../components/workspace/platform/WaGraphTools' ) );
-const CorsSettingsPage = lazyTab( () => import( '../../../../components/workspace/platform/CorsSettings' ) );
-const DesignReferencePage = lazyTab( () => import( '../../../../components/workspace/platform/DesignReference' ) );
+  useEffect( () => {
+    const tab = Array.isArray( router.query.tab ) ? router.query.tab[ 0 ] : router.query.tab;
+    const view = Array.isArray( router.query.view ) ? router.query.view[ 0 ] : router.query.view;
+    const selected = view || tab;
 
-interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
+    void router.replace( {
+      pathname: '/workspace/platform',
+      query: selected ? { view: selected } : {},
+    } );
+  }, [ router ] );
 
-const TABS: ShellTab[] = [
-    { id: 'mcp-connections', label: 'MCP Connections' },
-    { id: 'system-architecture', label: 'Architecture snapshot' },
-    { id: 'lambda-functions', label: 'Lambda Functions' },
-    { id: 'code-repo', label: 'Code Repo' },
-    { id: 'wa-graph-tools', label: 'WA Graph Tools' },
-    { id: 'cors-settings', label: 'CORS Settings' },
-    { id: 'design-reference', label: 'Design Reference' },
-];
-
-// /workspace/settings/platform?tab=<id> deep-links open the matching tab.
-function resolveDefaultTab ( raw: string | string[] | undefined ): string {
-    const id = Array.isArray( raw ) ? raw[ 0 ] : raw;
-    return id && TABS.some( ( t ) => t.id === id ) ? id : 'mcp-connections';
-}
-
-const PlatformHub: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
-    const router = useRouter();
-    const defaultTab = resolveDefaultTab( router.query.tab );
-    const content = (
-        <PageShell
-            key={ defaultTab }
-            title="Platform"
-            subtitle="Infrastructure, architecture and diagnostics"
-            tabs={ TABS }
-            defaultTab={ defaultTab }
-        >
-            { ( activeTab ) => (
-                <Suspense fallback={ <div style={ { padding: 40, textAlign: 'center' } }>Loading…</div> }>
-                    { activeTab === 'mcp-connections' && <MCPConnectionsPage signOut={ signOut } user={ user } embedded /> }
-                    { activeTab === 'system-architecture' && <SystemArchitecturePage signOut={ signOut } user={ user } embedded /> }
-                    { activeTab === 'lambda-functions' && <LambdaFunctionsPage signOut={ signOut } user={ user } embedded /> }
-                    { activeTab === 'code-repo' && <CodeRepoPage signOut={ signOut } user={ user } embedded /> }
-                    { activeTab === 'wa-graph-tools' && <WaGraphToolsPage signOut={ signOut } user={ user } embedded /> }
-                    { activeTab === 'cors-settings' && <CorsSettingsPage signOut={ signOut } user={ user } embedded /> }
-                    { activeTab === 'design-reference' && <DesignReferencePage signOut={ signOut } user={ user } embedded /> }
-                </Suspense>
-            ) }
-        </PageShell>
-    );
-
-    if ( embedded ) return content;
-    return (
-        <Layout user={ user } onSignOut={ signOut }>
-            <SEO title="Platform | WECARE.DIGITAL" description="Infrastructure, architecture and diagnostics" noindex={ true } />
-            { content }
-        </Layout>
-    );
+  return null;
 };
 
-export default PlatformHub;
+export default PlatformSettingsCompatibilityRedirect;

@@ -71,7 +71,7 @@ GROWTH_FORMER_INNER_PAGES = [
 HUBS_THAT_MUST_BE_LAZY = {
     "src/pages/workspace/communications/index.tsx": 15,
     "src/pages/workspace/engage/channels/index.tsx": 6,
-    "src/pages/workspace/settings/platform/index.tsx": 7,
+    "src/pages/workspace/platform/index.tsx": 7,
 }
 
 
@@ -245,5 +245,5 @@ class TestInnerPagesLoadLazily:
                 f"{hub}'s lazyTab is not generic, so it flattens tab prop types")
 
     def test_platform_default_tab_is_lazy_like_the_other_heavy_tabs(self):
-        code = (ROOT / "src/pages/workspace/settings/platform/index.tsx").read_text(encoding="utf-8")
+        code = (ROOT / "src/pages/workspace/platform/index.tsx").read_text(encoding="utf-8")
         assert "const MCPConnectionsPage = lazyTab(" in code

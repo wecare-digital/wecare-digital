@@ -382,10 +382,10 @@ const ENV_VARS: EnvVar[] = [
 // ─── Data: Frontend Routes ───
 interface FrontendRoute { path: string; label: string; backend: string; tables: string; }
 const FRONTEND_ROUTES: FrontendRoute[] = [
-  // Platform (Settings)
-  { path: '/workspace/settings/platform/system-architecture', label: 'Project Control Center', backend: '(this page)', tables: '-' },
-  { path: '/workspace/settings/platform/lambda-functions', label: 'Lambda Functions', backend: '(static data)', tables: '-' },
-  { path: '/workspace/settings/platform/code-repo', label: 'Code Repo', backend: '(static data)', tables: '-' },
+  // Platform — canonical workspace. Static inventory rows are labelled as snapshots, not live control-plane readback.
+  { path: '/workspace/platform?view=system-architecture', label: 'Architecture snapshot', backend: '(this page)', tables: '-' },
+  { path: '/workspace/platform?view=lambda-functions', label: 'Lambda inventory snapshot', backend: '(static data)', tables: '-' },
+  { path: '/workspace/platform?view=code-repo', label: 'Code Repo', backend: '(static data)', tables: '-' },
   // WhatsApp
   { path: '/workspace/engage/inbox?channel=whatsapp', label: 'WhatsApp Inbox', backend: 'messages-read, inbound-whatsapp, outbound-whatsapp', tables: 'WhatsAppInbound, WhatsAppOutbound, Contact' },
   { path: '/workspace/engage/whatsapp/templates', label: 'WA Templates', backend: 'whatsapp-templates, whatsapp-template-management', tables: 'TemplateAnalytics' },
@@ -442,7 +442,8 @@ const FRONTEND_ROUTES: FrontendRoute[] = [
 interface CodeFolder { path: string; purpose: string; files: string; linkedTo: string; }
 const CODE_MAP: CodeFolder[] = [
   { path: 'src/pages/', purpose: 'Next.js page routes (Pages Router)', files: '~50 pages', linkedTo: 'Frontend routing' },
-  { path: 'src/pages/workspace/settings/platform/', purpose: 'Platform control: architecture, lambdas, code repo, CORS', files: '6 pages', linkedTo: '/workspace/settings/platform/*' },
+  { path: 'src/pages/workspace/platform/', purpose: 'Canonical Platform workspace hub', files: '1 page', linkedTo: '/workspace/platform' },
+  { path: 'src/components/workspace/platform/', purpose: 'Platform tools embedded by the canonical hub', files: '7 components', linkedTo: '/workspace/platform?view=*' },
   { path: 'src/pages/workspace/engage/whatsapp/', purpose: 'WhatsApp messaging pages (21 sub-pages)', files: '21 pages', linkedTo: '/workspace/engage/whatsapp/*' },
   { path: 'src/pages/workspace/engage/', purpose: 'Multi-channel messaging (SMS, Voice, Email, RCS, Push)', files: '~15 pages', linkedTo: '/workspace/engage/*' },
   { path: 'src/pages/workspace/pay/', purpose: 'Payment pages (overview, flow, link)', files: '3 pages', linkedTo: '/workspace/pay/*' },
