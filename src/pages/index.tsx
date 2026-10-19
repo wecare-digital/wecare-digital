@@ -742,6 +742,25 @@ const HomePage: React.FC = () => {
            reach a child component's markup, which is why the pill owns its own styles. */
         .home-head-line{display:block}
 
+        /* Foldable hinge progressive enhancement. Normal responsive widths cannot represent an
+           occluded physical hinge. If a browser exposes two side-by-side viewport segments,
+           keep Home's single-column reading surface wholly inside one pane rather than spanning
+           critical copy/controls across the hinge. Unsupported browsers ignore this safely. */
+        @media(horizontal-viewport-segments:2){
+          .home-layout{
+            width:env(viewport-segment-width 0 0);
+            max-width:env(viewport-segment-width 0 0);
+            margin-left:env(viewport-segment-left 0 0);
+            margin-right:auto;
+          }
+          :global([dir='rtl']) .home-layout{
+            width:env(viewport-segment-width 1 0);
+            max-width:env(viewport-segment-width 1 0);
+            margin-left:env(viewport-segment-left 1 0);
+            margin-right:0;
+          }
+        }
+
         @media(max-width:767px){
           .home-shell{padding-top:96px}
           .home-layout{padding:48px 16px 40px;gap:64px}
@@ -760,7 +779,6 @@ const HomePage: React.FC = () => {
              pass. */
           :global(.home-close-title){font-size:32px}
           :global(.home-close-cta){font-size:18px}
-          :global(.ft-tagline){font-size:16px}
           :global(.public-share .ps-menu-sub),
           :global(.public-share .ps-menu-note){font-size:15px}
         }
