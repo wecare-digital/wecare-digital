@@ -75,15 +75,27 @@ def _tracking_updates(body: Mapping[str, Any]) -> Tuple[Optional[Dict[str, Any]]
 
     tracking_url = updates.get("trackingUrl", "")
     if tracking_url:
-        parsed = urlparse(tracking_url)
+        invalid_url = any(ch.isspace() for ch in tracking_url) or "\\" in tracking_url
+        try:
+            parsed = urlparse(tracking_url)
+            # Accessing .hostname/.port performs additional validation (e.g. bracketed IPv6 and
+            # numeric port syntax) that urlparse itself otherwise leaves deferred.
+            hostname = parsed.hostname
+            _ = parsed.port
+        except ValueError:
+            invalid_url = True
+            hostname = None
+            parsed = None
         if (
-            parsed.scheme.lower() != "https"
-            or not parsed.hostname
+            invalid_url
+            or parsed is None
+            or parsed.scheme.lower() != "https"
+            or not hostname
             or parsed.username is not None
             or parsed.password is not None
         ):
             return None, {
-                "error": "trackingUrl must be an HTTPS URL without embedded credentials",
+                "error": "trackingUrl must be a valid HTTPS URL without embedded credentials",
                 "errorCode": "ORDER_TRACKING_URL_INVALID",
             }
 
