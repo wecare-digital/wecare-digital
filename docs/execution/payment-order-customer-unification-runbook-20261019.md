@@ -7,7 +7,15 @@ operator with AWS access, not on autopilot. Each step is idempotent or gated; do
 Context: an order has ONE identity namespace across channels (the `order_keys` CommerceKeys chain
 mints `orderId`/`orderNumber` once), and both order-creation paths now write `contactId` and the
 public `customerUuid`. What remains is making the live index carry those fields, deploying the
-handlers, and recovering the one stranded paid order.
+handlers, and recovering any stranded paid order.
+
+LIVE STATUS (verified read-only, 2026-10-19, us-east-1):
+- The v2 index `customerId-createdAt-v2-index` ALREADY EXISTS and is `CREATING`/`Backfilling:true`
+  on `stack-wecare-digital-OrderTable`, created from the PR #903 definition — its projection
+  already carries BOTH `channel` and `customerUuid`. The serving index is still v1 (repoint
+  correctly gated until v2 is ACTIVE). So Step 3 is in progress; only Step 3b (repoint) remains,
+  once the backfill completes.
+- The ₹4.67 order is already finalized and linked — see Step 5. No action needed for it.
 
 ## Step 3 — create and backfill the v2 customer-history index
 
@@ -17,25 +25,32 @@ both. A GSI projection cannot be edited in place, so v2 is a NEW index created b
 keeps serving.
 
 ```sh
-# Preview the index + IAM changes without mutating anything:
+# Preview EVERYTHING the provisioner would do (IAM policy, v1+v2 index definitions,
+# function env, package) without mutating anything. This is the default when --apply is absent:
 python scripts/provision_customer_orders.py --dry-run
 
-# Create the v2 index (one GSI op at a time; the script waits for ACTIVE):
-python scripts/provision_customer_orders.py --create-v2-index
+# Apply: reconcile the role, create any missing index (v1 then v2 — one GSI op in flight per
+# table, the script polls describe_table for ACTIVE between them) and provision the function.
+python scripts/provision_customer_orders.py --apply
+
+# Read back and report only (no writes):
+python scripts/provision_customer_orders.py --verify
 ```
 
 - Only ONE GSI operation may be in flight on a table; the script polls `describe_table` for
-  ACTIVE (`INDEX_POLL_SECONDS`/`INDEX_POLL_ATTEMPTS`).
+  ACTIVE (`INDEX_POLL_SECONDS` × `INDEX_POLL_ATTEMPTS`).
 - Until v2 is serving, `channel` reads as `website` and `customerUuid` as `''` off v1 — the page
   is correct, not broken.
 - DynamoDB backfills a new GSI automatically; wait until `describe_table` reports the index
   `Backfilling: false` and `IndexStatus: ACTIVE` before the repoint below.
 
-## Step 3b — repoint the serving index (GATED on ACTIVE)
+## Step 3b — repoint the serving index (GATED on ACTIVE, SEPARATE command)
 
 ```sh
-# Refuses unless describe_table reports v2 ACTIVE; nothing else moves the serving index.
+# Dry run (default): reports what it would move, refuses to actually move unless v2 is ACTIVE.
 python scripts/provision_customer_orders.py --repoint-serving-index
+# Apply the move once v2 is ACTIVE:
+python scripts/provision_customer_orders.py --repoint-serving-index --apply
 ```
 
 This sets the live `customer-orders` function's `ORDERS_BY_CUSTOMER_INDEX` env to the v2 name. A
@@ -62,10 +77,20 @@ exercises the new paths.
 
 ## Step 5 — recover the existing ₹4.67 paid attempt
 
-A native-leg paid attempt (`verifiedCapturedPaise == 467`) whose projection did not complete is
-either quarantined (`PAID_ORDER_PROJECTION_FAILED` in CommerceKeys) or projected but stranded at
-`finalizationStage == NEEDS_CUSTOMER_LINK` (visible in the phone-keyed Flow picker, invisible to
-website history until linked).
+STATUS (verified read-only, 2026-10-19, us-east-1): this order is ALREADY recovered and finalized
+end to end. The attempt `01a14e6b-7f11-7723-b48b-3680b0753f58` (ref `WD-PAY-A82DF6F0`, provider
+`pay_TpKSSVFUfsEKwJ`, 467 paise) is `PAYMENT_PAID` and its order
+`01a14e7a-46ca-76bf-8287-f5edc5787e2f` / `WD-ORD-TJMG7G4N` is `ORDER_FINALIZED`. The ORDER row is
+owned by the Cognito sub `d458a498-…` (the contact `wa918100640044` is linked:
+`checkoutCustomerId` matches), carries `customerUuid 77f927a4-…` and `channel whatsapp`. So it
+satisfies all three verification targets: staff orders (OrderTable, finalized), website history
+(partitioned on the sub; `customerUuid`/`channel` display once v2 serves), and the phone-keyed
+Flow picker (`customerPhone +918100640044`). NO ACTION NEEDED for this order.
+
+The procedure below is retained for any FUTURE native-leg paid attempt that did not complete —
+quarantined (`PAID_ORDER_PROJECTION_FAILED` in CommerceKeys) or stranded at
+`finalizationStage == NEEDS_CUSTOMER_LINK` (visible in the Flow picker, invisible to website
+history until linked).
 
 1. **Locate it.** Find the paid `PaymentAttempt` with `amountPaise == 467` /
    `verifiedCapturedPaise == 467` in `stack-wecare-digital-PaymentAttemptsTable`; note its
