@@ -33,7 +33,7 @@ def test_legacy_unpaid_active_is_treated_as_pending():
 
 
 def test_any_money_at_or_beyond_capture_blocks_order_cancellation():
-    for payment in ("captured", "paid", "PAYMENT_PAID", "refunded", "disputed"):
+    for payment in ("authorized", "captured", "paid", "PAYMENT_PAID", "refunded", "disputed"):
         decision, error = order_patch.validate_order_cancellation(
             {"paymentStatus": payment, "orderStatus": "processing"},
             "Customer requested cancellation",
