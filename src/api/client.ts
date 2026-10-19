@@ -5429,9 +5429,23 @@ export async function getFlowSubmissionStats ( flowCode?: string ): Promise<Flow
 export async function updateSubmissionStatus ( submissionId: string, status: string, notes?: string ): Promise<{ updated: boolean; oldStatus: string; newStatus: string }> {
   const data = await apiCall<any>( `${WA_BIZ_BASE}/flow-submissions/update-status`, {
     method: 'POST',
-    body: JSON.stringify( { submissionId, status, notes, changedBy: 'admin' } ),
+    body: JSON.stringify( { submissionId, status, notes } ),
   } );
   return data || { updated: false, oldStatus: '', newStatus: '' };
+}
+
+export type ReturnStage = 'approved' | 'rejected' | 'item_received' | 'return_waived' | 'refund_eligible';
+
+export async function updateReturnStage (
+  submissionId: string,
+  returnStage: ReturnStage,
+  notes?: string,
+): Promise<{ updated: boolean; oldStage: string; newStage: string; idempotent?: boolean }> {
+  const data = await apiCall<any>( `${WA_BIZ_BASE}/flow-submissions/update-status`, {
+    method: 'POST',
+    body: JSON.stringify( { submissionId, returnStage, notes } ),
+  } );
+  return data || { updated: false, oldStage: '', newStage: '' };
 }
 
 export interface CustomerJourney {
