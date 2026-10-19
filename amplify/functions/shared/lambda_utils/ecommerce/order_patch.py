@@ -212,9 +212,14 @@ def validate_order_cancellation(
         }
 
     payment_state = pay_status.canonical(current.get("paymentStatus"))
-    if pay_status.rank(payment_state) >= pay_status.rank(pay_status.CAPTURED):
+    if payment_state in {
+        pay_status.AUTHORIZED,
+        pay_status.CAPTURED,
+        pay_status.REFUNDED,
+        pay_status.DISPUTED,
+    }:
         return None, {
-            "error": "Money has moved for this order; use the return/refund workflow",
+            "error": "Payment is authorized/captured or later; use the return/refund workflow",
             "errorCode": "ORDER_CANCEL_MONEY_MOVED",
         }
     if current.get("paymentStatus") and not payment_state:
