@@ -6,9 +6,7 @@
     "WECARE::ReadThisFirst": [
       "This template is the DECLARATION OF RECORD, not the deploy path. The live resources were",
       "created by scripts/provision_checkout.py on 2026-10-01 and are read back by its --verify",
-      "mode. It sits beside amplify/infra/home-fallback.json, which has the same relationship to",
-      "scripts/home_fallback_dns.py: a reproducible statement of intent for resources that a",
-      "script owns.",
+      "mode. It records the intended resources owned by that provisioning script.",
       "",
       "It is deliberately NOT wired into amplify/backend.ts. Two reasons, both load-bearing:",
       "  1. HTTP API zllr9lrg7j is not CloudFormation-managed. It carries 361 routes created by",

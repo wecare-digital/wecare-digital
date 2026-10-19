@@ -4,6 +4,8 @@ Multi-channel messaging platform for WhatsApp, SMS, RCS, Email, and Voice commun
 Commerce and the blog run natively on AWS; voice uses Plivo and AWS, SMS uses AWS End User
 Messaging, and RCS uses Sinch.
 
+Website: [https://wecare.digital](https://wecare.digital).
+
 ## Quick Start
 
 ```bash
@@ -89,10 +91,11 @@ Served as `https://wecare.digital/get/<key>` via CloudFront `E2GP22R4BIFGQ3`
 | Manish Agarwal | 2513394156072604 | waba-dbe343f210204752b74c80a0a59631a6 |
 
 The `ID` column above is the AWS-side identifier the code reads; Meta's own WABA id is in the
-`Meta ID` column. The Catalog, Pixel, Dataset/CAPI, App and phone-number ids Meta knows these
-assets by are listed in
-[Meta assets and the services catalogue](docs/meta-assets-and-services-catalog.md), together with
-the five paid services and their catalogue variant ids.
+`Meta ID` column. Current app connection settings are in
+[the workspace connection configuration](config/workspace-mcp.json). The
+[webhook audit](docs/webhook-consolidation-audit.md) records the primary WhatsApp app's
+purpose and distinguishes the separate Business Agent app. The five paid services and
+their catalogue variant ids are defined in [the service catalogue configuration](src/config/services.ts).
 
 See [repository layout and maintenance boundaries](docs/execution/repository-layout.md) for the active web/backend install roots, operational scripts, generated outputs and retained history.
 
@@ -128,6 +131,7 @@ All Lambda functions use Python 3.12 runtime with prefix `wecare-*`:
 
 - [FAQ System](docs/FAQ-SYSTEM.md)
 - [OpenAPI Spec](docs/openapi.yaml)
+- [Wildcard fallback retirement](docs/execution/wildcard-retirement-20261019.md)
 
 ## Admin Scripts
 

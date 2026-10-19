@@ -1,6 +1,8 @@
 # Service design drafts and Vault delivery
 
-Created through the existing WECARE Meta API credential handling on 9 October 2026. All six are DRAFT with zero Meta validation errors. Names/IDs/expiring preview links are in meta-drafts.json.
+Created through the existing WECARE Meta API credential handling on 9 October 2026. All six are DRAFT with zero Meta validation errors. Names, IDs and recorded preview expiry dates are in meta-drafts.json.
+
+Token-bearing preview URLs are private access links and must not be committed to this public repository. The seven previously recorded URL values were removed on 19 October 2026; the draft IDs, validation results and original expiry metadata are retained. Obtain a fresh preview through the authenticated Meta dashboard when needed, and keep the URL out of issues, logs and source files. Removing a value from the current tree does not revoke an already issued link or erase repository history; provider-side invalidation must be verified separately. `tests/test_public_draft_manifests.py` checks the committed JSON inventories without printing credential values.
 
 These are interactive design previews, not customer fulfillment routes. They use example orders and documents; no verified account lookup, payment, document storage or shipment provider has been connected to these new IDs. Do not publish or replace keyword/catalog routing with them before those contracts are completed.
 

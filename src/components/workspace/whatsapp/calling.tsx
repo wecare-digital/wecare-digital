@@ -47,6 +47,8 @@ const META_TOKEN = {
   status: 'active',
 };
 
+const META_APP_DASHBOARD = `https://developers.facebook.com/apps/${META_TOKEN.appId}/whatsapp-business/wa-dev-console/`;
+
 // Signaling & Media configurations from Meta docs
 const SIGNAL_CONFIGS = [
   { config: 'Default (after enabling)', signaling: 'Graph APIs + Webhooks', transport: 'HTTPS', media: 'WebRTC (ICE + DTLS + SRTP)', codec: 'OPUS' },
@@ -1770,7 +1772,7 @@ const WhatsAppCallingPage: React.FC<PageProps> = ( { signOut, user, embedded = f
             <div style={ s.card }>
               <h4 style={ { margin: '0 0 12px', fontSize: 'var(--text-md)', color: 'var(--text)' } }>Meta Dashboard Configuration</h4>
               <p style={ { margin: '0 0 12px', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>
-                Enter these values in <a href="https://developers.facebook.com/apps/891766673609917/whatsapp-business/wa-dev-console/" target="_blank" rel="noopener noreferrer" style={ { color: 'var(--accent)' } }>Meta App Dashboard → WhatsApp → Configuration</a>
+                Enter these values in <a href={ META_APP_DASHBOARD } target="_blank" rel="noopener noreferrer" style={ { color: 'var(--accent)' } }>Meta App Dashboard → WhatsApp → Configuration</a>
               </p>
               <div style={ { display: 'flex', flexDirection: 'column', gap: '12px' } }>
                 <div>
@@ -1823,7 +1825,7 @@ const WhatsAppCallingPage: React.FC<PageProps> = ( { signOut, user, embedded = f
             <div style={ { ...s.card, marginTop: '12px' } }>
               <h4 style={ { margin: '0 0 12px', fontSize: 'var(--text-md)', color: 'var(--text)' } }>How to Configure Webhook in Meta Dashboard</h4>
               <ol style={ { margin: 0, paddingLeft: '20px', fontSize: 'var(--text-sm)', color: '#374151', lineHeight: 1.8 } }>
-                <li>Go to <a href="https://developers.facebook.com/apps/891766673609917/whatsapp-business/wa-dev-console/" target="_blank" rel="noopener noreferrer" style={ { color: 'var(--accent)' } }>developers.facebook.com → Your App → WhatsApp → Configuration</a></li>
+                <li>Go to <a href={ META_APP_DASHBOARD } target="_blank" rel="noopener noreferrer" style={ { color: 'var(--accent)' } }>developers.facebook.com → Your App → WhatsApp → Configuration</a></li>
                 <li>Under &quot;Webhook&quot;, click &quot;Edit&quot; (or &quot;Configure&quot; if first time)</li>
                 <li>Paste the Callback URL above</li>
                 <li>Paste the Verify Token above</li>
@@ -1860,7 +1862,7 @@ const WhatsAppCallingPage: React.FC<PageProps> = ( { signOut, user, embedded = f
                   { label: 'Getting Started (Access Token)', url: 'https://developers.facebook.com/docs/business-messaging/whatsapp/get-started' },
                   { label: 'Webhooks Overview', url: 'https://developers.facebook.com/docs/business-messaging/whatsapp/webhooks/overview' },
                   { label: 'Calling API Docs', url: 'https://developers.facebook.com/docs/whatsapp/cloud-api/calling' },
-                  { label: 'App Dashboard', url: 'https://developers.facebook.com/apps/891766673609917/whatsapp-business/wa-dev-console/' },
+                  { label: 'App Dashboard', url: META_APP_DASHBOARD },
                   { label: 'Meta Business Settings', url: 'https://business.facebook.com/settings' },
                 ].map( ( d, i ) => (
                   <a key={ i } href={ d.url } target="_blank" rel="noopener noreferrer"
