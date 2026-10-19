@@ -102,7 +102,8 @@ def test_whatsapp_handler_uses_authenticated_actor_and_admin_gate_for_return_sta
     assert "validate_transition(" in block
     assert "ConsistentRead=True" in block
     assert "RETURN_WORKFLOW_STALE" in block
-    assert "RETURN_STAGE#" in block
+    history = source[source.index("def _return_history"):source.index("def _update_submission_status")]
+    assert "RETURN_STAGE#" in history
     assert "refundEligibleAt" in block
     assert "refundId" not in block
     assert "refundAmount" not in block
