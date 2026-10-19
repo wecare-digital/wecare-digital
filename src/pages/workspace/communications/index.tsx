@@ -18,59 +18,59 @@ interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 type EmbeddedProps = PageProps & { channel?: string };
 
-function lazyPanel<P> ( loader: () => Promise<{ default: React.ComponentType<P> }> ) {
+function lazyTab<P> ( loader: () => Promise<{ default: React.ComponentType<P> }> ) {
   return dynamic( loader, { ssr: false } );
 }
 
 // The unified inbox is already the canonical cross-channel message reader. Keep its implementation
 // intact while moving its product destination away from the retired Engage namespace.
-const UnifiedInbox = lazyPanel<EmbeddedProps>( () => import( '../engage/inbox' ) );
+const UnifiedInbox = lazyTab<EmbeddedProps>( () => import( '../engage/inbox' ) );
 
-const SmsPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/channels/Sms' ) );
-const RcsPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/channels/Rcs' ) );
-const EmailPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/channels/Ses' ) );
-const VoicePanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/channels/Voice' ) );
-const PushPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/channels/Push' ) );
+const SmsPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/channels/Sms' ) );
+const RcsPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/channels/Rcs' ) );
+const EmailPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/channels/Ses' ) );
+const VoicePanel = lazyTab<PageProps>( () => import( '../../../components/workspace/channels/Voice' ) );
+const PushPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/channels/Push' ) );
 
-const TemplatesPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/messaging/Content' ) );
-const FlowsPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/flow-hub' ) );
-const AutomationPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/messaging/Automation' ) );
-const ScheduledPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/messaging/Scheduled' ) );
-const AnalyticsPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/messaging/Analytics' ) );
-const UsagePanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/messaging/Cost' ) );
-const SearchPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/messaging/Search' ) );
-const LogsPanel = lazyPanel<PageProps>( () => import( '../engage/logs' ) );
-const MetaAgentPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/messaging/MetaAgent' ) );
-const DocsPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/messaging/DocsScraper' ) );
+const TemplatesPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/messaging/Content' ) );
+const FlowsPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/flow-hub' ) );
+const AutomationPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/messaging/Automation' ) );
+const ScheduledPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/messaging/Scheduled' ) );
+const AnalyticsPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/messaging/Analytics' ) );
+const UsagePanel = lazyTab<PageProps>( () => import( '../../../components/workspace/messaging/Cost' ) );
+const SearchPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/messaging/Search' ) );
+const LogsPanel = lazyTab<PageProps>( () => import( '../engage/logs' ) );
+const MetaAgentPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/messaging/MetaAgent' ) );
+const DocsPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/messaging/DocsScraper' ) );
 
-const WhatsAppProfilePanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/business-profile' ) );
-const CallingPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/calling' ) );
-const WebhooksPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/webhooks' ) );
-const AiAgentPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/ai-agent' ) );
-const WabaPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/waba-dashboard' ) );
-const EmbeddedSignupPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/embedded-signup' ) );
-const ConnectedAccountsPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/connected-accounts' ) );
-const MyAccountPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/my-account' ) );
-const BsuidPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/bsuid' ) );
-const MigrationPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/migration' ) );
-const SendTestPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/send-test' ) );
-const CampaignPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/campaign' ) );
-const ListsPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/interactive-lists' ) );
-const AutoResponsePanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/auto-response' ) );
-const ConversionsPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/conversions-api' ) );
-const CtwaPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/ctwa-ads' ) );
-const TechPartnerPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/tech-partner' ) );
-const WhatsAppTemplatesPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/templates' ) );
-const TemplateBuilderPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/template-builder' ) );
-const CatalogBuilderPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/catalog-builder' ) );
-const WhatsAppFlowsPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/flows' ) );
-const FlowPublishPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/flow-publish' ) );
-const FlowResponsesPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/flow-responses' ) );
-const GroupsPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/groups' ) );
-const CostControlsPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/cost-controls' ) );
-const ScriptsPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/scripts' ) );
-const WelcomePanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/welcome' ) );
-const BotMenuPanel = lazyPanel<PageProps>( () => import( '../../../components/workspace/whatsapp/bot-menu' ) );
+const WhatsAppProfilePanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/business-profile' ) );
+const CallingPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/calling' ) );
+const WebhooksPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/webhooks' ) );
+const AiAgentPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/ai-agent' ) );
+const WabaPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/waba-dashboard' ) );
+const EmbeddedSignupPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/embedded-signup' ) );
+const ConnectedAccountsPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/connected-accounts' ) );
+const MyAccountPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/my-account' ) );
+const BsuidPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/bsuid' ) );
+const MigrationPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/migration' ) );
+const SendTestPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/send-test' ) );
+const CampaignPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/campaign' ) );
+const ListsPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/interactive-lists' ) );
+const AutoResponsePanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/auto-response' ) );
+const ConversionsPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/conversions-api' ) );
+const CtwaPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/ctwa-ads' ) );
+const TechPartnerPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/tech-partner' ) );
+const WhatsAppTemplatesPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/templates' ) );
+const TemplateBuilderPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/template-builder' ) );
+const CatalogBuilderPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/catalog-builder' ) );
+const WhatsAppFlowsPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/flows' ) );
+const FlowPublishPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/flow-publish' ) );
+const FlowResponsesPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/flow-responses' ) );
+const GroupsPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/groups' ) );
+const CostControlsPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/cost-controls' ) );
+const ScriptsPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/scripts' ) );
+const WelcomePanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/welcome' ) );
+const BotMenuPanel = lazyTab<{}>( () => import( '../../../components/workspace/whatsapp/bot-menu' ) );
 
 type SectionId =
   | 'whatsapp'
@@ -291,7 +291,7 @@ const CommunicationsPage: React.FC<PageProps> = ( { signOut, user } ) => {
       case 'campaign': return <CampaignPanel signOut={ signOut } user={ user } embedded />;
       case 'lists': return <ListsPanel signOut={ signOut } user={ user } embedded />;
       case 'welcome': return <WelcomePanel signOut={ signOut } user={ user } embedded />;
-      case 'bot-menu': return <BotMenuPanel signOut={ signOut } user={ user } embedded />;
+      case 'bot-menu': return <BotMenuPanel />;
       case 'auto-response': return <AutoResponsePanel signOut={ signOut } user={ user } embedded />;
       case 'scripts': return <ScriptsPanel signOut={ signOut } user={ user } embedded />;
       case 'templates': return <WhatsAppTemplatesPanel signOut={ signOut } user={ user } embedded />;
