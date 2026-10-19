@@ -521,6 +521,12 @@ describe( 'Grahak OS: "Every touchpoint" pills carry multiple homepage hues', ()
   const source = readFileSync( pagePath, 'utf8' );
   const code = source.replace( /\/\*[\s\S]*?\*\//g, '' );
 
+  it( 'uses fluid equal-width touchpoint columns on mobile', () => {
+    expect( code ).toContain( ".usecase-pills{grid-template-columns:repeat(2,minmax(0,1fr));width:min(100%,420px);max-width:420px;justify-content:stretch;justify-items:stretch;gap:12px;padding:0;margin:0 auto}" );
+    expect( code ).toContain( ".pp-pill{width:100%;min-width:0;box-sizing:border-box;padding:14px 12px}" );
+    expect( code ).not.toContain( ".usecase-pills{grid-template-columns:repeat(2,max-content)" );
+  } );
+
   it( 'keeps the section copy and presents six outcome-led touchpoints', () => {
     expect( source ).toContain( '<h2>Every touchpoint<br/>One seamless experience</h2>' );
     // Sub-line tightened to a crisper, outcome-focused line (em dash dropped). Pin the new
