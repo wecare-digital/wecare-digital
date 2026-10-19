@@ -104,7 +104,7 @@ describe( 'support pill on phones', () => {
     // part that can go without cost: it hints that the chip opens something, which a pointer
     // needs and a tap does not - tapping opens the OS language picker either way.
     expect( widget ).toContain( '.wc-arw{display:none}' );
-    expect( widget ).toMatch( /\.wc-chip\{min-width:40px/ );
+    expect( widget ).toMatch( /\.wc-chip\{min-width:44px/ );
   } );
 
   it( 'does NOT shrink the controls below the touch floor', () => {
