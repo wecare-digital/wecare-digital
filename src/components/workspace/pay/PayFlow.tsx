@@ -9,8 +9,8 @@ import { useConfirm } from '../../../contexts/ConfirmContext';
 import type { Invoice, InvoiceDeliveryLog, Contact, CreateInvoiceEngineRequest } from '../../../api/client';
 import { DEFAULT_GSTIN } from '../../../config/constants';
 import {
-  ADDRESS_FIELDS, EMPTY_ADDRESS_FIELDS, addressPayload, formatAddress,
-  type AddressFormFields,
+  ADDRESS_FIELDS, EMPTY_ADDRESS_FIELDS, addressPayload, addressFieldsFromContact,
+  contactDeliveryAddress, formatAddress, type AddressFormFields,
 } from '../../../lib/address-format';
 
 interface PP { signOut?: () => void; user?: any; embedded?: boolean; }
@@ -260,42 +260,14 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
 
   /* Customer handlers */
   const openEditCust = ( c: Contact ) => {
-    /*
-     * PRE-FILL INTO THE EIGHT CANONICAL FIELDS, from whichever of the three places this contact's
-     * address actually lives in. A contact may carry: the Meta `shipping_info` JSON the WhatsApp
-     * subscribe flow writes (`address`, `in_pin_code`, `landmark_area`, `house_number`,
-     * `building_name`), the flat CRM columns, or the validated `checkoutDeliveryAddress` map.
-     *
-     * `checkoutDeliveryAddress` WINS where it exists, because it is the only one of the three
-     * that went through `contact_address.normalize_for_storage` - it is the stored result of this
-     * same field set. The legacy house/building/tower/floor columns fold into `addressLine2`
-     * rather than being dropped: they are real data, this form no longer offers four extra inputs
-     * for them, and folding is what turns them into the one format.
-     */
-    const checkout = c.checkoutDeliveryAddress;
-    let json: any = {};
-    if ( c.shippingAddressJson )
-    {
-      try { json = JSON.parse( c.shippingAddressJson ) || {}; } catch { json = {}; }
-    }
-    const legacyLine2 = [ c.houseNumber, c.buildingName, c.towerNumber, c.floorNumber,
-      json.house_number, json.building_name ]
-      .map( v => String( v || '' ).trim() )
-      .filter( ( v, i, all ) => v && all.indexOf( v ) === i )
-      .join( ', ' );
+    const address = addressFieldsFromContact( c );
+    const composed = contactDeliveryAddress( c );
     setEditCust( c );
     setCustForm( {
       name: c.name || '', phone: c.phone || '', email: c.email || '',
-      shippingAddress: c.shippingAddress || '', billingAddress: c.billingAddress || '',
+      shippingAddress: composed, billingAddress: composed || c.billingAddress || '',
       gstin: ( c as any ).gstin || '',
-      addressLine1: checkout?.addressLine1 || json.address || c.addressLine1 || '',
-      addressLine2: checkout?.addressLine2 || c.addressLine2 || legacyLine2,
-      locality: checkout?.locality || json.landmark_area || c.landmark || '',
-      city: checkout?.city || json.city || c.city || '',
-      state: checkout?.state || json.state || c.state || '',
-      postalCode: checkout?.postalCode || json.in_pin_code || c.postalCode || '',
-      country: checkout?.country || c.country || EMPTY_ADDRESS_FIELDS.country,
-      countryCode: checkout?.countryCode || EMPTY_ADDRESS_FIELDS.countryCode,
+      ...address,
     } );
   };
   const closeEditCust = () => { setEditCust( null ); setCustForm( EMPTY_FORM ); };
@@ -383,14 +355,20 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
         referenceId: 'WD-PAY-' + crypto.randomUUID().replace( /-/g, '' ).slice( 0, 16 ).toUpperCase(),
         customerPhone: selCustomer.phone, customerEmail: selCustomer.email || '',
         customerName: selCustomer.name, contactId: selCustomer.id,
-        shippingAddress: selCustomer.shippingAddress || '', billingAddress: selCustomer.billingAddress || '',
-        // Structured address for WhatsApp Payments shipping_info
-        addressLine1: selCustomer.addressLine1 || '',
-        addressLine2: selCustomer.addressLine2 || '',
-        city: selCustomer.city || '',
-        state: selCustomer.state || '',
-        postalCode: selCustomer.postalCode || '',
-        landmark: selCustomer.landmark || '',
+        shippingAddress: contactDeliveryAddress( selCustomer ),
+        billingAddress: contactDeliveryAddress( selCustomer ) || selCustomer.billingAddress || '',
+        // One canonical contact-address projection feeds Meta shipping_info too.
+        ...(() => {
+          const a = addressFieldsFromContact( selCustomer );
+          return {
+            addressLine1: a.addressLine1,
+            addressLine2: a.addressLine2,
+            city: a.city,
+            state: a.state,
+            postalCode: a.postalCode,
+            landmark: a.locality,
+          };
+        })(),
         goodsType: goodsType,
         items: invForm.items.map( it => ( { name: it.name || config.default_item_name, amount: parseFloat( it.unitPrice ) || 0, quantity: parseInt( it.quantity ) || 1, gstRate: it.gstRate.trim() === '' ? config.default_gst_rate : Number( it.gstRate ) } ) ),
         shipping: parseFloat( invForm.shipping ) || 0,
@@ -712,9 +690,13 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                     <Button variant="ghost" size="sm" onClick={ () => setSelCustomer( null ) }>Change</Button>
                   </div>
                   {/* Address display */ }
-                  { selCustomer.shippingAddress && (
+                  { contactDeliveryAddress( selCustomer ) ? (
                     <div className="inner-card" style={ { marginBottom: 16, maxWidth: 600, padding: '10px 14px', fontSize: 'var(--text-xs)', color: '#555', background: '#f8faf9', border: '1px solid #e0e8e3', borderRadius: 8 } }>
-                      <div><strong>Delivery Address:</strong> { selCustomer.shippingAddress }</div>
+                      <div><strong>Delivery Address:</strong> { contactDeliveryAddress( selCustomer ) }</div>
+                    </div>
+                  ) : (
+                    <div className="info-banner" style={ { marginBottom: 16 } }>
+                      No complete delivery address is saved. Edit the contact before creating a physical-goods payment.
                     </div>
                   ) }
                   <h3 style={ { margin: '0 0 12px', fontSize: 'var(--text-xl)' } }>Step 2 { '\u2014' } Invoice Details</h3>
@@ -915,7 +897,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                         <div className="pf-detail-row"><span className="label">Delight</span><span>{ '\u2212' }{ fmtMoney( selInvoice.couponDiscount ) }</span></div>
                       ) }
                       { ( selInvoice.discount - ( selInvoice.couponDiscount || 0 ) ) > 0 && (
-                        <div className="pf-detail-row"><span className="label">Promo</span><span>{ '\u2212' }{ fmtMoney( selInvoice.discount - ( selInvoice.couponDiscount || 0 ) ) }</span></div>
+                        <div className="pf-detail-row"><span className="label">Discount</span><span>{ '\u2212' }{ fmtMoney( selInvoice.discount - ( selInvoice.couponDiscount || 0 ) ) }</span></div>
                       ) }
                       { selInvoice.convenienceFee > 0 && <div className="pf-detail-row"><span className="label">Convenience fee</span><span>{ fmtMoney( selInvoice.convenienceFee ) }</span></div> }
                       <div className="pf-detail-total"><span>Total</span><span>{ fmtMoney( selInvoice.total ) }</span></div>
