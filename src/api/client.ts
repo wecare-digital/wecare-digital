@@ -5632,7 +5632,16 @@ export async function createOrder ( order: Partial<Order> ): Promise<Order | nul
   } );
 }
 
-export async function updateOrder ( orderId: string, updates: Partial<Order> ): Promise<boolean> {
+export interface OrderPatch {
+  /** Fulfilment only. Payment state is provider-controlled and intentionally absent here. */
+  status?: string;
+  orderStatus?: string;
+  fulfillmentStatus?: string;
+  adminNotes?: string;
+  notes?: string;
+}
+
+export async function updateOrder ( orderId: string, updates: OrderPatch ): Promise<boolean> {
   const data = await apiCall<any>( `${ORDERS_BASE}/${encodeURIComponent( orderId )}`, {
     method: 'PATCH',
     body: JSON.stringify( updates ),
