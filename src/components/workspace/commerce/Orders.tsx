@@ -118,6 +118,37 @@ function fulfilmentOptions ( order: api.Order ): SelectOption[] {
   ];
 }
 
+function canCancelOrder ( order: api.Order ): boolean {
+  if ( orderFulfilment( order ) !== 'pending' ) return false;
+  const payment = String( order.paymentStatus || '' ).trim().toLowerCase().replace( /-/g, '_' );
+  return ![ 'authorized', 'authorised', 'captured', 'paid', 'payment_paid', 'refunded', 'disputed' ].includes( payment );
+}
+
+const RETURN_STAGE_LABELS: Record<string, string> = {
+  requested: 'Requested',
+  approved: 'Approved',
+  rejected: 'Rejected',
+  item_received: 'Item received',
+  return_waived: 'Return waived',
+  refund_eligible: 'Refund eligible',
+};
+
+function returnStageOptions ( sub: api.FlowSubmissionItem ): SelectOption[] {
+  const current = String( sub.returnStage || 'requested' );
+  const next: Record<string, api.ReturnStage[]> = {
+    requested: [ 'approved', 'rejected' ],
+    approved: [ 'item_received', 'return_waived' ],
+    item_received: [ 'refund_eligible' ],
+    return_waived: [ 'refund_eligible' ],
+    refund_eligible: [],
+    rejected: [],
+  };
+  return [
+    { value: current, label: RETURN_STAGE_LABELS[ current ] || current.replace( /_/g, ' ' ), disabled: true },
+    ...( next[ current ] || [] ).map( value => ( { value, label: RETURN_STAGE_LABELS[ value ] || value } ) ),
+  ];
+}
+
 function formatDateTime ( ts?: number ): string {
   if ( !ts ) return '—';
   const d = new Date( ts < 1e12 ? ts * 1000 : ts );
@@ -303,6 +334,43 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
     } else toast.error( 'Update failed' );
   };
 
+  const handleOrderCancel = async ( orderId: string, reason: string ): Promise<boolean> => {
+    try
+    {
+      const result = await api.cancelOrder( orderId, reason );
+      if ( !result?.canceled ) { toast.error( 'Cancellation was not committed' ); return false; }
+      toast.success( result.idempotent ? 'Order was already cancelled' : 'Order cancelled with audit history' );
+      const refreshed = await api.getTrackingData( orderId ).catch( () => null );
+      if ( refreshed?.order ) setSelectedOrder( refreshed.order );
+      if ( refreshed )
+      {
+        setDetailDocs( refreshed.documents || [] );
+        setDetailHistory( refreshed.statusHistory || [] );
+      }
+      await loadOrders();
+      return true;
+    } catch
+    {
+      toast.error( 'Cancellation refused. Reload the order and check payment / fulfilment state.' );
+      return false;
+    }
+  };
+
+  const handleReturnStageUpdate = async ( subId: string, stage: api.ReturnStage, notes?: string ): Promise<boolean> => {
+    try
+    {
+      const result = await api.updateReturnStage( subId, stage, notes );
+      if ( !result?.updated ) { toast.error( 'Return stage was not updated' ); return false; }
+      toast.success( `Return → ${RETURN_STAGE_LABELS[ stage ] || stage.replace( /_/g, ' ' )}` );
+      if ( selectedOrder ) await openDetail( selectedOrder );
+      return true;
+    } catch
+    {
+      toast.error( 'Return transition refused. Check the required sequence and reason.' );
+      return false;
+    }
+  };
+
   const handleCreate = async () => {
     if ( !createForm.customerPhone ) { toast.error( 'Phone is required' ); return; }
     setCreating( true );
@@ -430,7 +498,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
 
         {/* ── Order Detail Panel ── */ }
         <Modal isOpen={ !!selectedOrder } onClose={ () => setSelectedOrder( null ) } title="Order Details" size="xl">
-          { selectedOrder && <OrderDetailPanel order={ selectedOrder } submissions={ submissions } subsLoading={ subsLoading } documents={ detailDocs } statusHistory={ detailHistory } onStatusUpdate={ handleOrderStatusUpdate } onTrackingUpdate={ handleTrackingUpdate } onSubmissionStatusUpdate={ handleSubmissionStatusUpdate } /> }
+          { selectedOrder && <OrderDetailPanel order={ selectedOrder } submissions={ submissions } subsLoading={ subsLoading } documents={ detailDocs } statusHistory={ detailHistory } onStatusUpdate={ handleOrderStatusUpdate } onTrackingUpdate={ handleTrackingUpdate } onSubmissionStatusUpdate={ handleSubmissionStatusUpdate } onOrderCancel={ handleOrderCancel } onReturnStageUpdate={ handleReturnStageUpdate } /> }
         </Modal>
 
         {/* ── Create Order Modal ── */ }
@@ -468,9 +536,11 @@ interface DetailProps {
   onStatusUpdate: ( orderId: string, status: string ) => void;
   onTrackingUpdate: ( orderId: string, tracking: ManualTrackingPatch ) => Promise<boolean>;
   onSubmissionStatusUpdate: ( subId: string, status: string ) => void;
+  onOrderCancel: ( orderId: string, reason: string ) => Promise<boolean>;
+  onReturnStageUpdate: ( subId: string, stage: api.ReturnStage, notes?: string ) => Promise<boolean>;
 }
 
-const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoading, documents, statusHistory, onStatusUpdate, onTrackingUpdate, onSubmissionStatusUpdate } ) => {
+const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoading, documents, statusHistory, onStatusUpdate, onTrackingUpdate, onSubmissionStatusUpdate, onOrderCancel, onReturnStageUpdate } ) => {
   const short = order.orderNumber || order.shortId || extractShortId( order.orderId );
   const [ trackingDraft, setTrackingDraft ] = useState<ManualTrackingPatch>( {
     carrierName: order.carrierName || '',
@@ -479,6 +549,10 @@ const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoad
   } );
   const [ trackingSaving, setTrackingSaving ] = useState( false );
   const [ trackingError, setTrackingError ] = useState( '' );
+  const [ cancelReason, setCancelReason ] = useState( '' );
+  const [ cancelSaving, setCancelSaving ] = useState( false );
+  const [ returnNotes, setReturnNotes ] = useState<Record<string, string>>( {} );
+  const [ returnSaving, setReturnSaving ] = useState<string | null>( null );
 
   useEffect( () => {
     setTrackingDraft( {
@@ -510,6 +584,25 @@ const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoad
     if ( !ok ) setTrackingError( 'Tracking details were not saved. Reload the order and try again.' );
   };
 
+  const cancelPendingOrder = async () => {
+    const reason = cancelReason.trim();
+    if ( !reason ) return;
+    setCancelSaving( true );
+    const ok = await onOrderCancel( order.orderId, reason );
+    setCancelSaving( false );
+    if ( ok ) setCancelReason( '' );
+  };
+
+  const moveReturnStage = async ( sub: api.FlowSubmissionItem, rawStage: string ) => {
+    const stage = rawStage as api.ReturnStage;
+    const note = String( returnNotes[ sub.submissionId ] || '' ).trim();
+    if ( ( stage === 'rejected' || stage === 'return_waived' ) && !note ) return;
+    setReturnSaving( sub.submissionId );
+    const ok = await onReturnStageUpdate( sub.submissionId, stage, note || undefined );
+    setReturnSaving( null );
+    if ( ok ) setReturnNotes( current => ( { ...current, [ sub.submissionId ]: '' } ) );
+  };
+
   return (
     <div>
       {/* ── Section A: Order Details ── */ }
@@ -536,13 +629,30 @@ const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoad
         </div>
 
         {/* Status controls */ }
-        <div style={ { display: 'flex', gap: 12, padding: 12, background: 'var(--bg-secondary)', borderRadius: 8 } }>
+        <div style={ { display: 'flex', gap: 12, padding: 12, background: 'var(--bg-secondary)', borderRadius: 8, flexWrap: 'wrap' } }>
           { /* SHAPE (a) - wrapping <label> deleted, label passed. */ }
           <Select label="Fulfilment" value={ orderFulfilment( order ) }
             onChange={ v => onStatusUpdate( order.orderId, v ) }
             options={ fulfilmentOptions( order ) }
             disabled={ allowedFulfilmentTargets( orderFulfilment( order ), order.paymentStatus ).length === 0 }
             style={ DETAIL_SELECT_STYLE } />
+          { canCancelOrder( order ) ? (
+            <div style={ { flex: '1 1 280px' } }>
+              <label style={ labelStyle }>
+                Cancellation reason
+                <input type="text" maxLength={ 500 } value={ cancelReason }
+                  onChange={ e => setCancelReason( e.target.value ) }
+                  placeholder="Required audit reason" style={ inputStyle } />
+              </label>
+              <Button variant="danger" size="sm" loading={ cancelSaving }
+                disabled={ !cancelReason.trim() }
+                onClick={ cancelPendingOrder }>Cancel pending order</Button>
+            </div>
+          ) : orderFulfilment( order ) !== 'canceled' && (
+            <div style={ { flex: '1 1 260px', fontSize: 'var(--text-sm)', color: 'var(--text-muted)', alignSelf: 'end' } }>
+              Cancellation is unavailable after payment authorization/capture or fulfilment starts. Use a Return / Refund request for paid orders.
+            </div>
+          ) }
         </div>
       </div>
 
@@ -618,13 +728,45 @@ const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoad
                     { sub.paymentAmount ? ` · ₹${( sub.paymentAmount / 100 ).toFixed( 0 )}` : '' }
                   </div>
                 </div>
-                <Select
-                  ariaLabel="Request status"
-                  value={ sub.status || 'open' }
-                  onChange={ v => onSubmissionStatusUpdate( sub.submissionId, v ) }
-                  options={ SUBMISSION_STATUS_OPTIONS }
-                  style={ ROW_SELECT_STYLE }
-                />
+                <div style={ { display: 'flex', flexDirection: 'column', gap: 8, flex: '0 1 250px' } }>
+                  <Select
+                    ariaLabel="Request status"
+                    value={ sub.status || 'open' }
+                    onChange={ v => onSubmissionStatusUpdate( sub.submissionId, v ) }
+                    options={ SUBMISSION_STATUS_OPTIONS }
+                    style={ ROW_SELECT_STYLE }
+                  />
+                  { sub.requestType === 'Return / Refund' && (
+                    <>
+                      <div style={ { display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--text-xs)' } }>
+                        <span style={ { color: 'var(--text-muted)' } }>Return stage</span>
+                        <Badge status={ sub.returnStage || 'requested' } />
+                      </div>
+                      { returnStageOptions( sub ).length > 1 && (
+                        <>
+                          <input type="text" maxLength={ 1000 }
+                            value={ returnNotes[ sub.submissionId ] || '' }
+                            onChange={ e => setReturnNotes( current => ( { ...current, [ sub.submissionId ]: e.target.value } ) ) }
+                            placeholder="Review note; required for reject / waiver"
+                            style={ { ...inputStyle, marginTop: 0 } } />
+                          <Select
+                            ariaLabel="Return stage"
+                            value={ sub.returnStage || 'requested' }
+                            onChange={ v => moveReturnStage( sub, v ) }
+                            options={ returnStageOptions( sub ) }
+                            disabled={ returnSaving === sub.submissionId }
+                            style={ ROW_SELECT_STYLE }
+                          />
+                        </>
+                      ) }
+                      { ( sub.returnStage || 'requested' ) === 'refund_eligible' && (
+                        <span style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>
+                          Eligible for finance refund review. This stage does not move money.
+                        </span>
+                      ) }
+                    </>
+                  ) }
+                </div>
               </div>
             ) ) }
           </div>
