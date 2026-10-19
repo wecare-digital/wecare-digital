@@ -474,7 +474,7 @@ const HomePage: React.FC = () => {
            specifies clamp(32px,4.2vw,54px), which exists on /grahak-os/ and nowhere else;
            reconciling the two is an owner decision, and typecheck.js reports the gap. */
         .home-flow-title{
-          font-size:var(--public-section-size);font-weight:var(--public-section-weight);line-height:var(--public-section-leading);
+          font-size:clamp(32px,3.2vw,40px);font-weight:var(--public-section-weight);line-height:var(--public-section-leading);
           letter-spacing:var(--public-section-tracking);color:var(--public-heading);margin:0 0 14px;
         }
         /* The one body level: 20px/400/1.4/-.125px. */
@@ -573,7 +573,7 @@ const HomePage: React.FC = () => {
            carried no letter-spacing while every other body rung uses -.125px.
            Both are now on their proper rungs. Everything here is Inter, as it already was -
            there was never a font-family mismatch, only a size one. */
-        .home-flow-list strong{display:block;margin:0 0 6px;font-size:var(--public-card-size);font-weight:var(--public-card-weight);letter-spacing:var(--public-card-tracking);line-height:var(--public-card-leading);color:var(--public-heading)}
+        .home-flow-list strong{display:block;margin:0 0 6px;font-size:24px;font-weight:var(--public-card-weight);letter-spacing:var(--public-card-tracking);line-height:var(--public-card-leading);color:var(--public-heading)}
         /* Body rung at the neutral colour rgba(0,0,0,.898), matching .home-flow-lead,
            .home-sub and .home-close-lead. It was rgba(0,0,0,.54) (muted grey), which made
            this the only body copy on the page at that colour and read as a different, lighter
@@ -696,7 +696,7 @@ const HomePage: React.FC = () => {
            overrides go, so there is one number here instead of three and the next change to
            font-size cannot desynchronise them again. */
         .home-head{
-          font-size:var(--public-hero-size);
+          font-size:clamp(40px,5.2vw,60px);
           font-weight:var(--public-hero-weight);
           line-height:var(--public-hero-leading);
           letter-spacing:var(--public-hero-tracking);
@@ -749,6 +749,12 @@ const HomePage: React.FC = () => {
              tracking is now -0.04em, which scales itself, so restating it per breakpoint is
              what caused the 2.75x optical swing this replaced. */
           .home-head{line-height:1.1}
+          /* HOME-ONLY APP REFERENCE OVERRIDES. These target shared child components only while
+             the Home route is mounted; the shared components themselves stay unchanged until
+             the approved public-page unification pass. */
+          :global(.home-close-title){font-size:clamp(32px,3.2vw,40px)}
+          :global(.home-close-cta){font-size:18px}
+          :global(.ft-tagline){font-size:16px}
         }
       `}</style>
     </>
