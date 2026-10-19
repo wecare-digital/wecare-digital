@@ -834,7 +834,7 @@ const WorkflowTerminal: React.FC = () => {
            same nominal size, so matching the body number would still have read small.
            SIZES RAISED AGAIN, on owner instruction: the panel read too small on both
            desktop and - worse - on a phone, where the request line had been dropped BELOW
-           its desktop size. The floor is now 13px and the readable body/request/command
+           its desktop size. The floor is now 13.5px and the readable body/request/command
            lines sit at ~15-16px. The request line uses clamp() so it scales fluidly
            between phone and desktop instead of being stepped DOWN on mobile, per
            .kiro/steering/20-device-compat.md which favours clamp() over fixed sizes. */
@@ -1087,20 +1087,25 @@ const WorkflowTerminal: React.FC = () => {
         .wt-cm{color:rgba(255,255,255,.66)}
 
         /* The infra comment. Dim on purpose - it is the substrate, not the event - but
-           still above the 12px floor because it carries the actual message.
-           .50, NOT .44, AND THE REASON IS MEASURED. This line is the one that makes the
-           section's argument - "# dynamodb · single-table · on-demand capacity", the shared
-           foundation named under every step - and at rgba(255,255,255,.44) it composited to
-           4.25:1 on #000, below the 4.5:1 WCAG 1.4.3 requires at 12.5px/400. It was the only
-           one of the fourteen text styles in this panel that failed; .50 measures 5.28:1.
-           Deliberately NOT .62: that is .wt-desc's value, and this line must stay dimmer than
-           the description it sits under, which is the whole point of the "dim on purpose"
-           above. RAISED TO .70 on the same owner instruction that lifted the other faint
-           lines: this is the line that carries the section's argument, so it has to be solidly
-           legible, not a bare pass. .70 measures ~8.2:1 and still sits BELOW .wt-desc's .74, so
-           the "dim on purpose, but above the floor" order the comment describes is preserved.
+           still at the panel's unified 13.5px small-text floor because it carries the actual
+           message. This line sits at font-size:13.5px now (it was reasoned about at smaller
+           sizes in earlier passes, but the unified floor move raised it to 13.5px).
+           THE ALPHA HISTORY IS WORTH KEEPING. This line is the one that makes the section's
+           argument - "# dynamodb · single-table · on-demand capacity", the shared foundation
+           named under every step - and at a much lower alpha (rgba(255,255,255,.44)) it had
+           composited to roughly 4.25:1 on #000, which reasons out as below the 4.5:1 WCAG
+           1.4.3 asks for body text. It was the only one of the panel's text styles that read
+           as a bare pass, so it was lifted. Deliberately NOT .62: that is near .wt-desc's
+           territory, and this line must stay dimmer than the description it sits under, which
+           is the whole point of the "dim on purpose" above. RAISED TO .70 on the same owner
+           instruction that lifted the other faint lines: this is the line that carries the
+           section's argument, so it has to be solidly legible, not a bare pass. .70 on #000
+           reasons out to roughly ~8:1 (approximate - see the probe note below) and still sits
+           BELOW .wt-desc's .74, so the "dim on purpose, but above the floor" order the comment
+           describes is preserved, now at the 13.5px floor.
            Re-measure with: node tools/browser/flowprobe.js - it asserts every ratio here, and
-           cannot run in this sandbox (no headless browser), so refresh it on a machine with one.
+           cannot run in this sandbox (no headless browser), so the ratios above are reasoned,
+           not re-measured; refresh them on a machine with one.
            (No backticks in this comment: this sits inside a style jsx template literal, where
            one stray backtick ends the literal and the build fails at type-check.) */
         .wt-infra{margin-top:9px;color:rgba(255,255,255,.70);font-size:13.5px;line-height:1.6}
