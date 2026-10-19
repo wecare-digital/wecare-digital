@@ -79,6 +79,7 @@ from lambda_utils import live_smoke  # WA_LIVE_SMOKE_TEST recipient lockdown
 # import is correct: it reads no secret and touches no AWS resource, so the lazy-secret rule
 # in lambda-snapstart-deploy does not apply.
 from lambda_utils import direct_send as direct_send_util
+from lambda_utils.ecommerce import return_workflow
 
 logger = get_logger(__name__)
 
@@ -3993,35 +3994,172 @@ def _log_flow_interaction(flow_config: Dict, flow_token: str, phone: str,
         logger.warning(f'Flow log write failed: {e}')
 
 
-def _update_submission_status(body: Dict) -> Dict:
-    """Update a flow submission's status. Logs history for audit trail."""
-    submission_id = body.get('submissionId', '')
-    new_status = body.get('status', '')
+def _return_history(item: Dict, old_stage: str, new_stage: str, actor: str,
+                    note: str, changed_at: int) -> bool:
+    """Idempotent durable history for one return-stage transition."""
+    history_id = f'RETURN_STAGE#{item.get("submissionId", "")}#{new_stage}'
+    try:
+        dynamodb.Table(STATUS_HISTORY_TABLE).put_item(
+            Item={
+                'historyId': history_id,
+                'submissionId': item.get('submissionId', ''),
+                'orderId': item.get('orderId', ''),
+                'oldStatus': old_stage,
+                'newStatus': new_stage,
+                'changedBy': actor,
+                'notes': note[:500] if note else '',
+                'changedAt': Decimal(str(changed_at)),
+            },
+            ConditionExpression='attribute_not_exists(historyId)',
+        )
+        return True
+    except Exception as exc:  # conditional duplicate is verified below
+        if getattr(exc, 'response', {}).get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
+            return True
+        logger.warning(json.dumps({
+            'event': 'return_history_failed',
+            'submissionId': item.get('submissionId', ''),
+            'error': type(exc).__name__,
+        }))
+        return False
+
+
+def _update_submission_status(body: Dict, auth: Optional[Dict] = None) -> Dict:
+    """Update a request status or, for Return / Refund cases, its audited return stage."""
+    submission_id = str(body.get('submissionId') or '').strip()
     notes = body.get('notes', '')
-    changed_by = body.get('changedBy', 'admin')
+    actor_info = auth or {}
+    changed_by = str(actor_info.get('username') or actor_info.get('email') or '').strip()
+    if not changed_by:
+        return _resp(403, {'error': 'Authenticated staff actor required',
+                           'errorCode': 'REQUEST_STATUS_ACTOR_REQUIRED'})
 
-    if not submission_id or not new_status:
-        return _resp(400, {'error': 'submissionId and status required'})
-
-    valid_statuses = {'open', 'in_progress', 'resolved', 'closed', 'cancelled'}
-    if new_status not in valid_statuses:
-        return _resp(400, {'error': f'Invalid status. Must be one of: {", ".join(valid_statuses)}'})
+    if not submission_id:
+        return _resp(400, {'error': 'submissionId required'})
 
     try:
         table = dynamodb.Table(FLOW_SUBMISSIONS_TABLE)
-        # Get current submission
-        resp = table.get_item(Key={'submissionId': submission_id})
-        item = resp.get('Item')
+        item = table.get_item(
+            Key={'submissionId': submission_id}, ConsistentRead=True
+        ).get('Item')
         if not item:
             return _resp(404, {'error': 'Submission not found'})
 
-        old_status = item.get('status', 'open')
         now = int(time.time())
 
-        # Update status
+        if 'returnStage' in body:
+            decision, error = return_workflow.validate_transition(
+                item, body.get('returnStage'), notes
+            )
+            if error:
+                status = 400 if error.get('errorCode') in {
+                    'RETURN_WORKFLOW_STAGE_REQUIRED',
+                    'RETURN_WORKFLOW_STAGE_INVALID',
+                    'RETURN_WORKFLOW_NOTE_INVALID',
+                    'RETURN_WORKFLOW_NOTE_REQUIRED',
+                    'RETURN_WORKFLOW_REQUEST_TYPE_REQUIRED',
+                } else 409
+                return _resp(status, error)
+            assert decision is not None
+
+            old_stage = decision['currentStage']
+            new_stage = decision['targetStage']
+            if not decision['idempotent']:
+                names = {'#rt': 'requestType', '#rs': 'returnStage'}
+                values = {
+                    ':request_type': return_workflow.REQUEST_TYPE,
+                    ':new_stage': new_stage,
+                    ':updated': Decimal(str(now)),
+                    ':actor': changed_by,
+                }
+                condition = ['#rt = :request_type']
+                if 'returnStage' in item:
+                    values[':old_stage'] = item.get('returnStage')
+                    condition.append('#rs = :old_stage')
+                else:
+                    condition.append('attribute_not_exists(#rs)')
+
+                update_parts = [
+                    '#rs = :new_stage',
+                    'returnUpdatedAt = :updated',
+                    'returnUpdatedBy = :actor',
+                ]
+                if new_stage == return_workflow.REFUND_ELIGIBLE:
+                    update_parts.append('refundEligibleAt = :updated')
+                if new_stage == return_workflow.REJECTED:
+                    names['#st'] = 'status'
+                    values[':closed'] = 'closed'
+                    update_parts.append('#st = :closed')
+                elif str(item.get('status') or 'open') == 'open':
+                    names['#st'] = 'status'
+                    values[':in_progress'] = 'in_progress'
+                    update_parts.append('#st = :in_progress')
+
+                try:
+                    table.update_item(
+                        Key={'submissionId': submission_id},
+                        UpdateExpression='SET ' + ', '.join(update_parts),
+                        ConditionExpression=' AND '.join(condition),
+                        ExpressionAttributeNames=names,
+                        ExpressionAttributeValues=values,
+                    )
+                except Exception as exc:
+                    if getattr(exc, 'response', {}).get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
+                        return _resp(409, {
+                            'error': 'Return request changed; reload and retry',
+                            'errorCode': 'RETURN_WORKFLOW_STALE',
+                        })
+                    raise
+
+            if not _return_history(
+                    item, old_stage, new_stage, changed_by, decision['note'], now):
+                return _resp(503, {
+                    'error': 'Return stage was saved but its history needs repair; retry safely',
+                    'errorCode': 'RETURN_WORKFLOW_AUDIT_RETRY',
+                    'updated': True,
+                    'retryable': True,
+                })
+
+            logger.info(json.dumps({
+                'event': 'return_stage_updated',
+                'submissionId': submission_id,
+                'oldStage': old_stage,
+                'newStage': new_stage,
+                'changedBy': changed_by,
+            }))
+            return _resp(200, {
+                'submissionId': submission_id,
+                'oldStage': old_stage,
+                'newStage': new_stage,
+                'updated': True,
+                'idempotent': bool(decision['idempotent']),
+            })
+
+        new_status = str(body.get('status') or '').strip()
+        if not new_status:
+            return _resp(400, {'error': 'status required'})
+
+        valid_statuses = {'open', 'in_progress', 'resolved', 'closed', 'cancelled'}
+        if new_status not in valid_statuses:
+            return _resp(400, {'error': f'Invalid status. Must be one of: {", ".join(valid_statuses)}'})
+
+        old_status = str(item.get('status') or 'open')
+        if new_status == old_status:
+            return _resp(200, {
+                'submissionId': submission_id,
+                'oldStatus': old_status,
+                'newStatus': new_status,
+                'updated': True,
+                'idempotent': True,
+            })
+
         update_expr = 'SET #st = :st, updatedAt = :u'
         expr_names = {'#st': 'status'}
-        expr_vals = {':st': new_status, ':u': Decimal(str(now))}
+        expr_vals = {
+            ':st': new_status,
+            ':u': Decimal(str(now)),
+            ':old_status': old_status,
+        }
 
         if notes:
             old_notes = item.get('notes', '') or ''
@@ -4034,24 +4172,31 @@ def _update_submission_status(body: Dict) -> Dict:
             update_expr += ', resolvedAt = :ra'
             expr_vals[':ra'] = Decimal(str(now))
 
-        table.update_item(
-            Key={'submissionId': submission_id},
-            UpdateExpression=update_expr,
-            ExpressionAttributeNames=expr_names,
-            ExpressionAttributeValues=expr_vals,
-        )
-
-        # Log to RequestStatusHistoryTable
         try:
-            hist_table = dynamodb.Table(STATUS_HISTORY_TABLE)
-            hist_table.put_item(Item={
+            table.update_item(
+                Key={'submissionId': submission_id},
+                UpdateExpression=update_expr,
+                ConditionExpression='#st = :old_status',
+                ExpressionAttributeNames=expr_names,
+                ExpressionAttributeValues=expr_vals,
+            )
+        except Exception as exc:
+            if getattr(exc, 'response', {}).get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
+                return _resp(409, {
+                    'error': 'Request status changed; reload and retry',
+                    'errorCode': 'REQUEST_STATUS_STALE',
+                })
+            raise
+
+        try:
+            dynamodb.Table(STATUS_HISTORY_TABLE).put_item(Item={
                 'historyId': str(uuid.uuid4()),
                 'submissionId': submission_id,
                 'orderId': item.get('orderId', ''),
                 'oldStatus': old_status,
                 'newStatus': new_status,
                 'changedBy': changed_by,
-                'notes': notes[:500] if notes else '',
+                'notes': notes[:500] if isinstance(notes, str) and notes else '',
                 'changedAt': Decimal(str(now)),
             })
         except Exception as he:
@@ -5914,6 +6059,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     if method == 'OPTIONS':
         return _resp(200, {})
 
+    try:
+        body = json.loads(event.get('body', '{}')) if event.get('body') else {}
+    except (json.JSONDecodeError, TypeError, ValueError):
+        body = {}
+
     # Enforce auth for every route except the one genuinely self-authenticating
     # endpoint: `/wa-business/flow-data`, the Meta Flows data-exchange callback,
     # which proves authenticity by RSA+AES-GCM decryption (only the holder of our
@@ -5936,7 +6086,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # Viewer is the floor for this catch-all. Stated explicitly rather than left as None:
     # `require_auth` no longer defaults an ungrouped principal to Viewer, so a call with
     # no `required_role` has nothing to check.
-    auth_result = require_auth(event, required_role='Viewer')
+    is_return_transition = (
+        '/flow-submissions/update-status' in path
+        and method in ('POST', 'PATCH')
+        and 'returnStage' in body
+    )
+    auth_result = require_auth(
+        event, required_role='Admin' if is_return_transition else 'Viewer')
     if auth_result is not None:
         return auth_result
 
@@ -5951,11 +6107,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # for authentication — NOT x-hub-signature-256. The encrypted payload itself
     # proves authenticity because only the holder of the private key can decrypt it.
     # Signature verification is only for regular webhooks, not flow-data.
-
-    try:
-        body = json.loads(event.get('body', '{}')) if event.get('body') else {}
-    except (json.JSONDecodeError, TypeError, ValueError):
-        body = {}
 
     logger.info(f'[{request_id}] {method} {path}')
 
@@ -6437,7 +6588,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         elif '/flow-submissions/update-status' in path:
             if method == 'POST' or method == 'PATCH':
-                return _update_submission_status(body)
+                return _update_submission_status(body, auth=event.get('_auth'))
             return _resp(405, {'error': 'POST/PATCH only'})
 
         elif '/flow-submissions/stats' in path:
