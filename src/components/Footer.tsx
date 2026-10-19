@@ -231,7 +231,7 @@ const Footer: React.FC = () => {
               instead of being left as a standing error. */}
           {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
           <a className="ft-home" href="/" aria-label="WECARE.DIGITAL home">
-            <BrandLockup compact />
+            <BrandLockup compact className="public-footer" />
           </a>
           {/* The tagline carries a hover, on owner instruction: the lime underline sweeps
               in from the left, which is the same gesture the header's menu rows use, so

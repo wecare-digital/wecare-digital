@@ -117,21 +117,20 @@ const BrandLockup: React.FC<BrandLockupProps> = ( { className = '', compact = fa
       <span className="brand-stack">DIGITAL</span>
     </span>
     <style jsx>{ `
-      /* Logo and wordmark both sized up, per request, but BOUNDED BY THE HEADER.
-         .hdr-in is height:108px with 18px padding and box-sizing:border-box, so the
-         content box is exactly 72px tall - a 72px logo would touch both edges, so 68px
-         is the largest size that keeps any breathing room. Mobile is height:96px with
-         14px padding, a 68px content box, so 60px there. Those header heights are
-         pinned by Header.test.tsx and are not the thing to change.
-         Type went 24 -> 26px desktop and 22 -> 24px mobile, keeping the step down from
-         the logo rather than growing to match it. */
+      /* BASE SCALE stays conservative because this component is also used outside the public
+         shell (for example the workspace sidebar). Public Header/Footer opt into their larger
+         shared variants below so every PUBLIC route inherits the same stronger branding without
+         silently resizing internal workspace chrome. */
       .brand-lockup{display:inline-flex;align-items:center;gap:10px;flex-wrap:nowrap;min-width:0}
-      /* Logo 60px (was 68px) and wordmark 23px (was 26px). The header content box is
-         72px tall, so 60px keeps clear breathing room, and 23px keeps the step down
-         from the logo while feeling less oversized against the rest of the bar. */
       .brand-lockup img{height:60px;width:auto;border-radius:12px;flex-shrink:0;display:block;object-fit:contain}
       .brand-copy{display:flex;flex-direction:column;justify-content:center;line-height:1.08}
       .brand-copy>span{font-size:23px;font-weight:800;color:#1a1a1a;letter-spacing:-.5px}
+      /* PUBLIC HEADER: common across all public pages. 64px/24px strengthens the brand inside
+         the existing 108px desktop header without changing header height. The phone rule below
+         uses 58px/22px on normal smartphones and falls back to 54px/21px at <=340px so the
+         menu + 44px shopping-bag target still fit the measured narrow-foldable row. */
+      .brand-lockup.public-header img{height:64px}
+      .brand-lockup.public-header .brand-copy>span{font-size:24px}
       /* The accent is on the dot only, and it is the one place this site uses red. Kept to
          a single glyph so it never competes with lime for meaning: lime marks interaction
          and state, this marks the brand.
@@ -146,22 +145,31 @@ const BrandLockup: React.FC<BrandLockupProps> = ( { className = '', compact = fa
          wordmark LARGER than the desktop wordmark - the ladder inverted. Scaled by the
          same ~0.88 to 54px/21px, which still clears the mobile header's 68px content box
          (96px height less 14px padding each side). */
-      /* COMPACT: the secondary scale, used by the footer. 44px/18px against the header's
-         60px/23px - a clear step down rather than the near-match that made the footer
-         signature compete with the header. Declared after the base rules so it overrides
-         them without needing !important, and before the media query so the mobile compact
-         values below can step it down again. */
+      /* COMPACT remains the generic secondary scale for non-public consumers. The public
+         footer opts into 48px/19px below, still clearly subordinate to the public header. */
       .brand-lockup.compact img{height:44px;border-radius:10px}
       .brand-lockup.compact .brand-copy>span{font-size:18px;letter-spacing:-.4px}
+      .brand-lockup.public-footer.compact img{height:48px}
+      .brand-lockup.public-footer.compact .brand-copy>span{font-size:19px}
 
       @media(max-width:767px){
         .brand-lockup{gap:8px}
         .brand-lockup img{height:54px;border-radius:10px}
         .brand-copy>span{font-size:21px}
-        /* Compact keeps its step down on mobile too - without this it would inherit the
-           54px/21px above and end up LARGER than it is on desktop. */
         .brand-lockup.compact img{height:40px;border-radius:9px}
         .brand-lockup.compact .brand-copy>span{font-size:16px}
+        /* Public common-shell scale on normal smartphones. */
+        .brand-lockup.public-header img{height:58px}
+        .brand-lockup.public-header .brand-copy>span{font-size:22px}
+        .brand-lockup.public-footer.compact img{height:44px}
+        .brand-lockup.public-footer.compact .brand-copy>span{font-size:18px}
+      }
+      /* NARROW PHONE / FOLDED DEVICE FALLBACK. Keep the measured pre-increase header scale so
+         280-340px devices retain room for the menu trigger and 44px shopping-bag control. The
+         footer has no equivalent horizontal pressure and keeps its larger mobile scale. */
+      @media(max-width:340px){
+        .brand-lockup.public-header img{height:54px}
+        .brand-lockup.public-header .brand-copy>span{font-size:21px}
       }
     ` }</style>
   </span>
