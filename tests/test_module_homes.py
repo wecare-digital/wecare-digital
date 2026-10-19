@@ -64,12 +64,12 @@ REMOVED_IDS = {"growth"}
 # resolve to a real page file.
 GROWTH_FORMER_INNER_PAGES = [
     "/workspace/seo",
-    "/workspace/engage/whatsapp/settings?tab=ctwa-ads",
-    "/workspace/engage/whatsapp/settings?tab=conversions-api",
+    "/workspace/communications?view=manage&section=whatsapp&tool=ctwa-ads",
+    "/workspace/communications?view=manage&section=whatsapp&tool=conversions-api",
 ]
 
 HUBS_THAT_MUST_BE_LAZY = {
-    "src/pages/workspace/engage/whatsapp/settings.tsx": 15,
+    "src/pages/workspace/communications/index.tsx": 15,
     "src/pages/workspace/engage/channels/index.tsx": 6,
     "src/pages/workspace/settings/platform/index.tsx": 7,
 }
