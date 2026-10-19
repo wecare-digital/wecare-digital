@@ -41,6 +41,6 @@ export function allowedFulfilmentTargets (
 
 export function fulfilmentLabel ( value: string ): string {
   return String( value || '' )
-    .replace( /-/g, ' ' )
+    .replace( /[-_]/g, ' ' )
     .replace( /\b\w/g, letter => letter.toUpperCase() );
 }
