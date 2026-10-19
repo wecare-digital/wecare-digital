@@ -782,7 +782,7 @@ response = requests.post(
              the code panel above it, a chat interface SHOULD mirror - WhatsApp itself is
              mirrored in Arabic - so this one follows the document instead of being locked.
              Measured at 260px out of position under rtl before the change. */
-          .phone{position:absolute;inset-inline-start:0;top:28px;width:56%;max-width:320px;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.12)}
+          .phone{position:absolute;inset-inline-start:0;top:28px;width:56%;max-width:320px;background:#fff;border-radius:20px;overflow:hidden;box-shadow:none}
           /* WhatsApp's own header teal, not the brand's flat #1a3a2a. This is a
              SIMULATION of WhatsApp, so the chrome should read as WhatsApp's rather than as a
              custom green panel - the flat dark-forest block was the single biggest tell that
@@ -1228,7 +1228,7 @@ response = requests.post(
 
             .mockup-wrapper{display:flex;flex-direction:column;gap:14px;width:100%;max-width:380px;margin:8px auto 0;aspect-ratio:auto;padding:16px;background:#fff;border-radius:16px;border:0;align-items:flex-start;transition:all .25s;cursor:default}
             .mockup-wrapper:hover{transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
-            .phone{position:relative;left:auto;top:auto;width:100%;max-width:100%;margin:0;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,.08)}
+            .phone{position:relative;left:auto;top:auto;width:100%;max-width:100%;margin:0;border-radius:16px;box-shadow:none}
             .phone-header{padding:14px 16px;gap:10px}
             .avatar{width:42px;height:42px;font-size:18px}
             .contact-name{font-size:18px}
