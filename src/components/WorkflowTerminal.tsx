@@ -190,8 +190,8 @@ const dwell = ( step: Step ): number => {
  * The panel used to loop forever, which is the WCAG 2.2.2 case the Pause control exists to
  * answer. Stopping on the finished state after a few passes is strictly better for 2.2.2 - the
  * motion ends by itself, well before "forever" - while keeping the control working during the
- * passes. Three is enough for the point to land (a visitor sees a completed run, then watches it
- * replay twice) without becoming perpetual. One named const so the count is easy to retune.
+ * passes. Two is enough for the point to land (a visitor sees a completed run, then watches it
+ * replay once) without becoming perpetual. One named const so the count is easy to retune.
  *
  * COUNTING, because the off-by-one is not obvious. `cycle` starts at 0 and is bumped once per
  * RESTART, so it counts restarts, not passes. The visitor's FIRST completed run is the static
