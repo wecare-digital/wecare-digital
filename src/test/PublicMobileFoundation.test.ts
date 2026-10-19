@@ -38,13 +38,22 @@ describe( 'public mobile foundation', () => {
     }
   } );
 
-  it( 'does not silently migrate Grahak OS before its page-family audit', () => {
+  it( 'records Grahak OS as the second explicit foundation adopter while keeping VayuLok pending', () => {
     const grahak = read( 'src/pages/grahak-os/index.tsx' );
+    const rotatingHero = read( 'src/components/RotatingHero.tsx' );
+    const vayulok = read( 'src/pages/vayulok/index.tsx' );
 
-    expect( grahak ).not.toContain( '--public-mobile-hero-size' );
-    expect( grahak ).not.toContain( '--public-mobile-section-size' );
-    expect( grahak ).not.toContain( '--public-mobile-card-size' );
-    expect( grahak ).not.toContain( '--public-mobile-page-gutter' );
+    expect( grahak ).toContain( 'mobileFoundation' );
+    expect( grahak ).toContain( '--public-mobile-section-size' );
+    expect( grahak ).toContain( '--public-mobile-card-size' );
+    expect( grahak ).toContain( '--public-mobile-page-gutter' );
+    expect( rotatingHero ).toContain( '--public-mobile-hero-size' );
+    expect( rotatingHero ).toContain( '--public-mobile-hero-top' );
+    expect( rotatingHero ).toContain( '--public-mobile-section-gap' );
+
+    expect( vayulok ).not.toContain( 'mobileFoundation' );
+    expect( vayulok ).not.toContain( '--public-mobile-section-size' );
+    expect( vayulok ).not.toContain( '--public-mobile-card-size' );
   } );
 
   it( 'documents opt-in family-by-family adoption', () => {
@@ -52,7 +61,8 @@ describe( 'public mobile foundation', () => {
 
     expect( steering ).toContain( 'Home is the locked reference implementation' );
     expect( steering ).toContain( 'Adopt the contract family-by-family' );
-    expect( steering ).toContain( 'Grahak OS is the next' );
+    expect( steering ).toContain( 'Grahak OS is migrated' );
+    expect( steering ).toContain( 'VayuLok is the next' );
     expect( steering ).toContain( 'A real physical' );
   } );
 } );

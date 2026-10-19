@@ -272,6 +272,7 @@ response = requests.post(
             block. RotatingHero's children slot is left unset. */}
         <RotatingHero
           insideMain
+          mobileFoundation
           ariaLabel="Grahak OS"
           badgeLabel="Grahak OS by WECARE.DIGITAL"
           frame="Run customer conversations"
@@ -569,7 +570,7 @@ response = requests.post(
              margin-left:calc(50% - 50vw) and their inner started its 24px from 0 = 24px.
              Measured in a browser at 1280px: hero text 36px, strip items 24px. At 1440px
              they agreed only because both inner boxes were centred rather than padded. */
-          .page{min-height:100vh;padding:0;background:var(--public-bg);font-family:var(--font-sans);color:var(--public-text);overflow-x:hidden}
+          .page{min-height:100vh;min-height:100dvh;padding:0;background:var(--public-bg);font-family:var(--font-sans);color:var(--public-text);overflow-x:hidden}
           @supports (overflow-x:clip){
             .page{overflow-x:clip}
           }
@@ -1105,7 +1106,7 @@ response = requests.post(
              with centred content, so the box grows without moving the label, and the
              mobile breakpoints below (which raise padding to 14px and 12px) were already
              past 44px and are left untouched. */
-          .pp-tab{display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;font-family:inherit;padding:10px 20px;min-height:44px;border:none;border-radius:8px;font-size:17px;font-weight:600;color:rgba(255,255,255,.54);background:transparent;box-shadow:none;cursor:pointer;transition:all .2s}
+          .pp-tab{display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;font-family:inherit;padding:10px 20px;min-height:var(--tap-min);border:none;border-radius:8px;font-size:17px;font-weight:600;color:rgba(255,255,255,.54);background:transparent;box-shadow:none;cursor:pointer;transition:all .2s}
           /* Text-only hover: idle .54 white lifting to full white. The active tab
              already owns the filled-lime state, so a second fill competes with it. */
           .pp-tab:hover{color:#fff;background:transparent}
@@ -1247,11 +1248,12 @@ response = requests.post(
             .file-name{font-size:15px}
             .code-body{font-size:15px;padding:16px;line-height:1.6;text-align:left}
             
-            .section-header{margin-bottom:28px;padding:0 20px;text-align:center}
+            .section-header{margin-bottom:28px;padding:0;text-align:center}
+            .section-header h2,.api-info h2{font-size:var(--public-mobile-section-size)}
             .section-header h2{margin-bottom:12px;line-height:var(--public-section-leading);text-align:center}
             .section-header p{text-align:center}
             
-            .touchpoint{padding:44px 0}
+            .touchpoint{padding:calc(var(--public-mobile-section-gap) / 2) 0}
             /* Mobile uses the full content width instead of centring two intrinsic
                max-content columns. Equal fluid tracks keep all six outcomes aligned as
                a deliberate 2 x 3 grid at 320-767px, while the desktop 3 x 2 layout stays
@@ -1262,10 +1264,12 @@ response = requests.post(
                this 20px never rendered. It only made the pill look under-specified. */
             .pill{padding:14px 26px}
             
-            .api{padding:44px 20px}
+            .api{padding:calc(var(--public-mobile-section-gap) / 2) var(--public-mobile-page-gutter)}
             .api-grid{gap:36px;text-align:left}
             .api-info{text-align:left}
             .api-info h2{margin-bottom:16px;text-align:left}
+            .api-step-title{font-size:var(--public-mobile-card-size)}
+            .gos-wa-cta{font-size:var(--public-mobile-cta-font-size)}
             .api-desc{max-width:100%;text-align:left}
             /* Stacked order: the step block comes FIRST (above the code panel). It is
                already first in source order so the grid stacks it first; the explicit
@@ -1289,7 +1293,7 @@ response = requests.post(
             
             .hero{padding:calc(85px + var(--safe-top)) 16px 44px}
             
-            .section-header{padding:0 16px}
+            .section-header{padding:0}
 
             .mockup-wrapper{padding:14px;border-radius:14px;gap:12px;max-width:100%}
             .phone{border-radius:14px}
@@ -1302,11 +1306,11 @@ response = requests.post(
             .code-box{border-radius:12px}
             .code-body{font-size:14px;padding:14px}
             
-            .touchpoint{padding:36px 0}
+            .touchpoint{padding:calc(var(--public-mobile-section-gap) / 2) 0}
             .usecase-pills{gap:10px}
             .pill{padding:12px 20px}
             
-            .api{padding:36px 16px}
+            .api{padding:calc(var(--public-mobile-section-gap) / 2) var(--public-mobile-page-gutter)}
             .api-info h2{text-align:left}
             .api-desc{text-align:left}
             .code-tabs{gap:8px;padding:14px}
@@ -1424,10 +1428,28 @@ response = requests.post(
             .pp-inner{padding:0 20px}
           }
           @media(max-width:767px){
-            .pp-inner{padding:0 20px}
+            .pp-inner{padding:0 var(--public-mobile-page-gutter)}
           }
           @media(max-width:480px){
-            .pp-inner{padding:0 16px}
+            .pp-inner{padding:0 var(--public-mobile-page-gutter)}
+          }
+
+          /* Physical-hinge progressive enhancement for the page-specific sections.
+             RotatingHero owns the equivalent rule for the hero. */
+          @media(horizontal-viewport-segments:2){
+            .pp-inner,.api{
+              width:env(viewport-segment-width 0 0);
+              max-width:env(viewport-segment-width 0 0);
+              margin-left:env(viewport-segment-left 0 0);
+              margin-right:auto;
+              box-sizing:border-box;
+            }
+            :global([dir='rtl']) .pp-inner,:global([dir='rtl']) .api{
+              width:env(viewport-segment-width 1 0);
+              max-width:env(viewport-segment-width 1 0);
+              margin-left:env(viewport-segment-left 1 0);
+              margin-right:0;
+            }
           }
 
           /* Use-case pills as spans, since they carry no handler. Same paint as

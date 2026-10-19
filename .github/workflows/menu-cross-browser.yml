@@ -9,8 +9,10 @@ on:
       - 'src/components/PublicShare.tsx'
       - 'src/components/SupportWidget.tsx'
       - 'src/components/WorkflowTerminal.tsx'
+      - 'src/components/RotatingHero.tsx'
       - 'src/components/public/**'
       - 'src/pages/index.tsx'
+      - 'src/pages/grahak-os/**'
       - 'src/pages/_app.tsx'
       - 'src/pages/_document.tsx'
       - 'src/styles/Layout.css'
@@ -27,8 +29,10 @@ on:
       - 'src/components/PublicShare.tsx'
       - 'src/components/SupportWidget.tsx'
       - 'src/components/WorkflowTerminal.tsx'
+      - 'src/components/RotatingHero.tsx'
       - 'src/components/public/**'
       - 'src/pages/index.tsx'
+      - 'src/pages/grahak-os/**'
       - 'src/pages/_app.tsx'
       - 'src/pages/_document.tsx'
       - 'src/styles/Layout.css'
@@ -78,7 +82,7 @@ jobs:
       - name: Run menu compatibility contract
         run: node tools/browser/menucheck.js --${{ matrix.browser }}
 
-      - name: Run Home device + 200% reflow contracts
+      - name: Run migrated public-page device + 200% reflow contracts
         run: |
-          node tools/browser/devicecheck.js --${{ matrix.browser }} /
-          node tools/browser/rtlcheck.js --${{ matrix.browser }} /
+          node tools/browser/devicecheck.js --${{ matrix.browser }} / /grahak-os/
+          node tools/browser/rtlcheck.js --${{ matrix.browser }} / /grahak-os/

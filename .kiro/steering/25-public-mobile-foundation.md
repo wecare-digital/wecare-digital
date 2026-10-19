@@ -28,9 +28,9 @@ light-only colour scheme, and the `100vh` + `100dvh` viewport fallback.
 
 ## Migration rule
 
-Adopt the contract family-by-family. Home is already migrated. Grahak OS is the next
-reference migration, followed by VayuLok, shared service/product pages, customer forms,
-shop/product pages, then blog/legal/long-form pages.
+Adopt the contract family-by-family. Home is the locked reference and Grahak OS is migrated
+as the second explicit adopter. VayuLok is the next reference migration, followed by shared
+service/product pages, customer forms, shop/product pages, then blog/legal/long-form pages.
 
 A migration may keep product-specific visual identity and interaction patterns. Unify the
 foundation — typography roles, gutters, spacing, touch targets, safe areas, responsive
