@@ -9,11 +9,15 @@ are accepted only as CURRENT-state aliases; every new write is canonical.
 from __future__ import annotations
 
 from typing import Any, Dict, Mapping, Optional, Tuple
+from urllib.parse import urlparse
 
 from lambda_utils import payment_status as pay_status
 from lambda_utils.ecommerce import wa_order_status
 
 _STATUS_FIELDS = ("orderStatus", "status", "fulfillmentStatus")
+_TRACKING_FIELDS = ("carrierName", "trackingNumber", "trackingUrl")
+_TRACKING_SERVER_FIELDS = ("trackingSource", "trackingUpdatedAt")
+_TRACKING_LIMITS = {"carrierName": 120, "trackingNumber": 160, "trackingUrl": 2048}
 
 
 def _legacy_current(raw: str, payment_state: str) -> Tuple[str, bool]:
@@ -36,6 +40,58 @@ def _legacy_current(raw: str, payment_state: str) -> Tuple[str, bool]:
     return value, False
 
 
+
+def _tracking_updates(body: Mapping[str, Any]) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+    """Validate manual shipment metadata without claiming a courier integration."""
+    if any(field in body for field in _TRACKING_SERVER_FIELDS):
+        return None, {
+            "error": "Tracking provenance and timestamps are server-controlled",
+            "errorCode": "ORDER_TRACKING_SYSTEM_FIELD_READ_ONLY",
+        }
+
+    if not any(field in body for field in _TRACKING_FIELDS):
+        return {}, None
+
+    updates: Dict[str, Any] = {}
+    for field in _TRACKING_FIELDS:
+        if field not in body:
+            continue
+        raw = body.get(field)
+        if raw is None:
+            value = ""
+        elif isinstance(raw, str):
+            value = raw.strip()
+        else:
+            return None, {
+                "error": f"{field} must be text",
+                "errorCode": "ORDER_TRACKING_INVALID",
+            }
+        if len(value) > _TRACKING_LIMITS[field] or any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
+            return None, {
+                "error": f"{field} contains invalid or overlong text",
+                "errorCode": "ORDER_TRACKING_INVALID",
+            }
+        updates[field] = value
+
+    tracking_url = updates.get("trackingUrl", "")
+    if tracking_url:
+        parsed = urlparse(tracking_url)
+        if (
+            parsed.scheme.lower() != "https"
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+        ):
+            return None, {
+                "error": "trackingUrl must be an HTTPS URL without embedded credentials",
+                "errorCode": "ORDER_TRACKING_URL_INVALID",
+            }
+
+    # This is an operator-entered record only. A future courier integration must use a distinct
+    # provenance value and its own verified write path rather than masquerading as this one.
+    updates["trackingSource"] = "manual"
+    return updates, None
+
 def validate_order_patch(
     current: Mapping[str, Any],
     body: Mapping[str, Any],
@@ -47,7 +103,11 @@ def validate_order_patch(
             "errorCode": "PAYMENT_STATUS_READ_ONLY",
         }
 
-    updates: Dict[str, Any] = {}
+    tracking_updates, tracking_error = _tracking_updates(body)
+    if tracking_error:
+        return None, tracking_error
+
+    updates: Dict[str, Any] = dict(tracking_updates or {})
 
     if "adminNotes" in body or "notes" in body:
         updates["adminNotes"] = body.get("adminNotes", body.get("notes", ""))
