@@ -1,7 +1,7 @@
 /**
- * Order Management Dashboard — [retired public path]/orders
+ * Canonical Commerce Orders queue
  * ORDER-CENTRIC: Order ID is the central key across the system.
- * Shows all orders with linked submissions, payments, status history.
+ * Shows all order sources with linked submissions, payment state, fulfilment and status history.
  * Supports search, filtering, detail panels, manual creation, and status updates.
  */
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -286,7 +286,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
         {/* ── Header ── */ }
         <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 } }>
           <div>
-            <h1 style={ { fontSize: 'var(--text-3xl)', fontWeight: 700, color: 'var(--accent)', margin: 0 } }>Order Management</h1>
+            <h1 style={ { fontSize: 'var(--text-3xl)', fontWeight: 700, color: 'var(--accent)', margin: 0 } }>Orders</h1>
             <p style={ { fontSize: 'var(--text-md)', color: 'var(--text-muted)', margin: '4px 0 0' } }>
               { filtered.length } order{ filtered.length !== 1 ? 's' : '' } · Order ID is the central tracking key
             </p>

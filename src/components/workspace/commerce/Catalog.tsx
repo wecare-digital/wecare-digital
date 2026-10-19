@@ -8,7 +8,6 @@
  * ProductsTable is the only price authority; the Meta catalog is never one.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
 import Layout from '../../../components/Layout';
 import PageHeader from '../../../components/PageHeader';
 import SEO from '../../../components/SEO';
@@ -42,7 +41,7 @@ interface NativeProduct {
   metaEnabled?: boolean;
   categories?: string[];
 }
-type Tab = 'products' | 'orders' | 'meta';
+type Tab = 'products' | 'meta';
 type VariantDraft = { price: string; stockDelta: string; label: string };
 
 const API_ROOT = (process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api')
@@ -103,7 +102,6 @@ async function nativeCall(
 const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
   const [tab, setTab] = useState<Tab>('products');
   const [products, setProducts] = useState<NativeProduct[]>([]);
-  const [orders, setOrders] = useState<api.Order[]>([]);
   const [selected, setSelected] = useState<NativeProduct | null>(null);
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
@@ -168,12 +166,6 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
   }, [reloadProducts, run]);
 
   useEffect(() => {
-    if (tab === 'orders') {
-      void run(async () => {
-        const result = await api.listOrders({ limit: 50 });
-        setOrders(result.orders || []);
-      });
-    }
     if (tab === 'meta') {
       void run(async () => {
         const result = await api.getMetaCatalogSyncPlan();
@@ -324,7 +316,7 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
         />
 
         <nav aria-label="Commerce sections" style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
-          {(['products', 'orders', 'meta'] as Tab[]).map(id => (
+          {(['products', 'meta'] as Tab[]).map(id => (
             <button type="button" key={id} onClick={() => setTab(id)}
               aria-pressed={tab === id}
               style={{
@@ -332,7 +324,7 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
                 border: '1px solid #bdd0c7',
                 background: tab === id ? '#1b4837' : '#fff',
                 color: tab === id ? '#fff' : '#1b4837',
-              }}>{id === 'products' ? 'Products & variants' : id === 'orders' ? 'Order history' : 'Meta catalog'}</button>
+              }}>{id === 'products' ? 'Products & variants' : 'Publishing'}</button>
           ))}
         </nav>
 
@@ -497,30 +489,6 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
           </div>
         )}
 
-        {tab === 'orders' && (
-          <section style={boxStyle}>
-            <h2 style={{ fontSize: 'var(--text-xl)' }}>AWS order history</h2>
-            <p style={muted}>Orders are read from the existing native order service.</p>
-            {orders.length ? (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead><tr>
-                  <th align="left">Order</th><th align="left">Status</th>
-                  <th align="left">Payment</th><th align="left">Date</th>
-                </tr></thead>
-                <tbody>{orders.map((o, index) => (
-                  <tr key={o.orderId || String(index)} style={{ borderTop: '1px solid #e3e9e6' }}>
-                    <td style={{ padding: '12px 8px' }}>{o.orderNumber || o.orderId}</td>
-                    <td>{o.orderStatus || o.status || '—'}</td>
-                    <td>{o.paymentStatus || '—'}</td>
-                    <td>{o.orderDate || (o.createdAt ? new Date(o.createdAt * 1000).toLocaleDateString('en-IN') : '—')}</td>
-                  </tr>
-                ))}</tbody>
-              </table>
-            ) : <p>No orders returned by the AWS order service.</p>}
-            <Link href="/workspace/pay/records">Open invoice and payment records</Link>
-          </section>
-        )}
-
         {tab === 'meta' && (
           <section style={boxStyle}>
             <h2 style={{ fontSize: 'var(--text-xl)' }}>Meta commerce synchronization</h2>
@@ -580,7 +548,7 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
   if (embedded) return body;
   return (
     <Layout user={user} onSignOut={signOut}>
-      <SEO title="AWS Product Catalog" description="WECARE.DIGITAL AWS-native product management" />
+      <SEO title="Catalog" description="WECARE.DIGITAL authoritative product catalog and publishing" />
       {body}
     </Layout>
   );
