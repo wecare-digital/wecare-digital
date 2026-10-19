@@ -442,7 +442,6 @@ const LinksPanel: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
 
       </div>
 
-      {/* Styles now in flex-layout.css — no inline styles needed */ }
   );
 
   if ( embedded ) return content;
