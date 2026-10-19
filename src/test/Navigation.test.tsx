@@ -126,7 +126,7 @@ describe( 'nothing became unreachable', () => {
     expect( unique ).toContain( '/workspace' );
     expect( unique ).toContain( '/workspace/communications?view=manage' );
     expect( unique ).toContain( '/workspace/commerce?view=orders' );
-    expect( unique ).toContain( '/workspace/payments?view=ledger' );
+    expect( unique ).toContain( '/workspace/payments?view=invoices' );
     expect( unique ).toContain( '/workspace/service?view=requests' );
   } );
 
