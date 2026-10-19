@@ -151,6 +151,20 @@ export const navigationConfig: NavItem[] = [
     ],
   },
   {
+    path: '/workspace/platform',
+    label: 'Platform',
+    icon: 'dashboard',
+    children: [
+      { path: '/workspace/platform?view=mcp-connections', label: 'MCP Connections' },
+      { path: '/workspace/platform?view=system-architecture', label: 'Architecture snapshot' },
+      { path: '/workspace/platform?view=lambda-functions', label: 'Lambda inventory' },
+      { path: '/workspace/platform?view=code-repo', label: 'Code Repo' },
+      { path: '/workspace/platform?view=wa-graph-tools', label: 'WA Graph Tools' },
+      { path: '/workspace/platform?view=cors-settings', label: 'CORS Settings' },
+      { path: '/workspace/platform?view=design-reference', label: 'Design Reference' },
+    ],
+  },
+  {
     // OWN top-level item. It is the conversation-meta work queue, real data the inbox
     // already writes.
     path: '/workspace/task',
@@ -349,23 +363,23 @@ export const settingsConfig: SettingsGroup[] = [
       // hub with its ?tab= id. pageExists strips the query and resolves all of them to the
       // one platform/index.tsx hub route. Every workspaceMCP / api/client.ts call inside
       // those bodies is unchanged.
-      { path: '/workspace/settings/platform?tab=mcp-connections', label: 'MCP Connections' },
+      { path: '/workspace/platform?view=mcp-connections', label: 'MCP Connections' },
       // Labelled 'Control Center' until 2026-10-07, which promised a place you operate
       // from. It is a static snapshot of the architecture, hand-maintained, and it has
       // measurably drifted: it lists `wecare-meta-analytics` as an active function on
       // route /meta-analytics and names a MetaAnalyticsLog table, and the live account
       // has neither. The label now says what the page is, so a reader treats it as a
       // document to check rather than a console to trust.
-      { path: '/workspace/settings/platform?tab=system-architecture', label: 'Architecture snapshot' },
-      { path: '/workspace/settings/platform?tab=lambda-functions', label: 'Lambda Functions' },
-      { path: '/workspace/settings/platform?tab=code-repo', label: 'Code Repo' },
+      { path: '/workspace/platform?view=system-architecture', label: 'Architecture snapshot' },
+      { path: '/workspace/platform?view=lambda-functions', label: 'Lambda Functions' },
+      { path: '/workspace/platform?view=code-repo', label: 'Code Repo' },
       // 'WABA Usernames' (/workspace/dashboard/waba-usernames) was a row here until
       // 2026-10-15. It was a smaller copy of WhatsApp -> BSUID & Usernames (same
       // getBusinessUsername / claimBusinessUsername calls, same two numbers, none of the
       // suggestions or webhook fields), so the route is now a signpost to that page.
-      { path: '/workspace/settings/platform?tab=wa-graph-tools', label: 'WA Graph Tools' },
-      { path: '/workspace/settings/platform?tab=cors-settings', label: 'CORS Settings' },
-      { path: '/workspace/settings/platform?tab=design-reference', label: 'Design Reference' },
+      { path: '/workspace/platform?view=wa-graph-tools', label: 'WA Graph Tools' },
+      { path: '/workspace/platform?view=cors-settings', label: 'CORS Settings' },
+      { path: '/workspace/platform?view=design-reference', label: 'Design Reference' },
       // Internal Agent moved up to the "Your account" group — see the note there. The
       // redesign keeps Settings as exactly two rows (Sign-in & MFA + Internal Agent); the
       // Platform group remains for infrastructure reachability via the palette.
@@ -465,12 +479,17 @@ export const moduleHomes: ModuleHome[] = [
     note: 'Requests, Appointments and Documents are the three primary service modes; the remaining capabilities open contextually.',
   },
   {
-    id: 'platform-operations', label: 'Platform Operations',
-    // FEAT-006: the Platform infra pages folded into one hub with in-page tabs; the home
-    // and its inner pages deep-link the hub with ?tab= ids.
-    path: '/workspace/settings/platform?tab=system-architecture',
-    innerPages: ['/workspace/settings/platform?tab=lambda-functions', '/workspace/settings/platform?tab=code-repo',
-      '/workspace/settings/platform?tab=cors-settings', '/workspace/settings/platform?tab=design-reference'],
+    id: 'platform-operations', label: 'Platform', path: '/workspace/platform',
+    innerPages: [
+      '/workspace/platform?view=mcp-connections',
+      '/workspace/platform?view=system-architecture',
+      '/workspace/platform?view=lambda-functions',
+      '/workspace/platform?view=code-repo',
+      '/workspace/platform?view=wa-graph-tools',
+      '/workspace/platform?view=cors-settings',
+      '/workspace/platform?view=design-reference',
+    ],
+    note: 'Platform is a first-class technical-operations workspace; static inventory surfaces remain explicitly labelled as snapshots.',
   },
   {
     id: 'settings', label: 'Settings', path: null,
