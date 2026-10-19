@@ -285,12 +285,25 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
 # ─── CUSTOMER MERGE ──────────────────────────────────────────────────────────
 
+MERGE_CLAIMED = 'claimed'
+MERGE_COMPLETE = 'merged'
+
+
 def _merge_identity_evidence(source: Dict[str, Any], target: Dict[str, Any]) -> tuple:
-    """Return exact shared identity evidence or a fail-closed merge error code."""
+    """Return exact shared identity evidence or a fail-closed merge error code.
+
+    Display names never count. A source carrying a phone may only merge INTO the row that already
+    carries that exact phone; this makes the operator choose the identity-rich row as canonical
+    instead of transferring a verified routing identity on the strength of email alone.
+    """
     source_phone = str(source.get('phone') or '').strip()
     target_phone = str(target.get('phone') or '').strip()
     source_email = str(source.get('email') or '').strip().lower()
     target_email = str(target.get('email') or '').strip().lower()
+    source_bsuid = str(source.get('bsuid') or '').strip()
+    target_bsuid = str(target.get('bsuid') or '').strip()
+    source_owner = str(source.get('checkoutCustomerId') or '').strip()
+    target_owner = str(target.get('checkoutCustomerId') or '').strip()
 
     shared = []
     if source_phone and target_phone and source_phone == target_phone:
@@ -300,23 +313,58 @@ def _merge_identity_evidence(source: Dict[str, Any], target: Dict[str, Any]) -> 
     if not shared:
         return (), 'CUSTOMER_MERGE_EXACT_IDENTITY_REQUIRED'
 
-    # A shared email plus two different phones (or vice versa) may be a household/shared inbox,
-    # not one human. Refuse instead of collapsing ambiguous people.
     if source_phone and target_phone and source_phone != target_phone:
         return (), 'CUSTOMER_MERGE_IDENTITY_CONFLICT'
     if source_email and target_email and source_email != target_email:
         return (), 'CUSTOMER_MERGE_IDENTITY_CONFLICT'
+    if source_phone and not target_phone:
+        return (), 'CUSTOMER_MERGE_CANONICAL_PHONE_REQUIRED'
+    if source_bsuid and target_bsuid and source_bsuid != target_bsuid:
+        return (), 'CUSTOMER_MERGE_BSUID_CONFLICT'
+    if source_owner and target_owner != source_owner:
+        return (), ('CUSTOMER_MERGE_OWNER_CONFLICT'
+                    if target_owner else 'CUSTOMER_MERGE_CANONICAL_OWNER_REQUIRED')
     return tuple(shared), ''
+
+
+def _merge_stable_conditions(row: Dict[str, Any], prefix: str,
+                             names: Dict[str, str], values: Dict[str, Any]) -> List[str]:
+    """Conditions proving the identity fields used for the merge did not change after our read."""
+    conditions: List[str] = []
+    values.setdefault(':merge_nulltype', 'NULL')
+    for field in ('phone', 'email', 'bsuid', 'checkoutCustomerId', customer_uuid.ATTRIBUTE):
+        name_key = f'#merge_{prefix}_{field}'
+        names[name_key] = field
+        value = row.get(field)
+        if value is None:
+            conditions.append(
+                f'(attribute_not_exists({name_key}) OR attribute_type({name_key}, :merge_nulltype))')
+        else:
+            value_key = f':merge_{prefix}_{field}'
+            values[value_key] = value
+            conditions.append(f'{name_key} = {value_key}')
+    return conditions
+
+
+def _merge_customer_uuid(row: Dict[str, Any], *, role: str) -> tuple:
+    raw = str(row.get(customer_uuid.ATTRIBUTE) or '').strip()
+    if not raw:
+        return '', ''
+    if not customer_uuid.is_customer_uuid(raw):
+        return '', f'CUSTOMER_MERGE_{role.upper()}_CUSTOMER_ID_REVIEW_REQUIRED'
+    return raw, ''
 
 
 def _merge_contacts(body: Dict[str, Any], auth: Dict[str, Any],
                     request_id: str, origin: str = '') -> Dict[str, Any]:
-    """Resumable contact merge without rewriting financial history.
+    """Resumable alias merge that never rewrites financial or consent history.
 
-    Source is first CLAIMED but remains active. Target alias history is then appended. Only after
-    that succeeds is source archived. A failure between steps is therefore safely retryable: no
-    order/invoice/payment row is rewritten, and no source contact disappears before its alias has
-    a canonical target.
+    The canonical target is prepared first. Only after that write is durable does the source stop
+    participating in phone/email/BSUID indexes. The source row itself is retained with its original
+    customer UUID, consent flags and a snapshot of the removed index identities, so every historic
+    order/invoice/message reference still points at a durable provenance record.
+
+    No OrderTable, InvoicesTable, PaymentsTable, message table or consent field is updated here.
     """
     source_id = str(body.get('sourceContactId') or '').strip()
     target_id = str(body.get('targetContactId') or '').strip()
@@ -373,13 +421,19 @@ def _merge_contacts(body: Dict[str, Any], auth: Dict[str, Any],
             'error': 'Source contact is already claimed by another merge target',
             'errorCode': 'CUSTOMER_MERGE_ALREADY_CLAIMED',
         }, origin)
-    if existing_state == 'merged' and existing_target == target_id:
+    if existing_state == MERGE_COMPLETE and existing_target == target_id:
         return cors_response(200, {
             'merged': True, 'idempotent': True,
             'sourceContactId': source_id, 'targetContactId': target_id,
             'customerUuid': customer_uuid.from_contact(target),
+            'preservedFinancialHistory': True,
         }, origin)
 
+    if source.get('deletedAt') is not None:
+        return cors_response(409, {
+            'error': 'Deleted contacts cannot be used as a merge source',
+            'errorCode': 'CUSTOMER_MERGE_SOURCE_NOT_ACTIVE',
+        }, origin)
     if target.get('deletedAt') is not None or str(target.get('mergedIntoContactId') or '').strip():
         return cors_response(409, {
             'error': 'Target must be an active canonical contact',
@@ -387,7 +441,7 @@ def _merge_contacts(body: Dict[str, Any], auth: Dict[str, Any],
         }, origin)
     if contact_lock.is_locked(source) or contact_lock.is_locked(target):
         return cors_response(409, {
-            'error': 'Locked contacts cannot be merged',
+            'error': 'Locked contacts need legal review before identity merge',
             'errorCode': 'CUSTOMER_MERGE_CONTACT_LOCKED',
         }, origin)
 
@@ -398,26 +452,43 @@ def _merge_contacts(body: Dict[str, Any], auth: Dict[str, Any],
             'errorCode': evidence_error,
         }, origin)
 
+    source_uuid, source_uuid_error = _merge_customer_uuid(source, role='source')
+    target_uuid, target_uuid_error = _merge_customer_uuid(target, role='target')
+    uuid_error = source_uuid_error or target_uuid_error
+    if uuid_error:
+        return cors_response(409, {
+            'error': 'Stored Customer ID needs review before merge',
+            'errorCode': uuid_error,
+        }, origin)
+    canonical_uuid = target_uuid or source_uuid or customer_uuid.new_customer_uuid()
+
     now = Decimal(str(int(time.time())))
 
-    # Step 1: claim source. It is deliberately NOT archived here.
+    # Step 1: claim source while it stays fully active. The condition repeats every identity field
+    # used above, so a concurrent phone/email/owner edit cannot turn old evidence into a merge.
     if not existing_target:
+        names: Dict[str, str] = {'#merge_state': 'mergeState'}
+        values: Dict[str, Any] = {
+            ':claimed': MERGE_CLAIMED, ':target': target_id, ':now': now,
+            ':actor': actor, ':reason': reason,
+        }
+        conditions = [
+            'attribute_exists(id)',
+            'attribute_not_exists(mergedIntoContactId)',
+            '(attribute_not_exists(deletedAt) OR attribute_type(deletedAt, :merge_nulltype))',
+        ]
+        conditions.extend(_merge_stable_conditions(source, 'source', names, values))
         try:
             table.update_item(
                 Key=contact_key.key(source_id),
                 UpdateExpression=(
-                    'SET mergeState = :claimed, mergedIntoContactId = :target, '
+                    'SET #merge_state = :claimed, mergedIntoContactId = :target, '
                     'mergeStartedAt = :now, mergeStartedBy = :actor, mergeReason = :reason, '
                     'updatedAt = :now'
                 ),
-                ConditionExpression=(
-                    'attribute_exists(id) AND attribute_not_exists(mergedIntoContactId) '
-                    'AND (attribute_not_exists(deletedAt) OR deletedAt = :null)'
-                ),
-                ExpressionAttributeValues={
-                    ':claimed': 'claimed', ':target': target_id, ':now': now,
-                    ':actor': actor, ':reason': reason, ':null': None,
-                },
+                ConditionExpression=' AND '.join(conditions),
+                ExpressionAttributeNames=names,
+                ExpressionAttributeValues=values,
             )
         except ClientError as exc:
             if exc.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
@@ -427,38 +498,62 @@ def _merge_contacts(body: Dict[str, Any], auth: Dict[str, Any],
                 }, origin)
             raise
 
-    # Step 2: append aliases to target. list_append is atomic for concurrent different sources;
-    # a consistent read makes retry idempotent for this source.
+    # Step 2: prepare the canonical target and durable alias lists. Nothing on the source has been
+    # removed yet; a failure here leaves the same duplicate state staff started with.
     target_fresh = table.get_item(Key=contact_key.key(target_id), ConsistentRead=True).get('Item') or {}
-    contact_aliases = list(target_fresh.get('mergedContactIds') or [])
-    uuid_aliases = list(target_fresh.get('mergedCustomerUuids') or [])
-    source_uuid = customer_uuid.from_contact(source)
-    add_contact_alias = source_id not in contact_aliases
-    add_uuid_alias = bool(source_uuid and source_uuid != customer_uuid.from_contact(target_fresh)
-                          and source_uuid not in uuid_aliases)
+    evidence_now, evidence_now_error = _merge_identity_evidence(source, target_fresh)
+    if evidence_now_error or evidence_now != evidence:
+        return cors_response(409, {
+            'error': 'Canonical target identity changed; reload and retry',
+            'errorCode': 'CUSTOMER_MERGE_TARGET_STALE',
+            'retryable': True,
+        }, origin)
 
-    sets = ['updatedAt = :now']
-    names: Dict[str, str] = {}
-    values: Dict[str, Any] = {
-        ':now': now, ':null': None,
-    }
-    if add_contact_alias:
+    contact_aliases = target_fresh.get('mergedContactIds') or []
+    uuid_aliases = target_fresh.get('mergedCustomerUuids') or []
+    email_aliases = target_fresh.get('mergedEmailAliases') or []
+    if not isinstance(contact_aliases, list) or not isinstance(uuid_aliases, list) or not isinstance(email_aliases, list):
+        return cors_response(409, {
+            'error': 'Canonical target alias metadata needs review',
+            'errorCode': 'CUSTOMER_MERGE_ALIAS_REVIEW_REQUIRED',
+        }, origin)
+
+    source_email = str(source.get('email') or '').strip().lower()
+    target_email = str(target_fresh.get('email') or '').strip().lower()
+    source_bsuid = str(source.get('bsuid') or '').strip()
+    target_bsuid = str(target_fresh.get('bsuid') or '').strip()
+
+    sets = ['updatedAt = :now', 'mergeUpdatedAt = :now', f'{customer_uuid.ATTRIBUTE} = :canonical_uuid']
+    names = {}
+    values = {':now': now, ':canonical_uuid': canonical_uuid}
+
+    if source_id not in contact_aliases:
         sets.append('mergedContactIds = list_append(if_not_exists(mergedContactIds, :empty), :contact_alias)')
         values[':empty'] = []
         values[':contact_alias'] = [source_id]
-    if add_uuid_alias:
+    if source_uuid and source_uuid != canonical_uuid and source_uuid not in uuid_aliases:
         sets.append('mergedCustomerUuids = list_append(if_not_exists(mergedCustomerUuids, :empty_uuid), :uuid_alias)')
         values[':empty_uuid'] = []
         values[':uuid_alias'] = [source_uuid]
+    if source_email and source_email != target_email and source_email not in email_aliases:
+        sets.append('mergedEmailAliases = list_append(if_not_exists(mergedEmailAliases, :empty_email), :email_alias)')
+        values[':empty_email'] = []
+        values[':email_alias'] = [source_email]
+    if source_bsuid and not target_bsuid:
+        sets.append('bsuid = :source_bsuid')
+        values[':source_bsuid'] = source_bsuid
 
+    conditions = [
+        'attribute_exists(id)',
+        'attribute_not_exists(mergedIntoContactId)',
+        '(attribute_not_exists(deletedAt) OR attribute_type(deletedAt, :merge_nulltype))',
+    ]
+    conditions.extend(_merge_stable_conditions(target_fresh, 'target', names, values))
     try:
         table.update_item(
             Key=contact_key.key(target_id),
             UpdateExpression='SET ' + ', '.join(sets),
-            ConditionExpression=(
-                'attribute_exists(id) AND attribute_not_exists(mergedIntoContactId) '
-                'AND (attribute_not_exists(deletedAt) OR deletedAt = :null)'
-            ),
+            ConditionExpression=' AND '.join(conditions),
             **({'ExpressionAttributeNames': names} if names else {}),
             ExpressionAttributeValues=values,
         )
@@ -471,16 +566,29 @@ def _merge_contacts(body: Dict[str, Any], auth: Dict[str, Any],
             }, origin)
         raise
 
-    # Step 3: archive source only after target aliases are durable.
+    # Step 3: convert the source into a retained alias row. Removing ONLY the three indexed
+    # identities makes every phone/email/BSUID lookup converge on the canonical row without
+    # deleting the source or rewriting any historical record. Their original values remain on the
+    # alias under merge-specific snapshot names.
+    source_phone = str(source.get('phone') or '').strip()
+    source_email_raw = str(source.get('email') or '').strip()
+    source_bsuid_raw = str(source.get('bsuid') or '').strip()
     try:
         table.update_item(
             Key=contact_key.key(source_id),
             UpdateExpression=(
-                'SET mergeState = :merged, mergedAt = :now, deletedAt = :now, updatedAt = :now'
+                'SET mergeState = :merged, mergedAt = :now, mergedBy = :actor, '
+                'mergedIntoCustomerUuid = :canonical_uuid, mergedSourcePhone = :source_phone, '
+                'mergedSourceEmail = :source_email, mergedSourceBsuid = :source_bsuid, '
+                'mergedSourceCustomerUuid = :source_uuid, updatedAt = :now '
+                'REMOVE phone, email, bsuid'
             ),
             ConditionExpression='mergedIntoContactId = :target AND mergeState = :claimed',
             ExpressionAttributeValues={
-                ':merged': 'merged', ':claimed': 'claimed', ':target': target_id, ':now': now,
+                ':merged': MERGE_COMPLETE, ':claimed': MERGE_CLAIMED, ':target': target_id,
+                ':now': now, ':actor': actor, ':canonical_uuid': canonical_uuid,
+                ':source_phone': source_phone, ':source_email': source_email_raw,
+                ':source_bsuid': source_bsuid_raw, ':source_uuid': source_uuid,
             },
         )
     except ClientError as exc:
@@ -488,12 +596,12 @@ def _merge_contacts(body: Dict[str, Any], auth: Dict[str, Any],
             fresh = table.get_item(
                 Key=contact_key.key(source_id), ConsistentRead=True).get('Item') or {}
             if not (
-                str(fresh.get('mergeState') or '').strip().lower() == 'merged'
+                str(fresh.get('mergeState') or '').strip().lower() == MERGE_COMPLETE
                 and str(fresh.get('mergedIntoContactId') or '').strip() == target_id
             ):
                 return cors_response(503, {
-                    'error': 'Target aliases are saved but source archive needs a safe retry',
-                    'errorCode': 'CUSTOMER_MERGE_ARCHIVE_RETRY',
+                    'error': 'Canonical target is prepared but source alias finalization needs a safe retry',
+                    'errorCode': 'CUSTOMER_MERGE_FINALIZE_RETRY',
                     'retryable': True,
                 }, origin)
         else:
@@ -522,10 +630,10 @@ def _merge_contacts(body: Dict[str, Any], auth: Dict[str, Any],
         'idempotent': False,
         'sourceContactId': source_id,
         'targetContactId': target_id,
-        'customerUuid': customer_uuid.from_contact(target_fresh),
+        'customerUuid': canonical_uuid,
         'preservedFinancialHistory': True,
+        'consentCopied': False,
     }, origin)
-
 
 
 # ─── CREATE ─────────────────────────────────────────────────────────────────
