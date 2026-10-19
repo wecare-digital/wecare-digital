@@ -21,6 +21,7 @@ def build(*, invoice, attempt, contact, outcome, items, now):
             or invoice.get('currency', 'INR') != 'INR'
             or contact.get('deletedAt') is not None or bool(contact.get('isDeleted'))
             or attempt.get('customerId') not in (contact_id, contact.get('checkoutCustomerId'))
+            or attempt.get('contactId') not in (None, '', contact_id)
             or (outcome.get('providerPaymentId') and outcome['providerPaymentId'] != provider)
             or attempt.get('status') != 'PAYMENT_PAID' or not provider or amount is None
             or amount <= 0 or amount != expected
@@ -156,11 +157,19 @@ def materialize(*, invoices, items, contacts, attempts, keys, orders, reference_
     if fresh_contact.get('checkoutCustomerId') and fresh_contact.get('checkoutCustomerId') != row['customerId']:
         row = store(orders=orders, row=build(invoice=invoice, attempt=attempt,
             contact=fresh_contact, outcome=outcome, items=lines, now=now))
+    attempt_update = ('SET finalizationStage = :stage, orderId = :order, '
+                      'orderNumber = :number, contactId = :contact')
+    attempt_values = {':stage': row['finalizationStage'], ':order': row['orderId'],
+        ':number': row['orderNumber'], ':provider': row['providerPaymentId'],
+        ':amount': row['amountPaise'], ':contact': row['contactId']}
+    if row.get('customerUuid'):
+        attempt_update += ', customerUuid = :uuid'
+        attempt_values[':uuid'] = row['customerUuid']
     attempts.update_item(Key={'paymentAttemptId': attempt_id},
-        UpdateExpression='SET finalizationStage = :stage, orderId = :order, orderNumber = :number',
-        ConditionExpression='verifiedProviderPaymentId = :provider AND verifiedCapturedPaise = :amount',
-        ExpressionAttributeValues={':stage': row['finalizationStage'], ':order': row['orderId'],
-            ':number': row['orderNumber'], ':provider': row['providerPaymentId'], ':amount': row['amountPaise']})
+        UpdateExpression=attempt_update,
+        ConditionExpression=('verifiedProviderPaymentId = :provider AND verifiedCapturedPaise = :amount '
+            'AND (attribute_not_exists(contactId) OR contactId = :contact)'),
+        ExpressionAttributeValues=attempt_values)
     values = {':order': row['orderId'], ':number': row['orderNumber'], ':ref': reference_id}
     expression = 'SET orderId = :order, orderNumber = :number'
     if row.get('customerUuid'):

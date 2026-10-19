@@ -186,19 +186,12 @@ INDEX_DEFINITION_V2 = {
     },
 }
 
-#: WHICH INDEX THE FUNCTION ACTUALLY QUERIES. Still v1, and that is the whole point of this
-#: constant existing rather than `expected_environment` naming an index directly.
-#:
-#: The repoint is DEFERRED TO LAND TIME AND GATED ON ACTIVE. A Query against a CREATING index
-#: raises ResourceNotFoundException, which the handler turns into a 503 - so pointing the live
-#: function at v2 in the same change that creates it would break every order list between the
-#: `update_table` call and the end of the backfill. `--repoint-serving-index` performs the move
-#: and REFUSES unless `describe_table` reports v2 ACTIVE; nothing else in this script moves it.
-#:
-#: Until then `channel` is written on every new order row and read through
-#: `order_channel.canonical`, which answers `website` for a row the serving projection does not
-#: carry it on. So the page is correct, not broken, while the repoint waits.
-SERVING_INDEX = ORDERS_BY_CUSTOMER_INDEX
+#: Migration completed on 2026-10-19 after v2 became ACTIVE. Normal provisioning
+#: creates and waits for both indexes before reconciling this environment, so a
+#: subsequent --apply must preserve v2 rather than silently revert attribution.
+#: The handler retains its legacy v1 fallback and v1 remains available for rollback.
+#: Explicit --repoint-serving-index still independently checks ACTIVE.
+SERVING_INDEX = ORDERS_BY_CUSTOMER_INDEX_V2
 
 #: A table allows only ONE GSI operation in flight, and creation is not instant to report. A
 #: Query against a CREATING index raises ResourceNotFoundException, which a reader mistakes for

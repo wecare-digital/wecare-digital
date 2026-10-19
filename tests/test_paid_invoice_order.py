@@ -1,5 +1,8 @@
 """A provider-paid manual invoice produces one complete, owned order record."""
 from decimal import Decimal
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent))
 import pytest
 from lambda_utils.ecommerce import paid_invoice_order as subject
 
@@ -112,11 +115,12 @@ def test_public_customer_uuid_reaches_order_and_invoice_snapshot():
     assert row['customerUuid'] == PUBLIC_UUID
     assert row['invoiceSnapshot']['customerUuid'] == PUBLIC_UUID
 
-@pytest.mark.parametrize('change', ['currency', 'attempt_owner', 'deleted_contact', 'provider_conflict'])
+@pytest.mark.parametrize('change', ['currency', 'attempt_owner', 'attempt_contact', 'deleted_contact', 'provider_conflict'])
 def test_projection_refuses_cross_domain_evidence(change):
     args = inputs()
     if change == 'currency': args['attempt']['currency'] = 'USD'
     if change == 'attempt_owner': args['attempt']['customerId'] = 'another-contact'
+    if change == 'attempt_contact': args['attempt']['contactId'] = 'another-contact'
     if change == 'deleted_contact': args['contact']['deletedAt'] = 100
     if change == 'provider_conflict': args['outcome']['providerPaymentId'] = 'another-payment'
     with pytest.raises(ValueError): subject.build(**args)
@@ -200,3 +204,13 @@ def test_promotion_populates_uuid_on_the_saved_order():
     linked=inputs();linked['contact']['customerUuid']=PUBLIC_UUID
     subject.store(orders=orders,row=subject.build(**linked))
     assert orders.rows['internal-order-1']['customerUuid']==PUBLIC_UUID
+
+
+def test_materialization_carries_contact_and_public_uuid_into_the_payment_attempt():
+    fake,tables=materialization_tables()
+    subject.materialize(**tables,reference_id='ref-1',now=456)
+    saved=tables['attempts'].get_item(Key={'paymentAttemptId':'attempt-1'})['Item']
+    assert saved['contactId']=='contact-1'
+    assert saved['customerUuid']==PUBLIC_UUID
+    # Original financial ownership is preserved; the website binding is on the order.
+    assert saved['customerId']=='contact-1'
