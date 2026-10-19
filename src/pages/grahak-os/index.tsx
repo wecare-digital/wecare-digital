@@ -657,7 +657,17 @@ response = requests.post(
           .gos-wa-cta:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
           /* Hero Python panel only. Its demo link moved to the large API editor below. */
           .code-stack{position:absolute;right:0;bottom:24px;width:60%;max-width:340px;display:flex;flex-direction:column;align-items:stretch}
-          .hero-visual-col{display:flex;flex-direction:column;align-items:flex-end;gap:10px;width:100%;box-sizing:border-box}
+          /* ZOOM CONTAINMENT (unified-mobile Phase 1), same shape as Unit 1 on Home. At 200%
+             zoom a <=375px phone reflows to a ~160-188 CSS-px layout viewport; the mockup
+             column (the phone mock plus the bottom-anchored code panel) carries fixed intrinsic
+             widths that cannot shrink that far. min-width:0 lets this flex item drop below its
+             content, and overflow-x:clip lets the mockup overflow its OWN box at that extreme
+             rather than pushing the page. .page already clips page-level overflow, so this is a
+             belt-and-suspenders box-level clip so no single descendant floors the column.
+             Normal-zoom layout is unchanged - nothing overflows the column there, so the clip
+             never bites. overflow-x:hidden is the fallback for engines without clip. NO backtick
+             in this comment - a stray one ends the styled-jsx CSS literal. */
+          .hero-visual-col{display:flex;flex-direction:column;align-items:flex-end;gap:10px;width:100%;box-sizing:border-box;min-width:0;overflow-x:hidden;overflow-x:clip}
           @media(prefers-reduced-motion:reduce){
             .gos-wa-cta{transition:background-color .2s}
             .gos-wa-cta:hover{transform:none;box-shadow:none}
@@ -751,7 +761,12 @@ response = requests.post(
              changing ONE of the pair). Verified in a real render: the code panel still laps
              the lower-right corner with the same overhang and eats no bubble. Keep the two
              values in lockstep - never change one alone. */
-          .mockup-wrapper{position:relative;width:100%;max-width:580px;min-height:610px;background:#fff;border-radius:28px;padding:28px 24px 24px}
+          /* min-width:0 is the ZOOM-CONTAINMENT addition (unified-mobile Phase 1): it lets the
+             wrapper shrink below its content at a 200%-zoom reflow so it cannot floor the hero
+             column. width:100% + max-width:580px already cap it at normal zoom, and the parent
+             .hero-visual-col carries the clip, so the mock overflows its own box at the extreme
+             instead of the page. No visual change at any normal width. */
+          .mockup-wrapper{position:relative;width:100%;max-width:580px;min-width:0;min-height:610px;background:#fff;border-radius:28px;padding:28px 24px 24px}
           /* The two panels OVERLAP on purpose - the code panel laps the phone's
              lower-right corner, which is the whole composition. 56% + 60% = 116%
              of the wrapper, so the lap is ~16%.
@@ -955,7 +970,20 @@ response = requests.post(
              A previous pass aligned api / strip / trust to each other at 1100px, which
              made three sections agree with one another and all three disagree with the
              top of the page. Aligning to the hero instead is the fix. */
-          .api-grid{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:start}
+          /* grid-template-columns:minmax(0,1fr) minmax(0,1fr) is the ZOOM-CONTAINMENT form of
+             the two-column api grid (unified-mobile Phase 1). A bare 1fr track resolves to
+             minmax(auto,1fr), so each column could not shrink below its content and the left
+             step column floored its own width at a 200%-zoom reflow. minmax(0,1fr) lets both
+             columns shrink to the container so their content wraps or clips within, instead of
+             pushing the page. At normal zoom and above 1024px the columns are wide enough that
+             1fr and minmax(0,1fr) resolve identically, so layout is unchanged; below 1024px the
+             grid is already a single column. */
+          .api-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:56px;align-items:start}
+          /* min-width:0 lets the left (steps) grid child shrink below its content at a 200%-zoom
+             reflow (unified-mobile Phase 1), the pair of the minmax(0,1fr) track above; its
+             capped children (.api-steps-list / .api-steps-buy at max-width:460/700px) then wrap
+             within the column rather than flooring the page. No normal-zoom change. */
+          .api-info{min-width:0}
           .api-info h2{margin:0 0 20px}
           /* Capped for line length, the way .hero-left p is capped at 400px. Removing
              the grid's 1100px cap widened this column to ~596px, and 20px body text at
@@ -1012,12 +1040,26 @@ response = requests.post(
              object at two sizes, and the mobile override was already 14px, so this
              also stops the radius changing across breakpoints. */
           .api-demo-stack{display:flex;flex-direction:column;align-items:stretch;gap:12px;min-width:0}
-          .api-demo{background:#000;border-radius:14px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.12)}
+          /* min-width:0 is the ZOOM-CONTAINMENT addition (unified-mobile Phase 1). The code
+             editor panel holds .code-block, whose monospace lines keep a wide intrinsic size
+             (white-space:pre with overflow-x:auto, so long lines scroll WITHIN the panel). As a
+             minmax(0,1fr) grid child the panel can now shrink, and min-width:0 keeps the panel
+             itself from being floored by the pre's intrinsic width; overflow:hidden already
+             clips the rounded corners. Long code lines scroll inside .code-block rather than
+             widening the page - the same containment the Home terminal uses. No normal-zoom
+             change. */
+          .api-demo{background:#000;border-radius:14px;overflow:hidden;min-width:0;box-shadow:0 8px 30px rgba(0,0,0,.12)}
           /* Secondary demo action: aligned to the code panel's left edge and deliberately
              lighter than the paid WhatsApp pill. It is transparent at rest; hover/focus
              borrows the active-tab lime so the relationship to the editor is immediate. */
           .api-wa-row{display:flex;justify-content:flex-start}
-          .api-wa-link{display:inline-flex;align-items:center;gap:5px;width:max-content;margin-left:-10px;padding:8px 10px;border-radius:10px;color:var(--public-brand-green);font-size:17px;font-weight:600;line-height:1.4;letter-spacing:-.05px;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;transition:background-color .18s,color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s}
+          /* min-height:var(--tap-min) floors this secondary demo link to the 44px WCAG 2.5.8
+             target (unified-mobile Phase 1). Measured before the change it was 39.8px tall -
+             the only control inside this page's main that was under 44px (the pp-tabs are
+             46-50px and the gos-wa-cta pill is 52px). It is already an inline-flex with centred
+             content, so min-height grows the hit box without moving the underlined label; the
+             text treatment the tests pin (17px/600, underline, lime hover) is unchanged. */
+          .api-wa-link{display:inline-flex;align-items:center;gap:5px;width:max-content;min-height:var(--tap-min);margin-left:-10px;padding:8px 10px;border-radius:10px;color:var(--public-brand-green);font-size:17px;font-weight:600;line-height:1.4;letter-spacing:-.05px;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;transition:background-color .18s,color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s}
           .api-wa-link:hover{background:var(--public-brand-lime);color:var(--public-brand-green);text-decoration-color:transparent;transform:translateY(-1px);box-shadow:0 6px 18px rgba(26,58,42,.12)}
           .api-wa-link:focus-visible{background:var(--public-brand-lime);color:var(--public-brand-green);text-decoration-color:transparent;outline:3px solid var(--public-brand-green);outline-offset:3px}
           @media(prefers-reduced-motion:reduce){
@@ -1166,7 +1208,12 @@ response = requests.post(
           /* ========== MOBILE (up to 767px) ========== */
           @media(max-width:767px){
             
-            .hero{padding:calc(115px + env(safe-area-inset-top)) 20px 50px}
+            /* env(safe-area-inset-top) migrated to the shared --safe-top token (unified-mobile
+               Phase 1). The token is declared once on :root in tokens.css and resolves to the
+               same env() value, so the notch inset is unchanged; the page now references the
+               single named contract instead of repeating the raw env() literal. On a non-notch
+               device --safe-top resolves to 0, so the calc() is unaffected. */
+            .hero{padding:calc(115px + var(--safe-top)) 20px 50px}
             .hero-content{display:flex;flex-direction:column;gap:32px;text-align:left;align-items:flex-start}
             .hero-right{order:-1;width:100%;display:flex;justify-content:center}
             /* On the stacked mobile hero the below-code link re-centres under the mockup
@@ -1235,7 +1282,7 @@ response = requests.post(
           /* ========== SMALL MOBILE (up to 480px) ========== */
           @media(max-width:480px){
             
-            .hero{padding:calc(85px + env(safe-area-inset-top)) 16px 44px}
+            .hero{padding:calc(85px + var(--safe-top)) 16px 44px}
             
             .section-header{padding:0 16px}
 
@@ -1271,7 +1318,7 @@ response = requests.post(
                block sets api and .pp-inner to 16 and nothing overrides them here - so the
                hero alone sat 2px left of everything else. Measured at 360px: hero text at
                14px, the rest at 16px. */
-            .hero{padding:calc(80px + env(safe-area-inset-top)) 16px 36px}
+            .hero{padding:calc(80px + var(--safe-top)) 16px 36px}
             
             .pill{padding:12px 18px}
           }
