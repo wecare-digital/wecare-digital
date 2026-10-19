@@ -876,8 +876,8 @@ const SupportWidget: React.FC = () => {
            styled-jsx template literal, and a backtick closes it - which turns the rest of
            the stylesheet into JSX and fails the build with an unrelated-looking
            "Unexpected token" several hundred lines further down. */
-        .wc-langbar{--wc-inset:20px;position:fixed;right:var(--wc-inset);left:auto;bottom:20px;top:auto;z-index:1300;display:flex;flex-direction:column;align-items:flex-end;gap:10px;font-family:inherit}
-        :global([dir='rtl']) .wc-langbar{right:auto;left:var(--wc-inset)}
+        .wc-langbar{--wc-inset:20px;position:fixed;right:max(var(--wc-inset),env(safe-area-inset-right));left:auto;bottom:20px;top:auto;z-index:1300;display:flex;flex-direction:column;align-items:flex-end;gap:10px;font-family:inherit}
+        :global([dir='rtl']) .wc-langbar{right:auto;left:max(var(--wc-inset),env(safe-area-inset-left))}
 
         /* THE PILL. One container, two actions, reading as a single object rather than the
            two unrelated circles this replaced. 4px of padding around 44px controls makes
