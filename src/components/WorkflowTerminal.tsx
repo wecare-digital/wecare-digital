@@ -1022,8 +1022,16 @@ const WorkflowTerminal: React.FC = () => {
         /* #000 with the 1.5px white stroke: the documented editor-pane treatment the
            two existing code panels already use, rather than the mock's #17191c and a
            grey border. radius 14px matches them too. */
+        /* min-width:0 IS CONTAINMENT, NOT COSMETICS. The window holds monospace code lines set
+           white-space:nowrap, so their intrinsic width is a real number (~234px on the longest
+           line). A block child defaults to min-width:auto, which means "at least as wide as my
+           content" - at 200% zoom on a 320/375 phone that intrinsic floor is wider than the
+           halved layout viewport, so without this the window refuses to shrink and pushes the
+           whole PAGE into horizontal scroll. min-width:0 lets the window track shrink below its
+           content, after which each .wt-code block scrolls on its own x-axis instead. The page
+           never scrolls sideways at any zoom; only the individual code blocks do. */
         .wt-window{
-          width:100%;height:650px;display:flex;flex-direction:column;overflow:hidden;
+          width:100%;min-width:0;height:650px;display:flex;flex-direction:column;overflow:hidden;
           background:#000;border:1.5px solid rgba(255,255,255,.92);border-radius:14px;
           box-shadow:0 30px 80px rgba(0,0,0,.08),0 5px 18px rgba(0,0,0,.04);
           font-family:'SF Mono',Monaco,Consolas,monospace;
@@ -1067,7 +1075,7 @@ const WorkflowTerminal: React.FC = () => {
            so a long line scrolls inside its block and the page never scrolls horizontally.
            THE SCROLLBAR IS VISIBLE: a .38 thumb on a .08 track, both white alphas on the #000
            panel, so the region reads as scrollable at rest rather than hiding its overflow. */
-        .wt-space{position:relative;flex:1;min-height:0;padding:30px 34px 24px;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.38) rgba(255,255,255,.08)}
+        .wt-space{position:relative;flex:1;min-width:0;min-height:0;padding:30px 34px 24px;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.38) rgba(255,255,255,.08)}
         .wt-space::-webkit-scrollbar{width:7px}
         .wt-space::-webkit-scrollbar-track{background:rgba(255,255,255,.08);border-radius:20px}
         .wt-space::-webkit-scrollbar-thumb{background:rgba(255,255,255,.38);border-radius:20px}
@@ -1161,7 +1169,27 @@ const WorkflowTerminal: React.FC = () => {
            x-axis - overflow-x:auto here, .wt-space overflow-x:hidden above - so an over-long
            line never scrolls the whole page. The block is a left-bordered rgba box in the step's
            own hue at low alpha, so it reads as nested under the service dot. */
-        .wt-code{margin-top:1px;padding:3px 0 0;overflow-x:auto;display:grid;gap:5px}
+        /* min-width:0 keeps the nowrap lines from pushing the grid wide: a grid item defaults to
+           min-width:auto (its content), which would hand the longest line's intrinsic width
+           straight back up to .wt-space and the window. With min-width:0 the block can be
+           narrower than its lines, and overflow-x:auto then scrolls them horizontally inside it.
+           -webkit-overflow-scrolling:touch keeps the swipe momentum-smooth on iOS WebKit. */
+        .wt-code{position:relative;margin-top:1px;padding:3px 0 0;min-width:0;overflow-x:auto;-webkit-overflow-scrolling:touch;display:grid;gap:5px}
+        /* THE SWIPE AFFORDANCE. A right-edge fade that hints "there is more ->" so a phone reader
+           knows an over-long line continues past the panel edge. It is a sticky pseudo pinned to
+           the scroller's right edge: when a line overflows it floats over the trailing text and
+           fades it into the panel; when a block fits, there is no scroll range, so it simply sits
+           on the flush edge and dims nothing. Overflow-driven, so it never shows on desktop where
+           the lines already fit. The gradient is transparent -> #000, the panel's OWN colour, so
+           no new value enters the palette; it is a mask of the panel over the line end.
+           pointer-events:none so it never intercepts a swipe or covers a control, and it is static
+           (not animated) so reduced motion is unaffected. It spans every row of the block via
+           grid-row:1/-1 and pins to the first (only) column, justified to the end. */
+        .wt-code::after{
+          content:'';grid-column:1;grid-row:1/-1;justify-self:end;align-self:stretch;
+          position:sticky;right:0;width:34px;pointer-events:none;
+          background:linear-gradient(to right,rgba(0,0,0,0),#000)
+        }
         .wt-line{display:flex;align-items:baseline;gap:9px;line-height:1.6;white-space:nowrap}
         /* The call line: a muted "$" prompt, the call text in solid white, the step time
            right-aligned. On desktop the time sits at the end of the row; at <=767px it stacks
