@@ -365,6 +365,53 @@ def test_a_native_whatsapp_capture_dispatches_exactly_one_invoice_delivery(webho
     assert 'force' not in delivery[0]
 
 
+class _FailingDeliveryRecorder(_InvokeRecorder):
+    """Like `_InvokeRecorder`, but the send-whatsapp invoke reports a non-accepted delivery,
+    so `_deliver_invoice_on_whatsapp` returns False and the retry/cap path is exercised."""
+
+    def invoke(self, **kwargs):
+        raw = json.loads(kwargs['Payload'])
+        path = raw.get('rawPath', '')
+        self.calls.append(kwargs['FunctionName'] + (' POST ' + path if path else ''))
+        try:
+            self.bodies.append((path, json.loads(raw.get('body') or '{}')))
+        except (TypeError, ValueError):
+            self.bodies.append((path, {}))
+        if 'send-whatsapp' in path:
+            body = json.dumps({'statusCode': 200, 'body': json.dumps(
+                {'invoiceId': INVOICE_ID, 'status': 'failed', 'waMessageId': ''})})
+        else:
+            body = json.dumps({'statusCode': 200, 'body': json.dumps(
+                {'invoiceId': INVOICE_ID, 'invoiceNumber': 'WD/26-27/0001',
+                 'deduplicated': self.deduplicated, 'status': 'sent'})})
+
+        class _P:
+            def read(self_inner):
+                return body.encode()
+
+        return {'Payload': _P(), 'StatusCode': 202}
+
+
+def test_a_missed_receipt_raises_to_trigger_a_bounded_replay(webhook, fake):
+    """A transient delivery miss raises so Razorpay redelivers the capture - while under the cap."""
+    recorder = _FailingDeliveryRecorder()
+    with pytest.raises(RuntimeError, match='receipt delivery is pending'):
+        _post_payment(webhook, recorder, fake)
+
+
+def test_a_persistently_undeliverable_receipt_settles_and_quarantines(webhook, fake):
+    """Past the attempt cap, the capture must settle (no raise) and the receipt is quarantined,
+    so a receipt that can never be delivered cannot replay a finalized payment forever."""
+    # Pre-seed the attempt counter at the cap so the next attempt is the exhausting one.
+    fake.Table(INVOICES).update_item(
+        Key={'invoiceId': INVOICE_ID},
+        UpdateExpression='ADD receiptDispatchAttempts :n',
+        ExpressionAttributeValues={':n': webhook._RECEIPT_DELIVERY_MAX_ATTEMPTS})
+    recorder = _FailingDeliveryRecorder()
+    # Must NOT raise now - the capture settles despite the undeliverable receipt.
+    _post_payment(webhook, recorder, fake)
+
+
 def test_a_deduplicated_invoice_is_still_delivered(webhook, fake):
     """T-I4, and the correction that makes the feature work at all.
 

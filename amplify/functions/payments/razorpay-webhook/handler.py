@@ -2564,17 +2564,40 @@ def _post_payment_handler(payment_id: str, contact: str,
     # receives none today - so gating on the channel ALONE would silently change an existing
     # live leg's behaviour.
     #
-    # Async (`Event`) because a delivery failure must not fail the webhook and make Razorpay
-    # retry a whole captured payment. Placed after the asset step so a synchronous render does
-    # not happen inside an async delivery invoke, where a render failure would be invisible here.
+    # Delivery is retried by REPLAY: a miss raises so the webhook lease lapses and Razorpay
+    # redelivers the capture, and the delivery CLAIM inside `send_invoice_whatsapp` makes the
+    # re-send idempotent (no double receipt). The retry is BOUNDED - see
+    # `_receipt_delivery_should_retry` - so a receipt that can never be delivered does not pin
+    # the money-path lease replaying an already-finalized payment forever; past the cap the
+    # capture settles and the stuck receipt is quarantined for manual follow-up. Placed after the
+    # asset step so the render is complete before a delivery attempt.
     delivered = False
     if (channel == 'whatsapp'
             and checkout_mode == 'WHATSAPP_NATIVE_PG'
             and contact and invoice_id):
         delivered = _deliver_invoice_on_whatsapp(
             invoice_id, contact, originating_phone_id, request_id)
-        if not delivered:
+        if not delivered and _receipt_delivery_should_retry(invoice_id, request_id):
+            # A transient miss (Meta down, throttle, uncertain send): raise so the webhook
+            # lease lapses and Razorpay redelivers, and the delivery CLAIM makes the re-send
+            # idempotent. BOUNDED by `_receipt_delivery_should_retry` so a persistently
+            # undeliverable receipt cannot pin the money-path lease in an infinite replay of an
+            # already-captured, already-finalized payment: once the cap is reached the capture
+            # is allowed to settle and the stuck receipt is quarantined for manual follow-up
+            # below. The paid state and the order are already correct at this point.
             raise RuntimeError('Invoice receipt delivery is pending')
+        if not delivered:
+            # Retries exhausted. Do NOT raise - the capture must settle. Record a durable
+            # quarantine so a human can re-send the receipt; the delivery claim is idempotent,
+            # so a later manual or forced resend still cannot double-send.
+            order_keys.record_capture_quarantine(
+                dynamodb.Table(COMMERCE_KEYS_TABLE),
+                payment_id=payment_id, reference_id=reference_id,
+                outcome='RECEIPT_DELIVERY_EXHAUSTED', extra={'invoiceId': invoice_id})
+            logger.error(json.dumps({
+                'event': 'invoice_receipt_delivery_exhausted', 'invoiceId': invoice_id,
+                'referenceId': reference_id, 'requestId': request_id,
+                'alert': 'RECEIPT_DELIVERY_EXHAUSTED'}))
 
     # ── Step 5: ask for a review, AFTER the invoice and FAIL-OPEN ──
     #
@@ -2670,6 +2693,40 @@ def _generate_invoice_assets(invoice_id: str, request_id: str) -> None:
         logger.info(json.dumps({'event': 'invoice_pdf_triggered', 'invoiceId': invoice_id, 'requestId': request_id}))
     except Exception as e:
         logger.error(json.dumps({'event': 'invoice_pdf_error', 'invoiceId': invoice_id, 'error': str(e), 'requestId': request_id}))
+
+
+#: How many times a captured payment may be REPLAYED to retry a missed receipt delivery before
+#: the capture is allowed to settle and the receipt is quarantined for manual follow-up. Each
+#: Razorpay redelivery of the capture is one attempt. Bounded so a persistently undeliverable
+#: receipt (a number Meta will not message, a permanently rejected template) cannot pin the
+#: money-path lease in an endless replay of an already-finalized payment.
+_RECEIPT_DELIVERY_MAX_ATTEMPTS = 6
+
+
+def _receipt_delivery_should_retry(invoice_id: str, request_id: str) -> bool:
+    """Record one receipt-delivery attempt on the invoice; True while under the retry cap.
+
+    The counter lives on the invoice row (`receiptDispatchAttempts`), incremented with an
+    ADD so a redelivered capture advances it by one. Fails OPEN to retry: if the counter cannot
+    be read/written we return True, because the existing behaviour was to always retry and a
+    storage blip must not be what drops a customer's receipt. It only returns False once the
+    stored count has reached the cap - the one case where continuing to raise would replay a
+    finalized payment forever.
+    """
+    try:
+        updated = dynamodb.Table(INVOICES_TABLE).update_item(
+            Key={'invoiceId': invoice_id},
+            UpdateExpression='ADD receiptDispatchAttempts :one',
+            ExpressionAttributeValues={':one': 1},
+            ReturnValues='UPDATED_NEW',
+        )
+        attempts = int(updated.get('Attributes', {}).get('receiptDispatchAttempts', 1) or 1)
+        return attempts < _RECEIPT_DELIVERY_MAX_ATTEMPTS
+    except Exception as error:  # noqa: BLE001 - fail OPEN toward retrying
+        logger.warning(json.dumps({
+            'event': 'receipt_delivery_attempt_count_unavailable', 'invoiceId': invoice_id,
+            'error': type(error).__name__, 'requestId': request_id}))
+        return True
 
 
 def _deliver_invoice_on_whatsapp(invoice_id: str, contact: str, phone_number_id: str,
