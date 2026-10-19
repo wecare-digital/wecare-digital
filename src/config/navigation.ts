@@ -164,8 +164,6 @@ export const navigationConfig: NavItem[] = [
       { path: '/workspace/platform?view=design-reference', label: 'Design Reference' },
     ],
   },
-  {
-
 ];
 
 // ---------------------------------------------------------------------------
