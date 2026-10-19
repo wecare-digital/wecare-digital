@@ -880,6 +880,9 @@ export default function App ( { Component, pageProps }: AppProps ) {
       push: ( p ) => router.push( p ),
       back: () => router.back(),
       onPushToken: ( token, platform ) => { void registerPushToken( token, platform ); },
+      // Public app shell is white with dark status icons; internal Stack CRM keeps its
+      // established green Android status bar through initCapacitor's default.
+      statusBarBackground: isPublic ? '#ffffff' : '#1a3a2a',
     } );
   }, [] );
 
@@ -1070,11 +1073,11 @@ export default function App ( { Component, pageProps }: AppProps ) {
           <meta name="language" content="English" />
           <meta name="geo.region" content="IN" />
           <meta name="geo.placename" content="India" />
-          <meta name="theme-color" content="#000000" />
+          <meta name="theme-color" content="#ffffff" />
 
           {/* PWA / Mobile App */ }
           <meta name="apple-mobile-web-app-capable" content="yes" />
-          <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+          <meta name="apple-mobile-web-app-status-bar-style" content="default" />
           <meta name="mobile-web-app-capable" content="yes" />
           <link rel="manifest" href="/manifest.json" />
 
