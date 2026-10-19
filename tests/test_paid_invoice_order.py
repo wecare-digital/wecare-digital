@@ -1,5 +1,8 @@
 """A provider-paid manual invoice produces one complete, owned order record."""
 from decimal import Decimal
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent))
 import pytest
 from lambda_utils.ecommerce import paid_invoice_order as subject
 
@@ -102,3 +105,112 @@ def test_only_the_original_contact_can_promote_an_unlinked_order():
     assert orders.get_item(Key={'orderId':linked['orderId']})['Item']['customerId'] == OWNER
     linked['customerId'] = 'another-owner'
     with pytest.raises(ValueError): subject.store(orders=orders, row=linked)
+
+PUBLIC_UUID = 'b5985cda-e76f-4d61-a8a9-97cb0d3225b8'
+
+def test_public_customer_uuid_reaches_order_and_invoice_snapshot():
+    args = inputs()
+    args['contact']['customerUuid'] = PUBLIC_UUID
+    row = subject.build(**args)
+    assert row['customerUuid'] == PUBLIC_UUID
+    assert row['invoiceSnapshot']['customerUuid'] == PUBLIC_UUID
+
+@pytest.mark.parametrize('change', ['currency', 'attempt_owner', 'attempt_contact', 'deleted_contact', 'provider_conflict'])
+def test_projection_refuses_cross_domain_evidence(change):
+    args = inputs()
+    if change == 'currency': args['attempt']['currency'] = 'USD'
+    if change == 'attempt_owner': args['attempt']['customerId'] = 'another-contact'
+    if change == 'attempt_contact': args['attempt']['contactId'] = 'another-contact'
+    if change == 'deleted_contact': args['contact']['deletedAt'] = 100
+    if change == 'provider_conflict': args['outcome']['providerPaymentId'] = 'another-payment'
+    with pytest.raises(ValueError): subject.build(**args)
+
+
+def materialization_tables():
+    from crm_fake_dynamo import FakeDynamo
+    from lambda_utils.ecommerce import order_keys
+    args = inputs()
+    args['contact']['customerUuid'] = PUBLIC_UUID
+    fake = FakeDynamo(keys={'invoices':'invoiceId','items':'itemId','contacts':'id',
+        'attempts':'paymentAttemptId','keys':'orderId','orders':'orderId'},
+        indexes={'invoices':{'referenceId-index':('referenceId', None)}}, base_query_tables={'items'})
+    tables = {name:fake.Table(name) for name in fake.keys}
+    tables['invoices'].put_item(Item=args['invoice'])
+    tables['contacts'].put_item(Item=args['contact'])
+    tables['attempts'].put_item(Item=args['attempt'])
+    tables['items'].put_item(Item={'itemId':'item-1','invoiceId':'inv-1','name':'Goods'})
+    order_keys.reserve_payment_reference(tables['keys'],reference_id='ref-1',payment_attempt_id='attempt-1')
+    order_keys.claim_order_for_payment(tables['keys'],payment_attempt_id='attempt-1',
+        order_id='internal-order-1',provider_transaction_id='pay-1')
+    order_keys.record_order_number_on_claim(tables['keys'],payment_attempt_id='attempt-1',
+        order_number='WD-ORD-ABCD2345')
+    return fake,tables
+
+
+def test_materialization_preserves_claim_and_completes_all_links_on_replay():
+    fake,tables = materialization_tables()
+    first = subject.materialize(**tables,reference_id='ref-1',now=456)
+    assert first['orderId'] == 'internal-order-1'
+    assert first['orderNumber'] == 'WD-ORD-ABCD2345'
+    assert tables['invoices'].get_item(Key={'invoiceId':'inv-1'})['Item']['customerUuid'] == PUBLIC_UUID
+    tables['orders'].update_item(Key={'orderId':first['orderId']},UpdateExpression='SET orderStatus = :s',
+        ExpressionAttributeValues={':s':'shipped'})
+    second = subject.materialize(**tables,reference_id='ref-1',now=789)
+    saved = tables['orders'].get_item(Key={'orderId':first['orderId']})['Item']
+    assert second['orderId'] == first['orderId']
+    assert saved['orderStatus'] == 'shipped'
+    assert len(tables['orders'].rows) == 1
+    assert tables['attempts'].get_item(Key={'paymentAttemptId':'attempt-1'})['Item']['orderId'] == first['orderId']
+
+
+def test_materialization_refuses_missing_order_claim_without_minting_one():
+    fake,tables = materialization_tables()
+    tables['keys'].rows.pop('PAYMENTATTEMPT#attempt-1')
+    with pytest.raises(ValueError): subject.materialize(**tables,reference_id='ref-1',now=456)
+    assert not tables['orders'].rows
+
+
+def test_replay_enriches_legacy_order_and_invoice_without_changing_fulfilment():
+    fake,tables=materialization_tables()
+    subject.materialize(**tables,reference_id='ref-1',now=456)
+    tables['orders'].rows['internal-order-1'].pop('customerUuid')
+    tables['orders'].rows['internal-order-1']['orderStatus']='shipped'
+    tables['invoices'].rows['inv-1'].pop('customerUuid')
+    subject.materialize(**tables,reference_id='ref-1',now=789)
+    assert tables['orders'].rows['internal-order-1']['customerUuid']==PUBLIC_UUID
+    assert tables['orders'].rows['internal-order-1']['orderStatus']=='shipped'
+    assert tables['invoices'].rows['inv-1']['customerUuid']==PUBLIC_UUID
+
+
+def test_account_binding_during_order_insert_is_completed_before_projection_returns(monkeypatch):
+    fake,tables=materialization_tables()
+    tables['contacts'].rows['contact-1'].pop('checkoutCustomerId')
+    original=tables['orders'].put_item
+    def bind_while_inserting(**kw):
+        tables['contacts'].rows['contact-1']['checkoutCustomerId']=OWNER
+        return original(**kw)
+    monkeypatch.setattr(tables['orders'],'put_item',bind_while_inserting)
+    result=subject.materialize(**tables,reference_id='ref-1',now=456)
+    assert result['finalizationStage']=='ORDER_FINALIZED'
+    assert tables['orders'].rows['internal-order-1']['customerId']==OWNER
+
+
+def test_promotion_populates_uuid_on_the_saved_order():
+    args=inputs()
+    args['contact'].pop('checkoutCustomerId')
+    from crm_fake_dynamo import FakeDynamo
+    orders=FakeDynamo(keys={'orders':'orderId'}).Table('orders')
+    subject.store(orders=orders,row=subject.build(**args))
+    linked=inputs();linked['contact']['customerUuid']=PUBLIC_UUID
+    subject.store(orders=orders,row=subject.build(**linked))
+    assert orders.rows['internal-order-1']['customerUuid']==PUBLIC_UUID
+
+
+def test_materialization_carries_contact_and_public_uuid_into_the_payment_attempt():
+    fake,tables=materialization_tables()
+    subject.materialize(**tables,reference_id='ref-1',now=456)
+    saved=tables['attempts'].get_item(Key={'paymentAttemptId':'attempt-1'})['Item']
+    assert saved['contactId']=='contact-1'
+    assert saved['customerUuid']==PUBLIC_UUID
+    # Original financial ownership is preserved; the website binding is on the order.
+    assert saved['customerId']=='contact-1'

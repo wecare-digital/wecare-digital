@@ -4,6 +4,7 @@ A contact's stored checkoutCustomerId is the only website ownership join. A miss
 join leaves a staff-owned order needing linkage; a payer phone never grants access.
 """
 from copy import deepcopy
+from boto3.dynamodb.conditions import Key
 from decimal import Decimal
 from lambda_utils import contact_key, customer_auth
 from lambda_utils.comms.numbers import to_e164
@@ -16,7 +17,13 @@ def build(*, invoice, attempt, contact, outcome, items, now):
     expected = finalization.integer_paise(attempt.get('amountPaise'))
     provider = str(attempt.get('verifiedProviderPaymentId') or '')
     contact_id = contact_key.resolve(contact)
-    if (attempt.get('status') != 'PAYMENT_PAID' or not provider or amount is None
+    if (attempt.get('currency') != 'INR'
+            or invoice.get('currency', 'INR') != 'INR'
+            or contact.get('deletedAt') is not None or bool(contact.get('isDeleted'))
+            or attempt.get('customerId') not in (contact_id, contact.get('checkoutCustomerId'))
+            or attempt.get('contactId') not in (None, '', contact_id)
+            or (outcome.get('providerPaymentId') and outcome['providerPaymentId'] != provider)
+            or attempt.get('status') != 'PAYMENT_PAID' or not provider or amount is None
             or amount <= 0 or amount != expected
             or amount != order_record.paise_from_rupees(invoice.get('total'))
             or attempt.get('referenceId') != invoice.get('referenceId')
@@ -31,6 +38,12 @@ def build(*, invoice, attempt, contact, outcome, items, now):
     if linked and not customer_auth.is_cognito_subject(linked):
         raise ValueError('invalid website customer binding')
     stage = 'ORDER_FINALIZED' if linked else 'NEEDS_CUSTOMER_LINK'
+    public_uuid = customer_uuid.from_contact(attempt) or customer_uuid.from_contact(contact)
+    if invoice.get('customerUuid') and invoice['customerUuid'] != public_uuid:
+        raise ValueError('invoice customer identity does not agree')
+    snapshot = deepcopy(invoice)
+    if public_uuid:
+        snapshot['customerUuid'] = public_uuid
     row = {
         'orderId': outcome['orderId'], 'orderNumber': outcome['orderNumber'],
         'shortId': order_record.short_id(outcome['orderNumber']),
@@ -45,19 +58,10 @@ def build(*, invoice, attempt, contact, outcome, items, now):
         'channel': 'whatsapp', 'source': 'manual', 'checkoutMode': attempt.get('checkoutMode', ''),
         'finalizationStage': stage,
         'createdAt': int(invoice.get('createdAt') or now), 'updatedAt': int(now),
-        'invoiceSnapshot': deepcopy(invoice), 'items': deepcopy(items),
+        'invoiceSnapshot': snapshot, 'items': deepcopy(items),
     }
-    # The PUBLIC customer id, so a WhatsApp order carries the SAME attribution the website leg
-    # writes (`finalization.accept_paid`) and the `/orders` API and staff surfaces can show it.
-    # Preferred off the attempt (stamped from the session-owned contact at reserve time), then
-    # off the contact row. CONDITIONAL and outside every evidence/association comparison: it is
-    # attribution, not money, so a row with no valid public id stays byte-identical to a legacy
-    # row rather than raising. `from_contact` re-validates and never raises, so a junk value
-    # becomes absent instead of poisoning the row.
-    public_customer_id = (customer_uuid.from_contact(attempt)
-                          or customer_uuid.from_contact(contact))
-    if public_customer_id:
-        row[customer_uuid.ATTRIBUTE] = public_customer_id
+    if public_uuid:
+        row['customerUuid'] = public_uuid
     return row
 
 
@@ -65,7 +69,7 @@ def store(*, orders, row):
     """Create once. A replay can only promote the original contact to its verified account."""
     try:
         orders.put_item(Item=row, ConditionExpression='attribute_not_exists(orderId)')
-        return
+        return row
     except Exception as error:
         if not order_keys.is_conditional_failure(error):
             raise
@@ -74,14 +78,103 @@ def store(*, orders, row):
                   'orderNumber', 'amountPaise', 'contactId'):
         if current.get(field) != row.get(field):
             raise ValueError('existing order belongs to another payment')
-    if current.get('customerId') == row['customerId']:
-        return
-    if (current.get('finalizationStage') != 'NEEDS_CUSTOMER_LINK'
-            or current.get('customerId') != row['contactId']
-            or row['finalizationStage'] != 'ORDER_FINALIZED'):
+    same_owner = current.get('customerId') == row['customerId']
+    promoting = (current.get('finalizationStage') == 'NEEDS_CUSTOMER_LINK'
+        and current.get('customerId') == row['contactId']
+        and row['finalizationStage'] == 'ORDER_FINALIZED')
+    if not same_owner and not promoting:
         raise ValueError('existing order belongs to another customer')
+    public_uuid = row.get('customerUuid')
+    if public_uuid and current.get('customerUuid') and current['customerUuid'] != public_uuid:
+        raise ValueError('existing order customer identity disagrees')
+    assignments = []
+    values = {':previous': current['customerId'], ':contact': row['contactId'],
+              ':attempt': row['paymentAttemptId'], ':provider': row['providerPaymentId']}
+    if promoting:
+        assignments.extend(['customerId = :customer', 'finalizationStage = :done'])
+        values.update({':customer': row['customerId'], ':done': 'ORDER_FINALIZED'})
+    if public_uuid and not current.get('customerUuid'):
+        assignments.append('customerUuid = :uuid')
+        values[':uuid'] = public_uuid
+    if not assignments:
+        return current
     orders.update_item(Key={'orderId': row['orderId']},
-        UpdateExpression='SET customerId = :customer, finalizationStage = :stage',
-        ConditionExpression='customerId = :contact AND paymentAttemptId = :attempt',
-        ExpressionAttributeValues={':customer': row['customerId'], ':stage': 'ORDER_FINALIZED',
-            ':contact': row['contactId'], ':attempt': row['paymentAttemptId']})
+        UpdateExpression='SET ' + ', '.join(assignments),
+        ConditionExpression=('customerId = :previous AND contactId = :contact '
+            'AND paymentAttemptId = :attempt AND providerPaymentId = :provider'),
+        ExpressionAttributeValues=values)
+    return orders.get_item(Key={'orderId': row['orderId']}, ConsistentRead=True)['Item']
+
+
+
+def _query_all(table, **kwargs):
+    """Drain pages, including pages whose filters returned no rows."""
+    rows = []
+    while True:
+        page = table.query(**kwargs)
+        rows.extend(page.get('Items') or [])
+        last = page.get('LastEvaluatedKey')
+        if not last:
+            return rows
+        kwargs['ExclusiveStartKey'] = last
+
+
+def materialize(*, invoices, items, contacts, attempts, keys, orders, reference_id, now):
+    """Resume projection from verified stored evidence and an existing claim. No charge/send.
+
+    Accept only a reference, never caller-supplied evidence. Each side effect is
+    repeatable; an interrupted run completes its remaining links on the next call.
+    """
+    reference = order_keys.resolve_payment_reference(keys, reference_id) or {}
+    attempt_id = reference.get('paymentAttemptId')
+    if not attempt_id:
+        raise ValueError('stored payment attempt required')
+    attempt = attempts.get_item(Key={'paymentAttemptId': attempt_id}, ConsistentRead=True).get('Item') or {}
+    claim = order_keys.resolve_order_for_payment(keys, attempt_id) or {}
+    provider = str(attempt.get('verifiedProviderPaymentId') or '')
+    provider_claim = order_keys.resolve_order_for_provider_payment(keys, provider) or {}
+    if (not claim.get('orderIdRef') or not claim.get('orderNumber')
+            or claim.get('paymentAttemptId') != attempt_id
+            or claim.get('providerTransactionId') != provider
+            or provider_claim.get('paymentAttemptId') != attempt_id
+            or provider_claim.get('orderIdRef') != claim['orderIdRef']):
+        raise ValueError('matching existing order and provider claims required')
+    matches = _query_all(invoices, IndexName='referenceId-index',
+        KeyConditionExpression=Key('referenceId').eq(reference_id))
+    if len(matches) != 1:
+        raise ValueError('unique saved invoice required')
+    # The GSI only locates the invoice; the evidence is read consistently from its table.
+    invoice = invoices.get_item(Key={'invoiceId': matches[0]['invoiceId']}, ConsistentRead=True).get('Item') or {}
+    contact = contacts.get_item(Key={'id': invoice.get('contactId', '')}, ConsistentRead=True).get('Item') or {}
+    lines = _query_all(items, KeyConditionExpression=Key('invoiceId').eq(invoice['invoiceId']), ConsistentRead=True)
+    outcome = {'hasOrder': True, 'orderId': claim['orderIdRef'],
+        'orderNumber': claim['orderNumber'], 'providerPaymentId': provider}
+    row = build(invoice=invoice, attempt=attempt, contact=contact, outcome=outcome, items=lines, now=now)
+    row = store(orders=orders, row=row)
+    # A profile can bind the contact after our first read and before this insert.
+    # Rebuild only the ownership projection from a fresh read, retaining the claim.
+    fresh_contact = contacts.get_item(Key={'id': row['contactId']}, ConsistentRead=True).get('Item') or {}
+    if fresh_contact.get('checkoutCustomerId') and fresh_contact.get('checkoutCustomerId') != row['customerId']:
+        row = store(orders=orders, row=build(invoice=invoice, attempt=attempt,
+            contact=fresh_contact, outcome=outcome, items=lines, now=now))
+    attempt_update = ('SET finalizationStage = :stage, orderId = :order, '
+                      'orderNumber = :number, contactId = :contact')
+    attempt_values = {':stage': row['finalizationStage'], ':order': row['orderId'],
+        ':number': row['orderNumber'], ':provider': row['providerPaymentId'],
+        ':amount': row['amountPaise'], ':contact': row['contactId']}
+    if row.get('customerUuid'):
+        attempt_update += ', customerUuid = :uuid'
+        attempt_values[':uuid'] = row['customerUuid']
+    attempts.update_item(Key={'paymentAttemptId': attempt_id},
+        UpdateExpression=attempt_update,
+        ConditionExpression=('verifiedProviderPaymentId = :provider AND verifiedCapturedPaise = :amount '
+            'AND (attribute_not_exists(contactId) OR contactId = :contact)'),
+        ExpressionAttributeValues=attempt_values)
+    values = {':order': row['orderId'], ':number': row['orderNumber'], ':ref': reference_id}
+    expression = 'SET orderId = :order, orderNumber = :number'
+    if row.get('customerUuid'):
+        expression += ', customerUuid = :uuid'
+        values[':uuid'] = row['customerUuid']
+    invoices.update_item(Key={'invoiceId': invoice['invoiceId']}, UpdateExpression=expression,
+        ConditionExpression='referenceId = :ref', ExpressionAttributeValues=values)
+    return {key: row[key] for key in ('orderId', 'orderNumber', 'finalizationStage')}

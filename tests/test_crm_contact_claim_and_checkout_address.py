@@ -183,7 +183,7 @@ def profile(monkeypatch):
     monkeypatch.setenv("APP_ENV", "development")
     h = _load(PROFILE_HANDLER, "customer_profile_claim_under_test")
     fake = FakeDynamo(
-        keys={OTP_TABLE: "grantId", CONTACTS: "id"},
+        keys={OTP_TABLE: "grantId", CONTACTS: "id", "stack-wecare-digital-OrderTable": "orderId"},
         indexes={CONTACTS: {"phone-index": ("phone", None), "email-index": ("email", None)}},
     )
     monkeypatch.setattr(h, "_dynamodb", fake)

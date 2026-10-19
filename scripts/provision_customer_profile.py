@@ -96,6 +96,10 @@ def expected_role_policy(acct=None):
         # record and can neither read the log back nor amend one it already wrote.
         {"Sid":"WriteIdentityClaimAudit","Effect":"Allow","Action":["dynamodb:PutItem"],
          "Resource":[f"arn:aws:dynamodb:{REGION}:{acct}:table/{AUDIT_LOG_TABLE}"]},
+        {"Sid":"DiscoverContactOrders","Effect":"Allow","Action":["dynamodb:Query"],
+         "Resource":[f"arn:aws:dynamodb:{REGION}:{acct}:table/stack-wecare-digital-OrderTable/index/customerPhone"]},
+        {"Sid":"LinkContactOrders","Effect":"Allow","Action":["dynamodb:UpdateItem"],
+         "Resource":[f"arn:aws:dynamodb:{REGION}:{acct}:table/stack-wecare-digital-OrderTable"]},
         # customer_auth.GetUser validates the caller's own access token.
         {"Sid":"ValidateCustomerToken","Effect":"Allow","Action":["cognito-idp:GetUser"],"Resource":["*"]},
     ]}

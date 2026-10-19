@@ -84,24 +84,6 @@
             ]
         },
         {
-            "Name": "\\052.wecare.digital.",
-            "Type": "A",
-            "AliasTarget": {
-                "HostedZoneId": "Z2FDTNDATAQYW2",
-                "DNSName": "d27evp2npt2kzr.cloudfront.net.",
-                "EvaluateTargetHealth": false
-            }
-        },
-        {
-            "Name": "\\052.wecare.digital.",
-            "Type": "AAAA",
-            "AliasTarget": {
-                "HostedZoneId": "Z2FDTNDATAQYW2",
-                "DNSName": "d27evp2npt2kzr.cloudfront.net.",
-                "EvaluateTargetHealth": false
-            }
-        },
-        {
             "Name": "_a6bab3f26842aff9ed68562dfbb31b1b.wecare.digital.",
             "Type": "CNAME",
             "TTL": 300,

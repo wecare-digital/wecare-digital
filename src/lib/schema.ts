@@ -106,10 +106,6 @@ export const ORGANIZATION = {
   description: COMPANY_DESCRIPTION,
   address: POSTAL_ADDRESS,
   geo: GEO,
-  sameAs: [
-    'https://www.linkedin.com/company/wecare-digital',
-    'https://twitter.com/wecaredotdigital',
-  ],
   contactPoint: {
     '@type': 'ContactPoint',
     contactType: 'customer service',

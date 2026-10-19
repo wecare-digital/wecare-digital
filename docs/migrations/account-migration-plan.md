@@ -2,6 +2,13 @@
 
 **Created:** 2026-10-17 · **Status:** plan (not yet executed) · **Author:** DR effort
 
+**Recovery-input update, 2026-10-19:** the owner retired wildcard forwarding.
+The active DNS export now contains 23 records after removing only the wildcard
+A/AAAA aliases to the deleted home-fallback distribution. All other records are
+preserved. See [the retirement record](../execution/wildcard-retirement-20261019.md).
+Rediscover live resources before executing this migration; the retired wildcard
+DNS, distribution and redirect function must not be restored.
+
 > Goal (as stated by the owner): migrate the entire platform from the current
 > production account to the clean account `991322955408`, retire the old account
 > `775261844268` afterward, and keep ongoing cost minimal — WITHOUT ending up with
@@ -35,11 +42,11 @@ parts, all currently in `775261844268`:
 
 | Component | Live resource | Migration difficulty |
 |-----------|---------------|----------------------|
-| Domain `wecare.digital` | registrar + Route53 zone `Z03939753QJGZ6ZD6BXO8` (25 records) | HIGH — registration transfer + zone recreate |
-| DNS zone | 25 records incl. MX, DKIM, DMARC, MTA-STS, SES, `sip`, ACM-validation | HIGH — email + voice + cert trust |
+| Domain `wecare.digital` | registrar + Route53 zone `Z03939753QJGZ6ZD6BXO8` (23 retained records) | HIGH — registration transfer + zone recreate |
+| DNS zone | 23 records incl. MX, DKIM, DMARC, MTA-STS, SES, `sip`, ACM-validation | HIGH — email + voice + cert trust |
 | ACM certificate | `wecare.digital` ISSUED (us-east-1) | certs do NOT transfer — reissue + revalidate |
 | Amplify Hosting | app `d22dm4b0jn71jw` serving `wecare.digital` | new app, reconnect repo, re-add domain |
-| CloudFront | 3 distributions (`*.wecare.digital`, `mta-sts`, media `E2GP22R4BIFGQ3`) | recreate each + new certs |
+| CloudFront | 2 active account-managed distributions (`mta-sts`, media `E2GP22R4BIFGQ3`); home-fallback retired | rediscover before recreating active services + new certs |
 | HTTP API | `zllr9lrg7j` | new API id in the new account — all scripts hardcode the old one |
 | Cognito | pool `us-east-1_cSx0RHCIR` + users | users re-verify; passwords do not transfer |
 | Providers | WhatsApp/Meta WABA, Razorpay, Plivo (`sip`) | re-register webhook URLs; Meta has approval lead time |
@@ -63,13 +70,19 @@ largest piece of engineering in the migration.
    queues → schedules. Use `recover_into_account.py` once the scripts are portable.
 3. **Secrets**: create the ~20 Secrets Manager entries in the new account (values set
    by the owner, never on a command line). The GCP mirror already holds copies.
-4. **Stage the DNS zone** in the new account's Route53 — recreate all 25 records from
-   `docs/migrations/domain/wecare-digital-zone-export.json`, but DO NOT change the
-   registrar's nameservers yet. The staged zone is inert until NS is pointed at it.
+4. **Stage the DNS zone** in the new account's Route53 — use the 23 retained records in
+   `docs/migrations/domain/wecare-digital-zone-export.json` as the baseline. Refresh
+   them against live Route53 and map service targets to the new account's resources
+   before staging. Do not restore the retired `*.wecare.digital` aliases. DO NOT
+   change the registrar's nameservers yet; the staged zone is inert until NS is pointed at it.
 5. **Request a new ACM cert** for `wecare.digital` + `*.wecare.digital` in the new
    account; validate via DNS (add the validation CNAMEs to the staged zone).
+   Wildcard certificate coverage remains separate from retired wildcard DNS routing:
+   preserve coverage for the apex and named services, including MTA-STS.
 6. **Create Amplify Hosting** app in the new account, connect the repo, build.
-7. **Recreate CloudFront** (3 distributions) with the new cert + origins.
+7. **Recreate active CloudFront services** with the new cert + origins: MTA-STS and
+   file serving (2 account-managed distributions at the retirement readback).
+   Rediscover before execution; exclude the retired home-fallback distribution.
    - Rollback for Phase A: nothing to roll back — the old account is untouched and
      still serving all live traffic. The new account is a parallel, dark build.
 
@@ -124,7 +137,8 @@ largest piece of engineering in the migration.
 
 ## 4. What is already done toward this (not just planned)
 
-- Full DNS zone exported and committed (`domain/wecare-digital-zone-export.json`).
+- Retained DNS baseline exported and committed (`domain/wecare-digital-zone-export.json`):
+  23 records, with only the two retired wildcard aliases removed from the active recovery input.
 - Full infra snapshot committed (`docs/execution/infra-snapshot/`): the machine-
   readable definition of 75 Lambdas, 76 tables, the API, queues, roles, secret names.
 - `recover_into_account.py` orchestrator (with the per-script apply-flag fix) — builds

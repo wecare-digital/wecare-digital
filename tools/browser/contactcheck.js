@@ -19,7 +19,10 @@
  *    the page cannot query, style or count what is inside it - which is precisely why
  *    the claim "three always-on controls" needs a tool that CAN. Playwright drives the
  *    browser rather than the page, so it can enter the frame and report what is
- *    actually painted there, and whether the interaction lock leaves it inert.
+ *    actually painted there and which controls remain reachable. Those controls are
+ *    diagnostics: the keyless embed provides no supported way to disable them while
+ *    keeping Google's attribution links reachable. Layout, map imagery and location,
+ *    attribution access and conclusive hit tests remain assertions.
  *
  * Both sections print measurements unconditionally. Assertions are only made about
  * things the repo controls.
@@ -251,6 +254,7 @@ async function inspectMapFrame( page ) {
       lockBottomWithinFrame: Math.round( lr.bottom - fr.top ),
     };
   } );
+  if ( !lock ) return { error: 'keyless interaction lock or map frame not found' };
 
   /**
    * PER-CONTROL COVERAGE. The lock deliberately stops short of the frame's bottom edge
@@ -280,9 +284,10 @@ async function inspectMapFrame( page ) {
       .map( c => ( {
         label: c.label,
         // Frame-relative coords -> page coords, aiming at the middle of the strip of
-        // the control that sits below the lock.
+        // the control that sits below the lock. A control wholly below the lock must
+        // be probed inside its own box, not in the gap above it.
         px: c.x + Math.round( c.w / 2 ),
-        py: lock.lockBottomWithinFrame + Math.max( 1, Math.round( c.exposedPx / 2 ) ),
+        py: ( Math.max( c.y, lock.lockBottomWithinFrame ) + c.y + c.h ) / 2,
       } ) );
 
     const hits = await page.evaluate( probeList => {
@@ -415,7 +420,7 @@ async function main() {
           unexpected.map( control => control.label ).join( ', ' ) || 'none' );
       }
     } else if ( frameInfo.error ) {
-      console.log( `  (could not inspect: ${frameInfo.error})` );
+      record( false, 'map frame inspection completed', frameInfo.error );
     } else {
       const cy = frameInfo.canary;
       if ( cy ) {
@@ -443,14 +448,13 @@ async function main() {
         console.log( `    - ${c.tag.padEnd( 6 )} "${c.label}" ${c.w}x${c.h} at (${c.x},${c.y})  ${state}` );
       }
 
-      // Attribution MUST stay reachable - that is a licence condition, not a control.
-      // Everything else being reachable is a defect, because the map is meant to be a
-      // fixed illustration.
+      // Attribution must stay reachable. The keyless embed controls that share its
+      // footer are provider-owned diagnostics, not an app-controlled requirement.
       const isAttribution = c => /terms|report a map error|open this area/i.test( c.label );
       const exposedControls = frameInfo.controls.filter( c => !c.coveredByLock && !isAttribution( c ) && c.reachesGoogle );
       const attribution = frameInfo.controls.filter( isAttribution );
 
-      record( attribution.length > 0 && attribution.every( c => !c.coveredByLock ),
+      record( attribution.length > 0 && attribution.every( c => !c.coveredByLock && c.reachesGoogle ),
         'Google attribution links remain reachable (licence condition)',
         attribution.map( c => `"${c.label}"` ).join( ', ' ) || 'none found' );
 
@@ -459,11 +463,10 @@ async function main() {
       record( inconclusive.length === 0, 'hit test conclusive for every exposed element',
         inconclusive.length ? `${inconclusive.length} probe(s) hit no element` : 'all probes resolved' );
 
-      record( exposedControls.length === 0,
-        'every Google CONTROL is actually inert',
-        exposedControls.length
-          ? `${exposedControls.length} still reachable: ` + exposedControls.map( c => `"${c.label}" (+${c.exposedPx}px)` ).join( ', ' )
-          : 'all controls sit under the lock' );
+      console.log( '  note  keyless Google controls (provider diagnostic): ' +
+        ( exposedControls.length
+          ? `${exposedControls.length} reachable: ` + exposedControls.map( c => `"${c.label}" (+${c.exposedPx}px)` ).join( ', ' )
+          : 'no exposed controls' ) );
     }
     await context.close();
   } finally {
