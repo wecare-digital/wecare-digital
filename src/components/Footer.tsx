@@ -537,9 +537,9 @@ const Footer: React.FC = () => {
         .ft-footer{padding-top:40px}
         .ft-in{padding:0 20px}
         .ft-grid{flex-direction:column;align-items:flex-start;gap:24px}
-        /* Tagline steps down with the compact wordmark on the phone (18px -> 16px lockup;
-           16px -> 14px here), holding the same one-rung gap it keeps on desktop. */
-        .ft-tagline{font-size:14px}
+        /* App-first public footer: keep the meaningful tagline readable at the same 16px rung
+           on phones instead of shrinking it below the shared mobile body hierarchy. */
+        .ft-tagline{font-size:16px}
       }
     `}</style>
   </footer>
