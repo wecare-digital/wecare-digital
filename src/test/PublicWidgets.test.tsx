@@ -327,7 +327,7 @@ describe( 'support widget wiring', () => {
       layout,
       'Layout.tsx must mark .main-content as no-translate, or the dashboard mount lets an '
       + 'operator machine-translate live customer data'
-    ).toContain( 'className="main-content" data-wc-no-translate="true"' );
+    ).toMatch( /<main[^>]*className="[^"]*\\bmain-content\\b[^"]*"[^>]*data-wc-no-translate="true"/ );
     expect( widget ).toContain( "document.querySelector( '.layout' )" );
     expect( widget ).toContain( "el.dataset.wcNoTranslate === 'true'" );
   } );
