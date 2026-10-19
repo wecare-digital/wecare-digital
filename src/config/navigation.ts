@@ -284,7 +284,6 @@ export const settingsConfig: SettingsGroup[] = [
       { path: '/workspace/communications?view=manage&section=usage', label: 'Cost & Usage' },
       { path: '/workspace/communications?view=manage&section=search', label: 'Message Search' },
       { path: '/workspace/communications?view=manage&section=ai', label: 'Meta AI Agent' },
-      { path: '/workspace/communications?view=manage&section=whatsapp&tool=ai-agent', label: 'AI Agent' },
       { path: '/workspace/communications?view=manage&section=docs', label: 'Docs Scraper' },
       { path: '/workspace/communications?view=manage&section=links', label: 'Short Links' },
     ],
