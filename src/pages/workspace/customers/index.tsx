@@ -53,14 +53,9 @@ const tagLabel = ( tag: string ) => tag.toLowerCase() === 'blog-subscriber' ? 'B
  */
 const COUNTRY_CODES = DIAL_CODES;
 
-type ColumnKey = 'shipping' | 'checkoutAddress' | 'updated' | 'tags';
+type ColumnKey = 'shipping' | 'updated' | 'tags';
 const ALL_COLUMNS: { key: ColumnKey; label: string }[] = [
   { key: 'shipping', label: 'Delivery Address' },
-  // A SECOND address column, not a replacement. See `formatCheckoutAddress`: checkout writes
-  // `checkoutDeliveryAddress` and the CRM only ever read `shippingAddress`, so an address a
-  // customer typed at checkout showed as a dash here. Visible by default, because "it is not in
-  // the CRM" is the reported symptom; it is in the column menu for anyone who wants it hidden.
-  { key: 'checkoutAddress', label: 'Checkout Address' },
   { key: 'updated', label: 'Updated' },
   { key: 'tags', label: 'Tags' },
 ];
@@ -1266,7 +1261,6 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
                       <SortHeader label="Phone" sKey="phone" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                       <SortHeader label="Email" sKey="email" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                       {colVisible('shipping') && <th style={{ padding: '12px 14px', textAlign: 'left', fontSize: 'var(--text-md)', fontWeight: 600, color: '#374151', background: 'var(--bg-secondary)', borderBottom: '2px solid #f3f4f6', position: 'sticky', top: 0, zIndex: 2 }}>Delivery Address</th>}
-                      {colVisible('checkoutAddress') && <th style={{ padding: '12px 14px', textAlign: 'left', fontSize: 'var(--text-md)', fontWeight: 600, color: '#374151', background: 'var(--bg-secondary)', borderBottom: '2px solid #f3f4f6', position: 'sticky', top: 0, zIndex: 2 }}>Checkout Address</th>}
                       {colVisible('updated') && <SortHeader label="Updated" sKey="updatedAt" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
                       {colVisible('tags') && <th style={{ padding: '12px 14px', textAlign: 'left', fontSize: 'var(--text-md)', fontWeight: 600, color: '#374151', background: 'var(--bg-secondary)', borderBottom: '2px solid #f3f4f6', position: 'sticky', top: 0, zIndex: 2 }}>Tags</th>}
                       <th style={{ width: 100, padding: '12px 10px', background: 'var(--bg-secondary)', borderBottom: '2px solid #f3f4f6', position: 'sticky', top: 0, zIndex: 2 }}>Actions</th>
@@ -1296,8 +1290,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
                             <input autoFocus value={inlineEdit.value} onChange={e => setInlineEdit({ ...inlineEdit, value: e.target.value })} onBlur={commitInlineEdit} onKeyDown={e => { if (e.key === 'Enter') commitInlineEdit(); if (e.key === 'Escape') { inlineEditCancelled.current = true; setInlineEdit(null); } }} onClick={e => e.stopPropagation()} style={{ width: '100%', padding: '6px 10px', border: '2px solid var(--accent)', borderRadius: 8, fontSize: 'var(--text-md)', outline: 'none' }} />
                           ) : (c.email || '—')}
                         </td>
-                        {colVisible('shipping') && <td style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--text-md)' }}>{c.shippingAddress || '—'}</td>}
-                        {colVisible('checkoutAddress') && <td title={formatCheckoutAddress(c.checkoutDeliveryAddress)} style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--text-md)' }}>{formatCheckoutAddress(c.checkoutDeliveryAddress) || '—'}</td>}
+                        {colVisible('shipping') && <td title={formatCheckoutAddress(c.checkoutDeliveryAddress) || c.shippingAddress || ''} style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--text-md)' }}>{formatCheckoutAddress(c.checkoutDeliveryAddress) || c.shippingAddress || '—'}</td>}
                         {colVisible('updated') && <td style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }} title={c.updatedAt ? (() => { const n = Number(c.updatedAt); const d = new Date(!isNaN(n) && n < 1e12 ? n * 1000 : (!isNaN(n) ? n : c.updatedAt)); return isNaN(d.getTime()) ? '' : d.toLocaleString(); })() : ''}>{timeAgo(c.updatedAt)}</td>}
                         {colVisible('tags') && (
                           <td style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6' }} onClick={e => e.stopPropagation()}>

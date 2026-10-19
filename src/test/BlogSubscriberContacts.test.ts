@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const contacts = readFileSync(
-  join( __dirname, '..', 'pages', 'workspace', 'contacts', 'index.tsx' ), 'utf8',
+  join( __dirname, '..', 'pages', 'workspace', 'customers', 'index.tsx' ), 'utf8',
 );
 const client = readFileSync(
   join( __dirname, '..', 'api', 'client.ts' ), 'utf8',
@@ -13,7 +13,7 @@ const layout = readFileSync(
   join( __dirname, '..', 'styles', 'Layout.css' ), 'utf8',
 );
 
-describe( 'blog subscribers in Workspace Contacts', () => {
+describe( 'blog subscribers in Workspace Customers', () => {
   it( 'exposes the server verification timestamps through the Contact client model', () => {
     expect( client ).toContain( 'phoneVerifiedAt?: string' );
     expect( client ).toContain( 'emailVerifiedAt?: string' );

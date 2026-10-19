@@ -2,6 +2,11 @@ import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
+const routerPush = vi.fn();
+vi.mock( 'next/router', () => ( {
+  useRouter: () => ( { pathname: '/workspace/customers', query: {}, push: routerPush, replace: vi.fn(), isReady: true } ),
+} ) );
+
 /**
  * THE CONTACTS FORM NOW ACTUALLY WRITES AN ADDRESS, which it never did.
  *
@@ -107,6 +112,25 @@ describe( 'the input that was missing', () => {
     fireEvent.click( await screen.findByRole( 'button', { name: /New Customer|Add Customer|\+ New/i } ) );
     await waitFor( () => expect( screen.getByLabelText( 'Address line 1' ) ).toBeInTheDocument() );
     expect( container.querySelector( 'textarea#contact-address' ) ).toBeNull();
+  } );
+} );
+
+describe( 'manual customer creation does not invent consent', () => {
+  it( 'submits every channel opt-in and allowlist false by default', async () => {
+    await openCreate();
+    fireEvent.change( screen.getByLabelText( 'Name' ), { target: { value: 'Asha Rao' } } );
+    fireEvent.change( screen.getByLabelText( 'Phone' ), { target: { value: '9812345678' } } );
+    fireEvent.click( screen.getByRole( 'button', { name: /^Create|^Save/ } ) );
+
+    await waitFor( () => expect( createContact ).toHaveBeenCalledTimes( 1 ) );
+    expect( createContact.mock.calls[ 0 ][ 0 ] ).toMatchObject( {
+      optInWhatsApp: false,
+      optInSms: false,
+      optInEmail: false,
+      allowlistWhatsApp: false,
+      allowlistSms: false,
+      allowlistEmail: false,
+    } );
   } );
 } );
 
