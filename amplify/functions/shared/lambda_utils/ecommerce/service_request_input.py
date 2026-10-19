@@ -30,7 +30,9 @@ _FINANCIAL_FIELDS = frozenset({
 })
 
 
-def _text(body: Mapping[str, Any], field: str, limit: int) -> Tuple[Optional[str], Optional[Dict[str, str]]]:
+def _text(
+    body: Mapping[str, Any], field: str, limit: int, *, multiline: bool = False
+) -> Tuple[Optional[str], Optional[Dict[str, str]]]:
     raw = body.get(field)
     if not isinstance(raw, str):
         return None, {
@@ -38,7 +40,11 @@ def _text(body: Mapping[str, Any], field: str, limit: int) -> Tuple[Optional[str
             "errorCode": "SERVICE_REQUEST_INPUT_INVALID",
         }
     value = raw.strip()
-    if not value or len(value) > limit or any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
+    invalid_control = any(
+        (ord(ch) < 32 and not (multiline and ch in "\\r\\n\\t")) or ord(ch) == 127
+        for ch in value
+    )
+    if not value or len(value) > limit or invalid_control:
         return None, {
             "error": f"{field} is missing, overlong, or contains control characters",
             "errorCode": "SERVICE_REQUEST_INPUT_INVALID",
@@ -78,7 +84,7 @@ def validate(body: Mapping[str, Any]) -> Tuple[Optional[Dict[str, str]], Optiona
     subject, error = _text(body, "subject", 200)
     if error:
         return None, error
-    description, error = _text(body, "description", 2000)
+    description, error = _text(body, "description", 2000, multiline=True)
     if error:
         return None, error
 
