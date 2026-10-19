@@ -244,14 +244,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             source_ip = (event.get('requestContext', {}).get('identity', {}) or {}).get('sourceIp', 'unknown')
             if _check_rate_limit(source_ip):
                 return cors_response(429, {'error': 'Too many requests. Please try again later.'}, origin)
-            body = json.loads(event.get('body', '{}'))
+            body = json.loads(event.get('body') or '{}')
             return _create(body, request_id, origin)
 
         # PUT [retired public path]/{id}
         if method == 'PUT':
             if not contact_id:
                 return cors_response(400, {'error': 'contactId is required'}, origin)
-            body = json.loads(event.get('body', '{}'))
+            body = json.loads(event.get('body') or '{}')
             return _update(contact_id, body, request_id, origin)
 
         # DELETE [retired public path]/{id}
@@ -755,18 +755,22 @@ def _create(body: Dict[str, Any], request_id: str, origin: str = '') -> Dict[str
 
 def _read_one(contact_id: str, request_id: str, origin: str = '') -> Dict[str, Any]:
     table = dynamodb.Table(CONTACTS_TABLE)
-    resp = table.get_item(Key={'id': contact_id})
-    item = resp.get('Item')
+    item = table.get_item(
+        Key=contact_key.key(contact_id), ConsistentRead=True).get('Item')
 
     if not item:
         return cors_response(404, {'error': 'Contact not found'}, origin)
 
     merged_target = str(item.get('mergedIntoContactId') or '').strip()
-    if item.get('deletedAt') is not None:
-        if not merged_target:
-            return cors_response(404, {'error': 'Contact not found'}, origin)
-        target = table.get_item(Key=contact_key.key(merged_target), ConsistentRead=True).get('Item')
-        if not target or target.get('deletedAt') is not None:
+    merge_state = str(item.get('mergeState') or '').strip().lower()
+    if merge_state == MERGE_COMPLETE and merged_target:
+        target = table.get_item(
+            Key=contact_key.key(merged_target), ConsistentRead=True).get('Item')
+        if (
+            not target
+            or target.get('deletedAt') is not None
+            or str(target.get('mergeState') or '').strip().lower() == MERGE_COMPLETE
+        ):
             return cors_response(409, {
                 'error': 'Merged customer target is unavailable',
                 'errorCode': 'CUSTOMER_MERGE_TARGET_UNAVAILABLE',
@@ -777,8 +781,19 @@ def _read_one(contact_id: str, request_id: str, origin: str = '') -> Dict[str, A
                   targetContactId=merged_target, requestId=request_id)
         return cors_response(200, resolved, origin)
 
+    if item.get('deletedAt') is not None:
+        return cors_response(404, {'error': 'Contact not found'}, origin)
+
     log_event(logger, 'contact_read', contactId=contact_id, requestId=request_id)
     return cors_response(200, _from_dynamo(item), origin)
+
+
+def _active_contact_filter():
+    """Canonical customer rows visible to list/search/count/duplicate fallback."""
+    return (
+        (Attr('deletedAt').not_exists() | Attr('deletedAt').eq(None))
+        & (Attr('mergeState').not_exists() | Attr('mergeState').ne(MERGE_COMPLETE))
+    )
 
 
 # ─── COUNT (lightweight stats) ──────────────────────────────────────────────
@@ -789,7 +804,7 @@ def _count_active(request_id: str, origin: str = '') -> Dict[str, Any]:
     total = 0
     scan_kwargs: Dict[str, Any] = {
         'Select': 'COUNT',
-        'FilterExpression': Attr('deletedAt').not_exists() | Attr('deletedAt').eq(None),
+        'FilterExpression': _active_contact_filter(),
     }
     while True:
         resp = table.scan(**scan_kwargs)
@@ -807,7 +822,7 @@ def _count_active(request_id: str, origin: str = '') -> Dict[str, Any]:
 def _list_all(params: Dict[str, str], request_id: str, origin: str = '') -> Dict[str, Any]:
     """Fix #2: Paginate through ALL DynamoDB results so the frontend gets the complete list."""
     table = dynamodb.Table(CONTACTS_TABLE)
-    filt = Attr('deletedAt').not_exists() | Attr('deletedAt').eq(None)
+    filt = _active_contact_filter()
 
     scan_kwargs: Dict[str, Any] = {'FilterExpression': filt}
 
@@ -857,9 +872,43 @@ def _search(params: Dict[str, str], request_id: str, origin: str = '') -> Dict[s
     return cors_response(200, {'contacts': contacts, 'count': len(contacts)}, origin)
 
 
+def _merged_alias_mutation_refusal(
+    contact_id: str, origin: str = ''
+) -> Optional[Dict[str, Any]]:
+    """Completed merge aliases are immutable provenance; claimed rows stay operational."""
+    try:
+        row = dynamodb.Table(CONTACTS_TABLE).get_item(
+            Key=contact_key.key(contact_id), ConsistentRead=True).get('Item') or {}
+    except Exception as exc:  # noqa: BLE001 - cannot prove this is safe to mutate
+        logger.warning(json.dumps({
+            'event': 'contact_merge_state_unavailable',
+            'contactId': contact_id,
+            'error': type(exc).__name__,
+        }))
+        return cors_response(503, {
+            'error': 'Customer identity state is temporarily unavailable',
+            'errorCode': 'CONTACT_IDENTITY_STATE_UNAVAILABLE',
+            'retryable': True,
+        }, origin)
+
+    target_id = str(row.get('mergedIntoContactId') or '').strip()
+    merge_state = str(row.get('mergeState') or '').strip().lower()
+    if not target_id or merge_state != MERGE_COMPLETE:
+        return None
+    return cors_response(409, {
+        'error': 'Merged customer aliases are immutable; edit the canonical customer instead',
+        'errorCode': 'CONTACT_MERGED',
+        'targetContactId': target_id,
+    }, origin)
+
+
 # ─── UPDATE ─────────────────────────────────────────────────────────────────
 
 def _update(contact_id: str, body: Dict[str, Any], request_id: str, origin: str = '') -> Dict[str, Any]:
+    merged_refusal = _merged_alias_mutation_refusal(contact_id, origin)
+    if merged_refusal:
+        return merged_refusal
+
     # Sanitize user-provided string fields
     body = sanitize_dict(body, ['name', 'shippingAddress', 'billingAddress'], max_length=500)
 
@@ -964,6 +1013,10 @@ DELETE_REFUSED_LOCKED = 'CONTACT_LOCKED'
 
 
 def _delete(contact_id: str, hard: bool, request_id: str, origin: str = '') -> Dict[str, Any]:
+    merged_refusal = _merged_alias_mutation_refusal(contact_id, origin)
+    if merged_refusal:
+        return merged_refusal
+
     # A lock blocks EVERY delete, hard or soft, before anything else.
     lock_refusal = _locked_delete_refusal(contact_id, hard, request_id, origin)
     if lock_refusal is not None:
@@ -987,6 +1040,9 @@ def _lock_contact(contact_id: str, reason: str, request_id: str, origin: str = '
 
     Idempotent: locking an already-locked contact succeeds and refreshes the reason/timestamp.
     """
+    merged_refusal = _merged_alias_mutation_refusal(contact_id, origin)
+    if merged_refusal:
+        return merged_refusal
     reason = (str(reason or 'manual').strip().lower() or 'manual')[:40]
     table = dynamodb.Table(CONTACTS_TABLE)
     try:
@@ -1016,6 +1072,9 @@ def _unlock_contact(contact_id: str, request_id: str, origin: str = '') -> Dict[
     hard-delete guard still prevents destroying a record with payments, so legal retention
     survives an unlock. The unlock is logged with the prior reason for the audit trail.
     """
+    merged_refusal = _merged_alias_mutation_refusal(contact_id, origin)
+    if merged_refusal:
+        return merged_refusal
     table = dynamodb.Table(CONTACTS_TABLE)
     try:
         resp = table.update_item(
@@ -1376,7 +1435,9 @@ def _check_duplicate(phone: Optional[str], email: Optional[str], exclude_id: Opt
                     continue
                 if item.get('deletedAt') is not None:
                     continue
-                return f"Phone {phone} already exists ({item.get('name', 'unnamed')})"
+                if str(item.get('mergeState') or '').strip().lower() == MERGE_COMPLETE:
+                    continue
+                return "A contact with this phone number already exists"
         except Exception as e:
             # GSI may not exist yet — fall through to scan
             logger.warning(f"Phone GSI query failed, falling back to scan: {e}")
@@ -1397,7 +1458,9 @@ def _check_duplicate(phone: Optional[str], email: Optional[str], exclude_id: Opt
                     continue
                 if item.get('deletedAt') is not None:
                     continue
-                return f"Email {email} already exists ({item.get('name', 'unnamed')})"
+                if str(item.get('mergeState') or '').strip().lower() == MERGE_COMPLETE:
+                    continue
+                return "A contact with this email address already exists"
         except Exception as e:
             logger.warning(f"Email GSI query failed, falling back to scan: {e}")
             return _check_duplicate_scan(phone, email, exclude_id)
@@ -1410,12 +1473,13 @@ def _check_duplicate_scan(phone: Optional[str], email: Optional[str], exclude_id
     if not phone and not email:
         return None
     table = dynamodb.Table(CONTACTS_TABLE)
-    filt = Attr('deletedAt').not_exists() | Attr('deletedAt').eq(None)
+    filt = _active_contact_filter()
     scan_kwargs: Dict[str, Any] = {
         'FilterExpression': filt,
-        'ProjectionExpression': '#id, #cid, #ph, #em, #nm',
+        'ProjectionExpression': '#id, #cid, #ph, #em, #ms',
         'ExpressionAttributeNames': {
-            '#id': 'id', '#cid': 'contactId', '#ph': 'phone', '#em': 'email', '#nm': 'name'
+            '#id': 'id', '#cid': 'contactId', '#ph': 'phone', '#em': 'email',
+            '#ms': 'mergeState',
         },
     }
     all_items: List[Dict] = []
@@ -1429,10 +1493,12 @@ def _check_duplicate_scan(phone: Optional[str], email: Optional[str], exclude_id
         item_id = item.get('id') or item.get('contactId')
         if exclude_id and item_id == exclude_id:
             continue
+        if str(item.get('mergeState') or '').strip().lower() == MERGE_COMPLETE:
+            continue
         if phone and item.get('phone') == phone:
-            return f"Phone {phone} already exists ({item.get('name', 'unnamed')})"
+            return "A contact with this phone number already exists"
         if email and item.get('email', '').lower() == email.lower():
-            return f"Email {email} already exists ({item.get('name', 'unnamed')})"
+            return "A contact with this email address already exists"
     return None
 
 
