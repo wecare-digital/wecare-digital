@@ -128,6 +128,9 @@ function statusColor ( status: string ): { bg: string; fg: string } {
   const map: Record<string, { bg: string; fg: string }> = {
     active: { bg: '#dbeafe', fg: '#1e40af' }, fulfilled: { bg: 'var(--lime)', fg: 'var(--accent)' },
     cancelled: { bg: '#fee2e2', fg: '#991b1b' }, pending: { bg: '#fef3c7', fg: '#92400e' },
+    processing: { bg: '#dbeafe', fg: '#1e40af' }, 'partially-shipped': { bg: '#e0e7ff', fg: '#3730a3' },
+    shipped: { bg: '#cffafe', fg: '#155e75' }, completed: { bg: 'var(--lime)', fg: 'var(--accent)' },
+    canceled: { bg: '#fee2e2', fg: '#991b1b' },
     captured: { bg: 'var(--lime)', fg: 'var(--accent)' }, paid: { bg: 'var(--lime)', fg: 'var(--accent)' },
     failed: { bg: '#fee2e2', fg: '#991b1b' }, refunded: { bg: '#f3e8ff', fg: '#6b21a8' },
     open: { bg: '#dbeafe', fg: '#1e40af' }, in_progress: { bg: '#fef3c7', fg: '#92400e' },
@@ -147,7 +150,7 @@ function Badge ( { status }: { status: string } ) {
       fontSize: 'var(--text-xs)', fontWeight: 600, background: c.bg, color: c.fg,
       whiteSpace: 'nowrap', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis',
     } }>
-      { ( status || '—' ).replace( /_/g, ' ' ) }
+      { fulfilmentLabel( status || '—' ) }
     </span>
   );
 }
@@ -323,7 +326,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
           <Select ariaLabel="Source" value={ sourceFilter }
             onChange={ v => { setSourceFilter( v ); setPage( 1 ); } }
             options={ SOURCE_FILTER_OPTIONS } style={ FILTER_STYLE } />
-          <Select ariaLabel="Order status" value={ statusFilter }
+          <Select ariaLabel="Fulfilment status" value={ statusFilter }
             onChange={ v => { setStatusFilter( v ); setPage( 1 ); } }
             options={ STATUS_FILTER_OPTIONS } style={ FILTER_STYLE } />
           <Select ariaLabel="Payment status" value={ paymentFilter }
