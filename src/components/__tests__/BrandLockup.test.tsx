@@ -11,6 +11,28 @@ describe( 'BrandLockup', () => {
     expect( container.querySelector( '.brand-lockup.full' ) ).toBeTruthy();
   } );
 
+
+  it( 'provides larger public header and footer variants while keeping narrow-foldable header fallback', () => {
+    const { container: header } = render( <BrandLockup className="public-header" /> );
+    const headerCss = Array.from( header.querySelectorAll( 'style' ) ).map( node => node.textContent || '' ).join( '\n' );
+
+    expect( headerCss ).toContain( '.brand-lockup.public-header img{height:64px}' );
+    expect( headerCss ).toContain( '.brand-lockup.public-header .brand-copy>span{font-size:24px}' );
+    expect( headerCss ).toContain( '.brand-lockup.public-header img{height:58px}' );
+    expect( headerCss ).toContain( '.brand-lockup.public-header .brand-copy>span{font-size:22px}' );
+    expect( headerCss ).toContain( '@media(max-width:340px)' );
+    expect( headerCss ).toContain( '.brand-lockup.public-header img{height:54px}' );
+    expect( headerCss ).toContain( '.brand-lockup.public-header .brand-copy>span{font-size:21px}' );
+
+    const { container: footer } = render( <BrandLockup compact className="public-footer" /> );
+    const footerCss = Array.from( footer.querySelectorAll( 'style' ) ).map( node => node.textContent || '' ).join( '\n' );
+
+    expect( footerCss ).toContain( '.brand-lockup.public-footer.compact img{height:48px}' );
+    expect( footerCss ).toContain( '.brand-lockup.public-footer.compact .brand-copy>span{font-size:19px}' );
+    expect( footerCss ).toContain( '.brand-lockup.public-footer.compact img{height:44px}' );
+    expect( footerCss ).toContain( '.brand-lockup.public-footer.compact .brand-copy>span{font-size:18px}' );
+  } );
+
   it( 'uses the approved shared logo and wordmark scale, stepping down on mobile', () => {
     const { container } = render( <BrandLockup /> );
     const css = Array.from( container.querySelectorAll( 'style' ) ).map( node => node.textContent || '' ).join( '\n' );
