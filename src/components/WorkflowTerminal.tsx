@@ -82,7 +82,9 @@ interface Line {
 interface Step {
   /** The service that did the work, shown in the call-line pill and the hue rail. */
   service: string;
-  /** The step timing, right-aligned on the "$" call line (stacked under it on mobile). */
+  /** The cumulative ELAPSED time at this step - a monotonically non-decreasing running
+   *  clock across the 13 steps ending at ~2.1s, not a per-step duration - right-aligned on
+   *  the "$" call line (stacked under it on mobile). */
   time: string;
   /** The ordered code/log lines that make up this step. */
   lines: Line[];
@@ -119,9 +121,12 @@ interface Step {
  * a vertical list would have read as five more sequential steps, which is precisely the
  * wrong impression.
  *
- * Nothing here claims a benchmark. The timings are illustrative, the panel is aria-hidden
- * with a static summary that says so, so no assistive technology is told these are
- * measurements.
+ * Nothing here claims a benchmark. The time on each call line reads as CUMULATIVE ELAPSED
+ * time in one trace - a running clock that only ever goes up, from 12ms at the gateway to
+ * ~2.1s at the final verify - rather than an isolated per-step duration, so the numbers add
+ * up as one timeline to a reader who reads them in sequence. They are still illustrative,
+ * the panel is aria-hidden with a static summary that says so, so no assistive technology is
+ * told these are measurements.
  */
 const STEPS: Step[] = [
   {
@@ -129,19 +134,19 @@ const STEPS: Step[] = [
     lines: [
       { type: '$', text: 'gateway.accept  POST /v1/orders  ·  tls=1.3  ·  ap-south-1' },
       { type: '->', text: '200  order=#WD-4821  routed=commerce' },
-      { type: '#', text: 'single hop, terminated at the edge' },
+      { type: '#', text: 'single hop · terminated at edge' },
     ],
   },
   {
-    service: 'auth', time: '31ms',
+    service: 'auth', time: '43ms',
     lines: [
       { type: '$', text: 'auth.verify(token)' },
       { type: '->', text: 'ok  subject=cust_2841  tenant=acct_2841' },
-      { type: '#', text: "one scoped token · later calls can't reach past it" },
+      { type: '#', text: "scoped token · can't reach past grant" },
     ],
   },
   {
-    service: 'contacts', time: '18ms',
+    service: 'contacts', time: '61ms',
     lines: [
       { type: '$', text: 'contacts.get("cust_2841")' },
       { type: '->', text: '1 read  consent=[whatsapp,rcs,sms,email]  voice=off' },
@@ -149,15 +154,15 @@ const STEPS: Step[] = [
     ],
   },
   {
-    service: 'catalog', time: '22ms',
+    service: 'catalog', time: '83ms',
     lines: [
       { type: '$', text: 'catalog.resolve(sku=WD-TEE-01)' },
       { type: '->', text: 'in_stock  price=₹499  meta_sync=ok' },
-      { type: '#', text: 'one catalog · in-app and Meta read the same record' },
+      { type: '#', text: 'catalog: single source · meta-synced' },
     ],
   },
   {
-    service: 'commerce', time: '54ms',
+    service: 'commerce', time: '137ms',
     lines: [
       { type: '$', text: 'order.commit(#WD-4821)  { items: 1 }' },
       { type: '->', text: 'ok  stock −1  state=confirmed' },
@@ -165,7 +170,7 @@ const STEPS: Step[] = [
     ],
   },
   {
-    service: 'payments', time: '240ms',
+    service: 'payments', time: '377ms',
     lines: [
       { type: '$', text: 'payments.capture(#WD-4821)  gateway=razorpay' },
       { type: '->', text: 'paid  invoice=#INV-4821' },
@@ -173,15 +178,15 @@ const STEPS: Step[] = [
     ],
   },
   {
-    service: 'attribution', time: '14ms',
+    service: 'attribution', time: '391ms',
     lines: [
       { type: '$', text: 'attribution.link(#WD-4821)' },
-      { type: '->', text: 'source=meta_ads  campaign=diwali_sale  click=2h ago' },
+      { type: '->', text: 'source=meta_ads  campaign=cat_4471  click=2h ago' },
       { type: 'ai', text: 'order credited to the ad that drove it' },
     ],
   },
   {
-    service: 'ai', time: '420ms',
+    service: 'ai', time: '811ms',
     lines: [
       { type: '$', text: 'ai.generate(intent=order_status, ctx=#WD-4821)' },
       { type: '>', text: 'retrieve kb -> 2 sources' },
@@ -191,7 +196,7 @@ const STEPS: Step[] = [
     ],
   },
   {
-    service: 'messaging', time: '46ms',
+    service: 'messaging', time: '857ms',
     lines: [
       { type: '$', text: 'messaging.dispatch(draft, channels=5)' },
       { type: 'ai', text: 'selected the channels this customer actually uses' },
@@ -203,32 +208,32 @@ const STEPS: Step[] = [
         { name: 'voice', detail: 'skipped · not eligible', on: false },
       ] },
       { type: '->', text: '3 sent · 1 delivered · parallel · each tracked' },
-      { type: '#', text: 'one messaging foundation, five channel options' },
+      { type: '#', text: 'one foundation · five channel options' },
     ],
   },
   {
-    service: 'automation', time: '11ms',
+    service: 'automation', time: '868ms',
     lines: [
       { type: '$', text: 'rules.eval(order=#WD-4821)' },
       { type: '->', text: '1 matched: "post-purchase follow-up"' },
-      { type: '#', text: 'follow-up judged warranted -> scheduled +24h' },
+      { type: '#', text: 'follow-up warranted -> scheduled +24h' },
     ],
   },
   {
-    service: 'queue', time: '1.2s',
+    service: 'queue', time: '2.07s',
     lines: [
       { type: '$', text: 'queue.worker <- email.send' },
       { type: '!', text: '503 provider_unavailable' },
       { type: '->', text: 'backoff 400ms · retry 2/5 · accepted' },
-      { type: '#', text: 'idempotent · delivered once · nothing dropped' },
+      { type: '#', text: 'idempotent · delivered once · 0 dropped' },
     ],
   },
   {
-    service: 'sla', time: '7ms',
+    service: 'sla', time: '2.08s',
     lines: [
       { type: '$', text: 'sla.track(#WD-4821)' },
       { type: '->', text: 'first_response 46ms  target 5m  ·  within SLA' },
-      { type: '#', text: 'every promise is measured, not assumed' },
+      { type: '#', text: 'sla: measured, not assumed' },
     ],
   },
   {
@@ -248,15 +253,17 @@ const STEPS: Step[] = [
 // Per-step dwell: richer steps hold longer so there is time to read them. Keyed off what
 // the step CONTAINS - how many lines, whether it carries the lane box, a rollup or substeps -
 // rather than its index, so reordering STEPS does not silently retime the sequence. Tuned so
-// a full 13-step pass runs roughly 20-24s: the lane step, the verification rollup and the
-// multi-line ai/queue steps hold longest, the plain three-line calls are quickest.
+// a full 13-step pass runs roughly 14-16s: the lane step, the verification rollup and the
+// multi-line ai/queue steps hold longest (>=900ms so they stay readable), the plain
+// three-line calls are quickest. These were ~20-24s and were trimmed down because a 45s
+// two-pass animation dragged; the richest steps stay above 900ms so nothing flashes past.
 const dwell = ( step: Step ): number => {
-  if ( step.lines.some( l => l.type === 'lanes' ) ) return 1700;
-  if ( step.complete || step.lines.some( l => l.type === 'tick' ) ) return 1600;
-  if ( step.lines.some( l => l.type === '>' ) ) return 1450;
-  if ( step.lines.some( l => l.type === '!' ) ) return 1350;
-  if ( step.lines.length >= 4 ) return 1200;
-  return 1000;
+  if ( step.lines.some( l => l.type === 'lanes' ) ) return 1200;
+  if ( step.complete || step.lines.some( l => l.type === 'tick' ) ) return 1150;
+  if ( step.lines.some( l => l.type === '>' ) ) return 1050;
+  if ( step.lines.some( l => l.type === '!' ) ) return 1000;
+  if ( step.lines.length >= 4 ) return 900;
+  return 750;
 };
 
 /**
@@ -280,7 +287,7 @@ const dwell = ( step: Step ): number => {
  * reduced-motion render, and the never-empty invariant is untouched because `shown` never rewinds.
  * Two passes suit the longer 13-step trace: the visitor sees the completed run, then watches it
  * stream through once, which is enough for the point to land without the panel moving for a
- * third pass over a sequence that now runs ~20-24s per pass.
+ * third pass over a sequence that now runs ~14-16s per pass.
  */
 const MAX_CYCLES = 2;
 
@@ -729,7 +736,7 @@ const WorkflowTerminal: React.FC = () => {
 
           IT EXISTS BECAUSE THE LOOP EXISTS. WCAG 2.2.2 requires content that moves
           automatically for more than five seconds to be pausable, stoppable or hideable, and
-          one cycle here runs well over twenty seconds. This is the pause. It is the reason the
+          one cycle here runs well over ten seconds. This is the pause. It is the reason the
           panel is allowed to animate continuously at all, not a convenience bolted on afterwards.
 
           The label is real text rather than an icon glyph, and that is deliberate after the
@@ -1117,7 +1124,7 @@ const WorkflowTerminal: React.FC = () => {
         .wt-call-main{display:inline-flex;align-items:baseline;gap:9px;min-width:0}
         .wt-prompt{flex:0 0 auto;color:rgba(255,255,255,.70)}
         .wt-call-text{color:#fff;font-size:15.5px}
-        /* The step timing. Muted but readable at .70 (~8:1 on #000), right of the call. */
+        /* The cumulative elapsed clock. Muted but readable at .70 (~8:1 on #000), right of the call. */
         .wt-time{flex:0 0 auto;color:rgba(255,255,255,.70);font-size:13.5px}
         /* THE RETURN VALUE. Readable white at .82 (~16:1 on #000) - this is body content, the
            result of the call, so it clears AA comfortably. The "->" glyph takes the step hue. */
