@@ -27,7 +27,10 @@ export function canonicalFulfilmentStatus (
   if ( value === 'active' ) return PAID.has( String( paymentStatus || '' ) ) ? 'processing' : 'pending';
   if ( value === 'pending' || value === 'processing' || value === 'partially-shipped'
     || value === 'shipped' || value === 'completed' || value === 'canceled' ) return value;
-  return PAID.has( String( paymentStatus || '' ) ) ? 'processing' : 'pending';
+  // Unknown/corrupt provider or legacy words must fail closed. Payment evidence does not
+  // prove a fulfilment state; only a recognised lifecycle word (or explicit legacy active)
+  // may enter processing.
+  return 'pending';
 }
 
 export function allowedFulfilmentTargets (
