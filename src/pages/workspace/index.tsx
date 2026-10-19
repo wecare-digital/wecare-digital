@@ -32,8 +32,9 @@ const workspaces = [
   { label: 'Customers', detail: 'Identity, address, consent and customer history', href: '/workspace/customers' },
   { label: 'Communications', detail: 'Inbox and communications management', href: '/workspace/communications' },
   { label: 'Commerce', detail: 'Orders and catalog', href: '/workspace/commerce' },
-  { label: 'Payments', detail: 'Collect and ledger', href: '/workspace/payments' },
+  { label: 'Payments', detail: 'Collect, invoices and activity', href: '/workspace/payments' },
   { label: 'Service', detail: 'Requests, appointments and documents', href: '/workspace/service' },
+  { label: 'Content', detail: 'Blog, production, SEO and short links', href: '/workspace/content' },
   { label: 'Tasks', detail: 'Assignments and follow-ups', href: '/workspace/task' },
 ];
 
