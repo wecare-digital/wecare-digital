@@ -70,8 +70,8 @@ describe( 'Commerce is always available', () => {
     render( <CommercePage embedded /> );
     expect( screen.queryByText( /Commerce module is switched off/i ) ).toBeNull();
     expect( screen.queryByText( /NEXT_PUBLIC_ENABLE_COMMERCE_MODULE/i ) ).toBeNull();
-    expect( screen.getByRole( 'tab', { name: 'Catalog & orders' } ) ).toBeInTheDocument();
-    expect( screen.getByRole( 'tab', { name: 'Commerce engine' } ) ).toBeInTheDocument();
+    expect( screen.getByRole( 'button', { name: 'Orders' } ) ).toBeInTheDocument();
+    expect( screen.getByRole( 'button', { name: 'Catalog' } ) ).toBeInTheDocument();
   } );
 
   it( 'keeps provider names out of the page name and the tab labels', () => {
@@ -81,14 +81,14 @@ describe( 'Commerce is always available', () => {
     // tabs are neutral. (The default Catalog tab also links to the "Commerce" store page,
     // so the page name is asserted on the heading rather than on any matching text.)
     expect( screen.getByRole( 'heading', { level: 1, name: 'Commerce' } ) ).toBeTruthy();
-    // The workspace redesign folded the native Catalog and the Commerce engine into this one
-    // hub as in-page tabs; both labels stay provider-neutral, which is the property asserted.
-    expect( screen.getAllByRole( 'tab' ).map( ( t ) => t.textContent ) )
-      .toEqual( [ 'Catalog & orders', 'Commerce engine' ] );
-    // There is no storefront-connection tab any more: the catalogue is native.
-    expect( screen.queryByRole( 'tab', { name: /Connections/i } ) ).toBeNull();
+    // Commerce now has exactly two operator jobs. Provider mechanics stay inside the
+    // selected resource instead of becoming primary navigation labels.
+    expect( screen.getByRole( 'button', { name: 'Orders' } ) ).toBeInTheDocument();
+    expect( screen.getByRole( 'button', { name: 'Catalog' } ) ).toBeInTheDocument();
+    expect( screen.queryByRole( 'button', { name: /Commerce engine/i } ) ).toBeNull();
+    expect( screen.queryByRole( 'button', { name: /Connections/i } ) ).toBeNull();
     for ( const provider of [ 'Razorpay', 'Google Ads', 'Meta' ] ) {
-      expect( screen.queryByRole( 'tab', { name: new RegExp( provider, 'i' ) } ) ).toBeNull();
+      expect( screen.queryByRole( 'button', { name: new RegExp( provider, 'i' ) } ) ).toBeNull();
     }
   } );
 } );
