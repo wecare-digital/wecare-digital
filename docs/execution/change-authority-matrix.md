@@ -1,5 +1,11 @@
 # Change authority matrix
 
+**Hostname-policy update, 2026-10-19:** the earlier dated entries below remain
+historical evidence. Current wildcard forwarding excludes the two exact names
+listed in [the restoration record](wildcard-restoration-20261019.md). Older
+redirect targets, provider-property descriptions and before-snapshots are not
+current account links or recovery instructions.
+
 ## 2026-10-09 — deep audit and permanent file ownership repair
 
 A0_READ: refreshed origin/stack53ed298e, isolated foreign dirty work, audited76Lambdas,

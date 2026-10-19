@@ -28,10 +28,10 @@ by POST and a rewrite can behave differently per method - `GET /mcp` is 405 whil
 
 CURRENT POLICY: current pages resolve normally. Missing pages return HTTP 404 and the
 shared browser fallback goes home. No individual retired-path redirects are maintained.
-The unused wildcard hosts, including www, are retired. Their expected status 0 records no
-HTTP response; it does not prove NXDOMAIN or distinguish DNS from TLS failure. An HTTP 503
-from an egress proxy remains 503 and fails that expectation. Verify DNS and CloudFront
-retirement separately through their control planes.
+Wildcard home forwarding is restored, with two exact hostname exclusions. Their expected
+status 0 records no HTTP response; it does not prove NXDOMAIN or distinguish DNS from TLS
+failure. An HTTP 503 from an egress proxy remains 503 and fails that expectation. Verify
+the TXT-only exclusions and CloudFront configuration separately through their control planes.
 
 Usage:
     .venv/bin/python scripts/probe_url_host_matrix.py            # human table
@@ -87,8 +87,8 @@ def matrix() -> list[dict]:
 
     # ── hosts ────────────────────────────────────────────────────────────────────────
     rows.append(_row("host", f"{SITE}/", 200, "the canonical home"))
-    # www was retired with the unused wildcard on 2026-10-19. These are negative HTTP
-    # checks against the actual www host, not duplicate probes of the canonical apex.
+    # The owner kept www excluded when restoring the wildcard on 2026-10-19. These are
+    # negative HTTP checks against the excluded host, not probes of the canonical apex.
     rows.append(_row("host", f"{WWW}/", 0, "retired www host has no HTTP service"))
     rows.append(_row("host", f"{WWW}/contact/", 0, "retired www path must not redirect to the apex"))
     rows.append(_row("host", f"{WWW}/blog/", 0, "retired www path, second sample"))
@@ -202,16 +202,18 @@ def matrix() -> list[dict]:
     rows.append(_row("api", f"{SITE}/api/definitely/no/route", 404,
                      "unknown multi-segment API path stays 404"))
 
-    # The owner retired wildcard forwarding on 2026-10-19. These hosts must not serve
-    # HTTP or resume a redirect to home. Status 0 records transport failure only;
-    # the DNS/control-plane retirement check is separate from this HTTP matrix.
+    # The later owner instruction restored wildcard forwarding on 2026-10-19. Allowed
+    # hosts discard the old path/query and reach the fixed canonical home. Exact www
+    # exclusions have TXT-only DNS nodes; their no-response checks remain separate from
+    # authoritative DNS validation and the function's defensive 404 unit tests.
     for host in ('shop', 'store', 'xout', 'release-check-unknown'):
         rows.append(_row('subdomain', f'https://{host}.wecare.digital/old/path?old=1',
-                         0, 'retired wildcard host has no HTTP service'))
+                         200, 'allowed fallback discards path/query and reaches home',
+                         terminal_url=f'{SITE}/'))
     rows.append(_row('subdomain', 'https://www.xout.wecare.digital/old/path?old=1', 0,
                      'retired nested hostname has no HTTP service'))
     rows.append(_row("subdomain", "https://a.b.wecare.digital/", 0,
-                     "retired nested hostname has no HTTP service"))
+                     "nested hostname is outside the one-label wildcard TLS certificate"))
     # mta-sts is the MTA-STS policy endpoint under mode: enforce. Probed at / ONLY, read-only,
     # to confirm nothing about it moved. Its policy path is not touched by this or any probe.
     rows.append(_row("subdomain", "https://mta-sts.wecare.digital/", 403,

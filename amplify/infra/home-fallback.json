@@ -1,0 +1,215 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Wildcard home fallback with two retired hostname exclusions; shared certificate and retained logs remain externally managed.",
+  "Parameters": {
+    "HostedZoneId": {
+      "Type": "AWS::Route53::HostedZone::Id",
+      "Description": "Existing public hosted zone for wecare.digital; preserve all unrelated records."
+    },
+    "CertificateArn": {
+      "Type": "String",
+      "Description": "Existing us-east-1 ACM certificate covering wecare.digital and *.wecare.digital. This stack does not create or delete it.",
+      "AllowedPattern": "^arn:aws:acm:us-east-1:[0-9]{12}:certificate/[0-9a-f-]+$"
+    },
+    "ExistingLogBucketDomain": {
+      "Type": "String",
+      "Description": "DomainName of the retained CloudFront log bucket, with existing ACLs and lifecycle unchanged.",
+      "AllowedPattern": "^[a-z0-9][a-z0-9.-]*[.]s3[.]amazonaws[.]com$"
+    }
+  },
+  "Resources": {
+    "RedirectFunction": {
+      "Type": "AWS::CloudFront::Function",
+      "Properties": {
+        "Name": {
+          "Fn::Sub": "${AWS::StackName}"
+        },
+        "AutoPublish": true,
+        "FunctionConfig": {
+          "Comment": "Excluded hostnames return 404; other wildcard hosts redirect to the canonical home.",
+          "Runtime": "cloudfront-js-2.0"
+        },
+        "FunctionCode": "function handler(event) {\n  var request = event.request || {};\n  var headers = request.headers || {};\n  var host = (headers.host && headers.host.value || '').toLowerCase();\n  host = host.replace(/:\\d+$/, '').replace(/\\.$/, '');\n  var responseHeaders = {\n    'cache-control': {value: 'no-store'},\n    'x-content-type-options': {value: 'nosniff'},\n    'referrer-policy': {value: 'no-referrer'},\n    'content-security-policy': {value: \"default-src 'none'; frame-ancestors 'none'\"}\n  };\n  if (host === 'www.wecare.digital' || host === 'www.xout.wecare.digital') {\n    return {statusCode: 404, statusDescription: 'Not Found', headers: responseHeaders};\n  }\n  responseHeaders.location = {value: 'https://wecare.digital/'};\n  return {statusCode: 302, statusDescription: 'Found', headers: responseHeaders};\n}\n"
+      }
+    },
+    "Distribution": {
+      "Type": "AWS::CloudFront::Distribution",
+      "Properties": {
+        "DistributionConfig": {
+          "Enabled": true,
+          "Comment": "Wildcard home fallback with exact retired-host exclusions",
+          "Aliases": [
+            "*.wecare.digital"
+          ],
+          "IPV6Enabled": true,
+          "HttpVersion": "http2and3",
+          "PriceClass": "PriceClass_100",
+          "Origins": [
+            {
+              "Id": "home",
+              "DomainName": "wecare.digital",
+              "CustomOriginConfig": {
+                "OriginProtocolPolicy": "https-only",
+                "OriginSSLProtocols": [
+                  "TLSv1.2"
+                ]
+              }
+            }
+          ],
+          "DefaultCacheBehavior": {
+            "TargetOriginId": "home",
+            "ViewerProtocolPolicy": "redirect-to-https",
+            "AllowedMethods": [
+              "GET",
+              "HEAD",
+              "OPTIONS"
+            ],
+            "CachedMethods": [
+              "GET",
+              "HEAD"
+            ],
+            "CachePolicyId": "4135ea2d-6df8-44a3-9df3-4b5a84be39ad",
+            "ResponseHeadersPolicyId": "67f7725c-6f97-4210-82d7-5512b31e9d03",
+            "FunctionAssociations": [
+              {
+                "EventType": "viewer-request",
+                "FunctionARN": {
+                  "Fn::GetAtt": [
+                    "RedirectFunction",
+                    "FunctionARN"
+                  ]
+                }
+              }
+            ]
+          },
+          "ViewerCertificate": {
+            "AcmCertificateArn": {
+              "Ref": "CertificateArn"
+            },
+            "SslSupportMethod": "sni-only",
+            "MinimumProtocolVersion": "TLSv1.2_2021"
+          },
+          "Logging": {
+            "Bucket": {
+              "Ref": "ExistingLogBucketDomain"
+            },
+            "IncludeCookies": false,
+            "Prefix": "cloudfront/"
+          }
+        }
+      }
+    },
+    "FallbackDns": {
+      "Type": "AWS::Route53::RecordSetGroup",
+      "Properties": {
+        "HostedZoneId": {
+          "Ref": "HostedZoneId"
+        },
+        "Comment": "Wildcard and xout fallback aliases with TXT-only exclusions; one CloudFormation-owned record group.",
+        "RecordSets": [
+          {
+            "Name": "*.wecare.digital.",
+            "Type": "A",
+            "AliasTarget": {
+              "HostedZoneId": "Z2FDTNDATAQYW2",
+              "DNSName": {
+                "Fn::GetAtt": [
+                  "Distribution",
+                  "DomainName"
+                ]
+              },
+              "EvaluateTargetHealth": false
+            }
+          },
+          {
+            "Name": "*.wecare.digital.",
+            "Type": "AAAA",
+            "AliasTarget": {
+              "HostedZoneId": "Z2FDTNDATAQYW2",
+              "DNSName": {
+                "Fn::GetAtt": [
+                  "Distribution",
+                  "DomainName"
+                ]
+              },
+              "EvaluateTargetHealth": false
+            }
+          },
+          {
+            "Name": "xout.wecare.digital.",
+            "Type": "A",
+            "AliasTarget": {
+              "HostedZoneId": "Z2FDTNDATAQYW2",
+              "DNSName": {
+                "Fn::GetAtt": [
+                  "Distribution",
+                  "DomainName"
+                ]
+              },
+              "EvaluateTargetHealth": false
+            }
+          },
+          {
+            "Name": "xout.wecare.digital.",
+            "Type": "AAAA",
+            "AliasTarget": {
+              "HostedZoneId": "Z2FDTNDATAQYW2",
+              "DNSName": {
+                "Fn::GetAtt": [
+                  "Distribution",
+                  "DomainName"
+                ]
+              },
+              "EvaluateTargetHealth": false
+            }
+          },
+          {
+            "Name": "www.wecare.digital.",
+            "Type": "TXT",
+            "TTL": "300",
+            "ResourceRecords": [
+              "\"retired-host\""
+            ]
+          },
+          {
+            "Name": "www.xout.wecare.digital.",
+            "Type": "TXT",
+            "TTL": "300",
+            "ResourceRecords": [
+              "\"retired-host\""
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "DistributionId": {
+      "Value": {
+        "Ref": "Distribution"
+      },
+      "Description": "Fallback CloudFront distribution ID"
+    },
+    "DistributionDomain": {
+      "Value": {
+        "Fn::GetAtt": [
+          "Distribution",
+          "DomainName"
+        ]
+      },
+      "Description": "New fallback target; never reuse the deleted distribution hostname"
+    },
+    "CertificateArn": {
+      "Description": "Shared certificate retained outside this stack",
+      "Value": {
+        "Ref": "CertificateArn"
+      }
+    },
+    "ExistingLogBucketDomain": {
+      "Description": "Existing log bucket retained outside this stack",
+      "Value": {
+        "Ref": "ExistingLogBucketDomain"
+      }
+    }
+  }
+}
