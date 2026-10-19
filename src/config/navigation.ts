@@ -116,16 +116,13 @@ export const navigationConfig: NavItem[] = [
     ],
   },
   {
-    // Pay Flow + invoice records as in-page tabs on /workspace/pay (FEAT-005: tab bodies
-    // relocated, deep-links are ?tab= queries on the hub).
-    path: '/workspace/pay',
+    // Canonical Payments workspace: Collect for money-moving initiation, Ledger for read/audit.
+    path: '/workspace/payments',
     label: 'Payments',
     icon: 'payment',
     children: [
-      // The ledger: what was billed, paid and delivered. Read-only on purpose -
-      // cancel, delete and resend all move money or message a customer.
-      { path: '/workspace/pay?tab=records', label: 'Invoice records' },
-      { path: '/workspace/pay?tab=flow', label: 'Pay Flow' },
+      { path: '/workspace/payments?view=collect', label: 'Collect' },
+      { path: '/workspace/payments?view=ledger', label: 'Ledger' },
     ],
   },
   {
