@@ -78,20 +78,26 @@ Served as `https://wecare.digital/get/<key>` via CloudFront `E2GP22R4BIFGQ3`
 - `stack-wecare-digital-BulkJobsTable`
 - `stack-wecare-digital-VoiceCalls`
 
-### WhatsApp Phone Numbers
-| Name | Phone | ID |
+### WhatsApp Phone Numbers (Direct API)
+| Name | Phone | Configured Meta phone-number ID |
 |------|-------|-----|
-| WECARE.DIGITAL | +91 93309 94400 | phone-number-id-5e020cecd221429996f6ae721cc42206 |
-| Manish Agarwal | +91 99033 00044 | phone-number-id-abdd81f7bec24ec085a25ab9df6a6f7c |
+| WECARE.DIGITAL | +91 93309 94400 | 1016149501586345 |
+| Manish Agarwal | +91 99033 00044 | 1055232054343117 |
 
 ### WhatsApp Business Accounts (WABA)
-| Name | Meta ID | WABA ID |
-|------|---------|---------|
-| WECARE.DIGITAL | 2094615664435155 | waba-e47d916f3c7a47e1a34a19653893dd4b |
-| Manish Agarwal | 2513394156072604 | waba-dbe343f210204752b74c80a0a59631a6 |
+| Name | Configured Meta WABA ID |
+|------|---------|
+| WECARE.DIGITAL | 2094615664435155 |
+| Manish Agarwal | 2513394156072604 |
 
-The `ID` column above is the AWS-side identifier the code reads; Meta's own WABA id is in the
-`Meta ID` column. Current app connection settings are in
+These are the Meta IDs used by the current Direct API configuration in
+[the WhatsApp backend](amplify/functions/messaging/whatsapp-business-api/handler.py) and
+[calling workspace](src/components/workspace/whatsapp/calling.tsx). The AWS-linked identifiers
+previously listed here are historical: AWS End User Messaging Social returned zero linked
+WABAs in account `775261844268`, region `us-east-1`, on 19 October 2026. That readback concerns
+AWS linkage; the Direct API account configuration is documented separately.
+
+Current app connection settings are in
 [the workspace connection configuration](config/workspace-mcp.json). The
 [webhook audit](docs/webhook-consolidation-audit.md) records the primary WhatsApp app's
 purpose and distinguishes the separate Business Agent app. The five paid services and

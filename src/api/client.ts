@@ -2114,12 +2114,6 @@ export interface TemplateComponent {
   cards?: any[];
 }
 
-// WABA IDs for template fetching
-const WABA_IDS = {
-  'WECARE.DIGITAL': 'waba-e47d916f3c7a47e1a34a19653893dd4b',
-  'Manish Agarwal': 'waba-dbe343f210204752b74c80a0a59631a6',
-};
-
 // listWhatsAppTemplates() and getWhatsAppTemplate() removed — use listTemplates() and getTemplateDetails() instead
 
 /**

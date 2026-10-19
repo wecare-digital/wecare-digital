@@ -6,7 +6,7 @@ from urllib.parse import parse_qsl, urlsplit
 
 ROOT = Path(__file__).parents[1]
 SENSITIVE_QUERY_KEYS = {
-    "token", "access_token", "id_token", "signature", "sig",
+    "token", "preview_token", "access_token", "id_token", "signature", "sig",
     "x-amz-signature", "x-amz-security-token",
 }
 
@@ -30,3 +30,12 @@ def test_public_draft_manifests_do_not_publish_token_bearing_urls():
     for path in sorted((ROOT / "docs/whatsapp/service-flow-drafts").glob("*.json")):
         violations.extend(credential_locations(json.loads(path.read_text()), path.relative_to(ROOT)))
     assert violations == [], "Token-bearing URLs in public draft metadata: " + "; ".join(violations)
+
+
+def test_meta_preview_token_alias_is_reported_without_its_value():
+    manifest = {"flows": [{
+        "previewUrl": "https://example.invalid/preview?preview_token=synthetic-test-value",
+    }]}
+    assert list(credential_locations(manifest, "manifest")) == [
+        "manifest/flows/0/previewUrl: preview_token",
+    ]
