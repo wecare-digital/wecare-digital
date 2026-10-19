@@ -181,6 +181,14 @@ def _body(**overrides) -> dict:
         "items": [{"name": "Service", "amount": 1000.0, "quantity": 1}],
         "gstRate": 18,
         "currency": "INR",
+        # A physical staff collection (pay_flow) now needs a payable delivery address at create
+        # time; these reservation tests are about the GST-number machinery, not the address, so
+        # they carry a valid one. Override via `overrides` to exercise the address gate itself.
+        "addressLine1": "12 MG Road",
+        "city": "Pune",
+        "state": "Maharashtra",
+        "postalCode": "411001",
+        "countryCode": "IN",
     }
     body.update(overrides)
     return body

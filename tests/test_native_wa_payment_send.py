@@ -248,6 +248,29 @@ def test_an_invoice_with_no_reference_is_refused_and_reserves_nothing(engine, fa
     assert lam.invokes == []
 
 
+def test_an_already_captured_invoice_is_refused_even_when_status_lags(engine, fake):
+    """A captured invoice cannot be re-collected, and the guard reads the MONEY, not the document
+    lifecycle.
+
+    A capture writes `paymentStatus='captured'`; the `status='paid'` flip is a separate write and
+    can lag. A guard that read `status` alone would let `send_payment_link` run on an already-paid
+    invoice and overwrite `status` back to `pending_payment` - showing a paid customer a fresh
+    "pay now" request. The ranked `paymentStatus` check refuses anything at or past CAPTURED, so
+    nothing is reserved and nothing is sent."""
+    _seed_invoice(fake, extra={'status': 'pending_payment', 'paymentStatus': 'captured'})
+    lam = _RecordingLambda()
+    resp = _drive(engine, fake, lam)
+
+    assert resp['statusCode'] == 400
+    assert _body(resp)['paymentStatus'] == 'captured'
+    # Fail-closed: no reservation rows, no provider read, no send.
+    assert _rows(fake, order_keys.PAYMENT_REFERENCE_PREFIX) == []
+    assert lam.invokes == []
+    # And the paid invoice is untouched - its status was not reset to pending_payment.
+    assert fake.tables[INVOICES][INVOICE_ID]['status'] == 'pending_payment'
+    assert fake.tables[INVOICES][INVOICE_ID]['paymentStatus'] == 'captured'
+
+
 def test_a_retried_send_reuses_the_same_reference_and_sends_once(engine, fake):
     """T-S2. Resolve-before-generate, and the reason it matters: a new id on retry is a duplicate
     paid order."""

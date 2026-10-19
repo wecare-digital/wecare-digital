@@ -375,9 +375,20 @@ def test_sms_failure_never_breaks_the_call(monkeypatch):
     pa._send_post_call_sms('919876543210', 'uuid-3', 'req-3')  # must not raise
 
 
-def test_disabled_flag_suppresses_sms(monkeypatch):
+def test_post_call_sms_is_always_enabled_regardless_of_env(monkeypatch):
+    """The follow-up is unconditional: the env var no longer disables it.
+
+    A deployment that set POST_CALL_SMS_ENABLED=false used to silently stop every caller
+    getting a follow-up; the flag is now hardcoded on. Loaded fresh with the env explicitly
+    set to 'false' to prove the source ignores it.
+    """
+    monkeypatch.setenv('POST_CALL_SMS_ENABLED', 'false')
+    fresh_spec = importlib.util.spec_from_file_location('plivo_always_on_probe', _HANDLER)
+    fresh = importlib.util.module_from_spec(fresh_spec)
+    fresh_spec.loader.exec_module(fresh)
+    assert fresh.POST_CALL_SMS_ENABLED is True, 'env must not be able to disable the follow-up'
+
     sent = []
-    monkeypatch.setattr(pa, 'POST_CALL_SMS_ENABLED', False)
 
     class FakeLambda:
         def invoke(self, **kw):
@@ -386,5 +397,5 @@ def test_disabled_flag_suppresses_sms(monkeypatch):
     import types
     monkeypatch.setitem(__import__('sys').modules, 'boto3',
                         types.SimpleNamespace(client=lambda *a, **k: FakeLambda()))
-    pa._send_post_call_sms('919876543210', 'uuid-4', 'req-4')
-    assert sent == []
+    fresh._send_post_call_sms('919876543210', 'uuid-4', 'req-4')
+    assert len(sent) == 1, 'an env disable must no longer suppress the follow-up'

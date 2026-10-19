@@ -825,6 +825,21 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
     input_error = _invoice_input_error(body)
     if input_error:
         return _resp(400, {'error': input_error, 'errorCode': 'INVALID_AMOUNT'})
+
+    # ── A physical staff order needs a payable delivery address, refused BEFORE anything is claimed ──
+    #
+    # `goodsType` for a fresh staff collection is forced to `physical-goods` further down, and the
+    # address was previously only checked at `send_payment_link` - so staff could raise a physical
+    # order with no deliverable address and discover it only when trying to collect. Refused HERE,
+    # alongside the coupon/gift-card refusals and before the dedup claim row and
+    # `_get_next_invoice_number`, so a refusal leaves no `claiming` row and burns no GST number.
+    # `entryPoint` is read from the body directly (it is resolved into a local further down, after
+    # this early-refusal group). Digital/service and captured invoices are unaffected.
+    delivery_error = _create_invoice_delivery_error(
+        body, body.get('entryPoint', 'manual'), bool(body.get('amountIsTaxInclusive')))
+    if delivery_error:
+        return delivery_error
+
     payment_id = body.get('paymentId', '')
     table = dynamodb.Table(INVOICES_TABLE)
 
@@ -1703,6 +1718,24 @@ def update_invoice(invoice_id: str, body: Dict, request_id: str) -> Dict:
             'errorCode': 'USE_CREATE',
         })
 
+    # A non-zero `discount` is likewise refused, BEFORE the issued-immutability answer below, so
+    # the reason a client sees is "discounts are retired" rather than the generic immutability
+    # 409 - and so even a hypothetical unissued draft can never carry a client-set discount. The
+    # only discount an invoice holds is the server-computed Delight frozen at creation; manual
+    # entry is retired here exactly as it is in `create_invoice`. A zero is allowed through as a
+    # harmless no-op (a client echoing the stored zero).
+    if 'discount' in body:
+        try:
+            sent_discount = Decimal(str(body.get('discount') or 0))
+        except (InvalidOperation, ValueError, TypeError):
+            sent_discount = Decimal('NaN')
+        if not sent_discount.is_finite() or sent_discount != 0:
+            return _resp(400, {
+                'error': ('Discounts are not editable; eligible orders carry the automatic '
+                          'Delight discount applied by the engine at creation.'),
+                'errorCode': 'MANUAL_DISCOUNTS_RETIRED',
+            })
+
     # ── D5: `status` and `paymentStatus` are not client-writable, on any row state ──
     #
     # Refused BEFORE the row is read, because the answer does not depend on the row. A draft is
@@ -1780,9 +1813,15 @@ def update_invoice(invoice_id: str, body: Dict, request_id: str) -> Dict:
     # refusal above answers before anything reaches here, so there is no state in which a client
     # body can reach either attribute. The financial fields stay listed because a DRAFT is still
     # fully editable - the issued check above is what removes them once a number exists.
+    #
+    # `discount` is NOT in this list: it is server-computed Delight (refused above if a client
+    # sends a non-zero one), never client-writable. On the live path this is doubly protected -
+    # every created invoice is ISSUED (it carries an invoiceNumber), so the immutability guard
+    # above already refuses any amount edit; the Delight figure a reopen needs is the one frozen
+    # on the row at creation, which the cancel + re-raise path reuses verbatim.
     allowed = ['customerName', 'customerPhone', 'paidByPhone', 'customerEmail',
                'shippingAddress', 'billingAddress', 'goodsType',
-               'discount', 'shipping', 'handling', 'gstRate', 'tax', 'convenienceFee', 'total',
+               'shipping', 'handling', 'gstRate', 'tax', 'convenienceFee', 'total',
                'gstin', 'purpose', 'notes', 'subtotal', 'orderId', 'referenceId']
 
     for key in allowed:
@@ -3237,6 +3276,62 @@ def _fetch_payment_configurations(waba_id: str) -> Dict[str, Any]:
     return body if isinstance(body, dict) else {}
 
 
+def _is_physical_staff_collection(entry_point: str, goods_type: str,
+                                  amount_is_tax_inclusive: bool) -> bool:
+    """A fresh staff-raised physical collection that will need a payable delivery address.
+
+    A captured/tax-inclusive invoice (`create_invoice_from_payment`) is NOT included: the money
+    already moved, there is nothing left to deliver-gate, and demanding an address there would
+    refuse a legitimate receipt. Mirrors how `goodsType` itself is derived at create time and how
+    `_payment_delivery_info`/`send_payment_link` treat a staff collection, so the create-time gate
+    and the send-time gate agree on scope.
+    """
+    if amount_is_tax_inclusive:
+        return False
+    if entry_point in ('manual', 'pay_flow', 'whatsapp'):
+        return True
+    return goods_type == 'physical-goods'
+
+
+def _create_invoice_delivery_error(body: Dict, entry_point: str,
+                                   amount_is_tax_inclusive: bool) -> Optional[Dict]:
+    """Refuse a physical staff invoice with no payable delivery address, BEFORE a number is minted.
+
+    Returns a `_resp(400, ...)` dict to return, or None to proceed. The address is read from the
+    create BODY (the invoice row does not exist yet), validated through the same
+    `payment_address` checks the WhatsApp send path uses, so a physical order that could never be
+    shipped/settled is refused at creation rather than after a GST number is consumed and only
+    discovered at `send_payment_link`. Completeness is checked first so a blank address is a
+    DELIVERY_REQUIRED (missing) rather than an INVALID_PIN (malformed). Digital/service and
+    captured invoices pass straight through.
+    """
+    goods_type = body.get('goodsType', 'digital-goods')
+    if not _is_physical_staff_collection(entry_point, goods_type, amount_is_tax_inclusive):
+        return None
+    address = {
+        'addressLine1': str(body.get('addressLine1') or '').strip(),
+        'addressLine2': str(body.get('addressLine2') or '').strip(),
+        'city': str(body.get('city') or '').strip(),
+        'state': str(body.get('state') or '').strip(),
+        'postalCode': str(body.get('postalCode') or '').strip(),
+        'countryCode': str(body.get('countryCode') or 'IN').upper(),
+    }
+    try:
+        for key in ('addressLine1', 'city', 'state', 'postalCode'):
+            if not address[key]:
+                raise payment_address.UnpayableAddress('DELIVERY_REQUIRED', key)
+        payment_address.assert_payable(
+            address, channel=payment_address.WHATSAPP_ORDER_DETAILS)
+    except payment_address.UnpayableAddress as exc:
+        return _resp(400, {
+            'error': ('A physical order needs a complete, payable delivery address before it '
+                      'can be raised. Nothing has been charged and no invoice was created.'),
+            'errorCode': exc.code,
+            'field': exc.field,
+        })
+    return None
+
+
 def _payment_delivery_info(invoice: Dict, contact: Optional[Dict], phone: str) -> Optional[Dict]:
     """Validate delivery before reserving a physical payment; never collect it after pricing."""
     staff_collection = invoice.get('entryPoint') in ('manual', 'pay_flow', 'whatsapp')
@@ -3280,10 +3375,25 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
     if not invoice:
         return _resp(404, {'error': 'Invoice not found'})
 
-    # Don't send payment link for already paid/cancelled invoices
+    # Don't send payment link for already paid/cancelled invoices.
+    #
+    # Two fields, checked both ways on purpose. `status` is the document lifecycle; the ranked
+    # `paymentStatus` is what the MONEY did. A capture writes `paymentStatus='captured'`, and if
+    # `status` was not also flipped to `'paid'` (a divergence the cancel path documents), a guard
+    # that read `status` alone would let this function run on an already-paid invoice and overwrite
+    # `status` back to `pending_payment` - showing a paid customer a fresh "pay now" request. The
+    # ranked check refuses anything at or past CAPTURED (captured/paid/refunded/disputed) exactly
+    # as the reconciliation paths do, so the paid state is preserved regardless of which field
+    # carries it.
     status = invoice.get('status', '')
     if status in ('paid', 'cancelled'):
         return _resp(400, {'error': f'Invoice is {status}, cannot send payment link'})
+    current_ps = invoice.get('paymentStatus', '')
+    if pay_status.rank(current_ps) >= pay_status.STATUS_RANK[pay_status.CAPTURED]:
+        return _resp(400, {
+            'error': 'Invoice is already paid; cannot send a payment request.',
+            'paymentStatus': pay_status.canonical(current_ps),
+        })
 
     customer_phone = invoice.get('customerPhone', '')
     if not customer_phone:
