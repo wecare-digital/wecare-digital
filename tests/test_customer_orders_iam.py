@@ -178,9 +178,9 @@ def test_the_policys_index_name_equals_the_handlers_constant(provisioner):
     name = provisioner.ORDERS_BY_CUSTOMER_INDEX
     assert f'"ORDERS_BY_CUSTOMER_INDEX", "{name}"' in source, (
         f"the handler does not default ORDERS_BY_CUSTOMER_INDEX to {name!r}")
-    # The handler's DEFAULT stays v1, because the serving index is still v1 and a default is what
-    # answers when the env var is absent. The repoint is a deliberate, separately-gated step.
-    assert provisioner.SERVING_INDEX == name
+    # The legacy handler fallback stays v1; explicit provisioned configuration preserves
+    # the completed v2 migration, after normal provisioning waits for both indexes.
+    assert provisioner.SERVING_INDEX == provisioner.ORDERS_BY_CUSTOMER_INDEX_V2
     granted = [resource for statement in _statements(provisioner)
                for resource in statement["Resource"] if "OrderTable" in resource]
     assert granted == [f"arn:aws:dynamodb:us-east-1:{ACCOUNT}:table/"
@@ -262,14 +262,12 @@ def test_the_second_index_projects_the_first_plus_channel_and_customer_uuid(prov
         assert key not in projection["NonKeyAttributes"]
 
 
-def test_the_env_repoint_is_deferred_behind_an_active_check(provisioner):
-    """`SERVING_INDEX` is still v1 and the move is its own command. A Query against a CREATING
-    index raises ResourceNotFoundException, which this handler answers with a 503 and no partial
-    list - so a repoint performed a moment early takes every order history down for a backfill."""
-    assert provisioner.SERVING_INDEX == provisioner.ORDERS_BY_CUSTOMER_INDEX
+def test_completed_migration_stays_on_v2_and_explicit_repoint_checks_active(provisioner):
+    """Provisioning preserves v2 after migration; an explicit repoint still checks ACTIVE."""
+    assert provisioner.SERVING_INDEX == provisioner.ORDERS_BY_CUSTOMER_INDEX_V2
     assert (provisioner.expected_environment()["ORDERS_BY_CUSTOMER_INDEX"]
-            == provisioner.ORDERS_BY_CUSTOMER_INDEX)
-    # The override exists, and it is the only way the v2 name reaches the environment.
+            == provisioner.ORDERS_BY_CUSTOMER_INDEX_V2)
+    # Explicit selection remains available for the independently gated migration command.
     assert (provisioner.expected_environment(
         provisioner.ORDERS_BY_CUSTOMER_INDEX_V2)["ORDERS_BY_CUSTOMER_INDEX"]
         == provisioner.ORDERS_BY_CUSTOMER_INDEX_V2)
