@@ -16,9 +16,14 @@ import { useToastContext } from '../../../contexts/ToastContext';
 import * as api from '../../../api/client';
 import type { ApiFailure } from '../../../api/client';
 import ErrorState from '../../../components/ErrorState';
+import {
+  allowedFulfilmentTargets,
+  canonicalFulfilmentStatus,
+  fulfilmentLabel,
+} from '../../../lib/orderFulfilment';
 
 const PAGE_SIZE = 20;
-const ORDER_STATUSES = [ 'active', 'fulfilled', 'cancelled' ];
+const ORDER_STATUSES = [ 'pending', 'processing', 'partially-shipped', 'shipped', 'completed', 'canceled' ];
 const PAYMENT_STATUSES = [ 'pending', 'captured', 'failed', 'refunded' ];
 const SOURCES = [ 'manual', 'flow', 'catalog', 'integration' ];
 const SUBMISSION_STATUSES = [ 'open', 'in_progress', 'resolved', 'closed', 'cancelled' ];
@@ -33,15 +38,14 @@ const SOURCE_FILTER_OPTIONS: SelectOption[] = [
   ...SOURCES.map( s => ( { value: s, label: s } ) ),
 ];
 const STATUS_FILTER_OPTIONS: SelectOption[] = [
-  { value: '', label: 'All Statuses' },
-  ...ORDER_STATUSES.map( s => ( { value: s, label: s } ) ),
+  { value: '', label: 'All fulfilment' },
+  ...ORDER_STATUSES.map( value => ( { value, label: fulfilmentLabel( value ) } ) ),
 ];
 const PAYMENT_FILTER_OPTIONS: SelectOption[] = [
   { value: '', label: 'All Payments' },
   ...PAYMENT_STATUSES.map( s => ( { value: s, label: s } ) ),
 ];
 const SOURCE_OPTIONS: SelectOption[] = SOURCES.map( s => ( { value: s, label: s } ) );
-const ORDER_STATUS_OPTIONS: SelectOption[] = ORDER_STATUSES.map( s => ( { value: s, label: s } ) );
 const SUBMISSION_STATUS_OPTIONS: SelectOption[] = SUBMISSION_STATUSES.map(
   s => ( { value: s, label: s.replace( /_/g, ' ' ) } )
 );
@@ -96,6 +100,19 @@ function formatDate ( ts?: number ): string {
   if ( !ts ) return '—';
   const d = new Date( ts < 1e12 ? ts * 1000 : ts );
   return d.toLocaleDateString( 'en-IN', { day: 'numeric', month: 'short', year: '2-digit' } );
+}
+
+function orderFulfilment ( order: api.Order ): string {
+  return canonicalFulfilmentStatus( order.fulfillmentStatus || order.orderStatus || order.status, order.paymentStatus );
+}
+
+function fulfilmentOptions ( order: api.Order ): SelectOption[] {
+  const current = orderFulfilment( order );
+  return [
+    { value: current, label: fulfilmentLabel( current ), disabled: true },
+    ...allowedFulfilmentTargets( current, order.paymentStatus )
+      .map( value => ( { value, label: fulfilmentLabel( value ) } ) ),
+  ];
 }
 
 function formatDateTime ( ts?: number ): string {
@@ -194,7 +211,6 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
     setLoading( true );
     // A failed load must read as an error, not an empty "No orders found" table.
     const { data, failures } = await api.collectApiFailures( () => api.listOrders( {
-      status: statusFilter || undefined,
       source: sourceFilter || undefined,
       search: search || undefined,
     } ) );
@@ -202,7 +218,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
     setOrders( rows );
     setFailure( rows.length === 0 && failures.length ? failures[ 0 ] : null );
     setLoading( false );
-  }, [ statusFilter, sourceFilter, search, toast ] );
+  }, [ sourceFilter, search, toast ] );
 
   useEffect( () => { loadOrders(); }, [ loadOrders ] );
 
@@ -254,7 +270,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
       customerPhone: createForm.customerPhone,
       source: createForm.source,
       notes: createForm.notes,
-      status: 'active',
+      status: 'pending',
       paymentStatus: 'pending',
     } );
     if ( order )
@@ -271,9 +287,10 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
 
   const filtered = useMemo( () => {
     let result = orders;
+    if ( statusFilter ) result = result.filter( order => orderFulfilment( order ) === statusFilter );
     if ( paymentFilter ) result = result.filter( o => o.paymentStatus === paymentFilter );
     return result;
-  }, [ orders, paymentFilter ] );
+  }, [ orders, statusFilter, paymentFilter ] );
 
   const totalPages = Math.ceil( filtered.length / PAGE_SIZE );
   const paged = filtered.slice( ( page - 1 ) * PAGE_SIZE, page * PAGE_SIZE );
@@ -353,7 +370,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
                         </td>
                         <td style={ tdStyle }><Badge status={ order.source } /></td>
                         <td style={ { ...tdStyle, fontSize: 'var(--text-sm)' } }>{ order.itemCount ?? order.items?.length ?? '—' }</td>
-                        <td style={ tdStyle }><Badge status={ order.status } /></td>
+                        <td style={ tdStyle }><Badge status={ orderFulfilment( order ) } /></td>
                         <td style={ tdStyle }><Badge status={ order.paymentStatus } /></td>
                         <td style={ { ...tdStyle, fontSize: 'var(--text-sm)', textAlign: 'center' } }>{ order.requestCount ?? '—' }</td>
                       </tr>
@@ -420,7 +437,7 @@ const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoad
       <div style={ { marginBottom: 24 } }>
         <div style={ { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 } }>
           <span style={ { fontSize: 22, fontWeight: 700, fontFamily: 'monospace', color: 'var(--accent)' } }>{ short }</span>
-          <Badge status={ order.status } />
+          <Badge status={ orderFulfilment( order ) } />
           <Badge status={ order.paymentStatus } />
         </div>
 
@@ -437,9 +454,11 @@ const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoad
         {/* Status controls */ }
         <div style={ { display: 'flex', gap: 12, padding: 12, background: 'var(--bg-secondary)', borderRadius: 8 } }>
           { /* SHAPE (a) - wrapping <label> deleted, label passed. */ }
-          <Select label="Order Status" value={ order.status }
+          <Select label="Fulfilment" value={ orderFulfilment( order ) }
             onChange={ v => onStatusUpdate( order.orderId, v ) }
-            options={ ORDER_STATUS_OPTIONS } style={ DETAIL_SELECT_STYLE } />
+            options={ fulfilmentOptions( order ) }
+            disabled={ allowedFulfilmentTargets( orderFulfilment( order ), order.paymentStatus ).length === 0 }
+            style={ DETAIL_SELECT_STYLE } />
         </div>
       </div>
 
