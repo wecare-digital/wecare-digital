@@ -148,6 +148,29 @@ const dwell = ( step: Step ): number => {
 };
 
 /**
+ * HOW MANY COMPLETED RUNS BEFORE THE LOOP STOPS ON ITS OWN.
+ *
+ * The panel used to loop forever, which is the WCAG 2.2.2 case the Pause control exists to
+ * answer. Stopping on the finished state after a few passes is strictly better for 2.2.2 - the
+ * motion ends by itself, well before "forever" - while keeping the control working during the
+ * passes. Three is enough for the point to land (a visitor sees a completed run, then watches it
+ * replay twice) without becoming perpetual. One named const so the count is easy to retune.
+ *
+ * COUNTING, because the off-by-one is not obvious. `cycle` starts at 0 and is bumped once per
+ * RESTART, so it counts restarts, not passes. The visitor's FIRST completed run is the static
+ * finished state the panel renders on load and holds for 3.2s during the cycle-0 effect run -
+ * see the resumeRef note: "a visitor therefore reads a completed run first". So:
+ *   cycle 0  -> 1st completed run (the initial static hold)        -> restart -> cycle 1
+ *   cycle 1  -> 2nd completed run (first streamed replay)          -> restart -> cycle 2
+ *   cycle 2  -> 3rd completed run (second streamed replay)         -> STOP, hold the finished state
+ * Three completed runs land when cycle reaches MAX_CYCLES - 1, so the end-of-pass branch restarts
+ * only while cycle < MAX_CYCLES - 1. At cycle === MAX_CYCLES - 1 it leaves `done` true and does not
+ * bump `cycle`, so the panel holds the finished state - byte-identical to the initial and
+ * reduced-motion render, and the never-empty invariant is untouched because `shown` never rewinds.
+ */
+const MAX_CYCLES = 3;
+
+/**
  * Is this document in a tab nobody can see?
  *
  * visibilityState === 'hidden', NOT document.hidden, and the difference is not pedantry.
@@ -193,6 +216,13 @@ const WorkflowTerminal: React.FC = () => {
    * what re-enters the stepping effect for another pass. */
   const [ paused, setPaused ] = useState( false );
   const [ cycle, setCycle ] = useState( 0 );
+  /* The loop now stops on its own after MAX_CYCLES completed runs - see the const. `stopped`
+   * marks that natural end so the control can relabel to "Replay" and start a fresh capped run
+   * rather than sit inert on a panel that will never move again. It is NOT in the stepping
+   * effect's dependency list on purpose: it is set from a timeout callback (like setDone and
+   * setCycle beside it) and read only by the control and the render, so it drives no extra
+   * re-run of the effect and needs no exhaustive-deps suppression. */
+  const [ stopped, setStopped ] = useState( false );
   const [ run, setRun ] = useState( false );
   /* Tab-level visibility, the one thing other than Pause that stops the stepper. It is not a
    * reader-facing state: nobody is looking at a hidden tab, so stopping there is invisible,
@@ -315,6 +345,18 @@ const WorkflowTerminal: React.FC = () => {
       resumeRef.current = index;
       if ( index >= STEPS.length ) {
         setDone( true );
+        /* THE LOOP STOPS HERE ONCE IT HAS SHOWN MAX_CYCLES COMPLETED RUNS. `cycle` counts
+         * restarts and the initial static complete state is the first completed run (cycle 0),
+         * so the third run lands when cycle reaches MAX_CYCLES - 1 - see the const's counting
+         * note for the full off-by-one. At that point we schedule NO restart: `done` stays true,
+         * `cycle` is not bumped, and the finished state holds. No timer is left pending, so the
+         * cancelled/clearTimeout cleanup stays correct. `stopped` flips the control to "Replay".
+         * The never-empty invariant is preserved: `shown` was never rewound, so all eight rows
+         * remain mounted and settled - the exact frame of the initial and reduced-motion render. */
+        if ( cycle >= MAX_CYCLES - 1 ) {
+          setStopped( true );
+          return;
+        }
         /*
          * IT LOOPS AGAIN, ON OWNER INSTRUCTION - BUT NOT THE LOOP THAT WAS REMOVED.
          *
@@ -392,6 +434,24 @@ const WorkflowTerminal: React.FC = () => {
    * it becomes the restart bug recorded above.
    */
   const togglePlay = () => {
+    /* REPLAY AFTER A NATURAL STOP. Once the loop has stopped on its own the control is not a
+     * Pause/Play toggle any more - there is nothing running to pause and `paused` is false - so
+     * a plain toggle would only PAUSE a stopped machine and leave the button inert. Instead the
+     * control reads "Replay" and this branch starts a fresh capped run: rewind the frontier the
+     * same way the paused-at-end Play branch below does, clear `stopped`, and reset the pass
+     * counter by setting `cycle` back to 0. The cycle change re-enters the stepping effect and
+     * plays another MAX_CYCLES-run sequence from the top. `paused` is left false, so the run
+     * begins at once. `followRef` is deliberately not written here - the same react-hooks
+     * immutability rule that keeps it out of the end-of-pass restart (see that note) applies, and
+     * the follow effect reclaims the frontier on the next settle regardless. */
+    if ( stopped ) {
+      resumeRef.current = 0;
+      setDone( false );
+      setSettled( -1 );
+      setStopped( false );
+      setCycle( 0 );
+      return;
+    }
     if ( paused && ( done || resumeRef.current >= STEPS.length || settled >= STEPS.length - 1 ) ) {
       resumeRef.current = 0;
       setDone( false );
@@ -568,12 +628,18 @@ const WorkflowTerminal: React.FC = () => {
       { run && (
         <button
           type="button"
-          className={ `wt-play ${paused ? 'is-paused' : ''}`.trim() }
+          /* THREE LABELS, ONE CONTROL. Pause while playing, Play while paused mid-run, and
+             Replay once the loop has stopped on its own after MAX_CYCLES. The triangle mark is
+             shown for both Play and Replay (is-paused), because both start motion; only the
+             running state shows the two pause bars. aria-pressed is a toggle state and only
+             means something for Pause/Play, so it is false at the natural stop where the control
+             is a one-shot Replay rather than a toggle. */
+          className={ `wt-play ${( paused || stopped ) ? 'is-paused' : ''}`.trim() }
           onClick={ togglePlay }
-          aria-pressed={ paused }
+          aria-pressed={ stopped ? false : paused }
         >
           <span className="wt-play-mark" aria-hidden="true" />
-          { paused ? 'Play' : 'Pause' }
+          { stopped ? 'Replay' : ( paused ? 'Play' : 'Pause' ) }
           <span className="wt-sr-only"> the illustration of a customer request</span>
         </button>
       ) }
