@@ -47,7 +47,7 @@ export default function ClosingBand( { id, eyebrow, title, lead, points, href, a
           background:var(--public-lime-tint);
         }
         .cb-eyebrow{
-          margin:0 0 14px;font-size:12px;font-weight:700;
+          margin:0 0 14px;font-size:14px;font-weight:700;
           letter-spacing:.08em;text-transform:uppercase;color:var(--public-brand-green);
         }
         .cb-title{
