@@ -386,8 +386,8 @@ const WorkflowTerminal: React.FC = () => {
         setDone( true );
         /* THE LOOP STOPS HERE ONCE IT HAS SHOWN MAX_CYCLES COMPLETED RUNS. `cycle` counts
          * restarts and the initial static complete state is the first completed run (cycle 0),
-         * so the third run lands when cycle reaches MAX_CYCLES - 1 - see the const's counting
-         * note for the full off-by-one. At that point we schedule NO restart: `done` stays true,
+         * so the second (final) run lands when cycle reaches MAX_CYCLES - 1 - see the const's
+         * counting note for the full off-by-one. At that point we schedule NO restart: `done` stays true,
          * `cycle` is not bumped, and the finished state holds. No timer is left pending, so the
          * cancelled/clearTimeout cleanup stays correct. `stopped` flips the control to "Replay".
          * The never-empty invariant is preserved: `shown` was never rewound, so all ten rows
