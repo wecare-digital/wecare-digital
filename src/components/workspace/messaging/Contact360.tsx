@@ -130,7 +130,7 @@ const Contact360: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                                             <span key={ t } className="c3-count" style={ { color: TYPE_STYLE[ t ].fg, background: TYPE_STYLE[ t ].bg } }>{ counts[ t ] || 0 } { t }</span>
                                         ) ) }
                                     </div>
-                                    <Link href="/workspace/engage/inbox" className="c3-open">Open inbox →</Link>
+                                    <Link href={ `/workspace/communications?view=inbox&contact=${encodeURIComponent( contact.contactId )}` } className="c3-open">Open inbox →</Link>
                                 </div>
                                 <div className="c3-feed">
                                     { loading ? <div className="c3-empty">Loading…</div> :
