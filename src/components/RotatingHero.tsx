@@ -341,6 +341,7 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
            fixed for. */
         @media(max-width:400px){
           .rh-head{font-size:32px}
+          .rh-shell.uses-mobile-foundation .rh-head{font-size:32px}
         }
         /* 280px - Galaxy Fold, folded - still overflowed 7px at 32px, so the step needed a
            second rung rather than a bigger guess. Derived instead of tried: the widest phrase
@@ -350,9 +351,11 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
            longer phrase being added later, and 280px is the narrowest device that ships. */
         @media(max-width:340px){
           .rh-head{font-size:28px}
+          .rh-shell.uses-mobile-foundation .rh-head{font-size:28px}
         }
         @media(max-width:300px){
           .rh-head.has-prefix{font-size:26px}
+          .rh-shell.uses-mobile-foundation .rh-head.has-prefix{font-size:26px}
         }
         @media(max-width:480px){
         }
