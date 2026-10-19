@@ -38,7 +38,7 @@ from boto3.dynamodb.conditions import Key, Attr
 from botocore.exceptions import ClientError
 
 from lambda_utils import contact_store, flow_completion, flow_records, media_paths, shared_tables
-from lambda_utils.ecommerce import order_record
+from lambda_utils.ecommerce import order_patch, order_record
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -215,42 +215,65 @@ def _create_order(body: Dict) -> Dict:
 
 def _update_order(order_id: str, body: Dict) -> Dict:
     table = dynamodb.Table(ORDERS_TABLE)
-    updates = {}
-    for field in ['orderStatus', 'status', 'paymentStatus', 'adminNotes', 'notes', 'fulfillmentStatus']:
-        if field in body:
-            key = 'orderStatus' if field == 'status' else ('adminNotes' if field == 'notes' else field)
-            updates[key] = body[field]
-    if 'orderStatus' in updates:
-        # Both spellings are read; keep them equal so no reader sees a stale one.
-        updates['status'] = updates['orderStatus']
+    current = table.get_item(Key={'orderId': order_id}, ConsistentRead=True).get('Item')
+    if not current:
+        return _resp(404, {'error': 'Order not found'})
+
+    updates, error = order_patch.validate_order_patch(current, body)
+    if error:
+        conflict_codes = {
+            'ORDER_STATUS_REVIEW_REQUIRED',
+            'ORDER_STATUS_TRANSITION_INVALID',
+            'ORDER_PAYMENT_NOT_CAPTURED',
+            'PAID_ORDER_CANCEL_REQUIRES_WORKFLOW',
+        }
+        return _resp(409 if error.get('errorCode') in conflict_codes else 400, error)
+
+    assert updates is not None
+    status_mutation = 'orderStatus' in updates
     updates['updatedAt'] = _now()
 
     expr_parts = []
     expr_values = {}
     expr_names = {}
-    for i, (k, v) in enumerate(updates.items()):
+    for i, (key, value) in enumerate(updates.items()):
         alias = f'#f{i}'
         val_alias = f':v{i}'
         expr_parts.append(f'{alias} = {val_alias}')
-        expr_names[alias] = k
-        expr_values[val_alias] = v
+        expr_names[alias] = key
+        expr_values[val_alias] = value
+
+    # A status decision is based on the row read above. Guard both the stored fulfilment word
+    # and payment word so a concurrent webhook/capture/refund cannot race this PATCH and leave
+    # a transition that was legal only against stale state.
+    condition_parts = ['attribute_exists(orderId)']
+    if status_mutation:
+        for guard_name, field in (('status', 'orderStatus'), ('payment', 'paymentStatus')):
+            alias = f'#guard_{guard_name}'
+            expr_names[alias] = field
+            if field in current:
+                value_alias = f':guard_{guard_name}'
+                expr_values[value_alias] = current.get(field)
+                condition_parts.append(f'{alias} = {value_alias}')
+            else:
+                condition_parts.append(f'attribute_not_exists({alias})')
 
     try:
         table.update_item(
             Key={'orderId': order_id},
             UpdateExpression='SET ' + ', '.join(expr_parts),
-            # UpdateItem upserts: without this a PATCH to a mistyped id would create a phantom
-            # order row with only these fields on it.
-            ConditionExpression='attribute_exists(orderId)',
+            ConditionExpression=' AND '.join(condition_parts),
             ExpressionAttributeNames=expr_names,
             ExpressionAttributeValues=expr_values,
         )
     except ClientError as exc:
         if exc.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
-            return _resp(404, {'error': 'Order not found'})
+            return _resp(409, {
+                'error': 'Order changed while it was being updated; reload and retry',
+                'errorCode': 'ORDER_PATCH_STALE',
+            })
         raise
     return _resp(200, {'updated': True, 'orderId': order_id})
-
 
 def _get_order_submissions(order_id: str) -> Dict:
     table = dynamodb.Table(FLOW_SUBMISSIONS_TABLE)
