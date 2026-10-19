@@ -245,7 +245,11 @@ def _update_order(order_id: str, body: Dict) -> Dict:
 
     assert updates is not None
     status_mutation = 'orderStatus' in updates
-    updates['updatedAt'] = _now()
+    tracking_mutation = 'trackingSource' in updates
+    now = _now()
+    updates['updatedAt'] = now
+    if tracking_mutation:
+        updates['trackingUpdatedAt'] = now
 
     expr_parts = []
     expr_values = {}
@@ -267,6 +271,23 @@ def _update_order(order_id: str, body: Dict) -> Dict:
             ('fulfilment_status', 'fulfillmentStatus'),
             ('status_alias', 'status'),
             ('payment', 'paymentStatus'),
+        ):
+            alias = f'#guard_{guard_name}'
+            expr_names[alias] = field
+            if field in current:
+                value_alias = f':guard_{guard_name}'
+                expr_values[value_alias] = current.get(field)
+                condition_parts.append(f'{alias} = {value_alias}')
+            else:
+                condition_parts.append(f'attribute_not_exists({alias})')
+
+    if tracking_mutation:
+        for guard_name, field in (
+            ('carrier_name', 'carrierName'),
+            ('tracking_number', 'trackingNumber'),
+            ('tracking_url', 'trackingUrl'),
+            ('tracking_source', 'trackingSource'),
+            ('tracking_updated_at', 'trackingUpdatedAt'),
         ):
             alias = f'#guard_{guard_name}'
             expr_names[alias] = field

@@ -5584,6 +5584,12 @@ export interface Order {
   notes?: string;
   adminNotes?: string;
   invoiceId?: string;
+  /** Operator-entered shipment metadata. No courier/provider sync is implied. */
+  carrierName?: string;
+  trackingNumber?: string;
+  trackingUrl?: string;
+  trackingSource?: string;
+  trackingUpdatedAt?: number;
   createdAt: number;
   updatedAt?: number;
   syncedAt?: number;
@@ -5639,6 +5645,10 @@ export interface OrderPatch {
   fulfillmentStatus?: string;
   adminNotes?: string;
   notes?: string;
+  /** Manual shipment metadata only; tracking provenance/timestamps remain server-owned. */
+  carrierName?: string;
+  trackingNumber?: string;
+  trackingUrl?: string;
 }
 
 export async function updateOrder ( orderId: string, updates: OrderPatch ): Promise<boolean> {
