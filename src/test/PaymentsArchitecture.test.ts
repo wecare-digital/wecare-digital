@@ -15,11 +15,13 @@ describe( 'canonical Payments architecture', () => {
     expect( tabBlock ).not.toContain( 'Ledger' );
   } );
 
-  it( 'keeps the embedded PayFlow on Collect rather than restoring its mini CRM', () => {
+  it( 'keeps PayFlow to Collect and operational Invoices rather than restoring its mini CRM', () => {
     const tabBlock = payFlow.slice( payFlow.indexOf( 'const TABS' ), payFlow.indexOf( 'const CFG_KEY' ) );
     const labels = [ ...tabBlock.matchAll( /label: '([^']+)'/g ) ].map( m => m[ 1 ] );
-    expect( labels ).toEqual( [ 'Collect' ] );
-    expect( payFlow ).toContain( "useState( 'create' )" );
+    expect( labels ).toEqual( [ 'Collect', 'Invoices' ] );
+    expect( labels ).not.toContain( 'Customers' );
+    expect( labels ).not.toContain( 'Dues' );
+    expect( labels ).not.toContain( 'Config' );
     expect( payFlow ).toContain( 'showChrome={ !embedded }' );
   } );
 
@@ -33,7 +35,7 @@ describe( 'canonical Payments architecture', () => {
     expect( payFlow ).not.toContain( 'calcSubtotal()' );
     expect( payFlow ).not.toContain( 'calcTax()' );
     expect( payFlow ).not.toContain( '>Preview</h4>' );
-    expect( payFlow ).toContain( 'calculated and stored by the invoice engine' );
+    expect( payFlow ).toContain( 'calculated by the server when the invoice is created' );
   } );
 
   it( 'labels Activity as latest stored state rather than inventing an event stream', () => {

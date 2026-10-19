@@ -14,7 +14,7 @@ import {
   contactDeliveryAddress, formatAddress, type AddressFormFields,
 } from '../../../lib/address-format';
 
-interface PP { signOut?: () => void; user?: any; embedded?: boolean; }
+interface PP { signOut?: () => void; user?: any; embedded?: boolean; mode?: 'collect' | 'invoices'; }
 interface FC { default_gst_rate: number; default_shipping: number; gstin: string; default_item_name: string; purposes: string[]; }
 interface IR { name: string; unitPrice: string; quantity: string; gstRate: string; }
 
@@ -53,6 +53,7 @@ const EMPTY_INV = { items: [ NEW_ITEM() ] as IR[], shipping: '0', purpose: DEFAU
 const DEF_CFG: FC = { default_gst_rate: 18, default_shipping: 0, gstin: DEFAULT_GSTIN || '19AAFFW7196L1Z8', default_item_name: 'Services/Goods', purposes: [ DEFAULT_BRAND ] };
 const TABS: ShellTab[] = [
   { id: 'create', label: 'Collect' },
+  { id: 'invoices', label: 'Invoices' },
 ];
 const CFG_KEY = 'wecare_flow_config';
 const loadSavedConfig = (): FC => {
@@ -175,9 +176,10 @@ const AddressFieldGroup: React.FC<{
 };
 
 /* ── Component ── */
-const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
+const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' } ) => {
   const router = useRouter();
-  const [ flowTab, setFlowTab ] = useState( 'create' );
+  const [ flowTab, setFlowTab ] = useState( mode === 'invoices' ? 'invoices' : 'create' );
+  const activeFlowTab = embedded ? ( mode === 'invoices' ? 'invoices' : 'create' ) : flowTab;
   const [ openingCreated, setOpeningCreated ] = useState( false );
   const [ customers, setCustomers ] = useState<Contact[]>( [] );
   const [ custSearch, setCustSearch ] = useState( '' );
@@ -548,7 +550,17 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
 
   /* ═══ RENDER ═══ */
   const shellContent = (
-    <PageShell title="Collect payment" subtitle="Create a server-authoritative invoice and optionally send its payment request." tabs={ TABS } activeTab={ flowTab } onTabChange={ setFlowTab } defaultTab="create" showChrome={ !embedded }>
+    <PageShell
+      title={ activeFlowTab === 'invoices' ? 'Invoices' : 'Collect payment' }
+      subtitle={ activeFlowTab === 'invoices'
+        ? 'Invoice records, payment actions, delivery evidence and fulfilment.'
+        : 'Create a server-authoritative invoice and optionally send its payment request.' }
+      tabs={ TABS }
+      activeTab={ activeFlowTab }
+      onTabChange={ setFlowTab }
+      defaultTab={ activeFlowTab }
+      showChrome={ !embedded }
+    >
       { ( activeTab ) => (
         <div className="inner-page">
           { msg && <div className={ `msg-bar ${msg.type}` } style={ { margin: '0 0 16px' } }>{ msg.text }<button onClick={ () => setMsg( null ) } style={ { background: 'none', border: 'none', cursor: 'pointer', marginLeft: 8 } }>{ '\u2715' }</button></div> }
@@ -744,7 +756,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                     <div className="msg-bar error" style={ { margin: '0 0 12px', fontSize: 'var(--text-xs)' } }>Physical goods require a shipping address. Add one in the Customers tab.</div>
                   ) }
                   <div className="info-banner" style={ { marginBottom: 20, maxWidth: 620 } }>
-                    Final subtotal, tax, Delight, convenience fee and total are calculated and stored by the invoice engine after creation.
+                    Convenience fee and final total are calculated by the server when the invoice is created. The stored invoice is the authority for subtotal, tax, Delight and total.
                   </div>
 
                   {/* Post-payment messaging options */ }
