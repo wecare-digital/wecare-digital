@@ -14,9 +14,9 @@
  * signpost keeps every one of those landing on the inbox instead of a 404.
  *
  * What still needs the inbox to RENDER is untouched: FEAT-003 folded the WhatsApp inbox
- * into the WhatsApp hub as its `inbox` tab (its body now lives at
+ * into the Communications WhatsApp management as its `inbox` tab (its body now lives at
  * src/components/workspace/whatsapp/inbox.tsx, which src/test/CssDrivenMotion.test.tsx reads,
- * not this file), and the `communications` module home names /workspace/engage/whatsapp/settings
+ * not this file), and the `communications` module home names /workspace/communications?view=manage&section=whatsapp
  * — the WhatsApp Business hub — instead of this URL.
  *
  * Follows the precedents in src/pages/workspace/admin/index.tsx,

@@ -22,8 +22,8 @@ const WabaUsernamesSignpost = () => {
 
   useEffect( () => {
     // replace, not push: leaving a signpost in history makes Back bounce forward again.
-    // FEAT-005: BSUID & Usernames is a tab on the WhatsApp hub now; forward to that hub tab.
-    router.replace( '/workspace/engage/whatsapp/settings?tab=bsuid' );
+    // FEAT-005: BSUID & Usernames is a tab on the Communications WhatsApp management now; forward to that hub tab.
+    router.replace( '/workspace/communications?view=manage&section=whatsapp&tool=bsuid' );
   }, [ router ] );
 
   return null;
