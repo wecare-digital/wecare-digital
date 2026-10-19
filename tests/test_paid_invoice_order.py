@@ -115,11 +115,12 @@ def test_public_customer_uuid_reaches_order_and_invoice_snapshot():
     assert row['customerUuid'] == PUBLIC_UUID
     assert row['invoiceSnapshot']['customerUuid'] == PUBLIC_UUID
 
-@pytest.mark.parametrize('change', ['currency', 'attempt_owner', 'deleted_contact', 'provider_conflict'])
+@pytest.mark.parametrize('change', ['currency', 'attempt_owner', 'attempt_contact', 'deleted_contact', 'provider_conflict'])
 def test_projection_refuses_cross_domain_evidence(change):
     args = inputs()
     if change == 'currency': args['attempt']['currency'] = 'USD'
     if change == 'attempt_owner': args['attempt']['customerId'] = 'another-contact'
+    if change == 'attempt_contact': args['attempt']['contactId'] = 'another-contact'
     if change == 'deleted_contact': args['contact']['deletedAt'] = 100
     if change == 'provider_conflict': args['outcome']['providerPaymentId'] = 'another-payment'
     with pytest.raises(ValueError): subject.build(**args)

@@ -21,6 +21,7 @@ def build(*, invoice, attempt, contact, outcome, items, now):
             or invoice.get('currency', 'INR') != 'INR'
             or contact.get('deletedAt') is not None or bool(contact.get('isDeleted'))
             or attempt.get('customerId') not in (contact_id, contact.get('checkoutCustomerId'))
+            or attempt.get('contactId') not in (None, '', contact_id)
             or (outcome.get('providerPaymentId') and outcome['providerPaymentId'] != provider)
             or attempt.get('status') != 'PAYMENT_PAID' or not provider or amount is None
             or amount <= 0 or amount != expected
