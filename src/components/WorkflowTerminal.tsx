@@ -815,7 +815,7 @@ const WorkflowTerminal: React.FC = () => {
         </div>
 
         <div className="wt-space">
-          <div className="wt-request"><span className="wt-caret">›</span><span>One request. Intelligence at every decision.</span></div>
+          <div className="wt-request"><span className="wt-caret">›</span><span>One request. Superintelligence behind every decision.</span></div>
 
           <div ref={ streamRef }>
             { visible.map( ( step, i ) => {
