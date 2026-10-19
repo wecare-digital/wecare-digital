@@ -1177,8 +1177,11 @@ const WorkflowTerminal: React.FC = () => {
         .wt-return .wt-glyph{flex:0 0 auto;color:var(--ink);font-weight:600}
         .wt-return .wt-line-text{color:rgba(255,255,255,.82);font-size:14.5px}
         /* THE NOTE / COMMENT. Muted on purpose - it is the aside, not the event - but still at
-           .70 (~8:1 on #000), well clear of AA, so it is legible rather than a bare pass. */
-        .wt-note .wt-glyph{flex:0 0 auto;color:rgba(255,255,255,.52)}
+           .70 (~8:1 on #000), well clear of AA, so it is legible rather than a bare pass. The
+           "#" prefix glyph was raised from .52 (nearly invisible) to .62 (~10:1 on #000) so the
+           structural mark reads - still a touch dimmer than its own .70 note text, keeping the
+           glyph-below-text hierarchy, by OPACITY ONLY (no new colour). */
+        .wt-note .wt-glyph{flex:0 0 auto;color:rgba(255,255,255,.62)}
         .wt-note .wt-line-text{color:rgba(255,255,255,.70);font-size:14px}
         /* THE SUBSTEP (step 13, ai, compose). Muted-ish white .72 (~8.6:1 on #000), the ">"
            glyph in the step hue so it reads as nested under the call. */
@@ -1201,19 +1204,22 @@ const WorkflowTerminal: React.FC = () => {
         .wt-rollup-item{display:inline-flex;align-items:baseline;gap:5px;color:rgba(255,255,255,.82);font-size:14px}
         .wt-rollup-tick{color:#d1f470;font-weight:700}
 
-        /* CONCURRENCY, SHOWN AS COLUMNS. auto-fit rather than a fixed count so the lanes wrap
-           cleanly instead of overflowing - they still read as simultaneous, which a horizontal
-           scrollbar would destroy. Reasoned at the breakpoints (the panel's inner width is the
-           viewport minus the page gutters and the panel's own side padding; browser probes
-           cannot run here so this is by arithmetic):
-             320px  phone: inner ~= 248px -> floor(248/108) = 2 per row, 3 rows, no overflow.
-             375px  phone: inner ~= 303px -> 2 per row, 3 rows, no overflow.
-             768px+ panel full width: 5 fit on one row with room to spare.
-           auto-fit means no row ever exceeds the track count that fits, so there is never a
-           whole-page horizontal scroll; the worst case is 2-per-row on the narrowest phone,
-           which still reads as parallel tracks. white-space is reset to normal so the lane
-           details can wrap inside their cells rather than forcing the grid wide. */
-        .wt-lanes{margin:2px 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(108px,1fr));gap:8px;white-space:normal}
+        /* CONCURRENCY, SHOWN AS COLUMNS. The five channel lanes read as simultaneous tracks, so
+           the arrangement is set INTENTIONALLY per breakpoint rather than left to auto-fit. An
+           earlier auto-fit(minmax(108px,1fr)) version fit only two columns on a 320px phone
+           (inner ~= 248px), which wrapped the five lanes as 2+2+1 and orphaned the fifth lane in
+           a half-empty last row - that read as "broken", and the longest detail (whatsapp's
+           "delivered · pay-link") could clip at 108px. The fix:
+             <=767px (all phones): a SINGLE column (1fr). Each of the five lanes is a clean
+               full-width row - no orphan, nothing clips, and a vertical list of five reads fine
+               on the narrowest phone.
+             >=768px (panel has room): all five on ONE row via repeat(5,1fr), so they stay 5-across
+               at 768/1024/1280. The home-flow grid collapses to one column at 1024px, which only
+               gives the panel MORE width, so five-across holds there too.
+           A fixed column count per breakpoint means no row is ever orphaned and there is never a
+           whole-page horizontal scroll. white-space is reset to normal so the lane details can
+           wrap inside their cells rather than forcing the grid wide. */
+        .wt-lanes{margin:2px 0;display:grid;grid-template-columns:repeat(5,1fr);gap:8px;white-space:normal}
         .wt-lane{padding:9px 10px;background:rgba(255,255,255,.04);border:1px solid rgba(209,244,112,.22);border-radius:6px;display:flex;flex-direction:column;gap:3px}
         /* A short lime rule at the top of each lane, so the five read as parallel tracks
            starting together rather than as five unrelated cards. */
@@ -1260,6 +1266,11 @@ const WorkflowTerminal: React.FC = () => {
           .wt-space{padding:23px 18px 60px}
           .wt-bar-state{display:none}
           .wt-step{padding-left:29px}
+          /* ONE LANE PER ROW ON PHONES. Five across only fits where the panel is full width
+             (>=768px). On a phone the five-across default would shrink each track below its
+             content; a single column gives each of the five lanes a clean full-width row with
+             no orphaned last cell and no clipping of the longest detail. */
+          .wt-lanes{grid-template-columns:1fr}
           /* STACK THE STEP TIME UNDER THE $ LINE. On a phone the call text needs the full
              measure, so the time drops below it rather than squeezing the call. The call row
              switches from a space-between row to a column, and the time aligns to the start
