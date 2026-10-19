@@ -526,7 +526,7 @@ const Header: React.FC = () => {
               `.kiro/steering/grahak-os-design.md`. */}
           {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
           <a href="/" className="logo" aria-label="WECARE.DIGITAL home">
-            <BrandLockup />
+            <BrandLockup className="public-header" />
           </a>
           <div className="nav-dropdown" ref={ rootRef }>
             {/* This must stay the FIRST button in the header. Header.test.tsx reaches
