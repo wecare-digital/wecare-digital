@@ -996,15 +996,27 @@ const WorkflowTerminal: React.FC = () => {
            glyphs in the panel at 12.5px and read as "less" next to the enlarged rows, so they
            go to 13.5px - still a compact badge below .wt-name and .wt-desc, now legible. The
            hue note above is unchanged: colour lives on the pill fill/border, the text stays
-           solid white at maximum contrast. */
-        .wt-svc{padding:2px 7px;border-radius:4px;background:rgba(var(--rgb),.20);border:1px solid rgba(var(--rgb),.60);color:#fff;font-size:13.5px;letter-spacing:.02em}
+           solid white at maximum contrast.
+           BADGE-WEIGHT EVEN-OUT: fill .20 -> .26, border .60 -> .70 (applied uniformly, still
+           keyed off the step's own var(--rgb) - deliberately NOT special-cased per hue, which
+           would be fragile). On the pure #000 panel a .20 fill of the two low-luminance inks
+           (blue 37,99,235 and purple 152,73,232) composited very dark and the pill read as a
+           faint badge, while the lime/amber pills read strong - inconsistent weight across the
+           eight steps. The small uniform alpha lift makes the fill/border read as a badge of
+           consistent weight across all five hues without inventing any new colour and without
+           touching the white label (kept #fff for max contrast - the text was never the issue).
+           Kept modest on purpose so the pill stays a subtle badge below the step name, not a
+           loud chip that competes with .wt-name. */
+        .wt-svc{padding:2px 7px;border-radius:4px;background:rgba(var(--rgb),.26);border:1px solid rgba(var(--rgb),.70);color:#fff;font-size:13.5px;letter-spacing:.02em}
         /* .wt-name is the per-step heading (the step title, e.g. "Request accepted").
            SIZED 16px/600, back to the pre-#904 value. #904 bumped it 16px -> 18px, but the
            owner reported the heading "looks very big, not matching with the site": at 18px it
            read as a full section heading rather than a step label, out of keeping with the
            site's restrained scale (public card titles 22px/700, body 20px, while this dark mock
            panel deliberately runs its own smaller compact scale). It still stays the LARGEST
-           glyph in the panel - 16px sits above .wt-desc 15.5px and .wt-cmd/.wt-lane-name 15px -
+           glyph in the prose hierarchy - 16px sits above .wt-desc 15.5px and .wt-lane-name 15px
+           (the monospace .wt-cmd code line is now also 16px, but it is a bordered code box in a
+           different font-family, not a competing heading - see the .wt-cmd note below) -
            and its 600 weight plus solid white keeps a clear step down to the muted .74 sub-line,
            so the heading/subtext hierarchy restored in commit 57ef2daa is preserved. Colour
            stays #fff (21:1 on the #000 panel). .wt-head keeps min-height:20px + align-items:
@@ -1078,7 +1090,18 @@ const WorkflowTerminal: React.FC = () => {
            the #fff name while remaining well clear of AA 4.5:1 on #000. Size stays 15.5px. */
         .wt-desc{max-width:780px;margin:7px 0 0;color:rgba(255,255,255,.74);font-size:15.5px;line-height:1.65}
 
-        .wt-cmd{margin-top:11px;padding:12px 14px;overflow-x:auto;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.14);border-radius:7px;color:#fff;font-size:15px;line-height:1.7;white-space:nowrap}
+        /* .wt-cmd is the monospace command line (e.g. "$ contacts.get(...)") - the words
+           auth / gateway / contacts live INSIDE this line, as .wt-fn / .wt-key / .wt-str spans
+           that only set colour and inherit the size from here. RAISED 15px -> 16px: the owner
+           kept reporting the "auth gateway in the code still small" because prior type-scale
+           passes resized the headings and prose but never this command line, so it stayed a rung
+           below. At 16px it now equals the step heading .wt-name (16px) and sits just above the
+           description .wt-desc (15.5px). Heading and command line sharing 16px does not collapse
+           the hierarchy: one is a 600-weight prose heading, the other a monospace code line in a
+           bordered rgba box, so they stay visually distinct by shape and font-family. Everything
+           else here (padding, rgba(255,255,255,.04) fill, border, radius, line-height, nowrap +
+           overflow-x scroll) is unchanged; the child span colours are unchanged. */
+        .wt-cmd{margin-top:11px;padding:12px 14px;overflow-x:auto;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.14);border-radius:7px;color:#fff;font-size:16px;line-height:1.7;white-space:nowrap}
         .wt-sh{margin-right:7px;color:rgba(255,255,255,.66)}
         .wt-fn{color:#d1f470}
         .wt-str{color:rgba(255,255,255,.80)}
