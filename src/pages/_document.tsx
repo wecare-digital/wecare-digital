@@ -137,6 +137,9 @@ export default function Document () {
             one in that customHeaders pattern, because the slash-star sequence closes the
             comment and the build fails with "Unterminated string constant". */}
         <meta name="referrer" content="strict-origin-when-cross-origin" />
+        {/* Public product is intentionally light-only. Make that explicit so browsers and
+            WebViews do not infer a dark control palette against the fixed light UI. */}
+        <meta name="color-scheme" content="light" />
         {/* Inter font for better readability and modern look */ }
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
