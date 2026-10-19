@@ -244,14 +244,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             source_ip = (event.get('requestContext', {}).get('identity', {}) or {}).get('sourceIp', 'unknown')
             if _check_rate_limit(source_ip):
                 return cors_response(429, {'error': 'Too many requests. Please try again later.'}, origin)
-            body = json.loads(event.get('body', '{}'))
+            body = json.loads(event.get('body') or '{}')
             return _create(body, request_id, origin)
 
         # PUT [retired public path]/{id}
         if method == 'PUT':
             if not contact_id:
                 return cors_response(400, {'error': 'contactId is required'}, origin)
-            body = json.loads(event.get('body', '{}'))
+            body = json.loads(event.get('body') or '{}')
             return _update(contact_id, body, request_id, origin)
 
         # DELETE [retired public path]/{id}
