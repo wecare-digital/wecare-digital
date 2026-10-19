@@ -60,6 +60,7 @@ from lambda_utils.ecommerce import wa_order_status
 # for the one figure and writes it onto the invoice like any other line. Nothing here reads a
 # table, holds a reservation, or refuses: Delight is pure arithmetic over the collection.
 from lambda_utils.ecommerce import default_coupon
+from lambda_utils.integrations import razorpay_refund
 # The ONE address authority. Imported so this handler reads the canonical `checkoutDeliveryAddress`
 # Map a contact carries (with a legacy flat-column fallback) rather than re-deriving the address
 # shape here — the same convergence `customer_orders.update_profile` and the WhatsApp Address
@@ -108,6 +109,7 @@ INVOICE_SEQ_TABLE = shared_tables.invoice_sequence_table_name()
 INVOICE_ASSETS_TABLE = shared_tables.invoice_assets_table_name()
 INVOICE_DELIVERY_TABLE = shared_tables.invoice_delivery_table_name()
 PAYMENTS_TABLE = os.environ.get('PAYMENTS_TABLE', 'stack-wecare-digital-PaymentsTable')
+REFUND_CASES_TABLE = shared_tables.flow_submissions_table_name()
 CONTACTS_TABLE = shared_tables.contacts_table_name()
 SYSTEM_CONFIG_TABLE = os.environ.get('SYSTEM_CONFIG_TABLE', 'stack-wecare-digital-SystemConfigTable')
 MEDIA_BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
@@ -347,6 +349,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         body = {}
 
     try:
+        # POST /invoices with _action=initiate-refund — irreversible provider command.
+        # Uses the existing authenticated invoice collection route so shipping this dormant
+        # capability does not create an unaudited API-Gateway route. The feature flag is false
+        # by default and the function itself refuses any Lambda-to-Lambda call with no staff actor.
+        if method == 'POST' and body.get('_action') == 'initiate-refund':
+            return initiate_full_refund(
+                body.get('invoiceId', ''), body, request_id, auth=event.get('_auth'))
+
         # POST /invoices with _action=clear-all — body-based trigger for cleanup via existing route
         if method == 'POST' and body.get('_action') == 'clear-all':
             return clear_all_invoice_data(request_id)
@@ -4656,6 +4666,296 @@ def _clear_all_invoice_data_withdrawn(request_id: str) -> Dict:
 
     logger.info(json.dumps({'event': 'clear_all_invoice_data', 'results': results, 'total': total, 'requestId': request_id}))
     return _resp(200, {'success': True, 'results': results, 'totalDeleted': total})
+
+
+
+# ─── Provider Refund Initiation (dormant unless explicitly enabled) ───
+
+def _refund_staff_actor(auth: Optional[Dict]) -> str:
+    """Refund initiation requires a real authenticated staff principal.
+
+    Unlike harmless internal invoice jobs, an internal Lambda invoke with no API identity is
+    NOT accepted here. That keeps an irreversible provider action behind Admin+MFA even though
+    require_auth intentionally permits trusted Lambda-to-Lambda calls elsewhere in this handler.
+    """
+    if not isinstance(auth, dict):
+        return ''
+    for key in ('username', 'email'):
+        value = str(auth.get(key) or '').strip()
+        if value:
+            return value
+    return ''
+
+
+def initiate_full_refund(invoice_id: str, body: Dict, request_id: str,
+                         *, auth: Optional[Dict] = None) -> Dict:
+    """Submit one full Razorpay refund for a verified refund-eligible return case.
+
+    Eligibility is derived from durable server records only:
+    returnSubmissionId -> Return / Refund case -> refund_eligible -> linked internal order
+    -> invoice -> payment row. The browser cannot choose paymentId or amount. The provider
+    webhook remains authoritative for the final REFUNDED state.
+    """
+    if not razorpay_refund.enabled():
+        return _resp(409, {
+            'error': 'Provider refund initiation is disabled in this deployment',
+            'errorCode': 'REFUND_INITIATION_DISABLED',
+        })
+
+    actor = _refund_staff_actor(auth)
+    if not actor:
+        return _resp(403, {
+            'error': 'Authenticated Admin staff actor required',
+            'errorCode': 'REFUND_ACTOR_REQUIRED',
+        })
+
+    invoice_id = str(invoice_id or '').strip()
+    submission_id = str(body.get('returnSubmissionId') or '').strip()
+    if not invoice_id or not submission_id:
+        return _resp(400, {
+            'error': 'invoiceId and returnSubmissionId are required',
+            'errorCode': 'REFUND_LINK_REQUIRED',
+        })
+
+    invoice = dynamodb.Table(INVOICES_TABLE).get_item(
+        Key={'invoiceId': invoice_id}, ConsistentRead=True).get('Item') or {}
+    if not invoice:
+        return _resp(404, {'error': 'Invoice not found'})
+
+    payment_id = str(invoice.get('paymentId') or '').strip()
+    internal_order_id = str(invoice.get('internalOrderId') or '').strip()
+    if not payment_id or not internal_order_id:
+        return _resp(409, {
+            'error': 'Invoice is not safely linked to an internal paid order',
+            'errorCode': 'REFUND_INVOICE_LINK_REQUIRED',
+        })
+    if pay_status.canonical(invoice.get('paymentStatus')) != pay_status.CAPTURED:
+        return _resp(409, {
+            'error': 'Invoice is not in captured payment state',
+            'errorCode': 'REFUND_INVOICE_NOT_CAPTURED',
+        })
+
+    case_table = dynamodb.Table(REFUND_CASES_TABLE)
+    return_case = case_table.get_item(
+        Key={'submissionId': submission_id}, ConsistentRead=True).get('Item') or {}
+    if not return_case:
+        return _resp(404, {'error': 'Return request not found'})
+    if str(return_case.get('requestType') or '').strip() != 'Return / Refund':
+        return _resp(409, {
+            'error': 'Request is not a Return / Refund case',
+            'errorCode': 'REFUND_RETURN_CASE_REQUIRED',
+        })
+    if str(return_case.get('returnStage') or '').strip().lower() != 'refund_eligible':
+        return _resp(409, {
+            'error': 'Return case is not refund eligible',
+            'errorCode': 'REFUND_NOT_ELIGIBLE',
+        })
+    if str(return_case.get('orderId') or '').strip() != internal_order_id:
+        return _resp(409, {
+            'error': 'Return case does not belong to this invoice order',
+            'errorCode': 'REFUND_ORDER_MISMATCH',
+        })
+
+    payment_table = dynamodb.Table(PAYMENTS_TABLE)
+    payment = payment_table.get_item(
+        Key={'id': payment_id}, ConsistentRead=True).get('Item') or {}
+    if not payment:
+        return _resp(409, {
+            'error': 'Authoritative payment record is unavailable',
+            'errorCode': 'REFUND_PAYMENT_REQUIRED',
+        })
+
+    payment_state = pay_status.canonical(payment.get('status'))
+    if payment_state == pay_status.REFUNDED and str(payment.get('refundId') or '').strip():
+        return _resp(200, {
+            'submitted': True,
+            'webhookConfirmed': True,
+            'refundId': str(payment.get('refundId')),
+            'paymentId': payment_id,
+            'idempotent': True,
+        })
+    if payment_state != pay_status.CAPTURED:
+        return _resp(409, {
+            'error': 'Payment is not in captured state',
+            'errorCode': 'REFUND_PAYMENT_NOT_CAPTURED',
+        })
+
+    raw_amount = payment.get('amount')
+    try:
+        amount_paise = pay_status.paise(raw_amount)
+        if Decimal(str(raw_amount)) != Decimal(str(amount_paise)):
+            amount_paise = 0
+    except (ValueError, InvalidOperation):
+        amount_paise = 0
+    if amount_paise <= 0:
+        return _resp(409, {
+            'error': 'Captured payment amount is unusable',
+            'errorCode': 'REFUND_AMOUNT_UNUSABLE',
+        })
+
+    now = int(time.time())
+    try:
+        case_table.update_item(
+            Key={'submissionId': submission_id},
+            UpdateExpression=(
+                'SET refundInitiationState = :submitting, refundInitiationPaymentId = :pid, '
+                'refundInitiationAmountPaise = :amount, refundInitiatedBy = :actor, '
+                'refundInitiatedAt = :now'
+            ),
+            ConditionExpression=(
+                'returnStage = :eligible AND orderId = :order '
+                'AND attribute_not_exists(refundInitiationState)'
+            ),
+            ExpressionAttributeValues={
+                ':submitting': 'submitting',
+                ':pid': payment_id,
+                ':amount': Decimal(str(amount_paise)),
+                ':actor': actor,
+                ':now': Decimal(str(now)),
+                ':eligible': 'refund_eligible',
+                ':order': internal_order_id,
+            },
+        )
+    except Exception as exc:  # noqa: BLE001
+        if order_keys.is_conditional_failure(exc):
+            fresh = case_table.get_item(
+                Key={'submissionId': submission_id}, ConsistentRead=True).get('Item') or {}
+            state = str(fresh.get('refundInitiationState') or '').strip()
+            if state == 'submitted' and fresh.get('providerRefundId'):
+                return _resp(202, {
+                    'submitted': True,
+                    'webhookConfirmed': False,
+                    'refundId': str(fresh.get('providerRefundId')),
+                    'paymentId': payment_id,
+                    'idempotent': True,
+                })
+            return _resp(409, {
+                'error': 'Refund initiation was already claimed; reconcile provider evidence before any retry',
+                'errorCode': 'REFUND_INITIATION_ALREADY_CLAIMED',
+                'state': state or 'changed',
+                'retryable': False,
+            })
+        raise
+
+    try:
+        result = razorpay_refund.create_full_refund(
+            payment_id=payment_id,
+            amount_paise=amount_paise,
+            return_submission_id=submission_id,
+            order_id=internal_order_id,
+            request_id=request_id,
+        )
+    except razorpay_refund.RefundRejected as exc:
+        case_table.update_item(
+            Key={'submissionId': submission_id},
+            UpdateExpression=(
+                'SET refundInitiationState = :state, refundProviderHttpStatus = :status, '
+                'refundInitiationUpdatedAt = :now'
+            ),
+            ConditionExpression='refundInitiationState = :submitting',
+            ExpressionAttributeValues={
+                ':state': 'provider_rejected',
+                ':status': Decimal(str(exc.status)),
+                ':now': Decimal(str(int(time.time()))),
+                ':submitting': 'submitting',
+            },
+        )
+        record_audit(
+            action='payment.refund',
+            actor=actor,
+            resource_type='invoice',
+            resource_id=invoice_id,
+            details={'outcome': 'provider_rejected', 'returnSubmissionId': submission_id,
+                     'requestId': request_id},
+        )
+        return _resp(409, {
+            'error': 'Provider rejected the refund request; review before another attempt',
+            'errorCode': 'REFUND_PROVIDER_REJECTED',
+            'retryable': False,
+        })
+    except razorpay_refund.RefundAmbiguous:
+        case_table.update_item(
+            Key={'submissionId': submission_id},
+            UpdateExpression=(
+                'SET refundInitiationState = :state, refundInitiationUpdatedAt = :now'
+            ),
+            ConditionExpression='refundInitiationState = :submitting',
+            ExpressionAttributeValues={
+                ':state': 'provider_outcome_unknown',
+                ':now': Decimal(str(int(time.time()))),
+                ':submitting': 'submitting',
+            },
+        )
+        record_audit(
+            action='payment.refund',
+            actor=actor,
+            resource_type='invoice',
+            resource_id=invoice_id,
+            details={'outcome': 'provider_outcome_unknown',
+                     'returnSubmissionId': submission_id, 'requestId': request_id},
+        )
+        return _resp(503, {
+            'error': 'Provider outcome is unknown; reconcile Razorpay/webhook evidence before retry',
+            'errorCode': 'REFUND_PROVIDER_OUTCOME_UNKNOWN',
+            'retryable': False,
+        })
+
+    try:
+        case_table.update_item(
+            Key={'submissionId': submission_id},
+            UpdateExpression=(
+                'SET refundInitiationState = :submitted, providerRefundId = :rid, '
+                'providerRefundAmountPaise = :amount, refundInitiationUpdatedAt = :now'
+            ),
+            ConditionExpression='refundInitiationState = :submitting',
+            ExpressionAttributeValues={
+                ':submitted': 'submitted',
+                ':rid': result.refund_id,
+                ':amount': Decimal(str(result.amount_paise)),
+                ':now': Decimal(str(int(time.time()))),
+                ':submitting': 'submitting',
+            },
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.error(json.dumps({
+            'event': 'refund_provider_submitted_audit_pending',
+            'invoiceId': invoice_id,
+            'returnSubmissionId': submission_id,
+            'refundId': result.refund_id,
+            'error': type(exc).__name__,
+            'requestId': request_id,
+        }))
+        return _resp(503, {
+            'error': 'Provider accepted the refund but local submission state needs reconciliation',
+            'errorCode': 'REFUND_PROVIDER_SUBMITTED_AUDIT_PENDING',
+            'refundId': result.refund_id,
+            'paymentId': payment_id,
+            'retryable': False,
+        })
+
+    record_audit(
+        action='payment.refund',
+        actor=actor,
+        resource_type='invoice',
+        resource_id=invoice_id,
+        details={'outcome': 'provider_submitted', 'refundId': result.refund_id,
+                 'returnSubmissionId': submission_id, 'requestId': request_id},
+    )
+    logger.warning(json.dumps({
+        'event': 'refund_provider_submitted',
+        'invoiceId': invoice_id,
+        'refundId': result.refund_id,
+        'requestId': request_id,
+    }))
+    return _resp(202, {
+        'submitted': True,
+        'webhookConfirmed': False,
+        'refundId': result.refund_id,
+        'paymentId': payment_id,
+        'amountPaise': result.amount_paise,
+        'awaitWebhook': True,
+    })
+
 
 
 # ─── Add Remark / Refund / Credit Note ───

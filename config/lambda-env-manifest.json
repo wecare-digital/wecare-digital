@@ -195,7 +195,9 @@
       "PAYMENTS_TABLE": "stack-wecare-digital-PaymentsTable",
       "PAYMENT_ATTEMPTS_TABLE": "stack-wecare-digital-PaymentAttemptsTable",
       "WA_PAY_CONFIG_NAME": "WECAREDIGITAL",
-      "WA_PAY_TEMPLATE": "wecarepay_wa"
+      "WA_PAY_TEMPLATE": "wecarepay_wa",
+      "REFUND_INITIATION_ENABLED": "false",
+      "RAZORPAY_API_SECRET_ID": "wecare/razorpay/api"
     },
     "wecare-marketing-ads": {
       "COGNITO_USER_POOL_ID": "us-east-1_cSx0RHCIR",
