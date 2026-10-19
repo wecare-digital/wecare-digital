@@ -586,8 +586,34 @@ def test_private_recovery_uses_saved_projection_only(webhook,monkeypatch):
     assert called==[REFERENCE]
 
 
-def test_scheduled_reconciliation_uses_the_saved_contact_linker(webhook,monkeypatch):
+def test_scheduled_reconciliation_uses_the_saved_contact_linker(webhook, monkeypatch):
+    from unittest.mock import Mock
+
     from lambda_utils.ecommerce import customer_order_link
-    monkeypatch.setattr(customer_order_link,'reconcile',lambda **kw:3)
-    assert webhook.handler({'internalAction':'reconcileCustomerOrderLinks'},None)=={'linkedOrders':3}
-    assert webhook.handler({'internalAction':'reconcileCustomerOrderLinks','requestContext':{}},None)['statusCode']==403
+
+    metrics = {
+        'promoted': 3,
+        'pendingRemaining': 2,
+        'oldestPendingAgeSeconds': 91,
+        'failures': 1,
+    }
+    reconcile_metrics = Mock(return_value=metrics)
+    emit_metrics = Mock()
+    webhook.dynamodb.Table.return_value.scan.side_effect = AssertionError(
+        'Unexpected DynamoDB scan; stub the reconciliation helper')
+    monkeypatch.setattr(customer_order_link, 'reconcile_metrics', reconcile_metrics)
+    monkeypatch.setattr(webhook, '_emit_reconciliation_metrics', emit_metrics)
+
+    assert webhook.handler({'internalAction': 'reconcileCustomerOrderLinks'}, None) == {
+        'linkedOrders': 3, **metrics,
+    }
+    reconcile_metrics.assert_called_once_with(
+        orders=webhook.dynamodb.Table.return_value,
+        contacts=webhook.dynamodb.Table.return_value)
+    emit_metrics.assert_called_once_with(metrics, 'local')
+
+    assert webhook.handler({
+        'internalAction': 'reconcileCustomerOrderLinks', 'requestContext': {},
+    }, None)['statusCode'] == 403
+    reconcile_metrics.assert_called_once()
+    emit_metrics.assert_called_once()
