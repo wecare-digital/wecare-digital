@@ -113,7 +113,7 @@ describe( 'support pill on phones', () => {
     // compromise held in place by the roundness fix. Width was the complaint, so width is
     // what was spent. This pins the decision so a later "make it smaller still" has to
     // argue with it rather than slide past.
-    expect( widget ).toContain( '.wc-wa{width:40px;height:40px;min-width:40px;min-height:40px' );
+    expect( widget ).toContain( '.wc-wa{width:44px;height:44px;min-width:44px;min-height:44px' );
     expect( widget ).not.toMatch( /\.wc-wa\{width:3\dpx/ );
   } );
 
