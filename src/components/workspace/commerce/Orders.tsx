@@ -129,7 +129,7 @@ function formatDateTime ( ts?: number ): string {
 
 function safeTrackingUrl ( value?: string ): string | null {
   const raw = String( value || '' ).trim();
-  if ( !raw ) return null;
+  if ( !raw || /\s/.test( raw ) || raw.includes( '\\' ) ) return null;
   try
   {
     const parsed = new URL( raw );
