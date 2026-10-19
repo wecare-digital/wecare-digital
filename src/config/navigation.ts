@@ -169,6 +169,17 @@ export const navigationConfig: NavItem[] = [
     ],
   },
   {
+    path: '/workspace/automation',
+    label: 'Automation & AI',
+    icon: 'settings',
+    children: [
+      { path: '/workspace/automation?view=agent', label: 'Staff agent' },
+      { path: '/workspace/automation?view=rules', label: 'Rules' },
+      { path: '/workspace/automation?view=schedules', label: 'Schedules' },
+      { path: '/workspace/automation?view=knowledge', label: 'Knowledge' },
+    ],
+  },
+  {
     path: '/workspace/task',
     label: 'Tasks',
     icon: 'checklist',
@@ -199,7 +210,7 @@ export const settingsConfig: SettingsGroup[] = [
       // spec names exactly two settings rows — Sign-in & MFA then Internal Agent. It
       // configures the operator's own admin helper (distinct from the customer-facing
       // WhatsApp AI Agent under Messaging tools).
-      { path: '/workspace/settings/internal-agent', label: 'Internal Agent' },
+      { path: '/workspace/settings/internal-agent', label: 'Internal Agent configuration' },
       // '/workspace/access' ("Access") was a second row here. It is the sign-in landing,
       // and for a signed-in user - the only person who can open this gear - it does
       // nothing but router.replace to /workspace/engage/inbox (access/index.tsx), which is
@@ -466,6 +477,16 @@ export const moduleHomes: ModuleHome[] = [
       '/workspace/content?view=links',
     ],
     note: 'Blog, Production, supported AWS-native SEO and Short Links share one content workspace.',
+  },
+  {
+    id: 'automation', label: 'Automation & AI', path: '/workspace/automation',
+    innerPages: [
+      '/workspace/automation?view=agent',
+      '/workspace/automation?view=rules',
+      '/workspace/automation?view=schedules',
+      '/workspace/automation?view=knowledge',
+    ],
+    note: 'Staff agent operations are separate from the customer-facing Meta Business Agent; true configuration remains contextual.',
   },
   {
     id: 'service-operations', label: 'Service', path: '/workspace/service',
