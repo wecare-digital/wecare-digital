@@ -166,7 +166,13 @@ INDEX_DEFINITION = {
 #: the IAM grant exist to enforce.
 ORDERS_BY_CUSTOMER_INDEX_V2 = "customerId-createdAt-v2-index"
 
-INDEX_NON_KEY_ATTRIBUTES_V2 = INDEX_NON_KEY_ATTRIBUTES + ["channel"]
+# v2 adds `channel` AND `customerUuid` — both are short words the `/orders` wire row carries
+# (`order_channel.canonical` and `customer_uuid.from_contact`), and both read as their defaults
+# (`website` / `''`) off the v1 projection until this index is serving. `customerUuid` is the
+# PUBLIC customer id and is safe to project (opaque, no PII, same standing as `referenceId`);
+# `items`/`purchasedSnapshot` are still deliberately NOT projected (tens of KB incl. a delivery
+# address - the data minimisation the IAM grant enforces).
+INDEX_NON_KEY_ATTRIBUTES_V2 = INDEX_NON_KEY_ATTRIBUTES + ["channel", "customerUuid"]
 
 INDEX_DEFINITION_V2 = {
     "IndexName": ORDERS_BY_CUSTOMER_INDEX_V2,
