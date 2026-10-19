@@ -219,7 +219,9 @@ def accept_paid(*, attempts, orders, keys, attempt, outcome, verified_captured_p
              # The record says which flow produced it, rather than hard-coding one of them.
              'checkoutMode': attempt['checkoutMode'], 'paymentStatus': 'PAYMENT_PAID',
              'source': order_channel.canonical(attempt.get('channel')),
-             'orderStatus': 'active', 'status': 'active',
+             # Capture authorizes fulfilment; it does not complete it. This matches the
+             # invoice-payment lineage and the Meta order_status lifecycle.
+             'orderStatus': 'processing', 'status': 'processing',
              'totalAmount': Decimal(attempt['amountPaise']) / Decimal(100),
              # WHERE the order came from, beside HOW it settled, and deliberately a SECOND field
              # rather than a third `checkoutMode`: `checkoutMode` gates finalisation through
