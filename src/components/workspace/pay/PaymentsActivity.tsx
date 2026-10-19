@@ -104,7 +104,7 @@ const PaymentsActivity: React.FC = () => {
       <header className="pa-head">
         <div>
           <h2 id="payment-activity-title">Activity</h2>
-          <p>Latest stored state per invoice. Open Invoices for the document and delivery evidence.</p>
+          <p>Latest stored state per invoice. Open Ledger → Invoices for the document and delivery evidence.</p>
         </div>
         <button type="button" onClick={ () => void load() } disabled={ loading }>
           { loading ? 'Refreshing…' : 'Refresh' }
@@ -129,7 +129,7 @@ const PaymentsActivity: React.FC = () => {
           { rows.map( row => (
             <Link
               key={ row.invoiceId }
-              href={ `/workspace/payments?view=invoices&invoice=${encodeURIComponent( row.invoiceId )}` }
+              href={ `/workspace/payments?view=ledger&ledger=invoices&invoice=${encodeURIComponent( row.invoiceId )}` }
               className="pa-row"
             >
               <span className={ `pa-dot ${row.kind}` } aria-hidden="true" />

@@ -126,8 +126,7 @@ export const navigationConfig: NavItem[] = [
     icon: 'payment',
     children: [
       { path: '/workspace/payments?view=collect', label: 'Collect' },
-      { path: '/workspace/payments?view=invoices', label: 'Invoices' },
-      { path: '/workspace/payments?view=activity', label: 'Activity' },
+      { path: '/workspace/payments?view=ledger', label: 'Ledger' },
     ],
   },
   {
@@ -384,10 +383,9 @@ export const moduleHomes: ModuleHome[] = [
     id: 'payments', label: 'Payments', path: '/workspace/payments',
     innerPages: [
       '/workspace/payments?view=collect',
-      '/workspace/payments?view=invoices',
-      '/workspace/payments?view=activity',
+      '/workspace/payments?view=ledger',
     ],
-    note: 'Collect, Invoices and Activity are the three primary money modes; the invoice engine remains authoritative.',
+    note: 'Collect and Ledger are the two primary money modes; invoices, payment state and evidence live inside Ledger.',
   },
   {
     id: 'service-operations', label: 'Service', path: '/workspace/service',
