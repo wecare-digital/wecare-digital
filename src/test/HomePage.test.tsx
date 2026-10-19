@@ -107,8 +107,8 @@ describe( 'WECARE.DIGITAL Home', () => {
      * first in the hero it was the first thing anyone read on the site.
      *
      * Re-labelling it was the plan and was dropped: a candidate copy naming the service
-     * count is accurate - WorkflowTerminal now runs a 13-step trace, STEPS.length is 13 -
-     * but that panel already reports "13/13 services" on this same page, so a service-count
+     * count is accurate - WorkflowTerminal now runs a 21-step trace, STEPS.length is 21 -
+     * but that panel already reports "21/21 services" on this same page, so a service-count
      * eyebrow would have traded a brand duplication for a copy duplication.
      *
      * Asserted as an absence rather than just deleted, so that re-adding a second brand
