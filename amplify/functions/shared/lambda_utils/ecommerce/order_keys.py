@@ -736,16 +736,80 @@ def acknowledge_capture_quarantine(table: Any,
     try:
         table.update_item(
             Key={key_attr: key},
-            UpdateExpression="SET acknowledged = :a, acknowledgedBy = :who, acknowledgedAt = :t",
-            ConditionExpression="attribute_exists(%s)" % key_attr,
+            # Move status UNRESOLVED -> ACKNOWLEDGED alongside the acknowledgement fields, so a
+            # staff list filtering on `status` reflects that a human has seen it rather than
+            # showing UNRESOLVED forever (the status used to never change). Conditioned so it
+            # only advances FROM unresolved: acknowledging never downgrades an already-RESOLVED
+            # row back to acknowledged.
+            UpdateExpression=("SET acknowledged = :a, acknowledgedBy = :who, "
+                              "acknowledgedAt = :t, #s = :ack"),
+            ConditionExpression=("attribute_exists(%s) AND "
+                                 "(attribute_not_exists(#s) OR #s = :unresolved)" % key_attr),
+            ExpressionAttributeNames={"#s": "status"},
             ExpressionAttributeValues={":a": True, ":who": actor or "staff",
-                                       ":t": int(time.time())},
+                                       ":t": int(time.time()), ":ack": "ACKNOWLEDGED",
+                                       ":unresolved": "UNRESOLVED"},
         )
     except Exception as error:  # noqa: BLE001
         if _is_conditional_failure(error):
-            return None
+            # Either the row is absent, or it is already past UNRESOLVED (acknowledged/resolved).
+            # Both are non-failures: return the current row (None if truly absent) so an
+            # acknowledgement is idempotent and never an error.
+            return resolve_capture_quarantine(table, payment_id, key_attr=key_attr)
         raise OrderIdentityUnavailable(
             "could not acknowledge quarantine %r: %s" % (payment_id, type(error).__name__)
+        ) from error
+    return resolve_capture_quarantine(table, payment_id, key_attr=key_attr)
+
+
+def mark_capture_quarantine_resolved(table: Any,
+                                     *,
+                                     payment_id: str,
+                                     resolution: str,
+                                     actor: str = "staff",
+                                     order_id: str = "",
+                                     key_attr: str = "orderId") -> Optional[Dict[str, Any]]:
+    """Move a parked capture to a terminal RESOLVED state WITHOUT deleting it.
+
+    The intake row was stuck at `status == 'UNRESOLVED'` even after a human had acknowledged it
+    and the underlying payment had actually been recovered into its order - so a status-only
+    staff report read a finished incident as an open one. This records an explicit resolved
+    lifecycle state (`status='RESOLVED'`) with the resolution note, who resolved it, when, and
+    the order it was reconciled into, while KEEPING the row (never deleted/TTL'd) so the recovery
+    record and its evidence stay auditable.
+
+    Idempotent and monotonic: resolving an already-RESOLVED row is a no-op that returns it, and
+    `status` only ever moves forward (UNRESOLVED/ACKNOWLEDGED -> RESOLVED). Returns the row, or
+    None if nothing is parked under this id.
+    """
+    if not payment_id:
+        return None
+    if not resolution:
+        raise ValueError("a resolution note is required to resolve a quarantine")
+    key = QUARANTINE_PREFIX + payment_id
+    now = int(time.time())
+    values = {":resolved": "RESOLVED", ":note": resolution, ":who": actor or "staff",
+              ":t": now, ":ack": True}
+    update = ("SET #s = :resolved, resolution = :note, resolvedBy = :who, "
+              "resolvedAt = :t, acknowledged = :ack")
+    if order_id:
+        update += ", resolvedOrderId = :oid"
+        values[":oid"] = order_id
+    try:
+        table.update_item(
+            Key={key_attr: key}, UpdateExpression=update,
+            # Only resolve a row that exists and is not already resolved; a second resolve is a
+            # no-op rather than a rewrite of the first resolution's evidence.
+            ConditionExpression=("attribute_exists(%s) AND "
+                                 "(attribute_not_exists(#s) OR #s <> :resolved)" % key_attr),
+            ExpressionAttributeNames={"#s": "status"},
+            ExpressionAttributeValues=values,
+        )
+    except Exception as error:  # noqa: BLE001
+        if _is_conditional_failure(error):
+            return resolve_capture_quarantine(table, payment_id, key_attr=key_attr)
+        raise OrderIdentityUnavailable(
+            "could not resolve quarantine %r: %s" % (payment_id, type(error).__name__)
         ) from error
     return resolve_capture_quarantine(table, payment_id, key_attr=key_attr)
 
