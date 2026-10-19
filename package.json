@@ -28,7 +28,9 @@
     "demo-video": "node scripts/make_demo_video.mjs",
     "postinstall": "node scripts/guard_braces_depth.cjs",
     "prebuild": "node scripts/guard_braces_depth.cjs --check",
-    "preamplify": "node scripts/guard_braces_depth.cjs --check"
+    "preamplify": "node scripts/guard_braces_depth.cjs --check",
+    "preamplify:deploy": "node scripts/guard_braces_depth.cjs --check",
+    "precap:build": "node scripts/guard_braces_depth.cjs --check"
   },
   "dependencies": {
     "@aws-amplify/ui-react": "^6.15.4",

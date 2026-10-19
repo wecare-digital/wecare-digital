@@ -234,8 +234,6 @@ jobs:
       # not a report: the three failures it was written for all shipped to production, and
       # all three were invisible in the source. See the header of the file.
 
-      # REPORTED, NOT ENFORCED, and for a reason that is not flakiness: contactcheck has
-      # one assertion that cannot pass until the owner sets NEXT_PUBLIC_GOOGLE_BROWSER_KEY.
       # A GATE, and it was not one before - which is exactly how 219 dead links reached the
       # live site unnoticed. blogcheck reconciles four sets against the built export: every
       # emitted /post/ page, every post linked from an index page, the sitemap, and the
@@ -266,9 +264,8 @@ jobs:
       # properties this graph removed on purpose. It runs after Build because it reads out/.
       - name: Structured data completeness
         run: node tools/audit/schemacheck.js
-      # Three Google controls on the keyless map embed stay reachable without it. The
-      # suite is still worth running for its other twelve assertions, so it is printed
-      # rather than gated. Make it a gate on the day the key exists.
-      - name: Contact map harness (reported, not enforced)
-        continue-on-error: true
+      # Check contact layout, map imagery/location, and accessible attribution. The
+      # keyless iframe's own Google controls are diagnostics: this app cannot disable
+      # them individually. The remaining assertions are actionable and must pass.
+      - name: Contact map harness
         run: node tools/browser/contactcheck.js

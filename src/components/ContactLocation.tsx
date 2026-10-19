@@ -433,7 +433,8 @@ const ContactLocation: React.FC = () => {
                 3. pointer-events:none on the iframe plus our OWN attribution links rendered
                    outside it. Robust and keyless, but it moves a licence-bearing element
                    into our markup, so it needs a decision rather than a commit.
-              Until one is chosen, contactcheck.js fails one assertion on purpose. */}
+              Until one is chosen, contactcheck.js reports these provider controls as
+              diagnostics while enforcing layout, map imagery/location and attribution. */}
               <div className="cl-lock" aria-hidden="true" />
             </>
           ) }
