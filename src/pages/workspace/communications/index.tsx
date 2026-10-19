@@ -333,8 +333,9 @@ const CommunicationsPage: React.FC<PageProps> = ( { signOut, user } ) => {
 
   const selected = rawSection && MANAGE_GROUPS.flatMap( ( g ) => g.items )
     .find( ( item ) => item.id === rawSection );
-  const selectedWhatsAppTool = rawTool && WHATSAPP_GROUPS.flatMap( ( group ) => group.items )
-    .find( ( item ) => item.id === rawTool );
+  const selectedWhatsAppTool = rawTool
+    ? WHATSAPP_GROUPS.flatMap( ( group ) => group.items ).find( ( item ) => item.id === rawTool )
+    : undefined;
 
   return (
     <Layout user={ user } onSignOut={ signOut }>
