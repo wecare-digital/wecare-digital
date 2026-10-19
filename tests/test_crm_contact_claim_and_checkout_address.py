@@ -120,7 +120,7 @@ def test_the_crm_ui_renders_the_checkout_address():
     assert "checkoutDeliveryAddress" in page
     assert "formatCheckoutAddress" in page
     assert "Delivery Address" in page, "the customer detail panel needs one labelled delivery-address row"
-    assert "Checkout Address" in page, "the list needs a column"
+    assert "Checkout Address" not in page, "the customer page must not expose a competing checkout-address column"
 
 
 def _normalize_contact_body() -> str:
