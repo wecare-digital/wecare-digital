@@ -16,10 +16,40 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // RELEASE SIGNING, DRIVEN BY THE ENVIRONMENT — never a committed keystore.
+    //
+    // Play Store requires a signed release AAB. The upload keystore is a secret, so it is NEVER
+    // checked in: the four coordinates come from env vars (or gradle -P props) that CI injects
+    // from its secret store. CI sets them from GitHub Actions secrets; a developer can set them
+    // locally to produce a signed build.
+    //
+    // SAFE FALLBACK: if WECARE_ANDROID_KEYSTORE is unset (the common local / unsigned-CI case),
+    // no release signingConfig is attached and the release build stays unsigned — so a plain
+    // `assembleRelease`/`bundleRelease` for testing still succeeds instead of failing on a
+    // missing keystore. Only a build that means to ship sets the env.
+    def keystorePath = System.getenv("WECARE_ANDROID_KEYSTORE") ?: project.findProperty("WECARE_ANDROID_KEYSTORE")
+    def hasReleaseKeystore = keystorePath != null && !keystorePath.toString().trim().isEmpty() && file(keystorePath).exists()
+
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            release {
+                storeFile file(keystorePath)
+                storePassword System.getenv("WECARE_ANDROID_KEYSTORE_PASSWORD") ?: project.findProperty("WECARE_ANDROID_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("WECARE_ANDROID_KEY_ALIAS") ?: project.findProperty("WECARE_ANDROID_KEY_ALIAS")
+                keyPassword System.getenv("WECARE_ANDROID_KEY_PASSWORD") ?: project.findProperty("WECARE_ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // Attach the release signing config only when the keystore was supplied; otherwise
+            // leave the build unsigned so non-shipping release builds still assemble.
+            if (hasReleaseKeystore) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }
