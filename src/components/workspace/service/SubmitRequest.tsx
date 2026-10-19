@@ -66,7 +66,9 @@ const SubmitRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
       setLoadingOrders( true );
       try
       {
-        const data = await api.listOrders( { status: 'active', limit: 200 } );
+        // Service cases can be raised for delivered/completed or legacy orders too; querying
+        // the retired `active` status hid the orders most likely to need a return request.
+        const data = await api.listOrders( { limit: 200 } );
         setOrders( data.orders || [] );
       } catch { toast.error( 'Failed to load orders' ); }
       setLoadingOrders( false );
@@ -226,6 +228,11 @@ const SubmitRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
             <Select label="Request Type *" value={ form.requestType }
               onChange={ v => setForm( f => ( { ...f, requestType: v } ) ) }
               options={ REQUEST_TYPE_OPTIONS } />
+            { form.requestType === 'Return / Refund' && (
+              <div role="note" style={ { padding: '10px 12px', marginTop: 10, borderRadius: 8, background: '#fffbeb', color: '#92400e', fontSize: 'var(--text-sm)' } }>
+                Request only — this does not issue a refund, cancel the order, or change payment state.
+              </div>
+            ) }
             <label style={ labelStyle }>Subject *
               <input type="text" value={ form.subject } onChange={ e => setForm( f => ( { ...f, subject: e.target.value } ) ) } placeholder="Brief summary of your request" style={ inputStyle } maxLength={ 200 } />
             </label>
@@ -249,9 +256,9 @@ const SubmitRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
               <ul style={ { paddingLeft: 20, margin: '8px 0' } }>
                 <li>All information provided is accurate and complete.</li>
                 <li>Processing times may vary based on request type and complexity.</li>
-                <li>A service fee of ₹49 may apply for certain request types.</li>
-                <li>You will be notified of status updates via WhatsApp.</li>
-                <li>Refunds, if applicable, will be processed to the original payment method.</li>
+                <li>This staff request records a service case; it does not charge, cancel, or refund the linked order.</li>
+                <li>You will be notified of status updates via WhatsApp when that channel is available for the case.</li>
+                <li>A Return / Refund request does not initiate a refund. Any approved refund must use the verified provider workflow and be reconciled from provider evidence.</li>
               </ul>
             </div>
             <label style={ { display: 'flex', alignItems: 'center', gap: 8, fontSize: 'var(--text-md)', cursor: 'pointer' } }>
@@ -274,6 +281,11 @@ const SubmitRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
               <div style={ { gridColumn: '1 / -1' } }><span style={ metaLabel }>Subject</span><div>{ form.subject }</div></div>
               <div style={ { gridColumn: '1 / -1' } }><span style={ metaLabel }>Description</span><div style={ { padding: 12, background: 'var(--bg-secondary)', borderRadius: 8, fontSize: 'var(--text-md)', whiteSpace: 'pre-wrap' } }>{ form.description }</div></div>
             </div>
+            { form.requestType === 'Return / Refund' && (
+              <div role="note" style={ { padding: '10px 12px', marginBottom: 12, borderRadius: 8, background: '#fffbeb', color: '#92400e', fontSize: 'var(--text-sm)' } }>
+                Submitting creates a return/refund case only. No money moves and the order is not cancelled here.
+              </div>
+            ) }
             <div style={ { display: 'flex', gap: 8 } }>
               <Button variant="secondary" onClick={ () => setStep( 'TERMS' ) }>Back</Button>
               <Button variant="primary" loading={ submitting } onClick={ handleSubmit }>Submit Request</Button>
