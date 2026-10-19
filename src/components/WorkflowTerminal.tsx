@@ -787,8 +787,15 @@ const WorkflowTerminal: React.FC = () => {
         .wt-light-1{background:#f0a818}
         .wt-light-2{background:#9849e8}
         .wt-light-3{background:#3da35a}
-        .wt-bar-title{margin-left:8px;color:rgba(255,255,255,.80);font-size:14px}
-        .wt-bar-state{margin-left:auto;display:flex;align-items:center;gap:7px;color:rgba(255,255,255,.70);font-size:13.5px}
+        /* CHROME STATUS LEGIBILITY (user: the browser-chrome title and the footer "1 / 8"
+           status read as the same faint grey and blended into the panel). These are window
+           chrome, not body prose, so they are raised toward a solidly-legible muted white by
+           OPACITY ONLY (no new hex, palette unchanged): .wt-bar-title .80 -> .88, .wt-bar-state
+           .70 -> .86. Both stay BELOW the solid-#fff step content so the content headings remain
+           the loudest glyphs; sizes are untouched (title stays 14px, state stays the 13.5px
+           small-text floor). .88/.86 on #000 clear AA comfortably (~18:1 / ~17:1). */
+        .wt-bar-title{margin-left:8px;color:rgba(255,255,255,.88);font-size:14px}
+        .wt-bar-state{margin-left:auto;display:flex;align-items:center;gap:7px;color:rgba(255,255,255,.86);font-size:13.5px}
         /* GREEN, NOT LIME, and only this dot changes - see the note below on the two that
            deliberately do not.
            This sits in the same 47px strip as the three window lights, beside the copy
@@ -1128,8 +1135,14 @@ const WorkflowTerminal: React.FC = () => {
         .wt-check-tick{color:#d1f470}
 
         /* Fades the stream out under the footer rather than letting rows collide with
-           it. The gradient has to end in the panel's own #000 or it shows a seam. */
-        .wt-foot{flex:0 0 auto;height:50px;padding:0 24px;display:flex;align-items:center;background:#000;border-top:1px solid rgba(209,244,112,.30);color:rgba(255,255,255,.70);font-size:13.5px}
+           it. The gradient has to end in the panel's own #000 or it shows a seam.
+           FOOTER STATUS LEGIBILITY (user: the footer "1 / 8" status read the same faint grey
+           as the chrome title and blended in): color raised .70 -> .86 by OPACITY ONLY, so the
+           footer state line (left running/complete and right-side .wt-foot-right "1 / 8
+           services", which inherits this colour) reads as deliberate, legible chrome rather than
+           near-invisible. Still a muted white BELOW the solid-#fff step content, size unchanged
+           at the 13.5px small-text floor. .86 on #000 is ~17:1, well past AA. */
+        .wt-foot{flex:0 0 auto;height:50px;padding:0 24px;display:flex;align-items:center;background:#000;border-top:1px solid rgba(209,244,112,.30);color:rgba(255,255,255,.86);font-size:13.5px}
         .wt-foot-left{display:flex;align-items:center;gap:7px}
         /* STAYS LIME, DELIBERATELY, and this is the boundary of the recolour.
            This dot sits beside "running" / "complete" on the BLACK footer, not the brown title
