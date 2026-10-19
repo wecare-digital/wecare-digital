@@ -7,7 +7,7 @@ interface PageProps { signOut?: () => void; user?: any; }
 const DocsRedirect: React.FC<PageProps> = ({ signOut, user }) => {
   const router = useRouter();
   // FEAT-005: Drop Docs is a tab on the Service hub now; forward to that hub tab.
-  React.useEffect(() => { router.replace('/workspace/engage/service-ops?tab=documents'); }, [router]);
+  React.useEffect(() => { router.replace('/workspace/service?view=documents'); }, [router]);
   return (
     <Layout user={user} onSignOut={signOut}>
       <div style={{ padding: '24px 32px', textAlign: 'center', color: 'var(--text-muted)' }}>Redirecting to Drop Docs...</div>
