@@ -440,7 +440,7 @@ def _merge_contacts(body: Dict[str, Any], auth: Dict[str, Any],
     sets = ['updatedAt = :now']
     names: Dict[str, str] = {}
     values: Dict[str, Any] = {
-        ':now': now, ':target': target_id, ':null': None,
+        ':now': now, ':null': None,
     }
     if add_contact_alias:
         sets.append('mergedContactIds = list_append(if_not_exists(mergedContactIds, :empty), :contact_alias)')
