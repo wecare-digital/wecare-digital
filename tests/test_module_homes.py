@@ -174,24 +174,20 @@ class TestTheDeclaredHomesExist:
         assert not signposts, f"module homes declare redirect signposts: {signposts}"
 
 
-class TestCommunicationsExposesExactlyThree:
-    def test_exactly_three_and_they_are_the_named_three(self, nav_source):
-        # The master prompt is explicit about this one, so it gets its own assertion
-        # rather than being folded into the generic inner-page check.
+class TestCommunicationsExposesExactlyTwoModes:
+    def test_exactly_inbox_and_manage(self, nav_source):
+        # Communications is deliberately organized by operator job, not transport/provider.
+        # WhatsApp, SMS, RCS, Email and Voice are filters or managed capabilities within
+        # these two modes rather than primary destinations.
         block = nav_source.split("id: 'communications'")[1]
         block = block[: block.index("},")]
-        # Only the innerPages array. The first naive version of this also matched the
-        # module's own `path: '[retired public path]'` and reported four.
         inner = block.split("innerPages:")[1]
         inner = inner[: inner.index("]")]
         pages = re.findall(r"'(/[a-z0-9/?=&-]+)'", inner)
-        # WhatsApp Business moved from /workspace/engage/whatsapp to the WhatsApp hub on
-        # 2026-10-15: the old route is now a router.replace signpost to the common inbox,
-        # so pinning it here would have pinned the common inbox twice.
-        assert pages == ["/workspace/engage/inbox", "/workspace/engage/whatsapp/settings",
-                         "/workspace/engage/channels?tab=voice"], (
-            f"Communications must expose exactly Common Inbox, WhatsApp Business and "
-            f"Business Calling; found {pages}")
+        assert pages == [
+            "/workspace/communications?view=inbox",
+            "/workspace/communications?view=manage",
+        ], f"Communications must expose exactly Inbox and Manage; found {pages}"
 
 
 class TestReachability:

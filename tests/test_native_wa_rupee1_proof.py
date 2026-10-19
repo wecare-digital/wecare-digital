@@ -20,16 +20,19 @@ The amount
 ₹1 == 100 paise. Meta amounts are `{value, offset:100}`, so ₹1 is `{'value': 100, 'offset': 100}`.
 The total is asserted as an INTEGER paise value, the currency as INR named explicitly.
 """
+import importlib.util
 import json
 import os
+import pathlib
 import sys
 
 import pytest
 from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'amplify', 'functions', 'shared'))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'amplify', 'functions',
-                                'messaging', 'outbound-whatsapp'))
+OUTBOUND_DIR = pathlib.Path(__file__).resolve().parents[1] / 'amplify' / 'functions' / 'messaging' / 'outbound-whatsapp'
+sys.path.insert(0, str(OUTBOUND_DIR))
+OUTBOUND_HANDLER = OUTBOUND_DIR / 'handler.py'
 
 RECIPIENT = '+918100640044'
 WABA1_PHONE_ID = 'phone-number-id-waba1-direct-1016149501586345'
@@ -44,9 +47,18 @@ DELIGHT_PAISE_ON_1_RUPEE = 0  # default_coupon.delight_paise(100) == 100 * 50 //
 @pytest.fixture
 def send(monkeypatch):
     """The real builder, with the wire stubbed to capture-only. Returns (handler, captured)."""
+    # Do not use the generic module name "handler": the full suite imports many Lambda
+    # handler.py files and Python caches the first one under sys.modules["handler"].
+    # Loading this file under a unique name proves the intended outbound-WhatsApp builder
+    # regardless of test order, without changing production code.
+    module_name = 'wecare_outbound_whatsapp_rupee1_proof'
+    spec = importlib.util.spec_from_file_location(module_name, OUTBOUND_HANDLER)
+    assert spec and spec.loader
+    h = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = h
     with patch.dict(os.environ, {'AWS_REGION': 'us-east-1', 'SEND_MODE': 'DRY_RUN'}):
         with patch('boto3.resource'), patch('boto3.client'):
-            import handler as h
+            spec.loader.exec_module(h)
 
     captured = {}
 

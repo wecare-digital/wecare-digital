@@ -462,7 +462,8 @@ export const moduleHomes: ModuleHome[] = [
   },
   {
     id: 'customers', label: 'Customers', path: '/workspace/contacts',
-    innerPages: ['/workspace/engage?tab=contact-360'],
+    innerPages: [],
+    note: 'Customer 360 is the customer record itself; there is no separate Engage/Contact 360 destination.',
   },
   {
     id: 'commerce', label: 'Commerce', path: '/workspace/commerce',
