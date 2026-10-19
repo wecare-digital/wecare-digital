@@ -231,12 +231,13 @@ describe( 'no entry point lands on a redirect signpost', () => {
     }
   } );
 
-  it( 'no /workspace hub tile points at a signpost or a missing page', () => {
+  it( 'no Workspace Home destination points at a signpost or missing page', () => {
     const hub = fs.readFileSync( path.join( PAGES, 'workspace/index.tsx' ), 'utf8' );
-    const tiles = [ ...hub.matchAll( /path: '([^']+)'/g ) ].map( ( m ) => m[ 1 ] );
-    expect( tiles.length ).toBeGreaterThan( 10 );
-    expect( tiles.filter( ( p ) => pageFile( p ) === null ) ).toEqual( [] );
-    expect( tiles.filter( ( p ) => signpostTarget( p ) !== null ) ).toEqual( [] );
+    const destinations = [ ...hub.matchAll( /href: '([^']+)'/g ) ].map( ( m ) => m[ 1 ] );
+    // Home is intentionally small now: it exposes operational jobs, not every implementation page.
+    expect( new Set( destinations ).size ).toBeGreaterThanOrEqual( 5 );
+    expect( destinations.filter( ( p ) => pageFile( p ) === null ) ).toEqual( [] );
+    expect( destinations.filter( ( p ) => signpostTarget( p ) !== null ) ).toEqual( [] );
   } );
 } );
 
