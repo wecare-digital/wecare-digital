@@ -7,8 +7,11 @@ android {
         applicationId "digital.wecare.stackcrm"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // versionCode MUST strictly increase on every Play upload. CI derives it from the run
+        // number and passes -PversionCodeOverride (or the env) so repeated uploads never collide
+        // without hand-editing this file; absent an override it falls back to 1 for local builds.
+        versionCode (System.getenv("WECARE_ANDROID_VERSION_CODE") ?: project.findProperty("versionCodeOverride") ?: "1").toString().toInteger()
+        versionName (System.getenv("WECARE_ANDROID_VERSION_NAME") ?: project.findProperty("versionNameOverride") ?: "1.0").toString()
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
