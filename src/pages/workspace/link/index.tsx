@@ -1,23 +1,17 @@
 /**
- * Compatibility redirect for the retired top-level Links workspace.
- *
- * Short links, click analytics and lifecycle controls now live under
- * Communications → Manage → Links. The public /r/{code} redirect surface is unchanged.
+ * Compatibility redirect for the retired standalone Links workspace.
  */
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
 
-const LinksCompatibilityRedirect = () => {
+const LegacyLinks = () => {
   const router = useRouter();
 
   useEffect( () => {
-    void router.replace( {
-      pathname: '/workspace/communications',
-      query: { view: 'manage', section: 'links' },
-    } );
+    void router.replace( { pathname: '/workspace/content', query: { view: 'links' } } );
   }, [ router ] );
 
   return null;
 };
 
-export default LinksCompatibilityRedirect;
+export default LegacyLinks;

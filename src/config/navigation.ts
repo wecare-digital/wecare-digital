@@ -151,34 +151,46 @@ export const navigationConfig: NavItem[] = [
     ],
   },
   {
-    // OWN top-level item. It is the conversation-meta work queue, real data the inbox
-    // already writes.
-    path: '/workspace/task',
-    label: 'Tasks',
-    icon: 'checklist',
+    path: '/workspace/platform',
+    label: 'Platform',
+    icon: 'dashboard',
+    children: [
+      { path: '/workspace/platform?view=mcp-connections', label: 'MCP Connections' },
+      { path: '/workspace/platform?view=system-architecture', label: 'Architecture snapshot' },
+      { path: '/workspace/platform?view=lambda-functions', label: 'Lambda inventory' },
+      { path: '/workspace/platform?view=code-repo', label: 'Code Repo' },
+      { path: '/workspace/platform?view=wa-graph-tools', label: 'WA Graph Tools' },
+      { path: '/workspace/platform?view=cors-settings', label: 'CORS Settings' },
+      { path: '/workspace/platform?view=design-reference', label: 'Design Reference' },
+    ],
   },
   {
-    // Tools + blog pipeline + managers as in-page tabs on /workspace/seo. This is the
-    // AWS-native SeoToolsTable surface (seoToolsFetch), NOT the old Wix SEO. The dense
-    // blog-production pipeline and the SEO managers stay reachable through these child
-    // entries for the palette.
-    path: '/workspace/seo',
-    label: 'SEO',
+    // One content workspace. Blog Studio and production stage URLs remain contextual deep links
+    // because those jobs carry their own record/stage parameters; they are not primary apps.
+    path: '/workspace/content',
+    label: 'Content',
     icon: 'search',
     children: [
-      // Tools / Blog SEO / Site Pages SEO are in-page tabs on the SEO hub (FEAT-005 relocated
-      // their bodies out of the routes tree), so they deep-link the hub with a ?tab= id. The
-      // staged blog pipeline keeps its own queue routes.
-      { path: '/workspace/seo?tab=tools', label: 'Tools' },
-      { path: '/workspace/seo?tab=blog', label: 'Blog SEO' },
-      { path: '/workspace/seo?tab=pages', label: 'Site Pages SEO' },
+      { path: '/workspace/content?view=blog', label: 'Blog' },
       { path: '/workspace/seo/blog-studio', label: 'Blog Studio' },
-      { path: '/workspace/seo/blog-production', label: 'Production waves' },
-      // FEAT-006: the staged pipeline folded into one hub with step tabs; each stage is a
-      // ?tab= deep-link that pageExists resolves (query stripped) to the one hub route.
+      { path: '/workspace/content?view=production', label: 'Production' },
       { path: '/workspace/seo/blog-production?tab=review', label: 'Source review' },
       { path: '/workspace/seo/blog-production?tab=qa', label: 'QA review' },
       { path: '/workspace/seo/blog-production?tab=publish', label: 'Publish queue' },
+      { path: '/workspace/content?view=seo&area=tools', label: 'SEO Tools' },
+      { path: '/workspace/content?view=seo&area=pages', label: 'SEO Pages' },
+      { path: '/workspace/content?view=links', label: 'Short links' },
+    ],
+  },
+  {
+    path: '/workspace/automation',
+    label: 'Automation & AI',
+    icon: 'settings',
+    children: [
+      { path: '/workspace/automation?view=agent', label: 'Staff agent' },
+      { path: '/workspace/automation?view=rules', label: 'Rules' },
+      { path: '/workspace/automation?view=schedules', label: 'Schedules' },
+      { path: '/workspace/automation?view=knowledge', label: 'Knowledge' },
     ],
   },
 ];
@@ -207,7 +219,7 @@ export const settingsConfig: SettingsGroup[] = [
       // spec names exactly two settings rows — Sign-in & MFA then Internal Agent. It
       // configures the operator's own admin helper (distinct from the customer-facing
       // WhatsApp AI Agent under Messaging tools).
-      { path: '/workspace/settings/internal-agent', label: 'Internal Agent' },
+      { path: '/workspace/settings/internal-agent', label: 'Internal Agent configuration' },
       // '/workspace/access' ("Access") was a second row here. It is the sign-in landing,
       // and for a signed-in user - the only person who can open this gear - it does
       // nothing but router.replace to /workspace/engage/inbox (access/index.tsx), which is
@@ -285,7 +297,7 @@ export const settingsConfig: SettingsGroup[] = [
       { path: '/workspace/communications?view=manage&section=search', label: 'Message Search' },
       { path: '/workspace/communications?view=manage&section=ai', label: 'Meta AI Agent' },
       { path: '/workspace/communications?view=manage&section=docs', label: 'Docs Scraper' },
-      { path: '/workspace/communications?view=manage&section=links', label: 'Short Links' },
+      { path: '/workspace/link', label: 'Short Links' },
     ],
   },
   {
@@ -348,23 +360,23 @@ export const settingsConfig: SettingsGroup[] = [
       // hub with its ?tab= id. pageExists strips the query and resolves all of them to the
       // one platform/index.tsx hub route. Every workspaceMCP / api/client.ts call inside
       // those bodies is unchanged.
-      { path: '/workspace/settings/platform?tab=mcp-connections', label: 'MCP Connections' },
+      { path: '/workspace/platform?view=mcp-connections', label: 'MCP Connections' },
       // Labelled 'Control Center' until 2026-10-07, which promised a place you operate
       // from. It is a static snapshot of the architecture, hand-maintained, and it has
       // measurably drifted: it lists `wecare-meta-analytics` as an active function on
       // route /meta-analytics and names a MetaAnalyticsLog table, and the live account
       // has neither. The label now says what the page is, so a reader treats it as a
       // document to check rather than a console to trust.
-      { path: '/workspace/settings/platform?tab=system-architecture', label: 'Architecture snapshot' },
-      { path: '/workspace/settings/platform?tab=lambda-functions', label: 'Lambda Functions' },
-      { path: '/workspace/settings/platform?tab=code-repo', label: 'Code Repo' },
+      { path: '/workspace/platform?view=system-architecture', label: 'Architecture snapshot' },
+      { path: '/workspace/platform?view=lambda-functions', label: 'Lambda Functions' },
+      { path: '/workspace/platform?view=code-repo', label: 'Code Repo' },
       // 'WABA Usernames' (/workspace/dashboard/waba-usernames) was a row here until
       // 2026-10-15. It was a smaller copy of WhatsApp -> BSUID & Usernames (same
       // getBusinessUsername / claimBusinessUsername calls, same two numbers, none of the
       // suggestions or webhook fields), so the route is now a signpost to that page.
-      { path: '/workspace/settings/platform?tab=wa-graph-tools', label: 'WA Graph Tools' },
-      { path: '/workspace/settings/platform?tab=cors-settings', label: 'CORS Settings' },
-      { path: '/workspace/settings/platform?tab=design-reference', label: 'Design Reference' },
+      { path: '/workspace/platform?view=wa-graph-tools', label: 'WA Graph Tools' },
+      { path: '/workspace/platform?view=cors-settings', label: 'CORS Settings' },
+      { path: '/workspace/platform?view=design-reference', label: 'Design Reference' },
       // Internal Agent moved up to the "Your account" group — see the note there. The
       // redesign keeps Settings as exactly two rows (Sign-in & MFA + Internal Agent); the
       // Platform group remains for infrastructure reachability via the palette.
@@ -455,6 +467,36 @@ export const moduleHomes: ModuleHome[] = [
   // [retired public path]/whatsapp/conversions-api each have their own nav entry — so nothing became
   // unreachable, only the grouping page went.
   {
+    id: 'payments', label: 'Payments', path: '/workspace/payments',
+    innerPages: [
+      '/workspace/payments?view=collect',
+      '/workspace/payments?view=invoices',
+      '/workspace/payments?view=activity',
+    ],
+    note: 'Collect, Invoices and Activity are the three primary money modes; the invoice engine remains authoritative.',
+  },
+  {
+    id: 'content', label: 'Content', path: '/workspace/content',
+    innerPages: [
+      '/workspace/content?view=blog',
+      '/workspace/content?view=production',
+      '/workspace/content?view=seo&area=tools',
+      '/workspace/content?view=seo&area=pages',
+      '/workspace/content?view=links',
+    ],
+    note: 'Blog, Production, supported AWS-native SEO and Short Links share one content workspace.',
+  },
+  {
+    id: 'automation', label: 'Automation & AI', path: '/workspace/automation',
+    innerPages: [
+      '/workspace/automation?view=agent',
+      '/workspace/automation?view=rules',
+      '/workspace/automation?view=schedules',
+      '/workspace/automation?view=knowledge',
+    ],
+    note: 'Staff agent operations are separate from the customer-facing Meta Business Agent; true configuration remains contextual.',
+  },
+  {
     id: 'service-operations', label: 'Service', path: '/workspace/service',
     innerPages: [
       '/workspace/service?view=requests',
@@ -464,12 +506,17 @@ export const moduleHomes: ModuleHome[] = [
     note: 'Requests, Appointments and Documents are the three primary service modes; the remaining capabilities open contextually.',
   },
   {
-    id: 'platform-operations', label: 'Platform Operations',
-    // FEAT-006: the Platform infra pages folded into one hub with in-page tabs; the home
-    // and its inner pages deep-link the hub with ?tab= ids.
-    path: '/workspace/settings/platform?tab=system-architecture',
-    innerPages: ['/workspace/settings/platform?tab=lambda-functions', '/workspace/settings/platform?tab=code-repo',
-      '/workspace/settings/platform?tab=cors-settings', '/workspace/settings/platform?tab=design-reference'],
+    id: 'platform-operations', label: 'Platform', path: '/workspace/platform',
+    innerPages: [
+      '/workspace/platform?view=mcp-connections',
+      '/workspace/platform?view=system-architecture',
+      '/workspace/platform?view=lambda-functions',
+      '/workspace/platform?view=code-repo',
+      '/workspace/platform?view=wa-graph-tools',
+      '/workspace/platform?view=cors-settings',
+      '/workspace/platform?view=design-reference',
+    ],
+    note: 'Platform is a first-class technical-operations workspace; static inventory surfaces remain explicitly labelled as snapshots.',
   },
   {
     id: 'settings', label: 'Settings', path: null,
