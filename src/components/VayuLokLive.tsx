@@ -3334,7 +3334,11 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                         { air.updatedAt && <small>{ relativeAgeLabel( air.updatedAt ).label }</small> }
                       </div>
                     </div>
-                  ) : <p className="vl-live-mobile-empty">Air quality will appear after a place is selected.</p>
+                  ) : <p className="vl-live-mobile-empty" role="status" aria-live="polite">{ dataLoading
+                    ? 'Loading air quality…'
+                    : hasSelection
+                      ? 'Air quality is temporarily unavailable.'
+                      : 'Air quality will appear after a place is selected.' }</p>
                 ) : weather ? (
                   <div className="vl-live-mobile-snapshot-body is-weather">
                     <div className="vl-live-mobile-primary">
@@ -3347,7 +3351,11 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                       { Number.isFinite( weather.windSpeed ) && <span><b>Wind</b> <span data-wc-no-translate="true">{ weather.windSpeed } { weather.windUnit || 'km/h' }</span></span> }
                     </div>
                   </div>
-                ) : <p className="vl-live-mobile-empty">Weather will appear after a place is selected.</p> }
+                ) : <p className="vl-live-mobile-empty" role="status" aria-live="polite">{ dataLoading
+                  ? 'Loading weather…'
+                  : hasSelection
+                    ? 'Weather is temporarily unavailable.'
+                    : 'Weather will appear after a place is selected.' }</p> }
               </div>
 
               <div className="vl-live-air-card-wrap">
