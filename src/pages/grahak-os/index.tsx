@@ -1252,9 +1252,11 @@ response = requests.post(
             .section-header p{text-align:center}
             
             .touchpoint{padding:44px 0}
-            /* 2 + 2 + 2 from tablet down; three max-content columns plus gaps do
-               not fit a 360px viewport once section padding is taken off. */
-            .usecase-pills{grid-template-columns:repeat(2,max-content);justify-content:center;justify-items:center;gap:12px;padding:0;margin:0}
+            /* Mobile uses the full content width instead of centring two intrinsic
+               max-content columns. Equal fluid tracks keep all six outcomes aligned as
+               a deliberate 2 x 3 grid at 320-767px, while the desktop 3 x 2 layout stays
+               unchanged. */
+            .usecase-pills{grid-template-columns:repeat(2,minmax(0,1fr));width:min(100%,420px);max-width:420px;justify-content:stretch;justify-items:stretch;gap:12px;padding:0;margin:0 auto}
             /* font-size dropped, not changed: the TYPOGRAPHY CONTRACT block below is
                later in source order at equal specificity, so its 15px already won and
                this 20px never rendered. It only made the pill look under-specified. */
@@ -1459,10 +1461,10 @@ response = requests.post(
             .pp-pill{padding:12px 22px}
           }
           @media(max-width:767px){
-            .pp-pill{padding:14px 26px}
+            .pp-pill{width:100%;min-width:0;box-sizing:border-box;padding:14px 12px}
           }
           @media(max-width:480px){
-            .pp-pill{padding:12px 20px}
+            .pp-pill{padding:12px 10px}
           }
           @media(max-width:360px){
             .pp-pill{padding:12px 18px}
