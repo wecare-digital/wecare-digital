@@ -4780,9 +4780,12 @@ def initiate_full_refund(invoice_id: str, body: Dict, request_id: str,
             'errorCode': 'REFUND_PAYMENT_NOT_CAPTURED',
         })
 
+    raw_amount = payment.get('amount')
     try:
-        amount_paise = pay_status.paise(payment.get('amount'))
-    except ValueError:
+        amount_paise = pay_status.paise(raw_amount)
+        if Decimal(str(raw_amount)) != Decimal(str(amount_paise)):
+            amount_paise = 0
+    except (ValueError, InvalidOperation):
         amount_paise = 0
     if amount_paise <= 0:
         return _resp(409, {
