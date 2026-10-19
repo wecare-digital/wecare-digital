@@ -644,17 +644,8 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                     { filteredCust.map( c => (
                       <div key={ c.id } onClick={ () => {
                         setSelCustomer( c );
-                        // Don't auto-set goods type — default is digital-goods.
-                        // Admin should explicitly select physical-goods when needed.
-                        // Auto-switching caused invoices to incorrectly trigger address collection.
-                        // Auto-append Green Packing + Notification Fee as last items
-                        setInvForm( prev => {
-                          const items = [ ...prev.items ];
-                          const names = items.map( it => it.name.toLowerCase() );
-                          if ( !names.some( n => n.includes( 'green' ) && n.includes( 'pack' ) ) ) items.push( { name: 'Green Packing', unitPrice: '49', quantity: '1', gstRate: '18' } );
-                          if ( !names.some( n => n.includes( 'notification' ) || n.includes( 'alert' ) ) ) items.push( { name: 'Notification Fee', unitPrice: '19', quantity: '1', gstRate: '18' } );
-                          return { ...prev, items };
-                        } );
+                        // Selecting a customer never mutates price lines. The operator supplies
+                        // invoice inputs; the invoice engine owns Delight, convenience fee and total.
                       } } className="pf-cust-card">
                         <div className="pf-cust-avatar">{ ( c.name || '?' )[ 0 ].toUpperCase() }</div>
                         <div className="pf-cust-info">
@@ -685,11 +676,9 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                   <h3 style={ { margin: '0 0 12px', fontSize: 'var(--text-xl)' } }>Step 2 { '\u2014' } Invoice Details</h3>
                   <div className="table-container" style={ { marginBottom: 16 } }>
                     <table className="inner-table">
-                      <thead><tr><th>#</th><th>Item Name</th><th>Price ({ '\u20B9' })</th><th>Qty</th><th>GST %</th><th>Line Total</th><th></th></tr></thead>
+                      <thead><tr><th>#</th><th>Item Name</th><th>Unit amount ({ '\u20B9' })</th><th>Qty</th><th>GST %</th><th></th></tr></thead>
                       <tbody>
                         { invForm.items.map( ( it, i ) => {
-                          const line = ( parseFloat( it.unitPrice ) || 0 ) * ( parseInt( it.quantity ) || 0 );
-                          const gst = line * ( parseFloat( it.gstRate ) || 0 ) / 100;
                           return (
                             <tr key={ i }>
                               <td>{ i + 1 }</td>
@@ -697,7 +686,6 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                               <td><input type="number" value={ it.unitPrice } onChange={ e => updateItem( i, 'unitPrice', e.target.value ) } className="pf-num-input" /></td>
                               <td><input type="number" value={ it.quantity } onChange={ e => updateItem( i, 'quantity', e.target.value ) } className="pf-num-input-sm" /></td>
                               <td><input type="number" value={ it.gstRate } onChange={ e => updateItem( i, 'gstRate', e.target.value ) } className="pf-num-input-sm" /></td>
-                              <td style={ { fontWeight: 600 } }>{ fmtMoney( line + gst ) }</td>
                               <td>{ invForm.items.length > 1 && <button onClick={ () => removeItem( i ) } className="pf-remove-btn">{ '\u2715' }</button> }</td>
                             </tr>
                           );
@@ -707,16 +695,10 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                   </div>
                   <Button variant="secondary" size="sm" onClick={ addItem } style={ { marginBottom: 4 } }>+ Add Item</Button>
                   { ' ' }
-                  <Button variant="ghost" size="sm" onClick={ () => {
-                    const items = [ ...invForm.items ];
-                    const names = items.map( it => it.name.toLowerCase() );
-                    if ( !names.some( n => n.includes( 'green' ) && n.includes( 'pack' ) ) ) items.push( { name: 'Green Packing', unitPrice: '49', quantity: '1', gstRate: '18' } );
-                    if ( !names.some( n => n.includes( 'notification' ) || n.includes( 'alert' ) ) ) items.push( { name: 'Notification Fee', unitPrice: '19', quantity: '1', gstRate: '18' } );
-                    setInvForm( { ...invForm, items } );
-                  } } style={ { marginBottom: 4, fontSize: 'var(--text-xs)', color: 'var(--accent)' } }>+ Green Packing & Notification Fee</Button>
+
                   <h4 style={ { margin: '12px 0 8px', fontSize: 'var(--text-md)' } }>Additional Charges</h4>
                   <div className="pf-form-grid">
-                    <div className="form-group"><label htmlFor="pf-shipping">Express / Shipping ({ '\u20B9' })</label><input id="pf-shipping" type="number" value={ invForm.shipping } onChange={ e => setInvForm( { ...invForm, shipping: e.target.value } ) } /></div>
+                    <div className="form-group"><label htmlFor="pf-shipping">Shipping input ({ '\u20B9' })</label><input id="pf-shipping" type="number" value={ invForm.shipping } onChange={ e => setInvForm( { ...invForm, shipping: e.target.value } ) } /></div>
                   </div>
                   {/* No coupon field and no manual-adjustment field: there is no coupon system and
                       manual discount entry is retired. The always-on Delight discount (0.5% up to
@@ -761,24 +743,8 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                   { goodsType === 'physical-goods' && !selCustomer?.shippingAddress && (
                     <div className="msg-bar error" style={ { margin: '0 0 12px', fontSize: 'var(--text-xs)' } }>Physical goods require a shipping address. Add one in the Customers tab.</div>
                   ) }
-                  <div className="inner-card" style={ { marginBottom: 20, maxWidth: 500 } }>
-                    <h4 style={ { margin: '0 0 8px', fontSize: 'var(--text-md)' } }>Preview</h4>
-                    { goodsType === 'physical-goods' && selCustomer?.shippingAddress && (
-                      <div style={ { fontSize: 'var(--text-xs)', color: '#1e40af', background: '#dbeafe', padding: '4px 8px', borderRadius: 6, marginBottom: 8 } }>📦 Physical Goods — Delivery: { selCustomer.shippingAddress }</div>
-                    ) }
-                    <div className="pf-preview-row"><span>Subtotal</span><span>{ fmtMoney( calcSubtotal() ) }</span></div>
-                    { invForm.items.map( ( it, i ) => {
-                      const line = ( parseFloat( it.unitPrice ) || 0 ) * ( parseInt( it.quantity ) || 0 );
-                      return line > 0 ? <div key={ i } className="pf-preview-row" style={ { fontSize: 'var(--text-xs)', color: '#666' } }><span>{ '\u00A0\u00A0' }{ it.name || `Item ${i + 1}` } { '\u00D7' }{ it.quantity || 1 }</span><span>{ fmtMoney( line ) }</span></div> : null;
-                    } ) }
-                    <div className="pf-preview-row"><span>Tax (GST)</span><span>{ fmtMoney( calcTax() ) }</span></div>
-                    <div className="pf-preview-row"><span>Express</span><span>{ fmtMoney( parseFloat( invForm.shipping ) || 0 ) }</span></div>
-                    { /* No discount row here: Delight is the server's answer, known only after
-                         create, and there is no manual adjustment to preview. The applied Delight
-                         figure appears above once the server has decided it. */ }
-                    <div style={ { marginTop: 8, fontSize: 'var(--text-xs)', color: 'var(--text-muted)', lineHeight: 1.45 } }>
-                      Delight is applied automatically. Convenience fee and final total are calculated by the server when the invoice is created.
-                    </div>
+                  <div className="info-banner" style={ { marginBottom: 20, maxWidth: 620 } }>
+                    Final subtotal, tax, Delight, convenience fee and total are calculated and stored by the invoice engine after creation.
                   </div>
 
                   {/* Post-payment messaging options */ }

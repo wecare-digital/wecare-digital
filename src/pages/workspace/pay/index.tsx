@@ -12,7 +12,11 @@ const PayCompatibilityRedirect = () => {
 
   useEffect( () => {
     const tab = Array.isArray( router.query.tab ) ? router.query.tab[ 0 ] : router.query.tab;
-    const view = tab === 'records' ? 'ledger' : 'collect';
+    const view = tab === 'records' || tab === 'invoices'
+      ? 'invoices'
+      : tab === 'dues'
+        ? 'activity'
+        : 'collect';
     void router.replace( { pathname: '/workspace/payments', query: { view } } );
   }, [ router ] );
 

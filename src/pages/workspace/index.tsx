@@ -14,7 +14,7 @@ interface PageProps { signOut?: () => void; user?: any; }
 
 const attention = [
   { label: 'Conversations', detail: 'Unread and customer conversations', href: '/workspace/communications?view=inbox' },
-  { label: 'Payments', detail: 'Pending, failed and reconciled payment records', href: '/workspace/payments?view=ledger' },
+  { label: 'Payments', detail: 'Pending, failed and reconciled payment records', href: '/workspace/payments?view=activity' },
   { label: 'Orders', detail: 'Store and staff-created commerce orders', href: '/workspace/commerce' },
   { label: 'Service requests', detail: 'Customer requests and Flow submissions', href: '/workspace/service?view=requests' },
   { label: 'Delivery issues', detail: 'Message delivery history and failures', href: '/workspace/communications?view=manage&section=delivery' },
