@@ -495,33 +495,39 @@ class TestTheHandlersAreWired:
         assert "invoice_dedup_hit_atomic" in code
         assert "'deduplicated': True" in code
 
-    # -- refund initiation stays impossible ------------------------------
-    def test_nothing_in_the_tree_can_initiate_a_refund(self):
-        """Prohibited. Asserted rather than trusting a one-off grep.
-
-        The patterns are call shapes - a Razorpay refund endpoint or an SDK refund method.
-        Deliberately NOT a bare `payment.refund`: `lambda_utils/audit.py` lists that string
-        as an auditable *action name*, which is a control rather than a capability. Failing
-        on it would punish having the audit vocabulary ready.
-        """
+    # -- refund initiation has exactly one dormant execution boundary ---------
+    def test_only_the_designated_gated_executor_can_initiate_a_refund(self):
+        """One reviewed provider POST is allowed; every other refund call shape is prohibited."""
         import re
 
         patterns = (
-            r"/v1/payments/[^\s'\"]*/refund",   # POST .../refund
-            r"/v1/refunds",                      # the refunds collection
-            r"\.refund\s*\(",                    # razorpay client .refund(...)
-            r"\.refunds\s*\.\s*create",          # razorpay client .refunds.create(...)
+            r"/v1/payments/[^\\s'\"]*/refund",
+            r"/v1/refunds",
+            r"\\.refund\\s*\\(",
+            r"\\.refunds\\s*\\.\\s*create",
         )
+        allowed = self.FUNCTIONS / "shared" / "lambda_utils" / "integrations" / "razorpay_refund.py"
         offenders = []
+        found_allowed = False
         for path in self.FUNCTIONS.rglob("*.py"):
             if "__pycache__" in str(path):
                 continue
             text = path.read_text(encoding="utf-8", errors="replace")
             for pattern in patterns:
                 if re.search(pattern, text):
-                    offenders.append(f"{path.relative_to(self.FUNCTIONS)}: {pattern}")
-        assert not offenders, (
-            f"refund initiation is prohibited; found {offenders}")
+                    if path.resolve() == allowed.resolve():
+                        found_allowed = True
+                    else:
+                        offenders.append(f"{path.relative_to(self.FUNCTIONS)}: {pattern}")
+        assert found_allowed, "the single reviewed Razorpay refund boundary disappeared"
+        assert not offenders, f"refund initiation escaped its designated executor: {offenders}"
+
+        executor = allowed.read_text(encoding="utf-8")
+        assert 'REFUND_INITIATION_ENABLED' in executor
+        assert '== "true"' in executor
+        assert "for " not in executor[executor.index("def create_full_refund"):].split("__all__", 1)[0], (
+            "the irreversible provider function must not grow an automatic retry loop"
+        )
 
     def test_the_audit_vocabulary_still_covers_a_refund(self):
         """Not a capability - a control. If a refund path is ever added it must be audited."""
