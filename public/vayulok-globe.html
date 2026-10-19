@@ -352,26 +352,27 @@
     .fallback-dot::before{width:11px;height:11px}
     /* Keep the toggle clear of a notch / rounded corner on the phone disc. */
     .data-toggle{
-      top:calc(3% + env(safe-area-inset-top,0px));
-      right:calc(3% + env(safe-area-inset-right,0px));
-      width:166px;height:44px;
+      top:calc(2.5% + env(safe-area-inset-top,0px));
+      right:calc(2.5% + env(safe-area-inset-right,0px));
+      width:138px;height:38px;padding:3px;
     }
+    .data-toggle .mode{font-size:9.5px;letter-spacing:.065em}
     /* On the phone disc the panel drops to the bottom-left corner so it never
        overlaps the globe body, and shrinks to a compact single reading. The
        bottom/left offsets add the safe-area insets so the panel is never
        clipped by the home indicator / rounded corner on iOS & Android. */
     .city-panel{
-      left:calc(3.5% + env(safe-area-inset-left,0px));
-      top:auto;bottom:calc(4% + env(safe-area-inset-bottom,0px));transform:none;
-      width:min(66%,230px);padding:11px 13px;gap:9px;border-radius:14px;
+      left:calc(2.5% + env(safe-area-inset-left,0px));
+      top:auto;bottom:calc(2.5% + env(safe-area-inset-bottom,0px));transform:none;
+      width:min(46%,176px);padding:9px 10px;gap:7px;border-radius:12px;
     }
-    .city-panel-name{font-size:14px}
-    .city-panel-reading{font-size:12px;margin-top:5px}
-    .city-panel-layer{margin-top:5px}
-    .city-panel-time{font-size:9.5px;margin-top:5px}
-    .city-panel-meta{margin-top:5px}
+    .city-panel-name{font-size:12.5px}
+    .city-panel-reading{font-size:10.5px;margin-top:3px}
+    .city-panel-layer{font-size:8.5px;margin-top:3px}
+    .city-panel-time{display:none}
+    .city-panel-meta{display:none}
     /* The phone disc is small, so the name chip is kept compact. */
-    .city-card{padding:4px 8px 5px;border-radius:999px}
+    .city-card{display:none}
     .city-name{font-size:10.5px}
     .city-stem{width:1px;left:-.5px}.city-pin{width:9px;height:9px}
     .city-pin::before{width:34px;height:34px}
