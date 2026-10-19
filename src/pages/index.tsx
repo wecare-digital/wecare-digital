@@ -748,7 +748,21 @@ const HomePage: React.FC = () => {
           /* line-height only. The letter-spacing override that used to sit here is gone:
              tracking is now -0.04em, which scales itself, so restating it per breakpoint is
              what caused the 2.75x optical swing this replaced. */
-          .home-head{line-height:1.1}
+          /* APP-FIRST HOME REFERENCE. Keep desktop on the established shared rungs; only the
+             phone presentation steps up. 40px is the approved first H1 trial, 32px the section
+             rung and 24px the benefit-title rung. The device/reflow gates decide whether the H1
+             can move to 42px later; do not shrink it pre-emptively. */
+          .home-head{font-size:40px;line-height:1.1}
+          .home-flow-title{font-size:32px}
+          .home-flow-list strong{font-size:24px}
+          /* HOME-ONLY overrides for shared child components. They apply only while Home is
+             mounted, so other public routes stay visually unchanged until the later unification
+             pass. */
+          :global(.home-close-title){font-size:32px}
+          :global(.home-close-cta){font-size:18px}
+          :global(.ft-tagline){font-size:16px}
+          :global(.public-share .ps-menu-sub),
+          :global(.public-share .ps-menu-note){font-size:15px}
         }
       `}</style>
     </>

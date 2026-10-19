@@ -395,4 +395,43 @@ describe( 'WECARE.DIGITAL Home', () => {
     expect( tokens ).toContain( '--safe-bottom: env(safe-area-inset-bottom)' );
     expect( tokens ).toContain( '--safe-left: env(safe-area-inset-left)' );
   } );
+
+  it( 'uses the approved app-first Home type scale on phones without changing desktop rungs', () => {
+    const css = cssOf( render( <HomePage /> ).container );
+
+    expect( css ).toContain( '.home-head{font-size:40px;line-height:1.1}' );
+    expect( css ).toContain( '.home-flow-title{font-size:32px}' );
+    expect( css ).toContain( '.home-flow-list strong{font-size:24px}' );
+    expect( css ).toContain( ':global(.home-close-title){font-size:32px}' );
+    expect( css ).toContain( ':global(.home-close-cta){font-size:18px}' );
+    expect( css ).toContain( ':global(.ft-tagline){font-size:16px}' );
+    expect( css ).toContain( ':global(.public-share .ps-menu-sub)' );
+    expect( css ).toContain( ':global(.public-share .ps-menu-note){font-size:15px}' );
+
+    // The base/desktop rules still consume the shared public tokens. The approved change is a
+    // phone reference treatment, not an unreviewed desktop redesign.
+    expect( css ).toContain( 'font-size:var(--public-hero-size)' );
+    expect( css ).toContain( 'font-size:var(--public-section-size)' );
+    expect( css ).toContain( 'font-size:var(--public-card-size)' );
+  } );
+
+  it( 'keeps meaningful terminal text large on phones while reserving 14px for metadata', () => {
+    const terminal = readFileSync( resolve( process.cwd(), 'src/components/WorkflowTerminal.tsx' ), 'utf8' );
+
+    expect( terminal ).toContain( '.wt-request{font-size:18px}' );
+    expect( terminal ).toContain( '.wt-call-text{font-size:17px}' );
+    expect( terminal ).toContain( '.wt-return .wt-line-text{font-size:16px}' );
+    expect( terminal ).toContain( '.wt-note .wt-line-text,.wt-sub .wt-line-text{font-size:15px}' );
+    expect( terminal ).toContain( '.wt-ai-text{font-size:16px}' );
+    expect( terminal ).toContain( '.wt-lane-name{font-size:16px}' );
+    expect( terminal ).toContain( '.wt-lane-detail{font-size:15px}' );
+    expect( terminal ).toContain( '.wt-foot{font-size:15px}' );
+    expect( terminal ).toContain( '.wt-time{font-size:14px}' );
+    expect( terminal ).toContain( '.wt-ai-tag{font-size:14px}' );
+
+    // Keep the terminal internally scrollable instead of shrinking meaningful copy to fit.
+    expect( terminal ).toContain( 'overflow-y:auto' );
+    expect( terminal ).toContain( 'height:min(560px,100dvh)' );
+  } );
+
 } );

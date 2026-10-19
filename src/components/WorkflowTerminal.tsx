@@ -1292,6 +1292,24 @@ const WorkflowTerminal: React.FC = () => {
              The 560px ceiling keeps the panel from dominating a tall phone. */
           .wt-window{height:min(560px,100vh);height:min(560px,100dvh);border-radius:12px}
           .wt-space{padding:23px 18px 60px}
+          /* APP-FIRST PHONE TYPE. The desktop terminal deliberately stays dense; on a phone the
+             panel is a primary reading surface, so meaningful lines move into a 15-18px band and
+             only true metadata stays at 14px. Larger type is allowed to scroll inside the panel
+             rather than being shrunk to show more lines at once. */
+          .wt-play{font-size:14px}
+          .wt-bar-title{font-size:15px}
+          .wt-request{font-size:18px}
+          .wt-call-text{font-size:17px}
+          .wt-time{font-size:14px}
+          .wt-return .wt-line-text{font-size:16px}
+          .wt-note .wt-line-text,.wt-sub .wt-line-text{font-size:15px}
+          .wt-error .wt-line-text{font-size:16px}
+          .wt-ai-tag{font-size:14px}
+          .wt-ai-text{font-size:16px}
+          .wt-rollup-item{font-size:15px}
+          .wt-lane-name{font-size:16px}
+          .wt-lane-detail{font-size:15px}
+          .wt-foot{font-size:15px}
           .wt-bar-state{display:none}
           .wt-step{padding-left:29px}
           /* ONE LANE PER ROW ON PHONES. Five across only fits where the panel is full width
