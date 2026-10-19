@@ -205,6 +205,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
   const [ remarkModal, setRemarkModal ] = useState<{ inv: Invoice; type: 'remark' | 'refund' | 'credit_note' } | null>( null );
   const [ remarkText, setRemarkText ] = useState( '' );
   const [ remarkAmount, setRemarkAmount ] = useState( '' );
+  const [ refundId, setRefundId ] = useState( '' );
   const [ editModal, setEditModal ] = useState<Invoice | null>( null );
   // `shipping` and `discount` are GONE from this form (D4/D6). They are financial fields, and
   // the server refuses them on an issued invoice - which is every invoice that has a number -
@@ -469,16 +470,50 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
     try { await api.generateInvoicePdf( inv.invoiceId ); showMsg( 'PDF generated' ); } catch ( e ) { showMsg( 'Failed', 'error' ); }
     setActionLoading( '' );
   };
-  const openRemarkModal = ( inv: Invoice, type: 'remark' | 'refund' | 'credit_note' ) => { setRemarkModal( { inv, type } ); setRemarkText( '' ); setRemarkAmount( '' ); };
+  const openRemarkModal = ( inv: Invoice, type: 'remark' | 'refund' | 'credit_note' ) => {
+    setRemarkModal( { inv, type } );
+    setRemarkText( '' );
+    setRemarkAmount( '' );
+    setRefundId( inv.refundId || '' );
+  };
   const submitRemark = async () => {
     if ( !remarkModal ) return;
+    if ( remarkModal.type === 'refund' && !refundId.trim() )
+    {
+      showMsg( 'Provider refund ID is required. This screen does not initiate refunds.', 'error' );
+      return;
+    }
     setActionLoading( 'remark' );
     try
     {
-      const r = await api.addInvoiceRemark( remarkModal.inv.invoiceId, remarkModal.type, remarkText, parseFloat( remarkAmount ) || 0 );
-      if ( r ) { showMsg( `${remarkModal.type === 'remark' ? 'Remark' : remarkModal.type === 'refund' ? 'Refund' : 'Credit note'} added` ); setRemarkModal( null ); loadInvoices(); }
-      else showMsg( 'Failed', 'error' );
-    } catch ( e ) { showMsg( 'Failed', 'error' ); }
+      const r = await api.addInvoiceRemark(
+        remarkModal.inv.invoiceId,
+        remarkModal.type,
+        remarkText,
+        parseFloat( remarkAmount ) || 0,
+        remarkModal.type === 'refund'
+          ? { refundId: refundId.trim(), paymentId: remarkModal.inv.paymentId }
+          : undefined,
+      );
+      if ( r )
+      {
+        showMsg( remarkModal.type === 'refund'
+          ? 'Refund evidence verified and reconciled'
+          : `${remarkModal.type === 'remark' ? 'Remark' : 'Credit note record'} added` );
+        setRemarkModal( null );
+        loadInvoices();
+      } else
+      {
+        showMsg( remarkModal.type === 'refund'
+          ? 'Refund could not be verified. No refund was initiated and payment state was not changed.'
+          : 'Failed', 'error' );
+      }
+    } catch ( e )
+    {
+      showMsg( remarkModal.type === 'refund'
+        ? 'Refund could not be verified. No refund was initiated and payment state was not changed.'
+        : 'Failed', 'error' );
+    }
     setActionLoading( '' );
   };
   const openEditModal = ( inv: Invoice ) => {
@@ -909,8 +944,8 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                       <Button variant="secondary" size="sm" onClick={ () => openRemarkModal( selInvoice, 'remark' ) }>Add Remark</Button>
                       { ( selInvoice.status === 'paid' || selInvoice.paymentStatus === 'captured' ) && (
                         <>
-                          <Button variant="secondary" size="sm" onClick={ () => openRemarkModal( selInvoice, 'refund' ) }>Refund</Button>
-                          <Button variant="secondary" size="sm" onClick={ () => openRemarkModal( selInvoice, 'credit_note' ) }>Credit Note</Button>
+                          <Button variant="secondary" size="sm" onClick={ () => openRemarkModal( selInvoice, 'refund' ) }>Reconcile Refund</Button>
+                          <Button variant="secondary" size="sm" onClick={ () => openRemarkModal( selInvoice, 'credit_note' ) }>Record Credit Note</Button>
                           { /* WhatsApp order_status fulfilment updates for a PAID order. These tell
                                the customer what happened to their order AFTER payment (capture
                                already sent "processing" automatically). The server validates the
@@ -1091,17 +1126,28 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
             <div className="pf-modal-overlay" onClick={ () => setRemarkModal( null ) }>
               <div className="pf-modal-box" onClick={ e => e.stopPropagation() }>
                 <div className="pf-modal-header">
-                  <h3>{ remarkModal.type === 'remark' ? 'Add Remark' : remarkModal.type === 'refund' ? 'Record Refund' : 'Credit Note' }</h3>
+                  <h3>{ remarkModal.type === 'remark' ? 'Add Remark' : remarkModal.type === 'refund' ? 'Reconcile Refund' : 'Record Credit Note' }</h3>
                   <Button variant="ghost" size="sm" onClick={ () => setRemarkModal( null ) }>{ '\u2715' }</Button>
                 </div>
                 <div className="pf-detail-row" style={ { marginBottom: 12 } }>
                   <span className="label">Invoice</span>
                   <span className="mono">{ remarkModal.inv.referenceId || remarkModal.inv.invoiceNumber }</span>
                 </div>
+                { remarkModal.type === 'refund' && (
+                  <div className="msg-bar" style={ { marginBottom: 12 } }>
+                    This does not issue a refund. Refund in Razorpay first; after the webhook lands, enter the provider refund ID here to verify and reconcile the ledger.
+                  </div>
+                ) }
                 { ( remarkModal.type === 'refund' || remarkModal.type === 'credit_note' ) && (
                   <div className="form-group">
                     <label>Amount ({ '\u20B9' })</label>
                     <input type="number" value={ remarkAmount } onChange={ e => setRemarkAmount( e.target.value ) } placeholder="0" />
+                  </div>
+                ) }
+                { remarkModal.type === 'refund' && (
+                  <div className="form-group">
+                    <label>Provider refund ID *</label>
+                    <input type="text" value={ refundId } onChange={ e => setRefundId( e.target.value ) } placeholder="rfnd_..." autoComplete="off" />
                   </div>
                 ) }
                 <div className="form-group">
@@ -1111,7 +1157,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                 <div className="pf-modal-actions">
                   <Button variant="secondary" size="sm" onClick={ () => setRemarkModal( null ) }>Cancel</Button>
                   <Button variant={ remarkModal.type === 'refund' ? 'danger' : 'primary' } size="sm" loading={ actionLoading === 'remark' } onClick={ submitRemark }>
-                    { remarkModal.type === 'remark' ? 'Save Remark' : remarkModal.type === 'refund' ? 'Confirm Refund' : 'Issue Credit Note' }
+                    { remarkModal.type === 'remark' ? 'Save Remark' : remarkModal.type === 'refund' ? 'Verify & Record Refund' : 'Record Credit Note' }
                   </Button>
                 </div>
               </div>
