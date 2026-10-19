@@ -239,19 +239,23 @@ describe( 'Blog Production dashboard contract', () => {
     }
   } );
 
-  it( 'the SEO hub links to the production pages', () => {
+  it( 'the content workspace links to the production stage pages', () => {
     // A page nobody can navigate to is a page nobody uses.
-    // FEAT-006: the staged pipeline folded into one hub with step tabs; the SEO hub links
-    // the waves route and each stage as a ?tab= deep-link on it.
-    const hub = read( ROOT, 'src', 'pages', 'workspace', 'seo', 'index.tsx' );
+    // #956 (Rebuild Content as one publishing workspace): the standalone SEO hub was
+    // retired to a router.replace compatibility redirect, so it no longer carries the
+    // blog-production links. The canonical surface that now lists every production stage
+    // by name is navigationConfig's Content section in src/config/navigation.ts, which
+    // links each stage as a ?tab= deep-link. Reading the nav config keeps the original
+    // intent (the production stages are reachable by name from the live content surface)
+    // against the surface that actually carries them post-#956.
+    const nav = read( ROOT, 'src', 'config', 'navigation.ts' );
     for ( const route of [
-      '/workspace/seo/blog-production',
       '/workspace/seo/blog-production?tab=review',
       '/workspace/seo/blog-production?tab=qa',
       '/workspace/seo/blog-production?tab=publish',
     ] )
     {
-      expect( hub, `the SEO hub does not link to ${ route }` ).toContain( `'${ route }'` );
+      expect( nav, `the Content workspace does not link to ${ route }` ).toContain( `'${ route }'` );
     }
   } );
 } );
