@@ -44,10 +44,18 @@ describe( 'Grahak OS typography matches the Home public-page ladder', () => {
     expectSameType( '.hero-left p', '.home-sub' );
     expectSameType( '.section-header h2,.api-info h2', '.home-flow-title' );
     expectSameType( '.section-header p', '.home-flow-lead' );
-    expectSameType( '.api-step-title', '.home-flow-list strong' );
+    const apiStepTitle = cssRuleFor( source, '.api-step-title' );
     const buyBoxPrice = cssRuleFor( productBuyBox, '.pbb-price' );
     const homeCard = cssRuleFor( home, '.home-flow-list strong' );
-    for ( const property of [ 'font-size', 'font-weight', 'line-height', 'letter-spacing' ] ) {
+
+    // Home is the canonical app-first reference and consumes the shared card token with a 24px
+    // minimum. Grahak OS and the buy box remain on the shared token itself. They still share
+    // weight, leading and tracking, so this is one semantic rung with a Home-specific size floor.
+    expect( cssValue( homeCard, 'font-size' ) ).toBe( 'max(var(--public-card-size),24px)' );
+    expect( cssValue( apiStepTitle, 'font-size' ) ).toBe( 'var(--public-card-size)' );
+    expect( cssValue( buyBoxPrice, 'font-size' ) ).toBe( 'var(--public-card-size)' );
+    for ( const property of [ 'font-weight', 'line-height', 'letter-spacing' ] ) {
+      expect( cssValue( apiStepTitle, property ) ).toBe( cssValue( homeCard, property ) );
       expect( cssValue( buyBoxPrice, property ) ).toBe( cssValue( homeCard, property ) );
     }
     expectSameType( '.api-step-line', '.home-flow-list span' );
