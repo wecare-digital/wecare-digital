@@ -124,15 +124,16 @@ describe( 'Brand assets', () => {
      * by replacing these too. On a white page the transparent mark is right and the opaque
      * square would render as a visible white tile behind the logo.
      */
-    const inPage = [
-      [ 'src/components/BrandLockup.tsx', 'the public header lockup' ],
-      [ 'src/components/Layout.tsx', 'the dashboard sidebar' ],
-      [ 'src/components/FloatingAgent.tsx', 'the floating agent avatar' ],
-    ] as const;
-    for ( const [ file ] of inPage ) {
-      const source = fs.readFileSync( path.join( ROOT, file ), 'utf8' );
-      expect( source ).toContain( `${MEDIA_BASE}/${TRANSPARENT}` );
-    }
+    const brand = fs.readFileSync( path.join( ROOT, 'src/components/BrandLockup.tsx' ), 'utf8' );
+    const layout = fs.readFileSync( path.join( ROOT, 'src/components/Layout.tsx' ), 'utf8' );
+    const agent = fs.readFileSync( path.join( ROOT, 'src/components/FloatingAgent.tsx' ), 'utf8' );
+
+    // BrandLockup owns the in-page mark once; shells consume the component instead of
+    // restating the asset URL and creating a second branding source.
+    expect( brand ).toContain( `${MEDIA_BASE}/${TRANSPARENT}` );
+    expect( layout ).toContain( "import BrandLockup from './BrandLockup'" );
+    expect( layout ).toContain( '<BrandLockup compact />' );
+    expect( agent ).toContain( `${MEDIA_BASE}/${TRANSPARENT}` );
   } );
 
   /**
