@@ -112,7 +112,10 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y chromium
       - name: Install browser runner
-        run: npm install --no-save --no-audit --no-fund playwright-core@1.49.0
+        run: |
+          npm install --no-save --no-audit --no-fund playwright-core@1.49.0
+          node scripts/guard_braces_depth.cjs
+          node scripts/guard_braces_depth.cjs --check
       - name: Render production page and classify public failures
         shell: bash
         run: |

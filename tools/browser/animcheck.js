@@ -154,9 +154,9 @@ const ALLOWED = [
   },
   {
     // KEYLESS-CI ARTIFACT, scoped exactly like the two entries above. /vayulok/'s
-    // VayuLokLive reads NEXT_PUBLIC_GOOGLE_BROWSER_KEY, which CI leaves unset (build-test.yml
-    // documents the key as owner-only, which is why contactcheck's keyed assertion is
-    // reported-not-enforced). With an empty key its Air Quality and Weather calls to
+    // VayuLokLive reads NEXT_PUBLIC_GOOGLE_BROWSER_KEY, which CI leaves unset.
+    // contactcheck exercises the keyless map fallback in that environment.
+    // With an empty key its Air Quality and Weather calls to
     // *.googleapis.com are rejected 403, producing the generic "Failed to load resource"
     // line with no identifying text - so, like the site-language and Maps RPC entries, it
     // is matched on the REQUEST URL, not the message. Scoped to these two Google service
