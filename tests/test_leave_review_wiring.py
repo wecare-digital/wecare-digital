@@ -68,11 +68,11 @@ REVIEW_ENTRY = ROOT / 'src/lib/reviewEntry.ts'
 HEADER = ROOT / 'src/components/Header.tsx'
 # The 2026-10 workspace redesign (105 -> 28 pages) moved these review surfaces from
 # `src/pages/workspace/...` pages into `src/components/workspace/...` components. selfservice
-# became the service hub (which also carries MESSAGE_LINKS.leave_review); the WhatsApp settings
-# surface stayed as its page.
+# became the service hub (which also carries MESSAGE_LINKS.leave_review); the WhatsApp bot-menu
+# reference now lives under Communications → Manage.
 SELFSERVICE = ROOT / 'src/components/workspace/service/CustomerServiceHub.tsx'
 SCRIPTS = ROOT / 'src/components/workspace/whatsapp/scripts.tsx'
-SETTINGS = ROOT / 'src/pages/workspace/engage/whatsapp/settings.tsx'
+SETTINGS = ROOT / 'src/components/workspace/whatsapp/bot-menu.tsx'
 SYSARCH = ROOT / 'src/components/workspace/platform/SystemArchitecture.tsx'
 
 WORKSPACE_FILES = [SELFSERVICE, SCRIPTS, SETTINGS, SYSARCH]

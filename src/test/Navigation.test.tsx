@@ -142,7 +142,7 @@ describe( 'nothing became unreachable', () => {
     // getAllNavItems, so it is no longer sampled here.)
     for ( const p of [ '/workspace/communications?view=manage&section=sms',
       '/workspace/communications?view=manage&section=search',
-      '/workspace/engage/whatsapp/settings?tab=catalog-builder', '/workspace/engage/whatsapp/settings?tab=embedded-signup',
+      '/workspace/communications?view=manage&section=whatsapp&tool=catalog-builder', '/workspace/communications?view=manage&section=whatsapp&tool=embedded-signup',
       '/workspace/settings/platform?tab=design-reference',
       '/workspace/communications?view=manage&section=ai', '/workspace/service?view=requests&action=faq' ] )
     {
@@ -158,8 +158,8 @@ describe( 'nothing became unreachable', () => {
     // FEAT-005/006: same destinations, now reached as hub?tab= deep-links — CORS under the
     // Platform hub, the two WhatsApp tools under the WhatsApp hub, Form responses under the
     // Service hub.
-    for ( const p of [ '/workspace/settings/platform?tab=cors-settings', '/workspace/engage/whatsapp/settings?tab=ai-agent',
-      '/workspace/engage/whatsapp/settings?tab=scripts', '/workspace/service?view=requests' ] )
+    for ( const p of [ '/workspace/settings/platform?tab=cors-settings', '/workspace/communications?view=manage&section=whatsapp&tool=ai-agent',
+      '/workspace/communications?view=manage&section=whatsapp&tool=scripts', '/workspace/service?view=requests' ] )
     {
       expect( all ).toContain( p );
     }
