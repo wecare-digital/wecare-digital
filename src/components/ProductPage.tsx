@@ -191,7 +191,17 @@ const ProductPage: React.FC<ProductPageProps> = ( {
             ProductPage must not add a second page-level action dock. */}
 
         <style jsx>{`
-          .pdp{max-width:700px}
+          /* PHASE-1 UNIT (product pages): layered-defence min-width:0 containment so a long
+             unbreakable token - a SKU value, a long point heading, a URL in body copy - cannot
+             force the whole page to scroll sideways at the 200%-zoom extreme. RotatingHero
+             already caps the hero band with minmax(0,1fr) tracks (Unit 1) and the two-column
+             .has-aside grid uses minmax(0,1fr) below, but a grid/flex child's default
+             min-width:auto still lets an un-wrappable child push past its track; pinning it to 0
+             here makes the content column shrink instead of overflowing. The tap floor is already
+             met (.pdp-cta is var(--public-cta-height)=52px >= 44px) and the notch inset is owned
+             upstream by Header/Layout, so this unit is containment-only, matching how the home
+             unit carried no inline --safe-top/--tap-min. */
+          .pdp{max-width:700px;min-width:0}
           .pdp-h2{
             font-size:var(--public-section-size);font-weight:var(--public-section-weight);line-height:var(--public-section-leading);
             letter-spacing:var(--public-section-tracking);color:var(--public-heading);margin:0 0 22px;
@@ -203,8 +213,11 @@ const ProductPage: React.FC<ProductPageProps> = ( {
              points. A single-paragraph lead is always :last-of-type, so it keeps 34px untouched. */
           .pdp-lead:not(:last-of-type){margin-bottom:16px}
 
-          .pdp-points{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:20px}
-          .pdp-point{display:flex;gap:16px;align-items:flex-start}
+          .pdp-points{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:20px;min-width:0}
+          /* min-width:0 on the flex row + its text column lets a long heading/body wrap instead
+             of widening the row; the numbered marker keeps its fixed 34px via flex:0 0 auto. */
+          .pdp-point{display:flex;gap:16px;align-items:flex-start;min-width:0}
+          .pdp-point>div{min-width:0}
           /* The .22 lime tint: the contract's quiet treatment, right for a counter that
              labels rather than acts. Full-strength lime is reserved for the CTA below. */
           .pdp-point-n{
@@ -213,8 +226,8 @@ const ProductPage: React.FC<ProductPageProps> = ( {
             background:var(--public-lime-tint);color:var(--public-brand-green);
             font-size:15px;font-weight:700;
           }
-          .pdp-point-t{display:block;margin:5px 0 6px;font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-heading)}
-          .pdp-p{font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-body);margin:0}
+          .pdp-point-t{display:block;margin:5px 0 6px;font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-heading);overflow-wrap:break-word}
+          .pdp-p{font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-body);margin:0;overflow-wrap:break-word}
 
           /* The CTA row. One or two pills, wrapping rather than overflowing on a narrow
              viewport. margin-top:30px lives HERE, not on .pdp-cta, so a page with a single pill
@@ -257,10 +270,13 @@ const ProductPage: React.FC<ProductPageProps> = ( {
           .pdp-commerce{margin:22px 0 0}
           .pdp-sku{
             margin:0;font-size:17px;font-weight:400;line-height:1.4;
-            letter-spacing:-.05px;color:var(--public-muted);
+            letter-spacing:-.05px;color:var(--public-muted);overflow-wrap:break-word;
           }
           .pdp-sku strong{color:var(--public-brand-green);font-weight:700}
-          .pdp-sku-value{color:var(--public-muted)}
+          /* word-break:break-word so the single unbroken SKU token (no spaces) can split -
+             overflow-wrap alone will not break a continuous code - keeping the 200%-zoom extreme
+             from being pushed wide by one long value. */
+          .pdp-sku-value{color:var(--public-muted);word-break:break-word}
           /* THE TWO-COLUMN WRAP, SCOPED TO .has-aside so every other product page is untouched.
              Default (no aside): a plain block, so .pdp keeps its own 700px measure exactly as
              before. With an aside: a grid - a flexible product column on the left and a fixed
@@ -276,7 +292,7 @@ const ProductPage: React.FC<ProductPageProps> = ( {
              copy. :global() opts them out of hashing so the rules match the real elements. The
              selectors stay specific enough (.pdp-wrap.has-aside, .pdp-crumbs, .pdp-aside) that
              they cannot leak to other components. */
-          :global(.pdp-wrap){display:block}
+          :global(.pdp-wrap){display:block;min-width:0}
           :global(.pdp-aside){margin:48px 0 0}
           /* SPANNING BOTH TRACKS IS WHAT KEEPS /anew/ INTACT. With an aside, .pdp-wrap is a
              two-track grid at >=768px, so an unspanned trail would take the product column and
