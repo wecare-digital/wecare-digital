@@ -92,6 +92,34 @@ describe( 'Grahak OS typography matches the Home public-page ladder', () => {
     }
   } );
 
+  it( 'adopts the shared public mobile foundation without changing its product-specific surfaces', () => {
+    const rotatingHero = readFileSync( resolve( process.cwd(), 'src/components/RotatingHero.tsx' ), 'utf8' );
+
+    expect( source ).toContain( '<RotatingHero\n          insideMain\n          mobileFoundation' );
+
+    expect( rotatingHero ).toContain( 'mobileFoundation?: boolean' );
+    expect( rotatingHero ).toContain( "mobileFoundation ? 'uses-mobile-foundation' : ''" );
+    expect( rotatingHero ).toContain( '.rh-shell.uses-mobile-foundation .rh-head{font-size:var(--public-mobile-hero-size)}' );
+    expect( rotatingHero ).toContain( 'padding:var(--public-mobile-hero-top) var(--public-mobile-page-gutter) 40px' );
+    expect( rotatingHero ).toContain( 'gap:var(--public-mobile-section-gap)' );
+    expect( rotatingHero ).toContain( '@media(horizontal-viewport-segments:2)' );
+
+    expect( source ).toContain( '.section-header h2,.api-info h2{font-size:var(--public-mobile-section-size)}' );
+    expect( source ).toContain( '.api-step-title{font-size:var(--public-mobile-card-size)}' );
+    expect( source ).toContain( '.gos-wa-cta{font-size:var(--public-mobile-cta-font-size)}' );
+    expect( source ).toContain( '.api{padding:calc(var(--public-mobile-section-gap) / 2) var(--public-mobile-page-gutter)}' );
+    expect( source ).toContain( '.pp-inner{padding:0 var(--public-mobile-page-gutter)}' );
+    expect( source ).toContain( '.touchpoint{padding:calc(var(--public-mobile-section-gap) / 2) 0}' );
+    expect( source ).toContain( 'width:env(viewport-segment-width 0 0)' );
+    expect( source ).toContain( 'width:env(viewport-segment-width 1 0)' );
+
+    // Migration is foundational, not a product redesign: the Grahak-specific mock/API identity stays.
+    expect( source ).toContain( 'className="mockup-wrapper"' );
+    expect( source ).toContain( 'className="api-demo-stack"' );
+    expect( source ).toContain( 'className="api-steps-list"' );
+    expect( source ).toContain( 'className="usecase-pills"' );
+  } );
+
   it( 'uses one scalable hero tracking value instead of breakpoint-specific pixel tracking', () => {
     expect( cssRuleFor( source, '.hero-left h1' ) ).toContain( 'letter-spacing:var(--public-hero-tracking)' );
     expect( code ).not.toContain( '.hero-left h1{letter-spacing:' );
