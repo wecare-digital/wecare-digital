@@ -36,7 +36,7 @@ from lambda_utils.audit import record_audit
 from lambda_utils.validation import sanitize_html, sanitize_dict
 from lambda_utils import contact_key  # `id` is the physical key; `contactId` is its alias
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
-from lambda_utils.privacy import mask_phone  # a phone reaches a log masked, or not at all
+from lambda_utils.privacy import mask_phone, mask_contact_id  # sensitive identifiers are masked in logs
 from lambda_utils.identity import customer as customer_identity
 # The PUBLIC customer id. Deliberately not the row `id` - see the module docstring: that one is
 # uuid5 of the Cognito sub when `auth/customer-profile` writes it, so publishing it on an invoice
@@ -850,7 +850,7 @@ def _search(params: Dict[str, str], request_id: str, origin: str = '') -> Dict[s
     limit = min(int(params.get('limit', DEFAULT_SEARCH_LIMIT)), MAX_SEARCH_LIMIT)
 
     table = dynamodb.Table(CONTACTS_TABLE)
-    filt = Attr('deletedAt').not_exists() | Attr('deletedAt').eq(None)
+    filt = _active_contact_filter()
 
     scan_kwargs: Dict[str, Any] = {'FilterExpression': filt}
 
@@ -873,18 +873,25 @@ def _search(params: Dict[str, str], request_id: str, origin: str = '') -> Dict[s
 
 
 def _merged_alias_mutation_refusal(
-    contact_id: str, origin: str = ''
+    contact_id: str, origin: str = '', *, defer_unreadable: bool = False
 ) -> Optional[Dict[str, Any]]:
-    """Completed merge aliases are immutable provenance; claimed rows stay operational."""
+    """Completed merge aliases are immutable provenance; claimed rows stay operational.
+
+    A hard delete has a later payment/provenance guard that already fails closed with the
+    established 409 contract when the contact row cannot be read. In that one path, defer the
+    unreadable-row decision to that stronger guard instead of changing the wire contract to 503.
+    """
     try:
         row = dynamodb.Table(CONTACTS_TABLE).get_item(
             Key=contact_key.key(contact_id), ConsistentRead=True).get('Item') or {}
     except Exception as exc:  # noqa: BLE001 - cannot prove this is safe to mutate
         logger.warning(json.dumps({
             'event': 'contact_merge_state_unavailable',
-            'contactId': contact_id,
+            'contactId': mask_contact_id(contact_id),
             'error': type(exc).__name__,
         }))
+        if defer_unreadable:
+            return None
         return cors_response(503, {
             'error': 'Customer identity state is temporarily unavailable',
             'errorCode': 'CONTACT_IDENTITY_STATE_UNAVAILABLE',
@@ -1013,7 +1020,8 @@ DELETE_REFUSED_LOCKED = 'CONTACT_LOCKED'
 
 
 def _delete(contact_id: str, hard: bool, request_id: str, origin: str = '') -> Dict[str, Any]:
-    merged_refusal = _merged_alias_mutation_refusal(contact_id, origin)
+    merged_refusal = _merged_alias_mutation_refusal(
+        contact_id, origin, defer_unreadable=hard)
     if merged_refusal:
         return merged_refusal
 
