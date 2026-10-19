@@ -382,10 +382,10 @@ const ENV_VARS: EnvVar[] = [
 // ─── Data: Frontend Routes ───
 interface FrontendRoute { path: string; label: string; backend: string; tables: string; }
 const FRONTEND_ROUTES: FrontendRoute[] = [
-  // Platform (Settings)
-  { path: '/workspace/settings/platform/system-architecture', label: 'Project Control Center', backend: '(this page)', tables: '-' },
-  { path: '/workspace/settings/platform/lambda-functions', label: 'Lambda Functions', backend: '(static data)', tables: '-' },
-  { path: '/workspace/settings/platform/code-repo', label: 'Code Repo', backend: '(static data)', tables: '-' },
+  // Platform — canonical workspace. Static inventory rows are labelled as snapshots, not live control-plane readback.
+  { path: '/workspace/platform?view=system-architecture', label: 'Architecture snapshot', backend: '(this page)', tables: '-' },
+  { path: '/workspace/platform?view=lambda-functions', label: 'Lambda inventory snapshot', backend: '(static data)', tables: '-' },
+  { path: '/workspace/platform?view=code-repo', label: 'Code Repo', backend: '(static data)', tables: '-' },
   // WhatsApp
   { path: '/workspace/engage/inbox?channel=whatsapp', label: 'WhatsApp Inbox', backend: 'messages-read, inbound-whatsapp, outbound-whatsapp', tables: 'WhatsAppInbound, WhatsAppOutbound, Contact' },
   { path: '/workspace/engage/whatsapp/templates', label: 'WA Templates', backend: 'whatsapp-templates, whatsapp-template-management', tables: 'TemplateAnalytics' },
