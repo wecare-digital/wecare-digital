@@ -245,11 +245,15 @@ def test_the_second_index_has_the_same_keys_so_the_repoint_is_not_a_behaviour_ch
             == provisioner.INDEX_DEFINITION["KeySchema"])
 
 
-def test_the_second_index_projects_exactly_the_first_plus_channel(provisioner):
+def test_the_second_index_projects_the_first_plus_channel_and_customer_uuid(provisioner):
     projection = provisioner.INDEX_DEFINITION_V2["Projection"]
     assert projection["ProjectionType"] == "INCLUDE"
+    # v2 carries the v1 set plus `channel` and `customerUuid` - the two short, PII-free
+    # attributes the /orders wire row shows (source + public customer id). Both read as their
+    # defaults off v1 until this index is serving.
     assert projection["NonKeyAttributes"] == [
-        "orderNumber", "referenceId", "amountPaise", "currency", "paymentStatus", "channel"]
+        "orderNumber", "referenceId", "amountPaise", "currency", "paymentStatus",
+        "channel", "customerUuid"]
     # Still minimised. `purchasedSnapshot` is the frozen cart including a delivery address, and
     # keeping a second copy of it out of the index is what the Query-only grant makes structural.
     assert "purchasedSnapshot" not in projection["NonKeyAttributes"]

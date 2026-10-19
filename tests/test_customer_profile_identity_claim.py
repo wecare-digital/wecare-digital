@@ -562,3 +562,89 @@ def test_an_audit_failure_cannot_change_the_outcome(env):
     monkeypatch.setattr(h, "record_audit", boom)
     assert save(h, fake)["statusCode"] == 200
     assert rows_by_id(fake)[WA_CONTACT_ID]["checkoutCustomerId"] == CUSTOMER
+
+
+# ── the order-promotion sweep (step 2: linking an account reveals its WhatsApp orders) ──────────
+#
+# A WhatsApp-first order is projected at `finalizationStage == NEEDS_CUSTOMER_LINK` with
+# `customerId == contactId`, so the website `/my-orders` query (partitioned on the Cognito sub)
+# cannot see it. When the contact claims a website account, `_attempt_claim` must re-point that
+# order's `customerId` to the sub and finalize it, so it appears in history immediately rather
+# than only after the next webhook replay.
+
+ORDERS_TABLE_NAME = "stack-wecare-digital-OrderTable"
+ORDERS_BY_CUSTOMER_INDEX = "customerId-createdAt-index"
+
+
+@pytest.fixture
+def env_with_orders(monkeypatch):
+    monkeypatch.setenv("OTP_TABLE", OTP_TABLE)
+    monkeypatch.setenv("CONTACTS_TABLE", CONTACTS_TABLE)
+    monkeypatch.setenv("APP_ENV", "development")
+
+    spec = importlib.util.spec_from_file_location("customer_profile_orders_sweep", HANDLER_PATH)
+    h = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(h)
+
+    fake = FakeDynamo(
+        keys={OTP_TABLE: "grantId", CONTACTS_TABLE: "id", ORDERS_TABLE_NAME: "orderId"},
+        indexes={
+            CONTACTS_TABLE: {"phone-index": ("phone", None), "email-index": ("email", None)},
+            ORDERS_TABLE_NAME: {ORDERS_BY_CUSTOMER_INDEX: ("customerId", "createdAt")},
+        },
+    )
+    monkeypatch.setattr(h, "_dynamodb", fake)
+    monkeypatch.setattr(h, "_pepper", lambda: PEPPER)
+    monkeypatch.setattr(h, "record_audit", lambda action, **kwargs: None)
+    monkeypatch.setattr(h.customer_auth, "require_customer", lambda event: (Identity(), None))
+    return h, fake
+
+
+def _seed_order(fake, *, order_id, customer_id, stage, created_at=10):
+    fake.Table(ORDERS_TABLE_NAME).put_item(Item={
+        "orderId": order_id, "customerId": customer_id, "contactId": WA_CONTACT_ID,
+        "createdAt": created_at, "finalizationStage": stage,
+        "paymentAttemptId": "attempt-" + order_id, "orderNumber": "WD-ORD-" + order_id})
+
+
+def test_claiming_an_account_promotes_the_contacts_unlinked_order(env_with_orders):
+    h, fake = env_with_orders
+    inbound_row(fake)
+    # An order already projected for this WhatsApp contact, owned by the contact id, unlinked.
+    _seed_order(fake, order_id="ord-link-1", customer_id=WA_CONTACT_ID,
+                stage="NEEDS_CUSTOMER_LINK")
+
+    response = save(h, fake)
+    assert response["statusCode"] == 200
+
+    promoted = fake.Table(ORDERS_TABLE_NAME).get_item(Key={"orderId": "ord-link-1"})["Item"]
+    assert promoted["customerId"] == CUSTOMER, "the order must now be owned by the Cognito sub"
+    assert promoted["finalizationStage"] == "ORDER_FINALIZED"
+
+
+def test_the_sweep_does_not_touch_a_finalized_or_foreign_order(env_with_orders):
+    h, fake = env_with_orders
+    inbound_row(fake)
+    # Already finalized for this contact (should not be rewritten), and one owned by another
+    # customer entirely (must never be reachable by this contact's sweep).
+    _seed_order(fake, order_id="ord-final", customer_id=CUSTOMER, stage="ORDER_FINALIZED")
+    _seed_order(fake, order_id="ord-foreign", customer_id=OTHER_CUSTOMER,
+                stage="NEEDS_CUSTOMER_LINK")
+
+    assert save(h, fake)["statusCode"] == 200
+
+    # The foreign order is in a different partition (customerId == OTHER_CUSTOMER), so the sweep
+    # (which queries customerId == contactId) never even sees it - its owner is untouched.
+    foreign = fake.Table(ORDERS_TABLE_NAME).get_item(Key={"orderId": "ord-foreign"})["Item"]
+    assert foreign["customerId"] == OTHER_CUSTOMER
+    assert foreign["finalizationStage"] == "NEEDS_CUSTOMER_LINK"
+
+
+def test_a_missing_orders_table_never_breaks_the_claim(env):
+    """The claim is the authority; the sweep is best-effort. With no orders table wired (the
+    default fixture), the claim still succeeds - the webhook replay remains the promotion
+    backstop."""
+    h, fake, _, _ = env
+    inbound_row(fake)
+    assert save(h, fake)["statusCode"] == 200
+    assert fake.all_rows(CONTACTS_TABLE)[0]["checkoutCustomerId"] == CUSTOMER
