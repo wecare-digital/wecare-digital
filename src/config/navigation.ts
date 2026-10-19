@@ -446,23 +446,19 @@ export interface ModuleHome {
 
 export const moduleHomes: ModuleHome[] = [
   {
-    id: 'home', label: 'Home', path: '/workspace/engage/inbox',
+    id: 'home', label: 'Home', path: '/workspace',
     innerPages: [],
-    note: 'The Dashboard section was removed; the workspace landing is now the common '
-      + 'inbox. The former platform tabs live under /workspace/settings/platform/* and '
-      + 'are listed by the platform-operations module home below.',
+    note: 'Workspace Home is the operator launchpad. It owns attention queues, quick actions, '
+      + 'recent work and discovery of the small set of operational workspaces.',
   },
   {
-    id: 'communications', label: 'Communications', path: '/workspace/engage',
-    // The master prompt is explicit: Communications exposes EXACTLY these three.
-    // WhatsApp Business was `/workspace/engage/whatsapp` until 2026-10-15, when that route
-    // became a signpost to the common inbox (the first entry here) - so naming it would
-    // have listed the common inbox twice and WhatsApp Business not at all. It is now the
-    // WhatsApp hub: every WhatsApp capability except the inbox, as lazy tabs.
-    innerPages: ['/workspace/engage/inbox', '/workspace/engage/whatsapp/settings', '/workspace/engage/channels?tab=voice'],
-    note: 'Common Inbox, WhatsApp Business and Business Calling — exactly three, as '
-      + 'specified. The other channels (SMS, RCS, Email, Push) are filters on the '
-      + 'common inbox plus configuration under the gear, not peers of these three.',
+    id: 'communications', label: 'Communications', path: '/workspace/communications',
+    innerPages: [
+      '/workspace/communications?view=inbox',
+      '/workspace/communications?view=manage',
+    ],
+    note: 'Exactly two primary modes: Inbox for daily conversation work and Manage for channels, '
+      + 'content, automation and communications operations.',
   },
   {
     id: 'customers', label: 'Customers', path: '/workspace/contacts',
@@ -470,8 +466,8 @@ export const moduleHomes: ModuleHome[] = [
   },
   {
     id: 'commerce', label: 'Commerce', path: '/workspace/commerce',
-    innerPages: ['/workspace/commerce?tab=catalog', '/workspace/commerce?tab=engine', '/workspace/pay', '/workspace/pay?tab=records'],
-    note: 'Catalog, orders and payment tools are always available from Commerce.',
+    innerPages: ['/workspace/commerce?tab=catalog', '/workspace/commerce?tab=engine', '/workspace/payments', '/workspace/payments?view=ledger'],
+    note: 'Catalog and orders remain Commerce; money collection and the ledger live in Payments.',
   },
   // The 'growth' module home was here, gated on NEXT_PUBLIC_ENABLE_GROWTH_MODULE.
   // Removed 2026-09-25 with /growth/index.tsx on owner instruction. The pages it listed
