@@ -329,7 +329,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
         }
         .public-share.has-contribute{margin-top:32px}
         /* "Stay connected" eyebrow, on top of the dock. Same green lime pill the retired
-           PublicFooterBand used. 15px/700 so the label matches the prominence of the eyebrows on
+           PublicFooterBand used. 17px/700 so the label matches the prominence of the eyebrows on
            Home / Grahak OS / the closing band, rather than reading smaller than them. */
         .ps-kicker{
           /* flex (not inline-flex) + width:max-content keeps the pill shrink-wrapped to its
@@ -338,7 +338,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
           display:flex;width:max-content;max-width:100%;align-items:center;
           min-height:32px;padding:0 14px;margin:0 0 18px;
           border-radius:999px;background:var(--public-brand-lime);color:var(--public-brand-green);
-          font-size:15px;font-weight:700;line-height:1;
+          font-size:17px;font-weight:700;line-height:1;
         }
         .ps-row{display:flex;align-items:center;gap:12px;width:max-content;max-width:100%}
         .contribute{margin:0;padding:0;border:0;position:static}
@@ -375,7 +375,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
           position:absolute;left:50%;bottom:calc(100% + 9px);
           transform:translateX(-50%) translateY(4px);
           padding:6px 9px;border-radius:8px;background:var(--public-brand-green);color:#fff;
-          white-space:nowrap;font-size:12px;font-weight:650;line-height:1.2;
+          white-space:nowrap;font-size:14px;font-weight:650;line-height:1.2;
           opacity:0;pointer-events:none;z-index:40;
           transition:opacity .15s,transform .15s;
         }
@@ -399,8 +399,8 @@ const PublicShare: React.FC<PublicShareProps> = ( {
         .ps-share-menu::before{left:78px}
         .ps-share-menu.has-contribute::before{left:138px}
         .ps-menu-head{padding:9px 11px 10px;border-bottom:1px solid #f0f1ed}
-        .ps-menu-title{margin:0;color:#1a1a1a;font-size:17px;font-weight:700;line-height:1.3}
-        .ps-menu-sub{margin:3px 0 0;color:var(--public-muted);font-size:13px;font-weight:500;line-height:1.35}
+        .ps-menu-title{margin:0;color:#1a1a1a;font-size:18px;font-weight:700;line-height:1.3}
+        .ps-menu-sub{margin:4px 0 0;color:var(--public-muted);font-size:15px;font-weight:500;line-height:1.4}
         .ps-menu-list{padding-top:6px}
         .ps-menu-item{
           width:100%;min-height:56px;display:grid;
@@ -419,8 +419,8 @@ const PublicShare: React.FC<PublicShareProps> = ( {
         .ps-menu-icon svg{width:18px;height:18px;display:block}
         .ps-menu-icon .ps-material{font-size:20px}
         .ps-menu-copy{min-width:0}
-        .ps-menu-name{display:block;color:var(--public-brand-green);font-size:16px;font-weight:700;line-height:1.25}
-        .ps-menu-note{display:block;margin-top:2px;color:var(--public-muted);font-size:13px;font-weight:500;line-height:1.3}
+        .ps-menu-name{display:block;color:var(--public-brand-green);font-size:17px;font-weight:700;line-height:1.25}
+        .ps-menu-note{display:block;margin-top:3px;color:var(--public-muted);font-size:15px;font-weight:500;line-height:1.35}
         .ps-chevron{font-size:20px;color:rgba(26,58,42,.55)}
         .ps-menu-item.is-copied .ps-menu-icon{background:var(--public-brand-lime)}
 
