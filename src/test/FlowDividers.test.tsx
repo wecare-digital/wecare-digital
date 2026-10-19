@@ -117,6 +117,10 @@ describe( 'Band 2 beat dividers', () => {
     // so the bars were unequal AND the pattern changed with the viewport. Colour does not
     // replace that fix - three different-length bars in three colours would look more
     // arbitrary, not less.
-    expect( cssOf( container ) ).toContain( '.home-flow-list{margin:0;padding:0;list-style:none;display:grid;grid-auto-rows:1fr;gap:18px}' );
+    // grid-template-columns:minmax(0,1fr) was added by the unified-mobile Phase 1 zoom fix: the
+    // single implicit column was auto-sized to its content's max-content width, which set the
+    // page horizontal-scroll floor at a 200%-zoom reflow. minmax(0,1fr) lets the rows wrap to the
+    // container width; grid-auto-rows:1fr (the equal-height fix this test guards) is unchanged.
+    expect( cssOf( container ) ).toContain( '.home-flow-list{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:minmax(0,1fr);grid-auto-rows:1fr;gap:18px}' );
   } );
 } );
