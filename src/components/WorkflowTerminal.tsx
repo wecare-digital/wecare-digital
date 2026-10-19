@@ -329,7 +329,7 @@ const STEPS: Step[] = [
 // step, the verification rollup and the multi-line ai/queue steps hold longest (>=900ms so
 // they stay readable), the plain three-line calls are quickest. The two WhatsApp beats added
 // at steps 10 and 20 are plain three-line calls, so each dwells 750ms. A full 21-step pass
-// runs roughly 23s of stepping (17900ms of dwell plus the 250ms inter-step gap per step)
+// runs roughly 22.4s of stepping (17150ms of dwell plus the 250ms inter-step gap per step)
 // plus the 1500ms inter-loop hold; the richest steps stay above 900ms so nothing flashes past.
 const dwell = ( step: Step ): number => {
   if ( step.lines.some( l => l.type === 'lanes' ) ) return 1200;
