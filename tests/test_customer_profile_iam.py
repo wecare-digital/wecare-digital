@@ -114,11 +114,11 @@ def test_the_contacts_grant_is_exactly_the_four_verbs_it_already_had(provisioner
     ]
 
 
-def test_the_policy_is_exactly_these_five_statements(provisioner):
-    """Equality on the `Sid` set, so a sixth statement is a failure rather than an unnoticed
+def test_the_policy_is_exactly_the_declared_scoped_statements(provisioner):
+    """Equality on the `Sid` set, so any extra statement is a failure rather than an unnoticed
     addition."""
     assert sorted(_by_sid(provisioner)) == [
-        "ContactsUpsert", "ReadEmailProof", "ReadOtpPepper", "ValidateCustomerToken",
+        "ContactsUpsert", "DiscoverContactOrders", "LinkContactOrders", "ReadEmailProof", "ReadOtpPepper", "ValidateCustomerToken",
         "WriteIdentityClaimAudit",
     ]
 
@@ -268,3 +268,13 @@ def test_the_claim_writes_through_the_shared_audit_helper(provisioner):
     source = HANDLER.read_text(encoding="utf-8")
     assert "from lambda_utils.audit import record_audit" in source
     assert "identity.claim" in source and "identity.claim_refused" in source
+
+
+def test_historical_link_can_only_query_phone_index_and_conditionally_update_orders(provisioner):
+    statements=_by_sid(provisioner)
+    assert statements['DiscoverContactOrders']['Action']==['dynamodb:Query']
+    assert statements['DiscoverContactOrders']['Resource']==[
+        f'arn:aws:dynamodb:us-east-1:{ACCOUNT}:table/stack-wecare-digital-OrderTable/index/customerPhone']
+    assert statements['LinkContactOrders']['Action']==['dynamodb:UpdateItem']
+    assert statements['LinkContactOrders']['Resource']==[
+        f'arn:aws:dynamodb:us-east-1:{ACCOUNT}:table/stack-wecare-digital-OrderTable']

@@ -228,7 +228,8 @@ def test_create_invoice_answers_503_and_writes_nothing(invoice_engine, monkeypat
     monkeypatch.setattr(invoice_engine.dynamodb, "Table", lambda _n: seq_table)
 
     response = invoice_engine.create_invoice(
-        {"customerPhone": "+919876543210", "items": []}, "req-9")
+        {"customerPhone": "+919876543210", "items": [], "addressLine1": "12 MG Road",
+         "city": "Bengaluru", "state": "Karnataka", "postalCode": "560001"}, "req-9")
 
     assert response["statusCode"] == 503
     import json

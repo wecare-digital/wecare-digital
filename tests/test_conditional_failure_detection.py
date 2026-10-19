@@ -295,7 +295,8 @@ def test_an_opaque_conditional_failure_is_a_dedup_hit_in_the_invoice_engine(capl
     table = _RaisingTable(_opaque(), item={"invoiceId": INVOICE_ID, "invoiceNumber": "WD/25-26/0007",
                                            "total": 1180, "referenceId": REFERENCE})
     monkeypatch.setattr(engine, "dynamodb", _OneTable(table))
-    response = engine.create_invoice({"referenceId": REFERENCE, "paymentId": PAYMENT_ID}, REQUEST)
+    response = engine.create_invoice({"referenceId": REFERENCE, "paymentId": PAYMENT_ID, "addressLine1": "12 MG Road",
+                                     "city": "Bengaluru", "state": "Karnataka", "postalCode": "560001"}, REQUEST)
     assert response["statusCode"] == 200
     body = json.loads(response["body"])
     assert body["deduplicated"] is True and body["invoiceNumber"] == "WD/25-26/0007"
@@ -350,7 +351,8 @@ def test_a_substring_lookalike_is_a_500_in_the_invoice_engine(caplog, monkeypatc
     silent 200 there would hand the caller an invoice id that was never written."""
     caplog.set_level(logging.INFO, logger=engine.logger.name)
     monkeypatch.setattr(engine, "dynamodb", _OneTable(_RaisingTable(_substring_only())))
-    response = engine.create_invoice({"referenceId": REFERENCE, "paymentId": PAYMENT_ID}, REQUEST)
+    response = engine.create_invoice({"referenceId": REFERENCE, "paymentId": PAYMENT_ID, "addressLine1": "12 MG Road",
+                                     "city": "Bengaluru", "state": "Karnataka", "postalCode": "560001"}, REQUEST)
     assert response["statusCode"] == 500
     events = _events(caplog)
     assert "invoice_claim_error" in [name for name, _ in events]

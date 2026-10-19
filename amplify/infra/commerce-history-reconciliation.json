@@ -1,0 +1,31 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Repair historical customer ownership missed by concurrent profile writes or index visibility lag; no charging or messaging.",
+  "Resources": {
+    "CustomerOrderLinkRule": {
+      "Type": "AWS::Events::Rule",
+      "Properties": {
+        "Name": "wecare-commerce-customer-links",
+        "Description": "Reconcile pending order ownership against verified saved contact bindings",
+        "ScheduleExpression": "rate(5 minutes)",
+        "State": "ENABLED",
+        "Targets": [{
+          "Id": "VerifiedCustomerOrderLinks",
+          "Arn": {"Fn::Sub": "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:wecare-razorpay-webhook:live"},
+          "Input": "{\"internalAction\":\"reconcileCustomerOrderLinks\"}",
+          "RetryPolicy": {"MaximumRetryAttempts": 3, "MaximumEventAgeInSeconds": 3600}
+        }]
+      }
+    },
+    "CustomerOrderLinkPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "FunctionName": {"Fn::Sub": "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:wecare-razorpay-webhook:live"},
+        "Action": "lambda:InvokeFunction",
+        "Principal": "events.amazonaws.com",
+        "SourceArn": {"Fn::GetAtt": ["CustomerOrderLinkRule", "Arn"]},
+        "SourceAccount": {"Ref": "AWS::AccountId"}
+      }
+    }
+  }
+}

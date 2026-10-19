@@ -306,3 +306,9 @@ def test_the_invoke_grant_is_alias_qualified_and_route_specific(provisioner):
     assert provisioner.source_arn() == (
         f"arn:aws:execute-api:us-east-1:{ACCOUNT}:zllr9lrg7j/prod/POST/ecommerce/my-orders")
     assert provisioner.statement_id() == "apigateway-invoke-post-ecommerce-my-orders"
+
+
+
+def test_replacement_history_index_carries_channel_and_public_customer_uuid(provisioner):
+    projection=provisioner.INDEX_DEFINITION_V2['Projection']
+    assert {'channel','customerUuid'} <= set(projection['NonKeyAttributes'])
