@@ -94,8 +94,13 @@ const DEVICES = [
   { n: 'Surface Duo land',   w: 720,  h: 540 },
   { n: 'Zenbook Fold',       w: 853,  h: 1280 },
   { n: 'phone 320',          w: 320,  h: 844 },
+  { n: 'phone 375',          w: 375,  h: 812 },
   { n: 'phone 390',          w: 390,  h: 844 },
+  { n: 'phone 430',          w: 430,  h: 932 },
+  { n: 'tablet 768',         w: 768,  h: 1024 },
+  { n: 'tablet 1024',        w: 1024, h: 768 },
   { n: 'desktop 1280',       w: 1280, h: 900 },
+  { n: 'desktop 1440',       w: 1440, h: 900 },
   { n: 'desktop 1920',       w: 1920, h: 1080 },
 ];
 

@@ -404,7 +404,6 @@ describe( 'WECARE.DIGITAL Home', () => {
     expect( css ).toContain( '.home-flow-list strong{font-size:24px}' );
     expect( css ).toContain( ':global(.home-close-title){font-size:32px}' );
     expect( css ).toContain( ':global(.home-close-cta){font-size:18px}' );
-    expect( css ).toContain( ':global(.ft-tagline){font-size:16px}' );
     expect( css ).toContain( ':global(.public-share .ps-menu-sub)' );
     expect( css ).toContain( ':global(.public-share .ps-menu-note){font-size:15px}' );
 
@@ -413,6 +412,41 @@ describe( 'WECARE.DIGITAL Home', () => {
     expect( css ).toContain( 'font-size:var(--public-hero-size)' );
     expect( css ).toContain( 'font-size:var(--public-section-size)' );
     expect( css ).toContain( 'font-size:var(--public-card-size)' );
+  } );
+
+  it( 'pins final Home app-hardening and foldable-hinge contracts', () => {
+    const css = cssOf( render( <HomePage /> ).container );
+    const footer = readFileSync( resolve( process.cwd(), 'src/components/Footer.tsx' ), 'utf8' );
+    const closing = readFileSync( resolve( process.cwd(), 'src/components/public/ClosingBand.tsx' ), 'utf8' );
+    const layout = readFileSync( resolve( process.cwd(), 'src/styles/Layout.css' ), 'utf8' );
+    const document = readFileSync( resolve( process.cwd(), 'src/pages/_document.tsx' ), 'utf8' );
+    const steering = readFileSync( resolve( process.cwd(), '.kiro/steering/20-device-compat.md' ), 'utf8' );
+    const capacitor = readFileSync( resolve( process.cwd(), 'src/lib/capacitor.ts' ), 'utf8' );
+    const app = readFileSync( resolve( process.cwd(), 'src/pages/_app.tsx' ), 'utf8' );
+
+    expect( footer ).toContain( '.ft-tagline{font-size:16px}' );
+    expect( footer ).not.toContain( '.ft-tagline{font-size:14px}' );
+    expect( closing ).toContain( 'font-size:14px;font-weight:700' );
+
+    expect( layout ).toContain( 'color-scheme: light' );
+    expect( layout ).toContain( 'min-height: 100vh' );
+    expect( layout ).toContain( 'min-height: 100dvh' );
+    expect( document ).toContain( '<meta name="color-scheme" content="light" />' );
+
+    expect( steering ).toContain( 'intentionally light-only' );
+    expect( steering ).not.toContain( 'prefers-color-scheme' );
+    expect( steering ).toContain( 'width-only emulator does not count as' );
+    expect( steering ).toContain( 'true hinge verification' );
+
+    expect( css ).toContain( '@media(horizontal-viewport-segments:2)' );
+    expect( css ).toContain( 'width:env(viewport-segment-width 0 0)' );
+    expect( css ).toContain( 'width:env(viewport-segment-width 1 0)' );
+
+    expect( capacitor ).toContain( "backgroundColor = '#1a3a2a'" );
+    expect( capacitor ).toContain( 'statusBarBackground?: string' );
+    expect( app ).toContain( "statusBarBackground: isPublic ? '#ffffff' : '#1a3a2a'" );
+    expect( app ).toContain( '<meta name="theme-color" content="#ffffff" />' );
+    expect( app ).toContain( '<meta name="apple-mobile-web-app-status-bar-style" content="default" />' );
   } );
 
   it( 'keeps meaningful terminal text large on phones while reserving 14px for metadata', () => {
