@@ -699,6 +699,26 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await waitFor( () => expect( fetchSpy ).toHaveBeenCalled() );
   } );
 
+  it( 'reports loading honestly in the mobile Air/Weather snapshot while core data is in flight', async () => {
+    vi.stubGlobal( 'fetch', vi.fn( () => new Promise<Response>( () => {} ) ) );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+
+    const snapshot = container.querySelector( '[aria-label="Current VayuLok summary"]' ) as HTMLElement;
+    expect( snapshot ).toBeTruthy();
+
+    await waitFor( () => {
+      expect( within( snapshot ).getByText( 'Loading air quality…' ) ).toBeTruthy();
+    } );
+
+    fireEvent.click( within( snapshot ).getByRole( 'button', { name: 'Weather' } ) );
+    await waitFor( () => {
+      expect( within( snapshot ).getByText( 'Loading weather…' ) ).toBeTruthy();
+    } );
+
+    expect( snapshot.textContent ).not.toContain( 'after a place is selected' );
+  } );
+
   it( 'reveals the map canvas immediately after construction without waiting for tilesloaded', async () => {
     rec = installGoogleMaps( { paintMap: false } );
     vi.stubGlobal( 'fetch', environmentFetch() );
