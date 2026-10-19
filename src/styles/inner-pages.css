@@ -398,7 +398,7 @@
 .layout .main-content input:not([data-public-ui]),
 .layout .main-content textarea:not([data-public-ui]),
 .layout .main-content select:not([data-public-ui]) {
-  font-size: 16px !important;
+  font-size: var(--public-mobile-form-font-size) !important;
 }
 
 /* Form Label - Larger */
