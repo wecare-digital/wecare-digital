@@ -40,7 +40,7 @@ const SettingsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
     ];
 
     const configs = [
-        { label: 'WhatsApp Settings', desc: 'Profile, webhooks, WABA, calling, templates, flows', href: '/workspace/engage/whatsapp/settings' },
+        { label: 'WhatsApp Settings', desc: 'Profile, webhooks, WABA, calling, templates, flows', href: '/workspace/communications?view=manage&section=whatsapp' },
         { label: 'SMS', desc: 'Sender IDs and India DLT templates', href: '/workspace/engage/sms' },
         { label: 'RCS', desc: 'Bot config & templates (Sinch)', href: '/workspace/engage/rcs' },
         { label: 'Email', desc: 'SES from-address & campaigns', href: '/workspace/engage/ses' },
