@@ -24,6 +24,9 @@ on:
       - 'ios/**'
       - 'capacitor.config.ts'
       - 'capacitor.public.config.ts'
+      # Every src change is bundled into the native WebView. Without this, Home/shared UI
+      # changes can skip Capacitor CI even though they ship inside the installed app.
+      - 'src/**'
       - 'next.config.js'
       - 'package.json'
       - 'package-lock.json'
@@ -103,6 +106,27 @@ jobs:
             android/app/build/outputs/apk/debug/*.apk
             android/app/build/outputs/bundle/release/*.aab
           if-no-files-found: ignore
+
+  public-shell-sync-check:
+    name: Public app cap sync check
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    env:
+      # CI-only identifier validates capacitor.public.config.ts without release credentials.
+      WECARE_PUBLIC_APP_ID: digital.wecare.public.ci
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Export public web app and sync both public shells
+        run: |
+          NODE_ENV=production npm run build
+          npx cap sync android --config capacitor.public.config.ts
+          npx cap sync ios --config capacitor.public.config.ts
 
   ios-sync-check:
     name: iOS cap sync check

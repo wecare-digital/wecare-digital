@@ -5,6 +5,16 @@ on:
     paths:
       - 'src/components/Header.tsx'
       - 'src/components/VoiceSearchMic.tsx'
+      - 'src/components/Footer.tsx'
+      - 'src/components/PublicShare.tsx'
+      - 'src/components/SupportWidget.tsx'
+      - 'src/components/WorkflowTerminal.tsx'
+      - 'src/components/public/**'
+      - 'src/pages/index.tsx'
+      - 'src/pages/_app.tsx'
+      - 'src/pages/_document.tsx'
+      - 'src/styles/Layout.css'
+      - 'src/styles/tokens.css'
       - 'tools/browser/menucheck.js'
       - 'tools/browser/**'
       - '.github/workflows/menu-cross-browser.yml'
@@ -13,6 +23,16 @@ on:
     paths:
       - 'src/components/Header.tsx'
       - 'src/components/VoiceSearchMic.tsx'
+      - 'src/components/Footer.tsx'
+      - 'src/components/PublicShare.tsx'
+      - 'src/components/SupportWidget.tsx'
+      - 'src/components/WorkflowTerminal.tsx'
+      - 'src/components/public/**'
+      - 'src/pages/index.tsx'
+      - 'src/pages/_app.tsx'
+      - 'src/pages/_document.tsx'
+      - 'src/styles/Layout.css'
+      - 'src/styles/tokens.css'
       - 'tools/browser/menucheck.js'
       - 'tools/browser/**'
       - '.github/workflows/menu-cross-browser.yml'
@@ -57,3 +77,8 @@ jobs:
 
       - name: Run menu compatibility contract
         run: node tools/browser/menucheck.js --${{ matrix.browser }}
+
+      - name: Run Home device + 200% reflow contracts
+        run: |
+          node tools/browser/devicecheck.js --${{ matrix.browser }} /
+          node tools/browser/rtlcheck.js --${{ matrix.browser }} /
