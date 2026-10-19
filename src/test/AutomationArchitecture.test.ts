@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { navigationConfig, settingsConfig } from '../config/navigation';
+import { getAllNavItems, navigationConfig, settingsConfig } from '../config/navigation';
 
 const ROOT = path.resolve( __dirname, '..' );
 const page = fs.readFileSync( path.join( ROOT, 'pages/workspace/automation/index.tsx' ), 'utf8' );
@@ -14,15 +14,14 @@ describe( 'canonical Automation and AI workspace', () => {
     expect( labels ).toEqual( [ 'Staff agent', 'Rules', 'Schedules', 'Knowledge' ] );
   } );
 
-  it( 'promotes Automation to a primary workspace', () => {
-    const automation = navigationConfig.find( item => item.path === '/workspace/automation' );
-    expect( automation?.label ).toBe( 'Automation & AI' );
-    expect( automation?.children?.map( child => child.path ) ).toEqual( [
-      '/workspace/automation?view=agent',
-      '/workspace/automation?view=rules',
-      '/workspace/automation?view=schedules',
-      '/workspace/automation?view=knowledge',
-    ] );
+  it( 'keeps Automation contextual and searchable instead of making it a permanent workspace', () => {
+    expect( navigationConfig.find( item => item.path === '/workspace/automation' ) ).toBeUndefined();
+    const paths = getAllNavItems().map( item => item.path );
+    expect( paths ).toContain( '/workspace/automation' );
+    expect( paths ).toContain( '/workspace/automation?view=agent' );
+    expect( paths ).toContain( '/workspace/automation?view=rules' );
+    expect( paths ).toContain( '/workspace/automation?view=schedules' );
+    expect( paths ).toContain( '/workspace/automation?view=knowledge' );
   } );
 
   it( 'keeps the customer-facing Meta agent out of the staff-agent workspace', () => {

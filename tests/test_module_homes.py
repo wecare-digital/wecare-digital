@@ -2,7 +2,7 @@
 
 A registry that names routes is worth nothing if the routes are not there. This parses
 `src/config/navigation.ts` and checks each declared home and inner page against the
-actual page files and against `getAllNavItems()`'s two trees, because the whole point of
+actual page files and against `getAllNavItems()`'s searchable registry, because the whole point of
 the registry is that the IA stops being implicit.
 
 It also pins the lazy-loading half of 8.1, which is where the measurable win was: four
@@ -46,8 +46,6 @@ REQUIRED_IDS = {
     "customers",
     "commerce",
     "payments",
-    "content",
-    "automation",
     "service-operations",
     "platform-operations",
     "settings",
@@ -55,7 +53,7 @@ REQUIRED_IDS = {
 
 # Deliberately absent from REQUIRED_IDS. Named so the removal is searchable, and so
 # re-adding the home means deleting a line here rather than guessing what changed.
-REMOVED_IDS = {"growth"}
+REMOVED_IDS = {"growth", "content", "automation"}
 
 # `growth` was a grouping page over routes that each stand on their own. If the removal
 # had orphaned any of them, that would be a real regression rather than a tidy-up, so the
@@ -206,7 +204,7 @@ class TestReachability:
             if not home["path"]:
                 continue
             assert f"'{home['path']}'" in nav_source, (
-                f"{home['id']} -> {home['path']} appears in no nav tree, so the palette "
+                f"{home['id']} -> {home['path']} appears in no searchable registry, so the palette "
                 f"cannot find it")
 
     def test_the_palette_still_walks_both_trees(self, nav_source):

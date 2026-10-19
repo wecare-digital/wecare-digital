@@ -16,11 +16,12 @@ describe( 'canonical Content workspace', () => {
     expect( labels ).toEqual( [ 'Blog', 'Production', 'SEO', 'Short links' ] );
   } );
 
-  it( 'is the only primary publishing/content destination', () => {
+  it( 'keeps publishing contextual instead of promoting another permanent workspace', () => {
     const primary = navigationConfig.map( item => item.path );
-    expect( primary ).toContain( '/workspace/content' );
+    expect( primary ).not.toContain( '/workspace/content' );
     expect( primary ).not.toContain( '/workspace/link' );
     expect( primary ).not.toContain( '/workspace/seo' );
+    expect( getAllNavItems().map( item => item.path ) ).toContain( '/workspace/content' );
   } );
 
   it( 'keeps supported AWS-native SEO and production work reachable', () => {
@@ -30,7 +31,6 @@ describe( 'canonical Content workspace', () => {
       '/workspace/content?view=production',
       '/workspace/content?view=seo&area=tools',
       '/workspace/content?view=seo&area=pages',
-      '/workspace/content?view=links',
       '/workspace/seo/blog-studio',
       '/workspace/seo/blog-production?tab=review',
       '/workspace/seo/blog-production?tab=qa',
