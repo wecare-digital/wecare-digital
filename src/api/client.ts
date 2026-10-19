@@ -5369,6 +5369,11 @@ export interface FlowSubmissionItem {
   // Service-request (post-payment) fields
   requestId?: string;
   referenceId?: string;
+  /** Audited Return / Refund workflow stage; absent on non-return requests. */
+  returnStage?: 'requested' | ReturnStage;
+  returnUpdatedAt?: number;
+  returnUpdatedBy?: string;
+  refundEligibleAt?: number;
   orderNumber?: string;
   /** Order reference as the customer typed it — unverified, so never treat it as a linked order. */
   orderReference?: string;
@@ -5671,6 +5676,15 @@ export async function updateOrder ( orderId: string, updates: OrderPatch ): Prom
     body: JSON.stringify( updates ),
   } );
   return !!data;
+}
+
+/** Explicit audited order cancellation; deliberately separate from OrderPatch. */
+export async function cancelOrder ( orderId: string, reason: string ): Promise<{ canceled: boolean; idempotent?: boolean }> {
+  const data = await apiCall<any>( `${ORDERS_BASE}/${encodeURIComponent( orderId )}`, {
+    method: 'PATCH',
+    body: JSON.stringify( { action: 'cancel', reason } ),
+  } );
+  return data || { canceled: false };
 }
 
 export async function getOrderSubmissions ( orderId: string ): Promise<FlowSubmissionItem[]> {
