@@ -5988,7 +5988,6 @@ export interface SubmitRequestPayload {
   requestType: string;
   subject: string;
   description: string;
-  paymentRequired?: boolean;
 }
 
 export interface AmendRequestPayload {
