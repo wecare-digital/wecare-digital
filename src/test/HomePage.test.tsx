@@ -340,8 +340,8 @@ describe( 'WECARE.DIGITAL Home', () => {
     // rather than the full section rhythm. The top padding and gaps are unchanged.
     expect( css ).toContain( 'padding:80px 24px 48px' );
     expect( css ).toContain( 'gap:96px' );
-    expect( css ).toContain( 'padding:48px 16px 40px' );
-    expect( css ).toContain( 'gap:64px' );
+    expect( css ).toContain( 'padding:var(--public-mobile-hero-top) var(--public-mobile-page-gutter) 40px' );
+    expect( css ).toContain( 'gap:var(--public-mobile-section-gap)' );
   } );
 
   it( 'contains the hero so 200%-zoom reflow cannot give the page horizontal scroll', () => {
@@ -394,16 +394,26 @@ describe( 'WECARE.DIGITAL Home', () => {
     expect( tokens ).toContain( '--safe-right: env(safe-area-inset-right)' );
     expect( tokens ).toContain( '--safe-bottom: env(safe-area-inset-bottom)' );
     expect( tokens ).toContain( '--safe-left: env(safe-area-inset-left)' );
+    expect( tokens ).toContain( '--public-mobile-hero-size: 40px' );
+    expect( tokens ).toContain( '--public-mobile-section-size: 32px' );
+    expect( tokens ).toContain( '--public-mobile-card-size: 24px' );
+    expect( tokens ).toContain( '--public-mobile-cta-font-size: 18px' );
+    expect( tokens ).toContain( '--public-mobile-page-gutter: 16px' );
+    expect( tokens ).toContain( '--public-mobile-section-gap: 64px' );
+    expect( tokens ).toContain( '--public-mobile-hero-top: 48px' );
+    expect( tokens ).toContain( '--public-mobile-form-font-size: 16px' );
+    expect( tokens ).toContain( 'font-size: var(--public-mobile-form-font-size) !important' );
+    expect( tokens ).toContain( 'min-height: var(--tap-min)' );
   } );
 
   it( 'uses the approved app-first Home type scale on phones without changing desktop rungs', () => {
     const css = cssOf( render( <HomePage /> ).container );
 
-    expect( css ).toContain( '.home-head{font-size:40px;line-height:1.1}' );
-    expect( css ).toContain( '.home-flow-title{font-size:32px}' );
-    expect( css ).toContain( '.home-flow-list strong{display:block;margin:0 0 6px;font-size:max(var(--public-card-size),24px)' );
-    expect( css ).toContain( ':global(.home-close-title){font-size:32px}' );
-    expect( css.match( /:global\(\.home-close-cta\)\{font-size:18px\}/g )?.length ).toBe( 1 );
+    expect( css ).toContain( '.home-head{font-size:var(--public-mobile-hero-size);line-height:1.1}' );
+    expect( css ).toContain( '.home-flow-title{font-size:var(--public-mobile-section-size)}' );
+    expect( css ).toContain( '.home-flow-list strong{font-size:var(--public-mobile-card-size)}' );
+    expect( css ).toContain( ':global(.home-close-title){font-size:var(--public-mobile-section-size)}' );
+    expect( css ).toContain( ':global(.home-close-cta){font-size:var(--public-mobile-cta-font-size)}' );
     expect( css ).toContain( ':global(.public-share .ps-menu-sub)' );
     expect( css ).toContain( ':global(.public-share .ps-menu-note){font-size:15px}' );
 
