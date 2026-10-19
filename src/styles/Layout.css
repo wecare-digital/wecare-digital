@@ -64,6 +64,9 @@
  * footer lands flush with the bottom of the viewport at the end of the page.
  */
 html {
+  /* The public product is intentionally light-only. Declaring this globally stops browsers
+     and embedded WebViews from auto-darkening native controls or scrollbars. */
+  color-scheme: light;
   /* The horizontal guard. Also, by the computation described above, what makes the
      document the one scroller. */
   overflow-x: hidden;
@@ -82,6 +85,7 @@ body {
      the original intent - a short page still fills the screen so the footer sits at the
      bottom - without constraining a long one. */
   min-height: 100vh;
+  min-height: 100dvh;
   max-width: 100vw;
   overscroll-behavior-y: auto;
   overscroll-behavior-x: none;
