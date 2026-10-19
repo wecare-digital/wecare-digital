@@ -22,6 +22,7 @@ import Select, { type SelectOption } from '../../../components/ui/Select';
 import { useToastContext } from '../../../contexts/ToastContext';
 import * as api from '../../../api/client';
 import type { ApiFailure } from '../../../api/client';
+import { openExternal } from '../../../lib/capacitor';
 import ServiceDataState from '../../../components/service/ServiceDataState';
 
 const PAGE_SIZE = 20;
@@ -134,7 +135,10 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
 
   const handleDownload = async ( doc: api.Document ) => {
     const url = await api.getDocumentDownloadUrl( doc.documentId );
-    if ( url ) window.open( url, '_blank' );
+    // openExternal opens the S3 download URL in the in-app browser inside the native WebView
+    // shell (where a bare _blank target has no tab to open into) and uses the standard web
+    // open otherwise.
+    if ( url ) void openExternal( url );
     else toast.error( 'Download not available' );
   };
 
