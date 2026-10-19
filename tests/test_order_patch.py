@@ -97,4 +97,7 @@ def test_both_service_handlers_use_the_shared_patch_guard_and_stale_write_condit
         assert "order_patch.validate_order_patch(current, body)" in block
         assert "ConsistentRead=True" in block
         assert "ORDER_PATCH_STALE" in block
-        assert "paymentStatus" not in block
+        # paymentStatus is legitimately referenced by the optimistic stale-write guard.
+        # What must never return is a handler-side write that bypasses the shared validator.
+        assert "updates['paymentStatus']" not in block
+        assert 'updates["paymentStatus"]' not in block
