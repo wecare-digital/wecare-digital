@@ -501,10 +501,10 @@ class TestTheHandlersAreWired:
         import re
 
         patterns = (
-            r"/v1/payments/[^\\s'\"]*/refund",
+            r"/v1/payments/[^\s'\"]*/refund",
             r"/v1/refunds",
-            r"\\.refund\\s*\\(",
-            r"\\.refunds\\s*\\.\\s*create",
+            r"\.refund\s*\(",
+            r"\.refunds\s*\.\s*create",
         )
         allowed = self.FUNCTIONS / "shared" / "lambda_utils" / "integrations" / "razorpay_refund.py"
         offenders = []
@@ -525,7 +525,16 @@ class TestTheHandlersAreWired:
         executor = allowed.read_text(encoding="utf-8")
         assert 'REFUND_INITIATION_ENABLED' in executor
         assert '== "true"' in executor
-        assert "for " not in executor[executor.index("def create_full_refund"):].split("__all__", 1)[0], (
+
+        import ast
+        tree = ast.parse(executor)
+        refund_fn = next(
+            node for node in tree.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name == "create_full_refund"
+        )
+        assert not any(isinstance(node, (ast.For, ast.AsyncFor, ast.While))
+                       for node in ast.walk(refund_fn)), (
             "the irreversible provider function must not grow an automatic retry loop"
         )
 

@@ -4687,6 +4687,41 @@ def _refund_staff_actor(auth: Optional[Dict]) -> str:
     return ''
 
 
+def _record_refund_audit_safely(*, actor: str, invoice_id: str,
+                                outcome: str, submission_id: str,
+                                request_id: str, refund_id: str = '') -> None:
+    """Best-effort secondary audit after the durable return-case state write.
+
+    The return case is the strict idempotency/audit authority. Once a provider call may have
+    moved money, failure to append the generic AuditLogs row must never change the operator
+    response into a retry-shaped 500.
+    """
+    try:
+        details = {
+            'outcome': outcome,
+            'returnSubmissionId': submission_id,
+            'requestId': request_id,
+        }
+        if refund_id:
+            details['refundId'] = refund_id
+        record_audit(
+            action='payment.refund',
+            actor=actor,
+            resource_type='invoice',
+            resource_id=invoice_id,
+            details=details,
+        )
+    except Exception as exc:  # noqa: BLE001 - secondary audit cannot reopen provider action
+        logger.error(json.dumps({
+            'event': 'refund_secondary_audit_failed',
+            'invoiceId': invoice_id,
+            'returnSubmissionId': submission_id,
+            'outcome': outcome,
+            'error': type(exc).__name__,
+            'requestId': request_id,
+        }))
+
+
 def initiate_full_refund(invoice_id: str, body: Dict, request_id: str,
                          *, auth: Optional[Dict] = None) -> Dict:
     """Submit one full Razorpay refund for a verified refund-eligible return case.
@@ -4860,14 +4895,9 @@ def initiate_full_refund(invoice_id: str, body: Dict, request_id: str,
                 ':submitting': 'submitting',
             },
         )
-        record_audit(
-            action='payment.refund',
-            actor=actor,
-            resource_type='invoice',
-            resource_id=invoice_id,
-            details={'outcome': 'provider_rejected', 'returnSubmissionId': submission_id,
-                     'requestId': request_id},
-        )
+        _record_refund_audit_safely(
+            actor=actor, invoice_id=invoice_id, outcome='provider_rejected',
+            submission_id=submission_id, request_id=request_id)
         return _resp(409, {
             'error': 'Provider rejected the refund request; review before another attempt',
             'errorCode': 'REFUND_PROVIDER_REJECTED',
@@ -4886,14 +4916,9 @@ def initiate_full_refund(invoice_id: str, body: Dict, request_id: str,
                 ':submitting': 'submitting',
             },
         )
-        record_audit(
-            action='payment.refund',
-            actor=actor,
-            resource_type='invoice',
-            resource_id=invoice_id,
-            details={'outcome': 'provider_outcome_unknown',
-                     'returnSubmissionId': submission_id, 'requestId': request_id},
-        )
+        _record_refund_audit_safely(
+            actor=actor, invoice_id=invoice_id, outcome='provider_outcome_unknown',
+            submission_id=submission_id, request_id=request_id)
         return _resp(503, {
             'error': 'Provider outcome is unknown; reconcile Razorpay/webhook evidence before retry',
             'errorCode': 'REFUND_PROVIDER_OUTCOME_UNKNOWN',
@@ -4933,14 +4958,10 @@ def initiate_full_refund(invoice_id: str, body: Dict, request_id: str,
             'retryable': False,
         })
 
-    record_audit(
-        action='payment.refund',
-        actor=actor,
-        resource_type='invoice',
-        resource_id=invoice_id,
-        details={'outcome': 'provider_submitted', 'refundId': result.refund_id,
-                 'returnSubmissionId': submission_id, 'requestId': request_id},
-    )
+    _record_refund_audit_safely(
+        actor=actor, invoice_id=invoice_id, outcome='provider_submitted',
+        submission_id=submission_id, request_id=request_id,
+        refund_id=result.refund_id)
     logger.warning(json.dumps({
         'event': 'refund_provider_submitted',
         'invoiceId': invoice_id,
