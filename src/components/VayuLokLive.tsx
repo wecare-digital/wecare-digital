@@ -5016,8 +5016,41 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
           .vl-live-air-health-tabs{scroll-snap-type:x mandatory;overscroll-behavior-x:contain;scroll-padding-inline:2px}
           .vl-live-air-history-head,.vl-live-air-forecast-head{align-items:flex-start;flex-direction:column}
           .vl-live-wx-history .vl-live-air-forecast-head{display:block}
-          .vl-live-wx-daily-row{grid-template-columns:54px 28px minmax(0,1fr) auto;gap:8px}
-          .vl-live-wx-daily-rain{display:none}
+          /* MOBILE: STACK THE DAILY-FORECAST TABLE VERTICALLY. The desktop 5-column row
+             (day / icon / condition / temp / rain) and the earlier 4-column phone fallback both
+             squeezed the condition text (white-space:nowrap -> hard ellipsis) and felt cramped
+             below ~400px. On a phone each day now reads top-to-bottom: a top line pairs the day
+             label (with its icon) on the left against the temperature on the right, and the full
+             condition text wraps underneath on its own line - and the rain% comes back (it was
+             display:none only because there was no room in the squeezed 4-col layout). Named
+             grid areas keep the DOM order (day, icon, cond, temp, rain) rendering as two readable
+             lines without reordering the markup. The desktop base rule at ~4840 is untouched, so
+             the test that pins its exact string still passes - this is a mobile-only override. */
+          .vl-live-wx-daily-row{
+            grid-template-columns:28px minmax(0,1fr) auto;
+            grid-template-areas:'icon day temp' 'cond cond cond';
+            align-items:center;row-gap:4px;column-gap:10px;padding:14px;min-height:0
+          }
+          .vl-live-wx-daily-icon,.vl-live-wx-daily-icon-spacer{grid-area:icon}
+          .vl-live-wx-daily-day{grid-area:day}
+          .vl-live-wx-daily-temp{grid-area:temp;justify-self:end}
+          /* The condition sits full-width on the second line and WRAPS instead of truncating. */
+          .vl-live-wx-daily-cond{grid-area:cond;white-space:normal;overflow:visible;text-overflow:clip}
+          /* Rain% rides the end of the condition line, so clear the display:none fallback. */
+          .vl-live-wx-daily-rain{grid-area:cond;justify-self:end;display:block}
+          /* MOBILE: STACK THE AIR POLLUTANT TABLE. The desktop 3-column row
+             (label / value>=118px / 36px info button) had no phone rule, so on a 320-430px screen
+             the label was squeezed against a 118px value reservation. Stack it: the pollutant
+             name on its own line, then the value (left-aligned now) and the info button paired on
+             the line below. Base rule + the value's min-width/right-align/tabular-nums pins at
+             ~4707/4712 stay as-is for desktop; these only apply under 700px. */
+          .vl-live-air-pollutant-row{grid-template-columns:minmax(0,1fr) var(--vl-action-size);grid-template-areas:'label label' 'value info';row-gap:6px}
+          .vl-live-air-pollutant-label{grid-area:label}
+          .vl-live-air-pollutant-value{grid-area:value;justify-self:start;min-width:0;text-align:left}
+          .vl-live-air-pollutant-info{grid-area:info;justify-self:end}
+          /* MOBILE: the 2-up weather stat grid becomes a single column so each stat gets a full,
+             uncramped line. */
+          .vl-live-wx-grid{grid-template-columns:1fr}
           .vl-live-air-history-head-meta{width:100%;justify-content:space-between}
           .vl-live-air-range{max-width:100%;overflow-x:auto}
           .vl-live-air-health-tab{scroll-snap-align:start}
