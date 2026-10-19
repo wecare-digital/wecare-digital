@@ -356,8 +356,6 @@ def _cancel_order(order_id: str, body: Dict, auth: Optional[Dict], request_id: s
         names = {
             '#orderStatus': 'orderStatus',
             '#status': 'status',
-            '#paymentStatus': 'paymentStatus',
-            '#fulfillmentStatus': 'fulfillmentStatus',
         }
         values = {
             ':canceled': 'canceled',
@@ -391,6 +389,7 @@ def _cancel_order(order_id: str, body: Dict, auth: Optional[Dict], request_id: s
             else:
                 conditions.append(f'attribute_not_exists({alias})')
         if 'fulfillmentStatus' in current:
+            names['#fulfillmentStatus'] = 'fulfillmentStatus'
             sets.append('#fulfillmentStatus = :canceled')
 
         try:
