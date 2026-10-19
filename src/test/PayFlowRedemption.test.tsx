@@ -10,6 +10,11 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
  * standalone Delight policy (0.5% up to ₹50) on the server. The browser never supplies a discount
  * amount; it renders only the server-owned Delight figure returned on create.
  */
+const routerPush = vi.fn();
+vi.mock( 'next/router', () => ( {
+  useRouter: () => ( { pathname: '/workspace/payments', query: {}, push: routerPush, replace: vi.fn(), isReady: true } ),
+} ) );
+
 const confirmAction = vi.fn();
 vi.mock( '../contexts/ConfirmContext', () => ( { useConfirm: () => confirmAction } ) );
 
@@ -55,6 +60,7 @@ const SERVER_CREATE = {
 
 beforeEach( () => {
   vi.clearAllMocks();
+  routerPush.mockResolvedValue( true );
   window.localStorage.clear();
   confirmAction.mockResolvedValue( true );
   cancelInvoice.mockResolvedValue( { status: 'cancelled' } );
@@ -68,8 +74,7 @@ beforeEach( () => {
 } );
 
 const openCreateForm = async (): Promise<void> => {
-  render( <PayFlowPage embedded /> );
-  fireEvent.click( screen.getByRole( 'tab', { name: 'Create' } ) );
+  render( <PayFlowPage embedded mode="collect" /> );
   fireEvent.click( await screen.findByText( 'Asha Rao' ) );
   await waitFor( () => expect( screen.getByRole( 'button', { name: 'Save invoice for review' } ) ).toBeInTheDocument() );
 };
@@ -133,7 +138,7 @@ describe( 'the Delight discount is server-authoritative', () => {
 
 describe( 'one address format, one input group', () => {
   it( 'renders the eight shared fields in the customer modal and no free-text address textarea', async () => {
-    render( <PayFlowPage embedded /> );
+    render( <PayFlowPage embedded mode="collect" /> );
     fireEvent.click( await screen.findByRole( 'button', { name: '+ New Customer' } ) );
     for ( const spec of ADDRESS_FIELDS )
     {
@@ -146,7 +151,7 @@ describe( 'one address format, one input group', () => {
     }
   } );
   it( 'composes the preview through formatAddress from the shared module', async () => {
-    render( <PayFlowPage embedded /> );
+    render( <PayFlowPage embedded mode="collect" /> );
     fireEvent.click( await screen.findByRole( 'button', { name: '+ New Customer' } ) );
     const typed = {
       addressLine1: '12 MG Road', addressLine2: 'Flat 3B', locality: 'Near the park',
@@ -199,8 +204,8 @@ it( 'preserves a zero GST rate instead of replacing it with the default rate', a
 } );
 
 
-describe( 'created invoices lead to explicit review and send', () => {
-  it( 'opens the saved invoice without creating or sending another request', async () => {
+describe( 'created invoices lead to canonical review', () => {
+  it( 'routes the saved invoice to Payments / Invoices without creating or sending another request', async () => {
     await openCreateForm();
     priceOneItem();
     submit();
@@ -208,19 +213,20 @@ describe( 'created invoices lead to explicit review and send', () => {
     expect( screen.getByText( /Invoice saved without sending a WhatsApp payment request/ ) ).toBeInTheDocument();
     expect( sendPaymentLink ).not.toHaveBeenCalled();
     fireEvent.click( next );
-    await waitFor( () => expect( getInvoiceEngine ).toHaveBeenCalledWith( 'inv_1' ) );
-    await waitFor( () => expect( screen.getByRole( 'tab', { name: 'Invoices' } ) ).toHaveAttribute( 'aria-selected', 'true' ) );
-    fireEvent.click( screen.getByRole( 'button', { name: 'Send payment request' } ) );
-    await waitFor( () => expect( sendPaymentLink ).toHaveBeenCalledWith( 'inv_1', 'phone-number-id-waba1-direct-1016149501586345' ) );
+    await waitFor( () => expect( routerPush ).toHaveBeenCalledWith( {
+      pathname: '/workspace/payments',
+      query: { view: 'invoices', invoice: 'inv_1' },
+    } ) );
+    expect( getInvoiceEngine ).not.toHaveBeenCalled();
     expect( createInvoiceEngine ).toHaveBeenCalledTimes( 1 );
   } );
-  it( 'retains the created invoice and offers recovery when its readback fails', async () => {
-    getInvoiceEngine.mockResolvedValue( null );
+  it( 'retains recovery action when canonical navigation itself fails', async () => {
+    routerPush.mockRejectedValueOnce( new Error( 'navigation failed' ) );
     await openCreateForm();
     priceOneItem();
     submit();
     fireEvent.click( await screen.findByRole( 'button', { name: 'Review and send payment request' } ) );
-    await screen.findByText( /Could not open the invoice/ );
+    await screen.findByText( /Could not open Invoices/ );
     expect( screen.getByRole( 'button', { name: 'Review and send payment request' } ) ).toBeInTheDocument();
     expect( createInvoiceEngine ).toHaveBeenCalledTimes( 1 );
     expect( sendPaymentLink ).not.toHaveBeenCalled();
@@ -243,7 +249,10 @@ describe( 'explicit create and send', () => {
     fireEvent.click( screen.getByRole( 'button', { name: 'Create and send payment request' } ) );
     await screen.findByText( /Sending is not confirmed. Open this saved invoice/ );
     fireEvent.click( screen.getByRole( 'button', { name: 'View invoice and delivery status' } ) );
-    await waitFor( () => expect( getInvoiceEngine ).toHaveBeenCalledWith( 'inv_1' ) );
+    await waitFor( () => expect( routerPush ).toHaveBeenCalledWith( {
+      pathname: '/workspace/payments',
+      query: { view: 'invoices', invoice: 'inv_1' },
+    } ) );
     expect( createInvoiceEngine ).toHaveBeenCalledTimes( 1 );
     expect( sendPaymentLink ).toHaveBeenCalledTimes( 1 );
   } );
@@ -288,8 +297,7 @@ describe( 'cancellation replaces withdrawn invoice deletion', () => {
       listInvoicesEngine.mockResolvedValue( { invoices: [ { ...invoice, status: 'cancelled', paymentStatus: 'cancelled' } ] } );
       return { invoiceId: invoice.invoiceId, status: 'cancelled' };
     } );
-    render( <PayFlowPage embedded /> );
-    fireEvent.click( screen.getByRole( 'tab', { name: 'Invoices' } ) );
+    render( <PayFlowPage embedded mode="invoices" /> );
     const row = ( await screen.findByText( 'ref_1' ) ).closest( 'tr' )!;
     expect( screen.queryByRole( 'button', { name: 'Delete' } ) ).toBeNull();
     fireEvent.click( within( row ).getByRole( 'button', { name: 'Cancel Invoice' } ) );
@@ -302,8 +310,7 @@ describe( 'cancellation replaces withdrawn invoice deletion', () => {
   } );
   it.each( [ 'captured', 'paid', 'refunded', 'disputed' ] )( 'does not offer cancellation for payment status %s', async paymentStatus => {
     listInvoicesEngine.mockResolvedValue( { invoices: [ existingInvoice( { paymentStatus } ) ] } );
-    render( <PayFlowPage embedded /> );
-    fireEvent.click( screen.getByRole( 'tab', { name: 'Invoices' } ) );
+    render( <PayFlowPage embedded mode="invoices" /> );
     fireEvent.click( await screen.findByText( 'ref_1' ) );
     expect( screen.queryByRole( 'button', { name: 'Cancel Invoice' } ) ).toBeNull();
     expect( screen.queryByRole( 'button', { name: 'Delete' } ) ).toBeNull();
@@ -311,8 +318,7 @@ describe( 'cancellation replaces withdrawn invoice deletion', () => {
   it( 'leaves an invoice unchanged when cancellation is declined', async () => {
     confirmAction.mockResolvedValue( false );
     listInvoicesEngine.mockResolvedValue( { invoices: [ existingInvoice() ] } );
-    render( <PayFlowPage embedded /> );
-    fireEvent.click( screen.getByRole( 'tab', { name: 'Invoices' } ) );
+    render( <PayFlowPage embedded mode="invoices" /> );
     const row = ( await screen.findByText( 'ref_1' ) ).closest( 'tr' )!;
     fireEvent.click( within( row ).getByRole( 'button', { name: 'Cancel Invoice' } ) );
     await waitFor( () => expect( confirmAction ).toHaveBeenCalled() );
