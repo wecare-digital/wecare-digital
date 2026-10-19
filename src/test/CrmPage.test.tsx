@@ -1,5 +1,5 @@
 /**
- * The CRM contacts page: the legacy public route is gone, and the inline cell editor speaks the
+ * The Customers page: the legacy public route is gone, and the inline cell editor speaks the
  * same phone contract as the dialog form.
  *
  * WHY THE PHONE HALF EXISTS. `contacts/handler.py::_e164_or_error` refuses a number carrying no
@@ -21,6 +21,10 @@ import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
+vi.mock( 'next/router', () => ( {
+  useRouter: () => ( { pathname: '/workspace/customers', query: {}, push: vi.fn(), replace: vi.fn(), isReady: true } ),
+} ) );
+
 vi.mock( '../components/Layout', () => ( { default: ( { children }: { children: React.ReactNode } ) => <div>{ children }</div> } ) );
 vi.mock( '../components/SEO', () => ( { default: () => null, PAGE_SEO: {} } ) );
 const toastSuccess = vi.fn();
@@ -41,7 +45,7 @@ vi.mock( '../api/client', async importOriginal => ( {
   listFlowLogs: vi.fn().mockResolvedValue( [] ),
   listMessages: vi.fn().mockResolvedValue( [] ),
 } ) );
-import ContactsPage from '../pages/workspace/contacts';
+import CustomersPage from '../pages/workspace/customers';
 
 /** One existing row, already stored in E.164, as `normalizeContact` hands it over. */
 const ROW = {
@@ -51,7 +55,7 @@ const ROW = {
 
 /** Open the inline editor on the phone cell and return its live input. */
 const openPhoneEditor = async (): Promise<HTMLInputElement> => {
-  render( <ContactsPage /> );
+  render( <CustomersPage /> );
   fireEvent.doubleClick( await screen.findByText( '+919812345678' ) );
   return await screen.findByDisplayValue( '+919812345678' ) as HTMLInputElement;
 };
@@ -68,7 +72,7 @@ describe( 'legacy CRM public route', () => {
   } );
 } );
 
-describe( 'CRM inline phone edit', () => {
+describe( 'Customers inline phone edit', () => {
   it( 'sends a +-prefixed E.164 when the operator types a bare national number', async () => {
     const input = await openPhoneEditor();
     fireEvent.change( input, { target: { value: '9876543210' } } );
