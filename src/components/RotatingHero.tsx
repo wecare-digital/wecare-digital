@@ -354,6 +354,20 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
         @media(max-width:300px){
           .rh-head.has-prefix{font-size:26px}
         }
+        /* The canonical 40px foundation headline is retained from 381px up.
+           Grahak OS has a long fixed first line and a prefixed rotating pill;
+           both must fit folded/cover viewports without pushing h1 past the edge.
+           Match the established 32/28/26px small-screen rungs only for an
+           opted-in hero with a prefix. All other consumers stay unchanged. */
+        @media(max-width:380px){
+          .rh-shell.uses-mobile-foundation .rh-head.has-prefix{font-size:32px}
+        }
+        @media(max-width:340px){
+          .rh-shell.uses-mobile-foundation .rh-head.has-prefix{font-size:28px}
+        }
+        @media(max-width:300px){
+          .rh-shell.uses-mobile-foundation .rh-head.has-prefix{font-size:26px}
+        }
         @media(max-width:480px){
         }
 
