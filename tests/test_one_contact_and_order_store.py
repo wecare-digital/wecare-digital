@@ -194,6 +194,12 @@ def test_every_paid_order_carries_its_contact_and_short_number():
     assert order['channel'] == order['source'] == 'whatsapp'
 
 
+def test_a_captured_checkout_order_starts_processing_not_active():
+    order = _accept(_paid_attempt(channel='website'))
+    assert order['paymentStatus'] == 'PAYMENT_PAID'
+    assert order['orderStatus'] == order['status'] == 'processing'
+
+
 def test_an_attempt_without_a_contact_writes_no_contact_field():
     assert 'contactId' not in _accept(_paid_attempt())
 
