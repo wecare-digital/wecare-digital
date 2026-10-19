@@ -5,9 +5,9 @@
  * canonical Communications → Manage → WhatsApp surface without keeping that hub alive.
  */
 import React from 'react';
-import WhatsAppServiceDirectory from '../../../WhatsAppServiceDirectory';
-import { REVIEW_FLOW_ID, REVIEW_ENTRY_KEYWORDS } from '../../../../lib/reviewEntry';
-import { canonicalFlowId } from '../../../../lib/canonicalFlows';
+import WhatsAppServiceDirectory from '../../WhatsAppServiceDirectory';
+import { REVIEW_FLOW_ID, REVIEW_ENTRY_KEYWORDS } from '../../../lib/reviewEntry';
+import { canonicalFlowId } from '../../../lib/canonicalFlows';
 
 // ─── Bot Menu & Customer Service Menu Data ───
 const BOT_MENU = [
