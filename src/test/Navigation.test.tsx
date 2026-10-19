@@ -145,7 +145,7 @@ describe( 'nothing became unreachable', () => {
       '/workspace/communications?view=manage&section=search',
       '/workspace/engage/whatsapp/settings?tab=catalog-builder', '/workspace/engage/whatsapp/settings?tab=embedded-signup',
       '/workspace/settings/platform?tab=design-reference',
-      '/workspace/communications?view=manage&section=ai', '/workspace/engage/service-ops?tab=faq' ] )
+      '/workspace/communications?view=manage&section=ai', '/workspace/service?view=requests&action=faq' ] )
     {
       expect( all ).toContain( p );
     }
@@ -160,7 +160,7 @@ describe( 'nothing became unreachable', () => {
     // Platform hub, the two WhatsApp tools under the WhatsApp hub, Form responses under the
     // Service hub.
     for ( const p of [ '/workspace/settings/platform?tab=cors-settings', '/workspace/engage/whatsapp/settings?tab=ai-agent',
-      '/workspace/engage/whatsapp/settings?tab=scripts', '/workspace/engage/service-ops?tab=form-responses' ] )
+      '/workspace/engage/whatsapp/settings?tab=scripts', '/workspace/service?view=requests' ] )
     {
       expect( all ).toContain( p );
     }
@@ -200,8 +200,8 @@ describe( 'no entry point lands on a redirect signpost', () => {
   // dashboard/waba-usernames are restored as tiny signposts (v1 review response) so the three
   // old URLs resolve instead of 404ing through the static-export catch-all. Each forwards to a
   // destination a nav row reaches (verified below).
-  const SIGNPOSTS = [ '/workspace/admin', '/workspace/service', '/workspace/forms',
-    '/workspace/docs', '/workspace/access', '/workspace/engage/whatsapp',
+  const SIGNPOSTS = [ '/workspace/admin', '/workspace/forms', '/workspace/docs',
+    '/workspace/access', '/workspace/engage/whatsapp', '/workspace/engage/service-ops',
     '/workspace/dashboard/waba-usernames' ];
 
   it( 'keeps every signpost, and each forwards to a destination the nav reaches', () => {

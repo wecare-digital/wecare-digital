@@ -22,7 +22,7 @@ const FormsIndex = () => {
     // replace, not push: [retired public path] is a signpost, and leaving it in history means Back
     // lands here and bounces forward again. FEAT-005: Form responses is a tab on the Service hub
     // now, so the signpost forwards to that hub tab.
-    router.replace( '/workspace/engage/service-ops?tab=form-responses' );
+    router.replace( '/workspace/service?view=requests' );
   }, [ router ] );
 
   return null;
