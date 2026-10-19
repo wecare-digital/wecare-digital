@@ -210,6 +210,63 @@ def test_acknowledge_missing_quarantine_returns_none(webhook, fake_ddb):
     assert order_keys.acknowledge_capture_quarantine(table, payment_id='pay_NONE') is None
 
 
+def test_acknowledge_advances_status_from_unresolved_to_acknowledged(webhook, fake_ddb):
+    table = fake_ddb.Table(KEYS_TABLE)
+    parked = order_keys.record_capture_quarantine(
+        table, payment_id=TXN, reference_id=REFERENCE, outcome='NEEDS_RECONCILIATION')
+    assert parked['status'] == 'UNRESOLVED'
+    updated = order_keys.acknowledge_capture_quarantine(table, payment_id=TXN, actor='alice')
+    # The status no longer reads UNRESOLVED once a human has seen it.
+    assert updated['status'] == 'ACKNOWLEDGED'
+    assert updated['acknowledged'] is True
+
+
+def test_resolve_moves_to_a_terminal_resolved_state_and_keeps_the_row(webhook, fake_ddb):
+    table = fake_ddb.Table(KEYS_TABLE)
+    order_keys.record_capture_quarantine(
+        table, payment_id=TXN, reference_id=REFERENCE, outcome='PAID_ORDER_PROJECTION_FAILED')
+    resolved = order_keys.mark_capture_quarantine_resolved(
+        table, payment_id=TXN, resolution='reconciled into WD-ORD-TJMG7G4N',
+        actor='bob', order_id='ord-9')
+    assert resolved['status'] == 'RESOLVED'
+    assert resolved['resolution'] == 'reconciled into WD-ORD-TJMG7G4N'
+    assert resolved['resolvedBy'] == 'bob'
+    assert resolved['resolvedOrderId'] == 'ord-9'
+    assert resolved['acknowledged'] is True
+    # Retained, not deleted - still readable for audit.
+    assert order_keys.resolve_capture_quarantine(table, TXN)['status'] == 'RESOLVED'
+
+
+def test_status_is_monotonic_acknowledge_cannot_downgrade_a_resolved_row(webhook, fake_ddb):
+    table = fake_ddb.Table(KEYS_TABLE)
+    order_keys.record_capture_quarantine(table, payment_id=TXN, reference_id=REFERENCE)
+    order_keys.mark_capture_quarantine_resolved(
+        table, payment_id=TXN, resolution='done', actor='bob')
+    # Acknowledging after resolution must NOT drag the status back to ACKNOWLEDGED.
+    after = order_keys.acknowledge_capture_quarantine(table, payment_id=TXN, actor='carol')
+    assert after['status'] == 'RESOLVED'
+
+
+def test_resolve_is_idempotent_and_requires_a_note(webhook, fake_ddb):
+    table = fake_ddb.Table(KEYS_TABLE)
+    order_keys.record_capture_quarantine(table, payment_id=TXN, reference_id=REFERENCE)
+    first = order_keys.mark_capture_quarantine_resolved(
+        table, payment_id=TXN, resolution='first', actor='bob')
+    # A second resolve is a no-op that does not rewrite the first resolution's evidence.
+    second = order_keys.mark_capture_quarantine_resolved(
+        table, payment_id=TXN, resolution='second', actor='carol')
+    assert second['resolution'] == 'first'
+    assert second['resolvedBy'] == 'bob'
+    with pytest.raises(ValueError):
+        order_keys.mark_capture_quarantine_resolved(table, payment_id=TXN, resolution='')
+
+
+def test_resolve_missing_quarantine_returns_none(webhook, fake_ddb):
+    table = fake_ddb.Table(KEYS_TABLE)
+    assert order_keys.mark_capture_quarantine_resolved(
+        table, payment_id='pay_NONE', resolution='x') is None
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # (c) a wallet top-up WITHOUT a stored intent is NOT credited
 # ══════════════════════════════════════════════════════════════════════════════
