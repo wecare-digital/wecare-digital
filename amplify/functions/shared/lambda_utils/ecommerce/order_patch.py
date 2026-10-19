@@ -40,7 +40,6 @@ def _legacy_current(raw: str, payment_state: str) -> Tuple[str, bool]:
     return value, False
 
 
-
 def _tracking_updates(body: Mapping[str, Any]) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
     """Validate manual shipment metadata without claiming a courier integration."""
     if any(field in body for field in _TRACKING_SERVER_FIELDS):
@@ -75,11 +74,9 @@ def _tracking_updates(body: Mapping[str, Any]) -> Tuple[Optional[Dict[str, Any]]
 
     tracking_url = updates.get("trackingUrl", "")
     if tracking_url:
-        invalid_url = any(ch.isspace() for ch in tracking_url) or "\\" in tracking_url
+        invalid_url = any(ch.isspace() for ch in tracking_url) or "\" in tracking_url
         try:
             parsed = urlparse(tracking_url)
-            # Accessing .hostname/.port performs additional validation (e.g. bracketed IPv6 and
-            # numeric port syntax) that urlparse itself otherwise leaves deferred.
             hostname = parsed.hostname
             _ = parsed.port
         except ValueError:
@@ -99,10 +96,9 @@ def _tracking_updates(body: Mapping[str, Any]) -> Tuple[Optional[Dict[str, Any]]
                 "errorCode": "ORDER_TRACKING_URL_INVALID",
             }
 
-    # This is an operator-entered record only. A future courier integration must use a distinct
-    # provenance value and its own verified write path rather than masquerading as this one.
     updates["trackingSource"] = "manual"
     return updates, None
+
 
 def validate_order_patch(
     current: Mapping[str, Any],
@@ -155,23 +151,13 @@ def validate_order_patch(
             }
 
         if target == current_status:
-            # Idempotent retry after an unknown network outcome: writing the same canonical
-            # state again is safe and avoids turning a successful first PATCH into a 400.
             updates["orderStatus"] = target
             updates["status"] = target
         elif target == wa_order_status.CANCELED:
-            if payment_state == pay_status.CAPTURED:
-                return None, {
-                    "error": "A paid order cannot be cancelled through the generic order patch",
-                    "errorCode": "PAID_ORDER_CANCEL_REQUIRES_WORKFLOW",
-                }
-            if not wa_order_status.can_transition(current_status, target):
-                return None, {
-                    "error": f"Illegal fulfilment transition: {current_status} -> {target}",
-                    "errorCode": "ORDER_STATUS_TRANSITION_INVALID",
-                }
-            updates["orderStatus"] = target
-            updates["status"] = target
+            return None, {
+                "error": "Order cancellation requires the audited cancellation workflow",
+                "errorCode": "ORDER_CANCEL_REQUIRES_WORKFLOW",
+            }
         else:
             if payment_state != pay_status.CAPTURED:
                 return None, {
