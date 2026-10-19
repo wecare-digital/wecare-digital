@@ -53,6 +53,6 @@ describe( 'public mobile foundation', () => {
     expect( steering ).toContain( 'Home is the locked reference implementation' );
     expect( steering ).toContain( 'Adopt the contract family-by-family' );
     expect( steering ).toContain( 'Grahak OS is the next' );
-    expect( steering ).toContain( 'A width-only emulator does not count' );
+    expect( steering ).toContain( 'A real physical' );
   } );
 } );
