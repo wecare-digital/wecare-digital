@@ -1,0 +1,124 @@
+name: Mobile build (Capacitor)
+
+# THE GAP THIS FILLS. The repo ships a Capacitor Android/iOS app (Phase 3) but no CI ever
+# compiled it. A PR could break the native build - a bad gradle edit, a cap-sync mismatch, a
+# web export that no longer produces out/ - and nothing would notice until a human ran a local
+# build. This workflow exports the web app, runs `cap sync`, and BUILDS the Android project on
+# every PR so a native-breaking change fails here instead of at release time.
+#
+# Signing is OPTIONAL and secret-gated. The unconditional signal is the DEBUG build, which needs
+# no secrets and so runs on PRs from any source. A signed RELEASE AAB is produced only when the
+# four keystore secrets are present (release pushes / manual runs), matching the env-driven
+# signingConfig in android/app/build.gradle.
+#
+# iOS is NOT built here: xcodebuild needs a macOS runner plus Apple certificates/provisioning,
+# which are not available to this Linux CI. The iOS archive/upload is done on a macOS runner or
+# locally per docs/mobile/ios-entitlements-push.md; this workflow still validates that `cap sync`
+# succeeds for the iOS platform so a web/plugin change that breaks the iOS project is caught.
+
+on:
+  pull_request:
+    # Only when something that affects the native build changes, to keep PR noise down.
+    paths:
+      - 'android/**'
+      - 'ios/**'
+      - 'capacitor.config.ts'
+      - 'capacitor.public.config.ts'
+      - 'next.config.js'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/mobile-build.yml'
+  push:
+    branches: [ stack ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    name: Android build (export + cap sync + gradle)
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # Java for Gradle. Temurin 21 is the current LTS AGP supports; keep in step with the
+      # android/ Gradle/AGP version if that is bumped.
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      # Static export -> out/, then copy the web assets + plugins into the native project. This is
+      # exactly `cap:build` minus the implicit watch; NODE_ENV=production flips next.config's
+      # output:'export'.
+      - name: Export web app and sync Capacitor
+        run: NODE_ENV=production npm run cap:build
+
+      # versionCode MUST increase on every Play upload. Derive it from the run number so repeated
+      # CI builds never collide, without hand-editing build.gradle. (A release pipeline can instead
+      # pass -PversionCodeOverride; this is the floor.)
+      - name: Build Android (debug always; signed release when secrets present)
+        working-directory: android
+        env:
+          WECARE_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.WECARE_ANDROID_KEYSTORE_PASSWORD }}
+          WECARE_ANDROID_KEY_ALIAS: ${{ secrets.WECARE_ANDROID_KEY_ALIAS }}
+          WECARE_ANDROID_KEY_PASSWORD: ${{ secrets.WECARE_ANDROID_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.WECARE_ANDROID_KEYSTORE_BASE64 }}
+          # Floor the versionCode at 1 + the run number so repeated uploads strictly increase.
+          WECARE_ANDROID_VERSION_CODE: ${{ github.run_number }}
+        run: |
+          chmod +x ./gradlew
+          # Debug build is the unconditional signal (no secrets needed).
+          ./gradlew --no-daemon assembleDebug
+          # Signed release only when a base64 keystore secret is configured.
+          if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            echo "Keystore secret present -> building signed release AAB"
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+            export WECARE_ANDROID_KEYSTORE="$RUNNER_TEMP/upload.jks"
+            ./gradlew --no-daemon bundleRelease
+          else
+            echo "No keystore secret -> skipping signed release (debug build is the CI signal)."
+          fi
+
+      - name: Upload Android artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-outputs
+          path: |
+            android/app/build/outputs/apk/debug/*.apk
+            android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: ignore
+
+  ios-sync-check:
+    name: iOS cap sync check
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      # Linux cannot xcodebuild, but `cap sync ios` validates the web export + the iOS project
+      # config/plugins so a change that breaks the iOS project is still caught in CI.
+      - name: Export web app and sync iOS project
+        run: |
+          NODE_ENV=production npm run build
+          npx cap sync ios
