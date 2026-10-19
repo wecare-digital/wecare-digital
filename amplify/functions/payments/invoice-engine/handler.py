@@ -4240,92 +4240,177 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
 # ─── Cancel Invoice ───
 
 def cancel_invoice(invoice_id: str, reason: str, request_id: str) -> Dict:
-    """Cancel/void an invoice. Cannot cancel already-paid invoices."""
+    """Cancel/void an unpaid invoice without racing a concurrent capture.
+
+    Cancellation preserves the invoice row and GST number. The write is conditional on the exact
+    payment/document/notes/collection state read above, so a webhook or another operator cannot be
+    overwritten by a stale admin request.
+    """
     if not invoice_id:
         return _resp(400, {'error': 'invoiceId required'})
 
+    reason = str(reason or '').strip()
+    if len(reason) > 500 or any(
+            (ord(ch) < 32 and ch not in '\\r\\n\\t') or ord(ch) == 127
+            for ch in reason):
+        return _resp(400, {
+            'error': 'Cancellation reason is overlong or contains invalid control characters',
+            'errorCode': 'INVOICE_CANCEL_REASON_INVALID',
+        })
+
     table = dynamodb.Table(INVOICES_TABLE)
-    resp = table.get_item(Key={'invoiceId': invoice_id})
-    invoice = resp.get('Item')
+    try:
+        invoice = table.get_item(
+            Key={'invoiceId': invoice_id}, ConsistentRead=True
+        ).get('Item')
+    except Exception as exc:  # noqa: BLE001
+        logger.error(json.dumps({
+            'event': 'invoice_cancel_read_failed', 'invoiceId': invoice_id,
+            'error': type(exc).__name__, 'requestId': request_id,
+        }))
+        return _resp(503, {
+            'error': 'Invoice state could not be verified',
+            'errorCode': 'INVOICE_CANCEL_READ_FAILED',
+            'retryable': True,
+        })
     if not invoice:
         return _resp(404, {'error': 'Invoice not found'})
 
-    # Money-moved guard, and it used to fail OPEN. It compared `== 'captured'` against a field
-    # that is written with at least two spellings for one state: `payment_status` measured
-    # `InvoicesTable.status` and `OrderTable.paymentStatus` saying `paid` where `PaymentsTable`
-    # says `captured`. So an invoice stored as `paid` sailed past this check and got cancelled.
-    #
-    # Ranked rather than compared, so it also catches `refunded` and `disputed`. Cancelling a
-    # refunded invoice would erase the record that money was taken and returned, and cancelling a
-    # disputed one destroys the evidence while the dispute is live. Anything at or past `captured`
-    # means money moved, and none of those may be voided.
-    current_status = invoice.get('paymentStatus', '')
-    if pay_status.rank(current_status) >= pay_status.STATUS_RANK[pay_status.CAPTURED]:
+    def _is_cancelled(row: Dict[str, Any]) -> bool:
+        return any(
+            str(row.get(field) or '').strip().lower() in ('cancelled', 'canceled')
+            for field in ('status', 'paymentStatus')
+        )
+
+    def _money_status(row: Dict[str, Any]) -> str:
+        # Legacy invoices may lack paymentStatus but still carry a money word in status.
+        return str(row.get('paymentStatus') or row.get('status') or '')
+
+    current_payment = _money_status(invoice)
+    if pay_status.rank(current_payment) >= pay_status.STATUS_RANK[pay_status.CAPTURED]:
         return _resp(400, {
             'error': 'Cannot cancel a paid invoice. Use refund instead.',
-            'paymentStatus': pay_status.canonical(current_status),
+            'errorCode': 'INVOICE_CANCEL_MONEY_MOVED',
+            'paymentStatus': pay_status.canonical(current_payment),
         })
 
-    try:
-        # Preserve existing notes, append cancellation reason
-        existing_notes = invoice.get('notes', '')
+    idempotent = _is_cancelled(invoice)
+    next_seq = int(invoice.get(order_keys.INVOICE_COLLECT_SEQ_ATTR, 0) or 0)
+
+    if not idempotent:
+        existing_notes = str(invoice.get('notes') or '')
         cancel_note = f"Cancelled: {reason}" if reason else 'Cancelled by admin'
-        new_notes = f"{existing_notes}\n{cancel_note}".strip() if existing_notes else cancel_note
+        new_notes = f"{existing_notes}\\n{cancel_note}".strip() if existing_notes else cancel_note
+        next_seq += 1
+        now = int(time.time())
 
-        # The SEQUENCE bump rides in the same write as the cancel, so the two cannot disagree.
-        #
-        # This is what makes "cancel and re-raise" actually reachable. The `REQUESTKEY#` anchor
-        # fingerprints the amount and carries no TTL (correctly - a uniqueness reservation that
-        # expires is an identifier that gets reissued), so an invoice edited after a collection
-        # was sent refuses with `WA_PAY_INTENT_CHANGED` forever unless the next collection
-        # composes a DIFFERENT key. Recording `seq + 1` does exactly that: the old reservation
-        # stays immutable, nothing is deleted, nothing is reissued, and the old `PAYREF#` row
-        # stays resolvable - which matters, because a customer who pays the message they already
-        # hold must still settle against the reservation that message named.
-        next_seq = int(invoice.get(order_keys.INVOICE_COLLECT_SEQ_ATTR, 0) or 0) + 1
-        table.update_item(
-            Key={'invoiceId': invoice_id},
-            UpdateExpression=('SET #st = :st, #ps = :ps, #ua = :now, #notes = :notes, '
-                              '#seq = :seq'),
-            ExpressionAttributeNames={
-                '#st': 'status', '#ps': 'paymentStatus',
-                '#ua': 'updatedAt', '#notes': 'notes',
-                '#seq': order_keys.INVOICE_COLLECT_SEQ_ATTR,
-            },
-            ExpressionAttributeValues={
-                ':st': 'cancelled',
-                ':ps': 'cancelled',
-                ':now': int(time.time()),
-                ':notes': new_notes,
-                ':seq': next_seq,
-            },
-        )
-    except Exception as e:
-        return _resp(500, {'error': str(e)})
+        expr_names = {
+            '#st': 'status',
+            '#ps': 'paymentStatus',
+            '#ua': 'updatedAt',
+            '#notes': 'notes',
+            '#seq': order_keys.INVOICE_COLLECT_SEQ_ATTR,
+        }
+        expr_values = {
+            ':st': 'cancelled',
+            ':ps': 'cancelled',
+            ':now': now,
+            ':notes': new_notes,
+            ':seq': next_seq,
+        }
+        condition_parts = ['attribute_exists(invoiceId)']
+        for guard_name, field, alias in (
+            ('status', 'status', '#st'),
+            ('payment', 'paymentStatus', '#ps'),
+            ('notes', 'notes', '#notes'),
+            ('sequence', order_keys.INVOICE_COLLECT_SEQ_ATTR, '#seq'),
+        ):
+            if field in invoice:
+                value_alias = f':expected_{guard_name}'
+                expr_values[value_alias] = invoice.get(field)
+                condition_parts.append(f'{alias} = {value_alias}')
+            else:
+                condition_parts.append(f'attribute_not_exists({alias})')
 
-    # Release the collection claim. The invoice is now cancelled, so the row saying "a payment
-    # request is outstanding" is false - and this is the ONE permitted delete in that key space,
-    # for exactly that reason. It runs AFTER the status write so the release can never precede
-    # the fact that justifies it. Never raises: an unreleased claim blocks a future collection,
-    # which is recoverable, while a failed cancel is not.
+        try:
+            table.update_item(
+                Key={'invoiceId': invoice_id},
+                UpdateExpression=('SET #st = :st, #ps = :ps, #ua = :now, #notes = :notes, '
+                                  '#seq = :seq'),
+                ConditionExpression=' AND '.join(condition_parts),
+                ExpressionAttributeNames=expr_names,
+                ExpressionAttributeValues=expr_values,
+            )
+        except Exception as exc:  # noqa: BLE001
+            if not order_keys.is_conditional_failure(exc):
+                return _resp(500, {'error': str(exc)})
+
+            # The row changed after our verified read. Re-read before deciding whether that means
+            # another cancel already won, a payment capture won, or a harmless edit requires retry.
+            try:
+                latest = table.get_item(
+                    Key={'invoiceId': invoice_id}, ConsistentRead=True
+                ).get('Item')
+            except Exception as read_exc:  # noqa: BLE001
+                logger.error(json.dumps({
+                    'event': 'invoice_cancel_reread_failed', 'invoiceId': invoice_id,
+                    'error': type(read_exc).__name__, 'requestId': request_id,
+                }))
+                return _resp(503, {
+                    'error': 'Invoice changed and its latest state could not be verified',
+                    'errorCode': 'INVOICE_CANCEL_READ_FAILED',
+                    'retryable': True,
+                })
+
+            if not latest:
+                return _resp(409, {
+                    'error': 'Invoice changed while cancellation was being applied',
+                    'errorCode': 'INVOICE_CANCEL_STALE',
+                })
+
+            latest_payment = _money_status(latest)
+            if pay_status.rank(latest_payment) >= pay_status.STATUS_RANK[pay_status.CAPTURED]:
+                return _resp(409, {
+                    'error': 'Payment completed while cancellation was being applied; invoice was not cancelled',
+                    'errorCode': 'INVOICE_CANCEL_PAYMENT_CHANGED',
+                    'paymentStatus': pay_status.canonical(latest_payment),
+                })
+
+            if _is_cancelled(latest):
+                invoice = latest
+                next_seq = int(latest.get(order_keys.INVOICE_COLLECT_SEQ_ATTR, 0) or 0)
+                idempotent = True
+            else:
+                return _resp(409, {
+                    'error': 'Invoice changed while cancellation was being applied; reload and retry',
+                    'errorCode': 'INVOICE_CANCEL_STALE_RETRY',
+                    'retryable': True,
+                })
+
+    # Release the collection claim only after cancellation is known committed. This is safe on an
+    # idempotent retry too: a missing claim simply means the first cancellation already released it.
     released = False
     try:
         released = order_keys.release_invoice_collection(
             dynamodb.Table(COMMERCE_KEYS_TABLE), invoice_id=invoice_id)
-    except Exception as e:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
         logger.error(json.dumps({
             'event': 'invoice_collection_release_failed', 'invoiceId': invoice_id,
-            'error': type(e).__name__, 'requestId': request_id,
+            'error': type(exc).__name__, 'requestId': request_id,
         }))
 
     logger.info(json.dumps({
         'event': 'invoice_cancelled', 'invoiceId': invoice_id,
         'reason': reason, 'collectionSeq': next_seq, 'collectionReleased': released,
-        'requestId': request_id,
+        'idempotent': idempotent, 'requestId': request_id,
     }))
 
-    return _resp(200, {'invoiceId': invoice_id, 'status': 'cancelled',
-                       'collectionSeq': next_seq})
+    return _resp(200, {
+        'invoiceId': invoice_id,
+        'status': 'cancelled',
+        'collectionSeq': next_seq,
+        'idempotent': idempotent,
+    })
 
 
 # ─── Delete Invoice — REFUSED. Cancel instead. ───
