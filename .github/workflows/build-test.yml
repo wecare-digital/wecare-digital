@@ -228,6 +228,10 @@ jobs:
           node tools/browser/typecheck.js
           node tools/browser/uicheck.js
           node tools/browser/chromecheck.js
+          # Canonical Home app gate: all phone/foldable/wide-short postures plus rtlcheck's
+          # 200%-reflow approximation. Cross-engine coverage runs separately below.
+          node tools/browser/devicecheck.js /
+          node tools/browser/rtlcheck.js /
 
       # chromecheck needs no browser - it reads the built export - but it belongs in this
       # step because it needs `out/`, which only exists after the build above. It is a GATE,
