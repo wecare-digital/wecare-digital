@@ -13,6 +13,7 @@ import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import { useToastContext } from '../../../contexts/ToastContext';
 import { authFetch } from '../../../api/client';
+import { openExternal } from '../../../lib/capacitor';
 import { API_BASE } from '../../../config/constants';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
@@ -60,7 +61,12 @@ const MyAccountPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
             } );
             const data = await res.json();
             if ( !res.ok || data?.success === false ) throw new Error( data?.error || 'Could not create payment link' );
-            if ( data.shortUrl ) { window.open( data.shortUrl, '_blank' ); setAddAmt( '' ); }
+            // openExternal (src/lib/capacitor) opens the hosted payment link in the in-app
+            // browser (@capacitor/browser) when running inside the native WebView shell, and
+            // uses the standard web open otherwise. A bare _blank target has no browser tab to
+            // open into inside a Capacitor WebView, so the Razorpay top-up link could silently
+            // fail to open on the native app - this is the money flow, so it must not.
+            if ( data.shortUrl ) { void openExternal( data.shortUrl ); setAddAmt( '' ); }
             else throw new Error( 'No payment link returned' );
         } catch ( e: any ) { toast.error( e?.message || 'Top-up failed' ); }
         finally { setAdding( false ); }
