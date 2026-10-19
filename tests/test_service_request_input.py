@@ -59,7 +59,7 @@ def test_service_request_type_and_text_are_bounded():
 
     for field, value in (
         ("subject", "x" * 201),
-        ("description", "bad\ncontrol"),
+        ("description", "bad\x0bcontrol"),
         ("orderId", ""),
     ):
         body = {
