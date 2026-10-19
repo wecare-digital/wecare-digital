@@ -54,6 +54,8 @@ ACTIONS = {
     # and the refusal of that link. Both are recorded: the refusal is the one a human has to
     # reconcile, so "nothing happened" must not be the only trace of it.
     'identity.claim', 'identity.claim_refused',
+    # Canonical customer identity maintenance. The source remains retained as an alias.
+    'customer.merge',
 }
 
 
