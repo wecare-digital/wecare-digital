@@ -4766,6 +4766,11 @@ export interface Invoice {
   createdAt: number;
   updatedAt: number;
   paidAt: number;
+  /** Provider evidence written only after a verified refund webhook is reconciled. */
+  refundId?: string;
+  refundAmount?: number;
+  refundAmountPaise?: number;
+  refundAt?: number;
   /**
    * The always-on Delight discount recorded on the invoice. `couponCode` is the fixed `DELIGHT`
    * code and nothing a browser supplied; there is no coupon system and no gift-card system any
@@ -5091,10 +5096,22 @@ export interface InvoiceRemark {
 // parameter here could only ever be a value the browser sends and the server throws away -
 // and before that, it was the value the server STORED, which made a refund note signable
 // with anyone's name.
-export async function addInvoiceRemark ( invoiceId: string, remarkType: 'remark' | 'refund' | 'credit_note', text: string, amount = 0 ): Promise<{ invoiceId: string; remark: InvoiceRemark; totalRemarks: number } | null> {
+export async function addInvoiceRemark (
+  invoiceId: string,
+  remarkType: 'remark' | 'refund' | 'credit_note',
+  text: string,
+  amount = 0,
+  evidence?: { refundId?: string; paymentId?: string },
+): Promise<{ invoiceId: string; remark: InvoiceRemark; totalRemarks: number } | null> {
   return apiCall<{ invoiceId: string; remark: InvoiceRemark; totalRemarks: number }>( `${INVOICE_BASE}/${invoiceId}/remark`, {
     method: 'POST',
-    body: JSON.stringify( { type: remarkType, text, amount } ),
+    body: JSON.stringify( {
+      type: remarkType,
+      text,
+      amount,
+      ...( evidence?.refundId ? { refundId: evidence.refundId } : {} ),
+      ...( evidence?.paymentId ? { paymentId: evidence.paymentId } : {} ),
+    } ),
   } );
 }
 
