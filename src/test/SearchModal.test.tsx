@@ -17,7 +17,7 @@ import path from 'node:path';
 const push = vi.fn();
 // The Dashboard section was removed in the workspace redesign; the landing is the common inbox.
 vi.mock( 'next/router', () => ( {
-  useRouter: () => ( { push, pathname: '/workspace/engage/inbox' } ),
+  useRouter: () => ( { push, pathname: '/workspace' } ),
 } ) );
 
 import SearchModal from '../components/SearchModal';
@@ -81,9 +81,9 @@ describe( 'SearchModal is derived from navigation.ts', () => {
     // gear panel and is no longer a URL, so the palette (which indexes real routes) no longer
     // reaches it; the gear does. '/workspace/engage/broadcast' takes its slot: also absent from
     // the old hardcoded 14, still reachable by name here.
-    for ( const p of [ '/workspace/engage/inbox', '/workspace/engage/channels?tab=sms',
-      '/workspace/engage/channels?tab=rcs', '/workspace/engage/channels?tab=email',
-      '/workspace/engage/settings', '/workspace/engage/broadcast' ] )
+    for ( const p of [ '/workspace', '/workspace/communications',
+      '/workspace/communications?view=inbox', '/workspace/communications?view=manage',
+      '/workspace/communications?view=manage&section=sms', '/workspace/payments' ] )
     {
       expect( paths ).toContain( p );
     }
@@ -97,12 +97,9 @@ describe( 'SearchModal behaviour', () => {
     expect( container.firstChild ).toBeNull();
   } );
 
-  it( 'offers the inbox before anything is typed', () => {
+  it( 'offers Workspace Home before anything is typed', () => {
     render( <SearchModal isOpen onClose={ () => undefined } /> );
-    // The inbox landing (/workspace/engage/inbox) is the first default result. Its nav label
-    // is 'Messages' since the flat-sidebar restructure (the common inbox IS the Messages
-    // stream), so the palette offers it by that name before anything is typed.
-    expect( screen.getAllByText( 'Messages' ).length ).toBeGreaterThan( 0 );
+    expect( screen.getAllByText( 'Home' ).length ).toBeGreaterThan( 0 );
   } );
 
   it( 'finds a page the hardcoded list had no entry for', () => {
@@ -118,24 +115,14 @@ describe( 'SearchModal behaviour', () => {
     expect( screen.getByText( /CORS Settings/i ) ).toBeInTheDocument();
   } );
 
-  it( 'disambiguates same-named pages by their parent section', () => {
-    // Two different destinations are both labelled "SMS": the inbox filter
-    // (Messages -> /workspace/engage/inbox?channel=sms, the daily stream) and the channel
-    // configuration tab (Other channels -> /workspace/engage/channels?tab=sms). Without the
-    // parent as a subtitle they are indistinguishable in a flat result list, which is why
-    // getAllNavItems carries `parent`.
-    //
-    // The example was "Commerce" (Store vs Modules) until the workspace redesign folded the
-    // Store -> Commerce page into the Commerce hub as a ?tab= tab, collapsing it to one path;
-    // and "Inbox" before that. SMS now exercises the same property: same label, two parents,
-    // two distinct paths.
+  it( 'lists a channel once as a managed capability, not as separate navigation apps', () => {
     const sms = getAllNavItems().filter( ( i ) => i.label === 'SMS' );
-    expect( new Set( sms.map( ( i ) => i.path ) ).size ).toBe( 2 );
-    expect( new Set( sms.map( ( i ) => i.parent ) ) ).toEqual( new Set( [ 'Messages', 'Other channels' ] ) );
+    expect( sms ).toHaveLength( 1 );
+    expect( sms[ 0 ].path ).toBe( '/workspace/communications?view=manage&section=sms' );
+    expect( sms[ 0 ].parent ).toBe( 'Other channels' );
     render( <SearchModal isOpen onClose={ () => undefined } /> );
     fireEvent.change( screen.getByRole( 'combobox' ), { target: { value: 'sms' } } );
-    expect( screen.getAllByText( 'SMS' ) ).toHaveLength( 2 );
-    expect( screen.getByText( 'Messages' ) ).toBeInTheDocument();
+    expect( screen.getAllByText( 'SMS' ) ).toHaveLength( 1 );
     expect( screen.getByText( 'Other channels' ) ).toBeInTheDocument();
   } );
 } );

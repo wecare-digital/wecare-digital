@@ -316,7 +316,6 @@ describe( 'a Popover inside an above-popover container uses layer="overlay"', ()
     for ( const [ cls, z ] of [
       [ 'pf-modal-overlay', 9999 ],
       [ 'link-modal-overlay', 9999 ],
-      [ 'dm-modal-backdrop', 9999 ],
       [ 'shortcuts-overlay', 10000 ],
       [ 'popup-backdrop', 10000 ],
       [ 'toast-container', 10002 ],

@@ -3,7 +3,7 @@
  * URL: https://wecare.digital/workspace/access/
  * 
  * This page shows the login form (via _app.tsx Authenticator).
- * After successful login, redirects to /dashboard.
+ * After successful login, redirects to the canonical Workspace Home.
  */
 
 import React, { useEffect } from 'react';
@@ -22,7 +22,7 @@ const AccessPage: React.FC<PageProps> = ({ user }) => {
   // If user is authenticated (passed from _app.tsx), redirect to the workspace
   useEffect(() => {
     if (user) {
-      router.replace('/workspace/engage/inbox');
+      router.replace('/workspace');
     }
   }, [user, router]);
 

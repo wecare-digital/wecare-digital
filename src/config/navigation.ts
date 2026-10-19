@@ -88,6 +88,12 @@ export interface SettingsGroup {
  */
 export const navigationConfig: NavItem[] = [
   {
+    // Workspace Home is the global launchpad and a first-class search destination.
+    path: '/workspace',
+    label: 'Home',
+    icon: 'home',
+  },
+  {
     // Canonical daily communication workspace. Channels are filters/capabilities inside
     // Inbox/Manage, not separate top-level destinations.
     path: '/workspace/communications',
@@ -277,17 +283,11 @@ export const settingsConfig: SettingsGroup[] = [
       // `/workspace/engage` is a real 160-line page (the Messages hub), not just a section
       // container. It was the old sidebar's "Messages" parent, so dropping the
       // parent would have orphaned an actual route.
-      { path: '/workspace/engage', label: 'Messages hub' },
-      { path: '/workspace/engage/channels', label: 'All channels' },
-      { path: '/workspace/engage/settings', label: 'Channel Settings' },
-      // FEAT-005: each non-WhatsApp channel is a tab on the Channels hub; the per-channel
-      // routes were relocated out of the pages tree, so these deep-link the hub with a ?tab= id.
-      { path: '/workspace/engage/channels?tab=sms', label: 'SMS' },
-      { path: '/workspace/engage/channels?tab=rcs', label: 'RCS' },
-      { path: '/workspace/engage/channels?tab=email', label: 'Email' },
-      { path: '/workspace/engage/channels?tab=push', label: 'Push' },
-      // Call CONFIGURATION. The call RECORDS are [retired public path]/inbox?channel=voice.
-      { path: '/workspace/engage/channels?tab=voice', label: 'Voice (outbound)' },
+      { path: '/workspace/communications?view=manage&section=sms', label: 'SMS' },
+      { path: '/workspace/communications?view=manage&section=rcs', label: 'RCS' },
+      { path: '/workspace/communications?view=manage&section=email', label: 'Email' },
+      { path: '/workspace/communications?view=manage&section=push', label: 'Push' },
+      { path: '/workspace/communications?view=manage&section=voice', label: 'Voice (outbound)' },
       { path: '/workspace/engage/channels?tab=voice-in', label: 'Call History' },
     ],
   },
@@ -299,14 +299,14 @@ export const settingsConfig: SettingsGroup[] = [
     items: [
       // FEAT-005: these automation/content/analytics tools are in-page tabs on the Messages hub
       // now; each deep-links /workspace/engage with its ?tab= id.
-      { path: '/workspace/engage?tab=automation', label: 'Automation' },
-      { path: '/workspace/engage?tab=content', label: 'Content Library' },
-      { path: '/workspace/engage?tab=analytics', label: 'Analytics' },
-      { path: '/workspace/engage?tab=cost', label: 'Cost & Usage' },
-      { path: '/workspace/engage?tab=search', label: 'Message Search' },
-      { path: '/workspace/engage?tab=meta-agent', label: 'Meta AI Agent' },
+      { path: '/workspace/communications?view=manage&section=automation', label: 'Automation' },
+      { path: '/workspace/communications?view=manage&section=templates', label: 'Content Library' },
+      { path: '/workspace/communications?view=manage&section=analytics', label: 'Analytics' },
+      { path: '/workspace/communications?view=manage&section=usage', label: 'Cost & Usage' },
+      { path: '/workspace/communications?view=manage&section=search', label: 'Message Search' },
+      { path: '/workspace/communications?view=manage&section=ai', label: 'Meta AI Agent' },
       { path: '/workspace/engage/whatsapp/settings?tab=ai-agent', label: 'AI Agent' },
-      { path: '/workspace/engage?tab=docs', label: 'Docs Scraper' },
+      { path: '/workspace/communications?view=manage&section=docs', label: 'Docs Scraper' },
       { path: '/workspace/link', label: 'Short Links' },
     ],
   },
