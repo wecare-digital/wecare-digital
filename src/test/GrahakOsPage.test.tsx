@@ -112,6 +112,8 @@ describe( 'Grahak OS typography matches the Home public-page ladder', () => {
     expect( source ).toContain( '.touchpoint{padding:calc(var(--public-mobile-section-gap) / 2) 0}' );
     expect( source ).toContain( 'width:env(viewport-segment-width 0 0)' );
     expect( source ).toContain( 'width:env(viewport-segment-width 1 0)' );
+    expect( source ).toContain( '.page{min-height:100vh;min-height:100dvh' );
+    expect( source ).toContain( 'padding:10px 20px;min-height:var(--tap-min)' );
 
     // Migration is foundational, not a product redesign: the Grahak-specific mock/API identity stays.
     expect( source ).toContain( 'className="mockup-wrapper"' );
@@ -696,7 +698,7 @@ describe( 'Grahak OS: states the harness suites do not enter', () => {
     // elements inside this page's <main>, which has zero links.
     // min-height, not extra padding: the tab is already an inline-flex with centred
     // content, so the box grows without moving the label.
-    expect( source ).toContain( 'padding:10px 20px;min-height:44px' );
+    expect( source ).toContain( 'padding:10px 20px;min-height:var(--tap-min)' );
   } );
 
   it( 'carries no connection hint for an origin it never calls', () => {
