@@ -85,16 +85,33 @@ def deterministic_id(phone: Any) -> str:
 
 
 def is_live(row: Optional[Mapping[str, Any]]) -> bool:
-    """True for a row that exists and is not soft-deleted."""
+    """True for an active canonical row or an in-progress merge source."""
     if not row:
         return False
-    return not row.get('deletedAt') and not row.get('isDeleted')
+    if row.get('deletedAt') or row.get('isDeleted'):
+        return False
+    return str(row.get('mergeState') or '').strip().lower() != 'merged'
 
 
-def _get(table: Any, contact_id: str) -> Optional[Dict[str, Any]]:
+def _get(
+    table: Any,
+    contact_id: str,
+    _seen: Optional[set[str]] = None,
+) -> Optional[Dict[str, Any]]:
+    """Read an explicit contact id, following a completed merge alias once canonicalized."""
     if not contact_id:
         return None
+    seen = set(_seen or ())
+    if contact_id in seen:
+        return None
+    seen.add(contact_id)
+
     item = table.get_item(Key=contact_key.key(contact_id)).get('Item')
+    if not item:
+        return None
+    if str(item.get('mergeState') or '').strip().lower() == 'merged':
+        target_id = str(item.get('mergedIntoContactId') or '').strip()
+        return _get(table, target_id, seen) if target_id else None
     return item if is_live(item) else None
 
 
