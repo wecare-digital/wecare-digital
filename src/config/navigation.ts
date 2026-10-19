@@ -105,8 +105,8 @@ export const navigationConfig: NavItem[] = [
     ],
   },
   {
-    path: '/workspace/contacts',
-    label: 'Contacts',
+    path: '/workspace/customers',
+    label: 'Customers',
     icon: 'contacts',
   },
   {
@@ -452,7 +452,7 @@ export const moduleHomes: ModuleHome[] = [
       + 'content, automation and communications operations.',
   },
   {
-    id: 'customers', label: 'Customers', path: '/workspace/contacts',
+    id: 'customers', label: 'Customers', path: '/workspace/customers',
     innerPages: [],
     note: 'Customer 360 is the customer record itself; there is no separate Engage/Contact 360 destination.',
   },
