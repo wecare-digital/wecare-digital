@@ -34,7 +34,7 @@ const workspaces = [
   { label: 'Commerce', detail: 'Orders and catalog', href: '/workspace/commerce' },
   { label: 'Payments', detail: 'Collect and ledger', href: '/workspace/payments' },
   { label: 'Service', detail: 'Requests, appointments and documents', href: '/workspace/service' },
-  { label: 'Tasks', detail: 'Assignments and follow-ups', href: '/workspace/task' },
+  { label: 'Platform', detail: 'Infrastructure, integrations and diagnostics', href: '/workspace/platform' },
 ];
 
 const Arrow = () => (
