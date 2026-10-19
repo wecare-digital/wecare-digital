@@ -297,7 +297,12 @@ export const settingsConfig: SettingsGroup[] = [
       { path: '/workspace/communications?view=manage&section=search', label: 'Message Search' },
       { path: '/workspace/communications?view=manage&section=ai', label: 'Meta AI Agent' },
       { path: '/workspace/communications?view=manage&section=docs', label: 'Docs Scraper' },
-      { path: '/workspace/link', label: 'Short Links' },
+      // #956 (Rebuild Content as one publishing workspace): /workspace/link is now a
+      // router.replace compatibility redirect to /workspace/content, so this row pointed
+      // at a signpost. Repointed to the canonical Short Links route in the Content
+      // workspace. The Links panel is still embeddable in Communications, but its
+      // canonical destination is /workspace/content?view=links.
+      { path: '/workspace/content?view=links', label: 'Short Links' },
     ],
   },
   {
@@ -315,85 +320,23 @@ export const settingsConfig: SettingsGroup[] = [
       { path: '/workspace/commerce', label: 'Commerce' },
     ],
   },
-  {
-    id: 'seo',
-    label: 'SEO',
-    icon: 'search',
-    // Seven entries left this group: Pages, Issues, Analytics, Tracking, Schema,
-    // Properties and Sitemaps. They were not slow or half-finished pages — they were
-    // pages that threw on arrival. All seven read through `seoFetch` in
-    // src/api/seo.ts, which throws when NEXT_PUBLIC_SEO_API_URL is unset, and that
-    // variable is absent from the `stack` branch environment. So each of those gear
-    // links led to a thrown error instead of a screen, which is precisely the
-    // menu-entry-leading-to-a-promise failure the Platform comment below set out to
-    // avoid.
-    //
-    // The four that remain are live, on the OTHER half of that client
-    // (`seoToolsFetch`): SEO Dashboard, Tools, Blog SEO and Site Pages SEO. Tools
-    // also reads NEXT_PUBLIC_SEO_API_URL, but through its own fetch, and degrades
-    // gracefully when it is unset rather than throwing.
-    //
-    // 'Blog Studio' also left this group, but it MOVED rather than went: it is a
-    // child of the Content sidebar section now, beside the blog-production queue it
-    // belongs with. It is deliberately not listed in both places.
-    hint: 'SEO dashboard, tools and content SEO',
-    items: [
-      { path: '/workspace/seo', label: 'SEO Dashboard' },
-      // FEAT-005: Tools / Blog SEO / Site Pages SEO are in-page tabs on the SEO hub now.
-      { path: '/workspace/seo?tab=tools', label: 'Tools' },
-      { path: '/workspace/seo?tab=blog', label: 'Blog SEO' },
-      { path: '/workspace/seo?tab=pages', label: 'Site Pages SEO' },
-    ],
-  },
-  {
-    id: 'platform',
-    label: 'Platform',
-    icon: 'dashboard',
-    hint: 'Infrastructure, architecture, diagnostics',
-    items: [
-      // 'Dashboard Overview' (/workspace/dashboard) was the first row here until the
-      // Dashboard section was removed. It was an analytics page with no surviving owner;
-      // the workspace landing is now /workspace/engage/inbox, so no row replaces it.
-      // FEAT-006: the seven Platform infra pages folded into ONE hub
-      // (/workspace/settings/platform) with in-page tabs. Their bodies moved out of the
-      // routes tree into src/components/workspace/platform/**, so each row deep-links the
-      // hub with its ?tab= id. pageExists strips the query and resolves all of them to the
-      // one platform/index.tsx hub route. Every workspaceMCP / api/client.ts call inside
-      // those bodies is unchanged.
-      { path: '/workspace/platform?view=mcp-connections', label: 'MCP Connections' },
-      // Labelled 'Control Center' until 2026-10-07, which promised a place you operate
-      // from. It is a static snapshot of the architecture, hand-maintained, and it has
-      // measurably drifted: it lists `wecare-meta-analytics` as an active function on
-      // route /meta-analytics and names a MetaAnalyticsLog table, and the live account
-      // has neither. The label now says what the page is, so a reader treats it as a
-      // document to check rather than a console to trust.
-      { path: '/workspace/platform?view=system-architecture', label: 'Architecture snapshot' },
-      { path: '/workspace/platform?view=lambda-functions', label: 'Lambda Functions' },
-      { path: '/workspace/platform?view=code-repo', label: 'Code Repo' },
-      // 'WABA Usernames' (/workspace/dashboard/waba-usernames) was a row here until
-      // 2026-10-15. It was a smaller copy of WhatsApp -> BSUID & Usernames (same
-      // getBusinessUsername / claimBusinessUsername calls, same two numbers, none of the
-      // suggestions or webhook fields), so the route is now a signpost to that page.
-      { path: '/workspace/platform?view=wa-graph-tools', label: 'WA Graph Tools' },
-      { path: '/workspace/platform?view=cors-settings', label: 'CORS Settings' },
-      { path: '/workspace/platform?view=design-reference', label: 'Design Reference' },
-      // Internal Agent moved up to the "Your account" group — see the note there. The
-      // redesign keeps Settings as exactly two rows (Sign-in & MFA + Internal Agent); the
-      // Platform group remains for infrastructure reachability via the palette.
-      // '/carbon' and '/nocode' were here. Both removed 2026-09-25 with their pages:
-      // each was a 15-line EmptyState reading "... coming soon" with nothing behind it
-      // ("Sustainability and carbon tracking", "Visual workflow and form builder"). A
-      // menu entry leading to a promise is exactly the failure mode the Growth/Commerce
-      // comment above set out to avoid — a flagged-off page that explains itself is real
-      // content, "coming soon" is not.
-      //
-      // '/workspace/docs' ("Docs") was the last row here, removed 2026-10-15. docs/index.tsx
-      // is a router.replace signpost to /workspace/engage/documents, which the sidebar
-      // already lists as Service Ops -> Drop Docs, so the row was a second door to one page
-      // with a label that named neither it nor the Docs Scraper (/workspace/engage/docs,
-      // under Messaging tools). The signpost file stays for bookmarks.
-    ],
-  },
+  // #956 (Rebuild Content as one publishing workspace) retired standalone SEO from
+  // navigation: the gear 'seo' group's rows all pointed at /workspace/seo and
+  // /workspace/seo?tab=tools|blog|pages, which is now a router.replace compatibility
+  // redirect to /workspace/content. Those links therefore pointed at a signpost page
+  // rather than a live surface. SEO now lives in the Content workspace
+  // (/workspace/content?view=seo&area=tools|pages), which the primary Content sidebar
+  // section already exposes and which the command palette (getAllNavItems) already
+  // indexes, so the gear group is removed rather than repointed.
+  // #957 (make Platform a canonical workspace) added a first-class primary Platform
+  // sidebar section and re-pointed every Platform deep-link to the identical
+  // /workspace/platform?view=... paths. The gear 'platform' settings group's seven rows
+  // (MCP Connections, Architecture snapshot, Lambda Functions, Code Repo, WA Graph
+  // Tools, CORS Settings, Design Reference) therefore became exact duplicates of the
+  // primary section, which surfaced as two 'CORS Settings' entries in getAllNavItems()
+  // and the command palette. Its "infrastructure reachability via the palette" purpose
+  // is now served by the first-class primary Platform sidebar section (and the palette
+  // built from it), so the gear group is removed to de-duplicate those destinations.
 ];
 
 // ---------------------------------------------------------------------------

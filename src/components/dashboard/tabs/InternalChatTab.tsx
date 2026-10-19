@@ -134,7 +134,7 @@ const InternalChatTab: React.FC = () => {
     {
       id: '1',
       role: 'assistant',
-      content: 'Hi! I\'m your Stack CRM task assistant. I can help you find contacts, review messages, and check stats. Type or use the quick actions below.',
+      content: 'Hi! I\'m your WECARE.DIGITAL workspace assistant. I can help you find contacts, review messages, and check stats. Type or use the quick actions below.',
       timestamp: new Date(),
     }
   ]);
