@@ -1,5 +1,5 @@
 /**
- * /workspace/engage/whatsapp — sends the operator to the inbox, filtered to WhatsApp.
+ * /workspace/engage/whatsapp — compatibility route to the canonical Communications inbox, filtered to WhatsApp.
  *
  * It was a full-screen Layout around ./inbox, which is itself a thin wrapper over the
  * omnichannel inbox with channel="whatsapp". So one inbox had three URLs: the sidebar's
@@ -32,7 +32,7 @@ const WhatsAppIndex = () => {
   useEffect( () => {
     // replace, not push: this is a signpost, and leaving it in history means Back
     // lands here and bounces forward again.
-    router.replace( '/workspace/engage/inbox?channel=whatsapp' );
+    router.replace( '/workspace/communications?view=inbox&channel=whatsapp' );
   }, [ router ] );
 
   return null;

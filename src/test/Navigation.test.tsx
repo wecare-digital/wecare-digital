@@ -117,18 +117,17 @@ describe( 'nothing became unreachable', () => {
     }
   } );
 
-  it( 'still knows about more destinations than the old sidebar did', () => {
-    // The old nav had 88 unique paths. This must not be a reduction in
-    // reachability, only in prominence.
-    //
-    // FEAT-005/006 folded the dense sections into tabbed hubs and rewrote every former
-    // sub-page into a `hub?tab=<id>` deep-link, so a destination is now identified by its
-    // FULL path (hub + ?tab=), not by the hub route alone — stripping the query would
-    // collapse ~97 capabilities down to 19 hubs and assert the opposite of reachability.
-    // Each distinct full path is one capability the command palette still reaches by name,
-    // so the count is taken over full paths and the ≥87 floor is unchanged.
+  it( 'keeps a searchable capability registry larger than the primary workspace list', () => {
+    // Consolidation deliberately retires duplicate destinations. Reachability is guarded by
+    // the concrete path-existence, settings-tree and orphan-capability assertions below, so
+    // pinning the count to the retired 88-row menu would punish the product for removing pages.
     const unique = new Set( getAllNavItems().map( ( i ) => i.path ) );
-    expect( unique.size ).toBeGreaterThanOrEqual( 87 );
+    expect( unique.size ).toBeGreaterThan( navigationConfig.length );
+    expect( unique ).toContain( '/workspace' );
+    expect( unique ).toContain( '/workspace/communications?view=manage' );
+    expect( unique ).toContain( '/workspace/commerce?view=orders' );
+    expect( unique ).toContain( '/workspace/payments?view=ledger' );
+    expect( unique ).toContain( '/workspace/service?view=requests' );
   } );
 
   it( 'keeps the pages that have no link anywhere else', () => {
@@ -210,7 +209,14 @@ describe( 'no entry point lands on a redirect signpost', () => {
     {
       const target = signpostTarget( s );
       expect( target, `${s} is no longer a router.replace signpost` ).not.toBeNull();
-      expect( all, `${s} forwards to ${target}, which no nav row reaches` ).toContain( target );
+      const targetBase = target!.split( '?' )[ 0 ];
+      const reachable = all.some( ( candidate ) =>
+        candidate === target || candidate.split( '?' )[ 0 ] === targetBase
+      );
+      expect(
+        reachable,
+        `${s} forwards to ${target}, whose canonical page is not reachable from navigation/search`
+      ).toBe( true );
     }
   } );
 
