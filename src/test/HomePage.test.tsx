@@ -106,10 +106,10 @@ describe( 'WECARE.DIGITAL Home', () => {
      * and 73px on a phone. Two lockups saying the same thing, and because the badge came
      * first in the hero it was the first thing anyone read on the site.
      *
-     * Re-labelling it was the plan and was dropped: the candidate copy,
-     * "8 services · 1 foundation", is accurate - STEPS.length is 8 - but WorkflowTerminal
-     * already renders that exact string on this same page, so it would have traded a brand
-     * duplication for a copy duplication.
+     * Re-labelling it was the plan and was dropped: a candidate copy naming the service
+     * count is accurate - WorkflowTerminal now runs a 13-step trace, STEPS.length is 13 -
+     * but that panel already reports "13/13 services" on this same page, so a service-count
+     * eyebrow would have traded a brand duplication for a copy duplication.
      *
      * Asserted as an absence rather than just deleted, so that re-adding a second brand
      * lockup above the fold has to be a decision rather than a reflex.
