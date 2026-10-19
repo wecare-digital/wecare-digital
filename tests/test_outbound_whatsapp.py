@@ -647,3 +647,54 @@ class TestDirectSendDecisionSite:
         self.sent, self.stored, self.metrics = [], [], []
         on = self._run(WABA1, send=self._http_error(code, details))
         assert on == off, 'a Direct Send fallback diverged from today\'s refusal'
+
+
+class TestDiscountLabel:
+    """`_discount_description`: only the fixed DELIGHT policy is named "Delight".
+
+    The label is money-adjacent copy on a payment sheet, so these pin the exact behaviour the
+    tightening introduced: the policy is named from the ONE canonical string, a legacy discount
+    keeps its own description, and an unlabelled legacy discount gets a generic fallback rather
+    than being mislabelled as the policy. The gate is the stored `couponCode`, never the amount.
+    """
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        with patch.dict(os.environ, {'AWS_REGION': 'us-east-1', 'SEND_MODE': 'DRY_RUN'}):
+            with patch('boto3.resource'), patch('boto3.client'):
+                from handler import _discount_description
+                from lambda_utils.ecommerce import default_coupon
+                self.label = _discount_description
+                self.canonical = default_coupon.DISPLAY_LABEL   # "Delight"
+                self.code = default_coupon.DELIGHT_CODE          # "DELIGHT"
+
+    def test_the_delight_policy_is_named_delight(self):
+        order = {'couponCode': self.code, 'discount': {'value': 299, 'offset': 100}}
+        assert self.label(order) == self.canonical
+
+    def test_the_delight_code_is_matched_case_insensitively(self):
+        order = {'couponCode': 'delight', 'discount': {'value': 299, 'offset': 100}}
+        assert self.label(order) == self.canonical
+
+    def test_a_legacy_discount_keeps_its_own_description(self):
+        """No DELIGHT code: an explicit description is preserved verbatim, never overwritten with
+        the policy name."""
+        order = {'discount': {'value': 15000, 'offset': 100, 'description': 'Festive 10% off'}}
+        assert self.label(order) == 'Festive 10% off'
+
+    def test_a_legacy_discount_without_a_description_falls_back_to_generic(self):
+        """No code, no description: a generic label, deliberately NOT "Delight"."""
+        order = {'discount': {'value': 15000, 'offset': 100}}
+        assert self.label(order) == 'Discount'
+
+    def test_a_non_delight_code_is_not_named_delight(self):
+        """A discount amount alone is not proof it was the policy; an unknown code is not Delight."""
+        order = {'couponCode': 'LEGACY20', 'discount': {'value': 2000, 'offset': 100}}
+        assert self.label(order) == 'Discount'
+
+    def test_the_label_is_the_canonical_string_not_a_literal(self):
+        """The sheet prints the SAME string the invoice/order row stores, so the two cannot
+        drift. This fails if someone reintroduces a hard-coded 'Delight' here."""
+        order = {'couponCode': self.code, 'discount': {'value': 299, 'offset': 100}}
+        assert self.label(order) == self.canonical
+        assert self.canonical == 'Delight'
