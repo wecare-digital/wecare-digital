@@ -38,7 +38,7 @@ from boto3.dynamodb.conditions import Key, Attr
 from botocore.exceptions import ClientError
 
 from lambda_utils import contact_store, flow_completion, flow_records, media_paths, shared_tables
-from lambda_utils.ecommerce import order_patch, order_record
+from lambda_utils.ecommerce import order_patch, order_record, service_request_input
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -340,38 +340,61 @@ def _customer_of(table_name: str, key: Dict[str, str], phone_field: str) -> Dict
 
 
 def _submit_request(body: Dict) -> Dict:
-    """A staff-entered service request, written by the one flow-response writer.
+    """Create an order-linked service case. This path never changes money state."""
+    cleaned, validation_error = service_request_input.validate(body)
+    if validation_error:
+        return _resp(400, validation_error)
+    assert cleaned is not None
 
-    Same table, shape and idempotent claim as the WhatsApp Submit Request flow, marked
-    `channel=staff`, and linked to the order's customer so it appears on that contact's
-    timeline next to their WhatsApp submissions.
-    """
-    order_id = body.get('orderId', '')
-    if not order_id:
-        return _resp(400, {'error': 'orderId required'})
+    order_id = cleaned['orderId']
+    try:
+        order_row = dynamodb.Table(ORDERS_TABLE).get_item(
+            Key={'orderId': order_id}, ConsistentRead=True
+        ).get('Item')
+    except Exception as exc:  # noqa: BLE001 - storage failure is retryable, not "not found"
+        logger.warning(f'Linked order lookup failed: {type(exc).__name__}')
+        return _resp(503, {
+            'error': 'Linked order could not be verified',
+            'errorCode': 'SERVICE_ORDER_LOOKUP_FAILED',
+            'retryable': True,
+        })
+    if not order_row:
+        return _resp(404, {
+            'error': 'Linked order not found',
+            'errorCode': 'SERVICE_ORDER_NOT_FOUND',
+        })
 
-    customer = _customer_of(ORDERS_TABLE, {'orderId': order_id}, 'customerPhone')
-    contact_id = customer['contactId'] or _contact_id_for_phone(customer['phone'])
+    customer_phone = str(order_row.get('customerPhone') or '')
+    contact_id = str(order_row.get('contactId') or '') or _contact_id_for_phone(customer_phone)
     for _ in range(5):
         short = _gen_id('WD-SR-')
         result = flow_completion.claim_completion(
             flow_token=short, screen='STAFF', flow_code='01.WD_SR', flow_type='form_submit',
-            phone=contact_store.digits(customer['phone']), contact_id=contact_id,
-            form_data=body if isinstance(body, dict) else {},
+            phone=contact_store.digits(customer_phone), contact_id=contact_id,
+            form_data=cleaned,
             reference_prefix='WD-SR', submission_id=short, status='open',
-            extra={'flowId': flow_completion.WEB_SUBMIT_FLOW_ID, 'orderId': order_id,
-                   'requestType': body.get('requestType', ''),
-                   'subject': body.get('subject', ''),
-                   'description': body.get('description', ''),
-                   'paymentRequired': bool(body.get('paymentRequired', False))},
+            extra={
+                'flowId': flow_completion.WEB_SUBMIT_FLOW_ID,
+                'orderId': order_id,
+                'requestType': cleaned['requestType'],
+                'subject': cleaned['subject'],
+                'description': cleaned['description'],
+                # A staff/web case is not the paid WhatsApp service product. It must not
+                # create a charge/refund state by accepting a browser-supplied flag.
+                'paymentRequired': False,
+            },
             ttl_seconds=0, channel=flow_completion.CHANNEL_STAFF)
         if result.created:
-            _log_status_history(short, order_id, '', 'open', 'system', 'Request submitted via web')
+            history_note = (
+                'Return/refund request opened; no refund or cancellation initiated'
+                if cleaned['requestType'] == 'Return / Refund'
+                else 'Service request submitted via workspace'
+            )
+            _log_status_history(short, order_id, '', 'open', 'system', history_note)
             return _resp(201, {'submissionId': short, 'submissionNumber': short})
         if result.status == 'error':
             return _resp(503, {'error': 'Request could not be saved', 'retryable': True})
     return _resp(503, {'error': 'Could not allocate a unique request number', 'retryable': True})
-
 
 def _amend_request(body: Dict) -> Dict:
     """An amendment is a flow response too: one FlowSubmission row (flowCode WD_AMEND).
