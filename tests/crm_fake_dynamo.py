@@ -409,7 +409,7 @@ class FakeTable:
         return {}
 
     def query(self, IndexName=None, KeyConditionExpression=None, Limit=None,
-              ScanIndexForward=True, **_):
+              ScanIndexForward=True, ExclusiveStartKey=None, **_):
         self.parent.calls.append((self.name, f"query:{IndexName}"))
         self._fail_if_armed("query")
         if not IndexName:
@@ -446,9 +446,17 @@ class FakeTable:
         if sort:
             items.sort(key=lambda r: (r.get(sort) is None, r.get(sort)),
                        reverse=not ScanIndexForward)
+        if ExclusiveStartKey:
+            start = next((n + 1 for n, row in enumerate(items)
+                          if row[self.key_attr] == ExclusiveStartKey.get(self.key_attr)), 0)
+            items = items[start:]
+        more = bool(Limit and len(items) > Limit)
         if Limit:
             items = items[:Limit]
-        return {"Items": items, "Count": len(items)}
+        result = {"Items": items, "Count": len(items)}
+        if more:
+            result["LastEvaluatedKey"] = {self.key_attr: items[-1][self.key_attr]}
+        return result
 
 
 class UnsupportedFakeOperation(AssertionError):

@@ -87,12 +87,13 @@ def env(monkeypatch):
     spec.loader.exec_module(h)
 
     fake = FakeDynamo(
-        keys={OTP_TABLE: "grantId", CONTACTS_TABLE: "id"},
+        keys={OTP_TABLE: "grantId", CONTACTS_TABLE: "id", "stack-wecare-digital-OrderTable": "orderId"},
         indexes={CONTACTS_TABLE: {
             "phone-index": ("phone", None),
             "email-index": ("email", None),
         }},
     )
+    fake.indexes["stack-wecare-digital-OrderTable"] = {"customerPhone": ("customerPhone", None)}
     monkeypatch.setattr(h, "_dynamodb", fake)
     monkeypatch.setattr(h, "_pepper", lambda: PEPPER)
     # `lambda_utils.audit` holds its OWN boto3 resource, so an unpatched `record_audit` would
@@ -590,7 +591,7 @@ def env_with_orders(monkeypatch):
         keys={OTP_TABLE: "grantId", CONTACTS_TABLE: "id", ORDERS_TABLE_NAME: "orderId"},
         indexes={
             CONTACTS_TABLE: {"phone-index": ("phone", None), "email-index": ("email", None)},
-            ORDERS_TABLE_NAME: {ORDERS_BY_CUSTOMER_INDEX: ("customerId", "createdAt")},
+            ORDERS_TABLE_NAME: {ORDERS_BY_CUSTOMER_INDEX: ("customerId", "createdAt"), "customerPhone": ("customerPhone", None)},
         },
     )
     monkeypatch.setattr(h, "_dynamodb", fake)
@@ -604,6 +605,7 @@ def _seed_order(fake, *, order_id, customer_id, stage, created_at=10):
     fake.Table(ORDERS_TABLE_NAME).put_item(Item={
         "orderId": order_id, "customerId": customer_id, "contactId": WA_CONTACT_ID,
         "createdAt": created_at, "finalizationStage": stage,
+        "customerPhone": PHONE, "paymentStatus": "PAYMENT_PAID", "providerPaymentId": "pay-" + order_id,
         "paymentAttemptId": "attempt-" + order_id, "orderNumber": "WD-ORD-" + order_id})
 
 

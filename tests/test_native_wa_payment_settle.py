@@ -566,3 +566,28 @@ def test_payout_reports_integer_paise(webhook, caplog):
             'req-p')
     assert '"amountPaise": 9999' in caplog.text
     assert '"amountRupees": "99.99"' in caplog.text
+
+
+def test_recovery_rejects_every_http_envelope_even_empty(webhook, monkeypatch):
+    for key in ('requestContext','rawPath','path','httpMethod','headers','body'):
+        response=webhook.handler({'internalAction':'recoverPaidInvoiceOrder','referenceId':REFERENCE,key:{}},None)
+        assert response['statusCode']==403
+
+
+def test_private_recovery_uses_saved_projection_only(webhook,monkeypatch):
+    from lambda_utils.ecommerce import paid_invoice_order
+    called=[]
+    def project(**kwargs):
+        called.append(kwargs['reference_id'])
+        return {'orderId':'existing-order','orderNumber':'WD-ORD-ABCD2345','finalizationStage':'NEEDS_CUSTOMER_LINK'}
+    monkeypatch.setattr(paid_invoice_order,'materialize',project)
+    result=webhook.handler({'internalAction':'recoverPaidInvoiceOrder','referenceId':REFERENCE},None)
+    assert result['orderId']=='existing-order'
+    assert called==[REFERENCE]
+
+
+def test_scheduled_reconciliation_uses_the_saved_contact_linker(webhook,monkeypatch):
+    from lambda_utils.ecommerce import customer_order_link
+    monkeypatch.setattr(customer_order_link,'reconcile',lambda **kw:3)
+    assert webhook.handler({'internalAction':'reconcileCustomerOrderLinks'},None)=={'linkedOrders':3}
+    assert webhook.handler({'internalAction':'reconcileCustomerOrderLinks','requestContext':{}},None)['statusCode']==403

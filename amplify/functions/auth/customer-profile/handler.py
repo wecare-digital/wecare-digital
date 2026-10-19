@@ -397,79 +397,24 @@ def _mark_conflict(contact_id: str, tags: Any, reason: str, now: int, *, retry: 
 #: `finalizationStage == 'NEEDS_CUSTOMER_LINK'`, so it is queryable on this index by the contact
 #: id and is the exact set this sweep promotes.
 ORDERS_TABLE = shared_tables.orders_table_name()
-ORDERS_BY_CUSTOMER_INDEX = os.environ.get(
-    "ORDERS_BY_CUSTOMER_INDEX", "customerId-createdAt-index")
 
 
 def _promote_linked_orders(contact_id: str, customer_id: str) -> int:
-    """Re-point this contact's unlinked orders to the website account it just claimed.
+    """Reuse the shared, evidence-checked promotion on both successful claim paths.
 
-    When a WhatsApp-first contact claims a website account, its already-projected orders were
-    stored at `finalizationStage == 'NEEDS_CUSTOMER_LINK'` with `customerId == contactId` - so
-    the website `/my-orders` query (partitioned on the Cognito sub) cannot see them. This sweep
-    re-points each such order's `customerId` to the sub and stages it `ORDER_FINALIZED`, which is
-    EXACTLY the promotion `paid_invoice_order.store` performs on a webhook replay - done at
-    link-time so the customer sees the order immediately instead of only after the next capture
-    replay.
-
-    SAFE and FAIL-SOFT by construction:
-      - Scoped to orders already owned by the contact id (`customerId == contact_id`) and only
-        those at NEEDS_CUSTOMER_LINK - a finalized or website-owned order is never touched.
-      - The update is conditional on the order still being owned by the contact id and still at
-        NEEDS_CUSTOMER_LINK, so a concurrent webhook-replay promotion and this sweep cannot
-        double-apply or fight.
-      - Never raises: the claim itself (the contact→account link) has already committed and is
-        the authority; the webhook-replay promotion remains the backstop for anything this sweep
-        misses (a throttle, an order projected after this runs). Returns the count promoted.
+    The scheduled reconciler covers index lag and transient failures; contact
+    ownership has already committed, so failure here must not reverse the claim.
     """
-    if not contact_id or not customer_auth.is_cognito_subject(customer_id):
-        return 0
-    promoted = 0
+    from lambda_utils.ecommerce import customer_order_link
     try:
-        orders = _table(ORDERS_TABLE)
-        start_key: Optional[Dict[str, Any]] = None
-        while True:
-            query = {
-                "IndexName": ORDERS_BY_CUSTOMER_INDEX,
-                "KeyConditionExpression": Key("customerId").eq(contact_id),
-            }
-            if start_key:
-                query["ExclusiveStartKey"] = start_key
-            page = orders.query(**query) or {}
-            for row in page.get("Items") or []:
-                if str(row.get("finalizationStage") or "") != "NEEDS_CUSTOMER_LINK":
-                    continue
-                order_id = str(row.get("orderId") or "")
-                if not order_id:
-                    continue
-                try:
-                    orders.update_item(
-                        Key={"orderId": order_id},
-                        UpdateExpression=("SET customerId = :sub, "
-                                          "finalizationStage = :final, updatedAt = :now"),
-                        ConditionExpression=("customerId = :contact "
-                                             "AND finalizationStage = :needs"),
-                        ExpressionAttributeValues={
-                            ":sub": customer_id, ":final": "ORDER_FINALIZED",
-                            ":now": int(time.time()), ":contact": contact_id,
-                            ":needs": "NEEDS_CUSTOMER_LINK"},
-                    )
-                    promoted += 1
-                except Exception as upd_exc:  # noqa: BLE001 - a lost race is fine, not a failure
-                    response = getattr(upd_exc, "response", None) or {}
-                    if response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
-                        logger.warning(json.dumps({
-                            "event": "order_link_promotion_update_failed",
-                            "error": type(upd_exc).__name__}))
-            start_key = page.get("LastEvaluatedKey")
-            if not start_key:
-                break
-    except Exception as exc:  # noqa: BLE001 - the link stands; promotion is best-effort here
-        logger.warning(json.dumps({
-            "event": "order_link_promotion_unavailable", "error": type(exc).__name__}))
-    if promoted:
-        logger.info(json.dumps({"event": "orders_linked_to_account", "count": promoted}))
-    return promoted
+        saved = _table(CONTACTS_TABLE).get_item(
+            Key=contact_key.key(contact_id), ConsistentRead=True).get('Item') or {}
+        return customer_order_link.link(orders=_table(ORDERS_TABLE),
+            contact=saved, customer_id=customer_id)
+    except Exception as exc:
+        logger.warning(json.dumps({'event': 'order_link_promotion_unavailable',
+                                   'error': type(exc).__name__}))
+        return 0
 
 
 def _attempt_claim(phone: str, identity_session: Any) -> Optional[Dict[str, Any]]:
@@ -935,6 +880,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             address=address,
             proof_validated=proof_required,
         )
+        # Ownership was established by the existing authenticated profile path. Read the
+        # saved contact consistently; request body fields never authorize order access.
+        from lambda_utils import shared_tables
+        from lambda_utils.ecommerce import customer_order_link
+        saved_contact = _table(CONTACTS_TABLE).get_item(
+            Key=contact_key.key(result['contactId']), ConsistentRead=True).get('Item') or {}
+        customer_order_link.link(orders=_table(shared_tables.orders_table_name()),
+            contact=saved_contact, customer_id=identity_session.customer_id)
     except ValueError as exc:
         if str(exc) == "CONTACT_IDENTITY_CONFLICT":
             return _no_store(cors_response(409, {"error": "CONTACT_IDENTITY_CONFLICT"}, origin))

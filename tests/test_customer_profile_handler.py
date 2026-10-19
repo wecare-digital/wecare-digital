@@ -69,7 +69,7 @@ def env(monkeypatch):
     spec.loader.exec_module(h)
 
     fake = FakeDynamo(
-        keys={OTP_TABLE: "grantId", CONTACTS_TABLE: "id"},
+        keys={OTP_TABLE: "grantId", CONTACTS_TABLE: "id", "stack-wecare-digital-OrderTable": "orderId"},
         indexes={CONTACTS_TABLE: {
             "phone-index": ("phone", None),
             "email-index": ("email", None),
@@ -976,3 +976,20 @@ def test_every_spelling_of_live_satisfies_the_claim_condition(env, live_spelling
     assert stored["id"] == "legacy-1", "the claim edits the row; it does not create a second"
     assert stored["checkoutCustomerId"] == CUSTOMER
     assert stored["identityClaimEvidence"] == h.CLAIM_EVIDENCE_INBOUND
+
+
+def test_successful_profile_save_links_existing_paid_contact_orders(env):
+    h,fake,monkeypatch=env
+    owner='12345678-1234-4234-8234-123456789abc'
+    fake.keys['stack-wecare-digital-OrderTable']='orderId'
+    fake.indexes['stack-wecare-digital-OrderTable']={'customerPhone':('customerPhone',None)}
+    monkeypatch.setattr(h.customer_auth,'require_customer',lambda event:(Identity(customer_id=owner),None))
+    seed_owned(fake,checkoutCustomerId=owner)
+    orders=fake.Table('stack-wecare-digital-OrderTable')
+    orders.put_item(Item={'orderId':'prior-order','contactId':'contact-1','customerId':'contact-1',
+        'customerPhone':PHONE,'paymentStatus':'PAYMENT_PAID','finalizationStage':'NEEDS_CUSTOMER_LINK',
+        'paymentAttemptId':'prior-attempt','providerPaymentId':'prior-payment','orderStatus':'shipped'})
+    response=h.handler(event(),None)
+    assert response['statusCode']==200
+    assert orders.get_item(Key={'orderId':'prior-order'})['Item']['customerId']==owner
+    assert orders.get_item(Key={'orderId':'prior-order'})['Item']['orderStatus']=='shipped'

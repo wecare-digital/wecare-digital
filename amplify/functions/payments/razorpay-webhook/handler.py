@@ -115,6 +115,26 @@ WEBHOOK_LOG_TABLE = os.environ.get('WEBHOOK_LOG_TABLE', 'stack-wecare-digital-Ra
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Process ALL Razorpay webhook events."""
     request_id = context.aws_request_id if context else 'local'
+    # Direct Lambda invokes require IAM. HTTP payloads cannot enter this recovery arm:
+    # API Gateway/Function URLs always supply an envelope, and body JSON is never unwrapped.
+    if event.get('internalAction') in ('recoverPaidInvoiceOrder', 'reconcileCustomerOrderLinks'):
+        if any(key in event for key in ('requestContext', 'rawPath', 'path', 'httpMethod',
+                                        'headers', 'body', 'Records')):
+            return _response(403, {'error': 'Internal invocation required'})
+        from lambda_utils import shared_tables
+        from lambda_utils.ecommerce import customer_order_link, paid_invoice_order
+        if event['internalAction'] == 'reconcileCustomerOrderLinks':
+            return {'linkedOrders': customer_order_link.reconcile(
+                orders=dynamodb.Table(shared_tables.orders_table_name()),
+                contacts=dynamodb.Table(shared_tables.contacts_table_name()))}
+        return paid_invoice_order.materialize(
+            invoices=dynamodb.Table(INVOICES_TABLE),
+            items=dynamodb.Table(shared_tables.invoice_items_table_name()),
+            contacts=dynamodb.Table(shared_tables.contacts_table_name()),
+            attempts=dynamodb.Table(PAYMENT_ATTEMPTS_TABLE),
+            keys=dynamodb.Table(COMMERCE_KEYS_TABLE),
+            orders=dynamodb.Table(shared_tables.orders_table_name()),
+            reference_id=str(event.get('referenceId') or ''), now=int(time.time()))
     origin = extract_origin(event)
     logger.info(json.dumps({'event': 'razorpay_webhook_received', 'requestId': request_id}))
 
@@ -1232,36 +1252,14 @@ def _materialize_paid_invoice_order(reference_id: str, outcome: Dict, request_id
             or outcome.get('checkoutMode') != wa_payment_request.WA_NATIVE_CHECKOUT_MODE):
         return
     try:
-        invoices = dynamodb.Table(INVOICES_TABLE).query(
-            IndexName='referenceId-index', KeyConditionExpression='referenceId = :ref',
-            ExpressionAttributeValues={':ref': reference_id}, Limit=2).get('Items', [])
-        if len(invoices) != 1:
-            raise ValueError('unique saved invoice required')
-        invoice = invoices[0]
-        keys = dynamodb.Table(COMMERCE_KEYS_TABLE)
-        reference = order_keys.resolve_payment_reference(keys, reference_id) or {}
-        attempt_id = reference.get('paymentAttemptId')
-        if not attempt_id:
-            raise ValueError('stored payment attempt required')
-        attempts = dynamodb.Table(PAYMENT_ATTEMPTS_TABLE)
-        attempt = attempts.get_item(Key={'paymentAttemptId': attempt_id}, ConsistentRead=True).get('Item') or {}
-        contact = dynamodb.Table(shared_tables.contacts_table_name()).get_item(
-            Key={'id': invoice.get('contactId', '')}, ConsistentRead=True).get('Item') or {}
-        items = dynamodb.Table(shared_tables.invoice_items_table_name()).query(
-            KeyConditionExpression='invoiceId = :invoice',
-            ExpressionAttributeValues={':invoice': invoice['invoiceId']}).get('Items', [])
-        row = paid_invoice_order.build(invoice=invoice, attempt=attempt, contact=contact,
-            outcome=outcome, items=items, now=int(time.time()))
-        paid_invoice_order.store(orders=dynamodb.Table(shared_tables.orders_table_name()), row=row)
-        attempts.update_item(Key={'paymentAttemptId': attempt_id},
-            UpdateExpression='SET finalizationStage = :stage, orderId = :order, orderNumber = :number',
-            ConditionExpression='verifiedProviderPaymentId = :provider AND verifiedCapturedPaise = :amount',
-            ExpressionAttributeValues={':stage': row['finalizationStage'], ':order': row['orderId'],
-                ':number': row['orderNumber'], ':provider': row['providerPaymentId'], ':amount': row['amountPaise']})
-        dynamodb.Table(INVOICES_TABLE).update_item(Key={'invoiceId': invoice['invoiceId']},
-            UpdateExpression='SET orderId = :order, orderNumber = :number',
-            ConditionExpression='referenceId = :ref',
-            ExpressionAttributeValues={':order': row['orderId'], ':number': row['orderNumber'], ':ref': reference_id})
+        row = paid_invoice_order.materialize(
+            invoices=dynamodb.Table(INVOICES_TABLE),
+            items=dynamodb.Table(shared_tables.invoice_items_table_name()),
+            contacts=dynamodb.Table(shared_tables.contacts_table_name()),
+            attempts=dynamodb.Table(PAYMENT_ATTEMPTS_TABLE),
+            keys=dynamodb.Table(COMMERCE_KEYS_TABLE),
+            orders=dynamodb.Table(shared_tables.orders_table_name()),
+            reference_id=reference_id, now=int(time.time()))
         logger.info(json.dumps({'event': 'paid_invoice_order_projected',
             'referenceId': reference_id, 'stage': row['finalizationStage'], 'requestId': request_id}))
     except Exception as error:
