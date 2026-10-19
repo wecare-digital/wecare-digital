@@ -52,8 +52,31 @@ REFERENCE_ID_MAX_LENGTH = order_keys.META_REFERENCE_ID_MAX_LENGTH
 # the two sets equal, so the import direction is established practice.
 from lambda_utils import payment_readiness
 from lambda_utils.ecommerce import wa_payment_request, business_identity, checkout_pricing
+# The one discount: the fixed "Delight" policy. Imported for its CANONICAL label only — this
+# handler never computes the figure, it only labels the amount the authoritative checkout already
+# computed server-side. `DELIGHT_CODE`/`DISPLAY_LABEL` are the single source for the code the
+# invoice/order row stores and the string the sheet must print, so the two cannot drift.
+from lambda_utils.ecommerce import default_coupon
 
 logger = get_logger(__name__)
+
+
+def _discount_description(order_data: dict) -> str:
+    """The customer-facing label for the `order_details` discount row.
+
+    Only the fixed DELIGHT policy is named "Delight", and it is named from the ONE canonical
+    string (`default_coupon.DISPLAY_LABEL`) rather than a literal here, so the sheet, the receipt
+    and the stored row cannot disagree. The gate is the stored `couponCode` the authoritative
+    checkout wrote (`DELIGHT`), never the amount: a non-zero discount is not proof it was Delight.
+
+    Any other discounted order — a legacy invoice whose discount predates this policy — keeps the
+    description it carried, or a generic "Discount" if it carried none. It is deliberately NOT
+    labelled "Delight", because calling an unknown legacy discount by the policy's name would be a
+    false statement on a payment sheet.
+    """
+    if str(order_data.get('couponCode') or '').strip().upper() == default_coupon.DELIGHT_CODE:
+        return default_coupon.DISPLAY_LABEL
+    return str((order_data.get('discount') or {}).get('description') or '').strip() or 'Discount'
 
 # AWS clients
 dynamodb = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
@@ -1880,9 +1903,19 @@ def _handle_checkout_template_send(
         elif not order_obj.get('expiration', {}).get('description'):
             order_obj['expiration']['description'] = 'Order expires in 24 hours'
 
-        # Ensure discount has description (Meta requires it)
-        if 'discount' in order_obj and not order_obj['discount'].get('description'):
-            order_obj['discount']['description'] = 'Discount'
+        # Ensure discount has a description (Meta requires one), and name the fixed DELIGHT policy
+        # "Delight" from the canonical label. A description the caller already set is preserved; a
+        # legacy discount with none falls back to a generic "Discount" rather than being
+        # mislabelled as the policy. The DELIGHT code is read off the order the authoritative
+        # checkout built, never inferred from the amount.
+        if 'discount' in order_obj:
+            is_delight = (str(checkout_order_details.get('couponCode')
+                              or order_obj.get('couponCode') or '').strip().upper()
+                          == default_coupon.DELIGHT_CODE)
+            if is_delight:
+                order_obj['discount']['description'] = default_coupon.DISPLAY_LABEL
+            elif not order_obj['discount'].get('description'):
+                order_obj['discount']['description'] = 'Discount'
 
         # Calculate total_amount if not provided
         total_amount = checkout_order_details.get('total_amount', {})
@@ -3794,7 +3827,9 @@ def _build_message_payload(recipient_phone: str, content: str, media_type: Optio
             'discount': {
                 'value': discount_paise,
                 'offset': 100,
-                'description': order_data.get('discount', {}).get('description', 'Promo')
+                # Only the fixed DELIGHT policy is named "Delight" (from the canonical label);
+                # any other discount keeps its own description or a generic fallback.
+                'description': _discount_description(order_data)
             },
             'shipping': {
                 'value': delivery_paise,
