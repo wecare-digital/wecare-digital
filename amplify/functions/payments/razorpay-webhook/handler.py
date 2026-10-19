@@ -124,9 +124,15 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         from lambda_utils import shared_tables
         from lambda_utils.ecommerce import customer_order_link, paid_invoice_order
         if event['internalAction'] == 'reconcileCustomerOrderLinks':
-            return {'linkedOrders': customer_order_link.reconcile(
+            metrics = customer_order_link.reconcile_metrics(
                 orders=dynamodb.Table(shared_tables.orders_table_name()),
-                contacts=dynamodb.Table(shared_tables.contacts_table_name()))}
+                contacts=dynamodb.Table(shared_tables.contacts_table_name()))
+            # Publish the sweep's health so a schedule that runs green while the backlog grows or
+            # a promotion fails is visible. A small-but-OLD backlog and a large-but-fresh one are
+            # different incidents, so age is emitted beside count. Best-effort: a metrics failure
+            # must not fail the reconciliation it is reporting on.
+            _emit_reconciliation_metrics(metrics, request_id)
+            return {'linkedOrders': metrics['promoted'], **metrics}
         return paid_invoice_order.materialize(
             invoices=dynamodb.Table(INVOICES_TABLE),
             items=dynamodb.Table(shared_tables.invoice_items_table_name()),
@@ -1242,6 +1248,36 @@ def _handle_blog_contribution_captured(payment: Dict, request_id: str) -> None:
         logger.error(json.dumps({'event': 'blog_contribution_error',
                                  'error': type(e).__name__, 'paymentId': payment_id,
                                  'stage': 'contribution', 'requestId': request_id}))
+
+
+_cloudwatch = None
+
+
+def _emit_reconciliation_metrics(metrics: Dict, request_id: str) -> None:
+    """Publish the customer-link reconciliation health to CloudWatch. Best-effort, never raises.
+
+    Namespace `WeCare/CustomerOrderLink`. Four metrics an operator can alarm on:
+    `PromotedThisRun`, `PendingRemaining`, `OldestPendingAgeSeconds`, `ReconciliationFailures`.
+    The caller's reconciliation must not fail because telemetry did, so every error is logged and
+    swallowed here.
+    """
+    global _cloudwatch
+    try:
+        if _cloudwatch is None:
+            _cloudwatch = boto3.client(
+                'cloudwatch', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
+        _cloudwatch.put_metric_data(Namespace='WeCare/CustomerOrderLink', MetricData=[
+            {'MetricName': 'PromotedThisRun', 'Value': float(metrics['promoted']), 'Unit': 'Count'},
+            {'MetricName': 'PendingRemaining', 'Value': float(metrics['pendingRemaining']),
+             'Unit': 'Count'},
+            {'MetricName': 'OldestPendingAgeSeconds',
+             'Value': float(metrics['oldestPendingAgeSeconds']), 'Unit': 'Seconds'},
+            {'MetricName': 'ReconciliationFailures', 'Value': float(metrics['failures']),
+             'Unit': 'Count'},
+        ])
+    except Exception as error:  # noqa: BLE001 - telemetry must not break reconciliation
+        logger.warning(json.dumps({'event': 'reconciliation_metrics_emit_failed',
+                                   'error': type(error).__name__, 'requestId': request_id}))
 
 
 def _materialize_paid_invoice_order(reference_id: str, outcome: Dict, request_id: str) -> None:
