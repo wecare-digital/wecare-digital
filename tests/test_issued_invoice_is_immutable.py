@@ -402,24 +402,31 @@ def test_the_allowed_list_no_longer_mentions_payment_state(engine):
 # D4 — the financial content of an issued invoice is immutable
 # ══════════════════════════════════════════════════════════════════════════════
 
-@pytest.mark.parametrize("payload", [
-    {"total": 999},
-    {"subtotal": 500},
-    {"gstRate": 5},
-    {"referenceId": "WD-PAY-SOMETHINGELSE"},
-    {"orderId": "ORD-0000"},
+@pytest.mark.parametrize("payload, expected_status, expected_error", [
+    ({"total": 999}, 409, "INVOICE_ISSUED_IMMUTABLE"),
+    ({"subtotal": 500}, 409, "INVOICE_ISSUED_IMMUTABLE"),
+    ({"gstRate": 5}, 409, "INVOICE_ISSUED_IMMUTABLE"),
+    ({"referenceId": "WD-PAY-SOMETHINGELSE"}, 409, "INVOICE_ISSUED_IMMUTABLE"),
+    # Manual discounts are retired on every row state. That specific rejection takes
+    # precedence over the issued-invoice guard; reissuing must not suggest a bypass.
+    ({"discount": 100}, 400, "MANUAL_DISCOUNTS_RETIRED"),
+    ({"orderId": "ORD-0000"}, 409, "INVOICE_ISSUED_IMMUTABLE"),
 ])
-def test_a_financial_edit_on_an_issued_invoice_is_refused_and_writes_nothing(engine, payload):
+def test_a_financial_edit_on_an_issued_invoice_is_refused_and_writes_nothing(
+        engine, payload, expected_status, expected_error):
     engine.tables.invoices.seed(_issued_row())
     before = copy.deepcopy(engine.tables.invoices.rows[INVOICE_ID])
 
     response = engine.handler(_put(payload), None)
 
-    assert response["statusCode"] == 409, response
+    assert response["statusCode"] == expected_status, response
     body = _body(response)
-    assert body["errorCode"] == "INVOICE_ISSUED_IMMUTABLE"
-    assert body["useInstead"] == "cancel+reissue"
-    assert body["fields"] == sorted(payload)
+    assert body["errorCode"] == expected_error
+    if expected_error == "INVOICE_ISSUED_IMMUTABLE":
+        assert body["useInstead"] == "cancel+reissue"
+        assert body["fields"] == sorted(payload)
+    else:
+        assert "useInstead" not in body
     assert engine.tables.invoices.rows[INVOICE_ID] == before
     assert engine.tables.invoices.writes == 0
     assert engine.s3.puts == []
@@ -742,14 +749,3 @@ def test_the_edit_payload_carries_no_financial_field():
     edit_buttons = [i for i, line in enumerate(lines) if "openEditModal( selInvoice )" in line]
     assert len(edit_buttons) == 1, edit_buttons
     assert "!isIssued( selInvoice )" in lines[edit_buttons[0] - 1]
-
-
-
-def test_manual_discount_edit_is_refused_before_any_issued_invoice_write(engine):
-    engine.tables.invoices.seed(_issued_row())
-    before = copy.deepcopy(engine.tables.invoices.rows[INVOICE_ID])
-    response = engine.handler(_put({'discount': 100}), None)
-    assert response['statusCode'] == 400
-    assert _body(response)['errorCode'] == 'MANUAL_DISCOUNTS_RETIRED'
-    assert engine.tables.invoices.rows[INVOICE_ID] == before
-    assert engine.tables.invoices.writes == 0

@@ -58,6 +58,23 @@ PHONE_ID = "phone-number-id-waba1-direct-1016149501586345"
 FLOW_ID = "1234567890"
 
 
+def _invoice_request() -> dict:
+    """A valid physical staff collection, so the real delivery gate reaches the claim race."""
+    return {
+        "referenceId": REFERENCE,
+        "paymentId": PAYMENT_ID,
+        "customerPhone": "+919876543210",
+        "entryPoint": "manual",
+        "goodsType": "physical-goods",
+        "items": [{"name": "Item", "amount": 1000, "quantity": 1}],
+        "addressLine1": "12 MG Road",
+        "city": "Pune",
+        "state": "Maharashtra",
+        "postalCode": "411001",
+        "countryCode": "IN",
+    }
+
+
 def _load(name: str, path: pathlib.Path):
     """Load a handler BY PATH under a unique module name, never `import handler`.
 
@@ -295,8 +312,7 @@ def test_an_opaque_conditional_failure_is_a_dedup_hit_in_the_invoice_engine(capl
     table = _RaisingTable(_opaque(), item={"invoiceId": INVOICE_ID, "invoiceNumber": "WD/25-26/0007",
                                            "total": 1180, "referenceId": REFERENCE})
     monkeypatch.setattr(engine, "dynamodb", _OneTable(table))
-    response = engine.create_invoice({"referenceId": REFERENCE, "paymentId": PAYMENT_ID, "addressLine1": "12 MG Road",
-                                     "city": "Bengaluru", "state": "Karnataka", "postalCode": "560001"}, REQUEST)
+    response = engine.create_invoice(_invoice_request(), REQUEST)
     assert response["statusCode"] == 200
     body = json.loads(response["body"])
     assert body["deduplicated"] is True and body["invoiceNumber"] == "WD/25-26/0007"
@@ -351,8 +367,7 @@ def test_a_substring_lookalike_is_a_500_in_the_invoice_engine(caplog, monkeypatc
     silent 200 there would hand the caller an invoice id that was never written."""
     caplog.set_level(logging.INFO, logger=engine.logger.name)
     monkeypatch.setattr(engine, "dynamodb", _OneTable(_RaisingTable(_substring_only())))
-    response = engine.create_invoice({"referenceId": REFERENCE, "paymentId": PAYMENT_ID, "addressLine1": "12 MG Road",
-                                     "city": "Bengaluru", "state": "Karnataka", "postalCode": "560001"}, REQUEST)
+    response = engine.create_invoice(_invoice_request(), REQUEST)
     assert response["statusCode"] == 500
     events = _events(caplog)
     assert "invoice_claim_error" in [name for name, _ in events]

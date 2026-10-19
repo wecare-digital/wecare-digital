@@ -227,9 +227,20 @@ def test_create_invoice_answers_503_and_writes_nothing(invoice_engine, monkeypat
     seq_table.update_item.side_effect = RuntimeError("counter unreachable")
     monkeypatch.setattr(invoice_engine.dynamodb, "Table", lambda _n: seq_table)
 
+    # Pass the real physical-delivery gate so this still exercises the unavailable
+    # sequence, rather than an earlier refusal of an incomplete staff order.
     response = invoice_engine.create_invoice(
-        {"customerPhone": "+919876543210", "items": [], "addressLine1": "12 MG Road",
-         "city": "Bengaluru", "state": "Karnataka", "postalCode": "560001"}, "req-9")
+        {
+            "customerPhone": "+919876543210",
+            "entryPoint": "manual",
+            "goodsType": "physical-goods",
+            "items": [{"name": "Item", "amount": 1000, "quantity": 1}],
+            "addressLine1": "12 MG Road",
+            "city": "Pune",
+            "state": "Maharashtra",
+            "postalCode": "411001",
+            "countryCode": "IN",
+        }, "req-9")
 
     assert response["statusCode"] == 503
     import json
