@@ -991,7 +991,18 @@ const WorkflowTerminal: React.FC = () => {
            hue note above is unchanged: colour lives on the pill fill/border, the text stays
            solid white at maximum contrast. */
         .wt-svc{padding:2px 7px;border-radius:4px;background:rgba(var(--rgb),.20);border:1px solid rgba(var(--rgb),.60);color:#fff;font-size:13.5px;letter-spacing:.02em}
-        .wt-name{color:#fff;font-size:18px;font-weight:600}
+        /* .wt-name is the per-step heading (the step title, e.g. "Request accepted").
+           SIZED 16px/600, back to the pre-#904 value. #904 bumped it 16px -> 18px, but the
+           owner reported the heading "looks very big, not matching with the site": at 18px it
+           read as a full section heading rather than a step label, out of keeping with the
+           site's restrained scale (public card titles 22px/700, body 20px, while this dark mock
+           panel deliberately runs its own smaller compact scale). It still stays the LARGEST
+           glyph in the panel - 16px sits above .wt-desc 15.5px and .wt-cmd/.wt-lane-name 15px -
+           and its 600 weight plus solid white keeps a clear step down to the muted .74 sub-line,
+           so the heading/subtext hierarchy restored in commit 57ef2daa is preserved. Colour
+           stays #fff (21:1 on the #000 panel). .wt-head keeps min-height:20px + align-items:
+           center, so the step dot alignment is unaffected by the smaller heading. */
+        .wt-name{color:#fff;font-size:16px;font-weight:600}
         /* THE TICK TAKES THE STEP'S OWN HUE. THE NAME STAYS WHITE ON ALL EIGHT ROWS.
            Both the name and the tick were #d1f470 while the dots were lime too, so the row
            agreed with itself. Once the dots became one hue per service, lime here was the last
