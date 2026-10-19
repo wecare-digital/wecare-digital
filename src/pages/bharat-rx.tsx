@@ -137,15 +137,22 @@ const BharatRxPage: React.FC = () => (
              side by side; with the retail track removed, holding 1000px would leave one
              short list floating in a measure built for two. The .brx-tracks and
              .brx-track-tag rules went with it rather than being left behind unused. */
-          .brx{max-width:700px}
+          /* PHASE-1 UNIT: min-width:0 layered-defence containment, identical to the sibling
+             ProductPage layout (.pdp), so a long unbreakable token - the SKU value, a long step
+             heading - cannot force page-level horizontal scroll at the 200%-zoom extreme.
+             RotatingHero already caps the hero band (minmax(0,1fr), Unit 1); this contains the
+             body column. Containment-only: .brx-cta is var(--public-cta-height)=52px >= 44px so
+             the tap floor is already met and the notch inset is owned upstream by Header/Layout. */
+          .brx{max-width:700px;min-width:0}
           /* Section h2 is the contract's 700 rung - HEAVIER than the hero h1's 600. That
              inversion is intentional across the site. */
           .brx-h2{
             font-size:var(--public-section-size);font-weight:var(--public-section-weight);line-height:var(--public-section-leading);
             letter-spacing:var(--public-section-tracking);color:var(--public-heading);margin:0 0 22px;
           }
-          .brx-steps{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:20px}
-          .brx-step{display:flex;gap:16px;align-items:flex-start}
+          .brx-steps{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:20px;min-width:0}
+          .brx-step{display:flex;gap:16px;align-items:flex-start;min-width:0}
+          .brx-step>div{min-width:0}
           /* The .22 lime tint: the contract's transient/quiet treatment, right for a
              counter that labels rather than acts. Full-strength lime is reserved for the
              single call to action below. */
@@ -156,9 +163,9 @@ const BharatRxPage: React.FC = () => (
             font-size:15px;font-weight:700;
           }
           /* Card-heading rung: 22px/700/-.25px/#000, same as .pp-strip-title. */
-          .brx-step-t{display:block;margin:5px 0 6px;font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-heading)}
+          .brx-step-t{display:block;margin:5px 0 6px;font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-heading);overflow-wrap:break-word}
           /* The one body level: 20px/400/1.4/-.125px. */
-          .brx-p{font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-body);margin:0}
+          .brx-p{font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-body);margin:0;overflow-wrap:break-word}
           /* Full-strength #d1f470 with #1a3a2a type - the contract's own-surface pairing,
              and 2px because the hairline rule is that 2px means hoverable. */
           .brx-cta{
@@ -178,10 +185,11 @@ const BharatRxPage: React.FC = () => (
           .brx-commerce{margin:22px 0 0}
           .brx-sku{
             margin:0;font-size:17px;font-weight:400;line-height:1.4;
-            letter-spacing:-.05px;color:var(--public-muted);
+            letter-spacing:-.05px;color:var(--public-muted);overflow-wrap:break-word;
           }
           .brx-sku strong{color:var(--public-brand-green);font-weight:700}
-          .brx-sku-value{color:var(--public-muted)}
+          /* word-break so the single unbroken SKU code can split at the 200%-zoom extreme. */
+          .brx-sku-value{color:var(--public-muted);word-break:break-word}
         `}</style>
       </section>
 
