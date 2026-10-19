@@ -8,7 +8,7 @@ const LegacyLinks = () => {
   const router = useRouter();
 
   useEffect( () => {
-    void router.replace( { pathname: '/workspace/content', query: { view: 'links' } } );
+    void router.replace( { pathname: '/workspace/communications', query: { view: 'manage', section: 'links' } } );
   }, [ router ] );
 
   return null;

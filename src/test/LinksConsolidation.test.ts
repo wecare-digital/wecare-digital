@@ -9,24 +9,18 @@ const links = fs.readFileSync( path.join( ROOT, 'components/workspace/messaging/
 const redirect = fs.readFileSync( path.join( ROOT, 'pages/workspace/link/index.tsx' ), 'utf8' );
 
 describe( 'Links consolidation', () => {
-  it( 'exposes Links canonically in Content while keeping the panel embeddable in Communications', () => {
+  it( 'exposes Links canonically in Communications Manage', () => {
     expect( navigationConfig.map( ( item ) => item.path ) ).not.toContain( '/workspace/link' );
-    // #956 (Rebuild Content as one publishing workspace): Short Links moved into the
-    // Content workspace, so its canonical nav destination is /workspace/content?view=links
-    // (the Content section lists it, label 'Short links') rather than a Communications
-    // manage child. The Links PANEL is still hosted by Communications (asserted below),
-    // but its primary route now lives under Content.
     expect( getAllNavItems().map( ( item ) => item.path ) )
-      .toContain( '/workspace/content?view=links' );
+      .toContain( '/workspace/communications?view=manage&section=links' );
     expect( communications ).toContain( "import( '../../../components/workspace/messaging/Links' )" );
     expect( communications ).toContain( "case 'links': return <LinksPanel" );
   } );
 
   it( 'keeps the retired top-level URL as a compatibility redirect', () => {
-    // #956 re-pointed the retired /workspace/link redirect at the Content workspace
-    // (router.replace to /workspace/content with view 'links') instead of Communications.
-    expect( redirect ).toContain( "pathname: '/workspace/content'" );
-    expect( redirect ).toContain( "view: 'links'" );
+    expect( redirect ).toContain( "pathname: '/workspace/communications'" );
+    expect( redirect ).toContain( "view: 'manage'" );
+    expect( redirect ).toContain( "section: 'links'" );
   } );
 
   it( 'uses non-destructive deactivation in the everyday UI', () => {
