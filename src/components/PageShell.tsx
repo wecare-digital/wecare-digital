@@ -24,6 +24,8 @@ interface PageShellProps {
   children: (activeTab: string) => React.ReactNode;
   className?: string;
   onTabChange?: (tabId: string) => void;
+  /** Hide the title/tab chrome when this shell is embedded inside a canonical workspace shell. */
+  showChrome?: boolean;
 }
 
 const PageShell: React.FC<PageShellProps> = ({
@@ -36,6 +38,7 @@ const PageShell: React.FC<PageShellProps> = ({
   children,
   className = '',
   onTabChange,
+  showChrome = true,
 }) => {
   const [internalTab, setActiveTab] = useState(defaultTab || tabs[0]?.id || '');
   const activeTab = controlledTab ?? internalTab;
@@ -47,36 +50,37 @@ const PageShell: React.FC<PageShellProps> = ({
 
   return (
     <div className={`page-shell ${className}`}>
-      {/* Section Header */}
-      <div className="ps-header">
-        <div className="ps-header-left">
-          <h1 className="ps-title">{title}</h1>
-          {subtitle && <p className="ps-subtitle">{subtitle}</p>}
-        </div>
-        {actions && <div className="ps-header-actions">{actions}</div>}
-      </div>
+      { showChrome && (
+        <>
+          <div className="ps-header">
+            <div className="ps-header-left">
+              <h1 className="ps-title">{title}</h1>
+              {subtitle && <p className="ps-subtitle">{subtitle}</p>}
+            </div>
+            {actions && <div className="ps-header-actions">{actions}</div>}
+          </div>
 
-      {/* Tab Bar */}
-      <div className="ps-tabs-wrapper">
-        <div className="ps-tabs" role="tablist">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              aria-selected={activeTab === tab.id}
-              className={`ps-tab ${activeTab === tab.id ? 'active' : ''}${tab.divider ? ' ps-tab-after-divider' : ''}`}
-              onClick={() => handleTabClick(tab.id)}
-            >
-              {tab.icon && <span className="ps-tab-icon" aria-hidden="true" title={tab.label}>{tab.icon}</span>}
-              {!tab.icon && tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
+          <div className="ps-tabs-wrapper">
+            <div className="ps-tabs" role="tablist">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === tab.id}
+                  className={`ps-tab ${activeTab === tab.id ? 'active' : ''}${tab.divider ? ' ps-tab-after-divider' : ''}`}
+                  onClick={() => handleTabClick(tab.id)}
+                >
+                  {tab.icon && <span className="ps-tab-icon" aria-hidden="true" title={tab.label}>{tab.icon}</span>}
+                  {!tab.icon && tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
-      {/* Section separator */}
-      <div className="ps-separator" />
+          <div className="ps-separator" />
+        </>
+      ) }
 
       {/* Tab Content */}
       <div className="ps-content" role="tabpanel">
