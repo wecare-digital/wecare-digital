@@ -108,3 +108,80 @@ def test_both_service_handlers_use_the_shared_patch_guard_and_stale_write_condit
         # What must never return is a handler-side write that bypasses the shared validator.
         assert "updates['paymentStatus']" not in block
         assert 'updates["paymentStatus"]' not in block
+
+
+
+def test_manual_tracking_metadata_is_trimmed_and_marked_manual():
+    updates, error = _validate(
+        {"paymentStatus": "captured", "orderStatus": "processing"},
+        {
+            "carrierName": "  Blue Dart  ",
+            "trackingNumber": "  AWB-123  ",
+            "trackingUrl": "  https://example.com/track/AWB-123  ",
+        },
+    )
+    assert error is None
+    assert updates == {
+        "carrierName": "Blue Dart",
+        "trackingNumber": "AWB-123",
+        "trackingUrl": "https://example.com/track/AWB-123",
+        "trackingSource": "manual",
+    }
+
+
+def test_tracking_url_must_be_safe_https_and_never_raise_on_malformed_input():
+    for value in (
+        "http://example.com/track/123",
+        "https://user:secret@example.com/track/123",
+        "https://exa mple.com/track/123",
+        r"https://example.com\@evil.example/track/123",
+        "https://[broken",
+        "https://example.com:notaport/track/123",
+    ):
+        updates, error = _validate(
+            {"paymentStatus": "captured", "orderStatus": "processing"},
+            {"trackingUrl": value},
+        )
+        assert updates is None
+        assert error["errorCode"] == "ORDER_TRACKING_URL_INVALID"
+
+
+def test_tracking_provenance_and_timestamp_are_server_owned():
+    for field, value in (("trackingSource", "provider"), ("trackingUpdatedAt", 123)):
+        updates, error = _validate(
+            {"paymentStatus": "captured", "orderStatus": "processing"},
+            {field: value},
+        )
+        assert updates is None
+        assert error["errorCode"] == "ORDER_TRACKING_SYSTEM_FIELD_READ_ONLY"
+
+
+def test_tracking_text_is_bounded_and_control_character_free():
+    for body in (
+        {"carrierName": "x" * 121},
+        {"trackingNumber": "abc\n123"},
+        {"trackingUrl": "https://example.com/" + "x" * 2040},
+    ):
+        updates, error = _validate(
+            {"paymentStatus": "captured", "orderStatus": "processing"},
+            body,
+        )
+        assert updates is None
+        assert error["errorCode"] in {"ORDER_TRACKING_INVALID", "ORDER_TRACKING_URL_INVALID"}
+
+
+def test_both_service_handlers_stamp_and_guard_manual_tracking_writes():
+    paths = [
+        ROOT / "amplify/functions/core/service-api/handler.py",
+        ROOT / "amplify/functions/messaging/whatsapp-business-api/service_api.py",
+    ]
+    for path in paths:
+        source = path.read_text()
+        block = source[source.index("def _update_order"):source.index("def _get_order_submissions")]
+        assert "tracking_mutation = 'trackingSource' in updates" in block
+        assert "updates['trackingUpdatedAt'] = now" in block
+        assert "('carrier_name', 'carrierName')" in block
+        assert "('tracking_number', 'trackingNumber')" in block
+        assert "('tracking_url', 'trackingUrl')" in block
+        assert "('tracking_source', 'trackingSource')" in block
+        assert "('tracking_updated_at', 'trackingUpdatedAt')" in block

@@ -21,12 +21,15 @@ import {
   canonicalFulfilmentStatus,
   fulfilmentLabel,
 } from '../../../lib/orderFulfilment';
+import { openExternal } from '../../../lib/capacitor';
 
 const PAGE_SIZE = 20;
 const ORDER_STATUSES = [ 'pending', 'processing', 'partially-shipped', 'shipped', 'completed', 'canceled' ];
 const PAYMENT_STATUSES = [ 'pending', 'captured', 'failed', 'refunded' ];
 const SOURCES = [ 'manual', 'flow', 'catalog', 'integration' ];
 const SUBMISSION_STATUSES = [ 'open', 'in_progress', 'resolved', 'closed', 'cancelled' ];
+
+type ManualTrackingPatch = Pick<api.OrderPatch, 'carrierName' | 'trackingNumber' | 'trackingUrl'>;
 
 /*
  * The option lists, hoisted so they are not rebuilt per render. Each holds exactly the
@@ -122,6 +125,20 @@ function formatDateTime ( ts?: number ): string {
     day: 'numeric', month: 'short', year: '2-digit',
     hour: '2-digit', minute: '2-digit',
   } );
+}
+
+function safeTrackingUrl ( value?: string ): string | null {
+  const raw = String( value || '' ).trim();
+  if ( !raw || /\s/.test( raw ) || raw.includes( '\\' ) ) return null;
+  try
+  {
+    const parsed = new URL( raw );
+    if ( parsed.protocol !== 'https:' || !parsed.hostname || parsed.username || parsed.password ) return null;
+    return parsed.toString();
+  } catch
+  {
+    return null;
+  }
 }
 
 function statusColor ( status: string ): { bg: string; fg: string } {
@@ -237,6 +254,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
         api.getTrackingData( order.orderId ).catch( () => null ),
       ] );
       setSubmissions( subs );
+      if ( tracking?.order ) setSelectedOrder( tracking.order );
       setDetailDocs( tracking?.documents || [] );
       setDetailHistory( tracking?.statusHistory || [] );
     } catch
@@ -254,6 +272,26 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
     const ok = await api.updateOrder( orderId, { status } );
     if ( ok ) { toast.success( `Order → ${status}` ); loadOrders(); }
     else toast.error( 'Update failed' );
+  };
+
+  const handleTrackingUpdate = async ( orderId: string, tracking: ManualTrackingPatch ): Promise<boolean> => {
+    const ok = await api.updateOrder( orderId, tracking );
+    if ( !ok )
+    {
+      toast.error( 'Could not save shipment tracking' );
+      return false;
+    }
+
+    toast.success( 'Manual shipment tracking saved' );
+    const refreshed = await api.getTrackingData( orderId ).catch( () => null );
+    if ( refreshed?.order ) setSelectedOrder( refreshed.order );
+    if ( refreshed )
+    {
+      setDetailDocs( refreshed.documents || [] );
+      setDetailHistory( refreshed.statusHistory || [] );
+    }
+    await loadOrders();
+    return true;
   };
 
   const handleSubmissionStatusUpdate = async ( subId: string, status: string ) => {
@@ -392,7 +430,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
 
         {/* ── Order Detail Panel ── */ }
         <Modal isOpen={ !!selectedOrder } onClose={ () => setSelectedOrder( null ) } title="Order Details" size="xl">
-          { selectedOrder && <OrderDetailPanel order={ selectedOrder } submissions={ submissions } subsLoading={ subsLoading } documents={ detailDocs } statusHistory={ detailHistory } onStatusUpdate={ handleOrderStatusUpdate } onSubmissionStatusUpdate={ handleSubmissionStatusUpdate } /> }
+          { selectedOrder && <OrderDetailPanel order={ selectedOrder } submissions={ submissions } subsLoading={ subsLoading } documents={ detailDocs } statusHistory={ detailHistory } onStatusUpdate={ handleOrderStatusUpdate } onTrackingUpdate={ handleTrackingUpdate } onSubmissionStatusUpdate={ handleSubmissionStatusUpdate } /> }
         </Modal>
 
         {/* ── Create Order Modal ── */ }
@@ -428,11 +466,49 @@ interface DetailProps {
   documents: api.Document[];
   statusHistory: api.StatusHistoryEntry[];
   onStatusUpdate: ( orderId: string, status: string ) => void;
+  onTrackingUpdate: ( orderId: string, tracking: ManualTrackingPatch ) => Promise<boolean>;
   onSubmissionStatusUpdate: ( subId: string, status: string ) => void;
 }
 
-const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoading, documents, statusHistory, onStatusUpdate, onSubmissionStatusUpdate } ) => {
+const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoading, documents, statusHistory, onStatusUpdate, onTrackingUpdate, onSubmissionStatusUpdate } ) => {
   const short = order.orderNumber || order.shortId || extractShortId( order.orderId );
+  const [ trackingDraft, setTrackingDraft ] = useState<ManualTrackingPatch>( {
+    carrierName: order.carrierName || '',
+    trackingNumber: order.trackingNumber || '',
+    trackingUrl: order.trackingUrl || '',
+  } );
+  const [ trackingSaving, setTrackingSaving ] = useState( false );
+  const [ trackingError, setTrackingError ] = useState( '' );
+
+  useEffect( () => {
+    setTrackingDraft( {
+      carrierName: order.carrierName || '',
+      trackingNumber: order.trackingNumber || '',
+      trackingUrl: order.trackingUrl || '',
+    } );
+    setTrackingError( '' );
+  }, [ order.orderId, order.carrierName, order.trackingNumber, order.trackingUrl ] );
+
+  const savedTrackingUrl = safeTrackingUrl( order.trackingUrl );
+
+  const saveTracking = async () => {
+    const next: ManualTrackingPatch = {
+      carrierName: String( trackingDraft.carrierName || '' ).trim(),
+      trackingNumber: String( trackingDraft.trackingNumber || '' ).trim(),
+      trackingUrl: String( trackingDraft.trackingUrl || '' ).trim(),
+    };
+    if ( next.trackingUrl && !safeTrackingUrl( next.trackingUrl ) )
+    {
+      setTrackingError( 'Tracking URL must be a valid HTTPS URL without embedded credentials.' );
+      return;
+    }
+
+    setTrackingSaving( true );
+    setTrackingError( '' );
+    const ok = await onTrackingUpdate( order.orderId, next );
+    setTrackingSaving( false );
+    if ( !ok ) setTrackingError( 'Tracking details were not saved. Reload the order and try again.' );
+  };
 
   return (
     <div>
@@ -462,6 +538,48 @@ const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoad
             options={ fulfilmentOptions( order ) }
             disabled={ allowedFulfilmentTargets( orderFulfilment( order ), order.paymentStatus ).length === 0 }
             style={ DETAIL_SELECT_STYLE } />
+        </div>
+      </div>
+
+      {/* ── Shipment tracking: manual evidence only, no courier integration. ── */ }
+      <div style={ { marginBottom: 24 } }>
+        <h3 style={ { fontSize: 'var(--text-base)', fontWeight: 600, color: 'var(--accent)', marginBottom: 6 } }>
+          Shipment tracking
+        </h3>
+        <p style={ { margin: '0 0 12px', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' } }>
+          Manual record — not synced with a courier. Save only carrier and tracking details you have confirmed.
+        </p>
+        <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 } }>
+          <label style={ labelStyle }>
+            Carrier
+            <input type="text" maxLength={ 120 } value={ trackingDraft.carrierName || '' }
+              onChange={ e => setTrackingDraft( draft => ( { ...draft, carrierName: e.target.value } ) ) }
+              placeholder="e.g. Blue Dart" style={ inputStyle } />
+          </label>
+          <label style={ labelStyle }>
+            Tracking number
+            <input type="text" maxLength={ 160 } value={ trackingDraft.trackingNumber || '' }
+              onChange={ e => setTrackingDraft( draft => ( { ...draft, trackingNumber: e.target.value } ) ) }
+              placeholder="Carrier reference" style={ inputStyle } />
+          </label>
+          <label style={ labelStyle }>
+            Tracking URL
+            <input type="url" maxLength={ 2048 } value={ trackingDraft.trackingUrl || '' }
+              onChange={ e => setTrackingDraft( draft => ( { ...draft, trackingUrl: e.target.value } ) ) }
+              placeholder="https://carrier.example/track/..." style={ inputStyle } />
+          </label>
+        </div>
+        { trackingError && <div role="alert" style={ { color: 'var(--danger, #b91c1c)', fontSize: 'var(--text-sm)', marginTop: 8 } }>{ trackingError }</div> }
+        <div style={ { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 12 } }>
+          <Button variant="primary" loading={ trackingSaving } onClick={ saveTracking }>Save tracking</Button>
+          { savedTrackingUrl && (
+            <Button variant="secondary" onClick={ () => void openExternal( savedTrackingUrl ) }>Open tracking</Button>
+          ) }
+          { order.trackingSource === 'manual' && (
+            <span style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>
+              Manual entry{ order.trackingUpdatedAt ? ` · updated ${formatDateTime( order.trackingUpdatedAt )}` : '' }
+            </span>
+          ) }
         </div>
       </div>
 
