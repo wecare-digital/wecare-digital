@@ -27,7 +27,7 @@
  *    a deliberate choice. What IS asserted is that the wordmark is optically centred
  *    against the logo, because an off-centre lockup is a defect under any sizing.
  *
- * 2. THE TWO CONTROLS INSIDE THE PILL. `.wc-wa` is a 40px circle; `.wc-chip` is a text
+ * 2. THE TWO CONTROLS INSIDE THE PILL. `.wc-wa` is a 44px circle; `.wc-chip` is a text
  *    chip whose height comes from font metrics and padding. Those are different
  *    formulas again, so "do they sit on one centre line inside the pill" cannot be read
  *    off the stylesheet - and a chip half a pixel low is visible at this size.
@@ -186,7 +186,7 @@ const VIEWPORTS = [
   { width: 390, height: 844, label: 'phone 390', pill: PILL.mobile },
 ];
 
-/** The minimum comfortable touch target. The pill is 40px of control inside 4px padding. */
+/** The minimum comfortable touch target. Both support controls are now a true 44px. */
 const TOUCH_MIN = 44;
 
 const results = [];
@@ -309,7 +309,7 @@ async function measurePill( page ) {
       top: Math.round( b.top ), bottomEdge: Math.round( b.bottom ),
       fromRight: Math.round( vw - b.right ), fromBottom: Math.round( vh - b.bottom ),
       // Unrounded centres: rounding first would hide a sub-pixel misalignment, which at
-      // 40px is exactly the size of error that is visible but hard to explain.
+      // A square 44px control is the canonical touch floor and must stay round.
       centerX: Math.round( ( b.left + b.width / 2 ) * 100 ) / 100,
       centerY: Math.round( ( b.top + b.height / 2 ) * 100 ) / 100,
     }; };
@@ -440,7 +440,7 @@ async function main() {
          * under 768px (a reasonable touch-target floor), and then Layout.css:94 resets
          * `min-height` to 32px unconditionally for the same selector list - later in the
          * cascade, same specificity, so it wins. It never resets `min-width`. The floor
-         * therefore applied to ONE axis, stretching a 40px circle into a 44x40 oval on
+         * therefore applied to ONE axis, stretching the older 40px circle into a 44x40 oval on
          * exactly the devices the widget matters most on. Neither file mentions the widget
          * and the widget mentions neither file, so only rendered geometry could find it.
          */
@@ -466,12 +466,12 @@ async function main() {
         record( m.pill.h >= TOUCH_MIN, `${vp.label}: pill clears the ${TOUCH_MIN}px touch target`, `${m.pill.h}px tall` );
 
         /**
-         * SLIM ON PHONES. 108px is 27% of a 390px screen and 32% of a folded 280px one, so
-         * the chevron goes below 768px and the chip tightens - about 19px back. The chevron
+         * SLIM ON PHONES. The language arrow still drops away below 768px so the now-larger
+         * 44px controls do not waste width on an extra chevron. The chevron
          * earns its place on a pointer device, where it is the only hint that the chip opens
          * something; a tap opens the OS language picker regardless.
          *
-         * THE 40px CONTROLS ARE ASSERTED SEPARATELY AND DELIBERATELY. The mockup for this
+         * THE 44px CONTROLS ARE ASSERTED SEPARATELY AND DELIBERATELY. The mockup for this
          * shrank them to 36px, which would have put the tap target below the 44px floor on
          * the device where that matters most. Width was the complaint, so width is what was
          * spent; the controls did not move.
@@ -480,13 +480,17 @@ async function main() {
           `${vp.label}: language chevron ${vp.pill.slim ? 'hidden on phones' : 'shown on pointer widths'}`,
           `arrow ${m.arrowShown ? 'shown' : 'hidden'}` );
 
-        record( vp.pill.slim ? m.pill.w <= 95 : m.pill.w >= 100,
+        record( vp.pill.slim ? m.pill.w <= 105 : m.pill.w >= 104,
           `${vp.label}: pill is ${vp.pill.slim ? 'slim' : 'full width'}`,
           `${m.pill.w}px wide, ${Math.round( m.pill.w / vp.width * 1000 ) / 10}% of the screen` );
 
-        record( m.wa.w === 40 && m.wa.h === 40,
-          `${vp.label}: WhatsApp control stays 40px at every width`,
-          `${m.wa.w}x${m.wa.h} - going smaller would drop the tap target below ${TOUCH_MIN}px` );
+        record( m.wa.w === 44 && m.wa.h === 44,
+          `${vp.label}: WhatsApp control stays 44px at every width`,
+          `${m.wa.w}x${m.wa.h} - 44px is the app-first touch floor` );
+
+        record( m.chip.h === 44,
+          `${vp.label}: language control stays 44px tall`,
+          `${m.chip.w}x${m.chip.h}` );
 
         // The two hit tests. See measurePill's note on why these beat comparing z-indexes.
         record( m.waReach.ok, `${vp.label}: nothing is painted over the WhatsApp button`,
