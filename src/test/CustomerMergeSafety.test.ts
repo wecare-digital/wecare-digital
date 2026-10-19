@@ -27,18 +27,20 @@ describe( 'audited customer merge saga', () => {
     expect( block ).toContain( 'CUSTOMER_MERGE_IDENTITY_CONFLICT' );
   } );
 
-  it( 'claims before aliasing and archives only after aliases are durable', () => {
+  it( 'claims before aliasing and finalizes a retained source alias only after aliases are durable', () => {
     const block = source.slice(
       source.indexOf( 'def _merge_contacts' ),
       source.indexOf( '# ─── CREATE' ),
     );
     const claim = block.indexOf( "mergeState = :claimed" );
     const alias = block.indexOf( 'mergedContactIds = list_append' );
-    const archive = block.indexOf( "mergeState = :merged, mergedAt = :now, deletedAt = :now" );
+    const finalize = block.indexOf( "mergeState = :merged" );
     expect( claim ).toBeGreaterThan( -1 );
     expect( alias ).toBeGreaterThan( claim );
-    expect( archive ).toBeGreaterThan( alias );
-    expect( block ).toContain( 'CUSTOMER_MERGE_ARCHIVE_RETRY' );
+    expect( finalize ).toBeGreaterThan( alias );
+    expect( block ).not.toContain( 'deletedAt = :now' );
+    expect( block ).toContain( 'REMOVE phone, email, bsuid' );
+    expect( block ).toContain( 'CUSTOMER_MERGE_FINALIZE_RETRY' );
   } );
 
   it( 'never rewrites or deletes orders invoices payments or consent evidence', () => {
