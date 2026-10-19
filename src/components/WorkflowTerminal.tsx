@@ -831,7 +831,7 @@ const WorkflowTerminal: React.FC = () => {
            lines sit at ~15-16px. The request line uses clamp() so it scales fluidly
            between phone and desktop instead of being stepped DOWN on mobile, per
            .kiro/steering/20-device-compat.md which favours clamp() over fixed sizes. */
-        .wt-request{margin-bottom:32px;display:flex;gap:10px;color:#fff;font-size:clamp(15px,1.1vw + 13px,16px);line-height:1.7}
+        .wt-request{margin-bottom:32px;display:flex;gap:10px;color:#fff;font-size:clamp(16px,1.1vw + 14px,18px);line-height:1.7}
         .wt-caret{color:#d1f470}
 
         /* Each step fades up as it arrives. The connector is a ::before rule so it
@@ -986,7 +986,7 @@ const WorkflowTerminal: React.FC = () => {
 
            --ink SURVIVES for .wt-tick, which still needs a legible hue. */
         .wt-svc{padding:2px 7px;border-radius:4px;background:rgba(var(--rgb),.20);border:1px solid rgba(var(--rgb),.60);color:#fff;font-size:12.5px;letter-spacing:.02em}
-        .wt-name{color:#fff;font-size:16px;font-weight:600}
+        .wt-name{color:#fff;font-size:18px;font-weight:600}
         /* THE TICK TAKES THE STEP'S OWN HUE. THE NAME STAYS WHITE ON ALL EIGHT ROWS.
            Both the name and the tick were #d1f470 while the dots were lime too, so the row
            agreed with itself. Once the dots became one hue per service, lime here was the last
