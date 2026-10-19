@@ -1,5 +1,6 @@
 /* Pay Flow CRM - WECARE.DIGITAL */
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter } from 'next/router';
 import Layout from '../../../components/Layout';
 import PageShell, { ShellTab } from '../../../components/PageShell';
 import Button from '../../../components/ui/Button';
@@ -48,14 +49,10 @@ const DEFAULT_BRAND = 'WECARE.DIGITAL';
  * applied by the server on create. The form sends no discount and no coupon code; the browser
  * never computes a discount figure.
  */
-const EMPTY_INV = { items: [ NEW_ITEM() ] as IR[], shipping: '49', purpose: DEFAULT_BRAND, orderId: '' };
-const DEF_CFG: FC = { default_gst_rate: 18, default_shipping: 49, gstin: DEFAULT_GSTIN || '19AAFFW7196L1Z8', default_item_name: 'Services/Goods', purposes: [ DEFAULT_BRAND ] };
+const EMPTY_INV = { items: [ NEW_ITEM() ] as IR[], shipping: '0', purpose: DEFAULT_BRAND, orderId: '' };
+const DEF_CFG: FC = { default_gst_rate: 18, default_shipping: 0, gstin: DEFAULT_GSTIN || '19AAFFW7196L1Z8', default_item_name: 'Services/Goods', purposes: [ DEFAULT_BRAND ] };
 const TABS: ShellTab[] = [
-  { id: 'customers', label: 'Customers' },
-  { id: 'create', label: 'Create' },
-  { id: 'invoices', label: 'Invoices' },
-  { id: 'dues', label: 'Dues' },
-  { id: 'config', label: 'Config' },
+  { id: 'create', label: 'Collect' },
 ];
 const CFG_KEY = 'wecare_flow_config';
 const loadSavedConfig = (): FC => {
@@ -179,7 +176,8 @@ const AddressFieldGroup: React.FC<{
 
 /* ── Component ── */
 const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
-  const [ flowTab, setFlowTab ] = useState( 'customers' );
+  const router = useRouter();
+  const [ flowTab, setFlowTab ] = useState( 'create' );
   const [ openingCreated, setOpeningCreated ] = useState( false );
   const [ customers, setCustomers ] = useState<Contact[]>( [] );
   const [ custSearch, setCustSearch ] = useState( '' );
@@ -327,22 +325,8 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
   const updateItem = ( idx: number, field: keyof IR, val: string ) => {
     const items = [ ...invForm.items ]; items[ idx ] = { ...items[ idx ], [ field ]: val }; setInvForm( { ...invForm, items } );
   };
-  const addItem = () => {
-    const items = [ ...invForm.items ];
-    // Insert new item before charge items (Green Packing, Notification Fee) at the end
-    const chargeNames = [ 'green packing', 'notification fee' ];
-    let insertIdx = items.length;
-    for ( let i = items.length - 1; i >= 0; i-- )
-    {
-      if ( chargeNames.some( cn => items[ i ].name.toLowerCase().includes( cn.split( ' ' )[ 0 ] ) ) ) insertIdx = i;
-      else break;
-    }
-    items.splice( insertIdx, 0, NEW_ITEM() );
-    setInvForm( { ...invForm, items } );
-  };
+  const addItem = () => setInvForm( { ...invForm, items: [ ...invForm.items, NEW_ITEM() ] } );
   const removeItem = ( idx: number ) => { if ( invForm.items.length <= 1 ) return; setInvForm( { ...invForm, items: invForm.items.filter( ( _, i ) => i !== idx ) } ); };
-  const calcSubtotal = () => invForm.items.reduce( ( s, it ) => s + ( parseFloat( it.unitPrice ) || 0 ) * ( parseInt( it.quantity ) || 0 ), 0 );
-  const calcTax = () => invForm.items.reduce( ( s, it ) => { const line = ( parseFloat( it.unitPrice ) || 0 ) * ( parseInt( it.quantity ) || 0 ); return s + line * ( parseFloat( it.gstRate ) || 0 ) / 100; }, 0 );
   const submitInvoice = async ( sendAfterCreate = false ) => {
     if ( invoiceCreateInFlight.current ) return;
     if ( !selCustomer ) { showMsg( 'Select a customer first', 'error' ); return; }
@@ -540,12 +524,11 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
     if ( !redemption ) return;
     setOpeningCreated( true );
     try {
-      const invoice = await api.getInvoiceEngine( redemption.invoiceId );
-      if ( !invoice ) { showMsg( 'Could not open the invoice. Find it in Invoices before creating another.', 'error' ); return; }
-      setSelInvoice( invoice );
-      loadDeliveryLogs( invoice.invoiceId );
-      setFlowTab( 'invoices' );
-    } catch { showMsg( 'Could not open the invoice. Find it in Invoices before creating another.', 'error' ); }
+      await router.push( {
+        pathname: '/workspace/payments',
+        query: { view: 'invoices', invoice: redemption.invoiceId },
+      } );
+    } catch { showMsg( 'Could not open Invoices. The saved invoice remains available there.', 'error' ); }
     finally { setOpeningCreated( false ); }
   };
   const selectInvoice = ( inv: Invoice ) => { setSelInvoice( inv ); loadDeliveryLogs( inv.invoiceId ); };
@@ -565,7 +548,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
 
   /* ═══ RENDER ═══ */
   const shellContent = (
-    <PageShell title="Flow" subtitle="Customers, Invoices & Payments" tabs={ TABS } activeTab={ flowTab } onTabChange={ setFlowTab } defaultTab="customers">
+    <PageShell title="Collect payment" subtitle="Create a server-authoritative invoice and optionally send its payment request." tabs={ TABS } activeTab={ flowTab } onTabChange={ setFlowTab } defaultTab="create" showChrome={ !embedded }>
       { ( activeTab ) => (
         <div className="inner-page">
           { msg && <div className={ `msg-bar ${msg.type}` } style={ { margin: '0 0 16px' } }>{ msg.text }<button onClick={ () => setMsg( null ) } style={ { background: 'none', border: 'none', cursor: 'pointer', marginLeft: 8 } }>{ '\u2715' }</button></div> }
