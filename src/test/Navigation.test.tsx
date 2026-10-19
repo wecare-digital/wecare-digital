@@ -70,8 +70,9 @@ describe( 'the sidebar is short and holds only daily streams', () => {
     expect( navigationConfig.length ).toBeLessThanOrEqual( 9 );
   } );
 
-  it( 'leads with the canonical Communications workspace', () => {
-    expect( navigationConfig[ 0 ].path ).toBe( '/workspace/communications' );
+  it( 'leads with canonical Workspace Home', () => {
+    expect( navigationConfig[ 0 ].path ).toBe( '/workspace' );
+    expect( navigationConfig[ 1 ].path ).toBe( '/workspace/communications' );
   } );
 
   it( 'no longer carries the 30-item WhatsApp branch', () => {
@@ -140,9 +141,11 @@ describe( 'nothing became unreachable', () => {
     // else — only their canonical paths moved. (FEAT-003 relocated the MFA page out of this set
     // into the gear panel; its reachability is proven by the SettingsGear render test, not
     // getAllNavItems, so it is no longer sampled here.)
-    for ( const p of [ '/workspace/engage/channels', '/workspace/engage?tab=search',
+    for ( const p of [ '/workspace/communications?view=manage&section=sms',
+      '/workspace/communications?view=manage&section=search',
       '/workspace/engage/whatsapp/settings?tab=catalog-builder', '/workspace/engage/whatsapp/settings?tab=embedded-signup',
-      '/workspace/settings/platform?tab=design-reference', '/workspace/engage?tab=meta-agent', '/workspace/engage/service-ops?tab=faq' ] )
+      '/workspace/settings/platform?tab=design-reference',
+      '/workspace/communications?view=manage&section=ai', '/workspace/engage/service-ops?tab=faq' ] )
     {
       expect( all ).toContain( p );
     }
