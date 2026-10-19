@@ -74,6 +74,17 @@ def test_service_request_type_and_text_are_bounded():
         assert error["errorCode"] == "SERVICE_REQUEST_INPUT_INVALID"
 
 
+
+def test_service_request_description_can_be_multiline():
+    cleaned, error = service_request_input.validate({
+        "orderId": "WD-ORD-ABC123",
+        "requestType": "Damaged / Defective",
+        "subject": "Damage details",
+        "description": "Outer box crushed.\nItem has a visible dent.\tPhoto attached.",
+    })
+    assert error is None
+    assert "\n" in cleaned["description"]
+
 def test_both_service_handlers_verify_real_order_and_force_non_financial_case():
     for path in (
         ROOT / "amplify/functions/core/service-api/handler.py",
