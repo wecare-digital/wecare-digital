@@ -573,7 +573,7 @@ const HomePage: React.FC = () => {
            carried no letter-spacing while every other body rung uses -.125px.
            Both are now on their proper rungs. Everything here is Inter, as it already was -
            there was never a font-family mismatch, only a size one. */
-        .home-flow-list strong{display:block;margin:0 0 6px;font-size:24px;font-weight:var(--public-card-weight);letter-spacing:var(--public-card-tracking);line-height:var(--public-card-leading);color:var(--public-heading)}
+        .home-flow-list strong{display:block;margin:0 0 6px;font-size:max(var(--public-card-size),24px);font-weight:var(--public-card-weight);letter-spacing:var(--public-card-tracking);line-height:var(--public-card-leading);color:var(--public-heading)}
         /* Body rung at the neutral colour rgba(0,0,0,.898), matching .home-flow-lead,
            .home-sub and .home-close-lead. It was rgba(0,0,0,.54) (muted grey), which made
            this the only body copy on the page at that colour and read as a different, lighter
