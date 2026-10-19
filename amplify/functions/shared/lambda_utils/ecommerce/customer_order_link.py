@@ -65,9 +65,32 @@ def reconcile(*, orders, contacts):
     The profile role cannot scan. Only the existing private webhook worker runs this
     pending-only scan; contact reads are consistent and every ownership write is conditional.
     """
-    count = 0
+    return reconcile_metrics(orders=orders, contacts=contacts)['promoted']
+
+
+def reconcile_metrics(*, orders, contacts, now=None):
+    """`reconcile`, but returning the operational metrics a scheduled sweep should publish.
+
+    A sweep can run green while business work piles up or quietly fails, which is the blind spot
+    this closes. Returns:
+      - `promoted`:        orders linked to their account THIS run (what `reconcile` returned).
+      - `pendingRemaining`: orders still at NEEDS_CUSTOMER_LINK after the run (the backlog).
+      - `oldestPendingAgeSeconds`: age of the oldest still-pending order, 0 if none - a backlog
+        that is small but OLD is a different problem from one that is large and fresh.
+      - `failures`:        rows a promotion attempt RAISED on (not a conditional no-op, which is
+        normal) - a genuine error worth an alarm.
+
+    Behaviour of the scan/promote is unchanged; this only also counts what it already walks, so a
+    caller can emit the four as CloudWatch metrics without a second pass over the table.
+    """
+    import time as _time
+    now = int(now if now is not None else _time.time())
+    promoted = 0
+    failures = 0
+    pending_remaining = 0
+    oldest_created = None
     fields = ['orderId', 'contactId', 'customerId', 'paymentStatus', 'finalizationStage',
-              'paymentAttemptId', 'providerPaymentId']
+              'paymentAttemptId', 'providerPaymentId', 'createdAt']
     kwargs = {'FilterExpression': Attr('finalizationStage').eq('NEEDS_CUSTOMER_LINK'),
         'ProjectionExpression': ', '.join(fields), 'Limit': 100, 'ConsistentRead': True}
     while True:
@@ -75,10 +98,37 @@ def reconcile(*, orders, contacts):
         for row in page.get('Items') or []:
             cid = row.get('contactId')
             if not cid:
+                pending_remaining += 1
+                oldest_created = _min_created(oldest_created, row)
                 continue
             contact = contacts.get_item(Key={'id': cid}, ConsistentRead=True).get('Item') or {}
-            count += int(_promote(orders, row, contact, str(contact.get('checkoutCustomerId') or '')))
+            try:
+                linked = _promote(orders, row, contact,
+                                  str(contact.get('checkoutCustomerId') or ''))
+            except Exception:  # noqa: BLE001 - a raised promotion is a failure to COUNT, not swallow silently
+                failures += 1
+                pending_remaining += 1
+                oldest_created = _min_created(oldest_created, row)
+                continue
+            if linked:
+                promoted += 1
+            else:
+                # Still pending: no account linked yet (the common, benign case), or ineligible.
+                pending_remaining += 1
+                oldest_created = _min_created(oldest_created, row)
         last = page.get('LastEvaluatedKey')
         if not last:
-            return count
+            break
         kwargs['ExclusiveStartKey'] = last
+    oldest_age = max(0, now - int(oldest_created)) if oldest_created is not None else 0
+    return {'promoted': promoted, 'pendingRemaining': pending_remaining,
+            'oldestPendingAgeSeconds': oldest_age, 'failures': failures}
+
+
+def _min_created(current, row):
+    """The smaller (older) createdAt between the running minimum and a row, ignoring junk."""
+    try:
+        value = int(row.get('createdAt'))
+    except (TypeError, ValueError):
+        return current
+    return value if current is None else min(current, value)

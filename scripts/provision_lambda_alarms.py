@@ -94,6 +94,14 @@ ALWAYS = {
     "wecare-notification-worker": "SQS-driven, so a failure shows up as silence",
     "wecare-outbound-email": "low volume by design; failure is invisible without this",
     "wecare-outbound-sms": "low volume by design; failure is invisible without this",
+    # The commerce payment->order->customer path. Alarmed at ANY volume on purpose:
+    # customer-profile in particular ran zero times in the audited 24h window, so a
+    # volume-floor rule would never cover the exact function whose silence is hardest to
+    # notice - a failed account link that quietly hides a customer's orders.
+    "wecare-checkout": "website checkout; a failure is a customer who cannot pay",
+    "wecare-customer-orders": "website order history; a failure hides a paid customer's orders",
+    "wecare-customer-profile": "website account link; a failure silently detaches orders from the account",
+    "wecare-invoice-engine": "invoice + payment-link + fulfilment; a failure is an uncollected or unshipped order",
 }
 
 # Never alarmed, with the reason, so an absence is a decision on the record.

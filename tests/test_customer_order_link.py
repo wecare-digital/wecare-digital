@@ -95,3 +95,64 @@ def test_reconciler_drains_empty_scan_pages(monkeypatch):
     monkeypatch.setattr(table,'scan',scan,raising=False)
     assert subject.reconcile(orders=table,contacts=contacts)==1
     assert calls[1]['ExclusiveStartKey']=={'orderId':'previous'}
+
+
+# ── reconcile_metrics: the operational health a scheduled sweep should publish ──────────────────
+
+def _scan_from_rows(table):
+    """A scan that returns the pending rows in the fake table (FakeTable has no native scan)."""
+    def scan(**kw):
+        return {'Items': [deepcopy(r) for r in table.rows.values()
+                          if r.get('finalizationStage') == 'NEEDS_CUSTOMER_LINK']}
+    return scan
+
+
+def test_reconcile_metrics_reports_promotions_and_empty_backlog(monkeypatch):
+    from lambda_utils.ecommerce import customer_order_link as subject
+    table, contact, row = setup()
+    table.put_item(Item={**row, 'createdAt': 900_000})
+    contacts = FakeDynamo(keys={'contacts': 'id'}).Table('contacts')
+    contacts.put_item(Item=contact)
+    monkeypatch.setattr(table, 'scan', _scan_from_rows(table), raising=False)
+    m = subject.reconcile_metrics(orders=table, contacts=contacts, now=1_000_000)
+    assert m['promoted'] == 1            # the one eligible order linked
+    assert m['pendingRemaining'] == 0    # nothing left pending after it linked
+    assert m['oldestPendingAgeSeconds'] == 0
+    assert m['failures'] == 0
+
+
+def test_reconcile_metrics_counts_a_pending_backlog_and_its_oldest_age(monkeypatch):
+    from lambda_utils.ecommerce import customer_order_link as subject
+    table, contact, row = setup()
+    table.put_item(Item={**row, 'createdAt': 990_000})
+    # An order whose contact has NOT linked a website account yet: stays pending, not a failure.
+    unlinked = {**row, 'orderId': 'ord-pending', 'contactId': 'contact-2',
+                'customerId': 'contact-2', 'createdAt': 900_000}
+    table.put_item(Item=unlinked)
+    contacts = FakeDynamo(keys={'contacts': 'id'}).Table('contacts')
+    contacts.put_item(Item=contact)                       # contact-1 is linked
+    contacts.put_item(Item={'id': 'contact-2', 'phone': '+919800000002'})  # contact-2 unlinked
+    monkeypatch.setattr(table, 'scan', _scan_from_rows(table), raising=False)
+    m = subject.reconcile_metrics(orders=table, contacts=contacts, now=1_000_000)
+    assert m['promoted'] == 1            # contact-1's order links
+    assert m['pendingRemaining'] == 1    # contact-2's stays pending
+    assert m['oldestPendingAgeSeconds'] == 100_000   # 1_000_000 - 900_000
+    assert m['failures'] == 0
+
+
+def test_reconcile_metrics_counts_a_raised_promotion_as_a_failure(monkeypatch):
+    from lambda_utils.ecommerce import customer_order_link as subject
+    table, contact, row = setup()
+    contacts = FakeDynamo(keys={'contacts': 'id'}).Table('contacts')
+    contacts.put_item(Item=contact)
+    row = {**row, 'createdAt': 950_000}
+    monkeypatch.setattr(table, 'scan', lambda **kw: {'Items': [deepcopy(row)]}, raising=False)
+    # A non-conditional error during promotion must be COUNTED, not swallowed silently.
+    def boom(**kw):
+        raise RuntimeError('throttled')
+    monkeypatch.setattr(table, 'update_item', boom)
+    m = subject.reconcile_metrics(orders=table, contacts=contacts, now=1_000_000)
+    assert m['promoted'] == 0
+    assert m['failures'] == 1
+    assert m['pendingRemaining'] == 1
+    assert m['oldestPendingAgeSeconds'] == 50_000
