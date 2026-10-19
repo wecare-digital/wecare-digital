@@ -36,7 +36,7 @@ from typing import Any, Dict, Optional
 import boto3
 from boto3.dynamodb.conditions import Key
 
-from lambda_utils import contact_key, customer_auth, customer_session
+from lambda_utils import contact_key, customer_auth, customer_session, shared_tables
 from lambda_utils.audit import record_audit
 from lambda_utils.ecommerce import contact_address
 from lambda_utils.identity import customer as identity
@@ -392,6 +392,86 @@ def _mark_conflict(contact_id: str, tags: Any, reason: str, now: int, *, retry: 
                                    "error": type(exc).__name__}))
 
 
+#: The orders table and the customer-scoped index, resolved the same way customer-orders does.
+#: An unlinked WhatsApp order (`paid_invoice_order`) is stored with `customerId == contactId` and
+#: `finalizationStage == 'NEEDS_CUSTOMER_LINK'`, so it is queryable on this index by the contact
+#: id and is the exact set this sweep promotes.
+ORDERS_TABLE = shared_tables.orders_table_name()
+ORDERS_BY_CUSTOMER_INDEX = os.environ.get(
+    "ORDERS_BY_CUSTOMER_INDEX", "customerId-createdAt-index")
+
+
+def _promote_linked_orders(contact_id: str, customer_id: str) -> int:
+    """Re-point this contact's unlinked orders to the website account it just claimed.
+
+    When a WhatsApp-first contact claims a website account, its already-projected orders were
+    stored at `finalizationStage == 'NEEDS_CUSTOMER_LINK'` with `customerId == contactId` - so
+    the website `/my-orders` query (partitioned on the Cognito sub) cannot see them. This sweep
+    re-points each such order's `customerId` to the sub and stages it `ORDER_FINALIZED`, which is
+    EXACTLY the promotion `paid_invoice_order.store` performs on a webhook replay - done at
+    link-time so the customer sees the order immediately instead of only after the next capture
+    replay.
+
+    SAFE and FAIL-SOFT by construction:
+      - Scoped to orders already owned by the contact id (`customerId == contact_id`) and only
+        those at NEEDS_CUSTOMER_LINK - a finalized or website-owned order is never touched.
+      - The update is conditional on the order still being owned by the contact id and still at
+        NEEDS_CUSTOMER_LINK, so a concurrent webhook-replay promotion and this sweep cannot
+        double-apply or fight.
+      - Never raises: the claim itself (the contact→account link) has already committed and is
+        the authority; the webhook-replay promotion remains the backstop for anything this sweep
+        misses (a throttle, an order projected after this runs). Returns the count promoted.
+    """
+    if not contact_id or not customer_auth.is_cognito_subject(customer_id):
+        return 0
+    promoted = 0
+    try:
+        orders = _table(ORDERS_TABLE)
+        start_key: Optional[Dict[str, Any]] = None
+        while True:
+            query = {
+                "IndexName": ORDERS_BY_CUSTOMER_INDEX,
+                "KeyConditionExpression": Key("customerId").eq(contact_id),
+            }
+            if start_key:
+                query["ExclusiveStartKey"] = start_key
+            page = orders.query(**query) or {}
+            for row in page.get("Items") or []:
+                if str(row.get("finalizationStage") or "") != "NEEDS_CUSTOMER_LINK":
+                    continue
+                order_id = str(row.get("orderId") or "")
+                if not order_id:
+                    continue
+                try:
+                    orders.update_item(
+                        Key={"orderId": order_id},
+                        UpdateExpression=("SET customerId = :sub, "
+                                          "finalizationStage = :final, updatedAt = :now"),
+                        ConditionExpression=("customerId = :contact "
+                                             "AND finalizationStage = :needs"),
+                        ExpressionAttributeValues={
+                            ":sub": customer_id, ":final": "ORDER_FINALIZED",
+                            ":now": int(time.time()), ":contact": contact_id,
+                            ":needs": "NEEDS_CUSTOMER_LINK"},
+                    )
+                    promoted += 1
+                except Exception as upd_exc:  # noqa: BLE001 - a lost race is fine, not a failure
+                    response = getattr(upd_exc, "response", None) or {}
+                    if response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
+                        logger.warning(json.dumps({
+                            "event": "order_link_promotion_update_failed",
+                            "error": type(upd_exc).__name__}))
+            start_key = page.get("LastEvaluatedKey")
+            if not start_key:
+                break
+    except Exception as exc:  # noqa: BLE001 - the link stands; promotion is best-effort here
+        logger.warning(json.dumps({
+            "event": "order_link_promotion_unavailable", "error": type(exc).__name__}))
+    if promoted:
+        logger.info(json.dumps({"event": "orders_linked_to_account", "count": promoted}))
+    return promoted
+
+
 def _attempt_claim(phone: str, identity_session: Any) -> Optional[Dict[str, Any]]:
     """Link one unowned WhatsApp-first contact to this session, or return None.
 
@@ -471,6 +551,9 @@ def _attempt_claim(phone: str, identity_session: Any) -> Optional[Dict[str, Any]
         if current.get("checkoutCustomerId") == identity_session.customer_id:
             # One winner. The loser of the race is this same customer, so the claim it wanted
             # already exists and re-stamping `identityClaimedAt` would falsify when it happened.
+            # Still sweep: the winning request may have linked the contact a moment ago without
+            # promoting an order that was projected in between. Idempotent and conditional.
+            _promote_linked_orders(contact_id, identity_session.customer_id)
             return current
         _, race_reason = _claim_candidate([current] if current else [], phone, phone_verified)
         if race_reason:
@@ -480,6 +563,11 @@ def _attempt_claim(phone: str, identity_session: Any) -> Optional[Dict[str, Any]
     _audit_claim("identity.claim", identity_session, contact_id, phone,
                  {"evidence": evidence})
     logger.info(json.dumps({"event": "identity_claim_linked", "evidence": evidence}))
+    # The contact now owns the account, so any order already projected for it at
+    # NEEDS_CUSTOMER_LINK (customerId == contactId) is re-pointed to the sub and finalized, so it
+    # appears in the customer's website history immediately rather than only after the next
+    # webhook replay. Best-effort: the link above is the authority and has committed.
+    _promote_linked_orders(contact_id, identity_session.customer_id)
     # The caller builds its merged response from this row, so the three attributes just written
     # are reflected locally rather than re-read.
     claimed = dict(candidate)

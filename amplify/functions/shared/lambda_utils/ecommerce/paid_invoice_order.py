@@ -8,6 +8,7 @@ from decimal import Decimal
 from lambda_utils import contact_key, customer_auth
 from lambda_utils.comms.numbers import to_e164
 from lambda_utils.ecommerce import finalization, order_keys, order_record
+from lambda_utils.identity import customer_uuid
 
 
 def build(*, invoice, attempt, contact, outcome, items, now):
@@ -30,7 +31,7 @@ def build(*, invoice, attempt, contact, outcome, items, now):
     if linked and not customer_auth.is_cognito_subject(linked):
         raise ValueError('invalid website customer binding')
     stage = 'ORDER_FINALIZED' if linked else 'NEEDS_CUSTOMER_LINK'
-    return {
+    row = {
         'orderId': outcome['orderId'], 'orderNumber': outcome['orderNumber'],
         'shortId': order_record.short_id(outcome['orderNumber']),
         'customerId': linked or str(attempt['customerId']), 'contactId': contact_id,
@@ -46,6 +47,18 @@ def build(*, invoice, attempt, contact, outcome, items, now):
         'createdAt': int(invoice.get('createdAt') or now), 'updatedAt': int(now),
         'invoiceSnapshot': deepcopy(invoice), 'items': deepcopy(items),
     }
+    # The PUBLIC customer id, so a WhatsApp order carries the SAME attribution the website leg
+    # writes (`finalization.accept_paid`) and the `/orders` API and staff surfaces can show it.
+    # Preferred off the attempt (stamped from the session-owned contact at reserve time), then
+    # off the contact row. CONDITIONAL and outside every evidence/association comparison: it is
+    # attribution, not money, so a row with no valid public id stays byte-identical to a legacy
+    # row rather than raising. `from_contact` re-validates and never raises, so a junk value
+    # becomes absent instead of poisoning the row.
+    public_customer_id = (customer_uuid.from_contact(attempt)
+                          or customer_uuid.from_contact(contact))
+    if public_customer_id:
+        row[customer_uuid.ATTRIBUTE] = public_customer_id
+    return row
 
 
 def store(*, orders, row):

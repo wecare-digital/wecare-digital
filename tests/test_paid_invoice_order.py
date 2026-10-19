@@ -32,6 +32,37 @@ def test_unlinked_contact_remains_staff_owned_until_a_verified_account_link_exis
     assert row['customerId'] == 'contact-1'
     assert row['finalizationStage'] == 'NEEDS_CUSTOMER_LINK'
 
+PUBLIC_ID = 'abcdef12-3456-4789-8abc-def123456789'
+
+
+def test_public_customer_id_is_carried_from_the_attempt():
+    args = inputs()
+    args['attempt']['customerUuid'] = PUBLIC_ID
+    row = subject.build(**args)
+    assert row['customerUuid'] == PUBLIC_ID
+
+
+def test_public_customer_id_falls_back_to_the_contact():
+    args = inputs()
+    args['contact']['customerUuid'] = PUBLIC_ID
+    row = subject.build(**args)
+    assert row['customerUuid'] == PUBLIC_ID
+
+
+def test_public_customer_id_is_absent_when_neither_carries_one():
+    row = subject.build(**inputs())
+    # Absent rather than empty - a legacy row carried none, and the conditional emit keeps this
+    # row byte-identical to one written before the field existed.
+    assert 'customerUuid' not in row
+
+
+def test_a_junk_public_customer_id_is_dropped_not_stored():
+    args = inputs()
+    args['attempt']['customerUuid'] = 'not-a-uuid'
+    row = subject.build(**args)
+    assert 'customerUuid' not in row
+
+
 @pytest.mark.parametrize('change', ['amount', 'payment', 'reference', 'contact'])
 def test_projection_refuses_disagreeing_evidence(change):
     args = inputs()
