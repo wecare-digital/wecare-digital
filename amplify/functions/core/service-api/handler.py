@@ -38,6 +38,7 @@ from boto3.dynamodb.conditions import Key, Attr
 from botocore.exceptions import ClientError
 
 from lambda_utils import contact_store, flow_completion, flow_records, media_paths, shared_tables
+from lambda_utils.audit import record_audit
 from lambda_utils.ecommerce import order_patch, order_record, service_request_input
 
 logger = logging.getLogger()
@@ -45,6 +46,7 @@ logger.setLevel(logging.INFO)
 
 dynamodb = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
 s3_client = boto3.client('s3', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
+lambda_client = boto3.client('lambda', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
 
 # Table names. The shared stores (contacts, orders, flow responses, drafts, status history)
 # resolve through `lambda_utils.shared_tables`, so this API, the WhatsApp Flows, the inbox and
@@ -60,6 +62,7 @@ DOCUMENTS_TABLE = f'{TABLE_PREFIX}-DocumentTable'
 DOCUMENT_HISTORY_TABLE = f'{TABLE_PREFIX}-DocumentHistoryTable'
 FAQ_TABLE = f'{TABLE_PREFIX}-FaqTable'
 AUDIT_LOG_TABLE = f'{TABLE_PREFIX}-AuditLogsTable'
+INVOICE_ENGINE_FUNCTION = os.environ.get('INVOICE_ENGINE_FUNCTION', 'wecare-invoice-engine:live')
 
 # Documents ARE WhatsApp media: inbound-whatsapp writes the object and then records its
 # key as DocumentTable.storageKey, so both live in the one media bucket. There has never
@@ -227,7 +230,226 @@ def _create_order(body: Dict) -> Dict:
     return _resp(503, {'error': 'Could not allocate a unique order id', 'retryable': True})
 
 
-def _update_order(order_id: str, body: Dict) -> Dict:
+
+def _cancel_linked_invoice(invoice_id: str, reason: str, request_id: str):
+    """Void a linked unpaid invoice before cancelling its order.
+
+    The invoice engine owns invoice/payment race handling. This internal invoke deliberately
+    has no API Gateway identity, so its own require_auth treats it as Lambda-to-Lambda while
+    the staff actor was already authenticated here.
+    """
+    try:
+        response = lambda_client.invoke(
+            FunctionName=INVOICE_ENGINE_FUNCTION,
+            InvocationType='RequestResponse',
+            Payload=json.dumps({
+                'rawPath': f'/invoices/{invoice_id}/cancel',
+                'requestContext': {'http': {'method': 'POST'}},
+                'pathParameters': {'invoiceId': invoice_id},
+                'body': json.dumps({'invoiceId': invoice_id, 'reason': reason}),
+            }).encode(),
+        )
+        if response.get('FunctionError'):
+            return False, 503, {'error': 'Invoice cancellation could not be confirmed',
+                                'errorCode': 'ORDER_CANCEL_INVOICE_UNAVAILABLE'}
+        payload = json.loads(response['Payload'].read())
+        status = int(payload.get('statusCode', 500))
+        try:
+            body = json.loads(payload.get('body') or '{}')
+        except (json.JSONDecodeError, TypeError, ValueError):
+            body = {}
+        if 200 <= status < 300:
+            return True, status, body
+        code = str(body.get('errorCode') or '')
+        if code in {'INVOICE_CANCEL_MONEY_MOVED', 'INVOICE_CANCEL_PAYMENT_CHANGED'}:
+            return False, 409, {
+                'error': 'Linked invoice cannot be voided because payment state changed',
+                'errorCode': 'ORDER_CANCEL_MONEY_MOVED',
+            }
+        return False, 409 if status == 409 else 503, {
+            'error': 'Linked invoice must be safely voided before order cancellation',
+            'errorCode': code or 'ORDER_CANCEL_INVOICE_FAILED',
+        }
+    except Exception as exc:  # noqa: BLE001 - fail closed on orchestration ambiguity
+        logger.warning(json.dumps({
+            'event': 'order_cancel_invoice_invoke_failed',
+            'requestId': request_id,
+            'error': type(exc).__name__,
+        }))
+        return False, 503, {
+            'error': 'Linked invoice cancellation outcome is unavailable; retry safely',
+            'errorCode': 'ORDER_CANCEL_INVOICE_UNAVAILABLE',
+            'retryable': True,
+        }
+
+
+def _write_cancellation_history(order_id: str, old_status: str, actor: str,
+                                reason: str, changed_at: int) -> bool:
+    """Durable, idempotent cancellation history. Same order => same history key."""
+    try:
+        dynamodb.Table(STATUS_HISTORY_TABLE).put_item(
+            Item={
+                'historyId': f'ORDER_CANCEL#{order_id}',
+                'submissionId': '',
+                'orderId': order_id,
+                'oldStatus': old_status,
+                'newStatus': 'canceled',
+                'changedBy': actor,
+                'notes': reason,
+                'changedAt': changed_at,
+            },
+            ConditionExpression='attribute_not_exists(historyId)',
+        )
+        return True
+    except ClientError as exc:
+        if exc.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
+            return True
+        logger.warning(json.dumps({
+            'event': 'order_cancel_history_failed',
+            'orderId': order_id,
+            'error': type(exc).__name__,
+        }))
+        return False
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(json.dumps({
+            'event': 'order_cancel_history_failed',
+            'orderId': order_id,
+            'error': type(exc).__name__,
+        }))
+        return False
+
+
+def _cancel_order(order_id: str, body: Dict, auth: Optional[Dict], request_id: str) -> Dict:
+    """Explicit audited cancellation. Generic status PATCH remains unable to cancel."""
+    table = dynamodb.Table(ORDERS_TABLE)
+    current = table.get_item(Key={'orderId': order_id}, ConsistentRead=True).get('Item')
+    if not current:
+        return _resp(404, {'error': 'Order not found'})
+
+    decision, error = order_patch.validate_order_cancellation(current, body.get('reason'))
+    if error:
+        status = 400 if error.get('errorCode') in {
+            'ORDER_CANCEL_REASON_REQUIRED', 'ORDER_CANCEL_REASON_INVALID',
+        } else 409
+        return _resp(status, error)
+    assert decision is not None
+
+    actor_info = auth or {}
+    actor = str(actor_info.get('username') or actor_info.get('email') or '').strip()
+    if not actor:
+        return _resp(403, {'error': 'Authenticated staff actor required',
+                           'errorCode': 'ORDER_CANCEL_ACTOR_REQUIRED'})
+
+    reason = decision['reason']
+    previous_status = str(current.get('cancellationPreviousStatus')
+                          or decision['currentStatus'] or 'pending')
+    canceled_at = int(current.get('canceledAt') or _now())
+
+    if not decision['idempotent']:
+        invoice_id = str(current.get('invoiceId') or '').strip()
+        if invoice_id:
+            ok, status, invoice_result = _cancel_linked_invoice(
+                invoice_id, reason, request_id)
+            if not ok:
+                return _resp(status, invoice_result)
+
+        names = {
+            '#orderStatus': 'orderStatus',
+            '#status': 'status',
+            '#paymentStatus': 'paymentStatus',
+            '#fulfillmentStatus': 'fulfillmentStatus',
+        }
+        values = {
+            ':canceled': 'canceled',
+            ':reason': reason,
+            ':actor': actor,
+            ':now': canceled_at,
+            ':previous': previous_status,
+        }
+        sets = [
+            '#orderStatus = :canceled',
+            '#status = :canceled',
+            'cancellationReason = :reason',
+            'canceledBy = :actor',
+            'canceledAt = :now',
+            'cancellationPreviousStatus = :previous',
+            'updatedAt = :now',
+        ]
+        conditions = ['attribute_exists(orderId)']
+        for guard_name, field in (
+            ('order_status', 'orderStatus'),
+            ('status_alias', 'status'),
+            ('fulfillment_status', 'fulfillmentStatus'),
+            ('payment', 'paymentStatus'),
+        ):
+            alias = f'#guard_{guard_name}'
+            names[alias] = field
+            if field in current:
+                value_alias = f':guard_{guard_name}'
+                values[value_alias] = current.get(field)
+                conditions.append(f'{alias} = {value_alias}')
+            else:
+                conditions.append(f'attribute_not_exists({alias})')
+        if 'fulfillmentStatus' in current:
+            sets.append('#fulfillmentStatus = :canceled')
+
+        try:
+            table.update_item(
+                Key={'orderId': order_id},
+                UpdateExpression='SET ' + ', '.join(sets),
+                ConditionExpression=' AND '.join(conditions),
+                ExpressionAttributeNames=names,
+                ExpressionAttributeValues=values,
+            )
+        except ClientError as exc:
+            if exc.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
+                return _resp(409, {
+                    'error': 'Order changed while cancellation was being committed; reload and retry',
+                    'errorCode': 'ORDER_CANCEL_STALE',
+                })
+            raise
+
+    if not _write_cancellation_history(
+            order_id, previous_status, actor, reason, canceled_at):
+        return _resp(503, {
+            'error': 'Order is cancelled but its durable history needs repair; retry this cancellation',
+            'errorCode': 'ORDER_CANCEL_AUDIT_RETRY',
+            'canceled': True,
+            'retryable': True,
+        })
+
+    try:
+        record_audit(
+            action='order.cancel',
+            actor=actor,
+            resource_type='order',
+            resource_id=order_id,
+            details={
+                'previousStatus': previous_status,
+                'linkedInvoice': bool(current.get('invoiceId')),
+                'requestId': request_id,
+            },
+        )
+    except Exception as exc:  # audit helper is supplementary to strict status history
+        logger.warning(json.dumps({
+            'event': 'order_cancel_secondary_audit_failed',
+            'orderId': order_id,
+            'error': type(exc).__name__,
+        }))
+
+    return _resp(200, {
+        'canceled': True,
+        'orderId': order_id,
+        'status': 'canceled',
+        'idempotent': bool(decision['idempotent']),
+    })
+
+
+
+def _update_order(order_id: str, body: Dict, auth: Optional[Dict] = None,
+                  request_id: str = 'local') -> Dict:
+    if str(body.get('action') or '').strip().lower() == 'cancel':
+        return _cancel_order(order_id, body, auth, request_id)
     table = dynamodb.Table(ORDERS_TABLE)
     current = table.get_item(Key={'orderId': order_id}, ConsistentRead=True).get('Item')
     if not current:
@@ -239,7 +461,7 @@ def _update_order(order_id: str, body: Dict) -> Dict:
             'ORDER_STATUS_REVIEW_REQUIRED',
             'ORDER_STATUS_TRANSITION_INVALID',
             'ORDER_PAYMENT_NOT_CAPTURED',
-            'PAID_ORDER_CANCEL_REQUIRES_WORKFLOW',
+            'ORDER_CANCEL_REQUIRES_WORKFLOW',
         }
         return _resp(409 if error.get('errorCode') in conflict_codes else 400, error)
 
@@ -862,15 +1084,20 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     if method == 'OPTIONS':
         return _resp(200, {})
 
-    from lambda_utils.middleware import require_auth
-    _auth = require_auth(event)
-    if _auth is not None:
-        return _auth
-
     try:
         body = json.loads(event.get('body', '{}')) if event.get('body') else {}
     except (json.JSONDecodeError, TypeError, ValueError):
         body = {}
+
+    from lambda_utils.middleware import require_auth
+    is_cancel_command = (
+        method in ('PATCH', 'PUT')
+        and '/orders/' in path
+        and str(body.get('action') or '').strip().lower() == 'cancel'
+    )
+    _auth = require_auth(event, required_role='Admin' if is_cancel_command else None)
+    if _auth is not None:
+        return _auth
 
     logger.info(f'[{request_id}] {method} {path}')
 
@@ -886,7 +1113,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if method == 'GET':
                 return _get_order(order_id)
             elif method in ('PATCH', 'PUT'):
-                return _update_order(order_id, body)
+                return _update_order(order_id, body, auth=event.get('_auth'), request_id=request_id)
         elif '/orders' in path:
             if method == 'GET':
                 return _list_orders(params)
