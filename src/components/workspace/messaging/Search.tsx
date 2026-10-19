@@ -46,7 +46,7 @@ const SearchPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                     <>
                         <div className="se-section">Contacts ({ contactHits.length })</div>
                         { contactHits.map( c => (
-                            <Link key={ c.contactId } href="/workspace/engage/contact-360" className="se-row">
+                            <Link key={ c.contactId } href={ `/workspace/customers?contact=${encodeURIComponent( c.contactId )}` } className="se-row">
                                 <span className="se-row-title">{ c.name || c.phone }</span>
                                 <span className="se-row-sub">{ c.phone || c.email }</span>
                             </Link>

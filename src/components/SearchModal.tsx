@@ -50,7 +50,7 @@ const NAVIGATION_ITEMS: SearchResult[] = getAllNavItems().map( ( item, index ) =
 // FEAT-003: '/workspace/access/security' left this list — Sign-in & MFA relocated into the gear
 // panel and is no longer a URL, so it is reached through the gear rather than the palette. The
 // Channel Settings hub takes its slot as the sixth default.
-const DEFAULT_PATHS = [ '/workspace', '/workspace/communications', '/workspace/contacts', '/workspace/commerce',
+const DEFAULT_PATHS = [ '/workspace', '/workspace/communications', '/workspace/customers', '/workspace/commerce',
   '/workspace/payments', '/workspace/service' ];
 const DEFAULT_RESULTS: SearchResult[] = DEFAULT_PATHS
   .map( ( p ) => NAVIGATION_ITEMS.find( ( i ) => i.path === p ) )

@@ -6,7 +6,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
  * THE CONTACTS FORM NOW ACTUALLY WRITES AN ADDRESS, which it never did.
  *
  * THE DEFECT, stated precisely, because the fix is only convincing next to it.
- * `src/pages/workspace/contacts/index.tsx` declared `formAddressLine1` and rendered NO INPUT
+ * `src/pages/workspace/customers/index.tsx` declared `formAddressLine1` and rendered NO INPUT
  * BOUND TO IT. The visible field labelled "Address" wrote `formBuildingName`. Both the create and
  * the update payload read:
  *
@@ -42,7 +42,7 @@ vi.mock( '../api/client', async importOriginal => ( {
   listMessages: vi.fn().mockResolvedValue( [] ),
 } ) );
 
-import ContactsPage from '../pages/workspace/contacts';
+import CustomersPage from '../pages/workspace/customers';
 import { ADDRESS_FIELDS, formatAddress } from '../lib/address-format';
 
 /** A complete address, one value per `ADDRESS_FIELDS` entry. */
@@ -66,8 +66,8 @@ beforeEach( () => {
 
 /** Open the create dialog and return once the address fields are on screen. */
 const openCreate = async (): Promise<void> => {
-  render( <ContactsPage /> );
-  fireEvent.click( await screen.findByRole( 'button', { name: /New Contact|Add Contact|\+ New/i } ) );
+  render( <CustomersPage /> );
+  fireEvent.click( await screen.findByRole( 'button', { name: /New Customer|Add Customer|\+ New/i } ) );
   await waitFor( () => expect( screen.getByLabelText( 'Address line 1' ) ).toBeInTheDocument() );
 };
 
@@ -103,8 +103,8 @@ describe( 'the input that was missing', () => {
   } );
 
   it( 'has no free-text address textarea acting as an input', async () => {
-    const { container } = render( <ContactsPage /> );
-    fireEvent.click( await screen.findByRole( 'button', { name: /New Contact|Add Contact|\+ New/i } ) );
+    const { container } = render( <CustomersPage /> );
+    fireEvent.click( await screen.findByRole( 'button', { name: /New Customer|Add Customer|\+ New/i } ) );
     await waitFor( () => expect( screen.getByLabelText( 'Address line 1' ) ).toBeInTheDocument() );
     expect( container.querySelector( 'textarea#contact-address' ) ).toBeNull();
   } );
@@ -201,7 +201,7 @@ describe( 'editing an existing contact', () => {
       state: 'Karnataka', postalCode: '560001', landmark: 'Near the park',
       houseNumber: '3B', tags: [], createdAt: '1700000000', updatedAt: '1700000000',
     } ] );
-    render( <ContactsPage /> );
+    render( <CustomersPage /> );
     fireEvent.click( ( await screen.findAllByRole( 'button', { name: /edit/i } ) )[ 0 ] );
 
     await waitFor( () => {
@@ -223,7 +223,7 @@ describe( 'editing an existing contact', () => {
       },
       tags: [], createdAt: '1700000000', updatedAt: '1700000000',
     } ] );
-    render( <ContactsPage /> );
+    render( <CustomersPage /> );
     fireEvent.click( ( await screen.findAllByRole( 'button', { name: /edit/i } ) )[ 0 ] );
 
     await waitFor( () => {

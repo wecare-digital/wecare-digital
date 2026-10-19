@@ -116,10 +116,10 @@ def test_no_contact_read_narrows_itself_with_a_projection():
 def test_the_crm_ui_renders_the_checkout_address():
     """The backend already returned the attribute; nothing displayed it. Asserted on the source
     because the whole defect was a field that existed everywhere except on screen."""
-    page = (ROOT / "src/pages/workspace/contacts/index.tsx").read_text(encoding="utf-8")
+    page = (ROOT / "src/pages/workspace/customers/index.tsx").read_text(encoding="utf-8")
     assert "checkoutDeliveryAddress" in page
     assert "formatCheckoutAddress" in page
-    assert "Checkout Delivery Address" in page, "the detail panel needs a labelled row"
+    assert "Delivery Address" in page, "the customer detail panel needs one labelled delivery-address row"
     assert "Checkout Address" in page, "the list needs a column"
 
 
