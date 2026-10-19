@@ -439,8 +439,11 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
               if (phone && m.contactId && !phoneMap.has(m.contactId)) {
                 phoneMap.set(m.contactId, {
                   contactId: m.contactId, name: m.senderName || phone, phone, email: '',
-                  optInWhatsApp: true, optInSms: false, optInEmail: false,
-                  allowlistWhatsApp: true, allowlistSms: false, allowlistEmail: false,
+                  // A message proves conversation history, not marketing consent.
+                  // Fallback rows are read-only reconstructions, so every consent/allowlist
+                  // capability stays false unless the authoritative Contacts API returns evidence-backed state.
+                  optInWhatsApp: false, optInSms: false, optInEmail: false,
+                  allowlistWhatsApp: false, allowlistSms: false, allowlistEmail: false,
                   createdAt: m.timestamp, updatedAt: m.timestamp,
                 });
               }
@@ -1080,19 +1083,19 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
         {showOptIn && (
           <div style={{ marginTop: 10 }}>
             <p style={{ margin: '0 0 8px', fontSize: 'var(--text-xs)', lineHeight: 1.45, color: 'var(--text-muted)' }}>
-              Creating or importing a customer does not establish consent. Enable an opt-in only when supporting evidence already exists.
+              Consent and channel allowlists are evidence-backed state. This customer editor shows the current values but cannot grant or revoke them. Use the channel-specific verified consent workflow so the evidence and history stay attached.
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, padding: 14, background: 'var(--bg-secondary)', borderRadius: 13, border: '2px solid #f3f4f6' }}>
             {[
-              { label: 'WhatsApp Opt-in', val: formOptInWA, set: setFormOptInWA },
-              { label: 'WhatsApp Allowlist', val: formAllowlistWA, set: setFormAllowlistWA },
-              { label: 'SMS Opt-in', val: formOptInSms, set: setFormOptInSms },
-              { label: 'SMS Allowlist', val: formAllowlistSms, set: setFormAllowlistSms },
-              { label: 'Email Opt-in', val: formOptInEmail, set: setFormOptInEmail },
-              { label: 'Email Allowlist', val: formAllowlistEmail, set: setFormAllowlistEmail },
+              { label: 'WhatsApp Opt-in', val: formOptInWA },
+              { label: 'WhatsApp Allowlist', val: formAllowlistWA },
+              { label: 'SMS Opt-in', val: formOptInSms },
+              { label: 'SMS Allowlist', val: formAllowlistSms },
+              { label: 'Email Opt-in', val: formOptInEmail },
+              { label: 'Email Allowlist', val: formAllowlistEmail },
             ].map(item => (
-              <label key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 'var(--text-md)', cursor: 'pointer' }}>
-                <input type="checkbox" checked={item.val} onChange={e => item.set(e.target.checked)} style={{ accentColor: 'var(--accent)', width: 16, height: 16 }} />
+              <label key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 'var(--text-md)', cursor: 'default' }}>
+                <input type="checkbox" checked={item.val} disabled readOnly aria-readonly="true" style={{ accentColor: 'var(--accent)', width: 16, height: 16 }} />
                 {item.label}
               </label>
             ))}
