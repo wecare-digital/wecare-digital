@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useRouter } from 'next/router';
 import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import { SkeletonTable } from '../../../components/Skeleton';
@@ -270,6 +271,7 @@ const ContactActivityTimeline: React.FC<{ phone: string; contactId: string; crea
 };
 
 const Customers: React.FC<PageProps> = ({ signOut, user }) => {
+  const router = useRouter();
   const [showModal, setShowModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -467,6 +469,20 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
   }, [toast]);
 
   useEffect(() => { loadContacts(); }, [loadContacts]);
+
+  // Canonical deep link for search, inbox and future order/payment context.
+  // Accept both the storage contactId and the public customerUuid, but always resolve to the
+  // single canonical customer row already loaded through the Contacts API.
+  useEffect(() => {
+    const raw = router.query.contact;
+    const wanted = Array.isArray(raw) ? raw[0] : raw;
+    if (!wanted || contacts.length === 0) return;
+    const match = contacts.find(customer =>
+      customer.contactId === wanted || customer.customerUuid === wanted
+    );
+    if (match) setDetailContact(match);
+  }, [router.query.contact, contacts]);
+
 
   const resetForm = () => {
     setFormName(''); setFormPhone(''); setFormEmail('');
