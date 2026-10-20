@@ -139,53 +139,9 @@ def prepare_and_send(event, lambda_client):
 
 
 def send_review(event, lambda_client):
-    """Send the Vault review only after the first authenticated access attempt.
+    """Legacy internal action retained as a no-op.
 
-    The persisted send state on the service request means repeated refreshes or duplicate
-    async invokes converge on one accepted invitation.
+    The paid invoice template already contains the Leave Review Flow button, so a standalone
+    review template would duplicate the customer prompt.
     """
-    db = boto3.resource('dynamodb')
-    requests = db.Table('stack-wecare-digital-ServiceRequestsTable')
-    row = requests.get_item(
-        Key={'requestId': str(event.get('requestId') or '')},
-        ConsistentRead=True).get('Item') or {}
-    if row.get('kind') != 'VAULT' or not row.get('paidAt') or not row.get('customerId'):
-        return {'outcome': 'REVIEW_NOT_DUE'}
-
-    # Cognito sub is canonical UUID. Refuse malformed filter inputs before ListUsers.
-    if not customer_auth.is_cognito_subject(row['customerId']):
-        return {'outcome': 'VERIFIED_RECIPIENT_UNAVAILABLE'}
-    users = boto3.client('cognito-idp').list_users(
-        UserPoolId=customer_auth.CUSTOMER_POOL_ID,
-        Filter='sub = "' + row['customerId'] + '"', Limit=2).get('Users') or []
-    if len(users) != 1 or not users[0].get('Enabled', True):
-        return {'outcome': 'VERIFIED_RECIPIENT_UNAVAILABLE'}
-    attrs = {a['Name']: a['Value'] for a in users[0].get('Attributes', [])}
-    phone = attrs.get('phone_number', '')
-    if attrs.get('phone_number_verified') != 'true' or not phone:
-        return {'outcome': 'VERIFIED_RECIPIENT_UNAVAILABLE'}
-
-    contacts = db.Table(shared_tables.contacts_table_name())
-    matches = contacts.query(
-        IndexName='phone-index', KeyConditionExpression='phone=:p',
-        ExpressionAttributeValues={':p': phone}).get('Items') or []
-    valid = []
-    for projection in matches:
-        contact = contacts.get_item(
-            Key={'id': projection['id']}, ConsistentRead=True).get('Item') or {}
-        if (contact.get('checkoutCustomerId') == row['customerId']
-                and not contact.get('isDeleted') and contact.get('deletedAt') is None):
-            valid.append(contact)
-    if len(valid) != 1:
-        return {'outcome': 'CONTACT_LINK_UNAVAILABLE'}
-
-    body = {
-        'contactId': valid[0]['id'], 'recipientPhone': phone,
-        'phoneNumberId': '1016149501586345', 'isTemplate': True,
-        'templateName': 'wecare_leave_review', 'templateParams': [],
-        'headerImageUrl': HEADER_IMAGE,
-        'flowButton': {'index': 0, 'flowKey': 'leave_review'},
-    }
-    accepted = _send_once(
-        requests, row, 'vaultReviewStatus', lambda_client, body)
-    return {'outcome': 'REVIEW_ACCEPTED' if accepted else 'REVIEW_PENDING'}
+    return {'outcome': 'REVIEW_INCLUDED_IN_INVOICE_TEMPLATE'}
