@@ -43,6 +43,14 @@ function extractCss() {
 const BODY = `
 <div class="vl-live"><div class="vl-live-shell">
   <div class="vl-live-air-card-wrap"><aside class="vl-live-air-card">
+    <div class="vl-live-air-gauge-row">
+      <span class="vl-live-air-aqi-spine"></span>
+      <div class="vl-live-air-aqi-score"><strong class="vl-live-air-aqi-number">98</strong><span class="vl-live-air-aqi-unit">AQI</span></div>
+      <div class="vl-live-air-gauge-meta">
+        <strong class="vl-live-air-gauge-word">Satisfactory air quality</strong>
+        <div class="vl-live-air-summary-meta"><span class="vl-live-air-summary-chip">AQI 98</span><span class="vl-live-air-summary-chip">Dominant O3</span></div>
+      </div>
+    </div>
     <ul class="vl-live-air-pollutant-list">
       <li><div class="vl-live-air-pollutant-row">
         <span class="vl-live-air-pollutant-label">Particulate matter (PM2.5)</span>
@@ -104,10 +112,13 @@ const WIDTHS = [ 320, 375, 430 ];
       const prow = q( '.vl-live-air-pollutant-row' );
       const plabel = q( '.vl-live-air-pollutant-label' );
       const pval = q( '.vl-live-air-pollutant-value' );
+      const score = q( '.vl-live-air-aqi-score' );
+      const meta = q( '.vl-live-air-gauge-meta' );
       return {
         docScroll: de.scrollWidth, docClient: de.clientWidth,
         day: rect( day ), cond: rect( cond ), temp: rect( temp ), row: rect( row ),
         plabel: rect( plabel ), pval: rect( pval ), prow: rect( prow ),
+        score: rect( score ), meta: rect( meta ),
       };
     } );
     const hOverflow = r.docScroll > r.docClient + 1;
@@ -117,11 +128,17 @@ const WIDTHS = [ 320, 375, 430 ];
     const tempTopLine = Math.abs( r.temp.y - r.day.y ) <= 8;
     // pollutant value sits BELOW the label => stacked
     const valBelowLabel = r.pval.y >= r.plabel.y + r.plabel.h - 2;
-    const ok = !hOverflow && condBelowDay && tempTopLine && valBelowLabel;
+    // Mobile AQI score + status must share one horizontal centre. This catches the visual
+    // drift where the category block sat noticeably to the right of the score.
+    const scoreCenter = r.score.x + r.score.w / 2;
+    const metaCenter = r.meta.x + r.meta.w / 2;
+    const summaryCentered = Math.abs( scoreCenter - metaCenter ) <= 2;
+    const ok = !hOverflow && condBelowDay && tempTopLine && valBelowLabel && summaryCentered;
     if ( !ok ) failures++;
     console.log(
       `@${w}px  h-overflow=${hOverflow ? 'YES(' + r.docScroll + '>' + r.docClient + ')' : 'no'}` +
-      `  cond-below-day=${condBelowDay}  temp-on-top-line=${tempTopLine}  pollutant-stacked=${valBelowLabel}  => ${ok ? 'PASS' : 'FAIL'}`
+      `  cond-below-day=${condBelowDay}  temp-on-top-line=${tempTopLine}  pollutant-stacked=${valBelowLabel}` +
+      `  summary-centered=${summaryCentered}  => ${ok ? 'PASS' : 'FAIL'}`
     );
     await page.close();
   }
