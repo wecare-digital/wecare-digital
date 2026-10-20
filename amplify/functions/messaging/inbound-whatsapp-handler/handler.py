@@ -2058,11 +2058,12 @@ def _process_message(
     # activity projection even when the inbound message has already been stored.
     _idea_data = customer_ideas.idea_payload(message)
     _idea_contact = None
+    _idea_result = None
     if _idea_data is not None:
         _idea_contact = _get_or_create_contact(
             sender_phone, sender_name, bsuid=msg_bsuid, username=sender_username,
             contact_book_name=sender_contact_book_name, parent_bsuid=msg_parent_bsuid)
-        customer_ideas.save_idea(
+        _idea_result = customer_ideas.save_idea(
             _idea_data, contact_id=_idea_contact.get('contactId') or _idea_contact.get('id'),
             phone=sender_phone, sender_name=sender_name,
             message_id=whatsapp_message_id, dynamodb=dynamodb,
@@ -2093,8 +2094,33 @@ def _process_message(
     contact = _idea_contact or _get_or_create_contact(sender_phone, sender_name, bsuid=msg_bsuid, username=sender_username, contact_book_name=sender_contact_book_name, parent_bsuid=msg_parent_bsuid)
     contact_id = contact.get('contactId') or contact.get('id')
     
-    # Extract message content based on type
+    # Extract message content based on type.
+    # Leave Review is stored as ONE structured Inbox item, not the old truncated raw
+    # `[Flow Response: {...}]` transport preview. The FlowSubmission row remains the
+    # durable business record; these fields are the Inbox projection of that same row.
     content = _extract_content(message, msg_type)
+    _idea_inbox = None
+    if _idea_data is not None and _idea_result is not None:
+        _topic = str(_idea_data.get('topic') or 'other')
+        _idea_text = str(_idea_data.get('idea') or '').strip()
+        _idea_inbox = {
+            'flowCode': customer_ideas.FLOW_CODE,
+            'flowType': 'customer_idea',
+            'flowScreen': 'REVIEW',
+            'flowSubmissionId': _idea_result.submission_id,
+            'flowReference': _idea_result.reference,
+            'flowAnswers': [
+                {'question': "What's on your mind?",
+                 'answer': customer_ideas.TOPICS.get(_topic, customer_ideas.TOPICS['other'])},
+                {'question': 'Your thought', 'answer': _idea_text},
+            ],
+            'flowAttachments': [],
+            'reviewId': _idea_result.submission_id,
+            'reviewStatus': 'pending',
+            'reviewCategory': _topic,
+        }
+        msg_type = 'flow_response'
+        content = 'Flow response — Customer Idea'
 
     # A shared contact card carried a name and a number that the old extractor threw
     # away, leaving an agent to ask the customer to retype it. Keep the sanitised
@@ -2207,6 +2233,8 @@ def _process_message(
         # None values out, so no attribute is added.
         'contactsPayload': _contacts_payload,
     }
+    if _idea_inbox:
+        message_record.update(_idea_inbox)
     
     # Capture referral context (click-to-WhatsApp ads, product catalogs, social posts)
     # Referral can be attached to ANY message type, not just 'referral' type
@@ -2306,6 +2334,7 @@ def _process_message(
         partner_waba_id=_partner_waba,
         contacts_payload=_contacts_payload,
         timestamp=timestamp,
+        **(_idea_inbox or {}),
     )
 
     # ── A revoke marks the message it deleted ──
