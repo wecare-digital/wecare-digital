@@ -174,7 +174,7 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
     );
     setFlowButtonIndex( typeof flowIdx === 'number' && flowIdx >= 0 ? flowIdx : null );
 
-    setHeaderMedia( '' );
+    setHeaderMedia( selectedTemplate.fixedHeaderMedia || '' );
     setHeaderFilename( '' );
     setLocLat( '' );
     setLocLng( '' );
@@ -886,7 +886,12 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
                   { headerType === 'document' ? '📄 Document Header' : headerType === 'video' ? '🎬 Video Header' : '🖼️ Image Header' }
                   <span className="required-tag">required</span>
                 </label>
-                <div className="header-media-controls">
+                { selectedTemplate.fixedHeaderMedia ? (
+                  <div>
+                    <p>Saved brand header — reused automatically for every send.</p>
+                    <img src={ selectedTemplate.fixedHeaderMedia } alt="Saved template header" style={ { maxWidth: '100%', maxHeight: 180, objectFit: 'contain' } } />
+                  </div>
+                ) : <div className="header-media-controls">
                   <label className="upload-btn">
                     { headerUploading ? 'Uploading…' : `Upload ${headerType}` }
                     <input
@@ -909,9 +914,9 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
                     value={ headerMedia.startsWith( 'http' ) ? headerMedia : '' }
                     onChange={ ( e ) => { setHeaderMedia( e.target.value ); setHeaderFilename( '' ); } }
                   />
-                </div>
+                </div> }
 
-                { showLibrary && (
+                { !selectedTemplate.fixedHeaderMedia && showLibrary && (
                   <div className="media-library" style={ { marginTop: 10, border: '1.5px solid var(--lime)', borderRadius: 12, padding: 12, background: 'var(--bg-secondary)' } }>
                     <div style={ { display: 'flex', gap: 8, marginBottom: 10 } }>
                       <input
@@ -961,7 +966,7 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
                 { headerMedia && (
                   <div className="header-media-status">
                     ✓ { headerMedia.startsWith( 'http' ) ? 'Using link' : `Attached: ${headerFilename || 'file'}` }
-                    <button className="clear-header" onClick={ () => { setHeaderMedia( '' ); setHeaderFilename( '' ); } }>×</button>
+                    { !selectedTemplate.fixedHeaderMedia && <button className="clear-header" onClick={ () => { setHeaderMedia( '' ); setHeaderFilename( '' ); } }>×</button> }
                   </div>
                 ) }
               </div>

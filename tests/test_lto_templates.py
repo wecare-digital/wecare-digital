@@ -336,6 +336,15 @@ class TestLtoSendPath:
 
     # ── 12 ──────────────────────────────────────────────────────────────────
 
+    def test_review_header_is_reused_and_cannot_be_overridden(self):
+        for supplied in (None, 'https://example.com/other.png'):
+            payload = self.h._build_message_payload(
+                '+918100640044', '', None, None, True, 'wecare_leave_review', ['en'],
+                template_header_media=supplied, template_header_type='image')
+            assert self._component(payload, 'header') == [{
+                'type': 'header', 'parameters': [{'type': 'image', 'image': {
+                    'link': 'https://wecare.digital/get/o/public/wa-tpl/img/wecare-digital-cebc83f1_img.png'}}]}]
+
     def test_copy_code_component_is_one_shape(self):
         """Meta spells the parameter `coupon_code` for both an OTP and an offer code.
         One helper, so a field-name correction cannot land in one place only."""

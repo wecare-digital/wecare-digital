@@ -35,6 +35,7 @@ from lambda_utils import live_smoke  # WA_LIVE_SMOKE_TEST recipient lockdown
 from lambda_utils import direct_send  # Direct Send flag + WABA map, fails closed
 from lambda_utils import contact_key
 from lambda_utils import template_status
+from lambda_utils.template_media import fixed_image_header
 from lambda_utils.identity import subscriber_id  # `id` is the physical key; `contactId` is its alias
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
 # One source for Meta's reference_id contract, so the send path and the minter cannot disagree.
@@ -1147,6 +1148,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # at Meta on 2026-10-02, so naming it as a live template was misleading.)
         template_header_media = body.get('headerMedia') or body.get('templateHeaderMedia')
         template_header_type = (body.get('headerType') or body.get('templateHeaderType') or '').lower()
+        fixed_header = fixed_image_header(template_name) if is_template else ''
+        if fixed_header:
+            template_header_media, template_header_type = fixed_header, 'image'
         template_header_filename = body.get('headerFilename') or body.get('templateHeaderFilename')
         # Location header support (headerType == 'location').
         # Expects {latitude, longitude, name, address} supplied at send time.
@@ -3684,6 +3688,10 @@ def _build_message_payload(recipient_phone: str, content: str, media_type: Optio
     injection point. The handler's own pre-check is a coarse optimisation; this is
     the decision.
     """
+    fixed_header = fixed_image_header(template_name) if is_template else ''
+    if fixed_header:
+        template_header_media, template_header_type = fixed_header, 'image'
+
     # Normalize phone number - WhatsApp API expects digits only without + prefix
     formatted_phone = _normalize_phone_number(recipient_phone) if recipient_phone else ''
     
