@@ -1,5 +1,6 @@
 """Subscribe draft: one customer profile/address; never changes channel consent."""
 import time
+import re
 import uuid
 from botocore.exceptions import ClientError
 from lambda_utils import contact_store
@@ -55,17 +56,17 @@ def handle_review(data, flow_token, request_id):
         values[attr] = raw.strip()
     if not values['name']:
         return _error(data, 'Please enter your name.')
+    if not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+', values['email']):
+        return _error(data, 'Please enter a valid email address.')
     raw_address = {attr: data.get(key, '') for key, attr in ADDRESS_FIELDS.items()}
-    # Country defaults alone do not make an address. Partial addresses fail validation.
-    has_address = any(raw_address[k] for k in ('addressLine1', 'addressLine2', 'locality',
-                                              'city', 'state', 'postalCode'))
     now = int(time.time())
-    if has_address:
-        try:
-            address = contact_address.normalize_for_storage(raw_address)
-        except contact_address.UnusableAddress as exc:
-            return _error(data, 'Please complete your address: ' + (exc.field or 'check the address fields') + '.')
-        values.update(contact_address.contact_write_fields(address, now=now))
+    try:
+        address = contact_address.normalize_for_storage(raw_address)
+    except contact_address.UnusableAddress as exc:
+        labels = {'addressLine1': 'address line 1', 'city': 'city', 'state': 'state',
+                  'postalCode': 'PIN / postal code'}
+        return _error(data, 'Please check your ' + labels.get(exc.field, 'address') + '.')
+    values.update(contact_address.contact_write_fields(address, now=now))
     contact_id = str(row.get('id') or contact_store.deterministic_id(phone))
     if row.get('subscribeLastFlowToken') != flow_token:
         values.update({'updatedAt': now, 'subscribeProfileRevision': str(uuid.uuid4()),
@@ -123,4 +124,4 @@ def handle_review(data, flow_token, request_id):
         # Contact save succeeded; retry can finish the submission without repeating the update.
         return _error(data, 'Your details were saved, but confirmation is pending. Please tap Save details again.')
     return {'screen': 'COMPLETE', 'data': {'customer_id': customer_uuid.display_code(saved),
-            'message': 'Your customer details and address are saved. Your subscription preferences have not changed.'}}
+            'message': 'Your details have been saved.'}}

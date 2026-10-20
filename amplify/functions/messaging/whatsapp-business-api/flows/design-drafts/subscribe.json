@@ -128,7 +128,8 @@
                 "type": "TextInput",
                 "name": "email_address",
                 "label": "Email",
-                "required": false
+                "required": true,
+                "input-type": "email"
               },
               {
                 "type": "TextInput",
@@ -264,7 +265,7 @@
           },
           {
             "type": "TextBody",
-            "text": "Your website and WhatsApp use this same address. Leave all address fields empty if you do not want to add an address."
+            "text": "Enter your address."
           },
           {
             "type": "Form",
@@ -274,7 +275,7 @@
                 "type": "TextInput",
                 "name": "address_line1",
                 "label": "Address line 1",
-                "required": false
+                "required": true
               },
               {
                 "type": "TextInput",
@@ -292,31 +293,27 @@
                 "type": "TextInput",
                 "name": "city",
                 "label": "City",
-                "required": false
+                "required": true
               },
               {
                 "type": "TextInput",
                 "name": "state",
                 "label": "State",
-                "required": false
+                "required": true
               },
               {
                 "type": "TextInput",
                 "name": "postal_code",
                 "label": "PIN / postal code",
-                "required": false
+                "required": true
               },
               {
-                "type": "TextInput",
-                "name": "country",
-                "label": "Country",
-                "required": false
+                "type": "TextCaption",
+                "text": "Country"
               },
               {
-                "type": "TextInput",
-                "name": "country_code",
-                "label": "Country code (e.g. IN)",
-                "required": false
+                "type": "TextBody",
+                "text": "${data.country}"
               }
             ],
             "init-values": {
@@ -325,9 +322,7 @@
               "locality": "${data.locality}",
               "city": "${data.city}",
               "state": "${data.state}",
-              "postal_code": "${data.postal_code}",
-              "country": "${data.country}",
-              "country_code": "${data.country_code}"
+              "postal_code": "${data.postal_code}"
             }
           },
           {
@@ -348,8 +343,8 @@
                 "city": "${form.city}",
                 "state": "${form.state}",
                 "postal_code": "${form.postal_code}",
-                "country": "${form.country}",
-                "country_code": "${form.country_code}",
+                "country": "${data.country}",
+                "country_code": "${data.country_code}",
                 "profile_revision": "${data.profile_revision}",
                 "updated_at": "${data.updated_at}",
                 "error_message": ""
@@ -512,10 +507,6 @@
             "text": "${data.country}"
           },
           {
-            "type": "TextCaption",
-            "text": "Saving your details does not change your marketing subscriptions."
-          },
-          {
             "type": "TextBody",
             "text": "${data.error_message}"
           },
@@ -560,7 +551,7 @@
         },
         "message": {
           "type": "string",
-          "__example__": "Your details are saved."
+          "__example__": "Your details have been saved."
         }
       },
       "layout": {
