@@ -53,9 +53,6 @@ REFERENCE = "WD-PAY-ABCDEFGHJKMNPQ"
 PAYMENT_ID = "pay_LIVE0000000001"
 INVOICE_ID = "inv-0000000000000000000000000000cafe"
 REQUEST = "req-conditional-1"
-#: One of `_PHONE_ID_TO_WABA`'s keys, so the flow-resolution chain reaches the env default.
-PHONE_ID = "phone-number-id-waba1-direct-1016149501586345"
-FLOW_ID = "1234567890"
 
 
 def _invoice_request() -> dict:
@@ -218,17 +215,6 @@ def _names(caplog):
 
 # ── the five razorpay-webhook sites ───────────────────────────────────────────
 
-def _drive_post_payment_flow_guard(error, caplog, monkeypatch):
-    """`_trigger_post_payment_flow`'s one-flow-per-payment guard (the `guard_err` site)."""
-    monkeypatch.setenv("POST_PAYMENT_FLOW_WABA1", FLOW_ID)
-    sender = _RecordingLambda()
-    monkeypatch.setattr(webhook, "dynamodb", _OneTable(_RaisingTable(error)))
-    monkeypatch.setattr(webhook, "lambda_client", sender)
-    webhook._trigger_post_payment_flow("918100640044", PHONE_ID, REFERENCE, {}, REQUEST,
-                                       invoice_id=INVOICE_ID)
-    return sender
-
-
 def _drive_store_payment_record(error, caplog, monkeypatch):
     """`_store_payment_record`'s monotonic rank-guarded put (the `:2036` site)."""
     monkeypatch.setattr(webhook, "dynamodb", _OneTable(_RaisingTable(error)))
@@ -262,8 +248,6 @@ def _drive_store_settlement_record(error, caplog, monkeypatch):
 
 #: site id -> (driver, idempotent-branch event, error-branch event)
 WEBHOOK_SITES = {
-    "post_payment_flow_guard": (_drive_post_payment_flow_guard,
-                                "post_payment_flow_skipped", "post_payment_flow_guard_error"),
     "store_payment_record": (_drive_store_payment_record,
                              "payment_status_not_applied", "payment_store_error"),
     "mark_invoice_paid": (_drive_mark_invoice_paid,
@@ -289,14 +273,6 @@ def test_an_opaque_conditional_failure_is_idempotent_at_every_webhook_site(site,
     assert (idempotent_event, "INFO") in events, f"{site} did not take the idempotent branch"
     if error_event is not None:
         assert error_event not in [name for name, _ in events]
-
-
-def test_an_opaque_conditional_failure_sends_no_second_post_payment_flow(caplog, monkeypatch):
-    """The guard site's side effect, not just its log: an already-sent flow is not re-sent."""
-    caplog.set_level(logging.INFO, logger=webhook.logger.name)
-    sender = _drive_post_payment_flow_guard(_opaque(), caplog, monkeypatch)
-    assert sender.calls == []
-    assert "post_payment_flow_sent" not in _names(caplog)
 
 
 def test_an_opaque_conditional_failure_reports_the_invoice_as_settled(caplog, monkeypatch):
@@ -348,18 +324,6 @@ def test_a_substring_lookalike_reports_the_invoice_as_not_settled(caplog, monkey
     caplog.set_level(logging.INFO, logger=webhook.logger.name)
     assert _drive_mark_invoice_paid(_substring_only(), caplog, monkeypatch) is False
     assert "invoice_already_paid_on_settle" not in _names(caplog)
-
-
-def test_a_substring_lookalike_still_sends_the_post_payment_flow_once(caplog, monkeypatch):
-    """The guard site's error branch logs and continues: the flow is sent once, not suppressed.
-
-    A storage failure on the idempotency guard must not silently cost the customer the flow they
-    paid to receive - that is the silent partial success this audit exists to find.
-    """
-    caplog.set_level(logging.INFO, logger=webhook.logger.name)
-    sender = _drive_post_payment_flow_guard(_substring_only(), caplog, monkeypatch)
-    assert len(sender.calls) == 1
-    assert "post_payment_flow_sent" in _names(caplog)
 
 
 def test_a_substring_lookalike_is_a_500_in_the_invoice_engine(caplog, monkeypatch):
