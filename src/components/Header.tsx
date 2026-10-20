@@ -336,7 +336,18 @@ const Header: React.FC = () => {
       if ( heading ) pieces.push( heading );
       aliases[ key ] = pieces.join( ' ' ).toLocaleLowerCase();
     }
-    setLocalizedSearchText( previous => ( { ...previous, ...aliases } ) );
+    setLocalizedSearchText( previous => {
+      const next = { ...previous };
+      for ( const [ key, value ] of Object.entries( aliases ) )
+      {
+        const prior = next[ key ] || '';
+        // Preserve aliases harvested before the menu switched into flat search results.
+        // Otherwise a translated family term (for example Elsewhere) is lost when a
+        // translated child is searched first and React re-renders that child in English.
+        next[ key ] = prior ? `${prior} ${value}` : value;
+      }
+      return next;
+    } );
   }, [] );
 
   const applySearchQuery = useCallback( ( value: string ) => {

@@ -58,11 +58,13 @@ describe( 'SearchModal is derived from navigation.ts', () => {
     expect( code ).not.toMatch( /messages\s*=\s*\[\s*\]/ );
   } );
 
-  it( 'does not promise search it cannot perform', () => {
-    // Layout renders this with neither `contacts` nor `messages`, so the old
-    // "Search contacts, messages, pages..." placeholder advertised two
-    // capabilities that could never fire.
-    expect( src ).toContain( 'Search pages' );
+  it( 'advertises the universal record search it now performs', () => {
+    expect( src ).toContain( 'Search customer, order, invoice, payment, service or link' );
+    expect( src ).toContain( 'api.searchContacts' );
+    expect( src ).toContain( 'api.listOrders' );
+    expect( src ).toContain( 'api.listInvoicesEngine' );
+    expect( src ).toContain( 'api.listFlowSubmissions' );
+    expect( src ).toContain( "fetch( '/api/links' )" );
     expect( src ).not.toContain( 'Search contacts, messages, pages' );
   } );
 
