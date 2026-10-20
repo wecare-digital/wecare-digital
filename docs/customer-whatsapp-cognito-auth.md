@@ -10,62 +10,20 @@ through the existing production WhatsApp Business API Lambda. Cognito owns the
 authentication session and token issuance; the challenge Lambda owns OTP
 generation, expiry and comparison.
 
-## Supported WABAs and their senders
+## Supported transaction sender
 
-A customer's OTP is sent from the WABA that customer belongs to. Both WABAs below
-are supported; there is no default and no fallback.
+Customer OTP is transaction-channel traffic and is pinned to the WECARE.DIGITAL transaction
+identity. There is no second-WABA route and no sender fallback.
 
-| WABA ID | WABA name | WhatsApp sender | Meta phone-number ID | Template | Category | Language |
-|---|---|---|---|---|---|---|
-| `2094615664435155` | `WECARE.DIGITAL` | `+91 93309 94400` | `1016149501586345` | `wecare_otp` | `AUTHENTICATION` | `en` |
-| `2513394156072604` | second WABA | `+91 99033 00044` | `1055232054343117` | `wecare_otp` | `AUTHENTICATION` | `en` |
+| WABA ID | WhatsApp sender | Meta phone-number ID | Template | Category | Language |
+|---|---|---|---|---|---|
+| `2094615664435155` | `+91 93309 94400` | `1016149501586345` | `wecare_otp` | `AUTHENTICATION` | `en` |
 
-WABA1's template ID is `1292079089453029`, verified `APPROVED` against the live
-Meta-facing backend on 2026-09-23.
+The live Meta-facing backend reports `wecare_otp` APPROVED on this WABA. Any customer whose
+`custom:partner_waba_id` is missing or differs from `2094615664435155` fails closed and no OTP
+is sent.
 
-**Both WABAs have a template named `wecare_otp`; do not infer the sender from the
-template name.** The sender is chosen from the customer's `custom:partner_waba_id`,
-never from the template.
-
-**Approval does not cross WABAs.** Meta approves an AUTHENTICATION template per
-WABA, so `wecare_otp` being `APPROVED` on `2094615664435155` says nothing about
-`2513394156072604`. If it is not approved in that WABA's own template list, Meta
-answers `132001` ("template name does not exist in en"), no code is delivered, and
-the auth Lambda logs:
-
-```json
-{"event": "customer_whatsapp_otp_send_failed", "wabaId": "...", "metaCode": 132001}
-```
-
-That is a clean fail-closed, not a crash — but it is still a non-delivery, so
-confirm approval in WABA2's template list before pointing a customer at it. This
-repo does not check it: a Graph call with a token is out of scope here.
-
-No new Meta template is required.
-
-### The supported set lives in one env var
-
-The set of WABAs that can send an OTP is defined by `OTP_WABA_MAP` on
-`wecare-customer-whatsapp-auth`:
-
-```json
-{"<waba_id>": {"phone_number_id": "...", "template_name": "...", "template_language": "..."}}
-```
-
-It is mirrored in `scripts/provision_customer_whatsapp_auth.py`
-(`otp_waba_map()` / `expected_environment()`), recorded in
-`config/lambda-env-manifest.json`, and the three are pinned to each other by
-`tests/test_customer_whatsapp_auth.py`. `--verify` compares the value on the
-**`live` alias version**, not `$LATEST`.
-
-**This table and that map must stay in sync.** A WABA in the doc but not in the map
-is a customer who cannot sign in; a WABA in the map but not in the doc is a sender
-nobody knows about. `template_name` is per entry precisely so a WABA with a
-differently-named approved template needs a configuration change, not a code change.
-
-If `OTP_WABA_MAP` is absent the handler rebuilds a **single-entry** map from the
-legacy `META_WABA_ID` / `META_PHONE_NUMBER_ID` pair, so a missed env apply degrades
-to WABA1-only rather than taking OTP down entirely — and WABA2 then fails closed.
+The deployed `OTP_WABA_MAP`, provisioner, manifest and tests all contain exactly this one route.
 
 ## Delivery path
 
@@ -151,26 +109,8 @@ Do not use the WhatsApp **sender** number as the customer's login identity
 unless that is explicitly the customer's own login number.
 
 For each customer login, provision an E.164 phone number, set
-`phone_number_verified=true`, set `custom:partner_waba_id` to **one of the
-supported WABA ids** — the WABA whose number that customer should receive their
-code from — confirm the user, and add it to the `Partner` group. Keep user
-provisioning administrative; do not expose `SignUp` for this pool.
-
-| `custom:partner_waba_id` | Code arrives from |
-|---|---|
-| `2094615664435155` | `+91 93309 94400` |
-| `2513394156072604` | `+91 99033 00044` |
-
-Any other value — including a missing attribute — fails closed: the sign-in raises
-and **no OTP is sent**. This line previously named `2513394156072604`
-unconditionally while the gate above accepted only `2094615664435155`, so following
-it produced a user whose every sign-in failed with no code and no explanation.
-
-`2094615664435155` is also what
-`amplify/functions/auth/customer-registration/handler.py` and
-`amplify/functions/core/secure-files/handler.py` write for self-registered
-customers, so **WABA1 must remain in the map** regardless of which WABAs are added
-later.
+`phone_number_verified=true`, set `custom:partner_waba_id=2094615664435155`, confirm the user,
+and add it to the `Partner` group. Any other WABA value fails closed and no OTP is sent.
 
 The current branch intentionally does not create a customer user because the
 customer's login/recipient phone number was not supplied with the implementation
