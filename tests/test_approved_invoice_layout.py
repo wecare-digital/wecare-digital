@@ -76,13 +76,9 @@ def test_approved_receipt_is_delivered_as_same_engine_png_image(invoice_engine, 
     dynamodb = MagicMock()
     dynamodb.Table.return_value = table
     monkeypatch.setattr(invoice_engine, 'dynamodb', dynamodb)
-    pdf = MagicMock(return_value={'statusCode': 200, 'body': json.dumps({
-        'pdfUrl': 'https://example.invalid/private.pdf',
-        's3Key': 'secure/stack/invoices/fixture.pdf'})})
     image = MagicMock(return_value={'statusCode': 200, 'body': json.dumps({
         'imageUrl': 'https://example.invalid/private.png',
         's3Key': 'secure/stack/invoices/fixture.png'})})
-    monkeypatch.setattr(invoice_engine, 'generate_invoice_pdf', pdf)
     monkeypatch.setattr(invoice_engine, 'generate_invoice_image', image)
     monkeypatch.setattr(invoice_engine, '_lookup_contact_by_phone', lambda _: None)
     sender = MagicMock()
@@ -94,9 +90,12 @@ def test_approved_receipt_is_delivered_as_same_engine_png_image(invoice_engine, 
                                                     'test-only', force=True)
     assert response['statusCode'] == 200
     image.assert_called_once_with('inv-approved-fixture', 'test-only')
-    pdf.assert_not_called()
     table.get_item.assert_any_call(Key={'invoiceId': 'inv-approved-fixture', 'assetType': 'image'})
     payload = json.loads(json.loads(sender.invoke.call_args.kwargs['Payload'])['body'])
-    assert payload['mediaType'] == 'image'
-    assert payload['mediaFile'] == 'secure/stack/invoices/fixture.png'
-    assert 'mediaFileName' not in payload
+    assert payload['isTemplate'] is True
+    assert payload['templateName'] == 'wecare_default_invoice_image_template'
+    assert payload['templateHeaderType'] == 'image'
+    assert payload['templateHeaderMedia'] == 'secure/stack/invoices/fixture.png'
+    assert payload['content'] == ''
+    assert payload['flowButton'] == {'index': 0, 'flowKey': 'leave_review'}
+    assert 'mediaFile' not in payload
