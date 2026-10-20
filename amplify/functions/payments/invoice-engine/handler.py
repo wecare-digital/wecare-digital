@@ -139,11 +139,12 @@ COMMERCE_KEYS_TABLE = shared_tables.commerce_keys_table_name()
 
 #: The approved WhatsApp payment template, with ONE home.
 #:
-#: A payment travels in `wecarepay_wa` carrying `order_details`, or it does not travel. Env-read
+#: A payment travels in `wecare_whatapp_native_pay_template` carrying `order_details`, or it does not travel. Env-read
 #: so a pre-flight checks the same string the send uses - a gate that checks a different string
 #: from the one the send uses can pass while the send fails - and so the value can change without
 #: a code deploy if Meta's template registration ever needs it to.
-WA_PAY_TEMPLATE = os.environ.get('WA_PAY_TEMPLATE', 'wecarepay_wa')
+WA_PAY_TEMPLATE = os.environ.get('WA_PAY_TEMPLATE', 'wecare_whatapp_native_pay_template')
+WA_INVOICE_TEMPLATE = os.environ.get('WA_INVOICE_TEMPLATE', 'wecare_default_invoice_image_template')
 
 #: The Meta payment configuration this deployment can PROVE, compared against a live Meta read.
 #:
@@ -3754,14 +3755,14 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
             'contactId': contact_id,
             'recipientPhone': customer_phone,
             'phoneNumberId': phone_number_id,
-            # ALWAYS use checkout button template (wecarepay_wa) for ALL payments.
+            # ALWAYS use the approved native-pay ORDER_DETAILS template for ALL payments.
             # Reuse the approved payment template with the frozen invoice and delivery details.
             'isCheckoutTemplate': True,
             'isTemplate': True,
             # ONE home for the approved template name, read from the environment. A gate that
             # checks a different string from the one the send uses can pass while the send fails.
             'templateName': WA_PAY_TEMPLATE,
-            'templateParams': [],  # wecarepay_wa has no body variables
+            'templateParams': [],  # native-pay template has no body variables
             'checkoutOrderDetails': order_details_obj,
             # FIXED company-logo header on EVERY payment. Do not vary per order.
             'headerImageUrl': 'https://wecare.digital/get/o/public/wa-tpl/img/wecarepay-header.png',
@@ -5477,15 +5478,21 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
     if not phone_number_id:
         phone_number_id = wa_payment_request.PHONE_NUMBER_ID_1
 
-    # Call outbound-whatsapp Lambda to send image
+    # TEMPLATE-ONLY invoice/payment confirmation. The approved template carries the
+    # generated invoice PNG in its IMAGE header and launches Leave Review via its Flow button.
+    # No free-form/interactive invoice message is used, inside or outside the 24-hour window.
     wa_payload = {
         'body': json.dumps({
             'contactId': contact_id,
             'recipientPhone': to_phone,
-            'content': caption,
+            'content': '',
             'phoneNumberId': phone_number_id,
-            'mediaFile': s3_key,
-            'mediaType': 'image',
+            'isTemplate': True,
+            'templateName': WA_INVOICE_TEMPLATE,
+            'templateParams': [],
+            'templateHeaderMedia': s3_key,
+            'templateHeaderType': 'image',
+            'flowButton': {'index': 0, 'flowKey': 'leave_review'},
         })
     }
 
