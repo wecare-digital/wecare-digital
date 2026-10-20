@@ -616,6 +616,24 @@ describe( 'Grahak OS: "Every touchpoint" pills carry multiple homepage hues', ()
     expect( code ).toContain( '.pp-pill:hover{transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}' );
   } );
 
+  it( 'mirrors Grahak inline geometry while keeping executable code LTR', () => {
+    expect( source ).toContain( '<pre className="code-block" dir="ltr">' );
+    expect( source ).toContain( '.code-stack{position:absolute;inset-inline-end:0;bottom:24px' );
+    expect( source ).toContain( '.code-stack{position:relative;inset-inline-start:12px;inset-inline-end:auto;bottom:16px' );
+    expect( source ).toContain( '.phone{inset-inline-start:16px;top:16px;width:52%}' );
+    expect( source ).toContain( 'margin-inline-start:-10px' );
+    expect( source ).toContain( 'margin-inline-start:-8px' );
+    expect( source ).toContain( 'inset-inline-end:-7px' );
+    expect( source ).toContain( 'border-inline-end:8px solid transparent' );
+    expect( source ).toContain( 'inset-inline-start:-7px' );
+    expect( source ).toContain( 'border-inline-start:8px solid transparent' );
+    expect( source ).toContain( 'text-align:end' );
+    expect( source ).not.toContain( 'margin-left:-10px' );
+    expect( source ).not.toContain( 'margin-left:-8px' );
+    expect( source ).not.toContain( 'right:-7px' );
+    expect( source ).not.toContain( 'left:-7px' );
+  } );
+
   it( 'introduces no retired colour via the new pill hues', () => {
     // The homepage hues are all NON-retired; guard the retired set does not creep in here.
     expect( code ).not.toContain( '#2f6b52' );
