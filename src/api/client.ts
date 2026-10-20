@@ -386,6 +386,29 @@ export interface CheckoutDeliveryAddress {
   countryCode?: string;
 }
 
+export interface ConsentEvidence {
+  source: string;
+  purpose: string;
+  reference: string;
+  occurredAt?: string;
+}
+
+export interface ConsentEvent extends ConsentEvidence {
+  eventId: string;
+  field: string;
+  channel: 'whatsapp' | 'sms' | 'email' | string;
+  scope: 'consent' | 'allowlist' | string;
+  previousState: boolean;
+  state: boolean;
+  status: 'OPTED_IN' | 'OPTED_OUT' | 'ALLOWED' | 'NOT_ALLOWED' | string;
+  recordedAt: number;
+}
+
+export type ContactMutation = Partial<Contact> & {
+  /** Required by the server only when consent/allowlist state actually changes. */
+  consentEvidence?: ConsentEvidence;
+};
+
 export interface Contact {
   id: string;
   contactId: string;
@@ -491,6 +514,11 @@ export interface Contact {
   createdAt: string;
   updatedAt: string;
   deletedAt?: string;
+  /** Non-destructive staff archive. Identity/history remain linked and duplicate checks still see it. */
+  archivedAt?: number;
+  archivedBy?: string;
+  archivedReason?: string;
+  consentHistory?: ConsentEvent[];
 }
 
 export async function listContacts (): Promise<Contact[]> {
@@ -503,6 +531,16 @@ export async function listContacts (): Promise<Contact[]> {
   return [];
 }
 
+export async function searchContacts ( query: string, limit = 20 ): Promise<Contact[]> {
+  const q = query.trim();
+  if ( !q ) return [];
+  const data = await apiCall<any>(
+    `${API_BASE}/contacts/search?q=${encodeURIComponent( q )}&limit=${Math.max( 1, Math.min( limit, 100 ) )}`
+  );
+  const contacts = Array.isArray( data ) ? data : ( data?.contacts || [] );
+  return contacts.map( normalizeContact );
+}
+
 export async function getContact ( contactId: string ): Promise<Contact | null> {
   const data = await apiCall<any>( `${API_BASE}/contacts/${contactId}` );
   if ( data )
@@ -512,7 +550,7 @@ export async function getContact ( contactId: string ): Promise<Contact | null> 
   return null;
 }
 
-export async function createContact ( contact: Partial<Contact> ): Promise<Contact | null> {
+export async function createContact ( contact: ContactMutation ): Promise<Contact | null> {
   const data = await apiCall<any>( `${API_BASE}/contacts`, {
     method: 'POST',
     body: JSON.stringify( contact ),
@@ -534,7 +572,7 @@ export async function createContact ( contact: Partial<Contact> ): Promise<Conta
  * rendered that `null` as a silent no-op. Prefer this in new code; `updateContact` stays for
  * the callers that only branch on success.
  */
-export async function updateContactResult ( contactId: string, updates: Partial<Contact> ): Promise<ApiResult<Contact | null>> {
+export async function updateContactResult ( contactId: string, updates: ContactMutation ): Promise<ApiResult<Contact | null>> {
   const result = await apiCallResult<any>( `${API_BASE}/contacts/${contactId}`, {
     method: 'PUT',
     body: JSON.stringify( updates ),
@@ -549,7 +587,7 @@ export async function updateContactResult ( contactId: string, updates: Partial<
   return { ok: true, data: data ? normalizeContact( data.contact || data ) : null };
 }
 
-export async function updateContact ( contactId: string, updates: Partial<Contact> ): Promise<Contact | null> {
+export async function updateContact ( contactId: string, updates: ContactMutation ): Promise<Contact | null> {
   const result = await updateContactResult( contactId, updates );
   return result.ok ? result.data : null;
 }
@@ -563,8 +601,30 @@ export async function deleteContact ( contactId: string ): Promise<boolean> {
   const data = await apiCall<any>( `${API_BASE}/contacts/${contactId}`, {
     method: 'DELETE',
   } );
-  // Check if response indicates success (not an error)
+  // This remains the legacy tombstone/delete contract. Normal workspace "Archive" uses
+  // archiveContact below so customers with financial history keep their identity intact.
   return data !== null && !data.error;
+}
+
+export async function archiveContact (
+  contactId: string,
+  reason: string,
+): Promise<ApiResult<Contact | null>> {
+  const result = await apiCallResult<any>( `${API_BASE}/contacts`, {
+    method: 'POST',
+    body: JSON.stringify( { _action: 'archive', contactId, reason } ),
+  } );
+  if ( !result.ok ) return result;
+  return { ok: true, data: result.data ? normalizeContact( result.data.contact || result.data ) : null };
+}
+
+export async function restoreContact ( contactId: string ): Promise<ApiResult<Contact | null>> {
+  const result = await apiCallResult<any>( `${API_BASE}/contacts`, {
+    method: 'POST',
+    body: JSON.stringify( { _action: 'restore', contactId } ),
+  } );
+  if ( !result.ok ) return result;
+  return { ok: true, data: result.data ? normalizeContact( result.data.contact || result.data ) : null };
 }
 
 export interface CustomerMergeResult {
@@ -675,6 +735,10 @@ function normalizeContact ( item: any ): Contact {
     createdAt: normalizeTimestamp( item.createdAt ) || new Date().toISOString(),
     updatedAt: normalizeTimestamp( item.updatedAt ) || new Date().toISOString(),
     deletedAt: item.deletedAt,
+    archivedAt: normalizeEpochSeconds( item.archivedAt ),
+    archivedBy: item.archivedBy || '',
+    archivedReason: item.archivedReason || '',
+    consentHistory: Array.isArray( item.consentHistory ) ? item.consentHistory : [],
   };
 }
 
