@@ -24,7 +24,7 @@ CANONICAL_FLOWS = {
     'amend_request':  ('3678132465672138', 'DRAFT',     '03.WD_Amend_Request'),
     'drop_docs':      ('1211063631104445', 'DRAFT',     'WD_Drop_Documents'),
     'shipments':      ('849713848195607',  'DRAFT',     'WD_Shipments_Design_v1'),
-    'leave_review':   ('1578178897413815', 'PUBLISHED', 'WD_Leave_Review_v2'),
+    'leave_review':   ('940049388908144',  'PUBLISHED', '01. WECARE REVIEW FLOW'),
     # Vault: website CTA + ₹49 catalog delivery, no Flow.
     'vault':          (None, 'NONE', None),
     # Subscribe: NO production Flow. The 02.WD_Profile ids 1262971692700761 / 951987930811295
