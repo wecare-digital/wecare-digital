@@ -69,10 +69,12 @@ def handle_review(data, flow_token, request_id):
         return _error(data, 'Please check your ' + labels.get(exc.field, 'address') + '.')
     values.update(contact_address.contact_write_fields(address, now=now))
     contact_id = str(row.get('id') or contact_store.deterministic_id(phone))
-    returning = (bool(row.get('subscribeProfileWasExisting'))
-                 if row.get('subscribeLastFlowToken') == flow_token
-                 else subscribe_messages.is_returning(row))
-    if row.get('subscribeLastFlowToken') != flow_token:
+    is_retry = row.get('subscribeLastFlowToken') == flow_token
+    if is_retry and 'subscribeProfileWasExisting' not in row:
+        return _error(data, 'Your saved Subscribe session is incomplete. Close and reopen Subscribe before saving again.')
+    returning = (bool(row['subscribeProfileWasExisting'])
+                 if is_retry else subscribe_messages.is_returning(row))
+    if not is_retry:
         values.update({'updatedAt': now, 'subscribeProfileRevision': str(uuid.uuid4()),
                        'subscribeLastFlowToken': flow_token,
                        'subscribeProfileWasExisting': returning})
