@@ -953,7 +953,7 @@ def test_delivery_uses_approved_templates():
     a valid rollback value for WA_DOC_TEMPLATE.
     """
     source = WA_DELIVERY.read_text()
-    assert '"WA_PAY_TEMPLATE", "wecarepay_wa"' in source
+    assert '"WA_PAY_TEMPLATE", "wecare_whatapp_native_pay_template"' in source
     assert '"WA_DOC_TEMPLATE", "wd_file_delivery"' in source
     # and the parameterised template must be declared as such, or Meta rejects the send
     assert '"wd_file_delivery"' in source.split("TEMPLATES_WITH_BODY_VARS")[1][:80]
