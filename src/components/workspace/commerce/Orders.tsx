@@ -402,7 +402,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
     }
     toast.success( result.data.webhookConfirmed
       ? 'Refund confirmed by provider'
-      : 'Refund initiated; waiting for provider webhook confirmation' );
+      : 'Refund initiated; waiting for authoritative payment confirmation' );
     if ( selectedOrder ) await openDetail( selectedOrder );
     return true;
   };
