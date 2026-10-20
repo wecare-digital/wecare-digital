@@ -231,6 +231,9 @@ jobs:
           # Canonical migrated public-page gate: Home plus every page-family that has opted into
           # the shared mobile foundation. Keep this list in step with 25-public-mobile-foundation.md.
           node tools/browser/devicecheck.js / /grahak-os/ /vayulok/
+          # VayuLok-specific mobile geometry gate. This catches inner-card alignment regressions
+          # that route-level overflow/reflow checks cannot see, including AQI summary drift.
+          node tools/browser/vayulokmobilecheck.js
           node tools/browser/rtlcheck.js / /grahak-os/ /vayulok/
 
       # chromecheck needs no browser - it reads the built export - but it belongs in this
