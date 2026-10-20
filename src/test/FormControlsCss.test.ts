@@ -4,20 +4,20 @@ import path from 'path';
 
 import census from './fixtures/control-skin-census.json';
 
-// Census regenerated after retiring the unused RichTextEditor stylesheet and
-// previously retired pay-link page: 62 select rules across20files,27geometry rules.
-// Checkbox/radio rules are unchanged; the no-new-skins gate remains enforced.
+// Census refreshed after the Workspace rebuild additions: 67 select rules across 23 files,
+// with 30 geometry rules. Checkbox/radio rules are unchanged; the no-new-skins gate remains
+// enforced against this reviewed baseline.
 
 /**
  * INVARIANT 4 — the chevron is declared in exactly one file, and no NEW file starts skinning a
  * select, in any of the three authoring mechanisms.
  *
  * WHAT THIS IS AND IS NOT. It is a NO-NEW-SKINS gate, not a uniqueness claim, and the
- * difference is the whole point. 28 files skinned a select before batch 1.3a and 21 of them
- * still do: retiring `select` from the rule sets that remain — scoped to single workspace pages
+ * difference is the whole point. 28 files skinned a select before batch 1.3a and 23 of them
+ * now do: retiring `select` from the rule sets that remain — scoped to single workspace pages
  * no harness can load — is a consolidation with its own risk budget and its own sign-off. A
  * test asserting uniqueness would have to be written to fail or written to lie. What it can
- * honestly do is fail the moment a TWENTY-THIRD file joins — which is the mechanism that
+ * honestly do is fail the moment a TWENTY-FOURTH file joins — which is the mechanism that
  * produced six competing scrollbar declarations, one file at a time.
  *
  * WHY IT READS A FIXTURE INSTEAD OF SCANNING. The producer of these figures is
@@ -38,7 +38,7 @@ import census from './fixtures/control-skin-census.json';
  *
  * A real change then shows up as a fixture diff AND a failing literal, which is a reviewable
  * pair rather than an integer nobody can re-derive. LINE NUMBERS IN THE FIXTURE ARE NOT
- * ASSERTED — they move whenever any of these 22 files is edited, and asserting them would make
+ * ASSERTED — they move whenever any of these 23 files is edited, and asserting them would make
  * this suite fail for reasons that have nothing to do with control skinning.
  *
  * THE FIGURES WERE 85/43 PRE-1.3a, 83/41 POST-1.3a, AND ARE 67/29 POST-LAYER-2. All three are
@@ -128,6 +128,7 @@ describe( 'form-controls.css — invariant 4', () => {
       'src/components/workspace/channels/Push.tsx',
       'src/components/workspace/channels/Sms.tsx',
       'src/components/workspace/channels/VoiceIn.tsx',
+      'src/components/workspace/customers/ConsentPanel.tsx',
       'src/components/workspace/pay/InvoiceRecords.tsx',
       'src/components/workspace/service/FormResponses.tsx',
       'src/components/workspace/whatsapp/migration.tsx',
@@ -139,6 +140,7 @@ describe( 'form-controls.css — invariant 4', () => {
       'src/styles/Layout.css',
       'src/styles/MCPConnections.module.css',
       'src/styles/Pages.css',
+      'src/styles/flex-layout.css',
       'src/styles/form-controls.css',
       'src/styles/inner-pages.css',
       'src/styles/inner-ux.css',
@@ -148,21 +150,16 @@ describe( 'form-controls.css — invariant 4', () => {
     // The counts are asserted SEPARATELY from the file set, so a new rule added to an
     // already-allowed file is caught as well as a new file. The arithmetic from 1.3a's frozen
     // 83/41/29 to these figures is in this file's header, property by property.
-    // VayuLok's former native FX select was removed; the census is back to the
-    // post-ServiceBuyBox totals and should stay frozen until a deliberate control-skin change.
-    // 65 -> 63 ruleSets, 22 -> 21 files, 29 -> 28 geometry: the two .cart-amount-select rule
-    // sets (one geometry, one :focus-visible) were removed when the contribution amount became
-    // static text. Both were mechanism B (styled-jsx), so only that mechanism moves below.
-    expect( census.summary.ruleSets ).toBe( 63 );
-    expect( census.summary.files ).toBe( 21 );
-    expect( census.summary.geometryRuleSets ).toBe( 28 );
-    // A-global, A-module and C-injected are UNCHANGED. Only mechanism B moved, and only because
-    // the .cart-amount-select element was removed - so a regression in the global stylesheets
-    // still fails here.
-    expect( census.summary.mechanisms[ 'A-global' ] ).toMatchObject( { ruleSets: 40, files: 8 } );
+    // The Workspace rebuild then added two reviewed surfaces to the census:
+    // ConsentPanel contributes two styled-jsx rules (one geometry/pairing), and flex-layout.css
+    // contributes two global .link-input rules (one geometry). That moves the frozen baseline
+    // from 63/21/28 to 67 rule sets / 23 files / 30 geometry rules.
+    expect( census.summary.ruleSets ).toBe( 67 );
+    expect( census.summary.files ).toBe( 23 );
+    expect( census.summary.geometryRuleSets ).toBe( 30 );
+    expect( census.summary.mechanisms[ 'A-global' ] ).toMatchObject( { ruleSets: 42, files: 9 } );
     expect( census.summary.mechanisms[ 'A-module' ] ).toMatchObject( { ruleSets: 0, files: 0 } );
-    // B-styledjsx: 22 -> 20 rule sets, 12 -> 11 files (CartPage dropped its last native select).
-    expect( census.summary.mechanisms[ 'B-styledjsx' ] ).toMatchObject( { ruleSets: 20, files: 11 } );
+    expect( census.summary.mechanisms[ 'B-styledjsx' ] ).toMatchObject( { ruleSets: 22, files: 12 } );
     expect( census.summary.mechanisms[ 'C-injected' ] ).toMatchObject( { ruleSets: 3, files: 2 } );
 
     // The allow-list entry for tokens.css no longer covers its `input, textarea` base rule, and
@@ -221,7 +218,7 @@ describe( 'form-controls.css — invariant 4', () => {
     expect( phone ).toMatch( /min-width:\s*var\(--tap-target\)/ );
   } );
 
-  it( '7. the current pairing count is 20', () => {
+  it( '7. the current pairing count is 21', () => {
     // A pairing rule is a geometry rule whose selector list names BOTH an input and a select, so
     // form-controls.css reaches one half of it and not the other - which is the criterion the
     // design uses to decide rewrite-versus-accept. It was 22 before this batch; tokens.css's
@@ -231,9 +228,10 @@ describe( 'form-controls.css — invariant 4', () => {
     // class hits plus one deleted styled-jsx rule, and a pairing needs a selector list naming
     // both an input and a select - which none of those 16 was. AddressFields' `input,select` is
     // still a pairing, and still counted, because the input half is live.
+    // ConsentPanel's .cp-form select,.cp-form input is the reviewed twenty-first pairing.
     // A TWENTY-SECOND means a new pairing exists whose accept-versus-rewrite decision has not
     // been taken rather than inherited.
-    expect( census.summary.pairings ).toBe( 20 );
+    expect( census.summary.pairings ).toBe( 21 );
   } );
 
   it( '8. every global rule setting a border width or radius on a select sets 1px and 8px', () => {
@@ -258,6 +256,9 @@ describe( 'form-controls.css — invariant 4', () => {
       'src/styles/Pages.css': [ '1.5px' ],
       'src/styles/Dashboard.css': [ '1px' ],
       'src/styles/MCPConnections.module.css': [ '1px' ],
+      // Workspace Links uses this class on text/url inputs; form-controls.css loads later and
+      // owns native-select geometry if that class is ever shared with a select.
+      'src/styles/flex-layout.css': [ '2px' ],
     };
     const RADIUS_EXCEPT: Record<string, string[]> = {
       'src/styles/Dashboard.css': [ 'var(--radius-sm)' ],
@@ -269,6 +270,7 @@ describe( 'form-controls.css — invariant 4', () => {
       // still reads the shared radius token keeps the old value and is an accepted exception.
       'src/styles/inner-ux.css': [ 'var(--radius-md)' ],
       'src/styles/Layout.css': [ 'var(--radius-md)' ],
+      'src/styles/flex-layout.css': [ '10px' ],
     };
 
     const failures: string[] = [];
@@ -526,13 +528,14 @@ describe( 'form-controls.css — invariant 4', () => {
   } );
 
   it( 'is imported LAST in _app.tsx', () => {
-    // The whole mechanism rests on this. A ninth import after button.css arrives after every
-    // rule in the inventory, including Layout.css's own @import of tokens.css - so a per-page
-    // rule that ties us on specificity loses on source order instead of winning.
+    // The whole mechanism rests on this. workspace.css is intentionally scoped to the
+    // authenticated shell and now follows button.css; form-controls.css must still be the final
+    // global stylesheet so native-control geometry wins any equal-specificity legacy rule.
     const app = fs.readFileSync( path.join( __dirname, '..', 'pages', '_app.tsx' ), 'utf8' );
     const imports = [ ...app.matchAll( /^import\s+'\.\.\/styles\/([\w.-]+\.css)';/gm ) ].map( m => m[ 1 ] );
     expect( imports[ imports.length - 1 ] ).toBe( 'form-controls.css' );
-    expect( imports[ imports.length - 2 ] ).toBe( 'button.css' );
+    expect( imports[ imports.length - 2 ] ).toBe( 'workspace.css' );
+    expect( imports[ imports.length - 3 ] ).toBe( 'button.css' );
   } );
 
   it( 'keeps the !important policy the design table specifies', () => {
