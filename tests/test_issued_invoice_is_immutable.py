@@ -26,7 +26,6 @@ import importlib.util
 import io
 import json
 import sys
-import types
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -302,21 +301,6 @@ def engine(monkeypatch):
     return module
 
 
-@pytest.fixture
-def pdf_engine(engine, monkeypatch):
-    """`engine` plus the PIL transport fakes, so `generate_invoice_pdf` runs without Pillow."""
-    image = MagicMock()
-    image.save.side_effect = lambda target, **kwargs: target.write(b"%PDF-1.4\nfixture\n%%EOF")
-    pil = types.ModuleType("PIL")
-    pil_image = types.ModuleType("PIL.Image")
-    pil_image.open = MagicMock(return_value=image)
-    pil.Image = pil_image
-    monkeypatch.setitem(sys.modules, "PIL", pil)
-    monkeypatch.setitem(sys.modules, "PIL.Image", pil_image)
-    engine._flatten_onto_white = MagicMock(return_value=image)
-    return engine
-
-
 def _put(body: dict) -> dict:
     return {
         "rawPath": f"/invoices/{INVOICE_ID}",
@@ -554,15 +538,25 @@ def test_rerendering_a_draft_still_overwrites_in_place(engine):
     assert engine.tables.assets.overwrites == [(INVOICE_ID, "image")]
 
 
-def test_a_pdf_rerender_is_versioned_on_the_same_terms(pdf_engine):
-    pdf_engine.tables.invoices.seed(_issued_row())
+def test_a_pdf_rerender_is_retired_and_writes_nothing(engine):
+    """PDF rendering was retired in the image-only invoice work. The versioning/immutability
+    intent this case used to prove now lives on the image path - see
+    `test_rerendering_an_issued_invoice_writes_a_new_key`. What survives to pin HERE is the
+    retirement itself: `/generate-pdf` refuses 410 `INVOICE_IMAGE_ONLY` and, crucially, writes
+    no asset row, so an old client cannot resurrect a PDF document of record."""
+    engine.tables.invoices.seed(_issued_row())
 
-    first = _body(pdf_engine.handler(_post("/generate-pdf", {}), None))["s3Key"]
-    second = _body(pdf_engine.handler(_post("/generate-pdf", {}), None))["s3Key"]
+    first = engine.handler(_post("/generate-pdf", {}), None)
+    second = engine.handler(_post("/generate-pdf", {}), None)
 
-    assert first.endswith(".pdf") and second == first.replace(".pdf", "-v2.pdf")
-    assert pdf_engine.tables.assets.rows[(INVOICE_ID, "pdf")]["s3Key"] == first
-    assert pdf_engine.tables.assets.rows[(INVOICE_ID, "pdf#v2")]["s3Key"] == second
+    assert first["statusCode"] == 410, first
+    assert second["statusCode"] == 410, second
+    assert _body(first)["code"] == "INVOICE_IMAGE_ONLY"
+    assert _body(second)["code"] == "INVOICE_IMAGE_ONLY"
+    # No PDF asset row is ever written, at any version.
+    assert (INVOICE_ID, "pdf") not in engine.tables.assets.rows
+    assert (INVOICE_ID, "pdf#v2") not in engine.tables.assets.rows
+    assert engine.tables.assets.overwrites == []
 
 
 def test_an_unreadable_asset_history_never_falls_back_to_the_base_key(engine):
