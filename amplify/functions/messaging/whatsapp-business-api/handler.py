@@ -63,6 +63,7 @@ from decimal import Decimal
 from typing import Dict, Any, Optional
 
 from lambda_utils.meta_client import MetaGraphClient  # shared Meta Graph client (Part 2 pilot)
+from lambda_utils.meta_result import mutation_succeeded
 
 from lambda_utils.logging import get_logger
 from lambda_utils.response import cors_response, cors_headers, options_response, extract_origin
@@ -620,7 +621,7 @@ def _update_commerce_settings(phone_id: str, body: Dict) -> Dict:
     result = _graph_api(f'{phone_id}/whatsapp_commerce_settings', method='POST', params=query, phone_id=phone_id)
     if 'error' in result:
         return _resp(400, result)
-    return _resp(200, {'success': result.get('success', True), 'result': result})
+    return _resp(200, {'success': mutation_succeeded(result), 'result': result})
 
 
 def _list_catalog_products(catalog_id: str, params: Dict) -> Dict:
@@ -891,7 +892,7 @@ def _delete_qr_code(phone_id: str, qr_id: str) -> Dict:
     result = _graph_api(f'{phone_id}/message_qrdls/{qr_id}', method='DELETE', phone_id=phone_id)
     if 'error' in result:
         return _resp(400, result)
-    return _resp(200, {'success': result.get('success', True)})
+    return _resp(200, {'success': mutation_succeeded(result)})
 
 
 def _create_qr_code(phone_id: str, body: Dict) -> Dict:
@@ -951,7 +952,7 @@ def _configure_conversational_automation(phone_id: str, body: Dict) -> Dict:
     result = _graph_api(f'{phone_id}/conversational_automation', method='POST', payload=payload, phone_id=phone_id)
     if 'error' in result:
         return _resp(400, result)
-    return _resp(200, {'success': result.get('success', True), 'result': result})
+    return _resp(200, {'success': mutation_succeeded(result), 'result': result})
 
 
 def _get_conversational_automation(phone_id: str) -> Dict:
@@ -2107,7 +2108,7 @@ def _delete_media(media_id: str, phone_id: str) -> Dict:
     result = _graph_api(media_id, method='DELETE', phone_id=phone_id or None)
     if 'error' in result:
         return _resp(400, result)
-    return _resp(200, {'success': result.get('success', True), 'mediaId': media_id})
+    return _resp(200, {'success': mutation_succeeded(result), 'mediaId': media_id})
 
 
 def _resumable_session(body: Dict) -> Dict:
@@ -3281,7 +3282,7 @@ def _delete_username(phone_id: str) -> Dict:
     result = _graph_api(f'{phone_id}/username', method='DELETE', phone_id=phone_id)
     if 'error' in result:
         return _resp(400, result)
-    return _resp(200, {'success': result.get('success', True), 'result': result})
+    return _resp(200, {'success': mutation_succeeded(result), 'result': result})
 
 
 # ============================================================================
@@ -3446,7 +3447,7 @@ def _delete_contact_book(phone_id: str, bsuid: str) -> Dict:
     if 'error' in result:
         return _resp(400, result)
     return _resp(200, {
-        'success': result.get('success', True),
+        'success': mutation_succeeded(result),
         'deleted': result.get('deleted', False),
         'bsuid': bsuid,
     })
@@ -4491,7 +4492,7 @@ def _upload_flow_asset(flow_id: str, body: Dict) -> Dict:
         _emit_event('flow_validation_error', severity='warning', waba_id=waba_id,
                     data={'flowId': flow_id, 'validationErrors': validation_errors})
     return _resp(200, {
-        'success': result.get('success', True),
+        'success': mutation_succeeded(result),
         'flowId': flow_id,
         'validationErrors': validation_errors,
         'hasErrors': bool(validation_errors),
