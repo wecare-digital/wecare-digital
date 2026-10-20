@@ -166,6 +166,7 @@ def test_customer_copy_hides_country_code_and_has_short_labels():
     assert {'full_name','address_line1','city','state','postal_code','country'}<=required
     country=next(n for n in dropdowns if n.get('name')=='country')
     assert country['data-source']
+    assert country['data-source'][0]['id']=='India'
     assert len(country['data-source']) <= 200
     assert all(len(option['title']) <= 30 for option in country['data-source'])
     assert any(option['id']=='India' for option in country['data-source'])
@@ -186,17 +187,28 @@ def test_country_dropdown_matches_backend_country_mapping(setup):
     assert country['data-source']==mod.country_options.OPTIONS
 
 
-def test_new_customer_has_no_country_default_and_must_choose_one(setup):
+def test_new_customer_defaults_country_to_india_but_can_change_it(setup):
     mod,table,_=setup
     table.row={}
     data=form(mod)
-    assert data['country']=='' and data['country_code']==''
+    assert data['country']=='India' and data['country_code']=='IN'
     data.update(full_name='New QA', address_line1='1 Main Street', city='London',
-                state='England', postal_code='SW1A 1AA')
+                state='England', postal_code='SW1A 1AA',
+                country='United Kingdom', country_code='IN')
     result=mod.handle_review(data,TOKEN,'r')
-    assert result['screen']=='REVIEW'
-    assert 'select your country' in result['data']['error_message'].lower()
-    assert not table.puts
+    assert result['screen']=='COMPLETE'
+    assert table.row[contact_address.ATTRIBUTE]['country']=='United Kingdom'
+    assert table.row[contact_address.ATTRIBUTE]['countryCode']=='GB'
+
+
+def test_existing_customer_saved_country_wins_over_india_default(setup):
+    mod,table,_=setup
+    table.row[contact_address.ATTRIBUTE]=contact_address.normalize_for_storage({
+        'addressLine1':'10 Downing Street','city':'London','state':'England',
+        'postalCode':'SW1A 2AA','country':'United Kingdom','countryCode':'GB'})
+    data=form(mod)
+    assert data['country']=='United Kingdom'
+    assert data['country_code']=='GB'
 
 
 def test_existing_international_customer_prefills_country_from_iso_code(setup):

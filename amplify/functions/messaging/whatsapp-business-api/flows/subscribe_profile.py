@@ -46,6 +46,12 @@ def _form(row, phone):
 def handle_init(data, flow_token, request_id):
     _table, phone, row = _context(flow_token)
     values = _form(row, phone)
+    # India is only the editable UI default when the canonical customer has no saved country.
+    # A saved country always wins, and handle_review derives ISO code from the customer's
+    # explicit dropdown choice so changing this default never locks the profile to India.
+    if not values.get('country'):
+        values['country'] = 'India'
+        values['country_code'] = 'IN'
     return {'screen': 'PROFILE', 'data': values}
 
 
