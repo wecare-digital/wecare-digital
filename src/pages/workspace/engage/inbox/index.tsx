@@ -130,7 +130,7 @@ const TYPE_LABELS: Record<string, string> = {
     document: 'Document', sticker: 'Sticker', location: 'Location', contacts: 'Contact card',
     order: 'Order', poll: 'Poll', reaction: 'Reaction', button: 'Button reply',
     interactive: 'Interactive reply', request_welcome: 'Started conversation', system: 'System update',
-    referral: 'Ad referral', ad_click: 'Ad click', unsupported: 'Unsupported message', unknown: 'Message',
+    referral: 'Ad referral', ad_click: 'Ad click', flow_response: 'Flow response', unsupported: 'Unsupported message', unknown: 'Message',
 };
 const prettyMsg = ( content?: string, messageType?: string ): string => {
     const raw = ( content || '' ).trim();
@@ -215,6 +215,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
     const [ sending, setSending ] = useState( false );
     const [ replyingTo, setReplyingTo ] = useState<api.Message | null>( null );
     const [ deletingId, setDeletingId ] = useState<string | null>( null );
+    const [ reviewUpdating, setReviewUpdating ] = useState<string | null>( null );
     const [ visibleCount, setVisibleCount ] = useState( 50 );
     const [ selectedWaba, setSelectedWaba ] = useState( WABAS[ 0 ].id );
     // True once the agent has changed "Send from" for the conversation that is
@@ -277,6 +278,20 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
     const [ loadingOlder, setLoadingOlder ] = useState( false );
     // Why the last load returned nothing, when it returned nothing for a reason.
     const [ loadFailure, setLoadFailure ] = useState<api.ApiFailure | null>( null );
+
+    const handleInboxReviewAction = async ( message: api.Message, status: 'approved' | 'flagged' | 'hidden' ) => {
+        if ( !message.reviewId ) return;
+        setReviewUpdating( message.reviewId );
+        try {
+            const ok = await api.updateReview( message.reviewId, { status } );
+            if ( !ok ) { toast.error( 'Review update failed' ); return; }
+            setMessages( rows => rows.map( row => row.messageId === message.messageId
+                ? { ...row, reviewStatus: status } : row ) );
+            toast.success( `Review ${status}` );
+        } finally {
+            setReviewUpdating( null );
+        }
+    };
 
     const loadData = useCallback( async () => {
         try
@@ -1071,8 +1086,63 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                                         if ( !Array.isArray( cards ) || cards.length === 0 ) return null;
                                                         return <ContactCardBubble contacts={ cards } fallbackLabel="Contact card" />;
                                                     } )() }
+                                                    { ( m.messageType || '' ).toLowerCase() === 'flow_response' && (
+                                                        <div className="ui-flow-response" style={ { minWidth: 320, maxWidth: 560 } }>
+                                                            <div style={ { fontWeight: 700, marginBottom: 6 } }>
+                                                                Flow response{ m.flowCode ? ` · ${m.flowCode}` : '' }
+                                                            </div>
+                                                            { m.flowAnswers?.length ? (
+                                                                <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)' } }>
+                                                                    <thead>
+                                                                        <tr>
+                                                                            <th style={ { textAlign: 'left', padding: '4px 6px', borderBottom: '1px solid var(--border)' } }>Question</th>
+                                                                            <th style={ { textAlign: 'left', padding: '4px 6px', borderBottom: '1px solid var(--border)' } }>Answer</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        { m.flowAnswers.map( ( row, i ) => (
+                                                                            <tr key={ i }>
+                                                                                <td style={ { verticalAlign: 'top', padding: '4px 6px', fontWeight: 600, borderBottom: '1px solid var(--borderLight)' } }>{ row.question }</td>
+                                                                                <td style={ { verticalAlign: 'top', padding: '4px 6px', whiteSpace: 'pre-wrap', borderBottom: '1px solid var(--borderLight)' } }>{ row.answer }</td>
+                                                                            </tr>
+                                                                        ) ) }
+                                                                    </tbody>
+                                                                </table>
+                                                            ) : null }
+                                                            { m.flowAttachments?.length ? (
+                                                                <div style={ { marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 8 } }>
+                                                                    { m.flowAttachments.map( ( a, i ) => {
+                                                                        const url = a.url || '';
+                                                                        const isImg = ( a.type || '' ).startsWith( 'image' ) || /\.(png|jpe?g|gif|webp)(\?|$)/i.test( url );
+                                                                        return isImg && url
+                                                                            ? <a key={ i } href={ url } target="_blank" rel="noreferrer"><img src={ url } alt={ a.filename || 'Flow attachment' } style={ { width: 84, height: 84, objectFit: 'cover', borderRadius: 7, border: '1px solid var(--border)' } } /></a>
+                                                                            : <a key={ i } href={ url || '#' } target={ url ? '_blank' : undefined } rel="noreferrer" className="ui-msg-doc">📎 { a.filename || `Attachment ${i + 1}` }</a>;
+                                                                    } ) }
+                                                                </div>
+                                                            ) : null }
+                                                            { m.reviewId && (
+                                                                <div style={ { marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--borderLight)' } }>
+                                                                    <div style={ { fontSize: 'var(--text-xs)', marginBottom: 6 } }>
+                                                                        Review: <b>{ m.reviewStatus || 'pending' }</b>
+                                                                        { m.reviewRating ? ` · ${'⭐'.repeat( Math.max( 0, Math.min( 5, m.reviewRating ) ) )}` : '' }
+                                                                        { m.reviewOrderId ? ` · ${m.reviewOrderId}` : '' }
+                                                                    </div>
+                                                                    <div style={ { display: 'flex', gap: 6, flexWrap: 'wrap' } }>
+                                                                        { ( [ 'approved', 'flagged', 'hidden' ] as const ).map( status => (
+                                                                            <button key={ status } type="button" className="ui-msg-act"
+                                                                                disabled={ reviewUpdating === m.reviewId }
+                                                                                onClick={ () => handleInboxReviewAction( m, status ) }
+                                                                                style={ { border: '1px solid var(--border)', borderRadius: 6, padding: '4px 7px', opacity: 1 } }>
+                                                                                { status === 'approved' ? 'Approve' : status === 'flagged' ? 'Flag' : 'Hide' }
+                                                                            </button>
+                                                                        ) ) }
+                                                                    </div>
+                                                                </div>
+                                                            ) }
+                                                        </div>
+                                                    ) }
                                                     { !( ( m.messageType || '' ).toLowerCase() === 'contacts' && Array.isArray( ( m as any ).contactsPayload ) && ( m as any ).contactsPayload.length > 0 )
-                                                        && ( ( m.content && !isSysLabel( m.content ) ) || !m.mediaUrl ) && (
+                                                        && ( m.messageType || '' ).toLowerCase() !== 'flow_response' && ( ( m.content && !isSysLabel( m.content ) ) || !m.mediaUrl ) && (
                                                         <span
                                                             className="ui-msg-text"
                                                             style={ revoked ? { textDecoration: 'line-through', opacity: 0.55 } : undefined }
