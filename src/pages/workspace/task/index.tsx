@@ -162,6 +162,7 @@ const TasksPage: React.FC<PageProps> = ( { signOut, user } ) => {
       <div className="tk-page">
         <div className="tk-inner">
           <header className="tk-head">
+            <p className="tk-eyebrow">Workspace</p>
             <h1 className="tk-h1">Tasks</h1>
             <p className="tk-sub">
               Conversations that need someone, by status and assignee. Updating a
