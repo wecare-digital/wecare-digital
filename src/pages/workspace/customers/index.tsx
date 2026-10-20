@@ -1112,6 +1112,12 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
     <Layout onSignOut={signOut} user={user}>
       <SEO title="Customers" description="Canonical customer identity, address, consent and activity." noindex />
       <div className="inner-page-container">
+        <header className="workspace-page-head">
+          <p className="workspace-page-eyebrow">Workspace</p>
+          <h1>Customers</h1>
+          <p>Identity, address, consent and customer history in one canonical record.</p>
+        </header>
+
         {/* Toolbar */}
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginBottom: 16 }}>
           {/* Contact count badge */}
