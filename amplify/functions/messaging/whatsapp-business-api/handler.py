@@ -6020,14 +6020,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if event['internalAction'] == 'catalogServiceReadiness':
             from flows.catalog_services import readiness
             return readiness(_get_flow, _graph_api)
-        # vaultReview routes to the Vault-specific review sender (gated on kind=='VAULT'),
-        # not the submit-request one. secure-files' _queue_vault_review invokes this after the
-        # first authenticated access; before this branch existed it was a silent no-op.
-        if event['internalAction'] == 'vaultReview':
-            from flows.paid_vault import send_review as send_vault_review
-            return send_vault_review(event, lambda_client)
-        from flows.paid_submit_request import send_review
-        return send_review(event, lambda_client)
+        # Backward-compatible sink for already queued legacy review jobs. The paid invoice
+        # template now owns the single Leave Review Flow button, so these actions must never
+        # emit a second review invitation.
+        return {'outcome': 'REVIEW_INCLUDED_IN_INVOICE_TEMPLATE'}
 
     if event.get('internalAction') == 'catalogLifecycle':
         from flows.catalog_lifecycle import handle
