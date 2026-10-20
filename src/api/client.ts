@@ -416,6 +416,7 @@ export interface Contact {
   subscriberId?: string;
   workspaceId?: string;
   customerUuid?: string;
+  customerDisplayId?: string;
   locked?: boolean;
   lockedReason?: string;
   lockedAt?: number;
@@ -747,6 +748,7 @@ function normalizeContact ( item: any ): Contact {
     subscriberId: item.subscriberId || '',
     workspaceId: item.workspaceId || '',
     customerUuid: item.customerUuid || '',
+    customerDisplayId: item.customerDisplayId || '',
     locked: item.locked === true,
     lockedReason: item.lockedReason || '',
     lockedAt: normalizeEpochSeconds( item.lockedAt ),

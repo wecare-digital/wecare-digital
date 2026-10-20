@@ -19,6 +19,8 @@ def test_new_contact_fields_are_unique_and_protected():
     assert one["lockedReason"] == "created"
     assert one["lockedAt"] == 100
     assert uuid.UUID(one["subscriberId"][-36:]).version == 4
+    assert uuid.UUID(one['customerUuid']).version == 4
+    assert one['customerUuid'] != two['customerUuid']
 
 
 def test_untrusted_subscriber_values_are_rejected():

@@ -2062,5 +2062,7 @@ def _to_dynamo(item: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _from_dynamo(item: Dict[str, Any]) -> Dict[str, Any]:
-    return {k: (int(v) if isinstance(v, Decimal) and v % 1 == 0 else float(v) if isinstance(v, Decimal) else v)
+    result = {k: (int(v) if isinstance(v, Decimal) and v % 1 == 0 else float(v) if isinstance(v, Decimal) else v)
             for k, v in item.items()}
+    result['customerDisplayId'] = customer_uuid.display_code(item)
+    return result

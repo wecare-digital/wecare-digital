@@ -17,6 +17,7 @@ import re
 import time
 import uuid
 from typing import Any, Dict, Optional
+from lambda_utils.identity import customer_uuid
 
 SUBSCRIBER_ID_ATTRIBUTE = "subscriberId"
 WORKSPACE_ID_ATTRIBUTE = "workspaceId"
@@ -64,6 +65,7 @@ def new_contact_fields(*, now: Optional[int] = None,
     workspace = workspace_id if workspace_id is not None else current_workspace_id()
     ts = int(time.time()) if now is None else int(now)
     return {
+        customer_uuid.ATTRIBUTE: customer_uuid.new_customer_uuid(),
         WORKSPACE_ID_ATTRIBUTE: workspace,
         SUBSCRIBER_ID_ATTRIBUTE: new_subscriber_id(workspace_id=workspace),
         "locked": True,
