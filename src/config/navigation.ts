@@ -225,7 +225,6 @@ export const settingsConfig: SettingsGroup[] = [
       { path: '/workspace/communications?view=manage&section=flows', label: 'Flow Hub' },
       { path: '/workspace/communications?view=manage&section=whatsapp&tool=flows', label: 'WhatsApp Flows' },
       { path: '/workspace/communications?view=manage&section=whatsapp&tool=flow-publish', label: 'Flow Publish' },
-      { path: '/workspace/communications?view=manage&section=whatsapp&tool=flow-responses', label: 'Flow Responses' },
       { path: '/workspace/communications?view=manage&section=whatsapp&tool=groups', label: 'Groups' },
       { path: '/workspace/communications?view=manage&section=whatsapp&tool=calling', label: 'Calling' },
       { path: '/workspace/communications?view=manage&section=whatsapp&tool=cost-controls', label: 'Cost Controls' },

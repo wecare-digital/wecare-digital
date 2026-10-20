@@ -2236,6 +2236,14 @@ def _process_message(
     if _idea_inbox:
         message_record.update(_idea_inbox)
     
+    # Keep the complete structured completion; a truncated transport label cannot
+    # be reconstructed by the inbox. Both inbox stores must carry the same fields.
+    from lambda_utils.flow_inbox import from_message as project_flow_message
+    _flow_card = project_flow_message(message) if _idea_data is None else {}
+    if _flow_card:
+        message_record.update(_flow_card)
+        content = _flow_card['content']
+
     # Capture referral context (click-to-WhatsApp ads, product catalogs, social posts)
     # Referral can be attached to ANY message type, not just 'referral' type
     referral = message.get('referral')
@@ -2323,7 +2331,7 @@ def _process_message(
         content=content,
         status='received',
         message_id=message_id,
-        message_type=msg_type,
+        message_type=_flow_card.get('messageType', msg_type),
         whatsapp_message_id=whatsapp_message_id,
         media_id=media_id,
         s3_key=s3_key,
@@ -2333,6 +2341,7 @@ def _process_message(
         aws_phone_number_id=aws_phone_number_id,
         partner_waba_id=_partner_waba,
         contacts_payload=_contacts_payload,
+        **{k: v for k, v in _flow_card.items() if k not in ('content', 'messageType')},
         timestamp=timestamp,
         **(_idea_inbox or {}),
     )
@@ -7286,10 +7295,9 @@ def _link_media_to_service_request(contact_id: str, s3_key: str, media_type: str
         return
     try:
         c = dynamodb.Table(CONTACTS_TABLE).get_item(Key={'id': contact_id}).get('Item') or {}
-        req = c.get('openServiceRequestId') or ''
-        opened_at = int(c.get('openServiceRequestAt') or 0)
-        # Only link within 14 days of the request being opened.
-        if not req or (int(time.time()) - opened_at) > 14 * 86400:
+        from lambda_utils.flow_inbox import active_submission
+        req = active_submission(c, int(time.time()))
+        if not req:
             return
         base = s3_key.split('/')[-1]
         dest_key = media_paths.secure(f"u/service-requests/{req}/{int(time.time())}-{base}")
@@ -7309,7 +7317,8 @@ def _link_media_to_service_request(contact_id: str, s3_key: str, media_type: str
             dynamodb.Table(FLOW_SUBMISSIONS_TABLE).update_item(
                 Key={'submissionId': req},
                 UpdateExpression='SET attachments = list_append(if_not_exists(attachments, :empty), :a), updatedAt = :u',
-                ExpressionAttributeValues={':a': [attachment], ':empty': [], ':u': int(time.time())},
+                ConditionExpression='contactId = :cid',
+                ExpressionAttributeValues={':a': [attachment], ':empty': [], ':u': int(time.time()), ':cid': contact_id},
             )
             logger.info(json.dumps({'event': 'service_request_attachment_added', 'submissionId': req,
                                     'key': dest_key, 'requestId': request_id}))

@@ -350,6 +350,17 @@ def _convert_from_dynamodb(item: Dict[str, Any]) -> Dict[str, Any]:
         else:
             result[key] = value
     
+    # Older inbound rows discarded most of the JSON before storing it. Recover
+    # complete legacy payloads when possible; never pretend truncated data exists.
+    content = result.get('content')
+    if isinstance(content, str) and content.startswith('[Flow Response:'):
+        from lambda_utils.flow_inbox import project
+        raw = content[len('[Flow Response:'):].removesuffix(']').strip()
+        result.update(project(raw) or {
+            'messageType': 'flow_response', 'content': 'Flow response',
+            'flowAnswers': [], 'flowAttachments': [],
+        })
+
     # Normalize field names for frontend
     if 'id' in result and 'messageId' not in result:
         result['messageId'] = result['id']
@@ -445,8 +456,13 @@ def _convert_from_dynamodb(item: Dict[str, Any]) -> Dict[str, Any]:
                 ConsistentRead=True,
             ).get('Item') or {}
             latest_attachments = submission.get('attachments')
-            if isinstance(latest_attachments, list):
-                result['flowAttachments'] = latest_attachments
+            if (isinstance(latest_attachments, list) and result.get('contactId')
+                    and submission.get('contactId') == result['contactId']):
+                combined = list(result.get('flowAttachments') or [])
+                for attachment in latest_attachments:
+                    if attachment not in combined:
+                        combined.append(attachment)
+                result['flowAttachments'] = combined
         except Exception as exc:
             logger.warning(json.dumps({'event':'flow_submission_refresh_failed',
                                        'errorType':type(exc).__name__}))

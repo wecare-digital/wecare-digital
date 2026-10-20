@@ -125,6 +125,17 @@ def handle_review(data: Dict, flow_token: str, request_id: str) -> Dict:
     # Only a fresh claim may message the customer. Without this guard a Meta
     # retry of the same completion sent a second confirmation for one submission.
     if result.should_fire_side_effects:
+        if contact_id:
+            try:
+                from lambda_utils import shared_tables
+                dynamodb.Table(shared_tables.contacts_table_name()).update_item(
+                    Key={'id': contact_id},
+                    UpdateExpression='SET pendingDocumentSubmissionId = :s, pendingDocumentSubmissionAt = :t',
+                    ExpressionAttributeValues={':s': doc_id, ':t': now},
+                    ConditionExpression='attribute_exists(id)',
+                )
+            except Exception as exc:
+                logger.warning('Document upload target could not be linked: %s', type(exc).__name__)
         try:
             from flows.common import send_simple_confirmation
             send_simple_confirmation(phone, flow_token, 'Document Registered', doc_id,

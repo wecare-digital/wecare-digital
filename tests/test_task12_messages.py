@@ -73,3 +73,42 @@ def test_payment_update_writes_only_allowlisted_fields(messages_handler):
     assert kwargs['Key'] == {'id': 'message-1'}
     assert set(kwargs['ExpressionAttributeNames'].values()) == {'paymentPurpose'}
     assert kwargs['ConditionExpression'] == 'attribute_exists(id)'
+
+
+def test_flow_documents_refresh_only_for_the_same_contact(messages_handler):
+    messages_handler.dynamodb.Table.return_value.get_item.return_value = {'Item': {
+        'contactId': 'another-customer', 'attachments': [{'key': 'secure/other.pdf'}]}}
+    result = messages_handler._convert_from_dynamodb({
+        'id': 'flow-1', 'contactId': 'customer-1', 'messageType': 'flow_response',
+        'flowSubmissionId': 'untrusted-hint', 'flowAttachments': []})
+    assert result['flowAttachments'] == []
+    messages_handler.s3_client.generate_presigned_url.assert_not_called()
+
+
+def test_late_uploaded_documents_merge_with_original_attachments(messages_handler):
+    original = {'key': 'secure/original.pdf', 'filename': 'Original.pdf'}
+    linked = {'key': 'secure/late.pdf', 'filename': 'Late.pdf'}
+    messages_handler.dynamodb.Table.return_value.get_item.return_value = {'Item': {
+        'contactId': 'customer-1', 'attachments': [linked]}}
+    messages_handler.s3_client.generate_presigned_url.return_value = 'https://signed.example/file'
+    result = messages_handler._convert_from_dynamodb({
+        'id': 'flow-1', 'contactId': 'customer-1', 'messageType': 'flow_response',
+        'flowSubmissionId': 'submission-1', 'flowAttachments': [original]})
+    assert [a['filename'] for a in result['flowAttachments']] == ['Original.pdf', 'Late.pdf']
+    assert all(a['url'].startswith('https://signed') for a in result['flowAttachments'])
+
+
+def test_complete_legacy_flow_json_is_rendered_as_fields(messages_handler):
+    result = messages_handler._convert_from_dynamodb({
+        'id': 'legacy', 'content': '[Flow Response: {"rating":5}]', 'messageType': 'interactive'})
+    assert result['messageType'] == 'flow_response'
+    assert result['flowAnswers'] == [{'question': 'Rating', 'answer': '5'}]
+    assert result['content'] == 'Flow response'
+
+
+def test_truncated_legacy_flow_json_is_not_invented_or_displayed(messages_handler):
+    result = messages_handler._convert_from_dynamodb({
+        'id': 'legacy', 'content': '[Flow Response: {"flow_key":"wd_leave_review_v2","schema_...]'})
+    assert result['messageType'] == 'flow_response'
+    assert result['flowAnswers'] == []
+    assert result['content'] == 'Flow response'

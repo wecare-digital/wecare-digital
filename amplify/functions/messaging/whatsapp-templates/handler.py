@@ -465,7 +465,19 @@ def _list_templates(waba_id, query_params):
         url += f'&limit={limit}'
         data = _meta_request(url)
         templates = []
-        for t in data.get('data', []):
+        records = list(data.get('data', []))
+        seen_pages = set()
+        next_url = data.get('paging', {}).get('next')
+        while isinstance(next_url, str) and next_url:
+            if next_url in seen_pages:
+                raise ValueError('Repeated template pagination cursor')
+            if urllib.parse.urlparse(next_url).netloc != 'graph.facebook.com':
+                raise ValueError('Invalid template pagination origin')
+            seen_pages.add(next_url)
+            page = _meta_request(next_url)
+            records.extend(page.get('data', []))
+            next_url = page.get('paging', {}).get('next')
+        for t in records:
             # Return both Meta-native keys (id/name/status/components) and the
             # legacy *metaTemplateId/templateName/templateStatus* aliases so the
             # frontend normalizer can resolve every field. Previously only the

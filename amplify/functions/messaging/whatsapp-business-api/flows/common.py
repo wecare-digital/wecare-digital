@@ -186,56 +186,15 @@ def _record_completion(flow_completion, *, flow_code, flow_type, phone, contact_
     # Mirror each fresh WhatsApp Flow completion into the canonical Inbox.
     if result.created and contact_id and str(channel or '').lower() == 'whatsapp':
         fd = form_data if isinstance(form_data, dict) else {}
-        secret_words = ('token', 'secret', 'password', 'credential', 'access_key')
-        attachment_words = ('attachment', 'upload', 'file', 'document', 'photo', 'image')
-        answers = []
-        attachments = []
-
-        def _attachment(value):
-            if isinstance(value, dict):
-                key = value.get('key') or value.get('s3Key') or ''
-                url = value.get('url') or value.get('link') or ''
-                if key or url:
-                    return {
-                        k: v for k, v in {
-                            'key': key, 'url': url,
-                            'filename': value.get('filename') or value.get('name') or '',
-                            'type': value.get('type') or value.get('mime') or value.get('mimeType') or '',
-                        }.items() if v
-                    }
-            if isinstance(value, str) and (value.startswith(('secure/', 'o/', 's3://', 'https://'))):
-                return {'key': value} if not value.startswith(('http://','https://')) else {'url': value}
-            return None
-
-        for key, value in fd.items():
-            key_text = str(key)
-            if any(word in key_text.lower() for word in secret_words):
-                continue
-            values = value if isinstance(value, list) else [value]
-            found = []
-            if any(word in key_text.lower() for word in attachment_words):
-                for entry in values:
-                    att = _attachment(entry)
-                    if att:
-                        found.append(att)
-                        attachments.append(att)
-            if found:
-                answer_text = f'{len(found)} attachment(s)'
-            elif isinstance(value, (dict, list)):
-                answer_text = json.dumps(value, ensure_ascii=False, default=str)
-            else:
-                answer_text = str(value if value is not None else '')
-            answers.append({
-                'question': key_text.replace('_', ' ').strip().title(),
-                'answer': answer_text[:2000],
-            })
-
+        from lambda_utils.flow_inbox import project
+        projection = project(fd)
+        answers = projection.get('flowAnswers', [])
+        attachments = projection.get('flowAttachments', [])
         extra_map = extra if isinstance(extra, dict) else {}
-        if isinstance(extra_map.get('attachments'), list):
-            for entry in extra_map['attachments']:
-                att = _attachment(entry)
-                if att and att not in attachments:
-                    attachments.append(att)
+        extras = project({'attachments': extra_map.get('attachments', [])})
+        for item in extras.get('flowAttachments', []):
+            if item not in attachments:
+                attachments.append(item)
 
         review_id = str(extra_map.get('reviewId') or '') if flow_code == 'WD_REV' else ''
         review_status = ('pending' if status == 'submitted' else str(status or '')) if review_id else ''
