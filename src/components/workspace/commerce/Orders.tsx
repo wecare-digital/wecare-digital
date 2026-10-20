@@ -610,6 +610,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
         ) : filtered.length === 0 && !loading ? (
           <EmptyState icon="order" title="No orders found" description="Create a manual order to get started." action={ { label: 'New Order', onClick: () => setShowCreate( true ) } } />
         ) : (
+          <>
           <div className="orders-desktop-table" style={ { background: '#fff', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' } }>
             <div style={ { overflowX: 'auto' } }>
               <table style={ { width: '100%', borderCollapse: 'collapse', minWidth: 900 } }>
@@ -681,6 +682,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
               );
             } ) }
           </div>
+          </>
         ) }
         { totalPages > 1 && (
           <div style={ { marginTop: 16, display: 'flex', justifyContent: 'center' } }>
