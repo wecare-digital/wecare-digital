@@ -188,30 +188,13 @@ def test_the_tear_is_deterministic_so_one_invoice_renders_the_same_twice(offline
 # 3. Transparency must not turn the PDF black
 # ---------------------------------------------------------------------------
 
-def test_flattening_an_rgba_receipt_gives_white_not_black(offline_renderer):
-    """`convert('RGB')` keeps the RGB under a transparent pixel, which is black.
-
-    So the PDF path has to COMPOSITE onto white. Asserted on the flattening helper
-    directly: `generate_invoice_pdf` writes to S3.
-    """
+def test_transparent_receipt_stays_png_native_without_pdf_flattening(offline_renderer):
+    """The active invoice artifact is PNG-only; no PDF flatten helper should exist."""
+    assert not hasattr(offline_renderer, "_flatten_onto_white")
     with patch.dict(os.environ, {"RECEIPT_TRANSPARENT_BG": "true"}):
         img = _render(offline_renderer)
-
-    flat = offline_renderer._flatten_onto_white(img)
-
-    assert flat.mode == "RGB"
-    assert _corners(flat) == [(255, 255, 255)] * 4
-
-
-def test_flattening_leaves_an_opaque_receipt_alone(offline_renderer):
-    with patch.dict(os.environ, {}, clear=False):
-        os.environ["RECEIPT_TRANSPARENT_BG"] = "false"
-        img = _render(offline_renderer)
-
-    flat = offline_renderer._flatten_onto_white(img)
-
-    assert flat.mode == "RGB"
-    assert _corners(flat) == [CURRENT_GREY_BACKDROP] * 4
+    assert img.mode == "RGBA"
+    assert all(pixel[3] == 0 for pixel in _corners(img))
 
 
 # ---------------------------------------------------------------------------
