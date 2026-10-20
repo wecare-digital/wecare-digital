@@ -3,7 +3,7 @@ import importlib
 import json
 from unittest.mock import Mock, patch
 import pytest
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, EndpointConnectionError
 
 @pytest.fixture
 def mod(monkeypatch):
@@ -45,3 +45,9 @@ def test_read_failure_does_not_prevent_profile_confirmation(mod):
     module,table=mod
     table.get_item.side_effect=ClientError({'Error':{'Code':'AccessDeniedException','Message':'denied'}},'GetItem')
     assert module.copy_for(True)==module.DEFAULTS['returningCustomer']
+
+
+def test_transport_failure_uses_default_confirmation(mod):
+    module,table=mod
+    table.get_item.side_effect=EndpointConnectionError(endpoint_url='https://dynamodb.us-east-1.amazonaws.com')
+    assert module.copy_for(False)==module.DEFAULTS['newCustomer']

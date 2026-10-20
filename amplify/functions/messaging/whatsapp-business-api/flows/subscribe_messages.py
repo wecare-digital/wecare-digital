@@ -2,7 +2,7 @@
 import json
 import logging
 import os
-from botocore.exceptions import ClientError
+from botocore.exceptions import BotoCoreError, ClientError
 from lambda_utils.ecommerce import contact_address
 from flows import common
 
@@ -41,6 +41,6 @@ def copy_for(returning):
                 value = values.get(key)
                 if isinstance(value, str) and 0 < len(value.strip()) <= limit:
                     selected[key] = value.strip()
-    except (ClientError, ValueError, TypeError):
+    except (BotoCoreError, ClientError, ValueError, TypeError):
         logging.getLogger(__name__).warning('Subscribe message settings unavailable; using default copy')
     return selected
