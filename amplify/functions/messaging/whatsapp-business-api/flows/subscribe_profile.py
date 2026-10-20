@@ -24,10 +24,21 @@ def _context(token):
 
 def _form(row, phone):
     address = contact_address.from_contact(row) or {}
+    address_values = {key: str(address.get(attr) or '') for key, attr in ADDRESS_FIELDS.items()}
+    if address:
+        # Prefer the stored ISO code as the canonical prefill authority. Some older rows can
+        # carry a legacy/default country label that disagrees with their real countryCode.
+        country_name, country_code = country_options.canonical_country(
+            '', address_values.get('country_code'))
+        if not country_name:
+            country_name, country_code = country_options.canonical_country(
+                address_values.get('country'), address_values.get('country_code'))
+        address_values['country'] = country_name
+        address_values['country_code'] = country_code
     return {'phone_number': contact_store.canonical_phone(phone),
             'customer_id': customer_uuid.display_code(row) or 'Assigned when you save',
             **{key: str(row.get(attr) or '') for key, attr in PROFILE_FIELDS.items()},
-            **{key: str(address.get(attr) or '') for key, attr in ADDRESS_FIELDS.items()},
+            **address_values,
             'profile_revision': str(row.get('subscribeProfileRevision') or ''),
             'updated_at': str(row.get('updatedAt') or ''), 'error_message': ''}
 
