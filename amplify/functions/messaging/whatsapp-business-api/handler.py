@@ -2384,7 +2384,8 @@ def _send_flow_msg(body: Dict) -> Dict:
         from lambda_utils import contact_store
         recipient = str(body.get('to') or body.get('recipient') or '').strip()
         needs_workspace_copy = not body.get('bodyText') or not body.get('flowCta')
-        needs_recipient_phone = not body.get('flowToken') and not contact_store.digits(body.get('to') or '')
+        direct_phone = contact_store.digits(body.get('to') or body.get('recipient') or '')
+        needs_recipient_phone = not body.get('flowToken') and not direct_phone
         if needs_workspace_copy or needs_recipient_phone:
             table = flow_common.dynamodb.Table(flow_common.CONTACTS_TABLE)
             if body.get('to'):
@@ -2399,7 +2400,7 @@ def _send_flow_msg(body: Dict) -> Dict:
             body = {**body, 'bodyText': body.get('bodyText') or copy['body'],
                     'flowCta': body.get('flowCta') or copy['flowCta']}
         if not body.get('flowToken'):
-            token_phone = contact_store.digits(body.get('to') or '')
+            token_phone = direct_phone
             if not token_phone:
                 token_phone = contact_store.digits(subscribe_row.get('phone') or '')
             if not token_phone:
