@@ -81,7 +81,8 @@ describe( 'WhatsApp subscribe CTA design', () => {
     expect( share ).toContain( '.ps-share-menu::before{inset-inline-start:78px}' );
     expect( share ).toContain( '.ps-share-menu.has-contribute::before{inset-inline-start:138px}' );
     expect( share ).toContain( '.ps-chevron{display:inline-block;font-size:20px;color:rgba(26,58,42,.55);transform:scaleX(1);transform-origin:center}' );
-    expect( share ).toContain( ":global([dir='rtl']) .ps-chevron{transform:scaleX(-1)}" );
+    expect( share ).toContain( "html[dir='rtl'] .public-share .ps-chevron{transform:scaleX(-1)}" );
+    expect( share ).toContain( '<style jsx global>{`' );
   } );
 
 
