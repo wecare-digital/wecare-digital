@@ -162,6 +162,29 @@ def _captured_event(reference_id=REFERENCE_ID):
     }
 
 
+def _live_plural_captured_event(reference_id=REFERENCE_ID):
+    """The live Meta ORDER_DETAILS shape: plural transactions with gateway ids."""
+    return {
+        'id': 'wamid.live-shape',
+        'recipient_id': '919876543210',
+        'type': 'payment',
+        'status': 'captured',
+        'payment': {
+            'reference_id': reference_id,
+            'amount': {'value': 224, 'offset': 100},
+            'currency': 'INR',
+            'transactions': [{
+                'id': 'order_Tq0ZgogHP8upGD',
+                'pg_transaction_id': 'pay_Tq0awsJn5nCvE8',
+                'type': 'razorpay',
+                'status': 'success',
+                'method': {'type': 'card'},
+            }],
+        },
+        'timestamp': '1790068200',
+    }
+
+
 def _invoice_rows(dynamo, h):
     return dynamo.Table(h.INVOICES_TABLE)
 
@@ -241,6 +264,33 @@ class TestCapturedBranchIsRetired:
         mark_paid.assert_not_called()
         gen_invoice.assert_not_called()
         assert dynamo.stores[h.INVOICES_TABLE][0]['status'] == 'pending'
+
+
+class TestLivePluralTransactionShape:
+    def test_plural_capture_preserves_gateway_evidence_in_message_record(self, handler_env):
+        h, dynamo = handler_env
+        h._process_payment_status(_live_plural_captured_event(), 'req-live-shape')
+
+        writes = dynamo.Table(h.MESSAGES_TABLE).put_calls
+        assert writes, 'payment event should still be stored for audit'
+        item = writes[-1]['Item']
+        assert item['transactionId'] == 'order_Tq0ZgogHP8upGD'
+        assert item['pgTransactionId'] == 'pay_Tq0awsJn5nCvE8'
+        assert item['transactionType'] == 'razorpay'
+        assert item['transactionStatus'] == 'success'
+        assert item['paymentMethodType'] == 'card'
+
+    def test_plural_failed_transaction_drives_effective_failure(self, handler_env):
+        h, dynamo = handler_env
+        event = _live_plural_captured_event()
+        event['status'] = 'pending'
+        event['payment']['transactions'][0]['status'] = 'failed'
+
+        with patch.object(h, '_send_order_status_message') as order_status:
+            h._process_payment_status(event, 'req-live-failed')
+
+        assert order_status.called
+        assert order_status.call_args.kwargs.get('order_status') == 'canceled'
 
 
 class TestNonFinancialPathsStillWork:
