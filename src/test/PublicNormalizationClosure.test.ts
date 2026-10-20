@@ -104,10 +104,10 @@ describe( 'Step 7 public normalization closure', () => {
     }
   } );
 
-  it( 'keeps Home and Contact as the only normal canonical routes without Policy Details', () => {
+  it( 'keeps Home as the only normal canonical route without Policy Details', () => {
     for ( const route of CANONICAL_PUBLIC ) {
       const policy = publicPolicyDetailsForRoute( route );
-      if ( route === '/' || route === '/contact' || EMBEDDED_POLICY_ROUTES.has( route ) ) {
+      if ( route === '/' || EMBEDDED_POLICY_ROUTES.has( route ) ) {
         expect( policy, route ).toBeNull();
       } else {
         expect( policy, route ).not.toBeNull();
@@ -218,6 +218,13 @@ describe( 'Step 7 public normalization closure', () => {
       // Requiring a literal "src/..." string would reject the correct pathlib form.
       expect( drift, file ).toContain( file.replace( /^src\//, '' ) );
     }
+  } );
+
+  it( 'keeps restored Shop and Request Pickup in the public structural audit fast-path', () => {
+    const pageaudit = read( 'tools/browser/pageaudit.js' );
+    expect( pageaudit ).toContain( "'/shop/'" );
+    expect( pageaudit ).toContain( "'/request-pickup/'" );
+    expect( pageaudit ).not.toContain( "the index was withdrawn" );
   } );
 
   it( 'keeps the built-export chrome gate on the same exact 42-route parser', () => {
