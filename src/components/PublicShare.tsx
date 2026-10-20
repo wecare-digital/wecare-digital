@@ -422,7 +422,6 @@ const PublicShare: React.FC<PublicShareProps> = ( {
         .ps-menu-name{display:block;color:var(--public-brand-green);font-size:17px;font-weight:700;line-height:1.25}
         .ps-menu-note{display:block;margin-top:3px;color:var(--public-muted);font-size:15px;font-weight:500;line-height:1.35}
         .ps-chevron{display:inline-block;font-size:20px;color:rgba(26,58,42,.55);transform:scaleX(1);transform-origin:center}
-:global([dir='rtl']) .ps-chevron{transform:scaleX(-1)}
         .ps-menu-item.is-copied .ps-menu-icon{background:var(--public-brand-lime)}
 
         .ps-sr-only,.ps-status{
@@ -442,6 +441,12 @@ const PublicShare: React.FC<PublicShareProps> = ( {
           .ps-action,.ps-tip{transition:none}
           .ps-action:hover{transform:none;box-shadow:none}
         }
+      `}</style>
+      <style jsx global>{`
+        /* Direction is a document-level state owned by SupportWidget. Keep this selector global:
+           scoped styled-jsx :global([dir]) did not match the shipped ancestor rule, so Chromium
+           computed transform:none even though the source declaration existed. */
+        html[dir='rtl'] .public-share .ps-chevron{transform:scaleX(-1)}
       `}</style>
     </section>
   );
