@@ -5,6 +5,7 @@
  * Supports search, filtering, detail panels, manual creation, and status updates.
  */
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/router';
 import MaybeLayout from '../../../components/MaybeLayout';
 import SEO, { PAGE_SEO } from '../../../components/SEO';
 import Modal from '../../../components/ui/Modal';
@@ -229,6 +230,7 @@ interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => {
   const toast = useToastContext();
   const confirmDanger = useConfirmDanger();
+  const router = useRouter();
 
   // Data
   const [ orders, setOrders ] = useState<api.Order[]>( [] );
@@ -241,6 +243,12 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
   const [ sourceFilter, setSourceFilter ] = useState( '' );
   const [ paymentFilter, setPaymentFilter ] = useState( '' );
   const [ page, setPage ] = useState( 1 );
+
+  useEffect( () => {
+    const raw = router.query.search;
+    const value = Array.isArray( raw ) ? raw[ 0 ] : raw;
+    if ( value ) { setSearch( value ); setPage( 1 ); }
+  }, [ router.query.search ] );
 
   // Detail panel
   const [ selectedOrder, setSelectedOrder ] = useState<api.Order | null>( null );
