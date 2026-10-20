@@ -1,5 +1,5 @@
 /** Public entry links open chat with a keyword; backend verifies identity before returning data. */
-import { REVIEW_ENTRY_URL } from '../lib/reviewEntry';
+import { REVIEW_ENTRY_URL, REVIEW_FLOW_ID } from '../lib/reviewEntry';
 export const WHATSAPP_SERVICE_ENTRIES = [
   { slug: 'orders', label: 'Orders', keyword: 'Orders', messageLink: 'https://wa.me/message/2OQZCYBSMU4SE1', flowId: '', state: 'Canonical customer order numbers; paginated' },
   { slug: 'submit-request', label: 'Submit Request', keyword: 'Submit Request', messageLink: 'https://wa.me/message/5DRZXKBJTZDQG1', flowId: '1107164111921876', state: 'Published; opens after verified payment' },
