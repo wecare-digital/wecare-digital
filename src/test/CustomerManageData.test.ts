@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCustomerDataReview } from '../components/workspace/customers/ManageData';
+import { buildCustomerDataReview, classifyMerge } from '../components/workspace/customers/ManageData';
 
 const contact = ( overrides: Record<string, unknown> ) => ( {
   contactId: 'c-default',
@@ -45,5 +45,38 @@ describe( 'Customers Manage Data review', () => {
     expect( review.missingPhone.map( c => c.contactId ) ).toEqual( [ 'missing-phone' ] );
     expect( review.invalidPhone.map( c => c.contactId ) ).toEqual( [ 'bad-phone' ] );
     expect( review.missingAddress.map( c => c.contactId ) ).toEqual( [ 'missing-address' ] );
+  } );
+} );
+
+describe( 'Reviewed merge classification (preview-first)', () => {
+  it( 'classifies an exact-identity, unlocked pair as safe and preserves everything', () => {
+    const preview = classifyMerge(
+      contact( { contactId: 'rich', customerUuid: 'WC-1', phone: '+918100000000', email: 'a@x.com' } ),
+      contact( { contactId: 'thin', customerUuid: '', phone: '+918100000000', email: 'a@x.com' } ),
+    );
+    expect( preview.classification ).toBe( 'safe' );
+    // The record carrying the Customer ID is chosen canonical.
+    expect( preview.canonical.contactId ).toBe( 'rich' );
+    expect( preview.alias.contactId ).toBe( 'thin' );
+    for ( const kept of [ 'Messages', 'Orders', 'Payments', 'Invoices', 'Consent history',
+      'Addresses', 'Service requests', 'Flow submissions', 'Notes', 'Provenance', 'Activity' ] ) {
+      expect( preview.preserved ).toContain( kept );
+    }
+  } );
+
+  it( 'routes a routing-identity disagreement to needs-review, never a silent merge', () => {
+    const preview = classifyMerge(
+      contact( { contactId: 'a', phone: '+918100000000', email: 'a@x.com' } ),
+      contact( { contactId: 'b', phone: '+919999999999', email: 'a@x.com' } ),
+    );
+    expect( preview.classification ).toBe( 'needs-review' );
+  } );
+
+  it( 'blocks a merge when either record is financially locked', () => {
+    const preview = classifyMerge(
+      contact( { contactId: 'paid', phone: '+918100000000', email: 'a@x.com', locked: true, lockedReason: 'paid' } ),
+      contact( { contactId: 'other', phone: '+918100000000', email: 'a@x.com' } ),
+    );
+    expect( preview.classification ).toBe( 'blocked-by-financial-history' );
   } );
 } );

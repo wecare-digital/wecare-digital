@@ -10,6 +10,7 @@ import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import { SkeletonTable } from '../../../components/Skeleton';
 import CustomerManageData from '../../../components/workspace/customers/ManageData';
+import ConsentPanel from '../../../components/workspace/customers/ConsentPanel';
 import { useToastContext } from '../../../contexts/ToastContext';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 import * as api from '../../../api/client';
@@ -1528,6 +1529,9 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
                   <button onClick={() => { const c = detailContact; setDetailContact(null); handleArchive(c.contactId, c.name); }} style={{ flex: 1, padding: '8px 12px', background: '#fff', color: 'var(--accent)', border: '2px solid var(--accent)', borderRadius: 13, fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer' }}>Archive</button>
                 </div>
 
+                {/* Consent evidence — consent is owned by the Customer (charter). */}
+                <ConsentPanel contactId={detailContact.contactId} />
+
                 {/* Activity Timeline */}
                 <ContactActivityTimeline phone={detailContact.phone} contactId={detailContact.contactId} createdAt={detailContact.createdAt} />
               </div>
@@ -1596,6 +1600,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
             setShowManageData(false);
             if (customer) setDetailContact(customer);
           }}
+          onMerged={() => { loadContacts(); }}
         />
       )}
 

@@ -1,35 +1,25 @@
 /**
- * Channel Settings — unified settings home: consent/opt-in overview (from ContactsTable),
- * sender identities, and deep links to each channel's own configuration.
+ * Channel Settings — unified settings home: sender identities and deep links to each channel's
+ * own configuration.
+ *
+ * FEAT-003: the old "opted in %" tiles were removed. They computed consent from the
+ * `optInWhatsApp`/`optInSms`/`optInEmail` booleans on ContactsTable, which is the anti-pattern
+ * the rebuild retires — a boolean has no provenance, is overwritable by an import, and conflates
+ * "never asked" with "opted out". Consent is now EVIDENCE owned by the Customer and lives per
+ * customer under Customers (`ConsentPanel`), backed by the append-only ledger. This page links
+ * there instead of printing a meaningless aggregate percentage.
  */
-import React, { useState, useEffect, useMemo } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import Layout from '../../../../components/Layout';
 import PageHeader from '../../../../components/PageHeader';
 import SEO from '../../../../components/SEO';
-import * as api from '../../../../api/client';
 import { colors } from '../../../../lib/design-tokens';
 import { WHATSAPP_PHONES } from '../../../../config/constants';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 const SettingsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
-    const [ contacts, setContacts ] = useState<api.Contact[]>( [] );
-
-    useEffect( () => { api.listContacts().then( setContacts ).catch( () => { } ); }, [] );
-
-    const consent = useMemo( () => {
-        const total = contacts.length || 1;
-        const wa = contacts.filter( c => c.optInWhatsApp || c.allowlistWhatsApp ).length;
-        const sms = contacts.filter( c => c.optInSms || c.allowlistSms ).length;
-        const email = contacts.filter( c => c.optInEmail || c.allowlistEmail ).length;
-        return [
-            { ch: 'WhatsApp', fg: '#15803d', bg: '#f0fdf4', n: wa, pct: Math.round( wa / total * 100 ) },
-            { ch: 'SMS', fg: '#1d4ed8', bg: '#eff6ff', n: sms, pct: Math.round( sms / total * 100 ) },
-            { ch: 'Email', fg: '#b45309', bg: '#fffbeb', n: email, pct: Math.round( email / total * 100 ) },
-        ];
-    }, [ contacts ] );
-
     const senders = [
         { ch: 'WhatsApp', id: `${WHATSAPP_PHONES.primary.name} · ${WHATSAPP_PHONES.primary.display}`, cfg: '/workspace/communications?view=manage&section=whatsapp' },
         { ch: 'WhatsApp', id: `${WHATSAPP_PHONES.secondary.name} · ${WHATSAPP_PHONES.secondary.display}`, cfg: '/workspace/communications?view=manage&section=whatsapp' },
@@ -51,19 +41,19 @@ const SettingsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
     const content = (
         <>
             <div className="st-wrap">
-                <PageHeader title="Channel Settings" subtitle="Consent, sender identities & per-channel configuration" icon="settings" />
+                <PageHeader title="Channel Settings" subtitle="Sender identities & per-channel configuration" icon="settings" />
 
-                <div className="st-section">Consent / opt-in ({ contacts.length } contacts)</div>
-                <div className="st-consent">
-                    { consent.map( c => (
-                        <div key={ c.ch } className="st-consent-card">
-                            <span className="st-pill" style={ { color: c.fg, background: c.bg } }>{ c.ch }</span>
-                            <div className="st-consent-num">{ c.n }</div>
-                            <div className="st-consent-bar"><div style={ { width: `${c.pct}%`, background: c.fg } } /></div>
-                            <div className="st-consent-pct">{ c.pct }% opted in</div>
-                        </div>
-                    ) ) }
-                </div>
+                <div className="st-section">Consent</div>
+                <Link href="/workspace/customers" className="st-consent-link">
+                    <span className="st-consent-title">Consent is evidence, owned by the customer</span>
+                    <p className="st-consent-desc">
+                        Per-channel consent — opted in, opted out, or pending — is recorded as timestamped,
+                        sourced, referenced evidence with full history, not a boolean. Open a customer under
+                        Customers to view and record consent evidence. An import can carry existing evidence
+                        only; it can never manufacture an opt-in.
+                    </p>
+                    <span className="st-consent-cta">Open Customers →</span>
+                </Link>
 
                 <div className="st-section">Sender identities</div>
                 <div className="st-senders">
@@ -88,13 +78,11 @@ const SettingsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
             <style jsx>{ `
                 .st-wrap { padding: 20px; max-width: 1000px; margin: 0 auto; }
                 .st-section { font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; color: ${colors.textMuted}; margin: 22px 0 10px; }
-                .st-consent { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
-                .st-consent-card { border: 1px solid ${colors.border}; border-radius: 12px; padding: 14px; background: #fff; }
-                .st-pill { font-size: var(--text-xs); font-weight: 700; padding: 3px 9px; border-radius: 9999px; }
-                .st-consent-num { font-size: var(--text-3xl); font-weight: 700; color: ${colors.text}; margin: 8px 0 4px; }
-                .st-consent-bar { height: 8px; background: ${colors.bgSecondary}; border-radius: 9999px; overflow: hidden; }
-                .st-consent-bar div { height: 100%; border-radius: 9999px; }
-                .st-consent-pct { font-size: var(--text-xs); color: ${colors.textMuted}; margin-top: 4px; }
+                .st-consent-link { display: block; border: 1px solid ${colors.border}; border-radius: 12px; padding: 16px; background: #fff; text-decoration: none; }
+                .st-consent-link:hover { border-color: ${colors.primary}; }
+                .st-consent-title { font-size: var(--text-md); font-weight: 700; color: ${colors.text}; }
+                .st-consent-desc { font-size: var(--text-sm); color: ${colors.textSecondary}; margin: 6px 0 8px; line-height: 1.5; max-width: 680px; }
+                .st-consent-cta { font-size: var(--text-sm); font-weight: 700; color: ${colors.primary}; }
                 .st-senders { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
                 .st-sender { display: flex; flex-direction: column; gap: 2px; border: 1px solid ${colors.border}; border-radius: 10px; padding: 12px; background: #fff; text-decoration: none; }
                 .st-sender:hover { border-color: ${colors.primary}; }

@@ -592,6 +592,94 @@ export async function mergeContacts (
   } );
 }
 
+// ============================================================================
+// CONSENT EVIDENCE API
+// ----------------------------------------------------------------------------
+// Consent is an append-only ledger of EVIDENCE records, not the legacy opt-in booleans. A read
+// derives the current per-channel state from the ledger; an append layers a record on top and
+// never rewrites history; an import ingests EXISTING evidence only and can never manufacture an
+// opt-in for an address book. These mirror `lambda_utils.identity.consent` on the backend.
+// ============================================================================
+
+export type ConsentChannel = 'WHATSAPP' | 'SMS' | 'EMAIL' | 'RCS' | 'VOICE' | 'PUSH';
+export type ConsentState = 'OPTED_IN' | 'OPTED_OUT' | 'PENDING';
+export type ConsentPurpose = 'MARKETING' | 'TRANSACTIONAL' | 'SERVICE';
+
+export interface ConsentRecord {
+  channel: ConsentChannel;
+  state: ConsentState;
+  source: string;
+  at: number;
+  purpose: ConsentPurpose;
+  reference?: string;
+  expiry?: number;
+}
+
+export interface ConsentChannelSummary {
+  state: ConsentState;
+  latestRecordState: ConsentState;
+  source: string;
+  at: number;
+  purpose: ConsentPurpose;
+  reference: string;
+  expiry?: number | null;
+  history: number;
+  sendable: boolean;
+}
+
+export interface ConsentView {
+  contactId: string;
+  ledger: ConsentRecord[];
+  summary: Partial<Record<ConsentChannel, ConsentChannelSummary>>;
+}
+
+/** The append-only consent ledger plus the derived per-channel summary for one contact. */
+export async function getConsent ( contactId: string ): Promise<ApiResult<ConsentView>> {
+  return apiCallResult<ConsentView>(
+    `${API_BASE}/contacts?consent=${encodeURIComponent( contactId )}` );
+}
+
+/**
+ * Append ONE consent evidence record. Never a casual boolean flip: the record must name a
+ * channel, a state (OPTED_IN / OPTED_OUT / PENDING), a source and a purpose. The append layers
+ * onto the ledger so prior evidence survives.
+ */
+export async function appendConsent (
+  contactId: string,
+  record: {
+    channel: ConsentChannel;
+    state: ConsentState;
+    source: string;
+    purpose?: ConsentPurpose;
+    reference?: string;
+    expiry?: number;
+  },
+): Promise<ApiResult<ConsentView>> {
+  return apiCallResult<ConsentView>( `${API_BASE}/contacts`, {
+    method: 'POST',
+    body: JSON.stringify( { _action: 'consent_append', contactId, ...record } ),
+  } );
+}
+
+export interface ConsentImportResult extends ConsentView {
+  imported: number;
+  refused: { index: number; reason: string }[];
+}
+
+/**
+ * Import EXISTING consent evidence. A row claiming OPTED_IN must name the originating source and
+ * an evidence reference or it is refused; an address book can never manufacture an opt-in.
+ */
+export async function importConsent (
+  contactId: string,
+  records: Record<string, unknown>[],
+): Promise<ApiResult<ConsentImportResult>> {
+  return apiCallResult<ConsentImportResult>( `${API_BASE}/contacts`, {
+    method: 'POST',
+    body: JSON.stringify( { _action: 'consent_import', contactId, records } ),
+  } );
+}
+
 function normalizeContact ( item: any ): Contact {
   return {
     id: item.id || item.contactId || '',

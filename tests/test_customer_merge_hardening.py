@@ -116,3 +116,23 @@ def test_merge_actor_is_verified_middleware_context_not_request_body():
 def test_customer_merge_is_registered_in_audit_vocabulary():
     audit = (ROOT / "amplify/functions/shared/lambda_utils/audit.py").read_text()
     assert "'customer.merge'" in audit
+
+
+def test_merge_never_rewrites_consent_or_financial_history():
+    """FEAT-003: the reviewed merge preserves consent/financial history. The merge code removes
+    ONLY the three indexed identities from the source and writes nothing to any consent ledger,
+    opt-in flag, order/invoice/payment table, so a historic reference keeps a durable row."""
+    source = (ROOT / "amplify/functions/core/contacts/handler.py").read_text()
+    merge = source[source.index("def _merge_contacts"):source.index("# ─── CREATE")]
+    # Strip the docstring: it legitimately NAMES the tables it promises not to touch.
+    body = merge[merge.index('"""', merge.index('"""') + 3) + 3:]
+    # The source alias is RETAINED, not deleted, and only the index keys are removed.
+    assert "REMOVE phone, email, bsuid" in body
+    assert "preservedFinancialHistory" in body
+    # No consent ledger / opt-in flag is written in the merge body, and no Table() is opened for
+    # a money table - only the ContactsTable is touched.
+    for forbidden in ("consentLedger", "optInWhatsApp", "optInSms", "optInEmail"):
+        assert forbidden not in body, f"merge must not write {forbidden}"
+    assert "dynamodb.Table(ORDERS_TABLE)" not in body
+    assert "dynamodb.Table(INVOICES_TABLE)" not in body
+    assert "PAYMENTS_TABLE" not in body
