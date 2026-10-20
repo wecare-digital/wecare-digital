@@ -448,7 +448,7 @@ function asymmetries ( ltr, rtl, tolerance ) {
    */
   {
     console.log( '\n--- print and zoom (mirrored) ---' );
-    const subset = [ '/', '/grahak-os/', '/admin/' ].filter( r => routes.includes( r ) );
+    const subset = [ '/', '/grahak-os/', '/vayulok/', '/admin/' ].filter( r => routes.includes( r ) );
 
     for ( const r of subset ) {
       // PRINT. A print stylesheet that hides the widget must still not leave the page
