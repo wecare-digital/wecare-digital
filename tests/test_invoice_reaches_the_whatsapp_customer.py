@@ -443,35 +443,39 @@ def test_a_deduplicated_invoice_is_still_delivered(webhook, fake):
     assert not any('generate-pdf' in c for c in recorder.calls)
 
 
-def test_a_website_origin_capture_sends_no_whatsapp_invoice(webhook, fake):
-    """T-I3. A website order's receipt is not ours to send."""
+def test_a_website_origin_capture_sends_the_invoice_template_to_verified_whatsapp(webhook, fake):
+    """Website checkout uses WhatsApp OTP identity, so its server-owned phone receives the receipt."""
     recorder = _InvokeRecorder()
     _post_payment(webhook, recorder, fake, channel='website',
                   checkout_mode='WEBSITE_RAZORPAY_STANDARD')
-    assert not any('send-whatsapp' in c for c in recorder.calls)
+    assert any('send-whatsapp' in call for call in recorder.calls)
 
 
-def test_a_catalogue_origin_capture_sends_no_whatsapp_invoice(webhook, fake):
-    """T-I14, and the boundary that would otherwise drift.
-
-    A catalogue order is `channel=whatsapp` but settles through the WEBSITE leg, whose own
-    receipt path owns delivery. Gating on the channel ALONE would newly send a document to
-    catalogue customers who receive none today - a behaviour change to an existing live leg,
-    arriving as a side effect. The gate is on BOTH conditions, so this is closed by construction
-    rather than by a list of exceptions.
-    """
+def test_a_catalogue_origin_capture_also_sends_the_invoice_template(webhook, fake):
+    """Channel/mechanics do not suppress a paid receipt once a verified recipient exists."""
     recorder = _InvokeRecorder()
     _post_payment(webhook, recorder, fake, channel='whatsapp',
                   checkout_mode='WEBSITE_RAZORPAY_STANDARD')
-    assert not any('send-whatsapp' in c for c in recorder.calls)
+    assert any('send-whatsapp' in call for call in recorder.calls)
 
 
-def test_an_absent_checkout_mode_closes_the_gate(webhook, fake):
-    """The legacy settlement row has no `PAYREF#` row at all, so it carries no mode. Defaulting
-    to `''` is the fail-closed direction."""
+def test_an_absent_checkout_mode_does_not_suppress_a_verified_receipt(webhook, fake):
+    """Checkout mode is no longer the delivery gate; the resolved verified recipient is."""
     recorder = _InvokeRecorder()
-    _post_payment(webhook, recorder, fake, channel='whatsapp', checkout_mode='')
-    assert not any('send-whatsapp' in c for c in recorder.calls)
+    _post_payment(webhook, recorder, fake, channel='website', checkout_mode='')
+    assert any('send-whatsapp' in call for call in recorder.calls)
+
+
+def test_no_verified_recipient_means_no_whatsapp_receipt(webhook, fake):
+    """The universal rule never falls back to a browser/body phone."""
+    recorder = _InvokeRecorder()
+    with patch.object(webhook, 'lambda_client', recorder),          patch.object(webhook, 'dynamodb') as ddb,          patch.object(webhook, 'COMMERCE_KEYS_TABLE', KEYS):
+        ddb.Table.side_effect = fake.Table
+        webhook._post_payment_handler(
+            'pay_X', '', 'a@b.c', 'Service Fee', {}, 'req-pp',
+            channel='website', customer_uuid='', checkout_mode='WEBSITE_RAZORPAY_STANDARD',
+            originating_phone_id=WABA1, reference_id='WD-PAY-DELIV01')
+    assert not any('send-whatsapp' in call for call in recorder.calls)
 
 
 def test_the_post_payment_handler_takes_no_float_amount(webhook):
