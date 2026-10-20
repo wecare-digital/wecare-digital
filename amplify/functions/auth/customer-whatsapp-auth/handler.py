@@ -41,8 +41,10 @@ SENDER_FUNCTION = os.environ.get(
 # documented env contract, but it is no longer what the gate compares against - see
 # `_load_waba_map`. `os.environ.get` rather than `os.environ[...]` because an absent key
 # must not turn a missed env apply into an import-time crash of every sign-in.
-META_WABA_ID = os.environ.get("META_WABA_ID", "")
-META_PHONE_NUMBER_ID = os.environ.get("META_PHONE_NUMBER_ID", "")
+PRIMARY_WABA_ID = "2094615664435155"
+PRIMARY_PHONE_NUMBER_ID = "1016149501586345"
+META_WABA_ID = os.environ.get("META_WABA_ID", PRIMARY_WABA_ID)
+META_PHONE_NUMBER_ID = os.environ.get("META_PHONE_NUMBER_ID", PRIMARY_PHONE_NUMBER_ID)
 TEMPLATE_NAME = os.environ.get("OTP_TEMPLATE_NAME", "wecare_otp")
 TEMPLATE_LANGUAGE = os.environ.get("OTP_TEMPLATE_LANGUAGE", "en")
 OTP_TTL_SECONDS = int(os.environ.get("OTP_TTL_SECONDS", "600"))
@@ -127,7 +129,9 @@ def _load_waba_map() -> dict:
                     continue
                 key = str(waba_id or "")
                 phone_number_id = str(entry.get("phone_number_id") or "")
-                if not key or not phone_number_id:
+                # OTP is transaction-channel traffic. Only the WECARE.DIGITAL transaction
+                # identity may send it, even if a stale/mistaken environment map lists more.
+                if key != PRIMARY_WABA_ID or phone_number_id != PRIMARY_PHONE_NUMBER_ID:
                     continue
                 routes[key] = {
                     "waba_id": key,
@@ -140,13 +144,13 @@ def _load_waba_map() -> dict:
     if routes:
         return routes
 
-    if META_WABA_ID and META_PHONE_NUMBER_ID:
+    if META_WABA_ID == PRIMARY_WABA_ID and META_PHONE_NUMBER_ID == PRIMARY_PHONE_NUMBER_ID:
         print(json.dumps({"event": "waba_map_fallback_to_legacy_env",
                           "wabaId": _loggable_waba(META_WABA_ID)}))
         return {
-            META_WABA_ID: {
-                "waba_id": META_WABA_ID,
-                "phone_number_id": META_PHONE_NUMBER_ID,
+            PRIMARY_WABA_ID: {
+                "waba_id": PRIMARY_WABA_ID,
+                "phone_number_id": PRIMARY_PHONE_NUMBER_ID,
                 "template_name": TEMPLATE_NAME,
                 "template_language": TEMPLATE_LANGUAGE,
             }
