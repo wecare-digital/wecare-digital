@@ -32,39 +32,16 @@ PAYMENT_AMOUNT = 0
 
 
 def handle_init(data: Dict, flow_token: str, request_id: str) -> Dict:
-    """INIT → show the current contact/profile values for the new Subscribe design."""
-    phone = get_phone_from_token(flow_token)
-    contact_id = find_contact_by_phone(phone)
-    contact = {}
-    if contact_id:
-        try:
-            contact = dynamodb.Table(CONTACTS_TABLE).get_item(
-                Key={'id': contact_id}, ConsistentRead=True
-            ).get('Item') or {}
-        except Exception as exc:
-            logger.warning(f'Subscribe profile prefill failed: {exc}')
-    return {
-        'screen': 'PROFILE',
-        'data': {
-            'phone_number': str(contact.get('phone') or phone or ''),
-            'full_name': str(contact.get('name') or ''),
-            'email_address': str(contact.get('email') or ''),
-            'company_name': str(contact.get('companyName') or contact.get('contactBookName') or ''),
-            'designation': str(contact.get('designation') or ''),
-            'address_line1': str(contact.get('addressLine1') or contact.get('shippingAddress') or ''),
-            'city': str(contact.get('city') or ''),
-            'state': str(contact.get('state') or ''),
-            'postal_code': str(contact.get('postalCode') or ''),
-            'country': str(contact.get('country') or 'India'),
-            'opt_in_whatsapp': bool(contact.get('optInWhatsApp', False)),
-            'opt_in_email': bool(contact.get('optInEmail', False)),
-            'opt_in_sms': bool(contact.get('optInSms', False)),
-        },
-    }
+    """Prefill the selected Subscribe draft from the canonical customer record."""
+    from flows import subscribe_profile
+    return subscribe_profile.handle_init(data, flow_token, request_id)
 
 
 def handle_review(data: Dict, flow_token: str, request_id: str) -> Dict:
     """REVIEW screen → save contact + subscription, return COMPLETE."""
+    if str(data.get('profile_version') or '') == '3':
+        from flows import subscribe_profile
+        return subscribe_profile.handle_review(data, flow_token, request_id)
     # New profile/preferences design: update only the customer-editable profile and
     # opt-in fields. allowlist* stays operator/system-owned and is never written here.
     if str(data.get('profile_version') or '') == '2':
