@@ -75,6 +75,13 @@ def render(invoice, items, *, company, font_path, ist_strftime, canonical_status
     if invoice.get('invoiceNumber'):
         pair('Invoice No:', invoice['invoiceNumber'])
     pair('Order ID:', invoice.get('orderId') or invoice.get('referenceId') or '')
+    reference = str(invoice.get('referenceId') or '')
+    trace = reference[7:] if reference.startswith('WD-PAY-') else reference
+    if trace:
+        pair('Payment Ref:', trace, small)
+    gateway_payment = str(invoice.get('providerPaymentId') or invoice.get('paymentId') or '')
+    if gateway_payment:
+        pair('Razorpay Txn:', gateway_payment, small)
     pair('Date:', ist_strftime('%d-%m-%Y', epoch))
     pair('Time:', ist_strftime('%H:%M IST', epoch))
     pair('Status:', 'PAID' if status == 'CAPTURED' else status or 'PENDING', heading)

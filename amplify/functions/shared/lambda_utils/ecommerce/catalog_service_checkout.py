@@ -105,7 +105,7 @@ def payment_details(row: dict, quote: Any, reference_id: str, configuration: str
 
 def meta_ready(readiness: dict, kind: str) -> bool:
     templates = readiness.get('templates') or {}
-    for name in ('wecarepay_wa', 'wecare_leave_review', 'wecare_default_download'):
+    for name in ('wecare_whatapp_native_pay_template', 'wecare_leave_review', 'wecare_default_download'):
         template = templates.get(name) or {}
         if template.get('name') != name or not template_status.is_sendable(template.get('status')) or template.get('language') != 'en':
             return False
