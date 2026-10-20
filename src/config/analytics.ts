@@ -46,6 +46,31 @@ export const GOOGLE_ANALYTICS = {
    * snippet - NEXT_PUBLIC_GA_MEASUREMENT_ID still has to be set separately.
    */
   propertyId: '550346663',
+  /**
+   * GA4 data-stream identifiers for the WECARE.DIGITAL stream (URL https://wecare.digital).
+   *
+   * `measurementId` is the authoritative GA4 data-stream id for this property, and
+   * `streamId` is the numeric data-stream id. They are recorded here as the canonical
+   * reference, but they are DELIBERATELY NOT wired as a second direct gtag.js tag: all
+   * Google tags fire exclusively through the GTM container GTM-TXZ8JT78 (see
+   * _document.tsx). Dropping G-6GW8JXKKT7 into a direct gtag snippet would double-count
+   * pageviews and fail the tag gate. Making the container actually fire this id is a
+   * GTM/Tag-Manager-side change, performed outside this repo.
+   */
+  measurementId: 'G-6GW8JXKKT7',
+  streamId: '16126298947',
+} as const;
+
+/**
+ * Google Merchant Center account identifier for product feed / Shopping.
+ *
+ * A non-secret account identifier, not a credential - it names the Merchant Center
+ * account the way other GOOGLE_* ids name their accounts. `displayId` is the
+ * human-readable merchant handle shown in the Merchant Center UI.
+ */
+export const GOOGLE_MERCHANT_CENTER = {
+  merchantId: '5841142064',
+  displayId: 'wecare.digital',
 } as const;
 
 export const GOOGLE_BUSINESS_PROFILE = {
@@ -92,12 +117,16 @@ export const META_AD_ACCOUNTS = {
  * The older ids 1607047307067517 and 1088514403989109 are RETIRED - they name catalogues
  * this property no longer syncs, and they survive only in dated evidence under docs/.
  *
+ * `catalogName` is the human-readable handle for the catalogue whose numeric id is
+ * `catalogId` above; it is the WhatsApp/Meta catalogue name, not an alternate id.
+ *
  * `appId` mirrors the META_APP_ID default the five WhatsApp handlers carry.
  */
 export const META = {
   pixelId: process.env.NEXT_PUBLIC_META_PIXEL_ID ?? '3411484995761247',
   datasetId: '4554612361454941',
   catalogId: '1457045652952851',
+  catalogName: 'wecare_shop',
   appId: '2238810740192680',
 } as const;
 

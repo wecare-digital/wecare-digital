@@ -1132,13 +1132,15 @@ export default function App ( { Component, pageProps }: AppProps ) {
         ) }
         {/* NO DIRECT gtag.js HERE - BY POLICY, and it was being violated.
             _document.tsx states that all Google tracking on this property is delivered
-            exclusively through the GTM container, which itself fires GA4
-            (G-GNRPFFBXMF) and Google Ads (AW-18396505964), and that adding a direct
-            snippet alongside it double-counts every pageview and conversion.
-            This file was doing exactly that. Measured in a browser, the home page
-            requested gtag/js FOUR times: G-S3G6REP6Q7 bare from the snippet that used
-            to be here, plus AW-18396505964, G-GNRPFFBXMF and G-S3G6REP6Q7 again from
-            the container. So G-S3G6REP6Q7 was loaded twice on every page view.
+            exclusively through the GTM container, which fires GA4 (authoritative
+            Measurement ID G-6GW8JXKKT7) and Google Ads (AW-18396505964), and that
+            adding a direct snippet alongside it double-counts every pageview and
+            conversion.
+            This file was doing exactly that. Measured in a browser at the time, the
+            home page requested gtag/js FOUR times: G-S3G6REP6Q7 bare from the snippet
+            that used to be here, plus AW-18396505964, the container's then-served GA4
+            id G-GNRPFFBXMF, and G-S3G6REP6Q7 again from the container. So G-S3G6REP6Q7
+            was loaded twice on every page view.
             The snippet is injected client-side by next/script, so it never appeared in
             the static HTML and could not be found by grepping the export - only a
             request log shows it. tagcheck.js now asserts the container loads once and
@@ -1231,13 +1233,15 @@ export default function App ( { Component, pageProps }: AppProps ) {
       </Head>
         {/* NO DIRECT gtag.js HERE - BY POLICY, and it was being violated.
             _document.tsx states that all Google tracking on this property is delivered
-            exclusively through the GTM container, which itself fires GA4
-            (G-GNRPFFBXMF) and Google Ads (AW-18396505964), and that adding a direct
-            snippet alongside it double-counts every pageview and conversion.
-            This file was doing exactly that. Measured in a browser, the home page
-            requested gtag/js FOUR times: G-S3G6REP6Q7 bare from the snippet that used
-            to be here, plus AW-18396505964, G-GNRPFFBXMF and G-S3G6REP6Q7 again from
-            the container. So G-S3G6REP6Q7 was loaded twice on every page view.
+            exclusively through the GTM container, which fires GA4 (authoritative
+            Measurement ID G-6GW8JXKKT7) and Google Ads (AW-18396505964), and that
+            adding a direct snippet alongside it double-counts every pageview and
+            conversion.
+            This file was doing exactly that. Measured in a browser at the time, the
+            home page requested gtag/js FOUR times: G-S3G6REP6Q7 bare from the snippet
+            that used to be here, plus AW-18396505964, the container's then-served GA4
+            id G-GNRPFFBXMF, and G-S3G6REP6Q7 again from the container. So G-S3G6REP6Q7
+            was loaded twice on every page view.
             The snippet is injected client-side by next/script, so it never appeared in
             the static HTML and could not be found by grepping the export - only a
             request log shows it. tagcheck.js now asserts the container loads once and

@@ -13,10 +13,12 @@ import { META } from '../config/analytics';
  * GOOGLE TAGS — single-layer policy.
  * Google tracking on this property is delivered EXCLUSIVELY through the GTM
  * container below. Do not add a direct gtag.js / GA4 / Google Ads snippet
- * here or in any page: the container already fires GA4 (G-GNRPFFBXMF) and
- * Google Ads (AW-18396505964). Adding a direct tag alongside the container
- * double-counts every pageview and conversion — which is the exact defect
- * the old wecare.digital property had.
+ * here or in any page: the container already fires GA4 (authoritative
+ * Measurement ID G-6GW8JXKKT7) and Google Ads (AW-18396505964). Adding a
+ * direct tag alongside the container double-counts every pageview and
+ * conversion — which is the exact defect the old wecare.digital property had.
+ * Which GA4 id the container fires is configured in Tag Manager (out of repo),
+ * so updating it is a GTM-side action, not a code change here.
  *
  * Set NEXT_PUBLIC_GTM_ID to '' to disable all Google tracking at build time.
  */
