@@ -421,7 +421,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
         .ps-menu-copy{min-width:0}
         .ps-menu-name{display:block;color:var(--public-brand-green);font-size:17px;font-weight:700;line-height:1.25}
         .ps-menu-note{display:block;margin-top:3px;color:var(--public-muted);font-size:15px;font-weight:500;line-height:1.35}
-        .ps-chevron{font-size:20px;color:rgba(26,58,42,.55);transform:scaleX(1);transform-origin:center}
+        .ps-chevron{display:inline-block;font-size:20px;color:rgba(26,58,42,.55);transform:scaleX(1);transform-origin:center}
 :global([dir='rtl']) .ps-chevron{transform:scaleX(-1)}
         .ps-menu-item.is-copied .ps-menu-icon{background:var(--public-brand-lime)}
 
