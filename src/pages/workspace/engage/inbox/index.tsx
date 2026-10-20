@@ -1463,7 +1463,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
         .ui-toolbar { display: flex; gap: 12px; margin: 10px 0; flex-shrink: 0; }
         .ui-search { flex: 1; padding: 9px 14px; border: 1px solid ${colors.border}; border-radius: 10px; font-size: var(--text-md); }
         .ui-filter { padding: 9px 12px; border: 1px solid ${colors.border}; border-radius: 10px; font-size: var(--text-sm); background: #fff; }
-        .ui-panes { display: grid; grid-template-columns: 340px 1fr; gap: 16px; height: calc(100vh - 168px); min-height: 460px; overflow: hidden; }
+        .ui-panes { display: grid; grid-template-columns: 340px 1fr; gap: 16px; height: calc(100dvh - 168px); min-height: 460px; overflow: hidden; }
         .ui-list { border: 1px solid ${colors.border}; border-radius: 12px; overflow-y: auto; background: #fff; min-height: 0; }
         .ui-conv { display: block; width: 100%; text-align: left; padding: 12px 14px; border: none; border-bottom: 1px solid ${colors.borderLight}; background: #fff; cursor: pointer; }
         .ui-conv:hover { background: ${colors.bgHover}; }
@@ -1477,13 +1477,13 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
         .ui-badge { font-size: var(--text-xs); font-weight: 600; padding: 2px 7px; border-radius: 9999px; white-space: nowrap; }
         .ui-thread { border: 1px solid ${colors.border}; border-radius: 12px; display: flex; flex-direction: column; background: #fff; overflow: hidden; min-height: 0; }
         .ui-thread-head { padding: 12px 16px; border-bottom: 1px solid ${colors.border}; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-        .ui-back { display: none; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid ${colors.border}; border-radius: 8px; background: #fff; color: ${colors.primary}; font-size: var(--h4); cursor: pointer; flex-shrink: 0; }
+        .ui-back { display: none; align-items: center; justify-content: center; width: 44px; height: 44px; min-width:44px; min-height:44px; border: 1px solid ${colors.border}; border-radius: 8px; background: #fff; color: ${colors.primary}; font-size: var(--h4); cursor: pointer; flex-shrink: 0; }
         .ui-thread-name { font-weight: 700; font-size: var(--text-md); color: ${colors.text}; }
         .ui-avatar { width: 38px; height: 38px; border-radius: 50%; background: ${colors.primary}; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: var(--text-sm); font-weight: 700; flex-shrink: 0; }
         .ui-thread-id { display: flex; flex-direction: column; min-width: 0; }
         .ui-thread-sub { font-size: var(--text-xs); color: ${colors.textMuted}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .ui-id-chip { display: inline-block; margin-left: 6px; font-size: var(--text-xs); font-weight: 600; color: ${colors.primary}; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 9999px; padding: 1px 7px; cursor: help; }
-        .ui-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid ${colors.border}; border-radius: 8px; background: #fff; color: ${colors.primary}; cursor: pointer; flex-shrink: 0; }
+        .ui-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; min-width:44px; min-height:44px; border: 1px solid ${colors.border}; border-radius: 8px; background: #fff; color: ${colors.primary}; cursor: pointer; flex-shrink: 0; }
         .ui-icon-btn:hover { background: ${colors.bgHover}; border-color: ${colors.primary}; }
         .ui-icon-danger { color: #b91c1c; }
         .ui-icon-danger:hover { background: #fef2f2; border-color: #b91c1c; }
@@ -1493,7 +1493,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
         /* The six .ui-cat-* rules were here. They styled only the removed product picker,
            and nothing else in the tree references them. Lint does not flag dead CSS, so
            they would have survived the TSX deletion silently. */
-        .ui-summarize { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; background: #f0fdf4; color: ${colors.primary}; border: 1px solid #bbf7d0; padding: 6px 12px; border-radius: 9px; font-size: var(--text-xs); font-weight: 600; cursor: pointer; }
+        .ui-summarize { min-height:44px; display: inline-flex; align-items: center; gap: 5px; margin-left: auto; background: #f0fdf4; color: ${colors.primary}; border: 1px solid #bbf7d0; padding: 6px 12px; border-radius: 9px; font-size: var(--text-xs); font-weight: 600; cursor: pointer; }
         .ui-summarize:disabled { opacity: 0.6; cursor: not-allowed; }
         .ui-summary { display: flex; gap: 8px; align-items: flex-start; background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 10px; padding: 10px 12px; margin: 8px 16px 0; }
         .ui-summary-text { font-size: var(--text-sm); color: ${colors.text}; white-space: pre-wrap; flex: 1; }
@@ -1502,14 +1502,14 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
         .ui-meta-status { padding: 6px 10px; border: 1px solid ${colors.border}; border-radius: 8px; font-size: var(--text-xs); background: #fff; }
         .ui-meta-assignee { width: 130px; padding: 6px 10px; border: 1px solid ${colors.border}; border-radius: 8px; font-size: var(--text-xs); }
         .ui-meta-tags { flex: 1; min-width: 120px; padding: 6px 10px; border: 1px solid ${colors.border}; border-radius: 8px; font-size: var(--text-xs); }
-        .ui-meta-notes-btn { padding: 6px 12px; border: 1px solid ${colors.border}; border-radius: 8px; background: #fff; font-size: var(--text-xs); cursor: pointer; }
+        .ui-meta-notes-btn { min-height:44px; padding: 8px 12px; border: 1px solid ${colors.border}; border-radius: 8px; background: #fff; font-size: var(--text-xs); cursor: pointer; }
         .ui-notes { padding: 10px 16px; border-bottom: 1px solid ${colors.borderLight}; background: ${colors.bgSecondary}; display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto; }
         .ui-note { display: flex; flex-direction: column; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 6px 10px; }
         .ui-note-text { font-size: var(--text-sm); color: ${colors.text}; }
         .ui-note-by { font-size: var(--text-xs); color: ${colors.textMuted}; margin-top: 2px; }
         .ui-note-add { display: flex; gap: 8px; }
         .ui-note-input { flex: 1; padding: 7px 10px; border: 1px solid ${colors.border}; border-radius: 8px; font-size: var(--text-sm); }
-        .ui-note-btn { padding: 7px 14px; background: ${colors.primary}; color: #fff; border: none; border-radius: 8px; font-size: var(--text-xs); font-weight: 600; cursor: pointer; }
+        .ui-note-btn { min-height:44px; padding: 8px 14px; background: ${colors.primary}; color: #fff; border: none; border-radius: 8px; font-size: var(--text-xs); font-weight: 600; cursor: pointer; }
         .ui-note-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .ui-thread-body { flex: 1; overflow-y: auto; scroll-behavior: smooth; padding: 16px; display: flex; flex-direction: column; gap: 10px; background: ${colors.bgSecondary}; min-height: 200px; }
         .ui-msg { display: flex; }
@@ -1630,9 +1630,17 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
         .ui-link-btn { background: none; border: none; padding: 0; font: inherit; color: ${colors.primary}; text-decoration: underline; cursor: pointer; }
         .ui-link-btn:hover { color: ${colors.primaryHover}; }
         @media (max-width: 800px) {
-          .ui-wrap { height: calc(100vh - 56px); padding: 10px 12px; }
-          .ui-toolbar { margin: 8px 0; }
-          .ui-panes { grid-template-columns: 1fr; height: calc(100vh - 120px); min-height: 0; }
+          .ui-wrap {
+            height: calc(100dvh - 56px - env(safe-area-inset-top,0px));
+            padding:
+              10px max(12px,env(safe-area-inset-right,0px))
+              calc(76px + env(safe-area-inset-bottom,0px))
+              max(12px,env(safe-area-inset-left,0px));
+          }
+          .ui-toolbar { margin: 8px 0; flex-wrap:wrap; }
+          .ui-toolbar > * { min-width:0; }
+          .ui-search { flex:1 1 180px; min-width:0; }
+          .ui-panes { grid-template-columns: 1fr; height: calc(100dvh - 196px - env(safe-area-inset-bottom,0px)); min-height: 0; }
           /* Master/detail: show the list OR the thread, not both. */
           .ui-panes .ui-thread { display: none; }
           .ui-panes .ui-list { display: block; }
@@ -1640,8 +1648,22 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
           .ui-panes.has-selection .ui-thread { display: flex; }
           .ui-back { display: inline-flex; }
           .ui-msg-bubble { max-width: 85%; }
-          .ui-meta-bar { gap: 6px; }
-          .ui-meta-assignee, .ui-meta-tags { width: auto; flex: 1; min-width: 90px; }
+          .ui-meta-bar { gap: 6px; padding-inline:12px; }
+          .ui-meta-assignee, .ui-meta-tags { width: auto; flex: 1 1 120px; min-width: 0; }
+          .ui-thread-head{padding:8px 10px}
+          .ui-msg-bubble{overflow-wrap:anywhere;word-break:break-word}
+          .ui-note-add{flex-wrap:wrap}
+          .ui-note-input{flex:1 1 160px;min-width:0}
+          .ui-pay-row{flex-wrap:wrap}
+          .ui-pay-row > *{min-width:0}
+        }
+        @media(max-width:340px){
+          .ui-wrap{padding-inline:8px}
+          .ui-toolbar{gap:8px}
+          .ui-search{flex-basis:100%}
+          .ui-thread-head{gap:6px}
+          .ui-avatar{width:34px;height:34px}
+          .ui-msg-bubble{max-width:92%}
         }
       ` }</style>
         </>

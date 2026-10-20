@@ -148,7 +148,7 @@ const ResponsesQueue: React.FC<ResponsesQueueProps> = ( { lockCapability } ) => 
         partial={partial}
         onRetry={load}
       >
-        <div style={{ overflowX: 'auto', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12 }}>
+        <div className="service-responses-table" style={{ overflowX: 'auto', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
@@ -190,12 +190,85 @@ const ResponsesQueue: React.FC<ResponsesQueueProps> = ( { lockCapability } ) => 
             </tbody>
           </table>
         </div>
+
+        <div className="service-responses-mobile">
+          { pageRows.map( r => (
+            <article className="service-response-card" key={ `mobile-${r.submissionId}` }>
+              <div className="service-response-head">
+                <div>
+                  <strong>{ r.senderName || r.customerName || 'Unknown customer' }</strong>
+                  <small>{ maskPhone( r.phone ) }{ r.customerUuid ? ` · ${r.customerUuid.slice( 0, 8 )}` : '' }</small>
+                </div>
+                <StatusBadge value={ r.status } />
+              </div>
+              <dl className="service-response-meta">
+                <div>
+                  <dt>Capability</dt>
+                  <dd>{ CAPABILITY_FILTERS.options.find( o => o.value === r.flowCode )?.label || r.flowCode || '—' }</dd>
+                </div>
+                <div>
+                  <dt>Reference</dt>
+                  <dd><code>{ reference( r ) }</code></dd>
+                </div>
+                <div>
+                  <dt>Payment</dt>
+                  <dd>{ r.paymentRequired || r.paymentStatus ? <PaymentBadge value={ r.paymentStatus } /> : '—' }</dd>
+                </div>
+                <div>
+                  <dt>Created</dt>
+                  <dd>{ new Date( r.createdAt ).toLocaleDateString() }</dd>
+                </div>
+              </dl>
+              <div className="service-response-action">
+                <Select
+                  label="Set status"
+                  options={ ROW_STATUS_OPTIONS }
+                  value={ r.status }
+                  onChange={ v => { void onStatusChange( r, v ); } }
+                />
+              </div>
+            </article>
+          ) ) }
+        </div>
         {totalPages > 1 && (
           <div style={{ marginTop: 16 }}>
             <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
           </div>
         )}
       </ServiceDataState>
+
+      <style jsx global>{`
+        .service-responses-mobile{display:none}
+        @media(max-width:768px){
+          .service-responses-table{display:none}
+          .service-responses-mobile{display:flex;flex-direction:column;gap:12px}
+          .service-response-card{
+            min-width:0;padding:14px;background:#fff;border:1px solid var(--border);border-radius:14px
+          }
+          .service-response-head{
+            display:flex;align-items:flex-start;justify-content:space-between;gap:10px
+          }
+          .service-response-head>div{min-width:0;display:flex;flex-direction:column;gap:3px}
+          .service-response-head strong,
+          .service-response-head small{overflow-wrap:anywhere}
+          .service-response-head small{color:var(--text-muted);font-size:var(--text-xs)}
+          .service-response-meta{
+            display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0
+          }
+          .service-response-meta div{min-width:0}
+          .service-response-meta dt{
+            color:var(--text-muted);font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.04em
+          }
+          .service-response-meta dd{
+            margin:3px 0 0;color:var(--text);font-size:var(--text-sm);overflow-wrap:anywhere
+          }
+          .service-response-meta code{white-space:normal;overflow-wrap:anywhere}
+          .service-response-action .ui-field{width:100% !important}
+        }
+        @media(max-width:340px){
+          .service-response-meta{grid-template-columns:1fr}
+        }
+      `}</style>
     </div>
   );
 };

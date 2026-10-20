@@ -278,6 +278,50 @@ const TasksPage: React.FC<PageProps> = ( { signOut, user } ) => {
             </table>
           </div>
 
+          <div className="tk-mobile-list" aria-live="polite">
+            { loading ? (
+              <div className="tk-mobile-state">Loading…</div>
+            ) : filtered.length === 0 ? (
+              <div className="tk-mobile-state">
+                { rows.length === 0
+                  ? 'No conversations have a status or assignee yet. Set one from the inbox and it appears here.'
+                  : 'Nothing matches these filters.' }
+              </div>
+            ) : filtered.map( ( r ) => {
+              const paint = STATUS_PAINT[ r.status ] || STATUS_PAINT.open;
+              return (
+                <article className="tk-mobile-card" key={ `mobile-${r.conversationId}` }>
+                  <div className="tk-mobile-card-head">
+                    <Link href={ `/workspace/engage/inbox?contact=${encodeURIComponent( r.conversationId )}` }
+                      className="tk-mobile-title">{ label( r.conversationId ) }</Link>
+                    <span className="tk-badge" style={ { background: paint.bg, color: paint.fg } }>
+                      { r.status }
+                    </span>
+                  </div>
+                  <dl className="tk-mobile-meta">
+                    <div><dt>Assignee</dt><dd>{ r.assignee?.trim() || 'Unassigned' }</dd></div>
+                    <div><dt>Updated</dt><dd>{ when( r.updatedAt ) }</dd></div>
+                    <div><dt>Notes</dt><dd>{ r.notes?.length || 0 }</dd></div>
+                  </dl>
+                  { r.tags?.length ? (
+                    <div className="tk-mobile-tags" aria-label="Tags">
+                      { r.tags.map( t => <span key={ t } className="tk-tag">{ t }</span> ) }
+                    </div>
+                  ) : null }
+                  <div className="tk-mobile-actions" aria-label="Move task">
+                    { STATUSES.filter( status => status.id !== r.status ).map( status => (
+                      <button key={ status.id } type="button" className="tk-move-btn"
+                        disabled={ savingId === r.conversationId }
+                        onClick={ () => move( r, status.id ) }>
+                        Move to { status.label }
+                      </button>
+                    ) ) }
+                  </div>
+                </article>
+              );
+            } ) }
+          </div>
+
           {/* Stated, not stubbed. The old ComingSoon promised priorities, deadlines,
               templates and reminders; none of them exist in conversation-meta, and
               rendering an empty Priority column would imply the field is there and
@@ -344,6 +388,7 @@ const TasksPage: React.FC<PageProps> = ( { signOut, user } ) => {
             background:#fff;border:1px solid var(--border);border-radius:13px;
             overflow:hidden;margin:0 0 18px;
           }
+          .tk-mobile-list{display:none}
           .tk-table{width:100%;border-collapse:collapse}
           .tk-table th{
             background:#fafafa;padding:11px 16px;text-align:left;font-size:var(--text-md);
@@ -385,9 +430,33 @@ const TasksPage: React.FC<PageProps> = ( { signOut, user } ) => {
           }
 
           @media(max-width:800px){
+            .tk-page{padding:28px 0 96px}
+            .tk-inner{padding-inline:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
             .tk-cards{grid-template-columns:1fr}
-            .tk-table-wrap{overflow-x:auto}
+            .tk-filters{align-items:stretch;gap:10px}
+            .tk-fg{width:100%}
+            .tk-fg :global(.ui-field){width:100% !important}
+            .tk-actions{margin-left:0}
+            .tk-actions :global(.btn){width:100%}
+            .tk-table-wrap{display:none}
+            .tk-mobile-list{display:flex;flex-direction:column;gap:12px;margin-bottom:18px}
+            .tk-mobile-card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px;min-width:0}
+            .tk-mobile-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+            .tk-mobile-title{color:var(--accent);font-weight:700;overflow-wrap:anywhere;min-width:0}
+            .tk-mobile-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0 0}
+            .tk-mobile-meta div{min-width:0}
+            .tk-mobile-meta dt{font-size:var(--text-xs);color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em}
+            .tk-mobile-meta dd{margin:3px 0 0;font-size:var(--text-sm);color:var(--text);overflow-wrap:anywhere}
+            .tk-mobile-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:12px}
+            .tk-mobile-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
+            .tk-mobile-actions .tk-move-btn{min-height:44px;border-radius:10px;padding:8px 10px}
+            .tk-mobile-state{padding:32px 16px;text-align:center;color:var(--text-muted);background:#fff;border:1px solid var(--border);border-radius:14px}
             .tk-sub{font-size:var(--h4)}
+          }
+          @media(max-width:360px){
+            .tk-inner{padding-inline:12px}
+            .tk-mobile-meta{grid-template-columns:1fr 1fr}
+            .tk-mobile-actions{grid-template-columns:1fr}
           }
           @media(prefers-reduced-motion:reduce){
             .tk-card,.tk-move-btn{transition:none}
