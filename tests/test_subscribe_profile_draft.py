@@ -39,6 +39,8 @@ def setup(monkeypatch):
     monkeypatch.setattr(mod,'_context',lambda token:(table,'918100640044',copy.deepcopy(table.row)))
     calls=[]
     monkeypatch.setattr(mod.common,'record_completion',lambda **kw:calls.append(kw) or SimpleNamespace(error=''))
+    monkeypatch.setattr(mod.subscribe_messages,'copy_for',lambda returning: dict(
+        mod.subscribe_messages.DEFAULTS['returningCustomer' if returning else 'newCustomer']))
     return mod,table,calls
 
 def form(mod):return mod.handle_init({},TOKEN,'r')['data']
@@ -182,3 +184,11 @@ def test_new_customer_confirmation_stays_the_same_on_retry(setup):
     first=mod.handle_review(data,TOKEN,'r')
     retry=mod.handle_review(data,TOKEN,'r2')
     assert first['data']['message']==retry['data']['message']=='Your details have been saved.'
+
+
+def test_saved_profile_uses_workspace_confirmation(setup,monkeypatch):
+    mod,table,_=setup
+    monkeypatch.setattr(mod.subscribe_messages,'copy_for',lambda returning:{'confirmation':'Your profile update is saved.'})
+    result=mod.handle_review(form(mod),TOKEN,'r')
+    assert result['data']['message']=='Your profile update is saved.'
+    assert result['data']['customer_id']=='C-ED6BQSW2P7PQ'
