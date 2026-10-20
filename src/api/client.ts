@@ -5286,6 +5286,7 @@ async function postRefundInitiation (
   action: 'initiate-refund' | 'initiate-partial-refund',
   invoiceId: string,
   returnSubmissionId: string,
+  reason: string,
   extra: Record<string, unknown>,
 ): Promise<RefundInitiationResult> {
   let response: Response;
@@ -5293,7 +5294,7 @@ async function postRefundInitiation (
   {
     response = await authFetch( INVOICE_BASE, {
       method: 'POST',
-      body: JSON.stringify( { _action: action, invoiceId, returnSubmissionId, ...extra } ),
+      body: JSON.stringify( { _action: action, invoiceId, returnSubmissionId, reason, ...extra } ),
     } );
   } catch
   {
@@ -5334,15 +5335,17 @@ async function postRefundInitiation (
 /**
  * Initiate a FULL refund for a refund-eligible Return / Refund case.
  *
- * The browser supplies only the invoice and return-case identity; the server derives the
- * payment, the eligibility and the amount. Returns the truthful outcome — callers must gate
+ * The browser supplies only the invoice and return-case identity plus the operator's audit
+ * `reason`; the server derives the payment, the eligibility and the amount, and persists the
+ * reason on the return-case / audit record. Returns the truthful outcome — callers must gate
  * any "refunded" wording on `webhookConfirmed`.
  */
 export async function initiateFullRefund (
   invoiceId: string,
   returnSubmissionId: string,
+  reason: string,
 ): Promise<RefundInitiationResult> {
-  return postRefundInitiation( 'initiate-refund', invoiceId, returnSubmissionId, {} );
+  return postRefundInitiation( 'initiate-refund', invoiceId, returnSubmissionId, reason, {} );
 }
 
 /**
@@ -5350,15 +5353,17 @@ export async function initiateFullRefund (
  *
  * The amount is a PROPOSAL: the server caps it to the captured total minus any already-refunded
  * amount and rejects anything over the cap or <= 0 (`REFUND_AMOUNT_OVER_CAP` /
- * `REFUND_AMOUNT_INVALID`), returning `maxRefundablePaise` so the UI can correct itself.
+ * `REFUND_AMOUNT_INVALID`), returning `maxRefundablePaise` so the UI can correct itself. The
+ * operator's audit `reason` is persisted on the return-case / audit record server-side.
  */
 export async function initiatePartialRefund (
   invoiceId: string,
   returnSubmissionId: string,
   amountPaise: number,
+  reason: string,
 ): Promise<RefundInitiationResult> {
   return postRefundInitiation(
-    'initiate-partial-refund', invoiceId, returnSubmissionId, { amountPaise },
+    'initiate-partial-refund', invoiceId, returnSubmissionId, reason, { amountPaise },
   );
 }
 

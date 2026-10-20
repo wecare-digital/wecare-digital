@@ -78,4 +78,17 @@ describe( 'refund initiation is server-authoritative and webhook-truthful', () =
     expect( ORDERS ).toContain( 'initiatePartialRefund' );
     expect( ORDERS ).toContain( 'initiateFullRefund' );
   } );
+
+  it( 'sends the operator reason to the server so it can be persisted as the audit record', () => {
+    // The shared POST includes `reason` in the request body...
+    const block = API.slice( API.indexOf( 'async function postRefundInitiation' ), API.indexOf( 'export async function initiateFullRefund' ) );
+    expect( block ).toContain( 'reason' );
+    expect( block ).toMatch( /returnSubmissionId,\s*reason/ );
+    // ...and both entry points take a reason parameter.
+    expect( API ).toMatch( /initiateFullRefund[\s\S]*?reason: string/ );
+    expect( API ).toMatch( /initiatePartialRefund[\s\S]*?reason: string/ );
+    // The UI threads the trimmed, required reason into the call.
+    expect( ORDERS ).toContain( 'onRefundInitiation( sub, mode, trimmedReason, amountPaise )' );
+    expect( ORDERS ).toContain( 'required for the audit record' );
+  } );
 } );

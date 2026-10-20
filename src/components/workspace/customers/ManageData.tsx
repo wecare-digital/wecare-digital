@@ -160,10 +160,12 @@ const CLASS_LABEL: Record<MergeClassification, string> = {
   'needs-review': 'Needs review',
   'blocked-by-financial-history': 'Blocked — financial history',
 };
+// The classification label text carries the state; colour is reinforcement only. Mapped to the
+// semantic design tokens with the prior hex kept as a fallback so rendering is unchanged.
 const CLASS_COLOR: Record<MergeClassification, string> = {
-  'safe': '#15803d',
-  'needs-review': '#b45309',
-  'blocked-by-financial-history': '#b91c1c',
+  'safe': 'var(--success, #15803d)',
+  'needs-review': 'var(--warning, #b45309)',
+  'blocked-by-financial-history': 'var(--danger, #b91c1c)',
 };
 
 const CustomerManageData: React.FC<Props> = ( { contacts, onClose, onOpenCustomer, onMerged } ) => {

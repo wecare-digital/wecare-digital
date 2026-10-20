@@ -488,6 +488,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
   const handleRefundInitiation = async (
     sub: api.FlowSubmissionItem,
     mode: 'full' | 'partial',
+    reason: string,
     amountPaise?: number,
   ): Promise<boolean> => {
     const invoiceId = String( sub.invoiceId || '' ).trim();
@@ -497,8 +498,8 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
       return false;
     }
     const result = mode === 'partial' && typeof amountPaise === 'number'
-      ? await api.initiatePartialRefund( invoiceId, sub.submissionId, amountPaise )
-      : await api.initiateFullRefund( invoiceId, sub.submissionId );
+      ? await api.initiatePartialRefund( invoiceId, sub.submissionId, amountPaise, reason )
+      : await api.initiateFullRefund( invoiceId, sub.submissionId, reason );
 
     switch ( result.outcome )
     {
@@ -692,7 +693,7 @@ interface DetailProps {
   onSubmissionStatusUpdate: ( subId: string, status: string ) => void;
   onOrderCancel: ( orderId: string, reason: string ) => Promise<boolean>;
   onReturnStageUpdate: ( subId: string, stage: api.ReturnStage, notes?: string ) => Promise<boolean>;
-  onRefundInitiation: ( sub: api.FlowSubmissionItem, mode: 'full' | 'partial', amountPaise?: number ) => Promise<boolean>;
+  onRefundInitiation: ( sub: api.FlowSubmissionItem, mode: 'full' | 'partial', reason: string, amountPaise?: number ) => Promise<boolean>;
 }
 
 // ── Refund panel for a refund-eligible Return / Refund case ──
@@ -701,7 +702,7 @@ interface DetailProps {
 // outcome. It never shows "refunded" before webhook confirmation.
 interface RefundPanelProps {
   sub: api.FlowSubmissionItem;
-  onRefundInitiation: ( sub: api.FlowSubmissionItem, mode: 'full' | 'partial', amountPaise?: number ) => Promise<boolean>;
+  onRefundInitiation: ( sub: api.FlowSubmissionItem, mode: 'full' | 'partial', reason: string, amountPaise?: number ) => Promise<boolean>;
 }
 
 const RefundPanel: React.FC<RefundPanelProps> = ( { sub, onRefundInitiation } ) => {
@@ -740,7 +741,7 @@ const RefundPanel: React.FC<RefundPanelProps> = ( { sub, onRefundInitiation } ) 
     if ( !confirmed ) return;
 
     setBusy( true );
-    await onRefundInitiation( sub, mode, amountPaise );
+    await onRefundInitiation( sub, mode, trimmedReason, amountPaise );
     setBusy( false );
     setReason( '' );
   };
@@ -750,6 +751,7 @@ const RefundPanel: React.FC<RefundPanelProps> = ( { sub, onRefundInitiation } ) 
       <span style={ { fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--accent)' } }>Finance refund</span>
       <span style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>
         Server-authoritative. Status becomes &ldquo;refunded&rdquo; only after the provider webhook confirms it.
+        A payment receives a single refund (full, or one partial amount); it cannot be refunded again afterwards.
         { capPaise > 0 ? ` Captured: ${rupeesFromPaise( capPaise )}.` : '' }
       </span>
       { !linked && (

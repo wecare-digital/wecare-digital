@@ -228,3 +228,111 @@ def test_execute_refund_never_marks_payment_refunded():
     assert "create_full_refund" in block
     assert "provider_outcome_unknown" in block
     assert "'retryable': False" in block
+
+
+def test_resolver_documents_single_refund_per_payment():
+    """The single-refund-per-payment reality is documented where the REFUNDED branch resolves.
+
+    The webhook is the sole setter of refunded state and overwrites (not sums) refundAmountPaise,
+    so the behaviour must be stated honestly rather than worked around by widening the money core.
+    """
+    source = (
+        ROOT / "amplify/functions/payments/invoice-engine/handler.py"
+    ).read_text(encoding="utf-8")
+    resolver = source[source.index("def _resolve_refund_context"):source.index(
+        "def initiate_partial_refund"
+    )]
+    assert "SINGLE REFUND PER PAYMENT" in resolver
+    assert "sole authoritative setter" in resolver
+
+
+# ───────────────────────────────────────────────────────────────────────────
+# Runtime: the operator refund REASON is validated and persisted on the audit record.
+# The reason is operator metadata, never a money input — the server stays authoritative on the
+# cap and eligibility — but the UI promises it is the audit record, so it must actually be stored.
+# ───────────────────────────────────────────────────────────────────────────
+
+import importlib  # noqa: E402
+
+sys.path.insert(0, str(ROOT / "amplify/functions/payments/invoice-engine"))
+engine = importlib.import_module("handler")  # type: ignore[assignment]
+
+
+class _FakeCaseTable:
+    """Captures the durable return-case claim write so the reason can be asserted."""
+
+    def __init__(self):
+        self.updates = []
+
+    def update_item(self, **kwargs):
+        self.updates.append(kwargs)
+        return {}
+
+    def get_item(self, **_kwargs):  # pragma: no cover - not exercised on the happy path
+        return {"Item": {}}
+
+
+def _context(monkeypatch):
+    return engine._RefundContext(
+        actor="admin@example.test",
+        invoice_id="INV-1",
+        submission_id="WD-SR-1",
+        payment_id="pay_ABC123",
+        internal_order_id="WD-ORD-1",
+        captured_paise=10000,
+        already_refunded_paise=0,
+    )
+
+
+def _wire_execute(monkeypatch):
+    """Point _execute_refund at a fake case table, a successful provider call and a capturing audit."""
+    fake = _FakeCaseTable()
+    monkeypatch.setattr(engine.dynamodb, "Table", lambda _name: fake)
+    monkeypatch.setattr(
+        engine.razorpay_refund,
+        "create_partial_refund",
+        lambda **_kw: engine.razorpay_refund.RefundResult(
+            refund_id="rfnd_X", payment_id="pay_ABC123",
+            amount_paise=_kw["amount_paise"], status="processed"),
+    )
+    monkeypatch.setattr(
+        engine.razorpay_refund,
+        "create_full_refund",
+        lambda **_kw: engine.razorpay_refund.RefundResult(
+            refund_id="rfnd_X", payment_id="pay_ABC123",
+            amount_paise=_kw["amount_paise"], status="processed"),
+    )
+    audits = []
+    monkeypatch.setattr(engine, "record_audit", lambda **kw: audits.append(kw))
+    return fake, audits
+
+
+def test_execute_refund_persists_reason_on_case_and_audit(monkeypatch):
+    fake, audits = _wire_execute(monkeypatch)
+    resp = engine._execute_refund(
+        context=_context(monkeypatch), amount_paise=5000, partial=True,
+        request_id="req-1", reason="Damaged on arrival",
+    )
+    assert resp["statusCode"] == 202
+    # The durable case claim (the first update) carries the reason.
+    claim = next(u for u in fake.updates
+                 if "refundInitiationReason = :reason" in u["UpdateExpression"])
+    assert claim["ExpressionAttributeValues"][":reason"] == "Damaged on arrival"
+    # The audit record carries the operator justification the UI promised.
+    submitted = [a for a in audits if a["details"].get("outcome") == "provider_submitted"]
+    assert submitted and submitted[0]["details"]["reason"] == "Damaged on arrival"
+
+
+def test_initiate_refund_rejects_missing_or_bad_reason(monkeypatch):
+    # The provider must never be reached when the reason is missing or malformed.
+    monkeypatch.setattr(
+        engine, "_resolve_refund_context",
+        lambda *_a, **_k: (_ for _ in ()).throw(
+            AssertionError("eligibility must not be resolved before the reason is validated")),
+    )
+    for bad in ("", "   ", "ok\x00bad", "x" * 501):
+        full = engine.initiate_full_refund("INV-1", {"returnSubmissionId": "WD-SR-1", "reason": bad},
+                                           "req-1", auth={"username": "admin"})
+        assert full["statusCode"] == 400
+        body = json.loads(full["body"])
+        assert body["errorCode"] in ("REFUND_REASON_REQUIRED", "REFUND_REASON_INVALID")

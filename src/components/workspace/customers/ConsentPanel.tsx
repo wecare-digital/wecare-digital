@@ -20,10 +20,13 @@ const PURPOSES: api.ConsentPurpose[] = [ 'MARKETING', 'TRANSACTIONAL', 'SERVICE'
 // is never offered here, because this surface records consent a customer actually gave.
 const SOURCES = [ 'DASHBOARD', 'WEB_FORM', 'FLOW_SUBMISSION', 'WHATSAPP_REPLY', 'DOUBLE_OPT_IN', 'CHECKOUT_VERIFIED', 'CUSTOMER_REQUEST' ];
 
+// Status is carried by the text label too; the colour is reinforcement, not the sole signal.
+// Mapped to the semantic design tokens with the prior hex as a fallback so the rendered colour
+// is unchanged where a token is absent.
 const STATE_COLOR: Record<api.ConsentState, string> = {
-  OPTED_IN: '#15803d',
-  OPTED_OUT: '#b91c1c',
-  PENDING: '#b45309',
+  OPTED_IN: 'var(--success, #15803d)',
+  OPTED_OUT: 'var(--danger, #b91c1c)',
+  PENDING: 'var(--warning, #b45309)',
 };
 
 const STATE_LABEL: Record<api.ConsentState, string> = {
@@ -142,7 +145,7 @@ const ConsentPanel: React.FC<Props> = ( { contactId } ) => {
         .cp-head h4{margin:0;font-size:var(--text-md);font-weight:700;color:var(--text,#111)}
         .cp-head p{margin:4px 0 12px;font-size:var(--text-xs);color:var(--text-muted,#6b7280);line-height:1.5}
         .cp-muted{font-size:var(--text-xs);color:var(--text-muted,#9ca3af)}
-        .cp-error{font-size:var(--text-xs);color:#b91c1c}
+        .cp-error{font-size:var(--text-xs);color:var(--danger,#b91c1c)}
         .cp-channels{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
         .cp-channel{border:1px solid var(--border,#e5e7eb);border-radius:10px;padding:10px 12px}
         .cp-channel-head{display:flex;justify-content:space-between;align-items:center}
@@ -153,7 +156,7 @@ const ConsentPanel: React.FC<Props> = ( { contactId } ) => {
         .cp-record>strong{font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted,#6b7280)}
         .cp-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:10px 0}
         .cp-form label{display:flex;flex-direction:column;gap:3px;font-size:var(--text-xs);color:var(--text-muted,#6b7280)}
-        .cp-form select,.cp-form input{min-height:40px;border:1px solid var(--border,#d1d5db);border-radius:8px;padding:0 8px;font-size:var(--text-sm);background:#fff;color:var(--text,#111)}
+        .cp-form select,.cp-form input{min-height:44px;border:1px solid var(--border,#d1d5db);border-radius:8px;padding:0 8px;font-size:var(--text-sm);background:#fff;color:var(--text,#111)}
         .cp-ref{grid-column:1/-1}
         .cp-btn{min-height:44px;border:1px solid var(--accent,#1a3a2a);border-radius:10px;background:var(--accent,#1a3a2a);color:#fff;font-size:var(--text-sm);font-weight:700;padding:0 18px;cursor:pointer}
         .cp-btn:disabled{opacity:.5;cursor:not-allowed}

@@ -4695,9 +4695,34 @@ def _refund_staff_actor(auth: Optional[Dict]) -> str:
     return ''
 
 
+def _validate_refund_reason(reason: object) -> Tuple[str, Optional[Dict]]:
+    """Bound the operator refund reason the same way cancel_invoice bounds its reason.
+
+    The reason is operator audit metadata, never a money input: the server stays authoritative
+    on the cap and eligibility regardless of what it says. It is required (the UI demands it for
+    the audit record), trimmed, capped at 500 characters, and rejected if it carries control
+    characters, so a malformed justification never reaches the durable case / audit row.
+    """
+    text = str(reason or '').strip()
+    if not text:
+        return '', _resp(400, {
+            'error': 'A refund reason is required for the audit record',
+            'errorCode': 'REFUND_REASON_REQUIRED',
+        })
+    if len(text) > 500 or any(
+            (ord(ch) < 32 and ch not in '\r\n\t') or ord(ch) == 127
+            for ch in text):
+        return '', _resp(400, {
+            'error': 'Refund reason is overlong or contains invalid control characters',
+            'errorCode': 'REFUND_REASON_INVALID',
+        })
+    return text, None
+
+
 def _record_refund_audit_safely(*, actor: str, invoice_id: str,
                                 outcome: str, submission_id: str,
-                                request_id: str, refund_id: str = '') -> None:
+                                request_id: str, refund_id: str = '',
+                                reason: str = '') -> None:
     """Best-effort secondary audit after the durable return-case state write.
 
     The return case is the strict idempotency/audit authority. Once a provider call may have
@@ -4712,6 +4737,8 @@ def _record_refund_audit_safely(*, actor: str, invoice_id: str,
         }
         if refund_id:
             details['refundId'] = refund_id
+        if reason:
+            details['reason'] = reason
         record_audit(
             action='payment.refund',
             actor=actor,
@@ -4739,6 +4766,9 @@ def initiate_full_refund(invoice_id: str, body: Dict, request_id: str,
     -> invoice -> payment row. The browser cannot choose paymentId or amount. The provider
     webhook remains authoritative for the final REFUNDED state.
     """
+    reason, reason_error = _validate_refund_reason(body.get('reason'))
+    if reason_error is not None:
+        return reason_error
     context, error = _resolve_refund_context(invoice_id, body, auth)
     if error is not None:
         return error
@@ -4748,6 +4778,7 @@ def initiate_full_refund(invoice_id: str, body: Dict, request_id: str,
         amount_paise=context.max_refundable_paise,
         partial=False,
         request_id=request_id,
+        reason=reason,
     )
 
 
@@ -4851,6 +4882,15 @@ def _resolve_refund_context(invoice_id: str, body: Dict, auth: Optional[Dict]
         })
 
     payment_state = pay_status.canonical(payment.get('status'))
+    # SINGLE REFUND PER PAYMENT (by design). razorpay-webhook._handle_refund marks the payment
+    # REFUNDED (a monotonic rank that then blocks any later refund.* write) and SETs — does not
+    # sum — refundAmountPaise on the FIRST processed refund. So once any refund (full or the
+    # first partial) has settled, this branch reports the idempotent success and no second
+    # partial can proceed: in practice a payment receives one refund. The cap arithmetic below
+    # (captured − already_refunded) is the server authority within that single refund and fails
+    # safe — it can only block or under-refund, never over-refund. Supporting multiple partials
+    # per payment would require revisiting the webhook's refunded-state/accumulation semantics,
+    # which stays the sole authoritative setter and is deliberately out of scope here.
     if payment_state == pay_status.REFUNDED and str(payment.get('refundId') or '').strip():
         return None, _resp(200, {
             'submitted': True,
@@ -4912,6 +4952,9 @@ def initiate_partial_refund(invoice_id: str, body: Dict, request_id: str,
     has already recorded as refunded. Anything <=0 or over the cap is rejected before the claim,
     and the irreversible POST happens only after the case is durably claimed.
     """
+    reason, reason_error = _validate_refund_reason(body.get('reason'))
+    if reason_error is not None:
+        return reason_error
     context, error = _resolve_refund_context(invoice_id, body, auth)
     if error is not None:
         return error
@@ -4944,11 +4987,12 @@ def initiate_partial_refund(invoice_id: str, body: Dict, request_id: str,
         amount_paise=requested_paise,
         partial=True,
         request_id=request_id,
+        reason=reason,
     )
 
 
 def _execute_refund(*, context: '_RefundContext', amount_paise: int,
-                    partial: bool, request_id: str) -> Dict:
+                    partial: bool, request_id: str, reason: str = '') -> Dict:
     """Claim the case idempotently, then post exactly one refund for ``amount_paise``.
 
     This is the shared tail of the full and partial paths. By the time it runs, eligibility and
@@ -4971,6 +5015,7 @@ def _execute_refund(*, context: '_RefundContext', amount_paise: int,
             UpdateExpression=(
                 'SET refundInitiationState = :submitting, refundInitiationPaymentId = :pid, '
                 'refundInitiationAmountPaise = :amount, refundInitiationMode = :mode, '
+                'refundInitiationReason = :reason, '
                 'refundInitiatedBy = :actor, refundInitiatedAt = :now'
             ),
             ConditionExpression=(
@@ -4982,6 +5027,7 @@ def _execute_refund(*, context: '_RefundContext', amount_paise: int,
                 ':pid': payment_id,
                 ':amount': Decimal(str(amount_paise)),
                 ':mode': mode,
+                ':reason': reason,
                 ':actor': actor,
                 ':now': Decimal(str(now)),
                 ':eligible': 'refund_eligible',
@@ -5038,7 +5084,7 @@ def _execute_refund(*, context: '_RefundContext', amount_paise: int,
         )
         _record_refund_audit_safely(
             actor=actor, invoice_id=invoice_id, outcome='provider_rejected',
-            submission_id=submission_id, request_id=request_id)
+            submission_id=submission_id, request_id=request_id, reason=reason)
         return _resp(409, {
             'error': 'Provider rejected the refund request; review before another attempt',
             'errorCode': 'REFUND_PROVIDER_REJECTED',
@@ -5059,7 +5105,7 @@ def _execute_refund(*, context: '_RefundContext', amount_paise: int,
         )
         _record_refund_audit_safely(
             actor=actor, invoice_id=invoice_id, outcome='provider_outcome_unknown',
-            submission_id=submission_id, request_id=request_id)
+            submission_id=submission_id, request_id=request_id, reason=reason)
         return _resp(503, {
             'error': 'Provider outcome is unknown; reconcile Razorpay/webhook evidence before retry',
             'errorCode': 'REFUND_PROVIDER_OUTCOME_UNKNOWN',
@@ -5102,7 +5148,7 @@ def _execute_refund(*, context: '_RefundContext', amount_paise: int,
     _record_refund_audit_safely(
         actor=actor, invoice_id=invoice_id, outcome='provider_submitted',
         submission_id=submission_id, request_id=request_id,
-        refund_id=result.refund_id)
+        refund_id=result.refund_id, reason=reason)
     logger.warning(json.dumps({
         'event': 'refund_provider_submitted',
         'invoiceId': invoice_id,
