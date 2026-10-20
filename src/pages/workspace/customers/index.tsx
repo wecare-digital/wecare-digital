@@ -1441,7 +1441,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
 
           {/* Detail side panel */}
           {detailContact && (
-            <div style={{ width: 340, flexShrink: 0, borderLeft: '2px solid #f3f4f6', background: '#fff', overflow: 'auto', marginLeft: -2, borderRadius: '0 13px 13px 0', maxHeight: 'calc(100vh - 200px)' }}>
+            <aside className="customer-detail-panel" style={{ width: 340, flexShrink: 0, borderLeft: '2px solid #f3f4f6', background: '#fff', overflow: 'auto', marginLeft: -2, borderRadius: '0 13px 13px 0', maxHeight: 'calc(100dvh - 180px)' }}>
               <div style={{ padding: '16px 20px', background: 'var(--bg-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #f3f4f6' }}>
                 <h3 style={{ margin: 0, fontSize: 'var(--text-md)', fontWeight: 600, color: '#374151' }}>Customer</h3>
                 <button onClick={() => setDetailContact(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><CloseIcon /></button>
@@ -1559,31 +1559,31 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
                 {/* Activity Timeline */}
                 <ContactActivityTimeline phone={detailContact.phone} contactId={detailContact.contactId} createdAt={detailContact.createdAt} />
               </div>
-            </div>
+            </aside>
           )}
         </div>
 
         {/* Pagination */}
         {totalPages >= 1 && (
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 16 }}>
-            <button onClick={() => setCurrentPage(1)} disabled={safeCurrentPage <= 1} title="First page" style={{ padding: '6px 10px', border: '2px solid #f3f4f6', borderRadius: 13, background: '#fff', cursor: safeCurrentPage <= 1 ? 'default' : 'pointer', opacity: safeCurrentPage <= 1 ? 0.4 : 1, fontSize: 'var(--text-sm)' }}>«</button>
-            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={safeCurrentPage <= 1} style={{ padding: '6px 12px', border: '2px solid #f3f4f6', borderRadius: 13, background: '#fff', cursor: safeCurrentPage <= 1 ? 'default' : 'pointer', opacity: safeCurrentPage <= 1 ? 0.4 : 1, fontSize: 'var(--text-sm)' }}>‹</button>
+            <button onClick={() => setCurrentPage(1)} disabled={safeCurrentPage <= 1} title="First page" className="customer-page-btn" style={{ padding: '6px 10px', border: '2px solid #f3f4f6', borderRadius: 13, background: '#fff', cursor: safeCurrentPage <= 1 ? 'default' : 'pointer', opacity: safeCurrentPage <= 1 ? 0.4 : 1, fontSize: 'var(--text-sm)' }}>«</button>
+            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={safeCurrentPage <= 1} className="customer-page-btn" style={{ padding: '6px 12px', border: '2px solid #f3f4f6', borderRadius: 13, background: '#fff', cursor: safeCurrentPage <= 1 ? 'default' : 'pointer', opacity: safeCurrentPage <= 1 ? 0.4 : 1, fontSize: 'var(--text-sm)' }}>‹</button>
             {Array.from({ length: totalPages }, (_, i) => i + 1).filter(p => p === 1 || p === totalPages || Math.abs(p - safeCurrentPage) <= 1).map((p, idx, arr) => (
               <React.Fragment key={p}>
                 {idx > 0 && arr[idx - 1] !== p - 1 && <span style={{ color: '#9ca3af' }}>…</span>}
-                <button onClick={() => setCurrentPage(p)} style={{ padding: '6px 10px', border: '2px solid #f3f4f6', borderRadius: 13, background: p === safeCurrentPage ? 'var(--accent)' : '#fff', color: p === safeCurrentPage ? '#fff' : '#374151', fontWeight: p === safeCurrentPage ? 600 : 400, cursor: 'pointer', fontSize: 'var(--text-sm)' }}>{p}</button>
+                <button onClick={() => setCurrentPage(p)} className="customer-page-btn" style={{ padding: '6px 10px', border: '2px solid #f3f4f6', borderRadius: 13, background: p === safeCurrentPage ? 'var(--accent)' : '#fff', color: p === safeCurrentPage ? '#fff' : '#374151', fontWeight: p === safeCurrentPage ? 600 : 400, cursor: 'pointer', fontSize: 'var(--text-sm)' }}>{p}</button>
               </React.Fragment>
             ))}
-            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={safeCurrentPage >= totalPages} style={{ padding: '6px 12px', border: '2px solid #f3f4f6', borderRadius: 13, background: '#fff', cursor: safeCurrentPage >= totalPages ? 'default' : 'pointer', opacity: safeCurrentPage >= totalPages ? 0.4 : 1, fontSize: 'var(--text-sm)' }}>›</button>
-            <button onClick={() => setCurrentPage(totalPages)} disabled={safeCurrentPage >= totalPages} title="Last page" style={{ padding: '6px 10px', border: '2px solid #f3f4f6', borderRadius: 13, background: '#fff', cursor: safeCurrentPage >= totalPages ? 'default' : 'pointer', opacity: safeCurrentPage >= totalPages ? 0.4 : 1, fontSize: 'var(--text-sm)' }}>»</button>
+            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={safeCurrentPage >= totalPages} className="customer-page-btn" style={{ padding: '6px 12px', border: '2px solid #f3f4f6', borderRadius: 13, background: '#fff', cursor: safeCurrentPage >= totalPages ? 'default' : 'pointer', opacity: safeCurrentPage >= totalPages ? 0.4 : 1, fontSize: 'var(--text-sm)' }}>›</button>
+            <button onClick={() => setCurrentPage(totalPages)} disabled={safeCurrentPage >= totalPages} title="Last page" className="customer-page-btn" style={{ padding: '6px 10px', border: '2px solid #f3f4f6', borderRadius: 13, background: '#fff', cursor: safeCurrentPage >= totalPages ? 'default' : 'pointer', opacity: safeCurrentPage >= totalPages ? 0.4 : 1, fontSize: 'var(--text-sm)' }}>»</button>
           </div>
         )}
       </div>
 
       {/* Add Customer Modal — Fix #10: accessibility */}
       {showModal && (
-        <div role="dialog" aria-modal="true" aria-label="Add Customer" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setShowModal(false)}>
-          <div style={{ background: '#fff', borderRadius: 14, width: 560, maxHeight: '85vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }} onClick={e => e.stopPropagation()}>
+        <div className="customer-modal-overlay" role="dialog" aria-modal="true" aria-label="Add Customer" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setShowModal(false)}>
+          <div className="customer-modal-panel" style={{ background: '#fff', borderRadius: 14, width: 560, maxWidth: 'calc(100vw - 32px)', maxHeight: '85dvh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '20px 24px', background: 'var(--bg-secondary)', borderRadius: '14px 14px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #f3f4f6' }}>
               <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: '#374151' }}>Add Customer</h2>
               <button onClick={() => setShowModal(false)} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><CloseIcon /></button>
@@ -1599,8 +1599,8 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
 
       {/* Edit Customer Modal — Fix #10: accessibility */}
       {showEditModal && editingContact && (
-        <div role="dialog" aria-modal="true" aria-label="Edit Customer" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => { setShowEditModal(false); setEditingContact(null); }}>
-          <div style={{ background: '#fff', borderRadius: 14, width: 560, maxHeight: '85vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }} onClick={e => e.stopPropagation()}>
+        <div className="customer-modal-overlay" role="dialog" aria-modal="true" aria-label="Edit Customer" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => { setShowEditModal(false); setEditingContact(null); }}>
+          <div className="customer-modal-panel" style={{ background: '#fff', borderRadius: 14, width: 560, maxWidth: 'calc(100vw - 32px)', maxHeight: '85dvh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '20px 24px', background: 'var(--bg-secondary)', borderRadius: '14px 14px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #f3f4f6' }}>
               <h2 style={{ margin: 0, fontSize: 'var(--text-base)', fontWeight: 600, color: '#374151' }}>Edit Customer</h2>
               <button onClick={() => { setShowEditModal(false); setEditingContact(null); }} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><CloseIcon /></button>
@@ -1667,5 +1667,58 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
     </Layout>
   );
 };
+
+<style jsx global>{`
+  @media(max-width:768px){
+    .workspace-shell .contacts-mobile-cards{padding-inline:0 !important}
+    .workspace-shell .contact-card{min-width:0}
+    .workspace-shell .contact-card-header{align-items:flex-start;min-width:0}
+    .workspace-shell .contact-card-header > div:nth-child(2){min-width:0}
+    .workspace-shell .contact-card-name,
+    .workspace-shell .contact-card-phone,
+    .workspace-shell .contact-card-email{overflow-wrap:anywhere;word-break:break-word}
+    .workspace-shell .contact-card-actions{flex:0 0 auto}
+    .workspace-shell .contact-card-actions button{
+      min-width:44px !important;min-height:44px !important;
+      display:inline-flex;align-items:center;justify-content:center;
+    }
+    .workspace-shell .customer-detail-panel{
+      position:fixed;
+      inset:
+        calc(56px + env(safe-area-inset-top,0px))
+        max(8px,env(safe-area-inset-right,0px))
+        calc(68px + env(safe-area-inset-bottom,0px))
+        max(8px,env(safe-area-inset-left,0px));
+      z-index:1100;width:auto !important;max-width:none !important;max-height:none !important;
+      margin:0 !important;border:1px solid var(--border) !important;border-radius:16px !important;
+      box-shadow:0 20px 60px rgba(15,42,29,.2);overscroll-behavior:contain;
+    }
+    .workspace-shell .customer-modal-overlay{
+      align-items:flex-end !important;
+      padding:
+        max(8px,env(safe-area-inset-top,0px))
+        max(8px,env(safe-area-inset-right,0px))
+        max(8px,env(safe-area-inset-bottom,0px))
+        max(8px,env(safe-area-inset-left,0px));
+    }
+    .workspace-shell .customer-modal-panel{
+      width:100% !important;max-width:100% !important;
+      max-height:calc(100dvh - 16px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)) !important;
+      border-radius:16px 16px 0 0 !important;
+    }
+    .workspace-shell .customer-page-btn{
+      min-width:44px !important;min-height:44px !important;
+      display:inline-flex;align-items:center;justify-content:center;
+    }
+  }
+  @media(max-width:340px){
+    .workspace-shell .contact-card-header{
+      display:grid;grid-template-columns:auto minmax(0,1fr);
+    }
+    .workspace-shell .contact-card-actions{
+      grid-column:1/-1;justify-content:flex-end;width:100%;
+    }
+  }
+`}</style>
 
 export default Customers;
