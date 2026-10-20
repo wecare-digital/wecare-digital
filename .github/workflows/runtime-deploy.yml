@@ -12,6 +12,7 @@ on:
       - 'amplify/functions/messaging/whatsapp-business-api/**'
       - 'amplify/functions/ecommerce/product-image-gen/**'
       - 'amplify/functions/ecommerce/meta-catalog-sync/**'
+      - 'amplify/functions/payments/razorpay-webhook/**'
       - 'amplify/functions/shared/lambda_utils/**'
       - 'scripts/deploy_all_lambdas.py'
       - 'scripts/snapstart_publish.py'
