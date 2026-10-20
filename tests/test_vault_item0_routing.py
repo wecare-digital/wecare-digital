@@ -51,17 +51,14 @@ def test_retired_vault_id_is_not_an_active_inbound_trigger():
     assert 'vault' not in ns['DEFAULT_FLOW_TRIGGERS']
 
 
-def test_vault_review_dispatch_is_routed():
-    """The business-api handler routes internalAction 'vaultReview' to the Vault review sender."""
+def test_vault_review_dispatch_is_a_legacy_noop_sink():
+    """Old queued vaultReview events must be accepted without emitting another template."""
     src = BUSINESS_API.read_text(encoding='utf-8')
-    assert "'vaultReview'" in src, 'no vaultReview branch in the internalAction router'
-    # It must import the Vault review sender, not silently fall through to the submit-request one.
-    assert re.search(r'from flows\.paid_vault import send_review', src), (
-        'vaultReview must route to flows.paid_vault.send_review'
-    )
+    assert "'vaultReview'" in src
+    assert "REVIEW_INCLUDED_IN_INVOICE_TEMPLATE" in src
+    assert "from flows.paid_vault import send_review" not in src
 
 
-def test_secure_files_queues_the_matching_action():
-    """secure-files sends exactly the internalAction the handler now routes."""
+def test_secure_files_does_not_queue_a_second_review_message():
     sec = ( ROOT / 'amplify/functions/core/secure-files/handler.py' ).read_text(encoding='utf-8')
-    assert '"vaultReview"' in sec, 'secure-files no longer queues vaultReview'
+    assert '"vaultReview"' not in sec
