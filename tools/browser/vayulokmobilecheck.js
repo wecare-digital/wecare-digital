@@ -22,9 +22,7 @@
 
 const fs = require( 'node:fs' );
 const path = require( 'node:path' );
-const { chromium } = require( 'playwright-core' );
-
-const EXECUTABLE = '/inner_container/opt/playwright/chromium_headless_shell-1232/chrome-headless-shell-linux64/chrome-headless-shell';
+const { launch } = require( './lib/browser.js' );
 const COMPONENT = path.join( __dirname, '..', '..', 'src', 'components', 'VayuLokLive.tsx' );
 
 function extractCss() {
@@ -96,7 +94,7 @@ const WIDTHS = [ 320, 375, 430 ];
     </style>
     <style>${css}</style></head><body>${BODY}</body></html>`;
 
-  const browser = await chromium.launch( { executablePath: EXECUTABLE, args: [ '--no-sandbox' ] } );
+  const browser = await launch();
   let failures = 0;
   for ( const w of WIDTHS ) {
     const page = await browser.newPage( { viewport: { width: w, height: 900 }, deviceScaleFactor: 1 } );
