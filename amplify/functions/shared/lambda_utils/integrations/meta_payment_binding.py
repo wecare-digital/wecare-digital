@@ -159,10 +159,34 @@ def lookup_payment(*, reference_id: str, phone_number_id: str, config_name: str,
             receipt = record.get('receipt') or {}
             if not isinstance(receipt, dict):
                 continue
+            # Meta's live India Payments lookup has two shapes in circulation.
+            #
+            # Legacy/normalised:
+            #   payment_gateway.order_id / payment_gateway.payment_id
+            #
+            # Live ORDER_DETAILS capture observed 2026-10-20:
+            #   transactions[].id                = Razorpay order id
+            #   transactions[].pg_transaction_id = Razorpay payment id
+            #   transactions[].type              = "razorpay"
+            #
+            # The latter is deliberately gated on BOTH a recognised gateway type and a
+            # provider transaction id. A bare transaction `id` is otherwise ambiguous and
+            # must never be promoted into a gateway-order binding on a money path.
+            record_id = str(record.get('id') or '')
+            pg_transaction_id = str(record.get('pg_transaction_id') or '')
+            gateway_type = str(record.get('type') or '').strip().lower()
             order_id = str(record.get('provider_order_id') or gateway.get('order_id')
                            or receipt.get('provider_order_id') or record.get('order_id') or '')
+            if (not order_id and gateway_type == 'razorpay'
+                    and pg_transaction_id and record_id):
+                order_id = record_id
+
             payment_id = str(record.get('provider_payment_id') or gateway.get('payment_id')
-                             or record.get('payment_id') or record.get('id') or '')
+                             or record.get('payment_id') or pg_transaction_id or '')
+            # In the legacy flat shape, `id` can still be the payment id — but never reuse
+            # the same id as both order and payment on the live nested shape above.
+            if not payment_id and record_id and record_id != order_id:
+                payment_id = record_id
             if order_id:
                 candidates.append((order_id, payment_id, status))
     # More than one captured binding needs reconciliation; never select the first arbitrarily.
