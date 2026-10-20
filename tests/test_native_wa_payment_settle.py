@@ -36,6 +36,7 @@ sys.path.insert(0, os.path.join(REPO, 'amplify', 'functions', 'shared'))
 sys.path.insert(0, os.path.dirname(__file__))
 
 from crm_fake_dynamo import FakeDynamo  # noqa: E402
+from lambda_utils import payment_status  # noqa: E402
 from lambda_utils.ecommerce import order_keys, payment_attempt  # noqa: E402
 from lambda_utils.ecommerce import wa_payment_request as wpr  # noqa: E402
 from lambda_utils.integrations import meta_payment_binding as mpb  # noqa: E402
@@ -262,6 +263,62 @@ def test_meta_nested_transactions_supply_gateway_binding():
         load_token=lambda: 'TOKEN')
     assert found['gatewayOrderId'] == GATEWAY_ORDER
     assert found['gatewayPaymentId'] == PAYMENT
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# The native live shape, captured verbatim from the WD-PAY-C98523E305EE4747 incident.
+#
+# At 03:08:35Z Razorpay delivered payment.captured correctly, but the parser read neither
+# `pg_transaction_id` nor `id` as the Razorpay ORDER id for this shape, extracted no gateway
+# order id, and ended PROVIDER_UNAVAILABLE / NEEDS_RECONCILIATION on a REAL, CAPTURED ₹2.24
+# payment. Meta's own lookup returned top-level status CAPTURED with transactions[0] carrying the
+# order id at `id` (order_ prefix) and the payment id at `pg_transaction_id` (pay_ prefix).
+# ──────────────────────────────────────────────────────────────────────────────
+
+LIVE_REFERENCE = 'WD-PAY-C98523E305EE4747'
+LIVE_GATEWAY_ORDER = 'order_Tq0ZgogHP8upGD'
+LIVE_PAYMENT = 'pay_Tq0awsJn5nCvE8'
+
+
+def test_meta_native_live_shape_binds_from_prefixed_transaction_fields():
+    """The exact owner-confirmed captured response for WD-PAY-C98523E305EE4747. The order id is
+    at transactions[0].id (order_ prefix) and the payment id at transactions[0].pg_transaction_id
+    (pay_ prefix); the top-level entry status is CAPTURED and the transaction status 'success'."""
+    found = mpb.lookup_payment(
+        reference_id=LIVE_REFERENCE, phone_number_id=WABA1, config_name='WECAREDIGITAL',
+        urlopen=_MetaLookup(payments=[{'reference_id': LIVE_REFERENCE, 'status': 'CAPTURED',
+            'transactions': [{'id': LIVE_GATEWAY_ORDER, 'pg_transaction_id': LIVE_PAYMENT,
+                              'status': 'success'}]}]),
+        load_token=lambda: 'TOKEN')
+    assert found['gatewayOrderId'] == LIVE_GATEWAY_ORDER
+    assert found['gatewayPaymentId'] == LIVE_PAYMENT
+    assert found['status'] == payment_status.CAPTURED
+
+
+def test_meta_native_live_shape_with_two_distinct_bindings_still_raises():
+    """Two distinct captured bindings is a reconciliation incident; the parser must RAISE rather
+    than arbitrarily pick the first - the de-dupe only collapses identical tuples."""
+    with pytest.raises(mpb.MetaBindingUnavailable):
+        mpb.lookup_payment(
+            reference_id=LIVE_REFERENCE, phone_number_id=WABA1, config_name='WECAREDIGITAL',
+            urlopen=_MetaLookup(payments=[{'reference_id': LIVE_REFERENCE, 'status': 'CAPTURED',
+                'transactions': [
+                    {'id': LIVE_GATEWAY_ORDER, 'pg_transaction_id': LIVE_PAYMENT,
+                     'status': 'success'},
+                    {'id': 'order_OTHER9999999999', 'pg_transaction_id': 'pay_OTHER9999999999',
+                     'status': 'success'}]}]),
+            load_token=lambda: 'TOKEN')
+
+
+def test_meta_native_live_shape_non_captured_status_still_raises():
+    """A non-captured transaction status in the live shape is not a confirmation; refuse."""
+    with pytest.raises(mpb.MetaBindingUnavailable):
+        mpb.lookup_payment(
+            reference_id=LIVE_REFERENCE, phone_number_id=WABA1, config_name='WECAREDIGITAL',
+            urlopen=_MetaLookup(payments=[{'reference_id': LIVE_REFERENCE, 'status': 'CAPTURED',
+                'transactions': [{'id': LIVE_GATEWAY_ORDER, 'pg_transaction_id': LIVE_PAYMENT,
+                                  'status': 'pending'}]}]),
+            load_token=lambda: 'TOKEN')
 
 
 def test_meta_does_not_adopt_a_different_reference():
