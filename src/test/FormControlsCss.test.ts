@@ -506,14 +506,15 @@ describe( 'form-controls.css — invariant 4', () => {
     // Both <=768px iOS-zoom blocks, which beat even an inline fontSize.
     // Two blocks, and they are spelled differently - `@media (max-width: 768px)` and
     // `@media screen and (max-width: 768px)` - so the query is matched loosely on purpose.
-    const zoomBlocks = tokens.match( /@media[^{]*max-width:\s*768px[\s\S]*?font-size:\s*16px\s*!important/g );
+    // The value is now single-sourced through the canonical public mobile form token.
+    const zoomBlocks = tokens.match( /@media[^{]*max-width:\s*768px[\s\S]*?font-size:\s*var\(--public-mobile-form-font-size\)\s*!important/g );
     expect( zoomBlocks?.length ).toBe( 2 );
 
     // And the third claimant, which is NOT inside a media query and so already pins every
     // workspace select at 16px at every viewport. It is cited as the reason the workspace needs
     // nothing from form-controls.css, so it has to still be there for the reason to hold.
     expect( innerPages ).toMatch(
-      /\.layout \.main-content select:not\(\[data-public-ui\]\)\s*\{\s*font-size:\s*16px\s*!important/
+      /\.layout \.main-content select:not\(\[data-public-ui\]\)\s*\{\s*font-size:\s*var\(--public-mobile-form-font-size\)\s*!important/
     );
   } );
 
