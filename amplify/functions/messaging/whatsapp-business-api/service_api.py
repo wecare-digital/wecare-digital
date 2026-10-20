@@ -37,7 +37,7 @@ import boto3
 from boto3.dynamodb.conditions import Key, Attr
 from botocore.exceptions import ClientError
 
-from lambda_utils import contact_store, flow_completion, flow_records, media_paths, shared_tables
+from lambda_utils import contact_store, flow_completion, flow_records, media_paths, shared_tables, message_store
 from lambda_utils.ecommerce import order_patch, order_record, service_request_input
 
 logger = logging.getLogger()
@@ -822,8 +822,18 @@ def _create_review(body: Dict) -> Dict:
 
 
 def _update_review(review_id: str, body: Dict) -> Dict:
-    return _update_record(flow_records.REVIEW, review_id,
-                          flow_records.review_updates(body, _now()))
+    updates = flow_records.review_updates(body, _now())
+    response = _update_record(flow_records.REVIEW, review_id, updates)
+    if int(response.get('statusCode') or 0) < 300 and 'status' in body:
+        try:
+            dynamodb.Table(message_store.MESSAGES_TABLE).update_item(
+                Key={'id': f'flow:{review_id}'},
+                UpdateExpression='SET reviewStatus = :s',
+                ExpressionAttributeValues={':s': str(body.get('status') or '')})
+        except Exception as exc:
+            logger.warning(json.dumps({'event':'review_inbox_status_sync_failed',
+                                       'reviewId':review_id,'errorType':type(exc).__name__}))
+    return response
 
 
 # ============================================================================
