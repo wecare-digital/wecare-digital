@@ -83,7 +83,7 @@ const WIDTHS = [ 320, 375, 430 ];
     /* root vars the component reads (lifted names; values are representative) */
     :root{--hair:#e5e7eb;--muted:#6b7280;--body:#111;--green:#1a3a2a;--lime:#d1f470;--lime-tint:rgba(209,244,112,.22);
       --status:#2563eb;--radius-lg:12px;--panel-r:16px;--pill-r:12px;
-      --vl-action-size:36px;--vl-content-gap:12px;--vl-heading-gap:12px;--vl-section-gap:20px;--vl-section-pad:16px}
+      --tap-min:44px;--vl-action-size:var(--tap-min);--vl-content-gap:12px;--vl-heading-gap:12px;--vl-section-gap:20px;--vl-section-pad:16px}
     .vl-live-air-card-wrap{display:grid}
     </style>
     <style>${css}</style></head><body>${BODY}</body></html>`;
