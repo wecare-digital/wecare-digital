@@ -56,8 +56,39 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  build:
+    name: Build public export once
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install app dependencies
+        run: npm ci --no-audit --no-fund
+
+      # The browser matrix must not build the public site independently. Three concurrent
+      # exports fan out hundreds of blog reads and can make the upstream API return HTTP 429
+      # before Firefox/WebKit ever launch. Build once, then test identical exported bytes in
+      # every engine.
+      - name: Build production export
+        run: npm run build
+
+      - name: Upload production export
+        uses: actions/upload-artifact@v7
+        with:
+          name: menu-public-export-${{ github.sha }}
+          path: out/
+          retention-days: 1
+
   menu:
     name: Menu - ${{ matrix.browser }}
+    needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     strategy:
@@ -71,13 +102,12 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
-          cache: npm
 
-      - name: Install app dependencies
-        run: npm ci --no-audit --no-fund
-
-      - name: Build production export
-        run: npm run build
+      - name: Download production export
+        uses: actions/download-artifact@v8
+        with:
+          name: menu-public-export-${{ github.sha }}
+          path: out
 
       - name: Install browser harness
         run: npm ci --no-audit --no-fund --prefix tools/browser
