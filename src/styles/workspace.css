@@ -401,6 +401,34 @@
     min-width: max-content;
   }
 
+  .workspace-shell .ps-content,
+  .workspace-shell .ps-content > *,
+  .workspace-shell .inner-page,
+  .workspace-shell .table-container,
+  .workspace-shell [class$="-table-wrap"],
+  .workspace-shell [class*="-table-wrap "] {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .workspace-shell .table-container,
+  .workspace-shell [class$="-table-wrap"],
+  .workspace-shell [class*="-table-wrap "] {
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .workspace-shell .workspace-main input:not([type="checkbox"]):not([type="radio"]),
+  .workspace-shell .workspace-main textarea {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .workspace-shell .workspace-main .btn,
+  .workspace-shell .workspace-main button[role="combobox"] {
+    min-height: var(--tap-min) !important;
+  }
+
   .workspace-shell .workspace-main .ps-tab,
   .workspace-shell .workspace-main .comms-tabs button,
   .workspace-shell .workspace-main .commerce-tabs button,
