@@ -66,7 +66,7 @@ const fail = ( message ) => { throw new Error( message ); };
 
       // Guard the styled-jsx scoping contract with live computed values. This menu once kept
       // correct DOM/ARIA while silently falling back to unrelated global nav styles.
-      const home = page.getByRole( 'link', { name: 'Home' } );
+      const home = menu.getByRole( 'link', { name: 'Home', exact: true } );
       const homeStyle = await home.evaluate( node => {
         const css = getComputedStyle( node );
         return {
