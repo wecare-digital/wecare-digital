@@ -452,7 +452,7 @@ def test_create_enabled_sends_order_details_and_still_creates_no_order(env):
     # reserved reference byte-for-byte and the calculator's amount — but no order exists.
     send = [e for e in lam.invocations if e.get('isCheckoutTemplate')]
     assert len(send) == 1
-    assert send[0]['templateName'] == 'wecarepay_wa'
+    assert send[0]['templateName'] == 'wecare_whatapp_native_pay_template'
     details = send[0]['checkoutOrderDetails']
     stored_ref = fake.all_rows(ATTEMPTS_TABLE)[0]['referenceId']
     assert details['reference_id'] == stored_ref     # byte-for-byte, not transformed
