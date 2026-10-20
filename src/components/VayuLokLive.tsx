@@ -199,6 +199,12 @@ function aqiCategory( aqi: number ): { word: string; sev: Sev } {
   return { word: 'Severe', sev: 'worst' };
 }
 
+function airQualityCategoryLabel( word: string ): string {
+  const clean = String( word || '' ).replace( /\s+/g, ' ' ).trim();
+  if ( !clean ) return 'Air quality';
+  return /\bair\s+quality$/i.test( clean ) ? clean : `${ clean } air quality`;
+}
+
 /* Map Google's returned category TEXT to our no-red severity band. Google drives the word
    (airStateFromApiData prefers idx.category), but the colour/band used to always come from the
    local CPCB threshold - so a reading Google calls e.g. "Good air quality" while the numeric AQI
@@ -3426,7 +3432,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                           <span className="vl-live-air-aqi-unit" aria-hidden="true">AQI</span>
                         </div>
                         <div className="vl-live-air-gauge-meta">
-                          <strong className="vl-live-air-gauge-word">{ air.word } air quality</strong>
+                          <strong className="vl-live-air-gauge-word">{ airQualityCategoryLabel( air.word ) }</strong>
                           <div className="vl-live-air-summary-meta">
                             <span className="vl-live-air-summary-chip">
                               <svg className="vl-live-air-summary-icon" viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.air } /></svg>
@@ -5134,11 +5140,21 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
           .vl-live-air-card-wrap{display:block;position:relative;z-index:12;width:100%;max-width:100%;min-width:0;margin:20px 0 56px;filter:none}
           .vl-live-air-card{width:100%;max-width:100%;min-width:0;padding:20px}
           .vl-live-air-panel{min-width:0;max-width:100%}
-          .vl-live-air-gauge-row{grid-template-columns:4px 64px minmax(0,1fr);gap:10px;min-width:0;max-width:100%}
-          .vl-live-air-aqi-score{min-width:0}
-          .vl-live-air-gauge-meta{min-width:0;max-width:100%}
-          .vl-live-air-gauge-word{max-width:100%;font-size:clamp(18px,5.2vw,22px);white-space:normal;overflow-wrap:anywhere;word-break:normal}
-          .vl-live-air-summary-meta{min-width:0;max-width:100%}
+          .vl-live-air-gauge-row{
+            grid-template-columns:4px minmax(0,1fr);grid-template-rows:auto auto;
+            align-items:center;column-gap:12px;row-gap:8px;min-width:0;max-width:100%
+          }
+          .vl-live-air-aqi-spine{grid-column:1;grid-row:1 / span 2;height:100%;min-height:92px}
+          .vl-live-air-aqi-score{
+            grid-column:2;grid-row:1;justify-self:center;min-width:0;
+            flex-direction:row;align-items:baseline;gap:8px
+          }
+          .vl-live-air-aqi-unit{margin-top:0}
+          .vl-live-air-gauge-meta{
+            grid-column:2;grid-row:2;justify-self:stretch;min-width:0;max-width:100%;text-align:center
+          }
+          .vl-live-air-gauge-word{max-width:100%;font-size:clamp(18px,5.2vw,22px);white-space:normal;overflow-wrap:anywhere;word-break:normal;text-align:center}
+          .vl-live-air-summary-meta{min-width:0;max-width:100%;justify-content:center;text-align:center}
           .vl-live-air-summary-chip{min-width:0;max-width:100%;white-space:normal}
           .vl-live-air-summary-chip>span{min-width:0;overflow-wrap:anywhere}
           .vl-live-air-context{align-items:flex-start}

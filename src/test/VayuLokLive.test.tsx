@@ -843,7 +843,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     // green/blue/purple accent spine as home-flow. No circular ring/gauge remains.
     expect( panel.querySelector( '.vl-live-air-aqi-number' )?.textContent ).toBe( '74' );
     expect( panel.querySelector( '.vl-live-air-aqi-unit' )?.textContent ).toBe( 'AQI' );
-    expect( panel.querySelector( '.vl-live-air-gauge-word' )?.textContent ).toContain( 'Satisfactory' );
+    expect( panel.querySelector( '.vl-live-air-gauge-word' )?.textContent ).toBe( 'Satisfactory air quality' );
     expect( panel.querySelector( '.vl-live-air-aqi-spine' ) ).not.toBeNull();
     expect( panel.querySelector( '.vl-live-air-gauge-svg' ) ).toBeNull();
     expect( panel.querySelector( '.vl-live-air-gauge-arc' ) ).toBeNull();
@@ -1382,6 +1382,11 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( css ).toContain( '--vl-body-size:var(--public-body-size)' );
     expect( css ).toContain( 'font-family:var(--font-sans)' );
     expect( css ).toContain( '.vl-live-mobile-mode button{min-height:var(--tap-min)' );
+    expect( css ).toContain( '.vl-live-air-aqi-score{' );
+    expect( css ).toContain( 'grid-column:2;grid-row:1;justify-self:center' );
+    expect( css ).toContain( '.vl-live-air-gauge-meta{' );
+    expect( css ).toContain( 'justify-self:stretch;min-width:0;max-width:100%;text-align:center' );
+    expect( css ).toContain( '.vl-live-air-summary-meta{min-width:0;max-width:100%;justify-content:center;text-align:center}' );
     expect( css ).toContain( '.vl-live-route-check{align-self:flex-start;min-height:var(--tap-min)' );
     expect( css ).toContain( '.vl-live-map-retry{margin-top:10px;min-height:var(--tap-min)' );
     expect( css ).toContain( '.vl-live-air-card-wrap{position:relative;z-index:12;grid-area:1/1;align-self:start;justify-self:start;width:min(416px,calc(100% - 32px));margin-block:16px 112px;margin-inline:16px 0' );
