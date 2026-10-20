@@ -17,6 +17,16 @@
     --paper:#ffffff;
     --ink:#1a3a2a;
   }
+  :root{
+    /* The globe is an isolated iframe and cannot inherit parent custom properties. Mirror the
+       public foundation names locally so typography/touch/safe-area ownership stays explicit. */
+    --font-sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+    --tap-min:44px;
+    --safe-top:env(safe-area-inset-top,0px);
+    --safe-right:env(safe-area-inset-right,0px);
+    --safe-bottom:env(safe-area-inset-bottom,0px);
+    --safe-left:env(safe-area-inset-left,0px);
+  }
   * { box-sizing: border-box; }
   html, body { margin:0; min-height:100%; background:#fff; }
   body {
@@ -30,7 +40,7 @@
     display:grid;
     place-items:start center;
     overflow-x:hidden;
-    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+    font-family:var(--font-sans);
   }
   .sorcerer-stage {
     position:relative;
@@ -65,8 +75,8 @@
        sit under a notch / rounded corner on iOS & Android, so the offsets add
        env(safe-area-inset-*) on top of the design inset (the env() resolves to
        0 on devices / webviews without a notch, so desktop is unchanged). */
-    top:calc(4.2% + env(safe-area-inset-top,0px));
-    right:calc(4.0% + env(safe-area-inset-right,0px));
+    top:calc(4.2% + var(--safe-top));
+    right:calc(4.0% + var(--safe-right));
     width:clamp(176px,16.5%,224px);height:52px;padding:4px;
     display:grid;grid-template-columns:1fr 1.25fr;gap:4px;align-items:center;
     border:1px solid #e5e7eb;border-radius:999px;
@@ -189,32 +199,30 @@
   /* The expanded pill must never be covered by a neighbouring collapsed chip. */
   .city-marker.is-active { z-index: 12; }
   .city-marker:hover { z-index: 13; }
-  .city-marker.is-visible .city-pin{animation:cityPulse 2.8s ease-out infinite}
+  .city-marker.is-visible .city-pin::before{animation:cityPulse 2.8s ease-out infinite}
   @keyframes cityPulse{
     0%,100%{box-shadow:0 0 0 5px var(--city-marker-soft,var(--city-accent-soft,var(--mode-soft))),0 0 16px var(--city-marker-soft,var(--city-accent-soft,var(--mode-soft)))}
     50%{box-shadow:0 0 0 10px transparent,0 0 28px var(--city-marker-soft,var(--city-accent-soft,var(--mode-soft)))}
   }
   .city-pin {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
+    position:absolute;left:0;top:0;
+    width:var(--tap-min);height:var(--tap-min);padding:0;
+    border:0;border-radius:50%;background:transparent;box-shadow:none;
+    transform:translate(-50%,-50%);
+  }
+  /* The button owns the full 44px target; this pseudo-element paints the small geographic dot
+     at its centre so increasing hit area does not make the globe visually heavier. */
+  .city-pin::before{
+    content:'';position:absolute;left:50%;top:50%;
+    width:12px;height:12px;transform:translate(-50%,-50%);border-radius:50%;
     background:var(--city-marker,var(--city-accent,var(--mode-accent)));
-    border: 2px solid rgba(255,255,255,.96);
+    border:2px solid rgba(255,255,255,.96);
     box-shadow:0 0 0 6px var(--city-marker-soft,var(--city-accent-soft,var(--mode-soft))),0 0 20px var(--city-marker-soft,var(--city-accent-soft,var(--mode-soft)));
-    transform: translate(-50%, -50%);
   }
   .city-pin::after {
-    content: '';
-    position: absolute;
-    inset: 50% auto auto 50%;
-    width: 2px;
-    height: 2px;
-    border-radius: 50%;
-    background:#1a3a2a;
-    transform: translate(-50%, -50%);
+    content:'';position:absolute;left:50%;top:50%;
+    width:2px;height:2px;border-radius:50%;background:#1a3a2a;
+    transform:translate(-50%,-50%);
   }
   .city-stem {
     position: absolute;
@@ -270,14 +278,14 @@
      same hue the panel's accent stripe/dot and the leader line use — so the eye
      ties panel ↔ line ↔ dot together at a glance. Slightly larger than the
      resting pin, with a crisp accent ring over the usual soft halo. */
-  .city-marker.is-active .city-pin{
+  .city-marker.is-active .city-pin::before{
     width:14px;height:14px;
     box-shadow:0 0 0 3px var(--city-marker,var(--city-accent,var(--mode-accent))),
       0 0 0 8px var(--city-marker-soft,var(--city-accent-soft,var(--mode-soft))),
       0 0 22px var(--city-marker-soft,var(--city-accent-soft,var(--mode-soft)));
   }
   /* Hover affordance lives on the dot itself, which costs nothing. */
-  .city-marker:hover .city-pin{transform:translate(-50%,-50%) scale(1.25)}
+  .city-marker:hover .city-pin::before{transform:translate(-50%,-50%) scale(1.25)}
 
   /* A collapsed chip whose box intersects the expanded pill (or a chip already
      placed) is hidden instead of stacked behind it, so dense clusters such as
@@ -296,11 +304,7 @@
     pointer-events:none;cursor:pointer;padding:0;appearance:none;-webkit-appearance:none;
   }
   .city-marker.is-visible .city-pin{pointer-events:auto}
-  .city-pin::before{
-    content:'';position:absolute;left:50%;top:50%;
-    width:28px;height:28px;transform:translate(-50%,-50%);border-radius:50%;
-  }
-  .city-pin:focus-visible{outline:3px solid #1a3a2a;outline-offset:4px}
+  .city-pin:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
   /* ---- NO-WebGL2 FALLBACK (webviews / older Android / privacy modes) ----
      A static, branded earth disc that stands in for the GPU globe. It reuses
      the real earth texture plus the lime halo + dark-green vignette so it reads
@@ -321,7 +325,8 @@
   .fallback-dots{position:absolute;inset:0;z-index:11;pointer-events:none}
   .fallback-dot{
     position:absolute;transform:translate(-50%,-50%);
-    display:inline-flex;align-items:center;gap:7px;
+    display:inline-flex;align-items:center;justify-content:center;gap:7px;
+    min-width:var(--tap-min);min-height:var(--tap-min);
     padding:4px 10px 4px 7px;margin:0;
     border:1px solid #e5e7eb;border-radius:999px;
     background:#fff;color:#1a3a2a;
@@ -352,18 +357,18 @@
     .fallback-dot::before{width:11px;height:11px}
     /* Keep the toggle clear of a notch / rounded corner on the phone disc. */
     .data-toggle{
-      top:calc(2.5% + env(safe-area-inset-top,0px));
-      right:calc(2.5% + env(safe-area-inset-right,0px));
-      width:138px;height:38px;padding:3px;
+      top:calc(2.5% + var(--safe-top));
+      right:calc(2.5% + var(--safe-right));
+      width:138px;height:var(--tap-min);padding:3px;
     }
-    .data-toggle .mode{font-size:9.5px;letter-spacing:.065em}
+    .data-toggle .mode{font-size:13px;letter-spacing:.045em}
     /* On the phone disc the panel drops to the bottom-left corner so it never
        overlaps the globe body, and shrinks to a compact single reading. The
        bottom/left offsets add the safe-area insets so the panel is never
        clipped by the home indicator / rounded corner on iOS & Android. */
     .city-panel{
-      left:calc(2.5% + env(safe-area-inset-left,0px));
-      top:auto;bottom:calc(2.5% + env(safe-area-inset-bottom,0px));transform:none;
+      left:calc(2.5% + var(--safe-left));
+      top:auto;bottom:calc(2.5% + var(--safe-bottom));transform:none;
       width:min(46%,176px);padding:9px 10px;gap:7px;border-radius:12px;
     }
     .city-panel-name{font-size:12.5px}
@@ -374,8 +379,7 @@
     /* The phone disc is small, so the name chip is kept compact. */
     .city-card{display:none}
     .city-name{font-size:10.5px}
-    .city-stem{width:1px;left:-.5px}.city-pin{width:9px;height:9px}
-    .city-pin::before{width:34px;height:34px}
+    .city-stem{width:1px;left:-.5px}.city-pin::before{width:9px;height:9px}
     /* The phone-sized disc cannot hold several name chips at once, so an
        unselected capital is just its dot here; the selected one keeps its chip. */
     .city-marker:not(.is-active) .city-card,
@@ -387,10 +391,9 @@
     .city-marker.city-off-mobile{display:none}
     /* With fewer, better-spaced dots the phone pin can be a touch larger again,
        so each tap target reads clearly rather than as a speck. */
-    .city-pin{width:11px;height:11px}
-    .city-pin::before{width:38px;height:38px}
+    .city-pin::before{width:11px;height:11px}
   }
-  @media (prefers-reduced-motion:reduce){.data-toggle .mode,.city-marker,.city-card,.city-panel,.city-leader{transition:none}.city-marker.is-visible .city-pin{animation:none}.city-leader line{animation:none}}
+  @media (prefers-reduced-motion:reduce){.data-toggle .mode,.city-marker,.city-card,.city-panel,.city-leader{transition:none}.city-marker.is-visible .city-pin::before{animation:none}.city-leader line{animation:none}}
 
 </style>
 </head>
