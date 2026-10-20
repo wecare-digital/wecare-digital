@@ -31,7 +31,7 @@ def setup(monkeypatch):
     sys.path.insert(0,str(ROOT/'amplify/functions/messaging/whatsapp-business-api'))
     with patch('boto3.client'),patch('boto3.resource'):
         mod=importlib.import_module('flows.subscribe_profile')
-    row={'id':'wa918100640044','phone':'+918100640044','name':'QA','updatedAt':100,
+    row={'id':'wa918100640044','phone':'+918100640044','name':'QA','email':'qa@example.com','updatedAt':100,
          'customerUuid':'5f701556-7818-494a-a9aa-cf57da6287c2','consentLedger':[{'state':'OPTED_OUT'}],
          'optInWhatsApp':False,'allowlistWhatsApp':False,
          contact_address.ATTRIBUTE:contact_address.normalize_for_storage(ADDRESS)}
@@ -86,7 +86,7 @@ def test_partial_address_does_not_save_or_show_success(setup):
     assert not table.updates
 
 def test_new_contact_created_with_canonical_identity_and_no_marketing_optins(setup):
-    mod,table,_=setup; table.row={}; data=form(mod); data['full_name']='New QA'
+    mod,table,_=setup; table.row={}; data=form(mod); data.update(full_name='New QA',email_address='qa@example.com',**{key:ADDRESS[attr] for key,attr in mod.ADDRESS_FIELDS.items()})
     result=mod.handle_review(data,TOKEN,'r')
     assert result['screen']=='COMPLETE'
     assert table.row['id']=='wa918100640044'
@@ -110,3 +110,33 @@ def test_draft_has_no_preferences_and_valid_local_schema():
     assert not validate_flow(doc)
     assert [s['id'] for s in doc['screens']]==['PROFILE','ADDRESS','REVIEW','COMPLETE']
     assert 'opt_in_whatsapp' not in json.dumps(doc)
+
+
+def test_email_and_main_address_are_required_by_backend(setup):
+    mod,table,_=setup; data=form(mod); data['email_address']=''
+    result=mod.handle_review(data,TOKEN,'r')
+    assert result['screen']=='REVIEW' and 'email' in result['data']['error_message']
+    assert not table.updates
+    data=form(mod)
+    for field in mod.ADDRESS_FIELDS:data[field]=''
+    result=mod.handle_review(data,TOKEN,'r')
+    assert result['screen']=='REVIEW' and 'address line 1' in result['data']['error_message']
+    assert not table.updates
+
+
+def test_customer_copy_hides_country_code_and_has_short_labels():
+    doc=json.loads((ROOT/'amplify/functions/messaging/whatsapp-business-api/flows/design-drafts/subscribe.json').read_text())
+    def walk(node):
+        if isinstance(node,dict):
+            yield node
+            for value in node.values():yield from walk(value)
+        elif isinstance(node,list):
+            for value in node:yield from walk(value)
+    inputs=[n for n in walk(doc) if n.get('type')=='TextInput']
+    assert not any(n.get('name')=='country_code' for n in inputs)
+    assert all(len(n['label'])<=20 for n in inputs)
+    required={n['name'] for n in inputs if n.get('required')}
+    assert {'full_name','email_address','address_line1','city','state','postal_code'}<=required
+    copy_text=' '.join(n.get('text','') for n in walk(doc) if isinstance(n.get('text',''),str))
+    assert 'Your website and WhatsApp' not in copy_text
+    assert 'marketing subscriptions' not in copy_text
