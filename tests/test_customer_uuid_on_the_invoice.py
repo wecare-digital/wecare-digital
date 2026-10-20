@@ -58,6 +58,7 @@ from lambda_utils.identity import customer_uuid  # noqa: E402
 
 #: A real minted id, not a hand-written string, so this test cannot drift from the minter.
 CUSTOMER_ID = customer_uuid.new_customer_uuid()
+DISPLAY_ID = customer_uuid.display_code({customer_uuid.ATTRIBUTE: CUSTOMER_ID})
 
 ISSUED = "WD/2627/00001"
 CUSTOMER_NAME = "A. Customer"
@@ -120,7 +121,7 @@ def _invoice(**overrides):
 
 def test_the_html_prints_the_customer_id(engine):
     html = engine._build_invoice_html(_invoice(), ITEMS)
-    assert f"Customer ID: {CUSTOMER_ID}" in html
+    assert f"Customer ID: {DISPLAY_ID}" in html
 
 
 def test_the_html_prints_it_in_the_bill_to_block(engine):
@@ -133,12 +134,13 @@ def test_the_html_prints_it_in_the_bill_to_block(engine):
     assert html.index("Customer ID:") < html.index(CUSTOMER_PHONE)
 
 
-def test_the_html_prints_the_id_in_full(engine):
+def test_the_html_prints_a_short_code_and_hides_the_full_uuid(engine):
     """IN FULL, deliberately, beside a phone that is not. The uuid is ours, opaque and carries no
     timestamp, so there is nothing to mask; masking it would also destroy its only purpose, which
     is being quotable by a support agent instead of the phone."""
     html = engine._build_invoice_html(_invoice(), ITEMS)
-    assert CUSTOMER_ID in html
+    assert DISPLAY_ID in html
+    assert CUSTOMER_ID not in html
     assert "\u2026" not in html.split("Customer ID:")[1][:60]
 
 
@@ -288,7 +290,7 @@ def _drawn_text(engine, invoice, items=ITEMS):
 def test_the_png_draws_the_customer_id(engine):
     """The image is what the customer actually receives on WhatsApp."""
     drawn = _drawn_text(engine, _invoice())
-    assert any(f"Customer ID: {CUSTOMER_ID}" in text for text in drawn)
+    assert any(f"Customer ID: {DISPLAY_ID}" in text for text in drawn)
 
 
 def test_the_png_draws_it_after_the_name_and_before_the_phone(engine):
@@ -317,8 +319,8 @@ def test_the_png_still_draws_its_existing_lines(engine):
     stamp must be untouched."""
     drawn = _drawn_text(engine, _invoice())
     assert "TAX INVOICE" in drawn
-    assert f"Invoice No: {ISSUED}" in drawn
-    assert "Source: Website" in drawn
+    assert not any(t.startswith("Invoice No:") for t in drawn)
+    assert "Channel: Website" in drawn
     assert "* * *  PAID  * * *" in drawn
     assert "Subtotal" in drawn
     assert "Thank You!" in drawn
@@ -413,7 +415,7 @@ def test_a_website_receipt_prints_the_id_when_the_order_has_one(engine):
     invoice = cr.invoice_dict_from_snapshot(
         _snapshot(), order_number="WD-ORD-ABCD1234", customer_uuid=CUSTOMER_ID)
     assert invoice[customer_uuid.ATTRIBUTE] == CUSTOMER_ID
-    assert f"Customer ID: {CUSTOMER_ID}" in engine._build_invoice_html(
+    assert f"Customer ID: {DISPLAY_ID}" in engine._build_invoice_html(
         invoice, invoice["items"])
 
 

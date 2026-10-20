@@ -1967,32 +1967,18 @@ def _source_label(invoice: Dict) -> str:
 
 
 def _customer_id(invoice: Dict) -> str:
-    """The public customer id to print, or `''` meaning PRINT NO ROW AT ALL.
+    """Stable short customer label for invoice output; full UUID stays in storage.
 
-    One function for the same three render sites as `_source_label`, for the same reason - but
-    note the opposite default. `_source_label` always answers, because every order genuinely has
-    an origin and `website` is true of every row written so far. A customer id has NO true
-    default: a row that carries none belongs to a contact created before this attribute existed,
-    and the honest rendering is silence.
-
-    So every caller must suppress its whole line on `''`. A label with nothing after it reads as
-    a broken renderer, and a MINTED substitute would be worse still: it would print an id on a
-    document that matches no record anywhere, which is precisely the failure
-    `tests/test_invoice_number_is_rendered.py` pins for the invoice number.
-
-    `from_contact` is reused as the validator because it never raises and re-checks the stored
-    value, so a uuid7 or a non-canonical spelling written by some future caller is suppressed
-    rather than printed. Reusing it also means there is one definition of "a usable customer id"
-    across the CRM, the checkout, the webhook and this engine.
+    The display digest is never used for authentication, joins, or as a unique key.
+    Missing or invalid UUIDs suppress the row rather than minting a new identity.
     """
-    return customer_uuid.from_contact(invoice)
+    return customer_uuid.display_code(invoice)
 
 
 def _build_invoice_html(invoice: Dict, items: List[Dict]) -> str:
     """Build POS receipt style HTML matching the PNG receipt design.
     Single delivery address (billing = same), no Order ID shown,
     QR code, amount in words, paper tear zigzag, GST summary."""
-    inv_num = invoice.get('invoiceNumber', '')
     cust_name = invoice.get('customerName', 'Customer')
     cust_phone = invoice.get('customerPhone', '')
     cust_email = invoice.get('customerEmail', '')
@@ -2089,21 +2075,10 @@ def _build_invoice_html(invoice: Dict, items: List[Dict]) -> str:
     # Order id. The reference still lives on the stored invoice record; it is simply not printed.
     ref_id_html = ''
 
-    # GST Rule 46(b): the invoice number is a mandatory particular of a tax invoice. `inv_num` has
-    # been assigned at the top of this function since the renderer was written and was printed
-    # NOWHERE, so every document this engine has ever produced was missing it. Empty renders no
-    # row rather than `Invoice No: ` with nothing after it - an unnumbered invoice should look
-    # unnumbered, not look like a rendering fault. Only `_get_next_invoice_number` may mint one;
-    # a renderer that invented a substitute would advance the GST series from a read path.
-    inv_num_html = f'<div class="info-row"><span>Invoice No: {inv_num}</span></div>' if inv_num else ''
-    # Source always renders, because every order has an origin: absent means website, and that is
-    # measured rather than assumed (see order_channel - no WhatsApp-origin order exists yet).
-    source_html = f'<div class="info-row"><span>Source: {_source_label(invoice)}</span></div>'
-    # The public customer id, in the Bill To block rather than the meta block: it identifies the
-    # person being billed, so it belongs beside their name and not beside the invoice number.
-    # Empty renders NO row - see `_customer_id`. Safe to print IN FULL, unlike the phone on the
-    # next line: it is ours, opaque, carries no timestamp and is not a credential, which is what
-    # lets a support agent quote it instead of reading a number back.
+    # Customer-facing copy omits the stored invoice sequence. Channel is the
+    # order origin; the stable short customer code is a presentation value only.
+    inv_num_html = ''
+    source_html = f'<div class="info-row"><span>Channel: {_source_label(invoice)}</span></div>'
     cust_id = _customer_id(invoice)
     cust_id_html = (f'<div class="addr">Customer ID: {cust_id}</div>'
                     if cust_id else '')
@@ -2684,23 +2659,14 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
     _sep()
 
     # ═══ INVOICE META ═══
-    # GST Rule 46(b) first: the invoice number leads the meta block, which is where a reader
-    # looks for it. The PNG never read `invoiceNumber` at all before this, so the image sent to
-    # the customer on WhatsApp carried no number. Read here rather than in the extraction block
-    # above so this line and the two render sites that match it stay in one place.
-    # `str(... or '')` because DynamoDB hands back whatever was stored and an f-string would
-    # happily print `None`.
-    inv_num = str(invoice.get('invoiceNumber', '') or '')
-    if inv_num:
-        _left(f"Invoice No: {inv_num}", FB)
-        y += LINE_H
+    # The stored invoice number remains internal to this customer copy.
     _lr(f"Date: {date_str}", time_str, F)
     y += LINE_H
     # Ref line removed (owner decision 2026-10-07): it duplicated the Order id on the customer
     # copy. Order id is shown below; the reference still lives on the stored record.
     # Source per docs/invoice-layout.md section 2. Unconditional: every order has an origin, and
     # `_source_label` is total, so there is no empty-label case to guard.
-    _left(f"Source: {_source_label(invoice)}", F)
+    _left(f"Channel: {_source_label(invoice)}", F)
     y += LINE_H
     # Brand is now the FIXED header line "Brand: WECARE.DIGITAL" (set in the header block),
     # never derived from entryPoint. The old entryPoint-derived Brand line is removed.
@@ -5489,19 +5455,14 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
         total_display = str(invoice.get('total', 0))
     order_id = invoice.get('orderId', '')
     reference_id = invoice.get('referenceId', '')
-    invoice_number = str(invoice.get('invoiceNumber', '') or '')
     order_line = f"\nOrder: {order_id}" if order_id and order_id != 'Offline' else ''
     ref_line = f"\nRef: {reference_id}" if reference_id else ''
-    # The caption is the only part of this message a customer can search, forward or read without
-    # opening the image, so the invoice number belongs in it as well as on the document. Omitted
-    # entirely when absent, like the Order and Ref lines above - a label with nothing after it
-    # reads as a bug.
-    invoice_line = f"\nInvoice: {invoice_number}" if invoice_number else ''
+    invoice_line = ''  # Invoice sequence remains on the stored record only.
     # Every line here is an identifier or a label. NO PERSONAL DATA: no phone, no name, no
     # address. A WhatsApp caption is rendered in notification previews and in forwards, so it is
     # the least private surface this engine writes to, and the document inside the image already
     # carries the bill-to details for the one recipient entitled to them.
-    source_line = f"\nOrdered on: {_source_label(invoice)}"
+    source_line = f"\nChannel: {_source_label(invoice)}"
     # The public customer id belongs here and the phone does not, and that distinction is the
     # whole rule this caption is written to: the id is OURS, opaque, carries no timestamp and
     # identifies nobody to a stranger reading a notification preview, whereas the phone, the name

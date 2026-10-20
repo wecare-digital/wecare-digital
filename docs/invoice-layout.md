@@ -281,3 +281,19 @@ fixed payment-template header is unchanged.
 Native invoice collection remains single-tender: a verified gift-card balance is
 not a debit. Split-tender native sends refuse before reserving or sending until an
 authoritative gift-card settlement producer is implemented. No live-send flag is enabled.
+
+
+## 2026-10-20 customer display changes
+
+Customer copies label the order origin `Channel: Website` or `Channel: WhatsApp`.
+The stored `invoiceNumber` and its sequence remain intact; invoice output omits
+the Invoice No row. Existing issued S3 assets are immutable and are not rewritten.
+
+Invoice Customer ID displays a deterministic `C-` code with twelve base32
+characters from a domain-separated SHA-256 digest of the stored customer UUID.
+The same UUID always produces the same code, irrespective of order or contact
+details. Missing or invalid UUIDs still omit the customer label. Full UUIDs remain
+the canonical identity in contacts, orders, and invoices. These short display
+digests are not guaranteed unique and must never be used as database keys,
+authentication credentials, or the sole basis for a customer lookup. Support must
+resolve against the canonical customer record when disambiguation is needed.
