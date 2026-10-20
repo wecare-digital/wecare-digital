@@ -362,7 +362,6 @@
       "POST_PAYMENT_REQUEST_TEMPLATE": "postpay_request_v1",
       "REGION": "us-east-1",
       "S3_BUCKET": "wecare-digital-get",
-      "WA_REVIEW_TEMPLATE": "wecare_leave_review",
       "WEBHOOK_LOG_TABLE": "stack-wecare-digital-RazorpayWebhookLogTable"
     },
     "wecare-rcs-dlr": {
