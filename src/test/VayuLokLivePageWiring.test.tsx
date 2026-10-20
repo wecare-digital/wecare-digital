@@ -52,6 +52,7 @@ describe( 'the /vayulok page keeps the live VayuLok section wired in', () => {
     // hero, which is the arrangement the page comment rules out.
     const hero = container.querySelector( '.rh-shell' ) as HTMLElement | null;
     expect( hero ).not.toBeNull();
+    expect( hero ).toHaveClass( 'uses-mobile-foundation' );
     expect( hero?.contains( live as Node ) ).toBe( false );
     expect(
       ( hero as HTMLElement ).compareDocumentPosition( live as Node )
