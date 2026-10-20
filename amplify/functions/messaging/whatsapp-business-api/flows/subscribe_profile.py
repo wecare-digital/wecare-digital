@@ -5,7 +5,7 @@ from botocore.exceptions import ClientError
 from lambda_utils import contact_store
 from lambda_utils.ecommerce import contact_address
 from lambda_utils.identity import customer_uuid, subscriber_id
-from flows import common, subscribe_messages
+from flows import common, country_options, subscribe_messages
 
 PROFILE_FIELDS = {'full_name': 'name', 'username': 'profileUsername',
                   'company_name': 'companyName', 'designation': 'designation'}
@@ -35,8 +35,6 @@ def _form(row, phone):
 def handle_init(data, flow_token, request_id):
     _table, phone, row = _context(flow_token)
     values = _form(row, phone)
-    values['country'] = values['country'] or 'India'
-    values['country_code'] = values['country_code'] or 'IN'
     return {'screen': 'PROFILE', 'data': values}
 
 
@@ -56,6 +54,12 @@ def handle_review(data, flow_token, request_id):
     if not values['name']:
         return _error(data, 'Please enter your name.')
     raw_address = {attr: data.get(key, '') for key, attr in ADDRESS_FIELDS.items()}
+    country_name, country_code = country_options.canonical_country(
+        raw_address.get('country'), raw_address.get('countryCode'))
+    if not country_name or not country_code:
+        return _error(data, 'Please select your country.')
+    raw_address['country'] = country_name
+    raw_address['countryCode'] = country_code
     # A profile username is customer-entered; never overwrite Meta's username,
     # BSUID, ownership or permanent customer identity with it.
     if len(values['profileUsername']) > 50:
