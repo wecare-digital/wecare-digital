@@ -4638,10 +4638,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
              the tokens are ever absent. --panel-r (cards/panels) = --radius-xl (14px),
              --pill-r (pills/toggles) = --radius-full. */
           --panel-r:var(--radius-xl,14px);--pill-r:var(--radius-full,999px);
-          /* Shared public foundation. Keep VayuLok's product-specific card/map composition,
-             but source its type/touch primitives from the same canonical public tokens as Home
-             and Grahak rather than maintaining a parallel mobile system. */
-          --vl-card-heading-size:var(--public-card-size);--vl-card-heading-weight:700;--vl-card-heading-lh:1.27;--vl-card-heading-track:-.25px;
+          /* Shared VayuLok UI system, pinned to the homepage card/body ladder. */
+          --vl-card-heading-size:var(--public-card-size);--vl-card-heading-weight:var(--public-card-weight);--vl-card-heading-lh:var(--public-card-leading);--vl-card-heading-track:var(--public-card-tracking);
           --vl-body-size:var(--public-body-size);--vl-body-weight:var(--public-body-weight);--vl-body-lh:var(--public-body-leading);--vl-body-track:var(--public-body-tracking);
           --vl-section-gap:24px;--vl-section-pad:20px;--vl-heading-gap:14px;--vl-content-gap:16px;--vl-action-size:var(--tap-min);
           font-family:var(--font-sans);color:var(--body);background:var(--page);padding-bottom:72px;-webkit-font-smoothing:antialiased;
@@ -4675,7 +4673,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-tool-panel{margin-top:var(--vl-section-gap)}
         .vl-live-tool-panel>h4{margin:0;color:#000;font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight);line-height:var(--vl-card-heading-lh);letter-spacing:var(--vl-card-heading-track);padding-inline-start:10px;border-inline-start:3px solid var(--lime)}
 
-        .vl-live-world-pair,.vl-live-fx-pair{display:grid;grid-template-columns:minmax(0,1fr) 38px minmax(0,1fr);align-items:start;gap:12px;margin-top:var(--vl-heading-gap)}
+        .vl-live-world-pair,.vl-live-fx-pair{display:grid;grid-template-columns:minmax(0,1fr) var(--vl-action-size) minmax(0,1fr);align-items:start;gap:12px;margin-top:var(--vl-heading-gap)}
         .vl-live-world-place{display:flex;min-width:0;flex-direction:column;gap:4px}
         .vl-live-world-place>span{color:var(--muted);font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
         .vl-live-utility-search{position:relative;min-width:0;height:52px;margin-top:2px}
@@ -4694,7 +4692,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-place-selection{overflow:hidden;color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.35;text-overflow:ellipsis;white-space:nowrap}
         .vl-live-world-place>b{margin-top:3px;color:#000;font-size:17px;font-weight:700;line-height:1.25;letter-spacing:-.2px;white-space:nowrap}
         .vl-live-world-place>small:not(.vl-live-place-selection){color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.35}
-        .vl-live-tool-swap{align-self:center;display:inline-flex;align-items:center;justify-content:center;width:var(--tap-min);height:var(--tap-min);margin-top:30px;padding:0;border:0;border-radius:50%;background:var(--lime);color:var(--green);font-size:18px;font-weight:800;line-height:1}
+        .vl-live-tool-swap{align-self:center;display:inline-flex;align-items:center;justify-content:center;width:var(--vl-action-size);height:var(--vl-action-size);margin-top:30px;padding:0;border:0;border-radius:50%;background:var(--lime);color:var(--green);font-size:18px;font-weight:800;line-height:1}
         .vl-live-tool-swap.is-horizontal{margin-top:8px;font-size:17px}
 
         .vl-live-fx-pair{align-items:center}
@@ -4703,12 +4701,12 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-fx-result>strong{color:#000;font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight);line-height:var(--vl-card-heading-lh);letter-spacing:var(--vl-card-heading-track)}
         .vl-live-fx-result>small{color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.35}
         .vl-live-fx-result>span{color:var(--muted);font-size:14px;font-weight:600;line-height:1.5}
-        .vl-live-route-pair{display:grid;grid-template-columns:minmax(0,1fr) 38px minmax(0,1fr);align-items:start;gap:12px;margin-top:var(--vl-heading-gap)}
+        .vl-live-route-pair{display:grid;grid-template-columns:minmax(0,1fr) var(--vl-action-size) minmax(0,1fr);align-items:start;gap:12px;margin-top:var(--vl-heading-gap)}
         .vl-live-route-place{display:flex;min-width:0;flex-direction:column;gap:4px}
         .vl-live-route-place>span{color:var(--muted);font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
         .vl-live-route-place>strong{overflow:hidden;margin-top:4px;color:#000;font-size:17px;font-weight:700;line-height:1.25;letter-spacing:-.18px;text-overflow:ellipsis;white-space:nowrap}
         .vl-live-route-place>small{overflow:hidden;color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.35;text-overflow:ellipsis;white-space:nowrap}
-        .vl-live-route-swap{align-self:center;justify-self:center;display:flex;align-items:center;justify-content:center;width:var(--tap-min);height:var(--tap-min);margin-top:30px;padding:0;border:0;border-radius:50%;background:var(--lime);color:var(--green);font-size:17px;font-weight:800}
+        .vl-live-route-swap{align-self:center;justify-self:center;display:flex;align-items:center;justify-content:center;width:var(--vl-action-size);height:var(--vl-action-size);margin-top:30px;padding:0;border:0;border-radius:50%;background:var(--lime);color:var(--green);font-size:17px;font-weight:800}
         .vl-live-route-result{display:flex;min-height:82px;flex-direction:column;justify-content:center;gap:12px;margin-top:var(--vl-section-gap);padding-top:var(--vl-section-pad);border-top:1px solid var(--hair)}
         .vl-live-route-result>span{color:var(--muted);font-size:12px;font-weight:600;line-height:1.45}
         .vl-live-route-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
@@ -4716,7 +4714,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-route-metrics span{display:block;color:var(--muted);font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
         .vl-live-route-metrics strong{display:block;overflow:hidden;margin-top:4px;color:#000;font-size:20px;font-weight:700;line-height:1.2;letter-spacing:-.25px;text-overflow:ellipsis;white-space:nowrap}
         .vl-live-route-unavailable{color:var(--status)!important;font-size:13px!important;font-weight:650!important}
-        .vl-live-route-check{align-self:flex-start;min-height:var(--tap-min);padding:0 16px;border:0;border-radius:var(--pill-r);background:var(--lime);color:var(--green);font-size:14px;font-weight:750}
+        .vl-live-route-check{align-self:flex-start;min-height:var(--tap-min);padding:0 16px;border:0;border-radius:var(--pill-r);background:var(--lime);color:var(--green);font-size:15px;font-weight:750}
         .vl-live-route-check:disabled{cursor:not-allowed;opacity:.45}
 
         /* ── FLOATING AIR QUALITY CARD ───────────────────────────────────────────────
@@ -4738,7 +4736,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
 
         /* Air/Weather toggle - same pale tint + saturated same-hue dot as the hero pill. */
         .vl-live-air-toggle{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:3px;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff}
-        .vl-live-air-toggle-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;border:0;border-radius:var(--pill-r);background:transparent;color:var(--green);font-size:16px;font-weight:700;letter-spacing:-.15px}
+        .vl-live-air-toggle-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:var(--tap-min);border:0;border-radius:var(--pill-r);background:transparent;color:var(--green);font-size:16px;font-weight:700;letter-spacing:-.15px}
         .vl-live-air-toggle-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:rgba(26,58,42,.3)}
         .vl-live-air-toggle-btn.is-air.is-active{background:#e0f7c8}
         .vl-live-air-toggle-btn.is-air.is-active .vl-live-air-toggle-dot{background:#3da35a}
@@ -4779,8 +4777,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-air-pollutant-value{justify-self:end;min-width:118px;color:#000;font-size:17px;font-weight:700;line-height:1.25;letter-spacing:-.2px;text-align:end;font-variant-numeric:tabular-nums}
         .vl-live-air-pollutant-value small{margin-inline-start:4px;color:var(--muted);font-size:11px;font-weight:600;letter-spacing:0}
         .vl-live-air-pollutant-label{min-width:0;color:var(--body);font-size:17px;font-weight:700;line-height:1.25;letter-spacing:-.18px}
-        /* ONE ACTION-ICON SYSTEM for the Air card. Every clickable icon uses the same
-           36px circle, lime surface, deep-green glyph, lighter-lime hover and focus ring.
+        /* ONE ACTION-ICON SYSTEM for the Air card. Every clickable icon uses the shared
+           44px tap floor, lime surface, deep-green glyph, lighter-lime hover and focus ring.
            No hover border, no dark-green hover fill, no inversion, no section-specific skin. */
         .vl-live-air-pollutant-info,
         .vl-live-air-heatmap-switch,
@@ -4843,14 +4841,14 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-air-pollutant-tip.is-top::before{bottom:-7px;left:50%;transform:translateX(-50%) rotate(45deg);border-right:1px solid var(--hair);border-bottom:1px solid var(--hair)}
         .vl-live-air-pollutant-pop{display:flex;flex-direction:column;gap:11px}
         .vl-live-air-pollutant-pop-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
-        .vl-live-air-pollutant-pop-title{display:inline-flex;min-height:28px;align-items:center;padding:0 10px;border:1px solid var(--hair);border-radius:999px;background:#f7f7f5;color:var(--green);font-size:13px;font-weight:700;letter-spacing:-.1px}
-        .vl-live-air-pollutant-pop-fullname{display:block;margin-top:5px;color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.3}
+        .vl-live-air-pollutant-pop-title{display:inline-flex;min-height:32px;align-items:center;padding:0 10px;border:1px solid var(--hair);border-radius:999px;background:#f7f7f5;color:var(--green);font-size:13px;font-weight:700;letter-spacing:-.1px}
+        .vl-live-air-pollutant-pop-fullname{display:block;margin-top:5px;color:var(--muted);font-size:14px;font-weight:600;line-height:1.3}
         .vl-live-air-pollutant-pop-line{display:grid;grid-template-columns:64px 1fr;gap:10px;align-items:start}
-        .vl-live-air-pollutant-pop-line strong{font-size:12.5px;font-weight:700;letter-spacing:.01em}
-        .vl-live-air-pollutant-pop-line span{color:var(--status);font-size:13px;font-weight:400;line-height:1.42}
+        .vl-live-air-pollutant-pop-line strong{font-size:15px;font-weight:700;letter-spacing:.01em}
+        .vl-live-air-pollutant-pop-line span{color:var(--status);font-size:15px;font-weight:400;line-height:1.42}
         .vl-live-air-pollutant-pop-line.is-source strong{color:#2563eb}
         .vl-live-air-pollutant-pop-line.is-effect strong{color:#9849e8}
-        .vl-live-air-pollutant-pop-text{color:var(--status);font-size:13px;line-height:1.42}
+        .vl-live-air-pollutant-pop-text{color:var(--status);font-size:15px;line-height:1.42}
         .vl-live-air-pollutant-row:focus-within,.vl-live-air-pollutant-row:hover{background:rgba(209,244,112,.18);border-inline-start-color:var(--lime)}
 
         /* ── HEATMAP ──────────────────────────────────────────────────────────────
@@ -4865,7 +4863,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-air-heatmap-ends{display:flex;align-items:center;justify-content:space-between;margin-top:6px}
         .vl-live-air-heatmap-end{color:var(--muted);font-size:11px;font-weight:700;letter-spacing:.02em}
         .vl-live-air-range{display:inline-flex;align-items:center;gap:4px;padding:2px;border-radius:999px;background:#f4f5f1}
-        .vl-live-air-range button{min-height:28px;padding:0 9px;border:0;border-radius:999px;background:transparent;color:var(--muted);font-size:11px;font-weight:700;line-height:1}
+        .vl-live-air-range button{min-height:var(--tap-min);padding:0 11px;border:0;border-radius:999px;background:transparent;color:var(--muted);font-size:14px;font-weight:700;line-height:1}
         .vl-live-air-range button.is-active{background:var(--lime);color:var(--green)}
         .vl-live-air-range button:hover{background:var(--lime-hover);color:var(--green)}
         .vl-live-air-forecast-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:var(--vl-heading-gap)}
@@ -4936,7 +4934,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-wx-alert-src{color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.35}
         .vl-live-wx-alert-event,.vl-live-wx-alert-time{color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.35}
         .vl-live-wx-alert-src a{color:var(--green);font-weight:700;text-decoration:underline;text-underline-offset:2px}
-        .vl-live-wx-alert-map-btn{align-self:flex-start;margin-top:6px;padding:7px 10px;border:1px solid var(--green);border-radius:999px;background:#fff;color:var(--green);font:inherit;font-size:11.5px;font-weight:700;cursor:pointer}
+        .vl-live-wx-alert-map-btn{align-self:flex-start;min-height:var(--tap-min);margin-top:6px;padding:7px 12px;border:1px solid var(--green);border-radius:999px;background:#fff;color:var(--green);font:inherit;font-size:15px;font-weight:700;cursor:pointer}
         .vl-live-wx-alert-map-btn:hover,.vl-live-wx-alert-map-btn[aria-pressed="true"]{background:var(--lime-tint)}
         .vl-live-wx-daily-expand{padding:10px 14px 14px;border-top:1px solid var(--hair);background:#fff}
         .vl-live-wx-period-toggle{width:max-content;margin:0 0 10px}
@@ -4951,7 +4949,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
            follows the home-page heading/body ladder exactly. */
         .vl-live-air-history-pollutant{display:inline-flex;align-items:center;gap:4px}
         .vl-live-air-history-info{position:relative;display:inline-block}
-        .vl-live-air-history-info summary{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--lime);color:var(--green);font-size:12px;font-weight:800;cursor:pointer;list-style:none}
+        .vl-live-air-history-info summary{display:inline-grid;place-items:center;width:var(--vl-action-size);height:var(--vl-action-size);border-radius:50%;background:var(--lime);color:var(--green);font-size:12px;font-weight:800;cursor:pointer;list-style:none}
         .vl-live-air-history-info summary::-webkit-details-marker{display:none}
         .vl-live-air-history-info[open]{display:block;flex-basis:100%;padding:8px 0 0}
         .vl-live-air-history-info[open] span{display:block;margin-top:4px;color:var(--body);font-size:13px;font-weight:400;line-height:1.42}
@@ -4966,7 +4964,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-air-health-persona{display:block;margin:0 0 6px;color:#000;font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight);line-height:var(--vl-card-heading-lh);letter-spacing:var(--vl-card-heading-track)}
         .vl-live-air-health-text{margin:0;color:var(--body);font-size:var(--vl-body-size);font-weight:var(--vl-body-weight);line-height:var(--vl-body-lh);letter-spacing:var(--vl-body-track)}
         .vl-live-air-health-text.is-clamped{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:5;overflow:hidden}
-        .vl-live-air-health-more{margin-top:8px;padding:0;border:0;background:transparent;color:var(--green);font-size:14px;font-weight:700;line-height:1.3;text-decoration:none;text-underline-offset:3px}
+        .vl-live-air-health-more{display:inline-flex;align-items:center;min-height:var(--tap-min);margin-top:8px;padding:0;border:0;background:transparent;color:var(--green);font-size:15px;font-weight:700;line-height:1.3;text-decoration:none;text-underline-offset:3px}
         .vl-live-air-health-more:hover{color:#000;text-decoration:underline}
 
         /* ── HOURLY HISTORY (inline-SVG AQI chart) ──────────────────────────────────
@@ -5034,12 +5032,12 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-map-placeholder strong{font-size:15px;letter-spacing:-.01em}
         .vl-live-map-placeholder span{font-size:12.5px;color:var(--muted)}
         .vl-live-map-placeholder p{margin:4px 0 0;font-size:12px;color:var(--status)}
-        .vl-live-map-retry{margin-top:10px;min-height:36px;padding:0 16px;border:0;border-radius:var(--pill-r);background:var(--lime);color:var(--green);font-size:13px;font-weight:700;cursor:pointer;transition:background-color .2s,transform .16s ease}
+        .vl-live-map-retry{margin-top:10px;min-height:var(--tap-min);padding:0 16px;border:0;border-radius:var(--pill-r);background:var(--lime);color:var(--green);font-size:15px;font-weight:700;cursor:pointer;transition:background-color .2s,transform .16s ease}
         .vl-live-map-retry:hover{background:var(--lime-hover);transform:translateY(-1px)}
         .vl-live-map-fallback{position:absolute;inset:0;display:grid;place-items:center;z-index:0;border-radius:var(--panel-r);background:#eef1ed;color:var(--green);font-size:13px}
         .vl-live-map-loading-dot{width:9px;height:9px;border-radius:50%;background:rgba(26,58,42,.28);animation:vl-live-map-pulse 1.15s ease-in-out infinite alternate}
         @keyframes vl-live-map-pulse{to{opacity:.35;transform:scale(.72)}}
-        .vl-live-map-fallback button{margin-inline-start:8px;border:1px solid var(--green);border-radius:999px;background:#fff;color:var(--green);padding:7px 11px}
+        .vl-live-map-fallback button{min-height:var(--tap-min);margin-inline-start:8px;border:1px solid var(--green);border-radius:999px;background:#fff;color:var(--green);padding:7px 11px}
         /* DESTINATION SEARCH is a separate page section ABOVE the map shell. Its outer
            wrapper is deliberately invisible: the only visible field chrome is the same
            bottom hairline used by Header .nav-search and ProductBlogPanel .pbp-search. */
@@ -5072,10 +5070,28 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         @media(max-width:1050px){
           .vl-live-map-shell{height:auto;min-height:min(560px,66svh)}
         }
-        @media(max-width:700px){
-          .vl-live{
-            --vl-card-heading-size:var(--public-mobile-card-size);
+        /* A browser that exposes physical viewport segments is telling us part of the viewport
+           may be occluded by a hinge. Keep the live VayuLok application wholly inside one pane,
+           matching the migrated hero. Physical margin-left/right is intentional here because
+           viewport-segment-* itself describes physical screen geometry, not document direction. */
+        @media(horizontal-viewport-segments:2){
+          .vl-live-shell{
+            width:env(viewport-segment-width 0 0);
+            max-width:env(viewport-segment-width 0 0);
+            margin-left:env(viewport-segment-left 0 0);
+            margin-right:auto;
+            box-sizing:border-box;
           }
+          :global([dir='rtl']) .vl-live-shell{
+            width:env(viewport-segment-width 1 0);
+            max-width:env(viewport-segment-width 1 0);
+            margin-left:env(viewport-segment-left 1 0);
+            margin-right:0;
+          }
+        }
+        @media(max-width:700px){
+          .vl-live{--vl-card-heading-size:var(--public-mobile-card-size)}
+
           .vl-live-shell{padding:0 max(var(--public-mobile-page-gutter),var(--safe-right)) max(var(--public-mobile-section-gap),var(--safe-bottom)) max(var(--public-mobile-page-gutter),var(--safe-left))}
           .vl-live-map-shell{display:block;height:auto;min-height:0;max-height:none;padding-top:360px;background:transparent;contain:layout}
           .vl-live-map-canvas,.vl-live-map-placeholder,.vl-live-map-fallback,.vl-live-weather-visual{inset:0 0 auto;height:360px}
@@ -5103,6 +5119,18 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
           .vl-live-mobile-copy b{font-weight:750}
           .vl-live-mobile-copy small{margin-top:2px;color:var(--muted);font-size:14px}
           .vl-live-mobile-empty{margin:12px 0 0;padding-top:12px;border-top:1px solid var(--hair);color:var(--muted);font-size:15px}
+          /* Meaningful app copy should not collapse into metadata sizes. Keep 14px for true
+             status/time labels; selection and action copy stays at 15–16px. */
+          .vl-live-utility-results strong,.vl-live-search-results strong{font-size:16px}
+          .vl-live-utility-results small,.vl-live-utility-empty,.vl-live-search-results span{font-size:15px}
+          .vl-live-search-status{font-size:14px}
+          .vl-live-world-place>span,.vl-live-route-place>span{font-size:14px}
+          .vl-live-place-selection,.vl-live-world-place>small:not(.vl-live-place-selection),
+          .vl-live-route-place>small{font-size:15px}
+          .vl-live-route-result>span{font-size:15px}
+          .vl-live-route-metrics span{font-size:14px}
+          .vl-live-route-unavailable{font-size:15px!important}
+          .vl-live-air-empty{font-size:15px}
           .vl-live-air-card-wrap{display:block;position:relative;z-index:12;width:100%;max-width:100%;min-width:0;margin:20px 0 56px;filter:none}
           .vl-live-air-card{width:100%;max-width:100%;min-width:0;padding:20px}
           .vl-live-air-panel{min-width:0;max-width:100%}
@@ -5180,7 +5208,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
           .vl-live-world-pair{grid-template-columns:1fr;gap:14px}
           .vl-live-world-pair .vl-live-tool-swap{justify-self:center;margin-top:0}
           .vl-live-world-place>b{font-size:17px}
-          .vl-live-fx-pair{grid-template-columns:minmax(0,1fr) 36px minmax(0,1fr);gap:10px}
+          .vl-live-fx-pair{grid-template-columns:minmax(0,1fr) var(--vl-action-size) minmax(0,1fr);gap:10px}
           .vl-live-fx-pair .vl-live-tool-swap{margin-top:8px}
           .vl-live-route-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
           .vl-live-route-metrics>div:first-child{grid-column:1/-1}
