@@ -27,8 +27,78 @@ import { openExternal } from '../../../lib/capacitor';
 const PAGE_SIZE = 20;
 const ORDER_STATUSES = [ 'pending', 'processing', 'partially-shipped', 'shipped', 'completed', 'canceled' ];
 const PAYMENT_STATUSES = [ 'pending', 'captured', 'failed', 'refunded' ];
-const SOURCES = [ 'manual', 'flow', 'catalog', 'integration' ];
 const SUBMISSION_STATUSES = [ 'open', 'in_progress', 'resolved', 'closed', 'cancelled' ];
+
+/*
+ * Canonical order sources (WECARE.DIGITAL charter). Source is ATTRIBUTION — where an order
+ * originated — and is a FILTER ONLY. It never changes accounting rules: the payment state,
+ * amount and refund eligibility are server-authoritative and read the same regardless of source.
+ *
+ * The six canonical values replace the old generic manual/flow/catalog/integration list. Because
+ * historical rows still carry the old raw values, the filter maps every stored value onto a
+ * canonical bucket (canonicalSource) rather than comparing the raw string, so an order written
+ * as `manual` still answers the STAFF_COMMERCE filter and nothing older falls out of view.
+ */
+export const CANONICAL_SOURCES = [
+  'WEBSITE',
+  'WHATSAPP_PAYMENT',
+  'WHATSAPP_CATALOG',
+  'STAFF_COMMERCE',
+  'STAFF_PAYMENT',
+  'SERVICE_FLOW',
+] as const;
+export type CanonicalSource = ( typeof CANONICAL_SOURCES )[ number ];
+
+const CANONICAL_SOURCE_LABEL: Record<CanonicalSource, string> = {
+  WEBSITE: 'Website',
+  WHATSAPP_PAYMENT: 'WhatsApp payment',
+  WHATSAPP_CATALOG: 'WhatsApp catalog',
+  STAFF_COMMERCE: 'Staff commerce',
+  STAFF_PAYMENT: 'Staff payment',
+  SERVICE_FLOW: 'Service flow',
+};
+
+/**
+ * Map any stored `source` value — current canonical, legacy raw, or junk — onto a canonical
+ * bucket. Legacy rows carry manual/flow/catalog/integration (and the odd website/whatsapp/
+ * shopify); each lands on the charter value that means the same origin so historical orders
+ * still filter. An unrecognised or empty value defaults to STAFF_COMMERCE, the staff-created
+ * bucket, because a manually created order with no clearer origin is a staff order.
+ */
+export function canonicalSource ( raw?: string ): CanonicalSource {
+  const value = String( raw || '' ).trim().toUpperCase().replace( /[\s-]+/g, '_' );
+  if ( ( CANONICAL_SOURCES as readonly string[] ).includes( value ) ) return value as CanonicalSource;
+  switch ( value ) {
+    case 'WEBSITE':
+    case 'WEB':
+    case 'ONLINE':
+    case 'INTEGRATION':
+    case 'SHOPIFY':
+      return 'WEBSITE';
+    case 'WHATSAPP':
+    case 'WHATSAPP_PAY':
+    case 'WA_PAYMENT':
+      return 'WHATSAPP_PAYMENT';
+    case 'CATALOG':
+    case 'WA_CATALOG':
+      return 'WHATSAPP_CATALOG';
+    case 'FLOW':
+    case 'SERVICE':
+      return 'SERVICE_FLOW';
+    case 'MANUAL':
+    case 'STAFF':
+      return 'STAFF_COMMERCE';
+    case 'PAYMENT':
+    case 'STAFF_PAY':
+      return 'STAFF_PAYMENT';
+    default:
+      return 'STAFF_COMMERCE';
+  }
+}
+
+export function canonicalSourceLabel ( raw?: string ): string {
+  return CANONICAL_SOURCE_LABEL[ canonicalSource( raw ) ];
+}
 
 type ManualTrackingPatch = Pick<api.OrderPatch, 'carrierName' | 'trackingNumber' | 'trackingUrl'>;
 
@@ -39,7 +109,7 @@ type ManualTrackingPatch = Pick<api.OrderPatch, 'carrierName' | 'trackingNumber'
  */
 const SOURCE_FILTER_OPTIONS: SelectOption[] = [
   { value: '', label: 'All Sources' },
-  ...SOURCES.map( s => ( { value: s, label: s } ) ),
+  ...CANONICAL_SOURCES.map( s => ( { value: s, label: CANONICAL_SOURCE_LABEL[ s ] } ) ),
 ];
 const STATUS_FILTER_OPTIONS: SelectOption[] = [
   { value: '', label: 'All fulfilment' },
@@ -49,7 +119,7 @@ const PAYMENT_FILTER_OPTIONS: SelectOption[] = [
   { value: '', label: 'All Payments' },
   ...PAYMENT_STATUSES.map( s => ( { value: s, label: s } ) ),
 ];
-const SOURCE_OPTIONS: SelectOption[] = SOURCES.map( s => ( { value: s, label: s } ) );
+const SOURCE_OPTIONS: SelectOption[] = CANONICAL_SOURCES.map( s => ( { value: s, label: CANONICAL_SOURCE_LABEL[ s ] } ) );
 const SUBMISSION_STATUS_OPTIONS: SelectOption[] = SUBMISSION_STATUSES.map(
   s => ( { value: s, label: s.replace( /_/g, ' ' ) } )
 );
@@ -289,7 +359,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
   const [ showCreate, setShowCreate ] = useState( false );
   const [ creating, setCreating ] = useState( false );
   const [ createForm, setCreateForm ] = useState( {
-    customerName: '', customerPhone: '', source: 'manual',
+    customerName: '', customerPhone: '', source: 'STAFF_COMMERCE',
     itemsSummary: '', totalAmount: '', notes: '',
   } );
 
@@ -299,15 +369,18 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
   const loadOrders = useCallback( async () => {
     setLoading( true );
     // A failed load must read as an error, not an empty "No orders found" table.
+    // Source is NOT sent to the backend: historical rows store legacy raw values (manual/flow/
+    // catalog/...) that an exact-match server filter on a canonical label would drop from view.
+    // The canonical source filter is applied client-side via canonicalSource() so every row,
+    // old or new, buckets correctly. Search still goes to the server.
     const { data, failures } = await api.collectApiFailures( () => api.listOrders( {
-      source: sourceFilter || undefined,
       search: search || undefined,
     } ) );
     const rows = data.orders || [];
     setOrders( rows );
     setFailure( rows.length === 0 && failures.length ? failures[ 0 ] : null );
     setLoading( false );
-  }, [ sourceFilter, search, toast ] );
+  }, [ search, toast ] );
 
   useEffect( () => { loadOrders(); }, [ loadOrders ] );
 
@@ -465,7 +538,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
     {
       toast.success( 'Order created' );
       setShowCreate( false );
-      setCreateForm( { customerName: '', customerPhone: '', source: 'manual', itemsSummary: '', totalAmount: '', notes: '' } );
+      setCreateForm( { customerName: '', customerPhone: '', source: 'STAFF_COMMERCE', itemsSummary: '', totalAmount: '', notes: '' } );
       loadOrders();
     } else toast.error( 'Failed to create order' );
     setCreating( false );
@@ -477,8 +550,10 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
     let result = orders;
     if ( statusFilter ) result = result.filter( order => orderFulfilment( order ) === statusFilter );
     if ( paymentFilter ) result = result.filter( o => o.paymentStatus === paymentFilter );
+    // Canonical source filter, mapped so historical raw values still match their charter bucket.
+    if ( sourceFilter ) result = result.filter( o => canonicalSource( o.source ) === sourceFilter );
     return result;
-  }, [ orders, statusFilter, paymentFilter ] );
+  }, [ orders, statusFilter, paymentFilter, sourceFilter ] );
 
   const totalPages = Math.ceil( filtered.length / PAGE_SIZE );
   const paged = filtered.slice( ( page - 1 ) * PAGE_SIZE, page * PAGE_SIZE );
@@ -556,7 +631,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
                           <div style={ { fontWeight: 500, fontSize: 'var(--text-md)' } }>{ order.customerName || '—' }</div>
                           <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontFamily: 'monospace' } }>{ order.customerPhone || '' }</div>
                         </td>
-                        <td style={ tdStyle }><Badge status={ order.source } /></td>
+                        <td style={ { ...tdStyle, fontSize: 'var(--text-sm)', whiteSpace: 'nowrap' } }>{ canonicalSourceLabel( order.source ) }</td>
                         <td style={ { ...tdStyle, fontSize: 'var(--text-sm)' } }>{ order.itemCount ?? order.items?.length ?? '—' }</td>
                         <td style={ tdStyle }><Badge status={ orderFulfilment( order ) } /></td>
                         <td style={ tdStyle }><Badge status={ order.paymentStatus } /></td>

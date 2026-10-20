@@ -31,6 +31,45 @@ const SHORT_LINK_BASE = 'wecare.digital/r';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
+// The lifecycle a short link moves through. ACTIVE <-> INACTIVE is reversible; RETIRED is
+// terminal (the code is spent for good, but the row and its click history survive as audit).
+// The backend is the authority on legal transitions — this list exists so the UI can label and
+// gate the controls without re-deriving the rule.
+type LinkLifecycle = 'ACTIVE' | 'INACTIVE' | 'RETIRED';
+
+// The record a link may optionally be attached to. 'general' is the unattached default.
+type RelatedType = 'general' | 'customer' | 'campaign' | 'order' | 'invoice' | 'service';
+
+const RELATED_OPTIONS: Array<{ value: RelatedType; label: string }> = [
+  { value: 'general', label: 'General (no record)' },
+  { value: 'customer', label: 'Customer' },
+  { value: 'campaign', label: 'Campaign' },
+  { value: 'order', label: 'Order' },
+  { value: 'invoice', label: 'Invoice / payment' },
+  { value: 'service', label: 'Service request' },
+];
+
+const RELATED_LABEL: Record<RelatedType, string> = {
+  general: 'General', customer: 'Customer', campaign: 'Campaign',
+  order: 'Order', invoice: 'Invoice', service: 'Service',
+};
+
+const LIFECYCLE_PAINT: Record<LinkLifecycle, { label: string; color: string }> = {
+  ACTIVE: { label: 'Active', color: '#1a7a4a' },
+  INACTIVE: { label: 'Inactive', color: '#b45309' },
+  RETIRED: { label: 'Retired', color: '#9ca3af' },
+};
+
+// Resolve a link's lifecycle from the record. New rows carry lifecycleState; legacy rows carry
+// only `active`, and a missing/true `active` reads as ACTIVE while an explicit false reads as
+// INACTIVE (never RETIRED — that is a deliberate terminal decision nothing legacy recorded).
+function resolveLifecycle ( l: ShortLink ): LinkLifecycle {
+  if ( l.lifecycleState === 'ACTIVE' || l.lifecycleState === 'INACTIVE' || l.lifecycleState === 'RETIRED' ) {
+    return l.lifecycleState;
+  }
+  return l.active === false ? 'INACTIVE' : 'ACTIVE';
+}
+
 interface ShortLink {
   shortCode: string;
   shortUrl: string;
@@ -43,6 +82,10 @@ interface ShortLink {
   iosUrl?: string;
   androidUrl?: string;
   active?: boolean;
+  lifecycleState?: LinkLifecycle;
+  purpose?: string;
+  relatedType?: RelatedType;
+  relatedId?: string;
 }
 
 /* ── Icons ── */
@@ -87,7 +130,11 @@ const LinksPanel: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
   const [ formAndroidUrl, setFormAndroidUrl ] = useState( '' );
   const [ formExpiry, setFormExpiry ] = useState( '' );
   const [ formActive, setFormActive ] = useState( true );
+  const [ formPurpose, setFormPurpose ] = useState( '' );
+  const [ formRelatedType, setFormRelatedType ] = useState<RelatedType>( 'general' );
+  const [ formRelatedId, setFormRelatedId ] = useState( '' );
   const [ editingCode, setEditingCode ] = useState<string | null>( null );
+  const [ editingRetired, setEditingRetired ] = useState( false );
   const [ analyticsCode, setAnalyticsCode ] = useState<string | null>( null );
   const [ analyticsData, setAnalyticsData ] = useState<any>( null );
 
@@ -132,7 +179,8 @@ const LinksPanel: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
   const resetForm = () => {
     setFormUrl( '' ); setFormTitle( '' ); setFormCode( '' ); setFormDeepLink( false );
     setFormIosUrl( '' ); setFormAndroidUrl( '' ); setFormExpiry( '' );
-    setFormActive( true ); setEditingCode( null );
+    setFormActive( true ); setFormPurpose( '' ); setFormRelatedType( 'general' );
+    setFormRelatedId( '' ); setEditingCode( null ); setEditingRetired( false );
   };
 
   const openCreate = () => {
@@ -142,7 +190,9 @@ const LinksPanel: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
   };
 
   const openEdit = ( l: ShortLink ) => {
+    const lifecycle = resolveLifecycle( l );
     setEditingCode( l.shortCode );
+    setEditingRetired( lifecycle === 'RETIRED' );
     setFormUrl( l.originalUrl || '' );
     setFormTitle( l.title || '' );
     setFormCode( l.shortCode );
@@ -150,7 +200,10 @@ const LinksPanel: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
     setFormIosUrl( l.iosUrl || '' );
     setFormAndroidUrl( l.androidUrl || '' );
     setFormExpiry( l.expiresAt || '' );
-    setFormActive( l.active !== false );
+    setFormActive( lifecycle === 'ACTIVE' );
+    setFormPurpose( l.purpose || '' );
+    setFormRelatedType( ( l.relatedType as RelatedType ) || 'general' );
+    setFormRelatedId( l.relatedId || '' );
     setShowForm( true );
   };
 
@@ -170,10 +223,15 @@ const LinksPanel: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
         body: JSON.stringify( {
           originalUrl: formUrl.trim(),
           title: formTitle.trim() || formUrl.trim(),
+          purpose: formPurpose.trim(),
+          relatedType: formRelatedType,
+          relatedId: formRelatedId.trim(),
           deepLink: formDeepLink,
           iosUrl: formIosUrl || '',
           androidUrl: formAndroidUrl || '',
           expiresAt: formExpiry || '',
+          // active maps server-side to the reversible ACTIVE <-> INACTIVE move. Retirement is a
+          // separate, deliberate action (handleRetire), never a side effect of an edit.
           active: formActive,
         } ),
       } );
@@ -209,6 +267,9 @@ const LinksPanel: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
           shortCode: formCode.trim() || undefined,
           originalUrl: formUrl.trim(),
           title: formTitle.trim() || formUrl.trim(),
+          purpose: formPurpose.trim() || undefined,
+          relatedType: formRelatedType,
+          relatedId: formRelatedId.trim() || undefined,
           deepLink: formDeepLink,
           iosUrl: formIosUrl || undefined,
           androidUrl: formAndroidUrl || undefined,
@@ -256,6 +317,55 @@ const LinksPanel: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
     } catch
     {
       toast.error( 'Failed to deactivate link' );
+    }
+  };
+
+  const handleReactivate = async ( code: string ) => {
+    try
+    {
+      const resp = await fetch( `${API_BASE}/links/${code}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify( { active: true } ),
+      } );
+      const data = await resp.json();
+      if ( !resp.ok || !data.success )
+      {
+        toast.error( data.error || 'Failed to reactivate link' );
+        return;
+      }
+      toast.success( 'Link reactivated' );
+      loadLinks();
+    } catch
+    {
+      toast.error( 'Failed to reactivate link' );
+    }
+  };
+
+  // Retire is the one irreversible action, and it is deliberately NOT a delete: the row and its
+  // click history are kept as audit, the code simply never resolves again. A retired link lives
+  // on cards/QRs/sent messages, so destroying it would strand every copy and discard the audit.
+  const handleRetire = async ( code: string ) => {
+    const ok = await confirm( 'Retire this short link permanently? It will stop redirecting for good and cannot be reactivated. The record and click history are kept for audit. Prefer Deactivate if you may need it again.' );
+    if ( !ok ) return;
+    try
+    {
+      const resp = await fetch( `${API_BASE}/links/${code}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify( { lifecycleState: 'RETIRED' } ),
+      } );
+      const data = await resp.json();
+      if ( !resp.ok || !data.success )
+      {
+        toast.error( data.error || 'Failed to retire link' );
+        return;
+      }
+      toast.success( 'Link retired' );
+      loadLinks();
+    } catch
+    {
+      toast.error( 'Failed to retire link' );
     }
   };
 
@@ -308,16 +418,25 @@ const LinksPanel: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
           ) : (
             <table className="link-table" role="table" aria-label="Short links">
               <thead>
-                <tr><th>Short URL</th><th>Destination</th><th>Title</th><th>Status</th><th>Clicks</th><th>Deep Link</th><th>Created</th><th>Actions</th></tr>
+                <tr><th>Short URL</th><th>Destination</th><th>Title</th><th>Related</th><th>Status</th><th>Clicks</th><th>Deep Link</th><th>Created</th><th>Actions</th></tr>
               </thead>
               <tbody>
-                { links.map( l => (
+                { links.map( l => {
+                  const lifecycle = resolveLifecycle( l );
+                  const paint = LIFECYCLE_PAINT[ lifecycle ];
+                  const related = ( l.relatedType as RelatedType ) || 'general';
+                  return (
                   <React.Fragment key={ l.shortCode }>
                     <tr>
                       <td><a href={ l.shortUrl } target="_blank" rel="noopener noreferrer" className="link-short-a">{ l.shortUrl.replace( 'https://', '' ) }</a></td>
                       <td style={ { maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>{ l.originalUrl }</td>
                       <td style={ { fontWeight: 500, fontSize: 'var(--text-sm)' } }>{ l.title }</td>
-                      <td>{ l.active === false ? <span style={ { fontSize: 'var(--text-xs)', fontWeight: 600, color: '#9ca3af' } }>Disabled</span> : <span style={ { fontSize: 'var(--text-xs)', fontWeight: 600, color: '#1a7a4a' } }>Active</span> }</td>
+                      <td style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>
+                        { related === 'general'
+                          ? <span style={ { color: '#9ca3af' } }>General</span>
+                          : <span>{ RELATED_LABEL[ related ] }{ l.relatedId ? <span style={ { color: '#9ca3af' } }> · { l.relatedId }</span> : null }</span> }
+                      </td>
+                      <td><span style={ { fontSize: 'var(--text-xs)', fontWeight: 600, color: paint.color } }>{ paint.label }</span></td>
                       <td style={ { fontWeight: 600, color: 'var(--accent)' } }>{ l.clicks }</td>
                       <td>{ l.deepLink ? <span className="link-deep-badge">iOS + Android</span> : <span style={ { color: '#9ca3af', fontSize: 'var(--text-xs)' } }>No</span> }</td>
                       <td style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>{ l.createdAt ? new Date( l.createdAt ).toLocaleDateString() : '-' }</td>
@@ -326,16 +445,22 @@ const LinksPanel: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                           <button className="link-act-btn" onClick={ () => copyLink( l.shortUrl, l.shortCode ) } title="Copy" aria-label="Copy link">
                             { copied === l.shortCode ? <span style={ { fontSize: 'var(--text-xs)', color: 'var(--accent)' } }>Copied</span> : <CopyIcon /> }
                           </button>
-                          <button className="link-act-btn" onClick={ () => openEdit( l ) } title="Edit" aria-label="Edit link"><EditIcon /></button>
+                          <button className="link-act-btn" onClick={ () => openEdit( l ) } title="Edit" aria-label="Edit link" disabled={ lifecycle === 'RETIRED' }><EditIcon /></button>
                           <button className="link-act-btn" onClick={ () => handleAnalytics( l.shortCode ) } title="Analytics" aria-label="View analytics"><BarChartIcon /></button>
-                          { l.active !== false && (
-                            <button className="link-act-btn danger" onClick={ () => handleDeactivate( l.shortCode ) } title="Deactivate" aria-label="Deactivate link">Off</button>
+                          { lifecycle === 'ACTIVE' && (
+                            <button className="link-act-btn" onClick={ () => handleDeactivate( l.shortCode ) } title="Deactivate" aria-label="Deactivate link">Off</button>
+                          ) }
+                          { lifecycle === 'INACTIVE' && (
+                            <button className="link-act-btn" onClick={ () => handleReactivate( l.shortCode ) } title="Reactivate" aria-label="Reactivate link">On</button>
+                          ) }
+                          { lifecycle !== 'RETIRED' && (
+                            <button className="link-act-btn danger" onClick={ () => handleRetire( l.shortCode ) } title="Retire permanently" aria-label="Retire link">Retire</button>
                           ) }
                         </div>
                       </td>
                     </tr>
                     { analyticsCode === l.shortCode && analyticsData && (
-                      <tr><td colSpan={ 8 } style={ { background: 'var(--bg-secondary)', padding: 12 } }>
+                      <tr><td colSpan={ 9 } style={ { background: 'var(--bg-secondary)', padding: 12 } }>
                         <div style={ { fontSize: 'var(--text-xs)', color: '#374151' } }>
                           <strong>Recent Clicks ({ ( analyticsData.recentClicks || [] ).length })</strong>
                           { ( analyticsData.recentClicks || [] ).length === 0 ? <p style={ { color: '#9ca3af' } }>No clicks yet</p> : (
@@ -353,7 +478,8 @@ const LinksPanel: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                       </td></tr>
                     ) }
                   </React.Fragment>
-                ) ) }
+                  );
+                } ) }
               </tbody>
             </table>
           ) }
@@ -377,6 +503,24 @@ const LinksPanel: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                   Title
                   <input className="link-input" type="text" placeholder="My Link" value={ formTitle } onChange={ e => setFormTitle( e.target.value ) } />
                 </label>
+                <label className="link-label">
+                  Purpose
+                  <input className="link-input" type="text" placeholder="Why this link exists (e.g. Diwali campaign CTA)" value={ formPurpose } onChange={ e => setFormPurpose( e.target.value ) } />
+                </label>
+                <div className="link-deep-fields">
+                  <label className="link-label">
+                    Attach to record
+                    <select className="link-input" value={ formRelatedType } onChange={ e => setFormRelatedType( e.target.value as RelatedType ) }>
+                      { RELATED_OPTIONS.map( o => <option key={ o.value } value={ o.value }>{ o.label }</option> ) }
+                    </select>
+                  </label>
+                  { formRelatedType !== 'general' && (
+                    <label className="link-label">
+                      { RELATED_LABEL[ formRelatedType ] } ID
+                      <input className="link-input" type="text" placeholder="Record identifier" value={ formRelatedId } onChange={ e => setFormRelatedId( e.target.value ) } />
+                    </label>
+                  ) }
+                </div>
                 <label className="link-label">
                   { editingCode ? 'Short Code' : 'Custom Code (optional)' }
                   <div style={ { display: 'flex', gap: 8, alignItems: 'center' } }>
@@ -432,7 +576,7 @@ const LinksPanel: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
               </div>
               <div className="link-modal-footer">
                 <button className="link-cancel-btn" onClick={ () => { setShowForm( false ); resetForm(); } }>Cancel</button>
-                <Button variant="primary" onClick={ handleSave } disabled={ creating || !formUrl.trim() }>
+                <Button variant="primary" onClick={ handleSave } disabled={ creating || editingRetired || !formUrl.trim() }>
                   { creating ? ( editingCode ? 'Saving...' : 'Creating...' ) : ( editingCode ? 'Save Changes' : 'Create Link' ) }
                 </Button>
               </div>

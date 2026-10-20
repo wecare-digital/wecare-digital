@@ -33,6 +33,8 @@ import string
 import boto3
 from datetime import datetime, timezone
 
+from lambda_utils import short_link_lifecycle as lifecycle
+
 SHORT_LINKS_TABLE = os.environ.get("SHORT_LINKS_TABLE", "stack-wecare-digital-ShortLinksTable")
 LINK_CLICKS_TABLE = os.environ.get("LINK_CLICKS_TABLE", "stack-wecare-digital-LinkClicksTable")
 REGION = os.environ.get("AWS_REGION", "us-east-1")
@@ -263,11 +265,20 @@ def create_link(body):
     short_code = body.get("shortCode", generate_code())
     now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
 
+    # Attachment: a link may optionally point at the record it was minted for. "general" is the
+    # unattached default rather than an empty string, so a filter can tell a deliberately
+    # general link from a legacy row written before attachments existed.
+    related_type = lifecycle.canonical_related_type(body.get("relatedType"))
+    related_id = str(body.get("relatedId") or "").strip()
+
     item = {
         "shortCode": short_code,
         "originalUrl": original_url,
         "shortUrl": f"https://{SHORT_LINK_BASE}/{short_code}",
         "title": body.get("title", original_url),
+        "purpose": str(body.get("purpose") or "").strip(),
+        "relatedType": related_type,
+        "relatedId": related_id,
         "clicks": 0,
         "createdAt": now,
         "createdBy": body.get("userId", "admin"),
@@ -275,6 +286,9 @@ def create_link(body):
         "iosUrl": body.get("iosUrl", ""),
         "androidUrl": body.get("androidUrl", ""),
         "expiresAt": body.get("expiresAt", ""),
+        # A new link is born ACTIVE. `active` is kept in sync with the lifecycle for the redirect
+        # fast-path and any older reader that still consults the boolean.
+        "lifecycleState": lifecycle.STATE_ACTIVE,
         "active": True,
     }
 
@@ -292,6 +306,10 @@ def list_links():
         if 'LastEvaluatedKey' not in result:
             break
         scan_kwargs['ExclusiveStartKey'] = result['LastEvaluatedKey']
+    # Resolve a lifecycle state for every row, including legacy rows that carry only `active`,
+    # so the dashboard can render ACTIVE/INACTIVE/RETIRED without re-deriving the rule client-side.
+    for row in all_items:
+        row["lifecycleState"] = lifecycle.state_from_record(row)
     # Sort by createdAt desc
     all_items.sort(key=lambda x: x.get("createdAt", ""), reverse=True)
     return {"statusCode": 200, "headers": HEADERS, "body": json.dumps({"links": all_items}, default=str)}
@@ -301,6 +319,8 @@ def get_link(code):
     item = links_table.get_item(Key={"shortCode": code}).get("Item")
     if not item:
         return {"statusCode": 404, "headers": HEADERS, "body": json.dumps({"error": "Link not found"})}
+
+    item["lifecycleState"] = lifecycle.state_from_record(item)
 
     # Get click analytics
     clicks_result = clicks_table.query(
@@ -318,23 +338,87 @@ def get_link(code):
 
 
 def delete_link(code):
-    links_table.delete_item(Key={"shortCode": code})
-    _invalidate(code)
-    return {"statusCode": 200, "headers": HEADERS, "body": json.dumps({"success": True})}
+    """DELETE retires a link; it does not destroy it.
 
-
-def update_link(code, body):
-    """Update an existing short link."""
+    A short link lives on printed cards, in sent messages, in QR codes and on invoices, so a
+    hard row delete turns every one of those copies into a dead end AND discards the click
+    history that is the audit trail. The safe, irreversible action a DELETE verb maps to is
+    therefore RETIRED: the code stops resolving for good but the row and its clicks survive.
+    An already-retired link is idempotent here.
+    """
     item = links_table.get_item(Key={"shortCode": code}).get("Item")
     if not item:
         return {"statusCode": 404, "headers": HEADERS, "body": json.dumps({"error": "Link not found"})}
 
+    links_table.update_item(
+        Key={"shortCode": code},
+        UpdateExpression="SET lifecycleState = :state, active = :active",
+        ExpressionAttributeValues={
+            ":state": lifecycle.STATE_RETIRED,
+            ":active": lifecycle.active_flag_for(lifecycle.STATE_RETIRED),
+        },
+    )
+    _invalidate(code)
+    updated = links_table.get_item(Key={"shortCode": code}).get("Item", {})
+    return {"statusCode": 200, "headers": HEADERS, "body": json.dumps({"success": True, "retired": True, "link": updated}, default=str)}
+
+
+def update_link(code, body):
+    """Update an existing short link, including its lifecycle state.
+
+    Lifecycle is the reason this is not a blind field copy. A link moves ACTIVE <-> INACTIVE
+    freely, but RETIRED is terminal: once a code is spent it must never redirect again, so a
+    transition out of RETIRED (or an attempt to reactivate a retired link via the legacy
+    `active` flag) is refused here rather than silently re-opening a link that was deliberately
+    killed. `active` and `lifecycleState` are always written together so the two never disagree.
+    """
+    item = links_table.get_item(Key={"shortCode": code}).get("Item")
+    if not item:
+        return {"statusCode": 404, "headers": HEADERS, "body": json.dumps({"error": "Link not found"})}
+
+    current_state = lifecycle.state_from_record(item)
+
+    # Resolve the requested lifecycle move. An explicit `lifecycleState` wins; otherwise a legacy
+    # `active` boolean maps to ACTIVE/INACTIVE so existing callers keep working unchanged.
+    target_state = None
+    if "lifecycleState" in body:
+        target_state = lifecycle.canonical_state(body["lifecycleState"])
+    elif "active" in body:
+        target_state = lifecycle.STATE_ACTIVE if body["active"] else lifecycle.STATE_INACTIVE
+
+    if target_state is not None and not lifecycle.can_transition(current_state, target_state):
+        return {
+            "statusCode": 409,
+            "headers": HEADERS,
+            "body": json.dumps(
+                {"error": f"Illegal lifecycle transition {current_state} -> {target_state}"}
+            ),
+        }
+
     update_expr = []
     expr_values = {}
-    for field in ["originalUrl", "title", "deepLink", "iosUrl", "androidUrl", "expiresAt", "active"]:
-        if field in body:
-            update_expr.append(f"{field} = :{field}")
-            expr_values[f":{field}"] = body[field]
+
+    # Content and attachment fields are editable in any non-retired state. A RETIRED link is
+    # frozen: its destination and metadata are audit, so only a repeat retire (a no-op) is let
+    # through above and nothing below rewrites it.
+    editable = ["originalUrl", "title", "purpose", "deepLink", "iosUrl", "androidUrl", "expiresAt"]
+    if current_state != lifecycle.STATE_RETIRED:
+        for field in editable:
+            if field in body:
+                update_expr.append(f"{field} = :{field}")
+                expr_values[f":{field}"] = body[field]
+        if "relatedType" in body:
+            update_expr.append("relatedType = :relatedType")
+            expr_values[":relatedType"] = lifecycle.canonical_related_type(body["relatedType"])
+        if "relatedId" in body:
+            update_expr.append("relatedId = :relatedId")
+            expr_values[":relatedId"] = str(body["relatedId"] or "").strip()
+
+    if target_state is not None:
+        update_expr.append("lifecycleState = :lifecycleState")
+        expr_values[":lifecycleState"] = target_state
+        update_expr.append("active = :active")
+        expr_values[":active"] = lifecycle.active_flag_for(target_state)
 
     if not update_expr:
         return {"statusCode": 400, "headers": HEADERS, "body": json.dumps({"error": "No fields to update"})}
@@ -353,7 +437,10 @@ def update_link(code, body):
 def redirect(code, event):
     """Redirect to original URL, track click, handle deep links."""
     item = _get_link_cached(code)
-    if not item or not item.get("active", True):
+    # Only an ACTIVE link resolves to its destination. INACTIVE and RETIRED both land on the
+    # safe fallback — asked as one lifecycle question rather than reading `active`, so a link
+    # taken down by lifecycle still stops even if an older `active` flag drifted out of sync.
+    if not item or not lifecycle.is_resolvable(item):
         return {
             "statusCode": 302,
             "headers": {**HEADERS, "Location": FALLBACK_URL},
