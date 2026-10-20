@@ -158,6 +158,7 @@ const VayuLokPage: React.FC = () => {
       <main className="vl-page">
         <RotatingHero
           insideMain
+          mobileFoundation
           ariaLabel="VayuLok"
           badgeLabel="VayuLok by WECARE.DIGITAL"
           frame="Bharat intelligence"
@@ -219,6 +220,11 @@ const VayuLokPage: React.FC = () => {
         }
         @media(max-width:767px){
           .vl-page :global(.rh-split){gap:28px}
+          /* VayuLok's longest live capability word is "Conditions" and the frame sits on its
+             own line, so it does not need Grahak/contact's narrow 32/28px safety rungs.
+             Keep the canonical 40px app hero through the phone/foldable range; devicecheck
+             owns the proof and should force a measured exception if this ever stops fitting. */
+          .vl-page :global(.rh-shell.uses-mobile-foundation .rh-head){font-size:var(--public-mobile-hero-size)}
         }
       `}</style>
     </>
