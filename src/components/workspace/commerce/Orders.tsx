@@ -389,7 +389,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
     }
     const confirmed = await confirmDanger(
       'refund',
-      <>Initiate the full provider refund for <strong>{ sub.submissionNumber || sub.submissionId }</strong>? The server derives payment ID and amount from the linked invoice; the browser cannot change them. Type REFUND to continue.</>,
+      <>Initiate the full refund for <strong>{ sub.submissionNumber || sub.submissionId }</strong>? The server derives payment ID and amount from the linked invoice; the browser cannot change them. Type REFUND to continue.</>,
       { title: 'Initiate full refund', confirmText: 'Initiate refund' },
     );
     if ( !confirmed ) return false;
@@ -401,8 +401,8 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
       return false;
     }
     toast.success( result.data.webhookConfirmed
-      ? 'Refund confirmed by provider'
-      : 'Refund initiated; waiting for authoritative payment confirmation' );
+      ? 'Refund confirmed'
+      : 'Refund initiated; awaiting final payment status' );
     if ( selectedOrder ) await openDetail( selectedOrder );
     return true;
   };
