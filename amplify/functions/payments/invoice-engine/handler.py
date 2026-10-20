@@ -5522,9 +5522,9 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
     if not phone_number_id:
         phone_number_id = wa_payment_request.PHONE_NUMBER_ID_1
 
-    # TEMPLATE-ONLY invoice/payment confirmation. The approved template carries the
-    # generated invoice PNG in its IMAGE header and launches Leave Review via its Flow button.
-    # No free-form/interactive invoice message is used, inside or outside the 24-hour window.
+    # TEMPLATE-ONLY invoice/payment confirmation. The approved template carries only the
+    # generated paid-invoice PNG in its IMAGE header. Transaction delivery must not attach a
+    # Flow/review button or any other post-payment interaction.
     wa_payload = {
         'body': json.dumps({
             'contactId': contact_id,
@@ -5536,7 +5536,6 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
             'templateParams': [],
             'templateHeaderMedia': s3_key,
             'templateHeaderType': 'image',
-            'flowButton': {'index': 0, 'flowKey': 'leave_review'},
         })
     }
 

@@ -25,6 +25,7 @@ def test_transaction_template_allowlist():
     assert INVOICE in engine
     for forbidden in ("postpay_request_v1", "wecare_leave_review", "isInteractive"):
         assert forbidden not in webhook
+    assert "'flowButton':" not in engine
 
 
 def test_otp_manifest_has_only_waba1_sender():
@@ -35,6 +36,12 @@ def test_otp_manifest_has_only_waba1_sender():
     assert set(routes) == {WABA1}
     assert routes[WABA1]["phone_number_id"] == PHONE1
     assert routes[WABA1]["template_name"] == OTP
+
+
+def test_runtime_deploy_includes_customer_whatsapp_auth():
+    workflow = _read(".github/workflows/runtime-deploy.yml")
+    assert "amplify/functions/auth/customer-whatsapp-auth/**" in workflow
+    assert "wecare-customer-whatsapp-auth" in workflow
 
 
 def test_webhook_has_no_extra_post_payment_template_configuration():

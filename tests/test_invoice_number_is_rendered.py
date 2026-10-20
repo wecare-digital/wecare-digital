@@ -372,7 +372,7 @@ def test_whatsapp_invoice_uses_only_the_approved_image_template(engine):
     assert payload["templateHeaderType"] == "image"
     assert payload["templateHeaderMedia"] == "secure/x.png"
     assert payload["content"] == ""
-    assert payload["flowButton"] == {"index": 0, "flowKey": "leave_review"}
+    assert "flowButton" not in payload
     assert "mediaFile" not in payload
 
 
