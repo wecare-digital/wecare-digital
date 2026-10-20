@@ -1,9 +1,13 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import FlowResponseDetails from '../components/FlowResponseDetails';
+import FlowResponseDetails, { flowResponseTitle } from '../components/FlowResponseDetails';
 
 describe( 'Flow response details in the inbox', () => {
+  it( 'uses the Leave Review name for private feedback and legacy internal codes', () => {
+    expect( flowResponseTitle( { flowType: 'customer_idea', flowCode: 'WD_IDEA' } ) ).toBe( 'Leave Review' );
+    expect( flowResponseTitle( { flowCode: 'WD_IDEA' } ) ).toBe( 'Leave Review' );
+  } );
   it( 'renders answers in a semantic table with complete response text and document links', () => {
     render( <FlowResponseDetails flowAnswers={ [{ question: 'Rating', answer: '5' }, { question: 'Feedback', answer: 'The whole response remains readable.' }] }
       flowAttachments={ [{ filename: 'Invoice.pdf', type: 'application/pdf', url: 'https://wecare.digital/private/signed-file' }] } /> );

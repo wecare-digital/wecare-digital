@@ -1,6 +1,12 @@
 import React from 'react';
 import type { Message } from '../api/client';
 
+export function flowResponseTitle ( message: Pick<Message, 'flowType' | 'flowCode'> ): string {
+  const key = ( message.flowType || message.flowCode || '' ).toLowerCase();
+  if ( [ 'customer_idea', 'wd_idea', 'feedback', 'wd_rev', 'leave_review' ].includes( key ) ) return 'Leave Review';
+  return key.replace( /^wd_/, '' ).replace( /_v\d+$/, '' ).replace( /_/g, ' ' ).replace( /\b\w/g, letter => letter.toUpperCase() ) || 'Submitted Form';
+}
+
 /** One readable response table and the files belonging to that submission. */
 export default function FlowResponseDetails ( { flowAnswers = [], flowAttachments = [] }: Pick<Message, 'flowAnswers' | 'flowAttachments'> ) {
   return <>

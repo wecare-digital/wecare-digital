@@ -2298,6 +2298,7 @@ export async function bulkDeleteContacts ( contactIds: string[] ): Promise<{ del
 // ============================================================================
 
 export interface WhatsAppTemplate {
+  fixedHeaderMedia?: string;
   id: string;
   name: string;
   language: string;
@@ -2404,6 +2405,7 @@ export async function sendWhatsAppTemplateMessage ( request: {
 
 function normalizeTemplate ( item: any ): WhatsAppTemplate {
   return {
+    fixedHeaderMedia: item.fixedHeaderMedia || undefined,
     id: item.id || item.templateId || item.name || '',
     name: item.name || item.templateName || '',
     language: item.language || item.languageCode || 'en_US',

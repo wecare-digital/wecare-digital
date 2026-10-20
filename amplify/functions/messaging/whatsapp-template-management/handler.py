@@ -5,6 +5,7 @@ import uuid
 import hashlib
 import hmac
 import boto3
+from lambda_utils.template_media import FIXED_IMAGE_HEADERS
 import urllib.request
 import urllib.parse
 import urllib.error
@@ -807,7 +808,8 @@ def _list_send_media(query_params):
                     if key.endswith('/'):
                         continue
                     parts = key.split('/')
-                    fld = parts[2] if len(parts) > 2 else ''
+                    relative = key[len(PUBLIC_MEDIA_PREFIX):]
+                    fld = relative.split('/', 1)[0]
                     raw_name = parts[-1]
                     # Strip the wecare-digital-{8hex}_ prefix for display
                     display = raw_name
@@ -867,6 +869,9 @@ def _delete_send_media(query_params, body=None):
         # Safety guard: only allow deleting within the public template-media folder
         if not s3_key.startswith(PUBLIC_MEDIA_PREFIX):
             return _error_response(403, f'Refusing to delete outside {PUBLIC_MEDIA_PREFIX}')
+
+        if f'https://{CDN_DOMAIN}/{s3_key}' in FIXED_IMAGE_HEADERS.values():
+            return _error_response(409, 'This image is a fixed template header and must be retained')
 
         s3.delete_object(Bucket=MEDIA_BUCKET, Key=s3_key)
         logger.info(json.dumps({'event': 'send_media_deleted', 's3Key': s3_key}))

@@ -8,7 +8,7 @@
  * WhatsApp's dedicated inbox ([retired public path]/whatsapp) stays as-is for full WhatsApp send features.
  */
 
-import FlowResponseDetails from '../../../../components/FlowResponseDetails';
+import FlowResponseDetails, { flowResponseTitle } from '../../../../components/FlowResponseDetails';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -1091,23 +1091,25 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                                     { ( m.messageType || '' ).toLowerCase() === 'flow_response' && (
                                                         <div className="ui-flow-response" style={ { width: '100%', minWidth: 0, maxWidth: 560, overflowWrap: 'anywhere' } }>
                                                             <div style={ { fontWeight: 700, marginBottom: 6 } }>
-                                                                Flow response{ ( m.flowType || m.flowCode ) ? ` · ${( m.flowType || m.flowCode || '' ).replace( /^wd_/i, '' ).replace( /_v\d+$/i, '' ).replace( /_/g, ' ' )}` : '' }
+                                                                { flowResponseTitle( m ) } · Flow response
                                                             </div>
                                                             <FlowResponseDetails flowAnswers={ m.flowAnswers } flowAttachments={ m.flowAttachments } />
                                                             { m.reviewId && (
                                                                 <div style={ { marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--borderLight)' } }>
                                                                     <div style={ { fontSize: 'var(--text-xs)', marginBottom: 6 } }>
-                                                                        Review: <b>{ m.reviewStatus || 'pending' }</b>
+                                                                        Feedback status: <b>{ m.reviewStatus || 'pending' }</b>
                                                                         { m.reviewRating ? ` · ${'⭐'.repeat( Math.max( 0, Math.min( 5, m.reviewRating ) ) )}` : '' }
                                                                         { m.reviewOrderId ? ` · ${m.reviewOrderId}` : '' }
                                                                     </div>
+                                                                    { ( m.flowCode === 'WD_IDEA' || m.flowType === 'customer_idea' ) && <p style={ { fontSize: 'var(--text-xs)', margin: '0 0 8px', color: 'var(--text-muted)' } }>Private feedback. These controls only set its internal status; they do not publish, send a reply, or delete this message.</p> }
                                                                     <div style={ { display: 'flex', gap: 6, flexWrap: 'wrap' } }>
                                                                         { ( [ 'approved', 'flagged', 'hidden' ] as const ).map( status => (
                                                                             <button key={ status } type="button" className="ui-msg-act"
                                                                                 disabled={ reviewUpdating === m.reviewId }
+                                                                                title={ status === 'approved' ? 'Mark feedback approved' : status === 'flagged' ? 'Mark feedback for attention' : 'Mark hidden in the review workflow; keep this message' }
                                                                                 onClick={ () => handleInboxReviewAction( m, status ) }
                                                                                 style={ { border: '1px solid var(--border)', borderRadius: 6, padding: '4px 7px', opacity: 1 } }>
-                                                                                { status === 'approved' ? 'Approve' : status === 'flagged' ? 'Flag' : 'Hide' }
+                                                                                { status === 'approved' ? 'Approve' : status === 'flagged' ? 'Flag' : 'Mark hidden' }
                                                                             </button>
                                                                         ) ) }
                                                                     </div>

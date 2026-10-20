@@ -12,6 +12,7 @@ from lambda_utils import media_paths, template_status  # one bucket, two roots: 
 from lambda_utils.response import cors_headers, options_response, extract_origin
 from lambda_utils.logging import get_logger
 from lambda_utils.middleware import require_auth
+from lambda_utils.template_media import fixed_image_header
 
 logger = get_logger(__name__)
 
@@ -496,6 +497,7 @@ def _list_templates(waba_id, query_params):
                 'category': t.get('category'),
                 'language': t.get('language'),
                 'components': t.get('components', []),
+                'fixedHeaderMedia': fixed_image_header(t.get('name', '')),
             })
         return {'statusCode': 200, 'headers': cors_headers(origin), 'body': json.dumps({'templates': templates})}
     except Exception as e:
