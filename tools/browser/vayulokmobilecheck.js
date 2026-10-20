@@ -114,11 +114,12 @@ const WIDTHS = [ 320, 375, 430 ];
       const pval = q( '.vl-live-air-pollutant-value' );
       const score = q( '.vl-live-air-aqi-score' );
       const meta = q( '.vl-live-air-gauge-meta' );
+      const gaugeRow = q( '.vl-live-air-gauge-row' );
       return {
         docScroll: de.scrollWidth, docClient: de.clientWidth,
         day: rect( day ), cond: rect( cond ), temp: rect( temp ), row: rect( row ),
         plabel: rect( plabel ), pval: rect( pval ), prow: rect( prow ),
-        score: rect( score ), meta: rect( meta ),
+        score: rect( score ), meta: rect( meta ), gaugeRow: rect( gaugeRow ),
       };
     } );
     const hOverflow = r.docScroll > r.docClient + 1;
@@ -128,17 +129,20 @@ const WIDTHS = [ 320, 375, 430 ];
     const tempTopLine = Math.abs( r.temp.y - r.day.y ) <= 8;
     // pollutant value sits BELOW the label => stacked
     const valBelowLabel = r.pval.y >= r.plabel.y + r.plabel.h - 2;
-    // Mobile AQI score + status must share one horizontal centre. This catches the visual
-    // drift where the category block sat noticeably to the right of the score.
+    // Mobile AQI score + status must be centered against the FULL gauge/card row.
+    // Comparing the children to each other can false-green when both are shifted together.
+    const rowCenter = r.gaugeRow.x + r.gaugeRow.w / 2;
     const scoreCenter = r.score.x + r.score.w / 2;
     const metaCenter = r.meta.x + r.meta.w / 2;
-    const summaryCentered = Math.abs( scoreCenter - metaCenter ) <= 2;
+    const scoreCentered = Math.abs( scoreCenter - rowCenter ) <= 2;
+    const metaCentered = Math.abs( metaCenter - rowCenter ) <= 2;
+    const summaryCentered = scoreCentered && metaCentered;
     const ok = !hOverflow && condBelowDay && tempTopLine && valBelowLabel && summaryCentered;
     if ( !ok ) failures++;
     console.log(
       `@${w}px  h-overflow=${hOverflow ? 'YES(' + r.docScroll + '>' + r.docClient + ')' : 'no'}` +
       `  cond-below-day=${condBelowDay}  temp-on-top-line=${tempTopLine}  pollutant-stacked=${valBelowLabel}` +
-      `  summary-centered=${summaryCentered}  => ${ok ? 'PASS' : 'FAIL'}`
+      `  score-centered=${scoreCentered}  meta-centered=${metaCentered}  => ${ok ? 'PASS' : 'FAIL'}`
     );
     await page.close();
   }
