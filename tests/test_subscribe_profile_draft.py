@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 import pytest
 from botocore.exceptions import ClientError
-from lambda_utils.ecommerce import contact_address
+from lambda_utils.ecommerce import contact_address, payment_address
 from lambda_utils.identity import customer_uuid
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,7 +32,9 @@ def setup(monkeypatch):
     with patch('boto3.client'),patch('boto3.resource'):
         mod=importlib.import_module('flows.subscribe_profile')
     row={'id':'wa918100640044','phone':'+918100640044','name':'QA','email':'qa@example.com','updatedAt':100,
-         'customerUuid':'5f701556-7818-494a-a9aa-cf57da6287c2','consentLedger':[{'state':'OPTED_OUT'}],
+         'customerUuid':'5f701556-7818-494a-a9aa-cf57da6287c2',
+         'checkoutCustomerId':'11111111-2222-3333-4444-555555555555',
+         'consentLedger':[{'state':'OPTED_OUT'}],
          'optInWhatsApp':False,'allowlistWhatsApp':False,
          contact_address.ATTRIBUTE:contact_address.normalize_for_storage(ADDRESS)}
     table=Table(row)
@@ -58,11 +60,13 @@ def test_prefill_uses_canonical_address_and_compact_id(setup):
 def test_save_and_reopen_updates_shared_address_without_consent_or_id_churn(setup):
     mod,table,calls=setup; data=form(mod)
     data.update(full_name='Updated QA',address_line1='45 New Road',customer_id='FORGED',phone_number='+19999999999')
-    old_uuid=table.row['customerUuid']; old_consent=copy.deepcopy(table.row['consentLedger'])
+    old_uuid=table.row['customerUuid']; old_owner=table.row['checkoutCustomerId']
+    old_consent=copy.deepcopy(table.row['consentLedger'])
     result=mod.handle_review(data,TOKEN,'r')
     assert result['screen']=='COMPLETE'
     assert result['data']['customer_id']=='C-ED6BQSW2P7PQ'
     assert table.row['customerUuid']==old_uuid
+    assert table.row['checkoutCustomerId']==old_owner
     assert table.row['phone']=='+918100640044'
     assert table.row['consentLedger']==old_consent and table.row['optInWhatsApp'] is False
     assert table.row['allowlistWhatsApp'] is False
@@ -100,6 +104,31 @@ def test_new_contact_created_with_canonical_identity_and_no_marketing_optins(set
     assert customer_uuid.from_contact(table.row)
     assert not table.row.get('optInWhatsApp') and not table.row.get('optInEmail')
     assert table.puts[0]['ConditionExpression']=='attribute_not_exists(id)'
+
+
+def test_subscribe_india_address_is_the_same_address_for_web_and_whatsapp_pay(setup):
+    mod,table,_=setup
+    result=mod.handle_review(form(mod),TOKEN,'r')
+    assert result['screen']=='COMPLETE'
+    web,web_err=contact_address.payable_for(table.row,payment_address.WEBSITE_RAZORPAY)
+    wa,wa_err=contact_address.payable_for(table.row,payment_address.WHATSAPP_ORDER_DETAILS)
+    assert web_err is None and wa_err is None
+    assert web==wa==table.row[contact_address.ATTRIBUTE]
+
+
+def test_subscribe_international_address_stays_web_payable_but_not_whatsapp_native(setup):
+    mod,table,_=setup
+    data=form(mod)
+    data.update(address_line1='1 Market St',city='San Francisco',state='US-CA',
+                postal_code='94105',country='United States',country_code='IN')
+    result=mod.handle_review(data,TOKEN,'r')
+    assert result['screen']=='COMPLETE'
+    stored=table.row[contact_address.ATTRIBUTE]
+    assert stored['countryCode']=='US'
+    web,web_err=contact_address.payable_for(table.row,payment_address.WEBSITE_RAZORPAY)
+    _wa,wa_err=contact_address.payable_for(table.row,payment_address.WHATSAPP_ORDER_DETAILS)
+    assert web_err is None and web==stored
+    assert wa_err is not None and wa_err.code=='COUNTRY_NOT_PAYABLE_ON_CHANNEL'
 
 def test_deleted_address_not_prefilled_from_legacy_data(setup):
     mod,table,_=setup; table.row.pop(contact_address.ATTRIBUTE); table.row['shippingAddress']='DELETED'
