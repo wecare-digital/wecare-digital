@@ -1,0 +1,439 @@
+/**
+ * Authenticated Workspace design layer.
+ *
+ * WHY THIS EXISTS:
+ * The no-sidebar Workspace shell still inherits dashboard-era rules from Layout.css,
+ * inner-pages.css and inner-ux.css. Those files are intentionally kept for the large
+ * legacy component surface, but they also add a 30px framed inner container and broad
+ * button !important rules that override the canonical Workspace hubs.
+ *
+ * This file is imported after button.css and scopes every correction under
+ * .workspace-shell. It therefore fixes the shared shell without touching public pages.
+ * form-controls.css remains last and continues to own native input/select skins.
+ */
+
+.workspace-shell {
+  --workspace-measure: 1360px;
+  --workspace-page-x: 40px;
+  --workspace-page-y: 48px;
+  --workspace-section-gap: 56px;
+  --workspace-panel-radius: 16px;
+  --workspace-control-radius: 10px;
+}
+
+/* The old inner-content-container was a rounded dashboard card. In the new no-sidebar
+   workspace it becomes the page canvas. Individual tables/cards keep their own borders. */
+.workspace-shell .inner-content-container {
+  width: min(100%, 1440px) !important;
+  max-width: 1440px !important;
+  margin: 0 auto !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #fff !important;
+  overflow: visible !important;
+  min-width: 0;
+}
+
+.workspace-shell .inner-content-container > * {
+  min-width: 0;
+}
+
+/* Canonical hub canvas. Bespoke hubs already own their internal content; this only gives
+   every top-level destination the same page measure and Home-derived breathing room. */
+.workspace-shell .inner-content-container > .page-shell,
+.workspace-shell .inner-content-container > .inner-page-container,
+.workspace-shell .inner-content-container > .comms-page,
+.workspace-shell .inner-content-container > .commerce-page,
+.workspace-shell .inner-content-container > .service-page,
+.workspace-shell .inner-content-container > .tk-page {
+  width: min(100%, var(--workspace-measure));
+  max-width: var(--workspace-measure);
+  margin-inline: auto;
+  box-sizing: border-box;
+}
+
+/* The three canonical bespoke hubs currently ship 16-32px page padding. Raise the desktop
+   rhythm to the same family as Workspace Home while keeping their existing component shapes. */
+.workspace-shell .inner-content-container > .comms-page,
+.workspace-shell .inner-content-container > .commerce-page,
+.workspace-shell .inner-content-container > .service-page {
+  padding: var(--workspace-page-y) var(--workspace-page-x) 72px;
+}
+
+/* PageShell powers Payments, Platform and several retained operational surfaces. */
+.workspace-shell .inner-content-container > .page-shell {
+  min-height: 0;
+  height: auto;
+  overflow: visible;
+}
+
+.workspace-shell .inner-content-container > .page-shell > .ps-header {
+  padding: var(--workspace-page-y) var(--workspace-page-x) 18px;
+  gap: 24px;
+}
+
+.workspace-shell .ps-header-left {
+  max-width: 820px;
+}
+
+.workspace-shell .ps-eyebrow {
+  display: block;
+  margin: 0 0 8px;
+  color: var(--accent);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  letter-spacing: .09em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.workspace-shell .ps-title {
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(36px, 4.5vw, 52px);
+  font-weight: 780;
+  line-height: 1.02;
+  letter-spacing: -.04em;
+}
+
+.workspace-shell .ps-subtitle {
+  max-width: 760px;
+  margin: 12px 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-md);
+  line-height: 1.55;
+}
+
+/* Canonical local navigation. The old global button layer applies !important borders,
+   padding and 999px radii to every button. These equally-important, more-specific rules
+   restore tabs as tabs rather than Home CTA pills. */
+.workspace-shell .ps-tabs-wrapper {
+  margin: 0 0 24px;
+  padding: 0 var(--workspace-page-x);
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: none;
+}
+
+.workspace-shell .ps-tabs-wrapper::-webkit-scrollbar {
+  display: none;
+}
+
+.workspace-shell .ps-tabs {
+  width: max-content;
+  min-width: 0;
+  max-width: 100%;
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg-secondary);
+}
+
+.workspace-shell .workspace-main .ps-tab,
+.workspace-shell .workspace-main .comms-tabs button,
+.workspace-shell .workspace-main .commerce-tabs button,
+.workspace-shell .workspace-main .service-tabs button,
+.workspace-shell .workspace-main .ledger-switch button {
+  min-height: var(--tap-min) !important;
+  min-width: 0;
+  margin: 0 !important;
+  padding: 8px 16px !important;
+  border: 1px solid transparent !important;
+  border-radius: var(--workspace-control-radius) !important;
+  background: transparent !important;
+  color: var(--text-muted) !important;
+  box-shadow: none !important;
+  font-family: var(--font-sans) !important;
+  font-size: var(--text-sm) !important;
+  font-weight: 700 !important;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.workspace-shell .workspace-main .ps-tab:hover,
+.workspace-shell .workspace-main .comms-tabs button:hover,
+.workspace-shell .workspace-main .commerce-tabs button:hover,
+.workspace-shell .workspace-main .service-tabs button:hover,
+.workspace-shell .workspace-main .ledger-switch button:hover {
+  background: #fff !important;
+  border-color: var(--lime) !important;
+  color: var(--text) !important;
+}
+
+.workspace-shell .workspace-main .ps-tab.active,
+.workspace-shell .workspace-main .comms-tabs button.active,
+.workspace-shell .workspace-main .commerce-tabs button.active,
+.workspace-shell .workspace-main .service-tabs button.active,
+.workspace-shell .workspace-main .ledger-switch button.active {
+  background: var(--lime) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+  box-shadow: none !important;
+}
+
+.workspace-shell .workspace-main .ps-tab:focus-visible,
+.workspace-shell .workspace-main .comms-tabs button:focus-visible,
+.workspace-shell .workspace-main .commerce-tabs button:focus-visible,
+.workspace-shell .workspace-main .service-tabs button:focus-visible,
+.workspace-shell .workspace-main .ledger-switch button:focus-visible {
+  outline: 2px solid var(--accent) !important;
+  outline-offset: 2px !important;
+}
+
+.workspace-shell .ps-tab-after-divider {
+  margin-inline-start: 8px !important;
+}
+
+.workspace-shell .ps-separator {
+  display: none;
+}
+
+.workspace-shell .ps-content {
+  min-height: 0;
+  overflow: visible;
+}
+
+/* Bespoke canonical hub headers share the same hierarchy as PageShell. */
+.workspace-shell .comms-eyebrow,
+.workspace-shell .commerce-head .eyebrow,
+.workspace-shell .service-head .eyebrow,
+.workspace-shell .workspace-page-eyebrow,
+.workspace-shell .tk-eyebrow {
+  margin: 0 0 8px;
+  color: var(--accent);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  letter-spacing: .09em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.workspace-shell .comms-head,
+.workspace-shell .commerce-head,
+.workspace-shell .service-head,
+.workspace-shell .workspace-page-head {
+  margin-bottom: 22px;
+}
+
+.workspace-shell .comms-head h1,
+.workspace-shell .commerce-head h1,
+.workspace-shell .service-head h1,
+.workspace-shell .workspace-page-head h1,
+.workspace-shell .tk-h1 {
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(36px, 4.5vw, 52px);
+  font-weight: 780;
+  line-height: 1.02;
+  letter-spacing: -.04em;
+}
+
+.workspace-shell .comms-head p:not(.comms-eyebrow),
+.workspace-shell .commerce-head > div > p:last-child,
+.workspace-shell .service-head > div > p:last-child,
+.workspace-shell .workspace-page-head > p:last-child,
+.workspace-shell .tk-sub {
+  max-width: 760px;
+  margin: 12px 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-md);
+  line-height: 1.55;
+}
+
+.workspace-shell .comms-tabs,
+.workspace-shell .commerce-tabs,
+.workspace-shell .service-tabs,
+.workspace-shell .ledger-switch {
+  width: max-content;
+  max-width: 100%;
+  display: flex;
+  gap: 6px;
+  margin: 0 0 24px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg-secondary);
+}
+
+/* Buttons that are semantically rows/cards must not inherit the old global pill treatment. */
+.workspace-shell .workspace-main .manage-row {
+  width: 100%;
+  min-height: 60px;
+  padding: 12px 16px !important;
+  border: 0 !important;
+  border-top: 1px solid var(--border-light) !important;
+  border-radius: 0 !important;
+  background: #fff !important;
+  color: var(--text) !important;
+  text-align: start;
+}
+
+.workspace-shell .workspace-main .manage-row:first-child {
+  border-top: 0 !important;
+}
+
+.workspace-shell .workspace-main .manage-row:hover,
+.workspace-shell .workspace-main .manage-row:focus-visible {
+  background: var(--lime-tint) !important;
+  border-color: var(--border-light) !important;
+}
+
+.workspace-shell .workspace-main .secondary-tools button {
+  min-height: 96px;
+  padding: 16px !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--workspace-panel-radius) !important;
+  background: #fff !important;
+  color: var(--text) !important;
+  text-align: start;
+}
+
+.workspace-shell .workspace-main .secondary-tools button:hover,
+.workspace-shell .workspace-main .secondary-tools button:focus-visible {
+  background: var(--lime-tint) !important;
+  border-color: var(--lime) !important;
+}
+
+.workspace-shell .workspace-main .context-actions button,
+.workspace-shell .workspace-main .service-back,
+.workspace-shell .workspace-main .manage-back {
+  min-height: var(--tap-min);
+  padding: 8px 14px !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--workspace-control-radius) !important;
+  background: #fff !important;
+  color: var(--text) !important;
+}
+
+.workspace-shell .workspace-main .service-back,
+.workspace-shell .workspace-main .manage-back {
+  border-color: transparent !important;
+  background: transparent !important;
+  color: var(--accent) !important;
+  padding-inline-start: 0 !important;
+}
+
+/* Operational actions are compact rounded rectangles. Public/Home CTA pills remain public. */
+.workspace-shell .workspace-main .btn:not([data-public-ui]),
+.workspace-shell .workspace-main .btn-primary:not([data-public-ui]),
+.workspace-shell .workspace-main .btn-secondary:not([data-public-ui]),
+.workspace-shell .workspace-main .btn-outline:not([data-public-ui]) {
+  border-radius: var(--workspace-control-radius) !important;
+}
+
+/* Customers is the one canonical hub that predates PageShell and starts directly with a
+   toolbar. Give it the same canvas without changing its large CRUD implementation. */
+.workspace-shell .inner-content-container > .inner-page-container {
+  padding: var(--workspace-page-y) var(--workspace-page-x) 72px;
+  min-height: 0;
+}
+
+/* Legacy direct-child max-width/padding selectors in inner-pages.css are dashboard-era.
+   The new shell owns the canonical measure. */
+.workspace-shell .inner-content-container > div:not(.workspace-home) {
+  max-width: var(--workspace-measure);
+}
+
+/* Mobile uses the same locked public foundation tokens as Workspace Home. */
+@media (max-width: 768px) {
+  .workspace-shell {
+    --workspace-page-x: var(--public-mobile-page-gutter);
+    --workspace-page-y: 32px;
+    --workspace-section-gap: var(--public-mobile-section-gap);
+  }
+
+  .workspace-shell .inner-content-container > .comms-page,
+  .workspace-shell .inner-content-container > .commerce-page,
+  .workspace-shell .inner-content-container > .service-page,
+  .workspace-shell .inner-content-container > .inner-page-container {
+    padding:
+      var(--workspace-page-y)
+      max(var(--workspace-page-x), env(safe-area-inset-right, 0px))
+      calc(48px + env(safe-area-inset-bottom, 0px))
+      max(var(--workspace-page-x), env(safe-area-inset-left, 0px));
+  }
+
+  .workspace-shell .inner-content-container > .page-shell > .ps-header {
+    padding:
+      var(--workspace-page-y)
+      max(var(--workspace-page-x), env(safe-area-inset-right, 0px))
+      16px
+      max(var(--workspace-page-x), env(safe-area-inset-left, 0px));
+  }
+
+  .workspace-shell .ps-tabs-wrapper {
+    padding-inline:
+      max(var(--workspace-page-x), env(safe-area-inset-left, 0px))
+      max(var(--workspace-page-x), env(safe-area-inset-right, 0px));
+    margin-bottom: 20px;
+  }
+
+  .workspace-shell .ps-title,
+  .workspace-shell .comms-head h1,
+  .workspace-shell .commerce-head h1,
+  .workspace-shell .service-head h1,
+  .workspace-shell .workspace-page-head h1,
+  .workspace-shell .tk-h1 {
+    font-size: var(--public-mobile-section-size);
+    line-height: 1.05;
+  }
+
+  .workspace-shell .ps-subtitle,
+  .workspace-shell .comms-head p:not(.comms-eyebrow),
+  .workspace-shell .commerce-head > div > p:last-child,
+  .workspace-shell .service-head > div > p:last-child,
+  .workspace-shell .workspace-page-head > p:last-child,
+  .workspace-shell .tk-sub {
+    font-size: var(--text-base);
+  }
+
+  .workspace-shell .ps-tabs,
+  .workspace-shell .comms-tabs,
+  .workspace-shell .commerce-tabs,
+  .workspace-shell .service-tabs,
+  .workspace-shell .ledger-switch {
+    width: 100%;
+    min-width: max-content;
+  }
+
+  .workspace-shell .workspace-main .ps-tab,
+  .workspace-shell .workspace-main .comms-tabs button,
+  .workspace-shell .workspace-main .commerce-tabs button,
+  .workspace-shell .workspace-main .service-tabs button,
+  .workspace-shell .workspace-main .ledger-switch button {
+    min-height: var(--tap-min) !important;
+    padding-inline: 14px !important;
+  }
+}
+
+@media (max-width: 360px) {
+  .workspace-shell .workspace-main .ps-tab,
+  .workspace-shell .workspace-main .comms-tabs button,
+  .workspace-shell .workspace-main .commerce-tabs button,
+  .workspace-shell .workspace-main .service-tabs button,
+  .workspace-shell .workspace-main .ledger-switch button {
+    padding-inline: 12px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-shell .workspace-main button,
+  .workspace-shell .workspace-main a {
+    transition-duration: .01ms !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .workspace-shell .ps-tabs,
+  .workspace-shell .comms-tabs,
+  .workspace-shell .commerce-tabs,
+  .workspace-shell .service-tabs,
+  .workspace-shell .ledger-switch {
+    border-color: CanvasText;
+  }
+}
