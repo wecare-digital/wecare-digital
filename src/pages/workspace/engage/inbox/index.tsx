@@ -1142,7 +1142,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                                         </div>
                                                     ) }
                                                     { !( ( m.messageType || '' ).toLowerCase() === 'contacts' && Array.isArray( ( m as any ).contactsPayload ) && ( m as any ).contactsPayload.length > 0 )
-                                                        && ( m.messageType || '' ).toLowerCase() !== 'flow_response' && ( ( m.content && !isSysLabel( m.content ) ) || !m.mediaUrl ) && (
+                                                        && ( m.messageType || '' ).toLowerCase() !== 'flow_response' && ( m.messageType || '' ).toLowerCase() !== 'flow_response' && ( ( m.content && !isSysLabel( m.content ) ) || !m.mediaUrl ) && (
                                                         <span
                                                             className="ui-msg-text"
                                                             style={ revoked ? { textDecoration: 'line-through', opacity: 0.55 } : undefined }
