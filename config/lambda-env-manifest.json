@@ -195,7 +195,8 @@
       "PAYMENTS_TABLE": "stack-wecare-digital-PaymentsTable",
       "PAYMENT_ATTEMPTS_TABLE": "stack-wecare-digital-PaymentAttemptsTable",
       "WA_PAY_CONFIG_NAME": "WECAREDIGITAL",
-      "WA_PAY_TEMPLATE": "wecarepay_wa",
+      "WA_PAY_TEMPLATE": "wecare_whatapp_native_pay_template",
+      "WA_INVOICE_TEMPLATE": "wecare_default_invoice_image_template",
       "REFUND_INITIATION_ENABLED": "false",
       "RAZORPAY_API_SECRET_ID": "wecare/razorpay/api"
     },
@@ -406,7 +407,7 @@
       "VAULT_ACCESS_WINDOW_GRACE_SECONDS": "300",
       "WA_DOC_TEMPLATE": "wd_file_delivery",
       "WA_MEDIA_FUNCTION": "wecare-whatsapp-business-api:live",
-      "WA_PAY_TEMPLATE": "wecarepay_wa",
+      "WA_PAY_TEMPLATE": "wecare_whatapp_native_pay_template",
       "WA_SEND_PHONE_ID": "phone-number-id-waba1-direct-1016149501586345",
       "WA_SENDER_FUNCTION": "wecare-outbound-whatsapp",
       "WHATSAPP_LINK_TTL_SECONDS": "21600"
