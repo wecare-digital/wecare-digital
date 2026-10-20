@@ -16,7 +16,7 @@ import hashlib
 from lambda_utils import flow_completion
 
 FLOW_KEY = 'wd_leave_review_v2'
-FLOW_ID = '1578178897413815'
+FLOW_ID = '940049388908144'
 FLOW_CODE = 'WD_IDEA'
 TOPICS = {
     'feature_request': 'A feature I would love',
