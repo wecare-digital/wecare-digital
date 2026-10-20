@@ -510,8 +510,11 @@ def test_rerendering_an_issued_invoice_writes_a_new_key(engine):
     assert second["statusCode"] == 200, second
     second_key = _body(second)["s3Key"]
 
-    # A NEW key, under the same gated prefix and off the same reference stem.
+    # A NEW key, under the same gated prefix, traceable by invoice number AND reference.
     assert second_key != first_key
+    assert first_key == (
+        f"{engine.INVOICE_PREFIX}wecare-digital-WD-2627-00001__{REFERENCE_ID}.png"
+    )
     assert second_key == first_key.replace(".png", "-v2.png")
     assert second_key.startswith(engine.INVOICE_PREFIX)
     # The previous object is still there, with its original bytes.
@@ -524,6 +527,18 @@ def test_rerendering_an_issued_invoice_writes_a_new_key(engine):
     third = engine.handler(_post("/generate-image", {}), None)
     assert _body(third)["s3Key"] == first_key.replace(".png", "-v3.png")
     assert engine.tables.assets.overwrites == []
+
+
+def test_issued_asset_row_carries_trace_identifiers(engine):
+    engine.tables.invoices.seed(_issued_row())
+
+    response = engine.handler(_post("/generate-image", {}), None)
+    assert response["statusCode"] == 200
+
+    row = engine.tables.assets.rows[(INVOICE_ID, "image")]
+    assert row["invoiceNumber"] == "WD/2627/00001"
+    assert row["referenceId"] == REFERENCE_ID
+    assert row["contentType"] == "image/png"
 
 
 def test_rerendering_a_draft_still_overwrites_in_place(engine):
@@ -566,7 +581,9 @@ def test_an_unreadable_asset_history_never_falls_back_to_the_base_key(engine):
     document of record - the one thing the version scheme exists to prevent.
     """
     engine.tables.invoices.seed(_issued_row())
-    base_key = f"{engine.INVOICE_PREFIX}wecare-digital-{REFERENCE_ID}.png"
+    base_key = (
+        f"{engine.INVOICE_PREFIX}wecare-digital-WD-2627-00001__{REFERENCE_ID}.png"
+    )
     engine.s3.objects[base_key] = b"the rendition the customer received"
     engine.tables.assets.rows[(INVOICE_ID, "image")] = {
         "invoiceId": INVOICE_ID, "assetType": "image", "s3Key": base_key}

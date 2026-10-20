@@ -2214,6 +2214,36 @@ td{{padding:3px 2px;vertical-align:top;color:#000}}
 _ASSET_VERSION_SEPARATOR = '#v'
 
 
+def _s3_invoice_token(value: Any) -> str:
+    """Return a stable, path-safe token for an invoice identifier.
+
+    Statutory invoice numbers contain slashes (for example WD/2627/00004). Keeping those
+    slashes in an S3 object key would turn one invoice into several apparent console folders,
+    while dropping the invoice number entirely makes operations trace by payment reference
+    first. Replace separators with '-' and keep only the conservative identifier alphabet.
+    """
+    raw = str(value or '').strip()
+    token = ''.join(ch if (ch.isalnum() or ch in '-_.') else '-' for ch in raw)
+    while '--' in token:
+        token = token.replace('--', '-')
+    return token.strip('-_.') or 'unknown'
+
+
+def _invoice_asset_stem(invoice: Dict, invoice_id: str) -> str:
+    """Canonical S3 stem for a rendered invoice.
+
+    Issued invoices are traceable directly from the statutory invoice number AND the payment
+    reference. Drafts retain the legacy reference-only stem so existing draft tooling does not
+    change behaviour before a GST number is issued.
+    """
+    reference = _s3_invoice_token(invoice.get('referenceId') or invoice_id)
+    invoice_number = str(invoice.get('invoiceNumber') or '').strip()
+    if not invoice_number:
+        return f"{INVOICE_PREFIX}wecare-digital-{reference}"
+    number = _s3_invoice_token(invoice_number)
+    return f"{INVOICE_PREFIX}wecare-digital-{number}__{reference}"
+
+
 def _next_asset_version(invoice_id: str, asset_type: str, request_id: str) -> int:
     """The next version number for this invoice's `asset_type`, 1 when nothing is on record.
 
@@ -2296,13 +2326,22 @@ def generate_invoice_image(invoice_id: str, request_id: str) -> Dict:
     # Render to PNG using pure-Python bitmap font (zero dependencies, proven working)
     png_bytes = _generate_receipt_png(invoice, items)
 
-    # S3 key uses WhatsApp payment reference ID (unguessable, unique), and carries a VERSION
-    # once the invoice is issued so a re-render never writes over the document of record.
-    ref_id = invoice.get('referenceId', invoice_id)
+    # Issued invoices are traceable in S3 by BOTH statutory invoice number and payment
+    # reference. Older objects remain valid because every reader follows InvoiceAssets.s3Key.
+    ref_id = str(invoice.get('referenceId') or invoice_id)
+    invoice_number = str(invoice.get('invoiceNumber') or '')
     s3_key, asset_row_key = _asset_target(
         invoice, invoice_id=invoice_id, asset_type='image',
-        stem=f"{INVOICE_PREFIX}wecare-digital-{ref_id}", extension='png',
+        stem=_invoice_asset_stem(invoice, invoice_id), extension='png',
         request_id=request_id)
+
+    object_metadata = {
+        'invoice-id': str(invoice_id),
+        'asset-type': str(asset_row_key),
+        'payment-reference': ref_id,
+    }
+    if invoice_number:
+        object_metadata['invoice-number'] = invoice_number
 
     s3.put_object(
         Bucket=MEDIA_BUCKET,
@@ -2310,6 +2349,7 @@ def generate_invoice_image(invoice_id: str, request_id: str) -> Dict:
         Body=png_bytes,
         ContentType='image/png',
         CacheControl='max-age=86400',
+        Metadata=object_metadata,
     )
 
     # Signed and expiring, not `https://{CDN_DOMAIN}/{s3_key}`. The key is now under the gated
@@ -2331,6 +2371,10 @@ def generate_invoice_image(invoice_id: str, request_id: str) -> Dict:
         'assetType': asset_row_key,
         's3Key': s3_key,
         'contentType': 'image/png',
+        # Duplicate the trace identifiers onto the asset row so operators do not need an
+        # invoice-table join just to identify an S3 object.
+        'invoiceNumber': invoice_number,
+        'referenceId': ref_id,
         'version': int(time.time()),
         'generatedAt': int(time.time()),
     })
