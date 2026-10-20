@@ -42,6 +42,7 @@ from lambda_utils.middleware import require_auth
 from lambda_utils import partner_billing as billing
 from lambda_utils import partner_tokens
 from lambda_utils.meta_version import META_API_VERSION  # one source; validated at import
+from lambda_utils.meta_result import mutation_succeeded
 try:
     from lambda_utils.audit import record_audit
 except Exception:  # noqa: BLE001
@@ -157,7 +158,7 @@ def _subscribe_app(waba_id: str, token: str) -> dict:
     res = _graph('POST', f'{waba_id}/subscribed_apps', token=token, payload={})
     if res.get('error'):
         return {'step': 'subscribe_app', 'ok': False, 'detail': res['error'].get('message')}
-    return {'step': 'subscribe_app', 'ok': bool(res.get('success', True)), 'detail': 'subscribed'}
+    return {'step': 'subscribe_app', 'ok': mutation_succeeded(res), 'detail': 'subscribed'}
 
 
 def _register_phone(phone_number_id: str, token: str, pin: str) -> dict:
@@ -169,7 +170,7 @@ def _register_phone(phone_number_id: str, token: str, pin: str) -> dict:
                  payload={'messaging_product': 'whatsapp', 'pin': pin})
     if res.get('error'):
         return {'step': 'register_phone', 'ok': False, 'detail': res['error'].get('message')}
-    return {'step': 'register_phone', 'ok': bool(res.get('success', True)), 'detail': 'registered'}
+    return {'step': 'register_phone', 'ok': mutation_succeeded(res), 'detail': 'registered'}
 
 
 def _fetch_details(waba_id: str, phone_number_id: str, token: str) -> dict:
