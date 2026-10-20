@@ -180,7 +180,7 @@ def test_the_asset_response_mints_its_url_instead_of_reading_one():
 
 
 def test_whatsapp_delivery_is_guarded_on_the_key_it_actually_sends():
-    """The guard used to test `image_url` and then send `mediaFile: s3_key` — one variable
+    """The guard used to test `image_url` and then send `templateHeaderMedia: s3_key` — one variable
     checked, a different one used. A row with a URL but no key passed and sent a message with
     no media; a row with a key but no URL was refused despite being deliverable."""
     source = INVOICE_ENGINE.read_text(encoding="utf-8")
@@ -208,9 +208,9 @@ def test_delivery_does_not_need_a_public_url_at_all():
     """The reason the move is safe: Meta never fetches an invoice by URL. outbound-whatsapp
     receives the S3 key, reads the bytes and uploads them."""
     source = INVOICE_ENGINE.read_text(encoding="utf-8")
-    assert "'mediaFile': s3_key" in source, (
-        "delivery must pass the S3 key, not a URL; if this becomes a link, a gated prefix "
-        "breaks WhatsApp invoice delivery")
+    assert "'templateHeaderMedia': s3_key" in source, (
+        "delivery must pass the private S3 key as template header media, not a public URL; "
+        "outbound-whatsapp reads the object and uploads the bytes to Meta")
 
 
 def test_the_cleanup_registry_keeps_invoice_files_on_the_gated_root():
