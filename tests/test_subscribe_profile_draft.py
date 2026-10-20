@@ -176,6 +176,16 @@ def test_customer_copy_hides_country_code_and_has_short_labels():
 
 
 
+
+def test_country_dropdown_matches_backend_country_mapping(setup):
+    mod,_table,_=setup
+    doc=json.loads((ROOT/'amplify/functions/messaging/whatsapp-business-api/flows/design-drafts/subscribe.json').read_text())
+    address=next(screen for screen in doc['screens'] if screen['id']=='ADDRESS')
+    form=next(child for child in address['layout']['children'] if child.get('type')=='Form')
+    country=next(child for child in form['children'] if child.get('name')=='country')
+    assert country['data-source']==mod.country_options.OPTIONS
+
+
 def test_new_customer_has_no_country_default_and_must_choose_one(setup):
     mod,table,_=setup
     table.row={}
