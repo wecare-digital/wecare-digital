@@ -7,11 +7,10 @@ which alone is enough to produce that exact symptom:
 
   1. `DEFAULT_FLOW_TRIGGERS['leave_review'].flowId` pointed at a flow that was never
      published, so the open failed.
-  2. The flow it should point at — WD_Leave_Review_v2, 1578178897413815 — is ENDPOINTLESS
-     (no `data_api_version`, first screen `FEEDBACK` carries no `data` block). Opening an
-     endpointless flow with `data_exchange` fails at open, and the failure looks identical
-     to cause 1. So the flow id alone is not sufficient; `STATIC_ENTRY_SCREENS` must also
-     name it. That is what `test_leave_review_opens_with_navigate...` guards.
+  2. The flow it should point at — 01. WECARE REVIEW FLOW, 940049388908144 — keeps a static
+     FEEDBACK entry screen even though Data API 4.0 is configured. The entry message must still
+     use `navigate` to FEEDBACK because the screen itself does not require an INIT exchange.
+     So the flow id alone is not sufficient; `STATIC_ENTRY_SCREENS` must also name it. That is what `test_leave_review_opens_with_navigate...` guards.
   3. Four workspace surfaces advertised a different flow id and a shorter keyword list than
      the backend answers, so staff reading the workspace told customers the wrong words.
      That is what the drift guard at the bottom of this file guards.
@@ -49,7 +48,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from test_customer_idea_entry import load_entry  # noqa: E402
 
-FLOW_ID = '1578178897413815'
+FLOW_ID = '940049388908144'
 WA_SHORT_LINK = 'https://wa.me/message/ZM74K2H2BIFOA1'
 
 #: The ordered keyword set. Edit HERE first, then `reviewEntry.ts` and the handler, or this
@@ -93,7 +92,7 @@ def test_leave_review_points_at_the_published_flow_with_the_full_keyword_set():
 def test_leave_review_opens_with_navigate_on_the_static_entry_screen():
     """The load-bearing guard — the assertion the flow id alone does not cover.
 
-    WD_Leave_Review_v2 is endpointless, so `data_exchange` at open fails. Without
+    01. WECARE REVIEW FLOW opens on a static FEEDBACK screen. Without
     `leave_review` in `STATIC_ENTRY_SCREENS` the keyword stays broken with a correct flow id,
     and the symptom is indistinguishable from the wrong id.
     """
