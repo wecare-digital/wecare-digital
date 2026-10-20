@@ -36,6 +36,7 @@ from boto3.dynamodb.conditions import Key
 from lambda_utils import contact_key, shared_tables
 
 PHONE_INDEX = 'phone-index'
+BSUID_INDEX = 'bsuid-index'
 
 _MIN_DIGITS = 7
 _MAX_DIGITS = 15
@@ -129,6 +130,22 @@ def find_by_phone(table: Any, phone: Any) -> Optional[Dict[str, Any]]:
         for item in response.get('Items') or []:
             if is_live(item):
                 return item
+    return None
+
+
+def find_by_bsuid(table: Any, bsuid: Any) -> Optional[Dict[str, Any]]:
+    """The first live row on `bsuid-index` for an exact business-scoped user id."""
+    value = str(bsuid or '').strip()
+    if not value:
+        return None
+    response = table.query(
+        IndexName=BSUID_INDEX,
+        KeyConditionExpression=Key('bsuid').eq(value),
+        Limit=5,
+    )
+    for item in response.get('Items') or []:
+        if is_live(item):
+            return item
     return None
 
 
