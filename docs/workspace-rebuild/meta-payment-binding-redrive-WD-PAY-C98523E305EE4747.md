@@ -28,72 +28,70 @@ gateway binding. Fixed in `meta_payment_binding.lookup_payment()` by FEAT-001.
 
 ## SAFE re-drive checklist (operator runs AFTER merge, against live AWS)
 
-1. **Deploy** the fixed `wecare-razorpay-webhook` package.
+1. **Deploy** the fixed `wecare-razorpay-webhook` package and verify the `:live`
+   alias serves the latest package.
 
-2. **Trigger Razorpay's own redelivery** of the existing `payment.captured` event
-   for `order_Tq0ZgogHP8upGD` from the Razorpay dashboard/API. This is the
-   designed recovery path and replays the notification through the fixed webhook.
-   With the FEAT-001 fix, the webhook now extracts the gateway binding from Meta
-   via `meta_payment_binding.bind_attempt` (the second independent authority),
-   writes the **write-once** binding + reverse-unique row + verified captured
-   amount + the order/provider claim, and advances. The idempotent dedup key,
-   monotonic status ladder, and write-once binding make the replay safe.
-   **Explicitly: Razorpay redelivery REPLAYS a notification — it does NOT capture
-   again (no re-charge) and does NOT send a new payment request.**
+2. **Direct-invoke the IAM-only quarantine redrive** on the existing captured
+   reference/payment:
 
-3. **Only if** projection still needs completing after the binding + claim exist
-   (for example, the redelivery was interrupted after they were written), invoke
-   the existing IAM-only `internalAction` by a **direct Lambda invoke** of
-   `wecare-razorpay-webhook` with the payload below. This is IAM/direct-invoke
-   only — any HTTP envelope (`requestContext`/`rawPath`/`path`/`httpMethod`/
-   `headers`/`body`/`Records`) is refused with `403`. It is idempotent: it resumes
-   projection from verified **stored** evidence, materializes/advances the order,
-   links the invoice, and delivers the paid invoice + order-status WhatsApp
-   message — with **no charge** and **no send of a new payment request**.
+   ```json
+   {"internalAction":"redriveQuarantinedCapture","referenceId":"WD-PAY-C98523E305EE4747","paymentId":"pay_Tq0awsJn5nCvE8"}
+   ```
+
+   This action is deliberately narrower than an arbitrary replay. It refuses HTTP
+   envelopes, requires the existing unresolved `CAPTUREQUARANTINE#<paymentId>`
+   row, requires the matching `PAYREF#<referenceId>` reservation, and loads the
+   original `payment.captured` body only from the durable Razorpay webhook audit
+   table. The caller cannot supply or alter the webhook body.
+
+   The stored audit receipt is still **not financial authority**. The ordinary
+   captured-payment handler runs unchanged and re-reads both authorities before
+   accepting paid state: Meta supplies the native payment binding and Razorpay is
+   queried for the captured payment/amount. The action marks the quarantine
+   `RESOLVED` only after the provider payment claim/order exists, the payment
+   attempt carries `PAYMENT_PAID` + the matching provider payment id, and the
+   linked invoice reads `paymentStatus=paid`.
+
+3. **If** the redrive wrote the binding/order claims but projection was interrupted
+   afterward, the older projection-only action remains valid:
 
    ```json
    {"internalAction":"recoverPaidInvoiceOrder","referenceId":"WD-PAY-C98523E305EE4747"}
    ```
 
-   Entrypoint: the recovery arm at the top of `handler()` in
-   `amplify/functions/payments/razorpay-webhook/handler.py`, which calls
-   `paid_invoice_order.materialize(..., reference_id=event['referenceId'], now=...)`.
+   It resumes from already verified stored evidence. It cannot bind an unverified
+   capture from scratch.
+
+## Why provider redelivery is no longer the operator procedure
+
+The original version of this runbook said to request Razorpay redelivery first.
+That was incomplete: the old quarantining path returned normally, so the webhook
+dedup lease was completed. A later delivery of the same
+`pay_Tq0awsJn5nCvE8:payment.captured` event can therefore be acknowledged as
+`already_processed` before reaching the repaired parser.
+
+The IAM-only `redriveQuarantinedCapture` action closes that gap without deleting
+or weakening the webhook dedup marker. It reuses only a payload that already
+passed the production webhook signature check and was stored in the audit table,
+then re-runs current provider verification. No new payment request is sent and no
+new capture is initiated.
 
 ## Ordering constraint (critical)
 
-`paid_invoice_order.materialize()` (the `recoverPaidInvoiceOrder` target)
-**requires** that the attempt already carries `verifiedProviderPaymentId` /
-`verifiedCapturedPaise` **and** a matching existing order claim + provider claim.
-It finishes projection from that verified stored evidence; it does **not** create
-the gateway binding or verify the capture from scratch.
+`recoverPaidInvoiceOrder` still requires a stored verified provider payment id /
+captured amount and matching order/provider claims. For this incident those did
+not exist after the old parser failure, so the new quarantine redrive is the
+correct first recovery action. Do **not** hand-write bindings, provider claims, or
+invoice paid state.
 
-Therefore the binding-writing step — the redelivered `payment.captured` through
-the **fixed** webhook (step 2) — **must happen first**. Invoking
-`recoverPaidInvoiceOrder` before the binding exists raises
-`ValueError('stored payment attempt required')` (no attempt id) or
-`ValueError('matching existing order and provider claims required')` (claims
-absent/mismatched) and is a **safe no-op that writes nothing**.
+## Recovery entrypoints
 
-For `WD-PAY-C98523E305EE4747` the OLD webhook ended `NEEDS_RECONCILIATION` and
-wrote **no** binding and **no** order/provider claim, so `recoverPaidInvoiceOrder`
-alone cannot re-drive it from scratch — step 2 must run before step 3.
-
-**Do NOT hand-write the binding.** The only designed way to write it is a real
-`payment.captured` redelivery through the fixed webhook. If the operator finds the
-redelivery cannot be re-triggered for this specific event, a fresh redelivery of
-the existing captured event remains the only correct path to write the binding.
-
-## Does a suitable entrypoint already exist?
-
-**Yes.** The Razorpay `payment.captured` redelivery path plus the existing
-`recoverPaidInvoiceOrder` `internalAction` are sufficient for this single
-reference. **No new broad tool needs to be built.**
-
-Adjacent sweeps exist but are not the right tool here:
-`scripts/reconcile_file_deliveries.py` and the scheduled
-`reconcileCustomerOrderLinks` action handle other reconciliation (customer-order
-link promotion). For a single reference, `recoverPaidInvoiceOrder` is the correct
-single-reference entrypoint.
+- `redriveQuarantinedCapture`: authoritative single-capture recovery from
+  durable quarantine + stored signed audit receipt; performs current Meta +
+  Razorpay re-verification.
+- `recoverPaidInvoiceOrder`: projection-only recovery after verified paid
+  evidence and claims already exist.
+- `reconcileCustomerOrderLinks`: unrelated broader customer/order-link sweep.
 
 ## Safety note
 
