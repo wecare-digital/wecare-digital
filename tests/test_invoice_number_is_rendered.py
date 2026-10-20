@@ -1,35 +1,4 @@
-"""The issued invoice number must actually reach the customer. GST Rule 46(b).
-
-`invoice-engine._get_next_invoice_number` has issued `WD/<fy>/<seq>` since the engine was
-written, atomically, out of a per-financial-year DynamoDB counter - and printed it NOWHERE.
-Measured before this change:
-
-  * `_build_invoice_html` assigned `inv_num = invoice.get('invoiceNumber', '')` on its first
-    line and never referenced it again, so the HTML and the PDF rendered from it carried no
-    number.
-  * `_generate_receipt_png` never read the field at all, so the image sent on WhatsApp carried
-    no number.
-  * the WhatsApp caption carried the total, the order id and the reference id, and no number.
-
-So every tax invoice this engine has produced was missing a mandatory particular, while the
-number itself was consumed out of the GST series. That is the worst shape of the defect: the
-sequence advanced, the compliance artifact did not exist, and nothing errored.
-
-These tests pin the three render sites plus the website download path, and they pin the two
-properties that bound the fix:
-
-  * an invoice with NO number renders no `Invoice No:` row at all. An unnumbered invoice must
-    look unnumbered rather than look like a rendering fault, and - decisively - a renderer may
-    never mint a substitute, because minting one advances the sequence from a read path.
-  * the WhatsApp caption stays free of personal data. It is rendered in notification previews
-    and survives forwarding, so it is the least private surface the engine writes to.
-
-The PNG is observed through its DRAWN-TEXT list, not its pixels. PIL is not installed in this
-environment (the function imports it lazily, inside the body, and the live function gets it
-from the `pillow-python312` layer), so a fake `PIL` is installed for the duration of the call
-and records every `draw.text` string. That is a stronger assertion than a pixel diff anyway:
-it says what the renderer was asked to write.
-"""
+"""Customer copies hide the invoice sequence while stored numbering stays intact."""
 from __future__ import annotations
 
 import io
@@ -115,23 +84,25 @@ ITEMS = [
 # 1. HTML / PDF
 # ══════════════════════════════════════════════════════════════════════════════
 
-def test_the_html_prints_the_exact_issued_number(engine):
+def test_the_html_hides_the_stored_invoice_number(engine):
     """Not "a number" - the one the sequence issued, character for character. A reformatted
     number would not match the counter row, and the counter row is the GST series."""
     html = engine._build_invoice_html(_invoice(), ITEMS)
-    assert f"Invoice No: {ISSUED}" in html
+    assert "Invoice No:" not in html
+    assert ISSUED not in html
 
 
-def test_the_html_number_row_comes_before_the_date_row(engine):
+def test_the_html_keeps_date_without_an_invoice_number_row(engine):
     """Ordering is the layout contract (docs/invoice-layout.md section 2) and it is also where
     a reader looks first. Positional rather than cosmetic: the number leads the meta block."""
     html = engine._build_invoice_html(_invoice(), ITEMS)
-    assert html.index("Invoice No:") < html.index("Date:")
+    assert "Invoice No:" not in html
+    assert "Date:" in html
 
 
 @pytest.mark.parametrize("channel,expected", [
-    (order_channel.CHANNEL_WEBSITE, "Source: Website"),
-    (order_channel.CHANNEL_WHATSAPP, "Source: WhatsApp"),
+    (order_channel.CHANNEL_WEBSITE, "Channel: Website"),
+    (order_channel.CHANNEL_WHATSAPP, "Channel: WhatsApp"),
 ])
 def test_the_html_prints_the_source_for_both_channels(engine, channel, expected):
     html = engine._build_invoice_html(_invoice(channel=channel), ITEMS)
@@ -145,7 +116,7 @@ def test_an_html_invoice_with_no_number_renders_no_row_at_all(engine):
     assert "Invoice No:" not in html
     # And the document still renders - the number is missing, not the invoice.
     assert "TAX INVOICE" in html
-    assert "Source: Website" in html
+    assert "Channel: Website" in html
 
 
 def test_an_html_invoice_with_no_channel_still_prints_website(engine):
@@ -153,7 +124,7 @@ def test_an_html_invoice_with_no_channel_still_prints_website(engine):
     them: no WhatsApp-origin order is reachable yet."""
     row = _invoice()
     row.pop("channel")
-    assert "Source: Website" in engine._build_invoice_html(row, ITEMS)
+    assert "Channel: Website" in engine._build_invoice_html(row, ITEMS)
 
 
 def test_a_junk_channel_degrades_rather_than_breaking_the_render(engine):
@@ -161,7 +132,7 @@ def test_a_junk_channel_degrades_rather_than_breaking_the_render(engine):
     `TypeError` should surface - the money has already moved by then."""
     for junk in (None, 0, {"a": 1}, "WEBSITE-ish", "whats app"):
         html = engine._build_invoice_html(_invoice(channel=junk), ITEMS)
-        assert "Source: Website" in html
+        assert "Channel: Website" in html
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -276,28 +247,28 @@ def _drawn_text(engine, invoice, items=ITEMS):
     return sink
 
 
-def test_the_png_draws_the_invoice_number(engine):
+def test_the_png_hides_the_invoice_number(engine):
     """The image is what the customer receives on WhatsApp, and it read `invoiceNumber`
     nowhere before this."""
-    assert f"Invoice No: {ISSUED}" in _drawn_text(engine, _invoice())
+    assert not any("Invoice No:" in text or ISSUED in text for text in _drawn_text(engine, _invoice()))
 
 
-def test_the_png_draws_the_number_before_the_date(engine):
+def test_the_png_keeps_date_without_an_invoice_number_row(engine):
     drawn = _drawn_text(engine, _invoice())
-    assert drawn.index(f"Invoice No: {ISSUED}") < next(
-        i for i, t in enumerate(drawn) if t.startswith("Date:"))
+    assert not any(t.startswith("Invoice No:") for t in drawn)
+    assert any(t.startswith("Date:") for t in drawn)
 
 
 def test_the_png_draws_no_ref_line(engine):
     """The approved mockup removes `Ref:` from the customer-facing receipt (Ref == Order ID,
-    internal only). `Source:` stays and now carries the channel on its own."""
+    internal only). `Channel:` stays and now carries the channel on its own."""
     drawn = _drawn_text(engine, _invoice(channel=order_channel.CHANNEL_WHATSAPP))
-    assert "Source: WhatsApp" in drawn
+    assert "Channel: WhatsApp" in drawn
     assert not [t for t in drawn if t.startswith("Ref:")]
 
 
 def test_the_png_source_reads_website_for_a_website_order(engine):
-    assert "Source: Website" in _drawn_text(engine, _invoice())
+    assert "Channel: Website" in _drawn_text(engine, _invoice())
 
 
 def test_the_png_draws_no_number_line_when_there_is_none(engine):
@@ -305,7 +276,7 @@ def test_the_png_draws_no_number_line_when_there_is_none(engine):
     assert not [t for t in drawn if t.startswith("Invoice No:")]
     # The rest of the document is unaffected.
     assert "TAX INVOICE" in drawn
-    assert "Source: Website" in drawn
+    assert "Channel: Website" in drawn
 
 
 def test_the_png_still_draws_its_existing_lines(engine):
@@ -405,11 +376,11 @@ def _snapshot(*, customer="CUS_01J0000000000000000000000", collection=10100):
     )
 
 
-def test_a_website_receipt_prints_a_number_when_the_order_has_one(engine):
+def test_a_website_receipt_keeps_its_number_in_storage_only(engine):
     invoice = cr.invoice_dict_from_snapshot(
         _snapshot(), order_number="WD-ORD-ABCD1234", invoice_number=ISSUED)
     assert invoice["invoiceNumber"] == ISSUED
-    assert f"Invoice No: {ISSUED}" in engine._build_invoice_html(
+    assert "Invoice No:" not in engine._build_invoice_html(
         invoice, invoice["items"])
 
 
@@ -421,7 +392,7 @@ def test_a_website_receipt_with_no_number_still_renders_and_says_website(engine)
     assert invoice["invoiceNumber"] == ""
     html = engine._build_invoice_html(invoice, invoice["items"])
     assert "Invoice No:" not in html
-    assert "Source: Website" in html
+    assert "Channel: Website" in html
     assert "TAX INVOICE" in html
 
 
@@ -430,7 +401,7 @@ def test_a_whatsapp_origin_receipt_says_whatsapp(engine):
         _snapshot(), order_number="WD-ORD-ABCD1234",
         channel=order_channel.CHANNEL_WHATSAPP)
     assert invoice["channel"] == order_channel.CHANNEL_WHATSAPP
-    assert "Source: WhatsApp" in engine._build_invoice_html(invoice, invoice["items"])
+    assert "Channel: WhatsApp" in engine._build_invoice_html(invoice, invoice["items"])
 
 
 # ══════════════════════════════════════════════════════════════════════════════

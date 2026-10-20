@@ -41,14 +41,18 @@ def test_approved_layout_renders_stored_money_identity_and_verified_paid_status(
     assert image.getpixel((0, 0))[3] == 0
     assert '*  *  *   PAID   *  *  *' in drawn
     assert 'PAID' in drawn
-    assert 'WD/2627/00001' in drawn
+    assert 'WD/2627/00001' not in drawn
     assert 'WD-ORD-EXAMPLE1' in drawn
-    assert _invoice()['customerUuid'] in drawn
+    from lambda_utils.identity import customer_uuid
+    assert customer_uuid.display_code(_invoice()) in drawn
+    assert _invoice()['customerUuid'] not in drawn
     assert _invoice()['customerEmail'] in drawn
     assert 'Rs104.45' in drawn
     assert 'Rs2.99' in drawn
     assert 'Rs0.23' in drawn
-    assert drawn.index('Invoice No:') < drawn.index('Date:')
+    assert 'Invoice No:' not in drawn
+    assert 'Channel:' in drawn
+    assert 'Source:' not in drawn
 
 
 def test_pending_invoice_is_never_printed_as_paid(invoice_engine, monkeypatch):

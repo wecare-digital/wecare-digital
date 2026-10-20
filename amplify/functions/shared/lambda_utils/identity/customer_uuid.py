@@ -63,6 +63,8 @@ renders no customer-id row, exactly as `invoiceNumber` already behaves when abse
 from __future__ import annotations
 
 import uuid
+import base64
+import hashlib
 from typing import Any, Dict, Optional
 
 #: The contact-row / order-row / invoice-row attribute holding the public customer id. One
@@ -141,4 +143,19 @@ __all__ = [
     "new_customer_uuid",
     "is_customer_uuid",
     "from_contact",
+    "display_code",
 ]
+
+
+def display_code(row: Optional[Dict[str, Any]]) -> str:
+    """Stable compact invoice label; never a database key or proof of identity.
+
+    Keep the canonical UUID for joins and disambiguation. Twelve base32 characters
+    provide a 60-bit display digest without exposing the UUID or customer details.
+    A missing/invalid UUID still suppresses the entire customer label.
+    """
+    value = from_contact(row)
+    if not value:
+        return ""
+    digest = hashlib.sha256(b"wecare:customer-display:v1:" + uuid.UUID(value).bytes).digest()
+    return "C-" + base64.b32encode(digest).decode("ascii")[:12]

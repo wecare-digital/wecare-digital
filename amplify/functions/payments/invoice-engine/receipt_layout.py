@@ -72,8 +72,6 @@ def render(invoice, items, *, company, font_path, ist_strftime, canonical_status
     sep(True)
     text('TAX INVOICE', title, 'center')
     sep()
-    if invoice.get('invoiceNumber'):
-        pair('Invoice No:', invoice['invoiceNumber'])
     pair('Order ID:', invoice.get('orderId') or invoice.get('referenceId') or '')
     reference = str(invoice.get('referenceId') or '')
     trace = reference[7:] if reference.startswith('WD-PAY-') else reference
@@ -87,7 +85,7 @@ def render(invoice, items, *, company, font_path, ist_strftime, canonical_status
     pair('Status:', 'PAID' if status == 'CAPTURED' else status or 'PENDING', heading)
     if customer_id:
         pair('Customer ID:', customer_id, small)
-    pair('Source:', source_label, small)
+    pair('Channel:', source_label, small)
     sep()
     text('BILL TO:', heading)
     text(invoice.get('customerName') or 'Customer')
