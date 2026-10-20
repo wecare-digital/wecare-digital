@@ -26,9 +26,14 @@ const SubmitRequestPage: React.FC = () => {
   // The Submit Request service. `serviceByKind` returns null only if the config were empty, which
   // SERVICES_CONFIGURED and the drift test forbid; guarding keeps the page rendering if it is.
   const service = serviceByKind( 'SUBMIT_REQUEST' );
+  const product = customerserviceBySlug( 'submit-request' );
   return (
     <ProductPage
-      product={ customerserviceBySlug( 'submit-request' ) }
+      product={ product }
+      // The visible trail _app.tsx's BreadcrumbList already describes: Home -> the page name.
+      // PageShell renders it and emits the SAME @id/trail under key="public-breadcrumbs", so
+      // next/head dedupes rather than adding a second BreadcrumbList. See the note in ProductPage.
+      crumbs={ [ { label: 'Home', href: '/' }, { label: product.name } ] }
       belowCta={ service ? <ServiceBuyBox service={ service } /> : null }
     />
   );

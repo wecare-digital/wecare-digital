@@ -24,9 +24,11 @@ import { serviceByKind } from '../config/services';
  */
 const RequestAmendmentPage: React.FC = () => {
   const service = serviceByKind( 'REQUEST_AMENDMENT' );
+  const product = customerserviceBySlug( 'request-amendment' );
   return (
     <ProductPage
-      product={ customerserviceBySlug( 'request-amendment' ) }
+      product={ product }
+      crumbs={ [ { label: 'Home', href: '/' }, { label: product.name } ] }
       belowCta={ service ? <ServiceBuyBox service={ service } /> : null }
     />
   );

@@ -39,9 +39,11 @@ import { serviceByKind } from '../config/services';
  */
 const VaultPage: React.FC = () => {
   const service = serviceByKind( 'VAULT' );
+  const product = customerserviceBySlug( 'vault' );
   return (
     <ProductPage
-      product={ customerserviceBySlug( 'vault' ) }
+      product={ product }
+      crumbs={ [ { label: 'Home', href: '/' }, { label: product.name } ] }
       belowCta={ service ? <ServiceBuyBox service={ service } /> : null }
     />
   );

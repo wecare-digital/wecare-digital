@@ -1,5 +1,6 @@
 import React from 'react';
 import PageMeta from '../components/PageMeta';
+import Breadcrumbs from '../components/Breadcrumbs';
 import RotatingHero, { type CycleWord } from '../components/RotatingHero';
 import LegalDocument from '../components/LegalDocument';
 import { PRIVACY_SECTIONS, PRIVACY_INTRO } from '../content/legal/privacy';
@@ -48,6 +49,10 @@ const PrivacyPage: React.FC = () => (
       words={ CYCLE_WORDS }
       sub="What we collect, why we collect it, and how to ask us to change or delete it."
     >
+      {/* THE VISIBLE BREADCRUMB mirroring _app.tsx's BreadcrumbList for this route:
+          Home -> 'Privacy' (the PUBLIC_PAGE_META name). No page-level JSON-LD - _app.tsx
+          owns the single BreadcrumbList. */}
+      <Breadcrumbs items={ [ { label: 'Home', href: '/' }, { label: 'Privacy' } ] } />
       <LegalDocument
         sections={ PRIVACY_SECTIONS }
         intro={ PRIVACY_INTRO }

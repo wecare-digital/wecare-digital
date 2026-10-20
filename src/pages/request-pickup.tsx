@@ -21,9 +21,11 @@ import { serviceByKind } from '../config/services';
  */
 const RequestPickupPage: React.FC = () => {
   const service = serviceByKind( 'REQUEST_PICKUP' );
+  const product = customerserviceBySlug( 'request-pickup' );
   return (
     <ProductPage
-      product={ customerserviceBySlug( 'request-pickup' ) }
+      product={ product }
+      crumbs={ [ { label: 'Home', href: '/' }, { label: product.name } ] }
       belowCta={ service ? <ServiceBuyBox service={ service } /> : null }
     />
   );
