@@ -34,3 +34,11 @@ Handset submission is a separate verification step; sending a draft is not proof
 The confirmation distinguishes a new profile (details saved) from one with a saved address (details updated), preserving the result on retry. Opening messages are edited in Communications -> Manage -> WhatsApp -> Auto response. That editor does not publish this draft or grant subscription consent.
 
 The IAM-only `serviceDesignDrafts` prepare action accepts `service: subscribe` solely for existing draft `1386523953464380`; it fails closed if missing, replaced or published. No new Subscribe Flow is created.
+
+## Workspace Subscribe settings
+
+Communications -> Manage -> WhatsApp -> Auto response -> Subscribe edits separate new/returning opening bodies, button labels and in-Flow confirmations. `subscribe_messages_config` stores the copy. The selected Flow send API uses this copy when no explicit one-off body/button is provided; the profile save handler uses the configured confirmation. Customer ID remains a separate display field, never editable copy. Read failures prevent the workspace editor from overwriting unseen settings; runtime defaults keep confirmations usable on a failed copy-setting read.
+
+Customer search opens the existing canonical ConsentPanel, recording channel, state, source, purpose and reference in the customer's consent ledger. Profile saves and copy changes do not write consent. This records evidence; the existing outbound WhatsApp sender does not consistently enforce this ledger, so these controls must not be described as a universal delivery block. Identity-change acknowledgment is also separate and is not enabled here.
+
+No Preferences screen is restored. The Flow remains Draft. Website/backend deployment requires approval.

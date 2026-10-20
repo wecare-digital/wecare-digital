@@ -5,7 +5,7 @@ from botocore.exceptions import ClientError
 from lambda_utils import contact_store
 from lambda_utils.ecommerce import contact_address
 from lambda_utils.identity import customer_uuid, subscriber_id
-from flows import common
+from flows import common, subscribe_messages
 
 PROFILE_FIELDS = {'full_name': 'name', 'username': 'profileUsername',
                   'company_name': 'companyName', 'designation': 'designation'}
@@ -69,7 +69,9 @@ def handle_review(data, flow_token, request_id):
         return _error(data, 'Please check your ' + labels.get(exc.field, 'address') + '.')
     values.update(contact_address.contact_write_fields(address, now=now))
     contact_id = str(row.get('id') or contact_store.deterministic_id(phone))
-    returning = bool(row.get('subscribeProfileWasExisting')) if row.get('subscribeLastFlowToken') == flow_token else bool(contact_address.from_contact(row))
+    returning = (bool(row.get('subscribeProfileWasExisting'))
+                 if row.get('subscribeLastFlowToken') == flow_token
+                 else subscribe_messages.is_returning(row))
     if row.get('subscribeLastFlowToken') != flow_token:
         values.update({'updatedAt': now, 'subscribeProfileRevision': str(uuid.uuid4()),
                        'subscribeLastFlowToken': flow_token,
@@ -128,4 +130,4 @@ def handle_review(data, flow_token, request_id):
         # Contact save succeeded; retry can finish the submission without repeating the update.
         return _error(data, 'Your details were saved, but confirmation is pending. Please tap Save details again.')
     return {'screen': 'COMPLETE', 'data': {'customer_id': customer_uuid.display_code(saved),
-            'message': 'Your details have been updated.' if returning else 'Your details have been saved.'}}
+            'message': subscribe_messages.copy_for(returning)['confirmation']}}

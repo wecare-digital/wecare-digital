@@ -2374,6 +2374,16 @@ def _send_flow_msg(body: Dict) -> Dict:
         return _resp(400, {'error': 'one of flowId/flowName is required'})
     phone_id = body.get('phoneId') or PHONE1_META_ID
 
+    if str(flow_id or '') == '1386523953464380':
+        from flows import subscribe_messages, common as flow_common
+        from lambda_utils import contact_store
+        recipient = body.get('to') or body.get('recipient') or ''
+        row = contact_store.lookup(flow_common.dynamodb.Table(flow_common.CONTACTS_TABLE), recipient) or {}
+        copy = subscribe_messages.copy_for(subscribe_messages.is_returning(row))
+        # Explicit one-off operator copy still wins; workspace copy supplies defaults.
+        body = {**body, 'bodyText': body.get('bodyText') or copy['body'],
+                'flowCta': body.get('flowCta') or copy['flowCta']}
+
     parameters: Dict[str, Any] = {
         'flow_message_version': '3',
         'flow_token': body.get('flowToken') or f'test-{uuid.uuid4().hex[:12]}',

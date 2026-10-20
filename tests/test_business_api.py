@@ -387,6 +387,33 @@ class TestSendMessages:
             res = self.h._send_flow_msg({'to': '919900000000', 'flowId': 'f1', 'screen': 'WELCOME'})
             assert res['statusCode'] == 200
 
+    def test_subscribe_uses_workspace_copy_for_the_saved_customer(self):
+        from flows import subscribe_messages
+        from lambda_utils import contact_store
+        selected = {'body': 'Welcome back from workspace', 'flowCta': 'Review details', 'confirmation': 'Saved'}
+        with patch.object(contact_store, 'lookup', return_value={}), \
+             patch.object(subscribe_messages, 'is_returning', return_value=True), \
+             patch.object(subscribe_messages, 'copy_for', return_value=selected) as copy, \
+             patch.object(self.h, '_send_message', return_value={'statusCode': 200}) as send:
+            self.h._send_flow_msg({'to': '918100640044', 'flowId': subscribe_messages.FLOW_ID, 'mode': 'draft'})
+        copy.assert_called_once_with(True)
+        message=send.call_args.args[1]['interactive']
+        assert message['body']['text']=='Welcome back from workspace'
+        assert message['action']['parameters']['flow_cta']=='Review details'
+        assert message['action']['parameters']['mode']=='draft'
+
+    def test_subscribe_one_off_message_can_override_workspace_copy(self):
+        from flows import subscribe_messages
+        from lambda_utils import contact_store
+        with patch.object(contact_store, 'lookup', return_value={}), \
+             patch.object(subscribe_messages, 'copy_for', return_value={'body': 'Default', 'flowCta': 'Subscribe'}), \
+             patch.object(self.h, '_send_message', return_value={'statusCode': 200}) as send:
+            self.h._send_flow_msg({'to':'918100640044','flowId':subscribe_messages.FLOW_ID,
+                                  'bodyText':'QA draft review','flowCta':'Review draft','mode':'draft'})
+        message=send.call_args.args[1]['interactive']
+        assert message['body']['text']=='QA draft review'
+        assert message['action']['parameters']['flow_cta']=='Review draft'
+
     def test_flow_draft_mode(self):
         captured = {}
 
