@@ -1104,26 +1104,8 @@ def _issue_download_session(entitlement: Dict[str, Any], item: Dict[str, Any]) -
 
 
 def _queue_vault_review(entitlement: Dict[str, Any]) -> None:
-    """Queue the review milestone after authenticated access, never after payment alone."""
-    request_id = str(entitlement.get("requestId") or "")
-    if not request_id:
-        return
-    try:
-        boto3.client("lambda", region_name=REGION).invoke(
-            FunctionName="wecare-whatsapp-business-api:live",
-            InvocationType="Event",
-            Payload=json.dumps({
-                "internalAction": "vaultReview",
-                "requestId": request_id,
-            }).encode("utf-8"),
-        )
-    except Exception as exc:  # noqa: BLE001
-        # Access has already been authorized. Review failure is recoverable and cannot revoke it.
-        logger.warning(json.dumps({
-            "event": "vault_review_queue_failed",
-            "requestId": request_id,
-            "error": type(exc).__name__,
-        }))
+    """Retired: the paid invoice template owns the single Leave Review Flow button."""
+    return None
 
 
 # ── customer: list, order, download ───────────────────────────────────────────
