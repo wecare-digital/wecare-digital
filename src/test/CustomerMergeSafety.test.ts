@@ -10,10 +10,11 @@ const source = fs.readFileSync(
 
 describe( 'audited customer merge saga', () => {
   it( 'uses the existing authenticated contacts route with an Admin merge gate', () => {
-    expect( source ).toContain( "merge_command = str(preauth_body.get('_action')" );
+    expect( source ).toContain( "post_action = str(preauth_body.get('_action')" );
+    expect( source ).toContain( "merge_command = post_action == 'merge'" );
     expect( source ).toContain( "or merge_command" );
     expect( source ).toContain( "required_role='Admin'" );
-    expect( source ).toContain( "return _merge_contacts(body, event.get('_auth') or {}, request_id, origin)" );
+    expect( source ).toContain( "return _merge_contacts(preauth_body, event.get('_auth') or {}, request_id, origin)" );
   } );
 
   it( 'requires exact unambiguous identity evidence', () => {

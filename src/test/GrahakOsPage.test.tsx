@@ -416,11 +416,12 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( code ).not.toContain( '#4b5563' );
   } );
 
-  it( 'stacks the step block FIRST above the code panel at <=767px', () => {
+  it( 'stacks steps, then the API demo, then pricing LAST at <=767px', () => {
     const code = source.replace( /\/\*[\s\S]*?\*\//g, '' );
-    // Step block ordered before the code panel when the grid stacks.
-    expect( code ).toContain( '.api-steps{order:0}' );
+    expect( code ).toContain( '.api-steps{display:contents}' );
+    expect( code ).toContain( '.api-steps-main{order:0' );
     expect( code ).toContain( '.api-demo-stack{order:1' );
+    expect( code ).toContain( '.api-steps-buy{order:2' );
   } );
 } );
 
@@ -447,7 +448,7 @@ describe( 'Grahak OS: API-panel "Open demo in WhatsApp" link', () => {
 
     const stackStart = source.indexOf( '<div className="api-demo-stack">' );
     const demoStart = source.indexOf( '<div className="api-demo">', stackStart );
-    const codeStart = source.indexOf( '<pre className="code-block">', demoStart );
+    const codeStart = source.indexOf( '<pre className="code-block" dir="ltr">', demoStart );
     const rowStart = source.indexOf( '<div className="api-wa-row">', codeStart );
     expect( stackStart ).toBeGreaterThan( -1 );
     expect( demoStart ).toBeGreaterThan( stackStart );
@@ -500,7 +501,8 @@ describe( 'Grahak OS: API-panel "Open demo in WhatsApp" link', () => {
  * that duplicate CTA and the whole section are now gone, along with every .gos-closer* CSS
  * rule and the "gos-closer" entrance-animation target. The page's only "Open in WhatsApp"
  * link now lives below the large API code panel (.api-wa-link). The ₹899 price / SKU / policy
- * stay in the api-steps block above. These assertions pin the full removal so a revert fails.
+ * stay in the same API section and deliberately become its FINAL mobile block after the demo.
+ * These assertions pin the full removal so a revert fails.
  */
 describe( 'Grahak OS: bottom closer section removed entirely', () => {
   const pagePath = resolve( process.cwd(), 'src/pages/grahak-os/index.tsx' );
@@ -527,11 +529,15 @@ describe( 'Grahak OS: bottom closer section removed entirely', () => {
     expect( code ).not.toContain( 'className="gos-ctas"' );
   } );
 
-  it( 'keeps the shared price/SKU/policy in the api-steps block, not the removed closer', () => {
-    // The commerce still exists on the page (in api-steps), proving the removal was scoped.
+  it( 'keeps the shared price/SKU/policy in the API section and last on mobile', () => {
+    // Desktop keeps commerce in the left API column; mobile promotes it into the stacked
+    // grid with order:2, after steps (0) and the live API editor/demo (1).
     expect( source ).toContain( 'displayPrice={ GRAHAK_DISPLAY_PRICE || undefined }' );
     expect( source ).toContain( 'const GRAHAK_SKU = GRAHAK_CHECKOUT?.variantId ?? null' );
     expect( source ).toContain( '<PolicyDetails' );
+    expect( source ).toContain( 'className="api-steps-main"' );
+    expect( source ).toContain( '.api-steps{display:contents}' );
+    expect( source ).toContain( '.api-steps-buy{order:2' );
     expect( source ).toContain( 'shipping={ GRAHAK_POLICY.shipping }' );
     expect( source ).toContain( 'returns={ GRAHAK_POLICY.returns }' );
     expect( source ).toContain( 'disclaimer={ GRAHAK_POLICY.disclaimer }' );

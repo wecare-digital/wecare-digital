@@ -64,6 +64,23 @@ const fail = ( message ) => { throw new Error( message ); };
       if ( box.x < -1 || box.x + box.width > viewport.width + 1 ) fail( `${viewport.name}: horizontal menu overflow` );
       if ( box.y + box.height > viewport.height + 1 ) fail( `${viewport.name}: menu runs off viewport bottom` );
 
+      // Guard the styled-jsx scoping contract with live computed values. This menu once kept
+      // correct DOM/ARIA while silently falling back to unrelated global nav styles.
+      const home = menu.getByRole( 'link', { name: 'Home', exact: true } );
+      const homeStyle = await home.evaluate( node => {
+        const css = getComputedStyle( node );
+        return {
+          fontSize: css.fontSize,
+          fontWeight: css.fontWeight,
+          backgroundColor: css.backgroundColor,
+        };
+      } );
+      if ( homeStyle.fontSize !== '19px' ) fail( `${viewport.name}: Home row font-size ${homeStyle.fontSize}` );
+      if ( Number( homeStyle.fontWeight ) < 700 ) fail( `${viewport.name}: active Home weight ${homeStyle.fontWeight}` );
+      if ( homeStyle.backgroundColor !== 'rgb(209, 244, 112)' ) {
+        fail( `${viewport.name}: active Home background ${homeStyle.backgroundColor}` );
+      }
+
       const touchTargets = await page.locator( 'header a[href], header button, header input' ).evaluateAll( nodes =>
         nodes.filter( node => {
           const style = getComputedStyle( node );
@@ -90,11 +107,41 @@ const fail = ( message ) => { throw new Error( message ); };
       }
 
       const search = page.getByLabel( 'Search navigation' );
+
+      // Simulate SupportWidget's DOM translation and prove Header harvests the rendered labels
+      // before it switches to flat search results.
+      await page.getByRole( 'link', { name: 'Visa' } ).locator( '.nav-item-label' ).evaluate(
+        node => { node.textContent = 'वीज़ा'; }
+      );
+      await page.locator( '.nav-tree-item[aria-label="Elsewhere"]' ).evaluate(
+        node => node.setAttribute( 'aria-label', 'विदेश यात्रा' )
+      );
+      await search.focus();
+      await search.fill( 'वीज़ा' );
+      if ( await page.getByRole( 'link', { name: 'Visa' } ).count() !== 1 ) {
+        fail( `${viewport.name}: translated destination search failed` );
+      }
+      await search.fill( 'विदेश यात्रा' );
+      for ( const label of [ 'Visa', 'Trip', 'Activities' ] ) {
+        if ( await page.getByRole( 'link', { name: label } ).count() !== 1 ) {
+          fail( `${viewport.name}: translated family search missing ${label}` );
+        }
+      }
+
       await search.fill( 'elsewhere' );
       const status = await menu.getByRole( 'status' ).textContent();
       if ( status?.trim() !== '3 menu results.' ) fail( `${viewport.name}: search status was ${status}` );
       for ( const label of [ 'Visa', 'Trip', 'Activities' ] ) {
         if ( await page.getByRole( 'link', { name: label } ).count() !== 1 ) fail( `${viewport.name}: missing search result ${label}` );
+      }
+
+      await search.fill( '' );
+      const googlePlay = page.getByRole( 'link', { name: 'Google Play' } );
+      if ( await googlePlay.getAttribute( 'href' ) !== 'https://play.google.com/store/apps/dev?id=5505420420345648842' ) {
+        fail( `${viewport.name}: Google Play destination drifted` );
+      }
+      if ( await page.getByRole( 'link', { name: 'App Store' } ).count() !== 0 ) {
+        fail( `${viewport.name}: unverified App Store destination is visible` );
       }
 
       await search.fill( '' );

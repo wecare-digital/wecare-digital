@@ -5,6 +5,7 @@ import HeaderCart from './HeaderCart';
 import VoiceSearchMic from './VoiceSearchMic';
 import { SUBSCRIBE_CTA_HREF } from '../content/subscribe';
 import { REVIEW_ENTRY_URL } from '../lib/reviewEntry';
+import { PLAY_STORE } from '../config/analytics';
 
 /**
  * No props.
@@ -171,8 +172,7 @@ const COLUMNS: NavColumn[] = [
         heading: 'Extras',
         links: [
           { label: 'Perks', href: 'https://wa.me/message/377GALDW4E26F1', external: true },
-          { label: 'Google Play', href: 'https://wecare.digital/', searchTerms: [ 'android', 'play store', 'google play store' ] },
-          { label: 'App Store', href: 'https://wecare.digital/', searchTerms: [ 'apple', 'ios', 'iphone', 'apple app store' ] },
+          { label: 'Google Play', href: PLAY_STORE.developerUrl, external: true, searchTerms: [ 'android', 'play store', 'google play store' ] },
         ],
       },
       {
@@ -230,6 +230,7 @@ const flattenMenuLinks = (): SearchableNavLink[] => {
 };
 
 const MENU_SEARCH_LINKS = flattenMenuLinks();
+const menuSearchKey = ( link: Pick<NavLink, 'label' | 'href'> ) => `${link.href || ''}\n${link.label}`;
 
 /* Visual-only icon lookup. Kept separate from COLUMNS so the navigation data schema,
    labels, order, URLs and hierarchy remain unchanged. */
@@ -294,6 +295,7 @@ const Header: React.FC = () => {
   const [ query, setQuery ] = useState( '' );
   const [ showProductsMore, setShowProductsMore ] = useState( false );
   const [ productsOverflowing, setProductsOverflowing ] = useState( false );
+  const [ localizedSearchText, setLocalizedSearchText ] = useState<Record<string, string>>( {} );
   const router = useRouter();
   const rootRef = useRef<HTMLDivElement | null>( null );
   const triggerRef = useRef<HTMLButtonElement | null>( null );
@@ -305,10 +307,61 @@ const Header: React.FC = () => {
   // Search results come only from the menu graph. Family and section names are inherited
   // search terms, so "Elsewhere" returns Visa, Trip and Activities without a dead parent link.
   const filtered = useMemo( () => (
-    searching ? MENU_SEARCH_LINKS.filter( link => link.searchText.includes( term ) ) : MENU_SEARCH_LINKS
-  ), [ searching, term ] );
+    searching
+      ? MENU_SEARCH_LINKS.filter( link => (
+        link.searchText.includes( term )
+        || ( localizedSearchText[ menuSearchKey( link ) ] || '' ).includes( term )
+      ) )
+      : MENU_SEARCH_LINKS
+  ), [ localizedSearchText, searching, term ] );
 
-  const close = useCallback( () => { setOpen( false ); setQuery( '' ); setShowProductsMore( false ); setProductsOverflowing( false ); }, [] );
+  // SupportWidget translates the public menu in-place after render. The canonical search graph
+  // above deliberately stays English, so harvest the CURRENT rendered labels just before a query
+  // changes the menu into its flat-results view. This makes translated destination, family and
+  // section labels searchable without duplicating translations in navigation data or calling the
+  // translation API from Header. data-nav-search-key remains stable because data attributes are
+  // intentionally outside SupportWidget's translation allowlist.
+  const syncLocalizedSearchText = useCallback( () => {
+    const root = rootRef.current;
+    if ( !root ) return;
+    const aliases: Record<string, string> = {};
+    for ( const anchor of Array.from( root.querySelectorAll<HTMLAnchorElement>( 'a[data-nav-search-key]' ) ) ) {
+      const key = anchor.dataset.navSearchKey;
+      if ( !key ) continue;
+      const pieces = [ anchor.textContent || '' ];
+      const family = anchor.closest<HTMLElement>( '.nav-tree-item[aria-label]' )?.getAttribute( 'aria-label' );
+      if ( family ) pieces.push( family );
+      const heading = anchor.closest<HTMLElement>( '.nav-group' )
+        ?.querySelector<HTMLElement>( '.nav-group-label' )?.textContent;
+      if ( heading ) pieces.push( heading );
+      aliases[ key ] = pieces.join( ' ' ).toLocaleLowerCase();
+    }
+    setLocalizedSearchText( previous => {
+      const next = { ...previous };
+      for ( const [ key, value ] of Object.entries( aliases ) )
+      {
+        const prior = next[ key ] || '';
+        // Preserve aliases harvested before the menu switched into flat search results.
+        // Otherwise a translated family term (for example Elsewhere) is lost when a
+        // translated child is searched first and React re-renders that child in English.
+        next[ key ] = prior ? `${prior} ${value}` : value;
+      }
+      return next;
+    } );
+  }, [] );
+
+  const applySearchQuery = useCallback( ( value: string ) => {
+    syncLocalizedSearchText();
+    setQuery( value );
+  }, [ syncLocalizedSearchText ] );
+
+  const close = useCallback( () => {
+    setOpen( false );
+    setQuery( '' );
+    setLocalizedSearchText( {} );
+    setShowProductsMore( false );
+    setProductsOverflowing( false );
+  }, [] );
 
   // Derive the desktop panel width from its actual viewport position instead of a hard-coded
   // allowance for the brand lockup. This keeps the menu safe if the logo, type size, locale or
@@ -513,8 +566,8 @@ const Header: React.FC = () => {
   // 112 browser assertions passed while every row was unstyled, because they assert
   // text, href and aria-current and never read computed style. Only
   // CSS.getMatchedStylesForNode showed that the jsx rules were not matching at all.
-  // megamenu.js now asserts computed font-size, weight and the active background so
-  // this cannot recur silently.
+  // menucheck.js asserts computed font-size, weight and the active background in Chromium,
+  // Firefox and WebKit so this cannot recur silently.
 
   return (
     <header className="hdr">
@@ -566,10 +619,11 @@ const Header: React.FC = () => {
                   value={ query }
                   placeholder="Search"
                   aria-label="Search navigation"
-                  onChange={ event => setQuery( event.target.value ) }
+                  onFocus={ syncLocalizedSearchText }
+                  onChange={ event => applySearchQuery( event.target.value ) }
                   onKeyDown={ event => { if ( event.key === 'Escape' ) close(); } }
                 />
-                <VoiceSearchMic onTranscript={ setQuery } />
+                <VoiceSearchMic onTranscript={ applySearchQuery } />
               </div>
 
               {/* Flat results while searching: column headings over a filtered list
@@ -585,6 +639,7 @@ const Header: React.FC = () => {
                     <a
                       key={ link.label + link.href }
                       href={ link.href }
+                      data-nav-search-key={ menuSearchKey( link ) }
                       className={ `nav-item ${isActive( link ) ? 'active' : ''}`.trim() }
                       aria-current={ isActive( link ) ? 'page' : undefined }
                       onClick={ event => handleNavClick( event, link ) }
@@ -619,6 +674,7 @@ const Header: React.FC = () => {
                           ? (
                             <a
                               href={ section.headingHref }
+                              data-nav-search-key={ menuSearchKey( { label: section.heading, href: section.headingHref } ) }
                               className={ `nav-group-label nav-group-link ${headingActive ? 'active' : ''}`.trim() }
                               aria-current={ headingActive ? 'page' : undefined }
                               onClick={ close }
@@ -663,6 +719,7 @@ const Header: React.FC = () => {
                             { link.href ? (
                               <a
                                 href={ link.href }
+                                data-nav-search-key={ menuSearchKey( link ) }
                                 className={ `nav-item ${section.nestedLinks ? 'nav-child' : ''} ${isActive( link ) ? 'active' : ''}`.trim() }
                                 aria-current={ isActive( link ) ? 'page' : undefined }
                                 onClick={ event => handleNavClick( event, link ) }
@@ -705,6 +762,7 @@ const Header: React.FC = () => {
                               <a
                                 key={ child.label + child.href }
                                 href={ child.href }
+                                data-nav-search-key={ menuSearchKey( child ) }
                                 className={ `nav-item nav-child ${isActive( child ) ? 'active' : ''}`.trim() }
                                 aria-current={ isActive( child ) ? 'page' : undefined }
                                 onClick={ event => handleNavClick( event, child ) }

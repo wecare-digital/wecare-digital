@@ -75,10 +75,14 @@ import '../styles/inner-pages.css';
 import '../styles/inner-ux.css';
 import '../styles/flex-layout.css';
 import '../styles/button.css';
+/* Authenticated Workspace normalization sits after every legacy dashboard/page layer so the
+   no-sidebar shell can override dashboard-era framing and broad button rules in one place.
+   It is scoped under .workspace-shell and therefore cannot affect public routes. */
+import '../styles/workspace.css';
 /* LAST, and that is the whole mechanism. form-controls.css is the one shared skin for the
    native controls, and it has to arrive after every rule in the 85-rule-set inventory above -
-   including Layout.css's own @import of tokens.css - or a per-page select rule that ties it on
-   specificity would win on source order instead. Nothing goes below this line. */
+   including Layout.css's own @import of tokens.css and workspace.css - or a per-page select rule
+   that ties it on specificity would win on source order. Nothing goes below this line. */
 import '../styles/form-controls.css';
 import FloatingAgent from '../components/FloatingAgent';
 // Was LanguageBar. Renamed because it no longer only chooses a language: it is the single

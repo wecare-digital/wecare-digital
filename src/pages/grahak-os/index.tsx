@@ -437,10 +437,11 @@ response = requests.post(
                 SKU GOS7K4M2 (PRODUCT_SKU_BY_SLUG['grahak-os']), the existing WhatsApp
                 checkout mechanism (.gos-wa-cta pill) and the existing demo link. */}
             <div className="api-info api-steps">
-              {/* Owner-approved heading theme (consulting positioning). Reuses the
-                  .api-info h2 type rung. */}
-              <h2>Deploy AI agents to drive enterprise outcomes</h2>
-              <ol className="api-steps-list" aria-label="How Grahak OS works">
+              <div className="api-steps-main">
+                {/* Owner-approved heading theme (consulting positioning). Reuses the
+                    .api-info h2 type rung. */}
+                <h2>Deploy AI agents to drive enterprise outcomes</h2>
+                <ol className="api-steps-list" aria-label="How Grahak OS works">
                 <li className="api-step">
                   <span className="api-step-num" aria-hidden="true">1</span>
                   <div className="api-step-body">
@@ -462,9 +463,13 @@ response = requests.post(
                     <p className="api-step-line">Measure, tune and improve outcomes continuously.</p>
                   </div>
                 </li>
-              </ol>
-              {/* Checkout + demo buttons. The paid-checkout door on this page is the
-                  WhatsApp CTA pill (.gos-wa-cta) - ProductBuyBox was deliberately removed,
+                </ol>
+              </div>
+              {/* Checkout + pricing block. Desktop keeps it in the left consulting column.
+                  On mobile .api-steps becomes display:contents so this block can move AFTER
+                  the API editor and demo link, making pricing the final Grahak content block.
+                  The paid-checkout door on this page is the WhatsApp CTA pill
+                  (.gos-wa-cta) - ProductBuyBox was deliberately removed,
                   so this reuses that exact pill mechanism and surfaces the existing ₹899
                   price. The separate demo link lives below the large API code panel opposite. */}
               <div className="api-steps-buy">
@@ -1271,14 +1276,19 @@ response = requests.post(
             .api-step-title{font-size:var(--public-mobile-card-size)}
             .gos-wa-cta{font-size:var(--public-mobile-cta-font-size)}
             .api-desc{max-width:100%;text-align:start}
-            /* Stacked order: the step block comes FIRST (above the code panel). It is
-               already first in source order so the grid stacks it first; the explicit
-               order makes that intent survive any future markup reordering. */
-            .api-steps{order:0}
+            /* Mobile content order is deliberate:
+               1) the enterprise 1-2-3 steps
+               2) the live API editor + "Open demo in WhatsApp"
+               3) pricing / checkout / SKU / policy LAST
+               Desktop keeps the original two-column structure. display:contents only at
+               mobile width lets the two logical parts of .api-steps participate in the
+               one-column grid without duplicating commerce markup or changing desktop. */
+            .api-steps{display:contents}
+            .api-steps-main{order:0;min-width:0}
             .api-demo-stack{order:1;max-width:100%;margin:0}
+            .api-steps-buy{order:2;max-width:100%;min-width:0}
             .api-demo{border-radius:14px;max-width:100%;margin:0}
             .api-steps-list{max-width:100%}
-            .api-steps-buy{max-width:100%}
             .code-tabs{padding:16px;gap:10px;justify-content:flex-start;flex-wrap:wrap}
             .pp-tab{padding:14px 24px}
             .code-block{font-size:14px;padding:18px;min-height:auto;text-align:left;white-space:pre-wrap;word-break:break-word;overflow-x:visible;line-height:1.7}

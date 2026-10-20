@@ -128,6 +128,17 @@ const PROBE = () => {
       offBottom: Math.max( 0, Math.round( r( menu ).bottom - vh ) ),
       content: menu.scrollHeight,
     } : null,
+    grahakMobileOrder: location.pathname.startsWith( '/grahak-os' ) && vw <= 767 ? ( () => {
+      const steps = document.querySelector( '.api-steps-main' );
+      const demo = document.querySelector( '.api-demo-stack' );
+      const buy = document.querySelector( '.api-steps-buy' );
+      if ( !steps || !demo || !buy ) return { ok: false, detail: 'missing steps/demo/pricing block' };
+      const sb = r( steps ), db = r( demo ), bb = r( buy );
+      return {
+        ok: sb.top < db.top && db.top < bb.top,
+        detail: 'steps:' + Math.round( sb.top ) + ' demo:' + Math.round( db.top ) + ' pricing:' + Math.round( bb.top ),
+      };
+    } )() : null,
     smallTargets: small,
   };
 };
@@ -160,6 +171,7 @@ const PROBE = () => {
           if ( x.h1Fits === false ) problems.push( `h1 ${x.h1.right}>${d.w}` );
           if ( x.menu && x.menu.h > 0 && x.menu.h < 120 ) problems.push( `menu ${x.menu.h}px for ${x.menu.content}px` );
           if ( x.menu && x.menu.offBottom > 0 ) problems.push( `menu +${x.menu.offBottom}px off-bottom` );
+          if ( x.grahakMobileOrder && !x.grahakMobileOrder.ok ) problems.push( `Grahak mobile order: ${x.grahakMobileOrder.detail}` );
           if ( x.smallTargets.length ) problems.push( `tap<44: ${x.smallTargets.join( ',' )}` );
           if ( problems.length ) { bad.push( `${route} — ${problems.join( ' · ' )}` ); fail++; }
         } catch ( e ) {

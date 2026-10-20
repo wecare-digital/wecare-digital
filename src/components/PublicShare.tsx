@@ -203,7 +203,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
           hidden={ openMenu !== 'contribute' }
         >
           <div className="ps-menu-head">
-            <div className="ps-menu-title contribute-label" data-wc-no-translate="true">
+            <div className="ps-menu-title contribute-label">
               { `Contribute ${CONTRIBUTION_AMOUNT_LABEL}` }
             </div>
             <p className="ps-menu-sub">Choose how to contribute.</p>
@@ -325,7 +325,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
         .public-share{
           position:relative;width:100%;margin-top:32px;padding:12px 0 28px;
           box-sizing:border-box;
-          font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+          font-family:var(--font-sans);
         }
         .public-share.has-contribute{margin-top:32px}
         /* "Stay connected" eyebrow, on top of the dock. Same green lime pill the retired
@@ -372,7 +372,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
           font-variation-settings:'FILL' 0,'wght' 500,'GRAD' 0,'opsz' 24;
         }
         .ps-tip{
-          position:absolute;left:50%;bottom:calc(100% + 9px);
+          position:absolute;inset-inline-start:50%;bottom:calc(100% + 9px);
           transform:translateX(-50%) translateY(4px);
           padding:6px 9px;border-radius:8px;background:var(--public-brand-green);color:#fff;
           white-space:nowrap;font-size:14px;font-weight:650;line-height:1.2;
@@ -384,7 +384,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
         }
 
         .ps-menu{
-          position:absolute;top:82px;left:0;z-index:30;
+          position:absolute;top:82px;inset-inline-start:0;z-index:30;
           width:min(340px,calc(100vw - 48px));padding:8px;
           background:#fff;border:1px solid var(--public-hairline);border-radius:18px;
           box-shadow:0 18px 46px rgba(26,58,42,.13);box-sizing:border-box;
@@ -392,12 +392,12 @@ const PublicShare: React.FC<PublicShareProps> = ( {
         .ps-menu[hidden]{display:none}
         .ps-menu::before{
           content:'';position:absolute;top:-6px;width:12px;height:12px;
-          background:#fff;border-left:1px solid var(--public-hairline);border-top:1px solid var(--public-hairline);
+          background:#fff;border-inline-start:1px solid var(--public-hairline);border-top:1px solid var(--public-hairline);
           transform:rotate(45deg);
         }
-        .ps-contribute-menu::before{left:18px}
-        .ps-share-menu::before{left:78px}
-        .ps-share-menu.has-contribute::before{left:138px}
+        .ps-contribute-menu::before{inset-inline-start:18px}
+        .ps-share-menu::before{inset-inline-start:78px}
+        .ps-share-menu.has-contribute::before{inset-inline-start:138px}
         .ps-menu-head{padding:9px 11px 10px;border-bottom:1px solid #f0f1ed}
         .ps-menu-title{margin:0;color:#1a1a1a;font-size:18px;font-weight:700;line-height:1.3}
         .ps-menu-sub{margin:4px 0 0;color:var(--public-muted);font-size:15px;font-weight:500;line-height:1.4}
@@ -406,7 +406,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
           width:100%;min-height:56px;display:grid;
           grid-template-columns:38px minmax(0,1fr) 20px;gap:10px;align-items:center;
           padding:7px 10px;border:0;border-radius:12px;background:#fff;color:var(--public-brand-green);
-          text-decoration:none;cursor:pointer;text-align:left;box-sizing:border-box;
+          text-decoration:none;cursor:pointer;text-align:start;box-sizing:border-box;
           font:inherit;
         }
         .ps-menu-item:hover{background:#f7fbe9}

@@ -118,27 +118,26 @@ describe( 'Header', () => {
     expect( extras ).not.toBeNull();
     expect( extras?.textContent ).toContain( 'Perks' );
     expect( extras?.textContent ).toContain( 'Google Play' );
-    expect( extras?.textContent ).toContain( 'App Store' );
+    expect( extras?.textContent ).not.toContain( 'App Store' );
     expect( extras?.textContent ).not.toContain( 'Blog' );
     expect( screen.queryByRole( 'link', { name: 'Blog' } ) ).toBeNull();
 
     const perks = screen.getByRole( 'link', { name: 'Perks' } );
     const googlePlay = screen.getByRole( 'link', { name: 'Google Play' } );
-    const appStore = screen.getByRole( 'link', { name: 'App Store' } );
 
     expect( perks ).toHaveAttribute( 'href', 'https://wa.me/message/377GALDW4E26F1' );
-    expect( googlePlay ).toHaveAttribute( 'href', 'https://wecare.digital/' );
-    expect( appStore ).toHaveAttribute( 'href', 'https://wecare.digital/' );
+    expect( googlePlay ).toHaveAttribute( 'href', 'https://play.google.com/store/apps/dev?id=5505420420345648842' );
+    expect( screen.queryByRole( 'link', { name: 'App Store' } ) ).toBeNull();
 
-    for ( const link of [ googlePlay, appStore ] ) {
+    for ( const link of [ googlePlay ] ) {
       const icon = link.querySelector( 'svg.nav-row-icon' );
       expect( icon ).toHaveClass( 'nav-row-icon-material' );
       expect( icon ).toHaveAttribute( 'viewBox', '0 -960 960 960' );
     }
 
-    for ( const link of [ perks, googlePlay, appStore ] ) expect( link ).toHaveClass( 'nav-item' );
+    for ( const link of [ perks, googlePlay ] ) expect( link ).toHaveClass( 'nav-item' );
     expect( Array.from( extras?.querySelectorAll( 'a.nav-item' ) || [] ).map( link => link.textContent ) )
-      .toEqual( [ 'Perks', 'Google Play', 'App Store' ] );
+      .toEqual( [ 'Perks', 'Google Play' ] );
     expect( extras?.querySelectorAll( '.nav-row-chevron' ) ).toHaveLength( 0 );
 
     const search = screen.getByLabelText( 'Search navigation' );
@@ -146,10 +145,11 @@ describe( 'Header', () => {
     expect( screen.queryByRole( 'link', { name: 'Blog' } ) ).toBeNull();
 
     fireEvent.change( search, { target: { value: 'android' } } );
-    expect( screen.getByRole( 'link', { name: 'Google Play' } ) ).toHaveAttribute( 'href', 'https://wecare.digital/' );
+    expect( screen.getByRole( 'link', { name: 'Google Play' } ) )
+      .toHaveAttribute( 'href', 'https://play.google.com/store/apps/dev?id=5505420420345648842' );
 
     fireEvent.change( search, { target: { value: 'iphone' } } );
-    expect( screen.getByRole( 'link', { name: 'App Store' } ) ).toHaveAttribute( 'href', 'https://wecare.digital/' );
+    expect( screen.queryByRole( 'link', { name: 'App Store' } ) ).toBeNull();
   } );
 
   it( 'uses menu-only search and family names find their real child destinations', () => {
@@ -168,6 +168,27 @@ describe( 'Header', () => {
     expect( screen.getByRole( 'link', { name: 'Drafting' } ) ).toBeInTheDocument();
     expect( screen.getByRole( 'link', { name: 'Registration' } ) ).toBeInTheDocument();
     expect( screen.getByRole( 'link', { name: 'Legal Reference' } ) ).toBeInTheDocument();
+  } );
+
+  it( 'searches the menu labels currently rendered after translation', () => {
+    render( <Header /> );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
+
+    const visa = screen.getByRole( 'link', { name: 'Visa' } );
+    const family = screen.getByText( 'Elsewhere' ).closest( '.nav-tree-item' );
+    const search = screen.getByLabelText( 'Search navigation' );
+
+    visa.querySelector( '.nav-item-label' )!.textContent = 'वीज़ा';
+    family?.setAttribute( 'aria-label', 'विदेश यात्रा' );
+
+    fireEvent.focus( search );
+    fireEvent.change( search, { target: { value: 'वीज़ा' } } );
+    expect( screen.getByRole( 'link', { name: 'Visa' } ) ).toBeInTheDocument();
+
+    fireEvent.change( search, { target: { value: 'विदेश यात्रा' } } );
+    expect( screen.getByRole( 'link', { name: 'Visa' } ) ).toBeInTheDocument();
+    expect( screen.getByRole( 'link', { name: 'Trip' } ) ).toBeInTheDocument();
+    expect( screen.getByRole( 'link', { name: 'Activities' } ) ).toBeInTheDocument();
   } );
 
   it( 'allows only one active destination for a child route', () => {

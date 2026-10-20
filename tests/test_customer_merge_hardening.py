@@ -65,8 +65,13 @@ def test_handler_resolves_old_ids_and_hides_completed_aliases_from_active_views(
     assert "ConsistentRead=True" in read
 
     filt = source[source.index("def _active_contact_filter"):source.index("# ─── COUNT")]
-    assert "Attr('mergeState').not_exists()" in filt
-    assert "Attr('mergeState').ne(MERGE_COMPLETE)" in filt
+    assert "_identity_contact_filter()" in filt
+    identity_filter = source[
+        source.index("def _identity_contact_filter"):
+        source.index("def _active_contact_filter")
+    ]
+    assert "Attr('mergeState').not_exists()" in identity_filter
+    assert "Attr('mergeState').ne(MERGE_COMPLETE)" in identity_filter
 
     count_to_update = source[source.index("def _count_active"):source.index("# ─── UPDATE")]
     assert count_to_update.count("_active_contact_filter()") >= 3
@@ -107,7 +112,7 @@ def test_merge_actor_is_verified_middleware_context_not_request_body():
     handler = (ROOT / "amplify/functions/core/contacts/handler.py").read_text()
     middleware = (ROOT / "amplify/functions/shared/lambda_utils/middleware.py").read_text()
     assert "event['_auth'] = {" in middleware
-    assert "return _merge_contacts(body, event.get('_auth') or {}, request_id, origin)" in handler
+    assert "return _merge_contacts(preauth_body, event.get('_auth') or {}, request_id, origin)" in handler
     merge = handler[handler.index("def _merge_contacts"):handler.index("# ─── CREATE")]
     assert "body.get('actor')" not in merge
     assert "(auth or {}).get('username')" in merge

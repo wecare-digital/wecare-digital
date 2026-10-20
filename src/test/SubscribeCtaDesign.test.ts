@@ -66,6 +66,23 @@ describe( 'WhatsApp subscribe CTA design', () => {
   } );
 
 
+  it( 'keeps the global action dock on the shared font, translation and RTL contracts', () => {
+    const share = read( 'src/components/PublicShare.tsx' );
+    const shell = ruleFor( share, '.public-share{' );
+    const menu = ruleFor( share, '.ps-menu{' );
+    const item = ruleFor( share, '.ps-menu-item{' );
+
+    expect( shell ).toContain( 'font-family:var(--font-sans)' );
+    expect( share ).not.toContain( 'className="ps-menu-title contribute-label" data-wc-no-translate="true"' );
+    expect( menu ).toContain( 'inset-inline-start:0' );
+    expect( item ).toContain( 'text-align:start' );
+    expect( share ).toContain( 'inset-inline-start:50%' );
+    expect( share ).toContain( '.ps-contribute-menu::before{inset-inline-start:18px}' );
+    expect( share ).toContain( '.ps-share-menu::before{inset-inline-start:78px}' );
+    expect( share ).toContain( '.ps-share-menu.has-contribute::before{inset-inline-start:138px}' );
+  } );
+
+
   it( 'keeps Subscribe, Contribute and Share out of the VayuLok Air card', () => {
     const source = read( 'src/components/VayuLokLive.tsx' );
 

@@ -147,6 +147,18 @@ OPT_IN_FIELDS = {
     'optInWhatsApp', 'optInSms', 'optInEmail',
     'allowlistWhatsApp', 'allowlistSms', 'allowlistEmail',
 }
+CONSENT_FIELD_META = {
+    'optInWhatsApp': ('whatsapp', 'consent'),
+    'optInSms': ('sms', 'consent'),
+    'optInEmail': ('email', 'consent'),
+    'allowlistWhatsApp': ('whatsapp', 'allowlist'),
+    'allowlistSms': ('sms', 'allowlist'),
+    'allowlistEmail': ('email', 'allowlist'),
+}
+CONSENT_HISTORY_ATTRIBUTE = 'consentHistory'
+ARCHIVED_AT_ATTRIBUTE = 'archivedAt'
+ARCHIVED_BY_ATTRIBUTE = 'archivedBy'
+ARCHIVED_REASON_ATTRIBUTE = 'archivedReason'
 
 DEFAULT_SEARCH_LIMIT = 20
 MAX_SEARCH_LIMIT = 100
@@ -171,6 +183,82 @@ def _check_rate_limit(source_ip: str) -> bool:
     return False
 
 
+def _clean_consent_text(value: Any, field: str, *, required: bool = True,
+                        max_length: int = 500) -> tuple:
+    """Return a safe evidence string or a field-specific validation error."""
+    text = str(value or '').strip()
+    if required and not text:
+        return '', f'CONSENT_EVIDENCE_{field.upper()}_REQUIRED'
+    if len(text) > max_length or any(
+        (ord(ch) < 32 and ch not in '\r\n\t') or ord(ch) == 127 for ch in text
+    ):
+        return '', f'CONSENT_EVIDENCE_{field.upper()}_INVALID'
+    return text, ''
+
+
+def _consent_events(current: Dict[str, Any], requested: Dict[str, Any],
+                    evidence: Any, now: int) -> tuple:
+    """Build immutable evidence events for consent/allowlist state changes.
+
+    A boolean is the current routing state; it is not the evidence. Every ACTUAL change therefore
+    requires source, purpose and a reference, and the resulting event is appended atomically in
+    the same DynamoDB update as the boolean. Re-saving an unchanged form creates no duplicate
+    evidence and requires no new proof.
+    """
+    changes = []
+    for field in OPT_IN_FIELDS:
+        if field not in requested:
+            continue
+        previous = bool(current.get(field, False))
+        next_value = requested[field]
+        if not isinstance(next_value, bool):
+            return [], f'{field} must be a boolean value'
+        if previous != next_value:
+            changes.append((field, previous, next_value))
+    if not changes:
+        return [], ''
+
+    if not isinstance(evidence, dict):
+        return [], 'CONSENT_EVIDENCE_REQUIRED'
+    source, error = _clean_consent_text(evidence.get('source'), 'source', max_length=200)
+    if error:
+        return [], error
+    purpose, error = _clean_consent_text(evidence.get('purpose'), 'purpose', max_length=300)
+    if error:
+        return [], error
+    reference, error = _clean_consent_text(evidence.get('reference'), 'reference', max_length=500)
+    if error:
+        return [], error
+    occurred_at, error = _clean_consent_text(
+        evidence.get('occurredAt'), 'occurred_at', required=False, max_length=100)
+    if error:
+        return [], error
+
+    events = []
+    for field, previous, next_value in changes:
+        channel, scope = CONSENT_FIELD_META[field]
+        events.append({
+            'eventId': str(uuid.uuid4()),
+            'field': field,
+            'channel': channel,
+            'scope': scope,
+            'previousState': previous,
+            'state': next_value,
+            'status': (
+                'OPTED_IN' if scope == 'consent' and next_value
+                else 'OPTED_OUT' if scope == 'consent'
+                else 'ALLOWED' if next_value
+                else 'NOT_ALLOWED'
+            ),
+            'source': source,
+            'purpose': purpose,
+            'reference': reference,
+            'occurredAt': occurred_at or str(now),
+            'recordedAt': now,
+        })
+    return events, ''
+
+
 # ─── Main Router ────────────────────────────────────────────────────────────
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -191,18 +279,21 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return _auth
 
     # Unlocking retention and customer merge are Admin + MFA capabilities, not generic edits.
-    merge_command = False
+    post_action = ''
+    preauth_body: Dict[str, Any] = {}
     if method == 'POST':
         try:
             preauth_body = json.loads(event.get('body', '{}') or '{}')
         except (json.JSONDecodeError, TypeError, ValueError):
             preauth_body = {}
-        merge_command = str(preauth_body.get('_action') or '').strip().lower() == 'merge'
+        post_action = str(preauth_body.get('_action') or '').strip().lower()
+    merge_command = post_action == 'merge'
 
     if method == 'POST' and (
         str(event.get('rawPath') or '').rstrip('/').endswith('/unlock')
         or str(event.get('resource') or '').rstrip('/').endswith('/unlock')
         or merge_command
+        or post_action == 'restore'
     ):
         denied = require_auth(event, required_role='Admin')
         if denied is not None:
@@ -254,10 +345,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return cors_response(400, {'error': 'contactId is required'}, origin)
             return _unlock_contact(contact_id, request_id, origin)
 
-        # POST /contacts with _action=merge — resumable identity merge on the existing route.
+        # POST /contacts with an explicit customer-data action. These reuse the authenticated
+        # collection route so no parallel customer API is introduced.
         if method == 'POST' and merge_command:
-            body = json.loads(event.get('body', '{}') or '{}')
-            return _merge_contacts(body, event.get('_auth') or {}, request_id, origin)
+            return _merge_contacts(preauth_body, event.get('_auth') or {}, request_id, origin)
+        if method == 'POST' and post_action == 'archive':
+            return _archive_contact(preauth_body, event.get('_auth') or {}, request_id, origin)
+        if method == 'POST' and post_action == 'restore':
+            return _restore_contact(preauth_body, event.get('_auth') or {}, request_id, origin)
 
         # POST /contacts with _action=consent_append / consent_import — append-only consent
         # evidence. Operator capability (the method-level gate above already enforces it). The
@@ -707,6 +802,23 @@ def _create(body: Dict[str, Any], request_id: str, origin: str = '') -> Dict[str
     contact_id = str(uuid.uuid4())
     now = int(time.time())
 
+    for field in OPT_IN_FIELDS:
+        if field in body and not isinstance(body.get(field), bool):
+            return cors_response(400, {'error': f'{field} must be a boolean value'}, origin)
+
+    requested_consent = {
+        field: body.get(field, False)
+        for field in OPT_IN_FIELDS
+        if field in body
+    }
+    consent_events, consent_error = _consent_events(
+        {}, requested_consent, body.get('consentEvidence'), now)
+    if consent_error:
+        return cors_response(400, {
+            'error': 'Consent/allowlist changes require evidence',
+            'errorCode': consent_error,
+        }, origin)
+
     contact = {
         **contact_key.contact_item_keys(contact_id),
         **subscriber_id.new_contact_fields(now=now),
@@ -748,12 +860,15 @@ def _create(body: Dict[str, Any], request_id: str, origin: str = '') -> Dict[str
         'companyName': body.get('companyName', '').strip() if body.get('companyName') else None,
         'designation': body.get('designation', '').strip() if body.get('designation') else None,
         'preferredLanguage': body.get('preferredLanguage', '').strip() if body.get('preferredLanguage') else None,
-        'optInWhatsApp': body.get('optInWhatsApp', True) if isinstance(body.get('optInWhatsApp'), bool) else True,
-        'optInSms': body.get('optInSms', True) if isinstance(body.get('optInSms'), bool) else True,
-        'optInEmail': body.get('optInEmail', True) if isinstance(body.get('optInEmail'), bool) else True,
-        'allowlistWhatsApp': body.get('allowlistWhatsApp', True) if isinstance(body.get('allowlistWhatsApp'), bool) else True,
-        'allowlistSms': body.get('allowlistSms', True) if isinstance(body.get('allowlistSms'), bool) else True,
-        'allowlistEmail': body.get('allowlistEmail', True) if isinstance(body.get('allowlistEmail'), bool) else True,
+        # Staff creation NEVER manufactures consent. Missing values are false; any transition to
+        # true above required explicit evidence and is preserved in consentHistory.
+        'optInWhatsApp': body.get('optInWhatsApp', False),
+        'optInSms': body.get('optInSms', False),
+        'optInEmail': body.get('optInEmail', False),
+        'allowlistWhatsApp': body.get('allowlistWhatsApp', False),
+        'allowlistSms': body.get('allowlistSms', False),
+        'allowlistEmail': body.get('allowlistEmail', False),
+        CONSENT_HISTORY_ATTRIBUTE: consent_events or None,
         'lastInboundMessageAt': None,
         'tags': body.get('tags', []),
         'createdAt': now,
@@ -825,11 +940,19 @@ def _read_one(contact_id: str, request_id: str, origin: str = '') -> Dict[str, A
     return cors_response(200, _from_dynamo(item), origin)
 
 
-def _active_contact_filter():
-    """Canonical customer rows visible to list/search/count/duplicate fallback."""
+def _identity_contact_filter():
+    """Rows that still own an identity, including non-destructively archived customers."""
     return (
         (Attr('deletedAt').not_exists() | Attr('deletedAt').eq(None))
         & (Attr('mergeState').not_exists() | Attr('mergeState').ne(MERGE_COMPLETE))
+    )
+
+
+def _active_contact_filter():
+    """Canonical customer rows visible in normal staff queues."""
+    return (
+        _identity_contact_filter()
+        & (Attr(ARCHIVED_AT_ATTRIBUTE).not_exists() | Attr(ARCHIVED_AT_ATTRIBUTE).eq(None))
     )
 
 
@@ -1065,7 +1188,24 @@ def _update(contact_id: str, body: Dict[str, Any], request_id: str, origin: str 
         updates[contact_address.ATTRIBUTE] = stored_address
         updates[contact_address.UPDATED_ATTRIBUTE] = int(time.time())
 
-    updates['updatedAt'] = int(time.time())
+    now = int(time.time())
+    updates['updatedAt'] = now
+
+    consent_events = []
+    if any(field in updates for field in OPT_IN_FIELDS):
+        table = dynamodb.Table(CONTACTS_TABLE)
+        current = table.get_item(
+            Key=contact_key.key(contact_id), ConsistentRead=True).get('Item') or {}
+        if not current:
+            return cors_response(404, {'error': 'Contact not found'}, origin)
+        requested = {field: updates[field] for field in OPT_IN_FIELDS if field in updates}
+        consent_events, consent_error = _consent_events(
+            current, requested, body.get('consentEvidence'), now)
+        if consent_error:
+            return cors_response(400, {
+                'error': 'Consent/allowlist changes require evidence',
+                'errorCode': consent_error,
+            }, origin)
 
     set_parts, names, values = [], {}, {}
     for i, (k, v) in enumerate(updates.items()):
@@ -1098,6 +1238,15 @@ def _update(contact_id: str, body: Dict[str, Any], request_id: str, origin: str 
         set_parts.append(f'{provenance.PROVENANCE_ATTRIBUTE} = :vfieldsources')
         values[':vfieldsources'] = merged
 
+    # Append consent/allowlist changes to the append-only consent history. Never overwritten;
+    # list_append onto an if_not_exists empty list so the first event seeds the attribute.
+    if consent_events:
+        names['#consent_history'] = CONSENT_HISTORY_ATTRIBUTE
+        values[':empty_consent_history'] = []
+        values[':consent_events'] = consent_events
+        set_parts.append(
+            '#consent_history = list_append(if_not_exists(#consent_history, :empty_consent_history), :consent_events)')
+
     table = dynamodb.Table(CONTACTS_TABLE)
     try:
         resp = table.update_item(
@@ -1114,6 +1263,103 @@ def _update(contact_id: str, body: Dict[str, Any], request_id: str, origin: str 
         raise
 
     log_event(logger, 'contact_updated', contactId=contact_id, fields=list(updates.keys()), requestId=request_id)
+    return cors_response(200, _from_dynamo(resp.get('Attributes', {})), origin)
+
+
+# ─── ARCHIVE / RESTORE ─────────────────────────────────────────────────────
+
+def _archive_contact(body: Dict[str, Any], auth: Dict[str, Any],
+                     request_id: str, origin: str = '') -> Dict[str, Any]:
+    """Hide a canonical customer from daily queues without deleting identity or history."""
+    contact_id = str(body.get('contactId') or '').strip()
+    reason = str(body.get('reason') or '').strip()
+    actor = str((auth or {}).get('username') or (auth or {}).get('email') or 'staff').strip()
+    if not contact_id:
+        return cors_response(400, {'error': 'contactId is required'}, origin)
+    if not reason:
+        return cors_response(400, {'error': 'Archive reason is required'}, origin)
+    if len(reason) > 500:
+        return cors_response(400, {'error': 'Archive reason is too long'}, origin)
+    merged_refusal = _merged_alias_mutation_refusal(contact_id, origin)
+    if merged_refusal:
+        return merged_refusal
+
+    now = int(time.time())
+    table = dynamodb.Table(CONTACTS_TABLE)
+    try:
+        resp = table.update_item(
+            Key=contact_key.key(contact_id),
+            UpdateExpression=(
+                'SET #archived = if_not_exists(#archived, :now), '
+                '#archived_by = if_not_exists(#archived_by, :actor), '
+                '#archived_reason = :reason, #updated = :now'
+            ),
+            ExpressionAttributeNames={
+                '#archived': ARCHIVED_AT_ATTRIBUTE,
+                '#archived_by': ARCHIVED_BY_ATTRIBUTE,
+                '#archived_reason': ARCHIVED_REASON_ATTRIBUTE,
+                '#updated': 'updatedAt',
+                '#deleted': 'deletedAt',
+                '#merge_state': 'mergeState',
+            },
+            ExpressionAttributeValues={
+                ':now': now, ':actor': actor, ':reason': reason,
+                ':merged': MERGE_COMPLETE, ':null_type': 'NULL',
+            },
+            ConditionExpression=(
+                'attribute_exists(id) '
+                'AND (attribute_not_exists(#deleted) OR attribute_type(#deleted, :null_type)) '
+                'AND (attribute_not_exists(#merge_state) OR #merge_state <> :merged)'
+            ),
+            ReturnValues='ALL_NEW',
+        )
+    except ClientError as exc:
+        if exc.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
+            return cors_response(409, {
+                'error': 'Customer cannot be archived in its current identity state',
+                'errorCode': 'CUSTOMER_ARCHIVE_REFUSED',
+            }, origin)
+        raise
+    log_event(logger, 'contact_archived', contactId=contact_id, requestId=request_id)
+    return cors_response(200, _from_dynamo(resp.get('Attributes', {})), origin)
+
+
+def _restore_contact(body: Dict[str, Any], auth: Dict[str, Any],
+                     request_id: str, origin: str = '') -> Dict[str, Any]:
+    """Restore a non-destructively archived canonical customer to daily queues."""
+    contact_id = str(body.get('contactId') or '').strip()
+    if not contact_id:
+        return cors_response(400, {'error': 'contactId is required'}, origin)
+    actor = str((auth or {}).get('username') or (auth or {}).get('email') or 'staff').strip()
+    now = int(time.time())
+    table = dynamodb.Table(CONTACTS_TABLE)
+    try:
+        resp = table.update_item(
+            Key=contact_key.key(contact_id),
+            UpdateExpression=(
+                'SET #updated = :now, #restored_by = :actor, #restored_at = :now '
+                'REMOVE #archived, #archived_by, #archived_reason'
+            ),
+            ExpressionAttributeNames={
+                '#updated': 'updatedAt',
+                '#restored_by': 'restoredBy',
+                '#restored_at': 'restoredAt',
+                '#archived': ARCHIVED_AT_ATTRIBUTE,
+                '#archived_by': ARCHIVED_BY_ATTRIBUTE,
+                '#archived_reason': ARCHIVED_REASON_ATTRIBUTE,
+            },
+            ExpressionAttributeValues={':now': now, ':actor': actor},
+            ConditionExpression='attribute_exists(id) AND attribute_exists(#archived)',
+            ReturnValues='ALL_NEW',
+        )
+    except ClientError as exc:
+        if exc.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
+            return cors_response(409, {
+                'error': 'Customer is not restorable from the current state',
+                'errorCode': 'CUSTOMER_RESTORE_REFUSED',
+            }, origin)
+        raise
+    log_event(logger, 'contact_restored', contactId=contact_id, requestId=request_id)
     return cors_response(200, _from_dynamo(resp.get('Attributes', {})), origin)
 
 
@@ -1749,7 +1995,7 @@ def _check_duplicate_scan(phone: Optional[str], email: Optional[str], exclude_id
     if not phone and not email:
         return None
     table = dynamodb.Table(CONTACTS_TABLE)
-    filt = _active_contact_filter()
+    filt = _identity_contact_filter()
     scan_kwargs: Dict[str, Any] = {
         'FilterExpression': filt,
         'ProjectionExpression': '#id, #cid, #ph, #em, #ms',

@@ -11,6 +11,7 @@
  * maskPhone. Per-row status mutation reuses the real updateSubmissionStatus endpoint.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/router';
 import * as api from '../../api/client';
 import type { ApiFailure, FlowSubmissionItem } from '../../api/client';
 import { Pagination, Select } from '../ui';
@@ -78,6 +79,7 @@ export interface ResponsesQueueProps {
 }
 
 const ResponsesQueue: React.FC<ResponsesQueueProps> = ( { lockCapability } ) => {
+  const router = useRouter();
   const [rows, setRows] = useState<FlowSubmissionItem[]>( [] );
   const [loading, setLoading] = useState( true );
   const [failure, setFailure] = useState<ApiFailure | null>( null );
@@ -86,6 +88,12 @@ const ResponsesQueue: React.FC<ResponsesQueueProps> = ( { lockCapability } ) => 
   const [filters, setFilters] = useState<SearchFiltersState>( {
     search: '', flowCode: lockCapability ?? '', status: '', paymentStatus: '',
   } );
+
+  useEffect( () => {
+    const raw = router.query.search;
+    const value = Array.isArray( raw ) ? raw[ 0 ] : raw;
+    if ( value ) setFilters( current => ( { ...current, search: value } ) );
+  }, [ router.query.search ] );
 
   const load = useCallback( async () => {
     setLoading( true );

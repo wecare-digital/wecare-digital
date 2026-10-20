@@ -152,7 +152,8 @@ interface Props {
   contacts: Contact[];
   onClose: () => void;
   onOpenCustomer: ( contactId: string ) => void;
-  onMerged?: () => void;
+  // Fired after a reviewed merge or an archive so the parent can reload the active customer set.
+  onChanged?: () => void | Promise<void>;
 }
 
 const CLASS_LABEL: Record<MergeClassification, string> = {
@@ -168,12 +169,13 @@ const CLASS_COLOR: Record<MergeClassification, string> = {
   'blocked-by-financial-history': 'var(--danger, #b91c1c)',
 };
 
-const CustomerManageData: React.FC<Props> = ( { contacts, onClose, onOpenCustomer, onMerged } ) => {
+const CustomerManageData: React.FC<Props> = ( { contacts, onClose, onOpenCustomer, onChanged } ) => {
   const review = useMemo( () => buildCustomerDataReview( contacts ), [ contacts ] );
   const toast = useToastContext();
   const confirm = useConfirm();
   const [ preview, setPreview ] = useState<MergePreview | null>( null );
   const [ merging, setMerging ] = useState( false );
+  const [ busy, setBusy ] = useState<string | null>( null );
 
   const issueCount = review.duplicates.length + review.missingCustomerId.length
     + review.missingPhone.length + review.invalidPhone.length + review.missingAddress.length;
@@ -215,7 +217,7 @@ const CustomerManageData: React.FC<Props> = ( { contacts, onClose, onOpenCustome
       if ( result.ok && result.data?.merged ) {
         toast.success( 'Customers merged; all history preserved on the canonical record.' );
         setPreview( null );
-        onMerged?.();
+        await onChanged?.();
       } else {
         toast.error( result.ok ? 'Merge was not applied' : ( result.failure.message || 'Merge failed' ) );
       }
@@ -223,6 +225,30 @@ const CustomerManageData: React.FC<Props> = ( { contacts, onClose, onOpenCustome
       toast.error( err instanceof Error ? err.message : 'Merge failed' );
     } finally {
       setMerging( false );
+    }
+  };
+
+  // Archive hides a customer from daily queues without deleting identity, orders, invoices,
+  // payments, consent or history. It is additive to the preview-first merge path and never a
+  // destructive delete.
+  const archive = async ( contact: ReviewContact ) => {
+    const ok = await confirm( {
+      title: 'Archive customer',
+      message: `Archive "${contact.name || contact.contactId}" from daily customer queues? Identity, orders, invoices, payments, consent and history remain intact.`,
+      confirmText: 'Archive',
+    } );
+    if ( !ok ) return;
+    setBusy( `archive:${contact.contactId}` );
+    const result = await api.archiveContact(
+      contact.contactId,
+      'Archived from Customers → Manage data after operator review',
+    );
+    setBusy( null );
+    if ( result.ok ) {
+      toast.success( 'Customer archived without deleting history' );
+      await onChanged?.();
+    } else {
+      toast.error( result.failure.message || 'Archive refused' );
     }
   };
 
@@ -257,7 +283,7 @@ const CustomerManageData: React.FC<Props> = ( { contacts, onClose, onOpenCustome
           <div className="section-head">
             <div>
               <h3 id="duplicate-title">Potential duplicates</h3>
-              <p>Select a group to preview a reviewed merge. The merge preserves every record (messages, orders, payments, invoices, consent, addresses, service requests, Flow submissions, notes, provenance, activity) and retains the alias — it never deletes.</p>
+              <p>Select a group to preview a reviewed merge. The merge preserves every record (messages, orders, payments, invoices, consent, addresses, service requests, Flow submissions, notes, provenance, activity) and retains the alias; it never deletes. Archive hides a customer from daily queues without deleting identity or financial history.</p>
             </div>
           </div>
           { review.duplicates.length === 0 ? (
@@ -273,11 +299,23 @@ const CustomerManageData: React.FC<Props> = ( { contacts, onClose, onOpenCustome
                 ) }
               </div>
               <div className="customer-list">
-                { group.contacts.map( contact => (
-                  <button type="button" key={ contact.contactId } onClick={ () => open( contact ) }>
-                    <span><strong>{ contact.name || 'Unnamed customer' }</strong><small>{ contact.contactId }</small></span>
-                    <span aria-hidden="true">›</span>
-                  </button>
+                { group.contacts.map( ( contact ) => (
+                  // Merging a duplicate group is preview-first (classified safe / needs-review /
+                  // blocked) via "Preview merge" above; it is never a per-row one-click merge.
+                  // Archive is the only per-row action and hides without deleting history.
+                  <div className="customer-action-row" key={ contact.contactId }>
+                    <button type="button" className="customer-open" onClick={ () => open( contact ) }>
+                      <span><strong>{ contact.name || 'Unnamed customer' }</strong><small>{ contact.contactId }</small></span>
+                      <span aria-hidden="true">›</span>
+                    </button>
+                    <div className="row-actions">
+                      <button type="button" className="action"
+                        disabled={ busy === `archive:${contact.contactId}` }
+                        onClick={ () => void archive( contact ) }>
+                        { busy === `archive:${contact.contactId}` ? 'Archiving…' : 'Archive' }
+                      </button>
+                    </div>
+                  </div>
                 ) ) }
               </div>
             </article>
@@ -359,7 +397,7 @@ const CustomerManageData: React.FC<Props> = ( { contacts, onClose, onOpenCustome
         .duplicate-head{padding:12px 14px;background:var(--bg-secondary);display:flex;gap:8px;align-items:center;flex-wrap:wrap}.duplicate-head span,.duplicate-head small{font-size:var(--text-xs);color:var(--text-muted)}.duplicate-head small{margin-inline-start:auto}
         .preview-btn{min-height:44px;border:1px solid var(--accent);border-radius:10px;background:#fff;color:var(--accent);font-size:var(--text-xs);font-weight:700;padding:8px 12px;cursor:pointer}
         .preview-btn:hover,.preview-btn:focus-visible{background:var(--bg-secondary)}
-        .customer-list{display:flex;flex-direction:column}.customer-list button{border:0;border-top:1px solid var(--border-light);background:#fff;min-height:58px;padding:9px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:start;cursor:pointer;color:var(--text)}.customer-list button:first-child{border-top:0}.customer-list button:hover,.customer-list button:focus-visible{background:var(--bg-secondary)}.customer-list button:focus-visible,.close:focus-visible,.preview-btn:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}.customer-list button span:first-child{display:flex;flex-direction:column;min-width:0}.customer-list small{color:var(--text-muted);font-size:var(--text-xs);overflow-wrap:anywhere}
+        .customer-list{display:flex;flex-direction:column}.customer-list>button,.customer-open{border:0;border-top:1px solid var(--border-light);background:#fff;min-height:58px;padding:9px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:start;cursor:pointer;color:var(--text)}.customer-list>button:first-child{border-top:0}.customer-list>button:hover,.customer-list>button:focus-visible,.customer-open:hover,.customer-open:focus-visible{background:var(--bg-secondary)}.customer-list>button:focus-visible,.customer-open:focus-visible,.action:focus-visible,.close:focus-visible,.preview-btn:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}.customer-list button span:first-child{display:flex;flex-direction:column;min-width:0}.customer-list small{color:var(--text-muted);font-size:var(--text-xs);overflow-wrap:anywhere}.customer-action-row{display:grid;grid-template-columns:minmax(0,1fr) auto;border-top:1px solid var(--border-light);align-items:stretch}.customer-action-row:first-child{border-top:0}.customer-action-row .customer-open{border-top:0;width:100%}.row-actions{display:flex;align-items:center;gap:6px;padding:8px}.action{min-height:44px;padding:7px 10px;border:1px solid var(--border);border-radius:10px;background:#fff;color:var(--text);font:inherit;font-size:var(--text-xs);font-weight:700;cursor:pointer}.action:disabled{opacity:.55;cursor:default}
         .merge-preview{margin-top:10px;border:1px solid var(--border);border-radius:14px;padding:16px}
         .class-pill{display:inline-block;border:1.5px solid;border-radius:9999px;padding:4px 12px;font-size:var(--text-xs);font-weight:800;text-transform:uppercase;letter-spacing:.05em}
         .merge-reason{margin:10px 0;color:var(--text);font-size:var(--text-sm);line-height:1.5}

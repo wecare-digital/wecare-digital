@@ -38,6 +38,12 @@ export const EMBEDDED_POLICY_ROUTES = new Set<string>( [
  * repeat page context or append a generic legal footer.
  */
 const PAGE_POLICY: Readonly<Record<string, PublicPolicyCopy>> = {
+  '/contact': {
+    shipping: 'No fulfilment starts by visiting or contacting us on this page.',
+    returns: 'Nothing submitted on this page is a returnable product.',
+    refunds: 'No payment is taken on this page, so nothing is refundable here.',
+    disclaimer: 'Submitting a request does not confirm acceptance, price, timing or scope; the later confirmed request or order controls.',
+  },
   '/orders': {
     shipping: 'Fulfilment follows the underlying order and any courier or provider terms.',
     returns: 'Returns or replacements follow the underlying item or service terms.',
@@ -134,7 +140,7 @@ const SHOP_PAGE_POLICY: PublicPolicyCopy = {
 };
 
 export function publicPolicyDetailsForRoute( pathname: string ): PublicPolicyCopy | null {
-  if ( pathname === '/' || pathname === '/contact' || pathname === '/404' ) return null;
+  if ( pathname === '/' || pathname === '/404' ) return null;
   if ( pathname === '/shop/[slug]' || EMBEDDED_POLICY_ROUTES.has( pathname ) ) return null;
 
   if (

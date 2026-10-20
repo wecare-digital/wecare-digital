@@ -45,6 +45,8 @@ const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
         display:inline-flex;
         align-items:center;
         width:max-content;
+        min-height:var(--tap-min);
+        box-sizing:border-box;
         padding:6px 9px;
         border-radius:8px;
         cursor:pointer;
