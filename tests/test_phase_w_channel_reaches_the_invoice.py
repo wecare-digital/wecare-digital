@@ -5,7 +5,7 @@ THE SEAM THIS PINS, and why it was broken when the five Phase W batches first la
 FEAT-002 put `channel` on the `PAYREF#` row, and said in a comment at `checkout/handler.py` why
 it belongs there rather than only on the attempt: *"the webhook reconciles on this row and a
 channel it cannot read is a channel a reconciliation cannot report."* FEAT-004 then built three
-render sites that print `Source: Website|WhatsApp` from an invoice row's `channel`, and
+render sites that print `Channel: Website|WhatsApp` from an invoice row's `channel`, and
 `create_invoice_from_payment` grew a pass-through for it.
 
 Nothing joined the two. `_create_order_for_captured_payment._load_attempt` narrowed the
@@ -13,7 +13,7 @@ Nothing joined the two. `_create_order_for_captured_payment._load_attempt` narro
 built the `/invoices/from-payment` body without one. So the one path that can actually produce an
 invoice for a WhatsApp-origin order - the verified commerce path, which calls
 `_post_payment_handler` at the end of `_handle_payment_captured` - would have issued a GST
-invoice reading `Source: Website` for an order the customer's own orders page labelled WhatsApp.
+invoice reading `Channel: Website` for an order the customer's own orders page labelled WhatsApp.
 Two documents, one order, contradicting each other, with no error anywhere.
 
 Nothing observable changes for any order reachable today: `WA_CATALOG_ORDERS_ENABLED` is off, so
@@ -355,9 +355,9 @@ def _invoice_row(channel):
 
 
 @pytest.mark.parametrize('stored,printed', [
-    (order_channel.CHANNEL_WHATSAPP, 'Source: WhatsApp'),
-    (order_channel.CHANNEL_WEBSITE, 'Source: Website'),
-    (None, 'Source: Website'),
+    (order_channel.CHANNEL_WHATSAPP, 'Channel: WhatsApp'),
+    (order_channel.CHANNEL_WEBSITE, 'Channel: Website'),
+    (None, 'Channel: Website'),
 ])
 def test_the_word_on_the_payref_row_is_the_word_on_the_invoice(
         webhook, keys_table, engine, stored, printed):

@@ -213,8 +213,7 @@ def _interactive(m: Dict) -> str:
         return lr.get('title', '[List Reply]')
 
     if itype == 'nfm_reply':
-        rj = interactive.get('nfm_reply', {}).get('response_json', '')
-        return f'[Flow Response: {rj[:50]}...]' if len(rj) > 50 else f'[Flow Response: {rj}]'
+        return 'Flow response'
 
     return f'[Interactive: {itype}]'
 

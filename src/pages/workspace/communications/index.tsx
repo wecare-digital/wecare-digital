@@ -66,7 +66,6 @@ const TemplateBuilderPanel = lazyTab<PageProps>( () => import( '../../../compone
 const CatalogBuilderPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/catalog-builder' ) );
 const WhatsAppFlowsPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/flows' ) );
 const FlowPublishPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/flow-publish' ) );
-const FlowResponsesPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/flow-responses' ) );
 const GroupsPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/groups' ) );
 const CostControlsPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/cost-controls' ) );
 const ScriptsPanel = lazyTab<PageProps>( () => import( '../../../components/workspace/whatsapp/scripts' ) );
@@ -211,7 +210,6 @@ const WHATSAPP_GROUPS: Array<{
       { id: 'template-builder', label: 'Create template', detail: 'Template creation workflow' },
       { id: 'flows', label: 'Flows', detail: 'Flow inventory and lifecycle' },
       { id: 'flow-publish', label: 'Flow publish', detail: 'Publication checks and actions' },
-      { id: 'flow-responses', label: 'Flow responses', detail: 'Submitted Flow data and response operations' },
       { id: 'catalog-builder', label: 'Catalog & Flow mapping', detail: 'WhatsApp catalog and Flow mapping tools' },
     ],
   },
@@ -293,7 +291,7 @@ const CommunicationsPage: React.FC<PageProps> = ( { signOut, user } ) => {
       case 'template-builder': return <TemplateBuilderPanel signOut={ signOut } user={ user } embedded />;
       case 'flows': return <WhatsAppFlowsPanel signOut={ signOut } user={ user } embedded />;
       case 'flow-publish': return <FlowPublishPanel signOut={ signOut } user={ user } embedded />;
-      case 'flow-responses': return <FlowResponsesPanel signOut={ signOut } user={ user } embedded />;
+      case 'flow-responses': return <UnifiedInbox signOut={ signOut } user={ user } embedded channel="whatsapp" />;
       case 'catalog-builder': return <CatalogBuilderPanel signOut={ signOut } user={ user } embedded />;
       case 'groups': return <GroupsPanel signOut={ signOut } user={ user } embedded />;
       case 'calling': return <CallingPanel signOut={ signOut } user={ user } embedded />;

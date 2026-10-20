@@ -8,6 +8,7 @@
  * WhatsApp's dedicated inbox ([retired public path]/whatsapp) stays as-is for full WhatsApp send features.
  */
 
+import FlowResponseDetails from '../../../../components/FlowResponseDetails';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -135,6 +136,7 @@ const TYPE_LABELS: Record<string, string> = {
 const prettyMsg = ( content?: string, messageType?: string ): string => {
     const raw = ( content || '' ).trim();
     const mt = ( messageType || '' ).toLowerCase();
+    if ( raw.startsWith( '[Flow Response:' ) ) return 'Flow response';
     // Never show Meta's own error text to an agent. The two full-string checks below
     // covered one string the extractor never produced while missing the one it always
     // did, so match the `[Unsupported: ` PREFIX as well. This also catches rows stored
@@ -1087,39 +1089,11 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                                         return <ContactCardBubble contacts={ cards } fallbackLabel="Contact card" />;
                                                     } )() }
                                                     { ( m.messageType || '' ).toLowerCase() === 'flow_response' && (
-                                                        <div className="ui-flow-response" style={ { minWidth: 320, maxWidth: 560 } }>
+                                                        <div className="ui-flow-response" style={ { width: '100%', minWidth: 0, maxWidth: 560, overflowWrap: 'anywhere' } }>
                                                             <div style={ { fontWeight: 700, marginBottom: 6 } }>
                                                                 Flow response{ m.flowCode ? ` · ${m.flowCode}` : '' }
                                                             </div>
-                                                            { m.flowAnswers?.length ? (
-                                                                <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)' } }>
-                                                                    <thead>
-                                                                        <tr>
-                                                                            <th style={ { textAlign: 'left', padding: '4px 6px', borderBottom: '1px solid var(--border)' } }>Question</th>
-                                                                            <th style={ { textAlign: 'left', padding: '4px 6px', borderBottom: '1px solid var(--border)' } }>Answer</th>
-                                                                        </tr>
-                                                                    </thead>
-                                                                    <tbody>
-                                                                        { m.flowAnswers.map( ( row, i ) => (
-                                                                            <tr key={ i }>
-                                                                                <td style={ { verticalAlign: 'top', padding: '4px 6px', fontWeight: 600, borderBottom: '1px solid var(--borderLight)' } }>{ row.question }</td>
-                                                                                <td style={ { verticalAlign: 'top', padding: '4px 6px', whiteSpace: 'pre-wrap', borderBottom: '1px solid var(--borderLight)' } }>{ row.answer }</td>
-                                                                            </tr>
-                                                                        ) ) }
-                                                                    </tbody>
-                                                                </table>
-                                                            ) : null }
-                                                            { m.flowAttachments?.length ? (
-                                                                <div style={ { marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 8 } }>
-                                                                    { m.flowAttachments.map( ( a, i ) => {
-                                                                        const url = a.url || '';
-                                                                        const isImg = ( a.type || '' ).startsWith( 'image' ) || /\.(png|jpe?g|gif|webp)(\?|$)/i.test( url );
-                                                                        return isImg && url
-                                                                            ? <a key={ i } href={ url } target="_blank" rel="noreferrer"><img src={ url } alt={ a.filename || 'Flow attachment' } style={ { width: 84, height: 84, objectFit: 'cover', borderRadius: 7, border: '1px solid var(--border)' } } /></a>
-                                                                            : <a key={ i } href={ url || '#' } target={ url ? '_blank' : undefined } rel="noreferrer" className="ui-msg-doc">📎 { a.filename || `Attachment ${i + 1}` }</a>;
-                                                                    } ) }
-                                                                </div>
-                                                            ) : null }
+                                                            <FlowResponseDetails flowAnswers={ m.flowAnswers } flowAttachments={ m.flowAttachments } />
                                                             { m.reviewId && (
                                                                 <div style={ { marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--borderLight)' } }>
                                                                     <div style={ { fontSize: 'var(--text-xs)', marginBottom: 6 } }>

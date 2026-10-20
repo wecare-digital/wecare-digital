@@ -4,7 +4,7 @@
  * Used when 24-hour window is closed or for marketing campaigns
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import * as api from '../api/client';
 import { WHATSAPP_PHONES } from '../config/constants';
 import { useConfirm } from '../contexts/ConfirmContext';
@@ -103,7 +103,9 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
   const [ placeSearching, setPlaceSearching ] = useState( false );
   const [ placeSession, setPlaceSession ] = useState( '' );
 
+  const templateLoad = useRef( 0 );
   const loadTemplates = async () => {
+    const request = ++templateLoad.current;
     setLoading( true );
     try
     {
@@ -114,21 +116,28 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
       ) as any;
       const wabaId = phone?.wabaId;
       const data = await api.listTemplates( wabaId );
+      if ( request !== templateLoad.current ) return;
       // Only show approved templates
-      setTemplates( data.filter( t => t.status === 'APPROVED' ) );
+      const approved = data.filter( t => t.status === 'APPROVED' );
+      setTemplates( approved );
+      setSelectedTemplate( current => approved.find( t => t.id === current?.id && t.language === current?.language ) || null );
     } catch ( err )
     {
+      if ( request !== templateLoad.current ) return;
+      setTemplates( [] );
+      setSelectedTemplate( null );
       console.error( 'Failed to load templates:', err );
       onError( 'Failed to load templates' );
     } finally
     {
-      setLoading( false );
+      if ( request === templateLoad.current ) setLoading( false );
     }
   };
 
   // Load templates on mount / when the target phone (WABA) changes
   useEffect( () => {
     loadTemplates();
+    setSelectedTemplate( null );
   }, [ phoneNumberId ] );
 
   // Extract variables from template when selected
@@ -802,6 +811,7 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
         { !selectedTemplate ? (
           <div className="template-selection">
             <div className="search-filters">
+              <button type="button" className="btn btn-secondary btn-sm" onClick={ loadTemplates } disabled={ loading }>Refresh templates</button>
               <input
                 type="text"
                 placeholder="Search templates..."
