@@ -267,7 +267,9 @@ const Layout: React.FC<LayoutProps> = ( { children, user, onSignOut, showBreadcr
         @media(max-width:360px){
           .workspace-topbar-inner{
             gap:8px;
-            padding-inline:max(8px,env(safe-area-inset-left,0px));
+            padding-inline:
+              max(8px,env(safe-area-inset-left,0px))
+              max(8px,env(safe-area-inset-right,0px));
           }
           .workspace-brand{max-width:112px}
           .workspace-actions{gap:4px}
