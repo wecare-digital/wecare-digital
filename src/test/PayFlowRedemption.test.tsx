@@ -130,7 +130,8 @@ describe( 'the Delight discount is server-authoritative', () => {
     await openCreateForm();
     priceOneItem();
     submit();
-    await waitFor( () => expect( screen.getByText( /Applied on the last invoice/ ) ).toBeInTheDocument() );
+    await waitFor( () => expect( screen.getByText( /Invoice WD\/2026\/0002 created/ ) ).toBeInTheDocument() );
+    expect( screen.queryByText( /Applied on the last invoice/ ) ).toBeNull();
     expect( screen.queryByText( 'Delight' ) ).toBeNull();
   } );
 } );
@@ -229,12 +230,31 @@ describe( 'explicit create and send', () => {
     expect( createInvoiceEngine ).toHaveBeenCalledTimes( 1 );
     expect( sendPaymentLink ).toHaveBeenCalledTimes( 1 );
   } );
-  it( 'does not label an in-progress dispatch as sent', async () => {
+  it( 'does not label an in-progress dispatch as sent when no delivery evidence exists', async () => {
     sendPaymentLink.mockResolvedValue( { status: 'send_in_progress' } );
+    getInvoiceDeliveryLog.mockResolvedValueOnce( { deliveryLogs: [] } );
     await openCreateForm(); priceOneItem();
     fireEvent.click( screen.getByRole( 'button', { name: 'Create and send payment request' } ) );
-    await screen.findByText( /Sending is not confirmed. Open this saved invoice/ );
-    expect( screen.queryByText( 'WhatsApp payment request sent.' ) ).toBeNull();
+    await screen.findByText( /The send is still being reconciled. Open this saved invoice/ );
+    expect( screen.queryByText( 'WhatsApp accepted the payment request for delivery.' ) ).toBeNull();
+  } );
+
+  it( 'reconciles an ambiguous send from accepted durable delivery evidence', async () => {
+    sendPaymentLink.mockResolvedValue( { status: 'send_in_progress' } );
+    getInvoiceDeliveryLog.mockResolvedValueOnce( {
+      deliveryLogs: [ {
+        timestamp: 1792465423,
+        channel: 'whatsapp_payment',
+        toNumber: '+918100640044',
+        status: 'accepted',
+        waMessageId: 'wamid.test',
+        error: '',
+      } ],
+    } );
+    await openCreateForm(); priceOneItem();
+    fireEvent.click( screen.getByRole( 'button', { name: 'Create and send payment request' } ) );
+    await screen.findByText( 'WhatsApp accepted the payment request for delivery.', { selector: 'p' } );
+    expect( screen.queryByText( /Sending is not confirmed/ ) ).toBeNull();
   } );
   it( 'blocks duplicate clicks while invoice creation is pending', async () => {
     let finish: ( value: typeof SERVER_CREATE ) => void = () => {};
