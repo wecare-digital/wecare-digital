@@ -137,6 +137,8 @@ def test_customer_copy_hides_country_code_and_has_short_labels():
     assert {'full_name','address_line1','city','state','postal_code','country'}<=required
     country=next(n for n in dropdowns if n.get('name')=='country')
     assert country['data-source']
+    assert len(country['data-source']) <= 200
+    assert all(len(option['title']) <= 30 for option in country['data-source'])
     assert any(option['id']=='India' for option in country['data-source'])
     assert any(option['id']=='United States' for option in country['data-source'])
     copy_text=' '.join(n.get('text','') for n in walk(doc) if isinstance(n.get('text',''),str))
