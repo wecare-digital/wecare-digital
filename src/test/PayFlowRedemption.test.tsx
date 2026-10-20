@@ -130,7 +130,7 @@ describe( 'the Delight discount is server-authoritative', () => {
     await openCreateForm();
     priceOneItem();
     submit();
-    await waitFor( () => expect( screen.getByText( /Invoice WD\/2026\/0002 created/ ) ).toBeInTheDocument() );
+    await waitFor( () => expect( screen.getByRole( 'heading', { name: 'Invoice WD/2026/0002 created' } ) ).toBeInTheDocument() );
     expect( screen.queryByText( /Applied on the last invoice/ ) ).toBeNull();
     expect( screen.queryByText( 'Delight' ) ).toBeNull();
   } );
@@ -215,7 +215,7 @@ describe( 'explicit create and send', () => {
     await waitFor( () => expect( sendPaymentLink ).toHaveBeenCalledWith( 'inv_1', 'phone-number-id-waba1-direct-1016149501586345' ) );
     expect( createInvoiceEngine ).toHaveBeenCalledTimes( 1 );
     expect( createInvoiceEngine.mock.invocationCallOrder[ 0 ] ).toBeLessThan( sendPaymentLink.mock.invocationCallOrder[ 0 ] );
-    await screen.findByText( 'WhatsApp payment request sent.', { selector: 'p' } );
+    await screen.findByText( 'WhatsApp accepted the payment request for delivery.', { selector: 'p' } );
   } );
   it( 'retains the saved invoice when sending is unconfirmed and does not create a replacement', async () => {
     sendPaymentLink.mockResolvedValue( null );
