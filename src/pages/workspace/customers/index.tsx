@@ -727,11 +727,8 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
     finally { setSaving(false); }
   };
 
-  // ARCHIVE, not delete. `api.deleteContact` has always been the SOFT delete: it sets
-  // `deletedAt`, and `_list_all` / `_search` / `_read_one` hide those rows. So the record, the
-  // messages and every payment link stay intact. The old copy said "delete" in the title and
-  // the button and "will be archived" in the body — one of those was wrong, and it was the
-  // scary one. Nothing about the call changed; only the words an operator reads.
+  // Archive is a distinct non-destructive state. It hides the canonical customer from daily
+  // queues while preserving the identity row and every linked order/invoice/payment/consent record.
   const handleArchive = async (contactId: string, contactName?: string) => {
     const current = contacts.find(c => c.contactId === contactId);
     if (current?.locked) { toast.warning('This contact is protected. An administrator must unlock it before archiving.'); return; }
@@ -743,9 +740,9 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
     if (!ok) return;
     setDeleting(true);
     try {
-      const result = await api.deleteContact(contactId);
-      if (result) {
-        toast.success('Customer archived');
+      const result = await api.archiveContact(contactId, 'Archived from Customers workspace after operator review');
+      if (result.ok) {
+        toast.success('Customer archived without deleting identity or history');
         setSelectedIds(prev => { const next = new Set(prev); next.delete(contactId); return next; });
         await loadContacts();
       }
@@ -761,8 +758,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
     else toast.error('Unlock denied or unavailable. Administrator access and a deployed unlock route are required.');
   };
 
-  // Bulk archive — Fix #6: Use batched Promise.all instead of sequential.
-  // Same soft call as `handleArchive`, so the same word.
+  // Bulk archive uses the same non-destructive customer state; it never calls delete.
   const handleBulkArchive = async () => {
     if (selectedIds.size === 0) return;
     const protectedCount = contacts.filter(c => selectedIds.has(c.contactId) && c.locked).length;
@@ -774,7 +770,11 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
     const BATCH = 5;
     for (let i = 0; i < ids.length; i += BATCH) {
       const batch = ids.slice(i, i + BATCH);
-      const results = await Promise.all(batch.map(id => api.deleteContact(id).catch(() => false)));
+      const results = await Promise.all(batch.map(id =>
+        api.archiveContact(id, 'Bulk archive from Customers workspace after operator review')
+          .then(result => result.ok)
+          .catch(() => false)
+      ));
       archived += results.filter(Boolean).length;
     }
     setSelectedIds(new Set());
@@ -1507,6 +1507,24 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
                     ))}
                   </div>
                 </div>
+                { detailContact.consentHistory && detailContact.consentHistory.length > 0 && (
+                  <div style={{ marginBottom: 12 }}>
+                    <p style={{ fontSize: 'var(--text-xs)', color: '#9ca3af', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Consent evidence</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      { detailContact.consentHistory.slice().reverse().slice(0, 8).map(event => (
+                        <div key={event.eventId} style={{ padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 10, background: '#fff' }}>
+                          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                            <strong style={{ fontSize: 'var(--text-xs)' }}>{event.channel.toUpperCase()} · {event.scope}</strong>
+                            <span style={{ fontSize: 'var(--text-xs)', color: event.state ? 'var(--accent)' : '#991b1b' }}>{event.status}</span>
+                          </div>
+                          <div style={{ marginTop: 3, fontSize: 'var(--text-xs)', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                            {event.source} · {event.purpose} · {event.reference}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {/* Fix #15: Allowlist status */}
                 <div style={{ marginBottom: 12 }}>
                   <p style={{ fontSize: 'var(--text-xs)', color: '#9ca3af', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Allowlist Status</p>
@@ -1596,6 +1614,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
             setShowManageData(false);
             if (customer) setDetailContact(customer);
           }}
+          onChanged={loadContacts}
         />
       )}
 
