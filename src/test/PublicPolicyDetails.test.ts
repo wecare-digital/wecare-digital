@@ -5,6 +5,7 @@ import { EMBEDDED_POLICY_ROUTES, publicPolicyDetailsForRoute } from '../content/
 
 describe( 'public PolicyDetails coverage', () => {
   const routes = [
+    '/contact',
     '/orders',
     '/vayulok',
     '/elsewhere/activities',
@@ -25,7 +26,7 @@ describe( 'public PolicyDetails coverage', () => {
     '/shop/page/[page]',
   ];
 
-  it( 'covers shared public pages except Home, Contact and the redirect-only 404 document', () => {
+  it( 'covers shared public pages except Home and the redirect-only 404 document', () => {
     for ( const route of routes ) {
       const policy = publicPolicyDetailsForRoute( route );
       expect( policy, route ).not.toBeNull();
@@ -55,10 +56,18 @@ describe( 'public PolicyDetails coverage', () => {
     expect( publicPolicyDetailsForRoute( '/grahak-os' ) ).toBeNull();
   } );
 
-  it( 'keeps Home, Contact and the redirect-only 404 document free of the disclosure', () => {
+  it( 'keeps only Home and the redirect-only 404 document free of the shared disclosure', () => {
     expect( publicPolicyDetailsForRoute( '/' ) ).toBeNull();
-    expect( publicPolicyDetailsForRoute( '/contact' ) ).toBeNull();
+    expect( publicPolicyDetailsForRoute( '/contact' ) ).not.toBeNull();
     expect( publicPolicyDetailsForRoute( '/404' ) ).toBeNull();
+  } );
+
+  it( 'keeps the Policy details summary on the shared touch floor', () => {
+    const source = readFileSync(
+      resolve( process.cwd(), 'src/components/public/PolicyDetails.tsx' ),
+      'utf8',
+    );
+    expect( source ).toContain( 'min-height:var(--tap-min)' );
   } );
 
   it( 'keeps route-specific policy meaning without forcing artificial wording differences', () => {
