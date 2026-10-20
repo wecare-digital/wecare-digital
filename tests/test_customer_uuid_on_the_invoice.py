@@ -325,7 +325,7 @@ def test_the_png_still_draws_its_existing_lines(engine):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 3. The WhatsApp caption
+# 3. WhatsApp delivery is template-only; customer-visible detail stays in the PNG
 # ══════════════════════════════════════════════════════════════════════════════
 
 class _FakeTable:
@@ -345,13 +345,11 @@ class _FakeTable:
         self.writes.append(kwargs)
 
 
-def _caption_for(engine, invoice):
-    """Drive the REAL `send_invoice_whatsapp` and return the caption it handed to delivery."""
+def _whatsapp_payload(engine, invoice):
     invoice_id = invoice["invoiceId"]
     assets = _FakeTable({
         (("assetType", "image"), ("invoiceId", invoice_id)):
-            {"invoiceId": invoice_id, "assetType": "image", "s3Key": "secure/x.png",
-             "url": "signed"},
+            {"invoiceId": invoice_id, "assetType": "image", "s3Key": "secure/x.png"},
     })
     invoices = _FakeTable({(("invoiceId", invoice_id),): invoice})
     tables = {
@@ -364,68 +362,33 @@ def _caption_for(engine, invoice):
     lam = MagicMock()
     lam.invoke.return_value = {
         "Payload": io.BytesIO(json.dumps({"statusCode": 200, "body": json.dumps({
-            "status": "sent", "whatsappMessageId": "wamid.CAPTION"})}).encode())}
+            "status": "sent", "whatsappMessageId": "wamid.TEMPLATE"})}).encode())}
 
-
-    with patch.object(engine, "dynamodb", ddb), \
-            patch.object(engine, "lambda_client", lam), \
-            patch.object(engine, "_signed_invoice_url", return_value=""), \
-            patch.object(engine, "_lookup_contact_by_phone", return_value=None):
+    with patch.object(engine, "dynamodb", ddb),             patch.object(engine, "lambda_client", lam),             patch.object(engine, "_signed_invoice_url", return_value=""),             patch.object(engine, "_lookup_contact_by_phone", return_value=None):
         response = engine.send_invoice_whatsapp(
-            invoice_id, "+918100640044", "", "req-caption")
-
+            invoice_id, "+918100640044", "", "req-template")
     assert response["statusCode"] == 200
-    sent = json.loads(json.loads(lam.invoke.call_args.kwargs["Payload"])["body"])
-    return sent["content"]
+    return json.loads(json.loads(lam.invoke.call_args.kwargs["Payload"])["body"])
 
 
-def test_the_caption_carries_the_customer_id(engine):
-    assert f"Customer ID: {CUSTOMER_ID}" in _caption_for(engine, _invoice())
+def test_whatsapp_invoice_uses_only_the_approved_image_template(engine):
+    payload = _whatsapp_payload(engine, _invoice())
+    assert payload["isTemplate"] is True
+    assert payload["templateName"] == "wecare_default_invoice_image_template"
+    assert payload["templateHeaderType"] == "image"
+    assert payload["templateHeaderMedia"] == "secure/x.png"
+    assert payload["content"] == ""
+    assert payload["flowButton"] == {"index": 0, "flowKey": "leave_review"}
+    assert "mediaFile" not in payload
 
 
-def test_the_caption_omits_the_line_when_there_is_no_customer_id(engine):
-    row = _invoice()
-    row.pop(customer_uuid.ATTRIBUTE)
-    caption = _caption_for(engine, row)
-    assert "Customer ID" not in caption
-    # The existing lines survive, so the caption is still useful without one.
-    assert f"Invoice: {ISSUED}" in caption
-    assert "Order: WD-ORD-ABCD1234" in caption
-    assert "Ref: WD-PAY-ABCD1234" in caption
-    assert "Ordered on: Website" in caption
-    assert "Thank you for your payment!" in caption
-
-
-def test_the_caption_STILL_contains_no_personal_data(engine):
-    """The property re-asserted with a uuid present, which is the state the existing caption test
-    does not cover. Printing the uuid is only defensible because the reason it is safe stays true:
-    it is ours, opaque and timestamp-free, whereas a name, phone, email or address identifies the
-    recipient to whoever is looking at the handset. So the uuid being added must not have dragged
-    anything else in with it."""
-    caption = _caption_for(engine, _invoice(channel=order_channel.CHANNEL_WHATSAPP))
-    assert CUSTOMER_ID in caption                 # the id IS there
-    assert CUSTOMER_NAME not in caption
-    assert CUSTOMER_PHONE not in caption
-    assert "8100640044" not in caption            # not even unprefixed
-    assert "0044" not in caption                  # not even the masked suffix
-    assert CUSTOMER_ADDRESS not in caption
-    assert "Kolkata" not in caption
-    assert "customer@example.com" not in caption
-    for line in caption.splitlines():
-        assert line.startswith(("Invoice", "Order:", "Ref:", "Ordered on:",
-                                "Customer ID:", "Thank you")), line
-
-
-def test_the_caption_and_the_image_show_the_SAME_id(engine):
-    """One order, two surfaces, one id. Two readings of one attribute is how a customer ends up
-    quoting an id that does not match their document."""
-    invoice = _invoice()
-    caption = _caption_for(engine, invoice)
-    drawn = _drawn_text(engine, invoice)
-    in_caption = next(line for line in caption.splitlines()
-                      if line.startswith("Customer ID:"))
-    in_image = next(t for t in drawn if "Customer ID:" in t)
-    assert in_caption.split(":", 1)[1].strip() == in_image.split(":", 1)[1].strip()
+def test_whatsapp_template_does_not_duplicate_invoice_personal_data_in_free_text(engine):
+    payload = _whatsapp_payload(engine, _invoice())
+    rendered = json.dumps(payload, sort_keys=True)
+    assert payload["content"] == ""
+    assert CUSTOMER_NAME not in rendered
+    assert CUSTOMER_ADDRESS not in rendered
+    assert "customer@example.com" not in rendered
 
 
 # ══════════════════════════════════════════════════════════════════════════════
