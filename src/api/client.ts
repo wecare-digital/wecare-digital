@@ -652,6 +652,94 @@ export async function mergeContacts (
   } );
 }
 
+// ============================================================================
+// CONSENT EVIDENCE API
+// ----------------------------------------------------------------------------
+// Consent is an append-only ledger of EVIDENCE records, not the legacy opt-in booleans. A read
+// derives the current per-channel state from the ledger; an append layers a record on top and
+// never rewrites history; an import ingests EXISTING evidence only and can never manufacture an
+// opt-in for an address book. These mirror `lambda_utils.identity.consent` on the backend.
+// ============================================================================
+
+export type ConsentChannel = 'WHATSAPP' | 'SMS' | 'EMAIL' | 'RCS' | 'VOICE' | 'PUSH';
+export type ConsentState = 'OPTED_IN' | 'OPTED_OUT' | 'PENDING';
+export type ConsentPurpose = 'MARKETING' | 'TRANSACTIONAL' | 'SERVICE';
+
+export interface ConsentRecord {
+  channel: ConsentChannel;
+  state: ConsentState;
+  source: string;
+  at: number;
+  purpose: ConsentPurpose;
+  reference?: string;
+  expiry?: number;
+}
+
+export interface ConsentChannelSummary {
+  state: ConsentState;
+  latestRecordState: ConsentState;
+  source: string;
+  at: number;
+  purpose: ConsentPurpose;
+  reference: string;
+  expiry?: number | null;
+  history: number;
+  sendable: boolean;
+}
+
+export interface ConsentView {
+  contactId: string;
+  ledger: ConsentRecord[];
+  summary: Partial<Record<ConsentChannel, ConsentChannelSummary>>;
+}
+
+/** The append-only consent ledger plus the derived per-channel summary for one contact. */
+export async function getConsent ( contactId: string ): Promise<ApiResult<ConsentView>> {
+  return apiCallResult<ConsentView>(
+    `${API_BASE}/contacts?consent=${encodeURIComponent( contactId )}` );
+}
+
+/**
+ * Append ONE consent evidence record. Never a casual boolean flip: the record must name a
+ * channel, a state (OPTED_IN / OPTED_OUT / PENDING), a source and a purpose. The append layers
+ * onto the ledger so prior evidence survives.
+ */
+export async function appendConsent (
+  contactId: string,
+  record: {
+    channel: ConsentChannel;
+    state: ConsentState;
+    source: string;
+    purpose?: ConsentPurpose;
+    reference?: string;
+    expiry?: number;
+  },
+): Promise<ApiResult<ConsentView>> {
+  return apiCallResult<ConsentView>( `${API_BASE}/contacts`, {
+    method: 'POST',
+    body: JSON.stringify( { _action: 'consent_append', contactId, ...record } ),
+  } );
+}
+
+export interface ConsentImportResult extends ConsentView {
+  imported: number;
+  refused: { index: number; reason: string }[];
+}
+
+/**
+ * Import EXISTING consent evidence. A row claiming OPTED_IN must name the originating source and
+ * an evidence reference or it is refused; an address book can never manufacture an opt-in.
+ */
+export async function importConsent (
+  contactId: string,
+  records: Record<string, unknown>[],
+): Promise<ApiResult<ConsentImportResult>> {
+  return apiCallResult<ConsentImportResult>( `${API_BASE}/contacts`, {
+    method: 'POST',
+    body: JSON.stringify( { _action: 'consent_import', contactId, records } ),
+  } );
+}
+
 function normalizeContact ( item: any ): Contact {
   return {
     id: item.id || item.contactId || '',
@@ -5185,36 +5273,6 @@ export interface InvoiceRemark {
 // parameter here could only ever be a value the browser sends and the server throws away -
 // and before that, it was the value the server STORED, which made a refund note signable
 // with anyone's name.
-export interface RefundInitiationResult {
-  initiated: boolean;
-  idempotent?: boolean;
-  refundId?: string;
-  paymentId?: string;
-  invoiceId?: string;
-  returnSubmissionId?: string;
-  webhookConfirmed?: boolean;
-}
-
-/**
- * Ask the server to initiate the full provider refund for an already refund-eligible return.
- * The browser supplies ONLY invoiceId + returnSubmissionId. Payment id and amount are resolved
- * server-side from authoritative invoice/payment state, and the provider webhook remains the
- * authority for the terminal refunded state.
- */
-export async function initiateInvoiceRefund (
-  invoiceId: string,
-  returnSubmissionId: string,
-): Promise<ApiResult<RefundInitiationResult>> {
-  return apiCallResult<RefundInitiationResult>( INVOICE_BASE, {
-    method: 'POST',
-    body: JSON.stringify( {
-      _action: 'initiate-refund',
-      invoiceId,
-      returnSubmissionId,
-    } ),
-  } );
-}
-
 export async function addInvoiceRemark (
   invoiceId: string,
   remarkType: 'remark' | 'refund' | 'credit_note',
@@ -5232,6 +5290,145 @@ export async function addInvoiceRemark (
       ...( evidence?.paymentId ? { paymentId: evidence.paymentId } : {} ),
     } ),
   } );
+}
+
+// ============================================================================
+// REFUND INITIATION (server-authoritative, webhook-confirmed)
+// ============================================================================
+
+/**
+ * The outcome of a refund-initiation POST, as the invoice-engine reports it.
+ *
+ * This deliberately mirrors the server's truthful states rather than flattening them. A
+ * refund is money leaving, so the UI must never claim "refunded" before provider/webhook
+ * evidence. The states are:
+ *
+ *  - `submitted`  — the provider accepted one refund POST. `webhookConfirmed` is still false
+ *                   until razorpay-webhook writes the authoritative REFUNDED state, so the UI
+ *                   shows "submitted, awaiting confirmation", never "refunded".
+ *  - `confirmed`  — the payment row already carries webhook-proven refund evidence (idempotent
+ *                   re-submit of a case the webhook has settled). `webhookConfirmed` is true.
+ *  - `ambiguous`  — the provider outcome is unknown (5xx/timeout). NOT retryable here; a human
+ *                   must reconcile Razorpay/webhook evidence before any further attempt.
+ *  - `rejected`   — the provider refused (4xx) or eligibility failed server-side. NOT retryable
+ *                   blindly; review before another attempt.
+ *  - `disabled`   — refund initiation is switched off in this deployment.
+ */
+export type RefundInitiationOutcome =
+  | 'submitted'
+  | 'confirmed'
+  | 'ambiguous'
+  | 'rejected'
+  | 'disabled';
+
+export interface RefundInitiationResult {
+  outcome: RefundInitiationOutcome;
+  /** True ONLY when the webhook has already recorded the refund. Gate any "refunded" copy on this. */
+  webhookConfirmed: boolean;
+  refundId?: string;
+  paymentId?: string;
+  amountPaise?: number;
+  /** 'full' | 'partial' as the server executed it. */
+  mode?: 'full' | 'partial';
+  /** The server's authoritative refundable remainder, returned when an amount was over-cap. */
+  maxRefundablePaise?: number;
+  /** The server's errorCode, surfaced verbatim so the operator sees why. */
+  errorCode?: string;
+  /** Human-readable message, safe to show. */
+  message?: string;
+}
+
+/**
+ * Shared non-retrying refund POST.
+ *
+ * Deliberately uses `authFetch`, NOT `apiCall`/`apiCallResult`: those auto-retry 502/503/504,
+ * and a refund is irreversible — re-POSTing an ambiguous outcome is exactly the double-refund
+ * the backend's no-retry boundary exists to prevent. This reads the body for every status so
+ * the caller gets the server's truthful outcome instead of a collapsed null.
+ */
+async function postRefundInitiation (
+  action: 'initiate-refund' | 'initiate-partial-refund',
+  invoiceId: string,
+  returnSubmissionId: string,
+  reason: string,
+  extra: Record<string, unknown>,
+): Promise<RefundInitiationResult> {
+  let response: Response;
+  try
+  {
+    response = await authFetch( INVOICE_BASE, {
+      method: 'POST',
+      body: JSON.stringify( { _action: action, invoiceId, returnSubmissionId, reason, ...extra } ),
+    } );
+  } catch
+  {
+    // No response means the POST may or may not have reached the provider boundary. Treat it
+    // as ambiguous — never as a failure the caller might retry into a second refund.
+    return {
+      outcome: 'ambiguous',
+      webhookConfirmed: false,
+      message: 'The refund request did not get a response. Reconcile Razorpay before retrying.',
+    };
+  }
+
+  let body: Record<string, any> = {};
+  try { body = await response.json(); } catch { body = {}; }
+
+  const base: RefundInitiationResult = {
+    outcome: 'rejected',
+    webhookConfirmed: !!body.webhookConfirmed,
+    refundId: body.refundId,
+    paymentId: body.paymentId,
+    amountPaise: typeof body.amountPaise === 'number' ? body.amountPaise : undefined,
+    mode: body.mode === 'partial' || body.mode === 'full' ? body.mode : undefined,
+    maxRefundablePaise: typeof body.maxRefundablePaise === 'number' ? body.maxRefundablePaise : undefined,
+    errorCode: typeof body.errorCode === 'string' ? body.errorCode : undefined,
+    message: typeof body.error === 'string' ? body.error : undefined,
+  };
+
+  if ( response.ok )
+  {
+    // 200 = webhook already confirmed; 202 = provider accepted, awaiting webhook.
+    return { ...base, outcome: body.webhookConfirmed ? 'confirmed' : 'submitted' };
+  }
+  if ( response.status === 503 ) return { ...base, outcome: 'ambiguous' };
+  if ( base.errorCode === 'REFUND_INITIATION_DISABLED' ) return { ...base, outcome: 'disabled' };
+  return base; // 4xx/409/other -> rejected
+}
+
+/**
+ * Initiate a FULL refund for a refund-eligible Return / Refund case.
+ *
+ * The browser supplies only the invoice and return-case identity plus the operator's audit
+ * `reason`; the server derives the payment, the eligibility and the amount, and persists the
+ * reason on the return-case / audit record. Returns the truthful outcome — callers must gate
+ * any "refunded" wording on `webhookConfirmed`.
+ */
+export async function initiateFullRefund (
+  invoiceId: string,
+  returnSubmissionId: string,
+  reason: string,
+): Promise<RefundInitiationResult> {
+  return postRefundInitiation( 'initiate-refund', invoiceId, returnSubmissionId, reason, {} );
+}
+
+/**
+ * Initiate a PARTIAL refund of `amountPaise` for a refund-eligible Return / Refund case.
+ *
+ * The amount is a PROPOSAL: the server caps it to the captured total minus any already-refunded
+ * amount and rejects anything over the cap or <= 0 (`REFUND_AMOUNT_OVER_CAP` /
+ * `REFUND_AMOUNT_INVALID`), returning `maxRefundablePaise` so the UI can correct itself. The
+ * operator's audit `reason` is persisted on the return-case / audit record server-side.
+ */
+export async function initiatePartialRefund (
+  invoiceId: string,
+  returnSubmissionId: string,
+  amountPaise: number,
+  reason: string,
+): Promise<RefundInitiationResult> {
+  return postRefundInitiation(
+    'initiate-partial-refund', invoiceId, returnSubmissionId, reason, { amountPaise },
+  );
 }
 
 // ============================================================================

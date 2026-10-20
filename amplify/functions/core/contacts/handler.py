@@ -42,6 +42,16 @@ from lambda_utils.identity import customer as customer_identity
 # uuid5 of the Cognito sub when `auth/customer-profile` writes it, so publishing it on an invoice
 # would publish a value derived from the Cognito subject.
 from lambda_utils.identity import customer_uuid, subscriber_id
+# `phone` is the routing key. A provider-VERIFIED number must not be silently overwritten by a
+# lower-trust manual/import edit - that redirects a conversation to a different human being. The
+# trust ladder and the "locked at VERIFIED needs review" rule live in `identity.provenance`; the
+# CRM update path consults it before touching `phone` and routes a conflict to review instead of
+# clobbering the verified routing identity. See `_primary_phone_review_refusal`.
+from lambda_utils.identity import provenance
+# Consent modelled as append-only EVIDENCE, never a boolean. An opt-in carries who/when/how/proof
+# and OPTED_OUT is first-class; the CRM reads and appends through this, and a bulk import can
+# import EXISTING evidence only - it can never manufacture an opt-in. See `_consent_*`.
+from lambda_utils.identity import consent as consent_evidence
 # A contact tied to money is the provenance record for that money, so it may be ARCHIVED and
 # never hard-deleted. The policy lives in the shared module - two indexed queries, fail-closed -
 # so the word `captured` never has to be compared in this handler.
@@ -73,6 +83,11 @@ CUSTOMER_LOGIN_FUNCTION = os.environ.get('CUSTOMER_LOGIN_FUNCTION', 'wecare-secu
 #: The copy a CRM operator sees when the dial code is missing. A refusal, not a default - see
 #: `_e164_or_error`.
 PHONE_COUNTRY_CODE_REQUIRED = 'Phone number must include a country code, e.g. +91'
+
+#: A manual/import edit tried to change a phone that carries provider-VERIFIED provenance. The
+#: routing identity is not overwritten; the conflict is routed to human review. Distinct on the
+#: wire so the CRM can offer "review" rather than reporting a generic validation failure.
+PRIMARY_PHONE_REVIEW_REQUIRED = 'PRIMARY_PHONE_REVIEW_REQUIRED'
 
 # The error message for a number that carries a country code but still is not reachable. Kept as
 # the pre-existing wording so no CRM UI string has to change.
@@ -298,6 +313,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     resource = event.get('resource', event.get('rawPath', ''))
 
     try:
+        # GET [retired public path]?consent=<contactId> — the append-only consent evidence
+        # ledger plus its derived per-channel summary. A Viewer read; the writes are POST actions.
+        if method == 'GET' and query_params.get('consent'):
+            return _consent_read(query_params.get('consent'), request_id, origin)
+
         # GET [retired public path]/search?q=...
         if method == 'GET' and ('search' in resource or query_params.get('q')):
             return _search(query_params, request_id, origin)
@@ -333,6 +353,23 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return _archive_contact(preauth_body, event.get('_auth') or {}, request_id, origin)
         if method == 'POST' and post_action == 'restore':
             return _restore_contact(preauth_body, event.get('_auth') or {}, request_id, origin)
+
+        # POST /contacts with _action=consent_append / consent_import — append-only consent
+        # evidence. Operator capability (the method-level gate above already enforces it). The
+        # append layers a record on top of history; the import ingests existing evidence only.
+        if method == 'POST':
+            try:
+                consent_body = json.loads(event.get('body', '{}') or '{}')
+            except (json.JSONDecodeError, TypeError, ValueError):
+                consent_body = {}
+            consent_action = str(consent_body.get('_action') or '').strip().lower()
+            if consent_action in ('consent_append', 'consent_import'):
+                consent_contact = str(consent_body.get('contactId') or contact_id or '').strip()
+                if not consent_contact:
+                    return cors_response(400, {'error': 'contactId is required'}, origin)
+                if consent_action == 'consent_append':
+                    return _consent_append(consent_contact, consent_body, request_id, origin)
+                return _consent_import(consent_contact, consent_body, request_id, origin)
 
         # POST [retired public path] — Fix #14: rate limited
         if method == 'POST':
@@ -1034,6 +1071,52 @@ def _merged_alias_mutation_refusal(
 
 # ─── UPDATE ─────────────────────────────────────────────────────────────────
 
+#: The sources a CRM/import write to this handler carries. A hand edit in the dashboard is
+#: OPERATOR trust; a bulk CSV import is IMPORTED trust. Neither may silently overwrite a
+#: VERIFIED phone - that is the whole point of the guard. The default is OPERATOR because the
+#: common caller is a human editing a contact in the dashboard; `_update` lets an import mark
+#: itself as `CSV_IMPORT` through the body so the trust ladder sees the weaker source.
+_WRITE_SOURCE_DEFAULT = 'DASHBOARD'
+_WRITE_SOURCE_IMPORT = 'CSV_IMPORT'
+
+
+def _write_source(body: Dict[str, Any]) -> str:
+    """The provenance source for THIS write, forced to a declared value.
+
+    An import flags itself with `importSource: true` (or `source: 'import'`) in the body so the
+    trust ladder sees `CSV_IMPORT` rather than the operator default. The client cannot name an
+    arbitrary provenance source: anything other than the import flag is the dashboard operator,
+    so a caller cannot claim `WHATSAPP_INBOUND` to mint a VERIFIED-trust write.
+    """
+    flagged = bool(body.get('importSource')) or str(body.get('source') or '').strip().lower() in (
+        'import', 'csv', 'csv_import')
+    return _WRITE_SOURCE_IMPORT if flagged else _WRITE_SOURCE_DEFAULT
+
+
+def _primary_phone_review_refusal(
+    current_row: Dict[str, Any], incoming_phone: Optional[str], source: str,
+) -> Optional[Dict[str, Any]]:
+    """`None` when the phone write may proceed; otherwise the 409 routing the change to review.
+
+    A phone carrying provider-VERIFIED provenance is the routing key for every channel. A
+    lower-trust manual or import edit that would CHANGE it is not applied - it is queued for a
+    human, because two verified numbers mean two people or a number that genuinely changed, and
+    both need a decision rather than a silent overwrite. `provenance.needs_review` encodes
+    exactly that: a locked field whose VERIFIED value would change. The response names no stored
+    value; it reports only that review is required.
+    """
+    if incoming_phone in (None, ''):
+        return None
+    if not provenance.needs_review(current_row, 'phone', source, incoming_value=incoming_phone):
+        return None
+    return {
+        'error': 'This number is provider-verified; changing it needs review, not a direct edit',
+        'errorCode': PRIMARY_PHONE_REVIEW_REQUIRED,
+        'field': 'phone',
+        'retryable': False,
+    }
+
+
 def _update(contact_id: str, body: Dict[str, Any], request_id: str, origin: str = '') -> Dict[str, Any]:
     merged_refusal = _merged_alias_mutation_refusal(contact_id, origin)
     if merged_refusal:
@@ -1071,6 +1154,26 @@ def _update(contact_id: str, body: Dict[str, Any], request_id: str, origin: str 
         dup = _check_duplicate(check_phone, check_email, exclude_id=contact_id)
         if dup:
             return cors_response(409, {'error': dup}, origin)
+
+    # Primary-phone protection. A provider-VERIFIED phone is the routing identity and must not be
+    # silently overwritten by a lower-trust manual/import edit. Read the current row ONLY when the
+    # write would change the phone, so the common no-phone-change update pays no extra read, and
+    # route a conflicting change to review instead of clobbering it. On an allowed change, stamp
+    # the write's provenance so the trust ladder stays honest: a future verified write beats this
+    # operator edit, and a later import never silently overwrites it.
+    phone_provenance_source: Optional[str] = None
+    if 'phone' in updates and updates['phone']:
+        write_source = _write_source(body)
+        table = dynamodb.Table(CONTACTS_TABLE)
+        current_row = table.get_item(
+            Key={'id': contact_id}, ConsistentRead=True).get('Item') or {}
+        refusal = _primary_phone_review_refusal(
+            current_row, updates['phone'], write_source)
+        if refusal is not None:
+            log_event(logger, 'contact_primary_phone_review_required', contactId=contact_id,
+                      requestId=request_id)
+            return cors_response(409, refusal, origin)
+        phone_provenance_source = provenance.normalize_source(write_source)
 
     # FEAT-003: a validated structured address, written through the shared validator only. The
     # raw attribute is not in ALLOWED_UPDATE_FIELDS, so `updates` never carries it from the client;
@@ -1127,6 +1230,16 @@ def _update(contact_id: str, body: Dict[str, Any], request_id: str, origin: str 
         f'{customer_uuid.ATTRIBUTE} = if_not_exists({customer_uuid.ATTRIBUTE}, :vcustuuid)')
     values[':vcustuuid'] = customer_uuid.new_customer_uuid()
 
+    # Record the phone write's provenance so the primary-phone guard has something to protect on
+    # the NEXT edit. Merged, never replaced, so other fields' provenance is untouched; this is a
+    # whole-attribute SET of the merged map, read fresh above when the phone actually changed.
+    if phone_provenance_source is not None:
+        merged = provenance.merged_provenance(current_row, {'phone': phone_provenance_source})
+        set_parts.append(f'{provenance.PROVENANCE_ATTRIBUTE} = :vfieldsources')
+        values[':vfieldsources'] = merged
+
+    # Append consent/allowlist changes to the append-only consent history. Never overwritten;
+    # list_append onto an if_not_exists empty list so the first event seeds the attribute.
     if consent_events:
         names['#consent_history'] = CONSENT_HISTORY_ATTRIBUTE
         values[':empty_consent_history'] = []
@@ -1557,6 +1670,163 @@ def _hard_delete(contact_id: str, request_id: str, origin: str = '') -> Dict[str
     return cors_response(200, {
         'success': True, 'contactId': contact_id, 'deleteType': 'hard',
         'messagesDeleted': msgs_deleted, 'mediaDeleted': media_deleted,
+    }, origin)
+
+
+# ─── CONSENT EVIDENCE ─────────────────────────────────────────────────────────
+#
+# Consent is an append-only ledger of EVIDENCE records on the contact row (see
+# `identity.consent`), not the legacy opt-in booleans. A read derives the current per-channel
+# state from the ledger; an append layers a new record on top and NEVER rewrites a prior one;
+# an import ingests EXISTING evidence only and can never manufacture an opt-in. The legacy
+# opt-in booleans still exist for old readers, but they are no longer the truth and an import
+# cannot flip them into permission.
+
+
+def _consent_read(contact_id: str, request_id: str, origin: str = '') -> Dict[str, Any]:
+    """The full consent ledger plus the derived per-channel summary for one contact.
+
+    Read-floor capability (a Viewer may look). Resolves a completed merge alias to its canonical
+    customer so consent history is read from the one surviving row.
+    """
+    table = dynamodb.Table(CONTACTS_TABLE)
+    item = table.get_item(Key=contact_key.key(contact_id), ConsistentRead=True).get('Item')
+    if not item:
+        return cors_response(404, {'error': 'Contact not found'}, origin)
+
+    merged_target = str(item.get('mergedIntoContactId') or '').strip()
+    if str(item.get('mergeState') or '').strip().lower() == MERGE_COMPLETE and merged_target:
+        item = table.get_item(
+            Key=contact_key.key(merged_target), ConsistentRead=True).get('Item') or item
+
+    now = int(time.time())
+    return cors_response(200, {
+        'contactId': contact_id,
+        'ledger': consent_evidence.ledger_of(item),
+        'summary': consent_evidence.summarize(item, now=now),
+    }, origin)
+
+
+def _consent_append(contact_id: str, body: Dict[str, Any], request_id: str,
+                    origin: str = '') -> Dict[str, Any]:
+    """Append one consent evidence record. Operator capability. Never overwrites history.
+
+    Staff cannot flip consent as a casual boolean: the record must name a channel, a state
+    (OPTED_IN / OPTED_OUT / PENDING), a source and a purpose, and the append is layered onto the
+    ledger so prior evidence survives. A bulk/import caller cannot reach this with a manufactured
+    opt-in - that path is `_consent_import`, which enforces the existing-evidence rule.
+    """
+    merged_refusal = _merged_alias_mutation_refusal(contact_id, origin)
+    if merged_refusal:
+        return merged_refusal
+
+    table = dynamodb.Table(CONTACTS_TABLE)
+    item = table.get_item(Key=contact_key.key(contact_id), ConsistentRead=True).get('Item')
+    if not item:
+        return cors_response(404, {'error': 'Contact not found'}, origin)
+
+    now = int(time.time())
+    try:
+        record = consent_evidence.build_record(
+            channel=body.get('channel'),
+            state=body.get('state'),
+            source=body.get('source') or 'DASHBOARD',
+            at=now,
+            purpose=body.get('purpose'),
+            reference=body.get('reference'),
+            expiry=body.get('expiry'),
+        )
+        new_ledger = consent_evidence.append(item, record)
+    except consent_evidence.InvalidConsentRecord as exc:
+        return cors_response(400, {'error': 'Invalid consent record',
+                                   'detail': str(exc)}, origin)
+
+    try:
+        table.update_item(
+            Key={'id': contact_id},
+            UpdateExpression='SET #ledger = :ledger, updatedAt = :now',
+            ExpressionAttributeNames={'#ledger': consent_evidence.ATTRIBUTE},
+            ExpressionAttributeValues={':ledger': new_ledger,
+                                       ':now': Decimal(str(now))},
+            ConditionExpression='attribute_exists(id)',
+        )
+    except ClientError as exc:
+        if exc.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
+            return cors_response(404, {'error': 'Contact not found'}, origin)
+        raise
+
+    log_event(logger, 'contact_consent_appended', contactId=contact_id,
+              channel=record['channel'], state=record['state'], requestId=request_id)
+    return cors_response(200, {
+        'contactId': contact_id,
+        'ledger': new_ledger,
+        'summary': consent_evidence.summarize({consent_evidence.ATTRIBUTE: new_ledger}, now=now),
+    }, origin)
+
+
+def _consent_import(contact_id: str, body: Dict[str, Any], request_id: str,
+                    origin: str = '') -> Dict[str, Any]:
+    """Import EXISTING consent evidence onto a contact. Operator capability.
+
+    The rule the whole surface exists to enforce: a bulk import carries evidence of a consent
+    that happened ELSEWHERE, with its own source, timestamp and reference - it can never
+    manufacture an opt-in for an address book. A row that claims OPTED_IN without naming the
+    originating source and an evidence reference is refused; an OPTED_OUT is always accepted
+    because honouring a prior unsubscribe cannot over-permission anyone.
+    """
+    merged_refusal = _merged_alias_mutation_refusal(contact_id, origin)
+    if merged_refusal:
+        return merged_refusal
+
+    table = dynamodb.Table(CONTACTS_TABLE)
+    item = table.get_item(Key=contact_key.key(contact_id), ConsistentRead=True).get('Item')
+    if not item:
+        return cors_response(404, {'error': 'Contact not found'}, origin)
+
+    rows = body.get('records')
+    if not isinstance(rows, list) or not rows:
+        return cors_response(400, {'error': 'records must be a non-empty list'}, origin)
+
+    now = int(time.time())
+    ledger = consent_evidence.ledger_of(item)
+    appended = 0
+    refused: List[Dict[str, Any]] = []
+    for index, row in enumerate(rows):
+        if not isinstance(row, dict):
+            refused.append({'index': index, 'reason': 'not an object'})
+            continue
+        try:
+            record = consent_evidence.record_from_import(row, now=now)
+        except (consent_evidence.ConsentImportRefused,
+                consent_evidence.InvalidConsentRecord) as exc:
+            refused.append({'index': index, 'reason': str(exc)})
+            continue
+        ledger = consent_evidence.append({consent_evidence.ATTRIBUTE: ledger}, record)
+        appended += 1
+
+    if appended:
+        try:
+            table.update_item(
+                Key={'id': contact_id},
+                UpdateExpression='SET #ledger = :ledger, updatedAt = :now',
+                ExpressionAttributeNames={'#ledger': consent_evidence.ATTRIBUTE},
+                ExpressionAttributeValues={':ledger': ledger,
+                                           ':now': Decimal(str(now))},
+                ConditionExpression='attribute_exists(id)',
+            )
+        except ClientError as exc:
+            if exc.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
+                return cors_response(404, {'error': 'Contact not found'}, origin)
+            raise
+
+    log_event(logger, 'contact_consent_imported', contactId=contact_id,
+              appended=appended, refused=len(refused), requestId=request_id)
+    return cors_response(200, {
+        'contactId': contact_id,
+        'imported': appended,
+        'refused': refused,
+        'ledger': ledger,
+        'summary': consent_evidence.summarize({consent_evidence.ATTRIBUTE: ledger}, now=now),
     }, origin)
 
 

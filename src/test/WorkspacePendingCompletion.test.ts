@@ -25,16 +25,24 @@ describe( 'workspace pending-completion contracts', () => {
     expect( read( 'src/components/service/ResponsesQueue.tsx' ) ).toContain( 'router.query.search' );
   } );
 
-  it( 'refund initiation stays typed-confirmed, server-derived and provider-gated', () => {
+  it( 'refund initiation stays confirmed, server-derived and provider-gated', () => {
+    // The full+partial refund lifecycle supersedes the earlier full-only `initiateInvoiceRefund`.
+    // Amount and payment id are server-derived; the browser only chooses full vs partial + reason,
+    // and the provider webhook stays the authority for the terminal refunded state.
     const orders = read( 'src/components/workspace/commerce/Orders.tsx' );
     const client = read( 'src/api/client.ts' );
     const handler = read( 'amplify/functions/payments/invoice-engine/handler.py' );
     const executor = read( 'amplify/functions/shared/lambda_utils/integrations/razorpay_refund.py' );
 
-    expect( orders ).toContain( "confirmDanger(\n      'refund'" );
-    expect( orders ).toContain( 'api.initiateInvoiceRefund' );
-    expect( client ).toContain( "_action: 'initiate-refund'" );
+    expect( orders ).toContain( 'useConfirm' );
+    expect( orders ).not.toMatch( /\bwindow\.(alert|confirm|prompt)\s*\(/ );
+    expect( orders ).toContain( 'api.initiateFullRefund' );
+    expect( orders ).toContain( 'api.initiatePartialRefund' );
+    expect( orders ).not.toContain( 'api.initiateInvoiceRefund' );
+    expect( client ).toContain( "'initiate-refund'" );
+    expect( client ).toContain( "'initiate-partial-refund'" );
     expect( client ).toContain( 'returnSubmissionId' );
+    // The server derives the payment id; the browser never chooses one on the refund POST.
     expect( client ).not.toContain( "_action: 'initiate-refund',\n      paymentId" );
     expect( handler ).toContain( 'razorpay_refund.enabled()' );
     expect( handler ).toContain( "body.get('paymentId')" );

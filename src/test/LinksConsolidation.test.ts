@@ -30,4 +30,25 @@ describe( 'Links consolidation', () => {
     expect( links ).not.toContain( "method: 'DELETE'" );
     expect( links ).not.toContain( 'handleDelete' );
   } );
+
+  it( 'implements the ACTIVE -> INACTIVE -> RETIRED lifecycle with a reversible reactivate', () => {
+    // Deactivate is reversible (handleReactivate), retire is the one terminal, irreversible move
+    // and it is a lifecycle transition — not a DELETE — so the record and clicks survive.
+    expect( links ).toContain( 'const handleReactivate = async' );
+    expect( links ).toContain( 'const handleRetire = async' );
+    expect( links ).toContain( "lifecycleState: 'RETIRED'" );
+    expect( links ).toContain( 'active: true' );
+    expect( links ).toContain( "type LinkLifecycle = 'ACTIVE' | 'INACTIVE' | 'RETIRED'" );
+    // A retired link is frozen in the UI: its Edit control is gated off.
+    expect( links ).toContain( "disabled={ lifecycle === 'RETIRED' }" );
+  } );
+
+  it( 'lets a link be attached to a Customer/Campaign/Order/Invoice/Service/general record', () => {
+    expect( links ).toContain( 'relatedType' );
+    expect( links ).toContain( 'relatedId' );
+    expect( links ).toContain( 'purpose' );
+    for ( const kind of [ 'general', 'customer', 'campaign', 'order', 'invoice', 'service' ] ) {
+      expect( links ).toContain( `value: '${ kind }'` );
+    }
+  } );
 } );

@@ -28,7 +28,8 @@ import time
 import logging
 import boto3
 import io
-from typing import Dict, Any, Optional, List
+from dataclasses import dataclass
+from typing import Dict, Any, Optional, List, Tuple
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from lambda_utils.response import cors_response, cors_headers, options_response, extract_origin
@@ -355,6 +356,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # by default and the function itself refuses any Lambda-to-Lambda call with no staff actor.
         if method == 'POST' and body.get('_action') == 'initiate-refund':
             return initiate_full_refund(
+                body.get('invoiceId', ''), body, request_id, auth=event.get('_auth'))
+
+        # POST /invoices with _action=initiate-partial-refund — irreversible provider command for a
+        # browser-proposed, server-capped partial amount. Shares the same authenticated route,
+        # feature flag and no-internal-actor refusal as the full-refund action above.
+        if method == 'POST' and body.get('_action') == 'initiate-partial-refund':
+            return initiate_partial_refund(
                 body.get('invoiceId', ''), body, request_id, auth=event.get('_auth'))
 
         # POST /invoices with _action=clear-all — body-based trigger for cleanup via existing route
@@ -4687,9 +4695,34 @@ def _refund_staff_actor(auth: Optional[Dict]) -> str:
     return ''
 
 
+def _validate_refund_reason(reason: object) -> Tuple[str, Optional[Dict]]:
+    """Bound the operator refund reason the same way cancel_invoice bounds its reason.
+
+    The reason is operator audit metadata, never a money input: the server stays authoritative
+    on the cap and eligibility regardless of what it says. It is required (the UI demands it for
+    the audit record), trimmed, capped at 500 characters, and rejected if it carries control
+    characters, so a malformed justification never reaches the durable case / audit row.
+    """
+    text = str(reason or '').strip()
+    if not text:
+        return '', _resp(400, {
+            'error': 'A refund reason is required for the audit record',
+            'errorCode': 'REFUND_REASON_REQUIRED',
+        })
+    if len(text) > 500 or any(
+            (ord(ch) < 32 and ch not in '\r\n\t') or ord(ch) == 127
+            for ch in text):
+        return '', _resp(400, {
+            'error': 'Refund reason is overlong or contains invalid control characters',
+            'errorCode': 'REFUND_REASON_INVALID',
+        })
+    return text, None
+
+
 def _record_refund_audit_safely(*, actor: str, invoice_id: str,
                                 outcome: str, submission_id: str,
-                                request_id: str, refund_id: str = '') -> None:
+                                request_id: str, refund_id: str = '',
+                                reason: str = '') -> None:
     """Best-effort secondary audit after the durable return-case state write.
 
     The return case is the strict idempotency/audit authority. Once a provider call may have
@@ -4704,6 +4737,8 @@ def _record_refund_audit_safely(*, actor: str, invoice_id: str,
         }
         if refund_id:
             details['refundId'] = refund_id
+        if reason:
+            details['reason'] = reason
         record_audit(
             action='payment.refund',
             actor=actor,
@@ -4731,15 +4766,62 @@ def initiate_full_refund(invoice_id: str, body: Dict, request_id: str,
     -> invoice -> payment row. The browser cannot choose paymentId or amount. The provider
     webhook remains authoritative for the final REFUNDED state.
     """
+    reason, reason_error = _validate_refund_reason(body.get('reason'))
+    if reason_error is not None:
+        return reason_error
+    context, error = _resolve_refund_context(invoice_id, body, auth)
+    if error is not None:
+        return error
+    assert context is not None  # noqa: S101 - narrow the type; error is None implies a context
+    return _execute_refund(
+        context=context,
+        amount_paise=context.max_refundable_paise,
+        partial=False,
+        request_id=request_id,
+        reason=reason,
+    )
+
+
+@dataclass(frozen=True)
+class _RefundContext:
+    """Server-derived, browser-unforgeable facts needed to post one refund.
+
+    Every field here comes from durable records (invoice -> return case -> payment), never
+    from the request body. ``captured_paise`` is the authoritative captured total and
+    ``already_refunded_paise`` is whatever the webhook has already recorded as returned, so
+    ``max_refundable_paise`` is the hard server cap a browser amount can never exceed.
+    """
+    actor: str
+    invoice_id: str
+    submission_id: str
+    payment_id: str
+    internal_order_id: str
+    captured_paise: int
+    already_refunded_paise: int
+
+    @property
+    def max_refundable_paise(self) -> int:
+        return self.captured_paise - self.already_refunded_paise
+
+
+def _resolve_refund_context(invoice_id: str, body: Dict, auth: Optional[Dict]
+                            ) -> Tuple[Optional['_RefundContext'], Optional[Dict]]:
+    """Derive refund eligibility from durable records only.
+
+    Returns (context, None) when the case is eligible and nothing is yet refunded, or
+    (None, response) carrying the exact HTTP response to return otherwise. An already-confirmed
+    refund is reported as the idempotent success response rather than an error. The browser may
+    supply returnSubmissionId but never the paymentId, order id, captured amount, or cap.
+    """
     if not razorpay_refund.enabled():
-        return _resp(409, {
+        return None, _resp(409, {
             'error': 'Provider refund initiation is disabled in this deployment',
             'errorCode': 'REFUND_INITIATION_DISABLED',
         })
 
     actor = _refund_staff_actor(auth)
     if not actor:
-        return _resp(403, {
+        return None, _resp(403, {
             'error': 'Authenticated Admin staff actor required',
             'errorCode': 'REFUND_ACTOR_REQUIRED',
         })
@@ -4747,7 +4829,7 @@ def initiate_full_refund(invoice_id: str, body: Dict, request_id: str,
     invoice_id = str(invoice_id or '').strip()
     submission_id = str(body.get('returnSubmissionId') or '').strip()
     if not invoice_id or not submission_id:
-        return _resp(400, {
+        return None, _resp(400, {
             'error': 'invoiceId and returnSubmissionId are required',
             'errorCode': 'REFUND_LINK_REQUIRED',
         })
@@ -4755,17 +4837,17 @@ def initiate_full_refund(invoice_id: str, body: Dict, request_id: str,
     invoice = dynamodb.Table(INVOICES_TABLE).get_item(
         Key={'invoiceId': invoice_id}, ConsistentRead=True).get('Item') or {}
     if not invoice:
-        return _resp(404, {'error': 'Invoice not found'})
+        return None, _resp(404, {'error': 'Invoice not found'})
 
     payment_id = str(invoice.get('paymentId') or '').strip()
     internal_order_id = str(invoice.get('internalOrderId') or '').strip()
     if not payment_id or not internal_order_id:
-        return _resp(409, {
+        return None, _resp(409, {
             'error': 'Invoice is not safely linked to an internal paid order',
             'errorCode': 'REFUND_INVOICE_LINK_REQUIRED',
         })
     if pay_status.canonical(invoice.get('paymentStatus')) != pay_status.CAPTURED:
-        return _resp(409, {
+        return None, _resp(409, {
             'error': 'Invoice is not in captured payment state',
             'errorCode': 'REFUND_INVOICE_NOT_CAPTURED',
         })
@@ -4774,35 +4856,43 @@ def initiate_full_refund(invoice_id: str, body: Dict, request_id: str,
     return_case = case_table.get_item(
         Key={'submissionId': submission_id}, ConsistentRead=True).get('Item') or {}
     if not return_case:
-        return _resp(404, {'error': 'Return request not found'})
+        return None, _resp(404, {'error': 'Return request not found'})
     if str(return_case.get('requestType') or '').strip() != 'Return / Refund':
-        return _resp(409, {
+        return None, _resp(409, {
             'error': 'Request is not a Return / Refund case',
             'errorCode': 'REFUND_RETURN_CASE_REQUIRED',
         })
     if str(return_case.get('returnStage') or '').strip().lower() != 'refund_eligible':
-        return _resp(409, {
+        return None, _resp(409, {
             'error': 'Return case is not refund eligible',
             'errorCode': 'REFUND_NOT_ELIGIBLE',
         })
     if str(return_case.get('orderId') or '').strip() != internal_order_id:
-        return _resp(409, {
+        return None, _resp(409, {
             'error': 'Return case does not belong to this invoice order',
             'errorCode': 'REFUND_ORDER_MISMATCH',
         })
 
-    payment_table = dynamodb.Table(PAYMENTS_TABLE)
-    payment = payment_table.get_item(
+    payment = dynamodb.Table(PAYMENTS_TABLE).get_item(
         Key={'id': payment_id}, ConsistentRead=True).get('Item') or {}
     if not payment:
-        return _resp(409, {
+        return None, _resp(409, {
             'error': 'Authoritative payment record is unavailable',
             'errorCode': 'REFUND_PAYMENT_REQUIRED',
         })
 
     payment_state = pay_status.canonical(payment.get('status'))
+    # SINGLE REFUND PER PAYMENT (by design). razorpay-webhook._handle_refund marks the payment
+    # REFUNDED (a monotonic rank that then blocks any later refund.* write) and SETs — does not
+    # sum — refundAmountPaise on the FIRST processed refund. So once any refund (full or the
+    # first partial) has settled, this branch reports the idempotent success and no second
+    # partial can proceed: in practice a payment receives one refund. The cap arithmetic below
+    # (captured − already_refunded) is the server authority within that single refund and fails
+    # safe — it can only block or under-refund, never over-refund. Supporting multiple partials
+    # per payment would require revisiting the webhook's refunded-state/accumulation semantics,
+    # which stays the sole authoritative setter and is deliberately out of scope here.
     if payment_state == pay_status.REFUNDED and str(payment.get('refundId') or '').strip():
-        return _resp(200, {
+        return None, _resp(200, {
             'submitted': True,
             'webhookConfirmed': True,
             'refundId': str(payment.get('refundId')),
@@ -4810,23 +4900,113 @@ def initiate_full_refund(invoice_id: str, body: Dict, request_id: str,
             'idempotent': True,
         })
     if payment_state != pay_status.CAPTURED:
-        return _resp(409, {
+        return None, _resp(409, {
             'error': 'Payment is not in captured state',
             'errorCode': 'REFUND_PAYMENT_NOT_CAPTURED',
         })
 
     raw_amount = payment.get('amount')
     try:
-        amount_paise = pay_status.paise(raw_amount)
-        if Decimal(str(raw_amount)) != Decimal(str(amount_paise)):
-            amount_paise = 0
+        captured_paise = pay_status.paise(raw_amount)
+        if Decimal(str(raw_amount)) != Decimal(str(captured_paise)):
+            captured_paise = 0
     except (ValueError, InvalidOperation):
-        amount_paise = 0
-    if amount_paise <= 0:
-        return _resp(409, {
+        captured_paise = 0
+    if captured_paise <= 0:
+        return None, _resp(409, {
             'error': 'Captured payment amount is unusable',
             'errorCode': 'REFUND_AMOUNT_UNUSABLE',
         })
+
+    # Whatever the webhook has already recorded as returned on this payment row. The field is
+    # written by razorpay-webhook._handle_refund (refundAmountPaise); absent/unusable degrades
+    # to 0 so a missing field never inflates the remaining cap.
+    try:
+        already_refunded_paise = pay_status.paise(payment.get('refundAmountPaise'))
+    except ValueError:
+        already_refunded_paise = 0
+    if already_refunded_paise >= captured_paise:
+        return None, _resp(409, {
+            'error': 'Captured payment is already fully refunded',
+            'errorCode': 'REFUND_ALREADY_SETTLED',
+        })
+
+    return _RefundContext(
+        actor=actor,
+        invoice_id=invoice_id,
+        submission_id=submission_id,
+        payment_id=payment_id,
+        internal_order_id=internal_order_id,
+        captured_paise=captured_paise,
+        already_refunded_paise=already_refunded_paise,
+    ), None
+
+
+def initiate_partial_refund(invoice_id: str, body: Dict, request_id: str,
+                            *, auth: Optional[Dict] = None) -> Dict:
+    """Submit one PARTIAL Razorpay refund of a browser-proposed amount, server-capped.
+
+    Shares every eligibility and idempotency guarantee with initiate_full_refund. The browser
+    proposes amountPaise, but the server is the sole authority on the cap: the amount must be a
+    positive integer no greater than the authoritative captured total minus whatever the webhook
+    has already recorded as refunded. Anything <=0 or over the cap is rejected before the claim,
+    and the irreversible POST happens only after the case is durably claimed.
+    """
+    reason, reason_error = _validate_refund_reason(body.get('reason'))
+    if reason_error is not None:
+        return reason_error
+    context, error = _resolve_refund_context(invoice_id, body, auth)
+    if error is not None:
+        return error
+    assert context is not None  # noqa: S101 - narrow the type; error is None implies a context
+
+    raw = body.get('amountPaise')
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        try:
+            raw = int(raw)
+        except (TypeError, ValueError):
+            return _resp(400, {
+                'error': 'A positive integer amountPaise is required for a partial refund',
+                'errorCode': 'REFUND_AMOUNT_REQUIRED',
+            })
+    requested_paise = raw
+    if requested_paise <= 0:
+        return _resp(400, {
+            'error': 'Partial refund amount must be a positive integer in paise',
+            'errorCode': 'REFUND_AMOUNT_INVALID',
+        })
+    if requested_paise > context.max_refundable_paise:
+        return _resp(409, {
+            'error': 'Requested amount exceeds the refundable remainder on this payment',
+            'errorCode': 'REFUND_AMOUNT_OVER_CAP',
+            'maxRefundablePaise': context.max_refundable_paise,
+        })
+
+    return _execute_refund(
+        context=context,
+        amount_paise=requested_paise,
+        partial=True,
+        request_id=request_id,
+        reason=reason,
+    )
+
+
+def _execute_refund(*, context: '_RefundContext', amount_paise: int,
+                    partial: bool, request_id: str, reason: str = '') -> Dict:
+    """Claim the case idempotently, then post exactly one refund for ``amount_paise``.
+
+    This is the shared tail of the full and partial paths. By the time it runs, eligibility and
+    the server cap are already proven, so it owns only the durable claim, the single
+    non-retried provider call, and the truthful submitted/ambiguous/rejected state writes. It
+    never marks the payment refunded — the webhook remains authoritative for that.
+    """
+    actor = context.actor
+    invoice_id = context.invoice_id
+    submission_id = context.submission_id
+    payment_id = context.payment_id
+    internal_order_id = context.internal_order_id
+    case_table = dynamodb.Table(REFUND_CASES_TABLE)
+    mode = 'partial' if partial else 'full'
 
     now = int(time.time())
     try:
@@ -4834,8 +5014,9 @@ def initiate_full_refund(invoice_id: str, body: Dict, request_id: str,
             Key={'submissionId': submission_id},
             UpdateExpression=(
                 'SET refundInitiationState = :submitting, refundInitiationPaymentId = :pid, '
-                'refundInitiationAmountPaise = :amount, refundInitiatedBy = :actor, '
-                'refundInitiatedAt = :now'
+                'refundInitiationAmountPaise = :amount, refundInitiationMode = :mode, '
+                'refundInitiationReason = :reason, '
+                'refundInitiatedBy = :actor, refundInitiatedAt = :now'
             ),
             ConditionExpression=(
                 'returnStage = :eligible AND orderId = :order '
@@ -4845,6 +5026,8 @@ def initiate_full_refund(invoice_id: str, body: Dict, request_id: str,
                 ':submitting': 'submitting',
                 ':pid': payment_id,
                 ':amount': Decimal(str(amount_paise)),
+                ':mode': mode,
+                ':reason': reason,
                 ':actor': actor,
                 ':now': Decimal(str(now)),
                 ':eligible': 'refund_eligible',
@@ -4872,8 +5055,12 @@ def initiate_full_refund(invoice_id: str, body: Dict, request_id: str,
             })
         raise
 
+    refund_call = (
+        razorpay_refund.create_partial_refund if partial
+        else razorpay_refund.create_full_refund
+    )
     try:
-        result = razorpay_refund.create_full_refund(
+        result = refund_call(
             payment_id=payment_id,
             amount_paise=amount_paise,
             return_submission_id=submission_id,
@@ -4897,7 +5084,7 @@ def initiate_full_refund(invoice_id: str, body: Dict, request_id: str,
         )
         _record_refund_audit_safely(
             actor=actor, invoice_id=invoice_id, outcome='provider_rejected',
-            submission_id=submission_id, request_id=request_id)
+            submission_id=submission_id, request_id=request_id, reason=reason)
         return _resp(409, {
             'error': 'Provider rejected the refund request; review before another attempt',
             'errorCode': 'REFUND_PROVIDER_REJECTED',
@@ -4918,7 +5105,7 @@ def initiate_full_refund(invoice_id: str, body: Dict, request_id: str,
         )
         _record_refund_audit_safely(
             actor=actor, invoice_id=invoice_id, outcome='provider_outcome_unknown',
-            submission_id=submission_id, request_id=request_id)
+            submission_id=submission_id, request_id=request_id, reason=reason)
         return _resp(503, {
             'error': 'Provider outcome is unknown; reconcile Razorpay/webhook evidence before retry',
             'errorCode': 'REFUND_PROVIDER_OUTCOME_UNKNOWN',
@@ -4961,7 +5148,7 @@ def initiate_full_refund(invoice_id: str, body: Dict, request_id: str,
     _record_refund_audit_safely(
         actor=actor, invoice_id=invoice_id, outcome='provider_submitted',
         submission_id=submission_id, request_id=request_id,
-        refund_id=result.refund_id)
+        refund_id=result.refund_id, reason=reason)
     logger.warning(json.dumps({
         'event': 'refund_provider_submitted',
         'invoiceId': invoice_id,
@@ -4974,6 +5161,7 @@ def initiate_full_refund(invoice_id: str, body: Dict, request_id: str,
         'refundId': result.refund_id,
         'paymentId': payment_id,
         'amountPaise': result.amount_paise,
+        'mode': mode,
         'awaitWebhook': True,
     })
 

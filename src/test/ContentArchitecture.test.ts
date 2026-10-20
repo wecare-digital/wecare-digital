@@ -58,6 +58,18 @@ describe( 'canonical Content workspace', () => {
     expect( linkRedirect ).toContain( "section: 'links'" );
   } );
 
+  it( 'makes the Content short-link entry a redirect to the canonical surface, not a second UI', () => {
+    // The only live short-link implementation is messaging/Links.tsx. Content's ShortLinks is a
+    // pointer: it must route to Communications → Manage → Links and must NOT re-implement the
+    // CRUD (no link fetch, no create/update handlers).
+    expect( links ).toContain( "pathname: '/workspace/communications'" );
+    expect( links ).toContain( "section: 'links'" );
+    expect( links ).toContain( 'router.replace' );
+    expect( links ).not.toContain( 'handleCreate' );
+    expect( links ).not.toContain( 'handleUpdate' );
+    expect( links ).not.toContain( '/links' );
+  } );
+
   it( 'maps the old SEO hub only into supported Content modes', () => {
     expect( seoRedirect ).toContain( "view: 'blog'" );
     expect( seoRedirect ).toContain( "view: 'production'" );

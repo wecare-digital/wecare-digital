@@ -75,6 +75,56 @@ def create_full_refund(
     There is intentionally no retry loop. Any network/5xx ambiguity raises RefundAmbiguous;
     the business workflow must reconcile with provider/webhook evidence instead of POSTing again.
     """
+    return _create_refund(
+        payment_id=payment_id,
+        amount_paise=amount_paise,
+        return_submission_id=return_submission_id,
+        order_id=order_id,
+        request_id=request_id,
+    )
+
+
+def create_partial_refund(
+    *,
+    payment_id: str,
+    amount_paise: int,
+    return_submission_id: str,
+    order_id: str,
+    request_id: str,
+) -> RefundResult:
+    """Issue exactly one partial refund of ``amount_paise`` after the caller has claimed the case.
+
+    This shares every invariant with ``create_full_refund``: one gated, non-retried POST that
+    validates the provider echoes back the same payment and the exact requested amount, and that
+    treats any 5xx/timeout as RefundAmbiguous. The ONLY difference from the caller's side is intent:
+    the caller has derived ``amount_paise`` as a server-authoritative portion of the captured total
+    rather than the whole of it. The provider endpoint and request shape are identical — Razorpay
+    treats a sub-total ``amount`` as a partial refund — so this stays a thin, explicit alias that
+    documents the partial intent without forking the irreversible boundary.
+    """
+    return _create_refund(
+        payment_id=payment_id,
+        amount_paise=amount_paise,
+        return_submission_id=return_submission_id,
+        order_id=order_id,
+        request_id=request_id,
+    )
+
+
+def _create_refund(
+    *,
+    payment_id: str,
+    amount_paise: int,
+    return_submission_id: str,
+    order_id: str,
+    request_id: str,
+) -> RefundResult:
+    """The one irreversible refund POST, shared by the full and partial entry points.
+
+    Keeping a single implementation means the full and partial paths cannot drift on the
+    invariants that protect money: the gate, the single non-retried request, the payment-id and
+    exact-amount echo check, and the ambiguous-on-5xx/timeout rule all live here once.
+    """
     if not enabled():
         raise RefundDisabled("refund initiation is disabled")
     if not _PAYMENT_ID.fullmatch(payment_id or ""):
@@ -151,4 +201,5 @@ __all__ = [
     "RefundResult",
     "enabled",
     "create_full_refund",
+    "create_partial_refund",
 ]

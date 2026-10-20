@@ -14,6 +14,7 @@ import Pagination from '../../../components/ui/Pagination';
 import EmptyState from '../../../components/ui/EmptyState';
 import Select, { type SelectOption } from '../../../components/ui/Select';
 import { useToastContext } from '../../../contexts/ToastContext';
+import { useConfirm } from '../../../contexts/ConfirmContext';
 import * as api from '../../../api/client';
 import type { ApiFailure } from '../../../api/client';
 import ErrorState from '../../../components/ErrorState';
@@ -23,13 +24,82 @@ import {
   fulfilmentLabel,
 } from '../../../lib/orderFulfilment';
 import { openExternal } from '../../../lib/capacitor';
-import { useConfirmDanger } from '../../wa/useConfirmDanger';
 
 const PAGE_SIZE = 20;
 const ORDER_STATUSES = [ 'pending', 'processing', 'partially-shipped', 'shipped', 'completed', 'canceled' ];
 const PAYMENT_STATUSES = [ 'pending', 'captured', 'failed', 'refunded' ];
-const SOURCES = [ 'manual', 'flow', 'catalog', 'integration' ];
 const SUBMISSION_STATUSES = [ 'open', 'in_progress', 'resolved', 'closed', 'cancelled' ];
+
+/*
+ * Canonical order sources (WECARE.DIGITAL charter). Source is ATTRIBUTION — where an order
+ * originated — and is a FILTER ONLY. It never changes accounting rules: the payment state,
+ * amount and refund eligibility are server-authoritative and read the same regardless of source.
+ *
+ * The six canonical values replace the old generic manual/flow/catalog/integration list. Because
+ * historical rows still carry the old raw values, the filter maps every stored value onto a
+ * canonical bucket (canonicalSource) rather than comparing the raw string, so an order written
+ * as `manual` still answers the STAFF_COMMERCE filter and nothing older falls out of view.
+ */
+export const CANONICAL_SOURCES = [
+  'WEBSITE',
+  'WHATSAPP_PAYMENT',
+  'WHATSAPP_CATALOG',
+  'STAFF_COMMERCE',
+  'STAFF_PAYMENT',
+  'SERVICE_FLOW',
+] as const;
+export type CanonicalSource = ( typeof CANONICAL_SOURCES )[ number ];
+
+const CANONICAL_SOURCE_LABEL: Record<CanonicalSource, string> = {
+  WEBSITE: 'Website',
+  WHATSAPP_PAYMENT: 'WhatsApp payment',
+  WHATSAPP_CATALOG: 'WhatsApp catalog',
+  STAFF_COMMERCE: 'Staff commerce',
+  STAFF_PAYMENT: 'Staff payment',
+  SERVICE_FLOW: 'Service flow',
+};
+
+/**
+ * Map any stored `source` value — current canonical, legacy raw, or junk — onto a canonical
+ * bucket. Legacy rows carry manual/flow/catalog/integration (and the odd website/whatsapp/
+ * shopify); each lands on the charter value that means the same origin so historical orders
+ * still filter. An unrecognised or empty value defaults to STAFF_COMMERCE, the staff-created
+ * bucket, because a manually created order with no clearer origin is a staff order.
+ */
+export function canonicalSource ( raw?: string ): CanonicalSource {
+  const value = String( raw || '' ).trim().toUpperCase().replace( /[\s-]+/g, '_' );
+  if ( ( CANONICAL_SOURCES as readonly string[] ).includes( value ) ) return value as CanonicalSource;
+  switch ( value ) {
+    case 'WEBSITE':
+    case 'WEB':
+    case 'ONLINE':
+    case 'INTEGRATION':
+    case 'SHOPIFY':
+      return 'WEBSITE';
+    case 'WHATSAPP':
+    case 'WHATSAPP_PAY':
+    case 'WA_PAYMENT':
+      return 'WHATSAPP_PAYMENT';
+    case 'CATALOG':
+    case 'WA_CATALOG':
+      return 'WHATSAPP_CATALOG';
+    case 'FLOW':
+    case 'SERVICE':
+      return 'SERVICE_FLOW';
+    case 'MANUAL':
+    case 'STAFF':
+      return 'STAFF_COMMERCE';
+    case 'PAYMENT':
+    case 'STAFF_PAY':
+      return 'STAFF_PAYMENT';
+    default:
+      return 'STAFF_COMMERCE';
+  }
+}
+
+export function canonicalSourceLabel ( raw?: string ): string {
+  return CANONICAL_SOURCE_LABEL[ canonicalSource( raw ) ];
+}
 
 type ManualTrackingPatch = Pick<api.OrderPatch, 'carrierName' | 'trackingNumber' | 'trackingUrl'>;
 
@@ -40,7 +110,7 @@ type ManualTrackingPatch = Pick<api.OrderPatch, 'carrierName' | 'trackingNumber'
  */
 const SOURCE_FILTER_OPTIONS: SelectOption[] = [
   { value: '', label: 'All Sources' },
-  ...SOURCES.map( s => ( { value: s, label: s } ) ),
+  ...CANONICAL_SOURCES.map( s => ( { value: s, label: CANONICAL_SOURCE_LABEL[ s ] } ) ),
 ];
 const STATUS_FILTER_OPTIONS: SelectOption[] = [
   { value: '', label: 'All fulfilment' },
@@ -50,7 +120,7 @@ const PAYMENT_FILTER_OPTIONS: SelectOption[] = [
   { value: '', label: 'All Payments' },
   ...PAYMENT_STATUSES.map( s => ( { value: s, label: s } ) ),
 ];
-const SOURCE_OPTIONS: SelectOption[] = SOURCES.map( s => ( { value: s, label: s } ) );
+const SOURCE_OPTIONS: SelectOption[] = CANONICAL_SOURCES.map( s => ( { value: s, label: CANONICAL_SOURCE_LABEL[ s ] } ) );
 const SUBMISSION_STATUS_OPTIONS: SelectOption[] = SUBMISSION_STATUSES.map(
   s => ( { value: s, label: s.replace( /_/g, ' ' ) } )
 );
@@ -160,6 +230,43 @@ function formatDateTime ( ts?: number ): string {
   } );
 }
 
+/** Display-only rupee rendering of an integer paise amount. */
+export function rupeesFromPaise ( paise?: number ): string {
+  const value = Number.isFinite( paise ) ? Math.max( 0, Math.trunc( paise as number ) ) : 0;
+  return `₹${( value / 100 ).toFixed( 2 )}`;
+}
+
+/**
+ * Validate a browser-entered partial refund amount (in paise) against the known cap.
+ *
+ * The SERVER is the real authority — it re-derives the cap and rejects an over-cap amount — but
+ * this mirror lets the UI refuse an obviously-bad amount before posting an irreversible call,
+ * and keeps the operator honest about the <=0 and over-cap rules. `capPaise` is the captured
+ * total the UI knows about; `null` is returned with a reason when the amount is unusable.
+ */
+export function validatePartialRefundPaise (
+  amountPaise: number,
+  capPaise: number,
+): { ok: true; amountPaise: number } | { ok: false; reason: string } {
+  if ( !Number.isInteger( amountPaise ) || amountPaise <= 0 )
+  {
+    return { ok: false, reason: 'Enter a refund amount greater than zero.' };
+  }
+  if ( capPaise > 0 && amountPaise > capPaise )
+  {
+    return { ok: false, reason: `Amount exceeds the refundable total of ${rupeesFromPaise( capPaise )}.` };
+  }
+  return { ok: true, amountPaise };
+}
+
+/** Rupees (string, as typed) -> integer paise, or null when not a clean positive money value. */
+export function rupeesToPaise ( rupees: string ): number | null {
+  const raw = String( rupees ?? '' ).trim();
+  if ( !raw || !/^\d+(\.\d{1,2})?$/.test( raw ) ) return null;
+  const paise = Math.round( parseFloat( raw ) * 100 );
+  return Number.isFinite( paise ) ? paise : null;
+}
+
 function safeTrackingUrl ( value?: string ): string | null {
   const raw = String( value || '' ).trim();
   if ( !raw || /\s/.test( raw ) || raw.includes( '\\' ) ) return null;
@@ -229,7 +336,6 @@ interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => {
   const toast = useToastContext();
-  const confirmDanger = useConfirmDanger();
   const router = useRouter();
 
   // Data
@@ -261,7 +367,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
   const [ showCreate, setShowCreate ] = useState( false );
   const [ creating, setCreating ] = useState( false );
   const [ createForm, setCreateForm ] = useState( {
-    customerName: '', customerPhone: '', source: 'manual',
+    customerName: '', customerPhone: '', source: 'STAFF_COMMERCE',
     itemsSummary: '', totalAmount: '', notes: '',
   } );
 
@@ -271,15 +377,18 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
   const loadOrders = useCallback( async () => {
     setLoading( true );
     // A failed load must read as an error, not an empty "No orders found" table.
+    // Source is NOT sent to the backend: historical rows store legacy raw values (manual/flow/
+    // catalog/...) that an exact-match server filter on a canonical label would drop from view.
+    // The canonical source filter is applied client-side via canonicalSource() so every row,
+    // old or new, buckets correctly. Search still goes to the server.
     const { data, failures } = await api.collectApiFailures( () => api.listOrders( {
-      source: sourceFilter || undefined,
       search: search || undefined,
     } ) );
     const rows = data.orders || [];
     setOrders( rows );
     setFailure( rows.length === 0 && failures.length ? failures[ 0 ] : null );
     setLoading( false );
-  }, [ sourceFilter, search, toast ] );
+  }, [ search, toast ] );
 
   useEffect( () => { loadOrders(); }, [ loadOrders ] );
 
@@ -381,30 +490,46 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
     }
   };
 
-  const handleRefundInitiation = async ( sub: api.FlowSubmissionItem ): Promise<boolean> => {
-    if ( !sub.invoiceId )
+  // A refund is irreversible and money-moving. The server is the sole authority on eligibility
+  // and the cap; this only surfaces the server's truthful outcome and never claims "refunded"
+  // before the webhook has confirmed it.
+  const handleRefundInitiation = async (
+    sub: api.FlowSubmissionItem,
+    mode: 'full' | 'partial',
+    reason: string,
+    amountPaise?: number,
+  ): Promise<boolean> => {
+    const invoiceId = String( sub.invoiceId || '' ).trim();
+    if ( !invoiceId )
     {
-      toast.error( 'No verified invoice is linked to this return. Reconcile the invoice before refunding.' );
+      toast.error( 'This return is not linked to an invoice; cannot initiate a refund.' );
       return false;
     }
-    const confirmed = await confirmDanger(
-      'refund',
-      <>Initiate the full refund for <strong>{ sub.submissionNumber || sub.submissionId }</strong>? The server derives payment ID and amount from the linked invoice; the browser cannot change them. Type REFUND to continue.</>,
-      { title: 'Initiate full refund', confirmText: 'Initiate refund' },
-    );
-    if ( !confirmed ) return false;
+    const result = mode === 'partial' && typeof amountPaise === 'number'
+      ? await api.initiatePartialRefund( invoiceId, sub.submissionId, amountPaise, reason )
+      : await api.initiateFullRefund( invoiceId, sub.submissionId, reason );
 
-    const result = await api.initiateInvoiceRefund( sub.invoiceId, sub.submissionId );
-    if ( !result.ok )
+    switch ( result.outcome )
     {
-      toast.error( result.failure.message || 'Refund initiation was refused' );
-      return false;
+      case 'confirmed':
+        toast.success( 'Refund already confirmed by the payment provider webhook.' );
+        break;
+      case 'submitted':
+        toast.success( 'Refund submitted to the provider. Awaiting webhook confirmation — it is not final yet.' );
+        break;
+      case 'ambiguous':
+        toast.error( result.message || 'Provider outcome is unknown. Reconcile in Razorpay before any retry — do not resubmit.' );
+        break;
+      case 'disabled':
+        toast.error( 'Refund initiation is switched off in this deployment.' );
+        break;
+      default:
+        toast.error( result.message || 'Refund was refused. Review eligibility and the amount before another attempt.' );
+        break;
     }
-    toast.success( result.data.webhookConfirmed
-      ? 'Refund confirmed'
-      : 'Refund initiated; awaiting final payment status' );
+
     if ( selectedOrder ) await openDetail( selectedOrder );
-    return true;
+    return result.outcome === 'submitted' || result.outcome === 'confirmed';
   };
 
   const handleCreate = async () => {
@@ -422,7 +547,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
     {
       toast.success( 'Order created' );
       setShowCreate( false );
-      setCreateForm( { customerName: '', customerPhone: '', source: 'manual', itemsSummary: '', totalAmount: '', notes: '' } );
+      setCreateForm( { customerName: '', customerPhone: '', source: 'STAFF_COMMERCE', itemsSummary: '', totalAmount: '', notes: '' } );
       loadOrders();
     } else toast.error( 'Failed to create order' );
     setCreating( false );
@@ -434,8 +559,10 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
     let result = orders;
     if ( statusFilter ) result = result.filter( order => orderFulfilment( order ) === statusFilter );
     if ( paymentFilter ) result = result.filter( o => o.paymentStatus === paymentFilter );
+    // Canonical source filter, mapped so historical raw values still match their charter bucket.
+    if ( sourceFilter ) result = result.filter( o => canonicalSource( o.source ) === sourceFilter );
     return result;
-  }, [ orders, statusFilter, paymentFilter ] );
+  }, [ orders, statusFilter, paymentFilter, sourceFilter ] );
 
   const totalPages = Math.ceil( filtered.length / PAGE_SIZE );
   const paged = filtered.slice( ( page - 1 ) * PAGE_SIZE, page * PAGE_SIZE );
@@ -513,7 +640,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
                           <div style={ { fontWeight: 500, fontSize: 'var(--text-md)' } }>{ order.customerName || '—' }</div>
                           <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontFamily: 'monospace' } }>{ order.customerPhone || '' }</div>
                         </td>
-                        <td style={ tdStyle }><Badge status={ order.source } /></td>
+                        <td style={ { ...tdStyle, fontSize: 'var(--text-sm)', whiteSpace: 'nowrap' } }>{ canonicalSourceLabel( order.source ) }</td>
                         <td style={ { ...tdStyle, fontSize: 'var(--text-sm)' } }>{ order.itemCount ?? order.items?.length ?? '—' }</td>
                         <td style={ tdStyle }><Badge status={ orderFulfilment( order ) } /></td>
                         <td style={ tdStyle }><Badge status={ order.paymentStatus } /></td>
@@ -574,8 +701,102 @@ interface DetailProps {
   onSubmissionStatusUpdate: ( subId: string, status: string ) => void;
   onOrderCancel: ( orderId: string, reason: string ) => Promise<boolean>;
   onReturnStageUpdate: ( subId: string, stage: api.ReturnStage, notes?: string ) => Promise<boolean>;
-  onRefundInitiation: ( sub: api.FlowSubmissionItem ) => Promise<boolean>;
+  onRefundInitiation: ( sub: api.FlowSubmissionItem, mode: 'full' | 'partial', reason: string, amountPaise?: number ) => Promise<boolean>;
 }
+
+// ── Refund panel for a refund-eligible Return / Refund case ──
+// The server is the sole authority on eligibility and the refundable cap; this surface only
+// proposes an amount and a reason, confirms the irreversible action, and reports the truthful
+// outcome. It never shows "refunded" before webhook confirmation.
+interface RefundPanelProps {
+  sub: api.FlowSubmissionItem;
+  onRefundInitiation: ( sub: api.FlowSubmissionItem, mode: 'full' | 'partial', reason: string, amountPaise?: number ) => Promise<boolean>;
+}
+
+const RefundPanel: React.FC<RefundPanelProps> = ( { sub, onRefundInitiation } ) => {
+  const confirm = useConfirm();
+  const capPaise = Number.isFinite( sub.paymentAmount ) ? Math.max( 0, Math.trunc( sub.paymentAmount as number ) ) : 0;
+  const [ mode, setMode ] = useState<'full' | 'partial'>( 'full' );
+  const [ amountRupees, setAmountRupees ] = useState( capPaise ? ( capPaise / 100 ).toFixed( 2 ) : '' );
+  const [ reason, setReason ] = useState( '' );
+  const [ error, setError ] = useState( '' );
+  const [ busy, setBusy ] = useState( false );
+  const linked = !!String( sub.invoiceId || '' ).trim();
+
+  const submit = async () => {
+    setError( '' );
+    const trimmedReason = reason.trim();
+    if ( !trimmedReason ) { setError( 'A refund reason is required for the audit record.' ); return; }
+
+    let amountPaise: number | undefined;
+    if ( mode === 'partial' )
+    {
+      const parsed = rupeesToPaise( amountRupees );
+      if ( parsed === null ) { setError( 'Enter a valid rupee amount (up to two decimals).' ); return; }
+      const check = validatePartialRefundPaise( parsed, capPaise );
+      if ( !check.ok ) { setError( check.reason ); return; }
+      amountPaise = check.amountPaise;
+    }
+
+    const confirmed = await confirm( {
+      title: 'Initiate refund',
+      message: mode === 'partial'
+        ? `Submit a PARTIAL refund of ${rupeesFromPaise( amountPaise )} to the payment provider? This is irreversible once accepted.`
+        : `Submit a FULL refund of the remaining captured amount to the payment provider? This is irreversible once accepted.`,
+      confirmText: 'Submit refund',
+      danger: true,
+    } );
+    if ( !confirmed ) return;
+
+    setBusy( true );
+    await onRefundInitiation( sub, mode, trimmedReason, amountPaise );
+    setBusy( false );
+    setReason( '' );
+  };
+
+  return (
+    <div style={ { display: 'flex', flexDirection: 'column', gap: 6, padding: 10, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-secondary)' } }>
+      <span style={ { fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--accent)' } }>Finance refund</span>
+      <span style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>
+        Server-authoritative. Status becomes &ldquo;refunded&rdquo; only after the provider webhook confirms it.
+        A payment receives a single refund (full, or one partial amount); it cannot be refunded again afterwards.
+        { capPaise > 0 ? ` Captured: ${rupeesFromPaise( capPaise )}.` : '' }
+      </span>
+      { !linked && (
+        <span role="alert" style={ { fontSize: 'var(--text-xs)', color: 'var(--danger, #b91c1c)' } }>
+          Not linked to an invoice — refund cannot be initiated from here.
+        </span>
+      ) }
+      <Select
+        ariaLabel="Refund type"
+        value={ mode }
+        onChange={ v => setMode( v === 'partial' ? 'partial' : 'full' ) }
+        options={ [ { value: 'full', label: 'Full refund' }, { value: 'partial', label: 'Partial refund' } ] }
+        disabled={ busy || !linked }
+        style={ ROW_SELECT_STYLE }
+      />
+      { mode === 'partial' && (
+        <label style={ { fontSize: 'var(--text-xs)', display: 'block' } }>
+          Amount (₹)
+          <input type="text" inputMode="decimal" value={ amountRupees }
+            onChange={ e => setAmountRupees( e.target.value ) }
+            placeholder={ capPaise ? ( capPaise / 100 ).toFixed( 2 ) : '0.00' }
+            disabled={ busy || !linked }
+            style={ { ...inputStyle, marginTop: 2 } } />
+        </label>
+      ) }
+      <input type="text" maxLength={ 500 } value={ reason }
+        onChange={ e => setReason( e.target.value ) }
+        placeholder="Refund reason (required)"
+        disabled={ busy || !linked }
+        style={ { ...inputStyle, marginTop: 0 } } />
+      { error && <span role="alert" style={ { fontSize: 'var(--text-xs)', color: 'var(--danger, #b91c1c)' } }>{ error }</span> }
+      <Button variant="primary" size="sm" loading={ busy } disabled={ !linked || !reason.trim() } onClick={ submit }>
+        { mode === 'partial' ? 'Submit partial refund' : 'Submit full refund' }
+      </Button>
+    </div>
+  );
+};
 
 const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoading, documents, statusHistory, onStatusUpdate, onTrackingUpdate, onSubmissionStatusUpdate, onOrderCancel, onReturnStageUpdate, onRefundInitiation } ) => {
   const short = order.orderNumber || order.shortId || extractShortId( order.orderId );
@@ -590,7 +811,6 @@ const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoad
   const [ cancelSaving, setCancelSaving ] = useState( false );
   const [ returnNotes, setReturnNotes ] = useState<Record<string, string>>( {} );
   const [ returnSaving, setReturnSaving ] = useState<string | null>( null );
-  const [ refundSaving, setRefundSaving ] = useState<string | null>( null );
 
   useEffect( () => {
     setTrackingDraft( {
@@ -798,26 +1018,7 @@ const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoad
                         </>
                       ) }
                       { ( sub.returnStage || 'requested' ) === 'refund_eligible' && (
-                        <div style={ { display: 'flex', flexDirection: 'column', gap: 6 } }>
-                          <span style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>
-                            Finance-approved stage. Provider refund is a separate, typed-confirm action and remains server-gated.
-                          </span>
-                          <Button variant="danger" size="sm"
-                            loading={ refundSaving === sub.submissionId }
-                            disabled={ !sub.invoiceId }
-                            onClick={ async () => {
-                              setRefundSaving( sub.submissionId );
-                              await onRefundInitiation( sub );
-                              setRefundSaving( null );
-                            } }>
-                            Initiate full refund
-                          </Button>
-                          { !sub.invoiceId && (
-                            <span style={ { fontSize: 'var(--text-xs)', color: '#92400e' } }>
-                              Link/reconcile the invoice before refunding.
-                            </span>
-                          ) }
-                        </div>
+                        <RefundPanel sub={ sub } onRefundInitiation={ onRefundInitiation } />
                       ) }
                     </>
                   ) }
