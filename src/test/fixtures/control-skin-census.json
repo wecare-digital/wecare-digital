@@ -506,6 +506,7 @@
     "src/components/workspace/channels/Push.tsx",
     "src/components/workspace/channels/Sms.tsx",
     "src/components/workspace/channels/VoiceIn.tsx",
+    "src/components/workspace/customers/ConsentPanel.tsx",
     "src/components/workspace/pay/InvoiceRecords.tsx",
     "src/components/workspace/service/FormResponses.tsx",
     "src/components/workspace/whatsapp/migration.tsx",
@@ -517,6 +518,7 @@
     "src/styles/Layout.css",
     "src/styles/MCPConnections.module.css",
     "src/styles/Pages.css",
+    "src/styles/flex-layout.css",
     "src/styles/form-controls.css",
     "src/styles/inner-pages.css",
     "src/styles/inner-ux.css",
@@ -765,6 +767,49 @@
         "padding": false
       },
       "sel": ".filters input,.filters select",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "min-height:44px;border:1px solid var(--border,#d1d5db);border-radius:8px;padding:0 8px;font-size:var(--text-sm);background:#fff;color:var(--text,#111)",
+      "file": "src/components/workspace/customers/ConsentPanel.tsx",
+      "geometry": true,
+      "line": 159,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": true,
+      "props": {
+        "background": false,
+        "border": false,
+        "border-radius": false,
+        "font-size": false,
+        "min-height": false,
+        "padding": false
+      },
+      "sel": ".cp-form select,.cp-form input",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "border-color:CanvasText",
+      "file": "src/components/workspace/customers/ConsentPanel.tsx",
+      "geometry": false,
+      "line": 163,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border-color": false
+      },
+      "sel": ".cp-channel,.cp-record,.cp-form select,.cp-form input",
       "spec": [
         0,
         1,
@@ -1303,6 +1348,53 @@
         0,
         1,
         1
+      ]
+    },
+    {
+      "classes": [
+        "link-input"
+      ],
+      "decls": "padding: 8px 12px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 14px; outline: none; font-family: inherit; transition: border-color 0.15s;",
+      "file": "src/styles/flex-layout.css",
+      "geometry": true,
+      "line": 408,
+      "mech": "A-global",
+      "mode": "class",
+      "pairing": false,
+      "props": {
+        "border": false,
+        "border-radius": false,
+        "font-size": false,
+        "outline": false,
+        "padding": false
+      },
+      "sel": ".link-input",
+      "spec": [
+        0,
+        1,
+        0
+      ]
+    },
+    {
+      "classes": [
+        "link-input"
+      ],
+      "decls": "border-color: #d1f470; box-shadow: 0 0 0 3px rgba(209, 244, 112, 0.3);",
+      "file": "src/styles/flex-layout.css",
+      "geometry": false,
+      "line": 418,
+      "mech": "A-global",
+      "mode": "class",
+      "pairing": false,
+      "props": {
+        "border-color": false,
+        "box-shadow": false
+      },
+      "sel": ".link-input:focus",
+      "spec": [
+        0,
+        2,
+        0
       ]
     },
     {
@@ -1878,19 +1970,19 @@
     "sample": ".ui-planted{border:1px solid ${colors.border};border-radius:9px;padding:4px 8px} .ui-planted:focus{box-shadow:${shadow.focus}} .ui-untouched{color:#333}"
   },
   "summary": {
-    "files": 21,
-    "geometryFiles": 20,
-    "geometryRuleSets": 28,
+    "files": 23,
+    "geometryFiles": 22,
+    "geometryRuleSets": 30,
     "matchModes": {
-      "class": 2,
-      "element": 61
+      "class": 4,
+      "element": 63
     },
     "mechanisms": {
       "A-global": {
-        "files": 8,
-        "geometryFiles": 8,
-        "geometryRuleSets": 16,
-        "ruleSets": 40
+        "files": 9,
+        "geometryFiles": 9,
+        "geometryRuleSets": 17,
+        "ruleSets": 42
       },
       "A-module": {
         "files": 0,
@@ -1899,10 +1991,10 @@
         "ruleSets": 0
       },
       "B-styledjsx": {
-        "files": 11,
-        "geometryFiles": 10,
-        "geometryRuleSets": 10,
-        "ruleSets": 20
+        "files": 12,
+        "geometryFiles": 11,
+        "geometryRuleSets": 11,
+        "ruleSets": 22
       },
       "C-injected": {
         "files": 2,
@@ -1911,7 +2003,7 @@
         "ruleSets": 3
       }
     },
-    "pairings": 20,
-    "ruleSets": 63
+    "pairings": 21,
+    "ruleSets": 67
   }
 }

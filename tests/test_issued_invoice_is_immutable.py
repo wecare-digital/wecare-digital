@@ -732,8 +732,9 @@ def test_the_browser_cannot_supply_a_remark_author():
                    if "export async function addInvoiceRemark" in line]
     assert len(declaration) == 1, declaration
     assert "author" not in declaration[0].split("):")[0]
-    remark_block = source[source.index("export async function addInvoiceRemark"):
-                          source.index("// ============================================================================\n// SYSTEM CLEANUP API")]
+    start = source.index("export async function addInvoiceRemark")
+    end = source.index("\n}\n\n// ============================================================================", start) + 2
+    remark_block = source[start:end]
     assert "author" not in remark_block
     assert "type: remarkType" in remark_block
     # Refund reconciliation may carry provider evidence, but never browser-supplied authorship.
