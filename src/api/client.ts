@@ -5138,9 +5138,31 @@ export async function sendInvoiceWhatsApp ( invoiceId: string, toWhatsAppNumber:
   } );
 }
 
+/**
+ * The invoice-engine `send_payment_link` command response.
+ *
+ * `status` is the primary verdict (`payment_link_sent` is the ONLY success;
+ * `payment_link_rejected` is terminal; `send_in_progress` is a deduplicated no-op). The remaining
+ * fields are the server's own disambiguators, surfaced so the UI can give state-aware guidance
+ * instead of a generic "retry": `sendStatus` is the durable send state (e.g. `REJECTED`, `PENDING`,
+ * `SENT`), `downstreamStatusCode` is the HTTP status the engine saw from Meta, `deduplicated` marks
+ * a repeat invoke that did nothing, and `retryable` says whether trying again could plausibly help.
+ */
+export interface SendPaymentLinkResult {
+  invoiceId: string;
+  referenceId: string;
+  status: string;
+  toPhone: string;
+  total: number;
+  sendStatus?: string;
+  downstreamStatusCode?: number;
+  deduplicated?: boolean;
+  retryable?: boolean;
+}
+
 // Send WhatsApp interactive payment link for a pending invoice
-export async function sendPaymentLink ( invoiceId: string, phoneNumberId?: string, paymentConfiguration?: string ): Promise<{ invoiceId: string; referenceId: string; status: string; toPhone: string; total: number } | null> {
-  return apiCall<{ invoiceId: string; referenceId: string; status: string; toPhone: string; total: number }>( `${INVOICE_BASE}/${invoiceId}/send-payment-link`, {
+export async function sendPaymentLink ( invoiceId: string, phoneNumberId?: string, paymentConfiguration?: string ): Promise<SendPaymentLinkResult | null> {
+  return apiCall<SendPaymentLinkResult>( `${INVOICE_BASE}/${invoiceId}/send-payment-link`, {
     method: 'POST',
     body: JSON.stringify( { invoiceId, phoneNumberId, paymentConfiguration } ),
   } );

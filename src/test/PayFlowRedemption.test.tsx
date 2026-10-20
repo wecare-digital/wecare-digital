@@ -215,7 +215,10 @@ describe( 'explicit create and send', () => {
     await waitFor( () => expect( sendPaymentLink ).toHaveBeenCalledWith( 'inv_1', 'phone-number-id-waba1-direct-1016149501586345' ) );
     expect( createInvoiceEngine ).toHaveBeenCalledTimes( 1 );
     expect( createInvoiceEngine.mock.invocationCallOrder[ 0 ] ).toBeLessThan( sendPaymentLink.mock.invocationCallOrder[ 0 ] );
-    await screen.findByText( 'WhatsApp accepted the payment request for delivery.', { selector: 'p' } );
+    // A direct `payment_link_sent` command response is reported as a plain send success, distinct
+    // from the "accepted for delivery" wording reserved for a send reconciled from durable delivery
+    // evidence (covered by its own case below). The default mock returns `payment_link_sent`.
+    await screen.findByText( 'WhatsApp payment request sent.', { selector: 'p' } );
   } );
   it( 'retains the saved invoice when sending is unconfirmed and does not create a replacement', async () => {
     sendPaymentLink.mockResolvedValue( null );
@@ -235,8 +238,10 @@ describe( 'explicit create and send', () => {
     getInvoiceDeliveryLog.mockResolvedValueOnce( { deliveryLogs: [] } );
     await openCreateForm(); priceOneItem();
     fireEvent.click( screen.getByRole( 'button', { name: 'Create and send payment request' } ) );
-    await screen.findByText( /The send is still being reconciled. Open this saved invoice/ );
+    // An in-progress send must not claim delivery, and the guidance is do-not-resend, not retry.
+    await screen.findByText( /A send is already in progress; do not resend. Refresh to see its delivery status. Open this saved invoice/ );
     expect( screen.queryByText( 'WhatsApp accepted the payment request for delivery.' ) ).toBeNull();
+    expect( screen.queryByText( 'WhatsApp payment request sent.' ) ).toBeNull();
   } );
 
   it( 'reconciles an ambiguous send from accepted durable delivery evidence', async () => {

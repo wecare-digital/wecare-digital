@@ -540,6 +540,12 @@ def _native_products(scanner=None) -> List[Dict[str, Any]]:
             "id": str(item.get("id") or ""),
             "name": str(item.get("title") or item.get("name") or ""),
             "slug": str(item.get("slug") or ""),
+            # `or "active"` defaults an absent status to visible — valid ONLY because `item`
+            # comes from the ProductsTable scanner (our catalogue authority), where a missing
+            # status is a legacy-row default, not an error. This invariant must not migrate to
+            # a Meta source: Meta is a publishing destination, never a second master, so a
+            # status read off a Meta GET response must fail closed (unknown/missing -> NOT
+            # visible), never inherit this permissive default.
             "visible": str(item.get("status") or "active") == "active",
             "price": _major(price_minor),
             "currency": str(item.get("currency") or catalog.CURRENCY),

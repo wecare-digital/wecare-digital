@@ -7,7 +7,7 @@ import Button from '../../../components/ui/Button';
 import Select, { type SelectOption } from '../../../components/ui/Select';
 import * as api from '../../../api/client';
 import { useConfirm } from '../../../contexts/ConfirmContext';
-import type { Invoice, InvoiceDeliveryLog, Contact, CreateInvoiceEngineRequest } from '../../../api/client';
+import type { Invoice, InvoiceDeliveryLog, Contact, CreateInvoiceEngineRequest, ApiResult, SendPaymentLinkResult } from '../../../api/client';
 import { DEFAULT_GSTIN } from '../../../config/constants';
 import {
   ADDRESS_FIELDS, EMPTY_ADDRESS_FIELDS, addressPayload, addressFieldsFromContact,
@@ -121,6 +121,82 @@ const hasConfirmedPaymentRequestDelivery = ( logs: InvoiceDeliveryLog[] | undefi
     && PAYMENT_REQUEST_DELIVERY_SUCCESS.has( String( row.status || '' ).toLowerCase() )
     && !String( row.error || '' ).trim()
   ) );
+
+/*
+ * THE ONE SEND-OUTCOME INTERPRETER, shared by all three send paths (the create-and-send flow,
+ * the Invoices-mode send/retry button, and anywhere else `sendPaymentLinkResult` is read).
+ *
+ * The server's `send_payment_link` command answers with distinct, non-interchangeable verdicts and
+ * the operator needs DIFFERENT guidance for each — telling them to "retry" a terminally refused
+ * send, or to resend one that is already in flight, is how a customer gets charged twice or an
+ * operator chases a send that already happened. Routing every path through this function keeps the
+ * guidance identical everywhere and keeps the one safety rule in one place: a non-sent command is
+ * reconciled against durable delivery evidence (`deliveryConfirmed`) BEFORE any retry is suggested,
+ * and nothing here ever triggers a resend.
+ *
+ * `text` is the actionable core sentence; callers append their own "Open this saved invoice…" /
+ * "Check this invoice before retrying." tail where the surface calls for it.
+ */
+const SEND_SUCCESS_COMMAND = 'WhatsApp payment request sent.';
+const SEND_SUCCESS_RECONCILED = 'WhatsApp accepted the payment request for delivery.';
+const describeSendOutcome = (
+  result: ApiResult<SendPaymentLinkResult>,
+  deliveryConfirmed: boolean,
+): { tone: 'success' | 'error'; text: string } => {
+  // Durable delivery evidence is authoritative over an ambiguous command response, but never over
+  // a terminal refusal — a refused send cannot have been delivered, so refusal is checked first.
+  const rejected = result.ok
+    ? ( result.data.status === 'payment_link_rejected'
+        || String( result.data.sendStatus || '' ).toUpperCase() === 'REJECTED' )
+    : ( result.failure.status === 409
+        || /\brefused\b|\brejected\b/i.test( result.failure.message ) );
+  if ( rejected ) {
+    return {
+      tone: 'error',
+      text: 'This payment request was refused and was NOT sent. Cancel and raise the collection again — do not retry. Nothing has been charged.',
+    };
+  }
+
+  if ( result.ok && result.data.status === 'payment_link_sent' ) {
+    return { tone: 'success', text: SEND_SUCCESS_COMMAND };
+  }
+  if ( deliveryConfirmed ) {
+    return { tone: 'success', text: SEND_SUCCESS_RECONCILED };
+  }
+
+  if ( result.ok && ( result.data.status === 'send_in_progress' || result.data.deduplicated ) ) {
+    return {
+      tone: 'error',
+      text: 'A send is already in progress; do not resend. Refresh to see its delivery status.',
+    };
+  }
+
+  // 502 / PENDING / anything else the command could not resolve: genuinely unknown, so reconcile
+  // before any retry. "Unknown" never means "not paid" and never means "safe to resend".
+  const pending = result.ok
+    ? String( result.data.sendStatus || '' ).toUpperCase() === 'PENDING'
+    : ( result.failure.status === 502 || result.failure.kind === 'unavailable' );
+  if ( pending ) {
+    return {
+      tone: 'error',
+      text: 'Outcome unknown. Reconcile in the ledger before retrying — nothing has been charged.',
+    };
+  }
+
+  if ( !result.ok ) {
+    // A genuine transient/network failure: surface the server's own message and the downstream
+    // status when present (Finding 10b), then allow a plain retry.
+    const downstream = result.failure.status ? ` (status ${result.failure.status})` : '';
+    const retryHint = result.failure.retryable ? ' You can retry.' : '';
+    return { tone: 'error', text: `${result.failure.message}${downstream}${retryHint}` };
+  }
+
+  // A 200 that is neither sent, rejected, in-progress nor pending — treat as unconfirmed, not sent.
+  return {
+    tone: 'error',
+    text: 'Sending is not confirmed.',
+  };
+};
 /** Integer paise -> a rupee string. */
 const fmtPaise = ( paise: number ) => {
   const digits = String( Math.max( 0, Math.trunc( paise || 0 ) ) );
@@ -235,13 +311,21 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
   // customer-origin invoice. There is no coupon code to type and no manual discount to set, so
   // the only redemption state is the SERVER's answer, held to preview the applied Delight line.
   const invoiceCreateInFlight = useRef( false );
-  const [ createdDeliveryProblem, setCreatedDeliveryProblem ] = useState( '' );
+  // The exact send-outcome sentence from `describeSendOutcome`, held so the created-invoice card
+  // renders the same state-aware text the banner showed. Empty for a plain save (no send).
+  const [ createdDeliveryMessage, setCreatedDeliveryMessage ] = useState( '' );
   const [ createdDelivery, setCreatedDelivery ] = useState<'saved' | 'sending' | 'sent' | 'unconfirmed'>( 'saved' );
   const [ redemption, setRedemption ] = useState<api.CreateInvoiceEngineResponse | null>( null );
   const [ config, setConfig ] = useState<FC>( () => loadSavedConfig() );
   const [ configSaving, setConfigSaving ] = useState( false );
   const [ msg, setMsg ] = useState<{ text: string; type: 'success' | 'error' } | null>( null );
-  const showMsg = ( text: string, type: 'success' | 'error' = 'success' ) => { setMsg( { text, type } ); setTimeout( () => setMsg( null ), 4000 ); };
+  // Success banners self-dismiss; error banners are STICKY. A money/delivery error that vanishes
+  // after four seconds is how an operator misses "do not retry" and resends — errors stay until the
+  // ✕ is pressed or another banner replaces them.
+  const showMsg = ( text: string, type: 'success' | 'error' = 'success' ) => {
+    setMsg( { text, type } );
+    if ( type !== 'error' ) setTimeout( () => setMsg( null ), 4000 );
+  };
   const confirm = useConfirm();
 
   /* Loaders */
@@ -377,48 +461,40 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
       const r = await api.createInvoiceEngine( req );
       if ( r )
       {
-        showMsg( `Invoice ${r.invoiceNumber} created. Review it and send the payment request below.` );
+        showMsg( `Review invoice ${r.invoiceNumber} and send the payment request below.` );
         // Every figure here is the SERVER's. Nothing on this page recomputes a discount.
         setRedemption( r );
         setCreatedDelivery( 'saved' );
-        setCreatedDeliveryProblem( '' );
+        setCreatedDeliveryMessage( '' );
         setInvForm( { ...EMPTY_INV, items: [ NEW_ITEM() ] } );
         setSelCustomer( null );
         if ( sendAfterCreate ) {
           setCreatedDelivery( 'sending' );
           try {
             const sent = await api.sendPaymentLinkResult( r.invoiceId, sendPhone );
-            let accepted = sent.ok && sent.data.status === 'payment_link_sent';
 
             // The command response can be ambiguous even after Meta has accepted the message.
-            // Reconcile once against the durable invoice delivery log before showing a retry
-            // warning. This is a read only check and never re-sends the payment request.
-            if ( !accepted ) {
+            // Reconcile once against the durable invoice delivery log before deciding how to
+            // describe the outcome. This is a read only check and never re-sends the request.
+            let deliveryConfirmed = false;
+            if ( !( sent.ok && sent.data.status === 'payment_link_sent' ) ) {
               try {
                 const delivery = await api.getInvoiceDeliveryLog( r.invoiceId );
-                accepted = hasConfirmedPaymentRequestDelivery( delivery.deliveryLogs );
+                deliveryConfirmed = hasConfirmedPaymentRequestDelivery( delivery.deliveryLogs );
               } catch {
                 // A failed read must not invent success.
               }
             }
 
-            const problem = sent.ok
-              ? ( sent.data.status === 'send_in_progress'
-                  ? 'The send is still being reconciled.'
-                  : 'Sending is not confirmed.' )
-              : sent.failure.message;
-            setCreatedDeliveryProblem( accepted ? '' : problem );
-            setCreatedDelivery( accepted ? 'sent' : 'unconfirmed' );
-            showMsg(
-              accepted
-                ? 'WhatsApp accepted the payment request for delivery.'
-                : `Invoice saved. ${problem} Check this invoice before retrying.`,
-              accepted ? 'success' : 'error',
-            );
+            // ONE interpreter for every send path. The card and the banner show the same sentence.
+            const outcome = describeSendOutcome( sent, deliveryConfirmed );
+            setCreatedDeliveryMessage( outcome.text );
+            setCreatedDelivery( outcome.tone === 'success' ? 'sent' : 'unconfirmed' );
+            showMsg( outcome.text, outcome.tone );
           } catch {
             setCreatedDelivery( 'unconfirmed' );
-            setCreatedDeliveryProblem( 'Sending is not confirmed.' );
-            showMsg( 'Invoice saved. Sending is not confirmed; check this invoice before retrying.', 'error' );
+            setCreatedDeliveryMessage( 'Sending is not confirmed.' );
+            showMsg( 'Sending is not confirmed. Open this saved invoice and check its status before retrying.', 'error' );
           }
         }
         loadInvoices();
@@ -463,25 +539,20 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
     try
     {
       const r = await api.sendPaymentLinkResult( inv.invoiceId, sendPhone );
-      const pgLabel = 'Razorpay';
-      const phoneLabel = PHONE_OPTIONS.find( p => p.id === sendPhone )?.label || sendPhone;
-      let accepted = r.ok && r.data.status === 'payment_link_sent';
-      if ( !accepted ) {
+      // Reconcile an ambiguous command against the durable delivery log before describing the
+      // outcome. Read only; this never re-sends the payment request.
+      let deliveryConfirmed = false;
+      if ( !( r.ok && r.data.status === 'payment_link_sent' ) ) {
         try {
           const delivery = await api.getInvoiceDeliveryLog( inv.invoiceId );
-          accepted = hasConfirmedPaymentRequestDelivery( delivery.deliveryLogs );
+          deliveryConfirmed = hasConfirmedPaymentRequestDelivery( delivery.deliveryLogs );
         } catch {
           // Keep the command result if delivery evidence is unavailable.
         }
       }
-      if ( accepted ) {
-        showMsg( `WhatsApp accepted the payment request for delivery via ${pgLabel} from ${phoneLabel}` );
-      } else {
-        const problem = r.ok && r.data.status === 'send_in_progress'
-          ? 'The send is still being reconciled. Check this invoice before retrying.'
-          : r.ok ? 'Sending is not confirmed. Check this invoice before retrying.' : r.failure.message;
-        showMsg( problem, 'error' );
-      }
+      // SAME interpreter as the create-and-send flow, so the guidance is identical everywhere.
+      const outcome = describeSendOutcome( r, deliveryConfirmed );
+      showMsg( outcome.text, outcome.tone );
       loadInvoices();
     } catch ( e ) { showMsg( 'Send failed', 'error' ); }
     setActionLoading( '' );
@@ -715,7 +786,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
               { redemption && (
                 <div className="inner-card" style={ { marginBottom: 16, maxWidth: 500, padding: '10px 14px' } }>
                   <h4 style={ { margin: '0 0 6px', fontSize: 13, color: '#1a3a2a' } }>Invoice { redemption.invoiceNumber } created</h4>
-                  <p>{ createdDelivery === 'sent' ? 'WhatsApp accepted the payment request for delivery.' : createdDelivery === 'sending' ? 'Sending the WhatsApp payment request…' : createdDelivery === 'unconfirmed' ? `${createdDeliveryProblem || 'Sending is not confirmed.'} Open this saved invoice and check its status before retrying.` : 'Invoice saved without sending a WhatsApp payment request.' }</p>
+                  <p>{ createdDelivery === 'sent' ? ( createdDeliveryMessage || 'WhatsApp payment request sent.' ) : createdDelivery === 'sending' ? 'Sending the WhatsApp payment request…' : createdDelivery === 'unconfirmed' ? `${createdDeliveryMessage || 'Sending is not confirmed.'} Open this saved invoice and check its status before retrying.` : 'Invoice saved without sending a WhatsApp payment request.' }</p>
                   <p>{ redemption.referenceId } { '\u2014' } { fmtMoney( redemption.total ) }</p>
                   <Button variant="primary" size="sm" loading={ openingCreated } onClick={ openCreatedInvoice }>{ createdDelivery === 'saved' ? 'Review and send payment request' : 'View invoice and delivery status' }</Button>
                   { typeof redemption.couponDiscount === 'number' && redemption.couponDiscount > 0 && (
@@ -952,7 +1023,13 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                       </div>
                     ) }
                     <div className="pf-action-stack">
-                      { ( selInvoice.status === 'created' || selInvoice.status === 'pending_payment' ) && (
+                      { /* FINDING 10a: Ledger (mode='invoices') is the read-only evidence surface.
+                           The mutating Send/Retry payment-request action is suppressed here — a
+                           resend belongs on Collect, which is built for it. The read-only fields,
+                           delivery logs, remarks and image/PDF export below stay, because none of
+                           them send a payment request. In Collect/standalone mode this block is
+                           rendered exactly as before. */ }
+                      { mode !== 'invoices' && ( selInvoice.status === 'created' || selInvoice.status === 'pending_payment' ) && (
                         <>
                           { /* The two choosers above the Send button. Their inline objects
                                carried APPEARANCE - a 1.5px dark-green border, an 8px radius,

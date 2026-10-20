@@ -11,9 +11,16 @@ UNVERIFIED capture fail-open (the Meta Payment Lookup is advisory and
 These tests drive the REAL ``_process_payment_status`` against an in-memory DynamoDB
 fake with a forged (unverified) 'captured' event and assert it creates NO paid invoice
 and NO receipt/order — no financial mutation at all — while a non-payment status event
-still processes normally. They are written to FAIL if the retirement is reverted (i.e. if
-the CAPTURED branch again calls ``_mark_invoice_paid_by_reference`` /
-``_generate_invoice_for_captured_payment``).
+still processes normally.
+
+The dead inbound paid-state writers (``_mark_invoice_paid_by_reference``,
+``_generate_invoice_for_captured_payment``, ``_check_and_notify_balance_due`` and its
+``_auto_next_due_enabled`` toggle) were DELETED from this handler (FINDING 6 + FINDING 7),
+not merely left uncalled — the Razorpay webhook is the single authoritative paid-state
+setter and this handler holds no parallel writer. So these tests additionally assert the
+writers no longer EXIST on the module (``not hasattr``), which proves the retirement
+cannot be reverted by a one-line re-wire, while still proving a forged capture settles
+nothing.
 
 No AWS and no network: ``boto3`` is patched at import and ``urllib`` is never allowed to
 reach out (the forged event carries no ``paymentConfigName``, so the Payment Lookup API is
@@ -212,17 +219,25 @@ class TestCapturedBranchIsRetired:
         assert dynamo.stores[h.INVOICES_TABLE][0]['status'] == 'pending'
 
     def test_capture_does_not_call_the_financial_side_effects(self, handler_env):
-        """Fails if the retirement is reverted (the calls are re-added)."""
+        """The retired writers are DELETED (not just uncalled) and no completed order ships.
+
+        Asserting ``not hasattr`` is stronger than patch-and-assert-not-called: the capture
+        branch cannot settle an invoice because the functions that could do so no longer
+        exist on the module, so the retirement cannot be reverted by a one-line re-wire.
+        """
         h, dynamo = handler_env
-        with patch.object(h, '_mark_invoice_paid_by_reference') as mark_paid, \
-                patch.object(h, '_generate_invoice_for_captured_payment') as gen_invoice, \
-                patch.object(h, '_check_and_notify_balance_due') as balance_due, \
-                patch.object(h, '_send_order_status_message') as order_status:
+        for gone in ('_mark_invoice_paid_by_reference',
+                     '_generate_invoice_for_captured_payment',
+                     '_check_and_notify_balance_due',
+                     '_auto_next_due_enabled'):
+            assert not hasattr(h, gone), (
+                f'{gone} must be DELETED from the inbound handler, not merely uncalled')
+
+        with patch.object(h, '_send_order_status_message') as order_status:
             h._process_payment_status(_captured_event(), 'req-superseded')
 
-        mark_paid.assert_not_called()
-        gen_invoice.assert_not_called()
-        balance_due.assert_not_called()
+        # Still no paid-state mutation on the recording DynamoDB.
+        assert _paid_update_calls(_invoice_rows(dynamo, h)) == []
         # No 'completed' order_status message is minted on capture either.
         for call in order_status.call_args_list:
             assert call.kwargs.get('order_status') != 'completed', (
@@ -257,12 +272,12 @@ class TestCapturedBranchIsRetired:
     def test_capture_remains_retired_even_when_lookup_required_is_on(self, handler_env):
         """PAYMENT_LOOKUP_REQUIRED is dead on the financial path: no value re-enables settlement."""
         h, dynamo = handler_env
+        # The settlement writers do not exist to be re-enabled, regardless of the toggle.
+        assert not hasattr(h, '_mark_invoice_paid_by_reference')
+        assert not hasattr(h, '_generate_invoice_for_captured_payment')
         with patch.dict(os.environ, {'PAYMENT_LOOKUP_REQUIRED': 'true'}):
-            with patch.object(h, '_mark_invoice_paid_by_reference') as mark_paid, \
-                    patch.object(h, '_generate_invoice_for_captured_payment') as gen_invoice:
-                h._process_payment_status(_captured_event(), 'req-superseded')
-        mark_paid.assert_not_called()
-        gen_invoice.assert_not_called()
+            h._process_payment_status(_captured_event(), 'req-superseded')
+        assert _paid_update_calls(_invoice_rows(dynamo, h)) == []
         assert dynamo.stores[h.INVOICES_TABLE][0]['status'] == 'pending'
 
 
@@ -299,14 +314,15 @@ class TestNonFinancialPathsStillWork:
         h, dynamo = handler_env
         event = _captured_event()
         event['status'] = 'failed'
-        with patch.object(h, '_send_order_status_message') as order_status, \
-                patch.object(h, '_mark_invoice_paid_by_reference') as mark_paid:
+        # The paid-state writer is gone, so failure cannot settle anything either.
+        assert not hasattr(h, '_mark_invoice_paid_by_reference')
+        with patch.object(h, '_send_order_status_message') as order_status:
             h._process_payment_status(event, 'req-failed')
         # Still notifies the customer their payment failed...
         assert order_status.called
         assert order_status.call_args.kwargs.get('order_status') == 'canceled'
         # ...but settles nothing.
-        mark_paid.assert_not_called()
+        assert _paid_update_calls(_invoice_rows(dynamo, h)) == []
         assert dynamo.stores[h.INVOICES_TABLE][0]['status'] == 'pending'
 
     def test_a_delivered_status_update_processes_normally(self, handler_env):

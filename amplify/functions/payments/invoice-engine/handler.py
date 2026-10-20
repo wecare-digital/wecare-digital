@@ -97,6 +97,21 @@ def _money_display(value) -> str:
     except Exception:  # noqa: BLE001
         return str(value if value is not None else 0)
 
+
+def _render_money(value) -> Decimal:
+    """A STORED money field as an exact rupee `Decimal` quantized to 2dp, for the renderers.
+
+    The receipt/HTML/PDF builders used to read money with `float()` and sum line totals with
+    binary floats, so a printed breakdown could drift a paise from the stored `total` on a
+    customer-visible tax invoice. This coerces off the stored row - `Decimal(str(value or 0))` so
+    a string, int or `Decimal` all land exactly - and quantizes `ROUND_HALF_UP` to match the rest
+    of this tree. It DECIDES nothing: the authoritative figure is the stored field, and nothing
+    here is compared against a provider capture (that path stays in integer paise).
+    """
+    return Decimal(str(value if value is not None else 0)).quantize(
+        Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+
 dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
 # Transactions below already contain DynamoDB AttributeValues. A resource client's
 # input transformer would serialize them again, turning string keys into maps.
@@ -1999,14 +2014,17 @@ def _build_invoice_html(invoice: Dict, items: List[Dict]) -> str:
     cust_phone = invoice.get('customerPhone', '')
     cust_email = invoice.get('customerEmail', '')
     ship_addr = invoice.get('shippingAddress', '')
-    subtotal = float(invoice.get('subtotal', 0))
-    discount = float(invoice.get('discount', 0))
-    shipping_amt = float(invoice.get('shipping', 0))
-    handling_amt = float(invoice.get('handling', 0))
-    tax = float(invoice.get('tax', 0))
-    gst_rate = float(invoice.get('gstRate', 0))
-    conv_fee = float(invoice.get('convenienceFee', 0))
-    total = float(invoice.get('total', 0))
+    # Every money figure is read as an exact rupee Decimal off the STORED row (see
+    # `_render_money`), never a float: the printed breakdown and grand total are then derived from
+    # the authoritative fields the document actually carries, so they cannot drift a paise.
+    subtotal = _render_money(invoice.get('subtotal', 0))
+    discount = _render_money(invoice.get('discount', 0))
+    shipping_amt = _render_money(invoice.get('shipping', 0))
+    handling_amt = _render_money(invoice.get('handling', 0))
+    tax = _render_money(invoice.get('tax', 0))
+    gst_rate = Decimal(str(invoice.get('gstRate', 0) or 0))
+    conv_fee = _render_money(invoice.get('convenienceFee', 0))
+    total = _render_money(invoice.get('total', 0))
     purpose = invoice.get('purpose', '') or ''
     if purpose.lower().startswith('menu_'):
         purpose = ''
@@ -2043,13 +2061,14 @@ def _build_invoice_html(invoice: Dict, items: List[Dict]) -> str:
     except Exception as _e:
         logger.debug(f"HTML logo embed failed: {_e}")
 
-    # Extract Green Packing and Notification Fee from items
-    green_packing_amt = 0.0
-    notification_fee_amt = 0.0
+    # Extract Green Packing and Notification Fee from items. Decimal line totals (unit * qty) so
+    # a charge line that happens to sum with float drift still prints its stored value exactly.
+    green_packing_amt = Decimal('0')
+    notification_fee_amt = Decimal('0')
     for it in items:
         if it.get('isCharge'):
             nm = (it.get('name', '') or '').lower()
-            amt_val = float(it.get('amount', 0)) * int(it.get('quantity', 1))
+            amt_val = _render_money(it.get('amount', 0)) * Decimal(str(int(it.get('quantity', 1))))
             if 'green' in nm and 'pack' in nm:
                 green_packing_amt = amt_val
             elif 'notification' in nm or 'alert' in nm:
@@ -2060,13 +2079,14 @@ def _build_invoice_html(invoice: Dict, items: List[Dict]) -> str:
     total_qty = 0
     for i, item in enumerate(items):
         name = item.get('name', 'Item')
-        amt = float(item.get('amount', 0))
+        amt = _render_money(item.get('amount', 0))
         qty = int(item.get('quantity', 1))
         total_qty += qty
-        line_total = amt * qty
+        line_total = (amt * Decimal(str(qty))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         items_html += f'<tr><td>{i+1}</td><td>{name}</td><td class="r">{qty}</td><td class="r">{amt:,.2f}</td><td class="r">{line_total:,.2f}</td></tr>'
 
-    # Amount in words
+    # Amount in words — derived from the stored total Decimal, so the words and the printed grand
+    # total describe the same figure.
     words = _amount_in_words(total)
 
     # GST breakdown
@@ -2479,25 +2499,26 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
     cust_email = invoice.get('customerEmail', '')
     bill_addr = invoice.get('billingAddress', '')
     ship_addr = invoice.get('shippingAddress', '')
-    subtotal = float(invoice.get('subtotal', 0))
-    discount_val = float(invoice.get('discount', 0))
-    shipping_amt = float(invoice.get('shipping', 0))
-    tax = float(invoice.get('tax', 0))
-    gst_rate = float(invoice.get('gstRate', 0))
-    conv_fee = float(invoice.get('convenienceFee', 0))
-    total = float(invoice.get('total', 0))
-    cgst = tax / 2
-    sgst = tax / 2
+    subtotal = _render_money(invoice.get('subtotal', 0))
+    discount_val = _render_money(invoice.get('discount', 0))
+    shipping_amt = _render_money(invoice.get('shipping', 0))
+    tax = _render_money(invoice.get('tax', 0))
+    gst_rate = Decimal(str(invoice.get('gstRate', 0) or 0))
+    conv_fee = _render_money(invoice.get('convenienceFee', 0))
+    total = _render_money(invoice.get('total', 0))
+    # The two tax lines are the EXACT stored-tax halves (see `_split_tax_halves`), read off the
+    # row, so CGST + SGST sum to the printed Total Tax with no one-paise drift.
+    cgst, sgst = _tax_halves_rupees(invoice.get('tax', 0))
     payment_status = invoice.get('paymentStatus', 'pending').upper()
     paid_at = invoice.get('paidAt', 0)
 
     # Extract Green Packing and Notification Fee from items (stored as charge line items)
-    green_packing_amt = 0.0
-    notification_fee_amt = 0.0
+    green_packing_amt = Decimal('0')
+    notification_fee_amt = Decimal('0')
     for it in items:
         if it.get('isCharge'):
             nm = (it.get('name', '') or '').lower()
-            amt_val = float(it.get('amount', 0)) * int(it.get('quantity', 1))
+            amt_val = _render_money(it.get('amount', 0)) * Decimal(str(int(it.get('quantity', 1))))
             if 'green' in nm and 'pack' in nm:
                 green_packing_amt = amt_val
             elif 'notification' in nm or 'alert' in nm:
@@ -2522,24 +2543,23 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
     cust_phone = invoice.get('customerPhone', '')
     cust_email = invoice.get('customerEmail', '')
     ship_addr = invoice.get('shippingAddress', '')
-    subtotal = float(invoice.get('subtotal', 0))
-    discount_val = float(invoice.get('discount', 0))
-    shipping_amt = float(invoice.get('shipping', 0))
-    tax = float(invoice.get('tax', 0))
-    gst_rate = float(invoice.get('gstRate', 0))
-    conv_fee = float(invoice.get('convenienceFee', 0))
-    total = float(invoice.get('total', 0))
-    cgst = tax / 2
-    sgst = tax / 2
+    subtotal = _render_money(invoice.get('subtotal', 0))
+    discount_val = _render_money(invoice.get('discount', 0))
+    shipping_amt = _render_money(invoice.get('shipping', 0))
+    tax = _render_money(invoice.get('tax', 0))
+    gst_rate = Decimal(str(invoice.get('gstRate', 0) or 0))
+    conv_fee = _render_money(invoice.get('convenienceFee', 0))
+    total = _render_money(invoice.get('total', 0))
+    cgst, sgst = _tax_halves_rupees(invoice.get('tax', 0))
     payment_status = invoice.get('paymentStatus', 'pending').upper()
     paid_at = invoice.get('paidAt', 0)
 
-    green_packing_amt = 0.0
-    notification_fee_amt = 0.0
+    green_packing_amt = Decimal('0')
+    notification_fee_amt = Decimal('0')
     for it in items:
         if it.get('isCharge'):
             nm = (it.get('name', '') or '').lower()
-            amt_val = float(it.get('amount', 0)) * int(it.get('quantity', 1))
+            amt_val = _render_money(it.get('amount', 0)) * Decimal(str(int(it.get('quantity', 1))))
             if 'green' in nm and 'pack' in nm:
                 green_packing_amt = amt_val
             elif 'notification' in nm or 'alert' in nm:
@@ -2763,10 +2783,10 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
     total_qty = 0
     for idx, item in enumerate(items):
         name = item.get('name', 'Item')[:20]
-        amt = float(item.get('amount', 0))
+        amt = _render_money(item.get('amount', 0))
         qty = int(item.get('quantity', 1))
         total_qty += qty
-        line_total = amt * qty
+        line_total = (amt * Decimal(str(qty))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         _left(f"{idx+1:<3}{name:<22}{qty:>4}{amt:>10,.2f}{line_total:>9,.2f}", F)
         y += LINE_H
     _sep()
@@ -2986,8 +3006,13 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
     return buf.getvalue()
 
 
-def _amount_in_words(amount: float) -> str:
-    """Convert amount to Indian English words. e.g. 628.94 → 'Rupees Six Hundred Twenty-Eight and Ninety-Four Paise Only'"""
+def _amount_in_words(amount: Decimal | float) -> str:
+    """Convert amount to Indian English words. e.g. 628.94 → 'Rupees Six Hundred Twenty-Eight and Ninety-Four Paise Only'
+
+    Accepts the stored total as an exact rupee `Decimal` (what the renderers now pass) or a
+    legacy `float`. The rupee/paise split is taken from the Decimal exactly so the words match
+    the printed grand total; a float still works via the same arithmetic.
+    """
     ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
             'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
             'Seventeen', 'Eighteen', 'Nineteen']
