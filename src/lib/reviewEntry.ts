@@ -22,7 +22,7 @@
  * `data_api_version`, first screen `FEEDBACK` carries no `data` block), which is why the
  * handler must open it with `navigate` — see `STATIC_ENTRY_SCREENS`.
  */
-export const REVIEW_FLOW_ID = '1578178897413815';
+export const REVIEW_FLOW_ID = '940049388908144';
 
 /**
  * The owner's WhatsApp short link used by the public Leave Review menu action and the
