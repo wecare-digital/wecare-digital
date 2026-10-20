@@ -6,7 +6,7 @@ ProductsTable-priced snapshot and pass live payment readiness before sending a p
 from __future__ import annotations
 import re
 from typing import Any
-from lambda_utils import customer_auth
+from lambda_utils import customer_auth, template_status
 from . import meta_catalog_sync, service_requests, whatsapp_basket
 
 SESSION_PREFIX = 'CATALOGSERVICE#'
@@ -107,7 +107,7 @@ def meta_ready(readiness: dict, kind: str) -> bool:
     templates = readiness.get('templates') or {}
     for name in ('wecarepay_wa', 'wecare_leave_review', 'wecare_default_download'):
         template = templates.get(name) or {}
-        if template.get('name') != name or template.get('status') != 'APPROVED' or template.get('language') != 'en':
+        if template.get('name') != name or not template_status.is_sendable(template.get('status')) or template.get('language') != 'en':
             return False
     download = templates['wecare_default_download']
     buttons = [b for c in download.get('components') or [] if c.get('type') == 'BUTTONS'
