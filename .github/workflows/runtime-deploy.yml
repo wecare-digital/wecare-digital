@@ -59,13 +59,15 @@ jobs:
             amplify/functions/messaging/whatsapp-business-api/service_api.py \
             amplify/functions/messaging/whatsapp-business-api/flows/orders.py \
             amplify/functions/ecommerce/product-image-gen/handler.py \
-            amplify/functions/ecommerce/meta-catalog-sync/handler.py
+            amplify/functions/ecommerce/meta-catalog-sync/handler.py \
+            amplify/functions/payments/razorpay-webhook/handler.py
           python scripts/deploy_all_lambdas.py --dry-run \
             wecare-ai-generate-response \
             wecare-service-api \
             wecare-whatsapp-business-api \
             wecare-product-image-gen \
-            wecare-meta-catalog-sync
+            wecare-meta-catalog-sync \
+            wecare-razorpay-webhook
 
       - name: Deploy selected runtime functions
         run: |
@@ -74,7 +76,8 @@ jobs:
             wecare-service-api \
             wecare-whatsapp-business-api \
             wecare-product-image-gen \
-            wecare-meta-catalog-sync
+            wecare-meta-catalog-sync \
+            wecare-razorpay-webhook
 
       - name: Verify live aliases serve latest code
         run: |
@@ -87,6 +90,7 @@ jobs:
               "wecare-whatsapp-business-api",
               "wecare-product-image-gen",
               "wecare-meta-catalog-sync",
+              "wecare-razorpay-webhook",
           ]
           bad = []
           for name in names:
