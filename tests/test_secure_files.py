@@ -1230,36 +1230,34 @@ def _run_ensure(mod, monkeypatch, *, phone_id=WABA1_PHONE_ID, override="", **fak
     return client
 
 
-@pytest.mark.parametrize(
-    "phone_id,expected", [(WABA1_PHONE_ID, WABA1), (WABA2_PHONE_ID, WABA2)]
-)
-def test_a_new_customer_is_stamped_with_the_waba_they_arrived_through(
-    mod, monkeypatch, phone_id, expected
-):
-    """The stamp follows the sender, so repointing this function moves it too.
-
-    Previously a WABA1 literal: every customer created here was WABA1 regardless of
-    which business number was actually serving them.
-    """
-    client = _run_ensure(mod, monkeypatch, phone_id=phone_id)
+def test_a_new_customer_is_stamped_with_waba1(mod, monkeypatch):
+    """Customer sign-in identity is WABA1 only. The WABA1 sender resolves to the one
+    WABA the OTP gate accepts, so a new customer is stamped WABA1."""
+    client = _run_ensure(mod, monkeypatch, phone_id=WABA1_PHONE_ID)
     mod._ensure_customer_user("918100640044", "Test")
-    assert _attr_map(client.created["UserAttributes"])["custom:partner_waba_id"] == expected
-    # and it is derived, not restated - a second literal cannot reappear
-    assert expected == mod.waba_for_meta_phone(phone_id)
+    assert _attr_map(client.created["UserAttributes"])["custom:partner_waba_id"] == WABA1
 
 
-def test_an_existing_waba2_customer_is_not_converted_to_waba1(mod, monkeypatch):
-    """THE fix. One operator upload used to rewrite their identity.
+def test_a_waba2_sender_refuses_rather_than_stamping_a_lockout(mod, monkeypatch):
+    """There is no OTP template on WABA2, so the OTP gate rejects a WABA2 stamp. A
+    WABA2-origin upload must FAIL CLOSED rather than mint a customer who can never get a
+    code - the stampable set is the OTP-accepted set (WABA1 alone), not every messaging
+    WABA."""
+    client = _run_ensure(mod, monkeypatch, phone_id=WABA2_PHONE_ID)
+    with pytest.raises(mod.UnsafeWabaStamp):
+        mod._ensure_customer_user("918100640044", "Test")
+    assert client.created is None
 
-    `partner-onboarding` provisions WABA2 customers today. Re-stamping them WABA1 sent
-    their next sign-in code from a business number they have never messaged.
-    """
+
+def test_an_existing_waba2_stamp_is_replaced_with_waba1(mod, monkeypatch):
+    """WABA2 is no longer a customer sign-in identity: there is no OTP template on it,
+    so a lingering WABA2 stamp is a permanent OTP denial. It is therefore NOT preserved
+    - it is replaced with WABA1, the only WABA that can actually deliver a code."""
     client = _run_ensure(mod, monkeypatch, phone_id=WABA1_PHONE_ID, exists=True, existing=WABA2)
     mod._ensure_customer_user("918100640044", "Test")
 
     written = _attr_map(client.updated["UserAttributes"])
-    # omitted entirely, which is how admin_update_user_attributes preserves a value
-    assert "custom:partner_waba_id" not in written
+    assert written["custom:partner_waba_id"] == WABA1
     # the rest of the update still happens
     assert written["phone_number_verified"] == "true"
     assert written["name"] == "Test"
@@ -1271,11 +1269,11 @@ def test_an_unusable_existing_stamp_is_replaced_with_a_mapped_one(mod, monkeypat
     mapped id can only improve that customer's position."""
     for existing in (None, "", "   ", "0000000000000000", "not-a-waba"):
         client = _run_ensure(
-            mod, monkeypatch, phone_id=WABA2_PHONE_ID, exists=True, existing=existing
+            mod, monkeypatch, phone_id=WABA1_PHONE_ID, exists=True, existing=existing
         )
         mod._ensure_customer_user("918100640044", "Test")
         written = _attr_map(client.updated["UserAttributes"])
-        assert written["custom:partner_waba_id"] == WABA2, existing
+        assert written["custom:partner_waba_id"] == WABA1, existing
 
 
 def test_an_unmappable_sender_creates_no_user_and_refuses(mod, monkeypatch):
@@ -1335,12 +1333,13 @@ def test_upload_init_refuses_with_503_rather_than_half_provisioning(mod, monkeyp
     assert WABA1 not in result["body"] and WABA2 not in result["body"]
 
 
-def test_a_rejected_override_falls_back_to_the_derived_waba(mod, monkeypatch):
-    """`META_WABA_ID` is an override, not an instruction. One the shared map does not
-    know is a misconfiguration, and stamping it would lock the customer out."""
+def test_a_rejected_override_and_a_non_otp_derived_waba_both_fail_closed(mod, monkeypatch):
+    """`META_WABA_ID` is a validated override, not an instruction. An unknown one is
+    ignored; and a derived WABA the OTP gate does not accept (WABA2) resolves to '' so
+    the upload is refused rather than stamping a sign-in lockout."""
     monkeypatch.setenv("META_PHONE_NUMBER_ID", WABA2_PHONE_ID)
     monkeypatch.setenv("META_WABA_ID", "1111111111111111")
-    assert mod._sender_waba() == WABA2
+    assert mod._sender_waba() == ""
     monkeypatch.setenv("META_WABA_ID", WABA1)
     assert mod._sender_waba() == WABA1
 
@@ -1351,16 +1350,22 @@ def test_the_sender_waba_is_read_per_call_not_captured_at_import(mod, monkeypatc
     monkeypatch.delenv("META_WABA_ID", raising=False)
     monkeypatch.setenv("META_PHONE_NUMBER_ID", WABA1_PHONE_ID)
     assert mod._sender_waba() == WABA1
+    # Repointing at WABA2's number now fails closed: WABA2 is not an OTP identity.
     monkeypatch.setenv("META_PHONE_NUMBER_ID", WABA2_PHONE_ID)
-    assert mod._sender_waba() == WABA2
+    assert mod._sender_waba() == ""
 
 
-def test_the_mapping_is_reused_not_restated(mod):
-    """A second copy of the phone-id -> WABA map is a second thing to get wrong."""
+def test_the_phone_map_is_reused_and_the_stampable_set_is_otp_scoped(mod):
+    """The phone-id -> WABA map stays single-homed in `direct_send` (no WABA2 literal
+    restated here). The one WABA literal that IS present is the primary WABA the OTP
+    gate accepts, and the stampable set is scoped to it - NOT the whole messaging map,
+    which still routes outbound sends to WABA2."""
     source = (FUNC_DIR / "handler.py").read_text()
     assert "from lambda_utils.direct_send import" in source
-    assert WABA1 not in source and WABA2 not in source
-    assert mod.KNOWN_WABA_IDS == frozenset(mod.META_PHONE_TO_WABA.values())
+    # WABA2 is never a stampable identity, so its id must not appear as a literal here.
+    assert WABA2 not in source
+    assert mod.KNOWN_WABA_IDS == frozenset({WABA1})
+    assert mod.KNOWN_WABA_IDS < frozenset(mod.META_PHONE_TO_WABA.values())
 
 
 def test_every_stampable_value_is_one_the_otp_gate_accepts(mod, monkeypatch):
@@ -1375,9 +1380,16 @@ def test_every_stampable_value_is_one_the_otp_gate_accepts(mod, monkeypatch):
 
     for phone_id in mod.META_PHONE_TO_WABA:
         client = _run_ensure(mod, monkeypatch, phone_id=phone_id)
-        mod._ensure_customer_user("918100640044", "Test")
-        stamped = _attr_map(client.created["UserAttributes"])["custom:partner_waba_id"]
-        assert stamped in otp_map, phone_id
+        if mod.waba_for_meta_phone(phone_id) in mod.KNOWN_WABA_IDS:
+            mod._ensure_customer_user("918100640044", "Test")
+            stamped = _attr_map(
+                client.created["UserAttributes"])["custom:partner_waba_id"]
+            assert stamped in otp_map, phone_id
+        else:
+            # A sender on a non-OTP WABA (WABA2) must refuse, never stamp a lockout.
+            with pytest.raises(mod.UnsafeWabaStamp):
+                mod._ensure_customer_user("918100640044", "Test")
+            assert client.created is None
 
 
 # ── a paid customer is never told to pay again ────────────────────────────────

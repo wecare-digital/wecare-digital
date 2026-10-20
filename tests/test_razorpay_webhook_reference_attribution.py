@@ -149,12 +149,13 @@ class _Effects:
             patch.object(self.webhook, 'lambda_client', self.lambda_client),
             patch.object(self.webhook, '_post_payment_handler'),
             patch.object(self.webhook, '_log_ctwa_purchase'),
-            patch.object(self.webhook, '_trigger_post_payment_flow'),
             patch.object(self.webhook, '_create_order_for_captured_payment',
                          wraps=self.webhook._create_order_for_captured_payment),
         ]
         started = [p.start() for p in self._patchers]
-        _, self.post_payment, self.ctwa, self.post_pay_flow, self.reconcile = started
+        # The post-payment interactive Flow is retired: the paid-invoice template is the sole
+        # post-capture message, so there is no Flow trigger to patch or assert on.
+        _, self.post_payment, self.ctwa, self.reconcile = started
         return self
 
     def __exit__(self, *exc):
@@ -284,7 +285,6 @@ def test_two_pending_invoices_for_the_paying_phone_are_never_guessed_between(
     assert _invoice(fake, webhook, 'INV-B')['status'] == 'sent'
     fx.post_payment.assert_not_called()
     fx.ctwa.assert_not_called()
-    fx.post_pay_flow.assert_not_called()
     assert fx.confirmed_references() == []
     assert fake.count(webhook.PAYMENTS_TABLE) == 0
     parked = _parked(fake)
@@ -363,7 +363,6 @@ def test_the_gateway_order_binding_settles_exactly_the_invoice_it_names(webhook,
 
     assert fake.tables[webhook.PAYMENTS_TABLE][TXN]['status'] == 'captured'
     assert fx.post_payment.call_args.kwargs['reference_id'] == REF_B
-    assert fx.post_pay_flow.call_args.args[2] == REF_B
     assert fx.confirmed_references() == [REF_B]
     assert _parked(fake) is None
 

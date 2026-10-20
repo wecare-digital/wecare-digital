@@ -133,7 +133,16 @@ PARTNER_GROUP = os.environ.get("PARTNER_GROUP", "Partner")
 # `wecare-secure-files` is not packaged `standalone`, so the module is bundled into the
 # zip and importable - unlike `customer-whatsapp-auth`, whose standalone packaging is
 # the documented reason it carries the map as a JSON env var instead.
-KNOWN_WABA_IDS = frozenset(META_PHONE_TO_WABA.values())
+#
+# Customer OTP is delivered from WABA1 ONLY: there is no `wecare_otp` AUTHENTICATION
+# template approved on WABA2, so `auth/customer-whatsapp-auth` pins its gate to the
+# primary WABA and denies every other. A stamp this function can write MUST therefore be
+# one that gate accepts, or the customer is minted into a permanent sign-in lockout. So
+# the stampable set is the OTP-accepted set - the primary WABA alone - NOT every WABA the
+# messaging map (`META_PHONE_TO_WABA`) can route an outbound send to. WABA2 remains a
+# valid outbound messaging number; it is simply never a customer sign-in identity.
+PRIMARY_WABA_ID = "2094615664435155"  # WABA1 WECARE.DIGITAL, +91 93309 94400
+KNOWN_WABA_IDS = frozenset({PRIMARY_WABA_ID})
 # The same default `whatsapp_delivery` uses, so the stamp and the sender cannot drift.
 DEFAULT_SENDER_PHONE_ID = "1016149501586345"
 
@@ -208,6 +217,21 @@ def _sender_waba() -> str:
                 }
             )
         )
+    # Fail closed on a WABA the OTP gate does not accept. `derived` can be a WABA the
+    # messaging map routes to but that is NOT a customer sign-in identity (WABA2 today):
+    # stamping it would mint a permanent sign-in lockout, so return '' and let
+    # `_ensure_customer_user` refuse the upload instead.
+    if derived not in KNOWN_WABA_IDS:
+        if derived:
+            logger.warning(
+                json.dumps(
+                    {
+                        "event": "secure_files_waba_not_otp_accepted",
+                        "wabaId": _loggable_waba(derived),
+                    }
+                )
+            )
+        return ""
     return derived
 
 PRICE_PAISE = int(os.environ.get("SECURE_FILE_PRICE_PAISE", "4900"))  # Rs. 49
