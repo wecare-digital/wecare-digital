@@ -19,6 +19,10 @@ def test_release_cannot_pass_with_partial_deployment_or_qa_lockdown(gap):
     def config(**kwargs):
         name = kwargs['FunctionName']
         values = dict(env)
+        # The audit reads the payment template name off the invoice-engine env
+        # (WA_PAY_TEMPLATE), then requires an APPROVED row under that exact name.
+        if name == 'wecare-invoice-engine':
+            values['WA_PAY_TEMPLATE'] = 'wecare_whatapp_native_pay_template'
         if gap == 'qa' and name == 'wecare-outbound-whatsapp':
             values['WA_LIVE_SMOKE_TEST'] = 'true'
         if gap == 'merchant' and name == 'wecare-invoice-engine':

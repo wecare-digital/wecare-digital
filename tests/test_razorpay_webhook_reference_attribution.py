@@ -162,17 +162,21 @@ class _Effects:
             p.stop()
 
     def confirmed_references(self):
-        """The reference ids the customer was sent an order_status confirmation for."""
+        """The reference ids the customer was sent a paid-invoice confirmation for.
+
+        The single confirmation is now the approved `wecare_default_invoice_image_template`,
+        delivered INSIDE `_post_payment_handler` (patched here), replacing the removed free-form
+        `isOrderStatus` message the webhook used to build inline. The attribution this test pins -
+        a capture confirms exactly its own reference, to a real recipient - is read off the
+        `_post_payment_handler` call: it receives the resolved billed-customer `contact`
+        (positional arg 1) and the `reference_id` (kwarg). A call with an empty contact delivered
+        nothing (the gate inside is `contact and invoice_id`), so it is not a confirmation."""
         refs = []
-        for call in self.lambda_client.invoke.call_args_list:
-            try:
-                payload = json.loads(call.kwargs.get('Payload') or '{}')
-                body = payload.get('body') if isinstance(payload, dict) else None
-                body = json.loads(body) if isinstance(body, str) else {}
-            except (TypeError, ValueError):
-                continue
-            if body.get('isOrderStatus'):
-                refs.append(body['orderStatusDetails']['reference_id'])
+        for call in self.post_payment.call_args_list:
+            contact = call.args[1] if len(call.args) > 1 else ''
+            reference_id = call.kwargs.get('reference_id', '')
+            if contact and reference_id:
+                refs.append(reference_id)
         return refs
 
 
