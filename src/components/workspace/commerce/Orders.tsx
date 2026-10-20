@@ -22,6 +22,7 @@ import {
   fulfilmentLabel,
 } from '../../../lib/orderFulfilment';
 import { openExternal } from '../../../lib/capacitor';
+import { useConfirmDanger } from '../../wa/useConfirmDanger';
 
 const PAGE_SIZE = 20;
 const ORDER_STATUSES = [ 'pending', 'processing', 'partially-shipped', 'shipped', 'completed', 'canceled' ];
@@ -227,6 +228,7 @@ interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => {
   const toast = useToastContext();
+  const confirmDanger = useConfirmDanger();
 
   // Data
   const [ orders, setOrders ] = useState<api.Order[]>( [] );
@@ -371,6 +373,32 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
     }
   };
 
+  const handleRefundInitiation = async ( sub: api.FlowSubmissionItem ): Promise<boolean> => {
+    if ( !sub.invoiceId )
+    {
+      toast.error( 'No verified invoice is linked to this return. Reconcile the invoice before refunding.' );
+      return false;
+    }
+    const confirmed = await confirmDanger(
+      'refund',
+      <>Initiate the full provider refund for <strong>{ sub.submissionNumber || sub.submissionId }</strong>? The server derives payment ID and amount from the linked invoice; the browser cannot change them. Type REFUND to continue.</>,
+      { title: 'Initiate full refund', confirmText: 'Initiate refund' },
+    );
+    if ( !confirmed ) return false;
+
+    const result = await api.initiateInvoiceRefund( sub.invoiceId, sub.submissionId );
+    if ( !result.ok )
+    {
+      toast.error( result.failure.message || 'Refund initiation was refused' );
+      return false;
+    }
+    toast.success( result.data.webhookConfirmed
+      ? 'Refund confirmed by provider'
+      : 'Refund initiated; waiting for provider webhook confirmation' );
+    if ( selectedOrder ) await openDetail( selectedOrder );
+    return true;
+  };
+
   const handleCreate = async () => {
     if ( !createForm.customerPhone ) { toast.error( 'Phone is required' ); return; }
     setCreating( true );
@@ -498,7 +526,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
 
         {/* ── Order Detail Panel ── */ }
         <Modal isOpen={ !!selectedOrder } onClose={ () => setSelectedOrder( null ) } title="Order Details" size="xl">
-          { selectedOrder && <OrderDetailPanel order={ selectedOrder } submissions={ submissions } subsLoading={ subsLoading } documents={ detailDocs } statusHistory={ detailHistory } onStatusUpdate={ handleOrderStatusUpdate } onTrackingUpdate={ handleTrackingUpdate } onSubmissionStatusUpdate={ handleSubmissionStatusUpdate } onOrderCancel={ handleOrderCancel } onReturnStageUpdate={ handleReturnStageUpdate } /> }
+          { selectedOrder && <OrderDetailPanel order={ selectedOrder } submissions={ submissions } subsLoading={ subsLoading } documents={ detailDocs } statusHistory={ detailHistory } onStatusUpdate={ handleOrderStatusUpdate } onTrackingUpdate={ handleTrackingUpdate } onSubmissionStatusUpdate={ handleSubmissionStatusUpdate } onOrderCancel={ handleOrderCancel } onReturnStageUpdate={ handleReturnStageUpdate } onRefundInitiation={ handleRefundInitiation } /> }
         </Modal>
 
         {/* ── Create Order Modal ── */ }
@@ -538,9 +566,10 @@ interface DetailProps {
   onSubmissionStatusUpdate: ( subId: string, status: string ) => void;
   onOrderCancel: ( orderId: string, reason: string ) => Promise<boolean>;
   onReturnStageUpdate: ( subId: string, stage: api.ReturnStage, notes?: string ) => Promise<boolean>;
+  onRefundInitiation: ( sub: api.FlowSubmissionItem ) => Promise<boolean>;
 }
 
-const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoading, documents, statusHistory, onStatusUpdate, onTrackingUpdate, onSubmissionStatusUpdate, onOrderCancel, onReturnStageUpdate } ) => {
+const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoading, documents, statusHistory, onStatusUpdate, onTrackingUpdate, onSubmissionStatusUpdate, onOrderCancel, onReturnStageUpdate, onRefundInitiation } ) => {
   const short = order.orderNumber || order.shortId || extractShortId( order.orderId );
   const [ trackingDraft, setTrackingDraft ] = useState<ManualTrackingPatch>( {
     carrierName: order.carrierName || '',
@@ -553,6 +582,7 @@ const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoad
   const [ cancelSaving, setCancelSaving ] = useState( false );
   const [ returnNotes, setReturnNotes ] = useState<Record<string, string>>( {} );
   const [ returnSaving, setReturnSaving ] = useState<string | null>( null );
+  const [ refundSaving, setRefundSaving ] = useState<string | null>( null );
 
   useEffect( () => {
     setTrackingDraft( {
@@ -760,9 +790,26 @@ const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoad
                         </>
                       ) }
                       { ( sub.returnStage || 'requested' ) === 'refund_eligible' && (
-                        <span style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>
-                          Eligible for finance refund review. This stage does not move money.
-                        </span>
+                        <div style={ { display: 'flex', flexDirection: 'column', gap: 6 } }>
+                          <span style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>
+                            Finance-approved stage. Provider refund is a separate, typed-confirm action and remains server-gated.
+                          </span>
+                          <Button variant="danger" size="sm"
+                            loading={ refundSaving === sub.submissionId }
+                            disabled={ !sub.invoiceId }
+                            onClick={ async () => {
+                              setRefundSaving( sub.submissionId );
+                              await onRefundInitiation( sub );
+                              setRefundSaving( null );
+                            } }>
+                            Initiate full refund
+                          </Button>
+                          { !sub.invoiceId && (
+                            <span style={ { fontSize: 'var(--text-xs)', color: '#92400e' } }>
+                              Link/reconcile the invoice before refunding.
+                            </span>
+                          ) }
+                        </div>
                       ) }
                     </>
                   ) }
