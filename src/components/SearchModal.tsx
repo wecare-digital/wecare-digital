@@ -1,6 +1,6 @@
 /**
  * Global Search Modal Component
- * Quick search across contacts, messages, and navigation
+ * Universal workspace search across operational records and navigation
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -268,11 +268,8 @@ const SearchModal: React.FC<SearchModalProps> = ( {
       <div className="search-modal" onClick={ e => e.stopPropagation() }>
         <div className="search-input-wrapper">
           <span className="search-icon">Search</span>
-          {/* Placeholder says "pages" only. It said "Search contacts, messages,
-              pages..." but Layout.tsx renders this component with neither the
-              `contacts` nor the `messages` prop, so both default to [] and
-              neither is ever searched - it advertised two capabilities that could
-              not fire. Widen it again when those props are wired. */}
+          {/* Universal search is backed by the operational APIs below; the optional
+              contacts/messages props are only an immediate local fast-path. */}
           <input
             ref={ inputRef }
             type="text"
