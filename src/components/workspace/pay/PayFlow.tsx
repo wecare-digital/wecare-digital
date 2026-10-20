@@ -511,11 +511,6 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
     try { await api.generateInvoiceImage( inv.invoiceId ); showMsg( 'Image generated' ); } catch ( e ) { showMsg( 'Failed', 'error' ); }
     setActionLoading( '' );
   };
-  const doGeneratePdf = async ( inv: Invoice ) => {
-    setActionLoading( 'pdf' );
-    try { await api.generateInvoicePdf( inv.invoiceId ); showMsg( 'PDF generated' ); } catch ( e ) { showMsg( 'Failed', 'error' ); }
-    setActionLoading( '' );
-  };
   const openRemarkModal = ( inv: Invoice, type: 'remark' | 'refund' | 'credit_note' ) => {
     setRemarkModal( { inv, type } );
     setRemarkText( '' );
@@ -985,7 +980,6 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                         </>
                       ) }
                       <Button variant="secondary" size="sm" loading={ actionLoading === 'img' } onClick={ () => doGenerateImage( selInvoice ) }>Generate Image</Button>
-                      <Button variant="secondary" size="sm" loading={ actionLoading === 'pdf' } onClick={ () => doGeneratePdf( selInvoice ) }>Generate PDF</Button>
                       { !isIssued( selInvoice ) && (
                         <Button variant="secondary" size="sm" loading={ actionLoading === 'edit' } onClick={ () => openEditModal( selInvoice ) }>Edit Invoice</Button>
                       ) }
