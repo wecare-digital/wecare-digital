@@ -146,6 +146,10 @@ def find_by_bsuid(table: Any, bsuid: Any) -> Optional[Dict[str, Any]]:
     for item in response.get('Items') or []:
         if is_live(item):
             return item
+        contact_id = str(item.get('id') or item.get('contactId') or '').strip()
+        canonical = _get(table, contact_id) if contact_id else None
+        if canonical:
+            return canonical
     return None
 
 
