@@ -5478,9 +5478,9 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
     if not phone_number_id:
         phone_number_id = wa_payment_request.PHONE_NUMBER_ID_1
 
-    # Invoice delivery is TEMPLATE-ONLY. The approved template has an IMAGE header and a
-    # Leave Review Flow button, so the generated private S3 PNG is uploaded by outbound-whatsapp
-    # as the template header media. This is valid both inside and outside the 24-hour window.
+    # TEMPLATE-ONLY invoice/payment confirmation. The approved template carries the
+    # generated invoice PNG in its IMAGE header and launches Leave Review via its Flow button.
+    # No free-form/interactive invoice message is used, inside or outside the 24-hour window.
     wa_payload = {
         'body': json.dumps({
             'contactId': contact_id,
