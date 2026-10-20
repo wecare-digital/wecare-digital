@@ -315,3 +315,45 @@ existing ✕), or extend their timeout substantially; keep the 4s auto-dismiss f
 `createdDelivery` state machine (L377–391) and `sendPaymentLinkResult`. All three
 should converge on one helper that renders the same rich, non-auto-dismissing
 failure detail, so the "why" is consistent wherever a send is attempted.
+
+## FINDING 11 — MEDIUM/HIGH (UX correctness) — "Check this invoice before retrying" is the WRONG advice for terminal/in-progress states
+
+**File:** `src/components/workspace/pay/PayFlow.tsx` `doSendPaymentLink` (~L439)
+**Server:** `payments/invoice-engine/handler.py` `send_payment_link` (~L3756+)
+
+The server returns **distinct, actionable** send states:
+- `payment_link_sent` — sent (the only success).
+- `payment_link_rejected` — **409, TERMINAL**: *"This payment request was refused
+  and was not sent. Cancel and raise the collection again."* A re-invoke is refused
+  identically. **Retrying cannot succeed.**
+- `send_in_progress` + `deduplicated` — **200**: the reservation's send claim is
+  already held; a second invoke is intentionally a **no-op**. **Retrying does
+  nothing.**
+- `PENDING` / `unknown` (502) — ambiguous; **reconcile before any retry**.
+
+The UI collapses **all** of these into one line:
+```js
+r.ok && status === 'payment_link_sent'
+  ? 'Sent …'
+  : (r.ok ? 'Sending is not confirmed. Check this invoice before retrying.'
+          : r.failure.message)
+```
+So a **terminal REJECTED** (surfaced as `r.failure.message` on a 409) and an
+**already-claimed `send_in_progress`** (a 200, `r.ok` true, status not
+`payment_link_sent`) both tell the operator to **retry** — which is exactly what
+the server says NOT to do. This is almost certainly why the banner recurs on
+repeated attempts: each "retry" re-hits an already-claimed/rejected reservation and
+returns the same non-sent status, so the loop never resolves. The correct guidance
+differs per state (cancel & re-raise; wait for the in-flight send; or reconcile a
+captured-but-unbound payment — the `WD-PAY-C98523E305EE4747` case).
+
+**Recommendation:** branch the UI on the server `status`/`sendStatus`:
+- `payment_link_rejected` → "Refused and not sent. **Cancel and raise the
+  collection again** — do not retry." (offer Cancel, not Retry)
+- `send_in_progress`/`deduplicated` → "A send is already in progress; **don't
+  resend**. Refresh to see its delivery status."
+- `PENDING`/`unknown` → "Outcome unknown. **Reconcile in the ledger/webhook before
+  retrying** — nothing has been charged."
+- only a transient/network failure should offer a plain Retry.
+Surface the delivery-log `error`/Meta code (Finding 10b) alongside. This removes
+the misleading "retry" advice and the apparent retry loop.
