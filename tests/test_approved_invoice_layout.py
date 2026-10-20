@@ -97,5 +97,5 @@ def test_approved_receipt_is_delivered_as_same_engine_png_image(invoice_engine, 
     assert payload['templateHeaderType'] == 'image'
     assert payload['templateHeaderMedia'] == 'secure/stack/invoices/fixture.png'
     assert payload['content'] == ''
-    assert payload['flowButton'] == {'index': 0, 'flowKey': 'leave_review'}
+    assert 'flowButton' not in payload
     assert 'mediaFile' not in payload
