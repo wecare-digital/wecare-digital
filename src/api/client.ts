@@ -933,6 +933,18 @@ export interface Message {
   callType?: string;            // current voice implementation/category
   duration?: number;            // seconds
   recordingUrl?: string;
+  flowCode?: string;
+  flowType?: string;
+  flowScreen?: string;
+  flowSubmissionId?: string;
+  flowReference?: string;
+  flowAnswers?: { question: string; answer: string }[];
+  flowAttachments?: { key?: string; url?: string; type?: string; filename?: string }[];
+  reviewId?: string;
+  reviewStatus?: string;
+  reviewRating?: number;
+  reviewCategory?: string;
+  reviewOrderId?: string;
 }
 
 export async function listMessages ( contactId?: string, channel?: string, limit: number = 1000 ): Promise<Message[]> {
@@ -1020,6 +1032,18 @@ function normalizeMessage ( item: any ): Message {
     callType: item.callType,
     duration: typeof item.duration === 'number' ? item.duration : ( item.duration ? Number( item.duration ) : undefined ),
     recordingUrl: item.recordingUrl,
+    flowCode: item.flowCode,
+    flowType: item.flowType,
+    flowScreen: item.flowScreen,
+    flowSubmissionId: item.flowSubmissionId,
+    flowReference: item.flowReference,
+    flowAnswers: Array.isArray( item.flowAnswers ) ? item.flowAnswers : undefined,
+    flowAttachments: Array.isArray( item.flowAttachments ) ? item.flowAttachments : undefined,
+    reviewId: item.reviewId,
+    reviewStatus: item.reviewStatus,
+    reviewRating: typeof item.reviewRating === 'number' ? item.reviewRating : ( item.reviewRating ? Number( item.reviewRating ) : undefined ),
+    reviewCategory: item.reviewCategory,
+    reviewOrderId: item.reviewOrderId,
   };
 }
 
