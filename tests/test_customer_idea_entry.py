@@ -56,14 +56,14 @@ def test_new_flow_opens_static_screen_and_preserves_order_review():
     trigger = ns['DEFAULT_FLOW_TRIGGERS']['customer_idea']
     # `leave_review` now shares this same published flow — one Meta flow, two inbound
     # doors. Pinned in detail by tests/test_leave_review_wiring.py.
-    assert ns['DEFAULT_FLOW_TRIGGERS']['leave_review']['flowId'] == '1578178897413815'
+    assert ns['DEFAULT_FLOW_TRIGGERS']['leave_review']['flowId'] == '940049388908144'
     ns['_send_generic_flow']('fixture-contact', 'phone1', 'fixture-phone', 'fixture-request',
                              flow_config=trigger, flow_key='customer_idea')
     assert len(calls) == 1
     body = json.loads(calls[0]['body'])
     data = body['interactiveData']
     assert body['contactId'] == 'fixture-contact'
-    assert data['flowId'] == '1578178897413815'
+    assert data['flowId'] == '940049388908144'
     assert data['flowAction'] == 'navigate' and data['screenId'] == 'FEEDBACK'
     assert data['flowCta'] == 'Leave Review'
 
