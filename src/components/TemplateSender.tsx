@@ -826,7 +826,7 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
                    className on a Select lands on the wrapper. Only its width survives, as
                    layout, because `.search-filters` is a flex row. The rule itself is left in
                    the stylesheet below, dead and harmless. */ }
-              <Select
+              <Select layer="overlay"
                 ariaLabel="Template category"
                 value={ filterCategory }
                 onChange={ v => setFilterCategory( v ) }
@@ -1089,13 +1089,13 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
                    `scheduledDate` and `scheduledTime` reach the send call unchanged. */ }
               { scheduleMode && (
                 <div className="schedule-inputs">
-                  <DateField
+                  <DateField layer="overlay"
                     ariaLabel="Scheduled date"
                     value={ scheduledDate }
                     onChange={ setScheduledDate }
                     min={ new Date().toISOString().split( 'T' )[ 0 ] }
                   />
-                  <TimeField
+                  <TimeField layer="overlay"
                     ariaLabel="Scheduled time"
                     value={ scheduledTime }
                     onChange={ setScheduledTime }
