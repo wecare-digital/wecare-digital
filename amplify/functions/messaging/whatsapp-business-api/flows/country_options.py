@@ -16,8 +16,9 @@ def canonical_country(name="", code=""):
     """Return (country_name, alpha2) or ("", "") when the choice is not recognized."""
     code = str(code or "").strip().upper()
     name = str(name or "").strip()
-    if code in NAME_BY_CODE:
-        return NAME_BY_CODE[code], code
+    # The explicit customer choice wins over any stale hidden code carried from a prior save.
     if name in CODE_BY_NAME:
         return name, CODE_BY_NAME[name]
+    if code in NAME_BY_CODE:
+        return NAME_BY_CODE[code], code
     return "", ""
