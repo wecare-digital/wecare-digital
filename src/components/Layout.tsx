@@ -88,7 +88,7 @@ const Layout: React.FC<LayoutProps> = ( { children, user, onSignOut, showBreadcr
               onClick={ () => setSearchOpen( true ) } aria-label="Search workspace">
               <SearchGlyph /><span>Search</span><kbd>⌘K</kbd>
             </button>
-            <button type="button" className="workspace-action"
+            <button type="button" className="workspace-action workspace-tasks"
               onClick={ () => void router.push( '/workspace/task' ) } aria-label="Tasks">
               <TasksGlyph /><span className="desktop-action-label">Tasks</span>
             </button>
@@ -265,8 +265,18 @@ const Layout: React.FC<LayoutProps> = ( { children, user, onSignOut, showBreadcr
           .workspace-shell :global(.inner-content-container){margin:0;padding:0}
         }
         @media(max-width:360px){
-          .workspace-brand{max-width:126px}
+          .workspace-topbar-inner{
+            gap:8px;
+            padding-inline:
+              max(8px,env(safe-area-inset-left,0px))
+              max(8px,env(safe-area-inset-right,0px));
+          }
+          .workspace-brand{max-width:112px}
           .workspace-actions{gap:4px}
+          /* Search and Tasks already have permanent bottom-nav destinations on phones.
+             Hiding the duplicated top-bar buttons is what lets Back + brand + Profile
+             reflow at the ~280px foldable harness without clipping. */
+          .workspace-search,.workspace-tasks{display:none}
           .workspace-action,.workspace-back{padding:0}
         }
         @media(prefers-reduced-motion:reduce){
