@@ -299,7 +299,7 @@ def test_blocked_readiness_creates_no_attempt_and_no_reservation(env):
 # ════════════════════════════════════════════════════════════════════════════
 
 def test_initiation_sends_the_checkout_template_envelope(env):
-    """With initiation enabled the attempt hands off as the approved `wecarepay_wa` checkout
+    """With initiation enabled the attempt hands off as the approved `wecare_whatapp_native_pay_template` checkout
     template to the outbound sender, carrying the reserved reference byte-for-byte and the
     calculator total — and NO order exists yet."""
     h, fake, lam, monkeypatch = env
@@ -314,7 +314,7 @@ def test_initiation_sends_the_checkout_template_envelope(env):
     sends = [e for e in lam.invocations if e.get('isCheckoutTemplate')]
     assert len(sends) == 1
     send = sends[0]
-    assert send['templateName'] == 'wecarepay_wa'
+    assert send['templateName'] == 'wecare_whatapp_native_pay_template'
 
     details = send['checkoutOrderDetails']
     stored_ref = fake.all_rows(ATTEMPTS_TABLE)[0]['referenceId']
