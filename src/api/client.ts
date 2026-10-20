@@ -4097,6 +4097,11 @@ export async function getSystemConfig ( configKey: string ): Promise<SystemConfi
   return null;
 }
 
+/** Distinguish a missing setting from a failed read before offering an editor. */
+export async function getSystemConfigResult ( configKey: string ): Promise<ApiResult<{ config: SystemConfig | null }>> {
+  return apiCallResult<{ config: SystemConfig | null }>( `${API_BASE}/ai/config?key=${encodeURIComponent( configKey )}` );
+}
+
 // The backend merges object settings, so retained keys are allowed. Arrays are
 // ordered values: a different element or length means the requested save is unconfirmed.
 function containsConfig ( stored: any, requested: any ): boolean {

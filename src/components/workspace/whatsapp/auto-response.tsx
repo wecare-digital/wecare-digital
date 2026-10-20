@@ -13,6 +13,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useToastContext } from '../../../contexts/ToastContext';
 import * as api from '../../../api/client';
 import MaybeLayout from '../../../components/MaybeLayout';
+import SubscribeSettings from './subscribe-settings';
 
 interface Props { signOut?: () => void; user?: any; embedded?: boolean; }
 
@@ -42,7 +43,7 @@ const S = {
 
 const AutoResponsePageBody: React.FC<Props> = () => {
   const toast = useToastContext();
-  const [tab, setTab] = useState<'triggers' | 'customerservice' | 'mainmenu' | 'welcome'>('triggers');
+  const [tab, setTab] = useState<'triggers' | 'customerservice' | 'mainmenu' | 'welcome' | 'subscribe'>('triggers');
   const [saving, setSaving] = useState(false);
 
   // ── Flow Triggers ──
@@ -136,7 +137,10 @@ const AutoResponsePageBody: React.FC<Props> = () => {
         <button style={S.tab(tab === 'customerservice')} onClick={() => setTab('customerservice')}>Selfservice Menu</button>
         <button style={S.tab(tab === 'mainmenu')} onClick={() => setTab('mainmenu')}>Main Menu</button>
         <button style={S.tab(tab === 'welcome')} onClick={() => setTab('welcome')}>Welcome</button>
+        <button style={S.tab(tab === 'subscribe')} onClick={() => setTab('subscribe')}>Subscribe</button>
       </div>
+
+      {tab === 'subscribe' && <SubscribeSettings />}
 
       {/* ── FLOW TRIGGERS ── */}
       {tab === 'triggers' && (
