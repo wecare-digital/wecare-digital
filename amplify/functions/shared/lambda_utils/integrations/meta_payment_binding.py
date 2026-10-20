@@ -25,7 +25,7 @@ which is exactly what `razorpay_verify`'s docstring authorises - and the binding
 write-once and conditional, so a replay is idempotent and a disagreement is refused by the
 database rather than resolved by last-writer-wins.
 
-`MetaBindingUnavailable` NEVER asserts "not paid". It means we do not know.
+`MetaBindingUnavailable` NEVER asserts "not paid". It means we do not know.\n\nDeployment note: this shared module is consumed by the Razorpay webhook, which is included in\n`runtime-deploy.yml`; changing this file must therefore republish that live alias before recovery.
 `order_creation.reconcile_payment` turns an unavailable provider into `PROVIDER_UNAVAILABLE`
 rather than an order, and Razorpay's redelivery provides the recovery.
 """
