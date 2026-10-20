@@ -92,22 +92,53 @@ const Modal: React.FC<ModalProps> = ({
   const sizeStyles = { sm: '400px', md: '500px', lg: '700px', xl: '900px' };
 
   return (
-    <div style={overlayStyle} onClick={closeOnOverlay ? onClose : undefined}>
+    <div className="ui-modal-overlay" style={overlayStyle} onClick={closeOnOverlay ? onClose : undefined}>
       <div
         ref={modalRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
+        className="ui-modal-panel"
         style={{ ...modalStyle, maxWidth: sizeStyles[size] }}
         onClick={e => e.stopPropagation()}
       >
         <div style={headerStyle}>
           <h2 id="modal-title" style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>{title}</h2>
-          <button onClick={onClose} style={closeButtonStyle} aria-label="Close modal">×</button>
+          <button className="ui-modal-close" onClick={onClose} style={closeButtonStyle} aria-label="Close modal">×</button>
         </div>
         <div style={bodyStyle}>{children}</div>
-        {footer && <div style={footerStyle}>{footer}</div>}
+        {footer && <div className="ui-modal-footer" style={footerStyle}>{footer}</div>}
       </div>
+      <style jsx global>{`
+        @media(max-width:768px){
+          .ui-modal-overlay{
+            align-items:flex-end !important;
+            padding:
+              max(12px,env(safe-area-inset-top,0px))
+              max(12px,env(safe-area-inset-right,0px))
+              max(12px,env(safe-area-inset-bottom,0px))
+              max(12px,env(safe-area-inset-left,0px)) !important;
+          }
+          .ui-modal-panel{
+            max-width:100% !important;
+            max-height:calc(100dvh - 24px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)) !important;
+            border-radius:16px 16px 0 0 !important;
+          }
+          .ui-modal-footer{
+            flex-wrap:wrap;
+          }
+          .ui-modal-footer > button,
+          .ui-modal-footer > .btn{
+            flex:1 1 140px;
+          }
+        }
+        @media(max-width:360px){
+          .ui-modal-overlay{padding-inline:8px !important}
+          .ui-modal-footer{gap:8px !important;padding-inline:14px !important}
+          .ui-modal-footer > button,
+          .ui-modal-footer > .btn{flex-basis:100%}
+        }
+      `}</style>
     </div>
   );
 };
@@ -121,7 +152,7 @@ const overlayStyle: React.CSSProperties = {
 
 const modalStyle: React.CSSProperties = {
   background: '#fff', borderRadius: '16px', width: '100%',
-  maxHeight: '90vh', overflow: 'hidden', display: 'flex',
+  maxHeight: '90dvh', overflow: 'hidden', display: 'flex',
   flexDirection: 'column', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)',
 };
 
@@ -132,7 +163,9 @@ const headerStyle: React.CSSProperties = {
 
 const closeButtonStyle: React.CSSProperties = {
   background: 'none', border: 'none', fontSize: '24px',
-  cursor: 'pointer', color: '#6b7280', padding: '0 4px',
+  cursor: 'pointer', color: '#6b7280', padding: 0,
+  width: '44px', height: '44px', minWidth: '44px', minHeight: '44px',
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
   lineHeight: 1,
 };
 
