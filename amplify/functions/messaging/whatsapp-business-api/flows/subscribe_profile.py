@@ -71,6 +71,10 @@ def handle_review(data, flow_token, request_id):
         return _error(data, 'Please select your country.')
     raw_address['country'] = country_name
     raw_address['countryCode'] = country_code
+    # Any validation error after this point echoes `data` back to the Flow. Keep its visible
+    # country and hidden ISO code canonical so a retry cannot resurrect a stale pair.
+    data['country'] = country_name
+    data['country_code'] = country_code
     # A profile username is customer-entered; never overwrite Meta's username,
     # BSUID, ownership or permanent customer identity with it.
     if len(values['profileUsername']) > 50:
