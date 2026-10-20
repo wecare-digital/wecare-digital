@@ -45,6 +45,7 @@ const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
         display:inline-flex;
         align-items:center;
         width:max-content;
+        max-width:100%;
         min-height:var(--tap-min);
         box-sizing:border-box;
         padding:6px 9px;
@@ -57,6 +58,9 @@ const PolicyDetails: React.FC<PolicyDetailsProps> = ( {
         font-weight:var(--public-cta-font-weight);
         line-height:1.4;
         letter-spacing:-.05px;
+        white-space:normal;
+        overflow-wrap:anywhere;
+        text-align:start;
         text-decoration:underline;
         text-decoration-thickness:1.5px;
         text-underline-offset:3px;
