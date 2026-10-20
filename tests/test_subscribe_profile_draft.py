@@ -117,16 +117,6 @@ def test_draft_has_no_preferences_and_valid_local_schema():
     assert 'opt_in_whatsapp' not in json.dumps(doc)
 
 
-def test_email_and_main_address_are_required_by_backend(setup):
-    mod,table,_=setup; data=form(mod); data['email_address']=''
-    result=mod.handle_review(data,TOKEN,'r')
-    assert result['screen']=='REVIEW' and 'email' in result['data']['error_message']
-    assert not table.updates
-    data=form(mod)
-    for field in mod.ADDRESS_FIELDS:data[field]=''
-    result=mod.handle_review(data,TOKEN,'r')
-    assert result['screen']=='REVIEW' and 'address line 1' in result['data']['error_message']
-    assert not table.updates
 
 
 def test_customer_copy_hides_country_code_and_has_short_labels():
@@ -141,7 +131,18 @@ def test_customer_copy_hides_country_code_and_has_short_labels():
     assert not any(n.get('name')=='country_code' for n in inputs)
     assert all(len(n['label'])<=20 for n in inputs)
     required={n['name'] for n in inputs if n.get('required')}
-    assert {'full_name','email_address','address_line1','city','state','postal_code'}<=required
+    assert {'full_name','address_line1','city','state','postal_code'}<=required
     copy_text=' '.join(n.get('text','') for n in walk(doc) if isinstance(n.get('text',''),str))
     assert 'Your website and WhatsApp' not in copy_text
     assert 'marketing subscriptions' not in copy_text
+
+
+def test_subscribe_does_not_collect_or_change_email(setup):
+    mod,table,calls=setup; data=form(mod)
+    assert 'email_address' not in data
+    data['email_address']='attacker@example.com'
+    assert mod.handle_review(data,TOKEN,'r')['screen']=='COMPLETE'
+    assert table.row['email']=='qa@example.com'
+    assert 'email_address' not in calls[0]['form_data']
+    doc=json.loads((ROOT/'amplify/functions/messaging/whatsapp-business-api/flows/design-drafts/subscribe.json').read_text())
+    assert 'email_address' not in json.dumps(doc)

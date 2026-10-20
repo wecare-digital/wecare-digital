@@ -317,33 +317,20 @@ def test_a_owned_blog_subscriber_row_keeps_the_verification_it_already_proved(pr
         "an inherited verification must not be re-stamped; the timestamp records when it was proved"
 
 
-def test_a_owned_verified_row_still_demands_a_proof_for_a_DIFFERENT_email(profile):
-    """An explicitly owned contact preserves address, email-proof and public-ID semantics."""
+def test_a_owned_verified_row_can_change_contact_email_without_otp(profile):
     h, fake, _ = profile
     crm_row(fake, checkoutCustomerId=CUSTOMER, emailVerifiedAt=1700000000)
-    response = h.handler({
-        "requestContext": {"http": {"method": "POST", "sourceIp": "203.0.113.9"}},
-        "headers": {"origin": "http://localhost:3000", "authorization": "Bearer fixture"},
-        "body": json.dumps({"email": "someone.else@example.com"}),
-    }, None)
-    assert response["statusCode"] == 400
-    assert json.loads(response["body"])["error"] == "EMAIL_VERIFICATION_REQUIRED"
-    row = fake.all_rows(CONTACTS)[0]
-    assert row["email"] == EMAIL, "the unproven address must not have been written"
+    response = h.handler({"requestContext":{"http":{"method":"POST"}}, "headers":{"authorization":"Bearer fixture"},"body":json.dumps({"email":"new@example.com"})},None)
+    assert response["statusCode"] == 200
+    assert json.loads(response["body"])["emailVerified"] is False
 
 
-def test_a_owned_row_still_needs_a_proof_before_its_email_is_trusted(profile):
-    """An explicitly owned contact preserves address, email-proof and public-ID semantics."""
+def test_a_owned_row_does_not_mark_contact_email_verified(profile):
     h, fake, _ = profile
-    crm_row(fake, checkoutCustomerId=CUSTOMER)
-    response = h.handler({
-        "requestContext": {"http": {"method": "POST", "sourceIp": "203.0.113.9"}},
-        "headers": {"origin": "http://localhost:3000", "authorization": "Bearer fixture"},
-        "body": json.dumps({"email": EMAIL}),
-    }, None)
-    assert response["statusCode"] == 400
-    assert json.loads(response["body"])["error"] == "EMAIL_VERIFICATION_REQUIRED"
-    assert "emailVerifiedAt" not in fake.all_rows(CONTACTS)[0]
+    crm_row(fake, checkoutCustomerId=CUSTOMER, emailVerifiedAt=1700000000)
+    response = h.handler({"requestContext":{"http":{"method":"POST"}}, "headers":{"authorization":"Bearer fixture"},"body":json.dumps({"email":"new@example.com"})},None)
+    assert response["statusCode"] == 200
+    assert json.loads(response["body"])["emailVerified"] is False
 
 
 # ─── FIX 4b: checkout reads an unowned row, but not an unverified one ──────────

@@ -17,7 +17,7 @@ from old submissions or legacy shipping strings. Missing IDs are assigned on sav
 Version 3 saves profile fields and the shared `checkoutDeliveryAddress` map with derived
 legacy fields through `contact_address`. It preserves customerUuid, permanent ownership,
 phone and consent. It neither grants marketing consent nor sends a welcome marketing message.
-Name, email and the core address fields are required. Address line 2 and landmark are optional.
+Name and the core address fields are required. Subscribe does not collect email or email OTP. Address line 2 and landmark are optional.
 Country is displayed from the saved address (India for new profiles); its ISO code stays internal.
 All addresses must pass the same structural validator as the website. Website payment eligibility checks still apply at payment time.
 

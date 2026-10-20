@@ -1,6 +1,5 @@
 """Subscribe draft: one customer profile/address; never changes channel consent."""
 import time
-import re
 import uuid
 from botocore.exceptions import ClientError
 from lambda_utils import contact_store
@@ -8,7 +7,7 @@ from lambda_utils.ecommerce import contact_address
 from lambda_utils.identity import customer_uuid, subscriber_id
 from flows import common
 
-PROFILE_FIELDS = {'full_name': 'name', 'email_address': 'email',
+PROFILE_FIELDS = {'full_name': 'name',
                   'company_name': 'companyName', 'designation': 'designation'}
 ADDRESS_FIELDS = {'address_line1': 'addressLine1', 'address_line2': 'addressLine2',
                   'locality': 'locality', 'city': 'city', 'state': 'state',
@@ -56,8 +55,6 @@ def handle_review(data, flow_token, request_id):
         values[attr] = raw.strip()
     if not values['name']:
         return _error(data, 'Please enter your name.')
-    if not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+', values['email']):
-        return _error(data, 'Please enter a valid email address.')
     raw_address = {attr: data.get(key, '') for key, attr in ADDRESS_FIELDS.items()}
     now = int(time.time())
     try:

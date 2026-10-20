@@ -273,6 +273,7 @@ function profileFrom ( reply: ProfileReply ): CheckoutProfileValue | null {
     firstName: String( reply.firstName || '' ),
     lastName: String( reply.lastName || '' ),
     email: String( reply.email || '' ),
+    emailVerified: reply.emailVerified === true,
     phone: String( reply.phone || '' ),
     addressComplete: Boolean( reply.addressComplete ),
     address: reply.address || null,
@@ -1437,7 +1438,7 @@ export default function Cart (): React.ReactElement {
       setShowProfile( true );
       setNotice( { kind: 'quiet', message: mode === 'address'
         ? 'Add your delivery address to continue.'
-        : 'Confirm your name and verify your email before secure payment.' } );
+        : 'Confirm your name, email and delivery address before secure payment.' } );
       return;
     }
 

@@ -70,10 +70,10 @@ describe( 'CheckoutIdentityCard', () => {
     expect( row( 'Deliver' ).textContent ).toBe( 'DeliverEdit address' );
   } );
 
-  it( 'states that the email is verified', () => {
-    renderCard();
+  it( 'shows historical email verification only when explicitly provided', () => {
+    renderCard( { identity: { ...IDENTITY, emailVerified: true } } );
     expect( row( 'Email' ).textContent ).toContain( 'verified' );
-    expect( row( 'Email' ).querySelector( '.identity-badge' )!.textContent ).toBe( '✓ verified' );
+    expect( row( 'Email' ).querySelector( '.identity-badge' ) ).not.toBeNull();
   } );
 
   it( 'states that the phone is verified, in the same plain copy as the email', () => {
@@ -135,10 +135,10 @@ describe( 'CheckoutIdentityCard', () => {
     expect( screen.getByRole( 'heading', { name: 'Ready to pay' } ) ).toBeInTheDocument();
   } );
 
-  it( 'keeps the email badge when no emailVerified is passed', () => {
+  it( 'does not claim email verification when evidence is omitted', () => {
     // `!== false`, not a truthiness test - so an omitted prop is today's behaviour exactly.
     renderCard();
-    expect( row( 'Email' ).querySelector( '.identity-badge' )!.textContent ).toBe( '✓ verified' );
+    expect( row( 'Email' ).querySelector( '.identity-badge' ) ).toBeNull();
   } );
 
   it( 'keeps the Deliver value empty when no emptyAddressLabel is passed', () => {

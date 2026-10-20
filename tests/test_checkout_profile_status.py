@@ -166,12 +166,12 @@ def test_with_no_contact_row_the_answer_is_profile_required_at_200(env):
     assert body == {"status": "PROFILE_REQUIRED"}
 
 
-def test_an_unverified_email_is_not_ready_to_pay(env):
-    """`_checkout_profile` is the ready-to-pay predicate and this action does not weaken it."""
+def test_whatsapp_owned_profile_can_pay_without_email_otp(env):
     h, fake, _mp = env
-    seed(fake, emailVerifiedAt=None)
-    _response, body = call(h)
-    assert body["status"] == "PROFILE_REQUIRED"
+    seed(fake,emailVerifiedAt=None)
+    _response,body = call(h)
+    assert body["status"] == "PROFILE_READY"
+    assert body["emailVerified"] is False
 
 
 def test_a_row_owned_by_another_customer_is_not_this_session_s_profile(env):

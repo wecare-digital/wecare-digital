@@ -402,15 +402,10 @@ def verification_state(customer: Dict[str, Any]) -> Tuple[bool, bool]:
 
 
 def is_checkout_ready(customer: Dict[str, Any]) -> bool:
-    """True when this customer may proceed to a payment attempt.
-
-    Both channels must be verified. The phone because the payment request is delivered there
-    and an unverified number would send a payable message to whoever actually owns it; the
-    email because it is the only channel that survives a WhatsApp number changing.
-    """
-    phone_ok, email_ok = verification_state(customer)
+    """WhatsApp verification establishes identity; email is a contact field."""
+    phone_ok, _email_ok = verification_state(customer)
     return bool(
-        phone_ok and email_ok
+        phone_ok
         and customer.get("firstName") and customer.get("lastName")
         and is_customer_id(customer.get("customerId"))
     )

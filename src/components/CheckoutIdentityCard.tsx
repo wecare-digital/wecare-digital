@@ -132,12 +132,8 @@ const CheckoutIdentityCard: React.FC<Props> = ( {
           <dt>Email</dt>
           <dd>
             <span className="identity-value">{ identity.email }</span>
-            { /* A CLAIM, not a value - so it is gated, unlike the phone badge below. `!== false`
-                 and not a truthiness test: an omitted prop keeps today's behaviour exactly, so
-                 /cart/ (which passes nothing) is byte-identical, and only an explicit `false`
-                 suppresses it. See `emailVerified` on CheckoutIdentity for the consumer whose
-                 predicate does not prove this. */ }
-            { identity.emailVerified !== false && <span className="identity-badge">✓ verified</span> }
+            { /* Show historical email evidence only when the API explicitly supplies it. */ }
+            { identity.emailVerified === true && <span className="identity-badge">✓ verified</span> }
           </dd>
           <button type="button" onClick={ onChangeEmail } disabled={ locked }>Change email</button>
         </div>

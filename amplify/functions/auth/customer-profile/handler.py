@@ -1,26 +1,11 @@
-"""Authenticated checkout profile -> Workspace Contacts.
+"""Save profile details for the customer authenticated by WhatsApp sign-in.
 
-The customer's phone and customer id come only from customer_auth.require_customer(event).
-The browser may submit first/last name, email, a short-lived email verification proof, and one
-structured delivery address. The proof is bound to the normalized email by the public
-email-verification Lambda and stored in the shared OTP table. This endpoint validates that proof
-server-side before any CRM write.
-
-PRESENCE-DRIVEN, NOT MODE-DRIVEN
---------------------------------
-There is no `mode` field and one is never sent. The frontend's mode decides which fields it
-posts; this handler decides what is *required* from what is present in the body and what is
-already stored on the row this session owns. Presence means the key is there with a non-empty
-value: a blank field is treated as ABSENT, never as a request to clear, because nothing in this
-flow can clear a saved field — a profile with a blank verified email or a blank address is a
-profile that cannot pay.
-
-Consequently a first-time customer emerges from ONE save ready to pay (name + email + proof +
-address are all required when this session owns no row), while a returning customer can save a
-new address, or correct a name, without re-proving an email they already proved.
-
-No marketing consent is inferred from making a purchase. New rows default opt-in/allowlist fields
-to False; an existing contact's explicit choices are preserved.
+The verified session supplies the phone and permanent owner. Browser input can
+change name, contact email and delivery address, but cannot change that identity.
+Email OTP is not required. A changed email loses any old verification stamp;
+unchanged historical verification remains evidence of the address it verified.
+Legacy emailProof input is ignored and never creates verification evidence.
+No marketing consent is inferred from registration or purchase.
 """
 
 from __future__ import annotations
@@ -241,7 +226,7 @@ def _claim_candidate(rows: Any, phone: str,
 
     Pure: no I/O, so the predicate can be read and tested on its own. Claiming is also NOT
     verifying — the caller writes `checkoutCustomerId` and never `emailVerifiedAt`, so a claimed
-    row with an unverified email still cannot pay.
+    row can continue using its authenticated WhatsApp identity.
     """
     exact = [row for row in rows if str(row.get("phone") or "").strip() == phone]
     if not exact:
@@ -681,6 +666,8 @@ def _upsert_contact(*, customer_id: str, phone: str, email: Optional[str] = None
             tags=_merge_tags(existing.get("tags")), tags_if_absent=False,
             customer_id=customer_id, now=now,
         )
+        if email and email != _stored_email(existing) and not proof_validated:
+            expression += " REMOVE emailVerifiedAt"
         try:
             table.update_item(Key={"id": contact_id}, UpdateExpression=expression,
                               ConditionExpression="attribute_exists(id) AND checkoutCustomerId=:customer",
@@ -747,6 +734,8 @@ def _upsert_contact(*, customer_id: str, phone: str, email: Optional[str] = None
             tags=[CUSTOMER_TAG], tags_if_absent=True,
             customer_id=customer_id, now=now,
         )
+        if email and email != _stored_email(existing) and not proof_validated:
+            expression += " REMOVE emailVerifiedAt"
         try:
             table.update_item(Key={"id": contact_id}, UpdateExpression=expression,
                               ConditionExpression="attribute_exists(id) AND checkoutCustomerId=:customer",
@@ -844,33 +833,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return _no_store(cors_response(
             400, {"error": "INVALID_ADDRESS", "code": "ADDRESS_REQUIRED"}, origin))
 
-    # The email-proof rules are an ORDERED decision list and the first match wins, because two
-    # of the cases deliberately overlap.
-    if creating:
-        # Row 1: a new row needs a proof bound to the submitted email before it can be stamped.
-        #
-        proof_required = True
-    elif _present(body.get("emailProof")) and email is None:
-        # Row 2, and it beats row 3: a proof is a claim about an ADDRESS. Binding it to the
-        # stored value would let a proof minted in one request verify another, which is the one
-        # outcome the verification invariant forbids. Refuse, and leave the row untouched.
-        return _no_store(cors_response(400, {"error": "EMAIL_VERIFICATION_REQUIRED"}, origin))
-    elif email is None:
-        # Row 3, and it beats row 6: an edit that submits no email requires no proof and never
-        # writes emailVerifiedAt. A row with an unverified email already cannot pay, so refusing
-        # its address save removes the customer's only way forward and adds no protection.
-        proof_required = False
-    elif email == _stored_email(owned) and owned.get("emailVerifiedAt"):
-        # Row 4: re-proving an address that is already proven, from a session that owns the row.
-        proof_required = False
-    else:
-        # Rows 5 and 6: a changed email, or a stored email that was never verified.
-        proof_required = True
+    if _present(body.get("emailProof")) and email is None:
+        return _no_store(cors_response(400, {"error": "UNEXPECTED_FIELD"}, origin))
 
-    # (6) The proof check and the write.
+    # The authenticated WhatsApp session owns this profile. Email is contact data,
+    # never a login credential or a claim that its ownership was verified.
     try:
-        if proof_required and not _proof_valid(body.get("emailProof"), email or ""):
-            return _no_store(cors_response(400, {"error": "EMAIL_VERIFICATION_REQUIRED"}, origin))
         result = _upsert_contact(
             customer_id=identity_session.customer_id,
             phone=phone,
@@ -878,7 +846,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             first_name=first_name,
             last_name=last_name,
             address=address,
-            proof_validated=proof_required,
+            proof_validated=False,
         )
         # Ownership was established by the existing authenticated profile path. Read the
         # saved contact consistently; request body fields never authorize order access.
@@ -909,6 +877,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     if address is not None:
         merged[contact_address.ATTRIBUTE] = address
     if email:
+        if email != _stored_email(owned):
+            merged.pop("emailVerifiedAt", None)
         merged["email"] = email
     if first_name and last_name:
         merged["firstName"] = first_name
@@ -926,6 +896,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         "firstName": merged_first,
         "lastName": merged_last,
         "email": str(merged.get("email") or ""),
+        "emailVerified": bool(merged.get("emailVerifiedAt")),
         # The normalised value this handler wrote, which is the same string the read side
         # resolves the row on.
         "phone": phone,

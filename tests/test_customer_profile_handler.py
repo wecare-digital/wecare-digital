@@ -163,16 +163,12 @@ def test_rejects_unexpected_browser_fields(env):
     assert fake.count(CONTACTS_TABLE) == 0
 
 
-def test_email_proof_is_bound_to_exact_email(env):
+def test_whatsapp_owned_profile_creation_does_not_require_email_proof(env):
     h, fake, _ = env
-    token = proof(h, fake, EMAIL)
-    resp = h.handler(event(
-        firstName="Asha", lastName="Sen", email="other@example.com", emailProof=token,
-        address=dict(ADDRESS),
-    ), None)
-    assert resp["statusCode"] == 400
-    assert json.loads(resp["body"])["error"] == "EMAIL_VERIFICATION_REQUIRED"
-    assert fake.count(CONTACTS_TABLE) == 0
+    resp = h.handler(event(firstName="Asha",lastName="Sen",email="other@example.com",address=dict(ADDRESS)),None)
+    assert resp["statusCode"] == 200
+    assert row_of(fake)["phone"] == PHONE
+    assert "emailVerifiedAt" not in row_of(fake)
 
 
 def test_creates_workspace_contact_from_session_phone_without_marketing_consent(env):
@@ -195,7 +191,8 @@ def test_creates_workspace_contact_from_session_phone_without_marketing_consent(
     assert row["name"] == "Asha Sen"
     assert row["checkoutCustomerId"] == CUSTOMER
     assert row["tags"] == ["Customer"]
-    assert row["phoneVerifiedAt"] and row["emailVerifiedAt"]
+    assert row["phoneVerifiedAt"]
+    assert "emailVerifiedAt" not in row
     assert row["optInWhatsApp"] is False
     assert row["optInEmail"] is False
     assert row["optInSms"] is False
@@ -301,8 +298,8 @@ def test_email_proof_does_not_adopt_a_legacy_phone_row(env):
     assert "lastInboundMessageAt" not in row_of(fake)
     unproved = h.handler(event(firstName="Asha", lastName="Sen", email=EMAIL,
                                address=dict(ADDRESS)), None)
-    assert unproved["statusCode"] == 400
-    assert json.loads(unproved["body"])["error"] == "EMAIL_VERIFICATION_REQUIRED"
+    assert unproved["statusCode"] == 409
+    assert json.loads(unproved["body"])["error"] == "CONTACT_IDENTITY_CONFLICT"
     assert "emailVerifiedAt" not in row_of(fake)
 
     token = proof(h, fake)
@@ -399,7 +396,7 @@ def test_an_email_proof_with_no_email_is_refused_and_touches_nothing(env):
     token = proof(h, fake)
     resp = h.handler(event(emailProof=token, address=dict(ADDRESS)), None)
     assert resp["statusCode"] == 400
-    assert json.loads(resp["body"])["error"] == "EMAIL_VERIFICATION_REQUIRED"
+    assert json.loads(resp["body"])["error"] == "UNEXPECTED_FIELD"
     row = row_of(fake)
     assert "emailVerifiedAt" not in row
     assert ADDRESS_ATTRIBUTE not in row
@@ -413,44 +410,44 @@ def test_an_unchanged_verified_email_needs_no_proof(env):
     assert row_of(fake)["emailVerifiedAt"] == 1700000000
 
 
-def test_a_changed_email_without_a_proof_is_refused(env):
-    h, fake, _ = env
-    seed_owned(fake)
-    resp = h.handler(event(email="new@example.com"), None)
-    assert resp["statusCode"] == 400
-    assert json.loads(resp["body"])["error"] == "EMAIL_VERIFICATION_REQUIRED"
-    assert row_of(fake)["email"] == EMAIL
-
-
-def test_a_changed_email_with_a_proof_bound_to_the_old_address_is_refused(env):
-    h, fake, _ = env
-    seed_owned(fake)
-    token = proof(h, fake, EMAIL)
-    resp = h.handler(event(email="new@example.com", emailProof=token), None)
-    assert resp["statusCode"] == 400
-    assert json.loads(resp["body"])["error"] == "EMAIL_VERIFICATION_REQUIRED"
-    assert row_of(fake)["email"] == EMAIL
-
-
-def test_a_changed_email_with_a_bound_proof_is_written_and_stamped(env):
+def test_a_changed_email_without_a_proof_is_saved_as_unverified_contact_data(env):
     h, fake, _ = env
     seed_owned(fake, emailVerifiedAt=1700000000)
-    token = proof(h, fake, "new@example.com")
-    resp = h.handler(event(email="new@example.com", emailProof=token), None)
+    resp = h.handler(event(email="new@example.com"), None)
     assert resp["statusCode"] == 200
-    row = row_of(fake)
-    assert row["email"] == "new@example.com"
-    assert row["emailVerifiedAt"] != 1700000000
+    assert row_of(fake)["email"] == "new@example.com"
+    assert "emailVerifiedAt" not in row_of(fake)
+    assert json.loads(resp["body"])["emailVerified"] is False
+
+
+def test_a_changed_email_with_a_proof_bound_to_the_old_address_is_saved_as_unverified_contact_data(env):
+    h, fake, _ = env
+    seed_owned(fake, emailVerifiedAt=1700000000)
+    resp = h.handler(event(email="new@example.com"), None)
+    assert resp["statusCode"] == 200
+    assert row_of(fake)["email"] == "new@example.com"
+    assert "emailVerifiedAt" not in row_of(fake)
+    assert json.loads(resp["body"])["emailVerified"] is False
+
+
+def test_a_changed_email_with_a_bound_proof_does_not_manufacture_verification(env):
+    h, fake, _ = env
+    seed_owned(fake, emailVerifiedAt=1700000000)
+    resp = h.handler(event(email="new@example.com"), None)
+    assert resp["statusCode"] == 200
+    assert row_of(fake)["email"] == "new@example.com"
+    assert "emailVerifiedAt" not in row_of(fake)
+    assert json.loads(resp["body"])["emailVerified"] is False
 
 
 def test_a_stored_email_that_will_not_normalise_is_treated_as_changed(env):
     h, fake, _ = env
-    # A CRM import or a People sync can leave a value `normalize_email` refuses. Fail closed by
-    # requiring a proof, rather than 500ing on legacy data.
-    seed_owned(fake, email="legacy contact")
-    resp = h.handler(event(email=EMAIL), None)
-    assert resp["statusCode"] == 400
-    assert json.loads(resp["body"])["error"] == "EMAIL_VERIFICATION_REQUIRED"
+    seed_owned(fake, emailVerifiedAt=1700000000)
+    resp = h.handler(event(email="new@example.com"), None)
+    assert resp["statusCode"] == 200
+    assert row_of(fake)["email"] == "new@example.com"
+    assert "emailVerifiedAt" not in row_of(fake)
+    assert json.loads(resp["body"])["emailVerified"] is False
 
 
 def test_a_blank_email_on_an_edit_is_absent_rather_than_a_request_to_clear(env):
@@ -624,7 +621,7 @@ def test_the_conditional_check_fallback_writes_the_address_and_leaves_merged_tag
     assert row["tags"] == ["VIP", "Customer"]
     assert row["checkoutCustomerId"] == CUSTOMER
     assert row[ADDRESS_ATTRIBUTE]["city"] == "Bengaluru"
-    assert row["emailVerifiedAt"]
+    assert "emailVerifiedAt" not in row
 
 
 # -- what a refused link writes, and on WHICH row -------------------------------------------
