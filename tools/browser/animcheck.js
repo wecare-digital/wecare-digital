@@ -169,17 +169,23 @@ const ALLOWED = [
       && /\b(airquality|weather)\.googleapis\.com\//.test( url || '' ),
   },
   {
-    // THIRD-PARTY ANALYTICS, GOOGLE-SIDE, scoped exactly like the entries above. The live GTM
-    // container GTM-TXZ8JT78 (loaded in _document.tsx) fires GA4 measurement id G-GNRPFFBXMF, and
+    // THIRD-PARTY ANALYTICS, GOOGLE-SIDE, scoped exactly like the entries above. This is a
+    // MEASURED gate keyed to the GA4 id the LIVE GTM container actually serves. The property's
+    // authoritative GA4 Measurement ID is now G-6GW8JXKKT7, but at last measurement the live GTM
+    // container GTM-TXZ8JT78 (loaded in _document.tsx) still served the older id G-GNRPFFBXMF, and
     // Google's own googletagmanager.com returns 404 for /gtag/js?id=G-GNRPFFBXMF and
-    // /gtag/destination?id=... - the id is retired/unprovisioned on Google's end, which this repo
+    // /gtag/destination?id=... - that id is retired/unprovisioned on Google's end, which this repo
     // already documents in system-architecture.tsx (NEXT_PUBLIC_GA_MEASUREMENT_ID is unset; GA4 is
     // fired by the container). Nothing in our markup, style or script can change what Google serves
     // for that id, and the 404 appears on every public page because the container loads site-wide.
     // Scoped to this ONE id on googletagmanager.com's gtag paths, matched on the REQUEST URL (the
     // generic "Failed to load resource" line carries no identifying text) - so a 404 of any OTHER
-    // analytics resource, or a real app asset, still fails this gate. The real fix is owner-side:
-    // correct or retire G-GNRPFFBXMF in the GTM container; until then this is a known external 404.
+    // analytics resource, or a real app asset, still fails this gate. The regex is deliberately
+    // left matching G-GNRPFFBXMF (the id the container currently serves); repointing it to
+    // G-6GW8JXKKT7 before the container is updated owner-side would make this gate miss the real
+    // 404 and could fail CI. The real fix is owner-side: update the GTM container to fire the
+    // authoritative id G-6GW8JXKKT7; once it does, revisit this allowance so it tracks whatever id
+    // the container then serves.
     why: 'third party: Google returns 404 for the GTM container\'s GA4 id G-GNRPFFBXMF on '
       + 'googletagmanager.com/gtag - a retired/unprovisioned id, fixable only in the GTM container',
     test: ( text, url ) =>

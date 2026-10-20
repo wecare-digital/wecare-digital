@@ -38,7 +38,12 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_SEND_MODE: 'LIVE',
     NEXT_PUBLIC_ENV: 'production',
-    NEXT_PUBLIC_GA_MEASUREMENT_ID: 'G-S3G6REP6Q7',
+    // NEXT_PUBLIC_GA_MEASUREMENT_ID is deliberately left UNSET. All Google tags fire
+    // exclusively through the GTM container GTM-TXZ8JT78 (see src/pages/_document.tsx),
+    // so there is no direct gtag.js and no measurement id in the client bundle. The
+    // property's authoritative GA4 Measurement ID is G-6GW8JXKKT7, which the container
+    // is configured to fire in Tag Manager (out of repo). The previously hardcoded
+    // G-S3G6REP6Q7 was a long-retired id in no container and has been removed.
   }
 }
 

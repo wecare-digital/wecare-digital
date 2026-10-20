@@ -355,18 +355,21 @@ const ENV_VARS: EnvVar[] = [
   { key: 'NEXT_PUBLIC_PAYMENT_PHONE_DISPLAY', value: '+91 93309 94400', sensitive: false, category: 'Payment' },
   { key: 'NEXT_PUBLIC_PAYMENT_PHONE_NAME', value: 'WECARE.DIGITAL', sensitive: false, category: 'Payment' },
   // Analytics (empty)
-  // CORRECTED 2026-09-30. This row read `G-S3G6REP6Q7` and presented it as live config on a
-  // staff dashboard. It is not live and is not set anywhere: the Amplify branch env vars have
-  // no NEXT_PUBLIC_GA_MEASUREMENT_ID at all, and the live GTM container (GTM-TXZ8JT78, version
-  // 6, read through the Tag Manager API) serves only G-GNRPFFBXMF and AW-18396505964. Fetching
-  // the live container JS agrees - zero occurrences of G-S3G6REP6Q7.
+  // CORRECTED 2026-09-30, updated 2026-10-20. The authoritative GA4 Measurement ID for the
+  // WECARE.DIGITAL property (550346663, stream 16126298947) is G-6GW8JXKKT7. GA4 is fired
+  // EXCLUSIVELY by the GTM container GTM-TXZ8JT78 — there is no direct gtag and
+  // NEXT_PUBLIC_GA_MEASUREMENT_ID is unset by design. The previously-recorded container id
+  // G-GNRPFFBXMF and the long-retired G-S3G6REP6Q7 are both superseded by G-6GW8JXKKT7.
+  // (At last measurement the live container JS still served G-GNRPFFBXMF; pointing it at
+  // G-6GW8JXKKT7 is a Tag-Manager-side action, out of this repo.)
   //
-  // The id was real once. `_app.tsx` records a direct gtag.js snippet that fired it alongside
-  // the container, double-counting every pageview; the snippet was removed and the id went with
-  // it. This row survived and kept asserting a value the platform had stopped using, which is
-  // the specific failure this dashboard causes when it hardcodes config: a reader trusts it
+  // This row originally read `G-S3G6REP6Q7` and presented it as live config on a staff
+  // dashboard — a value that was not live and was in no container. That id was real once:
+  // `_app.tsx` records a direct gtag.js snippet that fired it alongside the container,
+  // double-counting every pageview; the snippet was removed and the id went with it. The
+  // lesson stands: a dashboard must not present stale ids as live — a reader trusts it
   // instead of measuring, and then looks for analytics data in a property that receives none.
-  { key: 'NEXT_PUBLIC_GA_MEASUREMENT_ID', value: '(unset — GA4 is fired by GTM-TXZ8JT78 as G-GNRPFFBXMF)', sensitive: false, category: 'Analytics', risk: 'Was listed as G-S3G6REP6Q7, which is retired and in no container' },
+  { key: 'NEXT_PUBLIC_GA_MEASUREMENT_ID', value: '(unset — GA4 is fired by GTM-TXZ8JT78; authoritative Measurement ID G-6GW8JXKKT7)', sensitive: false, category: 'Analytics', risk: 'Was listed as G-S3G6REP6Q7 (retired, in no container); container last measured serving G-GNRPFFBXMF, superseded by G-6GW8JXKKT7' },
   { key: 'NEXT_PUBLIC_FB_APP_ID', value: '(empty — SDK still loads)', sensitive: false, category: 'Analytics', risk: 'FB SDK loads but sends no data' },
   // Payment identifiers — env-sourced (RAZORPAY_MID / RAZORPAY_UPI_ID), not secrets. A merchant
   // id and a UPI payee address are public by construction (they appear in every deep link and QR).
