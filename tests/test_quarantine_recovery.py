@@ -23,6 +23,7 @@ the conditional writes are evaluated for real rather than mocked away.
 """
 
 import importlib
+import json
 import os
 import sys
 from decimal import Decimal
@@ -42,6 +43,8 @@ WEBHOOK_DIR = os.path.join(REPO, 'amplify', 'functions', 'payments', 'razorpay-w
 KEYS_TABLE = 'stack-wecare-digital-CommerceKeys'
 INVOICES_TABLE = 'stack-wecare-digital-InvoicesTable'
 PAYMENTS_TABLE = 'stack-wecare-digital-PaymentsTable'
+PAYMENT_ATTEMPTS_TABLE = 'stack-wecare-digital-PaymentAttemptsTable'
+WEBHOOK_LOG_TABLE = 'stack-wecare-digital-RazorpayWebhookLogTable'
 
 REFERENCE = 'WD-PAY-ABCDEFGHJKMNPQ'
 TXN = 'pay_LIVE0000000001'
@@ -64,8 +67,10 @@ def webhook():
 def fake_ddb():
     return FakeDynamo(
         keys={KEYS_TABLE: 'orderId', INVOICES_TABLE: 'invoiceId',
-              PAYMENTS_TABLE: 'id'},
-        indexes={INVOICES_TABLE: {'referenceId-index': ('referenceId', None)}},
+              PAYMENTS_TABLE: 'id', PAYMENT_ATTEMPTS_TABLE: 'paymentAttemptId',
+              WEBHOOK_LOG_TABLE: 'id'},
+        indexes={INVOICES_TABLE: {'referenceId-index': ('referenceId', None)},
+                 WEBHOOK_LOG_TABLE: {'paymentId-index': ('paymentId', None)}},
     )
 
 
@@ -355,3 +360,101 @@ def test_wallet_topup_not_captured_by_provider_is_not_credited(webhook, fake_ddb
         webhook._handle_payment_captured(_topup_event(), 'req-1')
 
     topup.assert_not_called()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# (e) quarantined native captures can be safely redriven from stored signed audit evidence
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _seed_redrive(fake_ddb):
+    keys = fake_ddb.Table(KEYS_TABLE)
+    keys.put_item(Item={
+        'orderId': order_keys.PAYMENT_REFERENCE_PREFIX + REFERENCE,
+        'kind': 'PAYMENT_REFERENCE',
+        'referenceId': REFERENCE,
+        'paymentAttemptId': 'attempt-redrive',
+        'invoiceId': 'invoice-redrive',
+        'customerId': 'customer-redrive',
+        'amountPaise': AMOUNT,
+        'currency': 'INR',
+        'checkoutMode': 'WHATSAPP_NATIVE_PG',
+    })
+    order_keys.record_capture_quarantine(
+        keys, payment_id=TXN, reference_id=REFERENCE, outcome='PROVIDER_UNAVAILABLE')
+    fake_ddb.Table(PAYMENT_ATTEMPTS_TABLE).put_item(Item={
+        'paymentAttemptId': 'attempt-redrive',
+        'referenceId': REFERENCE,
+        'status': 'PAYMENT_REQUEST_SENT',
+    })
+    fake_ddb.Table(INVOICES_TABLE).put_item(Item={
+        'invoiceId': 'invoice-redrive',
+        'referenceId': REFERENCE,
+        'paymentStatus': 'failed',
+    })
+    fake_ddb.Table(WEBHOOK_LOG_TABLE).put_item(Item={
+        'id': 'audit-redrive',
+        'paymentId': TXN,
+        'eventType': 'payment.captured',
+        'processedAt': 123,
+        'rawPayload': json.dumps(_commerce_event()),
+    })
+
+
+def test_redrive_requires_existing_quarantine(webhook, fake_ddb):
+    with patch.object(webhook, 'dynamodb', _HybridDynamo(fake_ddb)):
+        result = webhook._redrive_quarantined_capture(REFERENCE, TXN, 'req-redrive')
+    assert result == {'status': 'REFUSED', 'reason': 'QUARANTINE_NOT_FOUND'}
+
+
+def test_redrive_uses_stored_audit_and_resolves_only_after_paid_state(webhook, fake_ddb):
+    _seed_redrive(fake_ddb)
+    hybrid = _HybridDynamo(fake_ddb)
+
+    def replay(_event_data, _request_id):
+        keys = fake_ddb.Table(KEYS_TABLE)
+        keys.put_item(Item={
+            'orderId': order_keys.PROVIDER_PAYMENT_PREFIX + TXN,
+            'kind': 'PROVIDER_PAYMENT_CLAIM',
+            'providerTransactionId': TXN,
+            'paymentAttemptId': 'attempt-redrive',
+            'orderIdRef': 'order-redrive',
+        })
+        keys.put_item(Item={
+            'orderId': order_keys.PAYMENT_ATTEMPT_PREFIX + 'attempt-redrive',
+            'kind': 'PAYMENT_ATTEMPT_ORDER',
+            'paymentAttemptId': 'attempt-redrive',
+            'orderIdRef': 'order-redrive',
+            'orderNumber': 'WD-ORD-23456789',
+        })
+        fake_ddb.Table(PAYMENT_ATTEMPTS_TABLE).update_item(
+            Key={'paymentAttemptId': 'attempt-redrive'},
+            UpdateExpression='SET #s = :paid, providerPaymentId = :pid',
+            ExpressionAttributeNames={'#s': 'status'},
+            ExpressionAttributeValues={':paid': 'PAYMENT_PAID', ':pid': TXN},
+        )
+        fake_ddb.Table(INVOICES_TABLE).update_item(
+            Key={'invoiceId': 'invoice-redrive'},
+            UpdateExpression='SET paymentStatus = :paid',
+            ExpressionAttributeValues={':paid': 'paid'},
+        )
+
+    with patch.object(webhook, 'dynamodb', hybrid), \
+            patch.object(webhook, '_handle_payment_captured', side_effect=replay) as drive:
+        result = webhook._redrive_quarantined_capture(REFERENCE, TXN, 'req-redrive')
+
+    assert result['status'] == 'RESOLVED'
+    assert result['orderId'] == 'order-redrive'
+    drive.assert_called_once()
+    parked = order_keys.resolve_capture_quarantine(fake_ddb.Table(KEYS_TABLE), TXN)
+    assert parked['status'] == 'RESOLVED'
+    assert parked['resolvedOrderId'] == 'order-redrive'
+
+
+def test_redrive_internal_action_is_not_reachable_from_http(webhook):
+    response = webhook.handler({
+        'internalAction': 'redriveQuarantinedCapture',
+        'referenceId': REFERENCE,
+        'paymentId': TXN,
+        'requestContext': {},
+    }, None)
+    assert response['statusCode'] == 403

@@ -112,15 +112,116 @@ MESSAGES_TABLE = os.environ.get('MESSAGES_TABLE', 'stack-wecare-digital-WhatsApp
 WEBHOOK_LOG_TABLE = os.environ.get('WEBHOOK_LOG_TABLE', 'stack-wecare-digital-RazorpayWebhookLogTable')
 
 
+def _redrive_quarantined_capture(reference_id: str, payment_id: str,
+                                 request_id: str) -> Dict[str, Any]:
+    """Reprocess one quarantined capture from the previously signed audit receipt.
+
+    This is not an arbitrary webhook replay endpoint. It is reachable only from the
+    IAM/direct-invoke arm in handler and requires our own durable quarantine,
+    payment-reference, and stored payment.captured audit evidence.
+
+    The stored payload is only a trigger/correlation source. The normal captured-payment
+    handler still performs Meta binding lookup and Razorpay provider verification before
+    any paid state can be written.
+    """
+    from boto3.dynamodb.conditions import Key
+    from lambda_utils.ecommerce import payment_attempt
+
+    reference_id = str(reference_id or '').strip()
+    payment_id = str(payment_id or '').strip()
+    if not reference_id.startswith(order_keys.REFERENCE_ID_PREFIX) or not payment_id.startswith('pay_'):
+        return {'status': 'REFUSED', 'reason': 'INVALID_IDENTIFIERS'}
+
+    keys = dynamodb.Table(COMMERCE_KEYS_TABLE)
+    parked = order_keys.resolve_capture_quarantine(keys, payment_id) or {}
+    if not parked:
+        return {'status': 'REFUSED', 'reason': 'QUARANTINE_NOT_FOUND'}
+    if str(parked.get('referenceId') or '') != reference_id:
+        return {'status': 'REFUSED', 'reason': 'QUARANTINE_REFERENCE_MISMATCH'}
+    if str(parked.get('status') or '') == 'RESOLVED':
+        return {
+            'status': 'ALREADY_RESOLVED',
+            'referenceId': reference_id,
+            'paymentId': payment_id,
+            'orderId': str(parked.get('resolvedOrderId') or ''),
+        }
+
+    reservation = order_keys.resolve_payment_reference(keys, reference_id) or {}
+    attempt_id = str(reservation.get('paymentAttemptId') or '')
+    if not attempt_id:
+        return {'status': 'REFUSED', 'reason': 'PAYMENT_REFERENCE_NOT_FOUND'}
+
+    audit = dynamodb.Table(WEBHOOK_LOG_TABLE)
+    page = audit.query(
+        IndexName='paymentId-index',
+        KeyConditionExpression=Key('paymentId').eq(payment_id),
+    )
+    candidates = []
+    for row in page.get('Items') or []:
+        if str(row.get('eventType') or '') != 'payment.captured':
+            continue
+        try:
+            event_data = json.loads(str(row.get('rawPayload') or ''))
+        except (TypeError, ValueError, json.JSONDecodeError):
+            continue
+        entity = ((event_data.get('payment') or {}).get('entity') or {})
+        notes = entity.get('notes') if isinstance(entity.get('notes'), dict) else {}
+        event_ref = str(notes.get('referenceId') or notes.get('reference_id') or notes.get('ref') or '')
+        if (str(entity.get('id') or '') == payment_id
+                and str(entity.get('status') or '').lower() == 'captured'
+                and event_ref == reference_id):
+            candidates.append((int(row.get('processedAt') or row.get('createdAt') or 0), event_data))
+
+    if not candidates:
+        return {'status': 'REFUSED', 'reason': 'SIGNED_CAPTURE_AUDIT_NOT_FOUND'}
+
+    candidates.sort(key=lambda pair: pair[0], reverse=True)
+    _handle_payment_captured(candidates[0][1], request_id)
+
+    claim = order_keys.resolve_order_for_provider_payment(keys, payment_id) or {}
+    order_id = str(claim.get('orderIdRef') or '')
+    if not order_id:
+        return {'status': 'PENDING', 'reason': 'ORDER_NOT_MATERIALIZED'}
+
+    attempt = dynamodb.Table(PAYMENT_ATTEMPTS_TABLE).get_item(
+        Key={'paymentAttemptId': attempt_id}, ConsistentRead=True).get('Item') or {}
+    if (str(attempt.get('status') or '') != payment_attempt.PAYMENT_PAID
+            or str(attempt.get('providerPaymentId') or '') != payment_id):
+        return {'status': 'PENDING', 'reason': 'PAID_EVIDENCE_NOT_RECORDED', 'orderId': order_id}
+
+    invoice_id = str(reservation.get('invoiceId') or '')
+    if invoice_id:
+        invoice = dynamodb.Table(INVOICES_TABLE).get_item(
+            Key={'invoiceId': invoice_id}, ConsistentRead=True).get('Item') or {}
+        if str(invoice.get('paymentStatus') or '').lower() != 'paid':
+            return {'status': 'PENDING', 'reason': 'INVOICE_NOT_PAID', 'orderId': order_id}
+
+    order_keys.mark_capture_quarantine_resolved(
+        keys, payment_id=payment_id,
+        resolution='replayed stored signed payment.captured after provider-binding repair',
+        actor='system:razorpay-webhook-redrive', order_id=order_id)
+    return {
+        'status': 'RESOLVED',
+        'referenceId': reference_id,
+        'paymentId': payment_id,
+        'orderId': order_id,
+        'orderNumber': str(claim.get('orderNumber') or ''),
+    }
+
+
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Process ALL Razorpay webhook events."""
     request_id = context.aws_request_id if context else 'local'
     # Direct Lambda invokes require IAM. HTTP payloads cannot enter this recovery arm:
     # API Gateway/Function URLs always supply an envelope, and body JSON is never unwrapped.
-    if event.get('internalAction') in ('recoverPaidInvoiceOrder', 'reconcileCustomerOrderLinks'):
+    if event.get('internalAction') in ('recoverPaidInvoiceOrder', 'reconcileCustomerOrderLinks',
+                                              'redriveQuarantinedCapture'):
         if any(key in event for key in ('requestContext', 'rawPath', 'path', 'httpMethod',
                                         'headers', 'body', 'Records')):
             return _response(403, {'error': 'Internal invocation required'})
+        if event['internalAction'] == 'redriveQuarantinedCapture':
+            return _redrive_quarantined_capture(
+                str(event.get('referenceId') or ''), str(event.get('paymentId') or ''), request_id)
         from lambda_utils import shared_tables
         from lambda_utils.ecommerce import customer_order_link, paid_invoice_order
         if event['internalAction'] == 'reconcileCustomerOrderLinks':
