@@ -456,6 +456,30 @@ def _convert_from_dynamodb(item: Dict[str, Any]) -> Dict[str, Any]:
             projected.append(entry)
         result['flowAttachments'] = projected
 
+    # Flow response cards can carry multiple private attachments. Sign them on READ;
+    # never persist bearer URLs in MessagesTable.
+    if isinstance(result.get('flowAttachments'), list):
+        projected = []
+        for raw in result['flowAttachments']:
+            if not isinstance(raw, dict):
+                continue
+            entry = dict(raw)
+            key = entry.get('key') or entry.get('s3Key')
+            if isinstance(key, str) and key:
+                try:
+                    key = media_paths.canonical(key)
+                    entry['key'] = key
+                    entry['url'] = (s3_client.generate_presigned_url(
+                        'get_object', Params={'Bucket': MEDIA_BUCKET, 'Key': key}, ExpiresIn=300)
+                        if media_paths.is_gated(key)
+                        else f"https://{MEDIA_CDN_DOMAIN}/{key}")
+                except Exception as exc:
+                    logger.warning(json.dumps({'event':'flow_attachment_sign_failed',
+                                               'errorType':type(exc).__name__}))
+                    entry.pop('url', None)
+            projected.append(entry)
+        result['flowAttachments'] = projected
+
     return result
 
 
