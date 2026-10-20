@@ -6,10 +6,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { getAllNavItems } from '../config/navigation';
+import * as api from '../api/client';
 
 interface SearchResult {
   id: string;
-  type: 'contact' | 'message' | 'page' | 'action';
+  type: 'contact' | 'message' | 'page' | 'action' | 'order' | 'invoice' | 'service' | 'link';
   title: string;
   subtitle?: string;
   icon: string;
@@ -93,55 +94,142 @@ const SearchModal: React.FC<SearchModalProps> = ( {
     }
   }, [ isOpen ] );
 
-  // Search logic - only run when query changes
+  // Universal record search. Navigation matches are immediate; operational records are
+  // loaded after a short debounce so Ctrl+K does not turn every keystroke into six API calls.
   useEffect( () => {
-    if ( !query.trim() )
+    const trimmed = query.trim();
+    if ( !trimmed )
     {
-      return; // Keep default results
+      setResults( DEFAULT_RESULTS );
+      return;
     }
 
-    const q = query.toLowerCase();
-    const searchResults: SearchResult[] = [];
+    const q = trimmed.toLowerCase();
+    const navigation = NAVIGATION_ITEMS.filter( item =>
+      item.title.toLowerCase().includes( q ) || item.subtitle?.toLowerCase().includes( q )
+    );
+    const local: SearchResult[] = [ ...navigation ];
 
-    // Search navigation
-    NAVIGATION_ITEMS.forEach( item => {
-      if ( item.title.toLowerCase().includes( q ) || item.subtitle?.toLowerCase().includes( q ) )
-      {
-        searchResults.push( item );
-      }
-    } );
-
-    // Search contacts
     contacts.forEach( contact => {
-      if ( contact.name?.toLowerCase().includes( q ) || contact.phone?.includes( q ) )
+      if ( contact.name?.toLowerCase().includes( q ) || contact.phone?.includes( trimmed ) )
       {
-        searchResults.push( {
-          id: `contact-${contact.id}`,
-          type: 'contact',
-          title: contact.name || contact.phone,
-          subtitle: contact.phone,
-          icon: '◎',
-          path: `/workspace/communications?view=inbox&contact=${contact.id}`,
+        local.push( {
+          id: `contact-local-${contact.id}`, type: 'contact',
+          title: contact.name || contact.phone, subtitle: contact.phone, icon: '◎',
+          path: `/workspace/customers?contact=${encodeURIComponent( contact.id )}`,
         } );
       }
     } );
-
-    // Search messages (limited)
     messages.slice( 0, 100 ).forEach( msg => {
       if ( msg.content?.toLowerCase().includes( q ) )
       {
-        searchResults.push( {
-          id: `msg-${msg.id}`,
-          type: 'message',
-          title: msg.content.substring( 0, 50 ) + ( msg.content.length > 50 ? '...' : '' ),
-          subtitle: `Message`,
-          icon: '◇',
+        local.push( {
+          id: `msg-${msg.id}`, type: 'message',
+          title: msg.content.substring( 0, 50 ) + ( msg.content.length > 50 ? '…' : '' ),
+          subtitle: 'Message', icon: '◇',
+          path: `/workspace/communications?view=inbox&contact=${encodeURIComponent( msg.contactId )}`,
         } );
       }
     } );
+    setResults( local.slice( 0, 10 ) );
 
-    setResults( searchResults.slice( 0, 10 ) );
-    setSelectedIndex( 0 );
+    let cancelled = false;
+    const timer = window.setTimeout( () => {
+      void ( async () => {
+        const [ contactResult, orderResult, invoiceResult, serviceResult, linkResult ] = await Promise.allSettled( [
+          api.searchContacts( trimmed, 8 ),
+          api.listOrders( { search: trimmed, limit: 25 } ),
+          api.listInvoicesEngine( { limit: 500 } ),
+          api.listFlowSubmissions( { limit: 250 } ),
+          fetch( '/api/links' ).then( response => response.ok ? response.json() : { links: [] } ),
+        ] );
+        if ( cancelled ) return;
+
+        const records: SearchResult[] = [];
+
+        if ( contactResult.status === 'fulfilled' )
+        {
+          contactResult.value.forEach( contact => records.push( {
+            id: `contact-${contact.contactId}`, type: 'contact',
+            title: contact.name || contact.phone || contact.customerUuid || 'Customer',
+            subtitle: [ contact.customerUuid, contact.phone, contact.email ].filter( Boolean ).join( ' · ' ),
+            icon: '◎',
+            path: `/workspace/customers?contact=${encodeURIComponent( contact.contactId )}`,
+          } ) );
+        }
+
+        if ( orderResult.status === 'fulfilled' )
+        {
+          ( orderResult.value.orders || [] ).slice( 0, 8 ).forEach( order => records.push( {
+            id: `order-${order.orderId}`, type: 'order',
+            title: order.orderNumber || order.shortId || order.orderId,
+            subtitle: [ order.customerName, order.customerPhone, order.paymentStatus, order.source ].filter( Boolean ).join( ' · ' ),
+            icon: '□',
+            path: `/workspace/commerce?view=orders&search=${encodeURIComponent( order.orderNumber || order.orderId )}`,
+          } ) );
+        }
+
+        if ( invoiceResult.status === 'fulfilled' )
+        {
+          invoiceResult.value.invoices.filter( invoice =>
+            [ invoice.invoiceNumber, invoice.invoiceId, invoice.orderId, invoice.customerName,
+              invoice.customerPhone, invoice.customerEmail, invoice.paymentId, invoice.referenceId ]
+              .some( value => String( value || '' ).toLowerCase().includes( q ) )
+          ).slice( 0, 8 ).forEach( invoice => records.push( {
+            id: `invoice-${invoice.invoiceId}`, type: 'invoice',
+            title: invoice.invoiceNumber || invoice.invoiceId,
+            subtitle: [ invoice.customerName, invoice.paymentStatus, invoice.orderId ].filter( Boolean ).join( ' · ' ),
+            icon: '▤',
+            path: `/workspace/payments?view=ledger&ledger=invoices&search=${encodeURIComponent( invoice.invoiceNumber || invoice.invoiceId )}`,
+          } ) );
+        }
+
+        if ( serviceResult.status === 'fulfilled' )
+        {
+          serviceResult.value.filter( item =>
+            [ item.submissionNumber, item.requestId, item.referenceId, item.orderId, item.orderNumber,
+              item.invoiceId, item.customerUuid, item.senderName, item.customerName, item.phone, item.subject ]
+              .some( value => String( value || '' ).toLowerCase().includes( q ) )
+          ).slice( 0, 8 ).forEach( item => records.push( {
+            id: `service-${item.submissionId}`, type: 'service',
+            title: item.submissionNumber || item.requestId || item.referenceId || item.submissionId,
+            subtitle: [ item.subject, item.customerName || item.senderName, item.status ].filter( Boolean ).join( ' · ' ),
+            icon: '◇',
+            path: `/workspace/service?view=requests&search=${encodeURIComponent( item.submissionNumber || item.requestId || item.submissionId )}`,
+          } ) );
+        }
+
+        if ( linkResult.status === 'fulfilled' )
+        {
+          const links = Array.isArray( linkResult.value?.links ) ? linkResult.value.links : [];
+          links.filter( ( link: any ) =>
+            [ link.shortCode, link.shortUrl, link.originalUrl, link.title ]
+              .some( value => String( value || '' ).toLowerCase().includes( q ) )
+          ).slice( 0, 8 ).forEach( ( link: any ) => records.push( {
+            id: `link-${link.shortCode}`, type: 'link',
+            title: `/r/${link.shortCode}`,
+            subtitle: link.title || link.originalUrl,
+            icon: '↗',
+            path: '/workspace/communications?view=manage&section=links',
+          } ) );
+        }
+
+        const seen = new Set<string>();
+        const merged = [ ...navigation, ...records, ...local ].filter( item => {
+          const key = `${item.type}:${item.id}`;
+          if ( seen.has( key ) ) return false;
+          seen.add( key );
+          return true;
+        } );
+        setResults( merged.slice( 0, 12 ) );
+        setSelectedIndex( 0 );
+      } )();
+    }, 250 );
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout( timer );
+    };
   }, [ query, contacts, messages ] );
 
   // Keyboard navigation
@@ -191,12 +279,12 @@ const SearchModal: React.FC<SearchModalProps> = ( {
             value={ query }
             onChange={ e => setQuery( e.target.value ) }
             onKeyDown={ handleKeyDown }
-            placeholder="Search pages…"
+            placeholder="Search customer, order, invoice, payment, service or link…"
             role="combobox"
             aria-expanded={ results.length > 0 }
             aria-controls="search-results-list"
             aria-activedescendant={ results[ selectedIndex ] ? `search-result-${results[ selectedIndex ].id}` : undefined }
-            aria-label="Search contacts, messages, and pages"
+            aria-label="Search workspace records and pages"
           />
           <span className="search-hint">ESC to close</span>
         </div>

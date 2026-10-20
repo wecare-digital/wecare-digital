@@ -28,6 +28,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/router';
 import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import Button from '../../../components/ui/Button';
@@ -76,6 +77,7 @@ function money ( amount?: number, currency?: string ): string {
 
 const InvoiceRecordsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
   const toast = useToastContext();
+  const router = useRouter();
   const [ invoices, setInvoices ] = useState<api.Invoice[]>( [] );
   const [ loading, setLoading ] = useState( true );
   const [ statusFilter, setStatusFilter ] = useState( 'all' );
@@ -84,6 +86,12 @@ const InvoiceRecordsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) 
   const [ openLog, setOpenLog ] = useState<string | null>( null );
   const [ logs, setLogs ] = useState<api.InvoiceDeliveryLog[]>( [] );
   const [ logLoading, setLogLoading ] = useState( false );
+
+  useEffect( () => {
+    const raw = router.query.search;
+    const value = Array.isArray( raw ) ? raw[ 0 ] : raw;
+    if ( value ) setSearch( value );
+  }, [ router.query.search ] );
 
   const load = useCallback( async () => {
     setLoading( true );
