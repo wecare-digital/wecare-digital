@@ -28,9 +28,9 @@ light-only colour scheme, and the `100vh` + `100dvh` viewport fallback.
 
 ## Migration rule
 
-Adopt the contract family-by-family. Home is the locked reference and Grahak OS is migrated
-as the second explicit adopter. VayuLok is the next reference migration, followed by shared
-service/product pages, customer forms, shop/product pages, then blog/legal/long-form pages.
+Adopt the contract family-by-family. Home is the locked reference, Grahak OS is migrated
+as the second explicit adopter, and VayuLok is migrated as the third. Shared service/product
+pages are next, followed by customer forms, shop/product pages, then blog/legal/long-form pages.
 
 A migration may keep product-specific visual identity and interaction patterns. Unify the
 foundation — typography roles, gutters, spacing, touch targets, safe areas, responsive
@@ -39,6 +39,6 @@ containment, reflow, WebView behaviour and shared public chrome — not every co
 ## Verification
 
 For every migrated family, run build/type/unit gates plus the public browser/device matrix.
-Check 320/375/390/430 phones, tablet widths, desktop, folded/unfolded and wide-short foldable
+Check 320/360/375/390/412/430 phones, tablet widths, desktop, folded/unfolded and wide-short foldable
 postures, 200% reflow, Chromium/Firefox/WebKit, and Capacitor public-shell sync. A real physical
 hinge and installed WKWebView remain release-device gates when browser CI cannot reproduce them.
