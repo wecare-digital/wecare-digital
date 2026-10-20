@@ -1384,6 +1384,8 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( css ).toContain( '.vl-live-mobile-mode button{min-height:var(--tap-min)' );
     expect( css ).toContain( '.vl-live-route-check{align-self:flex-start;min-height:var(--tap-min)' );
     expect( css ).toContain( '.vl-live-map-retry{margin-top:10px;min-height:var(--tap-min)' );
+    expect( css ).toContain( '.vl-live-air-card-wrap{position:relative;z-index:12;grid-area:1/1;align-self:start;justify-self:start;width:min(416px,calc(100% - 32px));margin-block:16px 112px;margin-inline:16px 0' );
+    expect( css ).not.toContain( 'margin:16px 0 112px 16px' );
     expect( css ).toContain( '@media(horizontal-viewport-segments:2)' );
     expect( css ).toContain( 'width:env(viewport-segment-width 0 0)' );
     expect( css ).toContain( " :global([dir='rtl']) .vl-live-shell".trim() );
