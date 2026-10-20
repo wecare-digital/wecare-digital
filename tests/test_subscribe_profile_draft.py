@@ -68,6 +68,11 @@ def test_save_and_reopen_updates_shared_address_without_consent_or_id_churn(setu
     assert table.row['addressLine1']=='45 New Road'
     assert form(mod)['address_line1']=='45 New Road'
     assert calls[0]['requires_payment'] is False
+    assert calls[0]['flow_type']=='subscribe'
+    assert calls[0]['form_data']['customer_id']=='C-ED6BQSW2P7PQ'
+    assert calls[0]['form_data']['phone_number']=='+918100640044'
+    assert 'profile_version' not in calls[0]['form_data']
+    assert 'country_code' not in calls[0]['form_data']
 
 def test_retry_does_not_repeat_profile_write(setup):
     mod,table,calls=setup; data=form(mod)

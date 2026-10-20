@@ -115,9 +115,10 @@ def handle_review(data, flow_token, request_id):
     if not contact_store.is_live(saved):
         return _error(data, 'We could not load your saved profile. Please try again.')
     completion = common.record_completion(
-        flow_code='WD_SUBSCRIBE', flow_type='profile_update', phone=phone,
+        flow_code='WD_SUBSCRIBE', flow_type='subscribe', phone=phone,
         contact_id=contact_id, sender_name=saved.get('name', ''),
-        form_data={k: v for k, v in data.items() if k not in ('profile_revision', 'updated_at', 'error_message')},
+        form_data={k: v for k, v in _form(saved, phone).items()
+                   if k not in ('profile_revision', 'updated_at', 'error_message', 'country_code')},
         flow_token=flow_token, request_id=request_id, screen='REVIEW',
         reference_prefix='WD-SUB', requires_payment=False, payment_amount=0, status='completed')
     if completion.error:
