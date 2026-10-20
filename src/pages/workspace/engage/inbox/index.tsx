@@ -1091,7 +1091,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                                     { ( m.messageType || '' ).toLowerCase() === 'flow_response' && (
                                                         <div className="ui-flow-response" style={ { width: '100%', minWidth: 0, maxWidth: 560, overflowWrap: 'anywhere' } }>
                                                             <div style={ { fontWeight: 700, marginBottom: 6 } }>
-                                                                Flow response{ m.flowCode ? ` · ${m.flowCode}` : '' }
+                                                                Flow response{ ( m.flowType || m.flowCode ) ? ` · ${( m.flowType || m.flowCode || '' ).replace( /^wd_/i, '' ).replace( /_v\d+$/i, '' ).replace( /_/g, ' ' )}` : '' }
                                                             </div>
                                                             <FlowResponseDetails flowAnswers={ m.flowAnswers } flowAttachments={ m.flowAttachments } />
                                                             { m.reviewId && (
