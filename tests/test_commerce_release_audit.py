@@ -28,7 +28,7 @@ def test_release_cannot_pass_with_partial_deployment_or_qa_lockdown(gap):
     lam.get_function_configuration.side_effect = config
     def invoke(**kwargs):
         path = json.loads(kwargs['Payload'])['path']
-        rows = ([{'name': 'wecarepay_wa', 'status': 'APPROVED', 'language': 'en',
+        rows = ([{'name': 'wecare_whatapp_native_pay_template', 'status': 'APPROVED', 'language': 'en',
                   'category': 'UTILITY', 'sub_category': 'ORDER_DETAILS'}]
                 if 'payment-templates' in path else [{'configuration_name': 'TEST', 'status': 'Active',
                   'provider_name': 'Razorpay', 'provider_mid': 'acc_TEST'}])

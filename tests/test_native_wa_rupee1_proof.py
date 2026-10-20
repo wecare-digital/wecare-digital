@@ -12,7 +12,7 @@ Why this layer
 --------------
 `_handle_checkout_template_send` is the one function that composes the `order_details` action Meta
 renders: it runs the payment-config resolver (Mode 3), applies the "Delight" discount label, sets
-digital-goods (so no delivery address is requested), and assembles the `wecarepay_wa` template
+digital-goods (so no delivery address is requested), and assembles the `wecare_whatapp_native_pay_template` template
 payload. Proving the ₹1 figure here proves what would actually go out.
 
 The amount
@@ -111,7 +111,7 @@ def _drive(h):
         recipient_phone=RECIPIENT,
         phone_number_id=WABA1_PHONE_ID,
         is_template=True,
-        template_name='wecarepay_wa',
+        template_name='wecare_whatapp_native_pay_template',
         template_params=[],
         checkout_order_details=_rupee1_order_details(),
         header_image_url=None,
@@ -128,7 +128,7 @@ def test_the_rupee1_sheet_is_built_correctly_and_nothing_is_sent_live(send, caps
     body = json.loads(resp['body'])
     assert body['status'] == 'sent'
     assert body['type'] == 'checkout_template'
-    assert body['templateName'] == 'wecarepay_wa'
+    assert body['templateName'] == 'wecare_whatapp_native_pay_template'
     assert body['referenceId'] == 'WD-PAY-RUPEE1TEST01'
 
     # ── the captured Meta payload: this is exactly what WOULD go to Meta ──
@@ -136,7 +136,7 @@ def test_the_rupee1_sheet_is_built_correctly_and_nothing_is_sent_live(send, caps
     payload = captured['payload']
     assert payload['to'] == RECIPIENT
     assert payload['type'] == 'template'
-    assert payload['template']['name'] == 'wecarepay_wa'
+    assert payload['template']['name'] == 'wecare_whatapp_native_pay_template'
 
     # The order_details action, dug out of the button component.
     buttons = [c for c in payload['template']['components']

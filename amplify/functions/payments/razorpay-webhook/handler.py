@@ -2686,29 +2686,23 @@ def _post_payment_handler(payment_id: str, contact: str,
                                 'paymentId': payment_id, 'invoiceId': invoice_id,
                                 'requestId': request_id}))
 
-    # ── Step 4: deliver the GST invoice to the customer on WhatsApp ──
+    # ── Step 4: deliver the GST invoice to the customer's VERIFIED WhatsApp number ──
     #
-    # NATIVE WHATSAPP ORIGIN ONLY, and the two conditions are not redundant:
-    #   channel      == whatsapp            → ATTRIBUTION: the customer transacted over WhatsApp
-    #   checkoutMode == WHATSAPP_NATIVE_PG  → MECHANICS: Meta collected it, so WE owe the receipt
+    # UNIVERSAL FOR COMMERCE ORDERS: both Website and WhatsApp checkout authenticate the customer
+    # through the same WhatsApp-OTP identity. Website checkout stores that proven phone on the
+    # PaymentAttempt/PAYREF/order; _notification_recipient above resolves from those server-owned
+    # rows. Therefore channel is attribution only and MUST NOT suppress the receipt.
     #
-    # A catalogue-origin order is `channel=whatsapp` but settles through the WEBSITE leg, whose
-    # own receipt path owns delivery; a website order's receipt is likewise not ours to send.
-    # Sending a WhatsApp document for either would be an unrequested message to a customer who
-    # receives none today - so gating on the channel ALONE would silently change an existing
-    # live leg's behaviour.
+    # We still require a resolved stored contact. No browser/body phone can open this gate.
+    # Legacy settlements with no verified commerce identity remain fail-closed because contact
+    # resolves empty unless existing server-owned invoice/reference evidence supplies it.
     #
     # Delivery is retried by REPLAY: a miss raises so the webhook lease lapses and Razorpay
     # redelivers the capture, and the delivery CLAIM inside `send_invoice_whatsapp` makes the
-    # re-send idempotent (no double receipt). The retry is BOUNDED - see
-    # `_receipt_delivery_should_retry` - so a receipt that can never be delivered does not pin
-    # the money-path lease replaying an already-finalized payment forever; past the cap the
-    # capture settles and the stuck receipt is quarantined for manual follow-up. Placed after the
-    # asset step so the render is complete before a delivery attempt.
+    # re-send idempotent (no double receipt). The retry is bounded by
+    # `_receipt_delivery_should_retry`.
     delivered = False
-    if (channel == 'whatsapp'
-            and checkout_mode == 'WHATSAPP_NATIVE_PG'
-            and contact and invoice_id):
+    if contact and invoice_id:
         delivered = _deliver_invoice_on_whatsapp(
             invoice_id, contact, originating_phone_id, request_id)
         if not delivered and _receipt_delivery_should_retry(invoice_id, request_id):

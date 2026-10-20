@@ -652,17 +652,15 @@ def test_unparseable_json_is_invalid_body_rather_than_a_500(ctx):
 def test_png_is_the_default_format_and_maps_to_the_image_asset(ctx):
     call(ctx, body={"referenceId": "REF-ABCDEF", "createdAt": CREATED_AT})
     assert ctx.assets.gets[0]["Key"]["assetType"] == "image"
-    assert ctx.module.ASSET_TYPE == {"png": "image", "pdf": "pdf"}
+    assert ctx.module.ASSET_TYPE == {"png": "image"}
 
 
-def test_pdf_is_accepted_and_maps_to_the_pdf_asset(ctx):
-    ctx.assets.items = [asset_row(assetType="pdf",
-                                  s3Key="secure/stack/invoices/wecare-digital-x.pdf")]
+def test_pdf_is_retired_and_never_queries_a_pdf_asset(ctx):
     response, body = call(ctx, body={"referenceId": "REF-ABCDEF",
                                      "createdAt": CREATED_AT, "format": "pdf"})
-    assert response["statusCode"] == 200
-    assert body["available"] is True
-    assert ctx.assets.gets[0]["Key"]["assetType"] == "pdf"
+    assert response["statusCode"] == 400
+    assert body == {"error": "UNSUPPORTED_FORMAT"}
+    assert ctx.assets.gets == []
 
 
 def test_a_non_post_method_is_refused(ctx):

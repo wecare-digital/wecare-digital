@@ -686,7 +686,7 @@ def test_the_send_uses_the_approved_template_and_never_a_link(engine, fake):
     payload = lam.payloads()[0]
     assert payload['isCheckoutTemplate'] is True
     assert payload['isTemplate'] is True
-    assert payload['templateName'] == engine.WA_PAY_TEMPLATE == 'wecarepay_wa'
+    assert payload['templateName'] == engine.WA_PAY_TEMPLATE == 'wecare_whatapp_native_pay_template'
     assert payload['checkoutOrderDetails']
     assert 'isInteractivePayment' not in payload
 
