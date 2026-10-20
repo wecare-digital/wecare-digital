@@ -366,6 +366,23 @@ function asymmetries ( ltr, rtl, tolerance ) {
       } );
       await page.waitForTimeout( 120 );
       const rtl = await page.evaluate( PROBE );
+      const policyTranslatedFit = await page.evaluate( () => {
+        const summary = document.querySelector( '.wc-policy summary' );
+        if ( !summary ) return null;
+        const original = summary.textContent;
+        summary.textContent = 'تفاصيل سياسة الشحن والإرجاع والاسترداد والإلغاء';
+        const box = summary.getBoundingClientRect();
+        const parent = summary.parentElement?.getBoundingClientRect();
+        const overflow = Math.max( 0, document.documentElement.scrollWidth - document.documentElement.clientWidth );
+        summary.textContent = original;
+        return {
+          fits: !!parent && box.width <= parent.width + 1 && box.left >= -1
+            && box.right <= document.documentElement.clientWidth + 1,
+          width: Math.round( box.width ),
+          parent: parent ? Math.round( parent.width ) : null,
+          overflow,
+        };
+      } );
 
       const a = ok( rtl.computedDir === 'rtl', `${r} @${v.n}: dir=rtl changes computed direction (got ${rtl.computedDir})` );
       const b = ok( rtl.overflow === 0, `${r} @${v.n}: no horizontal overflow under rtl (got ${rtl.overflow}px, ltr was ${ltr.overflow}px)` );
@@ -376,6 +393,10 @@ function asymmetries ( ltr, rtl, tolerance ) {
         ? ( pass++, true )
         : ok( rtl.shareChevronTransform === 'matrix(-1, 0, 0, 1, 0, 0)',
           `${r} @${v.n}: shared action chevron mirrors under rtl (transform ${rtl.shareChevronTransform})` );
+      const d3 = policyTranslatedFit === null
+        ? ( pass++, true )
+        : ok( policyTranslatedFit.fits && policyTranslatedFit.overflow === 0,
+          `${r} @${v.n}: long translated Policy trigger stays contained under rtl (${policyTranslatedFit.width}px in ${policyTranslatedFit.parent}px parent, overflow ${policyTranslatedFit.overflow}px)` );
       // THE MIRROR MUST ACTUALLY HAPPEN. Without this the gate passes on a page that ignored
       // the direction entirely, which is the state it was written to detect. The widget is
       // the cleanest witness: fixed to the viewport, so its inset has nowhere to hide.
@@ -390,7 +411,7 @@ function asymmetries ( ltr, rtl, tolerance ) {
       const f = ok( !asym.length,
         `${r} @${v.n}: every block element keeps its inline-start offset when mirrored (${asym.slice( 0, 3 ).map( x => `${x.k} off by ${x.d}px` ).join( ' | ' )})` );
 
-      const line = ( a && b && c && d && d2 && e && f ) ? 'ok  ' : 'FAIL';
+      const line = ( a && b && c && d && d2 && d3 && e && f ) ? 'ok  ' : 'FAIL';
       console.log( `  ${line} ${r.padEnd( 18 )} dir:${rtl.computedDir} ovf:${String( rtl.overflow ).padStart( 3 )}`
         + ` widget ltr:${ltr.widget ? ltr.widget.l : 'n/a'}->rtl:${rtl.widget ? rtl.widget.l : 'n/a'}`
         + ` asym:${String( asym.length ).padStart( 2 )}`
