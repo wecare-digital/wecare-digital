@@ -10,7 +10,7 @@ export const WHATSAPP_SERVICE_ENTRIES = [
   // pickup Meta short link used directly by the /request-pickup page.
   { slug: 'request-pickup', label: 'Request Pickup', keyword: 'Request Pickup', messageLink: 'https://wa.me/message/NRWQFXOPGL7OO1', flowId: '', state: 'Public page live; uses the dedicated pickup Meta short link' },
   { slug: 'shipments-track', label: 'Track', keyword: 'Shipment Track', messageLink: 'https://wa.me/message/WGN4NMFLFSJVB1', flowId: '', state: 'Track child page; carrier booking remains separate' },
-  { slug: 'leave-review', label: 'Leave Review', keyword: 'Leave Review', messageLink: REVIEW_ENTRY_URL, flowId: '1578178897413815', state: 'Direct review Meta short link; no public review page' },
+  { slug: 'leave-review', label: 'Leave Review', keyword: 'Leave Review', messageLink: REVIEW_ENTRY_URL, flowId: REVIEW_FLOW_ID, state: 'Direct review Meta short link; no public review page' },
   // Subscribe has no website page. Customer-facing Subscribe actions go straight to this
   // dedicated Meta conversation; keep it byte-equal to SUBSCRIBE_CTA_HREF.
   { slug: 'subscribe', label: 'Subscribe', keyword: 'Subscribe', messageLink: 'https://wa.me/message/WUDPTMYSO6XII1', flowId: '', state: 'Direct Subscribe Meta short link; no public Subscribe page' },
