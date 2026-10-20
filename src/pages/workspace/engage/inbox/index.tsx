@@ -136,6 +136,7 @@ const TYPE_LABELS: Record<string, string> = {
 const prettyMsg = ( content?: string, messageType?: string ): string => {
     const raw = ( content || '' ).trim();
     const mt = ( messageType || '' ).toLowerCase();
+    if ( mt === 'flow_response' && /customer.idea|wd_idea/i.test( raw ) ) return 'Leave Review · Flow response';
     if ( raw.startsWith( '[Flow Response:' ) ) return 'Flow response';
     // Never show Meta's own error text to an agent. The two full-string checks below
     // covered one string the extractor never produced while missing the one it always

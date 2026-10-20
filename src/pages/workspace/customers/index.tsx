@@ -72,11 +72,9 @@ const ALL_COLUMNS: { key: ColumnKey; label: string }[] = [
  */
 function formatCheckoutAddress(address?: api.CheckoutDeliveryAddress): string {
   if (!address || typeof address !== 'object') return '';
-  const parts = [
-    address.addressLine1, address.addressLine2, address.locality,
-    address.city, address.state, address.postalCode, address.countryCode,
-  ].map(part => String(part ?? '').trim()).filter(Boolean);
-  return parts.join(', ');
+  return formatAddress( { ...address,
+    country: address.country || ( address.countryCode === 'IN' ? 'India' : address.countryCode ),
+  } );
 }
 
 /**
