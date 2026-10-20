@@ -68,6 +68,10 @@ describe( 'public PolicyDetails coverage', () => {
       'utf8',
     );
     expect( source ).toContain( 'min-height:var(--tap-min)' );
+    expect( source ).toContain( 'max-width:100%' );
+    expect( source ).toContain( 'white-space:normal' );
+    expect( source ).toContain( 'overflow-wrap:anywhere' );
+    expect( source ).toContain( 'text-align:start' );
   } );
 
   it( 'keeps route-specific policy meaning without forcing artificial wording differences', () => {

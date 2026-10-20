@@ -395,7 +395,29 @@ async function main() {
       await stubLanguageApi( page );
       await gotoStable( page, t.base + ROUTE );
 
+      const policyTranslatedFit = await page.evaluate( () => {
+        const summary = document.querySelector( '.wc-policy summary' );
+        if ( !summary ) return null;
+        const original = summary.textContent;
+        summary.textContent = 'تفاصيل سياسة الشحن والإرجاع والاسترداد والإلغاء';
+        const box = summary.getBoundingClientRect();
+        const parent = summary.parentElement?.getBoundingClientRect();
+        const overflow = document.documentElement.scrollWidth - window.innerWidth;
+        summary.textContent = original;
+        return {
+          fits: !!parent && box.width <= parent.width + 1 && box.left >= -1 && box.right <= window.innerWidth + 1,
+          width: Math.round( box.width ),
+          parent: parent ? Math.round( parent.width ) : null,
+          overflow,
+        };
+      } );
+
       console.log( `${vp.label}` );
+      if ( policyTranslatedFit ) {
+        record( policyTranslatedFit.fits && policyTranslatedFit.overflow <= 0,
+          `${vp.label}: translated Policy details trigger stays contained`,
+          `${policyTranslatedFit.width}px in ${policyTranslatedFit.parent}px parent, overflow ${policyTranslatedFit.overflow}px` );
+      }
 
       const lk = await measureLockup( page );
       if ( lk.error ) {
