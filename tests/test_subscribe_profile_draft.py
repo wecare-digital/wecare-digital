@@ -245,6 +245,18 @@ def test_profile_username_preserves_meta_identity_and_customer_id(setup):
     assert calls[0]['form_data']['username']=='New customer name'
 
 
+
+def test_validation_error_echoes_canonical_country_pair(setup):
+    mod,table,_=setup
+    data=form(mod)
+    data.update(country='United Kingdom',country_code='IN',username='x'*51)
+    result=mod.handle_review(data,TOKEN,'r')
+    assert result['screen']=='REVIEW'
+    assert result['data']['country']=='United Kingdom'
+    assert result['data']['country_code']=='GB'
+    assert not table.updates
+
+
 def test_username_limit_does_not_write_profile(setup):
     mod,table,_=setup; data=form(mod); data['username']='x'*51
     result=mod.handle_review(data,TOKEN,'r')
