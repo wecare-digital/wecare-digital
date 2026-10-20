@@ -327,24 +327,12 @@
                     "title": "Algeria"
                   },
                   {
-                    "id": "American Samoa",
-                    "title": "American Samoa"
-                  },
-                  {
                     "id": "Andorra",
                     "title": "Andorra"
                   },
                   {
                     "id": "Angola",
                     "title": "Angola"
-                  },
-                  {
-                    "id": "Anguilla",
-                    "title": "Anguilla"
-                  },
-                  {
-                    "id": "Antarctica",
-                    "title": "Antarctica"
                   },
                   {
                     "id": "Antigua and Barbuda",
@@ -357,10 +345,6 @@
                   {
                     "id": "Armenia",
                     "title": "Armenia"
-                  },
-                  {
-                    "id": "Aruba",
-                    "title": "Aruba"
                   },
                   {
                     "id": "Australia",
@@ -407,20 +391,12 @@
                     "title": "Benin"
                   },
                   {
-                    "id": "Bermuda",
-                    "title": "Bermuda"
-                  },
-                  {
                     "id": "Bhutan",
                     "title": "Bhutan"
                   },
                   {
-                    "id": "Bolivia, Plurinational State of",
-                    "title": "Bolivia, Plurinational State of"
-                  },
-                  {
-                    "id": "Bonaire, Sint Eustatius and Saba",
-                    "title": "Bonaire, Sint Eustatius and Saba"
+                    "id": "Bolivia",
+                    "title": "Bolivia"
                   },
                   {
                     "id": "Bosnia and Herzegovina",
@@ -431,20 +407,12 @@
                     "title": "Botswana"
                   },
                   {
-                    "id": "Bouvet Island",
-                    "title": "Bouvet Island"
-                  },
-                  {
                     "id": "Brazil",
                     "title": "Brazil"
                   },
                   {
-                    "id": "British Indian Ocean Territory",
-                    "title": "British Indian Ocean Territory"
-                  },
-                  {
-                    "id": "Brunei Darussalam",
-                    "title": "Brunei Darussalam"
+                    "id": "Brunei",
+                    "title": "Brunei"
                   },
                   {
                     "id": "Bulgaria",
@@ -475,10 +443,6 @@
                     "title": "Canada"
                   },
                   {
-                    "id": "Cayman Islands",
-                    "title": "Cayman Islands"
-                  },
-                  {
                     "id": "Central African Republic",
                     "title": "Central African Republic"
                   },
@@ -495,14 +459,6 @@
                     "title": "China"
                   },
                   {
-                    "id": "Christmas Island",
-                    "title": "Christmas Island"
-                  },
-                  {
-                    "id": "Cocos (Keeling) Islands",
-                    "title": "Cocos (Keeling) Islands"
-                  },
-                  {
                     "id": "Colombia",
                     "title": "Colombia"
                   },
@@ -513,14 +469,6 @@
                   {
                     "id": "Congo",
                     "title": "Congo"
-                  },
-                  {
-                    "id": "Congo, The Democratic Republic of the",
-                    "title": "Congo, The Democratic Republic of the"
-                  },
-                  {
-                    "id": "Cook Islands",
-                    "title": "Cook Islands"
                   },
                   {
                     "id": "Costa Rica",
@@ -535,10 +483,6 @@
                     "title": "Cuba"
                   },
                   {
-                    "id": "Curaçao",
-                    "title": "Curaçao"
-                  },
-                  {
                     "id": "Cyprus",
                     "title": "Cyprus"
                   },
@@ -549,6 +493,10 @@
                   {
                     "id": "Côte d'Ivoire",
                     "title": "Côte d'Ivoire"
+                  },
+                  {
+                    "id": "DR Congo",
+                    "title": "DR Congo"
                   },
                   {
                     "id": "Denmark",
@@ -599,14 +547,6 @@
                     "title": "Ethiopia"
                   },
                   {
-                    "id": "Falkland Islands (Malvinas)",
-                    "title": "Falkland Islands (Malvinas)"
-                  },
-                  {
-                    "id": "Faroe Islands",
-                    "title": "Faroe Islands"
-                  },
-                  {
                     "id": "Fiji",
                     "title": "Fiji"
                   },
@@ -617,18 +557,6 @@
                   {
                     "id": "France",
                     "title": "France"
-                  },
-                  {
-                    "id": "French Guiana",
-                    "title": "French Guiana"
-                  },
-                  {
-                    "id": "French Polynesia",
-                    "title": "French Polynesia"
-                  },
-                  {
-                    "id": "French Southern Territories",
-                    "title": "French Southern Territories"
                   },
                   {
                     "id": "Gabon",
@@ -651,36 +579,16 @@
                     "title": "Ghana"
                   },
                   {
-                    "id": "Gibraltar",
-                    "title": "Gibraltar"
-                  },
-                  {
                     "id": "Greece",
                     "title": "Greece"
-                  },
-                  {
-                    "id": "Greenland",
-                    "title": "Greenland"
                   },
                   {
                     "id": "Grenada",
                     "title": "Grenada"
                   },
                   {
-                    "id": "Guadeloupe",
-                    "title": "Guadeloupe"
-                  },
-                  {
-                    "id": "Guam",
-                    "title": "Guam"
-                  },
-                  {
                     "id": "Guatemala",
                     "title": "Guatemala"
-                  },
-                  {
-                    "id": "Guernsey",
-                    "title": "Guernsey"
                   },
                   {
                     "id": "Guinea",
@@ -699,20 +607,8 @@
                     "title": "Haiti"
                   },
                   {
-                    "id": "Heard Island and McDonald Islands",
-                    "title": "Heard Island and McDonald Islands"
-                  },
-                  {
-                    "id": "Holy See (Vatican City State)",
-                    "title": "Holy See (Vatican City State)"
-                  },
-                  {
                     "id": "Honduras",
                     "title": "Honduras"
-                  },
-                  {
-                    "id": "Hong Kong",
-                    "title": "Hong Kong"
                   },
                   {
                     "id": "Hungary",
@@ -731,8 +627,8 @@
                     "title": "Indonesia"
                   },
                   {
-                    "id": "Iran, Islamic Republic of",
-                    "title": "Iran, Islamic Republic of"
+                    "id": "Iran",
+                    "title": "Iran"
                   },
                   {
                     "id": "Iraq",
@@ -741,10 +637,6 @@
                   {
                     "id": "Ireland",
                     "title": "Ireland"
-                  },
-                  {
-                    "id": "Isle of Man",
-                    "title": "Isle of Man"
                   },
                   {
                     "id": "Israel",
@@ -763,10 +655,6 @@
                     "title": "Japan"
                   },
                   {
-                    "id": "Jersey",
-                    "title": "Jersey"
-                  },
-                  {
                     "id": "Jordan",
                     "title": "Jordan"
                   },
@@ -783,14 +671,6 @@
                     "title": "Kiribati"
                   },
                   {
-                    "id": "Korea, Democratic People's Republic of",
-                    "title": "Korea, Democratic People's Republic of"
-                  },
-                  {
-                    "id": "Korea, Republic of",
-                    "title": "Korea, Republic of"
-                  },
-                  {
                     "id": "Kuwait",
                     "title": "Kuwait"
                   },
@@ -799,8 +679,8 @@
                     "title": "Kyrgyzstan"
                   },
                   {
-                    "id": "Lao People's Democratic Republic",
-                    "title": "Lao People's Democratic Republic"
+                    "id": "Laos",
+                    "title": "Laos"
                   },
                   {
                     "id": "Latvia",
@@ -835,10 +715,6 @@
                     "title": "Luxembourg"
                   },
                   {
-                    "id": "Macao",
-                    "title": "Macao"
-                  },
-                  {
                     "id": "Madagascar",
                     "title": "Madagascar"
                   },
@@ -867,10 +743,6 @@
                     "title": "Marshall Islands"
                   },
                   {
-                    "id": "Martinique",
-                    "title": "Martinique"
-                  },
-                  {
                     "id": "Mauritania",
                     "title": "Mauritania"
                   },
@@ -879,20 +751,16 @@
                     "title": "Mauritius"
                   },
                   {
-                    "id": "Mayotte",
-                    "title": "Mayotte"
-                  },
-                  {
                     "id": "Mexico",
                     "title": "Mexico"
                   },
                   {
-                    "id": "Micronesia, Federated States of",
-                    "title": "Micronesia, Federated States of"
+                    "id": "Micronesia",
+                    "title": "Micronesia"
                   },
                   {
-                    "id": "Moldova, Republic of",
-                    "title": "Moldova, Republic of"
+                    "id": "Moldova",
+                    "title": "Moldova"
                   },
                   {
                     "id": "Monaco",
@@ -905,10 +773,6 @@
                   {
                     "id": "Montenegro",
                     "title": "Montenegro"
-                  },
-                  {
-                    "id": "Montserrat",
-                    "title": "Montserrat"
                   },
                   {
                     "id": "Morocco",
@@ -939,10 +803,6 @@
                     "title": "Netherlands"
                   },
                   {
-                    "id": "New Caledonia",
-                    "title": "New Caledonia"
-                  },
-                  {
                     "id": "New Zealand",
                     "title": "New Zealand"
                   },
@@ -959,20 +819,12 @@
                     "title": "Nigeria"
                   },
                   {
-                    "id": "Niue",
-                    "title": "Niue"
-                  },
-                  {
-                    "id": "Norfolk Island",
-                    "title": "Norfolk Island"
+                    "id": "North Korea",
+                    "title": "North Korea"
                   },
                   {
                     "id": "North Macedonia",
                     "title": "North Macedonia"
-                  },
-                  {
-                    "id": "Northern Mariana Islands",
-                    "title": "Northern Mariana Islands"
                   },
                   {
                     "id": "Norway",
@@ -991,8 +843,8 @@
                     "title": "Palau"
                   },
                   {
-                    "id": "Palestine, State of",
-                    "title": "Palestine, State of"
+                    "id": "Palestine",
+                    "title": "Palestine"
                   },
                   {
                     "id": "Panama",
@@ -1015,20 +867,12 @@
                     "title": "Philippines"
                   },
                   {
-                    "id": "Pitcairn",
-                    "title": "Pitcairn"
-                  },
-                  {
                     "id": "Poland",
                     "title": "Poland"
                   },
                   {
                     "id": "Portugal",
                     "title": "Portugal"
-                  },
-                  {
-                    "id": "Puerto Rico",
-                    "title": "Puerto Rico"
                   },
                   {
                     "id": "Qatar",
@@ -1039,24 +883,12 @@
                     "title": "Romania"
                   },
                   {
-                    "id": "Russian Federation",
-                    "title": "Russian Federation"
+                    "id": "Russia",
+                    "title": "Russia"
                   },
                   {
                     "id": "Rwanda",
                     "title": "Rwanda"
-                  },
-                  {
-                    "id": "Réunion",
-                    "title": "Réunion"
-                  },
-                  {
-                    "id": "Saint Barthélemy",
-                    "title": "Saint Barthélemy"
-                  },
-                  {
-                    "id": "Saint Helena, Ascension and Tristan da Cunha",
-                    "title": "Saint Helena, Ascension and Tristan da Cunha"
                   },
                   {
                     "id": "Saint Kitts and Nevis",
@@ -1065,18 +897,6 @@
                   {
                     "id": "Saint Lucia",
                     "title": "Saint Lucia"
-                  },
-                  {
-                    "id": "Saint Martin (French part)",
-                    "title": "Saint Martin (French part)"
-                  },
-                  {
-                    "id": "Saint Pierre and Miquelon",
-                    "title": "Saint Pierre and Miquelon"
-                  },
-                  {
-                    "id": "Saint Vincent and the Grenadines",
-                    "title": "Saint Vincent and the Grenadines"
                   },
                   {
                     "id": "Samoa",
@@ -1115,10 +935,6 @@
                     "title": "Singapore"
                   },
                   {
-                    "id": "Sint Maarten (Dutch part)",
-                    "title": "Sint Maarten (Dutch part)"
-                  },
-                  {
                     "id": "Slovakia",
                     "title": "Slovakia"
                   },
@@ -1139,8 +955,8 @@
                     "title": "South Africa"
                   },
                   {
-                    "id": "South Georgia and the South Sandwich Islands",
-                    "title": "South Georgia and the South Sandwich Islands"
+                    "id": "South Korea",
+                    "title": "South Korea"
                   },
                   {
                     "id": "South Sudan",
@@ -1155,16 +971,16 @@
                     "title": "Sri Lanka"
                   },
                   {
+                    "id": "St Vincent & Grenadines",
+                    "title": "St Vincent & Grenadines"
+                  },
+                  {
                     "id": "Sudan",
                     "title": "Sudan"
                   },
                   {
                     "id": "Suriname",
                     "title": "Suriname"
-                  },
-                  {
-                    "id": "Svalbard and Jan Mayen",
-                    "title": "Svalbard and Jan Mayen"
                   },
                   {
                     "id": "Sweden",
@@ -1175,20 +991,16 @@
                     "title": "Switzerland"
                   },
                   {
-                    "id": "Syrian Arab Republic",
-                    "title": "Syrian Arab Republic"
-                  },
-                  {
-                    "id": "Taiwan, Province of China",
-                    "title": "Taiwan, Province of China"
+                    "id": "Syria",
+                    "title": "Syria"
                   },
                   {
                     "id": "Tajikistan",
                     "title": "Tajikistan"
                   },
                   {
-                    "id": "Tanzania, United Republic of",
-                    "title": "Tanzania, United Republic of"
+                    "id": "Tanzania",
+                    "title": "Tanzania"
                   },
                   {
                     "id": "Thailand",
@@ -1201,10 +1013,6 @@
                   {
                     "id": "Togo",
                     "title": "Togo"
-                  },
-                  {
-                    "id": "Tokelau",
-                    "title": "Tokelau"
                   },
                   {
                     "id": "Tonga",
@@ -1221,10 +1029,6 @@
                   {
                     "id": "Turkmenistan",
                     "title": "Turkmenistan"
-                  },
-                  {
-                    "id": "Turks and Caicos Islands",
-                    "title": "Turks and Caicos Islands"
                   },
                   {
                     "id": "Tuvalu",
@@ -1255,10 +1059,6 @@
                     "title": "United States"
                   },
                   {
-                    "id": "United States Minor Outlying Islands",
-                    "title": "United States Minor Outlying Islands"
-                  },
-                  {
                     "id": "Uruguay",
                     "title": "Uruguay"
                   },
@@ -1271,28 +1071,16 @@
                     "title": "Vanuatu"
                   },
                   {
-                    "id": "Venezuela, Bolivarian Republic of",
-                    "title": "Venezuela, Bolivarian Republic of"
+                    "id": "Vatican City",
+                    "title": "Vatican City"
                   },
                   {
-                    "id": "Viet Nam",
-                    "title": "Viet Nam"
+                    "id": "Venezuela",
+                    "title": "Venezuela"
                   },
                   {
-                    "id": "Virgin Islands, British",
-                    "title": "Virgin Islands, British"
-                  },
-                  {
-                    "id": "Virgin Islands, U.S.",
-                    "title": "Virgin Islands, U.S."
-                  },
-                  {
-                    "id": "Wallis and Futuna",
-                    "title": "Wallis and Futuna"
-                  },
-                  {
-                    "id": "Western Sahara",
-                    "title": "Western Sahara"
+                    "id": "Vietnam",
+                    "title": "Vietnam"
                   },
                   {
                     "id": "Yemen",
@@ -1305,10 +1093,6 @@
                   {
                     "id": "Zimbabwe",
                     "title": "Zimbabwe"
-                  },
-                  {
-                    "id": "Åland Islands",
-                    "title": "Åland Islands"
                   }
                 ]
               }
