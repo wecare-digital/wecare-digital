@@ -98,6 +98,44 @@ def test_native_products_feed_desired_items_with_variant_price():
     assert len(desired) >= 1
 
 
+def test_missing_status_defaults_visible_from_productstable():
+    """A ProductsTable row with NO status still renders visible=True.
+
+    The `or "active"` default is intentional and preserved: ProductsTable is OUR
+    catalogue authority, so a legacy row without an explicit status is treated as
+    live. This locks that behaviour so it is not "fixed" into a fail-closed default
+    that would hide legitimate legacy rows.
+    """
+    items = [{
+        "id": "no-status", "title": "Legacy", "slug": "legacy", "priceMinor": 100,
+        "variants": [{"sku": "L-1", "inventory": 1, "priceMinor": 100}],
+    }]
+    rows = receiver._native_products(scanner=lambda: items)
+    assert len(rows) == 1
+    assert "status" not in items[0]        # the default fills in, the source has none
+    assert rows[0]["visible"] is True
+
+
+def test_visibility_is_sourced_only_from_productstable_scanner():
+    """Visibility is derived from the injected ProductsTable scanner, never a Meta response.
+
+    There is no Meta-sourced visibility path in this handler: `_native_products` reads
+    status exclusively from the scanner's items. This proves the row builder consumes the
+    scanner (an archived row is skipped, a missing-status row defaults visible) rather than
+    any Meta GET response, which is why the permissive `or "active"` default is safe here.
+    The fail-closed invariant for any future Meta-sourced status is documented at the
+    `visible` site in the handler.
+    """
+    items = [
+        {"id": "keep", "title": "Keep", "slug": "keep",
+         "variants": [{"sku": "k1", "inventory": 1, "priceMinor": 100}]},  # no status -> visible
+        {"id": "drop", "title": "Drop", "slug": "drop", "status": "archived", "priceMinor": 100},
+    ]
+    rows = receiver._native_products(scanner=lambda: items)
+    assert [r["id"] for r in rows] == ["keep"]   # archived skipped, derived from the scanner
+    assert rows[0]["visible"] is True            # missing status -> ProductsTable default
+
+
 def test_native_variant_without_price_is_refused():
     items = [{
         "id": "prod-x", "title": "Unpriced", "slug": "unpriced", "status": "active",
