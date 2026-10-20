@@ -80,5 +80,5 @@ def handle(event, get_template, lambda_client, s3_client):
     if accepted:
         table.update_item(Key=key, UpdateExpression='SET #status=:progress',
             ExpressionAttributeNames={'#status': 'status'}, ExpressionAttributeValues={':progress': 'in_progress'})
-    return {'reference': reference, 'message': 'Your invoice copy was accepted for WhatsApp delivery. PDF downloads remain available on the website Orders page.' if accepted
-        else 'Your invoice copy request is saved. Delivery needs verification; no payment has been requested.'}
+    return {'reference': reference, 'message': 'Your invoice image was accepted for WhatsApp delivery.' if accepted
+        else 'Your invoice image request is saved. Delivery needs verification; no payment has been requested.'}
