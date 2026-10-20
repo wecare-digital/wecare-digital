@@ -114,7 +114,7 @@ const VoiceSearchMic: React.FC<VoiceSearchMicProps> = ( { onTranscript, ariaLabe
       </button>
       <style jsx>{`
         .voice-search-mic{
-          position:absolute;right:-2px;bottom:0;top:auto;z-index:2;
+          position:absolute;inset-inline-end:-2px;bottom:0;top:auto;z-index:2;
           display:inline-grid;place-items:center;width:46px;height:46px;min-width:46px;min-height:46px;padding:0;
           border:0;border-radius:0;background:transparent;color:#3da35a;
           transform:none;cursor:pointer;

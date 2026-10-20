@@ -38,10 +38,11 @@ describe( 'public mobile foundation', () => {
     }
   } );
 
-  it( 'records Grahak OS as the second explicit foundation adopter while keeping VayuLok pending', () => {
+  it( 'records Grahak OS and VayuLok as explicit foundation adopters', () => {
     const grahak = read( 'src/pages/grahak-os/index.tsx' );
     const rotatingHero = read( 'src/components/RotatingHero.tsx' );
     const vayulok = read( 'src/pages/vayulok/index.tsx' );
+    const vayulokLive = read( 'src/components/VayuLokLive.tsx' );
 
     expect( grahak ).toContain( 'mobileFoundation' );
     expect( grahak ).toContain( '--public-mobile-section-size' );
@@ -51,9 +52,13 @@ describe( 'public mobile foundation', () => {
     expect( rotatingHero ).toContain( '--public-mobile-hero-top' );
     expect( rotatingHero ).toContain( '--public-mobile-section-gap' );
 
-    expect( vayulok ).not.toContain( 'mobileFoundation' );
-    expect( vayulok ).not.toContain( '--public-mobile-section-size' );
-    expect( vayulok ).not.toContain( '--public-mobile-card-size' );
+    expect( vayulok ).toContain( 'mobileFoundation' );
+    expect( vayulok ).toContain( '--public-mobile-hero-size' );
+    expect( vayulokLive ).toContain( '--public-mobile-card-size' );
+    expect( vayulokLive ).toContain( '--public-mobile-page-gutter' );
+    expect( vayulokLive ).toContain( '--public-mobile-section-gap' );
+    expect( vayulokLive ).toContain( '--vl-action-size:var(--tap-min)' );
+    expect( vayulokLive ).toContain( 'font-family:var(--font-sans)' );
   } );
 
   it( 'documents opt-in family-by-family adoption', () => {
@@ -62,7 +67,9 @@ describe( 'public mobile foundation', () => {
     expect( steering ).toContain( 'Home is the locked reference implementation' );
     expect( steering ).toContain( 'Adopt the contract family-by-family' );
     expect( steering ).toContain( 'Grahak OS is migrated' );
-    expect( steering ).toContain( 'VayuLok is the next' );
+    expect( steering ).toContain( 'VayuLok is migrated' );
+    expect( steering ).toContain( 'Shared service/product' );
+    expect( steering ).toContain( 'pages are next' );
     expect( steering ).toContain( 'A real physical' );
   } );
 } );
