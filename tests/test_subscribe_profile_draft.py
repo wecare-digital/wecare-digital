@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 import pytest
 from botocore.exceptions import ClientError
-from lambda_utils.ecommerce import contact_address
+from lambda_utils.ecommerce import contact_address, payment_address
 from lambda_utils.identity import customer_uuid
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,7 +32,9 @@ def setup(monkeypatch):
     with patch('boto3.client'),patch('boto3.resource'):
         mod=importlib.import_module('flows.subscribe_profile')
     row={'id':'wa918100640044','phone':'+918100640044','name':'QA','email':'qa@example.com','updatedAt':100,
-         'customerUuid':'5f701556-7818-494a-a9aa-cf57da6287c2','consentLedger':[{'state':'OPTED_OUT'}],
+         'customerUuid':'5f701556-7818-494a-a9aa-cf57da6287c2',
+         'checkoutCustomerId':'11111111-2222-3333-4444-555555555555',
+         'consentLedger':[{'state':'OPTED_OUT'}],
          'optInWhatsApp':False,'allowlistWhatsApp':False,
          contact_address.ATTRIBUTE:contact_address.normalize_for_storage(ADDRESS)}
     table=Table(row)
@@ -58,11 +60,13 @@ def test_prefill_uses_canonical_address_and_compact_id(setup):
 def test_save_and_reopen_updates_shared_address_without_consent_or_id_churn(setup):
     mod,table,calls=setup; data=form(mod)
     data.update(full_name='Updated QA',address_line1='45 New Road',customer_id='FORGED',phone_number='+19999999999')
-    old_uuid=table.row['customerUuid']; old_consent=copy.deepcopy(table.row['consentLedger'])
+    old_uuid=table.row['customerUuid']; old_owner=table.row['checkoutCustomerId']
+    old_consent=copy.deepcopy(table.row['consentLedger'])
     result=mod.handle_review(data,TOKEN,'r')
     assert result['screen']=='COMPLETE'
     assert result['data']['customer_id']=='C-ED6BQSW2P7PQ'
     assert table.row['customerUuid']==old_uuid
+    assert table.row['checkoutCustomerId']==old_owner
     assert table.row['phone']=='+918100640044'
     assert table.row['consentLedger']==old_consent and table.row['optInWhatsApp'] is False
     assert table.row['allowlistWhatsApp'] is False
@@ -101,6 +105,31 @@ def test_new_contact_created_with_canonical_identity_and_no_marketing_optins(set
     assert not table.row.get('optInWhatsApp') and not table.row.get('optInEmail')
     assert table.puts[0]['ConditionExpression']=='attribute_not_exists(id)'
 
+
+def test_subscribe_india_address_is_the_same_address_for_web_and_whatsapp_pay(setup):
+    mod,table,_=setup
+    result=mod.handle_review(form(mod),TOKEN,'r')
+    assert result['screen']=='COMPLETE'
+    web,web_err=contact_address.payable_for(table.row,payment_address.WEBSITE_RAZORPAY)
+    wa,wa_err=contact_address.payable_for(table.row,payment_address.WHATSAPP_ORDER_DETAILS)
+    assert web_err is None and wa_err is None
+    assert web==wa==table.row[contact_address.ATTRIBUTE]
+
+
+def test_subscribe_international_address_stays_web_payable_but_not_whatsapp_native(setup):
+    mod,table,_=setup
+    data=form(mod)
+    data.update(address_line1='1 Market St',city='San Francisco',state='US-CA',
+                postal_code='94105',country='United States',country_code='IN')
+    result=mod.handle_review(data,TOKEN,'r')
+    assert result['screen']=='COMPLETE'
+    stored=table.row[contact_address.ATTRIBUTE]
+    assert stored['countryCode']=='US'
+    web,web_err=contact_address.payable_for(table.row,payment_address.WEBSITE_RAZORPAY)
+    _wa,wa_err=contact_address.payable_for(table.row,payment_address.WHATSAPP_ORDER_DETAILS)
+    assert web_err is None and web==stored
+    assert wa_err is not None and wa_err.code=='COUNTRY_NOT_PAYABLE_ON_CHANNEL'
+
 def test_deleted_address_not_prefilled_from_legacy_data(setup):
     mod,table,_=setup; table.row.pop(contact_address.ATTRIBUTE); table.row['shippingAddress']='DELETED'
     assert form(mod)['address_line1']==''
@@ -132,12 +161,64 @@ def test_customer_copy_hides_country_code_and_has_short_labels():
     inputs=[n for n in walk(doc) if n.get('type')=='TextInput']
     assert not any(n.get('name')=='country_code' for n in inputs)
     assert all(len(n['label'])<=20 for n in inputs)
-    required={n['name'] for n in inputs if n.get('required')}
-    assert {'full_name','address_line1','city','state','postal_code'}<=required
+    dropdowns=[n for n in walk(doc) if n.get('type')=='Dropdown']
+    required={n['name'] for n in inputs + dropdowns if n.get('required')}
+    assert {'full_name','address_line1','city','state','postal_code','country'}<=required
+    country=next(n for n in dropdowns if n.get('name')=='country')
+    assert country['data-source']
+    assert len(country['data-source']) <= 200
+    assert all(len(option['title']) <= 30 for option in country['data-source'])
+    assert any(option['id']=='India' for option in country['data-source'])
+    assert any(option['id']=='United States' for option in country['data-source'])
     copy_text=' '.join(n.get('text','') for n in walk(doc) if isinstance(n.get('text',''),str))
     assert 'Your website and WhatsApp' not in copy_text
     assert 'marketing subscriptions' not in copy_text
 
+
+
+
+def test_country_dropdown_matches_backend_country_mapping(setup):
+    mod,_table,_=setup
+    doc=json.loads((ROOT/'amplify/functions/messaging/whatsapp-business-api/flows/design-drafts/subscribe.json').read_text())
+    address=next(screen for screen in doc['screens'] if screen['id']=='ADDRESS')
+    form=next(child for child in address['layout']['children'] if child.get('type')=='Form')
+    country=next(child for child in form['children'] if child.get('name')=='country')
+    assert country['data-source']==mod.country_options.OPTIONS
+
+
+def test_new_customer_has_no_country_default_and_must_choose_one(setup):
+    mod,table,_=setup
+    table.row={}
+    data=form(mod)
+    assert data['country']=='' and data['country_code']==''
+    data.update(full_name='New QA', address_line1='1 Main Street', city='London',
+                state='England', postal_code='SW1A 1AA')
+    result=mod.handle_review(data,TOKEN,'r')
+    assert result['screen']=='REVIEW'
+    assert 'select your country' in result['data']['error_message'].lower()
+    assert not table.puts
+
+
+def test_existing_international_customer_prefills_country_from_iso_code(setup):
+    mod,table,_=setup
+    table.row[contact_address.ATTRIBUTE]=contact_address.normalize_for_storage({
+        'addressLine1':'1 Market St','city':'San Francisco','state':'US-CA',
+        'postalCode':'94105','country':'India','countryCode':'US'})
+    data=form(mod)
+    assert data['country']=='United States'
+    assert data['country_code']=='US'
+
+
+def test_explicit_country_choice_derives_iso_code_and_updates_canonical_address(setup):
+    mod,table,_=setup
+    data=form(mod)
+    data.update(country='United Kingdom', country_code='IN',
+                state='GB-ENG', postal_code='SW1A 1AA')
+    result=mod.handle_review(data,TOKEN,'r')
+    assert result['screen']=='COMPLETE'
+    saved=table.row[contact_address.ATTRIBUTE]
+    assert saved['country']=='United Kingdom'
+    assert saved['countryCode']=='GB'
 
 def test_subscribe_does_not_collect_or_change_email(setup):
     mod,table,calls=setup; data=form(mod)
@@ -162,6 +243,18 @@ def test_profile_username_preserves_meta_identity_and_customer_id(setup):
     assert table.row['username']=='meta_handle' and table.row['bsuid']=='business-user-id'
     assert result['data']['customer_id']=='C-ED6BQSW2P7PQ'
     assert calls[0]['form_data']['username']=='New customer name'
+
+
+
+def test_validation_error_echoes_canonical_country_pair(setup):
+    mod,table,_=setup
+    data=form(mod)
+    data.update(country='United Kingdom',country_code='IN',username='x'*51)
+    result=mod.handle_review(data,TOKEN,'r')
+    assert result['screen']=='REVIEW'
+    assert result['data']['country']=='United Kingdom'
+    assert result['data']['country_code']=='GB'
+    assert not table.updates
 
 
 def test_username_limit_does_not_write_profile(setup):
