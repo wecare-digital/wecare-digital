@@ -10,17 +10,14 @@ import pytest
 WABA1 = "2094615664435155"
 WABA1_PHONE_ID = "1016149501586345"
 WABA2 = "2513394156072604"
-WABA2_PHONE_ID = "1055232054343117"
 
 os.environ.setdefault("META_WABA_ID", WABA1)
 os.environ.setdefault("META_PHONE_NUMBER_ID", WABA1_PHONE_ID)
 os.environ.setdefault("OTP_TEMPLATE_NAME", "wecare_otp")
 os.environ.setdefault("OTP_TEMPLATE_LANGUAGE", "en")
-# Both WABAs, set before the module is exec'd because the map is parsed at import.
+# OTP is transaction-channel traffic: only WECARE.DIGITAL WABA1 may send it.
 os.environ.setdefault("OTP_WABA_MAP", json.dumps({
     WABA1: {"phone_number_id": WABA1_PHONE_ID,
-            "template_name": "wecare_otp", "template_language": "en"},
-    WABA2: {"phone_number_id": WABA2_PHONE_ID,
             "template_name": "wecare_otp", "template_language": "en"},
 }, separators=(",", ":"), sort_keys=True))
 
@@ -315,12 +312,7 @@ def test_send_budget_resets_after_the_window(monkeypatch):
     assert len(sent) == auth.SEND_MAX_PER_WINDOW + 1
 
 
-# ── multi-WABA routing: the customer's own WABA sends, and nothing else does ─────
-#
-# Before this, one pinned phone-number id meant every OTP left from WABA1 and a
-# WABA2-scoped customer was refused outright. These assert on the body the sender Lambda
-# would actually receive, not on a stub call, because the mapping only matters at the
-# payload - a correct lookup that still writes the old `phoneId` would pass a stub test.
+# ── WABA1-only transaction OTP routing ──────────────────────────────────────────
 
 class _Payload:
     def __init__(self, raw=b'{"statusCode": 200}'):
@@ -352,21 +344,27 @@ def _waba_event(waba_id):
                   {"userAttributes": attributes})
 
 
-@pytest.mark.parametrize(
-    ("waba_id", "phone_id"),
-    [(WABA1, WABA1_PHONE_ID), (WABA2, WABA2_PHONE_ID)],
-)
-def test_each_waba_sends_from_its_own_number(monkeypatch, waba_id, phone_id):
+def test_waba1_is_the_only_otp_sender(monkeypatch):
     fake = _CapturingLambda()
     monkeypatch.setattr(auth, "_lambda", fake)
     monkeypatch.setattr(auth, "_consume_send_budget", lambda digits: None)
 
-    auth.handler(_waba_event(waba_id), None)
+    auth.handler(_waba_event(WABA1), None)
 
     body = fake.sent_body()
-    assert body["phoneId"] == phone_id
+    assert body["phoneId"] == WABA1_PHONE_ID
     assert body["templateName"] == "wecare_otp"
     assert body["language"] == "en"
+
+
+def test_second_waba_is_refused_for_otp(monkeypatch):
+    fake = _CapturingLambda()
+    monkeypatch.setattr(auth, "_lambda", fake)
+    monkeypatch.setattr(auth, "_consume_send_budget", lambda digits: None)
+
+    with pytest.raises(PermissionError):
+        auth.handler(_waba_event(WABA2), None)
+    assert fake.calls == []
 
 
 @pytest.mark.parametrize("waba_id", ["9999999999999999", None, "", "wrong-waba"])
@@ -442,32 +440,6 @@ def test_the_suppressed_send_reports_rate_limited(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "customer_whatsapp_otp_send_suppressed" in out
     assert '"reason": "rate_limited"' in out
-
-
-# ── Meta 132001: approval does not cross WABAs ──────────────────────────────────
-
-def test_a_meta_template_error_is_logged_with_its_code_and_still_raises(
-        monkeypatch, capsys):
-    """`wecare_otp` must be APPROVED in WABA2's OWN template list.
-
-    Approval does not cross WABAs. If it is missing, Meta answers 132001 and no code is
-    delivered even though the routing is correct. Before this the caller saw only "sender
-    returned HTTP 400" with nothing naming the WABA or the Meta code.
-    """
-    fake = _CapturingLambda(
-        raw=b'{"statusCode": 400, "body": "{\\"error\\": {\\"code\\": 132001}}"}')
-    monkeypatch.setattr(auth, "_lambda", fake)
-
-    with pytest.raises(RuntimeError):
-        auth._send_otp("+919876543210", "123456", auth.WABA_ROUTES[WABA2])
-
-    out = capsys.readouterr().out
-    assert "customer_whatsapp_otp_send_failed" in out
-    assert "132001" in out
-    assert WABA2 in out
-    # Not the destination, and not the code that was being sent.
-    assert "9876543210" not in out
-    assert "123456" not in out
 
 
 # ── the map itself ──────────────────────────────────────────────────────────────
@@ -558,7 +530,6 @@ def test_the_map_agrees_across_handler_provisioner_and_manifest(provisioner):
     )["functions"]["wecare-customer-whatsapp-auth"]
 
     assert manifest["OTP_WABA_MAP"] == provisioner.expected_environment()["OTP_WABA_MAP"]
-    assert set(expected) == {WABA1, WABA2} == set(auth.WABA_ROUTES)
-    for waba_id, phone_id in ((WABA1, WABA1_PHONE_ID), (WABA2, WABA2_PHONE_ID)):
-        assert expected[waba_id]["phone_number_id"] == phone_id
-        assert auth.WABA_ROUTES[waba_id]["phone_number_id"] == phone_id
+    assert set(expected) == {WABA1} == set(auth.WABA_ROUTES)
+    assert expected[WABA1]["phone_number_id"] == WABA1_PHONE_ID
+    assert auth.WABA_ROUTES[WABA1]["phone_number_id"] == WABA1_PHONE_ID
