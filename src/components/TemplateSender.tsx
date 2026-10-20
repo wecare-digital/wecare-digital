@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import * as api from '../api/client';
 import { WHATSAPP_PHONES } from '../config/constants';
 import { useConfirm } from '../contexts/ConfirmContext';
@@ -729,7 +730,8 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
   // Check if template is carousel
   const isCarouselTemplate = selectedTemplate?.components?.some( c => c.type === 'CAROUSEL' );
 
-  return (
+  if ( typeof document === 'undefined' ) return null;
+  return createPortal(
     <div className="template-sender">
       <div className="sender-header">
         <h3>Send Template Message</h3>
@@ -943,6 +945,7 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
                           background: headerMedia === item.mediaUrl ? 'var(--lime)' : '#fff',
                           border: '1px solid var(--border)', borderRadius: 8,
                         } }>
+                          { item.category === 'image' && <img src={ item.mediaUrl } alt={ item.filename } style={ { width: 48, height: 48, objectFit: 'contain', borderRadius: 6 } } /> }
                           <span style={ { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: 500 } } title={ item.filename }>
                             { item.filename }
                           </span>
@@ -1055,6 +1058,9 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
               <label>Preview</label>
               <div className="preview-box">
                 <div className="preview-recipient">To: { manualMode ? ( manualPhone || 'new number' ) : contactName }</div>
+                { headerType === 'image' && headerMedia.startsWith( 'https://' ) && (
+                  <img src={ headerMedia } alt="Template image preview" style={ { display: 'block', width: '100%', maxHeight: 220, objectFit: 'contain', borderRadius: 8, marginBottom: 8 } } />
+                ) }
                 <div className="preview-content">{ getPreviewText() }</div>
                 { isCarouselTemplate && (
                   <div className="carousel-indicator">
@@ -1115,16 +1121,16 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
       <style jsx>{ `
         .template-sender {
           position: fixed;
-          bottom: 80px;
+          bottom: 24px;
           right: 20px;
           width: 450px;
-          max-height: 85vh;
+          max-height: calc(100dvh - 110px);
           background: white;
           border-radius: 12px;
           box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
           display: flex;
           flex-direction: column;
-          z-index: 1000;
+          z-index: 10000;
         }
         .sender-header {
           display: flex;
@@ -1560,7 +1566,7 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
           }
         }
       `}</style>
-    </div>
+    </div>, document.body
   );
 };
 
