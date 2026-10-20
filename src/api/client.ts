@@ -5185,6 +5185,36 @@ export interface InvoiceRemark {
 // parameter here could only ever be a value the browser sends and the server throws away -
 // and before that, it was the value the server STORED, which made a refund note signable
 // with anyone's name.
+export interface RefundInitiationResult {
+  initiated: boolean;
+  idempotent?: boolean;
+  refundId?: string;
+  paymentId?: string;
+  invoiceId?: string;
+  returnSubmissionId?: string;
+  webhookConfirmed?: boolean;
+}
+
+/**
+ * Ask the server to initiate the full provider refund for an already refund-eligible return.
+ * The browser supplies ONLY invoiceId + returnSubmissionId. Payment id and amount are resolved
+ * server-side from authoritative invoice/payment state, and the provider webhook remains the
+ * authority for the terminal refunded state.
+ */
+export async function initiateInvoiceRefund (
+  invoiceId: string,
+  returnSubmissionId: string,
+): Promise<ApiResult<RefundInitiationResult>> {
+  return apiCallResult<RefundInitiationResult>( INVOICE_BASE, {
+    method: 'POST',
+    body: JSON.stringify( {
+      _action: 'initiate-refund',
+      invoiceId,
+      returnSubmissionId,
+    } ),
+  } );
+}
+
 export async function addInvoiceRemark (
   invoiceId: string,
   remarkType: 'remark' | 'refund' | 'credit_note',
