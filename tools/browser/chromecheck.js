@@ -246,9 +246,13 @@ function main() {
     record( retired.length === 0, `${route}${via} customer-facing copy`,
       retired.length ? `RETIRED COPY: ${retired.join( ' | ' )}` : 'no retired/internal wording' );
 
-    if ( route === '/' || route === '/contact' ) {
+    if ( route === '/' ) {
       record( !html.includes( 'Policy details' ), `${route} Policy Details state`,
         html.includes( 'Policy details' ) ? 'Policy Details must not render here' : 'intentionally absent' );
+    }
+    if ( route === '/contact' ) {
+      record( html.includes( 'Policy details' ), '/contact Policy Details state',
+        html.includes( 'Policy details' ) ? 'shared disclosure present' : 'MISSING shared disclosure' );
     }
 
     if ( route === '/grahak-os' ) {
