@@ -12,7 +12,7 @@ import logging
 from decimal import Decimal
 from typing import Any, Dict, Mapping, Optional
 
-from lambda_utils import contact_store, shared_tables
+from lambda_utils import contact_store, shared_tables, message_store
 
 logger = logging.getLogger(__name__)
 
@@ -182,6 +182,76 @@ def _record_completion(flow_completion, *, flow_code, flow_type, phone, contact_
         channel=channel,
         **optional,
     )
+
+    # Mirror each fresh WhatsApp Flow completion into the canonical Inbox.
+    if result.created and contact_id and str(channel or '').lower() == 'whatsapp':
+        fd = form_data if isinstance(form_data, dict) else {}
+        secret_words = ('token', 'secret', 'password', 'credential', 'access_key')
+        attachment_words = ('attachment', 'upload', 'file', 'document', 'photo', 'image')
+        answers = []
+        attachments = []
+
+        def _attachment(value):
+            if isinstance(value, dict):
+                key = value.get('key') or value.get('s3Key') or ''
+                url = value.get('url') or value.get('link') or ''
+                if key or url:
+                    return {
+                        k: v for k, v in {
+                            'key': key, 'url': url,
+                            'filename': value.get('filename') or value.get('name') or '',
+                            'type': value.get('type') or value.get('mime') or value.get('mimeType') or '',
+                        }.items() if v
+                    }
+            if isinstance(value, str) and (value.startswith(('secure/', 'o/', 's3://', 'https://'))):
+                return {'key': value} if not value.startswith(('http://','https://')) else {'url': value}
+            return None
+
+        for key, value in fd.items():
+            key_text = str(key)
+            if any(word in key_text.lower() for word in secret_words):
+                continue
+            values = value if isinstance(value, list) else [value]
+            found = []
+            if any(word in key_text.lower() for word in attachment_words):
+                for entry in values:
+                    att = _attachment(entry)
+                    if att:
+                        found.append(att)
+                        attachments.append(att)
+            if found:
+                answer_text = f'{len(found)} attachment(s)'
+            elif isinstance(value, (dict, list)):
+                answer_text = json.dumps(value, ensure_ascii=False, default=str)
+            else:
+                answer_text = str(value if value is not None else '')
+            answers.append({
+                'question': key_text.replace('_', ' ').strip().title(),
+                'answer': answer_text[:2000],
+            })
+
+        extra_map = extra if isinstance(extra, dict) else {}
+        if isinstance(extra_map.get('attachments'), list):
+            for entry in extra_map['attachments']:
+                att = _attachment(entry)
+                if att and att not in attachments:
+                    attachments.append(att)
+
+        review_id = str(extra_map.get('reviewId') or '') if flow_code == 'WD_REV' else ''
+        review_status = ('pending' if status == 'submitted' else str(status or '')) if review_id else ''
+        message_store.put_message(
+            channel='whatsapp', direction='inbound', contact_id=contact_id,
+            content=f'Flow response — {str(flow_type or flow_code or "Flow").replace("_", " ").title()}',
+            status='received', message_id=f'flow:{result.submission_id}',
+            message_type='flow_response', sender_phone=phone, sender_name=sender_name,
+            flowCode=flow_code, flowType=flow_type, flowScreen=screen,
+            flowSubmissionId=result.submission_id, flowReference=result.reference,
+            flowAnswers=answers, flowAttachments=attachments,
+            reviewId=review_id or None, reviewStatus=review_status or None,
+            reviewRating=extra_map.get('rating') if review_id else None,
+            reviewCategory=extra_map.get('category') if review_id else None,
+            reviewOrderId=extra_map.get('orderId') if review_id else None,
+        )
 
     # Mirror a fresh completion into the CRM. Best-effort: the FlowSubmission row is the
     # system of record for the submission, the lead is a projection of it.
