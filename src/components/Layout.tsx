@@ -68,7 +68,7 @@ const Layout: React.FC<LayoutProps> = ( { children, user, onSignOut, showBreadcr
   const role = user?.role || 'Operator';
 
   return (
-    <div className="layout workspace-shell">
+    <div className={ `layout workspace-shell ${isHome ? 'workspace-home-shell' : ''}` }>
       <header className="workspace-topbar">
         <div className="workspace-topbar-inner">
           <div className="workspace-leading">
@@ -240,6 +240,17 @@ const Layout: React.FC<LayoutProps> = ( { children, user, onSignOut, showBreadcr
           margin:0 auto;
           box-sizing:border-box;
           border-radius:0;
+        }
+        /* Workspace Home is a launchpad, not an inner tool panel. Layout.css gives every
+           inner-content-container a bordered 30px card; keeping that on /workspace created
+           the giant framed rectangle visible in the production screenshot. Other workspace
+           pages keep their existing panel contract. */
+        .workspace-home-shell :global(.inner-content-container){
+          border:0;
+          border-radius:0;
+          margin:0 auto;
+          overflow:visible;
+          background:#fff;
         }
         @media(max-width:768px){
           .workspace-topbar-inner{min-height:56px;padding-block:6px}
