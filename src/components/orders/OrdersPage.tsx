@@ -635,7 +635,7 @@ export default function OrdersPage (): React.ReactElement {
       email: saved.email,
       address: saved.address,
       addressComplete: saved.addressComplete,
-      emailVerified: mode === 'email' ? true : ( prev?.emailVerified ?? false ),
+      emailVerified: saved.emailVerified ?? ( mode === 'email' ? false : ( prev?.emailVerified ?? false ) ),
     } ) );
   };
 

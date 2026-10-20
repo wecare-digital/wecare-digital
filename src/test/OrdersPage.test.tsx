@@ -772,12 +772,12 @@ describe( '/orders/ — a profile edit and the verified badge', () => {
     expect( emailBadge()!.textContent ).toBe( '✓ verified' );
   } );
 
-  it( 'badges the new address only after an email change, which required a fresh code', async () => {
+  it( 'does not mark a newly saved contact email verified', async () => {
     const save = await openEditor( 'Change email', false );
     expect( save ).toHaveAttribute( 'data-mode', 'email' );
     fireEvent.click( save );
     await screen.findByText( 'new@example.com' );
-    expect( emailBadge()!.textContent ).toBe( '✓ verified' );
+    expect( emailBadge() ).toBeNull();
   } );
 
   it( 'locks the three affordances while the editor is open', async () => {

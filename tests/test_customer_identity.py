@@ -214,10 +214,10 @@ def test_an_unverified_phone_blocks_checkout():
     assert not customer.is_checkout_ready(record)
 
 
-def test_an_unverified_email_blocks_checkout():
+def test_whatsapp_verification_is_the_checkout_identity():
     record = _verified()
     del record['emailVerifiedAt']
-    assert not customer.is_checkout_ready(record)
+    assert customer.is_checkout_ready(record)
 
 
 @pytest.mark.parametrize('field', ['firstName', 'lastName', 'customerId'])

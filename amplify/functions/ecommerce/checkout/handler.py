@@ -558,7 +558,7 @@ def _checkout_profile(identity: customer_auth.CustomerIdentity) -> Optional[Dict
     """Return a verified profile only for an exact permanent customer owner.
 
     Phone matching locates candidates; ownerless contacts require staff reconciliation.
-    Email verification remains mandatory for payment prefill.
+    The authenticated WhatsApp session is the primary identity; email is contact data.
     """
     try:
         response = _table(CONTACTS_TABLE).query(
@@ -575,7 +575,7 @@ def _checkout_profile(identity: customer_auth.CustomerIdentity) -> Optional[Dict
             continue
         if not identity.customer_id or item.get("checkoutCustomerId") != identity.customer_id:
             continue
-        if not item.get("emailVerifiedAt") or not str(item.get("email") or "").strip():
+        if not str(item.get("email") or "").strip():
             continue
         return item
     return None
@@ -641,7 +641,7 @@ def _profile_status(identity: customer_auth.CustomerIdentity, origin: str) -> Di
         # reading `identity.phone` directly would make the identity card's Phone row change
         # spelling after an edit.
         "phone": str(row.get("phone") or identity.phone),
-        "emailVerified": True,          # `_checkout_profile` already required it
+        "emailVerified": bool(row.get("emailVerifiedAt")),
         "addressComplete": address is not None,
         "address": address,             # null when absent
     }, origin))

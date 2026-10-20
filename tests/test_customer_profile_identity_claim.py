@@ -209,7 +209,7 @@ def test_an_unowned_inbound_whatsapp_row_is_claimed_by_its_own_number(env):
     assert row["identityClaimEvidence"] == h.CLAIM_EVIDENCE_INBOUND
     # Moved because THIS request carried a proof bound to the submitted email, which is the only
     # thing that may stamp it. The claim itself writes four attributes and this is not one.
-    assert row["emailVerifiedAt"]
+    assert "emailVerifiedAt" not in row
     assert row["email"] == EMAIL
     assert row[ADDRESS_ATTRIBUTE]["city"] == "Bengaluru"
 
