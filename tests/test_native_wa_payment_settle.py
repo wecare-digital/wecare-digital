@@ -264,6 +264,56 @@ def test_meta_nested_transactions_supply_gateway_binding():
     assert found['gatewayPaymentId'] == PAYMENT
 
 
+def test_live_meta_order_details_capture_shape_binds_gateway_ids():
+    """Regression for the live WABA1 payment lookup shape observed on 2026-10-20.
+
+    Meta returns top-level CAPTURED and a nested successful Razorpay transaction where
+    transaction.id is the gateway order and pg_transaction_id is the gateway payment.
+    That combination is independently read from Meta and is therefore safe to bind.
+    """
+    found = mpb.lookup_payment(
+        reference_id=REFERENCE, phone_number_id=WABA1, config_name='WECAREDIGITAL',
+        urlopen=_MetaLookup(payments=[{
+            'reference_id': REFERENCE,
+            'status': 'CAPTURED',
+            'amount': {'offset': 100, 'value': 224},
+            'currency': 'INR',
+            'transactions': [{
+                'id': GATEWAY_ORDER,
+                'pg_transaction_id': PAYMENT,
+                'type': 'razorpay',
+                'status': 'success',
+                'amount': {'offset': 100, 'value': 224},
+                'order_amount': {'offset': 100, 'value': 224},
+                'currency': 'INR',
+                'method': {'type': 'card'},
+            }],
+        }]),
+        load_token=lambda: 'TOKEN')
+    assert found == {
+        'gatewayOrderId': GATEWAY_ORDER,
+        'gatewayPaymentId': PAYMENT,
+        'status': payment_status.CAPTURED,
+    }
+
+
+def test_nested_transaction_id_is_not_assumed_to_be_an_order_without_razorpay_shape():
+    """A generic successful transaction id remains ambiguous and must fail closed."""
+    with pytest.raises(mpb.MetaBindingUnavailable):
+        mpb.lookup_payment(
+            reference_id=REFERENCE, phone_number_id=WABA1, config_name='WECAREDIGITAL',
+            urlopen=_MetaLookup(payments=[{
+                'reference_id': REFERENCE,
+                'status': 'CAPTURED',
+                'transactions': [{
+                    'id': GATEWAY_ORDER,
+                    'status': 'success',
+                    'type': 'unknown',
+                }],
+            }]),
+            load_token=lambda: 'TOKEN')
+
+
 def test_meta_does_not_adopt_a_different_reference():
     with pytest.raises(mpb.MetaBindingUnavailable):
         mpb.lookup_payment(
