@@ -9,7 +9,8 @@ COUNTRY_DATA = "AF:Afghanistan|AL:Albania|DZ:Algeria|AD:Andorra|AO:Angola|AG:Ant
 PAIRS = tuple(item.split(":", 1) for item in COUNTRY_DATA.split("|"))
 NAME_BY_CODE = {code: name for code, name in PAIRS}
 CODE_BY_NAME = {name: code for code, name in PAIRS}
-OPTIONS = [{"id": name, "title": name} for code, name in PAIRS]
+OPTIONS = ([{"id": NAME_BY_CODE["IN"], "title": NAME_BY_CODE["IN"]}]
+           + [{"id": name, "title": name} for code, name in PAIRS if code != "IN"])
 
 
 def canonical_country(name="", code=""):
