@@ -2590,10 +2590,9 @@ def _post_payment_handler(payment_id: str, contact: str,
     After payment captured (Razorpay webhook path):
     This is the BACKUP path — WhatsApp inbound handler is the primary invoice generator.
     1. Invoke invoice-engine to create invoice from payment (dedup will return existing if WhatsApp path already created it)
-    2. Generate invoice image (POS receipt style) — for internal reference
-    3. Generate PDF (async) — for internal reference
-    4. Deliver the GST invoice on WhatsApp — NATIVE WhatsApp origin only
-    5. Ask for a review — after the invoice, and fail-open
+    2. Generate invoice image (POS receipt style)
+    3. Deliver the GST invoice IMAGE on WhatsApp — NATIVE WhatsApp origin only
+    4. Ask for a review — after the invoice, and fail-open
 
     `channel` is WHERE the order came from (`website` / `whatsapp`), read off the `PAYREF#` row by
     the reconciliation above. KEYWORD-ONLY and defaulted so the legacy callers that pass eight
@@ -2671,8 +2670,8 @@ def _post_payment_handler(payment_id: str, contact: str,
         logger.error(json.dumps({'event': 'invoice_create_empty', 'paymentId': payment_id, 'response': str(inv_body), 'requestId': request_id}))
         return
 
-    # If deduplicated (WhatsApp path already created it), image/PDF already exist — skip THOSE
-    # TWO STEPS ONLY.
+    # If deduplicated (WhatsApp path already created it), the receipt image already exists —
+    # skip the render step only.
     #
     # This used to `return`, and with delivery added below that would skip delivery for exactly
     # the case where the invoice already existed - which is the COMMON case on the native leg,
@@ -2787,8 +2786,12 @@ def _post_payment_handler(payment_id: str, contact: str,
 
 
 def _generate_invoice_assets(invoice_id: str, request_id: str) -> None:
-    """Steps 2 and 3: render the invoice image and PDF. Internal reference only."""
-    # ── Step 2: Generate invoice image (internal reference only) ──
+    """Render the invoice PNG used for customer delivery.
+
+    Invoice PDF generation is intentionally retired. The WhatsApp customer receives one
+    rendered image, and all post-payment automation depends only on that image asset.
+    Historical PDF assets remain untouched but no new PDF is generated here.
+    """
     try:
         img_payload = {
             'rawPath': f'/invoices/{invoice_id}/generate-image',
@@ -2805,29 +2808,19 @@ def _generate_invoice_assets(invoice_id: str, request_id: str) -> None:
         img_body = json.loads(img_result.get('body', '{}'))
         image_url = img_body.get('imageUrl', '')
 
-        # A17: the image URL is a receipt/document link and must not reach CloudWatch. Log only
-        # the invoice id and whether an image was produced.
-        logger.info(json.dumps({'event': 'invoice_image_generated', 'invoiceId': invoice_id, 'hasImage': bool(image_url), 'requestId': request_id}))
+        logger.info(json.dumps({
+            'event': 'invoice_image_generated',
+            'invoiceId': invoice_id,
+            'hasImage': bool(image_url),
+            'requestId': request_id,
+        }))
     except Exception as e:
-        # A17: type only. An image-lambda error body can echo a signed URL or request content.
-        logger.error(json.dumps({'event': 'invoice_image_error', 'invoiceId': invoice_id, 'error': type(e).__name__, 'requestId': request_id}))
-
-    # ── Step 3: Generate PDF (async, internal reference only) ──
-    try:
-        pdf_payload = {
-            'rawPath': f'/invoices/{invoice_id}/generate-pdf',
-            'requestContext': {'http': {'method': 'POST'}},
-            'pathParameters': {'invoiceId': invoice_id},
-            'body': json.dumps({'invoiceId': invoice_id}),
-        }
-        lambda_client.invoke(
-            FunctionName='wecare-invoice-engine',
-            InvocationType='Event',  # Async
-            Payload=json.dumps(pdf_payload),
-        )
-        logger.info(json.dumps({'event': 'invoice_pdf_triggered', 'invoiceId': invoice_id, 'requestId': request_id}))
-    except Exception as e:
-        logger.error(json.dumps({'event': 'invoice_pdf_error', 'invoiceId': invoice_id, 'error': str(e), 'requestId': request_id}))
+        logger.error(json.dumps({
+            'event': 'invoice_image_error',
+            'invoiceId': invoice_id,
+            'error': type(e).__name__,
+            'requestId': request_id,
+        }))
 
 
 #: How many times a captured payment may be REPLAYED to retry a missed receipt delivery before
