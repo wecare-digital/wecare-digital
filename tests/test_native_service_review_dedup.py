@@ -202,6 +202,10 @@ def _run_webhook_leg(purchase, outbound, monkeypatch, *, keys_table=None, resour
     monkeypatch.setattr(webhook, "lambda_client", outbound)
     monkeypatch.setattr(webhook, "dynamodb",
                         resource or _WebhookTables(keys_table or purchase.keys))
+    # Step 4 (invoice delivery) now fires for every channel; this file is about step 5's review
+    # dedup, so neutralise the delivery boundary - it has its own test file.
+    monkeypatch.setattr(webhook, "_deliver_invoice_on_whatsapp",
+                        lambda *_a, **_k: True)
     return webhook._post_payment_handler(
         PAYMENT_ID, CONTACT, "buyer@example.com", "Submit Request", {},
         REQUEST, reference_id=purchase.reference_id)
@@ -387,6 +391,8 @@ def test_the_rig_would_have_caught_a_500_and_an_abandoned_lease(monkeypatch):
 def _run_webhook_leg_inline(purchase, outbound, request_id):
     """`_post_payment_handler` with `dynamodb` already pointed at the shared fakes."""
     webhook.dynamodb = _WebhookTables(purchase.keys)
+    # Same reason as _run_webhook_leg: step 4 is out of scope for this file.
+    webhook._deliver_invoice_on_whatsapp = lambda *_a, **_k: True
     return webhook._post_payment_handler(
         PAYMENT_ID, CONTACT, "buyer@example.com", "Submit Request", {},
         request_id, reference_id=purchase.reference_id)

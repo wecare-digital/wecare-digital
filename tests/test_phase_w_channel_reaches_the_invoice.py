@@ -270,10 +270,12 @@ def _from_payment_body(webhook, *, channel):
 
     client = MagicMock()
     client.invoke.side_effect = _invoke
-    with patch.object(webhook, 'lambda_client', client):
-        # `amount` and `currency` are GONE from this signature. They were DEAD across the whole
-        # body - neither name occurred after the signature - so they are deleted rather than
-        # retyped, which removes two float money parameters from a money path.
+    with patch.object(webhook, 'lambda_client', client), \
+            patch.object(webhook, '_deliver_invoice_on_whatsapp', return_value=True):
+        # This file pins channel pass-through into the from-payment body, not step 4 delivery
+        # (which now fires for every channel and has its own test). `amount` and `currency` are
+        # GONE from this signature - they were DEAD across the whole body - so they are deleted
+        # rather than retyped, which removes two float money parameters from a money path.
         webhook._post_payment_handler(
             TXN, '+919876543210', 'buyer@example.com',
             'desc', {}, 'req-1', channel=channel)
@@ -309,9 +311,9 @@ def test_the_channel_is_not_entry_point(webhook):
 
 def test_an_omitted_channel_is_still_a_valid_call(webhook):
     """`channel` is keyword-only with a default, so an omission is a silent `website` rather than
-    a `TypeError` on a path where the capture has already happened. The same shape now carries
-    `checkoutMode`, where the fail-closed direction matters more: an absent mode closes the
-    invoice-delivery gate rather than sending a document we may not owe."""
+    a `TypeError` on a path where the capture has already happened. The receipt template is now
+    owed on every paid capture regardless of channel or checkout mode, so the omission only
+    affects the attribution label, never whether the document is sent."""
     seen = []
 
     def _invoke(**kwargs):
@@ -323,7 +325,8 @@ def test_an_omitted_channel_is_still_a_valid_call(webhook):
 
     client = MagicMock()
     client.invoke.side_effect = _invoke
-    with patch.object(webhook, 'lambda_client', client):
+    with patch.object(webhook, 'lambda_client', client), \
+            patch.object(webhook, '_deliver_invoice_on_whatsapp', return_value=True):
         webhook._post_payment_handler(
             TXN, '+919876543210', 'b@example.com', 'desc', {}, 'req-1')
 
