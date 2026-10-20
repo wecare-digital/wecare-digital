@@ -221,7 +221,11 @@ const PROBE = () => {
     header: rect( header ),
     widget: rect( widget ),
     shareChevronTransform: ( () => {
-      const chevron = document.querySelector( '.public-share .ps-chevron' );
+      // Measure a PAINTED chevron, not the first chevron in DOM order. PublicShare keeps its
+      // menus mounted with [hidden]; Chromium/WebKit report transform:none for descendants of
+      // that non-rendered subtree even when the matching RTL rule is correct.
+      const chevron = [ ...document.querySelectorAll( '.public-share .ps-chevron' ) ]
+        .find( el => el.getClientRects().length > 0 && getComputedStyle( el ).visibility !== 'hidden' );
       return chevron ? getComputedStyle( chevron ).transform : null;
     } )(),
     strays: strays.slice( 0, 6 ),
@@ -353,6 +357,16 @@ function asymmetries ( ltr, rtl, tolerance ) {
 
     for ( const r of routes ) {
       await gotoStable( page, t.base + r );
+
+      // PublicShare's chevrons live inside menus that stay mounted with [hidden]. Open the
+      // Contribute menu before measuring so the transform assertion observes a real painted box
+      // in both directions, not a descendant of display:none. Routes without PublicShare simply
+      // skip this probe as before.
+      const contributeTrigger = await page.$( '.public-share .ps-contribute' );
+      if ( contributeTrigger ) {
+        await contributeTrigger.click();
+        await page.waitForTimeout( 40 );
+      }
 
       // The shipped LTR state, for comparison. Nothing below is meaningful without it: a
       // mirrored page that overflows tells you nothing if the unmirrored one does too.
