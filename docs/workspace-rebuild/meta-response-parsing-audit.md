@@ -8,8 +8,14 @@
 > misread live data the same way.
 >
 > Scope: all ~20 Python handlers that call the Meta Graph API or parse Meta
-> webhook/response bodies. No live AWS/Meta calls were made; findings are from
-> code only. Severity is about *likelihood × money/delivery impact*.
+> webhook/response bodies. Severity is about *likelihood × money/delivery impact*.
+>
+> **Closeout 2026-10-20:** Findings 1–3 are remediated and deployed. Finding 4 is
+> intentionally unchanged because the current default applies only to WECARE's
+> own ProductsTable authority, not a Meta-returned item state. The incident also
+> exposed and closed a deployment/recovery gap: Runtime Deploy now includes
+> inbound/outbound WhatsApp + Razorpay webhook targets, and quarantined captured
+> payments have an IAM-only stored-audit redrive path.
 
 ## The transport layer is sound (not a finding)
 
@@ -20,7 +26,7 @@ response parsing**, exactly where the payment-binding bug lived.
 
 ---
 
-## FINDING 1 — HIGH — Inbound payment webhook reads singular `transaction`, not the live plural `transactions[]`
+## FINDING 1 — CLOSED — Inbound payment webhook plural `transactions[]` support
 
 **File:** `amplify/functions/messaging/inbound-whatsapp-handler/handler.py`
 **Functions:** `_process_payment_status` (~L4431) and `_store_payment_record` (~L5189–5210)
@@ -66,7 +72,7 @@ fixture using the live plural shape. Keep canonical status + fail-closed.
 
 ---
 
-## FINDING 2 — MEDIUM — `res.get('success', True)` defaults a missing field to success (fail-OPEN)
+## FINDING 2 — CLOSED — Meta mutation responses now fail closed
 
 **Files:**
 - `amplify/functions/messaging/partner-onboarding/handler.py` (L160 `subscribe_app`, L172 `register_phone`)
@@ -91,7 +97,7 @@ case to **False** (fail-closed), and surface Meta's `error`/`fbtrace_id`.
 
 ---
 
-## FINDING 3 — LOW/MEDIUM — Template-status surfaced as a single raw field, no canonicalisation
+## FINDING 3 — CLOSED — Template status is canonicalised for send eligibility
 
 **File:** `amplify/functions/messaging/whatsapp-template-management/handler.py`
 (`_list_templates` L259, `_get_template_details` L291)
@@ -115,7 +121,7 @@ send-eligibility decisions through it rather than scattered string equality.
 
 ---
 
-## FINDING 4 — LOW — Catalog-sync visibility/status defaults to `active`/visible on unknown
+## FINDING 4 — NO CHANGE REQUIRED TODAY — ProductsTable-owned visibility default
 
 **File:** `amplify/functions/ecommerce/meta-catalog-sync/handler.py` (L519, L543)
 
