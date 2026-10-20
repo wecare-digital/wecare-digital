@@ -193,12 +193,11 @@ def _drive_paid_vault(monkeypatch, subject):
     return result, cognito
 
 
-#: The five sites that had NO guard, each with the refusal that call site already returned.
+#: The four live ListUsers filter sites covered here. The retired standalone review sender is
+#: deliberately absent: it is now a no-op and never reaches Cognito.
 UNGUARDED = [
     pytest.param(_drive_catalog_services, 'VERIFIED_CUSTOMER_REQUIRED', id='catalog_services'),
     pytest.param(_drive_checkout, 'VERIFIED_CUSTOMER_REQUIRED', id='checkout'),
-    pytest.param(_drive_submit_request_review, 'VERIFIED_RECIPIENT_UNAVAILABLE',
-                 id='paid_submit_request.send_review'),
     pytest.param(_drive_submit_request_invite, 'VERIFIED_RECIPIENT_UNAVAILABLE',
                  id='paid_submit_request.prepare_and_send'),
     pytest.param(_drive_paid_vault, 'VERIFIED_RECIPIENT_UNAVAILABLE', id='paid_vault'),
@@ -300,6 +299,6 @@ def test_every_list_users_filter_site_is_guarded():
             assert 'is_cognito_subject' in block.split("Filter='sub")[0], (
                 f"{path.relative_to(ROOT).as_posix()}: a ListUsers filter is built from an "
                 f"unvalidated subject in {block.splitlines()[0]}")
-    # Eight since `paid_vault.send_review` was split out of the Vault deliver path: the census
-    # moves when a site is genuinely added, and the guard assertion above is what keeps it honest.
-    assert sites == 8
+    # Six live filter sites remain after retiring the two standalone review senders.
+    # The census moves only when a real ListUsers call site is added or removed.
+    assert sites == 6
