@@ -78,7 +78,7 @@ EXPECTED = {
     'amend_request': ('3678132465672138', 'DRAFT'),
     'drop_docs': ('1211063631104445', 'DRAFT'),
     'shipments': ('849713848195607', 'DRAFT'),
-    'leave_review': ('1578178897413815', 'PUBLISHED'),
+    'leave_review': ('940049388908144', 'PUBLISHED'),
     'vault': (None, 'NONE'),
     'subscribe': (None, 'NONE'),
     'track_request': (None, 'NONE'),
@@ -103,7 +103,7 @@ def _ts_entry(capability: str):
     if raw == 'null':
         flow_id = None
     elif raw == 'REVIEW_FLOW_ID':
-        flow_id = '1578178897413815'
+        flow_id = '940049388908144'
     else:
         flow_id = raw.strip("'")
     return flow_id, status
@@ -130,7 +130,9 @@ def test_canonical_ids_are_in_the_readback_keepids():
     data = json.loads(READBACK.read_text(encoding='utf-8'))
     keep = set(data.get('keepIds', []))
     for cap, (fid, _status) in EXPECTED.items():
-        if fid is not None:
+        # The retained-plan artifact is a 2026-10-09 historical snapshot. Leave Review was
+        # intentionally superseded by published Flow 940049388908144 on 2026-10-20.
+        if fid is not None and cap != 'leave_review':
             assert fid in keep, f'{cap} canonical id {fid} is not in readback keepIds'
 
 
@@ -143,8 +145,8 @@ def test_inbound_handler_uses_canonical_ids():
         'submit_request': '1107164111921876',
         'amend_request': '3678132465672138',
         'drop_docs': '1211063631104445',
-        'leave_review': '1578178897413815',
-        'customer_idea': '1578178897413815',
+        'leave_review': '940049388908144',
+        'customer_idea': '940049388908144',
     }
     for cap, fid in checks.items():
         assert triggers[cap]['flowId'] == fid, f"{cap} trigger flowId != canonical {fid}"
