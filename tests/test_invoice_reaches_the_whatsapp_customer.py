@@ -489,59 +489,16 @@ def test_the_post_payment_handler_takes_no_float_amount(webhook):
     assert 'originating_phone_id' in params
 
 
-# ── the review request ────────────────────────────────────────────────────────
+# ── review entry point lives inside the invoice template ───────────────────────
 
-def test_the_review_template_is_sent_once_after_the_invoice(webhook, fake):
-    """The approved `wecare_leave_review` template, fired ONCE and AFTER the invoice."""
+def test_post_payment_sends_no_second_review_template(webhook, fake):
     recorder = _InvokeRecorder()
     _post_payment(webhook, recorder, fake)
+    assert 'wecare-outbound-whatsapp' not in recorder.calls
+    source = Path(webhook.__file__).read_text(encoding='utf-8')
+    assert 'wecare_leave_review' not in source
+    assert 'WA_REVIEW_TEMPLATE' not in source
 
-    reviews = [c for c in recorder.calls if c == 'wecare-outbound-whatsapp']
-    assert len(reviews) == 1
-    # Ordering: the invoice delivery is dispatched before the review request.
-    invoice_at = next(i for i, c in enumerate(recorder.calls) if 'send-whatsapp' in c)
-    review_at = recorder.calls.index('wecare-outbound-whatsapp')
-    assert invoice_at < review_at
-
-
-def test_a_redelivered_capture_asks_for_a_review_only_once(webhook, fake):
-    """Idempotent on the invoice, through the same conditional-write primitive the invoice
-    delivery uses. A second review request for one payment is a nuisance message, and the kind
-    of thing that accumulates silently unless it is claimed rather than hoped for."""
-    first = _InvokeRecorder()
-    _post_payment(webhook, first, fake)
-    second = _InvokeRecorder()
-    _post_payment(webhook, second, fake)
-
-    assert 'wecare-outbound-whatsapp' in first.calls
-    assert 'wecare-outbound-whatsapp' not in second.calls
-
-
-def test_a_review_send_failure_never_blocks_the_paid_path(webhook, fake, caplog):
-    """FAIL-OPEN, and the asymmetry with the invoice claim is deliberate: a missing review
-    request costs nothing, a duplicate GST invoice is a compliance artifact. So the invoice claim
-    fails CLOSED and this one fails OPEN - meaning it does not raise, never that it sends
-    anyway."""
-
-    class _ReviewFails(_InvokeRecorder):
-        def invoke(self, **kwargs):
-            if kwargs['FunctionName'] == 'wecare-outbound-whatsapp':
-                raise RuntimeError('Meta 500')
-            return super().invoke(**kwargs)
-
-    recorder = _ReviewFails()
-    with caplog.at_level(logging.WARNING):
-        _post_payment(webhook, recorder, fake)   # must not raise
-
-    assert any('send-whatsapp' in c for c in recorder.calls)
-    assert 'review_request_send_failed' in caplog.text
-
-
-def test_the_review_send_uses_waba1_and_the_approved_template(webhook, fake):
-    """WABA1 only, and one home for the template name."""
-    recorder = _InvokeRecorder()
-    _post_payment(webhook, recorder, fake)
-    assert webhook.WA_REVIEW_TEMPLATE == 'wecare_leave_review'
 
 
 def test_payment_notifications_use_the_invoice_recipient(webhook):
