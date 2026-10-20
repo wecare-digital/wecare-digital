@@ -501,7 +501,7 @@ response = requests.post(
                     <button key={i} className={`pp-tab ${activeCode === i ? 'active' : ''}`} onClick={() => setActiveCode(i)}>{c.lang}</button>
                   ))}
                 </div>
-                <pre className="code-block">{codeExamples[activeCode].code}</pre>
+                <pre className="code-block" dir="ltr">{codeExamples[activeCode].code}</pre>
               </div>
               <div className="api-wa-row">
                 <a className="api-wa-link" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">
@@ -657,7 +657,7 @@ response = requests.post(
           .gos-wa-cta:hover{background:#fff;transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
           .gos-wa-cta:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
           /* Hero Python panel only. Its demo link moved to the large API editor below. */
-          .code-stack{position:absolute;right:0;bottom:24px;width:60%;max-width:340px;display:flex;flex-direction:column;align-items:stretch}
+          .code-stack{position:absolute;inset-inline-end:0;bottom:24px;width:60%;max-width:340px;display:flex;flex-direction:column;align-items:stretch}
           /* ZOOM CONTAINMENT (unified-mobile Phase 1), same shape as Unit 1 on Home. At 200%
              zoom a <=375px phone reflows to a ~160-188 CSS-px layout viewport; the mockup
              column (the phone mock plus the bottom-anchored code panel) carries fixed intrinsic
@@ -714,7 +714,7 @@ response = requests.post(
              their rules stay. */
           .gos-commerce{
             margin-top:14px;max-width:700px;font-family:inherit;font-size:17px;font-weight:400;line-height:1.4;
-            letter-spacing:-.05px;color:var(--public-muted);text-align:left;
+            letter-spacing:-.05px;color:var(--public-muted);text-align:start;
           }
           .gos-commerce strong{color:var(--public-brand-green);font-weight:700}
           .gos-sku-value{color:var(--public-muted)}
@@ -839,15 +839,15 @@ response = requests.post(
              the panel's left edge and got clipped on their RIGHT - which looks like
              a rendering fault rather than a deliberate overlap. 66% keeps them clear
              of it. */
-          .msg.received{background:#fff;align-self:flex-start;max-width:66%;border-top-left-radius:3px}
+          .msg.received{background:#fff;align-self:flex-start;max-width:66%;border-start-start-radius:3px}
           /* Keep the thread semantically two-tone: every WECARE.DIGITAL message uses
              WhatsApp's soft mint and every customer message uses white. Bubble colour
              communicates sender/receiver identity only; individual messages do not
              borrow unrelated hero palette colours. */
-          .msg.sent{background:#d9fdd3;align-self:flex-end;border-top-right-radius:3px}
+          .msg.sent{background:#d9fdd3;align-self:flex-end;border-start-end-radius:3px}
           /* Bubble tails match each side's single bubble fill exactly. */
-          .msg.sent::before{content:'';position:absolute;top:0;right:-7px;width:0;height:0;border-top:8px solid #d9fdd3;border-right:8px solid transparent}
-          .msg.received::before{content:'';position:absolute;top:0;left:-7px;width:0;height:0;border-top:8px solid #fff;border-left:8px solid transparent}
+          .msg.sent::before{content:'';position:absolute;top:0;inset-inline-end:-7px;width:0;height:0;border-top:8px solid #d9fdd3;border-inline-end:8px solid transparent}
+          .msg.received::before{content:'';position:absolute;top:0;inset-inline-start:-7px;width:0;height:0;border-top:8px solid #fff;border-inline-start:8px solid transparent}
           .msg{position:relative}
           /* Every sent bubble sits on the right. Two of them previously carried a
              left-msg override that forced them to flex-start, so outgoing messages
@@ -864,7 +864,7 @@ response = requests.post(
              right, the way WhatsApp lays out message meta. Received bubbles keep a bare
              timestamp (no ticks), so .msg-time still works standalone there. */
           .msg-meta{display:flex;align-items:center;justify-content:flex-end;gap:4px;margin-top:3px}
-          .msg-time{font-size:12px;color:#54656f;display:block;text-align:right;margin-top:3px}
+          .msg-time{font-size:12px;color:#54656f;display:block;text-align:end;margin-top:3px}
           .msg-meta .msg-time{margin-top:0}
           /* The read-receipt double tick in WhatsApp's "read" blue (#53bdeb). This is the
              strongest single cue that a thread is a real WhatsApp conversation - a
@@ -1060,7 +1060,7 @@ response = requests.post(
              46-50px and the gos-wa-cta pill is 52px). It is already an inline-flex with centred
              content, so min-height grows the hit box without moving the underlined label; the
              text treatment the tests pin (17px/600, underline, lime hover) is unchanged. */
-          .api-wa-link{display:inline-flex;align-items:center;gap:5px;width:max-content;min-height:var(--tap-min);margin-left:-10px;padding:8px 10px;border-radius:10px;color:var(--public-brand-green);font-size:17px;font-weight:600;line-height:1.4;letter-spacing:-.05px;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;transition:background-color .18s,color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s}
+          .api-wa-link{display:inline-flex;align-items:center;gap:5px;width:max-content;min-height:var(--tap-min);margin-inline-start:-10px;padding:8px 10px;border-radius:10px;color:var(--public-brand-green);font-size:17px;font-weight:600;line-height:1.4;letter-spacing:-.05px;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;transition:background-color .18s,color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s}
           .api-wa-link:hover{background:var(--public-brand-lime);color:var(--public-brand-green);text-decoration-color:transparent;transform:translateY(-1px);box-shadow:0 6px 18px rgba(26,58,42,.12)}
           .api-wa-link:focus-visible{background:var(--public-brand-lime);color:var(--public-brand-green);text-decoration-color:transparent;outline:3px solid var(--public-brand-green);outline-offset:3px}
           @media(prefers-reduced-motion:reduce){
@@ -1154,9 +1154,9 @@ response = requests.post(
              which the browser reports collision-free. */
           @media(min-width:1025px) and (max-width:1240px){
             .mockup-wrapper{display:flex;flex-direction:column;gap:14px;aspect-ratio:auto;min-height:0;align-items:flex-start}
-            .phone{position:relative;left:auto;top:auto;width:100%;max-width:100%}
+            .phone{position:relative;inset-inline-start:auto;top:auto;width:100%;max-width:100%}
             .chat-area{min-height:320px}
-            .code-stack{position:relative;right:auto;left:auto;bottom:auto;width:100%;max-width:none;align-self:stretch}
+            .code-stack{position:relative;inset-inline-start:auto;inset-inline-end:auto;bottom:auto;width:100%;max-width:none;align-self:stretch}
             .code-box{position:relative;right:auto;left:auto;bottom:auto;width:100%;max-width:100%}
             .hero-visual-col{padding-bottom:0}
           }
@@ -1164,7 +1164,7 @@ response = requests.post(
           @media(max-width:1024px){
             
             .hero{padding:110px 20px 60px}
-            .hero-content{grid-template-columns:1fr;gap:40px;text-align:left}
+            .hero-content{grid-template-columns:1fr;gap:40px;text-align:start}
             .hero-left h1{max-width:760px;margin:0 0 20px}
             .hero-left p{max-width:520px;margin:0 0 28px}
             
@@ -1183,11 +1183,11 @@ response = requests.post(
                what the 767px breakpoint already does, and the browser check reports zero
                collisions there. aspect-ratio goes to auto so height follows content. */
             .mockup-wrapper{display:flex;flex-direction:column;gap:14px;max-width:480px;aspect-ratio:auto;min-height:0;margin:0;padding:20px;align-items:flex-start}
-            .phone{position:relative;left:auto;top:auto;width:100%;max-width:100%}
+            .phone{position:relative;inset-inline-start:auto;top:auto;width:100%;max-width:100%}
             .chat-area{min-height:300px}
-            .code-stack{position:relative;right:auto;left:12px;bottom:16px;width:55%;max-width:none;align-self:flex-start}
+            .code-stack{position:relative;inset-inline-start:12px;inset-inline-end:auto;bottom:16px;width:55%;max-width:none;align-self:flex-start}
             .code-box{position:relative;right:auto;left:auto;bottom:auto;width:100%;max-width:100%}
-            .phone{left:16px;top:16px;width:52%}
+            .phone{inset-inline-start:16px;top:16px;width:52%}
             .hero-visual-col{padding-bottom:0}
             
             .section-header{padding:0 20px}
@@ -1197,9 +1197,9 @@ response = requests.post(
             .pill{padding:12px 22px}
             
             .api{padding:50px 20px}
-            .api-grid{grid-template-columns:1fr;gap:36px;text-align:left}
-            .api-info h2{text-align:left}
-            .api-desc{max-width:100%;text-align:left}
+            .api-grid{grid-template-columns:1fr;gap:36px;text-align:start}
+            .api-info h2{text-align:start}
+            .api-desc{max-width:100%;text-align:start}
             .api-demo-stack{max-width:500px;margin:0}
             .api-demo{max-width:100%;margin:0}
             
@@ -1215,7 +1215,7 @@ response = requests.post(
                single named contract instead of repeating the raw env() literal. On a non-notch
                device --safe-top resolves to 0, so the calc() is unaffected. */
             .hero{padding:calc(115px + var(--safe-top)) 20px 50px}
-            .hero-content{display:flex;flex-direction:column;gap:32px;text-align:left;align-items:flex-start}
+            .hero-content{display:flex;flex-direction:column;gap:32px;text-align:start;align-items:flex-start}
             .hero-right{width:100%;display:flex;justify-content:center}
             /* Mobile hero stacks in source order: text (.hero-left) on top, the phone/code
                mockup (.hero-right) below it. The earlier order:-1/order:1 reversal floated the
@@ -1223,13 +1223,13 @@ response = requests.post(
                order puts the headline first. The below-code link re-centres under the mockup
                (desktop right-aligns it; here flex-end would push it to the column edge). */
             .hero-visual-col{align-items:center}
-            .hero-left{text-align:left}
-            .hero-left h1{margin:0 0 20px;line-height:1.1;max-width:100%;text-align:left}
-            .hero-left p{margin:0 0 16px;max-width:100%;text-align:left}
+            .hero-left{text-align:start}
+            .hero-left h1{margin:0 0 20px;line-height:1.1;max-width:100%;text-align:start}
+            .hero-left p{margin:0 0 16px;max-width:100%;text-align:start}
 
             .mockup-wrapper{display:flex;flex-direction:column;gap:14px;width:100%;max-width:380px;margin:8px auto 0;aspect-ratio:auto;padding:16px;background:#fff;border-radius:16px;border:0;align-items:flex-start;transition:all .25s;cursor:default}
             .mockup-wrapper:hover{transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
-            .phone{position:relative;left:auto;top:auto;width:100%;max-width:100%;margin:0;border-radius:16px;box-shadow:none}
+            .phone{position:relative;inset-inline-start:auto;top:auto;width:100%;max-width:100%;margin:0;border-radius:16px;box-shadow:none}
             .phone-header{padding:14px 16px;gap:10px}
             .avatar{width:42px;height:42px;font-size:18px}
             .contact-name{font-size:18px}
@@ -1240,7 +1240,7 @@ response = requests.post(
             .typing-indicator{padding:12px 16px}
             .typing-indicator span{width:8px;height:8px}
             
-            .code-stack{position:relative;right:auto;left:auto;bottom:auto;width:100%;max-width:100%;align-self:stretch}
+            .code-stack{position:relative;inset-inline-start:auto;inset-inline-end:auto;bottom:auto;width:100%;max-width:100%;align-self:stretch}
             .code-box{position:relative;right:auto;left:auto;bottom:auto;width:100%;max-width:100%;margin:0;border-radius:14px;box-shadow:0 4px 20px rgba(0,0,0,.1);align-self:flex-start}
             .code-header{padding:14px 16px}
             .dots{gap:6px}
@@ -1265,12 +1265,12 @@ response = requests.post(
             .pill{padding:14px 26px}
             
             .api{padding:calc(var(--public-mobile-section-gap) / 2) var(--public-mobile-page-gutter)}
-            .api-grid{gap:36px;text-align:left}
-            .api-info{text-align:left}
-            .api-info h2{margin-bottom:16px;text-align:left}
+            .api-grid{gap:36px;text-align:start}
+            .api-info{text-align:start}
+            .api-info h2{margin-bottom:16px;text-align:start}
             .api-step-title{font-size:var(--public-mobile-card-size)}
             .gos-wa-cta{font-size:var(--public-mobile-cta-font-size)}
-            .api-desc{max-width:100%;text-align:left}
+            .api-desc{max-width:100%;text-align:start}
             /* Stacked order: the step block comes FIRST (above the code panel). It is
                already first in source order so the grid stacks it first; the explicit
                order makes that intent survive any future markup reordering. */
@@ -1283,7 +1283,7 @@ response = requests.post(
             .pp-tab{padding:14px 24px}
             .code-block{font-size:14px;padding:18px;min-height:auto;text-align:left;white-space:pre-wrap;word-break:break-word;overflow-x:visible;line-height:1.7}
             .api-wa-row{justify-content:flex-start}
-            .api-wa-link{margin-left:-8px;padding:8px}
+            .api-wa-link{margin-inline-start:-8px;padding:8px}
             
             
           }
@@ -1311,8 +1311,8 @@ response = requests.post(
             .pill{padding:12px 20px}
             
             .api{padding:calc(var(--public-mobile-section-gap) / 2) var(--public-mobile-page-gutter)}
-            .api-info h2{text-align:left}
-            .api-desc{text-align:left}
+            .api-info h2{text-align:start}
+            .api-desc{text-align:start}
             .code-tabs{gap:8px;padding:14px}
             .pp-tab{padding:12px 20px}
             .code-block{font-size:14px;padding:16px;min-height:auto;text-align:left;white-space:pre-wrap;word-break:break-word;overflow-x:visible;line-height:1.65}
@@ -1335,9 +1335,9 @@ response = requests.post(
           /* ========== LANDSCAPE ORIENTATION FIX ========== */
           @media(max-height:500px) and (orientation:landscape){
             .hero{padding:90px 24px 40px}
-            .hero-content{flex-direction:row;gap:24px;text-align:left}
+            .hero-content{flex-direction:row;gap:24px;text-align:start}
             .hero-right{order:0;flex:1}
-            .hero-left{order:0;flex:1;text-align:left}
+            .hero-left{order:0;flex:1;text-align:start}
             .hero-left h1{margin:0 0 16px}
             .hero-left p{margin:0 0 20px}
             .mockup-wrapper{max-height:260px;aspect-ratio:auto;max-width:100%}
