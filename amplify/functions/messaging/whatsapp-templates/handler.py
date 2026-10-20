@@ -8,7 +8,7 @@ import boto3
 import urllib.request
 import urllib.parse
 import urllib.error
-from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
+from lambda_utils import media_paths, template_status  # one bucket, two roots: o/ public, secure/ gated
 from lambda_utils.response import cors_headers, options_response, extract_origin
 from lambda_utils.logging import get_logger
 from lambda_utils.middleware import require_auth
@@ -479,6 +479,8 @@ def _list_templates(waba_id, query_params):
                 'templateName': t.get('name'),
                 'status': t.get('status'),
                 'templateStatus': t.get('status'),
+                'templateState': template_status.canonical(t.get('status')),
+                'sendable': template_status.is_sendable(t.get('status')),
                 'category': t.get('category'),
                 'language': t.get('language'),
                 'components': t.get('components', []),
@@ -514,6 +516,8 @@ def _get_template_details(waba_id, template_id, query_params):
                     'metaTemplateId': data.get('id'),
                     'templateName': data.get('name'),
                     'templateStatus': data.get('status'),
+                    'templateState': template_status.canonical(data.get('status')),
+                    'sendable': template_status.is_sendable(data.get('status')),
                     'components': data.get('components', []),
                     'language': data.get('language', ''),
                     'category': data.get('category', ''),

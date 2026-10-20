@@ -34,6 +34,7 @@ from lambda_utils import graph_errors  # Meta error subcode + transient classifi
 from lambda_utils import live_smoke  # WA_LIVE_SMOKE_TEST recipient lockdown
 from lambda_utils import direct_send  # Direct Send flag + WABA map, fails closed
 from lambda_utils import contact_key
+from lambda_utils import template_status
 from lambda_utils.identity import subscriber_id  # `id` is the physical key; `contactId` is its alias
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
 # One source for Meta's reference_id contract, so the send path and the minter cannot disagree.
@@ -830,7 +831,7 @@ def _approved_order_status_template(phone_number_id: str, request_id: str) -> st
         rows = _fetch_approved_templates(waba_id).get('data', [])
         approved = {
             row.get('name') for row in rows if isinstance(row, dict)
-            and row.get('status') == 'APPROVED'
+            and template_status.is_sendable(row.get('status'))
             and row.get('category') == 'UTILITY'
             and row.get('sub_category') == 'ORDER_STATUS'
             and row.get('language') == WA_ORDER_STATUS_TEMPLATE_LANGUAGE

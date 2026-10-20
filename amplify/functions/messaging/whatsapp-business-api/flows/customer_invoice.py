@@ -4,7 +4,7 @@ import re
 import time
 import boto3
 from botocore.exceptions import ClientError
-from lambda_utils import customer_auth, media_paths, receipt_links, shared_tables
+from lambda_utils import customer_auth, media_paths, receipt_links, shared_tables, template_status
 from lambda_utils.identity import customer_uuid
 from flows import customer_orders, paid_vault
 
@@ -40,7 +40,7 @@ def resolve(db, identity, order_id):
 def template_ready(response):
     rows = response.get('data') or []
     eligible = [t for t in rows if t.get('name') == TEMPLATE and t.get('language') == 'en'
-                and t.get('status') == 'APPROVED']
+                and template_status.is_sendable(t.get('status'))]
     return len(eligible) == 1 and any(c.get('type') == 'HEADER' and c.get('format') == 'IMAGE'
         for c in eligible[0].get('components') or [])
 
