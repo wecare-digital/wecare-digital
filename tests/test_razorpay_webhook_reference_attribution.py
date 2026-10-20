@@ -149,7 +149,6 @@ class _Effects:
             patch.object(self.webhook, 'lambda_client', self.lambda_client),
             patch.object(self.webhook, '_post_payment_handler'),
             patch.object(self.webhook, '_log_ctwa_purchase'),
-            patch.object(self.webhook, '_trigger_post_payment_flow'),
             patch.object(self.webhook, '_create_order_for_captured_payment',
                          wraps=self.webhook._create_order_for_captured_payment),
         ]
