@@ -5709,6 +5709,9 @@ export interface FlowSubmissionItem {
   paymentStatus: string;
   paymentRefId?: string;
   invoiceId?: string;
+  /** WAMID for an endpointless WhatsApp Flow completion. Used by the unified Inbox to join the
+   * message bubble to its canonical FlowSubmission row without duplicating a second inbox item. */
+  whatsappMessageId?: string;
   /** WhatsApp send outcome for an invoice-copy request, e.g. 'ACCEPTED' or 'SEND_FAILED'. */
   invoiceDeliveryStatus?: string;
   transactionId?: string;
