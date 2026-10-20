@@ -1,5 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
+import * as api from '../../../api/client';
 import type { Contact } from '../../../api/client';
+import { useToastContext } from '../../../contexts/ToastContext';
+import { useConfirm } from '../../../contexts/ConfirmContext';
 
 type ReviewContact = Pick<Contact,
   'contactId' | 'customerUuid' | 'name' | 'phone' | 'email' |
@@ -70,9 +73,13 @@ interface Props {
   contacts: Contact[];
   onClose: () => void;
   onOpenCustomer: ( contactId: string ) => void;
+  onChanged?: () => void | Promise<void>;
 }
 
-const CustomerManageData: React.FC<Props> = ( { contacts, onClose, onOpenCustomer } ) => {
+const CustomerManageData: React.FC<Props> = ( { contacts, onClose, onOpenCustomer, onChanged } ) => {
+  const toast = useToastContext();
+  const confirm = useConfirm();
+  const [ busy, setBusy ] = useState<string | null>( null );
   const review = useMemo( () => buildCustomerDataReview( contacts ), [ contacts ] );
   const issueCount = review.duplicates.length + review.missingCustomerId.length
     + review.missingPhone.length + review.invalidPhone.length + review.missingAddress.length;
@@ -86,6 +93,50 @@ const CustomerManageData: React.FC<Props> = ( { contacts, onClose, onOpenCustome
   ];
 
   const open = ( contact: ReviewContact ) => onOpenCustomer( contact.contactId );
+
+  const merge = async ( source: ReviewContact, target: ReviewContact ) => {
+    const key = `merge:${source.contactId}:${target.contactId}`;
+    const ok = await confirm( {
+      title: 'Merge duplicate customers',
+      message: `Merge "${source.name || source.contactId}" into "${target.name || target.contactId}"? The source becomes a retained alias and financial/history records are preserved. The server will refuse weak or conflicting identity evidence.`,
+      confirmText: 'Merge',
+    } );
+    if ( !ok ) return;
+    setBusy( key );
+    const result = await api.mergeContacts(
+      source.contactId,
+      target.contactId,
+      'Reviewed exact duplicate from Customers → Manage data',
+    );
+    setBusy( null );
+    if ( result.ok ) {
+      toast.success( 'Customers merged; source retained as an alias' );
+      await onChanged?.();
+    } else {
+      toast.error( result.failure.message || 'Merge refused' );
+    }
+  };
+
+  const archive = async ( contact: ReviewContact ) => {
+    const ok = await confirm( {
+      title: 'Archive customer',
+      message: `Archive "${contact.name || contact.contactId}" from daily customer queues? Identity, orders, invoices, payments, consent and history remain intact.`,
+      confirmText: 'Archive',
+    } );
+    if ( !ok ) return;
+    setBusy( `archive:${contact.contactId}` );
+    const result = await api.archiveContact(
+      contact.contactId,
+      'Archived from Customers → Manage data after operator review',
+    );
+    setBusy( null );
+    if ( result.ok ) {
+      toast.success( 'Customer archived without deleting history' );
+      await onChanged?.();
+    } else {
+      toast.error( result.failure.message || 'Archive refused' );
+    }
+  };
 
   return (
     <div className="md-backdrop" role="dialog" aria-modal="true" aria-labelledby="manage-data-title" onClick={ onClose }>
@@ -118,7 +169,7 @@ const CustomerManageData: React.FC<Props> = ( { contacts, onClose, onOpenCustome
           <div className="section-head">
             <div>
               <h3 id="duplicate-title">Potential duplicates</h3>
-              <p>Review only. This surface does not auto-merge, archive, or rewrite financial/customer history.</p>
+              <p>Reviewed actions only. Merge preserves the source as an alias; archive hides a customer from daily queues without deleting identity or financial history.</p>
             </div>
           </div>
           { review.duplicates.length === 0 ? (
@@ -131,12 +182,36 @@ const CustomerManageData: React.FC<Props> = ( { contacts, onClose, onOpenCustome
                 <small>{ group.contacts.length } records</small>
               </div>
               <div className="customer-list">
-                { group.contacts.map( contact => (
-                  <button type="button" key={ contact.contactId } onClick={ () => open( contact ) }>
-                    <span><strong>{ contact.name || 'Unnamed customer' }</strong><small>{ contact.contactId }</small></span>
-                    <span aria-hidden="true">›</span>
-                  </button>
-                ) ) }
+                { group.contacts.map( ( contact, index ) => {
+                  const target = group.contacts.find( ( candidate, candidateIndex ) =>
+                    candidateIndex !== index
+                    && ( !!candidate.phone || !!candidate.email )
+                    && ( !!candidate.customerUuid || !contact.customerUuid )
+                  ) || group.contacts.find( ( _, candidateIndex ) => candidateIndex !== index );
+                  const mergeKey = target ? `merge:${contact.contactId}:${target.contactId}` : '';
+                  return (
+                    <div className="customer-action-row" key={ contact.contactId }>
+                      <button type="button" className="customer-open" onClick={ () => open( contact ) }>
+                        <span><strong>{ contact.name || 'Unnamed customer' }</strong><small>{ contact.contactId }</small></span>
+                        <span aria-hidden="true">›</span>
+                      </button>
+                      <div className="row-actions">
+                        { target && (
+                          <button type="button" className="action merge"
+                            disabled={ busy === mergeKey }
+                            onClick={ () => void merge( contact, target ) }>
+                            { busy === mergeKey ? 'Merging…' : 'Merge' }
+                          </button>
+                        ) }
+                        <button type="button" className="action"
+                          disabled={ busy === `archive:${contact.contactId}` }
+                          onClick={ () => void archive( contact ) }>
+                          { busy === `archive:${contact.contactId}` ? 'Archiving…' : 'Archive' }
+                        </button>
+                      </div>
+                    </div>
+                  );
+                } ) }
               </div>
             </article>
           ) ) }
@@ -188,7 +263,7 @@ const CustomerManageData: React.FC<Props> = ( { contacts, onClose, onOpenCustome
         .review-section{margin-top:26px}.section-head{display:flex;justify-content:space-between;gap:12px}.review-section h3{margin:0 0 4px;font-size:var(--text-lg)}.review-section p{color:var(--text-muted);font-size:var(--text-sm)}
         .duplicate,.exception{margin-top:10px;border:1px solid var(--border);border-radius:14px;overflow:hidden}
         .duplicate-head{padding:12px 14px;background:var(--bg-secondary);display:flex;gap:8px;align-items:center;flex-wrap:wrap}.duplicate-head span,.duplicate-head small{font-size:var(--text-xs);color:var(--text-muted)}.duplicate-head small{margin-inline-start:auto}
-        .customer-list{display:flex;flex-direction:column}.customer-list button{border:0;border-top:1px solid var(--border-light);background:#fff;min-height:58px;padding:9px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:start;cursor:pointer;color:var(--text)}.customer-list button:first-child{border-top:0}.customer-list button:hover,.customer-list button:focus-visible{background:var(--bg-secondary)}.customer-list button:focus-visible,.close:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}.customer-list button span:first-child{display:flex;flex-direction:column;min-width:0}.customer-list small{color:var(--text-muted);font-size:var(--text-xs);overflow-wrap:anywhere}
+        .customer-list{display:flex;flex-direction:column}.customer-list>button,.customer-open{border:0;border-top:1px solid var(--border-light);background:#fff;min-height:58px;padding:9px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:start;cursor:pointer;color:var(--text)}.customer-list>button:first-child{border-top:0}.customer-list>button:hover,.customer-list>button:focus-visible,.customer-open:hover,.customer-open:focus-visible{background:var(--bg-secondary)}.customer-list>button:focus-visible,.customer-open:focus-visible,.action:focus-visible,.close:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}.customer-list button span:first-child{display:flex;flex-direction:column;min-width:0}.customer-list small{color:var(--text-muted);font-size:var(--text-xs);overflow-wrap:anywhere}.customer-action-row{display:grid;grid-template-columns:minmax(0,1fr) auto;border-top:1px solid var(--border-light);align-items:stretch}.customer-action-row:first-child{border-top:0}.customer-action-row .customer-open{border-top:0;width:100%}.row-actions{display:flex;align-items:center;gap:6px;padding:8px}.action{min-height:40px;padding:7px 10px;border:1px solid var(--border);border-radius:10px;background:#fff;color:var(--text);font:inherit;font-size:var(--text-xs);font-weight:700;cursor:pointer}.action.merge{border-color:var(--accent);color:var(--accent)}.action:disabled{opacity:.55;cursor:default}
         .exception>strong{display:block;padding:11px 14px;background:var(--bg-secondary);font-size:var(--text-sm)}.more{display:block;padding:8px 14px;color:var(--text-muted)}.empty{padding:16px;border:1px dashed var(--border);border-radius:12px}
         @media(max-width:640px){.issue-grid{grid-template-columns:1fr 1fr}.md-panel{padding:16px}.summary{align-items:flex-start;flex-direction:column;gap:2px}}
         @media(max-width:390px){.issue-grid{grid-template-columns:1fr}}
