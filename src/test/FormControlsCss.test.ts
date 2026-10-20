@@ -506,7 +506,15 @@ describe( 'form-controls.css — invariant 4', () => {
     // Both <=768px iOS-zoom blocks, which beat even an inline fontSize.
     // Two blocks, and they are spelled differently - `@media (max-width: 768px)` and
     // `@media screen and (max-width: 768px)` - so the query is matched loosely on purpose.
-    const zoomBlocks = tokens.match( /@media[^{]*max-width:\s*768px[\s\S]*?font-size:\s*16px\s*!important/g );
+    // The floor itself is now TOKEN-SOURCED: both blocks declare
+    // `font-size: var(--public-mobile-form-font-size) !important`, and that token resolves to
+    // 16px (tokens.css --public-mobile-form-font-size: 16px), so the iOS-zoom floor is intact -
+    // single-sourced rather than literalized. Accept either the literal `16px` OR the token so
+    // the next reader does NOT re-literalize it and break the single source HomePage.test.tsx
+    // depends on.
+    const zoomBlocks = tokens.match(
+      /@media[^{]*max-width:\s*768px[\s\S]*?font-size:\s*(?:16px|var\(--public-mobile-form-font-size\))\s*!important/g
+    );
     expect( zoomBlocks?.length ).toBe( 2 );
 
     // And the third claimant, which is NOT inside a media query and so already pins every
