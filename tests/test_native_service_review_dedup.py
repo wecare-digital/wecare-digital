@@ -1,4 +1,4 @@
-"""Paid orders expose review exactly once: through the invoice template Flow button."""
+"""Paid-order transaction messages never launch a review Flow."""
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,11 +17,11 @@ def test_no_standalone_review_template_sender_remains():
         assert "WA_REVIEW_TEMPLATE" not in source, path
 
 
-def test_invoice_template_is_the_single_review_entrypoint():
+def test_invoice_template_has_no_review_entrypoint():
     source = (ROOT / "amplify/functions/payments/invoice-engine/handler.py").read_text(
         encoding="utf-8")
     assert "wecare_default_invoice_image_template" in source
-    assert "'flowButton': {'index': 0, 'flowKey': 'leave_review'}" in source
+    assert "'flowButton':" not in source
 
 
 def test_legacy_review_actions_are_safe_noop_sinks():
