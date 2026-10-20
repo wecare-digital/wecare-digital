@@ -55,7 +55,7 @@ WABA1_ID = wpr.PHONE_ID_TO_WABA[WABA1]
 
 TEST_CONFIG = 'WECAREDIGITAL'
 TEST_MID = 'acc_TESTMID'
-TEMPLATE = 'wecarepay_wa'
+TEMPLATE = 'wecare_whatapp_native_pay_template'
 
 ORDER_DETAILS = {'reference_id': 'WD-PAY-GATE0001', 'type': 'digital-goods',
                  'currency': 'INR', 'total_amount': {'value': 59900, 'offset': 100}}
@@ -533,7 +533,7 @@ def test_the_template_readback_is_waba_scoped(outbound):
 
 
 def test_the_template_read_does_not_use_the_auto_generated_route(outbound):
-    """`/direct-send/templates` filters `source=AUTO_GENERATED`, and `wecarepay_wa` is manually
+    """`/direct-send/templates` filters `source=AUTO_GENERATED`, and `wecare_whatapp_native_pay_template` is manually
     created and manually approved — so reading it there would block EVERY payment send on
     PAYMENT_TEMPLATE_MISSING. The gate uses an unfiltered WABA-scoped arm instead."""
     import inspect
