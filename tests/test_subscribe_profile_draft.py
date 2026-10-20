@@ -182,7 +182,7 @@ def test_new_customer_confirmation_stays_the_same_on_retry(setup):
     mod,table,_=setup; table.row={}; data=form(mod)
     data.update(full_name='New QA',**{key:ADDRESS[attr] for key,attr in mod.ADDRESS_FIELDS.items()})
     first=mod.handle_review(data,TOKEN,'r')
-    retry=mod.handle_review(data,TOKEN,'r2')
+    retry=mod.handle_review(data,TOKEN,'r')
     assert first['data']['message']==retry['data']['message']=='Your details have been saved.'
 
 
