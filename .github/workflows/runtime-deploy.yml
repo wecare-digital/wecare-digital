@@ -7,6 +7,7 @@ on:
     paths:
       - 'amplify/functions/ai/ai-generate-response/**'
       - 'amplify/functions/core/service-api/**'
+      - 'amplify/functions/auth/customer-whatsapp-auth/**'
       - 'amplify/functions/messaging/inbound-whatsapp-handler/**'
       - 'amplify/functions/messaging/outbound-whatsapp/**'
       - 'amplify/functions/messaging/whatsapp-business-api/**'
@@ -59,6 +60,7 @@ jobs:
           python -m py_compile \
             amplify/functions/ai/ai-generate-response/handler.py \
             amplify/functions/core/service-api/handler.py \
+            amplify/functions/auth/customer-whatsapp-auth/handler.py \
             amplify/functions/messaging/inbound-whatsapp-handler/handler.py \
             amplify/functions/messaging/outbound-whatsapp/handler.py \
             amplify/functions/messaging/whatsapp-business-api/handler.py \
@@ -71,6 +73,7 @@ jobs:
           python scripts/deploy_all_lambdas.py --dry-run \
             wecare-ai-generate-response \
             wecare-service-api \
+            wecare-customer-whatsapp-auth \
             wecare-inbound-whatsapp \
             wecare-outbound-whatsapp \
             wecare-whatsapp-business-api \
@@ -84,6 +87,7 @@ jobs:
           python scripts/deploy_all_lambdas.py \
             wecare-ai-generate-response \
             wecare-service-api \
+            wecare-customer-whatsapp-auth \
             wecare-inbound-whatsapp \
             wecare-outbound-whatsapp \
             wecare-whatsapp-business-api \
@@ -100,6 +104,7 @@ jobs:
           names = [
               "wecare-ai-generate-response",
               "wecare-service-api",
+              "wecare-customer-whatsapp-auth",
               "wecare-inbound-whatsapp",
               "wecare-outbound-whatsapp",
               "wecare-whatsapp-business-api",
