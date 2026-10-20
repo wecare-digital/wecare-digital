@@ -78,7 +78,7 @@ def _ready_meta():
         'templates': {name: {'name': name, 'status': 'APPROVED', 'language': 'en',
           'components': [{'type': 'BUTTONS', 'buttons': [{'type': 'URL',
                          'url': 'https://wecare.digital/vault/?file={{1}}'}]}]}
-          for name in ('wecarepay_wa', 'wecare_leave_review', 'wecare_default_download')}}
+          for name in ('wecare_whatapp_native_pay_template', 'wecare_leave_review', 'wecare_default_download')}}
 
 
 def test_unpublished_submit_request_or_wrong_download_url_prevents_payment():
@@ -93,6 +93,6 @@ def test_unpublished_submit_request_or_wrong_download_url_prevents_payment():
 
 def test_unapproved_payment_template_prevents_payment():
     ready = _ready_meta()
-    ready['templates']['wecarepay_wa']['status'] = 'PENDING'
+    ready['templates']['wecare_whatapp_native_pay_template']['status'] = 'PENDING'
     assert not catalog.meta_ready(ready, 'SUBMIT_REQUEST')
     assert not catalog.meta_ready(ready, 'VAULT')
