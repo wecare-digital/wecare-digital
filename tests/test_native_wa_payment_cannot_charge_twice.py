@@ -17,9 +17,10 @@ Four drives, because one constant genuinely cannot hold:
     DEDUPLICATED_CAPTURE the same where the invoice already exists - the COMMON native case
     REPLAY               FRESH_CAPTURE then capture x3
 
-The deduplicated set omits `generate-image`/`generate-pdf` precisely because the dedup shortcut
-still skips them, while `send-whatsapp` is PRESENT - which is why one constant could not cover
-both.
+The deduplicated set omits `generate-image` precisely because the dedup shortcut still skips it,
+while `send-whatsapp` is PRESENT - which is why one constant could not cover both. (PDF rendering
+was retired in the image-only invoice work; `/generate-pdf` now returns 410, so no drive invokes
+it any more.)
 
 The recorder sits AT THE HTTP SEAM (`urlopen`) and at the Lambda seam, not over an application
 function, which is what makes the enumeration meaningful rather than a mock asserting itself.
@@ -158,7 +159,6 @@ PERMITTED_LAMBDA_INVOKES_FRESH_CAPTURE = frozenset({
     PAID_REQUEST_FLOW_HINT,
     'wecare-invoice-engine POST /invoices/from-payment',
     'wecare-invoice-engine POST /invoices/{id}/generate-image',
-    'wecare-invoice-engine POST /invoices/{id}/generate-pdf',
     'wecare-invoice-engine:live POST /invoices/{id}/send-whatsapp',
     'wecare-outbound-whatsapp',                      # the review request
 })
@@ -183,7 +183,6 @@ PERMITTED_LAMBDA_INVOKES_CATALOGUE_CAPTURE = frozenset({
     PAID_REQUEST_FLOW_HINT,
     'wecare-invoice-engine POST /invoices/from-payment',
     'wecare-invoice-engine POST /invoices/{id}/generate-image',
-    'wecare-invoice-engine POST /invoices/{id}/generate-pdf',
     'wecare-outbound-whatsapp',                       # the review request
 })
 
@@ -451,9 +450,9 @@ def test_the_fresh_capture_drive_makes_exactly_the_permitted_calls(webhook, fake
 
 
 def test_the_deduplicated_drive_makes_exactly_the_permitted_calls(webhook, fake):
-    """No `generate-image`, no `generate-pdf`, but `send-whatsapp` PRESENT - which is why one
-    constant could not cover both drives, and why the dedup shortcut had to be narrowed instead
-    of returning early."""
+    """No `generate-image`, but `send-whatsapp` PRESENT - which is why one constant could not
+    cover both drives, and why the dedup shortcut had to be narrowed instead of returning early.
+    (PDF rendering was retired in the image-only work; no drive invokes `/generate-pdf`.)"""
     recorder = Recorder()
     drive_capture(webhook, fake, recorder, deduplicated=True)
 

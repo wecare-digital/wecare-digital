@@ -168,7 +168,7 @@ def _redrive_quarantined_capture(reference_id: str, payment_id: str,
         notes = entity.get('notes') if isinstance(entity.get('notes'), dict) else {}
         event_ref = str(notes.get('referenceId') or notes.get('reference_id') or notes.get('ref') or '')
         if (str(entity.get('id') or '') == payment_id
-                and str(entity.get('status') or '').lower() == 'captured'
+                and payment_status.canonical(entity.get('status')) == payment_status.CAPTURED
                 and event_ref == reference_id):
             candidates.append((int(row.get('processedAt') or row.get('createdAt') or 0), event_data))
 
