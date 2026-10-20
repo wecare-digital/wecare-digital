@@ -2,7 +2,7 @@ import React from 'react';
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const api = vi.hoisted(() => ({ getSystemConfigResult: vi.fn(), updateSystemConfig: vi.fn(), searchContacts: vi.fn() }));
+const api = vi.hoisted(() => ({ getSystemConfigResult: vi.fn(), updateSystemConfig: vi.fn(), searchContactsResult: vi.fn() }));
 const toast = vi.hoisted(() => ({ success:vi.fn(), error:vi.fn() }));
 vi.mock('../api/client',()=>api);
 vi.mock('../contexts/ToastContext',()=>({useToastContext:()=>toast}));
@@ -10,7 +10,7 @@ vi.mock('../components/workspace/customers/ConsentPanel',()=>({default:({contact
 import SubscribeSettings from '../components/workspace/whatsapp/subscribe-settings';
 
 afterEach(cleanup);
-beforeEach(()=>{ vi.clearAllMocks(); api.getSystemConfigResult.mockResolvedValue({ok:true,data:{config:null}}); api.updateSystemConfig.mockResolvedValue(true); });
+beforeEach(()=>{ vi.clearAllMocks(); api.getSystemConfigResult.mockResolvedValue({ok:true,data:{config:null}}); api.updateSystemConfig.mockResolvedValue(true); api.searchContactsResult.mockResolvedValue({ok:true,data:[]}); });
 
 describe('Subscribe workspace',()=>{
   it('saves separate new and returning copy without granting consent or enabling sends',async()=>{
@@ -43,8 +43,16 @@ describe('Subscribe workspace',()=>{
     await waitFor(()=>expect(toast.error).toHaveBeenCalled());
     expect(screen.getByLabelText('newCustomer body')).toHaveValue('Keep this draft');
   });
+  it('reports a failed customer search instead of claiming no matches',async()=>{
+    api.searchContactsResult.mockResolvedValue({ok:false,failure:{message:'Customer search unavailable'}});
+    render(<SubscribeSettings/>);
+    fireEvent.change(screen.getByLabelText('Find customer'),{target:{value:'QA'}});
+    fireEvent.click(screen.getByRole('button',{name:'Search customers'}));
+    expect(await screen.findByRole('status')).toHaveTextContent('Customer search unavailable');
+    expect(screen.queryByText('No matching customers found.')).toBeNull();
+  });
   it('shows consent only for an explicitly selected customer and clears it on a new search',async()=>{
-    api.searchContacts.mockResolvedValue([{contactId:'contact-a',name:'QA',phone:'+918100640044',customerDisplayId:'C-TEST'}]);
+    api.searchContactsResult.mockResolvedValue({ok:true,data:[{contactId:'contact-a',name:'QA',phone:'+918100640044',customerDisplayId:'C-TEST'}]});
     render(<SubscribeSettings/>);
     fireEvent.change(screen.getByLabelText('Find customer'),{target:{value:'QA'}});
     fireEvent.click(screen.getByRole('button',{name:'Search customers'}));

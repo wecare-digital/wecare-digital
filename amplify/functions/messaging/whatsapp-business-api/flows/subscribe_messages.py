@@ -8,6 +8,7 @@ from flows import common
 
 CONFIG_KEY = 'subscribe_messages_config'
 FLOW_ID = '1386523953464380'
+FLOW_NAME = 'WD_Subscribe_Design_v1'
 DEFAULTS = {
     'newCustomer': {
         'body': 'Welcome to WECARE.DIGITAL. Add your name, username and address to complete your customer profile.',

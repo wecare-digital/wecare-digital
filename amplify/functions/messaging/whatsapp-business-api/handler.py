@@ -2374,15 +2374,38 @@ def _send_flow_msg(body: Dict) -> Dict:
         return _resp(400, {'error': 'one of flowId/flowName is required'})
     phone_id = body.get('phoneId') or PHONE1_META_ID
 
-    if str(flow_id or '') == '1386523953464380':
-        from flows import subscribe_messages, common as flow_common
+    from flows import subscribe_messages, common as flow_common
+    is_subscribe = (
+        str(flow_id or '') == subscribe_messages.FLOW_ID
+        or str(flow_name or '') == subscribe_messages.FLOW_NAME
+    )
+    subscribe_row: Dict[str, Any] = {}
+    if is_subscribe:
         from lambda_utils import contact_store
-        recipient = body.get('to') or body.get('recipient') or ''
-        row = contact_store.lookup(flow_common.dynamodb.Table(flow_common.CONTACTS_TABLE), recipient) or {}
-        copy = subscribe_messages.copy_for(subscribe_messages.is_returning(row))
-        # Explicit one-off operator copy still wins; workspace copy supplies defaults.
-        body = {**body, 'bodyText': body.get('bodyText') or copy['body'],
-                'flowCta': body.get('flowCta') or copy['flowCta']}
+        recipient = str(body.get('to') or body.get('recipient') or '').strip()
+        needs_workspace_copy = not body.get('bodyText') or not body.get('flowCta')
+        direct_phone = contact_store.digits(body.get('to') or body.get('recipient') or '')
+        needs_recipient_phone = not body.get('flowToken') and not direct_phone
+        if needs_workspace_copy or needs_recipient_phone:
+            table = flow_common.dynamodb.Table(flow_common.CONTACTS_TABLE)
+            if body.get('to'):
+                subscribe_row = contact_store.lookup(table, body.get('to')) or {}
+            elif contact_store.digits(recipient):
+                subscribe_row = contact_store.lookup(table, recipient) or {}
+            else:
+                subscribe_row = contact_store.find_by_bsuid(table, recipient) or {}
+        if needs_workspace_copy:
+            copy = subscribe_messages.copy_for(subscribe_messages.is_returning(subscribe_row))
+            # Explicit one-off operator copy still wins; workspace copy supplies defaults.
+            body = {**body, 'bodyText': body.get('bodyText') or copy['body'],
+                    'flowCta': body.get('flowCta') or copy['flowCta']}
+        if not body.get('flowToken'):
+            token_phone = direct_phone
+            if not token_phone:
+                token_phone = contact_store.digits(subscribe_row.get('phone') or '')
+            if not token_phone:
+                return _resp(400, {'error': 'Subscribe sends require a phone-backed customer or explicit flowToken'})
+            body = {**body, 'flowToken': f'subscribe-{uuid.uuid4().hex}-waba-1-ph-{token_phone}'}
 
     parameters: Dict[str, Any] = {
         'flow_message_version': '3',

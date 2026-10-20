@@ -405,14 +405,59 @@ class TestSendMessages:
     def test_subscribe_one_off_message_can_override_workspace_copy(self):
         from flows import subscribe_messages
         from lambda_utils import contact_store
-        with patch.object(contact_store, 'lookup', return_value={}), \
-             patch.object(subscribe_messages, 'copy_for', return_value={'body': 'Default', 'flowCta': 'Subscribe'}), \
+        with patch.object(contact_store, 'lookup', return_value={}) as lookup, \
+             patch.object(subscribe_messages, 'copy_for', return_value={'body': 'Default', 'flowCta': 'Subscribe'}) as copy, \
              patch.object(self.h, '_send_message', return_value={'statusCode': 200}) as send:
             self.h._send_flow_msg({'to':'918100640044','flowId':subscribe_messages.FLOW_ID,
                                   'bodyText':'QA draft review','flowCta':'Review draft','mode':'draft'})
+        lookup.assert_not_called()
+        copy.assert_not_called()
         message=send.call_args.args[1]['interactive']
         assert message['body']['text']=='QA draft review'
         assert message['action']['parameters']['flow_cta']=='Review draft'
+        assert message['action']['parameters']['flow_token'].startswith('subscribe-')
+        assert message['action']['parameters']['flow_token'].endswith('-waba-1-ph-918100640044')
+
+    def test_subscribe_flow_name_uses_workspace_copy(self):
+        from flows import subscribe_messages
+        from lambda_utils import contact_store
+        selected = {'body': 'Welcome by name', 'flowCta': 'Open profile', 'confirmation': 'Saved'}
+        with patch.object(contact_store, 'lookup', return_value={'phone': '+918100640044'}), \
+             patch.object(subscribe_messages, 'is_returning', return_value=True), \
+             patch.object(subscribe_messages, 'copy_for', return_value=selected) as copy, \
+             patch.object(self.h, '_send_message', return_value={'statusCode': 200}) as send:
+            self.h._send_flow_msg({'to':'918100640044','flowName':subscribe_messages.FLOW_NAME,'mode':'draft'})
+        copy.assert_called_once_with(True)
+        message=send.call_args.args[1]['interactive']
+        assert message['body']['text']=='Welcome by name'
+        assert message['action']['parameters']['flow_name']==subscribe_messages.FLOW_NAME
+
+    def test_subscribe_bsuid_send_resolves_customer_for_copy_and_token(self):
+        from flows import subscribe_messages
+        from lambda_utils import contact_store
+        row={'id':'contact-1','phone':'+918100640044','addressLine1':'1 Test Road'}
+        with patch.object(contact_store, 'lookup') as lookup, \
+             patch.object(contact_store, 'find_by_bsuid', return_value=row) as by_bsuid, \
+             patch.object(subscribe_messages, 'copy_for', return_value={'body':'Welcome back','flowCta':'Update','confirmation':'Saved'}), \
+             patch.object(subscribe_messages, 'is_returning', return_value=True), \
+             patch.object(self.h, '_send_message', return_value={'statusCode': 200}) as send:
+            self.h._send_flow_msg({'recipient':'US.13491208655302741918',
+                                  'flowId':subscribe_messages.FLOW_ID,'mode':'draft'})
+        lookup.assert_not_called()
+        by_bsuid.assert_called_once()
+        params=send.call_args.args[1]['interactive']['action']['parameters']
+        assert params['flow_token'].startswith('subscribe-')
+        assert params['flow_token'].endswith('-waba-1-ph-918100640044')
+
+    def test_subscribe_bsuid_without_phone_or_token_is_rejected(self):
+        from flows import subscribe_messages
+        from lambda_utils import contact_store
+        with patch.object(contact_store, 'find_by_bsuid', return_value={}), \
+             patch.object(subscribe_messages, 'copy_for', return_value={'body':'Welcome','flowCta':'Subscribe','confirmation':'Saved'}):
+            res=self.h._send_flow_msg({'recipient':'US.13491208655302741918',
+                                      'flowId':subscribe_messages.FLOW_ID,'mode':'draft'})
+        assert res['statusCode']==400
+        assert 'phone-backed customer' in res['body']
 
     def test_flow_draft_mode(self):
         captured = {}

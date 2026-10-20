@@ -532,14 +532,20 @@ export async function listContacts (): Promise<Contact[]> {
   return [];
 }
 
-export async function searchContacts ( query: string, limit = 20 ): Promise<Contact[]> {
+export async function searchContactsResult ( query: string, limit = 20 ): Promise<ApiResult<Contact[]>> {
   const q = query.trim();
-  if ( !q ) return [];
-  const data = await apiCall<any>(
+  if ( !q ) return { ok: true, data: [] };
+  const result = await apiCallResult<any>(
     `${API_BASE}/contacts/search?q=${encodeURIComponent( q )}&limit=${Math.max( 1, Math.min( limit, 100 ) )}`
   );
-  const contacts = Array.isArray( data ) ? data : ( data?.contacts || [] );
-  return contacts.map( normalizeContact );
+  if ( !result.ok ) return result;
+  const contacts = Array.isArray( result.data ) ? result.data : ( result.data?.contacts || [] );
+  return { ok: true, data: contacts.map( normalizeContact ) };
+}
+
+export async function searchContacts ( query: string, limit = 20 ): Promise<Contact[]> {
+  const result = await searchContactsResult( query, limit );
+  return result.ok ? result.data : [];
 }
 
 export async function getContact ( contactId: string ): Promise<Contact | null> {

@@ -174,7 +174,7 @@ def test_username_limit_does_not_write_profile(setup):
 def test_returning_confirmation_stays_the_same_on_retry(setup):
     mod,table,_=setup; data=form(mod)
     first=mod.handle_review(data,TOKEN,'r')
-    retry=mod.handle_review(data,TOKEN,'r2')
+    retry=mod.handle_review(data,TOKEN,'r')
     assert first['data']['message']==retry['data']['message']=='Your details have been updated.'
 
 
@@ -182,8 +182,19 @@ def test_new_customer_confirmation_stays_the_same_on_retry(setup):
     mod,table,_=setup; table.row={}; data=form(mod)
     data.update(full_name='New QA',**{key:ADDRESS[attr] for key,attr in mod.ADDRESS_FIELDS.items()})
     first=mod.handle_review(data,TOKEN,'r')
-    retry=mod.handle_review(data,TOKEN,'r2')
+    retry=mod.handle_review(data,TOKEN,'r')
     assert first['data']['message']==retry['data']['message']=='Your details have been saved.'
+
+
+def test_retry_refuses_an_incomplete_saved_scenario(setup):
+    mod,table,calls=setup; data=form(mod)
+    table.row['subscribeLastFlowToken']=TOKEN
+    table.row.pop('subscribeProfileWasExisting',None)
+    result=mod.handle_review(data,TOKEN,'r')
+    assert result['screen']=='REVIEW'
+    assert 'incomplete' in result['data']['error_message'].lower()
+    assert not table.updates
+    assert not calls
 
 
 def test_saved_profile_uses_workspace_confirmation(setup,monkeypatch):
