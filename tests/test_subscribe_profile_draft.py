@@ -132,12 +132,52 @@ def test_customer_copy_hides_country_code_and_has_short_labels():
     inputs=[n for n in walk(doc) if n.get('type')=='TextInput']
     assert not any(n.get('name')=='country_code' for n in inputs)
     assert all(len(n['label'])<=20 for n in inputs)
-    required={n['name'] for n in inputs if n.get('required')}
-    assert {'full_name','address_line1','city','state','postal_code'}<=required
+    dropdowns=[n for n in walk(doc) if n.get('type')=='Dropdown']
+    required={n['name'] for n in inputs + dropdowns if n.get('required')}
+    assert {'full_name','address_line1','city','state','postal_code','country'}<=required
+    country=next(n for n in dropdowns if n.get('name')=='country')
+    assert country['data-source']
+    assert any(option['id']=='India' for option in country['data-source'])
+    assert any(option['id']=='United States' for option in country['data-source'])
     copy_text=' '.join(n.get('text','') for n in walk(doc) if isinstance(n.get('text',''),str))
     assert 'Your website and WhatsApp' not in copy_text
     assert 'marketing subscriptions' not in copy_text
 
+
+
+def test_new_customer_has_no_country_default_and_must_choose_one(setup):
+    mod,table,_=setup
+    table.row={}
+    data=form(mod)
+    assert data['country']=='' and data['country_code']==''
+    data.update(full_name='New QA', address_line1='1 Main Street', city='London',
+                state='England', postal_code='SW1A 1AA')
+    result=mod.handle_review(data,TOKEN,'r')
+    assert result['screen']=='REVIEW'
+    assert 'select your country' in result['data']['error_message'].lower()
+    assert not table.puts
+
+
+def test_existing_international_customer_prefills_country_from_iso_code(setup):
+    mod,table,_=setup
+    table.row[contact_address.ATTRIBUTE]=contact_address.normalize_for_storage({
+        'addressLine1':'1 Market St','city':'San Francisco','state':'US-CA',
+        'postalCode':'94105','country':'India','countryCode':'US'})
+    data=form(mod)
+    assert data['country']=='United States'
+    assert data['country_code']=='US'
+
+
+def test_explicit_country_choice_derives_iso_code_and_updates_canonical_address(setup):
+    mod,table,_=setup
+    data=form(mod)
+    data.update(country='United Kingdom', country_code='IN',
+                state='GB-ENG', postal_code='SW1A 1AA')
+    result=mod.handle_review(data,TOKEN,'r')
+    assert result['screen']=='COMPLETE'
+    saved=table.row[contact_address.ATTRIBUTE]
+    assert saved['country']=='United Kingdom'
+    assert saved['countryCode']=='GB'
 
 def test_subscribe_does_not_collect_or_change_email(setup):
     mod,table,calls=setup; data=form(mod)
