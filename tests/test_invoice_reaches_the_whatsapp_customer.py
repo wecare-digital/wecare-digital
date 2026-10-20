@@ -76,18 +76,20 @@ def fake():
 class _Sender:
     """Records sends, and can fail the way Meta fails: an exception the engine swallows."""
 
-    def __init__(self, status='sent', raises=None):
+    def __init__(self, status='sent', raises=None, status_code=200):
         self.invokes = []
         self.status = status
         self.raises = raises
+        self.status_code = status_code
 
     def invoke(self, **kwargs):
         self.invokes.append(kwargs)
         if self.raises:
             raise self.raises
-        body = json.dumps({'statusCode': 200,
+        body = json.dumps({'statusCode': self.status_code,
                            'body': json.dumps({'status': self.status,
-                                               'whatsappMessageId': 'wamid.INV'})})
+                                               'whatsappMessageId': 'wamid.INV'
+                                                   if self.status_code < 400 else ''})})
 
         class _P:
             def read(self_inner):
@@ -191,6 +193,19 @@ def test_a_failed_send_releases_the_claim_and_is_redeliverable(engine, fake, cap
     resp = _send(engine, fake, retry)
     assert len(retry.invokes) == 1
     assert _body(resp)['status'] == 'sent'
+
+
+def test_a_downstream_http_rejection_releases_the_claim(engine, fake, caplog):
+    """A parsed non-2xx response is definite rejection, never an ambiguous send outcome."""
+    _seed(fake)
+    rejected = _Sender(status='unknown', status_code=409)
+    with caplog.at_level(logging.ERROR):
+        resp = _send(engine, fake, rejected)
+
+    assert resp['statusCode'] == 502
+    assert _body(resp)['status'] == 'rejected'
+    assert 'invoice_delivery_failed_claim_released' in caplog.text
+    assert _claim_rows(fake) == []
 
 
 def test_a_successful_delivery_cannot_be_released(engine, fake):
