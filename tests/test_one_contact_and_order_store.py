@@ -31,7 +31,10 @@ SUBMISSIONS = shared_tables.FLOW_SUBMISSIONS.default_name
 
 
 def contacts_db(*rows):
-    fake = FakeDynamo({CONTACTS: 'id'}, {CONTACTS: {contact_store.PHONE_INDEX: ('phone', None)}})
+    fake = FakeDynamo({CONTACTS: 'id'}, {CONTACTS: {
+        contact_store.PHONE_INDEX: ('phone', None),
+        contact_store.BSUID_INDEX: ('bsuid', None),
+    }})
     for row in rows:
         fake.Table(CONTACTS).put_item(Item=dict(row))
     return fake
@@ -74,6 +77,15 @@ def test_a_website_minted_row_is_found_through_the_phone_index():
 def test_a_bare_digits_row_written_by_an_old_writer_is_still_found():
     db = contacts_db({'id': 'legacy-1', 'contactId': 'legacy-1', 'phone': '919876543210'})
     assert contact_store.lookup_id(db.Table(CONTACTS), '+919876543210') == 'legacy-1'
+
+
+def test_a_bsuid_recipient_resolves_the_same_live_contact():
+    db = contacts_db({'id': 'contact-bsuid', 'contactId': 'contact-bsuid',
+                      'phone': '+918100640044', 'bsuid': 'US.13491208655302741918'})
+    row = contact_store.find_by_bsuid(db.Table(CONTACTS), 'US.13491208655302741918')
+    assert row is not None
+    assert row['id'] == 'contact-bsuid'
+    assert (CONTACTS, 'query:bsuid-index') in db.calls
 
 
 def test_soft_deleted_rows_are_never_returned():
