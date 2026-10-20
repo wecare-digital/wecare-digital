@@ -114,6 +114,13 @@ const fmtDateTime = ( ts: number ) => {
   return new Date( ms ).toLocaleString( 'en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' } );
 };
 const fmtMoney = ( n: number ) => `\u20B9${( n || 0 ).toLocaleString( 'en-IN', { minimumFractionDigits: 2 } )}`;
+const PAYMENT_REQUEST_DELIVERY_SUCCESS = new Set( [ 'accepted', 'sent', 'delivered', 'read' ] );
+const hasConfirmedPaymentRequestDelivery = ( logs: InvoiceDeliveryLog[] | undefined ): boolean =>
+  Boolean( logs?.some( row =>
+    row.channel === 'whatsapp_payment'
+    && PAYMENT_REQUEST_DELIVERY_SUCCESS.has( String( row.status || '' ).toLowerCase() )
+    && !String( row.error || '' ).trim()
+  ) );
 /** Integer paise -> a rupee string. */
 const fmtPaise = ( paise: number ) => {
   const digits = String( Math.max( 0, Math.trunc( paise || 0 ) ) );
@@ -381,11 +388,33 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
           setCreatedDelivery( 'sending' );
           try {
             const sent = await api.sendPaymentLinkResult( r.invoiceId, sendPhone );
-            const accepted = sent.ok && sent.data.status === 'payment_link_sent';
-            const problem = sent.ok ? 'Sending is not confirmed.' : sent.failure.message;
+            let accepted = sent.ok && sent.data.status === 'payment_link_sent';
+
+            // The command response can be ambiguous even after Meta has accepted the message.
+            // Reconcile once against the durable invoice delivery log before showing a retry
+            // warning. This is a read only check and never re-sends the payment request.
+            if ( !accepted ) {
+              try {
+                const delivery = await api.getInvoiceDeliveryLog( r.invoiceId );
+                accepted = hasConfirmedPaymentRequestDelivery( delivery.deliveryLogs );
+              } catch {
+                // A failed read must not invent success.
+              }
+            }
+
+            const problem = sent.ok
+              ? ( sent.data.status === 'send_in_progress'
+                  ? 'The send is still being reconciled.'
+                  : 'Sending is not confirmed.' )
+              : sent.failure.message;
             setCreatedDeliveryProblem( accepted ? '' : problem );
             setCreatedDelivery( accepted ? 'sent' : 'unconfirmed' );
-            showMsg( accepted ? 'WhatsApp payment request sent.' : `Invoice saved. ${problem} Check this invoice before retrying.`, accepted ? 'success' : 'error' );
+            showMsg(
+              accepted
+                ? 'WhatsApp accepted the payment request for delivery.'
+                : `Invoice saved. ${problem} Check this invoice before retrying.`,
+              accepted ? 'success' : 'error',
+            );
           } catch {
             setCreatedDelivery( 'unconfirmed' );
             setCreatedDeliveryProblem( 'Sending is not confirmed.' );
@@ -436,7 +465,24 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
       const r = await api.sendPaymentLinkResult( inv.invoiceId, sendPhone );
       const pgLabel = 'Razorpay';
       const phoneLabel = PHONE_OPTIONS.find( p => p.id === sendPhone )?.label || sendPhone;
-      if ( r.ok && r.data.status === 'payment_link_sent' ) { showMsg( `Sent via ${pgLabel} from ${phoneLabel}` ); loadInvoices(); } else { showMsg( r.ok ? 'Sending is not confirmed. Check this invoice before retrying.' : r.failure.message, 'error' ); loadInvoices(); }
+      let accepted = r.ok && r.data.status === 'payment_link_sent';
+      if ( !accepted ) {
+        try {
+          const delivery = await api.getInvoiceDeliveryLog( inv.invoiceId );
+          accepted = hasConfirmedPaymentRequestDelivery( delivery.deliveryLogs );
+        } catch {
+          // Keep the command result if delivery evidence is unavailable.
+        }
+      }
+      if ( accepted ) {
+        showMsg( `WhatsApp accepted the payment request for delivery via ${pgLabel} from ${phoneLabel}` );
+      } else {
+        const problem = r.ok && r.data.status === 'send_in_progress'
+          ? 'The send is still being reconciled. Check this invoice before retrying.'
+          : r.ok ? 'Sending is not confirmed. Check this invoice before retrying.' : r.failure.message;
+        showMsg( problem, 'error' );
+      }
+      loadInvoices();
     } catch ( e ) { showMsg( 'Send failed', 'error' ); }
     setActionLoading( '' );
   };
@@ -674,12 +720,14 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
               { redemption && (
                 <div className="inner-card" style={ { marginBottom: 16, maxWidth: 500, padding: '10px 14px' } }>
                   <h4 style={ { margin: '0 0 6px', fontSize: 13, color: '#1a3a2a' } }>Invoice { redemption.invoiceNumber } created</h4>
-                  <p>{ createdDelivery === 'sent' ? 'WhatsApp payment request sent.' : createdDelivery === 'sending' ? 'Sending the WhatsApp payment request…' : createdDelivery === 'unconfirmed' ? `${createdDeliveryProblem || 'Sending is not confirmed.'} Open this saved invoice and check its status before retrying.` : 'Invoice saved without sending a WhatsApp payment request.' }</p>
+                  <p>{ createdDelivery === 'sent' ? 'WhatsApp accepted the payment request for delivery.' : createdDelivery === 'sending' ? 'Sending the WhatsApp payment request…' : createdDelivery === 'unconfirmed' ? `${createdDeliveryProblem || 'Sending is not confirmed.'} Open this saved invoice and check its status before retrying.` : 'Invoice saved without sending a WhatsApp payment request.' }</p>
                   <p>{ redemption.referenceId } { '\u2014' } { fmtMoney( redemption.total ) }</p>
                   <Button variant="primary" size="sm" loading={ openingCreated } onClick={ openCreatedInvoice }>{ createdDelivery === 'saved' ? 'Review and send payment request' : 'View invoice and delivery status' }</Button>
-                  <p>Applied on the last invoice</p>
                   { typeof redemption.couponDiscount === 'number' && redemption.couponDiscount > 0 && (
-                    <div className="pf-preview-row"><span>Delight</span><span>{ '\u2212' }{ fmtMoney( redemption.couponDiscount ) }</span></div>
+                    <>
+                      <p>Applied on the last invoice</p>
+                      <div className="pf-preview-row"><span>Delight</span><span>{ '\u2212' }{ fmtMoney( redemption.couponDiscount ) }</span></div>
+                    </>
                   ) }
                 </div>
               ) }
