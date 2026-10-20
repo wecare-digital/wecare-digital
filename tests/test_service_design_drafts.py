@@ -82,3 +82,18 @@ def test_orders_endpoint_cannot_connect_another_service_or_an_unverified_source(
     get=Mock(return_value={'flow':{'id':'1107164111921876','status':'DRAFT','endpoint_uri':'https://wecare.digital/api'}})
     assert 'error' in drafts.handle({'action':'connect_orders_endpoint','service':'orders'},graph,Mock(),Mock(),get,update)
     update.assert_not_called()
+
+
+def test_subscribe_only_updates_the_selected_existing_draft():
+    create,upload=Mock(),Mock(return_value={'success':True})
+    graph=Mock(return_value={'data':[]})
+    event={'action':'prepare','service':'subscribe'}
+    assert 'error' in drafts.handle(event,graph,create,upload,Mock())
+    graph.return_value={'data':[{'id':'other','name':drafts.NAMES['subscribe'],'status':'DRAFT'}]}
+    assert 'error' in drafts.handle(event,graph,create,upload,Mock())
+    create.assert_not_called();upload.assert_not_called()
+    graph.return_value={'data':[{'id':'1386523953464380','name':drafts.NAMES['subscribe'],'status':'DRAFT'}]}
+    answer=drafts.handle(event,graph,create,upload,Mock(return_value={'flow':{'status':'DRAFT'}}))
+    assert answer['id']=='1386523953464380' and answer['created'] is False
+    assert upload.call_args.args[1]['flowJson']['screens'][0]['id']=='PROFILE'
+    create.assert_not_called()

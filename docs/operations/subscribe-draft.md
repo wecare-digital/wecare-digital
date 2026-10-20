@@ -14,6 +14,8 @@ INIT uses the canonical ContactsTable lookup, displays the derived compact Custo
 and prefills only the current structured address. It never reconstructs a deleted address
 from old submissions or legacy shipping strings. Missing IDs are assigned on save.
 
+Version 3 includes an optional Username field stored as `profileUsername`. It is customer-entered, not a verified Meta handle; the provider-owned `username`, BSUID, phone and Customer ID are not changed by this field. The username is limited to 50 characters and included in the inbox response table.
+
 Version 3 saves profile fields and the shared `checkoutDeliveryAddress` map with derived
 legacy fields through `contact_address`. It preserves customerUuid, permanent ownership,
 phone and consent. It neither grants marketing consent nor sends a welcome marketing message.
@@ -28,3 +30,7 @@ not create an invoice, order or payment. Existing legacy Subscribe payloads rema
 Validation: local schema plus Meta asset validation, profile/address unit tests, Flow completion,
 crypto, inbox projection, canonical routing and business API regression tests.
 Handset submission is a separate verification step; sending a draft is not proof of submission.
+
+The confirmation distinguishes a new profile (details saved) from one with a saved address (details updated), preserving the result on retry. Opening messages are edited in Communications -> Manage -> WhatsApp -> Auto response. That editor does not publish this draft or grant subscription consent.
+
+The IAM-only `serviceDesignDrafts` prepare action accepts `service: subscribe` solely for existing draft `1386523953464380`; it fails closed if missing, replaced or published. No new Subscribe Flow is created.

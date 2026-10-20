@@ -17,6 +17,7 @@ NAMES = {
     'shipments': 'WD_Shipments_Design_v1',
     'leave-review': 'WD_Leave_Review_Design_v1',
     'orders': 'WD_Orders_Design_v1',
+    'subscribe': 'WD_Subscribe_Design_v1',
 }
 
 def unwrap(response):
@@ -62,6 +63,8 @@ def handle(event, graph, create, upload, get_flow, update_flow=None):
         return {'error': 'Ambiguous design draft name'}
     if matches and matches[0].get('status') != 'DRAFT':
         return {'error': 'Existing design Flow is immutable; no change attempted'}
+    if service == 'subscribe' and (not matches or matches[0].get('id') != '1386523953464380'):
+        return {'error': 'The selected Subscribe draft must already exist; no replacement created'}
     if action == 'connect_orders_endpoint':
         if not matches:
             return {'error': 'Prepare the Orders draft first'}

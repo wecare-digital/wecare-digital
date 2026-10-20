@@ -146,3 +146,39 @@ def test_subscribe_does_not_collect_or_change_email(setup):
     assert 'email_address' not in calls[0]['form_data']
     doc=json.loads((ROOT/'amplify/functions/messaging/whatsapp-business-api/flows/design-drafts/subscribe.json').read_text())
     assert 'email_address' not in json.dumps(doc)
+
+
+def test_profile_username_preserves_meta_identity_and_customer_id(setup):
+    mod,table,calls=setup
+    table.row.update(username='meta_handle',bsuid='business-user-id',profileUsername='Previous')
+    data=form(mod)
+    assert data['username']=='Previous'
+    data['username']='New customer name'
+    result=mod.handle_review(data,TOKEN,'r')
+    assert result['screen']=='COMPLETE'
+    assert table.row['profileUsername']=='New customer name'
+    assert table.row['username']=='meta_handle' and table.row['bsuid']=='business-user-id'
+    assert result['data']['customer_id']=='C-ED6BQSW2P7PQ'
+    assert calls[0]['form_data']['username']=='New customer name'
+
+
+def test_username_limit_does_not_write_profile(setup):
+    mod,table,_=setup; data=form(mod); data['username']='x'*51
+    result=mod.handle_review(data,TOKEN,'r')
+    assert result['screen']=='REVIEW' and 'username' in result['data']['error_message']
+    assert not table.updates
+
+
+def test_returning_confirmation_stays_the_same_on_retry(setup):
+    mod,table,_=setup; data=form(mod)
+    first=mod.handle_review(data,TOKEN,'r')
+    retry=mod.handle_review(data,TOKEN,'r2')
+    assert first['data']['message']==retry['data']['message']=='Your details have been updated.'
+
+
+def test_new_customer_confirmation_stays_the_same_on_retry(setup):
+    mod,table,_=setup; table.row={}; data=form(mod)
+    data.update(full_name='New QA',**{key:ADDRESS[attr] for key,attr in mod.ADDRESS_FIELDS.items()})
+    first=mod.handle_review(data,TOKEN,'r')
+    retry=mod.handle_review(data,TOKEN,'r2')
+    assert first['data']['message']==retry['data']['message']=='Your details have been saved.'
