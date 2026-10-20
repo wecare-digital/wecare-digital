@@ -127,12 +127,19 @@ def test_checkout_still_refuses_the_same_row_without_the_claim(checkout):
     assert h._checkout_profile(ClaimedIdentity()) is None
 
 
-def test_a_claimed_row_with_no_verified_email_still_cannot_pay(checkout):
-    """Claiming is not verifying, restated where payment is authorised. This is the exact
-    relaxation that must never follow from the claim."""
+def test_a_claimed_row_does_not_require_retired_email_otp(checkout):
+    """WhatsApp customer ownership remains the gate; email OTP was retired in PR1132."""
     h, fake = checkout
     row = claimed_row()
     row.pop("emailVerifiedAt")
+    fake.Table(CONTACTS).put_item(Item=row)
+    assert h._checkout_profile(ClaimedIdentity()) is not None
+
+
+def test_a_claimed_row_still_requires_a_contact_email(checkout):
+    h, fake = checkout
+    row = claimed_row()
+    row.pop("email")
     fake.Table(CONTACTS).put_item(Item=row)
     assert h._checkout_profile(ClaimedIdentity()) is None
 
