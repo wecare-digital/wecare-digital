@@ -164,3 +164,98 @@ visible** (fail-closed).
 Each should ship with a fixture capturing the real Meta shape it defends against,
 following the regression-fixture precedent set by the payment-binding fix. None of
 these should relax the `razorpay_verify` / webhook-as-authority money invariants.
+
+---
+
+# Round 2 — adjacent money/reconciliation robustness (same investigation, wider net)
+
+A second pass beyond pure Meta-shape parsing, into the classes of defect this
+incident exposed: silent paid-state writers, float money math, unbounded scans on
+hot paths, and inbound↔webhook consistency. Same read-only, code-only basis.
+
+## FINDING 6 — MEDIUM — Dead-but-callable financial writers (unverified paid state)
+
+**File:** `amplify/functions/messaging/inbound-whatsapp-handler/handler.py`
+**Functions:** `_mark_invoice_paid_by_reference` (~L4714),
+`_generate_invoice_for_captured_payment` (~L4778)
+
+**Good:** the in-WhatsApp CAPTURED branch is correctly **retired** to a type-only
+audit record with **no** financial side effects, and the docstrings explain the
+single-authority (webhook) design well. The decision itself is sound.
+
+**But:** both helpers still **exist and still work** — `_mark_invoice_paid_by_reference`
+writes `status=paid, paymentStatus=captured` directly to InvoicesTable, and
+`_generate_invoice_for_captured_payment` mints an invoice — and grepping confirms
+**neither has any caller**. Per steering `50-coding-style.md`: *"Delete dead code,
+don't gate it. Remove a disabled capability rather than leaving it behind… Dead
+code that still works is how a removed power comes back."* A fully-functional,
+unverified paid-state writer sitting one call away from reinstatement is exactly
+the hazard that rule targets — and exactly the fail-open path the comments say was
+retired because *"an unverified webhook body could… mint paid invoices/orders."*
+
+**Recommendation:** **delete** both functions (and any now-unused helpers they
+alone call), keeping only the type-only SUPERSEDED audit record. If any audit
+value is needed, it is already emitted. Confirm the Razorpay webhook has its own
+`_mark_invoice_paid_by_reference` (it does) so nothing real is lost.
+
+## FINDING 7 — MEDIUM — Unbounded `while True` full-table scan on an inbound hot path
+
+**File:** `amplify/functions/messaging/inbound-whatsapp-handler/handler.py` (~L5066)
+
+A `while True:` loop over `invoices_table.scan(FilterExpression=status in
+['created','pending_payment','sent'], ConsistentRead=True)` paginates the **entire
+InvoicesTable**, filtering after read, to find a contact's remaining pending
+invoices. This runs on inbound-message handling. Steering `50-coding-style.md`
+explicitly forbids it: *"Avoid unbounded `while True` on DynamoDB
+`LastEvaluatedKey`; paginate with a bound or a query, not an exhaustive table
+scan."*
+
+**Impact:** cost and latency grow with total invoice count (not with the
+customer's own invoices), on a hot path, forever. Other `.scan()` sites in the
+same file (≈L2818, L3253, L3335, L4120, L4489, L4825) are worth the same review;
+the L4489 outbound lookup at least prefers a GSI query and only *falls back* to
+scan "if GSI missing".
+
+**Recommendation:** query by a customer/phone key (a GSI such as the
+`customerPhone`/contact index) instead of a full scan, bound the pages, and drop
+`ConsistentRead` unless strictly required. Where a scan is unavoidable, add an
+explicit page bound rather than `while True`.
+
+## FINDING 8 — LOW — Float money math in receipt/PDF rendering
+
+**File:** `amplify/functions/payments/invoice-engine/handler.py` (receipt/HTML/PDF
+builders, e.g. ~L1999–2060, L2478–2538, L2762; `float(item.get('amount'))` with
+`:,.2f`)
+
+**Not on the authoritative path:** `_validate_invoice_amounts` (~L795) correctly
+uses `Decimal` and enforces whole-paise, and the stored totals are the authority.
+The `float()` usage is confined to **rendering** a receipt/PDF. Still, float
+accumulation (`amt * qty`, summed line totals) can produce a one-paise display
+drift between a rendered line breakdown and the stored total — a cosmetic but
+customer-visible discrepancy on a financial document.
+
+**Recommendation:** render from `Decimal` (quantize to 2 dp) and derive printed
+line/breakdown figures from the stored authoritative fields, as the tax-halves
+code (`_tax_halves_rupees`) already does. Low priority; correctness of the charged
+amount is not affected.
+
+## FINDING 9 — GOOD (no action) — Reference-id normalisation is defensive
+
+`_sanitize_reference_id` (~L4282) documents and defends a previously-fixed
+join-breaking bug: it no longer upper-cases or strips a value that is already
+valid (Meta reference ids are case-sensitive and may contain dots), running legacy
+upgrades only for non-acceptable values. This is the *correct* posture for a join
+key and a good template for the shape fixes above.
+
+## Updated remediation order
+
+1. **Finding 1 (HIGH)** — inbound `transactions[]` shape + failed-branch (money/
+   delivery evidence; same class as the incident).
+2. **Finding 6 (MEDIUM)** — delete the dead-but-callable paid-state writers.
+3. **Finding 7 (MEDIUM)** — replace the unbounded InvoicesTable scan with a bounded
+   query on the inbound hot path.
+4. **Finding 2 (MEDIUM)** — fail-closed success detection (`is_error()` not
+   `get('success', True)`).
+5. **Finding 3 (LOW/MED)** — canonical `template_status` helper.
+6. **Finding 8 (LOW)** — Decimal-render receipt/PDF figures.
+7. **Finding 4 (LOW)** — fail-closed Meta-sourced catalog visibility.
