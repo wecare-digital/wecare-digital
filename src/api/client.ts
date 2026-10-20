@@ -5141,6 +5141,140 @@ export async function addInvoiceRemark (
 }
 
 // ============================================================================
+// REFUND INITIATION (server-authoritative, webhook-confirmed)
+// ============================================================================
+
+/**
+ * The outcome of a refund-initiation POST, as the invoice-engine reports it.
+ *
+ * This deliberately mirrors the server's truthful states rather than flattening them. A
+ * refund is money leaving, so the UI must never claim "refunded" before provider/webhook
+ * evidence. The states are:
+ *
+ *  - `submitted`  — the provider accepted one refund POST. `webhookConfirmed` is still false
+ *                   until razorpay-webhook writes the authoritative REFUNDED state, so the UI
+ *                   shows "submitted, awaiting confirmation", never "refunded".
+ *  - `confirmed`  — the payment row already carries webhook-proven refund evidence (idempotent
+ *                   re-submit of a case the webhook has settled). `webhookConfirmed` is true.
+ *  - `ambiguous`  — the provider outcome is unknown (5xx/timeout). NOT retryable here; a human
+ *                   must reconcile Razorpay/webhook evidence before any further attempt.
+ *  - `rejected`   — the provider refused (4xx) or eligibility failed server-side. NOT retryable
+ *                   blindly; review before another attempt.
+ *  - `disabled`   — refund initiation is switched off in this deployment.
+ */
+export type RefundInitiationOutcome =
+  | 'submitted'
+  | 'confirmed'
+  | 'ambiguous'
+  | 'rejected'
+  | 'disabled';
+
+export interface RefundInitiationResult {
+  outcome: RefundInitiationOutcome;
+  /** True ONLY when the webhook has already recorded the refund. Gate any "refunded" copy on this. */
+  webhookConfirmed: boolean;
+  refundId?: string;
+  paymentId?: string;
+  amountPaise?: number;
+  /** 'full' | 'partial' as the server executed it. */
+  mode?: 'full' | 'partial';
+  /** The server's authoritative refundable remainder, returned when an amount was over-cap. */
+  maxRefundablePaise?: number;
+  /** The server's errorCode, surfaced verbatim so the operator sees why. */
+  errorCode?: string;
+  /** Human-readable message, safe to show. */
+  message?: string;
+}
+
+/**
+ * Shared non-retrying refund POST.
+ *
+ * Deliberately uses `authFetch`, NOT `apiCall`/`apiCallResult`: those auto-retry 502/503/504,
+ * and a refund is irreversible — re-POSTing an ambiguous outcome is exactly the double-refund
+ * the backend's no-retry boundary exists to prevent. This reads the body for every status so
+ * the caller gets the server's truthful outcome instead of a collapsed null.
+ */
+async function postRefundInitiation (
+  action: 'initiate-refund' | 'initiate-partial-refund',
+  invoiceId: string,
+  returnSubmissionId: string,
+  extra: Record<string, unknown>,
+): Promise<RefundInitiationResult> {
+  let response: Response;
+  try
+  {
+    response = await authFetch( INVOICE_BASE, {
+      method: 'POST',
+      body: JSON.stringify( { _action: action, invoiceId, returnSubmissionId, ...extra } ),
+    } );
+  } catch
+  {
+    // No response means the POST may or may not have reached the provider boundary. Treat it
+    // as ambiguous — never as a failure the caller might retry into a second refund.
+    return {
+      outcome: 'ambiguous',
+      webhookConfirmed: false,
+      message: 'The refund request did not get a response. Reconcile Razorpay before retrying.',
+    };
+  }
+
+  let body: Record<string, any> = {};
+  try { body = await response.json(); } catch { body = {}; }
+
+  const base: RefundInitiationResult = {
+    outcome: 'rejected',
+    webhookConfirmed: !!body.webhookConfirmed,
+    refundId: body.refundId,
+    paymentId: body.paymentId,
+    amountPaise: typeof body.amountPaise === 'number' ? body.amountPaise : undefined,
+    mode: body.mode === 'partial' || body.mode === 'full' ? body.mode : undefined,
+    maxRefundablePaise: typeof body.maxRefundablePaise === 'number' ? body.maxRefundablePaise : undefined,
+    errorCode: typeof body.errorCode === 'string' ? body.errorCode : undefined,
+    message: typeof body.error === 'string' ? body.error : undefined,
+  };
+
+  if ( response.ok )
+  {
+    // 200 = webhook already confirmed; 202 = provider accepted, awaiting webhook.
+    return { ...base, outcome: body.webhookConfirmed ? 'confirmed' : 'submitted' };
+  }
+  if ( response.status === 503 ) return { ...base, outcome: 'ambiguous' };
+  if ( base.errorCode === 'REFUND_INITIATION_DISABLED' ) return { ...base, outcome: 'disabled' };
+  return base; // 4xx/409/other -> rejected
+}
+
+/**
+ * Initiate a FULL refund for a refund-eligible Return / Refund case.
+ *
+ * The browser supplies only the invoice and return-case identity; the server derives the
+ * payment, the eligibility and the amount. Returns the truthful outcome — callers must gate
+ * any "refunded" wording on `webhookConfirmed`.
+ */
+export async function initiateFullRefund (
+  invoiceId: string,
+  returnSubmissionId: string,
+): Promise<RefundInitiationResult> {
+  return postRefundInitiation( 'initiate-refund', invoiceId, returnSubmissionId, {} );
+}
+
+/**
+ * Initiate a PARTIAL refund of `amountPaise` for a refund-eligible Return / Refund case.
+ *
+ * The amount is a PROPOSAL: the server caps it to the captured total minus any already-refunded
+ * amount and rejects anything over the cap or <= 0 (`REFUND_AMOUNT_OVER_CAP` /
+ * `REFUND_AMOUNT_INVALID`), returning `maxRefundablePaise` so the UI can correct itself.
+ */
+export async function initiatePartialRefund (
+  invoiceId: string,
+  returnSubmissionId: string,
+  amountPaise: number,
+): Promise<RefundInitiationResult> {
+  return postRefundInitiation(
+    'initiate-partial-refund', invoiceId, returnSubmissionId, { amountPaise },
+  );
+}
+
+// ============================================================================
 // SYSTEM CLEANUP API
 // ============================================================================
 

@@ -13,6 +13,7 @@ import Pagination from '../../../components/ui/Pagination';
 import EmptyState from '../../../components/ui/EmptyState';
 import Select, { type SelectOption } from '../../../components/ui/Select';
 import { useToastContext } from '../../../contexts/ToastContext';
+import { useConfirm } from '../../../contexts/ConfirmContext';
 import * as api from '../../../api/client';
 import type { ApiFailure } from '../../../api/client';
 import ErrorState from '../../../components/ErrorState';
@@ -156,6 +157,43 @@ function formatDateTime ( ts?: number ): string {
     day: 'numeric', month: 'short', year: '2-digit',
     hour: '2-digit', minute: '2-digit',
   } );
+}
+
+/** Display-only rupee rendering of an integer paise amount. */
+export function rupeesFromPaise ( paise?: number ): string {
+  const value = Number.isFinite( paise ) ? Math.max( 0, Math.trunc( paise as number ) ) : 0;
+  return `₹${( value / 100 ).toFixed( 2 )}`;
+}
+
+/**
+ * Validate a browser-entered partial refund amount (in paise) against the known cap.
+ *
+ * The SERVER is the real authority — it re-derives the cap and rejects an over-cap amount — but
+ * this mirror lets the UI refuse an obviously-bad amount before posting an irreversible call,
+ * and keeps the operator honest about the <=0 and over-cap rules. `capPaise` is the captured
+ * total the UI knows about; `null` is returned with a reason when the amount is unusable.
+ */
+export function validatePartialRefundPaise (
+  amountPaise: number,
+  capPaise: number,
+): { ok: true; amountPaise: number } | { ok: false; reason: string } {
+  if ( !Number.isInteger( amountPaise ) || amountPaise <= 0 )
+  {
+    return { ok: false, reason: 'Enter a refund amount greater than zero.' };
+  }
+  if ( capPaise > 0 && amountPaise > capPaise )
+  {
+    return { ok: false, reason: `Amount exceeds the refundable total of ${rupeesFromPaise( capPaise )}.` };
+  }
+  return { ok: true, amountPaise };
+}
+
+/** Rupees (string, as typed) -> integer paise, or null when not a clean positive money value. */
+export function rupeesToPaise ( rupees: string ): number | null {
+  const raw = String( rupees ?? '' ).trim();
+  if ( !raw || !/^\d+(\.\d{1,2})?$/.test( raw ) ) return null;
+  const paise = Math.round( parseFloat( raw ) * 100 );
+  return Number.isFinite( paise ) ? paise : null;
 }
 
 function safeTrackingUrl ( value?: string ): string | null {
@@ -371,6 +409,47 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
     }
   };
 
+  // A refund is irreversible and money-moving. The server is the sole authority on eligibility
+  // and the cap; this only surfaces the server's truthful outcome and never claims "refunded"
+  // before the webhook has confirmed it.
+  const handleRefundInitiation = async (
+    sub: api.FlowSubmissionItem,
+    mode: 'full' | 'partial',
+    amountPaise?: number,
+  ): Promise<boolean> => {
+    const invoiceId = String( sub.invoiceId || '' ).trim();
+    if ( !invoiceId )
+    {
+      toast.error( 'This return is not linked to an invoice; cannot initiate a refund.' );
+      return false;
+    }
+    const result = mode === 'partial' && typeof amountPaise === 'number'
+      ? await api.initiatePartialRefund( invoiceId, sub.submissionId, amountPaise )
+      : await api.initiateFullRefund( invoiceId, sub.submissionId );
+
+    switch ( result.outcome )
+    {
+      case 'confirmed':
+        toast.success( 'Refund already confirmed by the payment provider webhook.' );
+        break;
+      case 'submitted':
+        toast.success( 'Refund submitted to the provider. Awaiting webhook confirmation — it is not final yet.' );
+        break;
+      case 'ambiguous':
+        toast.error( result.message || 'Provider outcome is unknown. Reconcile in Razorpay before any retry — do not resubmit.' );
+        break;
+      case 'disabled':
+        toast.error( 'Refund initiation is switched off in this deployment.' );
+        break;
+      default:
+        toast.error( result.message || 'Refund was refused. Review eligibility and the amount before another attempt.' );
+        break;
+    }
+
+    if ( selectedOrder ) await openDetail( selectedOrder );
+    return result.outcome === 'submitted' || result.outcome === 'confirmed';
+  };
+
   const handleCreate = async () => {
     if ( !createForm.customerPhone ) { toast.error( 'Phone is required' ); return; }
     setCreating( true );
@@ -498,7 +577,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
 
         {/* ── Order Detail Panel ── */ }
         <Modal isOpen={ !!selectedOrder } onClose={ () => setSelectedOrder( null ) } title="Order Details" size="xl">
-          { selectedOrder && <OrderDetailPanel order={ selectedOrder } submissions={ submissions } subsLoading={ subsLoading } documents={ detailDocs } statusHistory={ detailHistory } onStatusUpdate={ handleOrderStatusUpdate } onTrackingUpdate={ handleTrackingUpdate } onSubmissionStatusUpdate={ handleSubmissionStatusUpdate } onOrderCancel={ handleOrderCancel } onReturnStageUpdate={ handleReturnStageUpdate } /> }
+          { selectedOrder && <OrderDetailPanel order={ selectedOrder } submissions={ submissions } subsLoading={ subsLoading } documents={ detailDocs } statusHistory={ detailHistory } onStatusUpdate={ handleOrderStatusUpdate } onTrackingUpdate={ handleTrackingUpdate } onSubmissionStatusUpdate={ handleSubmissionStatusUpdate } onOrderCancel={ handleOrderCancel } onReturnStageUpdate={ handleReturnStageUpdate } onRefundInitiation={ handleRefundInitiation } /> }
         </Modal>
 
         {/* ── Create Order Modal ── */ }
@@ -538,9 +617,103 @@ interface DetailProps {
   onSubmissionStatusUpdate: ( subId: string, status: string ) => void;
   onOrderCancel: ( orderId: string, reason: string ) => Promise<boolean>;
   onReturnStageUpdate: ( subId: string, stage: api.ReturnStage, notes?: string ) => Promise<boolean>;
+  onRefundInitiation: ( sub: api.FlowSubmissionItem, mode: 'full' | 'partial', amountPaise?: number ) => Promise<boolean>;
 }
 
-const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoading, documents, statusHistory, onStatusUpdate, onTrackingUpdate, onSubmissionStatusUpdate, onOrderCancel, onReturnStageUpdate } ) => {
+// ── Refund panel for a refund-eligible Return / Refund case ──
+// The server is the sole authority on eligibility and the refundable cap; this surface only
+// proposes an amount and a reason, confirms the irreversible action, and reports the truthful
+// outcome. It never shows "refunded" before webhook confirmation.
+interface RefundPanelProps {
+  sub: api.FlowSubmissionItem;
+  onRefundInitiation: ( sub: api.FlowSubmissionItem, mode: 'full' | 'partial', amountPaise?: number ) => Promise<boolean>;
+}
+
+const RefundPanel: React.FC<RefundPanelProps> = ( { sub, onRefundInitiation } ) => {
+  const confirm = useConfirm();
+  const capPaise = Number.isFinite( sub.paymentAmount ) ? Math.max( 0, Math.trunc( sub.paymentAmount as number ) ) : 0;
+  const [ mode, setMode ] = useState<'full' | 'partial'>( 'full' );
+  const [ amountRupees, setAmountRupees ] = useState( capPaise ? ( capPaise / 100 ).toFixed( 2 ) : '' );
+  const [ reason, setReason ] = useState( '' );
+  const [ error, setError ] = useState( '' );
+  const [ busy, setBusy ] = useState( false );
+  const linked = !!String( sub.invoiceId || '' ).trim();
+
+  const submit = async () => {
+    setError( '' );
+    const trimmedReason = reason.trim();
+    if ( !trimmedReason ) { setError( 'A refund reason is required for the audit record.' ); return; }
+
+    let amountPaise: number | undefined;
+    if ( mode === 'partial' )
+    {
+      const parsed = rupeesToPaise( amountRupees );
+      if ( parsed === null ) { setError( 'Enter a valid rupee amount (up to two decimals).' ); return; }
+      const check = validatePartialRefundPaise( parsed, capPaise );
+      if ( !check.ok ) { setError( check.reason ); return; }
+      amountPaise = check.amountPaise;
+    }
+
+    const confirmed = await confirm( {
+      title: 'Initiate refund',
+      message: mode === 'partial'
+        ? `Submit a PARTIAL refund of ${rupeesFromPaise( amountPaise )} to the payment provider? This is irreversible once accepted.`
+        : `Submit a FULL refund of the remaining captured amount to the payment provider? This is irreversible once accepted.`,
+      confirmText: 'Submit refund',
+      danger: true,
+    } );
+    if ( !confirmed ) return;
+
+    setBusy( true );
+    await onRefundInitiation( sub, mode, amountPaise );
+    setBusy( false );
+    setReason( '' );
+  };
+
+  return (
+    <div style={ { display: 'flex', flexDirection: 'column', gap: 6, padding: 10, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-secondary)' } }>
+      <span style={ { fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--accent)' } }>Finance refund</span>
+      <span style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>
+        Server-authoritative. Status becomes &ldquo;refunded&rdquo; only after the provider webhook confirms it.
+        { capPaise > 0 ? ` Captured: ${rupeesFromPaise( capPaise )}.` : '' }
+      </span>
+      { !linked && (
+        <span role="alert" style={ { fontSize: 'var(--text-xs)', color: 'var(--danger, #b91c1c)' } }>
+          Not linked to an invoice — refund cannot be initiated from here.
+        </span>
+      ) }
+      <Select
+        ariaLabel="Refund type"
+        value={ mode }
+        onChange={ v => setMode( v === 'partial' ? 'partial' : 'full' ) }
+        options={ [ { value: 'full', label: 'Full refund' }, { value: 'partial', label: 'Partial refund' } ] }
+        disabled={ busy || !linked }
+        style={ ROW_SELECT_STYLE }
+      />
+      { mode === 'partial' && (
+        <label style={ { fontSize: 'var(--text-xs)', display: 'block' } }>
+          Amount (₹)
+          <input type="text" inputMode="decimal" value={ amountRupees }
+            onChange={ e => setAmountRupees( e.target.value ) }
+            placeholder={ capPaise ? ( capPaise / 100 ).toFixed( 2 ) : '0.00' }
+            disabled={ busy || !linked }
+            style={ { ...inputStyle, marginTop: 2 } } />
+        </label>
+      ) }
+      <input type="text" maxLength={ 500 } value={ reason }
+        onChange={ e => setReason( e.target.value ) }
+        placeholder="Refund reason (required)"
+        disabled={ busy || !linked }
+        style={ { ...inputStyle, marginTop: 0 } } />
+      { error && <span role="alert" style={ { fontSize: 'var(--text-xs)', color: 'var(--danger, #b91c1c)' } }>{ error }</span> }
+      <Button variant="primary" size="sm" loading={ busy } disabled={ !linked || !reason.trim() } onClick={ submit }>
+        { mode === 'partial' ? 'Submit partial refund' : 'Submit full refund' }
+      </Button>
+    </div>
+  );
+};
+
+const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoading, documents, statusHistory, onStatusUpdate, onTrackingUpdate, onSubmissionStatusUpdate, onOrderCancel, onReturnStageUpdate, onRefundInitiation } ) => {
   const short = order.orderNumber || order.shortId || extractShortId( order.orderId );
   const [ trackingDraft, setTrackingDraft ] = useState<ManualTrackingPatch>( {
     carrierName: order.carrierName || '',
@@ -760,9 +933,7 @@ const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoad
                         </>
                       ) }
                       { ( sub.returnStage || 'requested' ) === 'refund_eligible' && (
-                        <span style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>
-                          Eligible for finance refund review. This stage does not move money.
-                        </span>
+                        <RefundPanel sub={ sub } onRefundInitiation={ onRefundInitiation } />
                       ) }
                     </>
                   ) }
