@@ -259,3 +259,59 @@ key and a good template for the shape fixes above.
 5. **Finding 3 (LOW/MED)** — canonical `template_status` helper.
 6. **Finding 8 (LOW)** — Decimal-render receipt/PDF figures.
 7. **Finding 4 (LOW)** — fail-closed Meta-sourced catalog visibility.
+
+---
+
+# Round 3 — the Payments → Ledger error-banner surface (from the screenshot)
+
+The reported screenshot shows the **Payments → Ledger** view with a persistent red
+banner: *"Sending is not confirmed. Check this invoice before retrying."* Traced
+to `src/components/workspace/pay/PayFlow.tsx` `doSendPaymentLink` (~L432–440):
+`showMsg(r.ok ? 'Sending is not confirmed. Check this invoice before retrying.'
+: r.failure.message, 'error')`.
+
+## FINDING 10 — NOT A BUG (the message is honest) — but three real UX defects around it
+
+**The banner itself is correct.** It fires when the resend returned `r.ok` with a
+status other than `payment_link_sent` — i.e. the WhatsApp payment-link/`wecarepay_wa`
+send came back **unconfirmed**, the same "not confirmed" family as the native
+binding/template issues. It is not a leak from another tab and not a false alarm.
+
+Three genuine surface defects, though:
+
+### 10a — MEDIUM — The read-only Ledger exposes a mutating send action
+`src/pages/workspace/payments/index.tsx` renders the Ledger → Invoices view as
+`<PayFlowPage embedded mode="invoices" />` — the **same `PayFlow` component**, which
+at `activeTab === 'invoices'` (L827) renders **"Retry payment request" / "Send"**
+buttons (L934–935, L1037) calling `doSendPaymentLink` (a send/mutation). Yet the
+page subtitle and the standalone `InvoiceRecords.tsx` both advertise the ledger as
+**read-only** ("one ledger for invoices, delivery evidence and payment state";
+*"Read-only: sending, cancelling and renumbering stay on the screens built for
+them"*). The contract and the behaviour disagree.
+**Recommendation:** either (a) honour read-only on Ledger and move resend to
+Collect only, or (b) update the ledger contract/subtitle to say it supports
+resend. Pick one; today it claims read-only while offering a send.
+
+### 10b — MEDIUM — The failure message is generic; it hides the real reason
+"Sending is not confirmed. Check this invoice before retrying." does not surface
+the delivery-log reason, Meta error code, or template status — the very fields that
+distinguish a native-binding failure from a template/`PAUSED` problem from an
+ambiguous send. The operator is told to "check this invoice" but the same screen
+does not show the decisive `deliveryLogs[].error`/status inline near the banner.
+**Recommendation:** on a non-`payment_link_sent` result, surface the server's
+`sendStatus`/`downstreamStatusCode`/delivery-log `error` in (or beneath) the banner,
+and auto-open the invoice's Delivery Logs. Tie into audit Findings 1/3.
+
+### 10c — LOW — Money/delivery errors auto-dismiss after 4s
+`showMsg` sets `setTimeout(() => setMsg(null), 4000)` for **all** messages,
+including financial/delivery failures. A "payment not confirmed" error vanishing
+in 4 seconds is easy to miss (and is likely why the screenshot had to be caught
+quickly).
+**Recommendation:** make `error`-type banners sticky (no auto-dismiss; require the
+existing ✕), or extend their timeout substantially; keep the 4s auto-dismiss for
+`success` only.
+
+**Note:** `doSendPaymentLink` (L432) is a THIRD send path alongside the
+`createdDelivery` state machine (L377–391) and `sendPaymentLinkResult`. All three
+should converge on one helper that renders the same rich, non-auto-dismissing
+failure detail, so the "why" is consistent wherever a send is attempted.
