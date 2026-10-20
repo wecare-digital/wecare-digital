@@ -68,7 +68,8 @@ describe( 'public mobile foundation', () => {
     expect( steering ).toContain( 'Adopt the contract family-by-family' );
     expect( steering ).toContain( 'Grahak OS is migrated' );
     expect( steering ).toContain( 'VayuLok is migrated' );
-    expect( steering ).toContain( 'shared service/product pages are next' );
+    expect( steering ).toContain( 'Shared service/product' );
+    expect( steering ).toContain( 'pages are next' );
     expect( steering ).toContain( 'A real physical' );
   } );
 } );
