@@ -220,6 +220,10 @@ const PROBE = () => {
     vw,
     header: rect( header ),
     widget: rect( widget ),
+    shareChevronTransform: ( () => {
+      const chevron = document.querySelector( '.public-share .ps-chevron' );
+      return chevron ? getComputedStyle( chevron ).transform : null;
+    } )(),
     strays: strays.slice( 0, 6 ),
     symmetry,
   };
@@ -368,6 +372,10 @@ function asymmetries ( ltr, rtl, tolerance ) {
       const c = ok( !rtl.strays.length, `${r} @${v.n}: nothing crosses the viewport edge under rtl (${rtl.strays.map( s => s.sel + ' l=' + s.l + ' r=' + s.r ).join( ' | ' )})` );
       const d = ok( !rtl.widget || ( rtl.widget.l >= -1 && rtl.widget.r <= rtl.vw + 1 ),
         `${r} @${v.n}: the language widget is fully on screen under rtl (l=${rtl.widget && rtl.widget.l} r=${rtl.widget && rtl.widget.r} vw=${rtl.vw})` );
+      const d2 = rtl.shareChevronTransform === null
+        ? ( pass++, true )
+        : ok( rtl.shareChevronTransform === 'matrix(-1, 0, 0, 1, 0, 0)',
+          `${r} @${v.n}: shared action chevron mirrors under rtl (transform ${rtl.shareChevronTransform})` );
       // THE MIRROR MUST ACTUALLY HAPPEN. Without this the gate passes on a page that ignored
       // the direction entirely, which is the state it was written to detect. The widget is
       // the cleanest witness: fixed to the viewport, so its inset has nowhere to hide.
@@ -382,7 +390,7 @@ function asymmetries ( ltr, rtl, tolerance ) {
       const f = ok( !asym.length,
         `${r} @${v.n}: every block element keeps its inline-start offset when mirrored (${asym.slice( 0, 3 ).map( x => `${x.k} off by ${x.d}px` ).join( ' | ' )})` );
 
-      const line = ( a && b && c && d && e && f ) ? 'ok  ' : 'FAIL';
+      const line = ( a && b && c && d && d2 && e && f ) ? 'ok  ' : 'FAIL';
       console.log( `  ${line} ${r.padEnd( 18 )} dir:${rtl.computedDir} ovf:${String( rtl.overflow ).padStart( 3 )}`
         + ` widget ltr:${ltr.widget ? ltr.widget.l : 'n/a'}->rtl:${rtl.widget ? rtl.widget.l : 'n/a'}`
         + ` asym:${String( asym.length ).padStart( 2 )}`
