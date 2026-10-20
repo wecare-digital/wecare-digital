@@ -1383,10 +1383,12 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( css ).toContain( 'font-family:var(--font-sans)' );
     expect( css ).toContain( '.vl-live-mobile-mode button{min-height:var(--tap-min)' );
     expect( css ).toContain( '.vl-live-air-aqi-score{' );
-    expect( css ).toContain( 'grid-column:2;grid-row:1;justify-self:center' );
+    expect( css ).toContain( 'grid-column:1;grid-row:1;justify-self:center' );
     expect( css ).toContain( '.vl-live-air-gauge-meta{' );
-    expect( css ).toContain( 'justify-self:stretch;min-width:0;max-width:100%;text-align:center' );
+    expect( css ).toContain( 'grid-column:1;grid-row:2;justify-self:stretch;min-width:0;max-width:100%;text-align:center' );
     expect( css ).toContain( '.vl-live-air-summary-meta{min-width:0;max-width:100%;justify-content:center;text-align:center}' );
+    expect( css ).toContain( 'position:absolute;inset-inline-start:0;top:50%;width:4px;height:92px' );
+    expect( css ).toContain( 'grid-template-columns:minmax(0,1fr)' );
     expect( css ).toContain( '.vl-live-route-check{align-self:flex-start;min-height:var(--tap-min)' );
     expect( css ).toContain( '.vl-live-map-retry{margin-top:10px;min-height:var(--tap-min)' );
     expect( css ).toContain( '.vl-live-air-card-wrap{position:relative;z-index:12;grid-area:1/1;align-self:start;justify-self:start;width:min(416px,calc(100% - 32px));margin-block:16px 112px;margin-inline:16px 0' );

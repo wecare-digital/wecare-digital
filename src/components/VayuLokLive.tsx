@@ -5141,17 +5141,20 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
           .vl-live-air-card{width:100%;max-width:100%;min-width:0;padding:20px}
           .vl-live-air-panel{min-width:0;max-width:100%}
           .vl-live-air-gauge-row{
-            grid-template-columns:4px minmax(0,1fr);grid-template-rows:auto auto;
-            align-items:center;column-gap:12px;row-gap:8px;min-width:0;max-width:100%
+            position:relative;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto;
+            align-items:center;row-gap:8px;min-width:0;max-width:100%;padding-inline:16px
           }
-          .vl-live-air-aqi-spine{grid-column:1;grid-row:1 / span 2;height:100%;min-height:92px}
+          .vl-live-air-aqi-spine{
+            position:absolute;inset-inline-start:0;top:50%;width:4px;height:92px;min-height:92px;
+            transform:translateY(-50%)
+          }
           .vl-live-air-aqi-score{
-            grid-column:2;grid-row:1;justify-self:center;min-width:0;
+            grid-column:1;grid-row:1;justify-self:center;min-width:0;
             flex-direction:row;align-items:baseline;gap:8px
           }
           .vl-live-air-aqi-unit{margin-top:0}
           .vl-live-air-gauge-meta{
-            grid-column:2;grid-row:2;justify-self:stretch;min-width:0;max-width:100%;text-align:center
+            grid-column:1;grid-row:2;justify-self:stretch;min-width:0;max-width:100%;text-align:center
           }
           .vl-live-air-gauge-word{max-width:100%;font-size:clamp(18px,5.2vw,22px);white-space:normal;overflow-wrap:anywhere;word-break:normal;text-align:center}
           .vl-live-air-summary-meta{min-width:0;max-width:100%;justify-content:center;text-align:center}
