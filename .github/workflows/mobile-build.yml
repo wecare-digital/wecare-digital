@@ -207,9 +207,13 @@ jobs:
     # height, 44px tap targets across the foldable/device postures) is never exercised there. This
     # job runs the SAME matrix on a WebKit-capable image so the iOS engine gap is closed in CI.
     runs-on: ubuntu-26.04
-    # Microsoft's Playwright image ships WebKit's native dependencies preinstalled; the tag matches
-    # the playwright-core floor pinned in tools/browser/package.json (^1.49.0).
-    container: mcr.microsoft.com/playwright:v1.49.0-jammy
+    # Microsoft's Playwright image ships WebKit's native dependencies preinstalled. Playwright
+    # browser builds are revision-locked to the client version, and `npm ci` in tools/browser
+    # installs the LOCKFILE-resolved playwright-core (tools/browser/package-lock.json -> 1.63.0),
+    # NOT the ^1.49.0 semver floor in package.json. The image tag MUST track that resolved client
+    # version so webkit.launch() (called with no executablePath) finds the matching WebKit binary.
+    # Keep this tag in lockstep with the lockfile: bump it whenever playwright-core is bumped.
+    container: mcr.microsoft.com/playwright:v1.63.0-jammy
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
