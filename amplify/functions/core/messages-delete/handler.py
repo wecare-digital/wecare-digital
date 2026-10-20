@@ -269,6 +269,14 @@ def _handle_clear_all(event, origin):
     if denied is not None:
         return denied
 
+    # A normal staff session must never authorize a whole-inbox reset. A deliberate
+    # operator configuration change is required in addition to all existing gates.
+    if os.environ.get('ALLOW_MESSAGE_CLEAR_ALL', '').lower() != 'true':
+        return cors_response(403, {
+            'error': 'Bulk message deletion is disabled',
+            'errorCode': 'BULK_DELETE_DISABLED',
+        }, origin)
+
     if (event.get('_auth') or {}).get('mfaEnrolled') is not True:
         logger.warning(json.dumps({'event': 'clear_all_refused_no_mfa'}))
         return cors_response(403, {

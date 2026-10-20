@@ -187,6 +187,8 @@ def handlers():
 def offline(handlers, monkeypatch):
     """Nothing here may reach AWS, and no arm may actually delete."""
     monkeypatch.delenv("ADMIN_MFA_REQUIRED", raising=False)
+    # Existing auth/MFA/confirmation tests exercise the explicit maintenance mode.
+    monkeypatch.setenv("ALLOW_MESSAGE_CLEAR_ALL", "true")
     monkeypatch.setattr(mw, "AUTH_SKIP_PATHS", [])
     monkeypatch.setattr(dc, "_dynamodb", _EmptyDynamo())
     for module in handlers.values():
@@ -680,3 +682,15 @@ def test_the_staff_pool_is_not_the_customer_pool():
     assert mw.staff_pool_issuer() != ca.CUSTOMER_POOL_ISSUER
     assert "us-east-1_cSx0RHCIR" in mw.staff_pool_issuer()
     assert "us-east-1_46ULYuukt" in ca.CUSTOMER_POOL_ISSUER
+
+
+@pytest.mark.parametrize("setting", [None, "", "false", "1", "yes"])
+def test_bulk_message_delete_is_locked_by_default(handlers, monkeypatch, setting):
+    if setting is None:
+        monkeypatch.delenv("ALLOW_MESSAGE_CLEAR_ALL", raising=False)
+    else:
+        monkeypatch.setenv("ALLOW_MESSAGE_CLEAR_ALL", setting)
+    token = as_staff(monkeypatch, ["Admin"])
+    response = _invoke(handlers, CLEAR_ALL, token, body={"preview": True})
+    assert response["statusCode"] == 403
+    assert json.loads(response["body"])["errorCode"] == "BULK_DELETE_DISABLED"
