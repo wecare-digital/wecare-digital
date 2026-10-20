@@ -447,7 +447,7 @@ describe( 'Grahak OS: API-panel "Open demo in WhatsApp" link', () => {
 
     const stackStart = source.indexOf( '<div className="api-demo-stack">' );
     const demoStart = source.indexOf( '<div className="api-demo">', stackStart );
-    const codeStart = source.indexOf( '<pre className="code-block">', demoStart );
+    const codeStart = source.indexOf( '<pre className="code-block" dir="ltr">', demoStart );
     const rowStart = source.indexOf( '<div className="api-wa-row">', codeStart );
     expect( stackStart ).toBeGreaterThan( -1 );
     expect( demoStart ).toBeGreaterThan( stackStart );
