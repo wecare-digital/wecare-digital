@@ -160,14 +160,12 @@ PERMITTED_LAMBDA_INVOKES_FRESH_CAPTURE = frozenset({
     'wecare-invoice-engine POST /invoices/from-payment',
     'wecare-invoice-engine POST /invoices/{id}/generate-image',
     'wecare-invoice-engine:live POST /invoices/{id}/send-whatsapp',
-    'wecare-outbound-whatsapp',                      # the review request
 })
 PERMITTED_LAMBDA_INVOKES_DEDUPLICATED = frozenset({
     SERVICE_REQUEST_HINT,
     PAID_REQUEST_FLOW_HINT,
     'wecare-invoice-engine POST /invoices/from-payment',
     'wecare-invoice-engine:live POST /invoices/{id}/send-whatsapp',
-    'wecare-outbound-whatsapp',
 })
 #: A FOURTH drive: a website-settled capture (`channel=whatsapp`, WEBSITE_RAZORPAY_STANDARD).
 #:
@@ -182,7 +180,6 @@ PERMITTED_LAMBDA_INVOKES_CATALOGUE_CAPTURE = frozenset({
     'wecare-invoice-engine POST /invoices/from-payment',
     'wecare-invoice-engine POST /invoices/{id}/generate-image',
     'wecare-invoice-engine:live POST /invoices/{id}/send-whatsapp',
-    'wecare-outbound-whatsapp',                       # the review request
 })
 
 #: ONE global absence assertion across every drive, so a new call cannot hide in a drive nobody
@@ -701,20 +698,17 @@ def test_replaying_everything_moves_no_count(webhook, fake):
     assert len(rows(order_keys.GATEWAY_ORDER_PREFIX)) == 1
     assert len(rows(order_keys.PAYMENT_ATTEMPT_PREFIX)) == 1
     assert len(rows(order_keys.ORDER_NUMBER_PREFIX)) == 1
-    # TWO rows, and they answer different questions. `#whatsapp-dispatch` is the webhook's
-    # "have I already asked the engine?"; `#review` is "have I already asked for feedback?". The
-    # engine's own `#whatsapp` send claim is written inside `send_invoice_whatsapp`, which this
-    # drive RECORDS rather than executes - `test_invoice_reaches_the_whatsapp_customer.py`
-    # drives that side.
-    assert sorted(rows(order_keys.INVOICE_DELIVERY_PREFIX)) == sorted([
-        order_keys.INVOICE_DELIVERY_PREFIX + INVOICE_ID + '#whatsapp-dispatch',
-        order_keys.INVOICE_DELIVERY_PREFIX + INVOICE_ID + '#review'])
+    # ONE webhook dispatch claim remains. Review is part of the invoice template itself, so
+    # there is no separate #review claim or second customer message.
+    assert rows(order_keys.INVOICE_DELIVERY_PREFIX) == [
+        order_keys.INVOICE_DELIVERY_PREFIX + INVOICE_ID + '#whatsapp-dispatch']
     assert fake.count(ATTEMPTS) == 1
     assert len(recorder.razorpay) == 1
     assert len(recorder.meta) == 1
-    # Exactly ONE invoice delivery dispatch and ONE review request across four deliveries.
+    # Exactly ONE invoice-template delivery dispatch across four deliveries, and no second
+    # standalone review-template invoke.
     assert len([c for c in recorder.lambdas if 'send-whatsapp' in c]) == 1
-    assert len([c for c in recorder.lambdas if c == 'wecare-outbound-whatsapp']) == 1
+    assert len([c for c in recorder.lambdas if c == 'wecare-outbound-whatsapp']) == 0
 
 
 def test_a_replayed_settlement_finalizes_once_and_is_a_clean_no_op(webhook, fake):
