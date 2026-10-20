@@ -20,7 +20,7 @@ from decimal import Decimal
 
 from lambda_utils.response import cors_response, options_response, extract_origin
 from lambda_utils.logging import get_logger, log_event
-from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
+from lambda_utils import media_paths, shared_tables  # one bucket, two roots: o/ public, secure/ gated
 
 logger = get_logger(__name__)
 
@@ -43,6 +43,7 @@ VOICE_AWS_TABLE = os.environ.get('VOICE_AWS_TABLE', 'stack-wecare-digital-VoiceA
 EMAIL_MESSAGES_TABLE = os.environ.get('EMAIL_MESSAGES_TABLE', 'stack-wecare-digital-MessagesTable')
 # Canonical unified message table (all channels). The single source the inbox reads.
 MESSAGES_TABLE = os.environ.get('MESSAGES_TABLE', 'stack-wecare-digital-MessagesTable')
+FLOW_SUBMISSIONS_TABLE = shared_tables.flow_submissions_table_name()
 MEDIA_BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
 MEDIA_CDN_DOMAIN = os.environ.get('MEDIA_CDN_DOMAIN', media_paths.CDN_DOMAIN)  # CloudFront host + path
 
@@ -432,6 +433,22 @@ def _convert_from_dynamodb(item: Dict[str, Any]) -> Dict[str, Any]:
             }))
             result['mediaUrl'] = None
     
+    # Some flows link the actual file after form completion (for example WD_DOCS).
+    # Refresh attachments from the authoritative FlowSubmission row so the staff Inbox card
+    # shows late-linked files without rewriting the original message breadcrumb.
+    if result.get('messageType') == 'flow_response' and result.get('flowSubmissionId'):
+        try:
+            submission = dynamodb.Table(FLOW_SUBMISSIONS_TABLE).get_item(
+                Key={'submissionId': result['flowSubmissionId']},
+                ConsistentRead=True,
+            ).get('Item') or {}
+            latest_attachments = submission.get('attachments')
+            if isinstance(latest_attachments, list):
+                result['flowAttachments'] = latest_attachments
+        except Exception as exc:
+            logger.warning(json.dumps({'event':'flow_submission_refresh_failed',
+                                       'errorType':type(exc).__name__}))
+
     # Flow response cards can carry multiple private attachments. Sign them on READ;
     # never persist bearer URLs in MessagesTable.
     if isinstance(result.get('flowAttachments'), list):
