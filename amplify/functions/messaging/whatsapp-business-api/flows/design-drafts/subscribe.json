@@ -64,11 +64,11 @@
         },
         "country": {
           "type": "string",
-          "__example__": ""
+          "__example__": "India"
         },
         "country_code": {
           "type": "string",
-          "__example__": ""
+          "__example__": "IN"
         },
         "profile_revision": {
           "type": "string",
@@ -234,11 +234,11 @@
         },
         "country": {
           "type": "string",
-          "__example__": ""
+          "__example__": "India"
         },
         "country_code": {
           "type": "string",
-          "__example__": ""
+          "__example__": "IN"
         },
         "profile_revision": {
           "type": "string",
@@ -314,6 +314,10 @@
                 "label": "Country",
                 "required": true,
                 "data-source": [
+                  {
+                    "id": "India",
+                    "title": "India"
+                  },
                   {
                     "id": "Afghanistan",
                     "title": "Afghanistan"
@@ -617,10 +621,6 @@
                   {
                     "id": "Iceland",
                     "title": "Iceland"
-                  },
-                  {
-                    "id": "India",
-                    "title": "India"
                   },
                   {
                     "id": "Indonesia",
@@ -1190,11 +1190,11 @@
         },
         "country": {
           "type": "string",
-          "__example__": ""
+          "__example__": "India"
         },
         "country_code": {
           "type": "string",
-          "__example__": ""
+          "__example__": "IN"
         },
         "profile_revision": {
           "type": "string",
