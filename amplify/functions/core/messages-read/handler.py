@@ -434,6 +434,8 @@ def _convert_from_dynamodb(item: Dict[str, Any]) -> Dict[str, Any]:
             result['mediaUrl'] = None
     
     # Some flows link the actual file after form completion (for example WD_DOCS).
+    # Keep this read-time refresh on the deployed messages-read path: it is what lets the
+    # unified Inbox show a late-linked private upload inside the same Flow response card.
     # Refresh attachments from the authoritative FlowSubmission row so the staff Inbox card
     # shows late-linked files without rewriting the original message breadcrumb.
     if result.get('messageType') == 'flow_response' and result.get('flowSubmissionId'):
