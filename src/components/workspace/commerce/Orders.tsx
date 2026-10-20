@@ -570,7 +570,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
   return (
     <MaybeLayout embedded={ embedded } user={ user } onSignOut={ signOut }>
       <SEO { ...PAGE_SEO.orders } />
-      <div style={ { padding: '24px 32px', maxWidth: 1440 } }>
+      <div className="orders-workspace" style={ { padding: '24px 32px', maxWidth: 1440 } }>
 
         {/* ── Header ── */ }
         <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 } }>
@@ -586,7 +586,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
         </div>
 
         {/* ── Filters ── */ }
-        <div style={ { display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' } }>
+        <div className="orders-filters" style={ { display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' } }>
           <input
             type="text" placeholder="Search order number, source ID, phone, or customer..."
             value={ search } onChange={ e => { setSearch( e.target.value ); setPage( 1 ); } }
@@ -610,7 +610,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
         ) : filtered.length === 0 && !loading ? (
           <EmptyState icon="order" title="No orders found" description="Create a manual order to get started." action={ { label: 'New Order', onClick: () => setShowCreate( true ) } } />
         ) : (
-          <div style={ { background: '#fff', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' } }>
+          <div className="orders-desktop-table" style={ { background: '#fff', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' } }>
             <div style={ { overflowX: 'auto' } }>
               <table style={ { width: '100%', borderCollapse: 'collapse', minWidth: 900 } }>
                 <thead>
@@ -652,6 +652,35 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
               </table>
             </div>
           </div>
+          <div className="orders-mobile-list">
+            { loading ? (
+              <div className="orders-mobile-state">Loading orders…</div>
+            ) : paged.map( order => {
+              const short = order.orderNumber || order.shortId || extractShortId( order.orderId );
+              return (
+                <button type="button" key={ `mobile-${order.orderId}` }
+                  className="orders-mobile-card" onClick={ () => openDetail( order ) }>
+                  <span className="orders-mobile-top">
+                    <strong>{ short }</strong>
+                    <span>{ formatDate( order.createdAt ) }</span>
+                  </span>
+                  <span className="orders-mobile-customer">
+                    <strong>{ order.customerName || 'Unnamed customer' }</strong>
+                    <small>{ order.customerPhone || 'No phone' }</small>
+                  </span>
+                  <span className="orders-mobile-meta">
+                    <span><small>Source</small>{ canonicalSourceLabel( order.source ) }</span>
+                    <span><small>Items</small>{ order.itemCount ?? order.items?.length ?? '—' }</span>
+                    <span><small>Requests</small>{ order.requestCount ?? '—' }</span>
+                  </span>
+                  <span className="orders-mobile-status">
+                    <Badge status={ orderFulfilment( order ) } />
+                    <Badge status={ order.paymentStatus } />
+                  </span>
+                </button>
+              );
+            } ) }
+          </div>
         ) }
         { totalPages > 1 && (
           <div style={ { marginTop: 16, display: 'flex', justifyContent: 'center' } }>
@@ -683,6 +712,52 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
             <label style={ labelStyle }>Admin Notes<textarea value={ createForm.notes } onChange={ e => setCreateForm( f => ( { ...f, notes: e.target.value } ) ) } rows={ 2 } style={ { ...inputStyle, resize: 'vertical' } } /></label>
           </div>
         </Modal>
+
+        <style jsx global>{`
+          .orders-mobile-list{display:none}
+          @media(max-width:768px){
+            .orders-workspace{
+              padding:
+                24px max(16px,env(safe-area-inset-right,0px))
+                calc(88px + env(safe-area-inset-bottom,0px))
+                max(16px,env(safe-area-inset-left,0px)) !important;
+            }
+            .orders-filters{align-items:stretch}
+            .orders-filters > input{flex:1 1 100% !important;min-width:0 !important;width:100%}
+            .orders-filters > .ui-field{flex:1 1 calc(50% - 5px) !important;width:auto !important;min-width:0}
+            .orders-desktop-table{display:none}
+            .orders-mobile-list{display:flex;flex-direction:column;gap:12px}
+            .orders-mobile-card{
+              width:100%;min-width:0;min-height:44px;padding:14px;
+              display:flex;flex-direction:column;gap:12px;text-align:start;
+              background:#fff;border:1px solid var(--border);border-radius:14px;
+              color:var(--text);cursor:pointer;
+            }
+            .orders-mobile-card:hover,.orders-mobile-card:focus-visible{
+              background:var(--lime-tint);border-color:var(--lime);
+            }
+            .orders-mobile-card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+            .orders-mobile-top,.orders-mobile-status{
+              display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap
+            }
+            .orders-mobile-top strong{font-family:monospace;color:var(--accent);overflow-wrap:anywhere}
+            .orders-mobile-top>span{font-size:var(--text-xs);color:var(--text-muted)}
+            .orders-mobile-customer{display:flex;flex-direction:column;gap:3px;min-width:0}
+            .orders-mobile-customer strong,.orders-mobile-customer small{overflow-wrap:anywhere}
+            .orders-mobile-customer small{color:var(--text-muted)}
+            .orders-mobile-meta{
+              display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px
+            }
+            .orders-mobile-meta>span{min-width:0;display:flex;flex-direction:column;gap:2px;overflow-wrap:anywhere}
+            .orders-mobile-meta small{color:var(--text-muted);font-size:var(--text-xs)}
+            .orders-mobile-state{padding:32px 16px;text-align:center;color:var(--text-muted);background:#fff;border:1px solid var(--border);border-radius:14px}
+          }
+          @media(max-width:360px){
+            .orders-workspace{padding-inline:12px !important}
+            .orders-filters > .ui-field{flex-basis:100% !important}
+            .orders-mobile-meta{grid-template-columns:1fr 1fr}
+          }
+        `}</style>
       </div>
     </MaybeLayout>
   );
