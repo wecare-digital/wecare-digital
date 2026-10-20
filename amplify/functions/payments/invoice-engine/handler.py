@@ -2270,6 +2270,7 @@ def _asset_target(invoice: Dict, *, invoice_id: str, asset_type: str, stem: str,
 
 
 # ─── Generate Invoice Image (PNG) ───
+# Image is the sole newly-generated customer invoice asset; PDF generation is retired.
 
 def generate_invoice_image(invoice_id: str, request_id: str) -> Dict:
     """Render invoice as POS receipt PNG using PIL, upload to S3."""
