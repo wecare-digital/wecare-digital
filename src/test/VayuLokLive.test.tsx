@@ -1377,6 +1377,9 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const historyBtnRule = cssRuleFor( css, '.vl-live-air-history-nav button' );
     expect( healthBtnRule ).toContain( 'width:var(--vl-action-size)' );
     expect( healthBtnRule ).toContain( 'height:var(--vl-action-size)' );
+    expect( css ).toContain( '--vl-action-size:var(--tap-min)' );
+    expect( css ).toContain( 'font-family:var(--font-sans)' );
+    expect( css ).toContain( '.vl-live-mobile-mode button{min-height:var(--tap-min)' );
     expect( healthBtnRule ).toContain( 'border-radius:50%' );
     expect( healthBtnRule ).toContain( 'background:var(--lime)' );
     expect( healthBtnRule ).toContain( 'color:var(--green)' );
@@ -2264,7 +2267,8 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( inputRule ).toContain( 'font-size:17px' );
     expect( inputRule ).toContain( 'font-weight:400' );
     expect( inputRule ).toContain( 'background:transparent' );
-    expect( inputRule ).toContain( 'padding:0 44px 0 2px' );
+    expect( inputRule ).toContain( 'padding-block:0' );
+    expect( inputRule ).toContain( 'padding-inline:2px 44px' );
     expect( inputRule ).toContain( 'height:52px' );
     // LIGHT focus treatment: a thin dark-green bottom border + a subtle lime accent line, NOT a
     // heavy rectangular outline around the whole field.
@@ -2299,7 +2303,8 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     const utilityInputRule = css.match( /\.vl-live-utility-search>input\{[^}]*\}/ )?.[ 0 ] || '';
     expect( utilityInputRule ).toContain( 'height:52px' );
     expect( utilityInputRule ).toContain( 'font-size:17px' );
-    expect( utilityInputRule ).toContain( 'padding:0 44px 0 2px' );
+    expect( utilityInputRule ).toContain( 'padding-block:0' );
+    expect( utilityInputRule ).toContain( 'padding-inline:2px 44px' );
     expect( utilityInputRule ).toContain( 'border-bottom:1px solid #e5e7eb' );
     expect( utilityInputRule ).toContain( 'background:transparent' );
     expect( utilityInputRule ).not.toContain( 'border-radius:13px' );
@@ -2341,7 +2346,7 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     // selector instead, which stays correct as the group grows.
     const sectionTitleRule = cssRuleFor( css, '.vl-live-air-pollutants-title' );
     expect( sectionTitleRule ).toContain( 'font-size:var(--vl-card-heading-size)' );
-    expect( sectionTitleRule ).toContain( 'border-left:3px solid var(--lime)' );
+    expect( sectionTitleRule ).toContain( 'border-inline-start:3px solid var(--lime)' );
     const sectionRule = cssRuleFor( css, '.vl-live-air-pollutants' );
     expect( sectionRule ).toContain( 'margin-top:var(--vl-section-gap)' );
     expect( sectionRule ).toContain( 'padding-top:var(--vl-section-pad)' );
@@ -2352,7 +2357,7 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( pollutantRowRule ).toContain( 'grid-template-columns:minmax(0,1fr) minmax(118px,auto) var(--vl-action-size)' );
     const pollutantValueRule = css.match( /\.vl-live-air-pollutant-value\{[^}]*\}/ )?.[ 0 ] || '';
     expect( pollutantValueRule ).toContain( 'min-width:118px' );
-    expect( pollutantValueRule ).toContain( 'text-align:right' );
+    expect( pollutantValueRule ).toContain( 'text-align:end' );
     expect( pollutantValueRule ).toContain( 'font-variant-numeric:tabular-nums' );
     // Shared Air + Weather forecast cards are deliberately readable, not metadata-sized.
     const forecastTimeRule = css.match( /\.vl-live-air-forecast-card span\{[^}]*\}/ )?.[ 0 ] || '';
