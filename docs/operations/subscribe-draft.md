@@ -1,0 +1,30 @@
+# Subscribe profile draft
+
+Selected Meta Flow: `1386523953464380` (`WD_Subscribe_Design_v1`), WABA1 only.
+Keep DRAFT. No publication or automatic customer trigger is enabled by this change.
+
+Definition: `flows/design-drafts/subscribe.json` in the WhatsApp business API package.
+Screens: PROFILE -> ADDRESS -> REVIEW -> COMPLETE. No Preferences screen.
+The existing WECARE app and `https://wecare.digital/api/wa-business/flow-data`
+endpoint remain attached. Send controlled tests with `mode: draft`,
+`flowAction: data_exchange`, and a unique `subscribe-<uuid>-waba-1-ph-<phone>` token.
+Use the existing internal `/wa-business/messages/send/flow` API; no new send path is needed.
+
+INIT uses the canonical ContactsTable lookup, displays the derived compact Customer ID,
+and prefills only the current structured address. It never reconstructs a deleted address
+from old submissions or legacy shipping strings. Missing IDs are assigned on save.
+
+Version 3 saves profile fields and the shared `checkoutDeliveryAddress` map with derived
+legacy fields through `contact_address`. It preserves customerUuid, permanent ownership,
+phone and consent. It neither grants marketing consent nor sends a welcome marketing message.
+Address is optional, but a partial address must pass the same structural validator as the website.
+An entirely blank address leaves any stored address unchanged; address deletion remains a
+separate profile operation. Website payment eligibility checks still apply at payment time.
+
+A profile revision and updatedAt compare protect against stale saves. Retrying the same token
+finishes its idempotent Flow submission without repeating the profile update. The Flow does
+not create an invoice, order or payment. Existing legacy Subscribe payloads remain isolated.
+
+Validation: local schema plus Meta asset validation, profile/address unit tests, Flow completion,
+crypto, inbox projection, canonical routing and business API regression tests.
+Handset submission is a separate verification step; sending a draft is not proof of submission.

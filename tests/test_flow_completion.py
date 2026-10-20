@@ -326,7 +326,7 @@ class TestEveryFlowModuleIsWired:
     COMPLETION_MODULES = (
         "submit_request.py", "subscribe.py", "rx_slot.py", "appointment.py",
         "drop_docs.py", "leave_review.py", "enterprise_assist.py",
-        "order_notes.py", "generic.py",
+        "order_notes.py", "generic.py", "subscribe_profile.py",
     )
 
     #: The calls that reach a customer or move money.

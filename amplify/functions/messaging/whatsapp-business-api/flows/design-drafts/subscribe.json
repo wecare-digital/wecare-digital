@@ -3,9 +3,9 @@
   "data_api_version": "3.0",
   "routing_model": {
     "PROFILE": [
-      "PREFERENCES"
+      "ADDRESS"
     ],
-    "PREFERENCES": [
+    "ADDRESS": [
       "REVIEW"
     ],
     "REVIEW": [
@@ -16,59 +16,71 @@
   "screens": [
     {
       "id": "PROFILE",
-      "title": "Your profile",
+      "title": "Subscribe",
       "data": {
         "phone_number": {
           "type": "string",
-          "__example__": "+91 93309 94400"
+          "__example__": ""
+        },
+        "customer_id": {
+          "type": "string",
+          "__example__": "Assigned when you save"
         },
         "full_name": {
           "type": "string",
-          "__example__": "Your name"
+          "__example__": ""
         },
         "email_address": {
           "type": "string",
-          "__example__": "you@example.com"
+          "__example__": ""
         },
         "company_name": {
           "type": "string",
-          "__example__": "Your organisation"
+          "__example__": ""
         },
         "designation": {
           "type": "string",
-          "__example__": "Your role"
+          "__example__": ""
         },
         "address_line1": {
           "type": "string",
-          "__example__": "12 Example Road"
+          "__example__": ""
+        },
+        "address_line2": {
+          "type": "string",
+          "__example__": ""
+        },
+        "locality": {
+          "type": "string",
+          "__example__": ""
         },
         "city": {
           "type": "string",
-          "__example__": "Kolkata"
+          "__example__": ""
         },
         "state": {
           "type": "string",
-          "__example__": "West Bengal"
+          "__example__": ""
         },
         "postal_code": {
           "type": "string",
-          "__example__": "700001"
+          "__example__": ""
         },
         "country": {
           "type": "string",
           "__example__": "India"
         },
-        "opt_in_whatsapp": {
-          "type": "boolean",
-          "__example__": true
+        "country_code": {
+          "type": "string",
+          "__example__": "IN"
         },
-        "opt_in_email": {
-          "type": "boolean",
-          "__example__": true
+        "profile_revision": {
+          "type": "string",
+          "__example__": ""
         },
-        "opt_in_sms": {
-          "type": "boolean",
-          "__example__": false
+        "updated_at": {
+          "type": "string",
+          "__example__": ""
         }
       },
       "layout": {
@@ -84,11 +96,15 @@
           },
           {
             "type": "TextHeading",
-            "text": "Your profile"
+            "text": "Your details"
+          },
+          {
+            "type": "TextCaption",
+            "text": "Customer ID"
           },
           {
             "type": "TextBody",
-            "text": "Review what we already have for your contact. Change only what you want to update."
+            "text": "${data.customer_id}"
           },
           {
             "type": "TextCaption",
@@ -101,175 +117,138 @@
           {
             "type": "Form",
             "name": "profile_form",
-            "init-values": {
-              "full_name": "${data.full_name}",
-              "email_address": "${data.email_address}",
-              "company_name": "${data.company_name}",
-              "designation": "${data.designation}",
-              "address_line1": "${data.address_line1}",
-              "city": "${data.city}",
-              "state": "${data.state}",
-              "postal_code": "${data.postal_code}",
-              "country": "${data.country}"
-            },
             "children": [
               {
                 "type": "TextInput",
                 "name": "full_name",
-                "label": "Name",
-                "required": true,
-                "input-type": "text",
-                "max-chars": 100
+                "label": "Full name",
+                "required": true
               },
               {
                 "type": "TextInput",
                 "name": "email_address",
                 "label": "Email",
-                "required": false,
-                "input-type": "email"
+                "required": false
               },
               {
                 "type": "TextInput",
                 "name": "company_name",
                 "label": "Organisation",
-                "required": false,
-                "input-type": "text",
-                "max-chars": 120
+                "required": false
               },
               {
                 "type": "TextInput",
                 "name": "designation",
                 "label": "Role / designation",
-                "required": false,
-                "input-type": "text",
-                "max-chars": 100
-              },
-              {
-                "type": "TextInput",
-                "name": "address_line1",
-                "label": "Address",
-                "required": false,
-                "input-type": "text",
-                "max-chars": 160
-              },
-              {
-                "type": "TextInput",
-                "name": "city",
-                "label": "City",
-                "required": false,
-                "input-type": "text",
-                "max-chars": 80
-              },
-              {
-                "type": "TextInput",
-                "name": "state",
-                "label": "State",
-                "required": false,
-                "input-type": "text",
-                "max-chars": 80
-              },
-              {
-                "type": "TextInput",
-                "name": "postal_code",
-                "label": "PIN / postal code",
-                "required": false,
-                "input-type": "text",
-                "max-chars": 20
-              },
-              {
-                "type": "TextInput",
-                "name": "country",
-                "label": "Country",
-                "required": false,
-                "input-type": "text",
-                "max-chars": 80
-              },
-              {
-                "type": "Footer",
-                "label": "Contact preferences",
-                "on-click-action": {
-                  "name": "navigate",
-                  "next": {
-                    "type": "screen",
-                    "name": "PREFERENCES"
-                  },
-                  "payload": {
-                    "phone_number": "${data.phone_number}",
-                    "full_name": "${form.full_name}",
-                    "email_address": "${form.email_address}",
-                    "company_name": "${form.company_name}",
-                    "designation": "${form.designation}",
-                    "address_line1": "${form.address_line1}",
-                    "city": "${form.city}",
-                    "state": "${form.state}",
-                    "postal_code": "${form.postal_code}",
-                    "country": "${form.country}",
-                    "opt_in_whatsapp": "${data.opt_in_whatsapp}",
-                    "opt_in_email": "${data.opt_in_email}",
-                    "opt_in_sms": "${data.opt_in_sms}"
-                  }
-                }
+                "required": false
               }
-            ]
+            ],
+            "init-values": {
+              "full_name": "${data.full_name}",
+              "email_address": "${data.email_address}",
+              "company_name": "${data.company_name}",
+              "designation": "${data.designation}"
+            }
+          },
+          {
+            "type": "Footer",
+            "label": "Your address",
+            "on-click-action": {
+              "name": "navigate",
+              "payload": {
+                "phone_number": "${data.phone_number}",
+                "customer_id": "${data.customer_id}",
+                "full_name": "${form.full_name}",
+                "email_address": "${form.email_address}",
+                "company_name": "${form.company_name}",
+                "designation": "${form.designation}",
+                "address_line1": "${data.address_line1}",
+                "address_line2": "${data.address_line2}",
+                "locality": "${data.locality}",
+                "city": "${data.city}",
+                "state": "${data.state}",
+                "postal_code": "${data.postal_code}",
+                "country": "${data.country}",
+                "country_code": "${data.country_code}",
+                "profile_revision": "${data.profile_revision}",
+                "updated_at": "${data.updated_at}"
+              },
+              "next": {
+                "type": "screen",
+                "name": "ADDRESS"
+              }
+            }
           }
         ]
       }
     },
     {
-      "id": "PREFERENCES",
-      "title": "Contact preferences",
+      "id": "ADDRESS",
+      "title": "Your address",
       "data": {
         "phone_number": {
           "type": "string",
-          "__example__": "+91 93309 94400"
+          "__example__": ""
+        },
+        "customer_id": {
+          "type": "string",
+          "__example__": "Assigned when you save"
         },
         "full_name": {
           "type": "string",
-          "__example__": "Your name"
+          "__example__": ""
         },
         "email_address": {
           "type": "string",
-          "__example__": "you@example.com"
+          "__example__": ""
         },
         "company_name": {
           "type": "string",
-          "__example__": "Your organisation"
+          "__example__": ""
         },
         "designation": {
           "type": "string",
-          "__example__": "Your role"
+          "__example__": ""
         },
         "address_line1": {
           "type": "string",
-          "__example__": "12 Example Road"
+          "__example__": ""
+        },
+        "address_line2": {
+          "type": "string",
+          "__example__": ""
+        },
+        "locality": {
+          "type": "string",
+          "__example__": ""
         },
         "city": {
           "type": "string",
-          "__example__": "Kolkata"
+          "__example__": ""
         },
         "state": {
           "type": "string",
-          "__example__": "West Bengal"
+          "__example__": ""
         },
         "postal_code": {
           "type": "string",
-          "__example__": "700001"
+          "__example__": ""
         },
         "country": {
           "type": "string",
           "__example__": "India"
         },
-        "opt_in_whatsapp": {
-          "type": "boolean",
-          "__example__": true
+        "country_code": {
+          "type": "string",
+          "__example__": "IN"
         },
-        "opt_in_email": {
-          "type": "boolean",
-          "__example__": true
+        "profile_revision": {
+          "type": "string",
+          "__example__": ""
         },
-        "opt_in_sms": {
-          "type": "boolean",
-          "__example__": false
+        "updated_at": {
+          "type": "string",
+          "__example__": ""
         }
       },
       "layout": {
@@ -284,130 +263,177 @@
             "alt-text": "WECARE.DIGITAL"
           },
           {
-            "type": "TextHeading",
-            "text": "Choose your updates"
-          },
-          {
             "type": "TextBody",
-            "text": "These switches show the optional contact preferences currently stored for you. Change them whenever you like."
+            "text": "Your website and WhatsApp use this same address. Leave all address fields empty if you do not want to add an address."
           },
           {
             "type": "Form",
-            "name": "preferences_form",
-            "init-values": {
-              "opt_in_whatsapp": "${data.opt_in_whatsapp}",
-              "opt_in_email": "${data.opt_in_email}",
-              "opt_in_sms": "${data.opt_in_sms}"
-            },
+            "name": "address_form",
             "children": [
               {
-                "type": "OptIn",
-                "name": "opt_in_whatsapp",
-                "label": "WhatsApp updates",
+                "type": "TextInput",
+                "name": "address_line1",
+                "label": "Address line 1",
                 "required": false
               },
               {
-                "type": "OptIn",
-                "name": "opt_in_email",
-                "label": "Email updates",
+                "type": "TextInput",
+                "name": "address_line2",
+                "label": "Address line 2",
                 "required": false
               },
               {
-                "type": "OptIn",
-                "name": "opt_in_sms",
-                "label": "SMS updates",
+                "type": "TextInput",
+                "name": "locality",
+                "label": "Locality / landmark",
                 "required": false
               },
               {
-                "type": "TextCaption",
-                "text": "Service and transaction messages required to complete something you asked for are handled separately from these optional preferences."
+                "type": "TextInput",
+                "name": "city",
+                "label": "City",
+                "required": false
               },
               {
-                "type": "Footer",
-                "label": "Review changes",
-                "on-click-action": {
-                  "name": "navigate",
-                  "next": {
-                    "type": "screen",
-                    "name": "REVIEW"
-                  },
-                  "payload": {
-                    "phone_number": "${data.phone_number}",
-                    "full_name": "${data.full_name}",
-                    "email_address": "${data.email_address}",
-                    "company_name": "${data.company_name}",
-                    "designation": "${data.designation}",
-                    "address_line1": "${data.address_line1}",
-                    "city": "${data.city}",
-                    "state": "${data.state}",
-                    "postal_code": "${data.postal_code}",
-                    "country": "${data.country}",
-                    "opt_in_whatsapp": "${form.opt_in_whatsapp}",
-                    "opt_in_email": "${form.opt_in_email}",
-                    "opt_in_sms": "${form.opt_in_sms}"
-                  }
-                }
+                "type": "TextInput",
+                "name": "state",
+                "label": "State",
+                "required": false
+              },
+              {
+                "type": "TextInput",
+                "name": "postal_code",
+                "label": "PIN / postal code",
+                "required": false
+              },
+              {
+                "type": "TextInput",
+                "name": "country",
+                "label": "Country",
+                "required": false
+              },
+              {
+                "type": "TextInput",
+                "name": "country_code",
+                "label": "Country code (e.g. IN)",
+                "required": false
               }
-            ]
+            ],
+            "init-values": {
+              "address_line1": "${data.address_line1}",
+              "address_line2": "${data.address_line2}",
+              "locality": "${data.locality}",
+              "city": "${data.city}",
+              "state": "${data.state}",
+              "postal_code": "${data.postal_code}",
+              "country": "${data.country}",
+              "country_code": "${data.country_code}"
+            }
+          },
+          {
+            "type": "Footer",
+            "label": "Review details",
+            "on-click-action": {
+              "name": "navigate",
+              "payload": {
+                "phone_number": "${data.phone_number}",
+                "customer_id": "${data.customer_id}",
+                "full_name": "${data.full_name}",
+                "email_address": "${data.email_address}",
+                "company_name": "${data.company_name}",
+                "designation": "${data.designation}",
+                "address_line1": "${form.address_line1}",
+                "address_line2": "${form.address_line2}",
+                "locality": "${form.locality}",
+                "city": "${form.city}",
+                "state": "${form.state}",
+                "postal_code": "${form.postal_code}",
+                "country": "${form.country}",
+                "country_code": "${form.country_code}",
+                "profile_revision": "${data.profile_revision}",
+                "updated_at": "${data.updated_at}",
+                "error_message": ""
+              },
+              "next": {
+                "type": "screen",
+                "name": "REVIEW"
+              }
+            }
           }
         ]
       }
     },
     {
       "id": "REVIEW",
-      "title": "Review profile",
+      "title": "Review details",
       "data": {
         "phone_number": {
           "type": "string",
-          "__example__": "+91 93309 94400"
+          "__example__": ""
+        },
+        "customer_id": {
+          "type": "string",
+          "__example__": "Assigned when you save"
         },
         "full_name": {
           "type": "string",
-          "__example__": "Your name"
+          "__example__": ""
         },
         "email_address": {
           "type": "string",
-          "__example__": "you@example.com"
+          "__example__": ""
         },
         "company_name": {
           "type": "string",
-          "__example__": "Your organisation"
+          "__example__": ""
         },
         "designation": {
           "type": "string",
-          "__example__": "Your role"
+          "__example__": ""
         },
         "address_line1": {
           "type": "string",
-          "__example__": "12 Example Road"
+          "__example__": ""
+        },
+        "address_line2": {
+          "type": "string",
+          "__example__": ""
+        },
+        "locality": {
+          "type": "string",
+          "__example__": ""
         },
         "city": {
           "type": "string",
-          "__example__": "Kolkata"
+          "__example__": ""
         },
         "state": {
           "type": "string",
-          "__example__": "West Bengal"
+          "__example__": ""
         },
         "postal_code": {
           "type": "string",
-          "__example__": "700001"
+          "__example__": ""
         },
         "country": {
           "type": "string",
           "__example__": "India"
         },
-        "opt_in_whatsapp": {
-          "type": "boolean",
-          "__example__": true
+        "country_code": {
+          "type": "string",
+          "__example__": "IN"
         },
-        "opt_in_email": {
-          "type": "boolean",
-          "__example__": true
+        "profile_revision": {
+          "type": "string",
+          "__example__": ""
         },
-        "opt_in_sms": {
-          "type": "boolean",
-          "__example__": false
+        "updated_at": {
+          "type": "string",
+          "__example__": ""
+        },
+        "error_message": {
+          "type": "string",
+          "__example__": ""
         }
       },
       "layout": {
@@ -423,35 +449,31 @@
           },
           {
             "type": "TextHeading",
-            "text": "Review your profile"
+            "text": "Review and save"
           },
           {
             "type": "TextCaption",
-            "text": "Name"
+            "text": "Customer ID"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.customer_id}"
           },
           {
             "type": "TextBody",
             "text": "${data.full_name}"
           },
           {
-            "type": "TextCaption",
-            "text": "Email"
+            "type": "TextBody",
+            "text": "${data.phone_number}"
           },
           {
             "type": "TextBody",
             "text": "${data.email_address}"
           },
           {
-            "type": "TextCaption",
-            "text": "Organisation"
-          },
-          {
             "type": "TextBody",
             "text": "${data.company_name}"
-          },
-          {
-            "type": "TextCaption",
-            "text": "Role"
           },
           {
             "type": "TextBody",
@@ -462,12 +484,16 @@
             "text": "Address"
           },
           {
-            "type": "TextCaption",
-            "text": "Address"
+            "type": "TextBody",
+            "text": "${data.address_line1}"
           },
           {
             "type": "TextBody",
-            "text": "${data.address_line1}"
+            "text": "${data.address_line2}"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.locality}"
           },
           {
             "type": "TextBody",
@@ -487,32 +513,35 @@
           },
           {
             "type": "TextCaption",
-            "text": "Contact preferences"
+            "text": "Saving your details does not change your marketing subscriptions."
           },
           {
             "type": "TextBody",
-            "text": "Your WhatsApp, email and SMS selections from the previous screen will be saved exactly as chosen."
+            "text": "${data.error_message}"
           },
           {
             "type": "Footer",
-            "label": "Save profile",
+            "label": "Save details",
             "on-click-action": {
               "name": "data_exchange",
               "payload": {
-                "profile_version": "2",
+                "profile_version": "3",
                 "phone_number": "${data.phone_number}",
+                "customer_id": "${data.customer_id}",
                 "full_name": "${data.full_name}",
                 "email_address": "${data.email_address}",
                 "company_name": "${data.company_name}",
                 "designation": "${data.designation}",
                 "address_line1": "${data.address_line1}",
+                "address_line2": "${data.address_line2}",
+                "locality": "${data.locality}",
                 "city": "${data.city}",
                 "state": "${data.state}",
                 "postal_code": "${data.postal_code}",
                 "country": "${data.country}",
-                "opt_in_whatsapp": "${data.opt_in_whatsapp}",
-                "opt_in_email": "${data.opt_in_email}",
-                "opt_in_sms": "${data.opt_in_sms}"
+                "country_code": "${data.country_code}",
+                "profile_revision": "${data.profile_revision}",
+                "updated_at": "${data.updated_at}"
               }
             }
           }
@@ -521,17 +550,17 @@
     },
     {
       "id": "COMPLETE",
-      "title": "Profile saved",
+      "title": "Subscribe",
       "terminal": true,
       "success": true,
       "data": {
-        "subscriber_id": {
+        "customer_id": {
           "type": "string",
-          "__example__": "WD-SUB-EXAMPLE"
+          "__example__": "C-7K9M2P4QABCD"
         },
         "message": {
           "type": "string",
-          "__example__": "Your profile and contact preferences are saved."
+          "__example__": "Your details are saved."
         }
       },
       "layout": {
@@ -547,7 +576,7 @@
           },
           {
             "type": "TextHeading",
-            "text": "Profile updated"
+            "text": "Details saved"
           },
           {
             "type": "TextBody",
@@ -555,11 +584,11 @@
           },
           {
             "type": "TextCaption",
-            "text": "Subscriber ID"
+            "text": "Customer ID"
           },
           {
             "type": "TextBody",
-            "text": "${data.subscriber_id}"
+            "text": "${data.customer_id}"
           },
           {
             "type": "Footer",
@@ -567,7 +596,7 @@
             "on-click-action": {
               "name": "complete",
               "payload": {
-                "subscriber_id": "${data.subscriber_id}"
+                "customer_id": "${data.customer_id}"
               }
             }
           }
