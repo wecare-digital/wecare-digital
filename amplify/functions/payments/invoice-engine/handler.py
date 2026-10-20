@@ -240,24 +240,6 @@ def _transparent_receipt_enabled() -> bool:
         '1', 'true', 'yes', 'on')
 
 
-def _flatten_onto_white(png_img):
-    """Drop an RGBA receipt onto white, preserving what the eye sees.
-
-    PIL's `convert('RGB')` does NOT composite — it discards the alpha band and keeps
-    the underlying RGB, which for a pixel created as (0, 0, 0, 0) is BLACK. So
-    converting a transparent receipt straight to RGB gives the PDF a black border
-    instead of a white page. Composite against white using the alpha as the mask.
-    """
-    from PIL import Image as _PILImage
-
-    if png_img.mode in ('RGBA', 'LA') or (
-            png_img.mode == 'P' and 'transparency' in png_img.info):
-        rgba = png_img.convert('RGBA')
-        flat = _PILImage.new('RGB', rgba.size, (255, 255, 255))
-        flat.paste(rgba, (0, 0), rgba)
-        return flat
-    return png_img.convert('RGB')
-
 # Module-level origin for CORS (set per-invocation in handler)
 origin = ''
 
@@ -1724,10 +1706,10 @@ def _is_issued(invoice: Optional[Dict]) -> bool:
     the moment the document exists, whatever the row's status says — or once its status has moved
     past the unissued set.
 
-    ONE helper on purpose. The three refusal sites that consult it (the financial-field guard in
-    `update_invoice`, and the asset version keys in `generate_invoice_image` /
-    `generate_invoice_pdf`) cannot disagree about what "issued" means, which is how a guard gets
-    bypassed: refuse the edit but overwrite the asset, or vice versa.
+    ONE helper on purpose. The refusal sites that consult it (the financial-field guard in
+    `update_invoice`, and the asset version key in `generate_invoice_image`) cannot disagree about
+    what "issued" means, which is how a guard gets bypassed: refuse the edit but overwrite the
+    asset, or vice versa.
 
     An absent/unreadable row answers False here. Callers must NOT treat "could not read" as
     "draft" — `update_invoice` refuses before it ever reaches this function on a failed read.
@@ -3073,88 +3055,6 @@ def _wrap_text(text, max_chars):
     if current:
         lines.append(current)
     return lines or [text[:max_chars]]
-
-
-# ─── Generate Invoice PDF ───
-
-def generate_invoice_pdf(invoice_id: str, request_id: str) -> Dict:
-    """Generate invoice PDF and upload to S3."""
-    if not invoice_id:
-        return _resp(400, {'error': 'invoiceId required'})
-
-    table = dynamodb.Table(INVOICES_TABLE)
-    resp = table.get_item(Key={'invoiceId': invoice_id})
-    invoice = resp.get('Item')
-    if not invoice:
-        return _resp(404, {'error': 'Invoice not found'})
-
-    items_table = dynamodb.Table(INVOICE_ITEMS_TABLE)
-    items_resp = items_table.query(
-        KeyConditionExpression=boto3.dynamodb.conditions.Key('invoiceId').eq(invoice_id)
-    )
-    items = sorted(items_resp.get('Items', []), key=lambda x: int(x.get('itemIndex', 0)))
-
-    # Primary: render receipt PNG and convert to PDF via PIL
-    try:
-        from PIL import Image as PILImage
-        png_bytes = _generate_receipt_png(invoice, items)
-        # Flatten, do not just convert: with RECEIPT_TRANSPARENT_BG on, the PNG is RGBA
-        # and `convert('RGB')` would keep the black underneath its transparent pixels.
-        png_img = _flatten_onto_white(PILImage.open(io.BytesIO(png_bytes)))
-        pdf_buf = io.BytesIO()
-        png_img.save(pdf_buf, format='PDF', resolution=150)
-        pdf_bytes = pdf_buf.getvalue()
-    except Exception as exc:
-        # An incomplete document must never become a successful PDF asset. Log
-        # only the failure type: render exceptions can include customer fields.
-        logger.warning(json.dumps({
-            'event': 'invoice_pdf_render_failed',
-            'errorType': type(exc).__name__,
-            'requestId': request_id,
-        }))
-        return _resp(503, {
-            'error': 'Invoice PDF rendering is temporarily unavailable',
-            'code': 'INVOICE_PDF_RENDER_FAILED',
-            'retryable': True,
-            'help': 'Retry PDF generation, or use the existing invoice HTML or image view.',
-        })
-
-    # Versioned on the same terms as the PNG: an issued invoice's PDF is re-rendered beside the
-    # previous one, never over it.
-    ref_id = invoice.get('referenceId', invoice_id)
-    s3_key, asset_row_key = _asset_target(
-        invoice, invoice_id=invoice_id, asset_type='pdf',
-        stem=f"{INVOICE_PREFIX}wecare-digital-{ref_id}", extension='pdf',
-        request_id=request_id)
-
-    s3.put_object(
-        Bucket=MEDIA_BUCKET,
-        Key=s3_key,
-        Body=pdf_bytes,
-        ContentType='application/pdf',
-        CacheControl='max-age=86400',
-    )
-
-    # Signed and expiring, for the same reason as the PNG above: `s3_key` is under
-    # `INVOICE_PREFIX`, which is now the gated root, so a CDN URL would be a dead link.
-    pdf_url = _signed_invoice_url(s3_key, invoice_id, request_id)
-
-    # Store asset record. `url` is deliberately not persisted — a presigned URL expires, and a
-    # stored one is correct when written and silently broken afterwards.
-    assets_table = dynamodb.Table(INVOICE_ASSETS_TABLE)
-    assets_table.put_item(Item={
-        'invoiceId': invoice_id,
-        'assetType': asset_row_key,
-        's3Key': s3_key,
-        'contentType': 'application/pdf',
-        'version': int(time.time()),
-        'generatedAt': int(time.time()),
-    })
-
-    logger.info(json.dumps({'event': 'invoice_pdf_generated', 'invoiceId': invoice_id,
-                            'assetType': asset_row_key, 'url': pdf_url,
-                            'requestId': request_id}))
-    return _resp(200, {'invoiceId': invoice_id, 'pdfUrl': pdf_url, 's3Key': s3_key})
 
 
 # ─── Send Pending Invoices by Phone (instant pay flow) ───
