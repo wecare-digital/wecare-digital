@@ -75,9 +75,14 @@ export default function SubscribeSettings () {
     const revision = ++searchRevision.current;
     setSelected( null ); setResults( [] ); setSearchMessage( '' ); setSearching( true );
     try {
-      const rows = await api.searchContacts( query.trim(), 20 );
+      const result = await api.searchContactsResult( query.trim(), 20 );
       if ( revision !== searchRevision.current ) return;
-      setResults( rows ); if ( !rows.length ) setSearchMessage( 'No matching customers found.' );
+      if ( !result.ok ) {
+        setSearchMessage( result.failure.message || 'Customer search failed. Please try again.' );
+        return;
+      }
+      setResults( result.data );
+      if ( !result.data.length ) setSearchMessage( 'No matching customers found.' );
     } catch { if ( revision === searchRevision.current ) setSearchMessage( 'Customer search failed. Please try again.' ); }
     finally { if ( revision === searchRevision.current ) setSearching( false ); }
   };
