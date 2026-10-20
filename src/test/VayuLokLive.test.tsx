@@ -1411,8 +1411,8 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( healthTextRule ).toContain( 'font-weight:var(--vl-body-weight)' );
     expect( healthTextRule ).toContain( 'line-height:var(--vl-body-lh)' );
     expect( healthTextRule ).toContain( 'letter-spacing:var(--vl-body-track)' );
-    expect( css ).toContain( '--vl-card-heading-size:22px' );
-    expect( css ).toContain( '--vl-body-size:20px' );
+    expect( css ).toContain( '--vl-card-heading-size:var(--public-card-size)' );
+    expect( css ).toContain( '--vl-body-size:var(--public-body-size)' );
 
     const selected = Array.from( personaTabs ).filter( t => t.getAttribute( 'aria-selected' ) === 'true' );
     expect( selected ).toHaveLength( 1 );
@@ -1943,7 +1943,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const css = Array.from( container.querySelectorAll( 'style' ) ).map( style => style.textContent || '' ).join( '\n' );
     expect( css ).toContain( 'grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch' );
     expect( css ).toContain( '.vl-live-tool-card{position:relative;min-width:0;flex:1;padding:24px' );
-    expect( css ).toContain( '.vl-live-route-pair{display:grid;grid-template-columns:minmax(0,1fr) 38px minmax(0,1fr);align-items:start' );
+    expect( css ).toContain( '.vl-live-route-pair{display:grid;grid-template-columns:minmax(0,1fr) var(--vl-action-size) minmax(0,1fr);align-items:start' );
     expect( css ).toContain( '.vl-live-route-result{display:flex;min-height:82px' );
     expect( css ).toContain( '.vl-live-route-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}' );
     expect( css ).toContain( '.vl-live-route-metrics>div:first-child{grid-column:1/-1}' );
@@ -2048,7 +2048,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const css = Array.from( container.querySelectorAll( 'style' ) ).map( style => style.textContent || '' ).join( '\n' );
     expect( css ).toContain( '.vl-live-utility-search>input{width:100%;height:52px' );
     expect( css ).toContain( 'border:0;border-bottom:1px solid #e5e7eb;border-radius:0;background:transparent' );
-    expect( css ).toContain( '.vl-live-fx-search>input{padding-right:2px;text-transform:uppercase}' );
+    expect( css ).toContain( '.vl-live-fx-search>input{padding-inline-end:2px;text-transform:uppercase}' );
   } );
 
   it( 'uses the active site language for voice search and sends the transcript through the existing place search', async () => {
