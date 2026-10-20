@@ -63,6 +63,8 @@ from __future__ import annotations
 import logging
 from typing import Any, Callable, Dict, List, Optional
 
+from lambda_utils import template_status
+
 logger = logging.getLogger(__name__)
 
 # ── states ─────────────────────────────────────────────────────────────────────
@@ -460,7 +462,7 @@ def _approved_template_names(response: Any) -> set:
         str(item.get("name", ""))
         for item in items
         if isinstance(item, dict)
-        and str(item.get("status", "")).strip().upper() == "APPROVED"
+        and template_status.is_sendable(item.get("status"))
         and item.get("name")
     }
 
