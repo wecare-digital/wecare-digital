@@ -4346,6 +4346,28 @@ def _sanitize_reference_id(reference_id: str) -> str:
     return upgraded
 
 
+def _select_payment_transaction(payment_data: Dict) -> Dict:
+    """Return the authoritative transaction object from either Meta payment shape.
+
+    Meta has emitted both a legacy singular transaction object and the live
+    ORDER_DETAILS transactions[] list. Prefer the plural list when present,
+    because it is the shape that carries pg_transaction_id in current native
+    payment captures. Among multiple rows, prefer one with a canonical terminal
+    state (captured/failed); otherwise preserve Meta order and use the first dict.
+    """
+    rows = payment_data.get('transactions')
+    if isinstance(rows, list):
+        candidates = [row for row in rows if isinstance(row, dict)]
+        if candidates:
+            for row in candidates:
+                state = pay_status.canonical(row.get('status', ''))
+                if state in (pay_status.CAPTURED, pay_status.FAILED):
+                    return row
+            return candidates[0]
+
+    legacy = payment_data.get('transaction')
+    return legacy if isinstance(legacy, dict) else {}
+
 def _process_payment_status(status: Dict, request_id: str) -> None:
     """
     Process payment status webhook from WhatsApp.
@@ -4428,7 +4450,7 @@ def _process_payment_status(status: Dict, request_id: str) -> None:
         }))
         actual_amount = _lookup_payment_amount(reference_id, request_id)
     
-    transaction = payment_data.get('transaction', {})
+    transaction = _select_payment_transaction(payment_data)
     transaction_id = transaction.get('id', '')
     transaction_type = transaction.get('type', '')
     
