@@ -100,6 +100,18 @@ def lookup_payment(*, reference_id: str, phone_number_id: str, config_name: str,
       * a payment entry with no gateway order id           - the shape is unproven; refuse
       * any HTTP error, timeout or unparseable body        - status code only in the log
       * an empty `config_name`                             - a reserved attempt must carry one
+
+    Gateway-id shapes. The explicit fields are read first:
+    `provider_order_id` / `payment_gateway.order_id` / `receipt.provider_order_id` /
+    `order_id` for the order, and `provider_payment_id` / `payment_gateway.payment_id` /
+    `payment_id` / `pg_transaction_id` for the payment. The native live shape Meta returns for a
+    WhatsApp capture carries neither explicit `order_id` nor `payment_id`: instead the Razorpay
+    ORDER id arrives at `transactions[].id` with an `order_` prefix and the Razorpay PAYMENT id
+    at `transactions[].pg_transaction_id` with a `pay_` prefix. Those two raw fields are therefore
+    classified BY PREFIX as a fallback only, used to fill a slot the explicit fields left empty -
+    an `order_`-prefixed value is a gateway order id, a `pay_`-prefixed value is a gateway payment
+    id. `id` is never treated as the order id unless it actually carries the `order_` prefix, so a
+    shape whose `id` is a `pay_` value stays a payment-id fallback.
     """
     if not reference_id:
         raise MetaBindingUnavailable('no reference id to look up')
@@ -162,7 +174,17 @@ def lookup_payment(*, reference_id: str, phone_number_id: str, config_name: str,
             order_id = str(record.get('provider_order_id') or gateway.get('order_id')
                            or receipt.get('provider_order_id') or record.get('order_id') or '')
             payment_id = str(record.get('provider_payment_id') or gateway.get('payment_id')
-                             or record.get('payment_id') or record.get('id') or '')
+                             or record.get('payment_id') or record.get('pg_transaction_id') or '')
+            # Native live shape: the raw `id`/`pg_transaction_id` carry the gateway ids keyed only
+            # by their Razorpay prefix. Classify by prefix and fill a slot only if it is still
+            # empty - `id` becomes the order id only when it is actually an `order_` value, so a
+            # shape whose `id` is a `pay_` payment fallback is left untouched.
+            for raw in (record.get('id'), record.get('pg_transaction_id')):
+                value = str(raw or '')
+                if value.startswith('order_') and not order_id:
+                    order_id = value
+                elif value.startswith('pay_') and not payment_id:
+                    payment_id = value
             if order_id:
                 candidates.append((order_id, payment_id, status))
     # More than one captured binding needs reconciliation; never select the first arbitrarily.
