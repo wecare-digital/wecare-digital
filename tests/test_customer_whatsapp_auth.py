@@ -16,11 +16,11 @@ os.environ.setdefault("META_WABA_ID", WABA1)
 os.environ.setdefault("META_PHONE_NUMBER_ID", WABA1_PHONE_ID)
 os.environ.setdefault("OTP_TEMPLATE_NAME", "wecare_otp")
 os.environ.setdefault("OTP_TEMPLATE_LANGUAGE", "en")
-# Both WABAs, set before the module is exec'd because the map is parsed at import.
+# WABA1 only, set before the module is exec'd because the map is parsed at import. The
+# handler pins customer OTP to the single primary WABA, so a WABA2 entry here would be
+# filtered out anyway; the stub matches the production (WABA1-only) config.
 os.environ.setdefault("OTP_WABA_MAP", json.dumps({
     WABA1: {"phone_number_id": WABA1_PHONE_ID,
-            "template_name": "wecare_otp", "template_language": "en"},
-    WABA2: {"phone_number_id": WABA2_PHONE_ID,
             "template_name": "wecare_otp", "template_language": "en"},
 }, separators=(",", ":"), sort_keys=True))
 
@@ -352,21 +352,32 @@ def _waba_event(waba_id):
                   {"userAttributes": attributes})
 
 
-@pytest.mark.parametrize(
-    ("waba_id", "phone_id"),
-    [(WABA1, WABA1_PHONE_ID), (WABA2, WABA2_PHONE_ID)],
-)
-def test_each_waba_sends_from_its_own_number(monkeypatch, waba_id, phone_id):
+def test_otp_sends_from_waba1_only(monkeypatch):
+    """Customer OTP is delivered from WABA1 and no other number. The isolation gate pins
+    the sender to the single primary WABA, so the body carries WABA1's phone id."""
     fake = _CapturingLambda()
     monkeypatch.setattr(auth, "_lambda", fake)
     monkeypatch.setattr(auth, "_consume_send_budget", lambda digits: None)
 
-    auth.handler(_waba_event(waba_id), None)
+    auth.handler(_waba_event(WABA1), None)
 
     body = fake.sent_body()
-    assert body["phoneId"] == phone_id
+    assert body["phoneId"] == WABA1_PHONE_ID
     assert body["templateName"] == "wecare_otp"
     assert body["language"] == "en"
+
+
+def test_a_waba2_scoped_customer_is_refused_not_routed(monkeypatch, capsys):
+    """WABA2 is deliberately NOT an OTP sender. A WABA2-scoped customer fails closed at the
+    isolation gate rather than receiving a code from the secondary number."""
+    fake = _CapturingLambda()
+    monkeypatch.setattr(auth, "_lambda", fake)
+    monkeypatch.setattr(auth, "_consume_send_budget", lambda digits: None)
+
+    with pytest.raises(PermissionError):
+        auth.handler(_waba_event(WABA2), None)
+    assert fake.calls == []
+    assert '"reason": "unknown_waba"' in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("waba_id", ["9999999999999999", None, "", "wrong-waba"])
@@ -448,23 +459,23 @@ def test_the_suppressed_send_reports_rate_limited(monkeypatch, capsys):
 
 def test_a_meta_template_error_is_logged_with_its_code_and_still_raises(
         monkeypatch, capsys):
-    """`wecare_otp` must be APPROVED in WABA2's OWN template list.
+    """`wecare_otp` must be APPROVED in WABA1's OWN template list.
 
-    Approval does not cross WABAs. If it is missing, Meta answers 132001 and no code is
-    delivered even though the routing is correct. Before this the caller saw only "sender
-    returned HTTP 400" with nothing naming the WABA or the Meta code.
+    If it is missing, Meta answers 132001 and no code is delivered even though the routing
+    is correct. Before this the caller saw only "sender returned HTTP 400" with nothing
+    naming the WABA or the Meta code.
     """
     fake = _CapturingLambda(
         raw=b'{"statusCode": 400, "body": "{\\"error\\": {\\"code\\": 132001}}"}')
     monkeypatch.setattr(auth, "_lambda", fake)
 
     with pytest.raises(RuntimeError):
-        auth._send_otp("+919876543210", "123456", auth.WABA_ROUTES[WABA2])
+        auth._send_otp("+919876543210", "123456", auth.WABA_ROUTES[WABA1])
 
     out = capsys.readouterr().out
     assert "customer_whatsapp_otp_send_failed" in out
     assert "132001" in out
-    assert WABA2 in out
+    assert WABA1 in out
     # Not the destination, and not the code that was being sent.
     assert "9876543210" not in out
     assert "123456" not in out
@@ -558,7 +569,7 @@ def test_the_map_agrees_across_handler_provisioner_and_manifest(provisioner):
     )["functions"]["wecare-customer-whatsapp-auth"]
 
     assert manifest["OTP_WABA_MAP"] == provisioner.expected_environment()["OTP_WABA_MAP"]
-    assert set(expected) == {WABA1, WABA2} == set(auth.WABA_ROUTES)
-    for waba_id, phone_id in ((WABA1, WABA1_PHONE_ID), (WABA2, WABA2_PHONE_ID)):
-        assert expected[waba_id]["phone_number_id"] == phone_id
-        assert auth.WABA_ROUTES[waba_id]["phone_number_id"] == phone_id
+    # One WABA only: customer OTP is sent from WABA1 and no other number.
+    assert set(expected) == {WABA1} == set(auth.WABA_ROUTES)
+    assert expected[WABA1]["phone_number_id"] == WABA1_PHONE_ID
+    assert auth.WABA_ROUTES[WABA1]["phone_number_id"] == WABA1_PHONE_ID
