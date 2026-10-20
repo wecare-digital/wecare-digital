@@ -169,20 +169,19 @@ PERMITTED_LAMBDA_INVOKES_DEDUPLICATED = frozenset({
     'wecare-invoice-engine:live POST /invoices/{id}/send-whatsapp',
     'wecare-outbound-whatsapp',
 })
-#: A FOURTH drive, whose INVOICE behaviour is UNCHANGED by this work - which is exactly why it
-#: needs a written-out constant. An unchanged behaviour with no test is the behaviour that
-#: changes by accident.
+#: A FOURTH drive: a website-settled capture (`channel=whatsapp`, WEBSITE_RAZORPAY_STANDARD).
 #:
-#: It omits `send-whatsapp` entirely, so widening the step-4 gate to the channel alone fails here
-#: with a precise diff rather than a live catalogue customer receiving an unexpected GST
-#: document. It DOES carry the review request, because step 5 is deliberately gated on
-#: confirmed-paid rather than on the channel: a GST document is owed only where we collected the
-#: money, but a review request is about the service, which is the same service either way.
+#: Owner decision 2026-10-20: EVERY paid capture now gets the one approved
+#: `wecare_default_invoice_image_template` confirmation on WhatsApp, so `send-whatsapp` is
+#: PRESENT here too. The old native-only gate (which omitted it for this leg) is gone. The Meta
+#: payment LOOKUP still must NOT happen on a website-settled order - that is the native-binding
+#: call, and `recorder.meta == []` below still pins it.
 PERMITTED_LAMBDA_INVOKES_CATALOGUE_CAPTURE = frozenset({
     SERVICE_REQUEST_HINT,
     PAID_REQUEST_FLOW_HINT,
     'wecare-invoice-engine POST /invoices/from-payment',
     'wecare-invoice-engine POST /invoices/{id}/generate-image',
+    'wecare-invoice-engine:live POST /invoices/{id}/send-whatsapp',
     'wecare-outbound-whatsapp',                       # the review request
 })
 
@@ -583,20 +582,21 @@ def test_the_paid_request_hint_is_deliberately_not_mode_gated():
 
 
 def test_the_catalogue_capture_drive_sends_no_whatsapp_invoice(webhook, fake):
-    """T-C11. A `channel=whatsapp`, `checkoutMode=WEBSITE_RAZORPAY_STANDARD` capture behaves
-    exactly as it does today: no GST document, and no Meta lookup either.
+    """T-C11. A `channel=whatsapp`, `checkoutMode=WEBSITE_RAZORPAY_STANDARD` capture now ALSO
+    delivers the approved invoice template on WhatsApp (owner decision 2026-10-20: every paid
+    capture gets the one confirmation), but it still makes NO Meta payment-binding lookup - that
+    is the native-only call, and a website-settled order already has its gateway binding.
 
-    Note what this does NOT claim. The two `dispatch_activation` hints DO fire here, because
-    they fire for every reconciled order and the receiver decides - see
-    `test_the_paid_request_hint_is_deliberately_not_mode_gated` for why mode-gating them would
-    break paid Submit Request. What the drive pins is the pair that genuinely must not happen on
-    a website-settled order: the invoice document, and the Meta payment lookup.
+    The two `dispatch_activation` hints DO fire here, because they fire for every reconciled
+    order and the receiver decides - see `test_the_paid_request_hint_is_deliberately_not_mode_gated`.
     """
     recorder = Recorder()
     drive_capture(webhook, fake, recorder, mode='WEBSITE_RAZORPAY_STANDARD')
 
     assert set(recorder.lambdas) == PERMITTED_LAMBDA_INVOKES_CATALOGUE_CAPTURE
-    assert 'send-whatsapp' not in ' '.join(recorder.lambdas)
+    # The confirmation is now sent for a website-settled capture too.
+    assert 'send-whatsapp' in ' '.join(recorder.lambdas)
+    # But the native Meta payment-binding lookup still must NOT happen on this leg.
     assert recorder.meta == []
 
 

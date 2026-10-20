@@ -1631,7 +1631,15 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
     # (returns 400, just logged) for non-ad conversations. Fire-and-forget.
     _log_ctwa_purchase(contact, amount_paise, currency, order_id, notes, request_id)
 
-    # Send order_status message to customer (GAP FIX: Razorpay webhook was not sending this)
+    # Post-payment: trigger the service-details Flow for the paid order.
+    #
+    # The customer CONFIRMATION is NOT sent here. It is the `wecare_default_invoice_image_template`
+    # delivered in `_post_payment_handler` above - one approved, window-independent template for
+    # every paid capture, website or WhatsApp. The free-form `isOrderStatus` message that used to
+    # live in this block is removed: it was a second confirmation, and Meta blocked it outside the
+    # 24-hour service window, which is why captured payments reached customers with no message.
+    # What remains here is only the post-payment Flow (service details), which is a different
+    # feature with its own idempotent one-per-payment guard.
     if contact and reference_id:
         try:
             clean_phone = (contact or '').replace('+', '').replace(' ', '').replace('-', '')
@@ -1719,35 +1727,10 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
                                     'phoneId': originating_phone_id, 'fromOutbound': bool(resolved_phone),
                                     'requestId': request_id}))
 
-            order_status_payload = {
-                'body': json.dumps({
-                    'recipientPhone': f'+{clean_phone}',
-                    'phoneNumberId': originating_phone_id,
-                    'isOrderStatus': True,
-                    'orderStatusDetails': {
-                        'reference_id': reference_id,
-                        'order_status': 'processing',  # capture authorizes fulfillment; it does not complete it
-                        # `amountPaise` is the new integer key. `amount` is KEPT for one release
-                        # because the sender accepts both and the OTHER producer
-                        # (inbound-whatsapp-handler) still sends only the rupee key - dropping it
-                        # here while the sender was tightened would have been fine, but keeping
-                        # both makes the sender's dual read provable from either side.
-                        'amountPaise': amount_paise,
-                        'amount': amount_display,
-                        'description': f'Payment of \u20b9{amount_display} received via Razorpay. Thank you!'
-                    }
-                })
-            }
-            lambda_client.invoke(
-                FunctionName=os.environ.get('OUTBOUND_FUNCTION', 'wecare-outbound-whatsapp'),
-                InvocationType='Event',
-                Payload=json.dumps(order_status_payload),
-            )
-            logger.info(json.dumps({'event': 'razorpay_order_status_sent', 'phone': mask_phone(clean_phone), 'referenceId': reference_id, 'phoneId': originating_phone_id, 'requestId': request_id}))
-
             # Post-payment flow: after payment is confirmed, optionally start a
             # WhatsApp Flow (e.g. submit-request) so the customer completes service
             # details for the order they just paid for. One flow per payment (idempotent).
+            # This is NOT the confirmation message - that is the invoice template sent above.
             _trigger_post_payment_flow(clean_phone, originating_phone_id, reference_id, notes,
                                        request_id, invoice_id=originating_invoice_id,
                                        display={'order_number': str(order_display_number),
@@ -1756,7 +1739,7 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
                                                 'product': str(order_product)})
         except Exception as e:
             # A17: type only. A ClientError message can echo request content.
-            logger.warning(json.dumps({'event': 'razorpay_order_status_error', 'error': type(e).__name__, 'requestId': request_id}))
+            logger.warning(json.dumps({'event': 'razorpay_post_payment_flow_error', 'error': type(e).__name__, 'requestId': request_id}))
 
 
 # Map phone-number-id -> WABA id (for building routable flow tokens)
@@ -2696,6 +2679,12 @@ def _post_payment_handler(payment_id: str, contact: str,
     # We still require a resolved stored contact. No browser/body phone can open this gate.
     # Legacy settlements with no verified commerce identity remain fail-closed because contact
     # resolves empty unless existing server-owned invoice/reference evidence supplies it.
+    #
+    # It travels as the approved `wecare_default_invoice_image_template` (invoice PNG in its
+    # header), a TEMPLATE deliverable INSIDE OR OUTSIDE the 24-hour service window - unlike the
+    # free-form `isOrderStatus` message it replaces, which Meta blocked outside the window and
+    # which was why captured payments reached customers with no confirmation. This is now the ONE
+    # confirmation for a paid order; the separate `isOrderStatus` send below is removed.
     #
     # Delivery is retried by REPLAY: a miss raises so the webhook lease lapses and Razorpay
     # redelivers the capture, and the delivery CLAIM inside `send_invoice_whatsapp` makes the

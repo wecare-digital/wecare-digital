@@ -348,13 +348,13 @@ class _InvokeRecorder:
 
 
 def _post_payment(webhook, recorder, keys_fake, *, channel='whatsapp',
-                  checkout_mode=wpr.WA_NATIVE_CHECKOUT_MODE):
+                  checkout_mode=wpr.WA_NATIVE_CHECKOUT_MODE, contact='+918100640044'):
     with patch.object(webhook, 'lambda_client', recorder), \
          patch.object(webhook, 'dynamodb') as ddb, \
          patch.object(webhook, 'COMMERCE_KEYS_TABLE', KEYS):
         ddb.Table.side_effect = keys_fake.Table
         webhook._post_payment_handler(
-            'pay_X', '+918100640044', 'a@b.c', 'Service Fee', {}, 'req-pp',
+            'pay_X', contact, 'a@b.c', 'Service Fee', {}, 'req-pp',
             channel=channel, customer_uuid='', checkout_mode=checkout_mode,
             originating_phone_id=WABA1, reference_id='WD-PAY-DELIV01')
 
