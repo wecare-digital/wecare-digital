@@ -62,7 +62,8 @@ const ConsentPanel: React.FC<Props> = ( { contactId } ) => {
     setLoading( true );
     setError( null );
     const result = await api.getConsent( contactId );
-    if ( result.ok ) setView( result.data );
+    if ( result.ok && result.data?.summary && Array.isArray( result.data.ledger ) ) setView( result.data );
+    else if ( result.ok ) { setView( null ); setError( 'Consent evidence is unavailable. Refresh to try again.' ); }
     else setError( result.failure.message || 'Could not load consent evidence' );
     setLoading( false );
   }, [ contactId ] );
@@ -105,7 +106,7 @@ const ConsentPanel: React.FC<Props> = ( { contactId } ) => {
       { view && (
         <ul className="cp-channels">
           { CHANNELS.map( ch => {
-            const summary = view.summary[ ch ];
+            const summary = view.summary?.[ ch ];
             const current: api.ConsentState = summary?.state || 'PENDING';
             return (
               <li key={ ch } className="cp-channel">

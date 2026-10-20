@@ -202,7 +202,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
     const toast = useToastContext();
     const [ messages, setMessages ] = useState<api.Message[]>( [] );
     const [ contactNames, setContactNames ] = useState<Record<string, string>>( {} );
-    const [ contactDir, setContactDir ] = useState<Record<string, { username?: string; bsuid?: string; book?: string }>>( {} );
+    const [ contactDir, setContactDir ] = useState<Record<string, { username?: string; bsuid?: string; book?: string; customerDisplayId?: string }>>( {} );
     const [ selected, setSelected ] = useState<string | null>( null );
     // Seeded from the `channel` prop, else `?channel=`. Lowercased because the
     // comparisons below lowercase each message's own channel, and 'ALL' is the
@@ -308,11 +308,11 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
             ] ) );
             setLoadFailure( failures[ 0 ] ?? null );
             const names: Record<string, string> = {};
-            const dir: Record<string, { username?: string; bsuid?: string; book?: string }> = {};
+            const dir: Record<string, { username?: string; bsuid?: string; book?: string; customerDisplayId?: string }> = {};
             contacts.forEach( c => {
                 names[ c.contactId ] = c.name || c.phone || c.email || c.contactId;
-                if ( c.username || c.bsuid || c.contactBookName )
-                    dir[ c.contactId ] = { username: c.username || undefined, bsuid: c.bsuid || undefined, book: c.contactBookName || undefined };
+                if ( c.username || c.bsuid || c.contactBookName || c.customerDisplayId )
+                    dir[ c.contactId ] = { username: c.username || undefined, bsuid: c.bsuid || undefined, book: c.contactBookName || undefined, customerDisplayId: c.customerDisplayId || undefined };
             } );
             setContactNames( names );
             setContactDir( dir );
@@ -1011,10 +1011,11 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                                 selected && contactDir[ selected ]?.username
                                                     ? `@${contactDir[ selected ]!.username!.replace( /^@/, '' )}`
                                                     : replyTarget.phone,
+                                                selected ? contactDir[ selected ]?.customerDisplayId : '',
                                                 `${thread.length} message${thread.length === 1 ? '' : 's'}`,
                                             ].filter( Boolean ).join( ' · ' ) }
                                             { selected && contactDir[ selected ]?.bsuid && (
-                                                <span className="ui-id-chip" title={ `WhatsApp BSUID: ${contactDir[ selected ]!.bsuid}` }>ID { contactDir[ selected ]!.bsuid!.slice( 0, 8 ) }…</span>
+                                                <span className="ui-id-chip" title={ `WhatsApp BSUID: ${contactDir[ selected ]!.bsuid}` }>WhatsApp ID { contactDir[ selected ]!.bsuid!.slice( 0, 8 ) }…</span>
                                             ) }
                                         </span>
                                     </div>

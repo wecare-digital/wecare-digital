@@ -56,6 +56,14 @@ def _bind(handler, monkeypatch, table):
     monkeypatch.setattr(handler, "dynamodb", FakeContactsResource(table))
 
 
+def test_contacts_api_exposes_the_same_short_id_as_invoices(handler):
+    from lambda_utils.identity import customer_uuid
+    row = _row(customerUuid='77f927a4-5ce2-421e-bc1c-3b798c3e7738')
+    result = handler._from_dynamo(row)
+    assert result['customerDisplayId'] == customer_uuid.display_code(row)
+    assert result['customerUuid'] == row['customerUuid']
+
+
 # ── primary-phone protection ────────────────────────────────────────────────────
 
 def test_a_verified_phone_is_not_overwritten_by_a_manual_edit(handler, monkeypatch):

@@ -1293,6 +1293,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
                           {inlineEdit?.id === c.contactId && inlineEdit.field === 'name' ? (
                             <input autoFocus value={inlineEdit.value} onChange={e => setInlineEdit({ ...inlineEdit, value: e.target.value })} onBlur={commitInlineEdit} onKeyDown={e => { if (e.key === 'Enter') commitInlineEdit(); if (e.key === 'Escape') { inlineEditCancelled.current = true; setInlineEdit(null); } }} onClick={e => e.stopPropagation()} style={{ width: '100%', padding: '6px 10px', border: '2px solid var(--accent)', borderRadius: 8, fontSize: 'var(--text-md)', outline: 'none' }} />
                           ) : (c.name || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>unnamed</span>)}
+                          { c.customerDisplayId && <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 3 } }>{ c.customerDisplayId }</div> }
                         </td>
                         {/* Phone — inline editable (double-click) — Fix #8 */}
                         <td style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6', fontSize: 'var(--text-md)', cursor: 'text' }} title="Double-click to edit" onDoubleClick={e => { e.stopPropagation(); setInlineEdit({ id: c.contactId, field: 'phone', value: c.phone || '' }); }}>
@@ -1455,7 +1456,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
                   <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)', margin: '4px 0 0' }}>{detailContact.phone}</p>
                 </div>
                 {[
-                  { label: 'Customer ID', value: detailContact.customerUuid || '—' },
+                  { label: 'Customer ID', value: detailContact.customerDisplayId || '—' },
                   { label: 'Protection', value: detailContact.locked ? `Locked (${detailContact.lockedReason || 'protected'})` : 'Unlocked' },
                   { label: 'Email', value: detailContact.email },
                   { label: 'Organization', value: detailContact.companyName },
