@@ -55,7 +55,7 @@ def audit_release(lam, hosting, manifest, expected_commit, *, app_id, branch='st
     try:
         waba = checkout.get('WABA_ID') or '2094615664435155'
         templates = _provider_read(lam, '/wa-business/payment-templates/list', waba).get('data', [])
-        name = invoice.get('WA_PAY_TEMPLATE', 'wecarepay_wa')
+        name = invoice.get('WA_PAY_TEMPLATE', 'wecare_whatapp_native_pay_template')
         provider['payment_template_approved'] = any(
             row.get('name') == name and row.get('status') == 'APPROVED'
             and row.get('language') == 'en' and row.get('category') == 'UTILITY'

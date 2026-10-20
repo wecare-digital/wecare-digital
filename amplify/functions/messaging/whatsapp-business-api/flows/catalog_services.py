@@ -30,8 +30,7 @@ def readiness(get_flow, graph):
     flow = json.loads(flow_result.get('body') or '{}').get('flow') or {}
     templates = {}
     for name, ident in {'wecare_whatapp_native_pay_template': '2714938845570815',
-                        'wecare_default_download': '1410998911012572',
-                        'wecare_leave_review': '1801972550682516'}.items():
+                        'wecare_default_download': '1410998911012572'}.items():
         info = graph(ident, params={'fields': 'id,name,status,language,components'})
         templates[name] = {k: info.get(k) for k in ('id', 'name', 'status', 'language', 'components', 'error')}
     return {'flow': {k: flow.get(k) for k in ('id', 'name', 'status', 'validation_errors', 'endpoint_uri')},

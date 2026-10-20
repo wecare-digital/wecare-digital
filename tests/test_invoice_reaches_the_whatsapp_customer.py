@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import importlib
 import json
+from pathlib import Path
 import logging
 import os
 import sys
@@ -490,6 +491,17 @@ def test_the_post_payment_handler_takes_no_float_amount(webhook):
 
 
 # No post-capture review/Flow messaging: paid invoice is the sole confirmation.
+# ── review entry point lives inside the invoice template ───────────────────────
+
+def test_post_payment_sends_no_second_review_template(webhook, fake):
+    recorder = _InvokeRecorder()
+    _post_payment(webhook, recorder, fake)
+    assert 'wecare-outbound-whatsapp' not in recorder.calls
+    source = Path(webhook.__file__).read_text(encoding='utf-8')
+    assert 'wecare_leave_review' not in source
+    assert 'WA_REVIEW_TEMPLATE' not in source
+
+
 
 def test_payment_notifications_use_the_invoice_recipient(webhook):
     with patch.object(webhook, 'dynamodb') as ddb:

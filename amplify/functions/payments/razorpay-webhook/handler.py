@@ -1733,6 +1733,108 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
             logger.warning(json.dumps({'event': 'razorpay_post_payment_flow_error', 'error': type(e).__name__, 'requestId': request_id}))
 
 
+def _phone_from_payment_reference_table(table_name: str, reference_id: str) -> str:
+    """Look up a payment_request/outbound record by paymentReferenceId in the given
+    table and return its originating business phone id. Tries the GSI first, then a
+    bounded scan. Returns '' if not found."""
+    try:
+        table = dynamodb.Table(table_name)
+        items = []
+        try:
+            resp = table.query(
+                IndexName='paymentReferenceId-index',
+                KeyConditionExpression='paymentReferenceId = :ref',
+                ExpressionAttributeValues={':ref': reference_id},
+                Limit=1,
+            )
+            items = resp.get('Items', [])
+        except Exception:
+            resp = table.scan(
+                FilterExpression='paymentReferenceId = :ref',
+                ExpressionAttributeValues={':ref': reference_id},
+                ProjectionExpression='awsPhoneNumberId, phoneNumberId',
+                Limit=2000,
+            )
+            items = resp.get('Items', [])
+        if items:
+            return items[0].get('awsPhoneNumberId') or items[0].get('phoneNumberId') or ''
+    except Exception as e:
+        logger.warning(json.dumps({'event': 'phone_lookup_error', 'table': table_name,
+                                   'error': str(e), 'referenceId': reference_id}))
+    return ''
+
+
+def _log_ctwa_purchase(contact: str, amount_paise: int, currency: str,
+                       order_id: str, notes: Dict, request_id: str) -> None:
+    """Fire a Click-to-WhatsApp Purchase conversion event via the Conversions API.
+    Delegates to wecare-whatsapp-business-api (which owns the dataset + ctwa_clid
+    lookup). If the customer's conversation didn't originate from a CTWA ad, the
+    business-api returns 400 and this is a harmless no-op. Never blocks payment."""
+    try:
+        phone = ''.join(ch for ch in (contact or '') if ch.isdigit())
+        if not phone:
+            return
+        waba_id = (notes or {}).get('wabaId', '') or (notes or {}).get('metaWabaId', '')
+        payload = {
+            'eventName': 'Purchase',
+            'phone': phone,
+            # Built ONCE from integer paise, as a string. Meta's Conversions API takes a decimal
+            # value; deriving it exactly from paise is what keeps a reported conversion value
+            # from drifting from the amount actually captured.
+            'value': payment_status.rupees_str(amount_paise),
+            'currency': currency or 'INR',
+            'orderId': order_id or (notes or {}).get('referenceId', ''),
+        }
+        if waba_id:
+            payload['wabaId'] = waba_id
+        event = {
+            'requestContext': {'http': {'method': 'POST', 'path': '/wa-business/capi/event'}},
+            'rawPath': '/wa-business/capi/event',
+            'body': json.dumps(payload),
+        }
+        lambda_client.invoke(
+            FunctionName=os.environ.get('WA_BUSINESS_FUNCTION', 'wecare-whatsapp-business-api'),
+            InvocationType='Event',  # async, fire-and-forget
+            Payload=json.dumps(event),
+        )
+        logger.info(json.dumps({'event': 'ctwa_purchase_event_dispatched',
+                                'phone': phone[-4:], 'amountPaise': amount_paise,
+                                'requestId': request_id}))
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f'ctwa purchase event dispatch failed (non-blocking): {e}')
+
+
+def _resolve_originating_phone(reference_id: str, invoice_item: Dict = None) -> str:
+    """Resolve the business phone (WABA) the payment message was sent from, so the
+    confirmation + post-pay flow reply from the SAME number/WABA (NEVER cross-WABA).
+
+    Layered, in priority order (each is an authoritative record tied to this exact
+    payment reference — no config guessing):
+      1) the invoice record's own awsPhoneNumberId (stored at send time)
+      2) OutboundTable  paymentReferenceId-index  → awsPhoneNumberId
+      3) InboundTable   payment_request record    → awsPhoneNumberId  (catalog cart path;
+         the outbound Lambda writes this with the sending phone)
+    Returns '' only if none of the sources know the phone (caller then guesses)."""
+    # 1) invoice record (most reliable — the webhook already fetched it)
+    if invoice_item:
+        inv_phone = invoice_item.get('awsPhoneNumberId') or invoice_item.get('phoneNumberId') or ''
+        if inv_phone:
+            return inv_phone
+    if not reference_id:
+        return ''
+    # 2) OutboundTable
+    phone = _phone_from_payment_reference_table(
+        os.environ.get('OUTBOUND_TABLE', 'stack-wecare-digital-WhatsAppOutboundTable'), reference_id)
+    if phone:
+        return phone
+    # 3) InboundTable payment_request record (catalog cart interactive-payment send)
+    phone = _phone_from_payment_reference_table(
+        os.environ.get('INBOUND_TABLE', 'stack-wecare-digital-WhatsAppInboundTable'), reference_id)
+    if phone:
+        return phone
+    return ''
+
+
 # Post-payment WhatsApp Flows and interactive messages are intentionally retired.
 # Payment capture proceeds directly to paid-invoice PNG delivery.
 
@@ -2281,8 +2383,8 @@ def _post_payment_handler(payment_id: str, contact: str,
     This is the BACKUP path — WhatsApp inbound handler is the primary invoice generator.
     1. Invoke invoice-engine to create invoice from payment (dedup will return existing if WhatsApp path already created it)
     2. Generate invoice image (POS receipt style)
-    3. Deliver the GST invoice IMAGE on WhatsApp — NATIVE WhatsApp origin only
-    4. Ask for a review — after the invoice, and fail-open
+    3. Deliver the GST invoice IMAGE template on WhatsApp for every paid commerce order
+    4. The invoice template itself exposes the Leave Review Flow button; no second review template is sent
 
     `channel` is WHERE the order came from (`website` / `whatsapp`), read off the `PAYREF#` row by
     the reconciliation above. KEYWORD-ONLY and defaulted so the legacy callers that pass eight
@@ -2294,9 +2396,9 @@ def _post_payment_handler(payment_id: str, contact: str,
     beyond empty: the invoice simply prints no Customer ID row, which is the honest answer for a
     payment whose reference row carries none.
 
-    `checkout_mode` is MECHANICS - how the money settled - and together with `channel` it gates
-    step 4. Defaulting to `''` is the fail-closed direction: an absent value closes the gate, so
-    a legacy settlement (which has no `PAYREF#` row at all) sends no document.
+    `checkout_mode` is MECHANICS - how the money settled. It remains on the invoice/order context
+    for attribution and diagnostics, but it no longer gates receipt delivery: a verified paid
+    commerce order with a server-resolved WhatsApp recipient receives the invoice template.
 
     `amount` and `currency` are GONE from this signature rather than retyped. Measured, neither
     name occurred anywhere in the body after the signature - they were dead parameters carrying
