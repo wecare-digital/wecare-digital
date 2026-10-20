@@ -5130,14 +5130,6 @@ export async function generateInvoiceImage ( invoiceId: string ): Promise<{ invo
   } );
 }
 
-// Generate invoice PDF
-export async function generateInvoicePdf ( invoiceId: string ): Promise<{ invoiceId: string; pdfUrl: string; s3Key: string } | null> {
-  return apiCall<{ invoiceId: string; pdfUrl: string; s3Key: string }>( `${INVOICE_BASE}/${invoiceId}/generate-pdf`, {
-    method: 'POST',
-    body: JSON.stringify( { invoiceId } ),
-  } );
-}
-
 // Send invoice image on WhatsApp
 export async function sendInvoiceWhatsApp ( invoiceId: string, toWhatsAppNumber: string, phoneNumberId?: string ): Promise<{ invoiceId: string; waMessageId: string; status: string; imageUrl: string } | null> {
   return apiCall<{ invoiceId: string; waMessageId: string; status: string; imageUrl: string }>( `${INVOICE_BASE}/${invoiceId}/send-whatsapp`, {

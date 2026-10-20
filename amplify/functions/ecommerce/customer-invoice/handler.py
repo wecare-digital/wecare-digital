@@ -110,7 +110,7 @@ RATE_LIMIT_PER_SECOND = 5
 #: The request field is a FILE FORMAT; the table key is an ASSET TYPE. They are not the same
 #: vocabulary and the png -> image step is written down rather than inferred. `assetType`
 #: never leaves this function.
-ASSET_TYPE = {"png": "image", "pdf": "pdf"}
+ASSET_TYPE = {"png": "image"}
 
 #: Compared against a literal set, never passed through to `assetType` unchecked.
 ALLOWED_FORMATS = frozenset(ASSET_TYPE)
