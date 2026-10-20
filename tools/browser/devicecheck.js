@@ -15,6 +15,7 @@
  *   - the top section's h1 is present and inside the viewport
  *   - with the menu open: it is at least 120px tall and does not run off the bottom
  *   - every tap target in the header is at least 44px
+ *   - on migrated VayuLok, every visible live-app button/input/summary is at least 44px tall
  *
  * Run:  node tools/browser/devicecheck.js
  *       node tools/browser/devicecheck.js /contact/ /terms/
@@ -96,6 +97,7 @@ const DEVICES = [
   { n: 'phone 320',          w: 320,  h: 844 },
   { n: 'phone 375',          w: 375,  h: 812 },
   { n: 'phone 390',          w: 390,  h: 844 },
+  { n: 'phone 412',          w: 412,  h: 915 },
   { n: 'phone 430',          w: 430,  h: 932 },
   { n: 'tablet 768',         w: 768,  h: 1024 },
   { n: 'tablet 1024',        w: 1024, h: 768 },
@@ -119,6 +121,16 @@ const PROBE = () => {
     const cls = ( x.el.className || '' ).toString().split( /\s+/ ).filter( c => c && !c.startsWith( 'jsx-' ) )[ 0 ] || x.el.tagName;
     return `${cls}:${Math.round( x.b.height )}px`;
   } );
+  const vayuSmallTargets = location.pathname.startsWith( '/vayulok' )
+    ? Array.from( document.querySelectorAll( '.vl-live button, .vl-live input, .vl-live summary' ) )
+      .map( el => ( { el, b: r( el ) } ) )
+      .filter( x => window.__visible( x.el ) )
+      .filter( x => x.b.height < 44 )
+      .map( x => {
+        const cls = ( x.el.className || '' ).toString().split( /\s+/ ).filter( c => c && !c.startsWith( 'jsx-' ) )[ 0 ] || x.el.tagName;
+        return `${cls}:${Math.round( x.b.height )}px`;
+      } )
+    : [];
   return {
     overflow: document.documentElement.scrollWidth - vw,
     h1: h1 ? { w: Math.round( r( h1 ).width ), right: Math.round( r( h1 ).right ), top: Math.round( r( h1 ).top ) } : null,
@@ -140,6 +152,7 @@ const PROBE = () => {
       };
     } )() : null,
     smallTargets: small,
+    vayuSmallTargets,
   };
 };
 
@@ -173,6 +186,7 @@ const PROBE = () => {
           if ( x.menu && x.menu.offBottom > 0 ) problems.push( `menu +${x.menu.offBottom}px off-bottom` );
           if ( x.grahakMobileOrder && !x.grahakMobileOrder.ok ) problems.push( `Grahak mobile order: ${x.grahakMobileOrder.detail}` );
           if ( x.smallTargets.length ) problems.push( `tap<44: ${x.smallTargets.join( ',' )}` );
+          if ( x.vayuSmallTargets.length ) problems.push( `VayuLok tap<44: ${x.vayuSmallTargets.join( ',' )}` );
           if ( problems.length ) { bad.push( `${route} — ${problems.join( ' · ' )}` ); fail++; }
         } catch ( e ) {
           bad.push( `${route} — ERROR ${e.message.slice( 0, 50 )}` ); fail++;
