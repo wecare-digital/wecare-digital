@@ -150,3 +150,83 @@ jobs:
         run: |
           NODE_ENV=production npm run build
           npx cap sync ios
+
+  ios-xcodebuild:
+    name: iOS xcodebuild (real compile on macOS)
+    # THE GAP THIS FILLS. The ios-sync-check lane above only proves `cap sync ios` succeeds on
+    # Linux; it can NOT invoke xcodebuild (that needs a macOS runner + the Xcode toolchain). So a
+    # change that compiles fine in the web export but breaks the native iOS target - a Swift/plugin
+    # mismatch, a bad Info.plist, a broken SPM dependency graph - would slip through until a human
+    # built locally. This job performs the REAL iOS compile the Linux lane could not provide.
+    #
+    # It is UNSIGNED on PRs (CODE_SIGNING_ALLOWED=NO), so it needs no Apple certificates and runs
+    # on PRs from any source, exactly like the Android DEBUG build is the unconditional signal.
+    # Producing a SIGNED archive/IPA and uploading it stays secret-gated and out-of-band on a
+    # release runner per docs/mobile/ios-entitlements-push.md - this lane is the compile gate, not
+    # the distribution pipeline.
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Export public web app and sync iOS project
+        run: |
+          NODE_ENV=production npm run build
+          # Capacitor 8 has no --config CLI flag; make the PUBLIC shell canonical for this
+          # isolated job (same pattern as public-shell-sync-check) so the iOS compile validates
+          # the public WECARE.DIGITAL app shell. The worktree is disposable.
+          cp capacitor.public.config.ts capacitor.config.ts
+          npx cap sync ios
+      # Capacitor 8 uses Swift Package Manager (ios/App/CapApp-SPM), so there is NO .xcworkspace
+      # and NO CocoaPods/Podfile - the target is the plain project at ios/App/App.xcodeproj.
+      # No shared xcscheme is committed; xcodebuild autocreates the default `App` scheme on demand
+      # for the primary target. UNSIGNED Release build for iOS device SDK: no certificates needed.
+      - name: xcodebuild (unsigned Release compile)
+        run: |
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' \
+            build
+
+  webkit-device-matrix:
+    name: WebKit device matrix (iOS Safari / WKWebView engine)
+    # THE GAP THIS FILLS. tools/browser/devicecheck.js supports --webkit, but Playwright WebKit
+    # CANNOT launch on the Amazon-Linux sandbox/local harness (ICU + GTK native-dep mismatch), so
+    # iOS Safari / WKWebView's engine behaviour (no horizontal overflow, h1 in-viewport, menu
+    # height, 44px tap targets across the foldable/device postures) is never exercised there. This
+    # job runs the SAME matrix on a WebKit-capable image so the iOS engine gap is closed in CI.
+    runs-on: ubuntu-26.04
+    # Microsoft's Playwright image ships WebKit's native dependencies preinstalled; the tag matches
+    # the playwright-core floor pinned in tools/browser/package.json (^1.49.0).
+    container: mcr.microsoft.com/playwright:v1.49.0-jammy
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install app dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Install browser harness dependencies
+        # tools/browser is a SEPARATE package.json (playwright-core) - install it on its own.
+        working-directory: tools/browser
+        run: npm ci || npm install
+      - name: Export web app
+        run: NODE_ENV=production npm run build
+      # The harness spins up its own static server (tools/browser/lib/serve, serving out/) and
+      # runs the device/posture matrix under the WebKit engine. Scoped to the key public routes
+      # to keep runtime sane; drop the trailing args to sweep the full ROUTES list.
+      - name: Run WebKit device matrix
+        run: node tools/browser/devicecheck.js --webkit / /grahak-os/ /vayulok/ /contact/
