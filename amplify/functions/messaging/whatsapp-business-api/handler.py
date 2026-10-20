@@ -44,7 +44,7 @@ Routes:
   GET       /wa-business/payment-lookup → Meta Payment Lookup API (verify payment status)
   POST      /wa-business/payment-refund → Meta Refund API (initiate refund via WhatsApp)
   POST      /wa-business/flow-data     → WhatsApp Flow data_exchange endpoint
-  POST      /wa-business/checkout-data → Checkout Button Template data_exchange (coupons + address)
+  POST      /wa-business/checkout-data → Checkout Button Template data_exchange (legacy action refusals)
 """
 import os
 import json
@@ -5067,7 +5067,7 @@ def _handle_flow_data(body: Dict, request_id: str, origin: str = '') -> Dict:
 # CHECKOUT BUTTON TEMPLATE — data_exchange sub-action handlers
 # Per Meta docs: https://developers.facebook.com/docs/whatsapp/cloud-api/
 #   payments-api/payments-in/checkout-button-templates
-# Handles: get_coupons, apply_coupon, remove_coupon, apply_shipping
+# Legacy checkout callbacks are refused; pricing is frozen before reservation.
 # Uses same E2E encryption as WhatsApp Flows (shared /flow-data endpoint).
 # ═══════════════════════════════════════════════════════════════════════════
 

@@ -115,7 +115,7 @@ def render(invoice, items, *, company, font_path, ist_strftime, canonical_status
     pair('Subtotal', money(invoice.get('subtotal')))
     discount = Decimal(str(invoice.get('discount') or 0))
     if discount:
-        pair('Coupon / adjustment', '-' + money(discount))
+        pair('Delight' if invoice.get('couponCode') == 'DELIGHT' else 'Discount', '-' + money(discount))
     tax = Decimal(str(invoice.get('tax') or 0))
     rate = Decimal(str(invoice.get('gstRate') or 0))
     # The stored invoice owns tax. The renderer only displays its existing split.
