@@ -433,10 +433,9 @@ def _convert_from_dynamodb(item: Dict[str, Any]) -> Dict[str, Any]:
             }))
             result['mediaUrl'] = None
     
-    # A Flow can link attachments after the form completion (for example WD_DOCS,
-    # where the customer sends the actual document as the next WhatsApp message). Refresh
-    # the attachment list from the authoritative FlowSubmission row on each Inbox read so
-    # late-linked files appear on the same response card without rewriting history rows.
+    # Some flows link the actual file after form completion (for example WD_DOCS).
+    # Refresh attachments from the authoritative FlowSubmission row so the staff Inbox card
+    # shows late-linked files without rewriting the original message breadcrumb.
     if result.get('messageType') == 'flow_response' and result.get('flowSubmissionId'):
         try:
             submission = dynamodb.Table(FLOW_SUBMISSIONS_TABLE).get_item(
@@ -449,30 +448,6 @@ def _convert_from_dynamodb(item: Dict[str, Any]) -> Dict[str, Any]:
         except Exception as exc:
             logger.warning(json.dumps({'event':'flow_submission_refresh_failed',
                                        'errorType':type(exc).__name__}))
-
-    # Flow response cards can carry multiple private attachments. Sign them on READ;
-    # never persist bearer URLs in MessagesTable.
-    if isinstance(result.get('flowAttachments'), list):
-        projected = []
-        for raw in result['flowAttachments']:
-            if not isinstance(raw, dict):
-                continue
-            entry = dict(raw)
-            key = entry.get('key') or entry.get('s3Key')
-            if isinstance(key, str) and key:
-                try:
-                    key = media_paths.canonical(key)
-                    entry['key'] = key
-                    entry['url'] = (s3_client.generate_presigned_url(
-                        'get_object', Params={'Bucket': MEDIA_BUCKET, 'Key': key}, ExpiresIn=300)
-                        if media_paths.is_gated(key)
-                        else f"https://{MEDIA_CDN_DOMAIN}/{key}")
-                except Exception as exc:
-                    logger.warning(json.dumps({'event':'flow_attachment_sign_failed',
-                                               'errorType':type(exc).__name__}))
-                    entry.pop('url', None)
-            projected.append(entry)
-        result['flowAttachments'] = projected
 
     # Flow response cards can carry multiple private attachments. Sign them on READ;
     # never persist bearer URLs in MessagesTable.
