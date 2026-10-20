@@ -105,9 +105,6 @@ COMMERCE_KEYS_TABLE = order_keys.commerce_keys_table_name()
 #: behind an admin authorization step, so defaulting to it server-side bypassed that check.
 WABA1_PHONE_ID = 'phone-number-id-waba1-direct-1016149501586345'
 
-#: The approved post-payment feedback template. ONE home, env-read, and FAIL-OPEN at the call
-#: site: a feedback send that fails must never block or reverse the invoice or the paid state.
-WA_REVIEW_TEMPLATE = os.environ.get('WA_REVIEW_TEMPLATE', 'wecare_leave_review')
 MESSAGES_TABLE = os.environ.get('MESSAGES_TABLE', 'stack-wecare-digital-WhatsAppInboundTable')
 WEBHOOK_LOG_TABLE = os.environ.get('WEBHOOK_LOG_TABLE', 'stack-wecare-digital-RazorpayWebhookLogTable')
 
@@ -2574,8 +2571,8 @@ def _post_payment_handler(payment_id: str, contact: str,
     This is the BACKUP path — WhatsApp inbound handler is the primary invoice generator.
     1. Invoke invoice-engine to create invoice from payment (dedup will return existing if WhatsApp path already created it)
     2. Generate invoice image (POS receipt style)
-    3. Deliver the GST invoice IMAGE on WhatsApp — NATIVE WhatsApp origin only
-    4. Ask for a review — after the invoice, and fail-open
+    3. Deliver the GST invoice IMAGE template on WhatsApp for every paid commerce order
+    4. The invoice template itself exposes the Leave Review Flow button; no second review template is sent
 
     `channel` is WHERE the order came from (`website` / `whatsapp`), read off the `PAYREF#` row by
     the reconciliation above. KEYWORD-ONLY and defaulted so the legacy callers that pass eight
@@ -2587,9 +2584,9 @@ def _post_payment_handler(payment_id: str, contact: str,
     beyond empty: the invoice simply prints no Customer ID row, which is the honest answer for a
     payment whose reference row carries none.
 
-    `checkout_mode` is MECHANICS - how the money settled - and together with `channel` it gates
-    step 4. Defaulting to `''` is the fail-closed direction: an absent value closes the gate, so
-    a legacy settlement (which has no `PAYREF#` row at all) sends no document.
+    `checkout_mode` is MECHANICS - how the money settled. It remains on the invoice/order context
+    for attribution and diagnostics, but it no longer gates receipt delivery: a verified paid
+    commerce order with a server-resolved WhatsApp recipient receives the invoice template.
 
     `amount` and `currency` are GONE from this signature rather than retyped. Measured, neither
     name occurred anywhere in the body after the signature - they were dead parameters carrying
@@ -2716,53 +2713,8 @@ def _post_payment_handler(payment_id: str, contact: str,
                 'referenceId': reference_id, 'requestId': request_id,
                 'alert': 'RECEIPT_DELIVERY_EXHAUSTED'}))
 
-    # ── Step 5: ask for a review, AFTER the invoice and FAIL-OPEN ──
-    #
-    # Gated on CONFIRMED-PAID only, which is already established by reaching this function at
-    # all: `_handle_payment_captured` returns before calling it unless a provider readback
-    # produced a verified order or a verified legacy invoice. So BOTH legs ask - WhatsApp and
-    # website - which is deliberate and is the one place this differs from step 4. Step 4 is a
-    # GST document we owe only where we collected the money; a review request is about the
-    # service, which is the same service either way.
-    #
-    # Ordering and failure posture are both deliberate. It runs AFTER the invoice because the
-    # receipt is what the customer is being asked to review the service behind, and it is
-    # FAIL-OPEN because a feedback send is the least important thing on this path: it must never
-    # block or reverse the invoice or the paid state. Idempotent on the invoice, so a redelivered
-    # capture asks once.
-    # A native catalogue purchase has its OWN review trigger, which asks AFTER the service was
-    # actually delivered (`flows/paid_submit_request.py`, `flows/paid_vault.py`). This arm asks at
-    # capture, before any fulfilment, so it is the one that yields - otherwise a native purchase
-    # is asked twice, from two unrelated claim namespaces that cannot see each other.
-    #
-    # Step 5 is FAIL-OPEN by contract (the comment block above). It must never raise, because a
-    # raise reaches the handler's top-level `except`, returns 500, and lets the idempotency lease
-    # lapse so Razorpay REPLAYS a captured payment. An unreadable PAYREF# row therefore falls
-    # back to the pre-existing website behaviour: ask for the review. Never invert that default to
-    # "skip on error" - a transient throttle would then silently suppress a legitimate website
-    # review request.
-    #
-    # `OrderIdentityUnavailable` specifically, not bare `Exception`: `order_keys._read_row` wraps
-    # EVERY storage error into that one type, so the narrow catch has no storage blind spot, while
-    # a bare catch would also swallow a genuine programming error and turn it into a permanently
-    # invisible duplicate-review bug. A storage outage must fail open here; a logic bug must be loud.
-    native = False
-    try:
-        payref = order_keys.resolve_payment_reference(
-            dynamodb.Table(COMMERCE_KEYS_TABLE), reference_id) or {}
-        native = bool(payref.get('nativeCatalogService'))
-    except order_keys.OrderIdentityUnavailable:
-        logger.warning(json.dumps({'event': 'review_native_check_unavailable',
-                                   'referenceId': reference_id, 'requestId': request_id}))
-
-    if contact and invoice_id:
-        if native:
-            logger.info(json.dumps({'event': 'review_request_skipped_native',
-                                    'referenceId': reference_id, 'requestId': request_id}))
-        else:
-            _request_review_on_whatsapp(invoice_id, contact, originating_phone_id,
-                                        reference_id, request_id)
-
+    # The invoice template itself contains the Leave Review Flow button.
+    # Do not send a second standalone review template from the payment webhook.
     logger.info(json.dumps({'event': 'post_payment_complete', 'paymentId': payment_id,
                             'invoiceId': invoice_id, 'invoiceDelivered': delivered,
                             'path': 'webhook_backup', 'requestId': request_id}))
@@ -2884,73 +2836,6 @@ def _deliver_invoice_on_whatsapp(invoice_id: str, contact: str, phone_number_id:
         logger.error(json.dumps({'event': 'invoice_delivery_dispatch_uncertain',
             'invoiceId': invoice_id, 'error': type(error).__name__, 'requestId': request_id}))
         return False
-
-
-def _request_review_on_whatsapp(invoice_id: str, contact: str, phone_number_id: str,
-                                reference_id: str, request_id: str) -> bool:
-    """Step 5: send the approved `wecare_leave_review` template, ONCE, and never block on it.
-
-    Three properties, each load-bearing:
-
-    **Once.** Claimed on `INVOICEDELIVERY#<invoiceId>#review` through the same conditional-write
-    primitive the invoice delivery uses, so a redelivered capture asks once. A second review
-    request for one payment is a nuisance message, which is cheap - but it is also the kind of
-    thing that accumulates silently, so it is claimed rather than hoped for.
-
-    **WABA1 only.** The template is approved on WABA1, and payments only ever come from WABA1
-    anyway. An unresolved sender falls back to the primary identity, never to the admin-gated
-    secondary.
-
-    **FAIL-OPEN.** Every failure path here returns False and logs; none raises. The invoice and
-    the paid state are already correct at this point, and a feedback send is the least important
-    thing on this path - so it must never be able to reverse either. That is the opposite posture
-    from the invoice claim, which fails CLOSED toward not sending, and the asymmetry is correct:
-    a missing review request costs nothing, a duplicate GST invoice is a compliance artifact.
-    """
-    clean_phone = (contact or '').replace('+', '').replace(' ', '').replace('-', '')
-    if not clean_phone.startswith('91') and len(clean_phone) == 10:
-        clean_phone = '91' + clean_phone
-    if not clean_phone:
-        return False
-    try:
-        from lambda_utils.ecommerce import order_keys
-        keys_table = dynamodb.Table(COMMERCE_KEYS_TABLE)
-        if not order_keys.claim_invoice_delivery(
-                keys_table, invoice_id=invoice_id, channel='review',
-                extra={'referenceId': reference_id or '', 'requestId': request_id}):
-            logger.info(json.dumps({'event': 'review_request_already_sent',
-                                    'invoiceId': invoice_id, 'requestId': request_id}))
-            return False
-    except Exception as e:  # noqa: BLE001
-        # Could not claim. FAIL-OPEN means we do not send rather than send unclaimed: an
-        # unclaimed send is the duplicate this claim exists to prevent, and skipping it costs
-        # nothing. "Fail-open" is about not blocking the payment path, not about sending anyway.
-        logger.warning(json.dumps({'event': 'review_request_claim_unavailable',
-                                   'invoiceId': invoice_id, 'error': type(e).__name__,
-                                   'requestId': request_id}))
-        return False
-    try:
-        lambda_client.invoke(
-            FunctionName=os.environ.get('OUTBOUND_FUNCTION', 'wecare-outbound-whatsapp'),
-            InvocationType='Event',
-            Payload=json.dumps({'body': json.dumps({
-                'recipientPhone': f'+{clean_phone}',
-                'phoneNumberId': phone_number_id or WABA1_PHONE_ID,
-                'isTemplate': True,
-                'templateName': WA_REVIEW_TEMPLATE,
-                'templateParams': [],
-            })}),
-        )
-    except Exception as e:  # noqa: BLE001
-        logger.warning(json.dumps({'event': 'review_request_send_failed',
-                                   'invoiceId': invoice_id, 'error': type(e).__name__,
-                                   'requestId': request_id}))
-        return False
-    logger.info(json.dumps({'event': 'review_request_sent', 'invoiceId': invoice_id,
-                            'referenceId': reference_id, 'template': WA_REVIEW_TEMPLATE,
-                            'requestId': request_id}))
-    return True
-
 
 
 # ═══════════════════════════════════════════════════════════════════
