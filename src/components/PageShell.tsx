@@ -54,6 +54,7 @@ const PageShell: React.FC<PageShellProps> = ({
         <>
           <div className="ps-header">
             <div className="ps-header-left">
+              <span className="ps-eyebrow">Workspace</span>
               <h1 className="ps-title">{title}</h1>
               {subtitle && <p className="ps-subtitle">{subtitle}</p>}
             </div>
