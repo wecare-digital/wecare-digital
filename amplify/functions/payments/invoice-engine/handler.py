@@ -386,10 +386,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             inv_id = path_params.get('invoiceId') or body.get('invoiceId')
             return generate_invoice_image(inv_id, request_id)
 
-        # POST /invoices/{id}/generate-pdf
+        # PDF invoice generation is retired. Keep the route fail-closed while API
+        # infrastructure catches up, so an old client cannot silently create a new PDF.
         if method == 'POST' and 'generate-pdf' in path:
-            inv_id = path_params.get('invoiceId') or body.get('invoiceId')
-            return generate_invoice_pdf(inv_id, request_id)
+            return _resp(410, {
+                'error': 'Invoice PDF generation is retired. Use the invoice image.',
+                'code': 'INVOICE_IMAGE_ONLY',
+            })
 
         # POST /invoices/{id}/send-whatsapp
         if method == 'POST' and 'send-whatsapp' in path:
