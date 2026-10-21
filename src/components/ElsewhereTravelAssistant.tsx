@@ -515,6 +515,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
         .eta-response-view{
           min-height:180px;max-height:460px;max-height:min(48dvh,460px);overflow-y:auto;overflow-x:hidden;
           padding:2px 4px 8px 0;overscroll-behavior-y:contain;scrollbar-gutter:stable;scrollbar-width:thin;
+          -webkit-overflow-scrolling:touch;touch-action:pan-y;
         }
         .eta-conversation{display:flex;flex-direction:column;gap:16px;min-width:0}
         .eta-line{
@@ -527,6 +528,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
           min-width:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,auto);gap:18px;align-items:start;
           padding:17px 18px;border:1px solid rgba(17,21,18,.09);border-radius:14px;background:rgba(255,255,255,.84);
           box-shadow:0 1px 0 rgba(17,21,18,.02);
+          touch-action:pan-y;-webkit-tap-highlight-color:transparent;
           transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease,background .16s ease;
         }
         .eta-result:first-child{border-color:#c9dc84;background:#fff}
@@ -552,13 +554,13 @@ const ElsewhereTravelAssistant: React.FC = () => {
         .eta-meta span{padding:5px 8px;border:0;border-radius:999px;background:#f1f3ed;color:#667064;font-size:11px;font-weight:600;line-height:1.2}
         .eta-result-side{display:flex;flex-direction:column;align-items:flex-end;gap:9px;text-align:end}
         .eta-price{color:var(--public-heading);font-size:17px;font-weight:700;line-height:1.25;letter-spacing:-.2px;white-space:nowrap}
-        .eta-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;width:min(100%,340px);margin-inline-start:auto}
+        .eta-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;width:min(100%,390px);margin-inline-start:auto}
         .eta-action{
           display:inline-flex;align-items:center;justify-content:center;
           min-width:0;min-height:var(--tap-min);box-sizing:border-box;
           padding:6px 9px;border:0;border-radius:8px;background:var(--public-lime-tint);
-          color:var(--public-brand-green);font-family:inherit;font-size:12px;font-weight:var(--public-cta-font-weight);
-          line-height:1.25;letter-spacing:-.05px;cursor:pointer;white-space:normal;text-align:center;
+          color:var(--public-brand-green);font-family:inherit;font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);
+          line-height:1.3;letter-spacing:-.05px;cursor:pointer;white-space:normal;text-align:center;
           text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;
           touch-action:manipulation;-webkit-tap-highlight-color:transparent;
           transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s;
@@ -569,12 +571,21 @@ const ElsewhereTravelAssistant: React.FC = () => {
         .eta-action.primary{background:var(--public-lime-tint)}
         .eta-action.primary:active{background:var(--public-brand-lime)}
         .eta-live-note,.eta-continuation{margin:0;color:var(--public-muted);font-size:13px;font-weight:500;line-height:1.45}
-        .eta-composer{margin-top:24px;padding:18px 18px 14px;border:0;border-radius:18px;background:#fff}
+        .eta-composer{
+          margin-top:24px;padding:18px 18px 14px;border:0;border-radius:18px;background:#fff;
+          cursor:text;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+          transition:transform .15s ease,box-shadow .15s ease,background-color .15s ease;
+        }
+        .eta-composer:focus-within{
+          transform:translateY(-1px);box-shadow:0 8px 24px rgba(26,58,42,.10);
+        }
+        .eta-composer:active{transform:scale(.998);box-shadow:0 5px 16px rgba(26,58,42,.09)}
         .eta-field{position:relative;box-shadow:none}
         .eta-composer:focus-within .eta-field{box-shadow:none}
         .eta-field textarea{
           width:100%;min-height:92px;padding:0 0 14px;border:0!important;border-radius:0!important;outline:0!important;resize:none;
           appearance:none;-webkit-appearance:none;background:transparent!important;box-shadow:none!important;
+          -webkit-tap-highlight-color:transparent;touch-action:manipulation;
           color:var(--public-heading);font-family:var(--font-sans);font-size:var(--public-body-size);font-weight:var(--public-body-weight);
           line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);
         }
@@ -595,6 +606,9 @@ const ElsewhereTravelAssistant: React.FC = () => {
         .eta-clear:active{transform:scale(.92);background:var(--public-lime-tint);color:var(--public-brand-green)}
         .eta-material{font-family:'Material Symbols Rounded';font-size:21px;font-weight:500;line-height:1;font-variation-settings:'FILL' 0,'wght' 500,'GRAD' 0,'opsz' 24}
         .eta-mic-slot{position:relative;display:block;width:46px;height:46px;flex:0 0 46px}
+        .eta-mic-slot :global(.voice-search-mic){
+          border-radius:999px;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+        }
         .eta-send{
           display:grid;place-items:center;width:44px;height:44px;min-width:44px;min-height:44px;padding:0;border:0;border-radius:50%;
           background:var(--public-brand-lime);color:var(--public-brand-green);cursor:pointer;box-shadow:0 4px 18px rgba(209,244,112,.14);
@@ -645,6 +659,11 @@ const ElsewhereTravelAssistant: React.FC = () => {
           .eta-result:active{
             transform:scale(.995);border-color:#bfd36f;background:rgba(209,244,112,.08);box-shadow:0 2px 8px rgba(26,58,42,.10);
           }
+          .eta-composer:focus-within{background:rgba(209,244,112,.06);box-shadow:0 7px 20px rgba(26,58,42,.10)}
+          .eta-mic-slot :global(.voice-search-mic:active){background:var(--public-lime-tint);transform:scale(.92)}
+          .eta-action:active,.eta-chip:active,.eta-send:not(:disabled):active,.eta-clear:active,.eta-preference-clear:active{
+            filter:saturate(1.04);
+          }
         }
         @media(max-width:720px){
           .eta-shell{border-radius:22px}
@@ -659,12 +678,16 @@ const ElsewhereTravelAssistant: React.FC = () => {
           .eta-composer-foot{flex-wrap:wrap}.eta-hint{flex:1 1 100%}.eta-tools{width:100%;justify-content:flex-end}
           .eta-result{grid-template-columns:1fr;padding:16px}.eta-result h3{font-size:18px}.eta-result-side{align-items:flex-start;text-align:start}.eta-actions{width:100%;margin-inline-start:0}
         }
-        @media(max-width:380px){.eta-tab{font-size:13px;padding-inline:10px}.eta-keyhint{display:none}.eta-action{padding-inline:7px;font-size:10.5px}}
+        @media(max-width:380px){.eta-tab{font-size:13px;padding-inline:10px}.eta-keyhint{display:none}.eta-action{padding-inline:7px}}
         @media(prefers-reduced-motion:reduce){
-          .eta-tab,.eta-tab::before,.eta-result,.eta-chip,.eta-action,.eta-clear,.eta-send,.eta-preference-clear{transition:none}
-          .eta-tab:active,.eta-result:active,.eta-chip:active,.eta-action:active,.eta-clear:active,.eta-send:active,.eta-preference-clear:active,
+          .eta-tab,.eta-tab::before,.eta-result,.eta-chip,.eta-action,.eta-clear,.eta-send,.eta-preference-clear,.eta-composer{transition:none}
+          .eta-tab:active,.eta-result:active,.eta-chip:active,.eta-action:active,.eta-clear:active,.eta-send:active,.eta-preference-clear:active,.eta-composer:active,.eta-composer:focus-within,
           .eta-result:hover,.eta-chip:hover,.eta-action:hover{transform:none;box-shadow:none}
+          .eta-mic-slot :global(.voice-search-mic:active){transform:none}
           .eta-loading-line::after{width:100%;transform:none;animation:none}
+        }
+        @media(prefers-reduced-motion:reduce) and (hover:none) and (pointer:coarse){
+          .eta-composer:focus-within{transform:none;box-shadow:none}
         }
         @media(horizontal-viewport-segments:2){
           .eta-shell{max-width:calc(env(viewport-segment-width 0 0) - 32px);margin-inline-start:max(16px,env(viewport-segment-left 0 0));margin-inline-end:auto}
