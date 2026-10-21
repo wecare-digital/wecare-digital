@@ -27,7 +27,7 @@ const INTENT = '01928f3e-7b2a-7c3d-8e4f-0a1b2c3d4e5f';
  */
 const LIVE_PAISE = 14900;
 
-const CTA = /Pay here|Pay on WhatsApp|Preparing/;
+const CTA = /Pay securely|Proceed|Preparing|Try again/;
 const ADDRESS = {
   addressLine1: '12 MG Road', addressLine2: '', locality: '', city: 'Bengaluru',
   state: 'Karnataka', postalCode: '560001', country: 'India', countryCode: 'IN',
@@ -85,7 +85,7 @@ describe( 'the prepare body', () => {
     cart.setServiceLine( SUBMIT.variantId, INTENT, LIVE_PAISE );
     window.localStorage.removeItem( 'wecare.cart.serviceIntent.v1' );
     const before = cart.toLineItems();
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
     await waitFor( () => expect( prepareBodies ).toHaveLength( 1 ) );
     expect( prepareBodies[ 0 ].serviceIntentId ).toBe( INTENT );
@@ -104,7 +104,7 @@ describe( 'the prepare body', () => {
     } );
     cart.setServiceLine( SUBMIT.variantId, INTENT, LIVE_PAISE );
     window.localStorage.removeItem( 'wecare.cart.serviceIntent.v1' );
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
     await screen.findByText( 'We could not start your service. Nothing has been charged. Please try again.' );
     expect( prepareBodies ).toHaveLength( 0 );
@@ -113,7 +113,7 @@ describe( 'the prepare body', () => {
   it( 'carries serviceIntentId for a services basket', async () => {
     stub( [ { status: 200, body: { status: 'PAYMENT_INITIATION_DISABLED', paymentAttemptId: 'a' } } ] );
     cart.setServiceLine( SUBMIT.variantId, INTENT, LIVE_PAISE );
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
     await waitFor( () => expect( prepareBodies ).toHaveLength( 1 ) );
     expect( prepareBodies[ 0 ].serviceIntentId ).toBe( INTENT );
@@ -124,7 +124,7 @@ describe( 'the prepare body', () => {
     stub( [ { status: 200, body: { status: 'PAYMENT_INITIATION_DISABLED', paymentAttemptId: 'a' } } ] );
     cart.addItem( { id: 'prod-abc-123', name: 'Kiosk', slug: 'kiosk', formattedPrice: '₹1.00',
       price: '1.00', currency: 'INR', inStock: true, tagline: 't', body: [] }, 1 );
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
     await waitFor( () => expect( prepareBodies ).toHaveLength( 1 ) );
     expect( Object.keys( prepareBodies[ 0 ] ).sort() ).toEqual( [ 'action', 'lineItems', 'requestKey' ] );
@@ -138,7 +138,7 @@ describe( 'the request key keys on the service intent (review AMEND-INTENT-RESUM
 
   async function prepareOnce () {
     const before = prepareBodies.length;
-    const view = render( <Cart /> );
+    const view = render( <Cart checkoutChannel="website" /> );
     fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
     await waitFor( () => expect( prepareBodies ).toHaveLength( before + 1 ) );
     view.unmount();
@@ -173,7 +173,7 @@ describe( 'service refusals', () => {
     it( `${ code } renders its sentence and does not latch`, async () => {
       stub( [ { status: 409, body: { error: code, message } } ] );
       cart.setServiceLine( SUBMIT.variantId, INTENT, LIVE_PAISE );
-      render( <Cart /> );
+      render( <Cart checkoutChannel="website" /> );
       fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
       await waitFor( () => expect( screen.getByText( message ) ).toBeInTheDocument() );
       const again = await screen.findByRole( 'button', { name: CTA } );
