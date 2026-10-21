@@ -256,18 +256,12 @@ function main() {
     }
 
     if ( route === '/grahak-os' ) {
-      const checkoutLabel = 'Checkout on WhatsApp';
-      const checkoutHref = 'href="https://wa.me/message/APDM5HUWH26SG1"';
-      record( html.includes( checkoutLabel ) && html.includes( checkoutHref ),
-        '/grahak-os Checkout on WhatsApp destination',
-        html.includes( checkoutLabel ) && html.includes( checkoutHref )
-          ? 'original WhatsApp destination preserved'
-          : 'CTA label or WhatsApp destination missing' );
-      record( !/href="https:\/\/wecare\.digital\/grahak-os\/"[^>]*>\s*Checkout on WhatsApp/i.test( html ),
-        '/grahak-os does not self-link its checkout CTA',
-        /href="https:\/\/wecare\.digital\/grahak-os\/"[^>]*>\s*Checkout on WhatsApp/i.test( html )
-          ? 'checkout CTA reloads the page instead of opening WhatsApp'
-          : 'no self-link regression' );
+      const checkoutCount = ( html.match( />Checkout<\/button>/g ) || [] ).length;
+      record( checkoutCount === 1 && !html.includes( 'Checkout on WhatsApp' ),
+        '/grahak-os single checkout entry',
+        checkoutCount === 1 && !html.includes( 'Checkout on WhatsApp' )
+          ? 'one Checkout action; payment channel deferred until after cart review'
+          : `expected one Checkout and no channel-specific checkout, found ${checkoutCount}` );
     }
   }
 
