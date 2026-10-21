@@ -15,6 +15,15 @@ import * as customerAuth from '../lib/customerAuth';
 import * as cartLib from '../lib/cart';
 import { CONTRIBUTION_CHOICES } from '../config/contribution';
 
+vi.mock( 'next/router', () => {
+  const events = { on: vi.fn(), off: vi.fn(), emit: vi.fn() };
+  const router = { push: vi.fn().mockResolvedValue( true ), events };
+  return {
+    default: router,
+    useRouter: () => router,
+  };
+} );
+
 /**
  * THE SHARED TOP HERO EVERY PUBLIC PAGE MUST CARRY, across the five transactional pages.
  *

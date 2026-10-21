@@ -80,7 +80,7 @@ describe( 'public visible-copy audit', () => {
 
     // Contribute follows the same contract: one Checkout entry, then the shared cart.
     const contribute = read( 'src/components/PublicShare.tsx' );
-    expect( contribute ).toContain( 'aria-label="Checkout contribution"' );
+    expect( contribute ).toContain( "aria-label={ busy ? undefined : 'Checkout contribution' }" );
     expect( contribute ).not.toContain( 'aria-label="Contribute on WhatsApp"' );
   } );
 

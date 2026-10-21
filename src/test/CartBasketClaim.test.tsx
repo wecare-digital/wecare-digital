@@ -64,6 +64,7 @@ const CATALOGUE_VARIANT = ( CATALOGUE_PRODUCT.variants || [] )
   .find( variant => variant.inStock )!;
 
 const PREPARE_URL = '/ecommerce/prepare-checkout';
+const CTA = /Pay securely|Proceed|Preparing|Try again/;
 
 /** The `action:'profile'` reply for a customer who can pay right now, so no editor intervenes. */
 const PROFILE_READY = {
@@ -239,7 +240,7 @@ describe( 'the claim fires once, on arrival, only with a token', () => {
     signedIn();
     const fetchMock = stubFetch( 'BASKET_CLAIMED', { mergedLines: 2 } );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
 
     await waitFor( () => expect( claims( fetchMock ).length ).toBe( 1 ) );
     // Settle any follow-up renders, then confirm it stayed at one.
@@ -252,7 +253,7 @@ describe( 'the claim fires once, on arrival, only with a token', () => {
     signedIn();
     const fetchMock = stubFetch( 'BASKET_CLAIMED', { mergedLines: 1 } );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
 
     await waitFor( () => expect( claims( fetchMock ).length ).toBe( 1 ) );
     const [ url, init ] = claims( fetchMock )[ 0 ];
@@ -275,7 +276,7 @@ describe( 'the claim fires once, on arrival, only with a token', () => {
     signedIn();
     const fetchMock = stubFetch( 'BASKET_CLAIMED' );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
 
     await waitFor( () => expect( screen.getByText( 'Kiosk' ) ).toBeInTheDocument() );
     expect( claims( fetchMock ).length ).toBe( 0 );
@@ -288,7 +289,7 @@ describe( 'success', () => {
     signedIn();
     stubFetch( 'BASKET_CLAIMED', { mergedLines: 2 } );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
 
     await waitFor( () => expect( replaceState ).toHaveBeenCalled() );
     const target = String( replaceState.mock.calls[ 0 ][ 2 ] );
@@ -302,7 +303,7 @@ describe( 'success', () => {
     stubFetch( 'BASKET_CLAIMED',
       { mergedLines: 1, lines: claimedLinesFor( 1 ) } );
 
-    const { container } = render( <Cart /> );
+    const { container } = render( <Cart checkoutChannel="website" /> );
 
     // The CLAIMED item, not the seeded one - which is what makes "the items are the message" an
     // honest claim rather than an assertion about a line the test put there itself.
@@ -334,12 +335,12 @@ describe( 'success', () => {
         lines: claimedLinesFor( 2 ),
       } );
 
-      render( <Cart /> );
+      render( <Cart checkoutChannel="website" /> );
 
       await waitFor( () => expect(
         screen.getByText( CATALOGUE_PRODUCT.name ) ).toBeInTheDocument() );
 
-      fireEvent.click( await screen.findByRole( 'button', { name: /Pay here/ } ) );
+      fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
       await waitFor( () => expect( prepares( fetchMock ) ).toHaveLength( 1 ) );
 
       expect( prepares( fetchMock )[ 0 ].lineItems ).toEqual( [ {
@@ -362,7 +363,7 @@ describe( 'success', () => {
       window.addEventListener( cart.CART_CHANGED_EVENT, event => changes.push( event ) );
       stubFetch( 'BASKET_CLAIMED', { mergedLines: 1, lines: claimedLinesFor( 1 ) } );
 
-      render( <Cart /> );
+      render( <Cart checkoutChannel="website" /> );
 
       await waitFor( () => expect(
         screen.getByText( CATALOGUE_PRODUCT.name ) ).toBeInTheDocument() );
@@ -390,7 +391,7 @@ describe( 'success', () => {
         quantity: 1,
       } ] } );
 
-      render( <Cart /> );
+      render( <Cart checkoutChannel="website" /> );
 
       await waitFor( () => expect(
         screen.getByText( /cannot show those items yet/i ) ).toBeInTheDocument() );
@@ -404,7 +405,7 @@ describe( 'refusal', () => {
     signedIn();
     stubFetch( 'BASKET_UNAVAILABLE' );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
 
     await waitFor( () => expect(
       screen.getByText( /This cart link is no longer available/i ) ).toBeInTheDocument() );
@@ -418,7 +419,7 @@ describe( 'refusal', () => {
     signedIn();
     const fetchMock = stubFetch( 'BASKET_CART_IN_USE', { handoffLines: 2 } );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
 
     await waitFor( () => expect(
       screen.getByText( /already has items in it/i ) ).toBeInTheDocument() );
@@ -447,7 +448,7 @@ describe( 'refusal', () => {
       { status: 'BASKET_CLAIMED', mergedLines: 1, lines: claimedLinesFor( 1 ) },
     ] );
 
-    const { container } = render( <Cart /> );
+    const { container } = render( <Cart checkoutChannel="website" /> );
 
     await waitFor( () => expect(
       screen.getByText( CATALOGUE_PRODUCT.name ) ).toBeInTheDocument() );
@@ -469,7 +470,7 @@ describe( 'refusal', () => {
       { status: 'BASKET_CART_IN_USE', handoffLines: 1 },
     ] );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
 
     await waitFor( () => expect(
       screen.getByText( /already has items in it/i ) ).toBeInTheDocument() );
@@ -481,7 +482,7 @@ describe( 'refusal', () => {
     signedIn();
     vi.stubGlobal( 'fetch', vi.fn().mockRejectedValue( new Error( 'offline' ) ) );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
 
     await waitFor( () => expect(
       screen.getByText( /could not open your WhatsApp cart/i ) ).toBeInTheDocument() );
@@ -492,7 +493,7 @@ describe( 'refusal', () => {
     signedIn();
     stubFetch( 'BASKET_UNAVAILABLE' );
 
-    const { container } = render( <Cart /> );
+    const { container } = render( <Cart checkoutChannel="website" /> );
 
     await waitFor( () => expect(
       container.querySelector( '[data-wc-basket-claim]' ) ).not.toBeNull() );
@@ -507,7 +508,7 @@ describe( 'no session', () => {
     signedOut();
     const fetchMock = stubFetch( 'BASKET_CLAIMED' );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
 
     await waitFor( () => expect( assign ).toHaveBeenCalled() );
     expect( String( assign.mock.calls[ 0 ][ 0 ] ) ).toContain( '/account/sign-in/' );
@@ -531,7 +532,7 @@ describe( 'no session', () => {
        */
       const { assign } = setLocation( `?basket=${ TOKEN }` );
       signedOut();
-      const outbound = render( <Cart /> );
+      const outbound = render( <Cart checkoutChannel="website" /> );
       await waitFor( () => expect( assign ).toHaveBeenCalled() );
       const signInUrl = String( assign.mock.calls[ 0 ][ 0 ] );
       outbound.unmount();
@@ -553,7 +554,7 @@ describe( 'no session', () => {
       const fetchMock = stubFetch( 'BASKET_CLAIMED',
         { mergedLines: 1, lines: claimedLinesFor( 2 ) } );
 
-      render( <Cart /> );
+      render( <Cart checkoutChannel="website" /> );
 
       await waitFor( () => expect( claims( fetchMock ).length ).toBe( 1 ) );
       expect( bodyOf( claims( fetchMock )[ 0 ] ) )
@@ -570,19 +571,19 @@ describe( 'no session', () => {
     // avoid. `basketTokenFromUrl()` clears the key as it reads it.
     const { assign } = setLocation( `?basket=${ TOKEN }` );
     signedOut();
-    const outbound = render( <Cart /> );
+    const outbound = render( <Cart checkoutChannel="website" /> );
     await waitFor( () => expect( assign ).toHaveBeenCalled() );
     outbound.unmount();
 
     setLocation( '' );
     signedIn();
     const spent = stubFetch( 'BASKET_CLAIMED', { mergedLines: 1, lines: claimedLinesFor( 1 ) } );
-    const first = render( <Cart /> );
+    const first = render( <Cart checkoutChannel="website" /> );
     await waitFor( () => expect( claims( spent ).length ).toBe( 1 ) );
     first.unmount();
 
     const later = stubFetch( 'BASKET_CLAIMED', { mergedLines: 1, lines: claimedLinesFor( 1 ) } );
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
 
     await waitFor( () => expect( screen.getByText( PRODUCT.name ) ).toBeInTheDocument() );
     expect( claims( later ).length ).toBe( 0 );
