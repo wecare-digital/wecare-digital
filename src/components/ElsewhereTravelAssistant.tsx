@@ -112,7 +112,7 @@ function demoResponse( mode: TravelMode ): TravelResponse {
     source: 'demo',
     results: config.results.map( ( item, index ) => ( {
       id: 'demo-' + mode + '-' + String( index + 1 ),
-      provider: 'Suggested plan',
+      provider: 'WECARE.DIGITAL',
       title: item[ 0 ],
       description: item[ 1 ],
       meta: [ item[ 2 ], item[ 3 ], item[ 4 ] ],
@@ -125,7 +125,7 @@ function normaliseResponse( payload: Partial<TravelResponse> ): TravelResponse {
   const rows = Array.isArray( payload.results ) ? payload.results : [];
   const results = rows.slice( 0, 8 ).map( ( result, index ) => ( {
     id: String( result.id || 'result-' + String( index + 1 ) ),
-    provider: String( result.provider || 'Provider' ),
+    provider: String( result.provider || 'WECARE.DIGITAL' ),
     title: String( result.title || 'Travel option' ),
     description: String( result.description || '' ),
     meta: Array.isArray( result.meta ) ? result.meta.slice( 0, 4 ).map( String ) : [],
@@ -323,7 +323,8 @@ const ElsewhereTravelAssistant: React.FC = () => {
         role="tabpanel"
         aria-labelledby={ 'elsewhere-travel-tab-' + mode }
       >
-        <div className="eta-conversation" aria-live="polite">
+        <div className="eta-response-view" aria-label="Travel responses" role="log" aria-live="polite" aria-relevant="additions text">
+          <div className="eta-conversation">
           { status === 'idle' && (
             <>
               <p className="eta-line"><strong>Guide</strong> Tell me where you’re going, when, who is travelling and what matters most.</p>
@@ -381,6 +382,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
               <p className="eta-live-note">Live availability, rules and final price are confirmed before checkout.</p>
             </>
           ) }
+          </div>
         </div>
 
         <div className="eta-composer">
@@ -489,6 +491,10 @@ const ElsewhereTravelAssistant: React.FC = () => {
         }
         .eta-tab.active .eta-tab-icon{background:rgba(17,21,18,.09)}
         .eta-panel{min-width:0;padding:28px 30px 26px}
+        .eta-response-view{
+          min-height:180px;max-height:460px;max-height:min(48dvh,460px);overflow-y:auto;overflow-x:hidden;
+          padding:2px 4px 8px 0;overscroll-behavior-y:contain;scrollbar-gutter:stable;scrollbar-width:thin;
+        }
         .eta-conversation{display:flex;flex-direction:column;gap:16px;min-width:0}
         .eta-line{
           margin:0;color:var(--public-body);font-size:var(--public-body-size);font-weight:var(--public-body-weight);
@@ -583,6 +589,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
           .eta-tab{flex:0 0 auto;min-width:max-content;padding:5px 12px;font-size:14px;gap:7px;scroll-snap-align:start}
           .eta-tab-icon{width:26px;height:26px;flex-basis:26px;font-size:18px}
           .eta-panel{padding:20px}
+          .eta-response-view{min-height:164px;max-height:420px;max-height:min(44dvh,420px);padding-inline-end:2px}
           .eta-line{font-size:18px}
           .eta-field textarea{font-size:var(--public-mobile-form-font-size)}
           .eta-composer-foot{flex-wrap:wrap}.eta-hint{flex:1 1 100%}.eta-tools{width:100%;justify-content:flex-end}
