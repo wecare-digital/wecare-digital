@@ -2,7 +2,7 @@
 import time
 import uuid
 from botocore.exceptions import ClientError
-from lambda_utils import contact_store
+from lambda_utils import contact_store, identity_claims
 from lambda_utils.ecommerce import contact_address
 from lambda_utils.identity import customer_uuid, subscriber_id
 from flows import common, country_options, subscribe_messages
@@ -146,6 +146,15 @@ def handle_review(data, flow_token, request_id):
                 # Do not resurrect a deleted deterministic WhatsApp row.
                 item = {'id': contact_id, 'contactId': contact_id, 'phone': contact_store.canonical_phone(phone),
                         **subscriber_id.new_contact_fields(now=now), 'createdAt': now, **values}
+                try:
+                    identity_claims.claim_identities(
+                        common.dynamodb.Table(identity_claims.TABLE_NAME),
+                        contact_id=contact_id, phone=item['phone'], now=now)
+                except identity_claims.IdentityClaimConflict:
+                    return _error(
+                        data,
+                        'Your phone is already linked to another customer profile. '
+                        'Close and reopen Subscribe to load the canonical profile.')
                 table.put_item(Item=item, ConditionExpression='attribute_not_exists(id)')
         except ClientError as exc:
             if exc.response['Error']['Code'] == 'ConditionalCheckFailedException':

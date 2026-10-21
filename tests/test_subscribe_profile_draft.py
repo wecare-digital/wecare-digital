@@ -44,6 +44,7 @@ def setup(monkeypatch):
     monkeypatch.setattr(mod.common,'record_completion',lambda **kw:calls.append(kw) or SimpleNamespace(error=''))
     monkeypatch.setattr(mod.subscribe_messages,'copy_for',lambda returning: dict(
         mod.subscribe_messages.DEFAULTS['returningCustomer' if returning else 'newCustomer']))
+    monkeypatch.setattr(mod.identity_claims, 'claim_identities', lambda *args, **kwargs: ())
     return mod,table,calls
 
 def form(mod):return mod.handle_init({},TOKEN,'r')['data']

@@ -50,7 +50,7 @@ from lambda_utils.agent import governance as gov
 from lambda_utils.agent import approvals as approval_module
 from lambda_utils.agent import drafts as draft_module
 from lambda_utils.middleware import require_auth
-from lambda_utils import contact_key
+from lambda_utils import contact_key, identity_claims
 from lambda_utils.identity import subscriber_id  # `id` is the physical key; `contactId` is its alias
 from lambda_utils.meta_version import META_API_VERSION  # one source; validated at import
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
@@ -3753,6 +3753,9 @@ def _update_contact_with_customer_info(sender_phone: str, profile: Dict, request
                     item[db_field] = val
             if profile.get('customer_name'):
                 item['name'] = profile['customer_name']
+            identity_claims.claim_identities(
+                dynamodb.Table(identity_claims.TABLE_NAME),
+                contact_id=contact_id, phone=clean_phone, now=int(now))
             contacts_table.put_item(Item=item)
 
         logger.info(json.dumps({
@@ -3849,7 +3852,11 @@ def _save_subscriber(data: Dict, phone_hash: str, request_id: str) -> None:
                 'requestId': request_id
             }))
         else:
-            # Create new contact
+            # Create new contact only after both strong identities are reserved.
+            identity_claims.claim_identities(
+                dynamodb.Table(identity_claims.TABLE_NAME),
+                contact_id=contact_id, phone=clean_phone,
+                email=data.get('email', ''), now=now)
             contacts_table.put_item(Item={
                 # See the payment_flow writer above: `id` alone is not enough.
                 **contact_key.contact_item_keys(contact_id),
@@ -4331,6 +4338,12 @@ def _tool_create_contact(params: Dict, request_id: str) -> Dict:
             'updatedAt': now
         }
         
+        try:
+            identity_claims.claim_identities(
+                dynamodb.Table(identity_claims.TABLE_NAME),
+                contact_id=contact_id, phone=phone, email=email, now=now)
+        except identity_claims.IdentityClaimConflict:
+            return {'success': False, 'error': 'Contact identity already exists'}
         contacts_table.put_item(Item=contact, ConditionExpression='attribute_not_exists(id)')
         
         return {
@@ -4386,8 +4399,28 @@ def _tool_update_contact(params: Dict, request_id: str) -> Dict:
         if expr_names:
             update_kwargs['ExpressionAttributeNames'] = expr_names
         
+        current = existing['Item']
+        new_phone = params.get('phone') or current.get('phone', '')
+        new_email = (params.get('email') or current.get('email', '')).strip().lower()
+        try:
+            identity_claims.claim_identities(
+                dynamodb.Table(identity_claims.TABLE_NAME),
+                contact_id=contact_id, phone=new_phone, email=new_email,
+                now=int(time.time()))
+        except identity_claims.IdentityClaimConflict:
+            return {'success': False, 'error': 'Contact identity already exists'}
+
         result = contacts_table.update_item(**update_kwargs)
         updated = result.get('Attributes', {})
+        try:
+            identity_claims.release_changed(
+                dynamodb.Table(identity_claims.TABLE_NAME),
+                contact_id=contact_id,
+                old_phone=current.get('phone', ''), new_phone=new_phone,
+                old_email=current.get('email', ''), new_email=new_email)
+        except Exception as exc:
+            logger.warning(json.dumps({'event': 'identity_claim_release_failed',
+                                       'errorType': type(exc).__name__}))
         
         return {
             'success': True,

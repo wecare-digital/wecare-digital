@@ -21,7 +21,7 @@ from typing import Any, Dict, Optional
 import boto3
 from boto3.dynamodb.conditions import Key
 
-from lambda_utils import contact_key, customer_auth, customer_session, shared_tables
+from lambda_utils import contact_key, customer_auth, customer_session, shared_tables, identity_claims
 from lambda_utils.audit import record_audit
 from lambda_utils.ecommerce import contact_address
 from lambda_utils.identity import customer as identity
@@ -668,6 +668,13 @@ def _upsert_contact(*, customer_id: str, phone: str, email: Optional[str] = None
             raise ValueError("CONTACT_IDENTITY_CONFLICT")
         # Site (1): the edit path. It holds the row, so tags are a real merge.
         contact_id = contact_key.resolve(existing)
+        try:
+            identity_claims.claim_identities(
+                _table(identity_claims.TABLE_NAME),
+                contact_id=contact_id, phone=phone,
+                email=email or existing.get("email", ""), now=now)
+        except identity_claims.IdentityClaimConflict as exc:
+            raise ValueError("CONTACT_IDENTITY_CONFLICT") from exc
         expression, names, values = _set_fragments(
             name=name, first_name=first_name, last_name=last_name,
             company_name=company_name, designation=designation, phone=phone,
@@ -687,6 +694,16 @@ def _upsert_contact(*, customer_id: str, phone: str, email: Optional[str] = None
             if response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
                 raise ValueError("CONTACT_IDENTITY_CONFLICT") from exc
             raise
+        if email:
+            try:
+                identity_claims.release_changed(
+                    _table(identity_claims.TABLE_NAME),
+                    contact_id=contact_id,
+                    old_phone=existing.get("phone", ""), new_phone=phone,
+                    old_email=existing.get("email", ""), new_email=email)
+            except Exception as exc:
+                logger.warning(json.dumps({"event": "identity_claim_release_failed",
+                                           "error": type(exc).__name__}))
         return {"contactId": contact_id, "created": False}
 
     # Site (2): one signed-in customer converges onto one deterministic CRM id when no prior
@@ -729,6 +746,12 @@ def _upsert_contact(*, customer_id: str, phone: str, email: Optional[str] = None
     if address is not None:
         item[contact_address.ATTRIBUTE] = address
         item[contact_address.UPDATED_ATTRIBUTE] = now
+    try:
+        identity_claims.claim_identities(
+            _table(identity_claims.TABLE_NAME),
+            contact_id=contact_id, phone=phone, email=email or "", now=now)
+    except identity_claims.IdentityClaimConflict as exc:
+        raise ValueError("CONTACT_IDENTITY_CONFLICT") from exc
     try:
         table.put_item(Item=item, ConditionExpression="attribute_not_exists(id)")
         return {"contactId": contact_id, "created": True}

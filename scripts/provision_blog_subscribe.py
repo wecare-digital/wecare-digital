@@ -41,6 +41,7 @@ SHARED_DIR = ROOT / "amplify/functions/shared"
 PEPPER_SECRET_ID = "wecare/otp/pepper"
 OTP_TABLE = "stack-wecare-digital-DownloadGrantsTable"
 CONTACTS_TABLE = "stack-wecare-digital-ContactsTable"
+IDENTITY_CLAIMS_TABLE = "stack-wecare-digital-IdentityClaimsTable"
 SENDER_FUNCTION = "wecare-whatsapp-business-api"
 META_PHONE_NUMBER_ID = "1016149501586345"
 OTP_TEMPLATE_NAME = "wecare_otp"
@@ -117,6 +118,7 @@ def expected_environment() -> dict:
     return {
         "OTP_TABLE": OTP_TABLE,
         "CONTACTS_TABLE": CONTACTS_TABLE,
+        "IDENTITY_CLAIMS_TABLE": IDENTITY_CLAIMS_TABLE,
         "OTP_PEPPER_SECRET_ID": PEPPER_SECRET_ID,
         "SENDER_FUNCTION": f"{SENDER_FUNCTION}:{LIVE_ALIAS}",
         "META_PHONE_NUMBER_ID": META_PHONE_NUMBER_ID,
@@ -154,6 +156,14 @@ def ensure_role(dry_run: bool) -> str:
     policy = {
         "Version": "2012-10-17",
         "Statement": [
+            {
+                "Sid": "CustomerIdentityClaims",
+                "Effect": "Allow",
+                "Action": ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem"],
+                "Resource": [
+                    f"arn:aws:dynamodb:{REGION}:{acct}:table/{IDENTITY_CLAIMS_TABLE}"
+                ],
+            },
             {
                 "Sid": "ReadOtpPepper",
                 "Effect": "Allow",

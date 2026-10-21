@@ -393,7 +393,11 @@ class FakeTable:
         base = dict(existing) if existing else {self.key_attr: key}
         updated = _apply_update(UpdateExpression, base, values, names)
         self.rows[key] = updated
-        return {"Attributes": dict(updated)} if ReturnValues else {}
+        if ReturnValues == "ALL_OLD":
+            return {"Attributes": dict(existing)} if existing else {}
+        if ReturnValues == "ALL_NEW":
+            return {"Attributes": dict(updated)}
+        return {}
 
     def delete_item(self, Key=None, ConditionExpression=None,
                     ExpressionAttributeValues=None, ExpressionAttributeNames=None, **_):
@@ -568,7 +572,13 @@ class FakeDynamo:
     def __init__(self, keys: Dict[str, str],
                  indexes: Optional[Dict[str, Dict[str, tuple]]] = None,
                  base_query_tables: Optional[set] = None) -> None:
-        self.keys = dict(keys)
+        # IdentityClaimsTable is shared infrastructure for every contact writer. Tests that model
+        # ContactsTable should not each have to redeclare this implementation detail, while any
+        # other unknown table still fails loudly.
+        self.keys = {
+            "stack-wecare-digital-IdentityClaimsTable": "claimKey",
+            **dict(keys),
+        }
         self.indexes = {k: dict(v) for k, v in (indexes or {}).items()}
         #: Tables whose BASE table may legitimately be queried on its partition key, because
         #: they are keyed `(partition, sort)`. Declared rather than assumed, so the "a missing

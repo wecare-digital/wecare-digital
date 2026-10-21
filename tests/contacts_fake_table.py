@@ -151,6 +151,62 @@ class FakeContactsTable:
         return {}
 
 
+class FakeIdentityClaimsTable:
+    """Minimal exact fake for lambda_utils.identity_claims.
+
+    This is intentionally separate from FakeContactsTable: claimKey and id are different key
+    spaces, and sharing the rows would let a test accidentally turn an identity reservation into a
+    CRM contact.
+    """
+
+    def __init__(self) -> None:
+        self.rows: Dict[str, Dict[str, Any]] = {}
+
+    def get_item(self, Key=None, **_) -> Dict[str, Any]:  # noqa: N803
+        row = self.rows.get((Key or {}).get("claimKey"))
+        return {"Item": dict(row)} if row else {}
+
+    def update_item(self, Key=None, ExpressionAttributeValues=None,
+                    ReturnValues=None, **_) -> Dict[str, Any]:  # noqa: N803
+        claim_key = (Key or {}).get("claimKey")
+        values = ExpressionAttributeValues or {}
+        contact_id = values.get(":cid")
+        existing = self.rows.get(claim_key)
+        if existing and existing.get("contactId") != contact_id:
+            from botocore.exceptions import ClientError
+            raise ClientError(
+                {"Error": {"Code": "ConditionalCheckFailedException",
+                           "Message": "identity owned by another contact"}},
+                "UpdateItem",
+            )
+        old = dict(existing) if existing else {}
+        now = values.get(":now")
+        self.rows[claim_key] = {
+            "claimKey": claim_key,
+            "contactId": contact_id,
+            "identityType": values.get(":kind"),
+            "claimedAt": old.get("claimedAt", now),
+            "updatedAt": now,
+        }
+        if ReturnValues == "ALL_OLD" and old:
+            return {"Attributes": old}
+        return {}
+
+    def delete_item(self, Key=None, ExpressionAttributeValues=None, **_) -> Dict[str, Any]:  # noqa: N803
+        claim_key = (Key or {}).get("claimKey")
+        existing = self.rows.get(claim_key)
+        contact_id = (ExpressionAttributeValues or {}).get(":cid")
+        if existing and existing.get("contactId") != contact_id:
+            from botocore.exceptions import ClientError
+            raise ClientError(
+                {"Error": {"Code": "ConditionalCheckFailedException",
+                           "Message": "identity owned by another contact"}},
+                "DeleteItem",
+            )
+        self.rows.pop(claim_key, None)
+        return {}
+
+
 class FakeContactsResource:
     """`boto3.resource('dynamodb')` with one default table, and optional per-name overrides.
 
@@ -164,8 +220,11 @@ class FakeContactsResource:
                  tables: Dict[str, FakeContactsTable] | None = None) -> None:
         self.table = table
         self.tables: Dict[str, FakeContactsTable] = dict(tables or {})
+        self.identity_claims = FakeIdentityClaimsTable()
         self.names: List[str] = []
 
-    def Table(self, name: str) -> FakeContactsTable:  # noqa: N802 - boto3's spelling
+    def Table(self, name: str):  # noqa: N802 - boto3's spelling
         self.names.append(name)
+        if name == "stack-wecare-digital-IdentityClaimsTable":
+            return self.identity_claims
         return self.tables.get(name, self.table)

@@ -22,7 +22,7 @@ from typing import Any, Dict, Optional
 import boto3
 from boto3.dynamodb.conditions import Key
 
-from lambda_utils import contact_key, customer_session, otp_challenge, otp_throttle
+from lambda_utils import contact_key, customer_session, otp_challenge, otp_throttle, identity_claims
 from lambda_utils.identity import subscriber_id
 from lambda_utils.comms import verification_email
 from lambda_utils.identity import customer as identity
@@ -72,6 +72,12 @@ def _contacts_table():
     if _dynamodb is None:
         _dynamodb = boto3.resource("dynamodb", region_name=REGION)
     return _dynamodb.Table(CONTACTS_TABLE)
+
+def _claims_table():
+    global _dynamodb
+    if _dynamodb is None:
+        _dynamodb = boto3.resource("dynamodb", region_name=REGION)
+    return _dynamodb.Table(identity_claims.TABLE_NAME)
 
 
 def _lambda_client():
@@ -335,6 +341,12 @@ def _upsert_contact(first: str, last: str, phone: str, email: str) -> str:
     name = f"{first} {last}".strip()
     if existing:
         contact_id = contact_key.resolve(existing)
+        try:
+            identity_claims.claim_identities(
+                _claims_table(), contact_id=contact_id,
+                phone=phone, email=email, now=now)
+        except identity_claims.IdentityClaimConflict:
+            return "conflict"
         tags = _merged_tags(existing.get("tags"))
         table.update_item(
             Key={"id": contact_id},
@@ -352,6 +364,14 @@ def _upsert_contact(first: str, last: str, phone: str, email: str) -> str:
                 ":tags": tags, ":yes": True, ":no": False, ":now": now,
             },
         )
+        try:
+            identity_claims.release_changed(
+                _claims_table(), contact_id=contact_id,
+                old_phone=existing.get("phone", ""), new_phone=phone,
+                old_email=existing.get("email", ""), new_email=email)
+        except Exception as exc:
+            logger.warning(json.dumps({"event": "identity_claim_release_failed",
+                                       "error": type(exc).__name__}))
         return "updated"
 
     # Deterministic for an identical phone+email pair, so a replay converges instead of duplicating.
@@ -378,6 +398,12 @@ def _upsert_contact(first: str, last: str, phone: str, email: str) -> str:
         "updatedAt": now,
         "deletedAt": None,
     }
+    try:
+        identity_claims.claim_identities(
+            _claims_table(), contact_id=contact_id,
+            phone=phone, email=email, now=now)
+    except identity_claims.IdentityClaimConflict:
+        return "conflict"
     try:
         table.put_item(Item=item, ConditionExpression="attribute_not_exists(id)")
     except Exception as exc:  # noqa: BLE001

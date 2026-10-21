@@ -33,7 +33,7 @@ from lambda_utils.message_store import put_message  # unified MessagesTable dual
 from lambda_utils import graph_errors  # Meta error subcode + transient classification
 from lambda_utils import live_smoke  # WA_LIVE_SMOKE_TEST recipient lockdown
 from lambda_utils import direct_send  # Direct Send flag + WABA map, fails closed
-from lambda_utils import contact_key, contact_store
+from lambda_utils import contact_key, contact_store, identity_claims
 from lambda_utils import template_status
 from lambda_utils.template_media import fixed_image_header
 from lambda_utils.identity import subscriber_id, consent as consent_evidence  # canonical identity + evidence ledger
@@ -4627,6 +4627,19 @@ def _get_or_create_contact_by_phone(phone: str) -> Dict[str, Any]:
         'createdAt': Decimal(str(now)),
         'updatedAt': Decimal(str(now)),
     }
+    claims_table = dynamodb.Table(identity_claims.TABLE_NAME)
+    try:
+        identity_claims.claim_identities(
+            claims_table, contact_id=contact_id, phone=with_plus, now=now)
+    except identity_claims.IdentityClaimConflict:
+        owner_id = identity_claims.owner(claims_table, 'PHONE', with_plus)
+        if owner_id:
+            owner = contacts_table.get_item(
+                Key={'id': owner_id}, ConsistentRead=True).get('Item')
+            if owner and contact_store.is_live(owner):
+                return owner
+        raise
+
     try:
         contacts_table.put_item(Item=contact, ConditionExpression='attribute_not_exists(id)')
         logger.info(json.dumps({'event': 'contact_auto_created_outbound', 'contactId': mask_contact_id(contact_id), 'phone': mask_phone(with_plus)}))
