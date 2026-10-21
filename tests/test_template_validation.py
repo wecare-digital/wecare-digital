@@ -1,4 +1,4 @@
-"""Tests for the decomposed template validation service + presets."""
+"""Tests for the decomposed template validation service."""
 import os
 import sys
 
