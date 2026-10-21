@@ -258,6 +258,13 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
     if ( afterHover.transform === 'none' && afterHover.boxShadow === 'none' ) {
       fail( 'provider contract: checkout hover has no Policy-details feedback' );
     }
+    const livePrice = livePage.locator( '.eta-price' );
+    if ( await livePrice.locator( '.eta-price-icon' ).count() !== 1 ) {
+      fail( 'provider contract: INR price is missing the rupee icon' );
+    }
+    if ( !( await livePrice.textContent() || '' ).includes( '1,850' ) ) {
+      fail( 'provider contract: live amount is not visible beside the rupee icon' );
+    }
     if ( await livePage.locator( '.eta-provider' ).textContent() !== 'Fixture Provider' ) {
       fail( 'provider contract: external provider label missing' );
     }
