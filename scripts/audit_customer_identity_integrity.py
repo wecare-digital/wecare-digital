@@ -20,6 +20,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 REGION = "us-east-1"
 TABLES = {
     "contacts": "stack-wecare-digital-ContactsTable",
+    "claims": "stack-wecare-digital-IdentityClaimsTable",
     "orders": "stack-wecare-digital-OrderTable",
     "messages": "stack-wecare-digital-MessagesTable",
     "flows": "stack-wecare-digital-FlowSubmissionTable",
@@ -154,8 +155,60 @@ def main(argv=None):
             1 for ids in uuids.values() if len(ids) > 1
         )
 
+        claim_counts = {
+            "tablePresent": False,
+            "expectedClaims": 0,
+            "missingClaims": 0,
+            "wrongOwnerClaims": 0,
+            "staleClaims": 0,
+        }
+        expected_claims = {}
+        for rows in pages(
+            contacts_table,
+            ProjectionExpression="#id,contactId,phone,email,deletedAt,isDeleted,mergeState",
+            ExpressionAttributeNames={"#id": "id"},
+        ):
+            for row in rows:
+                if not live(row):
+                    continue
+                cid = str(row.get("id") or row.get("contactId") or "").strip()
+                if not cid:
+                    continue
+                phone = str(row.get("phone") or "")
+                pd = "".join(ch for ch in phone if ch.isdigit())
+                if 7 <= len(pd) <= 15:
+                    expected_claims["PHONE#+" + pd] = cid
+                email = str(row.get("email") or "").strip().lower()
+                if email and "@" in email:
+                    expected_claims["EMAIL#" + email] = cid
+        claim_counts["expectedClaims"] = len(expected_claims)
+        try:
+            claims_table = ddb.Table(TABLES["claims"])
+            claims_table.load()
+            claim_counts["tablePresent"] = True
+            seen_claims = set()
+            for rows in pages(claims_table, ProjectionExpression="claimKey,contactId"):
+                for row in rows:
+                    key = str(row.get("claimKey") or "")
+                    owner = str(row.get("contactId") or "")
+                    if not key:
+                        continue
+                    seen_claims.add(key)
+                    expected_owner = expected_claims.get(key)
+                    if expected_owner and owner != expected_owner:
+                        claim_counts["wrongOwnerClaims"] += 1
+                    elif not expected_owner:
+                        claim_counts["staleClaims"] += 1
+            claim_counts["missingClaims"] = sum(
+                1 for key in expected_claims if key not in seen_claims
+            )
+        except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") != "ResourceNotFoundException":
+                raise
+
         report = {
             "contacts": contact_counts,
+            "identityClaims": claim_counts,
             "orders": dependent_counts(
                 ddb.Table(TABLES["orders"]), active_ids, orders=True
             ),
@@ -201,6 +254,9 @@ def main(argv=None):
             + report["orders"]["finalizedMissingCustomerUuid"]
             + report["flows"]["orphanContactId"]
             + report["messages"]["orphanContactId"]
+            + (0 if report["identityClaims"]["tablePresent"] else 1)
+            + report["identityClaims"]["missingClaims"]
+            + report["identityClaims"]["wrongOwnerClaims"]
         )
         report["clean"] = (
             failures == 0
