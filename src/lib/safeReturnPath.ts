@@ -97,7 +97,7 @@
  */
 const ALLOWED: ReadonlySet<string> = new Set( [
   '/cart/',
-  // Added 2026-10-21 with the exported post-cart payment-method chooser.
+  // Dedicated post-cart payment-method page; customer auth may return here before rail choice.
   '/checkout/',
   '/orders/',
   '/blog/',
