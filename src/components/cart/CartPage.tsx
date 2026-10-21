@@ -576,7 +576,12 @@ function RedemptionPanel (): React.ReactElement {
   );
 }
 
-export default function Cart (): React.ReactElement {
+interface CartPageProps {
+  /** Preselected rail when the post-cart chooser resumes this reviewed cart. */
+  checkoutChannel?: CheckoutChannel;
+}
+
+export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.ReactElement {
   const [ items, setItems ] = useState<CartItem[]>( [] );
   const [ ready, setReady ] = useState<boolean>( false );
   const [ busy, setBusy ] = useState<boolean>( false );
@@ -1330,7 +1335,8 @@ export default function Cart (): React.ReactElement {
   }, [] );
 
   const runCheckout = useCallback( async ( channel?: CheckoutChannel ): Promise<void> => {
-    if ( channel ) selectedCheckoutChannelRef.current = channel;
+    const chosenChannel = channel ?? checkoutChannel;
+    if ( chosenChannel ) selectedCheckoutChannelRef.current = chosenChannel;
     // AHEAD of the notice reset, deliberately: a re-entry -- from CheckoutProfile's onSaved, or
     // a stray click -- must neither re-enter the rail nor wipe the explanation already on screen.
     if ( railTerminalRef.current ) return;
@@ -1483,7 +1489,7 @@ export default function Cart (): React.ReactElement {
 
     // Cart review and identity/profile readiness are complete. Payment rail selection happens
     // exactly once on /checkout/, never on a product route and never inline in the cart.
-    if ( !channel )
+    if ( !chosenChannel )
     {
       window.location.assign( CHECKOUT_METHOD_PATH );
       return;
@@ -1499,7 +1505,7 @@ export default function Cart (): React.ReactElement {
       // the top of `proceed`, and the retry and the rotation below deliberately omit it: both are
       // re-posts of a request whose cart was already abandoned, and abandoning it a second time
       // would mint a third cart.
-      let outcome = await postPrepare( session, lineItems, channel, resetCart );
+      let outcome = await postPrepare( session, lineItems, chosenChannel, resetCart );
 
       // ONE BOUNDED RETRY AFTER A SAVE. `phone-index` is a GLOBAL secondary index and cannot be
       // read strongly consistent, so a `prepare` issued seconds after a save can legitimately see
@@ -1513,7 +1519,7 @@ export default function Cart (): React.ReactElement {
       {
         justSavedRef.current = false;
         await sleep( POST_SAVE_RETRY_MS );
-        outcome = await postPrepare( session, lineItems, channel );
+        outcome = await postPrepare( session, lineItems, chosenChannel );
       }
 
       // ONE ROTATION ON `INTENT_CHANGED`, and this is the ONE `CHECKOUT_REJECTED` reason a
@@ -1555,7 +1561,7 @@ export default function Cart (): React.ReactElement {
           window.sessionStorage.removeItem( CHECKOUT_REQUEST_KEY );
           window.sessionStorage.removeItem( CHECKOUT_REQUEST_BASKET );
         }
-        outcome = await postPrepare( session, lineItems, channel );
+        outcome = await postPrepare( session, lineItems, chosenChannel );
       }
 
       applyOutcome( outcome, session );
@@ -1567,7 +1573,7 @@ export default function Cart (): React.ReactElement {
     // `postPrepare` and `applyOutcome` are `useCallback(..., [])`, so they are referentially
     // stable for the life of this component and cannot go stale. The only live dependencies are
     // the two pieces of state read above.
-  }, [ profile, profileStatus ] );
+  }, [ profile, profileStatus, checkoutChannel ] );
 
   /**
    * THE ONLY WAY INTO A CHECKOUT RUN, and it is a latch and nothing else.
