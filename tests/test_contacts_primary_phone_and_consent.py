@@ -64,6 +64,35 @@ def test_contacts_api_exposes_the_same_short_id_as_invoices(handler):
     assert result['customerUuid'] == row['customerUuid']
 
 
+
+
+def test_contact_projection_derives_whatsapp_marketing_state_from_ledger(handler, monkeypatch):
+    now = 2_000_000_000
+    monkeypatch.setattr(handler.time, "time", lambda: now)
+    opted_in = consent_evidence.build_record(
+        channel="WHATSAPP", state="OPTED_IN", source="WEB_FORM",
+        at=now - 20, purpose="MARKETING", reference="otp")
+    opted_out = consent_evidence.build_record(
+        channel="WHATSAPP", state="OPTED_OUT", source="WHATSAPP_REPLY",
+        at=now - 10, purpose="MARKETING", reference="wamid.stop")
+    row = _row(
+        consentLedger=[opted_in, opted_out],
+        optInWhatsApp=True,
+        allowlistWhatsApp=True,
+    )
+    result = handler._from_dynamo(row)
+    assert result["whatsappMarketingConsent"] == consent_evidence.OPTED_OUT
+    # Legacy booleans remain present for compatibility, but they do not change the derived state.
+    assert result["optInWhatsApp"] is True
+    assert result["allowlistWhatsApp"] is True
+
+
+def test_contact_projection_defaults_missing_marketing_evidence_to_pending(handler, monkeypatch):
+    monkeypatch.setattr(handler.time, "time", lambda: 2_000_000_000)
+    result = handler._from_dynamo(_row(optInWhatsApp=True))
+    assert result["whatsappMarketingConsent"] == consent_evidence.PENDING
+
+
 # ── primary-phone protection ────────────────────────────────────────────────────
 
 def test_a_verified_phone_is_not_overwritten_by_a_manual_edit(handler, monkeypatch):
