@@ -1,10 +1,13 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 
 import { addItem, type CartItem } from '../lib/cart';
 import type { ShopProduct } from '../content/shop';
-import { getSession, restoreSession } from '../lib/customerAuth';
-import { CHECKOUT_PATH, SIGN_IN_PATH } from '../lib/serviceEntry';
+import {
+  CHECKOUT_PATH,
+  goToServiceAction,
+  type CheckoutChannel,
+} from '../lib/serviceEntry';
 import { productCheckoutLine } from '../config/productCheckout';
 
 /**
@@ -36,76 +39,70 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( {
   offerNote = 'One-time purchase',
 } ) => {
   const router = useRouter();
-  const [ signedIn, setSignedIn ] = useState( false );
-  const [ busy, setBusy ] = useState( false );
+  const [ busyChannel, setBusyChannel ] = useState<CheckoutChannel | null>( null );
   const [ error, setError ] = useState<string | null>( null );
 
   const alive = useRef( true );
-  useEffect( () => () => { alive.current = false; }, [] );
+  React.useEffect( () => () => { alive.current = false; }, [] );
 
   const line = productCheckoutLine( slug );
 
-  useEffect( () => {
-    let cancelled = false;
-    void ( async () => {
-      let live = getSession() !== null;
-      if ( !live ) {
-        try { live = ( await restoreSession() ) !== null; } catch { live = false; }
-      }
-      if ( !cancelled && alive.current ) setSignedIn( live );
-    } )();
-    return () => { cancelled = true; };
-  }, [] );
-
   /**
-   * The click. Signed out → the one WhatsApp sign-in, returning to /cart/ (checkout is the
-   * destination for a product, there is nothing to pick first). Signed in → add the catalogue
-   * line and go to the cart. The line is a real in-stock product, so the server accepts it.
+   * One product, two checkout rails, one sign-in.
+   *
+   * The browser stores only catalogue identity + the customer's selected channel. Prices never
+   * enter the pending action. goToServiceAction owns the single WhatsApp-OTP sign-in and returns
+   * to /cart/, where the selected channel is resumed.
    */
-  const onContinue = useCallback( async () => {
-    if ( !line || busy ) return;
+  const onContinue = useCallback( async ( channel: CheckoutChannel ) => {
+    if ( !line || busyChannel ) return;
     setError( null );
-
-    if ( !signedIn ) {
-      // The cart survives the sign-in redirect in localStorage, so adding the line BEFORE the
-      // redirect means it is already present on return — the same contract the shop cart uses.
-      try {
-        addProductLine( line );
-      } catch {
-        /* a malformed line writes nothing; the checkout still loads, just empty */
-      }
-      await router.push( `${ SIGN_IN_PATH }?return=${ encodeURIComponent( CHECKOUT_PATH ) }` );
-      return;
-    }
-
-    setBusy( true );
+    setBusyChannel( channel );
     try {
       addProductLine( line );
-      await router.push( CHECKOUT_PATH );
+      await goToServiceAction( router, {
+        destination: CHECKOUT_PATH,
+        action: {
+          kind: `product:${line.slug}`,
+          channel,
+          productId: line.productId,
+          variantId: line.variantId,
+          label: line.name,
+        },
+      } );
     } catch {
       if ( alive.current ) {
         setError( 'Something went wrong. Nothing has been charged. Please try again.' );
-        setBusy( false );
+        setBusyChannel( null );
       }
     }
-  }, [ busy, signedIn, router, line ] );
+  }, [ busyChannel, router, line ] );
 
   // No fresh catalog line yet: keep the public product page, but offer no stale checkout action.
   if ( !line ) return null;
 
-  const label = 'Continue to checkout →';
-
   return (
     <div className="pbb">
-      <button
-        type="button"
-        className="pbb-cta"
-        onClick={ () => { void onContinue(); } }
-        disabled={ busy }
-        aria-busy={ busy }
-      >
-        { busy ? 'One moment…' : label }
-      </button>
+      <div className="pbb-actions" aria-label="Checkout options">
+        <button
+          type="button"
+          className="pbb-cta pbb-cta-primary"
+          onClick={ () => { void onContinue( 'whatsapp' ); } }
+          disabled={ Boolean( busyChannel ) }
+          aria-busy={ busyChannel === 'whatsapp' }
+        >
+          { busyChannel === 'whatsapp' ? 'Sending…' : 'WhatsApp checkout' }
+        </button>
+        <button
+          type="button"
+          className="pbb-cta"
+          onClick={ () => { void onContinue( 'website' ); } }
+          disabled={ Boolean( busyChannel ) }
+          aria-busy={ busyChannel === 'website' }
+        >
+          { busyChannel === 'website' ? 'One moment…' : 'Here' }
+        </button>
+      </div>
 
       {/* Configured price and one supporting line are one canonical rail. */}
       <p className="pbb-buy">
@@ -120,15 +117,18 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( {
            families match: white fill, 2px #1a3a2a edge and type, lime #d1f470 hover with the house
            lift, reduced-motion aware. */
         .pbb{display:flex;flex-direction:column;align-items:flex-start;gap:0;margin-top:12px}
+        .pbb-actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
         .pbb-cta{
           display:inline-flex;align-items:center;justify-content:center;min-height:var(--public-cta-height);
           padding:0 26px;border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);
           background:#fff;color:var(--public-brand-green);font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);cursor:pointer;
           transition:background-color .2s,transform .2s,box-shadow .2s;
         }
+        .pbb-cta-primary{background:var(--public-brand-lime)}
         .pbb-cta:hover:not(:disabled){
           background:var(--public-brand-lime);transform:translateY(-2px);box-shadow:var(--public-lift-shadow);
         }
+        .pbb-cta-primary:hover:not(:disabled){background:#fff}
         .pbb-cta:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
         .pbb-cta:disabled{opacity:.5;cursor:default}
 
