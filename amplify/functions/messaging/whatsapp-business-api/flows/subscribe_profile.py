@@ -70,7 +70,15 @@ def handle_review(data, flow_token, request_id):
         values[attr] = raw.strip()
     if not values['name']:
         return _error(data, 'Please enter your name.')
+    if not values['companyName']:
+        return _error(data, 'Please enter your organisation.')
+    if not values['designation']:
+        return _error(data, 'Please enter your role / designation.')
     raw_address = {attr: data.get(key, '') for key, attr in ADDRESS_FIELDS.items()}
+    for attr, label in (('addressLine2', 'address line 2'), ('locality', 'landmark / locality')):
+        raw = raw_address.get(attr, '')
+        if not isinstance(raw, str) or not raw.strip():
+            return _error(data, 'Please enter your ' + label + '.')
     country_name, country_code = country_options.canonical_country(
         raw_address.get('country'), raw_address.get('countryCode'))
     if not country_name or not country_code:
