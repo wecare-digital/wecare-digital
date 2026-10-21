@@ -11,9 +11,11 @@
  * that pointed at the wrong flow. One module makes a one-sided edit impossible rather than
  * merely discouraged — the same move `reviewEntry.ts` already made for the review door.
  *
- * SOURCE OF TRUTH FOR THE IDS. `outputs/flow-retirement-2026-10-09.json` is the historical
- * retirement baseline. Owner-approved publications after that snapshot are recorded here and in
- * the Python twin, with tests explicitly allowing those newer published replacements.
+ * SOURCE OF TRUTH FOR THE IDS. `outputs/flow-retirement-2026-10-09.json` is a full paginated
+ * live-Meta readback of both WABAs taken AFTER the 9-Oct deprecation run. Its `keepIds` list
+ * is the retained plan. Every id below is one of those keepIds (or `null` where the capability
+ * has no Flow). `tests/test_canonical_flow_ids.py` asserts this file against that readback and
+ * against the inbound handler, and forbids any flow-id literal outside the canonical modules.
  *
  * Review stays in `reviewEntry.ts` (its keyword list is load-bearing elsewhere); this module
  * re-exports REVIEW_FLOW_ID so a reader has one complete table.
@@ -69,8 +71,7 @@ export const CANONICAL_FLOWS: Record<string, CanonicalFlow> = {
     capability: 'vault', label: 'Vault',
     flowId: null, status: 'NONE', metaName: null,
   },
-  // Owner-confirmed PUBLISHED 2026-10-21. This replaces, but never resurrects, the deprecated
-  // 02.WD_Profile ids 1262971692700761 / 951987930811295.
+  // Published 2026-10-21 on WABA 1. This is the retained Subscribe/Profile Flow.
   subscribe: {
     capability: 'subscribe', label: 'Subscribe',
     flowId: '1386523953464380', status: 'PUBLISHED', metaName: 'WD_Subscribe_Design_v1',
@@ -91,7 +92,6 @@ export const canonicalFlowId = ( capability: string ): string | null =>
 /** The Meta lifecycle status for a capability's canonical flow. */
 export const canonicalFlowStatus = ( capability: string ): FlowStatus =>
   CANONICAL_FLOWS[capability]?.status ?? 'NONE';
-
 
 /** Published metadata for a customer-facing Flow. Draft/NONE entries deliberately return null. */
 export const publishedFlow = ( capability: string ): CanonicalFlow | null => {
