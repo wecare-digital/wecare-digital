@@ -10,11 +10,11 @@ public `customerUuid`. What remains is making the live index carry those fields,
 handlers, and recovering any stranded paid order.
 
 LIVE STATUS (verified read-only, 2026-10-19, us-east-1):
-- The v2 index `customerId-createdAt-v2-index` ALREADY EXISTS and is `CREATING`/`Backfilling:true`
-  on `stack-wecare-digital-OrderTable`, created from the PR #903 definition — its projection
-  already carries BOTH `channel` and `customerUuid`. The serving index is still v1 (repoint
-  correctly gated until v2 is ACTIVE). So Step 3 is in progress; only Step 3b (repoint) remains,
-  once the backfill completes.
+- The v2 index `customerId-createdAt-v2-index` is now **ACTIVE** with `Backfilling:false`
+  on `stack-wecare-digital-OrderTable` (re-verified 2026-10-21). Its projection carries BOTH
+  `channel` and `customerUuid`. The old v1 index still exists for rollback compatibility.
+  Step 3's create/backfill work is complete; only the serving-function env must be verified before
+  removing v1 in any later cleanup.
 - The ₹4.67 order is already finalized and linked — see Step 5. No action needed for it.
 
 ## Step 3 — create and backfill the v2 customer-history index
