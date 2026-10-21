@@ -64,6 +64,8 @@ interface ProductPageProps {
    * renders byte-for-byte what it did before: the node simply is not there.
    */
   belowCta?: React.ReactNode;
+  /** Optional route-specific surface rendered after the rotating hero band and before the standard product content. */
+  afterHero?: React.ReactNode;
 }
 
 // The SITE constant that used to live here is gone: PageMeta owns the origin now, so
@@ -79,6 +81,7 @@ const ProductPage: React.FC<ProductPageProps> = ( {
   canonicalPath,
   crumbs,
   belowCta,
+  afterHero,
 } ) => {
   const hasAside = Array.isArray( blogCards ) && blogCards.length > 0;
   const sku = PRODUCT_SKU_BY_SLUG[ product.slug ];
@@ -91,6 +94,7 @@ const ProductPage: React.FC<ProductPageProps> = ( {
       frame={ product.frame }
       words={ product.words }
       sub={ product.sub }
+      afterHero={ afterHero }
     >
       <div className={ hasAside ? 'pdp-wrap has-aside' : 'pdp-wrap' }>
       <PageShell title={ product.title } description={ product.description }
