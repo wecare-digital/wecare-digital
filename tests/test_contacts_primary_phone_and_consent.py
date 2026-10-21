@@ -75,11 +75,11 @@ def test_contact_projection_derives_whatsapp_marketing_state_from_ledger(handler
     opted_out = consent_evidence.build_record(
         channel="WHATSAPP", state="OPTED_OUT", source="WHATSAPP_REPLY",
         at=now - 10, purpose="MARKETING", reference="wamid.stop")
-    row = _row(
-        consentLedger=[opted_in, opted_out],
-        optInWhatsApp=True,
-        allowlistWhatsApp=True,
-    )
+    row = _row(**{
+        consent_evidence.ATTRIBUTE: [opted_in, opted_out],
+        "optInWhatsApp": True,
+        "allowlistWhatsApp": True,
+    })
     result = handler._from_dynamo(row)
     assert result["whatsappMarketingConsent"] == consent_evidence.OPTED_OUT
     # Legacy booleans remain present for compatibility, but they do not change the derived state.
