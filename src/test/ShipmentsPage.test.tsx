@@ -29,13 +29,12 @@ describe( 'Shipments Track child page', () => {
     expect( container.textContent ).not.toContain( 'Everything about your' );
   } );
 
-  it( 'keeps the tracking WhatsApp action and fresh checkout price', () => {
+  it( 'keeps one checkout action and fresh checkout price', () => {
     render( <ShipmentTrackPage /> );
     expect( SHIPMENT_TRACK.ctaHref ).toBe( 'https://wa.me/message/WGN4NMFLFSJVB1' );
     expect( whatsappServiceLink( SHIPMENT_TRACK.slug ) ).toBe( SHIPMENT_TRACK.ctaHref );
-    expect( screen.getByRole( 'link', { name: 'Checkout on WhatsApp →' } ) )
-      .toHaveAttribute( 'href', SHIPMENT_TRACK.ctaHref );
-    expect( screen.getByRole( 'button', { name: 'Continue to checkout →' } ) ).toBeInTheDocument();
+    expect( screen.queryByRole( 'link', { name: 'Checkout on WhatsApp →' } ) ).toBeNull();
+    expect( screen.getByRole( 'button', { name: 'Checkout' } ) ).toBeInTheDocument();
     expect( screen.getByText( '₹49.00' ) ).toBeInTheDocument();
   } );
 
