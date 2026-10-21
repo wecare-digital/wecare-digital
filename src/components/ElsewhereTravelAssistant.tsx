@@ -614,7 +614,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
         }
         .eta-action{
           display:inline-flex;align-items:center;gap:8px;width:max-content;max-width:100%;min-height:var(--tap-min);box-sizing:border-box;
-          padding:6px 9px;border:0;border-radius:8px;background:var(--public-lime-tint);color:var(--public-brand-green);
+          padding:6px 9px;border:2px solid var(--public-brand-green);border-radius:8px;background:var(--public-accent-amber);color:var(--public-brand-green);
           font-family:inherit;font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);
           line-height:1.4;letter-spacing:-.05px;cursor:pointer;white-space:normal;overflow-wrap:anywhere;text-align:start;
           text-decoration:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
@@ -625,7 +625,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
           stroke-linecap:round;stroke-linejoin:round;opacity:.86;
         }
         .eta-action-icon-whatsapp{opacity:.9}
-        .eta-action:active{background:var(--public-brand-lime);transform:translateY(0)}
+        .eta-action:active{background:var(--public-accent-amber-tint);transform:translateY(0)}
         .eta-live-note,.eta-continuation{margin:0;color:var(--public-muted);font-size:13px;font-weight:500;line-height:1.45}
         .eta-composer{
           margin-top:24px;padding:18px 18px 14px;border:0;border-radius:18px;background:#fff;
@@ -686,13 +686,13 @@ const ElsewhereTravelAssistant: React.FC = () => {
           outline:3px solid var(--public-brand-green);outline-offset:3px;
         }
         .eta-action:focus-visible{
-          background:var(--public-brand-lime);
+          background:#fff;
         }
         @media(hover:hover) and (pointer:fine){
           .eta-tab:hover::before{background:rgba(239,249,207,.78)}
           .eta-chip:hover{border-color:#bfd36f;background:var(--public-lime-tint)}
           .eta-action:hover{
-            background:var(--public-brand-lime);
+            background:#fff;
             transform:translateY(-1px);box-shadow:0 5px 14px rgba(26,58,42,.1);
           }
           .eta-clear:hover{background:var(--public-lime-tint);color:var(--public-brand-green)}
