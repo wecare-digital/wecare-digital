@@ -525,13 +525,13 @@ describe( 'the product page', () => {
 
       if ( product.image ) {
         // With an image, the full Product node is emitted and carries the three required fields.
-        expect( types, product.slug ).toEqual( [ 'ItemPage', 'BreadcrumbList', 'Product' ] );
+        expect( types, product.slug ).toEqual( [ 'ItemPage', 'Product' ] );
         expect( ld( productNode ).name, product.slug ).toBeTruthy();
         expect( ld( productNode ).image, product.slug ).toBe( product.image );
         expect( ld( ld( productNode ).offers )[ '@type' ], product.slug ).toBe( 'Offer' );
       } else {
         // Without an image, no Product node and no dangling #product reference.
-        expect( types, product.slug ).toEqual( [ 'ItemPage', 'BreadcrumbList' ] );
+        expect( types, product.slug ).toEqual( [ 'ItemPage' ] );
         expect( JSON.stringify( shopProductSchema( product ) ), product.slug ).not.toContain( '#product' );
       }
     }
@@ -580,8 +580,7 @@ describe( 'the product page', () => {
   } );
 
   it( 'keys page-scoped @ids on the route it renders on, even when the canonical is elsewhere', () => {
-    // /anew/ defines its own #webpage and #breadcrumb. If /shop/anew/ keyed its nodes off the
-    // canonical it would define the same two, and schemacheck fails a page-scoped @id on two routes.
+    // /shop/anew/ keeps a route-scoped WebPage id even though its canonical is /anew/.
     const anew: ShopProduct = {
       ...SYNTHETIC, id: 'synthetic-anew', name: 'Anew', slug: 'anew', inStock: true,
       canonicalPath: '/anew/',
@@ -589,10 +588,9 @@ describe( 'the product page', () => {
     expect( shopProductPath( anew ) ).toBe( '/anew/' );
     const graph = shopProductSchema( anew )[ '@graph' ];
     const page = ld( graph.find( n => ld( n )[ '@type' ] === 'ItemPage' ) );
-    const crumbs = ld( graph.find( n => ld( n )[ '@type' ] === 'BreadcrumbList' ) );
     expect( page[ '@id' ] ).toBe( 'https://wecare.digital/shop/anew/#webpage' );
-    expect( ld( page.breadcrumb )[ '@id' ] ).toBe( 'https://wecare.digital/shop/anew/#breadcrumb' );
-    expect( crumbs[ '@id' ] ).toBe( 'https://wecare.digital/shop/anew/#breadcrumb' );
+    expect( page.breadcrumb ).toBeUndefined();
+    expect( graph.some( n => ld( n )[ '@type' ] === 'BreadcrumbList' ) ).toBe( false );
     // The URL fields still name the canonical, so search engines are pointed at /anew/.
     expect( page.url ).toBe( 'https://wecare.digital/anew/' );
     expect( JSON.stringify( graph ) ).not.toContain( 'https://wecare.digital/anew/#' );
@@ -605,40 +603,15 @@ describe( 'the product page', () => {
     expect( kiosk.url ).toBe( 'https://wecare.digital/shop/kiosk/' );
   } );
 
-  it( 'offers a way back to the listing through a three-item breadcrumb and an all-items link', () => {
-    /*
-     * REWRITTEN 2026-10-10, inverting the 2026-10-04 rewrite. The owner restored the catalogue
-     * index, so /shop/ resolves at 200 again: the product page carries a three-item trail
-     * (Home / Shop / product) and an "All items in the shop" link pointing at /shop/. The middle
-     * Shop crumb is a real link to a real page, not a redirect to its own first step.
-     *
-     * Exactly one current page still - the product - because only the last crumb is href-less and
-     * rendered as <span aria-current="page">; the Shop crumb is a link.
-     */
+  it( 'keeps the all-items link without rendering a breadcrumb trail', () => {
     const kiosk: ShopProduct = {
       ...SYNTHETIC, id: 'synthetic-kiosk', name: 'Kiosk', slug: 'kiosk', inStock: true,
       formattedPrice: '₹26,999.00', price: '26999.00',
     };
     const { container } = render( <ShopProductPage product={ kiosk } /> );
 
-    const trail = container.querySelector( 'nav[aria-label="Breadcrumb"]' ) as HTMLElement;
-    expect( trail, 'the product page renders no breadcrumb trail' ).toBeTruthy();
-    expect( trail.querySelectorAll( 'li' ) ).toHaveLength( 3 );
-    expect( screen.getByRole( 'link', { name: 'Home' } ).getAttribute( 'href' ) )
-      .toBe( asRendered( '/' ) );
-    // asRendered: next/link strips the trailing slash the source passes ('/shop/'), so the
-    // rendered href is '/shop' - the same normalisation asRendered('/') applies to the Home crumb.
-    expect( screen.getByRole( 'link', { name: 'Shop' } ).getAttribute( 'href' ) )
-      .toBe( asRendered( '/shop/' ) );
-    // Exactly one current page, and it is the product.
-    const current = trail.querySelectorAll( '[aria-current="page"]' );
-    expect( current ).toHaveLength( 1 );
-    expect( current[ 0 ].textContent ).toBe( 'Kiosk' );
-
-    // The page points back at the restored index, and offers the all-items link.
-    const hrefs = Array.from( container.querySelectorAll( 'a' ) )
-      .map( a => a.getAttribute( 'href' ) );
-    expect( hrefs ).toContain( asRendered( '/shop/' ) );
+    expect( container.querySelector( 'nav[aria-label="Breadcrumb"]' ) ).toBeNull();
+    expect( screen.queryByRole( 'link', { name: 'Home' } ) ).toBeNull();
     expect( screen.getByRole( 'link', { name: 'All items in the shop' } ).getAttribute( 'href' ) )
       .toBe( asRendered( '/shop/' ) );
   } );
