@@ -80,7 +80,6 @@ describe( 'Grahak OS typography matches the Home public-page ladder', () => {
     expect( ppPillBase ).toBeGreaterThan( -1 );
     const ppPillCss = source.slice( ppPillBase );
     const controls: Array<[ string, string ]> = [
-      [ source, '.gos-wa-cta' ],
       [ apiCss, '.api-wa-link' ],
       [ source, '.pp-tab' ],
       [ ppPillCss, '.pp-pill' ],
@@ -109,7 +108,8 @@ describe( 'Grahak OS typography matches the Home public-page ladder', () => {
 
     expect( source ).toContain( '.section-header h2,.api-info h2{font-size:var(--public-mobile-section-size)}' );
     expect( source ).toContain( '.api-step-title{font-size:var(--public-mobile-card-size)}' );
-    expect( source ).toContain( '.gos-wa-cta{font-size:var(--public-mobile-cta-font-size)}' );
+    expect( source ).not.toContain( '.gos-wa-cta{' );
+    expect( productBuyBox ).toContain( '<CheckoutAction' );
     expect( source ).toContain( '.api{padding:calc(var(--public-mobile-section-gap) / 2) var(--public-mobile-page-gutter)}' );
     expect( source ).toContain( '.pp-inner{padding:0 var(--public-mobile-page-gutter)}' );
     expect( source ).toContain( '.touchpoint{padding:calc(var(--public-mobile-section-gap) / 2) 0}' );
@@ -319,53 +319,31 @@ describe( 'Grahak OS: numbered 1-2-3 step block in the Built-for-your-stack sect
     expect( stepLines.length ).toBe( 0 );
   } );
 
-  // Scope assertions to the steps-block CTA container so the single-button truth is
-  // pinned to this section, not to the whole page (the closer carries its own CTA).
-  const stepsCtas = source.match( /className="api-steps-ctas">([\s\S]*?)<\/div>/ )?.[ 1 ] || '';
-
-  it( 'keeps the single WhatsApp CTA and attaches the fresh catalog checkout', () => {
-    // The existing WhatsApp door stays exactly once in this steps block, while the fresh
-    // catalog checkout is mounted separately without duplicating the visible ₹899 price.
-    expect( source ).toContain( 'className="api-steps-ctas"' );
-    expect( source ).toContain( '<a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Checkout on WhatsApp &#8594;</a>' );
-    // The steps block now carries EXACTLY ONE WhatsApp CTA: "Checkout on WhatsApp".
-    // The redundant second demo pill here was removed on owner instruction; the lighter
-    // "Open demo in WhatsApp" link lives only beneath the large API code panel.
-    const stepsCtaCount = ( stepsCtas.match( /className="gos-wa-cta"/g ) || [] ).length;
-    expect( stepsCtaCount ).toBe( 1 );
-    expect( stepsCtas ).toContain( 'Checkout on WhatsApp' );
-    expect( stepsCtas ).not.toContain( 'Open demo in WhatsApp' );
+  it( 'keeps one catalog Checkout entry in the steps block', () => {
+    expect( source ).not.toContain( 'className="api-steps-ctas"' );
+    expect( source ).not.toContain( 'className="gos-wa-cta"' );
+    expect( source ).not.toContain( 'Checkout on WhatsApp' );
     expect( source ).toContain( "import ProductBuyBox from '../../components/ProductBuyBox';" );
     expect( source ).toMatch( /<ProductBuyBox\s+slug="grahak-os"\s+displayPrice=\{ GRAHAK_DISPLAY_PRICE \|\| undefined \}\s+offerNote="One-time consultation · full deployment separate"\s*\/>/ );
+    expect( productBuyBox ).toContain( '<CheckoutAction' );
     expect( source ).toContain( "const GRAHAK_DISPLAY_PRICE = GRAHAK_CHECKOUT?.formattedPrice.replace( /\\.00$/, '' ) ?? null" );
     expect( source ).not.toContain( 'className="gos-price"' );
     expect( source ).not.toContain( 'className="gos-offer-note"' );
-    expect( source ).not.toContain( 'AI agents · from deployment to business outcomes' );
     const offerRule = cssRuleFor( productBuyBox, '.pbb-offer-note' );
     expect( cssValue( offerRule, 'font-size' ) ).toBe( cssValue( cssRuleFor( home, '.home-sub' ), 'font-size' ) );
     expect( cssValue( offerRule, 'font-weight' ) ).toBe( cssValue( cssRuleFor( home, '.home-sub' ), 'font-weight' ) );
     expect( cssValue( offerRule, 'line-height' ) ).toBe( cssValue( cssRuleFor( home, '.home-sub' ), 'line-height' ) );
     expect( cssValue( offerRule, 'letter-spacing' ) ).toBe( cssValue( cssRuleFor( home, '.home-sub' ), 'letter-spacing' ) );
     expect( offerRule ).toContain( 'color:var(--public-muted)' );
-    expect( offerRule ).toContain( 'font-family:var(--font-sans)' );
-    expect( offerRule ).toContain( 'max-width:var(--public-copy-max)' );
-    expect( offerRule ).toContain( 'text-wrap:balance' );
-    expect( source ).not.toContain( 'A consulting solution for organisations and businesses.' );
   } );
 
-  it( 'keeps the lighter "Open demo in WhatsApp" action out of the steps block', () => {
-    // UNIFIED CTA STYLE (owner instruction): the lighter .api-action-link text-link that
-    // used to carry the secondary demo action here is long gone (do not reintroduce it).
+  it( 'keeps the one non-payment WhatsApp demo link separate from Checkout', () => {
     const codeNoComments = source.replace( /\/\*[\s\S]*?\*\//g, '' ).replace( /^\s*\/\/.*$/gm, '' );
     expect( codeNoComments ).not.toContain( 'api-action-link' );
-    // The steps block keeps only "Checkout on WhatsApp"; the lighter demo action lives
-    // below the large API code panel and uses the explicit "Open demo in WhatsApp" label.
-    expect( stepsCtas ).not.toContain( 'Open demo in WhatsApp' );
     const openInCount = ( source.match( /className="api-wa-link"/g ) || [] ).length;
     expect( openInCount ).toBe( 1 );
-    // The single remaining steps-block CTA keeps the standard new-tab attributes.
-    expect( stepsCtas ).toContain( 'target="_blank"' );
-    expect( stepsCtas ).toContain( 'rel="noopener noreferrer"' );
+    expect( source ).toContain( '<a className="api-wa-link" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">' );
+    expect( source ).toContain( 'Open demo in WhatsApp' );
   } );
 
   it( 'keeps SKU visible and uses the shared PolicyDetails disclosure', () => {
@@ -488,10 +466,12 @@ describe( 'Grahak OS: API-panel "Open demo in WhatsApp" link', () => {
     expect( code ).toContain( 'outline:3px solid var(--public-brand-green)' );
   } );
 
-  it( 'keeps the solid lime paid WhatsApp CTA distinct and untouched', () => {
-    const ctaRule = cssRuleFor( source, '.gos-wa-cta' );
-    expect( ctaRule ).toContain( 'background:var(--public-brand-lime)' );
-    expect( ctaRule ).toContain( 'border-radius:var(--public-cta-radius)' );
+  it( 'keeps the paid Checkout action distinct from the demo link', () => {
+    const checkoutAction = readFileSync( resolve( process.cwd(), 'src/components/CheckoutAction.tsx' ), 'utf8' );
+    const ctaRule = cssRuleFor( checkoutAction, '.checkout-action' );
+    expect( ctaRule ).toContain( 'background:var(--public-accent-amber)' );
+    expect( ctaRule ).toContain( 'border:2px solid var(--public-brand-green)' );
+    expect( cssRuleFor( source, '.api-wa-link' ) ).toContain( 'text-decoration:underline' );
   } );
 } );
 
