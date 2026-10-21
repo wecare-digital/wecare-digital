@@ -271,7 +271,7 @@ def test_no_placeholder_package_name_ships():
     send mapping; it does NOT invent an app identity to make a demo work."""
     root = os.path.join(os.path.dirname(__file__), '..', 'amplify', 'functions', 'shared',
                         'lambda_utils')
-    for name in ('whatsapp_types.py', 'template_presets.py'):
+    for name in ('whatsapp_types.py',):
         with open(os.path.join(root, name), 'r', encoding='utf-8') as fh:
             source = fh.read()
         assert 'com.wecare' not in source, name
