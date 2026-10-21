@@ -4,7 +4,6 @@ import Breadcrumbs from '../components/Breadcrumbs';
 import RotatingHero, { type CycleWord } from '../components/RotatingHero';
 import ProductBuyBox from '../components/ProductBuyBox';
 import PolicyDetails from '../components/public/PolicyDetails';
-import { whatsappKeywordLink } from '../config/whatsappServiceEntries';
 import { PRODUCT_SKU_BY_SLUG, productPolicyCopy } from '../content/productCommerce';
 
 /**
@@ -52,11 +51,6 @@ const CYCLE_WORDS: CycleWord[] = [
   { word: 'records', tint: '#ede9fe', dot: '#9849e8' },
 ];
 
-// THE PILL READS "Checkout on WhatsApp", SO IT OPENS WHATSAPP. It linked /contact/ until
-// 2026-10-16 - a fix for an older dead link, kept after the label became the WhatsApp one -
-// so the button promised a chat and opened a web page. It is now the keyword deep link every
-// other product page uses (src/content/products.ts), with this page's name pre-filled.
-const WHATSAPP_CTA = whatsappKeywordLink( 'Bharat Rx' );
 const BHARAT_RX_POLICY = productPolicyCopy( 'bharat-rx', 'Bharat Rx' );
 
 const BharatRxPage: React.FC = () => (
@@ -116,13 +110,7 @@ const BharatRxPage: React.FC = () => (
           </li>
         </ol>
 
-        {/* OPTION A: the WhatsApp pill names its channel ("Checkout on WhatsApp →") to match the
-            "Continue to checkout →" pill below, same as every ProductPage-based page. */}
-        <a className="brx-cta" href={ WHATSAPP_CTA }>Checkout on WhatsApp &rarr;</a>
-
-        {/* The "Continue to checkout →" pill and live price, beneath the WhatsApp CTA — the same
-            ProductBuyBox the eight ProductPage-based product pages mount. Bharat Rx owns its own
-            layout rather than ProductPage, so the box is placed here by hand; it self-styles. */}
+        {/* One checkout entry. Payment mode is chosen once, after cart review. */}
         <ProductBuyBox slug="bharat-rx" />
 
         <div className="brx-commerce">
@@ -171,16 +159,6 @@ const BharatRxPage: React.FC = () => (
           .brx-step-t{display:block;margin:5px 0 6px;font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-heading);overflow-wrap:break-word}
           /* The one body level: 20px/400/1.4/-.125px. */
           .brx-p{font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-body);margin:0;overflow-wrap:break-word}
-          /* Full-strength #d1f470 with #1a3a2a type - the contract's own-surface pairing,
-             and 2px because the hairline rule is that 2px means hoverable. */
-          .brx-cta{
-            display:inline-flex;align-items:center;min-height:var(--public-cta-height);margin-top:30px;
-            padding:0 26px;border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);
-            background:var(--public-brand-lime);color:var(--public-brand-green);font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);text-decoration:none;
-            transition:background-color .2s,transform .2s,box-shadow .2s;
-          }
-          .brx-cta:hover{background:#fff;transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
-          .brx-cta:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
           /* THE CANONICAL BOUNDARY CARD, matched to .pdp-note on the product pages so every
              boundary note on the public site reads the same: near-white #fcfdfb surface, 1px
              hairline, 14px radius, 22px padding, and the legal-copy type rung 17px/400/1.55/-.05px
