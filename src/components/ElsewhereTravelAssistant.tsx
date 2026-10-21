@@ -338,11 +338,12 @@ const ElsewhereTravelAssistant: React.FC = () => {
 
   const continueWith = ( kind: 'website' | 'whatsapp', result: TravelResult ) => {
     const target = kind === 'website' ? result.websiteUrl : result.whatsappUrl;
-    if ( !checkoutAvailable( kind, result ) || !target ) {
+    const safeTarget = safeHttpsUrl( target );
+    if ( !checkoutAvailable( kind, result ) || !safeTarget ) {
       setContinuationNote( 'This offer needs fresh provider confirmation before checkout.' );
       return;
     }
-    window.location.assign( target );
+    window.location.assign( safeTarget );
   };
 
   const userSummary = [
