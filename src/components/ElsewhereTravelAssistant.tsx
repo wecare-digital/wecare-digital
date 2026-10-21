@@ -149,10 +149,10 @@ function safeHttpsUrl( value: unknown ): string {
   }
 }
 
-function quoteIsExpired( value?: string ): boolean {
+function quoteIsFresh( value?: string ): boolean {
   if ( !value ) return false;
   const timestamp = Date.parse( value );
-  return Number.isFinite( timestamp ) && timestamp <= Date.now();
+  return Number.isFinite( timestamp ) && timestamp > Date.now();
 }
 
 function normaliseResponse( payload: Partial<TravelResponse> ): TravelResponse {
@@ -317,7 +317,9 @@ const ElsewhereTravelAssistant: React.FC = () => {
 
   const checkoutAvailable = ( kind: 'website' | 'whatsapp', result: TravelResult ) => {
     if ( responseSource !== 'api' && responseSource !== 'mcp' ) return false;
-    if ( !result.checkoutReady || quoteIsExpired( result.quoteExpiresAt ) ) return false;
+    const providerIdentity = Boolean( result.providerRef || result.offerId );
+    const providerFacts = Boolean( result.price && result.availability && result.cancellationSummary );
+    if ( !result.checkoutReady || !providerIdentity || !providerFacts || !quoteIsFresh( result.quoteExpiresAt ) ) return false;
     return Boolean( kind === 'website' ? result.websiteUrl : result.whatsappUrl );
   };
 
@@ -444,7 +446,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
               { responseSource === 'demo' ? (
                 <p className="eta-live-note eta-preview-note">Preview results — prices are illustrative and checkout stays disabled until live provider availability is connected.</p>
               ) : (
-                <p className="eta-live-note">Final price, availability and provider rules must be confirmed again by the provider before checkout.</p>
+                <p className="eta-live-note">Checkout only unlocks after the provider confirms price, availability, cancellation terms and a fresh offer reference.</p>
               ) }
             </>
           ) }
