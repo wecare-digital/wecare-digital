@@ -4656,7 +4656,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live button:focus-visible{outline:3px solid var(--green);outline-offset:3px}
         .vl-live input:focus-visible{outline:none}
         .vl-live-sr,.vl-live-sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
-        .vl-live-shell{max-width:1320px;margin:0 auto;padding:0 max(24px,var(--safe-right)) max(72px,var(--safe-bottom)) max(24px,var(--safe-left))}
+        .vl-live-shell{max-width:1320px;margin:0 auto;padding:0 max(var(--public-page-gutter),var(--safe-right)) max(72px,var(--safe-bottom)) max(var(--public-page-gutter),var(--safe-left))}
         /* The map is now the full-width backdrop; the former two-column workspace
            collapses to a single region that the map shell fills edge to edge. */
         .vl-live-workspace{display:block}
