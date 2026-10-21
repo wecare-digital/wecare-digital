@@ -97,6 +97,8 @@
  */
 const ALLOWED: ReadonlySet<string> = new Set( [
   '/cart/',
+  // Added 2026-10-21 with the exported post-cart payment-method chooser.
+  '/checkout/',
   '/orders/',
   '/blog/',
   // Phase O-1: the two service pages send a signed-out customer to sign in and back.
