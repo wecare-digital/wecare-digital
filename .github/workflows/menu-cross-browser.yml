@@ -69,6 +69,14 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+      - name: Use npm version pinned by packageManager
+        shell: bash
+        run: |
+          PINNED_NPM="$(node -e "const p=require('./package.json').packageManager;process.stdout.write(p.slice(p.lastIndexOf('@')+1))")"
+          npm install --global "npm@${PINNED_NPM}"
+          echo "npm $(npm --version)"
+          test "$(npm --version)" = "$PINNED_NPM"
+
       - name: Install app dependencies
         run: npm ci --no-audit --no-fund
 
