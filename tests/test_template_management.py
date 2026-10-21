@@ -121,7 +121,7 @@ class TestTemplatePayloadValidation:
 
 
 class TestTemplateRoutesB:
-    """Handler-level tests for validate / presets / send-test / refresh routes."""
+    """Handler-level tests for validate / send-test / refresh routes."""
 
     @pytest.fixture(autouse=True)
     def setup(self):
