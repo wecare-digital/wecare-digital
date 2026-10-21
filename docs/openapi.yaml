@@ -519,19 +519,13 @@ paths:
       parameters: [ { name: templateId, in: path, required: true, schema: { type: string } } ]
       responses: { '200': { description: TTL updated }, '400': { description: Invalid TTL } }
 
-  # ── WhatsApp Templates — validation / presets / send-test / refresh ──
+  # ── WhatsApp Templates — validation / send-test / refresh ──
   /whatsapp/templates/validate:
     post:
       tags: [WhatsApp Templates]
       summary: Validate a template definition (errors + warnings)
       responses: { '200': { description: Validation result } }
 
-  /whatsapp/templates/presets/{name}:
-    get:
-      tags: [WhatsApp Templates]
-      summary: Get a single preset definition
-      parameters: [ { name: name, in: path, required: true, schema: { type: string } } ]
-      responses: { '200': { description: Preset }, '404': { description: Unknown preset } }
   /whatsapp/templates/{templateId}/send-test:
     post:
       tags: [WhatsApp Templates]
