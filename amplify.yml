@@ -34,13 +34,11 @@ frontend:
         # See docs/npm-ci-backend-isolation.md.
         #
         # NO --legacy-peer-deps, matching build-test.yml: the committed lockfile is generated
-        # with plain `npm install`, so the flag has nothing to resolve. Both spellings were
-        # re-measured against this lockfile on npm 11.19.0 and both exit 0 leaving the lock
-        # unchanged. The flag was NOT harmless on npm 11.4.2 though (it failed on
-        # @emnapi/runtime), so peer-mode consistency between generating and consuming a lock
-        # is version-dependent - if `npm ci` ever fails here with no visible drift, compare
-        # the image's npm against `packageManager` in package.json before anything else.
-        # `nvm install 24` above takes whatever npm ships with Node 24, which is not pinned.
+        # with plain `npm install`, so the flag has nothing to resolve. The exact npm version
+        # is declared by packageManager and installed above before this command. Do not let
+        # `nvm install 24` silently move npm underneath the lockfile again: npm 11.19.0
+        # currently rejects this lock with missing @emnapi entries while the pinned npm 11.6.2
+        # is the version the lock was generated and verified with.
         #
         # `rm -rf node_modules/.cache` went with the switch: `npm ci` removes node_modules
         # wholesale before installing, so the line could not have any effect.
