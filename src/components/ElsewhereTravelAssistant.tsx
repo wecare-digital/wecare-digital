@@ -545,10 +545,9 @@ const ElsewhereTravelAssistant: React.FC = () => {
           background:transparent;color:var(--public-heading);white-space:nowrap;
           font-family:var(--font-sans);font-size:16px;font-weight:700;line-height:1.2;letter-spacing:-.15px;
           cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
-          transition:transform .12s ease;
+          transition:background-color .12s ease;
         }
         .eta-tab::before{content:'';position:absolute;inset:6px 7px;border-radius:10px;background:transparent;transition:background .16s ease;z-index:-1}
-        .eta-tab:active{transform:scale(.98)}
         .eta-tab:active::before{background:rgba(239,249,207,.92)}
         .eta-tab.active::after{content:'';position:absolute;left:50%;bottom:4px;width:18px;height:2px;transform:translateX(-50%);border-radius:999px;background:#111512;opacity:.78}
         .eta-tab-icon{
@@ -572,60 +571,54 @@ const ElsewhereTravelAssistant: React.FC = () => {
         .eta-line strong{display:inline-block;min-width:58px;color:var(--public-heading);font-size:15px;font-weight:600;line-height:1.3;letter-spacing:-.1px}
         .eta-results{display:flex;flex-direction:column;gap:10px;margin-top:2px}
         .eta-result{
-          min-width:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,auto);gap:18px;align-items:start;
-          padding:17px 18px;border:1px solid rgba(17,21,18,.09);border-radius:14px;background:rgba(255,255,255,.84);
-          box-shadow:0 1px 0 rgba(17,21,18,.02);
+          min-width:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(230px,auto);gap:18px;align-items:start;
+          padding:20px;border:1px solid var(--public-hairline);border-radius:14px;background:var(--public-bg);
           touch-action:pan-y;-webkit-tap-highlight-color:transparent;
-          transition:border-color .16s ease,background .16s ease;
         }
-        .eta-result:first-child{border-color:#c9dc84;background:#fff}
+        .eta-result:first-child{border-color:#c9dc84}
         .eta-result-main{min-width:0}
         .eta-result-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
         .eta-result h3{
-          margin:0;color:var(--public-heading);font-size:20px;font-weight:700;
-          line-height:1.3;letter-spacing:-.2px;overflow-wrap:anywhere;
+          margin:0;color:var(--public-heading);font-size:var(--public-card-size);font-weight:var(--public-card-weight);
+          line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);overflow-wrap:anywhere;
         }
-        .eta-rank{width:22px;height:22px;display:grid;place-items:center;border-radius:7px;font-size:11px;font-weight:800;line-height:1}
-        .eta-result-flights .eta-rank{background:var(--public-accent-blue-tint);color:var(--public-accent-blue)}
-        .eta-result-hotels .eta-rank{background:var(--public-accent-purple-tint);color:var(--public-accent-purple)}
-        .eta-result-activities .eta-rank{background:var(--public-accent-amber-tint);color:#8a5d00}
-        .eta-result-rail .eta-rank{background:var(--public-accent-green-tint);color:var(--public-accent-green)}
-        .eta-result-car .eta-rank{background:var(--public-lime-tint);color:var(--public-brand-green)}
-        .eta-result-bus .eta-rank{background:var(--public-accent-red-tint);color:var(--public-accent-red)}
-        .eta-provider,.eta-best{font-size:10px;font-weight:700;line-height:1.2;text-transform:uppercase;letter-spacing:.045em}
+        .eta-rank{
+          width:32px;height:32px;flex:0 0 32px;display:grid;place-items:center;border-radius:999px;
+          background:var(--public-lime-tint);color:var(--public-brand-green);font-size:15px;font-weight:700;line-height:1;
+        }
+        .eta-provider,.eta-best{font-size:12px;font-weight:700;line-height:1.2;letter-spacing:.01em}
         .eta-provider{color:var(--public-muted)}
-        .eta-best{display:inline-flex;align-items:center;gap:5px;color:#4a6512}
-        .eta-best::before{content:'';width:7px;height:7px;border-radius:999px;background:var(--public-brand-lime);box-shadow:0 0 0 2px var(--public-lime-tint)}
-        .eta-desc{margin:8px 0 0;color:var(--public-body);font-size:16px;font-weight:400;line-height:1.5;letter-spacing:-.1px;overflow-wrap:anywhere}
-        .eta-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
-        .eta-meta span{padding:5px 8px;border:0;border-radius:999px;background:#f1f3ed;color:#667064;font-size:11px;font-weight:600;line-height:1.2}
+        .eta-best{color:var(--public-brand-green)}
+        .eta-desc{
+          margin:8px 0 0;color:var(--public-body);font-size:17px;font-weight:var(--public-body-weight);
+          line-height:1.45;letter-spacing:var(--public-body-tracking);overflow-wrap:anywhere;
+        }
+        .eta-meta{display:flex;flex-wrap:wrap;gap:0;margin-top:10px;color:var(--public-muted);font-size:14px;font-weight:500;line-height:1.4}
+        .eta-meta span{display:inline;padding:0;background:none;color:inherit;font:inherit}
+        .eta-meta span:not(:last-child)::after{content:' · ';white-space:pre;color:#9aa196}
         .eta-result-side{display:flex;flex-direction:column;align-items:flex-end;gap:9px;text-align:end}
         .eta-price{color:var(--public-heading);font-size:17px;font-weight:700;line-height:1.25;letter-spacing:-.2px;white-space:nowrap}
-        .eta-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;width:min(100%,390px);margin-inline-start:auto}
+        .eta-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;width:min(100%,420px);margin-inline-start:auto}
         .eta-action{
           display:inline-flex;align-items:center;justify-content:center;
-          min-width:0;min-height:var(--tap-min);box-sizing:border-box;
-          padding:6px 9px;border:0;border-radius:8px;background:var(--public-lime-tint);
+          min-width:0;min-height:var(--public-cta-height);box-sizing:border-box;
+          padding:8px 14px;border:2px solid var(--public-brand-green);border-radius:14px;background:var(--public-bg);
           color:var(--public-brand-green);font-family:inherit;font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);
-          line-height:1.3;letter-spacing:-.05px;cursor:pointer;white-space:normal;text-align:center;
-          text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;
+          line-height:1.2;letter-spacing:-.05px;cursor:pointer;white-space:normal;text-align:center;text-decoration:none;
           touch-action:manipulation;-webkit-tap-highlight-color:transparent;
-          transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s;
+          transition:background-color .18s,box-shadow .18s,border-color .18s;
         }
-        .eta-action:active{
-          transform:scale(.97);background:var(--public-brand-lime);text-decoration-color:transparent;
-        }
+        .eta-action:active{background:var(--public-lime-tint);box-shadow:inset 0 0 0 1px rgba(26,58,42,.08)}
         .eta-action.primary{background:var(--public-lime-tint)}
         .eta-action.primary:active{background:var(--public-brand-lime)}
         .eta-action:disabled{
-          color:#788077;background:#eef1e9;text-decoration:none;cursor:not-allowed;opacity:.88;
-          box-shadow:none;transform:none;
+          color:#7b8379;background:#f0f2ec;border-color:#d7dcd3;cursor:not-allowed;opacity:.86;box-shadow:none;
         }
         .eta-live-note,.eta-continuation{margin:0;color:var(--public-muted);font-size:13px;font-weight:500;line-height:1.45}
         .eta-composer{
           margin-top:24px;padding:18px 18px 14px;border:0;border-radius:18px;background:#fff;
           cursor:text;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
-          transition:transform .15s ease,box-shadow .15s ease,background-color .15s ease;
+          transition:box-shadow .15s ease,background-color .15s ease;
         }
         .eta-composer:focus-within{box-shadow:0 6px 18px rgba(26,58,42,.09)}
         .eta-composer:active{box-shadow:0 4px 12px rgba(26,58,42,.08)}
@@ -650,9 +643,9 @@ const ElsewhereTravelAssistant: React.FC = () => {
         .eta-keyhint{margin-inline-end:4px;color:#8a9288;font-size:12px}
         .eta-clear{
           display:grid;place-items:center;width:46px;height:46px;min-width:46px;min-height:46px;padding:0;border:0;border-radius:0;background:transparent;color:#7a8278;cursor:pointer;
-          touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:transform .12s ease,background .14s ease,color .14s ease;
+          touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:background .14s ease,color .14s ease;
         }
-        .eta-clear:active{transform:scale(.92);background:var(--public-lime-tint);color:var(--public-brand-green)}
+        .eta-clear:active{background:var(--public-lime-tint);color:var(--public-brand-green)}
         .eta-material{font-family:'Material Symbols Rounded';font-size:21px;font-weight:500;line-height:1;font-variation-settings:'FILL' 0,'wght' 500,'GRAD' 0,'opsz' 24}
         .eta-mic-slot{position:relative;display:block;width:46px;height:46px;flex:0 0 46px}
         .eta-mic-slot :global(.voice-search-mic){
@@ -661,17 +654,17 @@ const ElsewhereTravelAssistant: React.FC = () => {
         .eta-send{
           display:grid;place-items:center;width:44px;height:44px;min-width:44px;min-height:44px;padding:0;border:0;border-radius:50%;
           background:var(--public-brand-lime);color:var(--public-brand-green);cursor:pointer;box-shadow:0 4px 18px rgba(209,244,112,.14);
-          touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:transform .12s ease,background .14s ease;
+          touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:background .14s ease,box-shadow .14s ease;
         }
-        .eta-send:not(:disabled):active{transform:scale(.92);background:var(--lime-hover)}
+        .eta-send:not(:disabled):active{background:var(--lime-hover);box-shadow:inset 0 0 0 2px rgba(26,58,42,.10)}
         .eta-send:disabled{background:#e4e8dd;color:#8b9288;box-shadow:none;cursor:not-allowed}
         .eta-chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
         .eta-chip{
           min-height:44px;padding:12px 16px;border:1px solid var(--public-hairline);border-radius:999px;background:#fff;color:var(--public-heading);
-          font-size:15px;font-weight:600;line-height:1.2;letter-spacing:-.1px;cursor:pointer;transition:background .15s ease,border-color .15s ease,box-shadow .15s ease,transform .15s ease;
+          font-size:15px;font-weight:600;line-height:1.2;letter-spacing:-.1px;cursor:pointer;transition:background .15s ease,border-color .15s ease,box-shadow .15s ease;
           touch-action:manipulation;-webkit-tap-highlight-color:transparent;
         }
-        .eta-chip:active{border-color:#aeca47;background:var(--public-lime-tint);box-shadow:none;transform:scale(.97)}
+        .eta-chip:active{border-color:var(--public-brand-green);background:var(--public-lime-tint);box-shadow:inset 0 0 0 1px rgba(26,58,42,.06)}
         .eta-chip.active{border-color:#aeca47;background:var(--public-lime-tint);color:var(--public-brand-green);box-shadow:none}
         .eta-preferences{
           display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:12px;padding:14px 16px;
@@ -680,8 +673,8 @@ const ElsewhereTravelAssistant: React.FC = () => {
         .eta-preference-copy{min-width:0}.eta-preference-label{display:block;margin-bottom:7px;color:var(--public-muted);font-size:11px;font-weight:700;line-height:1.2;letter-spacing:.05em;text-transform:uppercase}
         .eta-preference-values{display:flex;flex-wrap:wrap;gap:6px}
         .eta-preference-values span{display:inline-flex;align-items:center;min-height:28px;padding:5px 9px;border-radius:999px;background:var(--public-lime-tint);color:var(--public-brand-green);font-size:14px;font-weight:600;line-height:1.3}
-        .eta-preference-clear{flex:0 0 auto;width:44px;height:44px;border:0;border-radius:999px;background:#f4f6f0;color:var(--public-heading);font-size:20px;line-height:1;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:transform .12s ease,background .14s ease}
-        .eta-preference-clear:active{transform:scale(.92);background:var(--public-lime-tint)}
+        .eta-preference-clear{flex:0 0 auto;width:44px;height:44px;border:0;border-radius:999px;background:#f4f6f0;color:var(--public-heading);font-size:20px;line-height:1;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:background .14s ease}
+        .eta-preference-clear:active{background:var(--public-lime-tint)}
         .eta-loading{display:flex;align-items:center;gap:10px;margin-top:6px;color:var(--public-muted);font-size:13px;font-weight:600;line-height:1.4}
         .eta-loading-line{position:relative;width:34px;height:3px;flex:0 0 34px;overflow:hidden;border-radius:999px;background:var(--public-lime-tint)}
         .eta-loading-line::after{content:'';position:absolute;inset:0 auto 0 0;width:45%;border-radius:inherit;background:var(--public-brand-lime);animation:eta-loading 1.15s ease-in-out infinite}
@@ -694,18 +687,15 @@ const ElsewhereTravelAssistant: React.FC = () => {
         }
         @media(hover:hover) and (pointer:fine){
           .eta-tab:hover::before{background:rgba(239,249,207,.78)}
-          .eta-chip:hover{border-color:#bfd36f;background:#f3fad9;box-shadow:var(--public-lift-shadow);transform:translateY(-1px)}
-          .eta-action:not(:disabled):hover{
-            background:var(--public-brand-lime);text-decoration-color:transparent;
-            transform:translateY(-1px);box-shadow:0 5px 14px rgba(26,58,42,.1);
-          }
+          .eta-chip:hover{border-color:#bfd36f;background:var(--public-lime-tint)}
+          .eta-action:not(:disabled):hover{background:var(--public-lime-tint);box-shadow:var(--public-lift-shadow)}
           .eta-action.primary:not(:disabled):hover{background:var(--public-brand-lime)}
           .eta-clear:hover,.eta-preference-clear:hover{background:var(--public-lime-tint);color:var(--public-brand-green)}
           .eta-send:not(:disabled):hover{background:var(--lime-hover)}
         }
         @media(hover:none) and (pointer:coarse){
           .eta-composer:focus-within{background:rgba(209,244,112,.055);box-shadow:0 5px 14px rgba(26,58,42,.09)}
-          .eta-mic-slot :global(.voice-search-mic:active){background:var(--public-lime-tint);transform:scale(.92)}
+          .eta-mic-slot :global(.voice-search-mic:active){background:var(--public-lime-tint)}
           .eta-action:not(:disabled):active,.eta-chip:active,.eta-send:not(:disabled):active,.eta-clear:active,.eta-preference-clear:active{
             filter:saturate(1.04);
           }
@@ -721,14 +711,12 @@ const ElsewhereTravelAssistant: React.FC = () => {
           .eta-line{font-size:18px}
           .eta-field textarea{font-size:var(--public-mobile-form-font-size)}
           .eta-composer-foot{flex-wrap:wrap}.eta-hint{flex:1 1 100%}.eta-tools{width:100%;justify-content:flex-end}
-          .eta-result{grid-template-columns:1fr;padding:16px}.eta-result h3{font-size:18px}.eta-result-side{align-items:flex-start;text-align:start}.eta-actions{width:100%;margin-inline-start:0}
+          .eta-result{grid-template-columns:1fr;padding:18px}.eta-result h3{font-size:var(--public-mobile-card-size)}.eta-desc{font-size:16px}.eta-result-side{align-items:flex-start;text-align:start}.eta-actions{width:100%;margin-inline-start:0}
         }
         @media(max-width:380px){.eta-tab{font-size:13px;padding-inline:10px}.eta-keyhint{display:none}.eta-action{padding-inline:7px}}
         @media(prefers-reduced-motion:reduce){
           .eta-tab,.eta-tab::before,.eta-result,.eta-chip,.eta-action,.eta-clear,.eta-send,.eta-preference-clear,.eta-composer{transition:none}
-          .eta-tab:active,.eta-chip:active,.eta-action:active,.eta-clear:active,.eta-send:active,.eta-preference-clear:active,.eta-composer:active,.eta-composer:focus-within,
-          .eta-chip:hover,.eta-action:hover{transform:none;box-shadow:none}
-          .eta-mic-slot :global(.voice-search-mic:active){transform:none}
+          .eta-action:hover{box-shadow:none}
           .eta-loading-line::after{width:100%;transform:none;animation:none}
         }
         @media(prefers-reduced-motion:reduce) and (hover:none) and (pointer:coarse){
