@@ -94,6 +94,7 @@ const ProductPage: React.FC<ProductPageProps> = ( {
       frame={ product.frame }
       words={ product.words }
       sub={ product.sub }
+      afterHero={ afterHero }
     >
       <div className={ hasAside ? 'pdp-wrap has-aside' : 'pdp-wrap' }>
       <PageShell title={ product.title } description={ product.description }
@@ -327,7 +328,6 @@ const ProductPage: React.FC<ProductPageProps> = ( {
       </PageShell>
       </div>
     </RotatingHero>
-    { afterHero }
   </>
   );
 };
