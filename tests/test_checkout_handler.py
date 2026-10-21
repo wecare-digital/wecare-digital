@@ -330,14 +330,18 @@ def test_the_cart_whatsapp_rail_sends_order_details_when_initiation_is_enabled(e
     assert sends[0]['contactId'] == 'wa919330994400'
 
 
-def test_a_website_only_service_in_a_cart_still_answers_the_service_code(env):
+def test_a_service_on_the_whatsapp_cart_rail_still_requires_its_intent(env):
     h, fake, _lam, _mp = env
     from lambda_utils.ecommerce import service_requests as sr
-    product = sorted(sr.SERVICE_PRODUCT_IDS)[0]
-    resp = h.handler(_create_event(lineItems=[
-        {'catalogReference': {'catalogItemId': product}, 'quantity': 1}]), None)
+    resp = h.handler(_create_event(lineItems=[{
+        'catalogReference': {
+            'catalogItemId': SERVICE_PRODUCT_ID,
+            'options': {'variantId': SERVICE_VARIANT_ID},
+        },
+        'quantity': 1,
+    }]), None)
     assert resp['statusCode'] == 409
-    assert json.loads(resp['body'])['error'] == sr.SERVICE_WEBSITE_ONLY
+    assert json.loads(resp['body'])['error'] == sr.SERVICE_INTENT_REQUIRED
     assert fake.count(ATTEMPTS_TABLE) == 0
 
 
