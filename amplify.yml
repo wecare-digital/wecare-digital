@@ -14,6 +14,10 @@ frontend:
         - nvm use 24 || true
         - node -v
         - npm -v
+        # Node 24 floats to newer bundled npm releases, while this root lockfile is
+        # generated and verified with the exact npm version declared by packageManager.
+        # Install that version before npm ci so CI and Amplify consume the lock identically.
+        - export PINNED_NPM="$(node -e "const p=require('./package.json').packageManager;process.stdout.write(p.slice(p.lastIndexOf('@')+1))")"; npm install --global "npm@$PINNED_NPM"; test "$(npm --version)" = "$PINNED_NPM"; npm --version
         # Proved early and loudly, because the build step below depends on it. If the
         # Amplify image ever ships without python3, this fails here with an obvious
         # cause instead of turning the credential gate into a silent skip.
