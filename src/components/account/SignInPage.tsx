@@ -214,7 +214,6 @@ export default function CustomerSignIn (): React.ReactElement {
   const [ national, setNational ] = useState<string>( '' );
   const [ normalised, setNormalised ] = useState<string>( '' );
   const [ persistent, setPersistent ] = useState<boolean>( true );
-  const [ marketingConsent, setMarketingConsent ] = useState<boolean>( false );
   const [ code, setCode ] = useState<string>( '' );
   const [ session, setSession ] = useState<string>( '' );
   const [ destination, setDestination ] = useState<string>( '' );
@@ -411,28 +410,6 @@ export default function CustomerSignIn (): React.ReactElement {
         return;
       }
 
-      // ONE consent moment, after the OTP has actually authenticated the customer. It is
-      // optional and explicit: sign-in never depends on agreeing to marketing. A failed evidence
-      // write fails closed (no permission is created) but must not turn a valid OTP into a failed
-      // sign-in.
-      if ( marketingConsent )
-      {
-        try
-        {
-          await fetch( REGISTRATION_URL, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${ result.accessToken }`,
-            },
-            body: JSON.stringify( { action: 'consent' } ),
-          } );
-        }
-        catch
-        {
-          // No consent record means no marketing permission. Authentication still succeeded.
-        }
-      }
       window.location.replace( returnPathFromUrl() );
     }
     catch ( err )
@@ -443,7 +420,7 @@ export default function CustomerSignIn (): React.ReactElement {
     {
       setBusy( false );
     }
-  }, [ phase, normalised, code, session, persistent, marketingConsent ] );
+  }, [ phase, normalised, code, session, persistent ] );
 
   /**
    * ASK FOR ANOTHER CODE. This page had no resend affordance at all, which the Phase 4 audit
@@ -634,16 +611,6 @@ export default function CustomerSignIn (): React.ReactElement {
                 <input type="checkbox" checked={ persistent } onChange={ e => setPersistent( e.target.checked ) } />
                 Keep me signed in on this device
               </label>
-              { phase !== 'register-code' && (
-                <label className="si-remember">
-                  <input
-                    type="checkbox"
-                    checked={ marketingConsent }
-                    onChange={ e => setMarketingConsent( e.target.checked ) }
-                  />
-                  Send me offers and updates on WhatsApp. I can opt out anytime.
-                </label>
-              ) }
               {/* Same two-segment pill. The right segment carries "Confirm code" (and "Checking…"
                   while busy), which is both the visible action and the accessible name the test
                   queries - this is the button the owner saw render as "Sign inConfirm code",
