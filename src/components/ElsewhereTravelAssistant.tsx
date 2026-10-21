@@ -112,7 +112,7 @@ function demoResponse( mode: TravelMode ): TravelResponse {
     source: 'demo',
     results: config.results.map( ( item, index ) => ( {
       id: 'demo-' + mode + '-' + String( index + 1 ),
-      provider: 'Suggested plan',
+      provider: 'WECARE.DIGITAL',
       title: item[ 0 ],
       description: item[ 1 ],
       meta: [ item[ 2 ], item[ 3 ], item[ 4 ] ],
@@ -125,7 +125,7 @@ function normaliseResponse( payload: Partial<TravelResponse> ): TravelResponse {
   const rows = Array.isArray( payload.results ) ? payload.results : [];
   const results = rows.slice( 0, 8 ).map( ( result, index ) => ( {
     id: String( result.id || 'result-' + String( index + 1 ) ),
-    provider: String( result.provider || 'Provider' ),
+    provider: String( result.provider || 'WECARE.DIGITAL' ),
     title: String( result.title || 'Travel option' ),
     description: String( result.description || '' ),
     meta: Array.isArray( result.meta ) ? result.meta.slice( 0, 4 ).map( String ) : [],
