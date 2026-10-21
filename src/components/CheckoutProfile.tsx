@@ -9,6 +9,8 @@ export interface CheckoutProfileValue {
   name: string;
   firstName: string;
   lastName: string;
+  companyName: string;
+  designation: string;
   email: string;
   phone: string;
   emailVerified?: boolean;
@@ -18,7 +20,7 @@ export interface CheckoutProfileValue {
 interface Props {
   accessToken: string;
   mode?: CheckoutProfileMode;
-  initial?: { firstName: string; lastName: string; email: string; address: StoredAddress | null };
+  initial?: { firstName: string; lastName: string; companyName: string; designation: string; email: string; address: StoredAddress | null };
   onReady: ( profile: CheckoutProfileValue ) => void;
 }
 
@@ -26,6 +28,8 @@ interface Props {
 const CheckoutProfile: React.FC<Props> = ( { accessToken, mode = 'create', initial, onReady } ) => {
   const [ firstName, setFirstName ] = useState( initial?.firstName || '' );
   const [ lastName, setLastName ] = useState( initial?.lastName || '' );
+  const [ companyName, setCompanyName ] = useState( initial?.companyName || '' );
+  const [ designation, setDesignation ] = useState( initial?.designation || '' );
   const [ email, setEmail ] = useState( initial?.email || '' );
   const [ address, setAddress ] = useState<AddressDraft>( () => initial?.address ? draftFromStored( initial.address ) : { ...EMPTY_ADDRESS_DRAFT } );
   const [ saving, setSaving ] = useState( false );
@@ -35,14 +39,20 @@ const CheckoutProfile: React.FC<Props> = ( { accessToken, mode = 'create', initi
   const showEmail = mode === 'create' || mode === 'email';
   const showAddress = mode === 'create' || mode === 'address';
   const namesValid = !!firstName.trim() && !!lastName.trim();
+  const businessProfileValid = !!companyName.trim() && !!designation.trim();
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test( email.trim() );
-  const canSave = ( !showNames || namesValid ) && ( !showEmail || emailValid ) && ( !showAddress || addressDraftValid( address ) );
+  const canSave = ( !showNames || ( namesValid && businessProfileValid ) ) && ( !showEmail || emailValid ) && ( !showAddress || addressDraftValid( address ) );
 
   const saveProfile = async () => {
     if ( !canSave || saving ) return;
     setSaving( true ); setMessage( '' ); setAddressField( '' );
     const body = {
-      ...( showNames ? { firstName: firstName.trim(), lastName: lastName.trim() } : {} ),
+      ...( showNames ? {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        companyName: companyName.trim(),
+        designation: designation.trim(),
+      } : {} ),
       ...( showEmail ? { email: email.trim() } : {} ),
       ...( showAddress ? { address: addressPayload( address ) } : {} ),
     };
@@ -62,6 +72,7 @@ const CheckoutProfile: React.FC<Props> = ( { accessToken, mode = 'create', initi
       onReady( {
         contactId: String( reply.contactId || '' ), name: String( reply.name || '' ),
         firstName: String( reply.firstName || '' ), lastName: String( reply.lastName || '' ),
+        companyName: String( reply.companyName || '' ), designation: String( reply.designation || '' ),
         email: String( reply.email || '' ), phone: String( reply.phone || '' ),
         emailVerified: reply.emailVerified === true,
         addressComplete: Boolean( reply.addressComplete ), address: reply.address && typeof reply.address === 'object' ? reply.address as StoredAddress : null,
@@ -77,7 +88,9 @@ const CheckoutProfile: React.FC<Props> = ( { accessToken, mode = 'create', initi
     </div><span className="phone-verified">✓ WhatsApp verified by sign-in</span></div>
     <div className="checkout-profile-grid">
       { showNames && <><label><span>First name</span><input value={ firstName } onChange={ e => setFirstName( e.target.value ) } autoComplete="given-name" maxLength={ 100 } placeholder="First name" /></label>
-        <label><span>Last name</span><input value={ lastName } onChange={ e => setLastName( e.target.value ) } autoComplete="family-name" maxLength={ 100 } placeholder="Last name" /></label></> }
+        <label><span>Last name</span><input value={ lastName } onChange={ e => setLastName( e.target.value ) } autoComplete="family-name" maxLength={ 100 } placeholder="Last name" /></label>
+        <label><span>Organisation</span><input value={ companyName } onChange={ e => setCompanyName( e.target.value ) } autoComplete="organization" maxLength={ 200 } placeholder="Organisation" /></label>
+        <label><span>Role / designation</span><input value={ designation } onChange={ e => setDesignation( e.target.value ) } autoComplete="organization-title" maxLength={ 200 } placeholder="Role or designation" /></label></> }
       { showEmail && <label><span>Email</span><input type="email" value={ email } onChange={ e => setEmail( e.target.value ) } autoComplete="email" placeholder="you@example.com" /></label> }
     </div>
     { showAddress && <AddressFields value={ address } onChange={ setAddress } disabled={ saving } invalidField={ addressField } /> }
