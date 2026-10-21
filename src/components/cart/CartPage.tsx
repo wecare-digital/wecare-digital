@@ -673,7 +673,7 @@ export default function Cart (): React.ReactElement {
       const reply = await loadProfileStatus( session.accessToken );
       if ( !live || !reply ) return;
       setProfile( profileFrom( reply ) );
-      setProfileStatus( deriveStatus( String( reply.status || '' ), Boolean( reply.addressComplete ), Boolean( reply.profileComplete ) ) );
+      setProfileStatus( deriveStatus( String( reply.status || '' ), Boolean( reply.addressComplete ), reply.profileComplete ) );
     } )();
     return () => { live = false; };
   }, [] );
@@ -1408,7 +1408,7 @@ export default function Cart (): React.ReactElement {
     {
       setProfileStatus( 'checking' );
       const reply = await loadProfileStatus( session.accessToken );
-      status = reply ? deriveStatus( String( reply.status || '' ), Boolean( reply.addressComplete ), Boolean( reply.profileComplete ) ) : 'unknown';
+      status = reply ? deriveStatus( String( reply.status || '' ), Boolean( reply.addressComplete ), reply.profileComplete ) : 'unknown';
       if ( reply )
       {
         setProfile( profileFrom( reply ) );
