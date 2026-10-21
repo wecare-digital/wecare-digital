@@ -202,7 +202,7 @@
         ],
         "category": "orders",
         "question": "How do I place an order?",
-        "answer": "Browse products at https://wecare.digital/shop/. Verify your WhatsApp number on the website to continue to checkout.",
+        "answer": "Browse products at https://wecare.digital/shop/. Sign in once with your WhatsApp number, review your cart, then choose Pay on WhatsApp or Pay here.",
         "shortAnswer": "Browse wecare.digital/shop/"
       },
       {
@@ -276,8 +276,8 @@
         ],
         "category": "general",
         "question": "Can I order via WhatsApp?",
-        "answer": "Use WhatsApp to verify your number at https://wecare.digital/account/sign-in/ and contact us for help. Browse products at https://wecare.digital/shop/; payment checkout is on the website.",
-        "shortAnswer": "WhatsApp verification; website checkout"
+        "answer": "Use the same WhatsApp number for Subscribe and website sign-in. Review your cart on the website, then choose Pay on WhatsApp or Pay here.",
+        "shortAnswer": "One sign-in; choose WhatsApp or website payment"
       },
       {
         "id": "invoice",
