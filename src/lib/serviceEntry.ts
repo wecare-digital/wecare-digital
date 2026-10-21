@@ -32,9 +32,13 @@ export const SIGN_IN_PATH = '/account/sign-in/';
 const PENDING_ACTION_KEY = 'wecare.pendingServiceAction';
 
 /** A service/product/contribute action to resume on the checkout after sign-in. */
+export type CheckoutChannel = 'website' | 'whatsapp';
+
 export interface PendingServiceAction {
   /** The service/product slug or line the checkout should preselect (e.g. 'submit-request'). */
   readonly kind: string;
+  /** Which checkout rail the customer explicitly chose before an optional sign-in round trip. */
+  readonly channel?: CheckoutChannel;
   /** Catalogue product id for the line, when the action maps to a fixed catalogue line. */
   readonly productId?: string;
   /** Catalogue variant id for the line. */
