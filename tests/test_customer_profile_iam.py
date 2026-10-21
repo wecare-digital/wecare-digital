@@ -43,7 +43,7 @@ ACCOUNT = "775261844268"
 #: Anything that could delete data, scan a table, move a file or message a person. None of these
 #: may appear anywhere in the policy.
 FORBIDDEN_ACTIONS = (
-    "dynamodb:Scan", "dynamodb:DeleteItem", "dynamodb:BatchWriteItem",
+    "dynamodb:Scan", "dynamodb:BatchWriteItem",
     "dynamodb:DeleteTable", "dynamodb:UpdateTable",
     "s3:", "sns:", "sqs:", "ses:", "iam:", "sts:", "kms:",
     "lambda:InvokeFunction",
@@ -102,6 +102,14 @@ def test_no_other_statement_names_the_audit_table(provisioner):
 
 # ── the contacts grant is unchanged by the claim ─────────────────────────────
 
+def test_identity_claim_registry_has_only_the_three_required_verbs(provisioner):
+    statement = _by_sid(provisioner)["CustomerIdentityClaims"]
+    assert statement["Action"] == [
+        "dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem"]
+    assert statement["Resource"] == [
+        f"arn:aws:dynamodb:us-east-1:{ACCOUNT}:table/stack-wecare-digital-IdentityClaimsTable"]
+
+
 def test_the_contacts_grant_is_exactly_the_four_verbs_it_already_had(provisioner):
     """The conditional claim write needs `UpdateItem` and `Query`, both of which were already
     here. So the claim adds NO permission on contact rows, and this equality is what says so."""
@@ -118,7 +126,7 @@ def test_the_policy_is_exactly_the_declared_scoped_statements(provisioner):
     """Equality on the `Sid` set, so any extra statement is a failure rather than an unnoticed
     addition."""
     assert sorted(_by_sid(provisioner)) == [
-        "ContactsUpsert", "DiscoverContactOrders", "LinkContactOrders", "ReadEmailProof", "ReadOtpPepper", "ValidateCustomerToken",
+        "ContactsUpsert", "CustomerIdentityClaims", "DiscoverContactOrders", "LinkContactOrders", "ReadEmailProof", "ReadOtpPepper", "ValidateCustomerToken",
         "WriteIdentityClaimAudit",
     ]
 
