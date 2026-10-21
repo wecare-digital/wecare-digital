@@ -28,9 +28,9 @@ const CheckoutAction: React.FC<CheckoutActionProps> = ( {
       onClick={ onClick }
       disabled={ disabled }
       aria-busy={ busy }
-      aria-label={ ariaLabel }
+      aria-label={ busy ? undefined : ariaLabel }
     >
-      { children }
+      { busy ? 'One moment…' : children }
     </button>
     <style jsx>{`
       .checkout-action{
@@ -39,19 +39,28 @@ const CheckoutAction: React.FC<CheckoutActionProps> = ( {
         background:var(--public-lime-tint);color:var(--public-brand-green);font-family:inherit;
         font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);
         line-height:1.4;letter-spacing:-.05px;cursor:pointer;white-space:normal;overflow-wrap:anywhere;
-        text-align:start;text-decoration:underline;text-decoration-thickness:1.5px;
-        text-underline-offset:3px;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
-        transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s;
+        text-align:start;text-decoration:none;
+        touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+        transition:background-color .18s,transform .18s,box-shadow .18s;
       }
       .checkout-action:active:not(:disabled){
-        background:var(--public-brand-lime);text-decoration-color:transparent;
+        background:var(--public-brand-lime);transform:translateY(0);
       }
       .checkout-action:focus-visible{
+        background:var(--public-brand-lime);
         outline:3px solid var(--public-brand-green);outline-offset:3px;
       }
       .checkout-action:disabled{opacity:.5;cursor:default}
+      .checkout-action[aria-busy='true']{cursor:progress}
+      @media(hover:hover) and (pointer:fine){
+        .checkout-action:hover:not(:disabled){
+          background:var(--public-brand-lime);
+          transform:translateY(-1px);box-shadow:0 5px 14px rgba(26,58,42,.1);
+        }
+      }
       @media(prefers-reduced-motion:reduce){
-        .checkout-action{transition:background-color .18s,text-decoration-color .18s}
+        .checkout-action{transition:none}
+        .checkout-action:hover:not(:disabled){transform:none;box-shadow:none}
       }
     `}</style>
   </>

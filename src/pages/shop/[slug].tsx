@@ -45,18 +45,25 @@ interface ShopProductPageProps {
 const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
   const router = useRouter();
   const [ variantId, setVariantId ] = useState<string>( '' );
+  const [ busy, setBusy ] = useState( false );
   const sku = PRODUCT_SKU_BY_SLUG[ product.slug ];
   const policy = sku ? productPolicyCopy( product.slug, product.name ) : null;
 
   const onCheckout = useCallback( async (): Promise<void> => {
-    if ( product.id === CONTRIBUTION_PRODUCT_ID ) {
-      const choice = CONTRIBUTION_CHOICES[ 0 ];
-      if ( choice ) setContribution( choice.variantId );
-    } else {
-      addItem( product, 1, variantId || undefined );
+    if ( busy ) return;
+    setBusy( true );
+    try {
+      if ( product.id === CONTRIBUTION_PRODUCT_ID ) {
+        const choice = CONTRIBUTION_CHOICES[ 0 ];
+        if ( choice ) setContribution( choice.variantId );
+      } else {
+        addItem( product, 1, variantId || undefined );
+      }
+      await router.push( '/cart/' );
+    } finally {
+      setBusy( false );
     }
-    await router.push( '/cart/' );
-  }, [ product, variantId, router ] );
+  }, [ busy, product, variantId, router ] );
 
   return (
     <>
@@ -126,7 +133,8 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
               />
             ) }
             <CheckoutAction
-              disabled={ !!product.variants && product.variants.length > 1 && !variantId }
+              disabled={ busy || ( !!product.variants && product.variants.length > 1 && !variantId ) }
+              busy={ busy }
               onClick={ () => { void onCheckout(); } }
               ariaLabel={ `Checkout ${product.name}` }
             >
