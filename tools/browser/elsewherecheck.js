@@ -132,30 +132,8 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
       if ( cardCursor === 'pointer' ) fail( `${viewport.name}: non-clickable result card advertises pointer affordance` );
 
       const actions = firstCard.locator( '.eta-action' );
-      if ( await actions.count() !== 2 ) fail( `${viewport.name}: first result does not have two checkout channels` );
-      if ( !( await actions.nth( 0 ).isDisabled() ) || !( await actions.nth( 1 ).isDisabled() ) ) {
-        fail( `${viewport.name}: demo checkout actions should stay disabled without live provider confirmation` );
-      }
-
-      const actionBoxes = await actions.evaluateAll( nodes => nodes.map( node => {
-        const rect = node.getBoundingClientRect();
-        const style = getComputedStyle( node );
-        return {
-          top: rect.top,
-          width: rect.width,
-          height: rect.height,
-          fontSize: style.fontSize,
-          scrollWidth: node.scrollWidth,
-          clientWidth: node.clientWidth,
-        };
-      } ) );
-      if ( Math.abs( actionBoxes[ 0 ].top - actionBoxes[ 1 ].top ) > 1 ) {
-        fail( `${viewport.name}: checkout buttons are not inline` );
-      }
-      for ( const action of actionBoxes ) {
-        if ( action.height < 44 ) fail( `${viewport.name}: checkout button below 44px` );
-        if ( px( action.fontSize ) < 16 ) fail( `${viewport.name}: checkout font too small (${action.fontSize})` );
-        if ( action.scrollWidth > action.clientWidth + 1 ) fail( `${viewport.name}: checkout label overflows horizontally` );
+      if ( await actions.count() !== 0 ) {
+        fail( `${viewport.name}: preview card exposes checkout before live provider confirmation` );
       }
 
       const after = await page.evaluate( () => ( {
@@ -194,8 +172,8 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
     // Provider contract: a fresh complete live offer unlocks checkout; stale or unsafe
     // variants do not. The injected bridge is a browser fixture only - no external network.
     const liveContext = await browser.newContext( {
-      viewport: { width: 375, height: 812 },
-      hasTouch: true,
+      viewport: { width: 320, height: 700 },
+      hasTouch: false,
     } );
     await liveContext.addInitScript( () => {
       window.ElsewhereTravelBridge = {
@@ -230,6 +208,55 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
     if ( await liveActions.count() !== 2 ) fail( 'provider contract: missing checkout channels' );
     if ( await liveActions.nth( 0 ).isDisabled() || await liveActions.nth( 1 ).isDisabled() ) {
       fail( 'provider contract: fresh complete offer did not unlock checkout' );
+    }
+    const liveLabels = await liveActions.allTextContents();
+    if ( liveLabels.join( '|' ) !== 'Website|WhatsApp' ) {
+      fail( `provider contract: checkout labels are not compact (${liveLabels.join( '|' )})` );
+    }
+    const liveCardBox = await livePage.locator( '.eta-result' ).boundingBox();
+    const liveActionBoxes = await liveActions.evaluateAll( nodes => nodes.map( node => {
+      const rect = node.getBoundingClientRect();
+      const style = getComputedStyle( node );
+      return {
+        top: rect.top,
+        bottom: rect.bottom,
+        width: rect.width,
+        height: rect.height,
+        fontSize: style.fontSize,
+        textDecorationLine: style.textDecorationLine,
+        backgroundColor: style.backgroundColor,
+        transform: style.transform,
+        scrollWidth: node.scrollWidth,
+        clientWidth: node.clientWidth,
+      };
+    } ) );
+    if ( liveActionBoxes[ 1 ].top <= liveActionBoxes[ 0 ].bottom ) {
+      fail( 'provider contract: checkout controls should stack, not sit side by side' );
+    }
+    for ( const action of liveActionBoxes ) {
+      if ( action.height < 44 ) fail( 'provider contract: checkout button below 44px' );
+      if ( px( action.fontSize ) < 16 ) fail( `provider contract: checkout font too small (${action.fontSize})` );
+      if ( !action.textDecorationLine.includes( 'underline' ) ) fail( 'provider contract: checkout control lost Policy-details underline' );
+      if ( action.scrollWidth > action.clientWidth + 1 ) fail( 'provider contract: checkout label overflows horizontally' );
+      if ( liveCardBox && action.width >= liveCardBox.width * 0.75 ) {
+        fail( 'provider contract: checkout control is no longer compact/content-width' );
+      }
+    }
+    const beforeHover = await liveActions.nth( 0 ).evaluate( node => {
+      const style = getComputedStyle( node );
+      return { backgroundColor: style.backgroundColor, transform: style.transform, boxShadow: style.boxShadow };
+    } );
+    await liveActions.nth( 0 ).hover();
+    await livePage.waitForTimeout( 220 );
+    const afterHover = await liveActions.nth( 0 ).evaluate( node => {
+      const style = getComputedStyle( node );
+      return { backgroundColor: style.backgroundColor, transform: style.transform, boxShadow: style.boxShadow };
+    } );
+    if ( beforeHover.backgroundColor === afterHover.backgroundColor ) {
+      fail( 'provider contract: checkout hover background does not change' );
+    }
+    if ( afterHover.transform === 'none' && afterHover.boxShadow === 'none' ) {
+      fail( 'provider contract: checkout hover has no Policy-details feedback' );
     }
     if ( await livePage.locator( '.eta-provider' ).textContent() !== 'Fixture Provider' ) {
       fail( 'provider contract: external provider label missing' );
@@ -268,7 +295,7 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
     await stalePage.getByRole( 'button', { name: 'Send' } ).tap();
     await stalePage.locator( '.eta-result' ).waitFor( { state: 'visible', timeout: 5000 } );
     const staleActions = stalePage.locator( '.eta-action' );
-    if ( !( await staleActions.nth( 0 ).isDisabled() ) || !( await staleActions.nth( 1 ).isDisabled() ) ) {
+    if ( await staleActions.count() !== 0 ) {
       fail( 'provider contract: expired offer still exposed checkout' );
     }
     await staleContext.close();
