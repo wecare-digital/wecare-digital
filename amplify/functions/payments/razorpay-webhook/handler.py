@@ -664,7 +664,8 @@ def _create_order_for_captured_payment(payment: Dict, reference_id: str,
             #     Graph call at all and the external-call count does not grow with redeliveries.
             #   * inside `_load_attempt`, so `verify_payment` and `load_attempt` both see the
             #     same bound row.
-            if (row.get('checkoutMode') == wa_payment_request.WA_NATIVE_CHECKOUT_MODE
+            if (row.get('checkoutMode') in (
+                    wa_payment_request.WA_NATIVE_CHECKOUT_MODE, 'AWS_NATIVE')
                     and not row.get('providerOrderId')
                     and not row.get('providerPaymentId')):
                 meta_payment_binding.bind_attempt(
@@ -732,7 +733,7 @@ def _create_order_for_captured_payment(payment: Dict, reference_id: str,
         # So: a real readback writes evidence; an absent readback is a clean idempotent INFO
         # no-op, never an evidence conflict.
         native = (attribution.get('checkoutMode')
-                  == wa_payment_request.WA_NATIVE_CHECKOUT_MODE)
+                  in (wa_payment_request.WA_NATIVE_CHECKOUT_MODE, 'AWS_NATIVE'))
         if native and outcome.has_order:
             if (outcome.outcome == order_creation.ORDER_CREATED
                     and outcome.verified_captured_paise > 0
@@ -783,6 +784,31 @@ def _create_order_for_captured_payment(payment: Dict, reference_id: str,
                     'outcome': outcome.outcome,
                     'referenceId': reference_id,
                     'requestId': request_id}))
+
+        # AWS-native WhatsApp cart/service attempts carry the same frozen purchase snapshot
+        # website checkout finalizes. Meta creates the provider order for this rail, so once the
+        # webhook has authenticated the capture and reconciliation has assigned an order identity,
+        # finalize that exact attempt into OrderTable. Idempotent redeliveries are handled by
+        # finalization.accept_paid's existing conditional writes.
+        if (attribution.get('checkoutMode') == 'AWS_NATIVE'
+                and outcome.outcome == order_creation.ORDER_CREATED
+                and outcome.has_order
+                and outcome.verified_captured_paise > 0
+                and outcome.provider_payment_id):
+            from lambda_utils.ecommerce import finalization
+            attempts = dynamodb.Table(PAYMENT_ATTEMPTS_TABLE)
+            attempt = attempts.get_item(
+                Key={'paymentAttemptId': attribution.get('paymentAttemptId', '')},
+                ConsistentRead=True).get('Item') or {}
+            if attempt:
+                finalization.accept_paid(
+                    attempts=attempts,
+                    orders=dynamodb.Table(shared_tables.orders_table_name()),
+                    keys=table,
+                    attempt=attempt,
+                    outcome={**outcome.as_dict(),
+                             'providerPaymentId': outcome.provider_payment_id},
+                    verified_captured_paise=outcome.verified_captured_paise)
 
         if outcome.has_order:
             # Phase O-1: a hint only (ids, fire-and-forget, never raises); the receiver re-reads
