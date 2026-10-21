@@ -55,6 +55,14 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+      - name: Use npm version pinned by packageManager
+        shell: bash
+        run: |
+          PINNED_NPM="$(node -e "const p=require('./package.json').packageManager;process.stdout.write(p.slice(p.lastIndexOf('@')+1))")"
+          npm install --global "npm@${PINNED_NPM}"
+          echo "npm $(npm --version)"
+          test "$(npm --version)" = "$PINNED_NPM"
+
       # Java for Gradle. Temurin 21 is the current LTS AGP supports; keep in step with the
       # android/ Gradle/AGP version if that is bumped.
       - uses: actions/setup-java@v5
@@ -120,6 +128,14 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+
+      - name: Use npm version pinned by packageManager
+        shell: bash
+        run: |
+          PINNED_NPM="$(node -e "const p=require('./package.json').packageManager;process.stdout.write(p.slice(p.lastIndexOf('@')+1))")"
+          npm install --global "npm@${PINNED_NPM}"
+          echo "npm $(npm --version)"
+          test "$(npm --version)" = "$PINNED_NPM"
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
       - name: Export public web app and sync both public shells
@@ -142,6 +158,14 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+
+      - name: Use npm version pinned by packageManager
+        shell: bash
+        run: |
+          PINNED_NPM="$(node -e "const p=require('./package.json').packageManager;process.stdout.write(p.slice(p.lastIndexOf('@')+1))")"
+          npm install --global "npm@${PINNED_NPM}"
+          echo "npm $(npm --version)"
+          test "$(npm --version)" = "$PINNED_NPM"
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
       # Linux cannot xcodebuild, but `cap sync ios` validates the web export + the iOS project
