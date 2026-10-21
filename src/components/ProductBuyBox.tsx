@@ -6,6 +6,7 @@ import type { ShopProduct } from '../content/shop';
 import { getSession, restoreSession } from '../lib/customerAuth';
 import { CHECKOUT_PATH, SIGN_IN_PATH } from '../lib/serviceEntry';
 import { productCheckoutLine } from '../config/productCheckout';
+import CheckoutAction from './CheckoutAction';
 
 /**
  * THE PRODUCT "CONTINUE TO CHECKOUT" ACTION, mounted under the WhatsApp CTA on configured public
@@ -93,19 +94,17 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( {
   // No fresh catalog line yet: keep the public product page, but offer no stale checkout action.
   if ( !line ) return null;
 
-  const label = 'Continue to checkout →';
+  const label = 'Checkout';
 
   return (
     <div className="pbb">
-      <button
-        type="button"
-        className="pbb-cta"
+      <CheckoutAction
         onClick={ () => { void onContinue(); } }
         disabled={ busy }
-        aria-busy={ busy }
+        busy={ busy }
       >
         { busy ? 'One moment…' : label }
-      </button>
+      </CheckoutAction>
 
       {/* Configured price and one supporting line are one canonical rail. */}
       <p className="pbb-buy">
@@ -116,21 +115,9 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( {
       { error && <p className="pbb-error" role="alert">{ error }</p> }
 
       <style jsx>{`
-        /* Secondary pill under the WhatsApp CTA — identical treatment to ServiceBuyBox so the two
-           families match: white fill, 2px #1a3a2a edge and type, lime #d1f470 hover with the house
-           lift, reduced-motion aware. */
+        /* The action itself is CheckoutAction: the same compact treatment used by Elsewhere
+           Activity results. This component owns only the price/supporting copy below it. */
         .pbb{display:flex;flex-direction:column;align-items:flex-start;gap:0;margin-top:12px}
-        .pbb-cta{
-          display:inline-flex;align-items:center;justify-content:center;min-height:var(--public-cta-height);
-          padding:0 26px;border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);
-          background:#fff;color:var(--public-brand-green);font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);cursor:pointer;
-          transition:background-color .2s,transform .2s,box-shadow .2s;
-        }
-        .pbb-cta:hover:not(:disabled){
-          background:var(--public-brand-lime);transform:translateY(-2px);box-shadow:var(--public-lift-shadow);
-        }
-        .pbb-cta:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
-        .pbb-cta:disabled{opacity:.5;cursor:default}
 
         .pbb-buy{display:flex;flex-wrap:wrap;align-items:baseline;gap:16px;margin:22px 0 0}
         .pbb-price{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-brand-green);font-variant-numeric:tabular-nums}
@@ -143,10 +130,6 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( {
 
         .pbb-error{margin:12px 0 0;font-size:14px;color:#b91c1c}
 
-        @media(prefers-reduced-motion:reduce){
-          .pbb-cta{transition:background-color .2s}
-          .pbb-cta:hover:not(:disabled){transform:none;box-shadow:none}
-        }
       `}</style>
     </div>
   );
