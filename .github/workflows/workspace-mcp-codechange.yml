@@ -52,6 +52,14 @@ jobs:
         run: python scripts/workspace_mcp_patch_gate.py --patch supplied.patch --base "$BASE_SHA" --key "$PATCH_KEY" --job "$JOB_ID"
       - uses: actions/setup-node@v7
         with: {node-version-file: .nvmrc, cache: npm}
+
+      - name: Use npm version pinned by packageManager
+        shell: bash
+        run: |
+          PINNED_NPM="$(node -e "const p=require('./package.json').packageManager;process.stdout.write(p.slice(p.lastIndexOf('@')+1))")"
+          npm install --global "npm@${PINNED_NPM}"
+          echo "npm $(npm --version)"
+          test "$(npm --version)" = "$PINNED_NPM"
       - run: npm ci --no-audit --no-fund
       - run: npx tsc --noEmit
       - run: npm test -- --run
