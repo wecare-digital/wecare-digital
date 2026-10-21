@@ -43,9 +43,7 @@ describe( 'canonical public commerce pattern', () => {
       [ 'src/components/ServiceBuyBox.tsx', 'sbb' ],
     ] as const ) {
       const source = read( file );
-      const cta = prefix === 'pbb'
-        ? source.indexOf( '<CheckoutAction' )
-        : source.indexOf( `className="${ prefix }-cta"` );
+      const cta = source.indexOf( '<CheckoutAction' );
       const price = source.indexOf( `className="${ prefix }-buy"` );
       const note = source.indexOf( `className="${ prefix }-offer-note"` );
       expect( cta, file ).toBeGreaterThan( -1 );
@@ -72,6 +70,9 @@ describe( 'canonical public commerce pattern', () => {
     expect( commerce ).toBeGreaterThan( offer );
     expect( source ).not.toContain( 'className="gos-price"' );
     expect( source ).not.toContain( 'className="gos-offer-note"' );
+    expect( source ).not.toContain( 'Checkout on WhatsApp' );
+    expect( source ).not.toContain( 'className="gos-wa-cta"' );
+    expect( source ).not.toContain( 'className="api-steps-ctas"' );
     expect( source.slice( commerce ) ).toContain( '<PolicyDetails' );
   } );
 
@@ -107,7 +108,7 @@ describe( 'canonical public commerce pattern', () => {
 
   it( 'keeps dynamic shop pages in action -> price -> note -> SKU/policy order', () => {
     const source = read( 'src/pages/shop/[slug].tsx' );
-    const action = source.indexOf( 'className="shopd-cta shopd-cta-btn"' );
+    const action = source.indexOf( '<CheckoutAction' );
     const price = source.indexOf( '<p className="shopd-price"' );
     const note = source.indexOf( '<p className="shopd-offer-note">' );
     const commerce = source.indexOf( '<div className="shopd-policy-wrap">' );
