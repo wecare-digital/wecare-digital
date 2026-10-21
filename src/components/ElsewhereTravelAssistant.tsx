@@ -155,6 +155,19 @@ function quoteIsFresh( value?: string ): boolean {
   return Number.isFinite( timestamp ) && timestamp > Date.now();
 }
 
+function hasRupeePrice( value: string ): boolean {
+  return /₹|\bINR\b|\bRs\.?\b/i.test( value );
+}
+
+function rupeeAmount( value: string ): string {
+  return value
+    .replace( /₹/g, '' )
+    .replace( /\bINR\b\s*/gi, '' )
+    .replace( /\bRs\.?\b\s*/gi, '' )
+    .trim();
+}
+
+
 function normaliseResponse( payload: Partial<TravelResponse> ): TravelResponse {
   const rows = Array.isArray( payload.results ) ? payload.results : [];
   const results = rows.slice( 0, 8 ).map( ( result, index ) => ( {
@@ -417,17 +430,22 @@ const ElsewhereTravelAssistant: React.FC = () => {
                       </div>
                     </div>
                     <div className="eta-result-side">
-                      <div className="eta-price">{ result.price }</div>
+                      <div className="eta-price" aria-label={ result.price }>
+                        { hasRupeePrice( result.price ) && (
+                          <span className="eta-price-icon eta-material" aria-hidden="true">currency_rupee</span>
+                        ) }
+                        <span>{ hasRupeePrice( result.price ) ? rupeeAmount( result.price ) : result.price }</span>
+                      </div>
                       { ( checkoutAvailable( 'website', result ) || checkoutAvailable( 'whatsapp', result ) ) && (
                         <div className="eta-actions" aria-label="Checkout options">
                           { checkoutAvailable( 'website', result ) && (
                             <button
                               type="button"
                               className="eta-action"
-                              aria-label={ `Checkout ${result.title} on website for ${result.price}` }
-                              title={ `Checkout on website · ${result.price}` }
+                              aria-label={ `Checkout ${result.title} here for ${result.price}` }
+                              title={ `Checkout here · ${result.price}` }
                               onClick={ () => continueWith( 'website', result ) }
-                            >Website</button>
+                            >Checkout here</button>
                           ) }
                           { checkoutAvailable( 'whatsapp', result ) && (
                             <button
@@ -436,7 +454,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
                               aria-label={ `Checkout ${result.title} on WhatsApp for ${result.price}` }
                               title={ `Checkout on WhatsApp · ${result.price}` }
                               onClick={ () => continueWith( 'whatsapp', result ) }
-                            >WhatsApp</button>
+                            >Checkout on WhatsApp</button>
                           ) }
                         </div>
                       ) }
@@ -588,7 +606,14 @@ const ElsewhereTravelAssistant: React.FC = () => {
         .eta-meta span{display:inline;padding:0;background:none;color:inherit;font:inherit}
         .eta-meta span:not(:last-child)::after{content:' · ';white-space:pre;color:#9aa196}
         .eta-result-side{display:flex;flex-direction:column;align-items:flex-end;gap:9px;text-align:end}
-        .eta-price{color:var(--public-heading);font-size:17px;font-weight:700;line-height:1.25;letter-spacing:-.2px;white-space:nowrap}
+        .eta-price{
+          display:inline-flex;align-items:center;justify-content:flex-end;gap:1px;color:var(--public-heading);
+          font-size:17px;font-weight:700;line-height:1.25;letter-spacing:-.2px;white-space:nowrap;
+        }
+        .eta-price-icon{
+          width:18px;height:18px;display:inline-grid;place-items:center;font-size:18px;font-weight:600;
+          color:var(--public-brand-green);
+        }
         .eta-actions{
           display:flex;flex-direction:column;align-items:flex-end;gap:8px;width:auto;max-width:100%;margin-inline-start:auto;
         }
