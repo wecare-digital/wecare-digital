@@ -25,7 +25,6 @@ def _preset_seasonal_promotion() -> Dict[str, Any]:
             {'type': 'BODY',
              'text': 'Hi {{1}}, enjoy {{2}} off your next order. Use code {{3}} before it ends!',
              'example': {'body_text': [['Asha', '20%', 'SUMMER20']]}},
-            {'type': 'FOOTER', 'text': 'Reply STOP to opt out'},
             {'type': 'BUTTONS', 'buttons': [
                 {'type': 'URL', 'text': 'Shop now', 'url': 'https://wecare.digital/shop'},
                 {'type': 'QUICK_REPLY', 'text': 'Not interested'},
@@ -54,7 +53,6 @@ def _preset_limited_time_offer() -> Dict[str, Any]:
              'example': {'body_text': [['Asha', 'studio sessions']]}},
             {'type': LTO_COMPONENT_TYPE,
              'limited_time_offer': {'text': 'Expiring offer!', 'has_expiration': True}},
-            {'type': 'FOOTER', 'text': 'Reply STOP to opt out'},
             {'type': 'BUTTONS', 'buttons': [
                 {'type': 'COPY_CODE', 'example': 'SUMMER20'},
                 {'type': 'URL', 'text': 'Shop now', 'url': 'https://wecare.digital/shop'},
