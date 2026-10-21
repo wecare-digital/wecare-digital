@@ -265,6 +265,8 @@ def _profile(identity: customer_auth.CustomerIdentity) -> Optional[Dict[str, Any
                      or f"{first_name} {last_name}".strip()),
             "firstName": first_name,
             "lastName": last_name,
+            "companyName": str(owned.get("companyName") or ""),
+            "designation": str(owned.get("designation") or ""),
             "email": str(owned.get("email") or ""),
             "emailVerified": bool(owned.get("emailVerifiedAt")),
             "phone": phone,
