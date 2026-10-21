@@ -375,10 +375,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
         <div className="eta-response-view" aria-label="Travel responses" role="log" aria-live="polite" aria-relevant="additions text">
           <div className="eta-conversation">
           { status === 'idle' && (
-            <>
-              <p className="eta-line"><strong>Guide</strong> Tell me where you’re going, when, who is travelling and what matters most.</p>
-              <p className="eta-line"><strong>Plan</strong> { config.understanding }</p>
-            </>
+            <p className="eta-line"><strong>Guide</strong> Tell me where you’re going, when, who is travelling and what matters most.</p>
           ) }
 
           { status !== 'idle' && userSummary && (
@@ -513,18 +510,6 @@ const ElsewhereTravelAssistant: React.FC = () => {
             );
           } ) }
         </div>
-
-        { preferences.length > 0 && (
-          <div className="eta-preferences">
-            <div className="eta-preference-copy">
-              <span className="eta-preference-label">Your preferences</span>
-              <div className="eta-preference-values">
-                { preferences.map( item => <span key={ item }>{ item }</span> ) }
-              </div>
-            </div>
-            <button className="eta-preference-clear" type="button" aria-label="Clear all preferences" title="Clear all preferences" onClick={ () => setPreferences( [] ) }>×</button>
-          </div>
-        ) }
 
         { continuationNote && <p className="eta-continuation" role="status">{ continuationNote }</p> }
       </div>
@@ -668,20 +653,11 @@ const ElsewhereTravelAssistant: React.FC = () => {
         }
         .eta-chip:active{border-color:var(--public-brand-green);background:var(--public-lime-tint);box-shadow:inset 0 0 0 1px rgba(26,58,42,.06)}
         .eta-chip.active{border-color:#aeca47;background:var(--public-lime-tint);color:var(--public-brand-green);box-shadow:none}
-        .eta-preferences{
-          display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:12px;padding:14px 16px;
-          border:1px solid var(--public-hairline);border-radius:14px;background:var(--public-bg);
-        }
-        .eta-preference-copy{min-width:0}.eta-preference-label{display:block;margin-bottom:7px;color:var(--public-muted);font-size:11px;font-weight:700;line-height:1.2;letter-spacing:.05em;text-transform:uppercase}
-        .eta-preference-values{display:flex;flex-wrap:wrap;gap:6px}
-        .eta-preference-values span{display:inline-flex;align-items:center;min-height:28px;padding:5px 9px;border-radius:999px;background:var(--public-lime-tint);color:var(--public-brand-green);font-size:14px;font-weight:600;line-height:1.3}
-        .eta-preference-clear{flex:0 0 auto;width:44px;height:44px;border:0;border-radius:999px;background:#f4f6f0;color:var(--public-heading);font-size:20px;line-height:1;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:background .14s ease}
-        .eta-preference-clear:active{background:var(--public-lime-tint)}
         .eta-loading{display:flex;align-items:center;gap:10px;margin-top:6px;color:var(--public-muted);font-size:13px;font-weight:600;line-height:1.4}
         .eta-loading-line{position:relative;width:34px;height:3px;flex:0 0 34px;overflow:hidden;border-radius:999px;background:var(--public-lime-tint)}
         .eta-loading-line::after{content:'';position:absolute;inset:0 auto 0 0;width:45%;border-radius:inherit;background:var(--public-brand-lime);animation:eta-loading 1.15s ease-in-out infinite}
         @keyframes eta-loading{0%{transform:translateX(-120%)}50%{transform:translateX(70%)}100%{transform:translateX(240%)}}
-        .eta-tab:focus-visible,.eta-clear:focus-visible,.eta-send:focus-visible,.eta-chip:focus-visible,.eta-preference-clear:focus-visible,.eta-action:focus-visible{
+        .eta-tab:focus-visible,.eta-clear:focus-visible,.eta-send:focus-visible,.eta-chip:focus-visible,.eta-action:focus-visible{
           outline:3px solid var(--public-brand-green);outline-offset:3px;
         }
         .eta-action:focus-visible{
@@ -692,13 +668,13 @@ const ElsewhereTravelAssistant: React.FC = () => {
           .eta-chip:hover{border-color:#bfd36f;background:var(--public-lime-tint)}
           .eta-action:not(:disabled):hover{background:var(--public-lime-tint);box-shadow:var(--public-lift-shadow)}
           .eta-action.primary:not(:disabled):hover{background:var(--public-brand-lime)}
-          .eta-clear:hover,.eta-preference-clear:hover{background:var(--public-lime-tint);color:var(--public-brand-green)}
+          .eta-clear:hover{background:var(--public-lime-tint);color:var(--public-brand-green)}
           .eta-send:not(:disabled):hover{background:var(--lime-hover)}
         }
         @media(hover:none) and (pointer:coarse){
           .eta-composer:focus-within{background:rgba(209,244,112,.055);box-shadow:0 5px 14px rgba(26,58,42,.09)}
           .eta-mic-slot :global(.voice-search-mic:active){background:var(--public-lime-tint)}
-          .eta-action:not(:disabled):active,.eta-chip:active,.eta-send:not(:disabled):active,.eta-clear:active,.eta-preference-clear:active{
+          .eta-action:not(:disabled):active,.eta-chip:active,.eta-send:not(:disabled):active,.eta-clear:active{
             filter:saturate(1.04);
           }
         }
@@ -717,7 +693,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
         }
         @media(max-width:380px){.eta-tab{font-size:13px;padding-inline:10px}.eta-keyhint{display:none}.eta-action{padding-inline:7px}}
         @media(prefers-reduced-motion:reduce){
-          .eta-tab,.eta-tab::before,.eta-result,.eta-chip,.eta-action,.eta-clear,.eta-send,.eta-preference-clear,.eta-composer{transition:none}
+          .eta-tab,.eta-tab::before,.eta-result,.eta-chip,.eta-action,.eta-clear,.eta-send,.eta-composer{transition:none}
           .eta-action:hover{box-shadow:none}
           .eta-loading-line::after{width:100%;transform:none;animation:none}
         }
