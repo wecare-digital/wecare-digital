@@ -211,23 +211,19 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
     await livePage.getByRole( 'button', { name: 'Send' } ).click();
     await livePage.locator( '.eta-result' ).waitFor( { state: 'visible', timeout: 5000 } );
     const liveActions = livePage.locator( '.eta-action' );
-    if ( await liveActions.count() !== 2 ) fail( 'provider contract: missing checkout channels' );
-    if ( await liveActions.nth( 0 ).isDisabled() || await liveActions.nth( 1 ).isDisabled() ) {
+    if ( await liveActions.count() !== 1 ) fail( 'provider contract: expected one checkout action' );
+    if ( await liveActions.nth( 0 ).isDisabled() ) {
       fail( 'provider contract: fresh complete offer did not unlock checkout' );
     }
     const liveLabels = await liveActions.allTextContents();
-    if ( liveLabels.join( '|' ) !== 'Here|WhatsApp' ) {
-      fail( `provider contract: checkout channel labels are wrong (${liveLabels.join( '|' )})` );
+    if ( liveLabels.join( '|' ) !== 'Checkout' ) {
+      fail( `provider contract: checkout label is wrong (${liveLabels.join( '|' )})` );
     }
-    if ( ( await livePage.locator( '.eta-checkout-label' ).textContent() ) !== 'Checkout' ) {
-      fail( 'provider contract: checkout heading should appear once above channel options' );
+    if ( await livePage.locator( '.eta-checkout-label' ).count() !== 0 ) {
+      fail( 'provider contract: route-level payment channel chooser should be gone' );
     }
-    const liveIcons = livePage.locator( '.eta-action-icon' );
-    if ( await liveIcons.count() !== 1 ) {
-      fail( 'provider contract: only WhatsApp should retain a submenu-style icon' );
-    }
-    if ( await livePage.locator( '.eta-action-icon-whatsapp' ).count() !== 1 ) {
-      fail( 'provider contract: WhatsApp channel is missing its icon' );
+    if ( await livePage.locator( '.eta-action-icon' ).count() !== 0 ) {
+      fail( 'provider contract: single checkout action should not carry a channel icon' );
     }
     const liveCardBox = await livePage.locator( '.eta-result' ).boundingBox();
     const liveActionBoxes = await liveActions.evaluateAll( nodes => nodes.map( node => {
@@ -246,9 +242,6 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
         clientWidth: node.clientWidth,
       };
     } ) );
-    if ( liveActionBoxes[ 1 ].top <= liveActionBoxes[ 0 ].bottom ) {
-      fail( 'provider contract: checkout controls should stack, not sit side by side' );
-    }
     for ( const action of liveActionBoxes ) {
       if ( action.height < 44 ) fail( 'provider contract: checkout button below 44px' );
       if ( px( action.fontSize ) < 16 ) fail( `provider contract: checkout font too small (${action.fontSize})` );
