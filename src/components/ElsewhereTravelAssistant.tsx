@@ -437,6 +437,13 @@ const ElsewhereTravelAssistant: React.FC = () => {
                         ) }
                         <span>{ hasRupeePrice( result.price ) ? rupeeAmount( result.price ) : result.price }</span>
                       </div>
+                      { responseSource === 'demo' && (
+                        <a
+                          className="eta-action eta-demo-checkout"
+                          href="/cart/"
+                          aria-label={ `Checkout ${result.title}` }
+                        >Checkout</a>
+                      ) }
                       { ( checkoutAvailable( 'website', result ) || checkoutAvailable( 'whatsapp', result ) ) && (
                         <div className="eta-checkout">
                           <span className="eta-checkout-label">Checkout</span>
@@ -449,11 +456,6 @@ const ElsewhereTravelAssistant: React.FC = () => {
                                 title={ `Checkout here · ${result.price}` }
                                 onClick={ () => continueWith( 'website', result ) }
                               >
-                                <svg className="eta-action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                  <rect x="3" y="5" width="18" height="14" rx="2" />
-                                  <path d="M3 9h18" />
-                                  <path d="M7 15h4" />
-                                </svg>
                                 <span>Here</span>
                               </button>
                             ) }
