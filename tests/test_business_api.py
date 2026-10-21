@@ -1020,3 +1020,65 @@ class TestFlattenPaymentConfigurations:
 
     def test_empty_data_stays_empty(self):
         assert self._handler()({'data': []}) == {'data': []}
+
+
+class TestCanonicalPublishedFlowSend:
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        with patch.dict(os.environ, {'AWS_REGION': 'us-east-1'}):
+            with patch('boto3.resource'), patch('boto3.client'):
+                import handler
+                self.h = handler
+
+    def test_subscribe_flow_key_resolves_published_id_and_phone_token(self):
+        with patch.object(self.h, '_send_message', return_value={'statusCode': 200}) as send, \
+             patch('flows.subscribe_messages.copy_for', return_value={
+                 'body': 'Subscribe body', 'flowCta': 'Subscribe', 'confirmation': 'Saved'
+             }), \
+             patch('flows.subscribe_messages.is_returning', return_value=False):
+            response = self.h._send_flow_msg({
+                'to': '919330994400',
+                'flowKey': 'subscribe',
+            })
+        assert response['statusCode'] == 200
+        interactive = send.call_args.args[1]['interactive']
+        params = interactive['action']['parameters']
+        assert params['flow_id'] == '1386523953464380'
+        assert params['flow_token'].startswith('subscribe-')
+        assert params['flow_token'].endswith('-waba-1-ph-919330994400')
+        assert 'mode' not in params
+
+    def test_review_flow_id_resolves_to_leave_review_routing_prefix(self):
+        with patch.object(self.h, '_send_message', return_value={'statusCode': 200}) as send:
+            response = self.h._send_flow_msg({
+                'to': '919330994400',
+                'flowId': '940049388908144',
+                'flowCta': 'Leave Review',
+                'bodyText': 'Share your experience.',
+            })
+        assert response['statusCode'] == 200
+        params = send.call_args.args[1]['interactive']['action']['parameters']
+        assert params['flow_id'] == '940049388908144'
+        assert params['flow_token'].startswith('leave_review-')
+        assert params['flow_token'].endswith('-waba-1-ph-919330994400')
+
+    def test_unregistered_published_flow_is_refused(self):
+        response = self.h._send_flow_msg({
+            'to': '919330994400',
+            'flowId': '999999999999999',
+        })
+        assert response['statusCode'] == 400
+        body = json.loads(response['body'])
+        assert body['error'] == 'flow is not registered as published'
+
+    def test_explicit_draft_flow_remains_available_for_workspace_testing(self):
+        with patch.object(self.h, '_send_message', return_value={'statusCode': 200}) as send:
+            response = self.h._send_flow_msg({
+                'to': '919330994400',
+                'flowId': '999999999999999',
+                'mode': 'draft',
+            })
+        assert response['statusCode'] == 200
+        params = send.call_args.args[1]['interactive']['action']['parameters']
+        assert params['flow_id'] == '999999999999999'
+        assert params['mode'] == 'draft'
