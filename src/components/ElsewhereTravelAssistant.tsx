@@ -14,6 +14,12 @@ interface TravelResult {
   price: string;
   websiteUrl?: string;
   whatsappUrl?: string;
+  providerRef?: string;
+  offerId?: string;
+  quoteExpiresAt?: string;
+  cancellationSummary?: string;
+  availability?: string;
+  checkoutReady?: boolean;
 }
 
 interface TravelResponse {
@@ -133,6 +139,22 @@ function demoResponse( mode: TravelMode ): TravelResponse {
   };
 }
 
+function safeHttpsUrl( value: unknown ): string {
+  if ( typeof value !== 'string' || !value.trim() ) return '';
+  try {
+    const parsed = new URL( value );
+    return parsed.protocol === 'https:' ? parsed.href : '';
+  } catch {
+    return '';
+  }
+}
+
+function quoteIsExpired( value?: string ): boolean {
+  if ( !value ) return false;
+  const timestamp = Date.parse( value );
+  return Number.isFinite( timestamp ) && timestamp <= Date.now();
+}
+
 function normaliseResponse( payload: Partial<TravelResponse> ): TravelResponse {
   const rows = Array.isArray( payload.results ) ? payload.results : [];
   const results = rows.slice( 0, 8 ).map( ( result, index ) => ( {
@@ -142,8 +164,14 @@ function normaliseResponse( payload: Partial<TravelResponse> ): TravelResponse {
     description: String( result.description || '' ),
     meta: Array.isArray( result.meta ) ? result.meta.slice( 0, 4 ).map( String ) : [],
     price: String( result.price || '' ),
-    websiteUrl: typeof result.websiteUrl === 'string' ? result.websiteUrl : '',
-    whatsappUrl: typeof result.whatsappUrl === 'string' ? result.whatsappUrl : '',
+    websiteUrl: safeHttpsUrl( result.websiteUrl ),
+    whatsappUrl: safeHttpsUrl( result.whatsappUrl ),
+    providerRef: typeof result.providerRef === 'string' ? result.providerRef.trim() : '',
+    offerId: typeof result.offerId === 'string' ? result.offerId.trim() : '',
+    quoteExpiresAt: typeof result.quoteExpiresAt === 'string' ? result.quoteExpiresAt.trim() : '',
+    cancellationSummary: typeof result.cancellationSummary === 'string' ? result.cancellationSummary.trim() : '',
+    availability: typeof result.availability === 'string' ? result.availability.trim() : '',
+    checkoutReady: result.checkoutReady === true,
   } ) );
   if ( !results.length ) throw new Error( 'No usable provider results' );
   return {
@@ -196,6 +224,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
   const [ preferences, setPreferences ] = useState<string[]>( [] );
   const [ results, setResults ] = useState<TravelResult[]>( [] );
   const [ responseSummary, setResponseSummary ] = useState( '' );
+  const [ responseSource, setResponseSource ] = useState<TravelResponse['source'] | null>( null );
   const [ status, setStatus ] = useState<'idle' | 'loading' | 'ready' | 'error'>( 'idle' );
   const [ continuationNote, setContinuationNote ] = useState( '' );
   const abortRef = useRef<AbortController | null>( null );
@@ -213,6 +242,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
     setPreferences( [] );
     setResults( [] );
     setResponseSummary( '' );
+    setResponseSource( null );
     setStatus( 'idle' );
     setContinuationNote( '' );
     if ( typeof window !== 'undefined' && window.matchMedia( '(max-width: 720px)' ).matches ) {
@@ -245,6 +275,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
     setStatus( 'loading' );
     setResults( [] );
     setResponseSummary( '' );
+    setResponseSource( null );
     setContinuationNote( '' );
 
     try {
@@ -256,6 +287,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
       );
       setResults( response.results.slice( 0, 3 ) );
       setResponseSummary( response.summary || MODE_RESULT_SUMMARIES[ mode ] );
+      setResponseSource( response.source || 'demo' );
       setStatus( 'ready' );
     } catch ( error ) {
       if ( error instanceof DOMException && error.name === 'AbortError' ) return;
@@ -283,24 +315,19 @@ const ElsewhereTravelAssistant: React.FC = () => {
     setQuery( current => current.trim() ? current.trim() + ' ' + transcript : transcript );
   };
 
+  const checkoutAvailable = ( kind: 'website' | 'whatsapp', result: TravelResult ) => {
+    if ( responseSource !== 'api' && responseSource !== 'mcp' ) return false;
+    if ( !result.checkoutReady || quoteIsExpired( result.quoteExpiresAt ) ) return false;
+    return Boolean( kind === 'website' ? result.websiteUrl : result.whatsappUrl );
+  };
+
   const continueWith = ( kind: 'website' | 'whatsapp', result: TravelResult ) => {
     const target = kind === 'website' ? result.websiteUrl : result.whatsappUrl;
-    if ( target ) {
-      try {
-        const parsed = new URL( target, window.location.href );
-        if ( parsed.protocol === 'https:' ) {
-          window.location.href = parsed.href;
-          return;
-        }
-      } catch {
-        // Fall through to the inline preview note.
-      }
+    if ( !checkoutAvailable( kind, result ) || !target ) {
+      setContinuationNote( 'This offer needs fresh provider confirmation before checkout.' );
+      return;
     }
-    setContinuationNote(
-      kind === 'website'
-        ? 'Website checkout will open here once live provider checkout is connected.'
-        : 'Checkout on WhatsApp will open here once live provider checkout is connected.',
-    );
+    window.location.assign( target );
   };
 
   const userSummary = [
@@ -386,19 +413,39 @@ const ElsewhereTravelAssistant: React.FC = () => {
                       <p className="eta-desc">{ result.description }</p>
                       <div className="eta-meta">
                         { result.meta.map( item => <span key={ item }>{ item }</span> ) }
+                        { result.availability && <span>{ result.availability }</span> }
+                        { result.cancellationSummary && <span>{ result.cancellationSummary }</span> }
                       </div>
                     </div>
                     <div className="eta-result-side">
                       <div className="eta-price">{ result.price }</div>
                       <div className="eta-actions">
-                        <button type="button" className="eta-action primary" aria-label={ `Checkout ${result.title} on website` } onClick={ () => continueWith( 'website', result ) }>Checkout on website</button>
-                        <button type="button" className="eta-action" aria-label={ `Checkout ${result.title} on WhatsApp` } onClick={ () => continueWith( 'whatsapp', result ) }>Checkout on WhatsApp</button>
+                        <button
+                          type="button"
+                          className="eta-action primary"
+                          aria-label={ `Checkout ${result.title} on website` }
+                          disabled={ !checkoutAvailable( 'website', result ) }
+                          title={ checkoutAvailable( 'website', result ) ? 'Checkout on website' : 'Live provider confirmation required' }
+                          onClick={ () => continueWith( 'website', result ) }
+                        >Checkout on website</button>
+                        <button
+                          type="button"
+                          className="eta-action"
+                          aria-label={ `Checkout ${result.title} on WhatsApp` }
+                          disabled={ !checkoutAvailable( 'whatsapp', result ) }
+                          title={ checkoutAvailable( 'whatsapp', result ) ? 'Checkout on WhatsApp' : 'Live provider confirmation required' }
+                          onClick={ () => continueWith( 'whatsapp', result ) }
+                        >Checkout on WhatsApp</button>
                       </div>
                     </div>
                   </article>
                 ) ) }
               </div>
-              <p className="eta-live-note">Final price, availability and provider rules are confirmed before checkout.</p>
+              { responseSource === 'demo' ? (
+                <p className="eta-live-note eta-preview-note">Preview results — prices are illustrative and checkout stays disabled until live provider availability is connected.</p>
+              ) : (
+                <p className="eta-live-note">Final price, availability and provider rules must be confirmed again by the provider before checkout.</p>
+              ) }
             </>
           ) }
           </div>
@@ -432,7 +479,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
                   <span className="eta-material" aria-hidden="true">close</span>
                 </button>
               ) }
-              <span className="eta-mic-slot"><VoiceSearchMic onTranscript={ appendVoice } ariaLabel="Search by voice" /></span>
+              <span className="eta-mic-slot"><VoiceSearchMic onTranscript={ appendVoice } ariaLabel="Search by voice" showUnsupportedState /></span>
               <button
                 className="eta-send"
                 type="button"
@@ -529,7 +576,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
           padding:17px 18px;border:1px solid rgba(17,21,18,.09);border-radius:14px;background:rgba(255,255,255,.84);
           box-shadow:0 1px 0 rgba(17,21,18,.02);
           touch-action:pan-y;-webkit-tap-highlight-color:transparent;
-          transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease,background .16s ease;
+          transition:border-color .16s ease,background .16s ease;
         }
         .eta-result:first-child{border-color:#c9dc84;background:#fff}
         .eta-result-main{min-width:0}
@@ -570,16 +617,18 @@ const ElsewhereTravelAssistant: React.FC = () => {
         }
         .eta-action.primary{background:var(--public-lime-tint)}
         .eta-action.primary:active{background:var(--public-brand-lime)}
+        .eta-action:disabled{
+          color:#788077;background:#eef1e9;text-decoration:none;cursor:not-allowed;opacity:.88;
+          box-shadow:none;transform:none;
+        }
         .eta-live-note,.eta-continuation{margin:0;color:var(--public-muted);font-size:13px;font-weight:500;line-height:1.45}
         .eta-composer{
           margin-top:24px;padding:18px 18px 14px;border:0;border-radius:18px;background:#fff;
           cursor:text;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
           transition:transform .15s ease,box-shadow .15s ease,background-color .15s ease;
         }
-        .eta-composer:focus-within{
-          transform:translateY(-1px);box-shadow:0 8px 24px rgba(26,58,42,.10);
-        }
-        .eta-composer:active{transform:scale(.998);box-shadow:0 5px 16px rgba(26,58,42,.09)}
+        .eta-composer:focus-within{box-shadow:0 6px 18px rgba(26,58,42,.09)}
+        .eta-composer:active{box-shadow:0 4px 12px rgba(26,58,42,.08)}
         .eta-field{position:relative;box-shadow:none}
         .eta-composer:focus-within .eta-field{box-shadow:none}
         .eta-field textarea{
@@ -645,23 +694,19 @@ const ElsewhereTravelAssistant: React.FC = () => {
         }
         @media(hover:hover) and (pointer:fine){
           .eta-tab:hover::before{background:rgba(239,249,207,.78)}
-          .eta-result:hover{transform:translateY(-1px);border-color:#c9dc84;background:rgba(209,244,112,.08);box-shadow:0 4px 12px rgba(26,58,42,.08)}
           .eta-chip:hover{border-color:#bfd36f;background:#f3fad9;box-shadow:var(--public-lift-shadow);transform:translateY(-1px)}
-          .eta-action:hover{
+          .eta-action:not(:disabled):hover{
             background:var(--public-brand-lime);text-decoration-color:transparent;
             transform:translateY(-1px);box-shadow:0 5px 14px rgba(26,58,42,.1);
           }
-          .eta-action.primary:hover{background:var(--public-brand-lime)}
+          .eta-action.primary:not(:disabled):hover{background:var(--public-brand-lime)}
           .eta-clear:hover,.eta-preference-clear:hover{background:var(--public-lime-tint);color:var(--public-brand-green)}
           .eta-send:not(:disabled):hover{background:var(--lime-hover)}
         }
         @media(hover:none) and (pointer:coarse){
-          .eta-result:active{
-            transform:scale(.995);border-color:#bfd36f;background:rgba(209,244,112,.08);box-shadow:0 2px 8px rgba(26,58,42,.10);
-          }
-          .eta-composer:focus-within{background:rgba(209,244,112,.06);box-shadow:0 7px 20px rgba(26,58,42,.10)}
+          .eta-composer:focus-within{background:rgba(209,244,112,.055);box-shadow:0 5px 14px rgba(26,58,42,.09)}
           .eta-mic-slot :global(.voice-search-mic:active){background:var(--public-lime-tint);transform:scale(.92)}
-          .eta-action:active,.eta-chip:active,.eta-send:not(:disabled):active,.eta-clear:active,.eta-preference-clear:active{
+          .eta-action:not(:disabled):active,.eta-chip:active,.eta-send:not(:disabled):active,.eta-clear:active,.eta-preference-clear:active{
             filter:saturate(1.04);
           }
         }
@@ -681,13 +726,13 @@ const ElsewhereTravelAssistant: React.FC = () => {
         @media(max-width:380px){.eta-tab{font-size:13px;padding-inline:10px}.eta-keyhint{display:none}.eta-action{padding-inline:7px}}
         @media(prefers-reduced-motion:reduce){
           .eta-tab,.eta-tab::before,.eta-result,.eta-chip,.eta-action,.eta-clear,.eta-send,.eta-preference-clear,.eta-composer{transition:none}
-          .eta-tab:active,.eta-result:active,.eta-chip:active,.eta-action:active,.eta-clear:active,.eta-send:active,.eta-preference-clear:active,.eta-composer:active,.eta-composer:focus-within,
-          .eta-result:hover,.eta-chip:hover,.eta-action:hover{transform:none;box-shadow:none}
+          .eta-tab:active,.eta-chip:active,.eta-action:active,.eta-clear:active,.eta-send:active,.eta-preference-clear:active,.eta-composer:active,.eta-composer:focus-within,
+          .eta-chip:hover,.eta-action:hover{transform:none;box-shadow:none}
           .eta-mic-slot :global(.voice-search-mic:active){transform:none}
           .eta-loading-line::after{width:100%;transform:none;animation:none}
         }
         @media(prefers-reduced-motion:reduce) and (hover:none) and (pointer:coarse){
-          .eta-composer:focus-within{transform:none;box-shadow:none}
+          .eta-composer:focus-within{box-shadow:none}
         }
         @media(horizontal-viewport-segments:2){
           .eta-shell{max-width:calc(env(viewport-segment-width 0 0) - 32px);margin-inline-start:max(16px,env(viewport-segment-left 0 0));margin-inline-end:auto}
