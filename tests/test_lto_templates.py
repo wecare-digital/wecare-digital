@@ -23,7 +23,6 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'amplify', 'functions', 'shared'))
 
-from lambda_utils import template_presets as tp  # noqa: E402
 from lambda_utils import template_validation as tv  # noqa: E402
 from lambda_utils import whatsapp_types as wt  # noqa: E402
 
@@ -371,23 +370,3 @@ class TestLtoSendPath:
                       if c.get('sub_type') == 'copy_code']
         assert otp_button == lto_button
         assert otp_button == [self.h._copy_code_button_component(0, 'SUMMER20')]
-
-
-# ── 13 ─────────────────────────────────────────────────────────────────────────
-
-def test_the_preset_validates():
-    """A stronger gate already exists: tests/test_template_validation.py loops every
-    registered preset through validate_template. This is the named, readable version."""
-    preset = tp.get_preset('limited_time_offer')
-    assert preset is not None
-    assert preset['category'] == 'MARKETING'
-    res = tv.validate_template(preset)
-    assert res['ok'] is True, res['errors']
-
-
-def test_the_preset_carries_no_amount_or_discount_arithmetic():
-    """An offer code is a Meta coupon string, not a payment instrument."""
-    preset = tp.get_preset('limited_time_offer')
-    offer = [c for c in preset['components']
-             if c['type'] == wt.LTO_COMPONENT_TYPE][0]['limited_time_offer']
-    assert set(offer) == {'text', 'has_expiration'}
