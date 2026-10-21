@@ -463,7 +463,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
         { continuationNote && <p className="eta-continuation" role="status">{ continuationNote }</p> }
       </div>
 
-      <style jsx>{\`
+      <style jsx>{`
         .eta-shell{
           width:min(940px,100%);margin:0 auto;min-width:0;overflow:hidden;
           border:1px solid var(--public-hairline);border-radius:24px;
@@ -606,7 +606,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
           .eta-shell{max-width:calc(env(viewport-segment-width 0 0) - 32px);margin-inline-start:max(16px,env(viewport-segment-left 0 0));margin-inline-end:auto}
           :global([dir='rtl']) .eta-shell{margin-inline-start:auto;margin-inline-end:max(16px,env(viewport-segment-left 1 0))}
         }
-      \`}</style>
+      `}</style>
     </section>
   );
 };
