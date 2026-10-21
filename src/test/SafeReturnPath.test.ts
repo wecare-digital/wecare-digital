@@ -302,18 +302,13 @@ describe( 'safeLocalReturnPath — the gap is closed and the validator is wired 
     expect( safeLocalReturnPath( '/shop/file-assist/' ) ).toBe( DEFAULT );
   } );
 
-  it( 'no longer accepts /checkout/ or /account/, because neither has a page', () => {
-    // The measurement that drove the narrowing, re-asserted from the filesystem rather than
-    // trusted: `src/pages/checkout/` holds only status.tsx and success.tsx, `src/pages/account/`
-    // only sign-in.tsx. `output: 'export'` emits a page only where a source file exists, so
-    // both answered 404 live.
-    expect( pageExists( 'checkout' ) ).toBe( false );
+  it( 'accepts the exported /checkout/ chooser but still refuses bare /account/', () => {
+    expect( pageExists( 'checkout' ) ).toBe( true );
     expect( pageExists( 'account' ) ).toBe( false );
 
-    // INVERTED: they now fall back instead of being vouched for.
-    expect( safeLocalReturnPath( '/checkout/' ) ).toBe( DEFAULT );
+    expect( safeLocalReturnPath( '/checkout/' ) ).toBe( '/checkout/' );
+    expect( safeLocalReturnPath( '/checkout' ) ).toBe( '/checkout/' );
     expect( safeLocalReturnPath( '/account/' ) ).toBe( DEFAULT );
-    expect( safeLocalReturnPath( '/checkout' ) ).toBe( DEFAULT );
     expect( safeLocalReturnPath( '/account' ) ).toBe( DEFAULT );
   } );
 
