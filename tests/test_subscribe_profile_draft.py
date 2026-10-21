@@ -32,6 +32,7 @@ def setup(monkeypatch):
     with patch('boto3.client'),patch('boto3.resource'):
         mod=importlib.import_module('flows.subscribe_profile')
     row={'id':'wa918100640044','phone':'+918100640044','name':'QA','email':'qa@example.com','updatedAt':100,
+         'companyName':'WECARE QA','designation':'Tester',
          'customerUuid':'5f701556-7818-494a-a9aa-cf57da6287c2',
          'checkoutCustomerId':'11111111-2222-3333-4444-555555555555',
          'consentLedger':[{'state':'OPTED_OUT'}],
@@ -90,6 +91,24 @@ def test_newer_profile_edit_is_not_overwritten(setup):
     assert mod.handle_review(data,TOKEN,'r')['screen']=='REVIEW'
     assert not table.updates
 
+def test_required_business_and_address_fields_reject_blank_values(setup):
+    mod,table,_=setup
+    cases=[
+        ('company_name','organisation'),
+        ('designation','role / designation'),
+        ('address_line2','address line 2'),
+        ('locality','landmark / locality'),
+    ]
+    for field,label in cases:
+        data=form(mod)
+        data[field]=''
+        before_updates=len(table.updates)
+        result=mod.handle_review(data,TOKEN,'r-'+field)
+        assert result['screen']=='REVIEW'
+        assert label in result['data']['error_message'].lower()
+        assert len(table.updates)==before_updates
+
+
 def test_partial_address_does_not_save_or_show_success(setup):
     mod,table,_=setup; data=form(mod); data['city']=''
     result=mod.handle_review(data,TOKEN,'r')
@@ -97,7 +116,9 @@ def test_partial_address_does_not_save_or_show_success(setup):
     assert not table.updates
 
 def test_new_contact_created_with_canonical_identity_and_no_marketing_optins(setup):
-    mod,table,_=setup; table.row={}; data=form(mod); data.update(full_name='New QA',email_address='qa@example.com',**{key:ADDRESS[attr] for key,attr in mod.ADDRESS_FIELDS.items()})
+    mod,table,_=setup; table.row={}; data=form(mod); data.update(
+        full_name='New QA',company_name='WECARE QA',designation='Tester',
+        email_address='qa@example.com',**{key:ADDRESS[attr] for key,attr in mod.ADDRESS_FIELDS.items()})
     result=mod.handle_review(data,TOKEN,'r')
     assert result['screen']=='COMPLETE'
     assert table.row['id']=='wa918100640044'
@@ -163,7 +184,7 @@ def test_customer_copy_hides_country_code_and_has_short_labels():
     assert all(len(n['label'])<=20 for n in inputs)
     dropdowns=[n for n in walk(doc) if n.get('type')=='Dropdown']
     required={n['name'] for n in inputs + dropdowns if n.get('required')}
-    assert {'full_name','address_line1','city','state','postal_code','country'}<=required
+    assert {'full_name','company_name','designation','address_line1','address_line2','locality','city','state','postal_code','country'}<=required
     country=next(n for n in dropdowns if n.get('name')=='country')
     assert country['data-source']
     assert country['data-source'][0]['id']=='India'
@@ -192,7 +213,9 @@ def test_new_customer_defaults_country_to_india_but_can_change_it(setup):
     table.row={}
     data=form(mod)
     assert data['country']=='India' and data['country_code']=='IN'
-    data.update(full_name='New QA', address_line1='1 Main Street', city='London',
+    data.update(full_name='New QA', company_name='WECARE QA', designation='Tester',
+                address_line1='1 Main Street', address_line2='Suite 2',
+                locality='Westminster', city='London',
                 state='England', postal_code='SW1A 1AA',
                 country='United Kingdom', country_code='IN')
     result=mod.handle_review(data,TOKEN,'r')
@@ -285,7 +308,8 @@ def test_returning_confirmation_stays_the_same_on_retry(setup):
 
 def test_new_customer_confirmation_stays_the_same_on_retry(setup):
     mod,table,_=setup; table.row={}; data=form(mod)
-    data.update(full_name='New QA',**{key:ADDRESS[attr] for key,attr in mod.ADDRESS_FIELDS.items()})
+    data.update(full_name='New QA',company_name='WECARE QA',designation='Tester',
+                **{key:ADDRESS[attr] for key,attr in mod.ADDRESS_FIELDS.items()})
     first=mod.handle_review(data,TOKEN,'r')
     retry=mod.handle_review(data,TOKEN,'r')
     assert first['data']['message']==retry['data']['message']=='Your details have been saved.'
