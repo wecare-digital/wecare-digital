@@ -936,7 +936,7 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
                     type="text"
                     value={ newTemplate.footerText }
                     onChange={ ( e ) => setNewTemplate( { ...newTemplate, footerText: e.target.value } ) }
-                    placeholder="Reply STOP to unsubscribe"
+                    placeholder="Optional footer text"
                   />
                 </div>
 
