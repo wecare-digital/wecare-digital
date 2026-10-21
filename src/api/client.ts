@@ -4441,7 +4441,6 @@ export async function updateTemplateTtl ( templateId: string, ttl: number, wabaI
 const WA_TPL_BASE = `${API_BASE}/whatsapp/templates`;
 
 export interface TemplateValidationResult { ok: boolean; errors: string[]; warnings: string[]; }
-export interface TemplatePresetSummary { name: string; category: string; language: string; hasFlowButton: boolean; }
 
 export async function validateTemplateDefinition ( templateDefinition: any ): Promise<TemplateValidationResult | null> {
   return apiCall<TemplateValidationResult>( `${WA_TPL_BASE}/validate`, {
@@ -4450,15 +4449,6 @@ export async function validateTemplateDefinition ( templateDefinition: any ): Pr
   } );
 }
 
-export async function listTemplatePresets (): Promise<TemplatePresetSummary[]> {
-  const data = await apiCall<any>( `${WA_TPL_BASE}/presets` );
-  return data?.presets || [];
-}
-
-export async function getTemplatePreset ( name: string ): Promise<any> {
-  const data = await apiCall<any>( `${WA_TPL_BASE}/presets/${name}` );
-  return data?.preset || null;
-}
 
 export async function sendTestTemplateMessage ( templateId: string, to: string, opts?: { templateName?: string; language?: string; components?: any[]; phoneId?: string } ): Promise<{ success?: boolean; messageId?: string; error?: string }> {
   const data = await apiCall<any>( `${WA_TPL_BASE}/${templateId}/send-test`, {
