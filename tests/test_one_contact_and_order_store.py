@@ -79,6 +79,25 @@ def test_a_bare_digits_row_written_by_an_old_writer_is_still_found():
     assert contact_store.lookup_id(db.Table(CONTACTS), '+919876543210') == 'legacy-1'
 
 
+def test_duplicate_live_phone_claims_fail_closed():
+    db = contacts_db(
+        {'id': 'contact-a', 'contactId': 'contact-a', 'phone': '+919876543210'},
+        {'id': 'contact-b', 'contactId': 'contact-b', 'phone': '+919876543210'},
+    )
+    with pytest.raises(contact_store.IdentityConflict) as caught:
+        contact_store.find_by_phone(db.Table(CONTACTS), '+919876543210')
+    assert caught.value.contact_ids == ('contact-a', 'contact-b')
+
+
+def test_merge_aliases_collapse_duplicate_index_rows_to_one_contact():
+    db = contacts_db(
+        {'id': 'canonical', 'contactId': 'canonical', 'phone': '+919876543210'},
+        {'id': 'old', 'contactId': 'old', 'phone': '+919876543210',
+         'mergeState': 'merged', 'mergedIntoContactId': 'canonical'},
+    )
+    assert contact_store.find_by_phone(db.Table(CONTACTS), '+919876543210')['id'] == 'canonical'
+
+
 def test_a_bsuid_recipient_resolves_the_same_live_contact():
     db = contacts_db({'id': 'contact-bsuid', 'contactId': 'contact-bsuid',
                       'phone': '+918100640044', 'bsuid': 'US.13491208655302741918'})
@@ -214,6 +233,39 @@ def test_a_captured_checkout_order_starts_processing_not_active():
 
 def test_an_attempt_without_a_contact_writes_no_contact_field():
     assert 'contactId' not in _accept(_paid_attempt())
+
+
+def test_paid_order_without_canonical_identity_is_not_finalized():
+    class Attempts(_Attempts):
+        def __init__(self):
+            self.updates = []
+        def update_item(self, **kwargs):
+            self.updates.append(kwargs)
+            return {}
+
+    class Orders(_Orders):
+        def __init__(self):
+            super().__init__()
+            self.updates = []
+        def update_item(self, **kwargs):
+            self.updates.append(kwargs)
+            return {}
+        def get_item(self, **_):
+            return {'Item': self.items[0] if self.items else {}}
+
+    attempts, orders = Attempts(), Orders()
+    finalization.accept_paid(
+        attempts=attempts, orders=orders, keys=None,
+        attempt=_paid_attempt(channel='website'),
+        outcome={'hasOrder': True, 'orderId': '0192f3a4-5b6c-7d8e-9f00-112233445566',
+                 'orderNumber': 'WD-ORD-K4M7PQR9', 'providerPaymentId': 'pay_1'},
+        verified_captured_paise=59900)
+    assert any(call.get('ExpressionAttributeValues', {}).get(':stage') == 'NEEDS_RECONCILIATION'
+               for call in attempts.updates)
+    assert any(call.get('ExpressionAttributeValues', {}).get(':reason') == 'CUSTOMER_CONTACT_MISSING'
+               for call in orders.updates)
+    assert not any(call.get('ExpressionAttributeValues', {}).get(':stage') == 'ORDER_FINALIZED'
+                   for call in orders.updates)
 
 
 # ── the staff order API (both service-api copies share the shape) ──────────────────
