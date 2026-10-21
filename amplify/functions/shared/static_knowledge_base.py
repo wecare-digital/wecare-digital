@@ -38,8 +38,8 @@ FAQ_CONFIG = {'brand': {'name': 'WECARE.DIGITAL',
            'keywords': ['order', 'buy', 'purchase', 'shop', 'product', 'cart'],
            'category': 'orders',
            'question': 'How do I place an order?',
-           'answer': 'Browse products at https://wecare.digital/shop/. Sign in once with your WhatsApp '
-                     'number, review your cart, then choose Pay on WhatsApp or Pay here.',
+           'answer': 'Browse products at https://wecare.digital/shop/. Sign in once with your '
+                     'WhatsApp number, review your cart, then choose Pay on WhatsApp or Pay here.',
            'shortAnswer': 'Browse wecare.digital/shop/'},
           {'id': 'payment',
            'keywords': ['payment', 'pay', 'price', 'cost', 'fee', 'charge', 'upi', 'card'],
@@ -75,8 +75,8 @@ FAQ_CONFIG = {'brand': {'name': 'WECARE.DIGITAL',
            'keywords': ['whatsapp', 'message', 'chat', 'wa', 'messenger'],
            'category': 'general',
            'question': 'Can I order via WhatsApp?',
-           'answer': 'Use the same WhatsApp number for Subscribe and website sign-in. Review your cart '
-                     'on the website, then choose Pay on WhatsApp or Pay here.',
+           'answer': 'Use the same WhatsApp number for Subscribe and website sign-in. Review your '
+                     'cart on the website, then choose Pay on WhatsApp or Pay here.',
            'shortAnswer': 'One sign-in; choose WhatsApp or website payment'},
           {'id': 'invoice',
            'keywords': ['invoice', 'bill', 'receipt', 'gst', 'tax'],

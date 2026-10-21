@@ -188,8 +188,18 @@ def get_service_info(service_name: str = None) -> dict:
     output = '\n'.join(lines)
     if check:
         with open(PY_OUTPUT, encoding='utf-8') as f:
-            if f.read() != output:
-                raise SystemExit('FAQ backend is stale: run python scripts/sync_faq.py')
+            current = f.read()
+        if current != output:
+            import difflib
+            diff = ''.join(difflib.unified_diff(
+                current.splitlines(keepends=True),
+                output.splitlines(keepends=True),
+                fromfile=os.path.relpath(PY_OUTPUT, ROOT),
+                tofile='generated from shared/faq-config.json',
+            ))
+            if diff:
+                print(diff, file=sys.stderr)
+            raise SystemExit('FAQ backend is stale: run python scripts/sync_faq.py')
         return
     with open(PY_OUTPUT, 'w', encoding='utf-8', newline='\n') as f:
         f.write(output)
