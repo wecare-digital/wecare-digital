@@ -691,7 +691,14 @@ const ElsewhereTravelAssistant: React.FC = () => {
           .eta-composer-foot{flex-wrap:wrap}.eta-hint{flex:1 1 100%}.eta-tools{width:100%;justify-content:flex-end}
           .eta-result{grid-template-columns:1fr;padding:18px}.eta-result h3{font-size:var(--public-mobile-card-size)}.eta-desc{font-size:16px}.eta-result-side{align-items:flex-start;text-align:start}.eta-actions{width:100%;margin-inline-start:0}
         }
-        @media(max-width:380px){.eta-tab{font-size:13px;padding-inline:10px}.eta-keyhint{display:none}.eta-action{padding-inline:7px}}
+        @media(max-width:380px){
+          .eta-tab{font-size:13px;padding-inline:10px}
+          .eta-keyhint{display:none}
+          .eta-panel{padding-inline:16px}
+          .eta-result{padding-inline:16px}
+          .eta-actions{gap:6px}
+          .eta-action{padding-inline:5px}
+        }
         @media(prefers-reduced-motion:reduce){
           .eta-tab,.eta-tab::before,.eta-result,.eta-chip,.eta-action,.eta-clear,.eta-send,.eta-composer{transition:none}
           .eta-action:hover{box-shadow:none}
