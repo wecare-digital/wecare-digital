@@ -58,10 +58,8 @@ interface ProductPageProps {
    */
   crumbs?: Crumb[];
   /**
-   * OPTIONAL NODE rendered immediately under the CTA row (`.pdp-ctas`), above the ctaNote/price.
-   * Used by the service pages and the product pages to mount the "Continue to checkout →" buy box
-   * (ServiceBuyBox / ProductBuyBox) beneath the unchanged WhatsApp CTA. Omit it and the page
-   * renders byte-for-byte what it did before: the node simply is not there.
+   * OPTIONAL commerce checkout node. When present, it owns the route's single Checkout action and
+   * suppresses the generic conversation CTA above it. Payment mode is chosen only after cart review.
    */
   belowCta?: React.ReactNode;
   /** Optional route-specific surface rendered after the rotating hero band and before the standard product content. */
@@ -149,23 +147,13 @@ const ProductPage: React.FC<ProductPageProps> = ( {
           ) ) }
         </ul>
 
-        {/* ONE pill for every page that sets only ctaLabel/ctaHref; a SECOND pill appears only
-            when a product carries both ctaLabel2 and ctaHref2. The first anchor is byte-for-byte what it was
-            before this wrapper — same whatsappServiceLink() resolution — so single-CTA pages are
-            unchanged. The second anchor uses ctaHref2 directly and is NOT routed through
-            whatsappServiceLink(): the slug resolves to one service link, so the pickup button
-            would otherwise open the tracking conversation. The 30px top gap now lives on
-            .pdp-ctas (it was on .pdp-cta), so single-CTA spacing is identical to the pixel. */}
-        {/* OPTION A (owner decision): the primary WhatsApp pill reads "Checkout on WhatsApp →" so
-            it NAMES its channel, matching the "Continue to checkout →" pill in the belowCta slot —
-            two labelled, same-shape pills instead of an action verb plus a floating grey note.
-            `ctaLabel` is kept in the content for menus/future use but is no longer the pill face;
-            it is consumed nowhere else (verified). A page that declares a second anchor
-            (ctaLabel2/ctaHref2) keeps its own labels rather than adopting checkout wording. */}
+        {/* Non-commerce routes keep their route-specific conversation CTA. Commerce routes pass
+            belowCta, which suppresses this row entirely so the route has only one Checkout action.
+            A second non-commerce CTA remains supported for the few routes that explicitly define it. */}
         { !checkoutOwnedByBuyBox && (
           <div className="pdp-ctas">
             <a className="pdp-cta" href={ whatsappServiceLink( product.slug ) || product.ctaHref }>
-              { product.ctaLabel2 ? product.ctaLabel : 'Checkout on WhatsApp \u2192' }
+              { product.ctaLabel }
             </a>
             { product.ctaHref2 && product.ctaLabel2 && (
               <a className="pdp-cta" href={ product.ctaHref2 }>{ product.ctaLabel2 }</a>
@@ -173,14 +161,9 @@ const ProductPage: React.FC<ProductPageProps> = ( {
           </div>
         ) }
 
-        {/* OPTION A: the floating "Checkout on WhatsApp →" microcopy is GONE — that label now
-            lives on the primary pill above, so a quiet grey note repeating it would be redundant.
-            `ctaNote` stays in the type for pages that still want a note under a single-channel CTA
-            (none today), but it is not rendered here. */}
-
-        {/* "CONTINUE TO CHECKOUT" SLOT — the service/product pages' second pill and its price
-            (ServiceBuyBox / ProductBuyBox), the matched partner to the WhatsApp pill above. Pages
-            that pass no `belowCta` render nothing here and are unchanged. */}
+        {/* Commerce checkout slot. ServiceBuyBox / ProductBuyBox render the one compact Checkout
+            action plus its price rail. Routes without commerce omit belowCta and keep the
+            route-specific conversation CTA above. */}
         { belowCta }
 
         { sku && policy && (

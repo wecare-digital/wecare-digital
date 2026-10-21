@@ -852,21 +852,18 @@ describe( 'Blog post page', () => {
     expect( block.querySelector( 'h1' ) ).toBeNull();
   } );
 
-  it( 'offers both contribution paths inside the unified Contribute menu', () => {
+  it( 'offers one contribution Checkout entry before the shared payment chooser', () => {
     const { container } = render(
       <PublicShare url="https://wecare.digital/post/example/" title="Example post" />,
     );
     const dock = container.querySelector( 'section.public-share' )!;
     const menu = dock.querySelector( '#ps-contribute-menu' )!;
 
-    const whatsapp = menu.querySelector( 'a.contribute-link' )!;
-    expect( whatsapp ).toHaveAttribute( 'href', 'https://wa.me/message/BYFLCAAMSZBXD1' );
-    expect( whatsapp.getAttribute( 'aria-label' ) ).toBe( 'Contribute on WhatsApp' );
-    expect( whatsapp.textContent ).toContain( 'Checkout on WhatsApp' );
-
-    const website = menu.querySelector( 'button.contribute-link-btn' )!;
-    expect( website.getAttribute( 'aria-label' ) ).toContain( 'website' );
-    expect( website.textContent ).toContain( 'Continue to checkout' );
+    expect( menu.querySelector( 'a.contribute-link' ) ).toBeNull();
+    const checkout = menu.querySelector( 'button.contribute-link-btn' )!;
+    expect( checkout.getAttribute( 'aria-label' ) ).toBe( 'Checkout contribution' );
+    expect( checkout.textContent ).toContain( 'Checkout' );
+    expect( checkout.textContent ).toContain( 'Review contribution in cart' );
 
     expect( menu.querySelector( '.contribute-label' )?.textContent )
       .toBe( `Contribute ${ CONTRIBUTION_AMOUNT_LABEL }` );
@@ -875,22 +872,20 @@ describe( 'Blog post page', () => {
     expect( menu.textContent || '' ).toContain( '₹250' );
   } );
 
-  it( 'keeps Contribute and Subscribe on distinct WhatsApp destinations in the common dock', () => {
+  it( 'keeps Subscribe direct on WhatsApp while Contribute stays in shared checkout', () => {
     const { container } = render(
       <PublicShare url="https://wecare.digital/post/example/" title="Example post" />,
     );
 
     const dock = container.querySelector( 'section.public-share' )!;
-    const contribute = dock.querySelector( '#ps-contribute-menu a.contribute-link' )!;
+    const contribute = dock.querySelector( '#ps-contribute-menu button.contribute-link-btn' )!;
     const subscribe = dock.querySelector( 'a.ps-subscribe' )!;
 
     expect( contribute ).not.toBeNull();
     expect( subscribe ).not.toBeNull();
     expect( subscribe.getAttribute( 'href' ) ).toBe( 'https://wa.me/message/WUDPTMYSO6XII1' );
-    expect( contribute.getAttribute( 'href' ) ).toBe( 'https://wa.me/message/BYFLCAAMSZBXD1' );
-    expect( subscribe.getAttribute( 'href' ) ).not.toBe( contribute.getAttribute( 'href' ) );
     expect( subscribe.getAttribute( 'aria-label' ) ).toBe( 'Subscribe on WhatsApp' );
-    expect( contribute.getAttribute( 'aria-label' ) ).toBe( 'Contribute on WhatsApp' );
+    expect( contribute.getAttribute( 'aria-label' ) ).toBe( 'Checkout contribution' );
 
     const css = cssOf( container );
     const selector = '.ps-action{';
