@@ -30,12 +30,15 @@ in a live in-chat charge today.
 - Verdict: **BACKEND IMPLEMENTED / INITIATION DISABLED** — plumbing exercised
   end-to-end, no live payable message goes out.
 
-### 2. Cart purchases — RETIRED (website-only)
-- Non-catalog cart checkout is refused server-side **before any I/O** with
-  `status: CART_PAYMENT_IS_WEBSITE_ONLY` (HTTP 200, "Nothing has been charged").
-  Cart purchases are collected on the **website via Razorpay Standard Checkout**
-  per the owner's 2026-10-01 website-only ruling.
-  (`checkout/handler.py`, "A2.6 — CART PURCHASES ARE COLLECTED ON THE WEBSITE".)
+### 2. Cart purchases — dual payment rail (PR implementation)
+- Public commerce routes enter through one **Checkout** action and review the basket on `/cart/`.
+- After review, the customer chooses once between **Pay on WhatsApp** (native ORDER_DETAILS /
+  Review and Pay) and **Pay here** (Razorpay Standard Checkout).
+- Both rails use the same authenticated customer, ProductsTable-authoritative quote, payment
+  attempt/reference controls, provider-confirmed capture, and OrderTable finalization.
+- The WhatsApp rail copies the session-owned `contactId` and public `customerUuid` from the
+  canonical ContactsTable row onto the payment attempt so the finalized order stays attached to
+  the same customer used by Subscribe, Inbox/Flows and website sign-in.
 
 ### 3. Native inbound WhatsApp catalog orders — GATED OFF
 - `message.type == 'order'` is handled by `_handle_cart_order` in
