@@ -34,7 +34,7 @@ from lambda_utils.audit import record_audit
 # prepended - measured, `+6591234567` became `+916591234567`. This surface uses
 # `customer_identity.normalize_phone_preserving_country` instead; see `_e164_or_error`.
 from lambda_utils.validation import sanitize_html, sanitize_dict
-from lambda_utils import contact_key  # `id` is the physical key; `contactId` is its alias
+from lambda_utils import contact_key, identity_claims  # canonical key + strong-identity registry
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
 from lambda_utils.privacy import mask_phone, mask_contact_id  # sensitive identifiers are masked in logs
 from lambda_utils.identity import customer as customer_identity
@@ -891,6 +891,12 @@ def _create(body: Dict[str, Any], request_id: str, origin: str = '') -> Dict[str
         contact[contact_address.UPDATED_ATTRIBUTE] = now
 
     table = dynamodb.Table(CONTACTS_TABLE)
+    try:
+        identity_claims.claim_identities(
+            dynamodb.Table(identity_claims.TABLE_NAME),
+            contact_id=contact_id, phone=phone or '', email=email or '', now=now)
+    except identity_claims.IdentityClaimConflict:
+        return cors_response(409, {'error': 'A contact with this phone or email already exists'}, origin)
     table.put_item(Item=_to_dynamo(contact), ConditionExpression='attribute_not_exists(id)')
 
     # AFTER the row exists, and never before it: the login is an attachment to a contact that is
@@ -1150,10 +1156,24 @@ def _update(contact_id: str, body: Dict[str, Any], request_id: str, origin: str 
     # Duplicate check on phone/email changes
     check_phone = updates.get('phone')
     check_email = updates.get('email')
+    identity_before: Dict[str, Any] = {}
     if check_phone or check_email:
         dup = _check_duplicate(check_phone, check_email, exclude_id=contact_id)
         if dup:
             return cors_response(409, {'error': dup}, origin)
+        identity_before = dynamodb.Table(CONTACTS_TABLE).get_item(
+            Key=contact_key.key(contact_id), ConsistentRead=True).get('Item') or {}
+        if not identity_before:
+            return cors_response(404, {'error': 'Contact not found'}, origin)
+        try:
+            identity_claims.claim_identities(
+                dynamodb.Table(identity_claims.TABLE_NAME),
+                contact_id=contact_id,
+                phone=updates.get('phone', identity_before.get('phone', '')),
+                email=updates.get('email', identity_before.get('email', '')),
+                now=int(time.time()))
+        except identity_claims.IdentityClaimConflict:
+            return cors_response(409, {'error': 'A contact with this phone or email already exists'}, origin)
 
     # Primary-phone protection. A provider-VERIFIED phone is the routing identity and must not be
     # silently overwritten by a lower-trust manual/import edit. Read the current row ONLY when the
@@ -1262,6 +1282,18 @@ def _update(contact_id: str, body: Dict[str, Any], request_id: str, origin: str 
             return cors_response(404, {'error': 'Contact not found'}, origin)
         raise
 
+    if identity_before:
+        try:
+            identity_claims.release_changed(
+                dynamodb.Table(identity_claims.TABLE_NAME),
+                contact_id=contact_id,
+                old_phone=identity_before.get('phone', ''),
+                new_phone=updates.get('phone', identity_before.get('phone', '')),
+                old_email=identity_before.get('email', ''),
+                new_email=updates.get('email', identity_before.get('email', '')))
+        except Exception as exc:
+            logger.warning(json.dumps({'event': 'identity_claim_release_failed',
+                                       'error': type(exc).__name__}))
     log_event(logger, 'contact_updated', contactId=contact_id, fields=list(updates.keys()), requestId=request_id)
     return cors_response(200, _from_dynamo(resp.get('Attributes', {})), origin)
 
