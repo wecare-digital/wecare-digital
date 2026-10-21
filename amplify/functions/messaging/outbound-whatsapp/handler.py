@@ -885,7 +885,8 @@ def _template_category_for_send(phone_number_id: str, template_name: str,
 
 def _resolve_whatsapp_message_purpose(body: Dict[str, Any], phone_number_id: str,
                                       is_template: bool, template_name: Optional[str],
-                                      is_lto_template: bool, request_id: str) -> str:
+                                      is_lto_template: bool, is_otp_template: bool,
+                                      request_id: str) -> str:
     """Resolve the consent purpose without trusting a caller to downgrade marketing.
 
     Explicit MARKETING is always honoured. Campaign/LTO traffic is marketing by definition.
@@ -898,8 +899,15 @@ def _resolve_whatsapp_message_purpose(body: Dict[str, Any], phone_number_id: str
     if raw:
         purpose = consent_evidence.normalize_purpose(raw)
 
+    # These envelopes already prove their purpose without a provider read.
+    # LTO/campaign is marketing by construction; OTP authentication is service/authentication.
+    # Avoiding a live template-list read here keeps authentication and campaign construction
+    # independent of Meta template-list availability while preserving the stricter ordinary
+    # template path below.
     if is_lto_template or body.get('campaignId') or body.get('campaignName'):
-        purpose = consent_evidence.MARKETING
+        return consent_evidence.MARKETING
+    if is_otp_template:
+        return consent_evidence.SERVICE
 
     if is_template:
         category = _template_category_for_send(
@@ -1326,7 +1334,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         try:
             message_purpose = _resolve_whatsapp_message_purpose(
                 body, phone_number_id, is_template, template_name,
-                is_lto_template, request_id)
+                is_lto_template, is_otp_template, request_id)
         except consent_evidence.InvalidConsentRecord:
             return _error_response(
                 400, 'INVALID_MESSAGE_PURPOSE',

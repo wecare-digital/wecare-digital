@@ -563,9 +563,10 @@ class TestDirectSendDecisionSite:
         assert self.stored[0]['is_direct_send'] is False
 
     def test_a_template_outside_the_window_is_untouched(self):
-        resp = self._run(WABA1, event=self._event(
-            content='', isTemplate=True, templateName='hello_world',
-            templateParams=['en']))
+        with patch.object(self.h, '_template_category_for_send', return_value='UTILITY'):
+            resp = self._run(WABA1, event=self._event(
+                content='', isTemplate=True, templateName='hello_world',
+                templateParams=['en']))
         assert resp['statusCode'] == 200
         assert 'category' not in self.sent[0]
 
@@ -753,18 +754,32 @@ class TestWhatsAppMarketingConsentEnforcement:
         with patch.object(self.h,'_template_category_for_send',return_value='MARKETING'):
             purpose=self.h._resolve_whatsapp_message_purpose(
                 {'messagePurpose':'SERVICE'},
-                self.h.PHONE_NUMBER_ID_1, True, 'promo_offer', False, 'r')
+                self.h.PHONE_NUMBER_ID_1, True, 'promo_offer', False, False, 'r')
         assert purpose=='MARKETING'
 
     def test_utility_template_defaults_transactional(self):
         with patch.object(self.h,'_template_category_for_send',return_value='UTILITY'):
             purpose=self.h._resolve_whatsapp_message_purpose(
-                {}, self.h.PHONE_NUMBER_ID_1, True, 'order_update', False, 'r')
+                {}, self.h.PHONE_NUMBER_ID_1, True, 'order_update', False, False, 'r')
         assert purpose=='TRANSACTIONAL'
+
+    def test_otp_template_is_service_without_provider_category_read(self):
+        with patch.object(self.h, '_template_category_for_send') as category:
+            purpose=self.h._resolve_whatsapp_message_purpose(
+                {}, self.h.PHONE_NUMBER_ID_1, True, 'wd_auth', False, True, 'r')
+        assert purpose=='SERVICE'
+        category.assert_not_called()
+
+    def test_lto_is_marketing_without_provider_category_read(self):
+        with patch.object(self.h, '_template_category_for_send') as category:
+            purpose=self.h._resolve_whatsapp_message_purpose(
+                {}, self.h.PHONE_NUMBER_ID_1, True, 'wd_offer', True, False, 'r')
+        assert purpose=='MARKETING'
+        category.assert_not_called()
 
     def test_campaign_is_marketing_even_for_utility_named_request(self):
         with patch.object(self.h,'_template_category_for_send',return_value='UTILITY'):
             purpose=self.h._resolve_whatsapp_message_purpose(
                 {'campaignId':'WC123'}, self.h.PHONE_NUMBER_ID_1,
-                True, 'campaign_template', False, 'r')
+                True, 'campaign_template', False, False, 'r')
         assert purpose=='MARKETING'
