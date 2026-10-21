@@ -1,4 +1,3 @@
-import { breadcrumbSchema, shopProductCrumbs } from '../lib/breadcrumbs';
 import React from 'react';
 import Head from 'next/head';
 import { ORIGIN, ORG_ID, WEBSITE_ID, SITE_ENTITIES, ld } from '../lib/schema';
@@ -114,14 +113,12 @@ export const shopProductSchema = (
         description,
         isPartOf: { '@id': WEBSITE_ID },
         inLanguage: 'en-IN',
-        breadcrumb: { '@id': pageId + '#breadcrumb' },
         // mainEntity ONLY when the Product exists. A reference to an @id nothing defines is a
         // dangling pointer, and schemacheck asserts there are none - so an unconditional mainEntity
         // would trade one failure for another.
         ...( productNode.length ? { mainEntity: { '@id': pageId + '#product' } } : {} ),
         publisher: { '@id': ORG_ID },
       },
-      breadcrumbSchema( shopProductCrumbs( product.name ), url, pageId ),
       ...productNode,
     ],
   };

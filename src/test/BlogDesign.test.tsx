@@ -180,7 +180,7 @@ describe( 'Blog design alignment', () => {
     // labelled input, no inner border, no icon, no submit button - the /anew/ panel's field - so
     // it is NOT a form[role="search"] (that was the old GET-form search). It is found by its
     // accessible name instead.
-    expect( container.querySelector( 'nav[aria-label="Breadcrumb"]' ) ).not.toBeNull();
+    expect( container.querySelector( 'nav[aria-label="Breadcrumb"]' ) ).toBeNull();
     expect( container.querySelector( 'form[role="search"]' ) ).toBeNull();
     expect( screen.getByLabelText( 'Search the blog' ) ).toBeInTheDocument();
     expect( container.querySelector( '.blog-search input[type="search"]' ) ).not.toBeNull();

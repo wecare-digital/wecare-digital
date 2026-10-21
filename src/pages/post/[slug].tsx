@@ -1,4 +1,4 @@
-import { breadcrumbSchema as makeBreadcrumbSchema, type PageCrumb } from '../../lib/breadcrumbs';
+import { type PageCrumb } from '../../lib/breadcrumbs';
 import { buildPageTitle } from '../../lib/page-title';
 import type { GetStaticPaths, GetStaticProps } from 'next';
 import type { ReactNode } from 'react';
@@ -232,7 +232,6 @@ export default function BlogPostPage ( {
       url: canonical,
       name: post.title,
       isPartOf: { '@id': WEBSITE_ID },
-      breadcrumb: { '@id': `${canonical}#breadcrumb` },
     },
     // INLINE DEFINITION, NOT A BARE REFERENCE. `{ '@id': '…/blog/#blog' }` alone was the first
     // version of this line and `tools/audit/schemacheck.js` failed it on all 1,279 posts: the
@@ -285,9 +284,6 @@ export default function BlogPostPage ( {
   const crumbs: PageCrumb[] = [
     { name: 'Home', href: '/' }, { name: 'Blog', href: '/blog/' }, { name: post.title },
   ];
-  // The rendered hierarchy owns breadcrumbs; stored article metadata cannot describe a different trail.
-  const breadcrumbSchema = makeBreadcrumbSchema( crumbs, canonical );
-
   return (
     <>
       <Head>
@@ -341,7 +337,6 @@ export default function BlogPostPage ( {
             dangerouslySetInnerHTML={ ld( entity ) } />
         ) ) }
         <script type="application/ld+json" dangerouslySetInnerHTML={ ld( articleSchema ) } />
-        <script type="application/ld+json" dangerouslySetInnerHTML={ ld( breadcrumbSchema ) } />
         {/* Emitted only when the post actually has both an ingredient list and a step list -
             see extractRecipe(). A separate script tag rather than a member of one @graph,
             matching how articleSchema and breadcrumbSchema are already emitted here. */}

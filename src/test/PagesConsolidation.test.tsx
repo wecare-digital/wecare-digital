@@ -32,17 +32,12 @@ describe( 'public page consolidation contracts', () => {
       expect( buildPageTitle( input ) ).toBe( 'Shop | WECARE.DIGITAL' );
     } );
 
-  it( 'renders and serialises exactly the same breadcrumb sequence and canonical', () => {
+  it( 'keeps PageShell breadcrumb-free while preserving canonical metadata', () => {
     const crumbs = [ { name: 'Home', href: '/' }, { name: 'Shop', href: '/shop/' }, { name: 'Anew' } ];
     const { container } = render( <PageShell title="Anew" description="Reflect on a decision."
       canonical="/anew/" crumbs={ crumbs }><p>Page content</p></PageShell> );
-    const visible = Array.from( container.querySelectorAll( 'nav[aria-label="Breadcrumb"] li' ) ).map( node => node.textContent );
-    const script = container.querySelector( 'script[type="application/ld+json"]' )!;
-    const structured = JSON.parse( script.textContent || '{}' );
-    expect( visible ).toEqual( structured.itemListElement.map( ( item: { name: string } ) => item.name ) );
-    expect( structured.itemListElement.map( ( item: { item: string } ) => item.item ) ).toEqual( [
-      'https://wecare.digital/', 'https://wecare.digital/shop/', 'https://wecare.digital/anew/',
-    ] );
+    expect( container.querySelector( 'nav[aria-label="Breadcrumb"]' ) ).toBeNull();
+    expect( container.querySelector( 'script[type="application/ld+json"]' ) ).toBeNull();
     expect( document.querySelector( 'link[rel="canonical"]' ) ).toHaveAttribute( 'href', 'https://wecare.digital/anew/' );
     expect( container.querySelectorAll( 'header,footer,main' ) ).toHaveLength( 0 );
   } );
