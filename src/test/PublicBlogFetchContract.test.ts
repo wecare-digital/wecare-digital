@@ -108,6 +108,19 @@ describe( 'a failed request throws rather than silently dropping the page', () =
 } );
 
 describe( 'a transient failure recovers instead of becoming a hole', () => {
+  it( 'allows a longer recovery window for a throttled post', async () => {
+    fetchMock
+      .mockResolvedValueOnce( jsonResponse( {}, 429 ) )
+      .mockResolvedValueOnce( jsonResponse( {}, 429 ) )
+      .mockResolvedValueOnce( jsonResponse( {}, 429 ) )
+      .mockResolvedValueOnce( jsonResponse( {}, 429 ) )
+      .mockResolvedValueOnce( jsonResponse( {}, 429 ) )
+      .mockResolvedValueOnce( jsonResponse( { ok: true, post: post( 'late-recovery' ) } ) );
+    const { getPublicBlogPost } = await load();
+    await expect( getPublicBlogPost( 'late-recovery' ) ).resolves.toMatchObject( { slug: 'late-recovery' } );
+    expect( fetchMock ).toHaveBeenCalledTimes( 6 );
+  } );
+
   it( 'retries a 429 and succeeds', async () => {
     fetchMock
       .mockResolvedValueOnce( jsonResponse( {}, 429 ) )
@@ -193,8 +206,8 @@ describe( 'concurrent callers share one request per slug', () => {
     const { getPublicBlogPost } = await load();
     await Promise.all(
       Array.from( { length: 40 }, ( _, index ) => getPublicBlogPost( `slug-${ index }` ) ) );
-    // The burst is what produced the 429s. The exact ceiling is an implementation detail;
-    // that there IS one is the contract.
-    expect( peak ).toBeLessThanOrEqual( 6 );
+    // The build runs multiple render workers, so this per-process ceiling has to stay low enough
+    // that aggregate concurrency does not recreate the 429 burst that dropped post pages.
+    expect( peak ).toBeLessThanOrEqual( 2 );
   } );
 } );

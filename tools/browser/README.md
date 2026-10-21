@@ -324,7 +324,7 @@ which is the check to repeat if you change it again.
 
 Re-running these suites means re-running `npm run build`, and the build fetches the blog
 corpus. `src/lib/public-blog.ts` retries a 429 with jittered exponential backoff
-(`MAX_ATTEMPTS = 4`) and then **throws on purpose**:
+(`MAX_ATTEMPTS = 6`) and then **throws on purpose**:
 
 ```
 blog listing: gave up after 4 attempts (last: HTTP 429). Failing the build on purpose -

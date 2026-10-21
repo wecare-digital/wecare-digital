@@ -170,17 +170,18 @@ export async function listPublicBlogPosts (): Promise<PublicBlogPost[]> {
 
 /** Statuses worth another attempt. 404 is handled separately; 4xx otherwise is fatal. */
 const RETRYABLE_STATUS = new Set( [ 408, 425, 429, 500, 502, 503, 504 ] );
-const MAX_ATTEMPTS = 4;
+const MAX_ATTEMPTS = 6;
 const BASE_BACKOFF_MS = 400;
 
 /**
  * In-flight request ceiling PER BUILD PROCESS.
  *
- * Next renders with nine workers, so this is not a global limit and does not pretend to be.
- * It removes the burst within each worker, which is where the self-inflicted throttling
- * came from: without it one worker can have hundreds of fetches open at once.
+ * Next renders with multiple workers, so this is not a global limit and does not pretend to be.
+ * Keep the per-process ceiling intentionally low: the build has previously failed after repeated
+ * HTTP 429 responses while prerendering individual posts. With three render workers, a ceiling of
+ * two keeps the aggregate burst near six instead of eighteen while still allowing useful overlap.
  */
-const MAX_IN_FLIGHT = 6;
+const MAX_IN_FLIGHT = 2;
 let inFlight = 0;
 const waiting: Array<() => void> = [];
 
