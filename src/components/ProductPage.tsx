@@ -1,4 +1,3 @@
-import { whatsappServiceLink } from '../config/whatsappServiceEntries';
 import React from 'react';
 import PageShell from './public/PageShell';
 import RotatingHero from './RotatingHero';
@@ -59,9 +58,9 @@ interface ProductPageProps {
   crumbs?: Crumb[];
   /**
    * OPTIONAL NODE rendered immediately under the CTA row (`.pdp-ctas`), above the ctaNote/price.
-   * Used by the service pages and the product pages to mount the "Continue to checkout →" buy box
-   * (ServiceBuyBox / ProductBuyBox) beneath the unchanged WhatsApp CTA. Omit it and the page
-   * renders byte-for-byte what it did before: the node simply is not there.
+   * Used by commerce routes to mount the one Checkout action (ServiceBuyBox / ProductBuyBox).
+   * When present it replaces the generic content CTA, so a commerce route never renders two
+   * competing checkout buttons. Omit it and the page renders its ordinary content CTA.
    */
   belowCta?: React.ReactNode;
   /** Optional route-specific surface rendered after the rotating hero band and before the standard product content. */
@@ -161,14 +160,14 @@ const ProductPage: React.FC<ProductPageProps> = ( {
             `ctaLabel` is kept in the content for menus/future use but is no longer the pill face;
             it is consumed nowhere else (verified). A page that declares a second anchor
             (ctaLabel2/ctaHref2) keeps its own labels rather than adopting checkout wording. */}
-        <div className="pdp-ctas">
-          <a className="pdp-cta" href={ whatsappServiceLink( product.slug ) || product.ctaHref }>
-            { product.ctaLabel2 ? product.ctaLabel : 'Checkout on WhatsApp \u2192' }
-          </a>
-          { product.ctaHref2 && product.ctaLabel2 && (
-            <a className="pdp-cta" href={ product.ctaHref2 }>{ product.ctaLabel2 }</a>
-          ) }
-        </div>
+        { !belowCta && (
+          <div className="pdp-ctas">
+            <a className="pdp-cta" href={ product.ctaHref }>{ product.ctaLabel }</a>
+            { product.ctaHref2 && product.ctaLabel2 && (
+              <a className="pdp-cta" href={ product.ctaHref2 }>{ product.ctaLabel2 }</a>
+            ) }
+          </div>
+        ) }
 
         {/* OPTION A: the floating "Checkout on WhatsApp →" microcopy is GONE — that label now
             lives on the primary pill above, so a quiet grey note repeating it would be redundant.
