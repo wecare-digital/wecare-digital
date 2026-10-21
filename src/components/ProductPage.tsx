@@ -90,7 +90,7 @@ const ProductPage: React.FC<ProductPageProps> = ( {
   const hasAside = Array.isArray( blogCards ) && blogCards.length > 0;
   const sku = PRODUCT_SKU_BY_SLUG[ product.slug ];
   const policy = sku ? productPolicyCopy( product.slug, product.name, product.note ) : null;
-  const checkoutOwnedByBuyBox = React.isValidElement( belowCta ) && belowCta.type === ProductBuyBox;
+  const checkoutOwnedByBuyBox = Boolean( belowCta );
   return (
   <>
     <RotatingHero
