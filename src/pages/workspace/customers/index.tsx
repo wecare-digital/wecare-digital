@@ -614,8 +614,6 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
         gstin: formGstin || undefined,
         companyName: formCompanyName || undefined,
         designation: formDesignation || undefined,
-        optInWhatsApp: formOptInWA, optInSms: formOptInSms, optInEmail: formOptInEmail,
-        allowlistWhatsApp: formAllowlistWA, allowlistSms: formAllowlistSms, allowlistEmail: formAllowlistEmail,
       } as any);
       if (result) { toast.success('Customer created'); setShowModal(false); resetForm(); await loadContacts(); }
       else toast.error('Failed to create contact');
@@ -705,8 +703,6 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
         gstin: formGstin || undefined,
         companyName: formCompanyName || undefined,
         designation: formDesignation || undefined,
-        optInWhatsApp: formOptInWA, optInSms: formOptInSms, optInEmail: formOptInEmail,
-        allowlistWhatsApp: formAllowlistWA, allowlistSms: formAllowlistSms, allowlistEmail: formAllowlistEmail,
       } as any);
       if (result) { toast.success('Customer updated'); setShowEditModal(false); setEditingContact(null); resetForm(); await loadContacts(); }
       else toast.error('Failed to update contact');
