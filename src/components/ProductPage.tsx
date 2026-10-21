@@ -86,6 +86,7 @@ const ProductPage: React.FC<ProductPageProps> = ( {
   return (
   <>
     <RotatingHero
+      mobileFoundation
       ariaLabel={ product.name }
       badgeLabel={ `${product.name} by WECARE.DIGITAL` }
       frame={ product.frame }
@@ -153,6 +154,7 @@ const ProductPage: React.FC<ProductPageProps> = ( {
             `ctaLabel` is kept in the content for menus/future use but is no longer the pill face;
             it is consumed nowhere else (verified). A page that declares a second anchor
             (ctaLabel2/ctaHref2) keeps its own labels rather than adopting checkout wording. */}
+        <div className="pdp-action-rail">
         <div className="pdp-ctas">
           <a className="pdp-cta" href={ whatsappServiceLink( product.slug ) || product.ctaHref }>
             { product.ctaLabel2 ? product.ctaLabel : 'Checkout on WhatsApp \u2192' }
@@ -183,6 +185,8 @@ const ProductPage: React.FC<ProductPageProps> = ( {
             />
           </div>
         ) }
+
+        </div>
 
         {/* Non-commerce ProductPage routes use the shared _app PolicyDetails fallback.
             Do not render the legacy boundary-note card here as a second disclosure style. */}
@@ -234,6 +238,11 @@ const ProductPage: React.FC<ProductPageProps> = ( {
              keeps the exact gap it had before the wrapper existed — the anchor's own line box
              contributed no height, so moving the margin up one level is a no-op for single-CTA
              pages (RequestNotes.test.ts pins this). gap:12px separates a two-CTA pair. */
+          /* The action rail separates "understand the service" from "choose how to continue"
+             without adding another card, heading or piece of copy. The 1px hairline is static,
+             the same quiet boundary used across the public system; the existing 30px CTA inset
+             stays on .pdp-ctas because RequestNotes.test.ts pins that spacing contract. */
+          .pdp-action-rail{max-width:640px;min-width:0;margin-top:36px;border-top:1px solid var(--public-hairline)}
           .pdp-ctas{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:30px}
           /* Full-strength #d1f470 with #1a3a2a type - the contract's own-surface pairing -
              and 2px because the hairline rule is that 2px means hoverable. */
@@ -300,6 +309,17 @@ const ProductPage: React.FC<ProductPageProps> = ( {
              the other seven product pages, where .pdp-wrap is a block - but scoping it says which
              layout it is for. */
           :global(.pdp-wrap.has-aside .page-shell-crumbs){grid-column:1 / -1}
+          /* Shared service/product pages are the fourth explicit adopter of the public mobile
+             foundation (after Home, Grahak OS and VayuLok). RotatingHero owns the canonical
+             40px hero, 16px gutter, 48px top air and 64px section rhythm; this component owns
+             the section/card/CTA typography roles inside its own content. Body copy stays on
+             the global 20px public rung by design. */
+          @media(max-width:767px){
+            .pdp-h2{font-size:var(--public-mobile-section-size)}
+            .pdp-point-t{font-size:var(--public-mobile-card-size)}
+            .pdp-cta{font-size:var(--public-mobile-cta-font-size)}
+            .pdp-action-rail{margin-top:var(--public-mobile-section-gap)}
+          }
           @media(min-width:768px){
             :global(.pdp-wrap.has-aside){
               display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,480px);
