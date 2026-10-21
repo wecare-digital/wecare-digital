@@ -258,6 +258,14 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
         fail( 'provider contract: checkout control is no longer compact/content-width' );
       }
     }
+    // Hover feedback is intentionally guarded in production by the exact
+    // (hover:hover) and (pointer:fine) capability query. Playwright WebKit can accept
+    // locator.hover() while still reporting a non-hover pointer, in which case the CSS
+    // must NOT activate. Assert the hover treatment only when the browser says that rule
+    // is applicable; Chromium/Firefox desktop contexts continue to exercise it.
+    const hoverCapable = await livePage.evaluate( () =>
+      window.matchMedia( '(hover:hover) and (pointer:fine)' ).matches
+    );
     const beforeHover = await liveActions.nth( 0 ).evaluate( node => {
       const style = getComputedStyle( node );
       return { backgroundColor: style.backgroundColor, transform: style.transform, boxShadow: style.boxShadow };
@@ -268,11 +276,11 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
       const style = getComputedStyle( node );
       return { backgroundColor: style.backgroundColor, transform: style.transform, boxShadow: style.boxShadow };
     } );
-    if ( beforeHover.backgroundColor === afterHover.backgroundColor ) {
-      fail( 'provider contract: checkout hover background does not change' );
+    if ( hoverCapable && beforeHover.backgroundColor === afterHover.backgroundColor ) {
+      fail( 'provider contract: checkout hover background does not change on a hover-capable pointer' );
     }
-    if ( afterHover.transform === 'none' && afterHover.boxShadow === 'none' ) {
-      fail( 'provider contract: checkout hover has no Policy-details feedback' );
+    if ( hoverCapable && afterHover.transform === 'none' && afterHover.boxShadow === 'none' ) {
+      fail( 'provider contract: checkout hover has no feedback on a hover-capable pointer' );
     }
     const livePrice = livePage.locator( '.eta-price' );
     if ( await livePrice.locator( '.eta-price-icon' ).count() !== 1 ) {
