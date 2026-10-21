@@ -5,6 +5,8 @@ on:
     paths:
       - 'src/components/Header.tsx'
       - 'src/components/VoiceSearchMic.tsx'
+      - 'src/components/ElsewhereTravelAssistant.tsx'
+      - 'src/pages/elsewhere/activities.tsx'
       - 'src/components/Footer.tsx'
       - 'src/components/PublicShare.tsx'
       - 'src/components/SupportWidget.tsx'
@@ -28,6 +30,8 @@ on:
     paths:
       - 'src/components/Header.tsx'
       - 'src/components/VoiceSearchMic.tsx'
+      - 'src/components/ElsewhereTravelAssistant.tsx'
+      - 'src/pages/elsewhere/activities.tsx'
       - 'src/components/Footer.tsx'
       - 'src/components/PublicShare.tsx'
       - 'src/components/SupportWidget.tsx'
@@ -126,7 +130,10 @@ jobs:
       - name: Run menu compatibility contract
         run: node tools/browser/menucheck.js --${{ matrix.browser }}
 
+      - name: Run Elsewhere assistant touch contract
+        run: node tools/browser/elsewherecheck.js --${{ matrix.browser }}
+
       - name: Run migrated public-page device + 200% reflow contracts
         run: |
-          node tools/browser/devicecheck.js --${{ matrix.browser }} / /grahak-os/ /vayulok/
-          node tools/browser/rtlcheck.js --${{ matrix.browser }} / /grahak-os/ /vayulok/
+          node tools/browser/devicecheck.js --${{ matrix.browser }} / /grahak-os/ /vayulok/ /elsewhere/activities/
+          node tools/browser/rtlcheck.js --${{ matrix.browser }} / /grahak-os/ /vayulok/ /elsewhere/activities/
