@@ -13,7 +13,8 @@ public review or sales lead.
 """
 import hashlib
 
-from lambda_utils import flow_completion
+from lambda_utils import flow_completion, shared_tables
+from lambda_utils.identity import customer_uuid
 
 FLOW_KEY = 'wd_leave_review_v2'
 FLOW_ID = '940049388908144'
@@ -63,6 +64,15 @@ def save_idea(data, *, contact_id, phone, sender_name, message_id, dynamodb=None
     review_id = 'WD-IDEA-' + digest[:16].upper()
     text = idea.strip()
     form = {'topic': topic, 'idea': text, 'schema_version': '4'}
+    customer_uuid_value = ''
+    try:
+        import boto3
+        table = boto3.resource('dynamodb').Table(shared_tables.contacts_table_name())
+        contact = table.get_item(Key={'id': contact_id}, ConsistentRead=True).get('Item') or {}
+        customer_uuid_value = customer_uuid.from_contact(contact)
+    except Exception:
+        customer_uuid_value = ''
+
     result = flow_completion.claim_completion(
         flow_token=message_id, screen='REVIEW', submission_id=review_id,
         reference_prefix='WD-IDEA', flow_code=FLOW_CODE, flow_type='customer_idea',
@@ -75,7 +85,8 @@ def save_idea(data, *, contact_id, phone, sender_name, message_id, dynamodb=None
                'reviewText': text, 'category': topic,
                'reviewType': 'customer_idea', 'visibility': 'private',
                'source': 'whatsapp', 'schemaVersion': '4',
-               'whatsappMessageId': message_id},
+               'whatsappMessageId': message_id,
+               **({'customerUuid': customer_uuid_value} if customer_uuid_value else {})},
         # A customer's idea is a business record, not a transport log.
         ttl_seconds=0,
         request_id=request_id, channel=flow_completion.CHANNEL_WHATSAPP)
