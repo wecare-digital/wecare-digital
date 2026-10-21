@@ -448,7 +448,14 @@ const ElsewhereTravelAssistant: React.FC = () => {
                                 aria-label={ `Checkout ${result.title} here for ${result.price}` }
                                 title={ `Checkout here · ${result.price}` }
                                 onClick={ () => continueWith( 'website', result ) }
-                              >Here</button>
+                              >
+                                <svg className="eta-action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                  <rect x="3" y="5" width="18" height="14" rx="2" />
+                                  <path d="M3 9h18" />
+                                  <path d="M7 15h4" />
+                                </svg>
+                                <span>Here</span>
+                              </button>
                             ) }
                             { checkoutAvailable( 'whatsapp', result ) && (
                               <button
@@ -457,7 +464,15 @@ const ElsewhereTravelAssistant: React.FC = () => {
                                 aria-label={ `Checkout ${result.title} on WhatsApp for ${result.price}` }
                                 title={ `Checkout on WhatsApp · ${result.price}` }
                                 onClick={ () => continueWith( 'whatsapp', result ) }
-                              >WhatsApp</button>
+                              >
+                                <svg className="eta-action-icon eta-action-icon-whatsapp" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                  <path d="M20.2 11.7a8.2 8.2 0 0 1-11.7 7.4L4 20.5l1.4-4.3a8.2 8.2 0 1 1 14.8-4.5Z" />
+                                  <path d="M9.1 8.1c.4 2.9 2.8 5.3 5.7 5.7" />
+                                  <path d="m9.1 8.1 1.3-.7 1.2 2-.9 1" />
+                                  <path d="m14.8 13.8 1-.9 2 1.2-.7 1.3" />
+                                </svg>
+                                <span>WhatsApp</span>
+                              </button>
                             ) }
                           </div>
                         </div>
@@ -638,7 +653,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
           width:17px;height:17px;flex:0 0 17px;fill:none;stroke:currentColor;stroke-width:1.8;
           stroke-linecap:round;stroke-linejoin:round;opacity:.86;
         }
-        .eta-action-icon-whatsapp{fill:currentColor;stroke:none;opacity:.9}
+        .eta-action-icon-whatsapp{opacity:.9}
         .eta-action:active{background:var(--public-brand-lime);text-decoration-color:transparent}
         .eta-live-note,.eta-continuation{margin:0;color:var(--public-muted);font-size:13px;font-weight:500;line-height:1.45}
         .eta-composer{
