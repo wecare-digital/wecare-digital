@@ -286,7 +286,9 @@ async function flush ( rounds = 8 ): Promise<void> {
 async function proceedPastProfile (): Promise<void> {
   fireEvent.click( await screen.findByRole( 'button', { name: 'Proceed' } ) );
   fireEvent.click( await screen.findByRole( 'button', { name: 'Complete checkout details' } ) );
-  fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
+  // Wait for React to commit the saved profile. A broad matcher that also accepts "Proceed"
+  // can click the pre-save button a second time and never enter the selected payment rail.
+  fireEvent.click( await screen.findByRole( 'button', { name: 'Pay securely' } ) );
 }
 
 describe( 'the cart store', () => {
@@ -1066,7 +1068,7 @@ describe( 'the cart page asks the readiness question before rendering anything',
     await flush();
     fireEvent.click( screen.getByRole( 'button', { name: 'Complete checkout details' } ) );
     await flush();
-    fireEvent.click( screen.getByRole( 'button', { name: CTA } ) );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Pay securely' } ) );
     await flush();
 
     // One refusal so far, and nothing has been asked of the customer.
@@ -1095,7 +1097,7 @@ describe( 'the cart page asks the readiness question before rendering anything',
     await flush();
     fireEvent.click( screen.getByRole( 'button', { name: 'Complete checkout details' } ) );
     await flush();
-    fireEvent.click( screen.getByRole( 'button', { name: CTA } ) );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Pay securely' } ) );
     await flush();
 
     await act( async () => { vi.advanceTimersByTime( RETRY_WAIT_MS ); } );
