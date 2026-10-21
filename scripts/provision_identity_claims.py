@@ -205,12 +205,16 @@ def backfill(apply):
             "duplicateIdentityGroups": len(conflicts),
             "message": "ContactsTable is not unique; no claims written",
         }
-    if apply and not exists_table(CLAIMS_TABLE):
+    table_exists = bool(exists_table(CLAIMS_TABLE))
+    if apply and not table_exists:
         raise RuntimeError("claim table must exist before backfill")
-    table = resource().Table(CLAIMS_TABLE)
+    table = resource().Table(CLAIMS_TABLE) if table_exists else None
     counts = defaultdict(int)
     for claim_key, cid in expected.items():
-        counts[claim(table, claim_key, cid, apply)] += 1
+        if not table_exists and not apply:
+            counts["would create"] += 1
+        else:
+            counts[claim(table, claim_key, cid, apply)] += 1
     return {
         "ok": counts["conflict"] == 0,
         "liveContacts": len(contacts),
