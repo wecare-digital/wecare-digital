@@ -7279,11 +7279,11 @@ DEFAULT_FLOW_TRIGGERS = {
             # Row title in the one menu
             'get updates', '\U0001f514 get updates',
         ],
-        # No canonical Subscribe Flow. The former 02.WD_Profile ids are DEPRECATED on both WABAs
-        # and must not be resurrected. The 'subscribe' keyword is already answered by the website
-        # CTA (/subscribe/) in the service-doors block above; canonical_flow_id('subscribe') is
-        # None, so even if a later path reached _send_generic_flow it would no-op rather than
-        # open a dead flow.
+        # Canonical Subscribe Flow WD_Subscribe_Design_v1 was PUBLISHED 2026-10-21; the trigger
+        # reads it from the single source of truth via canonical_flow_id('subscribe'). The former
+        # 02.WD_Profile ids are DEPRECATED on both WABAs and must not be resurrected. The
+        # 'subscribe' keyword is also answered by the website CTA (/subscribe/) in the
+        # service-doors block above.
         'flowId': canonical_flow_id('subscribe'),
         'message': {
             'body': '\U0001f514 Get updates, offers, and service news. Fill in your details to stay connected.',
