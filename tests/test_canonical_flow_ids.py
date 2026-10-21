@@ -131,8 +131,7 @@ def test_canonical_ids_are_in_the_readback_keepids():
     keep = set(data.get('keepIds', []))
     for cap, (fid, _status) in EXPECTED.items():
         # The retained-plan artifact is a 2026-10-09 historical snapshot. Leave Review and
-        # Subscribe were intentionally superseded by owner-confirmed published Flows on
-        # 2026-10-20 and 2026-10-21 respectively.
+        # Subscribe were published after that snapshot, on 2026-10-20 and 2026-10-21.
         if fid is not None and cap not in ('leave_review', 'subscribe'):
             assert fid in keep, f'{cap} canonical id {fid} is not in readback keepIds'
 
@@ -148,14 +147,11 @@ def test_inbound_handler_uses_canonical_ids():
         'drop_docs': '1211063631104445',
         'leave_review': '940049388908144',
         'customer_idea': '940049388908144',
-        'subscribe': '1386523953464380',
     }
     for cap, fid in checks.items():
         assert triggers[cap]['flowId'] == fid, f"{cap} trigger flowId != canonical {fid}"
-    # Subscribe is now the owner-confirmed published replacement; the deprecated WABA2/profile
-    # id must still stay gone. Track still has no canonical Flow.
     assert triggers['subscribe'].get('flowId') == '1386523953464380'
-    assert 'flowId2' not in triggers['subscribe'], 'deprecated subscribe flowId2 must stay gone'
+    assert 'flowId2' not in triggers['subscribe'], 'deprecated subscribe flowId2 must be gone'
     assert not triggers['track_request'].get('flowId'), 'track_request must have no canonical flow'
 
 
@@ -167,7 +163,6 @@ def test_stale_ids_are_not_restated_anywhere():
             if sid in text:
                 offenders.append(f'{path.relative_to(ROOT)} still contains {sid} ({why})')
     assert not offenders, 'stale flow ids resurfaced:\n' + '\n'.join(offenders)
-
 
 
 def test_published_flow_lookup_only_returns_live_customer_flows():
