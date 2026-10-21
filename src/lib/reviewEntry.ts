@@ -15,7 +15,7 @@
  */
 
 /**
- * WD_Leave_Review_v2, the published review Flow on WABA 1.
+ * 01. WECARE REVIEW FLOW, the published review Flow on WABA 1.
  *
  * Shared with the `customer_idea` inbound door: Meta has no per-door Flow identity, so one
  * room with two doors is the only available shape. The Flow is ENDPOINTLESS (no

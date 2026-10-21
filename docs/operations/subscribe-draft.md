@@ -1,7 +1,7 @@
 # Subscribe profile draft
 
 Selected Meta Flow: `1386523953464380` (`WD_Subscribe_Design_v1`), WABA1 only.
-Keep DRAFT. No publication or automatic customer trigger is enabled by this change.
+Published on 2026-10-21. Production sends resolve this Flow through the canonical Flow registry.
 
 Definition: `flows/design-drafts/subscribe.json` in the WhatsApp business API package.
 Screens: PROFILE -> ADDRESS -> REVIEW -> COMPLETE. No Preferences screen.

@@ -80,7 +80,7 @@ EXPECTED = {
     'shipments': ('849713848195607', 'DRAFT'),
     'leave_review': ('940049388908144', 'PUBLISHED'),
     'vault': (None, 'NONE'),
-    'subscribe': (None, 'NONE'),
+    'subscribe': ('1386523953464380', 'PUBLISHED'),
     'track_request': (None, 'NONE'),
 }
 
@@ -130,10 +130,11 @@ def test_canonical_ids_are_in_the_readback_keepids():
     data = json.loads(READBACK.read_text(encoding='utf-8'))
     keep = set(data.get('keepIds', []))
     for cap, (fid, _status) in EXPECTED.items():
-        # The retained-plan artifact is a 2026-10-09 historical snapshot. Leave Review was
-        # intentionally superseded by published Flow 940049388908144 on 2026-10-20.
-        if fid is not None and cap != 'leave_review':
-            assert fid in keep, f'{cap} canonical id {fid} is not in readback keepIds'
+        # The artifact predates later publications. A NEW id may be absent from keepIds only when
+        # the current registry explicitly marks it PUBLISHED.
+        if fid is not None and fid not in keep:
+            assert _status == 'PUBLISHED', (
+                f'{cap} canonical id {fid} is absent from historical keepIds and is not published')
 
 
 def test_inbound_handler_uses_canonical_ids():
@@ -150,8 +151,8 @@ def test_inbound_handler_uses_canonical_ids():
     }
     for cap, fid in checks.items():
         assert triggers[cap]['flowId'] == fid, f"{cap} trigger flowId != canonical {fid}"
-    # Subscribe + track must NOT carry a (deprecated/draft) id any more.
-    assert not triggers['subscribe'].get('flowId'), 'subscribe must have no canonical flow'
+    # Subscribe now resolves to the owner-verified published Flow; deprecated flowId2 stays dead.
+    assert triggers['subscribe'].get('flowId') == '1386523953464380'
     assert 'flowId2' not in triggers['subscribe'], 'deprecated subscribe flowId2 must be gone'
     assert not triggers['track_request'].get('flowId'), 'track_request must have no canonical flow'
 
@@ -164,3 +165,19 @@ def test_stale_ids_are_not_restated_anywhere():
             if sid in text:
                 offenders.append(f'{path.relative_to(ROOT)} still contains {sid} ({why})')
     assert not offenders, 'stale flow ids resurfaced:\n' + '\n'.join(offenders)
+
+
+def test_published_flow_resolver_carries_routing_identity():
+    ns: dict = {}
+    exec(PY_CANON.read_text(encoding='utf-8'), ns)
+    subscribe = ns['published_flow']('subscribe')
+    review = ns['published_flow']('leave_review')
+    assert subscribe['flowId'] == '1386523953464380'
+    assert subscribe['metaName'] == 'WD_Subscribe_Design_v1'
+    assert subscribe['tokenPrefix'] == 'subscribe'
+    assert review['flowId'] == '940049388908144'
+    assert review['metaName'] == '01. WECARE REVIEW FLOW'
+    assert review['tokenPrefix'] == 'leave_review'
+    assert ns['capability_for_flow']('1386523953464380', '') == 'subscribe'
+    assert ns['capability_for_flow']('', '01. WECARE REVIEW FLOW') == 'leave_review'
+    assert ns['canonical_flow_token_prefix']('submit_request') == 'sr'

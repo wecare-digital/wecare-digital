@@ -4,11 +4,12 @@ import logging
 import os
 from botocore.exceptions import BotoCoreError, ClientError
 from lambda_utils.ecommerce import contact_address
+from lambda_utils import canonical_flows
 from flows import common
 
 CONFIG_KEY = 'subscribe_messages_config'
-FLOW_ID = '1386523953464380'
-FLOW_NAME = 'WD_Subscribe_Design_v1'
+FLOW_ID = canonical_flows.canonical_flow_id('subscribe') or ''
+FLOW_NAME = canonical_flows.canonical_flow_name('subscribe') or ''
 DEFAULTS = {
     'newCustomer': {
         'body': 'Welcome to WECARE.DIGITAL. Add your name, username and address to complete your customer profile.',
