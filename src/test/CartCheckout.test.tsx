@@ -33,9 +33,9 @@ const [ ONLY ] = CONTRIBUTION_CHOICES;
  * Three things changed here when the cart page became status-first, and each one is load-bearing:
  *
  *   1. `onReady` now hands back the WHOLE `CheckoutProfileValue` - `firstName`, `lastName`,
- *      `addressComplete` and a real `address`. The page derives the editor state from
- *      `deriveStatus('PROFILE_READY', next.addressComplete)`, so a payload missing
- *      `addressComplete` derives `'required'` and every flow in this file would stop at the
+ *      `profileComplete`, `addressComplete` and a real `address`. The page derives the editor
+ *      state from the unified profile readiness contract, so a fixture missing either completion
+ *      flag derives `'required'` and every flow in this file would stop at the
  *      editor instead of reaching `prepare`.
  *   2. It reports the MODE it was mounted in, as `data-mode`. The page mounts a fresh editor per
  *      affordance, and "the editor opened in address mode" is the assertion several cases below
@@ -133,6 +133,7 @@ const SAVED_PROFILE = {
   lastName: 'Sen',
   email: 'asha@example.com',
   phone: '+919330994400',
+  profileComplete: true,
   addressComplete: true,
   address: ADDRESS_FIXTURE,
 };
