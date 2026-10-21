@@ -180,7 +180,12 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
       const style = getComputedStyle( node );
       return { transitionDuration: style.transitionDuration, transform: style.transform, boxShadow: style.boxShadow };
     } );
-    if ( reduced.transitionDuration !== '0s' ) fail( `reduced-motion: composer transition is ${reduced.transitionDuration}` );
+    const reducedTransitionSeconds = Math.max(
+      ...reduced.transitionDuration.split( ',' ).map( value => Number.parseFloat( value ) || 0 )
+    );
+    if ( reducedTransitionSeconds > 0.001 ) {
+      fail( `reduced-motion: composer transition is ${reduced.transitionDuration}` );
+    }
     if ( reduced.transform !== 'none' || reduced.boxShadow !== 'none' ) {
       fail( `reduced-motion: composer still moves/lifts (${JSON.stringify( reduced )})` );
     }
