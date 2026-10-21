@@ -38,11 +38,12 @@ describe( 'public mobile foundation', () => {
     }
   } );
 
-  it( 'records Grahak OS and VayuLok as explicit foundation adopters', () => {
+  it( 'records Grahak OS, VayuLok and shared ProductPage as explicit foundation adopters', () => {
     const grahak = read( 'src/pages/grahak-os/index.tsx' );
     const rotatingHero = read( 'src/components/RotatingHero.tsx' );
     const vayulok = read( 'src/pages/vayulok/index.tsx' );
     const vayulokLive = read( 'src/components/VayuLokLive.tsx' );
+    const productPage = read( 'src/components/ProductPage.tsx' );
 
     expect( grahak ).toContain( 'mobileFoundation' );
     expect( grahak ).toContain( '--public-mobile-section-size' );
@@ -59,6 +60,12 @@ describe( 'public mobile foundation', () => {
     expect( vayulokLive ).toContain( '--public-mobile-section-gap' );
     expect( vayulokLive ).toContain( '--vl-action-size:var(--tap-min)' );
     expect( vayulokLive ).toContain( 'font-family:var(--font-sans)' );
+
+    expect( productPage ).toContain( 'mobileFoundation' );
+    expect( productPage ).toContain( '--public-mobile-section-size' );
+    expect( productPage ).toContain( '--public-mobile-card-size' );
+    expect( productPage ).toContain( '--public-mobile-cta-font-size' );
+    expect( productPage ).toContain( '--public-mobile-section-gap' );
   } );
 
   it( 'documents opt-in family-by-family adoption', () => {
@@ -68,8 +75,8 @@ describe( 'public mobile foundation', () => {
     expect( steering ).toContain( 'Adopt the contract family-by-family' );
     expect( steering ).toContain( 'Grahak OS is migrated' );
     expect( steering ).toContain( 'VayuLok is migrated' );
-    expect( steering ).toContain( 'Shared service/product' );
-    expect( steering ).toContain( 'pages are next' );
+    expect( steering ).toContain( 'Shared service/product pages are migrated' );
+    expect( steering ).toContain( 'customer forms are next' );
     expect( steering ).toContain( 'A real physical' );
   } );
 } );
