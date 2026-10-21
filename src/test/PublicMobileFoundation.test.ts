@@ -61,6 +61,18 @@ describe( 'public mobile foundation', () => {
     expect( vayulokLive ).toContain( 'font-family:var(--font-sans)' );
   } );
 
+  it( 'keeps the bespoke Activities experience explicitly on the Home-aligned mobile foundation', () => {
+    const productPage = read( 'src/components/ProductPage.tsx' );
+    const activities = read( 'src/pages/elsewhere/activities.tsx' );
+    const assistant = read( 'src/components/ElsewhereTravelAssistant.tsx' );
+
+    expect( productPage ).toContain( 'mobileFoundation?: boolean' );
+    expect( productPage ).toContain( 'mobileFoundation={ mobileFoundation }' );
+    expect( activities ).toContain( 'mobileFoundation' );
+    expect( assistant ).toContain( 'var(--public-mobile-page-gutter)' );
+    expect( assistant ).toContain( 'font-size:var(--public-body-size)' );
+  } );
+
   it( 'documents opt-in family-by-family adoption', () => {
     const steering = read( '.kiro/steering/25-public-mobile-foundation.md' );
 
