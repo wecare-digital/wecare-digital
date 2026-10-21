@@ -552,10 +552,10 @@ const ElsewhereTravelAssistant: React.FC = () => {
         .eta-meta span{padding:5px 8px;border:0;border-radius:999px;background:#f1f3ed;color:#667064;font-size:11px;font-weight:600;line-height:1.2}
         .eta-result-side{display:flex;flex-direction:column;align-items:flex-end;gap:9px;text-align:end}
         .eta-price{color:var(--public-heading);font-size:17px;font-weight:700;line-height:1.25;letter-spacing:-.2px;white-space:nowrap}
-        .eta-actions{display:flex;justify-content:flex-end;gap:7px;flex-wrap:wrap}
+        .eta-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;width:min(100%,340px);margin-inline-start:auto}
         .eta-action{
-          min-width:44px;min-height:44px;padding:0 12px;border:1px solid #cdd3ca;border-radius:12px;background:#fff;
-          color:var(--public-brand-green);font-size:12px;font-weight:650;line-height:1.15;cursor:pointer;
+          min-width:0;min-height:44px;padding:0 10px;border:1px solid #cdd3ca;border-radius:12px;background:#fff;
+          color:var(--public-brand-green);font-size:11.5px;font-weight:650;line-height:1.15;cursor:pointer;white-space:nowrap;
           touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:transform .12s ease,background .14s ease,border-color .14s ease;
         }
         .eta-action:active{transform:scale(.96);background:var(--public-lime-tint);border-color:#bfd36f}
@@ -644,9 +644,9 @@ const ElsewhereTravelAssistant: React.FC = () => {
           .eta-line{font-size:18px}
           .eta-field textarea{font-size:var(--public-mobile-form-font-size)}
           .eta-composer-foot{flex-wrap:wrap}.eta-hint{flex:1 1 100%}.eta-tools{width:100%;justify-content:flex-end}
-          .eta-result{grid-template-columns:1fr;padding:16px}.eta-result h3{font-size:18px}.eta-result-side{align-items:flex-start;text-align:start}.eta-actions{justify-content:flex-start;flex-wrap:wrap}
+          .eta-result{grid-template-columns:1fr;padding:16px}.eta-result h3{font-size:18px}.eta-result-side{align-items:flex-start;text-align:start}.eta-actions{width:100%;margin-inline-start:0}
         }
-        @media(max-width:380px){.eta-tab{font-size:13px;padding-inline:10px}.eta-keyhint{display:none}}
+        @media(max-width:380px){.eta-tab{font-size:13px;padding-inline:10px}.eta-keyhint{display:none}.eta-action{padding-inline:7px;font-size:10.5px}}
         @media(prefers-reduced-motion:reduce){
           .eta-tab,.eta-tab::before,.eta-result,.eta-chip,.eta-action,.eta-clear,.eta-send,.eta-preference-clear{transition:none}
           .eta-tab:active,.eta-result:active,.eta-chip:active,.eta-action:active,.eta-clear:active,.eta-send:active,.eta-preference-clear:active,
