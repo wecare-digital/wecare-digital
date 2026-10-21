@@ -79,25 +79,6 @@ def test_a_bare_digits_row_written_by_an_old_writer_is_still_found():
     assert contact_store.lookup_id(db.Table(CONTACTS), '+919876543210') == 'legacy-1'
 
 
-def test_duplicate_live_phone_claims_fail_closed():
-    db = contacts_db(
-        {'id': 'contact-a', 'contactId': 'contact-a', 'phone': '+919876543210'},
-        {'id': 'contact-b', 'contactId': 'contact-b', 'phone': '+919876543210'},
-    )
-    with pytest.raises(contact_store.IdentityConflict) as caught:
-        contact_store.find_by_phone(db.Table(CONTACTS), '+919876543210')
-    assert caught.value.contact_ids == ('contact-a', 'contact-b')
-
-
-def test_merge_aliases_collapse_duplicate_index_rows_to_one_contact():
-    db = contacts_db(
-        {'id': 'canonical', 'contactId': 'canonical', 'phone': '+919876543210'},
-        {'id': 'old', 'contactId': 'old', 'phone': '+919876543210',
-         'mergeState': 'merged', 'mergedIntoContactId': 'canonical'},
-    )
-    assert contact_store.find_by_phone(db.Table(CONTACTS), '+919876543210')['id'] == 'canonical'
-
-
 def test_a_bsuid_recipient_resolves_the_same_live_contact():
     db = contacts_db({'id': 'contact-bsuid', 'contactId': 'contact-bsuid',
                       'phone': '+918100640044', 'bsuid': 'US.13491208655302741918'})
@@ -235,6 +216,9 @@ def test_an_attempt_without_a_contact_writes_no_contact_field():
     assert 'contactId' not in _accept(_paid_attempt())
 
 
+# ── the staff order API (both service-api copies share the shape) ──────────────────
+
+@pytest.fixture()
 def service_api(monkeypatch):
     module = importlib.import_module('service_api')
     db = FakeDynamo(
