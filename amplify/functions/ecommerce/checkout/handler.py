@@ -191,9 +191,12 @@ PAYMENT_WABA_ID = os.environ.get("PAYMENT_WABA_ID", "2094615664435155")
 EXPECTED_CONFIGURATION_NAME = os.environ.get("EXPECTED_CONFIGURATION_NAME", "")
 EXPECTED_PROVIDER_MID = os.environ.get("EXPECTED_PROVIDER_MID", "")
 
-#: Off by default. The plumbing runs; the payable message does not go out until this is truthy.
-INITIATION_ENABLED = str(
-    os.environ.get("CHECKOUT_INITIATION_ENABLED", "")).strip().lower() in ("1", "true", "yes", "on")
+#: Hard-enabled by owner authorization (2026-10-21): the checkout initiation gate was removed.
+#: Previously read CHECKOUT_INITIATION_ENABLED (default off); that env toggle is deleted so
+#: initiation is always on. NOTE: payment_readiness.evaluate (EXPECTED_CONFIGURATION_NAME /
+#: EXPECTED_PROVIDER_MID) still independently governs whether a payable message actually goes
+#: out -- that readiness check is intentionally left intact by this change.
+INITIATION_ENABLED = True
 
 #: The catalogue product id of the live Contribute product, lowercased, as the deployment
 #: environment carries it (`config/lambda-env-manifest.json`). NOT a secret -- a catalogue
