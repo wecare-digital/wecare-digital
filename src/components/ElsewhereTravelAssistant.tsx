@@ -438,25 +438,28 @@ const ElsewhereTravelAssistant: React.FC = () => {
                         <span>{ hasRupeePrice( result.price ) ? rupeeAmount( result.price ) : result.price }</span>
                       </div>
                       { ( checkoutAvailable( 'website', result ) || checkoutAvailable( 'whatsapp', result ) ) && (
-                        <div className="eta-actions" aria-label="Checkout options">
-                          { checkoutAvailable( 'website', result ) && (
-                            <button
-                              type="button"
-                              className="eta-action"
-                              aria-label={ `Checkout ${result.title} here for ${result.price}` }
-                              title={ `Checkout here · ${result.price}` }
-                              onClick={ () => continueWith( 'website', result ) }
-                            >Checkout here</button>
-                          ) }
-                          { checkoutAvailable( 'whatsapp', result ) && (
-                            <button
-                              type="button"
-                              className="eta-action"
-                              aria-label={ `Checkout ${result.title} on WhatsApp for ${result.price}` }
-                              title={ `Checkout on WhatsApp · ${result.price}` }
-                              onClick={ () => continueWith( 'whatsapp', result ) }
-                            >Checkout on WhatsApp</button>
-                          ) }
+                        <div className="eta-checkout">
+                          <span className="eta-checkout-label">Checkout</span>
+                          <div className="eta-actions" aria-label="Checkout options">
+                            { checkoutAvailable( 'website', result ) && (
+                              <button
+                                type="button"
+                                className="eta-action"
+                                aria-label={ `Checkout ${result.title} here for ${result.price}` }
+                                title={ `Checkout here · ${result.price}` }
+                                onClick={ () => continueWith( 'website', result ) }
+                              >Here</button>
+                            ) }
+                            { checkoutAvailable( 'whatsapp', result ) && (
+                              <button
+                                type="button"
+                                className="eta-action"
+                                aria-label={ `Checkout ${result.title} on WhatsApp for ${result.price}` }
+                                title={ `Checkout on WhatsApp · ${result.price}` }
+                                onClick={ () => continueWith( 'whatsapp', result ) }
+                              >WhatsApp</button>
+                            ) }
+                          </div>
                         </div>
                       ) }
                     </div>
@@ -615,6 +618,10 @@ const ElsewhereTravelAssistant: React.FC = () => {
           width:18px;height:18px;display:inline-grid;place-items:center;font-size:18px;font-weight:600;
           color:var(--public-brand-green);
         }
+        .eta-checkout{display:flex;flex-direction:column;align-items:flex-end;gap:5px}
+        .eta-checkout-label{
+          color:var(--public-muted);font-size:13px;font-weight:600;line-height:1.3;letter-spacing:-.05px;
+        }
         .eta-actions{
           display:flex;flex-direction:column;align-items:flex-end;gap:8px;width:auto;max-width:100%;margin-inline-start:auto;
         }
@@ -718,7 +725,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
           .eta-line{font-size:18px}
           .eta-field textarea{font-size:var(--public-mobile-form-font-size)}
           .eta-composer-foot{flex-wrap:wrap}.eta-hint{flex:1 1 100%}.eta-tools{width:100%;justify-content:flex-end}
-          .eta-result{grid-template-columns:1fr;padding:18px}.eta-result h3{font-size:var(--public-mobile-card-size)}.eta-desc{font-size:16px}.eta-result-side{align-items:flex-start;text-align:start}.eta-actions{align-items:flex-start;margin-inline-start:0}
+          .eta-result{grid-template-columns:1fr;padding:18px}.eta-result h3{font-size:var(--public-mobile-card-size)}.eta-desc{font-size:16px}.eta-result-side{align-items:flex-start;text-align:start}.eta-checkout{align-items:flex-start}.eta-actions{align-items:flex-start;margin-inline-start:0}
         }
         @media(max-width:380px){
           .eta-tab{font-size:13px;padding-inline:10px}
