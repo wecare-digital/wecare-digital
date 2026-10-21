@@ -1,5 +1,6 @@
 import React from 'react';
 import PageMeta from '../components/PageMeta';
+import Breadcrumbs from '../components/Breadcrumbs';
 import RotatingHero, { type CycleWord } from '../components/RotatingHero';
 import ProductBuyBox from '../components/ProductBuyBox';
 import PolicyDetails from '../components/public/PolicyDetails';
@@ -72,6 +73,10 @@ const BharatRxPage: React.FC = () => (
       words={ CYCLE_WORDS }
       sub="Requests go to a qualified professional, and every one is tracked end to end with transparent pricing."
     >
+      {/* THE VISIBLE BREADCRUMB mirroring _app.tsx's BreadcrumbList for this route:
+          Home -> 'Bharat Rx' (the exact PUBLIC_PAGE_META name). No page-level JSON-LD -
+          _app.tsx owns the single BreadcrumbList for this PUBLIC_PAGE_META route. */}
+      <Breadcrumbs items={ [ { label: 'Home', href: '/' }, { label: 'Bharat Rx' } ] } />
       <section className="brx" aria-label="About Bharat Rx">
         {/* ONE FLOW, and deliberately not a retail one. This briefly had a second "Order
             medicines" track with prescriptions, stock, pricing and doorstep delivery. That

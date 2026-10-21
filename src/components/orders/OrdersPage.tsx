@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 
 import PageMeta from '../PageMeta';
+import Breadcrumbs from '../Breadcrumbs';
 import RotatingHero from '../RotatingHero';
 import PillButton from '../PillButton';
 import CheckoutIdentityCard from '../CheckoutIdentityCard';
@@ -663,6 +664,12 @@ export default function OrdersPage (): React.ReactElement {
              and the 'Inter' stack. Nothing below re-declares any of them, and nothing
              conversion-shaped - no button, link or price - goes inside the band itself. */ }
         <div className="ord-page">
+          {/* THE VISIBLE BREADCRUMB mirroring _app.tsx's BreadcrumbList for /orders/:
+              Home -> 'Orders' (the exact PUBLIC_PAGE_META name). It is page furniture, not a
+              conversion control, so it sits at the top of the band content without breaking the
+              "nothing conversion-shaped in the band" rule. No page-level JSON-LD - _app.tsx owns
+              the single BreadcrumbList for this PUBLIC_PAGE_META route. */}
+          <Breadcrumbs items={ [ { label: 'Home', href: '/' }, { label: 'Orders' } ] } />
           { view === 'signedOut' && (
             <div className="ord-gate">
               { expired && (

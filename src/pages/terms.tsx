@@ -1,5 +1,6 @@
 import React from 'react';
 import PageMeta from '../components/PageMeta';
+import Breadcrumbs from '../components/Breadcrumbs';
 import RotatingHero, { type CycleWord } from '../components/RotatingHero';
 import LegalDocument from '../components/LegalDocument';
 import { TERMS_SECTIONS, TERMS_INTRO } from '../content/legal/terms';
@@ -51,6 +52,12 @@ const TermsPage: React.FC = () => (
       words={ CYCLE_WORDS }
       sub="The agreement between you and WECARE.DIGITAL when you use our services."
     >
+      {/* THE VISIBLE BREADCRUMB that _app.tsx's BreadcrumbList already describes for this
+          route: Home -> the PUBLIC_PAGE_META name ('Terms'). Rendered first inside the hero
+          content, where /contact places its trail, so the markup mirrors a trail the reader
+          can see. No JSON-LD is emitted here: _app.tsx owns the single BreadcrumbList for
+          every PUBLIC_PAGE_META route, and a second copy would be a duplicate @id. */}
+      <Breadcrumbs items={ [ { label: 'Home', href: '/' }, { label: 'Terms' } ] } />
       <LegalDocument
         sections={ TERMS_SECTIONS }
         intro={ TERMS_INTRO }

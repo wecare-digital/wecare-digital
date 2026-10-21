@@ -24,9 +24,11 @@ import { serviceByKind } from '../config/services';
  */
 const DropDocsPage: React.FC = () => {
   const service = serviceByKind( 'DROP_DOCS' );
+  const product = customerserviceBySlug( 'drop-docs' );
   return (
     <ProductPage
-      product={ customerserviceBySlug( 'drop-docs' ) }
+      product={ product }
+      crumbs={ [ { label: 'Home', href: '/' }, { label: product.name } ] }
       belowCta={ service ? <ServiceBuyBox service={ service } /> : null }
     />
   );

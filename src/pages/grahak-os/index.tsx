@@ -6,6 +6,7 @@
 import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
 import PageMeta from '../../components/PageMeta';
+import Breadcrumbs from '../../components/Breadcrumbs';
 import ProductBuyBox from '../../components/ProductBuyBox';
 import PolicyDetails from '../../components/public/PolicyDetails';
 import RotatingHero from '../../components/RotatingHero';
@@ -390,7 +391,17 @@ response = requests.post(
             </div>
           </div>
           ) }
-        />
+        >
+          {/* THE VISIBLE BREADCRUMB mirroring _app.tsx's BreadcrumbList for /grahak-os/:
+              Home -> 'Grahak OS' (the exact PUBLIC_PAGE_META name). Rendered as the hero's
+              child, directly under the hero copy (RotatingHero owns the single h1), so it
+              sits above the .anim sections without being one - it carries no .anim class and
+              is outside the reveal observer, so the entrance machinery is untouched. No
+              page-level BreadcrumbList is emitted: _app.tsx owns the single one for this
+              PUBLIC_PAGE_META route, and the page's own SoftwareApplication JSON-LD is left
+              as-is. */}
+          <Breadcrumbs items={ [ { label: 'Home', href: '/' }, { label: 'Grahak OS' } ] } />
+        </RotatingHero>
 
         {/*
           Full-bleed layout: the touchpoint section keeps the 100vw + centring

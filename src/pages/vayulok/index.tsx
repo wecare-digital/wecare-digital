@@ -37,6 +37,7 @@
 
 import React from 'react';
 import PageMeta from '../../components/PageMeta';
+import Breadcrumbs from '../../components/Breadcrumbs';
 import RotatingHero from '../../components/RotatingHero';
 import VayuLokApprovedGlobe from '../../components/VayuLokApprovedGlobe';
 import VayuLokLive from '../../components/VayuLokLive';
@@ -182,7 +183,14 @@ const VayuLokPage: React.FC = () => {
             />
           </div>
           ) }
-        />
+        >
+          {/* THE VISIBLE BREADCRUMB mirroring _app.tsx's BreadcrumbList for /vayulok/:
+              Home -> 'VayuLok' (the exact PUBLIC_PAGE_META name). Rendered as the hero's
+              child, directly under the hero copy (RotatingHero owns the single h1). No
+              page-level BreadcrumbList is emitted here: _app.tsx owns the single one for this
+              PUBLIC_PAGE_META route, and this page's own WebApplication JSON-LD is unchanged. */}
+          <Breadcrumbs items={ [ { label: 'Home', href: '/' }, { label: 'VayuLok' } ] } />
+        </RotatingHero>
 
         {/* The live air/weather application stays directly below the shared product hero.
             VayuLokLive no longer owns a second <main>; this page owns the one primary
