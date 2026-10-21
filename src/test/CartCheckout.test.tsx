@@ -575,7 +575,7 @@ describe( 'legacy cart option recovery', () => {
       quantity: 1,
     } ] ) );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     expect( await screen.findByText( 'Ready to pay' ) ).toBeTruthy();
     fireEvent.click( await screen.findByRole( 'button', { name: /Pay here/ } ) );
 
@@ -617,7 +617,7 @@ describe( 'the cart page proceed flow', () => {
     vi.stubGlobal( 'fetch', fetchMock );
     cart.addItem( PRODUCT, 1 );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     fireEvent.click( await screen.findByRole( 'button', { name: 'Proceed' } ) );
 
     await waitFor( () => expect( navigatedTo ).toContain( '/account/sign-in' ) );
@@ -636,7 +636,7 @@ describe( 'the cart page proceed flow', () => {
     } );
     cart.addItem( PRODUCT, 2 );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     await proceedPastProfile();
 
     await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 ) );
@@ -661,7 +661,7 @@ describe( 'the cart page proceed flow', () => {
     } );
     cart.addItem( PRODUCT, 1 );
 
-    const { container } = render( <Cart /> );
+    const { container } = render( <Cart checkoutChannel="website" /> );
     await proceedPastProfile();
 
     /*
@@ -728,7 +728,7 @@ describe( 'the cart page proceed flow', () => {
     } );
     cart.addItem( PRODUCT, 1 );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     await proceedPastProfile();
 
     await waitFor( () => expect( open ).toHaveBeenCalledTimes( 1 ) );
@@ -835,7 +835,7 @@ describe( 'the cart page proceed flow', () => {
     } );
     cart.setContribution( ONLY.variantId );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     fireEvent.click( await screen.findByRole( 'button', { name: /Pay securely|Proceed/ } ) );
 
     await waitFor( () => expect( open ).toHaveBeenCalledTimes( 1 ) );
@@ -851,7 +851,7 @@ describe( 'the cart page proceed flow', () => {
     stubFetch( { prepare: { body: { status: 'PAYMENT_REQUEST_SENT', paymentAttemptId: 'att-5' } } } );
     cart.addItem( PRODUCT, 1 );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     await proceedPastProfile();
     await waitFor( () => expect( navigatedTo ).toBe( '/checkout/status/?a=att-5' ) );
     expect( cart.readCart() ).toHaveLength( 1 );
@@ -865,7 +865,7 @@ describe( 'the cart page proceed flow', () => {
         : { ok: false, status: 500, body: {} },
     } );
     cart.addItem( PRODUCT, 1 );
-    const { container } = render( <Cart /> );
+    const { container } = render( <Cart checkoutChannel="website" /> );
     await proceedPastProfile();
     expect( await screen.findByText( 'We could not confirm checkout. Check your orders before trying again.' ) ).toBeTruthy();
     expect( container.textContent ).not.toMatch( /No charge was made/i );
@@ -883,7 +883,7 @@ describe( 'the cart page proceed flow', () => {
     } );
     cart.addItem( PRODUCT, 1 );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     await proceedPastProfile();
 
     expect( await screen.findByText( /No charge was made/ ) ).toBeTruthy();
@@ -906,7 +906,7 @@ describe( 'the cart page proceed flow', () => {
     } );
     cart.addItem( PRODUCT, 1 );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     await proceedPastProfile();
     expect( await screen.findByText( /No charge was made - please try again/ ) ).toBeTruthy();
   } );
@@ -916,14 +916,14 @@ describe( 'the cart page proceed flow', () => {
     stubFetch( { prepare: { ok: false, status: 401, body: {} } } );
     cart.addItem( PRODUCT, 1 );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     await proceedPastProfile();
     await waitFor( () => expect( navigatedTo ).toContain( '/account/sign-in' ) );
   } );
 
   it( 'shows an empty state and no proceed button when the cart is empty', async () => {
     vi.spyOn( customerAuth, 'getSession' ).mockReturnValue( null );
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     expect( await screen.findByText( 'Your cart is empty.' ) ).toBeTruthy();
     expect( screen.queryByRole( 'button', { name: 'Proceed' } ) ).toBeNull();
   } );
@@ -952,7 +952,7 @@ describe( 'the cart page asks the readiness question before rendering anything',
     } );
     cart.addItem( PRODUCT, 1 );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
 
     // The identity card is the page's own signal that the answer landed and said "payable now".
     expect( await screen.findByText( 'Ready to pay' ) ).toBeTruthy();
@@ -980,7 +980,7 @@ describe( 'the cart page asks the readiness question before rendering anything',
     } );
     cart.addItem( PRODUCT, 1 );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     fireEvent.click( await screen.findByRole( 'button', { name: 'Proceed' } ) );
 
     await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 ) );
@@ -998,7 +998,7 @@ describe( 'the cart page asks the readiness question before rendering anything',
     } );
     cart.addItem( PRODUCT, 1 );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     fireEvent.click( await screen.findByRole( 'button', { name: /Pay here/ } ) );
 
     const editor = await screen.findByTestId( 'checkout-profile' );
@@ -1016,7 +1016,7 @@ describe( 'the cart page asks the readiness question before rendering anything',
     stubFetch();
     cart.addItem( PRODUCT, 1 );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     fireEvent.click( await screen.findByRole( 'button', { name: 'Proceed' } ) );
     fireEvent.click( await screen.findByRole( 'button', { name: 'Save without an address' } ) );
 
@@ -1031,7 +1031,7 @@ describe( 'the cart page asks the readiness question before rendering anything',
     } );
     cart.addItem( PRODUCT, 1 );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     await proceedPastProfile();
     await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 ) );
 
@@ -1060,7 +1060,7 @@ describe( 'the cart page asks the readiness question before rendering anything',
     } );
     cart.addItem( PRODUCT, 1 );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     await flush();
     fireEvent.click( screen.getByRole( 'button', { name: 'Proceed' } ) );
     await flush();
@@ -1089,7 +1089,7 @@ describe( 'the cart page asks the readiness question before rendering anything',
     } );
     cart.addItem( PRODUCT, 1 );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     await flush();
     fireEvent.click( screen.getByRole( 'button', { name: 'Proceed' } ) );
     await flush();
@@ -1119,7 +1119,7 @@ describe( 'the cart page asks the readiness question before rendering anything',
     } );
     cart.addItem( PRODUCT, 1 );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     expect( await screen.findByText( 'Ready to pay' ) ).toBeTruthy();
     fireEvent.click( await screen.findByRole( 'button', { name: /Pay here/ } ) );
 
@@ -1140,7 +1140,7 @@ describe( 'the cart page asks the readiness question before rendering anything',
     } );
     cart.addItem( PRODUCT, 1 );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     expect( await screen.findByText( 'Ready to pay' ) ).toBeTruthy();
     fireEvent.click( await screen.findByRole( 'button', { name: /Pay here/ } ) );
 
@@ -1163,7 +1163,7 @@ describe( 'the cart page asks the readiness question before rendering anything',
     } );
     cart.addItem( PRODUCT, 1 );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     expect( await screen.findByText( 'Ready to pay' ) ).toBeTruthy();
     fireEvent.click( await screen.findByRole( 'button', { name: /Pay here/ } ) );
 
@@ -1179,7 +1179,7 @@ describe( 'the cart page asks the readiness question before rendering anything',
     stubFetch( { profile: { body: PROFILE_READY } } );
     cart.addItem( PRODUCT, 1 );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     fireEvent.click( await screen.findByRole( 'button', { name: 'Edit address' } ) );
     expect( ( await screen.findByTestId( 'checkout-profile' ) ).getAttribute( 'data-mode' ) ).toBe( 'address' );
     // The card stays, with its buttons disabled, so a second affordance cannot swap the mode out
@@ -1220,7 +1220,7 @@ describe( 'the initiation-failure sentence is pinned to its evidence', () => {
       stubFetch( { prepare: refusal } );
       cart.addItem( PRODUCT, 1 );
 
-      const { unmount } = render( <Cart /> );
+      const { unmount } = render( <Cart checkoutChannel="website" /> );
       await proceedPastProfile();
       expect( await screen.findByText( SENTENCE ), JSON.stringify( refusal.body ) ).toBeTruthy();
       // Nothing was handed off, so the claim stays attached to the response that justified it.
@@ -1236,7 +1236,7 @@ describe( 'the initiation-failure sentence is pinned to its evidence', () => {
     stubFetch( { prepare: { body: { status: 'PAYMENT_REQUEST_SENT', paymentAttemptId: 'att-5' } } } );
     cart.addItem( PRODUCT, 1 );
 
-    const { container } = render( <Cart /> );
+    const { container } = render( <Cart checkoutChannel="website" /> );
     await proceedPastProfile();
 
     await waitFor( () => expect( navigatedTo ).toBe( '/checkout/status/?a=att-5' ) );
@@ -1348,7 +1348,7 @@ describe( 'the payment rail latches once it has returned a result', () => {
     } );
     cart.addItem( PRODUCT, 1 );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     await proceedPastProfile();
 
     // The modal payload, asserted as an allow-list rather than a spot check.
@@ -1387,7 +1387,7 @@ describe( 'the payment rail latches once it has returned a result', () => {
     } );
     cart.addItem( PRODUCT, 1 );
 
-    const { container } = render( <Cart /> );
+    const { container } = render( <Cart checkoutChannel="website" /> );
     await proceedPastProfile();
     await waitFor( () => expect( razorpay.opens ).toBe( 1 ) );
 
@@ -1428,7 +1428,7 @@ describe( 'the payment rail latches once it has returned a result', () => {
     } );
     cart.addItem( PRODUCT, 1 );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     await proceedPastProfile();
     await waitFor( () => expect( razorpay.opens ).toBe( 1 ) );
     // The reservation slots exist at this point - the prepare minted them.
@@ -1468,7 +1468,7 @@ describe( 'the payment rail latches once it has returned a result', () => {
       stubFetch( { prepare: { body: READY_OPTIONS }, verify } );
       cart.addItem( PRODUCT, 1 );
 
-      const { unmount } = render( <Cart /> );
+      const { unmount } = render( <Cart checkoutChannel="website" /> );
       await proceedPastProfile();
       await waitFor( () => expect( razorpay.opens ).toBe( 1 ) );
       await razorpay.options.handler( {
@@ -1491,7 +1491,7 @@ describe( 'the payment rail latches once it has returned a result', () => {
     stubFetch( { prepare: { body: READY_OPTIONS } } );
     cart.addItem( PRODUCT, 1 );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     await proceedPastProfile();
     await waitFor( () => expect( razorpay.opens ).toBe( 1 ) );
 
@@ -1512,7 +1512,7 @@ describe( 'the payment rail latches once it has returned a result', () => {
     } );
     cart.addItem( PRODUCT, 1 );
 
-    const { container } = render( <Cart /> );
+    const { container } = render( <Cart checkoutChannel="website" /> );
     await proceedPastProfile();
     await waitFor( () => expect( razorpay.opens ).toBe( 1 ) );
 
@@ -1543,7 +1543,7 @@ describe( 'the payment rail latches once it has returned a result', () => {
     } );
     cart.addItem( PRODUCT, 1 );
 
-    const { container } = render( <Cart /> );
+    const { container } = render( <Cart checkoutChannel="website" /> );
     await proceedPastProfile();
     await waitFor( () => expect( razorpay.opens ).toBe( 1 ) );
     await razorpay.options.handler( {
@@ -1564,7 +1564,7 @@ describe( 'the payment rail latches once it has returned a result', () => {
     stubFetch( { prepare: { body: READY_OPTIONS } } );
     cart.addItem( PRODUCT, 1 );
 
-    const { container } = render( <Cart /> );
+    const { container } = render( <Cart checkoutChannel="website" /> );
     await proceedPastProfile();
     await waitFor( () => expect( razorpay.opens ).toBe( 1 ) );
 
@@ -1583,7 +1583,7 @@ describe( 'the payment rail latches once it has returned a result', () => {
     stubFetch( { prepare: { body: READY_OPTIONS } } );
     cart.addItem( PRODUCT, 1 );
 
-    const { container } = render( <Cart /> );
+    const { container } = render( <Cart checkoutChannel="website" /> );
     await proceedPastProfile();
     await waitFor( () => expect( razorpay.opens ).toBe( 1 ) );
     // The provider is telling us no money moved, so the rail is re-enterable.
@@ -1603,7 +1603,7 @@ describe( 'the payment rail latches once it has returned a result', () => {
     } );
     cart.addItem( PRODUCT, 1 );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     await proceedPastProfile();
     await waitFor( () => expect( navigatedTo ).toBe( '/checkout/status/?a=att-blocked-1' ) );
   } );
@@ -1617,7 +1617,7 @@ describe( 'the payment rail latches once it has returned a result', () => {
     } );
     cart.addItem( PRODUCT, 1 );
 
-    const { container } = render( <Cart /> );
+    const { container } = render( <Cart checkoutChannel="website" /> );
     await proceedPastProfile();
 
     // A step-4b loser deliberately carries no attempt id, because the holder's attempt may not
@@ -1773,7 +1773,7 @@ describe( 'the payment rail latches once it has returned a result', () => {
  * 'Preparing...' while busy. A test that pins one of them is really pinning the state it happened
  * to be in, which is not what any of the cases below are about.
  */
-const CTA = /Pay here|Pay on WhatsApp|Preparing/;
+const CTA = /Pay securely|Proceed|Preparing|Try again/;
 
 describe( 'a contribution basket skips the address gate, on the FIRST click', () => {
   /**
@@ -1798,7 +1798,7 @@ describe( 'a contribution basket skips the address gate, on the FIRST click', ()
     } );
     cart.setContribution( ONLY.variantId );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
 
     await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 ) );
@@ -1815,7 +1815,7 @@ describe( 'a contribution basket skips the address gate, on the FIRST click', ()
     } );
     cart.addItem( PRODUCT, 1 );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
     expect( await screen.findByTestId( 'checkout-profile' ) ).toBeInTheDocument();
   } );
@@ -1830,7 +1830,7 @@ describe( 'a contribution basket skips the address gate, on the FIRST click', ()
       signedIn();
       stubFetch( { profile: { body: PROFILE_REQUIRED } } );
       seed();
-      const { unmount } = render( <Cart /> );
+      const { unmount } = render( <Cart checkoutChannel="website" /> );
       fireEvent.click(
         await screen.findByRole( 'button', { name: CTA } ) );
       expect( await screen.findByTestId( 'checkout-profile' ) ).toBeInTheDocument();
@@ -1862,7 +1862,7 @@ describe( 'a mixed basket checks out, and the browser refuses nothing locally', 
     cart.setContribution( ONLY.variantId );
     cart.addItem( PRODUCT, 1 );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     const button = await screen.findByRole( 'button', { name: CTA } );
     expect( button ).not.toBeDisabled();
     // No notice at render time: there is no longer a local fact about this basket to report.
@@ -1907,7 +1907,7 @@ describe( 'a mixed basket checks out, and the browser refuses nothing locally', 
     cart.setContribution( ONLY.variantId );
     cart.addItem( PRODUCT, 1 );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
 
     await waitFor( () => expect(
@@ -1933,7 +1933,7 @@ describe( 'a mixed basket checks out, and the browser refuses nothing locally', 
     } );
     cart.setContribution( ONLY.variantId );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     const button = await screen.findByRole( 'button', { name: CTA } );
     expect( button ).not.toBeDisabled();
     expect( screen.queryByText( /Only one contribution can be paid at a time/ ) ).toBeNull();
@@ -1969,7 +1969,7 @@ describe( 'a mixed basket checks out, and the browser refuses nothing locally', 
     cart.setContribution( ONLY.variantId );
     cart.addItem( PRODUCT, 1 );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     fireEvent.click( await screen.findByRole( 'button', { name: `Remove ${ PRODUCT.name }` } ) );
     fireEvent.click( await screen.findByRole(
       'button', { name: CTA } ) );
@@ -1998,7 +1998,7 @@ describe( 'a mixed basket checks out, and the browser refuses nothing locally', 
         prepare: { body: { status: 'PAYMENT_INITIATION_DISABLED', paymentAttemptId: 'att-c4' } },
       } );
       cart.setContribution( ONLY.variantId );
-      render( <Cart /> );
+      render( <Cart checkoutChannel="website" /> );
       const button = await screen.findByRole( 'button', { name: CTA } );
       expect( button ).not.toBeDisabled();
 
@@ -2047,7 +2047,7 @@ describe( 'two clicks cannot post two prepares - the measured live blocker', () 
     } );
     cart.setContribution( ONLY.variantId );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     const button = await screen.findByRole( 'button', { name: CTA } );
     await act( async () => {
       button.dispatchEvent( new MouseEvent( 'click', { bubbles: true } ) );
@@ -2074,7 +2074,7 @@ describe( 'two clicks cannot post two prepares - the measured live blocker', () 
     } );
     cart.setContribution( ONLY.variantId );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     const button = await screen.findByRole( 'button', { name: CTA } );
     await act( async () => {
       button.dispatchEvent( new MouseEvent( 'click', { bubbles: true } ) );
@@ -2104,7 +2104,7 @@ describe( 'two clicks cannot post two prepares - the measured live blocker', () 
     } );
     cart.setContribution( ONLY.variantId );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     const button = await screen.findByRole( 'button', { name: CTA } );
     fireEvent.click( button );
     await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 ) );
@@ -2135,7 +2135,7 @@ describe( 'two clicks cannot post two prepares - the measured live blocker', () 
     } );
     cart.setContribution( ONLY.variantId );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
     const control = await screen.findByRole( 'button', { name: 'Start a new cart' } );
 
@@ -2188,7 +2188,7 @@ describe( 'the public cart is single-unit and has no quantity control', () => {
     signedIn();
     stubFetch( { profile: { body: PROFILE_READY } } );
     cart.addItem( PRODUCT, 3 );
-    const { container } = render( <Cart /> );
+    const { container } = render( <Cart checkoutChannel="website" /> );
 
     expect( await screen.findByText( PRODUCT.name ) ).toBeInTheDocument();
     expect( screen.queryByLabelText( 'Qty' ) ).toBeNull();
@@ -2217,7 +2217,7 @@ describe( 'the contribution row CHOOSES an amount, it does not count copies', ()
     signedIn();
     stubFetch( { profile: { body: PROFILE_READY } } );
     cart.setContribution( ONLY.variantId );
-    const { container } = render( <Cart /> );
+    const { container } = render( <Cart checkoutChannel="website" /> );
 
     expect( await screen.findByText( 'Contribute amount' ) ).toBeInTheDocument();
     const amount = container.querySelector( '.cart-amount-static' );
@@ -2236,7 +2236,7 @@ describe( 'the contribution row CHOOSES an amount, it does not count copies', ()
     signedIn();
     stubFetch( { profile: { body: PROFILE_READY } } );
     cart.setContribution( ONLY.variantId );
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
 
     await screen.findByText( 'Contribute amount' );
     expect( cart.readCart() ).toHaveLength( 1 );
@@ -2253,11 +2253,11 @@ describe( 'the contribution row CHOOSES an amount, it does not count copies', ()
       ref: `${service.productId}:${service.variantId}`, slug: service.slug,
       name: service.label, formattedPrice: '₹49.00', quantity: 1,
     } ] ) );
-    const first = render( <Cart /> );
+    const first = render( <Cart checkoutChannel="website" /> );
     expect( screen.queryByText( 'Delight' ) ).toBeNull();
     first.unmount();
     cart.addItem( PRODUCT, 1 );
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     expect( screen.queryByText( 'Delight' ) ).toBeNull();
   } );
 
@@ -2265,7 +2265,7 @@ describe( 'the contribution row CHOOSES an amount, it does not count copies', ()
     signedIn();
     stubFetch( { profile: { body: PROFILE_READY } } );
     cart.setContribution( ONLY.variantId );
-    const { unmount } = render( <Cart /> );
+    const { unmount } = render( <Cart checkoutChannel="website" /> );
     // A contribution takes neither a coupon nor a gift card: a coupon would make the recorded
     // amount differ from the amount contributed, and spending store credit is not a contribution.
     expect( screen.queryByLabelText( /Coupon code/i ) ).toBeNull();
@@ -2273,7 +2273,7 @@ describe( 'the contribution row CHOOSES an amount, it does not count copies', ()
 
     window.localStorage.clear();
     cart.addItem( PRODUCT, 1 );
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     expect( await screen.findByText( 'Delight' ) ).toBeInTheDocument();
     expect( screen.getByText( 'Delight discount is applied automatically at checkout.' ) )
       .toBeInTheDocument();
@@ -2302,7 +2302,7 @@ describe( 'CONTRIBUTION_NOT_PAYABLE says what is true instead of naming an impos
     } );
     cart.setContribution( ONLY.variantId );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
 
     await waitFor( () => expect( screen.getByText(
@@ -2327,7 +2327,7 @@ describe( 'CONTRIBUTION_NOT_PAYABLE says what is true instead of naming an impos
     } );
     cart.setContribution( ONLY.variantId );
 
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
 
     await waitFor( () => expect(
@@ -2348,7 +2348,7 @@ describe( 'CART_RESET_REQUIRED carries an action, not only words', () => {
         ],
       } );
       cart.setContribution( ONLY.variantId );
-      render( <Cart /> );
+      render( <Cart checkoutChannel="website" /> );
       fireEvent.click( await screen.findByRole(
         'button', { name: CTA } ) );
 
@@ -2403,7 +2403,7 @@ describe( 'CART_RESET_REQUIRED carries an action, not only words', () => {
         ],
       } );
       cart.setContribution( ONLY.variantId );
-      render( <Cart /> );
+      render( <Cart checkoutChannel="website" /> );
       fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
 
       const control = await screen.findByRole( 'button', { name: 'Start a new cart' } );
@@ -2454,7 +2454,7 @@ describe( 'the request key is scoped to the basket, and rotates once on INTENT_C
       prepare: { ok: false, status: 409, body: { error: 'CART_RECONCILIATION_REQUIRED' } },
     } );
     cart.addItem( PRODUCT, 1 );
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
 
     await clickCheckout();
     await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 ) );
@@ -2477,7 +2477,7 @@ describe( 'the request key is scoped to the basket, and rotates once on INTENT_C
         prepare: { ok: false, status: 409, body: { error: 'CART_RECONCILIATION_REQUIRED' } },
       } );
       cart.addItem( PRODUCT, 1 );
-      render( <Cart /> );
+      render( <Cart checkoutChannel="website" /> );
       await clickCheckout();
       await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 ) );
 
@@ -2512,7 +2512,7 @@ describe( 'the request key is scoped to the basket, and rotates once on INTENT_C
     // since 2026-10-10, so B is the same contribution with a product beside it: still a different
     // basket, which is all the key rotation keys on.
     cart.setContribution( ONLY.variantId );
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     await clickCheckout();
     await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 ) );
 
@@ -2544,7 +2544,7 @@ describe( 'the request key is scoped to the basket, and rotates once on INTENT_C
       ],
     } );
     cart.setContribution( ONLY.variantId );
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     await clickCheckout();
 
     await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 2 ) );
@@ -2563,7 +2563,7 @@ describe( 'the request key is scoped to the basket, and rotates once on INTENT_C
         body: { status: 'CHECKOUT_REJECTED', reason: 'INTENT_CHANGED' } },
     } );
     cart.setContribution( ONLY.variantId );
-    render( <Cart /> );
+    render( <Cart checkoutChannel="website" /> );
     await clickCheckout();
 
     await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 2 ) );
@@ -2583,7 +2583,7 @@ describe( 'the request key is scoped to the basket, and rotates once on INTENT_C
           body: { status: 'CHECKOUT_REJECTED', reason: 'SNAPSHOT_MISMATCH' } },
       } );
       cart.setContribution( ONLY.variantId );
-      render( <Cart /> );
+      render( <Cart checkoutChannel="website" /> );
       await clickCheckout();
 
       await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 ) );
@@ -2613,7 +2613,7 @@ describe( 'the request key is scoped to the basket, and rotates once on INTENT_C
         } },
       } );
       cart.setContribution( ONLY.variantId );
-      render( <Cart /> );
+      render( <Cart checkoutChannel="website" /> );
       await clickCheckout();
 
       await waitFor( () => expect( navigatedTo ).toContain( '/checkout/status/?a=pa_x' ) );
