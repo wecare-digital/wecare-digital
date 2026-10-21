@@ -40,8 +40,8 @@ correct metadata, structured data, and crawlable, indexable markup.
 
 - Emit valid **JSON-LD** `schema.org` structured data appropriate to the page:
   - `Organization` + `WebSite` (with `SearchAction`) sitewide.
-  - `BreadcrumbList` on every page that sits below the home level — mirror the
-    visible breadcrumb trail exactly.
+  - Do not emit `BreadcrumbList` on the public site unless a visible breadcrumb
+    trail is explicitly reintroduced for that page.
   - `Product` + `Offer` (price, availability, currency) on product pages,
     `Article`/`BlogPosting` on blog posts, `FAQPage` where FAQs exist,
     `LocalBusiness` for location/contact pages.
@@ -51,9 +51,9 @@ correct metadata, structured data, and crawlable, indexable markup.
 
 ## Breadcrumbs
 
-- Render a visible breadcrumb trail on all non-home pages and back it with
-  `BreadcrumbList` JSON-LD so Google can show breadcrumb rich results.
-- Breadcrumb links must be real crawlable `<a href>` anchors.
+- The public site does not render breadcrumb trails. Keep hero/content flows clean.
+- Do not add public `BreadcrumbList` JSON-LD while the corresponding visible trail is absent.
+- Workspace breadcrumbs are operational navigation and are outside this public SEO rule.
 
 ## Content & technical ranking factors
 
