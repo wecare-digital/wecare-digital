@@ -67,8 +67,8 @@ export interface AddressFieldSpec {
  */
 export const ADDRESS_FIELDS: readonly AddressFieldSpec[] = [
   { key: 'addressLine1', label: 'Address line 1', required: true, maxLength: 200, placeholder: 'Flat or house, building, street' },
-  { key: 'addressLine2', label: 'Address line 2 (House / Unit)', required: false, maxLength: 200, placeholder: 'House or unit number, floor, tower' },
-  { key: 'locality', label: 'Landmark / Locality', required: false, maxLength: 100, placeholder: 'Nearby landmark or area' },
+  { key: 'addressLine2', label: 'Address line 2 (House / Unit)', required: true, maxLength: 200, placeholder: 'House or unit number, floor, tower' },
+  { key: 'locality', label: 'Landmark / Locality', required: true, maxLength: 100, placeholder: 'Nearby landmark or area' },
   { key: 'city', label: 'City', required: true, maxLength: 100, placeholder: 'e.g. Mumbai' },
   { key: 'state', label: 'State', required: true, maxLength: 100, placeholder: 'e.g. Maharashtra' },
   { key: 'postalCode', label: 'Postal Code', required: true, maxLength: 100, placeholder: 'e.g. 400051' },

@@ -568,6 +568,7 @@ def _stored_email(row: Optional[Dict[str, Any]]) -> Optional[str]:
 
 
 def _set_fragments(*, name: Optional[str], first_name: Optional[str], last_name: Optional[str],
+                   company_name: Optional[str], designation: Optional[str],
                    phone: str, email: Optional[str], address: Optional[Dict[str, Any]],
                    proof_validated: bool, tags: Optional[list], tags_if_absent: bool = False,
                    customer_id: str, now: int) -> tuple:
@@ -595,6 +596,12 @@ def _set_fragments(*, name: Optional[str], first_name: Optional[str], last_name:
         assignments += ["#name=:name", "firstName=:first", "lastName=:last"]
         names["#name"] = "name"
         values.update({":name": name, ":first": first_name, ":last": last_name})
+    if company_name is not None:
+        assignments.append("companyName=:company")
+        values[":company"] = company_name
+    if designation is not None:
+        assignments.append("designation=:designation")
+        values[":designation"] = designation
     assignments.append("phone=:phone")
     if email:
         assignments.append("email=:email")
@@ -630,6 +637,7 @@ def _set_fragments(*, name: Optional[str], first_name: Optional[str], last_name:
 
 def _upsert_contact(*, customer_id: str, phone: str, email: Optional[str] = None,
                     first_name: Optional[str] = None, last_name: Optional[str] = None,
+                    company_name: Optional[str] = None, designation: Optional[str] = None,
                     address: Optional[Dict[str, Any]] = None,
                     proof_validated: bool = False) -> Dict[str, Any]:
     phone_match = _active_match("phone-index", "phone", phone)
@@ -661,7 +669,8 @@ def _upsert_contact(*, customer_id: str, phone: str, email: Optional[str] = None
         # Site (1): the edit path. It holds the row, so tags are a real merge.
         contact_id = contact_key.resolve(existing)
         expression, names, values = _set_fragments(
-            name=name, first_name=first_name, last_name=last_name, phone=phone,
+            name=name, first_name=first_name, last_name=last_name,
+            company_name=company_name, designation=designation, phone=phone,
             email=email, address=address, proof_validated=proof_validated,
             tags=_merge_tags(existing.get("tags")), tags_if_absent=False,
             customer_id=customer_id, now=now,
@@ -696,6 +705,8 @@ def _upsert_contact(*, customer_id: str, phone: str, email: Optional[str] = None
         "name": name or "",
         "firstName": first_name or "",
         "lastName": last_name or "",
+        "companyName": company_name or "",
+        "designation": designation or "",
         "phone": phone,
         "email": email or "",
         "tags": [CUSTOMER_TAG],
@@ -729,7 +740,8 @@ def _upsert_contact(*, customer_id: str, phone: str, email: Optional[str] = None
         # it can no longer silently drop the address or the proof semantics, and it gains
         # `tags=if_not_exists(...)` plus `checkoutCustomerId`.
         expression, names, values = _set_fragments(
-            name=name, first_name=first_name, last_name=last_name, phone=phone,
+            name=name, first_name=first_name, last_name=last_name,
+            company_name=company_name, designation=designation, phone=phone,
             email=email, address=address, proof_validated=proof_validated,
             tags=[CUSTOMER_TAG], tags_if_absent=True,
             customer_id=customer_id, now=now,
@@ -764,7 +776,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     # (1) Shape of the request. `mode` is not accepted and is never sent.
     body = _body(event)
-    allowed = {"firstName", "lastName", "email", "emailProof", "address"}
+    allowed = {"firstName", "lastName", "companyName", "designation", "email", "emailProof", "address"}
     if set(body) - allowed:
         return _no_store(cors_response(400, {"error": "UNEXPECTED_FIELD"}, origin))
 
@@ -820,6 +832,16 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # Half a name is a mistake, not an edit: `name` is recomputed from both parts.
         return _no_store(cors_response(400, {"error": "NAME_REQUIRED"}, origin))
 
+    company_name = sanitize_html(body.get("companyName"), max_length=200).strip()
+    designation = sanitize_html(body.get("designation"), max_length=200).strip()
+    if creating:
+        if not company_name:
+            return _no_store(cors_response(400, {"error": "ORGANISATION_REQUIRED"}, origin))
+        if not designation:
+            return _no_store(cors_response(400, {"error": "DESIGNATION_REQUIRED"}, origin))
+    elif bool(company_name) != bool(designation):
+        return _no_store(cors_response(400, {"error": "BUSINESS_PROFILE_REQUIRED"}, origin))
+
     email = None
     if _present(body.get("email")):
         try:
@@ -845,6 +867,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             email=email,
             first_name=first_name,
             last_name=last_name,
+            company_name=company_name or None,
+            designation=designation or None,
             address=address,
             proof_validated=False,
         )
@@ -884,6 +908,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         merged["firstName"] = first_name
         merged["lastName"] = last_name
         merged["name"] = f"{first_name} {last_name}".strip()
+    if company_name and designation:
+        merged["companyName"] = company_name
+        merged["designation"] = designation
 
     merged_first = str(merged.get("firstName") or "")
     merged_last = str(merged.get("lastName") or "")
@@ -895,6 +922,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                  or f"{merged_first} {merged_last}".strip()),
         "firstName": merged_first,
         "lastName": merged_last,
+        "companyName": str(merged.get("companyName") or ""),
+        "designation": str(merged.get("designation") or ""),
         "email": str(merged.get("email") or ""),
         "emailVerified": bool(merged.get("emailVerifiedAt")),
         # The normalised value this handler wrote, which is the same string the read side

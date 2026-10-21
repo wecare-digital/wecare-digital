@@ -67,6 +67,7 @@ export interface StoredAddress {
 export interface AddressDraft {
   addressLine1: string;
   addressLine2: string;
+  locality: string;
   city: string;
   state: string;
   postalCode: string;
@@ -81,6 +82,7 @@ export const INDIA_PIN_RE = /^[1-9][0-9]{5}$/;
 export const EMPTY_ADDRESS_DRAFT: AddressDraft = {
   addressLine1: '',
   addressLine2: '',
+  locality: '',
   city: '',
   state: '',
   postalCode: '',
@@ -92,6 +94,7 @@ export function draftFromStored ( address: StoredAddress | null | undefined ): A
   return {
     addressLine1: String( address.addressLine1 || '' ),
     addressLine2: String( address.addressLine2 || '' ),
+    locality: String( address.locality || '' ),
     city: String( address.city || '' ),
     state: String( address.state || '' ),
     postalCode: String( address.postalCode || '' ),
@@ -101,6 +104,8 @@ export function draftFromStored ( address: StoredAddress | null | undefined ): A
 /** The required-field and PIN mirrors, in one place so every mode asks the same question. */
 export function addressDraftValid ( draft: AddressDraft ): boolean {
   return draft.addressLine1.trim().length > 0
+    && draft.addressLine2.trim().length > 0
+    && draft.locality.trim().length > 0
     && draft.city.trim().length > 0
     && draft.state.trim().length > 0
     && INDIA_PIN_RE.test( draft.postalCode.trim() );
@@ -111,6 +116,7 @@ export function addressPayload ( draft: AddressDraft ): Record<string, string> {
   return {
     addressLine1: draft.addressLine1.trim(),
     addressLine2: draft.addressLine2.trim(),
+    locality: draft.locality.trim(),
     city: draft.city.trim(),
     state: draft.state.trim(),
     postalCode: draft.postalCode.trim(),
@@ -167,8 +173,20 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
             onChange={ event => patch( 'addressLine2', event.target.value ) }
             autoComplete="address-line2"
             maxLength={ 200 }
-            placeholder="Area or landmark (optional)"
+            placeholder="House, unit, floor or building detail"
             aria-invalid={ invalidField === 'addressLine2' ? 'true' : undefined }
+          />
+        </label>
+
+        <label className="span-2">
+          <span>Landmark / locality</span>
+          <input
+            value={ value.locality }
+            onChange={ event => patch( 'locality', event.target.value ) }
+            autoComplete="address-level3"
+            maxLength={ 100 }
+            placeholder="Nearby landmark or locality"
+            aria-invalid={ invalidField === 'locality' ? 'true' : undefined }
           />
         </label>
 
