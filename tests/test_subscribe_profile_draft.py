@@ -90,6 +90,24 @@ def test_newer_profile_edit_is_not_overwritten(setup):
     assert mod.handle_review(data,TOKEN,'r')['screen']=='REVIEW'
     assert not table.updates
 
+def test_required_business_and_address_fields_reject_blank_values(setup):
+    mod,table,_=setup
+    cases=[
+        ('company_name','organisation'),
+        ('designation','role / designation'),
+        ('address_line2','address line 2'),
+        ('locality','landmark / locality'),
+    ]
+    for field,label in cases:
+        data=form(mod)
+        data[field]=''
+        before_updates=len(table.updates)
+        result=mod.handle_review(data,TOKEN,'r-'+field)
+        assert result['screen']=='REVIEW'
+        assert label in result['data']['error_message'].lower()
+        assert len(table.updates)==before_updates
+
+
 def test_partial_address_does_not_save_or_show_success(setup):
     mod,table,_=setup; data=form(mod); data['city']=''
     result=mod.handle_review(data,TOKEN,'r')
@@ -163,7 +181,7 @@ def test_customer_copy_hides_country_code_and_has_short_labels():
     assert all(len(n['label'])<=20 for n in inputs)
     dropdowns=[n for n in walk(doc) if n.get('type')=='Dropdown']
     required={n['name'] for n in inputs + dropdowns if n.get('required')}
-    assert {'full_name','address_line1','city','state','postal_code','country'}<=required
+    assert {'full_name','company_name','designation','address_line1','address_line2','locality','city','state','postal_code','country'}<=required
     country=next(n for n in dropdowns if n.get('name')=='country')
     assert country['data-source']
     assert country['data-source'][0]['id']=='India'
