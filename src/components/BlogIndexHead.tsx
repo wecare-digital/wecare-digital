@@ -1,4 +1,3 @@
-import { blogCrumbs, breadcrumbSchema } from '../lib/breadcrumbs';
 import { buildPageTitle } from '../lib/page-title';
 import React from 'react';
 import Head from 'next/head';
@@ -142,12 +141,10 @@ const BlogIndexHead: React.FC<BlogIndexHeadProps> = ( { page, totalPages, topic,
           description,
           inLanguage: 'en-IN',
           isPartOf: { '@type': 'Blog', '@id': `${ORIGIN}/blog/#blog`, url: `${ORIGIN}/blog/`, name: 'WECARE.DIGITAL Blog' },
-          breadcrumb: { '@id': `${url}#breadcrumb` },
           // Points at the list of what this page actually collects. A CollectionPage with no
           // mainEntity names a collection and then declines to say what is in it.
           ...( streamList ? { mainEntity: { '@id': `${url}#itemlist` } } : {} ),
         },
-        breadcrumbSchema( blogCrumbs( page, topic, topicHref ), url ),
         // Appended by a filtered spread so a page with no posts emits exactly the two nodes it
         // emitted before, in the same order.
         ...( streamList ? [ streamList ] : [] ),
@@ -234,7 +231,6 @@ const BlogIndexHead: React.FC<BlogIndexHeadProps> = ( { page, totalPages, topic,
           description: DESCRIPTION,
           inLanguage: 'en-IN',
           publisher: { '@id': ORG_ID },
-          breadcrumb: { '@id': `${canonical}#breadcrumb` },
           // What page 1 actually lists. The Blog node carries the corpus-wide count; this
           // names the 24 it shows.
           ...( blogList ? { mainEntity: { '@id': `${canonical}#itemlist` } } : {} ),
@@ -250,10 +246,8 @@ const BlogIndexHead: React.FC<BlogIndexHeadProps> = ( { page, totalPages, topic,
           description,
           inLanguage: 'en-IN',
           isPartOf: { '@type': 'Blog', '@id': `${blogRoot}#blog`, url: blogRoot, name: 'WECARE.DIGITAL Blog' },
-          breadcrumb: { '@id': `${canonical}#breadcrumb` },
           ...( blogList ? { mainEntity: { '@id': `${canonical}#itemlist` } } : {} ),
         },
-      breadcrumbSchema( blogCrumbs( page ), canonical ),
       ...( blogList ? [ blogList ] : [] ),
     ],
   };
