@@ -554,13 +554,20 @@ const ElsewhereTravelAssistant: React.FC = () => {
         .eta-price{color:var(--public-heading);font-size:17px;font-weight:700;line-height:1.25;letter-spacing:-.2px;white-space:nowrap}
         .eta-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;width:min(100%,340px);margin-inline-start:auto}
         .eta-action{
-          min-width:0;min-height:44px;padding:0 10px;border:1px solid #cdd3ca;border-radius:12px;background:#fff;
-          color:var(--public-brand-green);font-size:11.5px;font-weight:650;line-height:1.15;cursor:pointer;white-space:nowrap;
-          touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:transform .12s ease,background .14s ease,border-color .14s ease;
+          display:inline-flex;align-items:center;justify-content:center;
+          min-width:0;min-height:var(--tap-min);box-sizing:border-box;
+          padding:6px 9px;border:0;border-radius:8px;background:var(--public-lime-tint);
+          color:var(--public-brand-green);font-family:inherit;font-size:12px;font-weight:var(--public-cta-font-weight);
+          line-height:1.25;letter-spacing:-.05px;cursor:pointer;white-space:normal;text-align:center;
+          text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;
+          touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+          transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s;
         }
-        .eta-action:active{transform:scale(.96);background:var(--public-lime-tint);border-color:#bfd36f}
-        .eta-action.primary{border-color:var(--public-brand-lime);background:var(--public-brand-lime)}
-        .eta-action.primary:active{background:var(--lime-hover)}
+        .eta-action:active{
+          transform:scale(.97);background:var(--public-brand-lime);text-decoration-color:transparent;
+        }
+        .eta-action.primary{background:var(--public-lime-tint)}
+        .eta-action.primary:active{background:var(--public-brand-lime)}
         .eta-live-note,.eta-continuation{margin:0;color:var(--public-muted);font-size:13px;font-weight:500;line-height:1.45}
         .eta-composer{margin-top:24px;padding:18px 18px 14px;border:0;border-radius:18px;background:#fff}
         .eta-field{position:relative;box-shadow:none}
@@ -623,8 +630,11 @@ const ElsewhereTravelAssistant: React.FC = () => {
           .eta-tab:hover::before{background:rgba(239,249,207,.78)}
           .eta-result:hover{transform:translateY(-1px);border-color:#c9dc84;background:rgba(209,244,112,.08);box-shadow:0 4px 12px rgba(26,58,42,.08)}
           .eta-chip:hover{border-color:#bfd36f;background:#f3fad9;box-shadow:var(--public-lift-shadow);transform:translateY(-1px)}
-          .eta-action:hover{border-color:#bfd36f;background:var(--public-lime-tint)}
-          .eta-action.primary:hover{background:var(--lime-hover)}
+          .eta-action:hover{
+            background:var(--public-brand-lime);text-decoration-color:transparent;
+            transform:translateY(-1px);box-shadow:0 5px 14px rgba(26,58,42,.1);
+          }
+          .eta-action.primary:hover{background:var(--public-brand-lime)}
           .eta-clear:hover,.eta-preference-clear:hover{background:var(--public-lime-tint);color:var(--public-brand-green)}
           .eta-send:not(:disabled):hover{background:var(--lime-hover)}
         }
@@ -650,7 +660,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
         @media(prefers-reduced-motion:reduce){
           .eta-tab,.eta-tab::before,.eta-result,.eta-chip,.eta-action,.eta-clear,.eta-send,.eta-preference-clear{transition:none}
           .eta-tab:active,.eta-result:active,.eta-chip:active,.eta-action:active,.eta-clear:active,.eta-send:active,.eta-preference-clear:active,
-          .eta-result:hover,.eta-chip:hover{transform:none;box-shadow:none}
+          .eta-result:hover,.eta-chip:hover,.eta-action:hover{transform:none;box-shadow:none}
           .eta-loading-line::after{width:100%;transform:none;animation:none}
         }
         @media(horizontal-viewport-segments:2){
