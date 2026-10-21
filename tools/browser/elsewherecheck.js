@@ -94,7 +94,7 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
       if ( composerStyle.boxShadow === 'none' ) fail( `${viewport.name}: composer has no focus/touch feedback` );
       if ( composerStyle.transform !== 'none' ) fail( `${viewport.name}: composer moves on touch (${composerStyle.transform})` );
 
-      const mic = page.locator( '[data-voice-search-mic="true"]' );
+      const mic = page.locator( '.eta-shell [data-voice-search-mic="true"]' );
       await mic.waitFor( { state: 'visible', timeout: 2000 } );
       if ( await mic.count() !== 1 ) fail( `${viewport.name}: voice control disappeared instead of showing supported/unavailable state` );
       const micBox = await mic.boundingBox();
