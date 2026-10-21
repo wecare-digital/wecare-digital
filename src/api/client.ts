@@ -502,7 +502,12 @@ export interface Contact {
   satisfactionScore?: number;
   welcomeSent?: boolean;
   welcomeSentAt?: string;
-  // Opt-in fields (Requirement 3.2)
+  /**
+   * Current WHATSAPP + MARKETING consent derived by the server from the append-only ledger.
+   * This, not the legacy booleans below, is the authority for marketing audience selection.
+   */
+  whatsappMarketingConsent?: ConsentState;
+  // Legacy opt-in fields retained for compatibility with non-ledger callers.
   optInWhatsApp: boolean;
   optInSms: boolean;
   optInEmail: boolean;
@@ -818,7 +823,13 @@ function normalizeContact ( item: any ): Contact {
     satisfactionScore: item.satisfactionScore || undefined,
     welcomeSent: item.welcomeSent || false,
     welcomeSentAt: normalizeTimestamp( item.welcomeSentAt ),
-    // Opt-in fields
+    // Canonical WhatsApp marketing consent, derived server-side from consentLedger.
+    whatsappMarketingConsent: (
+      item.whatsappMarketingConsent === 'OPTED_IN'
+      || item.whatsappMarketingConsent === 'OPTED_OUT'
+      || item.whatsappMarketingConsent === 'PENDING'
+    ) ? item.whatsappMarketingConsent as ConsentState : 'PENDING',
+    // Legacy opt-in fields
     optInWhatsApp: item.optInWhatsApp || false,
     optInSms: item.optInSms || false,
     optInEmail: item.optInEmail || false,
