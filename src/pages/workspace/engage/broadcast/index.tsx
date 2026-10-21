@@ -35,8 +35,10 @@ const CH_META: Record<Channel, { label: string; fg: string; bg: string }> = {
 // Smart routing: pick the highest-priority channel a contact is reachable on.
 const pickChannel = ( c: api.Contact ): Exclude<Channel, 'auto' | 'whatsapp'> | null => {
     if ( c.phone && ( c.optInSms || c.allowlistSms ) ) return 'sms';
-    if ( c.phone ) return 'rcs';
     if ( c.email && ( c.optInEmail || c.allowlistEmail ) ) return 'email';
+    // There is no legacy RCS opt-in field on Contact. Do not silently treat possession of a
+    // phone number as RCS marketing permission. Explicit RCS broadcasts remain a separate
+    // operator choice until the canonical RCS consent summary is wired through.
     return null;
 };
 
@@ -45,7 +47,7 @@ const eligible = (
     ch: Channel,
     whatsappCategory?: api.WhatsAppTemplate[ 'category' ],
 ): boolean => {
-    if ( ch === 'auto' ) return !!c.phone || !!c.email;
+    if ( ch === 'auto' ) return pickChannel( c ) !== null;
     if ( ch === 'email' ) return !!c.email && ( c.optInEmail || c.allowlistEmail );
     if ( ch === 'sms' ) return !!c.phone && ( c.optInSms || c.allowlistSms );
     if ( ch === 'whatsapp' ) {
@@ -119,7 +121,9 @@ const BroadcastPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
     }, [ content, smsType, subject, templateName ] );
 
     const send = useCallback( async () => {
-        const targets = contacts.filter( c => selected.has( c.contactId ) );
+        const targets = contacts.filter(
+            c => selected.has( c.contactId ) && eligible( c, channel, selectedTemplate?.category )
+        );
         if ( !targets.length ) return;
         setSending( true );
         setProgress( { sent: 0, failed: 0, total: targets.length } );
@@ -138,7 +142,7 @@ const BroadcastPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
         }
         setSending( false );
         toast[ failed === 0 ? 'success' : 'warning' ]( `Broadcast done — ${sent} sent, ${failed} failed` );
-    }, [ contacts, selected, channel, sendOne, toast ] );
+    }, [ contacts, selected, channel, selectedTemplate, sendOne, toast ] );
 
     const content_ = (
         <>
