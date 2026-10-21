@@ -402,6 +402,69 @@ def test_the_catalog_leg_prices_natively(env, monkeypatch):
     assert fake.count(ATTEMPTS_TABLE) == 1
 
 
+# ── the catalog-service leg stamps the public customer id onto BOTH sinks ──────
+#
+# `finalization.accept_paid` reads customerUuid off the ATTEMPT row and copies it onto the order,
+# and the webhook lineage reads attribution off the PAYREF# row — so the public customer id must
+# land on BOTH, exactly as `_website_prepare` stamps its own. It is stamped CONDITIONALLY: a
+# contact with no public id (every contact written before the attribute existed) must produce an
+# attempt and a PAYREF# row whose KEY SET is byte-identical to before this landed, never a key
+# present with ''. These tests fail if the stamp is removed from either sink or emitted as ''.
+
+def _payref_row(fake):
+    """The one PAYREF# reservation `_create` writes for the catalog-service leg."""
+    rows = [r for r in fake.all_rows(KEYS_TABLE)
+            if str(r.get('orderId', '')).startswith('PAYREF#')]
+    assert len(rows) == 1, rows
+    return rows[0]
+
+
+def test_the_catalog_leg_stamps_customer_uuid_on_both_the_attempt_and_the_payref(env, monkeypatch):
+    """When the session carries a valid v4 customerUuid, the stored PaymentAttempt AND the
+    PAYREF# row both carry that SAME string — the two sinks finalization and the webhook read."""
+    from lambda_utils.identity import customer_uuid
+    h, fake, _lam, _mp = env
+    _enable_catalog_leg(h, monkeypatch)
+    session = dict(CATALOG_SESSION, customerUuid=NATIVE_CUSTOMER_UUID)
+
+    body = {'lineItems': [{'catalogReference': {
+                'catalogItemId': SERVICE_PRODUCT_ID,
+                'options': {'variantId': SERVICE_VARIANT_ID}}, 'quantity': 1}],
+            'serviceIntentId': SERVICE_INTENT_ID}
+    resp = h._create(_Identity(CUSTOMER), body, 'http://localhost:3000',
+                     catalog_session=session)
+    assert resp['statusCode'] == 200, resp['body']
+
+    attempt = fake.all_rows(ATTEMPTS_TABLE)[0]
+    assert attempt[customer_uuid.ATTRIBUTE] == NATIVE_CUSTOMER_UUID
+    payref = _payref_row(fake)
+    assert payref[customer_uuid.ATTRIBUTE] == NATIVE_CUSTOMER_UUID
+
+
+def test_the_catalog_leg_omits_customer_uuid_when_the_contact_has_none(env, monkeypatch):
+    """A session without a customerUuid produces an attempt and a PAYREF# row whose key set is
+    unchanged: the customerUuid key is ABSENT, never present-with-''. This is the byte-identical
+    guarantee the website leg's conditional-emit also keeps."""
+    from lambda_utils.identity import customer_uuid
+    h, fake, _lam, _mp = env
+    _enable_catalog_leg(h, monkeypatch)
+    # The baseline session carries no customerUuid, exactly like a pre-attribute contact.
+    assert 'customerUuid' not in CATALOG_SESSION
+
+    body = {'lineItems': [{'catalogReference': {
+                'catalogItemId': SERVICE_PRODUCT_ID,
+                'options': {'variantId': SERVICE_VARIANT_ID}}, 'quantity': 1}],
+            'serviceIntentId': SERVICE_INTENT_ID}
+    resp = h._create(_Identity(CUSTOMER), body, 'http://localhost:3000',
+                     catalog_session=dict(CATALOG_SESSION))
+    assert resp['statusCode'] == 200, resp['body']
+
+    attempt = fake.all_rows(ATTEMPTS_TABLE)[0]
+    assert customer_uuid.ATTRIBUTE not in attempt
+    payref = _payref_row(fake)
+    assert customer_uuid.ATTRIBUTE not in payref
+
+
 # ── fail-closed readiness ─────────────────────────────────────────────────────
 
 def test_blocked_readiness_creates_no_attempt_and_no_order(env):
@@ -691,6 +754,10 @@ NATIVE_REFERENCE = 'WD-PAY-NATIVESVC0001'
 NATIVE_ORDER_ID = 'order-native-service-1'
 NATIVE_ORDER_NUMBER = 'WD-ORD-NATIVE01'
 NATIVE_SESSION_KEY = 'NATIVESERVICEACTIVE#' + CATALOG_CUSTOMER
+#: A fixed, canonical v4 UUID (version nibble 4, variant nibble 8) — `is_customer_uuid` accepts
+#: it and refuses a uuid7, so it stands in for the contact's public customerUuid the way the
+#: production catalog-service leg now stamps it onto the attempt and PAYREF# row.
+NATIVE_CUSTOMER_UUID = '33333333-3333-4333-8333-333333333333'
 
 
 def _seed_paid_native_service(h, fake, *, verified_paise=TOTAL_PAYABLE_PAISE):
@@ -700,8 +767,14 @@ def _seed_paid_native_service(h, fake, *, verified_paise=TOTAL_PAYABLE_PAISE):
     prepared for) plus the provider-confirmed amount `_record_verified_capture` stores; the
     PAYMENTATTEMPT# claim carries the order identity the webhook reserved; the
     NATIVESERVICEACTIVE# row is the session `flows/catalog_services.py` opens.
+
+    The attempt carries `contactId` and a valid v4 `customerUuid`, exactly as the production
+    `_create` catalog-service leg now stamps them: `finalization.accept_paid` copies both off the
+    attempt onto the order and REQUIRES both to reach ORDER_FINALIZED, so a seed without them
+    would park at CUSTOMER_IDENTITY_MISSING and never exercise the finalization this test is about.
     """
     from lambda_utils.ecommerce import order_keys, payment_attempt as pa
+    from lambda_utils.identity import customer_uuid
     attempt = pa.build(customer_id=CATALOG_CUSTOMER, reference_id=NATIVE_REFERENCE,
                        amount_paise=TOTAL_PAYABLE_PAISE, configuration_name='WECAREDIGITAL',
                        payment_attempt_id=NATIVE_ATTEMPT_ID)
@@ -709,6 +782,8 @@ def _seed_paid_native_service(h, fake, *, verified_paise=TOTAL_PAYABLE_PAISE):
     attempt.update({
         'checkoutMode': h.CHECKOUT_MODE, 'nativeCatalogService': True, 'channel': 'whatsapp',
         'customerPhone': '+919330994400', 'catalogServiceSession': CATALOG_SESSION['orderId'],
+        'contactId': CATALOG_SESSION['contactId'],
+        customer_uuid.ATTRIBUTE: NATIVE_CUSTOMER_UUID,
         'snapshotHash': 'sha256:native-service',
         'purchasedSnapshot': {
             'cart': {'id': 'native:service', 'revision': 0},

@@ -2028,7 +2028,14 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
                 line_items, body, line_paise=native_service_paise))
         if catalog_session is not None:
             extra.update(channel='whatsapp', nativeCatalogService=True,
-                         customerPhone=_profile_phone(identity))
+                customerPhone=_profile_phone(identity),
+                # THE PUBLIC CUSTOMER ID, on this PAYREF# row as well as on the attempt below,
+                # mirroring the website leg: attribution, not money, so a reconciliation can
+                # report the customer on either settlement path. Spread conditionally so an
+                # attempt for a contact with no public id is byte-identical to one written before
+                # this landed; "" is never written (it suppresses every downstream render anyway).
+                **({customer_uuid.ATTRIBUTE: catalog_session['customerUuid']}
+                   if catalog_session.get('customerUuid') else {}))
         reference_id = order_keys.allocate_payment_reference(
             _keys_table(), payment_attempt_id=attempt_id, extra=extra,
         )
@@ -2068,6 +2075,14 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         # order inherits it so the WhatsApp purchase sits on the same contact as everything else.
         if catalog_session.get('contactId'):
             attempt['contactId'] = str(catalog_session['contactId'])
+        # THE PUBLIC CUSTOMER ID, beside contactId so the two attribution fields travel together
+        # as one concern. `finalization.accept_paid` copies it off this attempt onto the order and
+        # REQUIRES both contactId and customerUuid to reach ORDER_FINALIZED — an attempt that never
+        # carries it parks at NEEDS_RECONCILIATION. Attribution, not money. Stamped conditionally
+        # so an attempt for a contact with no public id is byte-identical to one written before
+        # this landed; "" is never written.
+        if catalog_session.get('customerUuid'):
+            attempt[customer_uuid.ATTRIBUTE] = str(catalog_session['customerUuid'])
         if len(json.dumps(attempt, default=str).encode()) > 350000:
             return cors_response(409, {'error': 'CATALOG_SERVICE_SNAPSHOT_TOO_LARGE'}, origin)
 
@@ -2386,5 +2401,13 @@ def _native_catalog_service(event: Dict[str, Any], origin: str):
         if getattr(error, 'response', {}).get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
             return {'outcome': 'CATALOG_SERVICE_RECONCILIATION_REQUIRED'}
         raise
+    # THE PUBLIC CUSTOMER ID, read off the SAME contact row already loaded above — no extra read.
+    # `from_contact` never raises and answers "" for a row without one or an invalid (non-v4)
+    # value; it never mints here. Attached to the session only when truthy so a contact with no
+    # public id yields a session byte-identical to one written before this landed, and so `_create`
+    # can stamp it onto the attempt and PAYREF# rows the way the website leg stamps its own.
+    public_uuid = customer_uuid.from_contact(contact)
+    if public_uuid:
+        row['customerUuid'] = public_uuid
     return _create(identity, {'lineItems': lines, 'serviceIntentId': row['serviceIntentId']},
                    origin, catalog_session=row)
