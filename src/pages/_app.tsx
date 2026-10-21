@@ -1,5 +1,4 @@
 import { buildPageTitle } from '../lib/page-title';
-import { breadcrumbSchema } from '../lib/breadcrumbs';
 ﻿/**
  * WECARE.DIGITAL
  * Simplified auth - just wrap protected pages with Authenticator
@@ -100,7 +99,6 @@ import { initCapacitor, isNative } from '../lib/capacitor';
 import { registerPushToken } from '../lib/pushRegistration';
 import { VERIFICATION } from '../config/analytics';
 import { ORGANIZATION, WEBSITE, ORG_ID, ld } from '../lib/schema';
-import { breadcrumbTrail } from '../content/breadcrumbTrails';
 
 /**
  * Plain-English labels for the MFA chooser.
@@ -1127,7 +1125,6 @@ export default function App ( { Component, pageProps }: AppProps ) {
             <script type="application/ld+json" dangerouslySetInnerHTML={ { __html: JSON.stringify( serviceSchema ) } } />
           ) }
           <script type="application/ld+json" dangerouslySetInnerHTML={ { __html: JSON.stringify( getPublicPageSchema( router.pathname ) ) } } />
-          { PUBLIC_PAGE_META[ router.pathname ] && <script key="public-breadcrumbs" type="application/ld+json" dangerouslySetInnerHTML={ { __html: JSON.stringify( breadcrumbSchema( breadcrumbTrail( router.pathname )?.map( ( { label, href } ) => ( { name: label, href } ) ) || [ { name: 'Home', href: '/' }, { name: PUBLIC_PAGE_META[ router.pathname ].name } ], `${router.pathname}/` ) ) } } /> }
         </Head>
         ) }
         {/* NO DIRECT gtag.js HERE - BY POLICY, and it was being violated.
