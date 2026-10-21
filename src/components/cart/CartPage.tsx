@@ -255,8 +255,8 @@ type ProfileReply = {
  * empty Deliver row. It is a PURE function precisely so a caller can branch on its RETURNED value
  * rather than on the state it later writes - see `proceed`.
  */
-const deriveStatus = ( status: string, addressComplete: boolean, profileComplete = false ): ProfileStatus =>
-  status === 'PROFILE_READY' && addressComplete && profileComplete ? 'ready'
+const deriveStatus = ( status: string, addressComplete: boolean, profileComplete?: boolean ): ProfileStatus =>
+  status === 'PROFILE_READY' && addressComplete && profileComplete !== false ? 'ready'
     : status === 'PROFILE_READY' || status === 'PROFILE_REQUIRED' ? 'required'
       : 'unknown';
 
@@ -1415,7 +1415,7 @@ export default function Cart (): React.ReactElement {
         // The REPLY decides the mode, not a guess: PROFILE_READY with no usable address needs the
         // address form, PROFILE_REQUIRED needs the whole creation flow.
         mode = String( reply.status || '' ) === 'PROFILE_READY'
-          ? ( reply.profileComplete ? 'address' : 'name' )
+          ? ( reply.profileComplete === false ? 'name' : 'address' )
           : 'create';
       }
       setProfileStatus( status );
