@@ -84,9 +84,16 @@ export const POSTAL_ADDRESS = {
 const GEO = { '@type': 'GeoCoordinates', latitude: 22.5717148, longitude: 88.3566972 } as const;
 
 /**
- * The one Organization node. Every other entity references it by `@id`.
+ * The one Organization node, in its BASE form. Every other entity references it by `@id`.
+ *
+ * This is the node as published today. `ORGANIZATION` below is this object, optionally
+ * enriched with Google Business Profile opening hours and category WHEN (and only when)
+ * real data flows from the dormant GBP integration (see `enrichOrganization` and
+ * `loadBusinessProfileData`). In the default state (flag off, no data) `ORGANIZATION` IS this
+ * object, unchanged and byte-identical, which is the only state reachable without a human
+ * first obtaining GBP Basic API Access.
  */
-export const ORGANIZATION = {
+const BASE_ORGANIZATION = {
   '@context': 'https://schema.org',
   '@type': 'Organization',
   '@id': ORG_ID,
@@ -120,6 +127,121 @@ export const ORGANIZATION = {
     availableLanguage: [ 'English', 'Hindi' ],
   },
 } as const;
+
+/**
+ * One schema.org `OpeningHoursSpecification` entry, as produced by the dormant GBP mapper.
+ *
+ * Shape matches `amplify/functions/operations/seo-tools/business_profile.py:to_schema`
+ * exactly: that Python module is the ONLY source of these values, read live from the Google
+ * Business Profile API for the real location. Nothing here is a default.
+ */
+export interface OpeningHoursSpecification {
+  '@type': 'OpeningHoursSpecification';
+  dayOfWeek: string[];
+  opens: string;
+  closes: string;
+}
+
+/**
+ * The GBP enrichment payload. This is the JSON that the build-time generator writes into
+ * `src/config/business-profile.generated.json` ONLY in the real deployment when the flag is on
+ * AND the GBP API returns real data. `null` means "no data", the committed default.
+ *
+ * Mirror of `business_profile.py:to_schema`'s return: it contains only the keys that were
+ * actually present in the live response, so both fields are optional.
+ */
+export interface BusinessProfileData {
+  openingHoursSpecification?: OpeningHoursSpecification[];
+  category?: string;
+}
+
+/**
+ * Whether the GBP LocalBusiness enrichment is switched on. Defaults OFF (fail-safe).
+ *
+ * `GBP_LOCALBUSINESS_ENABLED` is a build-time, server-side env flag, deliberately NOT a
+ * `NEXT_PUBLIC_*` var: it carries no secret and is only read while the static pages are
+ * pre-rendered, so it never ships to the client. It mirrors the identically named gate in the
+ * Python fetch module (`business_profile.py:business_profile_enabled`); a public read path must
+ * never be one typo away from an active integration, so anything but an explicit truthy value
+ * resolves to off, and off means no enrichment is emitted.
+ */
+export const gbpLocalBusinessEnabled = (): boolean => {
+  const raw = ( process.env.GBP_LOCALBUSINESS_ENABLED ?? '' ).trim().toLowerCase();
+  return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
+};
+
+/**
+ * Read the optional, build-time-generated GBP data, DEFENSIVELY. Returns `null` unless the flag
+ * is on AND the generated file holds real data.
+ *
+ * DATA PATH. The dormant Python fetch (`business_profile.py`) runs only in the real deployment;
+ * when it returns real GBP data a build-time generator writes it to
+ * `src/config/business-profile.generated.json`. That file is committed as `null` (no data) and
+ * must never be committed populated; absent/empty data changes nothing here. The import is
+ * wrapped so a malformed or empty file also resolves to `null`, and the flag is checked first so
+ * that even a stray populated file emits nothing while the integration is off.
+ */
+export const loadBusinessProfileData = (): BusinessProfileData | null => {
+  if ( !gbpLocalBusinessEnabled() ) return null;
+  try {
+    const data = require( '../config/business-profile.generated.json' ) as unknown;
+    if ( data && typeof data === 'object' ) return data as BusinessProfileData;
+  } catch {
+    // Absent or unreadable file is the default, dormant state: no data, no enrichment.
+  }
+  return null;
+};
+
+/**
+ * Attach GBP opening hours and category to the Organization node, HONESTLY or not at all.
+ *
+ * PURE and EXPORTED so a test can hand it a fixture directly, with no build-time file and no env
+ * flag involved. Follows the same doctrine as the rest of this file: NOTHING is inferred. The
+ * `openingHoursSpecification` and `category` come solely from `data` (ultimately the live GBP
+ * response mapped by `business_profile.py`); neither is ever hardcoded or defaulted. This is the
+ * same reason `aggregateRating`/`review`/`foundingDate` are absent above: a fabricated value is
+ * grounds for a manual action and a validator cannot catch it.
+ *
+ * When `data` is `null` (the default) the base object is returned UNCHANGED: same reference,
+ * same key order, so the serialised Organization is byte-identical to the published baseline.
+ * When data is present the enrichment EXTENDS the SAME node under the SAME `@id` (ORG_ID): it
+ * appends `openingHoursSpecification` and/or `category` to the Organization rather than spawning
+ * a second (or anonymous) LocalBusiness node, so there is exactly one company node on the page
+ * and every `@id` reference keeps resolving. A field missing from `data` is omitted, not guessed.
+ */
+export const enrichOrganization = <T extends object>(
+  base: T,
+  data: BusinessProfileData | null,
+): T | ( T & BusinessProfileData ) => {
+  if ( !data ) return base;
+
+  const hours = Array.isArray( data.openingHoursSpecification )
+    ? data.openingHoursSpecification.filter( Boolean )
+    : undefined;
+  const category = typeof data.category === 'string' && data.category.trim()
+    ? data.category
+    : undefined;
+
+  if ( ( !hours || hours.length === 0 ) && !category ) return base;
+
+  // Spread the base first so existing keys keep their order; only honest, sourced keys are
+  // appended. `@id` is untouched, so this stays the one Organization node.
+  return {
+    ...base,
+    ...( hours && hours.length > 0 ? { openingHoursSpecification: hours } : {} ),
+    ...( category ? { category } : {} ),
+  };
+};
+
+/**
+ * The one Organization node. Every other entity references it by `@id`.
+ *
+ * In the default state this is exactly `BASE_ORGANIZATION`. When GBP Basic API Access has been
+ * granted, the flag turned on, and the generator has written real data, it is that node extended
+ * with `openingHoursSpecification` and/or `category` under the SAME `@id`: never a second node,
+ * never a fabricated value.
+ */
+export const ORGANIZATION = enrichOrganization( BASE_ORGANIZATION, loadBusinessProfileData() );
 
 /**
  * The one WebSite node.
