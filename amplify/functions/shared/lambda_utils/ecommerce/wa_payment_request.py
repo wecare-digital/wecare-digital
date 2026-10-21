@@ -67,6 +67,11 @@ logger = logging.getLogger(__name__)
 #: 'verified standalone order identity required' rather than running the website finalization
 #: sequence against an attempt that has no cart. The exclusion is a guard, not an omission.
 WA_NATIVE_CHECKOUT_MODE = 'WHATSAPP_NATIVE_PG'
+#: Product/cart native WhatsApp checkout. Unlike invoice-native collection, this mode carries a
+#: frozen purchasedSnapshot and is eligible for the standard internal order finalizer after Meta
+#: provides the gateway binding.
+WA_NATIVE_CART_CHECKOUT_MODE = 'WHATSAPP_NATIVE_CART'
+NATIVE_CHECKOUT_MODES = frozenset({WA_NATIVE_CHECKOUT_MODE, WA_NATIVE_CART_CHECKOUT_MODE})
 
 #: WABA1's phone id, and the ONLY sender permitted to take a payment.
 #:
@@ -216,7 +221,8 @@ def build_request(*,
                   customer_uuid: str = '',
                   currency: str = 'INR',
                   collection_seq: int = 0,
-                  order_details: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                  order_details: Optional[Dict[str, Any]] = None,
+                  checkout_mode: str = WA_NATIVE_CHECKOUT_MODE) -> Dict[str, Any]:
     """Validate every external input and return the reservation request. Writes nothing.
 
     Every rule runs here, BEFORE any write and before any Lambda invoke, so a refusal leaves no
@@ -271,6 +277,8 @@ def build_request(*,
 
     if isinstance(now, bool) or not isinstance(now, int):
         raise ValueError('now must be an int epoch seconds')
+    _require(checkout_mode in NATIVE_CHECKOUT_MODES, WA_PAY_IDENTITY_UNAVAILABLE,
+             'unsupported native checkout mode')
 
     return {
         'invoiceId': str(invoice_id),
@@ -286,6 +294,7 @@ def build_request(*,
         'itemName': name,
         'collectionSeq': int(collection_seq or 0),
         'requestKey': collection_request_key(invoice_id, collection_seq),
+        'checkoutMode': checkout_mode,
         'now': now,
     }
 
@@ -325,7 +334,7 @@ def _reference_row(request: Dict[str, Any], reference_id: str,
         'amountPaise': request['amountPaise'],
         'payablePaise': request['amountPaise'],
         'currency': request['currency'],
-        'checkoutMode': WA_NATIVE_CHECKOUT_MODE,
+        'checkoutMode': request.get('checkoutMode', WA_NATIVE_CHECKOUT_MODE),
         'channel': order_channel.CHANNEL_WHATSAPP,
         # The binding's configuration source. On this row rather than on the attempt, because
         # the webhook's `_load_attempt` already reads here and adding an attempts-table read to
@@ -440,7 +449,7 @@ def reserve(client: Any, keys_table: Any, attempts_table: Any, *,
         attempt, payment_attempt.PAYMENT_READINESS_CHECKED, now=request['now'])
     # `cartId` is deliberately omitted - there is no cart on this leg, and
     # `payment_attempt.build` already defaults it away.
-    attempt.update(checkoutMode=WA_NATIVE_CHECKOUT_MODE,
+    attempt.update(checkoutMode=request.get('checkoutMode', WA_NATIVE_CHECKOUT_MODE),
                    channel=order_channel.CHANNEL_WHATSAPP,
                    providerMid=request['providerMid'],
                    phoneId=request['phoneNumberId'], wabaId=request['wabaId'],

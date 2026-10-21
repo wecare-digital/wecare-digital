@@ -26,15 +26,21 @@ import { getSession, restoreSession } from './customerAuth';
 
 /** The one checkout surface. Allowlisted in safeReturnPath, so it survives the sign-in return. */
 export const CHECKOUT_PATH = '/cart/';
+/** Payment-method chooser shown only after cart review. */
+export const CHECKOUT_METHOD_PATH = '/checkout/';
 /** The one WhatsApp login. */
 export const SIGN_IN_PATH = '/account/sign-in/';
 /** Out-of-band carrier for the pending action, so it survives the sign-in round trip. */
 const PENDING_ACTION_KEY = 'wecare.pendingServiceAction';
 
 /** A service/product/contribute action to resume on the checkout after sign-in. */
+export type CheckoutChannel = 'website' | 'whatsapp';
+
 export interface PendingServiceAction {
   /** The service/product slug or line the checkout should preselect (e.g. 'submit-request'). */
   readonly kind: string;
+  /** Which checkout rail the customer explicitly chose before an optional sign-in round trip. */
+  readonly channel?: CheckoutChannel;
   /** Catalogue product id for the line, when the action maps to a fixed catalogue line. */
   readonly productId?: string;
   /** Catalogue variant id for the line. */

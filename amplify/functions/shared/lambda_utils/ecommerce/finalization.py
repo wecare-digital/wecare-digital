@@ -25,7 +25,7 @@ from . import order_channel, order_record, payment_attempt
 
 #: Modes whose attempts may become an internal order. Native checkout and the established
 #: website Razorpay settlement marker are the only accepted modes.
-ACCEPTED_CHECKOUT_MODES = frozenset({'AWS_NATIVE', 'WEBSITE_RAZORPAY_STANDARD'})
+ACCEPTED_CHECKOUT_MODES = frozenset({'AWS_NATIVE', 'WEBSITE_RAZORPAY_STANDARD', 'WHATSAPP_NATIVE_CART'})
 
 #: SEAM-G13: the amount Razorpay's own readback confirmed, written here and nowhere else.
 #: `retired secondary tender_settlement` declares this obligation as `RAZORPAY_VERIFIED_PAISE_ATTR` and

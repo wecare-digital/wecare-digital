@@ -786,6 +786,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
     // OUT of PUBLIC_PAGE_META, the sitemap and the AI manifest. /cart proceeds to the checkout
     // create call and /account/sign-in is the auth gate in front of it - neither is marketing
     || router.pathname === '/cart'
+    || router.pathname === '/checkout'
     || router.pathname === '/account/sign-in'
     // Checkout status + success are customer-session screens, not marketing pages: they carry the
     // public chrome (header/footer/support widget) but are deliberately kept OUT of
