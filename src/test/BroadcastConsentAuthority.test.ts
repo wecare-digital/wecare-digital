@@ -46,6 +46,17 @@ describe( 'Broadcast WhatsApp consent authority', () => {
     expect( eligibility ).not.toContain( "c.optInWhatsApp || c.allowlistWhatsApp" );
   } );
 
+  it( 'does not use RCS as an unconsented auto-channel fallback', () => {
+    const routing = broadcast.slice(
+      broadcast.indexOf( 'const pickChannel =' ),
+      broadcast.indexOf( 'const eligible =' ),
+    );
+    expect( routing ).toContain( "return 'sms'" );
+    expect( routing ).toContain( "return 'email'" );
+    expect( routing ).not.toContain( "return 'rcs'" );
+    expect( broadcast ).toContain( "if ( ch === 'auto' ) return pickChannel( c ) !== null" );
+  } );
+
   it( 'uses the selected Meta template category and clears stale selections on template changes', () => {
     expect( broadcast ).toContain( 'selectedTemplate?.category' );
     expect( broadcast ).toContain( '[ channel, templateName ]' );
