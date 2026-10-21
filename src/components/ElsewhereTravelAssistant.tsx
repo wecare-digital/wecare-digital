@@ -540,12 +540,18 @@ const ElsewhereTravelAssistant: React.FC = () => {
         .eta-action.primary{border-color:var(--public-brand-lime);background:var(--public-brand-lime)}
         .eta-live-note,.eta-continuation{margin:0;color:var(--public-muted);font-size:13px;font-weight:500;line-height:1.45}
         .eta-composer{margin-top:24px;padding:18px 18px 14px;border:0;border-radius:18px;background:#fff}
-        .eta-field{position:relative;box-shadow:inset 0 -1px 0 var(--public-hairline);transition:box-shadow .2s ease}
-        .eta-composer:focus-within .eta-field{box-shadow:inset 0 -2px 0 var(--public-brand-lime)}
+        .eta-field{position:relative;box-shadow:none}
+        .eta-composer:focus-within .eta-field{box-shadow:none}
         .eta-field textarea{
-          width:100%;min-height:92px;padding:0 0 14px;border:0;outline:0;resize:none;appearance:none;background:transparent;
+          width:100%;min-height:92px;padding:0 0 14px;border:0!important;border-radius:0!important;outline:0!important;resize:none;
+          appearance:none;-webkit-appearance:none;background:transparent!important;box-shadow:none!important;
           color:var(--public-heading);font-family:var(--font-sans);font-size:var(--public-body-size);font-weight:var(--public-body-weight);
           line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);
+        }
+        .eta-field textarea:hover,
+        .eta-field textarea:focus,
+        .eta-field textarea:focus-visible{
+          border:0!important;border-color:transparent!important;border-radius:0!important;outline:0!important;box-shadow:none!important;
         }
         .eta-field textarea::placeholder{color:rgba(0,0,0,.42)}
         .eta-composer-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:12px}
