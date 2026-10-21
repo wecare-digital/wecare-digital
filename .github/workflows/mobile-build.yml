@@ -43,8 +43,37 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  web-export:
+    name: Build web export once
+    runs-on: ubuntu-26.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Use npm version pinned by packageManager
+        shell: bash
+        run: |
+          PINNED_NPM="$(node -e "const p=require('./package.json').packageManager;process.stdout.write(p.slice(p.lastIndexOf('@')+1))")"
+          npm install --global "npm@${PINNED_NPM}"
+          echo "npm $(npm --version)"
+          test "$(npm --version)" = "$PINNED_NPM"
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Export web app once
+        run: NODE_ENV=production npm run build
+      - name: Upload shared web export
+        uses: actions/upload-artifact@v7
+        with:
+          name: mobile-web-export-${{ github.sha }}
+          path: out/
+          retention-days: 1
+
   android:
     name: Android build (export + cap sync + gradle)
+    needs: web-export
     runs-on: ubuntu-26.04
     timeout-minutes: 30
     steps:
@@ -72,12 +101,13 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
-
-      # Static export -> out/, then copy the web assets + plugins into the native project. This is
-      # exactly `cap:build` minus the implicit watch; NODE_ENV=production flips next.config's
-      # output:'export'.
-      - name: Export web app and sync Capacitor
-        run: NODE_ENV=production npm run cap:build
+      - name: Download shared web export
+        uses: actions/download-artifact@v8
+        with:
+          name: mobile-web-export-${{ github.sha }}
+          path: out
+      - name: Sync shared export into Capacitor
+        run: npx cap sync
 
       # versionCode MUST increase on every Play upload. Derive it from the run number so repeated
       # CI builds never collide, without hand-editing build.gradle. (A release pipeline can instead
@@ -117,6 +147,7 @@ jobs:
 
   public-shell-sync-check:
     name: Public app cap sync check
+    needs: web-export
     runs-on: ubuntu-26.04
     timeout-minutes: 20
     env:
@@ -138,9 +169,13 @@ jobs:
           test "$(npm --version)" = "$PINNED_NPM"
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
-      - name: Export public web app and sync both public shells
+      - name: Download shared web export
+        uses: actions/download-artifact@v8
+        with:
+          name: mobile-web-export-${{ github.sha }}
+          path: out
+      - name: Sync shared export into both public shells
         run: |
-          NODE_ENV=production npm run build
           # Capacitor 8 does not expose a --config CLI flag. For this isolated CI job,
           # make the public config the canonical filename the CLI loads, then sync both
           # already-added platform projects. The worktree is disposable.
@@ -150,6 +185,7 @@ jobs:
 
   ios-sync-check:
     name: iOS cap sync check
+    needs: web-export
     runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
@@ -168,9 +204,12 @@ jobs:
           test "$(npm --version)" = "$PINNED_NPM"
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
-      # Linux cannot xcodebuild, but `cap sync ios` validates the web export + the iOS project
+      - name: Download shared web export
+        uses: actions/download-artifact@v8
+        with:
+          name: mobile-web-export-${{ github.sha }}
+          path: out
+      # Linux cannot xcodebuild, but `cap sync ios` validates the shared web export + the iOS project
       # config/plugins so a change that breaks the iOS project is still caught in CI.
-      - name: Export web app and sync iOS project
-        run: |
-          NODE_ENV=production npm run build
-          npx cap sync ios
+      - name: Sync shared export into iOS project
+        run: npx cap sync ios
