@@ -52,7 +52,8 @@ RAW_PHONE = "+91 81006 40044"
 #: The same number as `auth/customer-profile` stores it.
 STORED_PHONE = customer_identity.normalize_phone_preserving_country(RAW_PHONE)
 
-ADDRESS = {"addressLine1": "12 Dalhousie Square", "city": "Kolkata",
+ADDRESS = {"addressLine1": "12 Dalhousie Square", "addressLine2": "Suite 2",
+           "locality": "BBD Bagh", "city": "Kolkata",
            "state": "West Bengal", "postalCode": "700001"}
 
 EMAIL = "asha@example.com"
@@ -103,6 +104,8 @@ def seed(fake, **overrides):
         "name": "Asha Sen",
         "firstName": "Asha",
         "lastName": "Sen",
+        "companyName": "WECARE QA",
+        "designation": "Tester",
         "checkoutCustomerId": CUSTOMER,
         "emailVerifiedAt": 1,
         "deletedAt": None,
@@ -192,11 +195,22 @@ def test_a_complete_row_answers_profile_ready_with_the_whole_identity_card(env):
     assert body["name"] == "Asha Sen"
     assert body["firstName"] == "Asha"
     assert body["lastName"] == "Sen"
+    assert body["companyName"] == "WECARE QA"
+    assert body["designation"] == "Tester"
+    assert body["profileComplete"] is True
     assert body["email"] == EMAIL
     assert body["emailVerified"] is True
     assert body["addressComplete"] is True
     assert body["address"]["city"] == "Kolkata"
     assert body["address"]["countryCode"] == "IN"
+
+
+def test_missing_business_profile_is_reported_incomplete(env):
+    h, fake, _mp = env
+    seed(fake, companyName=None)
+    _response, body = call(h)
+    assert body["status"] == "PROFILE_READY"
+    assert body["profileComplete"] is False
 
 
 def test_the_phone_comes_from_the_row_and_not_the_raw_session_value(env):
@@ -224,7 +238,10 @@ def test_a_stored_address_the_contract_now_refuses_is_reported_as_incomplete(env
     (payment_address), not pre-judged by the profile-status endpoint.
     """
     h, fake, _mp = env
-    seed(fake, **{contact_address.ATTRIBUTE: {"addressLine1": "12 MG Road", "city": "Bengaluru",
+    seed(fake, **{contact_address.ATTRIBUTE: {"addressLine1": "12 MG Road",
+                                              "addressLine2": "Flat 2",
+                                              "locality": "Central",
+                                              "city": "Bengaluru",
                                               "state": "Nowhere Pradesh",
                                               "postalCode": "560001"}})
     with caplog.at_level("INFO"):
