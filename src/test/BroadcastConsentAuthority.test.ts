@@ -18,10 +18,8 @@ const contacts = fs.readFileSync(
 
 describe( 'Broadcast WhatsApp consent authority', () => {
   it( 'projects MARKETING consent from the append-only ledger on the server', () => {
-    const projection = contacts.slice(
-      contacts.indexOf( 'def _from_dynamo' ),
-      contacts.indexOf( 'def _validate_phone' ),
-    );
+    const start = contacts.indexOf( 'def _from_dynamo' );
+    const projection = contacts.slice( start, start + 1200 );
     expect( projection ).toContain( "result['whatsappMarketingConsent']" );
     expect( projection ).toContain( "purpose=consent_evidence.MARKETING" );
     expect( projection ).not.toContain( "result['whatsappMarketingConsent'] = bool" );
