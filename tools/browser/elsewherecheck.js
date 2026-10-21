@@ -202,7 +202,7 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
     const livePage = await liveContext.newPage();
     await livePage.goto( `${t.base}/elsewhere/activities/`, { waitUntil: 'load', timeout: 60000 } );
     await livePage.getByLabel( 'Ask about travel' ).fill( 'Provider contract check' );
-    await livePage.getByRole( 'button', { name: 'Send' } ).tap();
+    await livePage.getByRole( 'button', { name: 'Send' } ).click();
     await livePage.locator( '.eta-result' ).waitFor( { state: 'visible', timeout: 5000 } );
     const liveActions = livePage.locator( '.eta-action' );
     if ( await liveActions.count() !== 2 ) fail( 'provider contract: missing checkout channels' );
@@ -290,7 +290,7 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
             cancellationSummary: 'Non-refundable',
             quoteExpiresAt: new Date( Date.now() - 60 * 1000 ).toISOString(),
             checkoutReady: true,
-            websiteUrl: 'http://provider.example/insecure',
+            websiteUrl: 'https://provider.example/checkout/expired-offer',
             whatsappUrl: 'https://wa.me/910000000000',
           } ],
         } ),
