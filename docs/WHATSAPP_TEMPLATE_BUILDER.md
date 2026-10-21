@@ -2,7 +2,7 @@
 
 Backend: `amplify/functions/messaging/whatsapp-template-management`. Validation service:
 `amplify/functions/shared/lambda_utils/template_validation.py`. TTL:
-`lambda_utils/template_ttl.py`. Presets: `lambda_utils/template_presets.py`.
+`lambda_utils/template_ttl.py`.
 
 ## Components
 - **HEADER** (optional): `TEXT` (≤60 chars, ≤1 variable, example required if variable),
@@ -41,11 +41,8 @@ Routes: `GET /wa-business/template-ttl/rules`, `POST /wa-business/template-ttl/v
 `POST /wa-business/templates/{id}/ttl`. A `template_ttl_cleared` SystemEvent is raised
 if a category change clears TTL.
 
-## Validate / presets / send-test / refresh
+## Validate / send-test / refresh
 - `POST /whatsapp/templates/validate` → `{ ok, errors, warnings }`.
-- `GET /whatsapp/templates/presets[/{name}]` → seasonal_promotion, order_confirmation,
-  order_delivery_update, flow_lead_generation, flow_appointment_booking,
-  flow_support_request.
 - `POST /whatsapp/templates/{id}/send-test` → send to a test recipient.
 - `POST /whatsapp/templates/{id}/refresh` → re-fetch live status/category/quality.
 
