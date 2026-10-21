@@ -126,6 +126,7 @@ import { colors } from '../../lib/design-tokens';
  * imported rather than restated so the two cannot drift.
  */
 import { LOGO_URL } from '../../lib/schema';
+import { CHECKOUT_METHOD_PATH, takePendingAction, type CheckoutChannel } from '../../lib/serviceEntry';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api';
 const PREPARE_CHECKOUT_URL = `${API_BASE}/ecommerce/prepare-checkout`;
@@ -646,6 +647,7 @@ export default function Cart (): React.ReactElement {
    * throw anywhere in the run cannot leave the page permanently unable to check out.
    */
   const proceedInFlightRef = useRef<boolean>( false );
+  const selectedCheckoutChannelRef = useRef<CheckoutChannel | undefined>( undefined );
   /**
    * The WhatsApp hand-off claim has been attempted in this page's lifetime.
    *
@@ -800,6 +802,7 @@ export default function Cart (): React.ReactElement {
   const postPrepare = useCallback( async (
     session: CustomerSession,
     lineItems: ReturnType<typeof toLineItems>,
+    channel: CheckoutChannel,
     // AN ARGUMENT, not a ref read inside the body, for the same reason `lineItems` is one: this
     // callback closes over no state, so what it sends has to be handed to it.
     resetCart = false,
@@ -829,7 +832,7 @@ export default function Cart (): React.ReactElement {
           Authorization: `Bearer ${session.accessToken}`,
         },
         body: JSON.stringify( {
-          action: 'prepare',
+          action: channel === 'whatsapp' ? 'create' : 'prepare',
           lineItems,
           requestKey: getCheckoutRequestKey( lineItems ),
           // Omitted entirely unless asked for, so an ordinary prepare's body is byte-identical to
@@ -1326,7 +1329,8 @@ export default function Cart (): React.ReactElement {
     setNotice( { kind: 'error', message: 'We could not confirm checkout. Check your orders before trying again.' } );
   }, [] );
 
-  const runCheckout = useCallback( async (): Promise<void> => {
+  const runCheckout = useCallback( async ( channel?: CheckoutChannel ): Promise<void> => {
+    if ( channel ) selectedCheckoutChannelRef.current = channel;
     // AHEAD of the notice reset, deliberately: a re-entry -- from CheckoutProfile's onSaved, or
     // a stray click -- must neither re-enter the rail nor wipe the explanation already on screen.
     if ( railTerminalRef.current ) return;
@@ -1477,6 +1481,14 @@ export default function Cart (): React.ReactElement {
       return;
     }
 
+    // Cart review and identity/profile readiness are complete. Payment rail selection happens
+    // exactly once on /checkout/, never on a product route and never inline in the cart.
+    if ( !channel )
+    {
+      window.location.assign( CHECKOUT_METHOD_PATH );
+      return;
+    }
+
     setBusy( true );
     try
     {
@@ -1487,7 +1499,7 @@ export default function Cart (): React.ReactElement {
       // the top of `proceed`, and the retry and the rotation below deliberately omit it: both are
       // re-posts of a request whose cart was already abandoned, and abandoning it a second time
       // would mint a third cart.
-      let outcome = await postPrepare( session, lineItems, resetCart );
+      let outcome = await postPrepare( session, lineItems, channel, resetCart );
 
       // ONE BOUNDED RETRY AFTER A SAVE. `phone-index` is a GLOBAL secondary index and cannot be
       // read strongly consistent, so a `prepare` issued seconds after a save can legitimately see
@@ -1501,7 +1513,7 @@ export default function Cart (): React.ReactElement {
       {
         justSavedRef.current = false;
         await sleep( POST_SAVE_RETRY_MS );
-        outcome = await postPrepare( session, lineItems );
+        outcome = await postPrepare( session, lineItems, channel );
       }
 
       // ONE ROTATION ON `INTENT_CHANGED`, and this is the ONE `CHECKOUT_REJECTED` reason a
@@ -1543,7 +1555,7 @@ export default function Cart (): React.ReactElement {
           window.sessionStorage.removeItem( CHECKOUT_REQUEST_KEY );
           window.sessionStorage.removeItem( CHECKOUT_REQUEST_BASKET );
         }
-        outcome = await postPrepare( session, lineItems );
+        outcome = await postPrepare( session, lineItems, channel );
       }
 
       applyOutcome( outcome, session );
@@ -1585,7 +1597,7 @@ export default function Cart (): React.ReactElement {
    * "Preparing…" on the CTA, and "please wait" on top of that explains nothing the customer cannot
    * already see.
    */
-  const proceed = useCallback( async (): Promise<void> => {
+  const proceed = useCallback( async ( channel?: CheckoutChannel ): Promise<void> => {
     if ( proceedInFlightRef.current )
     {
       resetCartRef.current = false;
@@ -1594,7 +1606,7 @@ export default function Cart (): React.ReactElement {
     proceedInFlightRef.current = true;
     try
     {
-      await runCheckout();
+      await runCheckout( channel );
     }
     finally
     {
@@ -1616,7 +1628,14 @@ export default function Cart (): React.ReactElement {
   const startNewCart = useCallback( (): void => {
     resetCartRef.current = true;
     setCartResetOffered( false );
-    void proceed();
+    void proceed( selectedCheckoutChannelRef.current );
+  }, [ proceed ] );
+
+  useEffect( () => {
+    const pending = takePendingAction();
+    if ( pending?.kind !== 'checkout' || !pending.channel ) return;
+    selectedCheckoutChannelRef.current = pending.channel;
+    void proceed( pending.channel );
   }, [ proceed ] );
 
   const isEmpty = ready && items.length === 0;
@@ -1879,7 +1898,7 @@ export default function Cart (): React.ReactElement {
                       action={ busy
                         ? 'Preparing…'
                         : ( profile ? ( paymentBlocked ? 'Try again' : 'Pay securely' ) : 'Proceed' ) }
-                      onClick={ proceed }
+                      onClick={ () => { void proceed(); } }
                       /* `railTerminal` is kept here even though the branch above makes it
                          unreachable: belt-and-braces ACROSS THE RENDER BOUNDARY. The two
                          mechanisms fail independently, and if a later edit reinstates the button
