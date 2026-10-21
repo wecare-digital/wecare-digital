@@ -9,13 +9,42 @@ mints `orderId`/`orderNumber` once), and both order-creation paths now write `co
 public `customerUuid`. What remains is making the live index carry those fields, deploying the
 handlers, and recovering any stranded paid order.
 
-LIVE STATUS (verified read-only, 2026-10-19, us-east-1):
+LIVE STATUS (verified read-only, updated 2026-10-21, us-east-1):
+- **Identity registry blocker:** `stack-wecare-digital-IdentityClaimsTable` is currently absent
+  in production even though current contact writers call `lambda_utils.identity_claims`. Provision
+  and backfill it before deploying those writers or accepting identity-changing traffic.
 - The v2 index `customerId-createdAt-v2-index` is now **ACTIVE** with `Backfilling:false`
   on `stack-wecare-digital-OrderTable` (re-verified 2026-10-21). Its projection carries BOTH
   `channel` and `customerUuid`. The old v1 index still exists for rollback compatibility.
   Step 3's create/backfill work is complete; only the serving-function env must be verified before
   removing v1 in any later cleanup.
 - The ₹4.67 order is already finalized and linked — see Step 5. No action needed for it.
+
+## Step 2 — provision the strong identity registry
+
+Dry-run first. This creates no duplicate identities and refuses to backfill if ContactsTable is
+already ambiguous:
+
+```sh
+python scripts/provision_identity_claims.py
+python scripts/provision_identity_claims.py --apply
+python scripts/provision_identity_claims.py --verify
+```
+
+Acceptance requires: table ACTIVE, PITR ENABLED, zero duplicate identity groups, zero missing
+claims, zero wrong-owner claims, and writer roles granted only GetItem/UpdateItem/DeleteItem.
+The registry is the serialization point that makes phone/email uniqueness database-enforced rather
+than dependent on eventually-consistent GSI reads.
+
+After provisioning, run:
+
+```sh
+python scripts/audit_customer_identity_integrity.py --json
+python scripts/reconcile_customer_identity_links.py
+```
+
+Apply the relinker only after reviewing its counts. It updates missing `contactId` only where the
+stored phone resolves to exactly one live contact; ambiguous or missing identities are never guessed.
 
 ## Step 3 — create and backfill the v2 customer-history index
 
