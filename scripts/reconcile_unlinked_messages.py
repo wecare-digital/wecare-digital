@@ -58,12 +58,12 @@ def main(argv=None):
             if not cid:
                 metrics["noIdentity"] += 1
                 continue
-            metrics["eligible"] += 1
-            if not args.apply:
-                continue
             message_id = str(row.get("id") or row.get("messageId") or "")
             if not message_id:
                 metrics["noIdentity"] += 1
+                continue
+            metrics["eligible"] += 1
+            if not args.apply:
                 continue
             try:
                 messages.update_item(
