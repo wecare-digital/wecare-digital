@@ -17,6 +17,21 @@ describe( 'canonical public commerce pattern', () => {
     expect( policy ).not.toContain( 'overview' );
   } );
 
+  it( 'keeps Checkout visually distinct from the Policy details disclosure', () => {
+    const checkout = read( 'src/components/CheckoutAction.tsx' );
+    const policy = read( 'src/components/public/PolicyDetails.tsx' );
+
+    expect( checkout ).toContain( 'background:var(--public-accent-amber)' );
+    expect( checkout ).toContain( 'border:2px solid var(--public-brand-green)' );
+    expect( checkout ).toContain( 'text-decoration:none' );
+    expect( checkout ).toContain( 'background:#fff' );
+    expect( checkout ).toContain( 'transform:translateY(-1px);box-shadow:0 5px 14px rgba(26,58,42,.1)' );
+
+    expect( policy ).toContain( 'background:var(--public-lime-tint)' );
+    expect( policy ).toContain( 'text-decoration:underline' );
+    expect( policy ).not.toContain( 'background:var(--public-accent-amber)' );
+  } );
+
   it( 'keeps public commerce microcopy free of internal checkout wording', () => {
     const product = read( 'src/components/ProductBuyBox.tsx' );
     const service = read( 'src/components/ServiceBuyBox.tsx' );
