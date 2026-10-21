@@ -22,9 +22,14 @@ import type { ShopProduct } from '../content/shop';
 import catalog from '../content/catalogSnapshot';
 import { SERVICE_PRODUCT_IDS } from '../config/services';
 
-vi.mock( 'next/router', () => ( {
-  useRouter: () => ( { push: vi.fn().mockResolvedValue( true ) } ),
-} ) );
+vi.mock( 'next/router', () => {
+  const events = { on: vi.fn(), off: vi.fn(), emit: vi.fn() };
+  const router = { push: vi.fn().mockResolvedValue( true ), events };
+  return {
+    default: router,
+    useRouter: () => router,
+  };
+} );
 
 /**
  * The /shop/ catalogue: the snapshot reader, and the two pages built on it.
