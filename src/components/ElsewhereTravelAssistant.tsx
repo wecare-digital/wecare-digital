@@ -1,0 +1,605 @@
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import VoiceSearchMic from './VoiceSearchMic';
+
+type TravelMode = 'flights' | 'hotels' | 'activities' | 'rail' | 'car' | 'bus';
+
+interface TravelResult {
+  id: string;
+  provider: string;
+  title: string;
+  description: string;
+  meta: string[];
+  price: string;
+  websiteUrl?: string;
+  whatsappUrl?: string;
+}
+
+interface TravelResponse {
+  source?: 'api' | 'mcp' | 'demo';
+  summary?: string;
+  results: TravelResult[];
+}
+
+interface ModeConfig {
+  label: string;
+  icon: string;
+  placeholder: string;
+  understanding: string;
+  chips: string[];
+  results: Array<[ string, string, string, string, string, string ]>;
+}
+
+const MODE_ORDER: TravelMode[] = [ 'flights', 'hotels', 'activities', 'rail', 'car', 'bus' ];
+
+const MODES: Record<TravelMode, ModeConfig> = {
+  flights: {
+    label: 'Flights',
+    icon: 'flight',
+    placeholder: 'e.g. Kolkata to Delhi next Friday, return Sunday evening. 2 adults, cabin baggage only, prefer morning departure.',
+    understanding: 'I’ll compare departure windows, stops, baggage, fare rules and arrival time against the trip you described.',
+    chips: [ 'Morning · nonstop', 'Cheapest flexible fare', '2 travellers · weekend', 'Cabin bag only' ],
+    results: [
+      [ 'Best timing option', 'Morning nonstop with the cleanest arrival window for the rest of the day.', 'Nonstop', '2h 20m', 'Cabin bag', '~₹6,480' ],
+      [ 'Best value option', 'Slightly later departure with a lower total fare and a similar arrival time.', 'Nonstop', '2h 25m', 'Cabin bag', '~₹5,920' ],
+      [ 'Most flexible option', 'Higher fare, but easier change terms for a weekend plan that may move.', 'Nonstop', '2h 30m', 'Flexible', '~₹7,350' ],
+    ],
+  },
+  hotels: {
+    label: 'Hotels',
+    icon: 'hotel',
+    placeholder: 'e.g. 3 nights in South Goa for a couple. Quiet, near the beach, breakfast included, under ₹7,000/night.',
+    understanding: 'I’ll weigh neighbourhood, room type, cancellation terms, breakfast and transfer friction — not just star rating.',
+    chips: [ 'Quiet beach stay', 'Family room · breakfast', 'Near station · 1 night', 'Free cancellation' ],
+    results: [
+      [ 'Quiet beach-side stay', 'Best balance of beach access, calm surroundings and flexible cancellation.', '600 m beach', 'Breakfast', 'Free cancellation', '~₹6,650' ],
+      [ 'Best-value boutique stay', 'Smaller property with a lower rate and strong location for the same beach area.', '900 m beach', 'Breakfast', 'Pay later', '~₹5,780' ],
+      [ 'Most convenient full-service stay', 'More facilities and easier transfers, useful if the trip has mixed activity levels.', 'Pool + desk', 'Breakfast', 'Airport transfer', '~₹7,250' ],
+    ],
+  },
+  activities: {
+    label: 'Activities',
+    icon: 'local_activity',
+    placeholder: 'e.g. Two adults in Jaipur on Saturday. We like food and architecture, want something relaxed, and need to be back by 8 PM. Budget ₹3,000 each.',
+    understanding: 'I’ll rank experiences by travel time, opening hours, pace, budget and how well they fit the rest of the day.',
+    chips: [ 'Food + culture · 4 hours', 'Family-friendly · afternoon', 'Low walking · evening', 'Under ₹3,000 · relaxed' ],
+    results: [
+      [ 'Old City food + architecture walk', 'Best fit for a relaxed cultural afternoon without crossing the city twice.', '3.5 h', 'Pickup nearby', 'Free cancellation', '~₹1,850' ],
+      [ 'Craft district studio visit', 'Hands-on local craft experience with a shorter duration and an indoor fallback.', '2 h', 'Small group', 'Indoor option', '~₹1,400' ],
+      [ 'Sunset fort + dinner transfer', 'Later start, sunset timing and a direct transfer toward dinner instead of backtracking.', '4 h', 'Private transfer', 'Evening', '~₹2,950' ],
+    ],
+  },
+  rail: {
+    label: 'Rail',
+    icon: 'train',
+    placeholder: 'e.g. Delhi to Jaipur Tuesday morning. 2 people. Prefer chair car and arrive before lunch.',
+    understanding: 'I’ll prioritise arrival time, class, station, journey duration and whether the train fits the day on either side.',
+    chips: [ 'Arrive before noon', 'Chair car', 'Lowest change risk', 'Window seat preferred' ],
+    results: [
+      [ 'Fast morning intercity', 'Earliest useful arrival with a straightforward daytime journey.', '3h 45m', 'Chair car', 'Morning', '~₹1,120' ],
+      [ 'Best-value daytime train', 'A little slower but lower fare and still reaches before lunch.', '4h 20m', 'Chair car', 'Day train', '~₹860' ],
+      [ 'Flexible later option', 'Later departure if the morning plan changes, while keeping the journey same-day.', '4h 05m', 'Chair car', 'Flexible time', '~₹980' ],
+    ],
+  },
+  car: {
+    label: 'Car',
+    icon: 'directions_car',
+    placeholder: 'e.g. Jaipur airport to Amer Fort tomorrow at 10 AM. 3 people, luggage, prefer a clean AC car with an English-speaking driver.',
+    understanding: 'I’ll compare vehicle type, pickup convenience, included distance or time, cancellation terms and the total fare.',
+    chips: [ 'Airport pickup · AC', 'Driver for 8 hours', 'SUV · 4 travellers', 'One-way · lowest fare' ],
+    results: [
+      [ 'Private sedan with driver', 'Best fit for three travellers with luggage and a straightforward point-to-point transfer.', 'AC sedan', 'Meet & greet', 'Free cancellation', '~₹1,450' ],
+      [ 'Driver for the day', 'Better value if you expect multiple stops instead of booking separate rides.', '8 hours', '80 km included', 'Local driver', '~₹2,850' ],
+      [ 'Roomier SUV option', 'More luggage space and easier seating if the group wants extra comfort.', 'AC SUV', '6 seats', 'Airport pickup', '~₹2,250' ],
+    ],
+  },
+  bus: {
+    label: 'Bus',
+    icon: 'directions_bus',
+    placeholder: 'e.g. Bangalore to Mysore tomorrow evening. 1 person, AC seat, pickup near Indiranagar after 6 PM.',
+    understanding: 'I’ll rank boarding-point convenience, seat type, arrival time, operator rules and total price.',
+    chips: [ 'AC sleeper', 'Near my pickup', 'Arrive before midnight', 'Lowest fare' ],
+    results: [
+      [ 'Nearest pickup option', 'Closest boarding point with a comfortable AC service and a useful arrival time.', 'AC seater', '3h 25m', 'Nearby pickup', '~₹640' ],
+      [ 'Best-value option', 'Slightly farther boarding point with the lowest total fare.', 'AC seater', '3h 40m', 'Value', '~₹520' ],
+      [ 'Most comfortable option', 'Wider seat and fewer intermediate stops for a calmer evening ride.', 'Premium AC', '3h 20m', 'Fewer stops', '~₹790' ],
+    ],
+  },
+};
+
+function demoResponse( mode: TravelMode ): TravelResponse {
+  const config = MODES[ mode ];
+  return {
+    source: 'demo',
+    results: config.results.map( ( item, index ) => ( {
+      id: 'demo-' + mode + '-' + String( index + 1 ),
+      provider: 'Suggested plan',
+      title: item[ 0 ],
+      description: item[ 1 ],
+      meta: [ item[ 2 ], item[ 3 ], item[ 4 ] ],
+      price: item[ 5 ],
+    } ) ),
+  };
+}
+
+function normaliseResponse( payload: Partial<TravelResponse> ): TravelResponse {
+  const rows = Array.isArray( payload.results ) ? payload.results : [];
+  const results = rows.slice( 0, 8 ).map( ( result, index ) => ( {
+    id: String( result.id || 'result-' + String( index + 1 ) ),
+    provider: String( result.provider || 'Provider' ),
+    title: String( result.title || 'Travel option' ),
+    description: String( result.description || '' ),
+    meta: Array.isArray( result.meta ) ? result.meta.slice( 0, 4 ).map( String ) : [],
+    price: String( result.price || '' ),
+    websiteUrl: typeof result.websiteUrl === 'string' ? result.websiteUrl : '',
+    whatsappUrl: typeof result.whatsappUrl === 'string' ? result.whatsappUrl : '',
+  } ) );
+  if ( !results.length ) throw new Error( 'No usable provider results' );
+  return { source: payload.source || 'api', results };
+}
+
+async function searchTravel( mode: TravelMode, query: string, preferences: string[], signal: AbortSignal ): Promise<TravelResponse> {
+  if ( typeof window !== 'undefined' ) {
+    const travelWindow = window as typeof window & {
+      ElsewhereTravelBridge?: {
+        search: ( request: { mode: TravelMode; query: string; preferences: string[]; signal: AbortSignal } ) => Promise<TravelResponse>;
+      };
+    };
+    if ( travelWindow.ElsewhereTravelBridge?.search ) {
+      const response = await travelWindow.ElsewhereTravelBridge.search( { mode, query, preferences, signal } );
+      return normaliseResponse( { ...response, source: 'mcp' } );
+    }
+  }
+
+  const endpoint = process.env.NEXT_PUBLIC_ELSEWHERE_SEARCH_ENDPOINT || '';
+  if ( endpoint ) {
+    const response = await fetch( endpoint, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      credentials: 'same-origin',
+      signal,
+      body: JSON.stringify( { mode, query, preferences } ),
+    } );
+    if ( !response.ok ) throw new Error( 'Provider search failed (' + String( response.status ) + ')' );
+    const payload = await response.json() as TravelResponse;
+    return normaliseResponse( { ...payload, source: 'api' } );
+  }
+
+  await new Promise<void>( ( resolve, reject ) => {
+    const timer = window.setTimeout( resolve, 420 );
+    signal.addEventListener( 'abort', () => {
+      window.clearTimeout( timer );
+      reject( new DOMException( 'Aborted', 'AbortError' ) );
+    }, { once: true } );
+  } );
+  return demoResponse( mode );
+}
+
+const ElsewhereTravelAssistant: React.FC = () => {
+  const [ mode, setMode ] = useState<TravelMode>( 'activities' );
+  const [ query, setQuery ] = useState( '' );
+  const [ preferences, setPreferences ] = useState<string[]>( [] );
+  const [ results, setResults ] = useState<TravelResult[]>( [] );
+  const [ status, setStatus ] = useState<'idle' | 'loading' | 'ready' | 'error'>( 'idle' );
+  const [ continuationNote, setContinuationNote ] = useState( '' );
+  const abortRef = useRef<AbortController | null>( null );
+  const tabRefs = useRef<Record<TravelMode, HTMLButtonElement | null>>( {
+    flights: null, hotels: null, activities: null, rail: null, car: null, bus: null,
+  } );
+
+  const config = MODES[ mode ];
+  const canSubmit = query.trim().length > 0 || preferences.length > 0;
+
+  const changeMode = useCallback( ( next: TravelMode ) => {
+    abortRef.current?.abort();
+    setMode( next );
+    setQuery( '' );
+    setPreferences( [] );
+    setResults( [] );
+    setStatus( 'idle' );
+    setContinuationNote( '' );
+    if ( typeof window !== 'undefined' && window.matchMedia( '(max-width: 720px)' ).matches ) {
+      window.requestAnimationFrame( () => {
+        tabRefs.current[ next ]?.scrollIntoView( {
+          behavior: window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches ? 'auto' : 'smooth',
+          block: 'nearest',
+          inline: 'nearest',
+        } );
+      } );
+    }
+  }, [] );
+
+  const selectedPreferenceText = useMemo( () => preferences.join( ', ' ), [ preferences ] );
+
+  const togglePreference = ( value: string ) => {
+    setPreferences( current => (
+      current.includes( value ) ? current.filter( item => item !== value ) : [ ...current, value ]
+    ) );
+    setContinuationNote( '' );
+  };
+
+  const submit = async () => {
+    const typed = query.trim();
+    if ( !typed && !preferences.length ) return;
+
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setStatus( 'loading' );
+    setResults( [] );
+    setContinuationNote( '' );
+
+    try {
+      const response = await searchTravel(
+        mode,
+        typed || 'Preferences: ' + selectedPreferenceText,
+        [ ...preferences ],
+        controller.signal,
+      );
+      setResults( response.results.slice( 0, 3 ) );
+      setStatus( 'ready' );
+    } catch ( error ) {
+      if ( error instanceof DOMException && error.name === 'AbortError' ) return;
+      setStatus( 'error' );
+    } finally {
+      if ( abortRef.current === controller ) abortRef.current = null;
+    }
+  };
+
+  const handleTabKey = ( event: React.KeyboardEvent<HTMLButtonElement>, index: number ) => {
+    let nextIndex = index;
+    if ( event.key === 'ArrowRight' ) nextIndex = ( index + 1 ) % MODE_ORDER.length;
+    else if ( event.key === 'ArrowLeft' ) nextIndex = ( index - 1 + MODE_ORDER.length ) % MODE_ORDER.length;
+    else if ( event.key === 'Home' ) nextIndex = 0;
+    else if ( event.key === 'End' ) nextIndex = MODE_ORDER.length - 1;
+    else return;
+
+    event.preventDefault();
+    const nextMode = MODE_ORDER[ nextIndex ];
+    changeMode( nextMode );
+    window.requestAnimationFrame( () => tabRefs.current[ nextMode ]?.focus() );
+  };
+
+  const appendVoice = ( transcript: string ) => {
+    setQuery( current => current.trim() ? current.trim() + ' ' + transcript : transcript );
+  };
+
+  const continueWith = ( kind: 'website' | 'whatsapp', result: TravelResult ) => {
+    const target = kind === 'website' ? result.websiteUrl : result.whatsappUrl;
+    if ( target ) {
+      try {
+        const parsed = new URL( target, window.location.href );
+        if ( parsed.protocol === 'https:' || parsed.protocol === 'http:' ) {
+          window.location.href = parsed.href;
+          return;
+        }
+      } catch {
+        // Fall through to the inline preview note.
+      }
+    }
+    setContinuationNote(
+      kind === 'website'
+        ? 'Website checkout will use this provider reference once live search is connected.'
+        : 'WhatsApp continuation will carry this provider reference once live search is connected.',
+    );
+  };
+
+  const userSummary = [
+    query.trim(),
+    preferences.length ? 'Preferences: ' + selectedPreferenceText : '',
+  ].filter( Boolean ).join( ' · ' );
+
+  return (
+    <section className="eta-shell" aria-label="Elsewhere travel assistant">
+      <h2 className="eta-sr-only">Plan travel with Elsewhere</h2>
+
+      <nav className="eta-tabs" aria-label="Travel services" role="tablist">
+        { MODE_ORDER.map( ( item, index ) => {
+          const active = item === mode;
+          const itemConfig = MODES[ item ];
+          return (
+            <button
+              key={ item }
+              id={ 'elsewhere-travel-tab-' + item }
+              ref={ node => { tabRefs.current[ item ] = node; } }
+              className={ active ? 'eta-tab active' : 'eta-tab' }
+              type="button"
+              role="tab"
+              aria-selected={ active }
+              aria-controls="elsewhere-travel-panel"
+              tabIndex={ active ? 0 : -1 }
+              onClick={ () => changeMode( item ) }
+              onKeyDown={ event => handleTabKey( event, index ) }
+            >
+              <span className="eta-tab-icon" aria-hidden="true">{ itemConfig.icon }</span>
+              <span>{ itemConfig.label }</span>
+            </button>
+          );
+        } ) }
+      </nav>
+
+      <div
+        id="elsewhere-travel-panel"
+        className="eta-panel"
+        role="tabpanel"
+        aria-labelledby={ 'elsewhere-travel-tab-' + mode }
+      >
+        <div className="eta-conversation" aria-live="polite">
+          { status === 'idle' && (
+            <>
+              <p className="eta-line"><strong>Guide</strong> Tell me where you’re going, when, who is travelling and what matters most.</p>
+              <p className="eta-line"><strong>Plan</strong> { config.understanding }</p>
+            </>
+          ) }
+
+          { status !== 'idle' && userSummary && (
+            <p className="eta-line"><strong>You</strong> { userSummary }</p>
+          ) }
+
+          { status === 'loading' && (
+            <>
+              <p className="eta-line"><strong>Guide</strong> { config.understanding }</p>
+              <div className="eta-loading" role="status">
+                <span className="eta-loading-line" aria-hidden="true" />
+                <span>Comparing the strongest matches…</span>
+              </div>
+            </>
+          ) }
+
+          { status === 'error' && (
+            <p className="eta-line"><strong>Guide</strong> I could not reach the provider source just now. No booking or payment was started.</p>
+          ) }
+
+          { status === 'ready' && (
+            <>
+              <p className="eta-line"><strong>Guide</strong> These are the strongest matches for what you described.</p>
+              <div className="eta-results">
+                { results.map( ( result, index ) => (
+                  <article className={ 'eta-result eta-result-' + mode } key={ result.id }>
+                    <div className="eta-result-main">
+                      <div className="eta-result-top">
+                        <span className="eta-rank">{ index + 1 }</span>
+                        <h3>{ result.title }</h3>
+                        { index === 0 && <span className="eta-best">Best match</span> }
+                        <span className="eta-provider">{ result.provider }</span>
+                      </div>
+                      <p className="eta-desc">{ result.description }</p>
+                      <div className="eta-meta">
+                        { result.meta.map( item => <span key={ item }>{ item }</span> ) }
+                      </div>
+                    </div>
+                    <div className="eta-result-side">
+                      <div className="eta-price">{ result.price }</div>
+                      <div className="eta-price-note">estimated until confirmed</div>
+                      <div className="eta-actions">
+                        <button type="button" className="eta-action primary" onClick={ () => continueWith( 'website', result ) }>Website</button>
+                        <button type="button" className="eta-action" onClick={ () => continueWith( 'whatsapp', result ) }>WhatsApp</button>
+                      </div>
+                    </div>
+                  </article>
+                ) ) }
+              </div>
+              <p className="eta-live-note">Live availability, rules and final price are confirmed before checkout.</p>
+            </>
+          ) }
+        </div>
+
+        <div className="eta-composer">
+          <div className="eta-field">
+            <textarea
+              value={ query }
+              onChange={ event => {
+                setQuery( event.target.value );
+                setContinuationNote( '' );
+              } }
+              onKeyDown={ event => {
+                if ( ( event.metaKey || event.ctrlKey ) && event.key === 'Enter' && canSubmit && status !== 'loading' ) void submit();
+              } }
+              aria-label="Ask about travel"
+              spellCheck={ false }
+              data-gramm="false"
+              data-gramm_editor="false"
+              data-enable-grammarly="false"
+              placeholder={ config.placeholder }
+            />
+          </div>
+          <div className="eta-composer-foot">
+            <span className="eta-hint">Describe your trip naturally</span>
+            <div className="eta-tools">
+              <span className="eta-keyhint">⌘ / Ctrl + Enter</span>
+              { query.trim() && (
+                <button className="eta-clear" type="button" aria-label="Clear message" title="Clear message" onClick={ () => setQuery( '' ) }>
+                  <span className="eta-material" aria-hidden="true">close</span>
+                </button>
+              ) }
+              <span className="eta-mic-slot"><VoiceSearchMic onTranscript={ appendVoice } ariaLabel="Search by voice" /></span>
+              <button
+                className="eta-send"
+                type="button"
+                aria-label="Send"
+                title="Send"
+                disabled={ !canSubmit || status === 'loading' }
+                onClick={ () => { void submit(); } }
+              >
+                <span className="eta-material" aria-hidden="true">arrow_upward</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="eta-chips" aria-label={ config.label + ' preferences' }>
+          { config.chips.map( chip => {
+            const active = preferences.includes( chip );
+            return (
+              <button
+                key={ chip }
+                className={ active ? 'eta-chip active' : 'eta-chip' }
+                type="button"
+                aria-pressed={ active }
+                onClick={ () => togglePreference( chip ) }
+              >
+                { active && <span aria-hidden="true">✓</span> }
+                { chip }
+              </button>
+            );
+          } ) }
+        </div>
+
+        { preferences.length > 0 && (
+          <div className="eta-preferences">
+            <div className="eta-preference-copy">
+              <span className="eta-preference-label">Your preferences</span>
+              <div className="eta-preference-values">
+                { preferences.map( item => <span key={ item }>{ item }</span> ) }
+              </div>
+            </div>
+            <button className="eta-preference-clear" type="button" aria-label="Clear all preferences" title="Clear all preferences" onClick={ () => setPreferences( [] ) }>×</button>
+          </div>
+        ) }
+
+        { continuationNote && <p className="eta-continuation" role="status">{ continuationNote }</p> }
+      </div>
+
+      <style jsx>{\`
+        .eta-shell{
+          width:min(940px,100%);margin:0 auto;min-width:0;overflow:hidden;
+          border:1px solid var(--public-hairline);border-radius:24px;
+          background:#f4f6f0;box-shadow:0 18px 54px rgba(26,58,42,.08);
+          color:var(--public-text);font-family:var(--font-sans);
+        }
+        .eta-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+        .eta-tabs{
+          display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px;width:100%;
+          padding:5px;background:var(--public-brand-lime);border-bottom:1px solid rgba(26,58,42,.14);
+        }
+        .eta-tab{
+          position:relative;isolation:isolate;display:flex;align-items:center;justify-content:center;gap:9px;
+          min-width:0;min-height:48px;padding:6px clamp(8px,1.2vw,14px);border:0;border-radius:13px;
+          background:transparent;color:var(--public-heading);white-space:nowrap;
+          font-family:var(--font-sans);font-size:16px;font-weight:700;line-height:1.2;letter-spacing:-.15px;
+          cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+        }
+        .eta-tab::before{content:'';position:absolute;inset:6px 7px;border-radius:10px;background:transparent;transition:background .16s ease;z-index:-1}
+        .eta-tab:hover::before{background:rgba(239,249,207,.78)}
+        .eta-tab.active::after{content:'';position:absolute;left:50%;bottom:4px;width:18px;height:2px;transform:translateX(-50%);border-radius:999px;background:#111512;opacity:.78}
+        .eta-tab-icon{
+          width:28px;height:28px;flex:0 0 28px;display:grid;place-items:center;border-radius:9px;
+          background:rgba(17,21,18,.06);color:#111512;
+          font-family:'Material Symbols Rounded';font-size:19px;font-weight:500;line-height:1;
+          font-variation-settings:'FILL' 0,'wght' 500,'GRAD' 0,'opsz' 24;
+        }
+        .eta-tab.active .eta-tab-icon{background:rgba(17,21,18,.09)}
+        .eta-panel{min-width:0;padding:28px 30px 26px}
+        .eta-conversation{display:flex;flex-direction:column;gap:16px;min-width:0}
+        .eta-line{
+          margin:0;color:var(--public-body);font-size:var(--public-body-size);font-weight:var(--public-body-weight);
+          line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);overflow-wrap:anywhere;
+        }
+        .eta-line strong{display:inline-block;min-width:58px;color:var(--public-heading);font-size:15px;font-weight:600;line-height:1.3;letter-spacing:-.1px}
+        .eta-results{display:flex;flex-direction:column;gap:10px;margin-top:2px}
+        .eta-result{
+          min-width:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(116px,auto);gap:18px;align-items:start;
+          padding:20px;border:1px solid var(--public-hairline);border-radius:14px;background:var(--public-bg);
+          transition:transform .2s ease,box-shadow .2s ease,border-color .16s ease;
+        }
+        .eta-result:first-child{border-color:#bfdc66;background:#fbfff0}
+        .eta-result:hover{transform:translateY(-2px);border-color:#cbd4c4;box-shadow:var(--public-lift-shadow)}
+        .eta-result-main{min-width:0}
+        .eta-result-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+        .eta-result h3{
+          margin:0;color:var(--public-heading);font-size:var(--public-card-size);font-weight:var(--public-card-weight);
+          line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);overflow-wrap:anywhere;
+        }
+        .eta-rank{width:22px;height:22px;display:grid;place-items:center;border-radius:7px;font-size:11px;font-weight:800;line-height:1}
+        .eta-result-flights .eta-rank{background:var(--public-accent-blue-tint);color:var(--public-accent-blue)}
+        .eta-result-hotels .eta-rank{background:var(--public-accent-purple-tint);color:var(--public-accent-purple)}
+        .eta-result-activities .eta-rank{background:var(--public-accent-amber-tint);color:#8a5d00}
+        .eta-result-rail .eta-rank{background:var(--public-accent-green-tint);color:var(--public-accent-green)}
+        .eta-result-car .eta-rank{background:var(--public-lime-tint);color:var(--public-brand-green)}
+        .eta-result-bus .eta-rank{background:var(--public-accent-red-tint);color:var(--public-accent-red)}
+        .eta-provider,.eta-best{font-size:11px;font-weight:700;line-height:1.2;text-transform:uppercase;letter-spacing:.055em}
+        .eta-provider{color:var(--public-muted)}.eta-best{color:#4a6512}
+        .eta-desc{margin:8px 0 0;color:var(--public-body);font-size:16px;font-weight:400;line-height:1.5;letter-spacing:-.1px;overflow-wrap:anywhere}
+        .eta-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+        .eta-meta span{padding:6px 9px;border:1px solid var(--public-hairline);border-radius:999px;background:#f7f8f5;color:#5d655b;font-size:12px;font-weight:600;line-height:1.2}
+        .eta-result-side{text-align:end}
+        .eta-price{color:var(--public-heading);font-size:18px;font-weight:700;line-height:1.25;letter-spacing:-.2px;white-space:nowrap}
+        .eta-price-note{margin-top:3px;color:var(--public-muted);font-size:11px;line-height:1.3}
+        .eta-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:8px}
+        .eta-action{
+          min-width:44px;min-height:44px;padding:0 10px;border:1px solid #cdd3ca;border-radius:13px;background:#fff;
+          color:var(--public-brand-green);font-size:11px;font-weight:650;line-height:1;cursor:pointer;
+        }
+        .eta-action.primary{border-color:var(--public-brand-lime);background:var(--public-brand-lime)}
+        .eta-live-note,.eta-continuation{margin:0;color:var(--public-muted);font-size:13px;font-weight:500;line-height:1.45}
+        .eta-composer{margin-top:24px;padding:18px 18px 14px;border:0;border-radius:18px;background:#fff}
+        .eta-field{position:relative;box-shadow:inset 0 -1px 0 var(--public-hairline);transition:box-shadow .2s ease}
+        .eta-composer:focus-within .eta-field{box-shadow:inset 0 -2px 0 var(--public-brand-lime)}
+        .eta-field textarea{
+          width:100%;min-height:92px;padding:0 0 14px;border:0;outline:0;resize:none;appearance:none;background:transparent;
+          color:var(--public-heading);font-family:var(--font-sans);font-size:var(--public-body-size);font-weight:var(--public-body-weight);
+          line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);
+        }
+        .eta-field textarea::placeholder{color:rgba(0,0,0,.42)}
+        .eta-composer-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:12px}
+        .eta-hint{color:var(--public-muted);font-size:15px;font-weight:400;line-height:1.35;letter-spacing:var(--public-body-tracking)}
+        .eta-tools{display:flex;align-items:center;gap:2px;margin-inline-start:auto}
+        .eta-keyhint{margin-inline-end:4px;color:#8a9288;font-size:12px}
+        .eta-clear{
+          display:grid;place-items:center;width:46px;height:46px;min-width:46px;min-height:46px;padding:0;border:0;border-radius:0;background:transparent;color:#7a8278;cursor:pointer;
+        }
+        .eta-material{font-family:'Material Symbols Rounded';font-size:21px;font-weight:500;line-height:1;font-variation-settings:'FILL' 0,'wght' 500,'GRAD' 0,'opsz' 24}
+        .eta-mic-slot{position:relative;display:block;width:46px;height:46px;flex:0 0 46px}
+        .eta-send{
+          display:grid;place-items:center;width:44px;height:44px;min-width:44px;min-height:44px;padding:0;border:0;border-radius:50%;
+          background:var(--public-brand-lime);color:var(--public-brand-green);cursor:pointer;box-shadow:0 4px 18px rgba(209,244,112,.14);
+        }
+        .eta-send:disabled{background:#e4e8dd;color:#8b9288;box-shadow:none;cursor:not-allowed}
+        .eta-chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+        .eta-chip{
+          min-height:44px;padding:12px 16px;border:1px solid var(--public-hairline);border-radius:999px;background:#fff;color:var(--public-heading);
+          font-size:15px;font-weight:600;line-height:1.2;letter-spacing:-.1px;cursor:pointer;transition:background .15s ease,border-color .15s ease,box-shadow .15s ease,transform .15s ease;
+        }
+        .eta-chip:hover{border-color:#bfd36f;background:#f3fad9;box-shadow:var(--public-lift-shadow);transform:translateY(-1px)}
+        .eta-chip.active{border-color:#aeca47;background:var(--public-lime-tint);color:var(--public-brand-green);box-shadow:none}
+        .eta-preferences{
+          display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:12px;padding:14px 16px;
+          border:1px solid var(--public-hairline);border-radius:14px;background:var(--public-bg);
+        }
+        .eta-preference-copy{min-width:0}.eta-preference-label{display:block;margin-bottom:7px;color:var(--public-muted);font-size:11px;font-weight:700;line-height:1.2;letter-spacing:.05em;text-transform:uppercase}
+        .eta-preference-values{display:flex;flex-wrap:wrap;gap:6px}
+        .eta-preference-values span{display:inline-flex;align-items:center;min-height:28px;padding:5px 9px;border-radius:999px;background:var(--public-lime-tint);color:var(--public-brand-green);font-size:14px;font-weight:600;line-height:1.3}
+        .eta-preference-clear{flex:0 0 auto;width:44px;height:44px;border:0;border-radius:999px;background:#f4f6f0;color:var(--public-heading);font-size:20px;line-height:1;cursor:pointer}
+        .eta-loading{display:flex;align-items:center;gap:10px;margin-top:6px;color:var(--public-muted);font-size:13px;font-weight:600;line-height:1.4}
+        .eta-loading-line{position:relative;width:34px;height:3px;flex:0 0 34px;overflow:hidden;border-radius:999px;background:var(--public-lime-tint)}
+        .eta-loading-line::after{content:'';position:absolute;inset:0 auto 0 0;width:45%;border-radius:inherit;background:var(--public-brand-lime);animation:eta-loading 1.15s ease-in-out infinite}
+        @keyframes eta-loading{0%{transform:translateX(-120%)}50%{transform:translateX(70%)}100%{transform:translateX(240%)}}
+        .eta-tab:focus-visible,.eta-clear:focus-visible,.eta-send:focus-visible,.eta-chip:focus-visible,.eta-preference-clear:focus-visible,.eta-action:focus-visible{
+          outline:3px solid var(--public-brand-green);outline-offset:3px;
+        }
+        @media(max-width:720px){
+          .eta-shell{border-radius:22px}
+          .eta-tabs{display:flex;gap:3px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;overscroll-behavior-inline:contain;scrollbar-width:none;touch-action:pan-x}
+          .eta-tabs::-webkit-scrollbar{display:none}
+          .eta-tab{flex:0 0 auto;min-width:max-content;padding:5px 12px;font-size:14px;gap:7px;scroll-snap-align:start}
+          .eta-tab-icon{width:26px;height:26px;flex-basis:26px;font-size:18px}
+          .eta-panel{padding:20px}
+          .eta-line{font-size:18px}
+          .eta-field textarea{font-size:var(--public-mobile-form-font-size)}
+          .eta-composer-foot{flex-wrap:wrap}.eta-hint{flex:1 1 100%}.eta-tools{width:100%;justify-content:flex-end}
+          .eta-result{grid-template-columns:1fr;padding:18px}.eta-result h3{font-size:20px}.eta-result-side{text-align:start}.eta-actions{justify-content:flex-start;flex-wrap:wrap}
+        }
+        @media(max-width:380px){.eta-tab{font-size:13px;padding-inline:10px}.eta-keyhint{display:none}}
+        @media(prefers-reduced-motion:reduce){
+          .eta-tab::before,.eta-result,.eta-chip{transition:none}.eta-result:hover,.eta-chip:hover{transform:none;box-shadow:none}
+          .eta-loading-line::after{width:100%;transform:none;animation:none}
+        }
+        @media(horizontal-viewport-segments:2){
+          .eta-shell{max-width:calc(env(viewport-segment-width 0 0) - 32px);margin-inline-start:max(16px,env(viewport-segment-left 0 0));margin-inline-end:auto}
+          :global([dir='rtl']) .eta-shell{margin-inline-start:auto;margin-inline-end:max(16px,env(viewport-segment-left 1 0))}
+        }
+      \`}</style>
+    </section>
+  );
+};
+
+export default ElsewhereTravelAssistant;
