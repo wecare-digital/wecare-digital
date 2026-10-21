@@ -27,7 +27,7 @@ const INTENT = '01928f3e-7b2a-7c3d-8e4f-0a1b2c3d4e5f';
  */
 const LIVE_PAISE = 14900;
 
-const CTA = /Pay securely|Proceed|Try again|Preparing/;
+const CTA = /Pay here|Pay on WhatsApp|Preparing/;
 const ADDRESS = {
   addressLine1: '12 MG Road', addressLine2: '', locality: '', city: 'Bengaluru',
   state: 'Karnataka', postalCode: '560001', country: 'India', countryCode: 'IN',

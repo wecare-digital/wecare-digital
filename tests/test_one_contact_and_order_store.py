@@ -102,6 +102,46 @@ def test_flow_contact_lookup_uses_the_shared_store(monkeypatch):
     assert flows_common.find_contact_by_phone('918100640044') == website_id
 
 
+def test_subscribe_signin_checkout_order_keeps_one_contact_and_public_customer():
+    """WhatsApp Subscribe -> inbox/Flow -> website sign-in -> checkout -> order is one identity.
+
+    Pin the wiring as well as the final row: Subscribe and website registration both resolve via
+    contact_store, customer-profile owns the Cognito-sub link, and checkout copies that contact's
+    public customerUuid/contactId onto the attempt that finalization projects into OrderTable.
+    """
+    subscribe = (ROOT / 'amplify/functions/messaging/whatsapp-business-api/flows/subscribe_profile.py').read_text()
+    registration = (ROOT / 'amplify/functions/auth/customer-registration/handler.py').read_text()
+    profile = (ROOT / 'amplify/functions/auth/customer-profile/handler.py').read_text()
+    checkout = (ROOT / 'amplify/functions/ecommerce/checkout/handler.py').read_text()
+
+    assert 'contact_store.lookup(table, phone)' in subscribe
+    assert 'contact_store.lookup(_contacts_table(), e164)' in registration
+    assert 'checkoutCustomerId=:customer' in profile
+    assert 'public_uuid = customer_uuid.from_contact(cart_profile)' in checkout
+    assert 'public_contact_id = contact_key.resolve(cart_profile)' in checkout
+
+    contact_id = 'wa918100640044'
+    public_uuid = '5f701556-7818-494a-a9aa-cf57da6287c2'
+    owner = '11111111-2222-3333-4444-555555555555'
+    db = contacts_db({
+        'id': contact_id, 'contactId': contact_id, 'phone': '+918100640044',
+        'checkoutCustomerId': owner, 'customerUuid': public_uuid,
+    })
+    same = contact_store.lookup(db.Table(CONTACTS), '+91 81006 40044')
+    assert same['id'] == contact_id
+    assert same['checkoutCustomerId'] == owner
+    assert same['customerUuid'] == public_uuid
+
+    order = _accept(_paid_attempt(
+        customerId=owner, contactId=contact_id, customerUuid=public_uuid,
+        customerPhone='+918100640044', channel='whatsapp'))
+    assert order['customerId'] == owner
+    assert order['contactId'] == contact_id
+    assert order['customerUuid'] == public_uuid
+    assert order['customerPhone'] == '+918100640044'
+    assert order['channel'] == 'whatsapp'
+
+
 # ── orders ─────────────────────────────────────────────────────────────────────────
 
 WEBSITE_ORDER = {

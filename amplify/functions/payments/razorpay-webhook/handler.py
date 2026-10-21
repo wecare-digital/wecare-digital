@@ -664,7 +664,8 @@ def _create_order_for_captured_payment(payment: Dict, reference_id: str,
             #     Graph call at all and the external-call count does not grow with redeliveries.
             #   * inside `_load_attempt`, so `verify_payment` and `load_attempt` both see the
             #     same bound row.
-            if (row.get('checkoutMode') in wa_payment_request.NATIVE_CHECKOUT_MODES
+            if ((row.get('checkoutMode') in wa_payment_request.NATIVE_CHECKOUT_MODES
+                    or row.get('checkoutMode') == 'AWS_NATIVE')
                     and not row.get('providerOrderId')
                     and not row.get('providerPaymentId')):
                 meta_payment_binding.bind_attempt(
@@ -734,7 +735,7 @@ def _create_order_for_captured_payment(payment: Dict, reference_id: str,
         native_invoice = (attribution.get('checkoutMode')
                           == wa_payment_request.WA_NATIVE_CHECKOUT_MODE)
         native_cart = (attribution.get('checkoutMode')
-                       == wa_payment_request.WA_NATIVE_CART_CHECKOUT_MODE)
+                       in (wa_payment_request.WA_NATIVE_CART_CHECKOUT_MODE, 'AWS_NATIVE'))
         if native_invoice and outcome.has_order:
             if (outcome.outcome == order_creation.ORDER_CREATED
                     and outcome.verified_captured_paise > 0
