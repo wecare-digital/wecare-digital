@@ -655,6 +655,108 @@ def _profile_status(identity: customer_auth.CustomerIdentity, origin: str) -> Di
     }, origin))
 
 
+def _cart_order_details(snapshot, reference_id: str, profile: Dict[str, Any],
+                        address: Dict[str, Any], now: int) -> Dict[str, Any]:
+    """Build Meta ORDER_DETAILS from the same frozen server-authoritative cart quote.
+
+    The browser contributes only product/variant ids and quantities. Names are display-only reads
+    from ProductsTable; every amount comes from the frozen snapshot and its CheckoutQuote.
+    """
+    from lambda_utils.ecommerce import default_coupon
+
+    frozen = snapshot.frozen_data if isinstance(snapshot.frozen_data, dict) else {}
+    frozen_items = frozen.get("items") if isinstance(frozen.get("items"), list) else []
+    reader = _native_product_reader()
+    items = []
+    merchandise_paise = 0
+    for line in frozen_items:
+        if not isinstance(line, dict):
+            continue
+        product_id = str(line.get("productId") or "")
+        quantity = int(line.get("quantity") or 0)
+        unit_paise = int(line.get("unitPricePaise") or 0)
+        if not product_id or quantity <= 0 or unit_paise <= 0:
+            raise ValueError("unusable frozen cart line")
+        product = reader(product_id) or {}
+        name = str(product.get("title") or product.get("name") or "WECARE.DIGITAL item").strip()
+        items.append({
+            "name": name[:60],
+            "quantity": quantity,
+            "amount": {"value": unit_paise, "offset": 100},
+        })
+        merchandise_paise += unit_paise * quantity
+
+    if not items:
+        raise ValueError("frozen cart has no payable items")
+
+    quote = snapshot.quote
+    delivery = frozen.get("delivery") if isinstance(frozen.get("delivery"), dict) else {}
+    delivery_paise = int(delivery.get("paise") or 0)
+    # Native catalog prices are GST-inclusive today. The only adjustment between merchandise +
+    # delivery and collection is the always-on Delight discount.
+    discount_paise = max(
+        0, merchandise_paise + delivery_paise - int(quote.collection_before_convenience_paise))
+
+    subtotal_paise = merchandise_paise
+    if quote.convenience_fee_paise:
+        items.append({
+            "retailer_id": "wecare-convenience-fee",
+            "name": "Convenience fee",
+            "quantity": 1,
+            "amount": {"value": int(quote.convenience_fee_paise), "offset": 100},
+        })
+        subtotal_paise += int(quote.convenience_fee_paise)
+
+    order = {
+        "status": "pending",
+        "items": items,
+        "subtotal": {"value": subtotal_paise, "offset": 100},
+        "shipping": {"value": delivery_paise, "offset": 100},
+        "tax": {
+            "value": int(quote.convenience_gst_paise),
+            "offset": 100,
+            "description": "GST on convenience fee",
+        },
+        "expiration": {
+            "timestamp": str(now + 900),
+            "description": "Complete payment within 15 minutes",
+        },
+    }
+    if discount_paise:
+        order["discount"] = {
+            "value": discount_paise,
+            "offset": 100,
+            "description": default_coupon.DISPLAY_LABEL,
+        }
+        order["couponCode"] = default_coupon.DELIGHT_CODE
+
+    full_address = ", ".join(
+        part for part in (
+            str(address.get("addressLine1") or "").strip(),
+            str(address.get("addressLine2") or "").strip(),
+        ) if part)
+    shipping_info = {
+        "country": str(address.get("countryCode") or "IN"),
+        "addresses": [{
+            "name": str(profile.get("name") or "").strip()[:60],
+            "address": full_address[:300],
+            "landmark_area": str(address.get("locality") or address.get("addressLine2") or "")[:100],
+            "city": str(address.get("city") or "")[:60],
+            "state": str(address.get("state") or "")[:60],
+            "in_pin_code": str(address.get("postalCode") or "")[:12],
+        }],
+    }
+    return {
+        "reference_id": reference_id,
+        "type": "physical-goods",
+        "currency": "INR",
+        "payment_configuration": EXPECTED_CONFIGURATION_NAME,
+        "total_amount": {"value": int(quote.total_payable_paise), "offset": 100},
+        "shipping_info": shipping_info,
+        "order": order,
+    }
+
+
 class DeliveryMethodUnavailable(purchase_intent.DeliveryDetailsRequired):
     """A chosen delivery method cannot be offered for this basket — DISTINCT from "no address or
     method chosen yet" (`DeliveryDetailsRequired`), which it subclasses so the base arm still
@@ -1800,48 +1902,43 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         return cors_response(400, {"error": "LINE_ITEMS_REQUIRED",
                                    "message": "Your cart is empty."}, origin)
 
-    # Phase O-1: A SERVICE IS NEVER BOUGHT ON THIS ROUTE'S CART LEG, refused first and before any
-    # I/O. The cart leg reads no `serviceIntentId` and never runs `_website_prepare`'s
-    # `_allocate_reference`, so its PAYREF# row would carry no `serviceLine`, and a capture here
-    # would be a paid service with no request, recoverable only by a human. The catalog-service
-    # leg (`catalog_session`) carries its intent and is priced per line below. Returned as a 409
-    # directly rather than raised, so it can never reach `handler`'s outer 500.
-    if service_requests.has_service_line(line_items) and catalog_session is None:
-        logger.info(json.dumps({"event": "service_refused",
-                                "reason": service_requests.SERVICE_WEBSITE_ONLY}))
-        return cors_response(409, service_requests.refusal(
-            service_requests.SERVICE_WEBSITE_ONLY), origin)
+    # Services use the same pre-payment intent guard on both payment rails. A WhatsApp payment
+    # must never be able to create a paid service with no request/target attached.
+    service_guard = service_requests.checkout_preflight(line_items, body)
+    if service_guard is not None:
+        return cors_response(service_guard[0], service_guard[1], origin)
 
-    # A2.6 — CART PURCHASES ARE COLLECTED ON THE WEBSITE, refused here and before any I/O.
-    #
-    # Requirements statement 8 and the owner's direction both say cart purchases are collected on
-    # the website via Razorpay Standard Checkout; native in-WhatsApp payment is retained for
-    # invoice collection and service purchases. With `_send_order_details` repaired onto a working
-    # envelope, the non-catalog leg of this function would otherwise have become a working in-chat
-    # cart payment, which is the opposite of that ruling.
-    #
-    # POSITION IS THE POINT, and it is why this sits above everything rather than beside the
-    # initiation gate further down. By that point `_create` has already priced the basket, run
-    # the readiness gate, durably reserved a `PAYREF#` and written an attempt row — so a
-    # PERMANENT POLICY refusal would burn a reference and store an attempt for a payment that can
-    # never be sent. The service refusal immediately above is "refused first and before any I/O"
-    # for the same reason.
-    #
-    # 200, not 409, matching the `PAYMENT_INITIATION_DISABLED` sibling for the reason recorded
-    # there: `cart.tsx` answers it with the "no charge was made" copy, which is only honest
-    # because the server stopped before the payment rail. No `paymentAttemptId` is returned,
-    # because no attempt exists.
+    # Ordinary cart checkout may now continue to either payment rail. The rail is chosen only
+    # after the reviewed cart and authenticated profile are known. Services keep their dedicated
+    # intent flow above; this arm is for ordinary product/contribution baskets.
+    cart_profile: Optional[Dict[str, Any]] = None
+    cart_address: Optional[Dict[str, Any]] = None
     if catalog_session is None:
-        logger.info(json.dumps({"event": "cart_payment_website_only"}))
-        return cors_response(200, {
-            "status": "CART_PAYMENT_IS_WEBSITE_ONLY",
-            "message": "Please complete this payment on the website. "
-                       "Nothing has been charged."}, origin)
+        cart_profile = _checkout_profile(identity)
+        if not cart_profile:
+            return cors_response(409, {
+                "error": "PROFILE_REQUIRED",
+                "message": "Verify and save your checkout details first.",
+            }, origin)
+        cart_address = contact_address.from_contact(cart_profile)
+        if cart_address is None:
+            return cors_response(409, {
+                "error": "DELIVERY_DETAILS_REQUIRED",
+                "message": "Confirm your delivery address before paying on WhatsApp.",
+            }, origin)
+        try:
+            payment_address.assert_payable(
+                cart_address, channel=payment_address.WHATSAPP_ORDER_DETAILS)
+        except payment_address.UnpayableAddress:
+            return cors_response(409, {
+                "error": "DELIVERY_DETAILS_REQUIRED",
+                "message": "This delivery address cannot be used for WhatsApp payment. "
+                           "Update it or choose Pay here.",
+            }, origin)
 
-    # 1. Authoritative total, from ProductsTable. `catalog_session is None` already returned
-    #    above (`CART_PAYMENT_IS_WEBSITE_ONLY`), so the only basket that reaches here is the
-    #    WhatsApp catalog-service leg, priced by `_native_quote` exactly as the website `prepare`
-    #    path is. The browser sent catalogue references and quantities; the amount a customer
+    # 1. Authoritative total, from ProductsTable. Both the ordinary cart WhatsApp rail and the
+    #    catalog-service leg use the exact same native quote as website prepare. The browser sent
+    #    catalogue references and quantities; the amount a customer
     #    pays is the CALCULATOR total -- the native collection plus the convenience fee plus the
     #    GST on that fee -- read off the frozen snapshot.
     native_service_paise: Optional[int] = None
@@ -1868,14 +1965,10 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
                                    "message": "We could not price this cart. Please try "
                                               "again."}, origin)
 
-    if catalog_session is not None:
-        # Native services require the same authoritative per-line guard as website services;
-        # the snapshot above is a ProductsTable-backed price.
-        guard = service_requests.checkout_preflight(line_items, body)
-        if guard is not None:
-            return cors_response(guard[0], guard[1], origin)
+    if service_requests.has_service_line(line_items):
         # The authoritative per-line price, read from the FROZEN native quote (never a client
-        # amount). It fails closed on any disagreement before a reference is minted.
+        # amount). Both website-origin and WhatsApp-origin service purchases bind this figure to
+        # the PAYREF serviceLine so post-payment activation resolves the same service intent.
         try:
             native_service_paise = service_requests.native_service_line_paise(snapshot, line_items)
         except service_requests.ServicePriceChanged:
@@ -1902,10 +1995,15 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
     # 3. Reserve a canonical reference bound to a fresh attempt id, then build the attempt. The
     #    reference is minted and durably reserved BEFORE it is used, and never transformed after.
     attempt_id = payment_attempt.new_payment_attempt_id()
+    checkout_mode = (
+        CHECKOUT_MODE if catalog_session is not None
+        else wa_payment_request.WA_NATIVE_CART_CHECKOUT_MODE
+    )
     try:
         extra = {"customerId": identity.customer_id,
                  "amountPaise": amount_paise, "currency": "INR",
-                 "checkoutMode": CHECKOUT_MODE}
+                 "checkoutMode": checkout_mode,
+                 "channel": order_channel.CHANNEL_WHATSAPP}
         if snapshot is not None:
             # The cart join keys. `cartId` + `cartRevision` is what reconciliation matches on,
             # and `quoteHash` is what proves the paid amount is the one the customer reviewed --
@@ -1917,14 +2015,20 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
                          collectionPaise=snapshot.quote.collection_before_convenience_paise,
                          quoteExpiresAt=snapshot.expires_at,
                          policyVersion=snapshot.policy_version)
+        if catalog_session is None and cart_profile is not None:
+            public_uuid = customer_uuid.from_contact(cart_profile)
+            public_contact_id = contact_key.resolve(cart_profile)
+            extra.update(customerPhone=_profile_phone(identity))
+            if public_uuid:
+                extra[customer_uuid.ATTRIBUTE] = public_uuid
+            if public_contact_id:
+                extra["contactId"] = public_contact_id
+        if service_requests.has_service_line(line_items):
+            extra.update(**service_requests.payref_extra(
+                line_items, body, line_paise=native_service_paise))
         if catalog_session is not None:
-            # `native_service_paise` is the service line's price read from the FROZEN native quote
-            # (ProductsTable-authoritative). It is already validated by
-            # `native_service_line_paise` above, so an unpriced row can never be minted here.
             extra.update(channel='whatsapp', nativeCatalogService=True,
-                customerPhone=_profile_phone(identity),
-                **service_requests.payref_extra(line_items, body,
-                    line_paise=native_service_paise))
+                         customerPhone=_profile_phone(identity))
         reference_id = order_keys.allocate_payment_reference(
             _keys_table(), payment_attempt_id=attempt_id, extra=extra,
         )
@@ -1939,7 +2043,20 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         configuration_name=EXPECTED_CONFIGURATION_NAME,
         payment_attempt_id=attempt_id,
     )
-    attempt["checkoutMode"] = CHECKOUT_MODE
+    attempt["checkoutMode"] = checkout_mode
+    if catalog_session is None and cart_profile is not None:
+        attempt.update(
+            channel=order_channel.CHANNEL_WHATSAPP,
+            customerPhone=_profile_phone(identity),
+            snapshotHash=snapshot.snapshot_hash,
+            purchasedSnapshot=dict(snapshot.frozen_data),
+        )
+        public_uuid = customer_uuid.from_contact(cart_profile)
+        public_contact_id = contact_key.resolve(cart_profile)
+        if public_uuid:
+            attempt[customer_uuid.ATTRIBUTE] = public_uuid
+        if public_contact_id:
+            attempt["contactId"] = public_contact_id
     if catalog_session is not None:
         # AWS-native WhatsApp catalog-service attempt. The authoritative record is the frozen
         # `purchasedSnapshot` + `snapshotHash`, which `finalization.accept_paid` turns into the
@@ -1989,23 +2106,23 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
                 ':intent': body['serviceIntentId'], ':preparing': 'PREPARING_PAYMENT'})
 
 
-    # ONE in-chat sender for this handler. The `catalog_session is None` branch that used to sit
-    # here is gone: A2.6 refuses that case at the top of `_create`, so the catalog leg is the only
-    # leg that reaches this line, and keeping a second call shape would have left a dead branch
-    # holding a call that no longer matches the signature.
-    #
-    # The envelope changed from `isPaymentTemplate` + `orderDetails` to `isCheckoutTemplate` +
-    # `checkoutOrderDetails`, which is the correctness fix open task 9.4 asks for. The old
-    # envelope attaches the caller's dict VERBATIM as the button action and never calls
-    # `_build_payment_settings`, so this leg reached Meta without passing the resolver at all —
-    # not the WABA1-only refusal, not the link refusals, not the `VALID_PAYMENT_CONFIGS`
-    # membership check. It is now refused by name at the boundary gate.
-    from lambda_utils.ecommerce.catalog_service_checkout import payment_details
+    # One sender and one approved ORDER_DETAILS template for both WhatsApp checkout rails.
+    # Ordinary carts use the authenticated profile/address and frozen cart snapshot; catalog
+    # services keep their dedicated service metadata.
+    if catalog_session is not None:
+        from lambda_utils.ecommerce.catalog_service_checkout import payment_details
+        contact_id = catalog_session['contactId']
+        phone_number_id = catalog_session['phoneNumberId']
+        details = payment_details(catalog_session, snapshot.quote, reference_id,
+                                  EXPECTED_CONFIGURATION_NAME, int(time.time()))
+    else:
+        contact_id = contact_key.resolve(cart_profile or {})
+        phone_number_id = wa_payment_request.PHONE_NUMBER_ID_1
+        details = _cart_order_details(
+            snapshot, reference_id, cart_profile or {}, cart_address or {}, int(time.time()))
     sent = _send_order_details(
-        phone=identity.phone, contact_id=catalog_session['contactId'],
-        phone_number_id=catalog_session['phoneNumberId'],
-        order_details=payment_details(catalog_session, snapshot.quote, reference_id,
-                                      EXPECTED_CONFIGURATION_NAME, int(time.time())))
+        phone=identity.phone, contact_id=contact_id,
+        phone_number_id=phone_number_id, order_details=details)
     if not sent:
         # The attempt is stored and ready; the message did not go. A soft failure the client can
         # retry, and crucially still NO order and NO second charge — the reference is reusable for a
