@@ -62,7 +62,7 @@ from typing import Any, Dict, Optional
 
 import boto3
 
-from lambda_utils import contact_key, contact_store, customer_auth, customer_session, otp_throttle, shared_tables
+from lambda_utils import contact_key, contact_store, customer_auth, customer_session, otp_throttle, shared_tables, identity_claims
 from lambda_utils.identity import customer as identity
 from lambda_utils.identity import registration
 from lambda_utils.identity import consent as consent_evidence
@@ -139,6 +139,12 @@ def _contacts_table():
     if _dynamodb is None:
         _dynamodb = boto3.resource("dynamodb", region_name=REGION)
     return _dynamodb.Table(CONTACTS_TABLE)
+
+def _claims_table():
+    global _dynamodb
+    if _dynamodb is None:
+        _dynamodb = boto3.resource("dynamodb", region_name=REGION)
+    return _dynamodb.Table(identity_claims.TABLE_NAME)
 
 
 def _lambda_client():
@@ -281,6 +287,16 @@ def _create_customer(e164: str) -> Dict[str, Any]:
         "createdAt": now,
         "updatedAt": now,
     }
+    try:
+        identity_claims.claim_identities(
+            _claims_table(), contact_id=contact_id,
+            phone=record["phone"], now=now)
+    except identity_claims.IdentityClaimConflict:
+        owner_id = identity_claims.owner(_claims_table(), "PHONE", record["phone"])
+        owner = contact_store.lookup(_contacts_table(), contact_id=owner_id) if owner_id else None
+        if owner:
+            return _as_customer(owner)
+        raise
     try:
         _contacts_table().put_item(
             Item=record,
