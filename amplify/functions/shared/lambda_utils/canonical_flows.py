@@ -7,13 +7,14 @@ capability named different ids, several of them unused DRAFT design-duplicates o
 flows, while the real retained flow sat elsewhere. Centralising the ids here (and in the TS
 twin) makes a one-sided edit a test failure rather than a silent production mismatch.
 
-SOURCE OF TRUTH. outputs/flow-retirement-2026-10-09.json remains the historical retirement
-baseline. Published owner-approved replacements after that snapshot are recorded here with the
-date/reason in comments and are exempted explicitly in tests. This module and its TypeScript twin
-remain the runtime source of truth, so a newly published Flow is added once here rather than copied
-through senders and UI tables.
+SOURCE OF TRUTH. outputs/flow-retirement-2026-10-09.json is a full paginated live-Meta
+readback taken after the 9-Oct deprecation run; its keepIds list is the retained plan. Every
+id below is one of those keepIds, or None where the capability has no Flow.
+tests/test_canonical_flow_ids.py asserts this module against that readback and against the TS
+twin, and forbids flow-id literals outside the canonical modules.
 
-WABA 1 only (2094615664435155) for the canonical customer-service Flow set.
+WABA 1 only (2094615664435155). WABA 2 has no retained customer-service Flow set and is not
+routed from here.
 """
 
 # capability -> (flow_id or None, status, meta_name or None)
@@ -26,8 +27,7 @@ CANONICAL_FLOWS = {
     'leave_review':   ('940049388908144',  'PUBLISHED', '01. WECARE REVIEW FLOW'),
     # Vault: website CTA + ₹49 catalog delivery, no Flow.
     'vault':          (None, 'NONE', None),
-    # Owner-confirmed PUBLISHED 2026-10-21. This supersedes the retired 02.WD_Profile ids
-    # 1262971692700761 / 951987930811295 without resurrecting either of them.
+    # Published 2026-10-21 on WABA 1. This is the retained Subscribe/Profile Flow.
     'subscribe':      ('1386523953464380', 'PUBLISHED', 'WD_Subscribe_Design_v1'),
     # Track Request: not in keepIds. Former ids 1486454129852338 (DRAFT) / 973888792200167
     # (DEPRECATED) are not canonical. Tracking is served by
@@ -48,13 +48,11 @@ def canonical_flow_status(capability: str) -> str:
     return row[1] if row else 'NONE'
 
 
-
 def published_flow(capability: str):
-    """Published canonical Flow metadata, or None when the capability is not publishable yet.
+    """Published canonical Flow metadata, or None when the capability is not live.
 
-    This is the safe runtime lookup for customer-facing senders: DRAFT/NONE entries stay visible
-    in the canonical registry for staff and reconciliation, but cannot accidentally be treated as
-    a live customer Flow.
+    DRAFT/NONE entries remain in the canonical registry for staff/reconciliation, but
+    customer-facing callers can use this helper without accidentally sending a draft Flow.
     """
     row = CANONICAL_FLOWS.get(capability)
     if not row or not row[0] or row[1] != 'PUBLISHED':
