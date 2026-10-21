@@ -3,8 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import CheckoutProfile, { CheckoutProfileMode } from '../components/CheckoutProfile';
 
-const ADDRESS = { addressLine1: '12 Test Road', addressLine2: '', locality: '', city: 'Bengaluru', state: 'Karnataka', postalCode: '560001', country: 'India', countryCode: 'IN', fullAddress: '12 Test Road, Bengaluru' };
-const INITIAL = { firstName: 'Asha', lastName: 'Sen', email: 'asha@example.com', address: ADDRESS };
+const ADDRESS = { addressLine1: '12 Test Road', addressLine2: 'Flat 2', locality: 'Indiranagar', city: 'Bengaluru', state: 'Karnataka', postalCode: '560001', country: 'India', countryCode: 'IN', fullAddress: '12 Test Road, Flat 2, Indiranagar, Bengaluru' };
+const INITIAL = { firstName: 'Asha', lastName: 'Sen', companyName: 'WECARE QA', designation: 'Tester', email: 'asha@example.com', address: ADDRESS };
 const REPLY = { status: 'PROFILE_READY', contactId: 'contact-1', name: 'Asha Sen', ...INITIAL, phone: '+918100640044', emailVerified: false, addressComplete: true };
 afterEach( () => { vi.unstubAllGlobals(); vi.restoreAllMocks(); } );
 
@@ -26,10 +26,10 @@ describe( 'WhatsApp-owned customer profile', () => {
   } );
 
   it.each( [
-    [ 'create', { firstName: 'Asha', lastName: 'Sen', email: 'asha@example.com', address: { addressLine1: '12 Test Road', addressLine2: '', city: 'Bengaluru', state: 'Karnataka', postalCode: '560001' } } ],
-    [ 'name', { firstName: 'Asha', lastName: 'Sen' } ],
+    [ 'create', { firstName: 'Asha', lastName: 'Sen', companyName: 'WECARE QA', designation: 'Tester', email: 'asha@example.com', address: { addressLine1: '12 Test Road', addressLine2: 'Flat 2', locality: 'Indiranagar', city: 'Bengaluru', state: 'Karnataka', postalCode: '560001' } } ],
+    [ 'name', { firstName: 'Asha', lastName: 'Sen', companyName: 'WECARE QA', designation: 'Tester' } ],
     [ 'email', { email: 'asha@example.com' } ],
-    [ 'address', { address: { addressLine1: '12 Test Road', addressLine2: '', city: 'Bengaluru', state: 'Karnataka', postalCode: '560001' } } ],
+    [ 'address', { address: { addressLine1: '12 Test Road', addressLine2: 'Flat 2', locality: 'Indiranagar', city: 'Bengaluru', state: 'Karnataka', postalCode: '560001' } } ],
   ] as const )( '%s saves only its editable fields using the WhatsApp session', async ( mode, expected ) => {
     const { fetchMock, onReady } = setup( mode );
     fireEvent.click( screen.getByRole( 'button', { name: /Save/ } ) );
