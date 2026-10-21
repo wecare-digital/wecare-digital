@@ -215,14 +215,14 @@ const PublicShare: React.FC<PublicShareProps> = ( {
               onClick={ onCheckout }
               disabled={ busy }
               aria-busy={ busy }
-              aria-label="Checkout contribution"
+              aria-label={ busy ? undefined : 'Checkout contribution' }
             >
               <span className="ps-menu-icon" aria-hidden="true">
                 <span className="ps-material">shopping_cart_checkout</span>
               </span>
               <span className="ps-menu-copy">
-                <span className="ps-menu-name">Checkout</span>
-                <span className="ps-menu-note">{ busy ? 'One moment…' : 'Review contribution in cart' }</span>
+                <span className="ps-menu-name">{ busy ? 'One moment…' : 'Checkout' }</span>
+                <span className="ps-menu-note">Review contribution in cart</span>
               </span>
               <span className="ps-material ps-chevron" aria-hidden="true">chevron_right</span>
             </button>
