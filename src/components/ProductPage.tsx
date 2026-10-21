@@ -66,6 +66,11 @@ interface ProductPageProps {
   afterHero?: React.ReactNode;
   /** Route-specific opt-out for the standard explainer/CTA body when the after-hero surface is the product experience. */
   suppressProductDetails?: boolean;
+  /**
+   * Route-level opt-in to the Home-aligned public mobile hero foundation. Keep this explicit:
+   * migrating one bespoke ProductPage experience must not silently restyle every sibling route.
+   */
+  mobileFoundation?: boolean;
 }
 
 // The SITE constant that used to live here is gone: PageMeta owns the origin now, so
@@ -83,6 +88,7 @@ const ProductPage: React.FC<ProductPageProps> = ( {
   belowCta,
   afterHero,
   suppressProductDetails = false,
+  mobileFoundation = false,
 } ) => {
   const hasAside = Array.isArray( blogCards ) && blogCards.length > 0;
   const sku = PRODUCT_SKU_BY_SLUG[ product.slug ];
@@ -97,6 +103,7 @@ const ProductPage: React.FC<ProductPageProps> = ( {
       words={ product.words }
       sub={ product.sub }
       afterHero={ afterHero }
+      mobileFoundation={ mobileFoundation }
     >
       <div className={ hasAside ? 'pdp-wrap has-aside' : 'pdp-wrap' }>
       <PageShell title={ product.title } description={ product.description }

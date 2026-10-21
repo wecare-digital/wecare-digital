@@ -711,9 +711,9 @@ const ElsewhereTravelAssistant: React.FC = () => {
           .eta-tabs::-webkit-scrollbar{display:none}
           .eta-tab{flex:0 0 auto;min-width:max-content;padding:5px 12px;font-size:14px;gap:7px;scroll-snap-align:start}
           .eta-tab-icon{width:26px;height:26px;flex-basis:26px;font-size:18px}
-          .eta-panel{padding:20px}
+          .eta-panel{padding:20px var(--public-mobile-page-gutter)}
           .eta-response-view{min-height:164px;max-height:420px;max-height:min(44dvh,420px);padding-inline-end:2px}
-          .eta-line{font-size:18px}
+          .eta-line{font-size:var(--public-body-size)}
           .eta-field textarea{font-size:var(--public-mobile-form-font-size)}
           .eta-composer-foot{flex-wrap:wrap}.eta-hint{flex:1 1 100%}.eta-tools{width:100%;justify-content:flex-end}
           .eta-result{grid-template-columns:1fr;padding:18px}.eta-result h3{font-size:var(--public-mobile-card-size)}.eta-desc{font-size:16px}.eta-result-side{align-items:flex-start;text-align:start}.eta-checkout{align-items:flex-start}.eta-actions{align-items:flex-start;margin-inline-start:0}
@@ -721,7 +721,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
         @media(max-width:380px){
           .eta-tab{font-size:13px;padding-inline:10px}
           .eta-keyhint{display:none}
-          .eta-panel{padding-inline:16px}
+          .eta-panel{padding-inline:var(--public-mobile-page-gutter)}
           .eta-result{padding-inline:16px}
           .eta-actions{gap:6px}
         }
@@ -734,8 +734,8 @@ const ElsewhereTravelAssistant: React.FC = () => {
           .eta-composer:focus-within{box-shadow:none}
         }
         @media(horizontal-viewport-segments:2){
-          .eta-shell{max-width:calc(env(viewport-segment-width 0 0) - 32px);margin-inline-start:max(16px,env(viewport-segment-left 0 0));margin-inline-end:auto}
-          :global([dir='rtl']) .eta-shell{margin-inline-start:auto;margin-inline-end:max(16px,env(viewport-segment-left 1 0))}
+          .eta-shell{max-width:calc(env(viewport-segment-width 0 0) - (2 * var(--public-mobile-page-gutter)));margin-inline-start:max(var(--public-mobile-page-gutter),env(viewport-segment-left 0 0));margin-inline-end:auto}
+          :global([dir='rtl']) .eta-shell{margin-inline-start:auto;margin-inline-end:max(var(--public-mobile-page-gutter),env(viewport-segment-left 1 0))}
         }
       `}</style>
     </section>

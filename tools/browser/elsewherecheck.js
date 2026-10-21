@@ -5,7 +5,7 @@
  *
  * Runs against the production export in Chromium, Firefox and WebKit. This is not a
  * substitute for a physical iPhone/Android device, but it makes the previously-manual
- * 320/375px touch assumptions executable in every public browser matrix run.
+ * 320/360/375/390/412px touch assumptions executable in every public browser matrix run.
  */
 
 const { target } = require( './lib/serve' );
@@ -20,8 +20,10 @@ const engine = { chromium, firefox, webkit }[ engineName ];
 
 const VIEWPORTS = [
   { name: 'narrow-phone', width: 320, height: 700 },
-  { name: 'phone', width: 375, height: 812 },
-  { name: 'large-phone', width: 390, height: 844 },
+  { name: 'phone-360', width: 360, height: 800 },
+  { name: 'phone-375', width: 375, height: 812 },
+  { name: 'phone-390', width: 390, height: 844 },
+  { name: 'phone-412', width: 412, height: 915 },
   { name: 'tablet', width: 768, height: 1024 },
 ];
 

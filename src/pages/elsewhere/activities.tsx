@@ -11,6 +11,7 @@ const ActivitiesPage: React.FC = () => (
     canonicalPath={ child.path }
     afterHero={ <ElsewhereTravelAssistant /> }
     suppressProductDetails
+    mobileFoundation
   />
 );
 
