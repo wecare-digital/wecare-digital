@@ -143,7 +143,11 @@ def test_the_guard_actually_found_something(source_path):
     # if this count ever drops to zero the walker has stopped seeing them.
     found = list(_returned_response_calls(source_path))
     assert len(found) >= 5
-    assert all(callee in _RESPONSE_BUILDERS for _, _, callee, _ in found)
+    # A wrapped response variable (for example require_customer's denial response) has no
+    # direct builder callee for the AST walker to name. It is still safe because the return
+    # itself is _no_store(...). Only unwrapped/direct callees must be known builders.
+    assert all(wrapped or callee in _RESPONSE_BUILDERS
+               for _, _, callee, wrapped in found)
 
 
 @pytest.mark.parametrize("source_path", [_REGISTRATION, _EMAIL_VERIFICATION, _CUSTOMER_ORDERS],
