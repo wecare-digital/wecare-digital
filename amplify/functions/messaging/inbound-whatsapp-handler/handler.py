@@ -38,7 +38,7 @@ from lambda_utils.automation import evaluate_rules  # cross-channel auto-reply r
 from lambda_utils import meta_signature  # raw-body X-Hub-Signature-256 on the public route
 from lambda_utils import wa_status  # monotonic status ordering (no backward transitions)
 from lambda_utils import wa_internal_event  # typed ingress -> worker contract
-from lambda_utils import contact_key
+from lambda_utils import contact_key, identity_claims
 from lambda_utils import contact_store  # one contact row per person, whichever channel minted it
 from lambda_utils import shared_tables  # one name per shared store (contacts, orders, flows)
 from lambda_utils.identity import subscriber_id
@@ -3432,6 +3432,22 @@ def _get_or_create_contact(phone: str, sender_name: str = '', bsuid: str = '', u
         'createdAt': Decimal(str(now)),
         'updatedAt': Decimal(str(now)),
     }
+
+    claims_table = dynamodb.Table(identity_claims.TABLE_NAME)
+    try:
+        identity_claims.claim_identities(
+            claims_table, contact_id=contact_id, phone=formatted_phone, now=now)
+    except identity_claims.IdentityClaimConflict:
+        owner_id = identity_claims.owner(claims_table, 'PHONE', formatted_phone)
+        if owner_id:
+            owner = contacts_table.get_item(
+                Key={'id': owner_id}, ConsistentRead=True).get('Item')
+            if owner and contact_store.is_live(owner):
+                _update_contact_bsuid_fields(
+                    contacts_table, owner, sender_name, username, phone, bsuid,
+                    contact_book_name, parent_bsuid)
+                return owner
+        raise
 
     try:
         contacts_table.put_item(
