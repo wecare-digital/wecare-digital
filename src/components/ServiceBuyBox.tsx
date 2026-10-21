@@ -12,13 +12,12 @@ import { CHECKOUT_PATH, goToServiceAction } from '../lib/serviceEntry';
 import CheckoutAction from './CheckoutAction';
 
 /**
- * THE SERVICE "CONTINUE TO CHECKOUT" ACTION, mounted under the WhatsApp CTA on the five service
- * pages (Submit Request, Request Amendment, Drop Docs, Vault, Request Pickup).
+ * THE SERVICE CHECKOUT ACTION for Submit Request, Request Amendment, Drop Docs, Vault and
+ * Request Pickup.
  *
- * WHAT IT IS, AND IS NOT. It is NOT a card, a box or a price panel. It is the second pill the
- * owner approved — "Continue to checkout →" below the WhatsApp pill — plus a quiet price line in
- * the SAME `.pdp-price` treatment /anew/ uses (just the amount, no fee copy). The WhatsApp pill is
- * untouched; this renders beneath it through ProductPage's `belowCta` slot.
+ * ProductPage suppresses its generic conversation CTA whenever this buy box is present, so this is
+ * the route's ONE paid Checkout entry. It adds the service intent to the cart; Pay on WhatsApp vs
+ * Pay here is chosen only after cart review.
  *
  * WHY A COMPONENT RATHER THAN TWO CONTENT FIELDS. Unlike /anew/'s static `price="₹599"`, a
  * service price is LIVE from the catalogue (owner decision 2026-10-08: a price must change with no deploy),
@@ -54,8 +53,8 @@ interface ServiceBuyBoxProps {
 /**
  * PLACEHOLDER DISPLAY PRICES, by service slug, for the time being (owner instruction). Used ONLY
  * when the live `service-prices` API returns no usable price for the slug. Today that is Request
- * Pickup at ₹550 — the backend does not yet price it, so this keeps its "Continue to checkout →"
- * button live rather than hidden. DISPLAY ONLY: the server re-prices on prepare. Remove a slug
+ * Pickup at ₹550 — the backend does not yet price it, so this keeps its Checkout action live rather
+ * than hidden. DISPLAY ONLY: the server re-prices on prepare. Remove a slug
  * here once the API returns its real price; a slug not listed and not priced stays hidden.
  */
 const PLACEHOLDER_SERVICE_PAISE: Readonly<Record<string, number>> = {
@@ -197,7 +196,7 @@ const ServiceBuyBox: React.FC<ServiceBuyBoxProps> = ( { service } ) => {
     }
   }, [ phase, busy, signedIn, router, service, chosenTarget ] );
 
-  // No honest price → render nothing. The WhatsApp CTA above still stands on its own.
+  // No honest price → render no commerce action rather than offering a checkout the server cannot price.
   if ( phase.kind === 'loading' || phase.kind === 'unavailable' ) {
     return null;
   }
@@ -206,9 +205,7 @@ const ServiceBuyBox: React.FC<ServiceBuyBoxProps> = ( { service } ) => {
   const noTargetsYet = needsTargetChoice && targets !== null && targets.length === 0;
   const disabled = busy
     || ( signedIn && needsTargetChoice && ( noTargetsYet || !chosenTarget ) );
-  // ALWAYS "Continue to checkout →", signed in or out. A signed-out tap still routes through the
-  // WhatsApp sign-in and returns here — but the label must not read as a second WhatsApp button
-  // under the first one. The sign-in is a step on the way to checkout, not the button's identity.
+  // Always "Checkout", signed in or out. WhatsApp OTP is an identity step, not a payment choice.
   const label = 'Checkout';
 
   return (
