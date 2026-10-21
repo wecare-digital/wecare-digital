@@ -54,6 +54,8 @@ def handle(event, graph, create, upload, get_flow, update_flow=None):
         return {'error': 'Unknown service'}
     if action == 'connect_orders_endpoint' and (service != 'orders' or update_flow is None):
         return {'error': 'Only the Orders draft endpoint may be connected'}
+    if service == 'subscribe' and action != 'inspect':
+        return {'error': 'Subscribe is published and immutable; no draft mutation attempted'}
     response = inventory(graph)
     if response.get('error') or action == 'inspect':
         return response
@@ -63,8 +65,6 @@ def handle(event, graph, create, upload, get_flow, update_flow=None):
         return {'error': 'Ambiguous design draft name'}
     if matches and matches[0].get('status') != 'DRAFT':
         return {'error': 'Existing design Flow is immutable; no change attempted'}
-    if service == 'subscribe' and (not matches or matches[0].get('id') != '1386523953464380'):
-        return {'error': 'The selected Subscribe draft must already exist; no replacement created'}
     if action == 'connect_orders_endpoint':
         if not matches:
             return {'error': 'Prepare the Orders draft first'}
