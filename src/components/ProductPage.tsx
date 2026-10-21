@@ -7,7 +7,6 @@ import { type Crumb } from './Breadcrumbs';
 import type { ProductDef } from '../content/products';
 import type { BlogCard } from '../lib/public-blog';
 import PolicyDetails from './public/PolicyDetails';
-import ProductBuyBox from './ProductBuyBox';
 import { PRODUCT_SKU_BY_SLUG, productPolicyCopy } from '../content/productCommerce';
 
 /**
