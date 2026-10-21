@@ -256,90 +256,92 @@ def test_no_session_is_refused(env):
     assert resp['statusCode'] == 401
 
 
-# ── A2.6: the in-chat CART leg is refused, before any I/O ─────────────────────
-#
-# Cart purchases are collected on the website via Razorpay Standard Checkout (requirements
-# statement 8). With the dead `_send_order_details` route repaired onto a working envelope, the
-# non-catalog leg of `_create` would otherwise have become a working in-chat cart payment, which
-# is the opposite of that ruling.
-#
-# POSITION is what these tests are about, not the status code. The refusal sits at the TOP of
-# `_create`, above the pricing, the readiness gate, the reference reservation and the attempt
-# write — so it burns nothing for a payment that can never be sent. Nothing is priced on this leg
-# at all, which is stronger than any price guard; the native pricing guards are covered by
-# `tests/test_native_checkout.py`, `tests/test_catalog_pricing.py` and the website path.
+# ── ordinary cart: WhatsApp is a first-class rail after cart review ──────────────
 
-def test_the_in_chat_cart_leg_is_refused_before_any_io(env):
+def _owned_checkout_profile():
+    return {
+        'id': 'wa919330994400',
+        'contactId': 'wa919330994400',
+        'checkoutCustomerId': CUSTOMER,
+        'customerUuid': '5f701556-7818-494a-a9aa-cf57da6287c2',
+        'phone': '+919330994400',
+        'email': 'customer@example.com',
+        'emailVerifiedAt': 1,
+        'name': 'Checkout Customer',
+        'firstName': 'Checkout',
+        'lastName': 'Customer',
+        'checkoutDeliveryAddress': {
+            'addressLine1': '12 Example Road',
+            'city': 'Kolkata',
+            'state': 'West Bengal',
+            'postalCode': '700001',
+            'countryCode': 'IN',
+            'country': 'India',
+            'fullAddress': '12 Example Road, Kolkata, West Bengal 700001',
+        },
+    }
+
+
+def test_the_in_chat_cart_leg_prices_the_same_native_basket_and_prepares_an_attempt(env):
     h, fake, lam, monkeypatch = env
-    # Nothing is priced on the in-chat cart leg: it is refused before `_native_quote`, so a
-    # pricing stub would never be reached. Assert zero attempts/keys/invokes instead.
+    monkeypatch.setattr(h, '_checkout_profile', lambda identity: _owned_checkout_profile())
+    monkeypatch.setattr(h, '_native_quote', lambda identity, line_items, now: _Snapshot())
 
     resp = h.handler(_create_event(), None)
 
-    # 200, matching the `PAYMENT_INITIATION_DISABLED` sibling: `cart.tsx` answers that shape with
-    # the "no charge was made" copy, which is only honest because the server stopped before the
-    # payment rail.
     assert resp['statusCode'] == 200
     body = json.loads(resp['body'])
-    assert body['status'] == 'CART_PAYMENT_IS_WEBSITE_ONLY'
-    assert 'Nothing has been charged.' in body['message']
-    # No `paymentAttemptId`, because no attempt exists.
-    assert 'paymentAttemptId' not in body
-
-    # Zero rows in BOTH tables, no invoke.
-    assert fake.count(ATTEMPTS_TABLE) == 0
-    assert fake.count(KEYS_TABLE) == 0
-    assert lam.invocations == []
-
-
-@pytest.mark.parametrize('override', [
-    # The browser claiming its own amount: never even read, because nothing is priced.
-    {'amount': 1, 'amountPaise': 1, 'total': '1.00'},
-    {},
-])
-def test_the_cart_refusal_does_not_depend_on_the_request_body(env, override):
-    h, fake, _lam, _mp = env
-    resp = h.handler(_create_event(**override), None)
-    assert json.loads(resp['body'])['status'] == 'CART_PAYMENT_IS_WEBSITE_ONLY'
-    assert fake.count(ATTEMPTS_TABLE) == 0
+    assert body['status'] == 'PAYMENT_INITIATION_DISABLED'
+    assert body['amountPaise'] == TOTAL_PAYABLE_PAISE
+    assert body['paymentAttemptId']
+    attempts = fake.all_rows(ATTEMPTS_TABLE)
+    assert len(attempts) == 1
+    assert attempts[0]['channel'] == 'whatsapp'
+    assert attempts[0]['contactId'] == 'wa919330994400'
+    assert attempts[0]['customerUuid'] == '5f701556-7818-494a-a9aa-cf57da6287c2'
+    assert attempts[0]['snapshotHash'] == _Snapshot.snapshot_hash
+    assert attempts[0]['purchasedSnapshot'] == _Snapshot.frozen_data
+    assert all(call.get('isCheckoutTemplate') is not True for call in lam.invocations)
 
 
-@pytest.mark.parametrize('override', [
-    {'currency': 'USD'},        # a currency claim the leg never reads
-    {'total': '599.005'},       # a sub-paise total the leg never reads
-])
-def test_a_cart_the_price_engine_would_have_refused_is_refused_earlier_still(env, override):
-    """The money guards are not bypassed — they are unreachable, which is stronger.
+def test_the_cart_whatsapp_rail_sends_order_details_when_initiation_is_enabled(env):
+    h, fake, lam, monkeypatch = env
+    monkeypatch.setattr(h, 'INITIATION_ENABLED', True)
+    monkeypatch.setattr(h, '_checkout_profile', lambda identity: _owned_checkout_profile())
+    monkeypatch.setattr(h, '_native_quote', lambda identity, line_items, now: _Snapshot())
+    monkeypatch.setattr(h, '_cart_order_details', lambda *args, **kwargs: {
+        'reference_id': 'WD-PAY-CARTTEST',
+        'type': 'physical-goods',
+        'currency': 'INR',
+        'total_amount': {'value': TOTAL_PAYABLE_PAISE, 'offset': 100},
+        'shipping_info': {'country': 'IN', 'addresses': [{'name': 'Checkout Customer'}]},
+        'order': {'status': 'pending', 'items': []},
+    })
 
-    A bad currency or total used to be refused AFTER pricing. Now the policy refusal precedes any
-    `_native_quote`, so there is no total to be wrong about on this leg.
-    """
-    h, fake, _lam, _mp = env
-    resp = h.handler(_create_event(**override), None)
-    assert json.loads(resp['body'])['status'] == 'CART_PAYMENT_IS_WEBSITE_ONLY'
-    assert fake.count(ATTEMPTS_TABLE) == 0
-    assert fake.count(KEYS_TABLE) == 0
+    resp = h.handler(_create_event(), None)
 
-
-def test_the_cart_refusal_follows_the_service_refusal_in_source_order(env):
-    """Structural. Both are pre-I/O policy refusals, and a service basket must keep answering with
-    its OWN code rather than being swallowed by the cart one. Both still precede any pricing."""
-    import inspect
-    h, _fake, _lam, _mp = env
-    source = inspect.getsource(h._create)
-    assert (source.index('SERVICE_WEBSITE_ONLY')
-            < source.index('CART_PAYMENT_IS_WEBSITE_ONLY')
-            < source.index('_native_quote('))
+    assert resp['statusCode'] == 200
+    body = json.loads(resp['body'])
+    assert body['status'] == 'PAYMENT_REQUEST_SENT'
+    assert body['paymentAttemptId']
+    sends = [call for call in lam.invocations if call.get('isCheckoutTemplate') is True]
+    assert len(sends) == 1
+    assert sends[0]['phoneNumberId'] == h.wa_payment_request.PHONE_NUMBER_ID_1
+    assert sends[0]['contactId'] == 'wa919330994400'
 
 
-def test_a_website_only_service_in_a_cart_still_answers_the_service_code(env):
+def test_a_service_on_the_whatsapp_cart_rail_still_requires_its_intent(env):
     h, fake, _lam, _mp = env
     from lambda_utils.ecommerce import service_requests as sr
-    product = sorted(sr.SERVICE_PRODUCT_IDS)[0]
-    resp = h.handler(_create_event(lineItems=[
-        {'catalogReference': {'catalogItemId': product}, 'quantity': 1}]), None)
+    resp = h.handler(_create_event(lineItems=[{
+        'catalogReference': {
+            'catalogItemId': SERVICE_PRODUCT_ID,
+            'options': {'variantId': SERVICE_VARIANT_ID},
+        },
+        'quantity': 1,
+    }]), None)
     assert resp['statusCode'] == 409
-    assert json.loads(resp['body'])['error'] == sr.SERVICE_WEBSITE_ONLY
+    assert json.loads(resp['body'])['error'] == sr.SERVICE_INTENT_REQUIRED
     assert fake.count(ATTEMPTS_TABLE) == 0
 
 
@@ -357,11 +359,11 @@ def test_create_disabled_prepares_attempt_but_sends_nothing_and_makes_no_order(e
     assert body['amountPaise'] == TOTAL_PAYABLE_PAISE
     assert body['currency'] == 'INR'
 
-    # An attempt exists, in the readiness-checked state, marked AWS_NATIVE, bound to the customer.
+    # An ordinary cart attempt uses the dedicated WhatsApp-cart settlement mode.
     attempts = fake.all_rows(ATTEMPTS_TABLE)
     assert len(attempts) == 1
     assert attempts[0]['customerId'] == CUSTOMER
-    assert attempts[0]['checkoutMode'] == 'AWS_NATIVE'
+    assert attempts[0]['checkoutMode'] == 'WHATSAPP_NATIVE_CART'
     assert attempts[0]['amountPaise'] == TOTAL_PAYABLE_PAISE
     assert attempts[0]['status'] == 'PAYMENT_READINESS_CHECKED'
 
