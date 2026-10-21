@@ -13,8 +13,7 @@ public review or sales lead.
 """
 import hashlib
 
-from lambda_utils import flow_completion, shared_tables
-from lambda_utils.identity import customer_uuid
+from lambda_utils import flow_completion
 
 FLOW_KEY = 'wd_leave_review_v2'
 FLOW_ID = '940049388908144'
@@ -45,7 +44,7 @@ def idea_payload(message):
 
 
 def save_idea(data, *, contact_id, phone, sender_name, message_id, dynamodb=None,
-              request_id=''):
+              request_id='', customer_uuid_value=''):
     """Claim the idea's one row. Raises when it could not be stored, so the webhook retries.
 
     `dynamodb` is accepted for the existing call site and unused: the claim goes through the
@@ -64,15 +63,6 @@ def save_idea(data, *, contact_id, phone, sender_name, message_id, dynamodb=None
     review_id = 'WD-IDEA-' + digest[:16].upper()
     text = idea.strip()
     form = {'topic': topic, 'idea': text, 'schema_version': '4'}
-    customer_uuid_value = ''
-    try:
-        import boto3
-        table = boto3.resource('dynamodb').Table(shared_tables.contacts_table_name())
-        contact = table.get_item(Key={'id': contact_id}, ConsistentRead=True).get('Item') or {}
-        customer_uuid_value = customer_uuid.from_contact(contact)
-    except Exception:
-        customer_uuid_value = ''
-
     result = flow_completion.claim_completion(
         flow_token=message_id, screen='REVIEW', submission_id=review_id,
         reference_prefix='WD-IDEA', flow_code=FLOW_CODE, flow_type='customer_idea',
