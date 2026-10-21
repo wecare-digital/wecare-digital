@@ -179,6 +179,7 @@ PUBLIC_TOKEN_CONSUMERS = {
     SRC / "pages/checkout/status.tsx": ("--public-card-size", "--public-cta-height", "--public-muted"),
     SRC / "pages/checkout/success.tsx": ("--public-card-size", "--public-cta-height", "--public-muted"),
     SRC / "components/CheckoutAction.tsx": ("--tap-min", "--public-brand-green", "--public-cta-font-size"),
+    # ProductBuyBox and ServiceBuyBox delegate the compact Activity-style action to CheckoutAction.
     SRC / "components/ProductBuyBox.tsx": ("--public-card-size",),
     SRC / "components/ServiceBuyBox.tsx": ("--public-card-size",),
     SRC / "components/PublicShare.tsx": ("--public-brand-green", "--public-hairline"),

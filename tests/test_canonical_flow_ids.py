@@ -130,11 +130,10 @@ def test_canonical_ids_are_in_the_readback_keepids():
     data = json.loads(READBACK.read_text(encoding='utf-8'))
     keep = set(data.get('keepIds', []))
     for cap, (fid, _status) in EXPECTED.items():
-        # The artifact predates later publications. A NEW id may be absent from keepIds only when
-        # the current registry explicitly marks it PUBLISHED.
-        if fid is not None and fid not in keep:
-            assert _status == 'PUBLISHED', (
-                f'{cap} canonical id {fid} is absent from historical keepIds and is not published')
+        # The retained-plan artifact is a 2026-10-09 historical snapshot. Leave Review and
+        # Subscribe were published after that snapshot, on 2026-10-20 and 2026-10-21.
+        if fid is not None and cap not in ('leave_review', 'subscribe'):
+            assert fid in keep, f'{cap} canonical id {fid} is not in readback keepIds'
 
 
 def test_inbound_handler_uses_canonical_ids():
@@ -151,7 +150,6 @@ def test_inbound_handler_uses_canonical_ids():
     }
     for cap, fid in checks.items():
         assert triggers[cap]['flowId'] == fid, f"{cap} trigger flowId != canonical {fid}"
-    # Subscribe now resolves to the owner-verified published Flow; deprecated flowId2 stays dead.
     assert triggers['subscribe'].get('flowId') == '1386523953464380'
     assert 'flowId2' not in triggers['subscribe'], 'deprecated subscribe flowId2 must be gone'
     assert not triggers['track_request'].get('flowId'), 'track_request must have no canonical flow'
@@ -167,17 +165,17 @@ def test_stale_ids_are_not_restated_anywhere():
     assert not offenders, 'stale flow ids resurfaced:\n' + '\n'.join(offenders)
 
 
-def test_published_flow_resolver_carries_routing_identity():
+def test_published_flow_lookup_only_returns_live_customer_flows():
     ns: dict = {}
     exec(PY_CANON.read_text(encoding='utf-8'), ns)
     subscribe = ns['published_flow']('subscribe')
-    review = ns['published_flow']('leave_review')
-    assert subscribe['flowId'] == '1386523953464380'
-    assert subscribe['metaName'] == 'WD_Subscribe_Design_v1'
-    assert subscribe['tokenPrefix'] == 'subscribe'
-    assert review['flowId'] == '940049388908144'
-    assert review['metaName'] == '01. WECARE REVIEW FLOW'
-    assert review['tokenPrefix'] == 'leave_review'
-    assert ns['capability_for_flow']('1386523953464380', '') == 'subscribe'
-    assert ns['capability_for_flow']('', '01. WECARE REVIEW FLOW') == 'leave_review'
-    assert ns['canonical_flow_token_prefix']('submit_request') == 'sr'
+    review = ns['published_flow_by_id']('940049388908144')
+    assert subscribe == {
+        'capability': 'subscribe',
+        'flowId': '1386523953464380',
+        'status': 'PUBLISHED',
+        'metaName': 'WD_Subscribe_Design_v1',
+    }
+    assert review and review['capability'] == 'leave_review'
+    assert ns['published_flow']('orders') is None
+    assert ns['published_flow_by_id']('') is None

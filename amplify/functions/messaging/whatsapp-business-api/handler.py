@@ -2363,43 +2363,47 @@ def _send_request_contact_info(body: Dict) -> Dict:
 
 
 def _send_flow_msg(body: Dict) -> Dict:
-    """Send a WhatsApp Flow through the canonical WABA 1 registry.
+    """Send a WhatsApp Flow through the canonical published-flow registry.
 
-    Production/default mode accepts only canonical PUBLISHED flows. Draft mode may still send an
-    explicit draft id/name for workspace testing. Callers should prefer `flowKey` so Meta ids
-    stay in one backend registry.
+    Prefer `flowKey` for production sends. A caller may also provide a published canonical
+    `flowId` or `flowName`; both resolve back to the same registry record. Draft mode may still
+    send an explicit non-canonical id/name for workspace testing.
 
-    Canonical sends receive a phone-backed token:
-      {routing-prefix}-{uuid}-waba-1-ph-{verified-phone}
-    so the Flow endpoint resolves the same ContactsTable person used by Inbox and checkout.
+    Canonical production sends receive a phone-backed token:
+      {routing-prefix}-{uuid}-waba-1-ph-{phone}
+    so Flow responses resolve the same ContactsTable person used by Inbox and checkout.
     """
     from flows import subscribe_messages, common as flow_common
     from lambda_utils import canonical_flows, contact_store
 
+    requested_key = str(body.get('flowKey') or '').strip()
     requested_id = str(body.get('flowId') or '').strip()
     requested_name = str(body.get('flowName') or '').strip()
-    requested_key = str(body.get('flowKey') or '').strip()
     mode = str(body.get('mode') or 'published').strip().lower()
 
     if not requested_key and not requested_id and not requested_name:
         return _resp(400, {'error': 'one of flowKey/flowId/flowName is required'})
 
-    capability = requested_key or canonical_flows.capability_for_flow(
-        requested_id, requested_name)
-    record = canonical_flows.canonical_flow_record(capability) if capability else None
+    record = None
+    if requested_key:
+        record = canonical_flows.published_flow(requested_key)
+    elif requested_id:
+        record = canonical_flows.published_flow_by_id(requested_id)
+    elif requested_name:
+        record = canonical_flows.published_flow_by_name(requested_name)
 
-    if mode != 'draft':
-        if not record or record.get('status') != 'PUBLISHED' or not record.get('flowId'):
-            return _resp(400, {'error': 'flow is not registered as published'})
+    if mode != 'draft' and not record:
+        return _resp(400, {'error': 'flow is not registered as published'})
 
+    capability = str((record or {}).get('capability') or requested_key)
     flow_id = str((record or {}).get('flowId') or requested_id)
     flow_name = str((record or {}).get('metaName') or requested_name)
     phone_id = PHONE1_META_ID if record else (body.get('phoneId') or PHONE1_META_ID)
 
-    is_subscribe = capability == 'subscribe'
     contact_row: Dict[str, Any] = {}
     recipient = str(body.get('to') or body.get('recipient') or '').strip()
     direct_phone = contact_store.digits(recipient)
+    is_subscribe = capability == 'subscribe'
 
     if record:
         needs_workspace_copy = is_subscribe and (
@@ -2428,7 +2432,7 @@ def _send_flow_msg(body: Dict) -> Dict:
                 return _resp(400, {
                     'error': 'Published Flow sends require a phone-backed customer or explicit flowToken'
                 })
-            token_prefix = canonical_flows.canonical_flow_token_prefix(capability)
+            token_prefix = canonical_flows.published_flow_token_prefix(capability)
             body = {
                 **body,
                 'flowToken': f'{token_prefix}-{uuid.uuid4().hex}-waba-1-ph-{token_phone}',

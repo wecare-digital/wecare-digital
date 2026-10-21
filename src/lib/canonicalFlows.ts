@@ -71,7 +71,7 @@ export const CANONICAL_FLOWS: Record<string, CanonicalFlow> = {
     capability: 'vault', label: 'Vault',
     flowId: null, status: 'NONE', metaName: null,
   },
-  // Published on WABA 1 on 2026-10-21. Historical 02.WD_Profile ids remain deprecated.
+  // Published 2026-10-21 on WABA 1. This is the retained Subscribe/Profile Flow.
   subscribe: {
     capability: 'subscribe', label: 'Subscribe',
     flowId: '1386523953464380', status: 'PUBLISHED', metaName: 'WD_Subscribe_Design_v1',
@@ -92,3 +92,17 @@ export const canonicalFlowId = ( capability: string ): string | null =>
 /** The Meta lifecycle status for a capability's canonical flow. */
 export const canonicalFlowStatus = ( capability: string ): FlowStatus =>
   CANONICAL_FLOWS[capability]?.status ?? 'NONE';
+
+/** Published metadata for a customer-facing Flow. Draft/NONE entries deliberately return null. */
+export const publishedFlow = ( capability: string ): CanonicalFlow | null => {
+  const flow = CANONICAL_FLOWS[capability];
+  return flow?.flowId && flow.status === 'PUBLISHED' ? flow : null;
+};
+
+/** Resolve a published Meta Flow id back to the canonical capability record. */
+export const publishedFlowById = ( flowId: string ): CanonicalFlow | null => {
+  const target = String( flowId || '' ).trim();
+  if ( !target ) return null;
+  return Object.values( CANONICAL_FLOWS )
+    .find( flow => flow.flowId === target && flow.status === 'PUBLISHED' ) ?? null;
+};

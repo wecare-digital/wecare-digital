@@ -13,6 +13,7 @@ from decimal import Decimal
 from typing import Any, Dict, Mapping, Optional
 
 from lambda_utils import contact_store, shared_tables, message_store
+from lambda_utils.identity import customer_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -158,9 +159,27 @@ def _record_completion(flow_completion, *, flow_code, flow_type, phone, contact_
                        payment_ref_id, status, reference_prefix, extra=None,
                        ttl_seconds=None, channel='whatsapp'):
     """The body of `record_completion`. Split out so the wrapper above stays total."""
+    # Resolve identity again at the shared boundary. Individual Flow handlers may have
+    # looked the contact up earlier, but the completion row / Inbox projection / CRM lead must
+    # all use the SAME canonical row after merge-alias resolution. This is the contract every
+    # newly published Flow inherits simply by calling record_completion().
+    canonical_contact = None
+    try:
+        canonical_contact = contact_store.lookup(
+            dynamodb.Table(CONTACTS_TABLE), phone, contact_id=contact_id)
+    except contact_store.IdentityConflict:
+        raise
+    canonical_contact_id = (
+        str((canonical_contact or {}).get('id') or
+            (canonical_contact or {}).get('contactId') or contact_id or '').strip())
+    public_customer_uuid = customer_uuid.from_contact(canonical_contact)
+
     optional: Dict[str, Any] = {}
-    if extra:
-        optional['extra'] = extra
+    extra_map = dict(extra) if isinstance(extra, Mapping) else {}
+    if public_customer_uuid:
+        extra_map['customerUuid'] = public_customer_uuid
+    if extra_map:
+        optional['extra'] = extra_map
     if ttl_seconds is not None:
         optional['ttl_seconds'] = ttl_seconds
     result = flow_completion.claim_completion(
@@ -169,7 +188,7 @@ def _record_completion(flow_completion, *, flow_code, flow_type, phone, contact_
         flow_code=flow_code,
         flow_type=flow_type,
         phone=phone,
-        contact_id=contact_id,
+        contact_id=canonical_contact_id,
         sender_name=sender_name,
         form_data=form_data if isinstance(form_data, dict) else {},
         reference_prefix=reference_prefix or f'WD-{(flow_code or "")[:6]}',
@@ -184,13 +203,13 @@ def _record_completion(flow_completion, *, flow_code, flow_type, phone, contact_
     )
 
     # Mirror each fresh WhatsApp Flow completion into the canonical Inbox.
-    if result.created and contact_id and str(channel or '').lower() == 'whatsapp':
+    if result.created and canonical_contact_id and str(channel or '').lower() == 'whatsapp':
         fd = form_data if isinstance(form_data, dict) else {}
         from lambda_utils.flow_inbox import project
         projection = project(fd)
         answers = projection.get('flowAnswers', [])
         attachments = projection.get('flowAttachments', [])
-        extra_map = extra if isinstance(extra, dict) else {}
+        extra_map = extra_map
         extras = project({'attachments': extra_map.get('attachments', [])})
         for item in extras.get('flowAttachments', []):
             if item not in attachments:
@@ -199,7 +218,7 @@ def _record_completion(flow_completion, *, flow_code, flow_type, phone, contact_
         review_id = str(extra_map.get('reviewId') or '') if flow_code == 'WD_REV' else ''
         review_status = ('pending' if status == 'submitted' else str(status or '')) if review_id else ''
         message_store.put_message(
-            channel='whatsapp', direction='inbound', contact_id=contact_id,
+            channel='whatsapp', direction='inbound', contact_id=canonical_contact_id,
             content=f'Flow response — {str(flow_type or flow_code or "Flow").replace("_", " ").title()}',
             status='received', message_id=f'flow:{result.submission_id}',
             message_type='flow_response', sender_phone=phone, sender_name=sender_name,
@@ -214,11 +233,11 @@ def _record_completion(flow_completion, *, flow_code, flow_type, phone, contact_
 
     # Mirror a fresh completion into the CRM. Best-effort: the FlowSubmission row is the
     # system of record for the submission, the lead is a projection of it.
-    if result.created and contact_id:
+    if result.created and canonical_contact_id:
         fd = form_data if isinstance(form_data, dict) else {}
         flow_completion.capture_crm_lead(
             result,
-            contact_id=contact_id,
+            contact_id=canonical_contact_id,
             flow_token=flow_token,
             subject=fd.get('subject', ''),
             detail=fd.get('description', ''),

@@ -84,16 +84,12 @@ def test_orders_endpoint_cannot_connect_another_service_or_an_unverified_source(
     update.assert_not_called()
 
 
-def test_subscribe_only_updates_the_selected_existing_draft():
-    create,upload=Mock(),Mock(return_value={'success':True})
-    graph=Mock(return_value={'data':[]})
-    event={'action':'prepare','service':'subscribe'}
-    assert 'error' in drafts.handle(event,graph,create,upload,Mock())
-    graph.return_value={'data':[{'id':'other','name':drafts.NAMES['subscribe'],'status':'DRAFT'}]}
-    assert 'error' in drafts.handle(event,graph,create,upload,Mock())
-    create.assert_not_called();upload.assert_not_called()
-    graph.return_value={'data':[{'id':'1386523953464380','name':drafts.NAMES['subscribe'],'status':'DRAFT'}]}
-    answer=drafts.handle(event,graph,create,upload,Mock(return_value={'flow':{'status':'DRAFT'}}))
-    assert answer['id']=='1386523953464380' and answer['created'] is False
-    assert upload.call_args.args[1]['flowJson']['screens'][0]['id']=='PROFILE'
+def test_published_subscribe_is_never_mutated_by_draft_tooling():
+    graph, create, upload, get = Mock(), Mock(), Mock(), Mock()
+    event = {'action': 'prepare', 'service': 'subscribe'}
+    answer = drafts.handle(event, graph, create, upload, get)
+    assert answer == {'error': 'Subscribe is published and immutable; no draft mutation attempted'}
+    graph.assert_not_called()
     create.assert_not_called()
+    upload.assert_not_called()
+    get.assert_not_called()
