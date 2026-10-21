@@ -3,11 +3,7 @@ import { useRouter } from 'next/router';
 
 import { addItem, type CartItem } from '../lib/cart';
 import type { ShopProduct } from '../content/shop';
-import {
-  CHECKOUT_PATH,
-  goToServiceAction,
-  type CheckoutChannel,
-} from '../lib/serviceEntry';
+import { CHECKOUT_PATH } from '../lib/serviceEntry';
 import { productCheckoutLine } from '../config/productCheckout';
 
 /**
@@ -39,7 +35,7 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( {
   offerNote = 'One-time purchase',
 } ) => {
   const router = useRouter();
-  const [ busyChannel, setBusyChannel ] = useState<CheckoutChannel | null>( null );
+  const [ busy, setBusy ] = useState( false );
   const [ error, setError ] = useState<string | null>( null );
 
   const alive = useRef( true );
@@ -48,61 +44,38 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( {
   const line = productCheckoutLine( slug );
 
   /**
-   * One product, two checkout rails, one sign-in.
-   *
-   * The browser stores only catalogue identity + the customer's selected channel. Prices never
-   * enter the pending action. goToServiceAction owns the single WhatsApp-OTP sign-in and returns
-   * to /cart/, where the selected channel is resumed.
+   * Route pages expose ONE checkout action. The payment rail is chosen later, once, after the
+   * customer has reviewed the cart on /cart/ and reached /checkout/.
    */
-  const onContinue = useCallback( async ( channel: CheckoutChannel ) => {
-    if ( !line || busyChannel ) return;
+  const onContinue = useCallback( async () => {
+    if ( !line || busy ) return;
     setError( null );
-    setBusyChannel( channel );
+    setBusy( true );
     try {
       addProductLine( line );
-      await goToServiceAction( router, {
-        destination: CHECKOUT_PATH,
-        action: {
-          kind: `product:${line.slug}`,
-          channel,
-          productId: line.productId,
-          variantId: line.variantId,
-          label: line.name,
-        },
-      } );
+      await router.push( CHECKOUT_PATH );
     } catch {
       if ( alive.current ) {
         setError( 'Something went wrong. Nothing has been charged. Please try again.' );
-        setBusyChannel( null );
+        setBusy( false );
       }
     }
-  }, [ busyChannel, router, line ] );
+  }, [ busy, router, line ] );
 
   // No fresh catalog line yet: keep the public product page, but offer no stale checkout action.
   if ( !line ) return null;
 
   return (
     <div className="pbb">
-      <div className="pbb-actions" aria-label="Checkout options">
-        <button
-          type="button"
-          className="pbb-cta pbb-cta-primary"
-          onClick={ () => { void onContinue( 'whatsapp' ); } }
-          disabled={ Boolean( busyChannel ) }
-          aria-busy={ busyChannel === 'whatsapp' }
-        >
-          { busyChannel === 'whatsapp' ? 'Sending…' : 'WhatsApp checkout' }
-        </button>
-        <button
-          type="button"
-          className="pbb-cta"
-          onClick={ () => { void onContinue( 'website' ); } }
-          disabled={ Boolean( busyChannel ) }
-          aria-busy={ busyChannel === 'website' }
-        >
-          { busyChannel === 'website' ? 'One moment…' : 'Here' }
-        </button>
-      </div>
+      <button
+        type="button"
+        className="pbb-cta"
+        onClick={ () => { void onContinue(); } }
+        disabled={ busy }
+        aria-busy={ busy }
+      >
+        { busy ? 'One moment…' : 'Checkout' }
+      </button>
 
       {/* Configured price and one supporting line are one canonical rail. */}
       <p className="pbb-buy">
@@ -117,18 +90,15 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( {
            families match: white fill, 2px #1a3a2a edge and type, lime #d1f470 hover with the house
            lift, reduced-motion aware. */
         .pbb{display:flex;flex-direction:column;align-items:flex-start;gap:0;margin-top:12px}
-        .pbb-actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
         .pbb-cta{
           display:inline-flex;align-items:center;justify-content:center;min-height:var(--public-cta-height);
           padding:0 26px;border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);
           background:#fff;color:var(--public-brand-green);font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);cursor:pointer;
           transition:background-color .2s,transform .2s,box-shadow .2s;
         }
-        .pbb-cta-primary{background:var(--public-brand-lime)}
         .pbb-cta:hover:not(:disabled){
           background:var(--public-brand-lime);transform:translateY(-2px);box-shadow:var(--public-lift-shadow);
         }
-        .pbb-cta-primary:hover:not(:disabled){background:#fff}
         .pbb-cta:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
         .pbb-cta:disabled{opacity:.5;cursor:default}
 
