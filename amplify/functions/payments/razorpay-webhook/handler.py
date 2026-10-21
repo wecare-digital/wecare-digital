@@ -664,7 +664,7 @@ def _create_order_for_captured_payment(payment: Dict, reference_id: str,
             #     Graph call at all and the external-call count does not grow with redeliveries.
             #   * inside `_load_attempt`, so `verify_payment` and `load_attempt` both see the
             #     same bound row.
-            if (row.get('checkoutMode') == wa_payment_request.WA_NATIVE_CHECKOUT_MODE
+            if (row.get('checkoutMode') in wa_payment_request.NATIVE_CHECKOUT_MODES
                     and not row.get('providerOrderId')
                     and not row.get('providerPaymentId')):
                 meta_payment_binding.bind_attempt(
@@ -731,9 +731,11 @@ def _create_order_for_captured_payment(payment: Dict, reference_id: str,
         #
         # So: a real readback writes evidence; an absent readback is a clean idempotent INFO
         # no-op, never an evidence conflict.
-        native = (attribution.get('checkoutMode')
-                  == wa_payment_request.WA_NATIVE_CHECKOUT_MODE)
-        if native and outcome.has_order:
+        native_invoice = (attribution.get('checkoutMode')
+                          == wa_payment_request.WA_NATIVE_CHECKOUT_MODE)
+        native_cart = (attribution.get('checkoutMode')
+                       == wa_payment_request.WA_NATIVE_CART_CHECKOUT_MODE)
+        if native_invoice and outcome.has_order:
             if (outcome.outcome == order_creation.ORDER_CREATED
                     and outcome.verified_captured_paise > 0
                     and outcome.provider_payment_id):
@@ -783,6 +785,38 @@ def _create_order_for_captured_payment(payment: Dict, reference_id: str,
                     'outcome': outcome.outcome,
                     'referenceId': reference_id,
                     'requestId': request_id}))
+
+        # Product/cart native checkout carries the frozen cart snapshot on the PaymentAttempt.
+        # Unlike the invoice-native leg above, it can therefore use the same internal order
+        # finalizer as website checkout after Meta/Razorpay have supplied authoritative capture
+        # evidence. No finalization is attempted on idempotent outcomes that carry no fresh
+        # provider readback; the first successful delivery already wrote the order.
+        if (native_cart and outcome.outcome == order_creation.ORDER_CREATED
+                and outcome.verified_captured_paise > 0
+                and outcome.provider_payment_id):
+            from lambda_utils.ecommerce import finalization
+            attempt = dynamodb.Table(PAYMENT_ATTEMPTS_TABLE).get_item(
+                Key={'paymentAttemptId': outcome.payment_attempt_id},
+                ConsistentRead=True).get('Item') or {}
+            if not attempt:
+                raise RuntimeError('native cart payment attempt missing')
+            finalization.accept_paid(
+                attempts=dynamodb.Table(PAYMENT_ATTEMPTS_TABLE),
+                orders=dynamodb.Table(ORDERS_TABLE),
+                keys=table,
+                attempt=attempt,
+                outcome={
+                    **outcome.as_dict(),
+                    'providerPaymentId': outcome.provider_payment_id,
+                },
+                verified_captured_paise=outcome.verified_captured_paise,
+            )
+            logger.info(json.dumps({
+                'event': 'native_cart_order_finalized',
+                'referenceId': reference_id,
+                'orderNumber': outcome.order_number or None,
+                'requestId': request_id,
+            }))
 
         if outcome.has_order:
             # Phase O-1: a hint only (ids, fire-and-forget, never raises); the receiver re-reads
