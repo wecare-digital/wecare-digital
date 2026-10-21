@@ -237,7 +237,17 @@ class TestLtoSendPath:
         monkeypatch.setattr(h, 'require_auth', lambda *a, **k: None)
         monkeypatch.setattr(h, '_check_rate_limit', lambda *a, **k: True)
         monkeypatch.setattr(h, '_get_contact', lambda cid: {
-            'id': cid, 'phone': '+918100640044'})
+            'id': cid,
+            'phone': '+918100640044',
+            'consentLedger': [{
+                'channel': 'WHATSAPP',
+                'state': 'OPTED_IN',
+                'source': 'WEB_FORM',
+                'at': 100,
+                'purpose': 'MARKETING',
+                'reference': 'test-fixture',
+            }],
+        })
         monkeypatch.setattr(h, '_store_message_record', lambda **kw: None)
         monkeypatch.setattr(h, '_emit_delivery_metric', lambda *a, **k: None)
         monkeypatch.setattr(h, '_enrich_contact_identity', lambda *a, **k: None)
