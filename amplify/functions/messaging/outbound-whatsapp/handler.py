@@ -33,7 +33,7 @@ from lambda_utils.message_store import put_message  # unified MessagesTable dual
 from lambda_utils import graph_errors  # Meta error subcode + transient classification
 from lambda_utils import live_smoke  # WA_LIVE_SMOKE_TEST recipient lockdown
 from lambda_utils import direct_send  # Direct Send flag + WABA map, fails closed
-from lambda_utils import contact_key
+from lambda_utils import contact_key, contact_store
 from lambda_utils import template_status
 from lambda_utils.template_media import fixed_image_header
 from lambda_utils.identity import subscriber_id, consent as consent_evidence  # canonical identity + evidence ledger
@@ -1340,10 +1340,21 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if not contact_id and not recipient_phone_direct:
             return _error_response(400, 'contactId or recipientPhone is required')
         
-        # If we have recipientPhone but no contactId, auto-create contact so message shows in inbox
+        # Direct-phone sends normally auto-create an inbox contact. MARKETING is the exception:
+        # permission has to pre-exist on a canonical customer, so an unknown number must be
+        # refused without creating a row merely to record that refusal.
         if not contact_id and recipient_phone_direct:
-            contact = _get_or_create_contact_by_phone(recipient_phone_direct)
-            contact_id = contact.get('contactId') or contact.get('id', '')
+            if message_purpose == consent_evidence.MARKETING:
+                contact = contact_store.lookup(
+                    dynamodb.Table(CONTACTS_TABLE), recipient_phone_direct) or {}
+                if not contact:
+                    return _error_response(
+                        403, 'WHATSAPP_MARKETING_CONSENT_REQUIRED',
+                        'This customer has no current WhatsApp marketing opt-in. Nothing was sent.')
+                contact_id = contact.get('contactId') or contact.get('id', '')
+            else:
+                contact = _get_or_create_contact_by_phone(recipient_phone_direct)
+                contact_id = contact.get('contactId') or contact.get('id', '')
             recipient_phone = recipient_phone_direct
         else:
             # Retrieve contact
@@ -1443,7 +1454,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             except Exception as e:
                 return _error_response(502, f'Block API error ({block_action}): {e}')
         
-        # Opt-in enforcement: all contacts allowed by default (permissive)
+        # Marketing consent was enforced above from the evidence ledger. Service/transactional
+        # traffic continues into the ordinary service-window/template policy below.
         # Service window check: outside 24h window, only templates are allowed (WhatsApp policy)
         #
         # This used to default `within_window = True` and only evaluate the window
