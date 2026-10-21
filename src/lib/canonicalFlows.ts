@@ -62,7 +62,7 @@ export const CANONICAL_FLOWS: Record<string, CanonicalFlow> = {
   },
   leave_review: {
     capability: 'leave_review', label: 'Leave Review',
-    flowId: REVIEW_FLOW_ID, status: 'PUBLISHED', metaName: 'WD_Leave_Review_v2',
+    flowId: REVIEW_FLOW_ID, status: 'PUBLISHED', metaName: '01. WECARE REVIEW FLOW',
   },
   // Vault has no separate Flow: it is a website CTA + ₹49 catalog delivery.
   vault: {
