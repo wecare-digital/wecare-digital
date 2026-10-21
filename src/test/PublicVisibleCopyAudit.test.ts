@@ -4,6 +4,9 @@ import { describe, expect, it } from 'vitest';
 
 const ROOT = path.join( __dirname, '..', '..' );
 const read = ( relative: string ): string => fs.readFileSync( path.join( ROOT, relative ), 'utf8' );
+const visibleSource = ( source: string ): string => source
+  .replace( /\/\*[\s\S]*?\*\//g, '' )
+  .replace( /^\s*\/\/.*$/gm, '' );
 
 describe( 'public visible-copy audit', () => {
   it( 'keeps retired checkout and secure-access implementation wording out of customer UI', () => {
@@ -57,25 +60,34 @@ describe( 'public visible-copy audit', () => {
     expect( terms ).toContain( 'the applicable offer rules decide which code is used' );
   } );
 
-  it( 'changes the Grahak CTA text without changing its WhatsApp destination', () => {
-    const grahak = read( 'src/pages/grahak-os/index.tsx' );
-    const checkoutLinks = Array.from(
-      grahak.matchAll( /<a[^>]*href="([^"]+)"[^>]*>\s*Checkout on WhatsApp(?:\s|&|<)/g ),
-    ).map( match => match[ 1 ] );
-
-    expect( checkoutLinks ).toEqual( [ 'https://wa.me/message/APDM5HUWH26SG1' ] );
-    expect( grahak ).not.toMatch( /href="https:\/\/wecare\.digital\/grahak-os\/"[^>]*>\s*Checkout on WhatsApp/i );
-  } );
-
-  it( 'keeps retired Continue on WhatsApp wording out of public checkout surfaces', () => {
-    const publicCheckoutSources = [
+  it( 'keeps every public commerce entry single-channel until after cart review', () => {
+    const entrySources = visibleSource( [
       read( 'src/pages/grahak-os/index.tsx' ),
       read( 'src/pages/bharat-rx.tsx' ),
+      read( 'src/pages/shop/[slug].tsx' ),
       read( 'src/components/ProductPage.tsx' ),
+      read( 'src/components/ProductBuyBox.tsx' ),
+      read( 'src/components/ServiceBuyBox.tsx' ),
       read( 'src/components/PublicShare.tsx' ),
-    ].join( '\n' );
+      read( 'src/components/ElsewhereTravelAssistant.tsx' ),
+    ].join( '\n' ) );
 
-    expect( publicCheckoutSources ).not.toContain( 'Continue on WhatsApp' );
-    expect( publicCheckoutSources ).toContain( 'Checkout on WhatsApp' );
+    // Route/widget commerce must not expose a payment-channel choice before the cart.
+    expect( entrySources ).not.toContain( 'Checkout on WhatsApp' );
+    expect( entrySources ).not.toContain( 'Continue on WhatsApp' );
+    expect( entrySources ).not.toContain( 'Pay on WhatsApp' );
+    expect( entrySources ).not.toContain( 'Pay here' );
+
+    // Contribute follows the same contract: one Checkout entry, then the shared cart.
+    const contribute = read( 'src/components/PublicShare.tsx' );
+    expect( contribute ).toContain( 'aria-label="Checkout contribution"' );
+    expect( contribute ).not.toContain( 'aria-label="Contribute on WhatsApp"' );
+  } );
+
+  it( 'keeps the two payment options only on the post-cart checkout page', () => {
+    const chooser = read( 'src/pages/checkout/index.tsx' );
+    expect( chooser ).toContain( 'Pay on WhatsApp' );
+    expect( chooser ).toContain( 'Pay here' );
+    expect( chooser ).toContain( 'The ONE payment-method decision after cart review.' );
   } );
 } );

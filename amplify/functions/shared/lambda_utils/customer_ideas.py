@@ -44,7 +44,7 @@ def idea_payload(message):
 
 
 def save_idea(data, *, contact_id, phone, sender_name, message_id, dynamodb=None,
-              request_id=''):
+              request_id='', customer_uuid_value=''):
     """Claim the idea's one row. Raises when it could not be stored, so the webhook retries.
 
     `dynamodb` is accepted for the existing call site and unused: the claim goes through the
@@ -75,7 +75,8 @@ def save_idea(data, *, contact_id, phone, sender_name, message_id, dynamodb=None
                'reviewText': text, 'category': topic,
                'reviewType': 'customer_idea', 'visibility': 'private',
                'source': 'whatsapp', 'schemaVersion': '4',
-               'whatsappMessageId': message_id},
+               'whatsappMessageId': message_id,
+               **({'customerUuid': customer_uuid_value} if customer_uuid_value else {})},
         # A customer's idea is a business record, not a transport log.
         ttl_seconds=0,
         request_id=request_id, channel=flow_completion.CHANNEL_WHATSAPP)

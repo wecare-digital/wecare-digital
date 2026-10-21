@@ -64,19 +64,17 @@ export const CANONICAL_FLOWS: Record<string, CanonicalFlow> = {
   },
   leave_review: {
     capability: 'leave_review', label: 'Leave Review',
-    flowId: REVIEW_FLOW_ID, status: 'PUBLISHED', metaName: 'WD_Leave_Review_v2',
+    flowId: REVIEW_FLOW_ID, status: 'PUBLISHED', metaName: '01. WECARE REVIEW FLOW',
   },
   // Vault has no separate Flow: it is a website CTA + ₹49 catalog delivery.
   vault: {
     capability: 'vault', label: 'Vault',
     flowId: null, status: 'NONE', metaName: null,
   },
-  // Subscribe has NO production Flow. The historical 02.WD_Profile ids (1262971692700761 /
-  // 951987930811295) are DEPRECATED and must not be resurrected. Public Subscribe actions open
-  // the dedicated WhatsApp Meta short link directly; there is no /subscribe website page.
+  // Published 2026-10-21 on WABA 1. This is the retained Subscribe/Profile Flow.
   subscribe: {
     capability: 'subscribe', label: 'Subscribe',
-    flowId: null, status: 'NONE', metaName: null,
+    flowId: '1386523953464380', status: 'PUBLISHED', metaName: 'WD_Subscribe_Design_v1',
   },
   // Track Request has no retained canonical Flow (not in keepIds). The former ids
   // 1486454129852338 (DRAFT) and 973888792200167 (DEPRECATED) are not canonical. Tracking is
@@ -94,3 +92,17 @@ export const canonicalFlowId = ( capability: string ): string | null =>
 /** The Meta lifecycle status for a capability's canonical flow. */
 export const canonicalFlowStatus = ( capability: string ): FlowStatus =>
   CANONICAL_FLOWS[capability]?.status ?? 'NONE';
+
+/** Published metadata for a customer-facing Flow. Draft/NONE entries deliberately return null. */
+export const publishedFlow = ( capability: string ): CanonicalFlow | null => {
+  const flow = CANONICAL_FLOWS[capability];
+  return flow?.flowId && flow.status === 'PUBLISHED' ? flow : null;
+};
+
+/** Resolve a published Meta Flow id back to the canonical capability record. */
+export const publishedFlowById = ( flowId: string ): CanonicalFlow | null => {
+  const target = String( flowId || '' ).trim();
+  if ( !target ) return null;
+  return Object.values( CANONICAL_FLOWS )
+    .find( flow => flow.flowId === target && flow.status === 'PUBLISHED' ) ?? null;
+};

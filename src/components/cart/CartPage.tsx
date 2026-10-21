@@ -92,7 +92,7 @@ import Link from 'next/link';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import RotatingHero from '../RotatingHero';
-import CheckoutAction from '../CheckoutAction';
+import PillButton from '../PillButton';
 import CheckoutProfile from '../CheckoutProfile';
 import type { CheckoutProfileMode, CheckoutProfileValue } from '../CheckoutProfile';
 import CheckoutIdentityCard from '../CheckoutIdentityCard';
@@ -126,6 +126,7 @@ import { colors } from '../../lib/design-tokens';
  * imported rather than restated so the two cannot drift.
  */
 import { LOGO_URL } from '../../lib/schema';
+import { CHECKOUT_METHOD_PATH, takePendingAction, type CheckoutChannel } from '../../lib/serviceEntry';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api';
 const PREPARE_CHECKOUT_URL = `${API_BASE}/ecommerce/prepare-checkout`;
@@ -228,7 +229,6 @@ type Notice =
  *   required - something the customer must supply before the server will price the cart.
  */
 type ProfileStatus = 'unknown' | 'checking' | 'ready' | 'required';
-type PaymentMode = 'whatsapp' | 'website';
 
 /** The `action:'profile'` reply. PROFILE_REQUIRED carries ONLY `status`; the rest are absent. */
 type ProfileReply = {
@@ -647,6 +647,7 @@ export default function Cart (): React.ReactElement {
    * throw anywhere in the run cannot leave the page permanently unable to check out.
    */
   const proceedInFlightRef = useRef<boolean>( false );
+  const selectedCheckoutChannelRef = useRef<CheckoutChannel | undefined>( undefined );
   /**
    * The WhatsApp hand-off claim has been attempted in this page's lifetime.
    *
@@ -674,7 +675,7 @@ export default function Cart (): React.ReactElement {
       const reply = await loadProfileStatus( session.accessToken );
       if ( !live || !reply ) return;
       setProfile( profileFrom( reply ) );
-      setProfileStatus( deriveStatus( String( reply.status || '' ), Boolean( reply.addressComplete ), Boolean( reply.profileComplete ) ) );
+      setProfileStatus( deriveStatus( String( reply.status || '' ), Boolean( reply.addressComplete ), reply.profileComplete ) );
     } )();
     return () => { live = false; };
   }, [] );
@@ -801,9 +802,7 @@ export default function Cart (): React.ReactElement {
   const postPrepare = useCallback( async (
     session: CustomerSession,
     lineItems: ReturnType<typeof toLineItems>,
-    // Payment mode is chosen once on the reviewed cart. Website uses Standard Checkout;
-    // WhatsApp uses the native ORDER_DETAILS handoff from the same authenticated basket.
-    paymentMode: PaymentMode,
+    channel: CheckoutChannel,
     // AN ARGUMENT, not a ref read inside the body, for the same reason `lineItems` is one: this
     // callback closes over no state, so what it sends has to be handed to it.
     resetCart = false,
@@ -833,7 +832,7 @@ export default function Cart (): React.ReactElement {
           Authorization: `Bearer ${session.accessToken}`,
         },
         body: JSON.stringify( {
-          action: paymentMode === 'whatsapp' ? 'create' : 'prepare',
+          action: channel === 'whatsapp' ? 'create' : 'prepare',
           lineItems,
           requestKey: getCheckoutRequestKey( lineItems ),
           // Omitted entirely unless asked for, so an ordinary prepare's body is byte-identical to
@@ -1330,7 +1329,8 @@ export default function Cart (): React.ReactElement {
     setNotice( { kind: 'error', message: 'We could not confirm checkout. Check your orders before trying again.' } );
   }, [] );
 
-  const runCheckout = useCallback( async ( paymentMode: PaymentMode ): Promise<void> => {
+  const runCheckout = useCallback( async ( channel?: CheckoutChannel ): Promise<void> => {
+    if ( channel ) selectedCheckoutChannelRef.current = channel;
     // AHEAD of the notice reset, deliberately: a re-entry -- from CheckoutProfile's onSaved, or
     // a stray click -- must neither re-enter the rail nor wipe the explanation already on screen.
     if ( railTerminalRef.current ) return;
@@ -1412,7 +1412,7 @@ export default function Cart (): React.ReactElement {
     {
       setProfileStatus( 'checking' );
       const reply = await loadProfileStatus( session.accessToken );
-      status = reply ? deriveStatus( String( reply.status || '' ), Boolean( reply.addressComplete ), Boolean( reply.profileComplete ) ) : 'unknown';
+      status = reply ? deriveStatus( String( reply.status || '' ), Boolean( reply.addressComplete ), reply.profileComplete ) : 'unknown';
       if ( reply )
       {
         setProfile( profileFrom( reply ) );
@@ -1481,6 +1481,14 @@ export default function Cart (): React.ReactElement {
       return;
     }
 
+    // Cart review and identity/profile readiness are complete. Payment rail selection happens
+    // exactly once on /checkout/, never on a product route and never inline in the cart.
+    if ( !channel )
+    {
+      window.location.assign( CHECKOUT_METHOD_PATH );
+      return;
+    }
+
     setBusy( true );
     try
     {
@@ -1491,7 +1499,7 @@ export default function Cart (): React.ReactElement {
       // the top of `proceed`, and the retry and the rotation below deliberately omit it: both are
       // re-posts of a request whose cart was already abandoned, and abandoning it a second time
       // would mint a third cart.
-      let outcome = await postPrepare( session, lineItems, paymentMode, resetCart );
+      let outcome = await postPrepare( session, lineItems, channel, resetCart );
 
       // ONE BOUNDED RETRY AFTER A SAVE. `phone-index` is a GLOBAL secondary index and cannot be
       // read strongly consistent, so a `prepare` issued seconds after a save can legitimately see
@@ -1505,7 +1513,7 @@ export default function Cart (): React.ReactElement {
       {
         justSavedRef.current = false;
         await sleep( POST_SAVE_RETRY_MS );
-        outcome = await postPrepare( session, lineItems, paymentMode );
+        outcome = await postPrepare( session, lineItems, channel );
       }
 
       // ONE ROTATION ON `INTENT_CHANGED`, and this is the ONE `CHECKOUT_REJECTED` reason a
@@ -1547,7 +1555,7 @@ export default function Cart (): React.ReactElement {
           window.sessionStorage.removeItem( CHECKOUT_REQUEST_KEY );
           window.sessionStorage.removeItem( CHECKOUT_REQUEST_BASKET );
         }
-        outcome = await postPrepare( session, lineItems, paymentMode );
+        outcome = await postPrepare( session, lineItems, channel );
       }
 
       applyOutcome( outcome, session );
@@ -1589,7 +1597,7 @@ export default function Cart (): React.ReactElement {
    * "Preparing…" on the CTA, and "please wait" on top of that explains nothing the customer cannot
    * already see.
    */
-  const proceed = useCallback( async ( paymentMode: PaymentMode = 'website' ): Promise<void> => {
+  const proceed = useCallback( async ( channel?: CheckoutChannel ): Promise<void> => {
     if ( proceedInFlightRef.current )
     {
       resetCartRef.current = false;
@@ -1598,7 +1606,7 @@ export default function Cart (): React.ReactElement {
     proceedInFlightRef.current = true;
     try
     {
-      await runCheckout( paymentMode );
+      await runCheckout( channel );
     }
     finally
     {
@@ -1620,7 +1628,14 @@ export default function Cart (): React.ReactElement {
   const startNewCart = useCallback( (): void => {
     resetCartRef.current = true;
     setCartResetOffered( false );
-    void proceed();
+    void proceed( selectedCheckoutChannelRef.current );
+  }, [ proceed ] );
+
+  useEffect( () => {
+    const pending = takePendingAction();
+    if ( pending?.kind !== 'checkout' || !pending.channel ) return;
+    selectedCheckoutChannelRef.current = pending.channel;
+    void proceed( pending.channel );
   }, [ proceed ] );
 
   const isEmpty = ready && items.length === 0;
@@ -1873,30 +1888,30 @@ export default function Cart (): React.ReactElement {
                   while busy. */}
               <div className="cart-pill">
                 { railTerminal
+                  /* A way off a finished page. A LINK, never a button, with words that cannot
+                     read as "pay again". */
                   ? <p className="cart-back"><Link href="/orders/">Check your orders</Link></p>
-                  : (
-                    <div className="cart-payment-choice" aria-label="Choose payment method">
-                      <p className="cart-payment-label">Choose how you want to pay</p>
-                      <div className="cart-payment-actions">
-                        <CheckoutAction
-                          onClick={ () => { void proceed( 'whatsapp' ); } }
-                          disabled={ busy || railTerminal }
-                          busy={ busy }
-                          ariaLabel="Pay on WhatsApp"
-                        >
-                          { busy ? 'Preparing…' : 'Pay on WhatsApp' }
-                        </CheckoutAction>
-                        <CheckoutAction
-                          onClick={ () => { void proceed( 'website' ); } }
-                          disabled={ busy || railTerminal }
-                          busy={ busy }
-                          ariaLabel="Pay here"
-                        >
-                          { busy ? 'Preparing…' : 'Pay here' }
-                        </CheckoutAction>
-                      </div>
-                    </div>
-                  ) }
+                  : <PillButton
+                      as="button"
+                      type="button"
+                      label={ profile && !paymentBlocked ? 'Secure checkout' : 'Checkout' }
+                      action={ busy
+                        ? 'Preparing…'
+                        : ( profile ? ( paymentBlocked ? 'Try again' : 'Pay securely' ) : 'Proceed' ) }
+                      onClick={ () => { void proceed(); } }
+                      /* `railTerminal` is kept here even though the branch above makes it
+                         unreachable: belt-and-braces ACROSS THE RENDER BOUNDARY. The two
+                         mechanisms fail independently, and if a later edit reinstates the button
+                         on the latched branch -- the obvious way to "improve" this -- the
+                         disabled term is what keeps it dead. `busy` is left alone: the spinner
+                         means "a request is in flight", and a latched page is not busy, it is
+                         finished. */
+                      /* NO BASKET TERM HERE ANY MORE. `mixedBasket` used to be the third term and
+                         is gone: a mix is payable, so the only things that dim this control are a
+                         request in flight and a finished rail. */
+                      disabled={ busy || railTerminal }
+                      busy={ busy }
+                    /> }
               </div>
 
               <nav className="cart-utility" aria-label="Cart shortcuts">
@@ -2037,10 +2052,7 @@ export default function Cart (): React.ReactElement {
              ring, hover lift and reduced-motion handling. It replaced the single lime surface on
              owner instruction, to make the login gate the dark-green + mint pill. There is 28px of
              space above it, applied by the pill's own container margin via .cart-pill below. */
-          .cart-payment-choice{display:flex;flex-direction:column;align-items:flex-start;gap:10px}
-        .cart-payment-label{margin:0;color:var(--public-muted);font-size:15px;font-weight:600}
-        .cart-payment-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
-        .cart-pill{margin-top:28px}
+          .cart-pill{margin-top:28px}
           /* 44px, so the way back off this page is a real target too. */
           .cart-back{margin:28px 0 0;font-size:16px;line-height:1.55}
           .cart-back :global(a){

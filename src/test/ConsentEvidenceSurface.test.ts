@@ -3,18 +3,16 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const ROOT = path.resolve( __dirname, '..' );
-const settings = fs.readFileSync( path.join( ROOT, 'pages/workspace/engage/settings/index.tsx' ), 'utf8' );
+const workspace = fs.readFileSync( path.join( ROOT, 'pages/workspace/index.tsx' ), 'utf8' );
 const consentPanel = fs.readFileSync( path.join( ROOT, 'components/workspace/customers/ConsentPanel.tsx' ), 'utf8' );
 const client = fs.readFileSync( path.join( ROOT, 'api/client.ts' ), 'utf8' );
 
 describe( 'Consent-as-evidence surface replaces the boolean percentage anti-pattern', () => {
-  it( 'engage/settings no longer computes opt-in from ContactsTable booleans', () => {
-    expect( settings ).not.toContain( 'optInWhatsApp || c.allowlistWhatsApp' );
-    expect( settings ).not.toContain( '% opted in' );
-    expect( settings ).not.toContain( 'c.pct' );
-    // It points staff at the Customer-owned consent surface instead.
-    expect( settings ).toContain( 'Consent is evidence, owned by the customer' );
-    expect( settings ).toContain( '/workspace/customers' );
+  it( 'the workspace routes consent ownership to the canonical Customers surface', () => {
+    expect( workspace ).not.toContain( 'optInWhatsApp || c.allowlistWhatsApp' );
+    expect( workspace ).not.toContain( '% opted in' );
+    expect( workspace ).toContain( "detail: 'Identity, address, consent and customer history'" );
+    expect( workspace ).toContain( "href: '/workspace/customers'" );
   } );
 
   it( 'the consent panel reads the evidence model, shows OPTED_OUT first-class and history', () => {

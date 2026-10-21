@@ -1,6 +1,7 @@
 import { shopProductCrumbs } from '../../lib/breadcrumbs';
 import React, { useCallback, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import type { GetStaticPaths, GetStaticProps } from 'next';
 import ShopProductHead from '../../components/ShopProductHead';
 import RotatingHero from '../../components/RotatingHero';
@@ -11,6 +12,7 @@ import { addItem, setContribution } from '../../lib/cart';
 import { CONTRIBUTION_CHOICES, CONTRIBUTION_PRODUCT_ID } from '../../config/contribution';
 import Select from '../../components/ui/Select';
 import PolicyDetails from '../../components/public/PolicyDetails';
+import CheckoutAction from '../../components/CheckoutAction';
 import { PRODUCT_SKU_BY_SLUG, productPolicyCopy } from '../../content/productCommerce';
 
 /**
@@ -31,11 +33,9 @@ import { PRODUCT_SKU_BY_SLUG, productPolicyCopy } from '../../content/productCom
  * NO IMAGE. The snapshot reports mediaCount 0 on all seven products, so there is nothing to show.
  * A grey placeholder frame is a promise that a picture exists.
  *
- * The call to action is add-to-cart, and it is the page's single lime surface: lime means actionable
- * on this site and a page gets one. It adds the product's catalogue REFERENCE and a quantity to the
- * browser cart (src/lib/cart.ts) and then points at /cart/. It never charges anything - an order
- * exists only after a payment has been verified server-side, and live payment initiation is off by
- * default, which is what the boundary note below says.
+ * The route exposes one compact Checkout action. It adds the product's catalogue REFERENCE and
+ * quantity to the browser cart, then moves directly to /cart/ for review. WhatsApp vs Here is not
+ * offered on this page; that choice appears once, after cart review, on /checkout/.
  */
 
 interface ShopProductPageProps {
@@ -43,23 +43,27 @@ interface ShopProductPageProps {
 }
 
 const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
-  // "added" flips once the item is in the cart, turning the CTA into a link to the cart rather
-  // than re-adding on every press. Client-only state; the settled markup is the add button, so a
-  // no-JS load still shows a coherent page.
+  const router = useRouter();
   const [ variantId, setVariantId ] = useState<string>( '' );
-  const [ added, setAdded ] = useState<boolean>( false );
+  const [ busy, setBusy ] = useState( false );
   const sku = PRODUCT_SKU_BY_SLUG[ product.slug ];
   const policy = sku ? productPolicyCopy( product.slug, product.name ) : null;
 
-  const onAdd = useCallback( (): void => {
-    if ( product.id === CONTRIBUTION_PRODUCT_ID ) {
-      const choice = CONTRIBUTION_CHOICES[ 0 ];
-      if ( choice ) setContribution( choice.variantId );
-    } else {
-      addItem( product, 1, variantId || undefined );
+  const onCheckout = useCallback( async (): Promise<void> => {
+    if ( busy ) return;
+    setBusy( true );
+    try {
+      if ( product.id === CONTRIBUTION_PRODUCT_ID ) {
+        const choice = CONTRIBUTION_CHOICES[ 0 ];
+        if ( choice ) setContribution( choice.variantId );
+      } else {
+        addItem( product, 1, variantId || undefined );
+      }
+      await router.push( '/cart/' );
+    } finally {
+      setBusy( false );
     }
-    setAdded( true );
-  }, [ product, variantId ] );
+  }, [ busy, product, variantId, router ] );
 
   return (
     <>
@@ -120,7 +124,7 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
                 className="shopd-options"
                 label="Fit and size"
                 value={ variantId }
-                onChange={ value => { setVariantId( value ); setAdded( false ); } }
+                onChange={ value => { setVariantId( value ); } }
                 options={ [
                   { value: '', label: 'Choose your fit and size' },
                   ...product.variants.filter( variant => variant.inStock )
@@ -128,15 +132,14 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
                 ] }
               />
             ) }
-            { added
-              ? (
-                <Link className="shopd-cta" href="/cart/">Go to your cart</Link>
-              )
-              : (
-                <button className="shopd-cta shopd-cta-btn" type="button" disabled={ !!product.variants && product.variants.length > 1 && !variantId } onClick={ onAdd }>
-                  { product.id === CONTRIBUTION_PRODUCT_ID ? 'Contribute ₹250' : `Add ${ product.name } to cart` }
-                </button>
-              ) }
+            <CheckoutAction
+              disabled={ busy || ( !!product.variants && product.variants.length > 1 && !variantId ) }
+              busy={ busy }
+              onClick={ () => { void onCheckout(); } }
+              ariaLabel={ `Checkout ${product.name}` }
+            >
+              Checkout
+            </CheckoutAction>
 
             <p className="shopd-price" data-wc-no-translate="true">{ product.formattedPrice }</p>
             <p className="shopd-offer-note">One-time purchase</p>
@@ -169,8 +172,8 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
              the whole reason this page stopped hand-rolling them: a page that states its own
              clearance has to restate it at both header heights, and getting that wrong paints the
              first line under the header. This div only sets its own reading measure. */
-          /* :global() IS MANDATORY ON BOTH OF THESE NOW, for the reason .shopd-cta below records
-             at length: styled-jsx attaches its scoping class only to the lowercase DOM tags it
+          /* :global() IS MANDATORY ON BOTH OF THESE NOW: styled-jsx attaches its scoping class
+             only to the lowercase DOM tags it
              can see in this file, and .shopd-options is now a className handed to the Select
              component, which forwards it to a node styled-jsx never saw. Without :global() the compiled
              rules match nothing and the chooser renders as an unstyled button.
@@ -190,7 +193,6 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
              form-controls.css's .ui-select-trigger now declares that exact set for the component
              that replaced it, so nothing about the closed state changes. What changes is the OPEN
              list, which was the one part no stylesheet could reach. */
-          .shopd-cta-btn:disabled{opacity:.5;cursor:not-allowed}
           .shopd-in{width:100%;max-width:700px;margin:0}
           
 
@@ -210,23 +212,6 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
             color:var(--public-body);margin:18px 0 0;
           }
 
-          /* .pdp-cta, value for value: full-strength #d1f470 with #1a3a2a type, and a 2px border
-             because 1px means a static edge and 2px a hoverable one.
-             :global() IS MANDATORY for the link case. styled-jsx attaches its scoping class only
-             to lowercase DOM tags it can see in this file; a capitalised component never gets it,
-             because styled-jsx cannot know whether the component forwards className to a DOM node.
-             Without :global() the compiled rule matches nothing and the CTA renders as bare blue
-             underlined text. */
-          .shopd-in :global(.shopd-cta){
-            display:inline-flex;align-items:center;min-height:var(--public-cta-height);margin-top:34px;
-            padding:0 26px;border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);
-            background:var(--public-brand-lime);color:var(--public-brand-green);font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);text-decoration:none;
-            font-family:inherit;line-height:normal;cursor:pointer;
-            transition:background-color .2s,transform .2s,box-shadow .2s;
-          }
-          .shopd-in :global(.shopd-cta:hover){background:#fff;transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
-          .shopd-in :global(.shopd-cta:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px}
-
           /* THE CANONICAL BOUNDARY CARD, matched to .pdp-note so every boundary note on the public
              site reads the same: near-white #fcfdfb surface, 1px hairline, 14px radius, 22px
              padding, legal-copy type 17px/400/1.55/-.05px on rgba(0,0,0,.898). Was a transparent
@@ -244,9 +229,7 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
           }
           .shopd-sku strong{color:var(--public-brand-green);font-weight:700}
           .shopd-sku-value{color:var(--public-muted)}
-
-          /* The .shopd-back link, restored 2026-10-10 with the /shop index. :global() for the
-             same reason as .shopd-cta: it wraps a capitalised <Link> styled-jsx cannot scope. */
+          /* The way back to the catalogue remains a normal navigation link. */
           .shopd-back{margin:28px 0 0}
           .shopd-in :global(.shopd-back a){
             font-size:16px;font-weight:600;color:var(--public-brand-green);text-decoration:underline;
@@ -258,10 +241,7 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
           @media(max-width:767px){
             .shopd-p{font-size:18px}
           }
-          @media(prefers-reduced-motion:reduce){
-            .shopd-in :global(.shopd-cta){transition:none}
-            .shopd-in :global(.shopd-cta:hover){transform:none;box-shadow:none}
-          }
+
         `}</style>
       </RotatingHero>
     </>

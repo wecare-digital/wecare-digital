@@ -443,10 +443,9 @@ response = requests.post(
             {/* LEFT column rebuilt into the owner-approved numbered-steps block. The code
                 panel (.api-demo) stays in the RIGHT column, unchanged. The /anew/ page's
                 1-2-3 step pattern is emulated here (visible number + short title + one
-                supporting line); only the PATTERN is borrowed, not Anew's copy or palette.
-                Everything reuses this page's existing tokens, the existing ₹899 price,
-                SKU GOS7K4M2 (PRODUCT_SKU_BY_SLUG['grahak-os']), the existing WhatsApp
-                checkout mechanism (.gos-wa-cta pill) and the existing demo link. */}
+                supporting line); only the PATTERN is borrowed, not Anew's copy or palette.                Everything reuses this page's existing tokens, the existing ₹899 price,
+                SKU GOS7K4M2 (PRODUCT_SKU_BY_SLUG['grahak-os']), the shared ProductBuyBox
+                checkout entry and the existing demo link. */}
             <div className="api-info api-steps">
               <div className="api-steps-main">
                 {/* Owner-approved heading theme (consulting positioning). Reuses the
@@ -475,23 +474,12 @@ response = requests.post(
                   </div>
                 </li>
                 </ol>
-              </div>
-              {/* Checkout + pricing block. Desktop keeps it in the left consulting column.
+              </div>              {/* Checkout + pricing block. Desktop keeps it in the left consulting column.
                   On mobile .api-steps becomes display:contents so this block can move AFTER
                   the API editor and demo link, making pricing the final Grahak content block.
-                  The paid-checkout door on this page is the WhatsApp CTA pill
-                  (.gos-wa-cta) - ProductBuyBox was deliberately removed,
-                  so this reuses that exact pill mechanism and surfaces the existing ₹899
-                  price. The separate demo link lives below the large API code panel opposite. */}
+                  ProductBuyBox is the sole paid checkout entry on this route. It sends the
+                  catalogue item to /cart/; WhatsApp vs Here is chosen once after cart review. */}
               <div className="api-steps-buy">
-                {/* UNIFIED WHATSAPP CTA STYLE (owner instruction): the WhatsApp
-                    call-to-action here renders as the single .gos-wa-cta pill. The redundant
-                    second "See it on WhatsApp" .gos-wa-cta that used to sit beside it was
-                    REMOVED on owner instruction - this steps block now carries just the one
-                    "Checkout on WhatsApp" pill; the demo link sits below the API code panel. */}
-                <div className="api-steps-ctas">
-                  <a className="gos-wa-cta" href="https://wa.me/message/APDM5HUWH26SG1" target="_blank" rel="noopener noreferrer">Checkout on WhatsApp &#8594;</a>
-                </div>
                 <ProductBuyBox
                   slug="grahak-os"
                   displayPrice={ GRAHAK_DISPLAY_PRICE || undefined }
@@ -539,22 +527,17 @@ response = requests.post(
             band (the Meta lockup card and the channel pills beside it) is gone, along with
             all of its CSS and the hosted Meta mark reference. A test asserts the removal by
             substring, so this note deliberately avoids repeating the old class names and
-            wording. The channel positioning still lives in the hero's rotating pill. */}
-
-        {/* OTP / Verifications section REMOVED on owner instruction. Its content overlapped the
+            wording. The channel positioning still lives in the hero's rotating pill. */}        {/* OTP / Verifications section REMOVED on owner instruction. Its content overlapped the
             touchpoint "OTPs" pill and the capabilities strip, and the dedicated section was not
-            needed. The QR lived only in this section and goes with it; the WhatsApp CTA remains
-            beneath the API code panel as "Open demo in WhatsApp" and the API section also keeps its
-            "Checkout on WhatsApp" pill. If the QR is ever wanted back, the verified asset is
-            still at public/images/grahak-os-whatsapp-qr.svg. */}
-
-        {/* The bottom closer section (<section id="gos-closer">) was REMOVED here on owner
+            needed. The QR lived only in this section and goes with it; the non-payment
+            "Open demo in WhatsApp" link remains beneath the API code panel. If the QR is ever
+            wanted back, the verified asset is still at public/images/grahak-os-whatsapp-qr.svg. */}        {/* The bottom closer section (<section id="gos-closer">) was REMOVED here on owner
             instruction. It had been stripped to a single "See it on WhatsApp" WhatsApp pill;
             that duplicate CTA is gone, and the page's only "Open demo in WhatsApp" link now lives
             directly below the large API code panel (.api-wa-link). The .gos-closer* CSS and the
             gos-closer entrance-animation target went with it; a test guards the removal by
-            substring. The api-steps "Checkout on WhatsApp" pill and the ₹899 price/SKU/policy
-            stay in the same section. */}
+            substring. ProductBuyBox owns the one paid Checkout action alongside the existing
+            ₹899 price/SKU/policy in the same section. */}
 
         <style jsx>{`
           /* ========== BASE STYLES ========== */
@@ -661,17 +644,8 @@ response = requests.post(
              ~60-70 characters per line and wraps to more lines, which also closes
              part of the height difference against the mockup column. */
           .hero-left p{font-size:var(--public-body-size);color:var(--public-body);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);font-weight:var(--public-body-weight);margin:0 0 18px;max-width:400px}
-          .hero-left p.hero-sub{font-size:var(--public-body-size);color:var(--public-body);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);font-weight:var(--public-body-weight);margin:0;max-width:400px}
-
-          /* The hero no longer has a CTA pill (the .gos-buy block was removed on owner
-             instruction), and the bottom closer was removed too, so .gos-wa-cta now styles
-             ONLY the api-steps "Checkout on WhatsApp" pill. The old closer-only .gos-ctas
-             row wrapper went with the closer. */
-          /* Primary WhatsApp pill: full-lime, the page's one allowed lime surface for the
-             primary action - mirrors ProductPage's .pdp-cta. 52px min target. */
-          .gos-wa-cta{display:inline-flex;align-items:center;justify-content:center;min-height:var(--public-cta-height);padding:0 26px;border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);background:var(--public-brand-lime);color:var(--public-brand-green);font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);text-decoration:none;transition:background-color .2s,transform .2s,box-shadow .2s}
-          .gos-wa-cta:hover{background:#fff;transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
-          .gos-wa-cta:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
+          .hero-left p.hero-sub{font-size:var(--public-body-size);color:var(--public-body);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);font-weight:var(--public-body-weight);margin:0;max-width:400px}          /* Paid checkout styling is owned by ProductBuyBox -> CheckoutAction. Grahak OS
+             keeps no route-local payment CTA style, so it cannot grow a second rail. */
           /* Hero Python panel only. Its demo link moved to the large API editor below. */
           .code-stack{position:absolute;inset-inline-end:0;bottom:24px;width:60%;max-width:340px;display:flex;flex-direction:column;align-items:stretch}
           /* ZOOM CONTAINMENT (unified-mobile Phase 1), same shape as Unit 1 on Home. At 200%
@@ -684,10 +658,7 @@ response = requests.post(
              Normal-zoom layout is unchanged - nothing overflows the column there, so the clip
              never bites. overflow-x:hidden is the fallback for engines without clip. NO backtick
              in this comment - a stray one ends the styled-jsx CSS literal. */
-          .hero-visual-col{display:flex;flex-direction:column;align-items:flex-end;gap:10px;width:100%;box-sizing:border-box;min-width:0;overflow-x:hidden;overflow-x:clip}
-          @media(prefers-reduced-motion:reduce){
-            .gos-wa-cta{transition:background-color .2s}
-            .gos-wa-cta:hover{transform:none;box-shadow:none}
+          .hero-visual-col{display:flex;flex-direction:column;align-items:flex-end;gap:10px;width:100%;box-sizing:border-box;min-width:0;overflow-x:hidden;overflow-x:clip}          @media(prefers-reduced-motion:reduce){
             .api-wa-link{transition:none}
             .api-wa-link:hover{transform:none}
           }
@@ -1014,11 +985,9 @@ response = requests.post(
           .api-action{margin:36px 0 0;max-width:460px}
           /* h3 on the card-heading rung (22px/700), one step below the section h2 above
              it in the same column, so the outline is h2 -> h3 with no skipped level. */
-          .api-action-head{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-heading);margin:0 0 16px}
-          /* The .api-action-link lighter text-link CSS was REMOVED with its markup: every
-             WhatsApp CTA now uses the single unified .gos-wa-cta pill (owner instruction),
-             so the second style is dead. A test guards that the class name no longer
-             appears, so it is not repeated here. */
+          .api-action-head{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-heading);margin:0 0 16px}          /* The .api-action-link lighter text-link CSS was REMOVED with its markup.
+             The remaining .api-wa-link is a demo link, not a payment choice; paid checkout
+             is owned by ProductBuyBox above. */
           /* ===== Numbered 1-2-3 step block (new LEFT column) =====
              Emulates the /anew/ step pattern (number + short title + one supporting
              line) using ONLY this page's existing tokens: lime #d1f470, dark-green
@@ -1037,12 +1006,8 @@ response = requests.post(
              column, so the outline is h2 -> h3 with no skipped level. */
           .api-step-title{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);color:var(--public-heading);margin:0 0 6px}
           /* Supporting line uses the same 20px body rung as Home. */
-          .api-step-line{font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-body);margin:0}
-          /* Buy block: WhatsApp checkout pill, then price + explanation, then the policy
-             card. gos-wa-cta/gos-price/gos-commerce are shared page rules; only the layout
-             gaps are set here. */
+          .api-step-line{font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-body);margin:0}          /* Buy block: one ProductBuyBox checkout, then SKU/policy. */
           .api-steps-buy{max-width:700px}
-          .api-steps-ctas{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
           /* Pure black, matching the hero .code-box. This panel was the last slate
              holdout: #1e293b is on the contract's retired list specifically "as the
              code panel body", yet it survived here after the hero panel was moved to
@@ -1073,7 +1038,7 @@ response = requests.post(
           /* min-height:var(--tap-min) floors this secondary demo link to the 44px WCAG 2.5.8
              target (unified-mobile Phase 1). Measured before the change it was 39.8px tall -
              the only control inside this page's main that was under 44px (the pp-tabs are
-             46-50px and the gos-wa-cta pill is 52px). It is already an inline-flex with centred
+             46-50px and the shared Checkout action is 52px). It is already an inline-flex with centred
              content, so min-height grows the hit box without moving the underlined label; the
              text treatment the tests pin (17px/600, underline, lime hover) is unchanged. */
           .api-wa-link{display:inline-flex;align-items:center;gap:5px;width:max-content;min-height:var(--tap-min);margin-inline-start:-10px;padding:8px 10px;border-radius:10px;color:var(--public-brand-green);font-size:17px;font-weight:600;line-height:1.4;letter-spacing:-.05px;text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;transition:background-color .18s,color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s}
@@ -1285,7 +1250,6 @@ response = requests.post(
             .api-info{text-align:start}
             .api-info h2{margin-bottom:16px;text-align:start}
             .api-step-title{font-size:var(--public-mobile-card-size)}
-            .gos-wa-cta{font-size:var(--public-mobile-cta-font-size)}
             .api-desc{max-width:100%;text-align:start}
             /* Mobile content order is deliberate:
                1) the enterprise 1-2-3 steps

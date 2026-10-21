@@ -33,7 +33,7 @@ def save(db, data=None, **kwargs):
     return ideas.save_idea(data or {'idea': 'Please add request tracking', 'topic': 'feature_request'},
         contact_id=kwargs.get('contact_id', 'wa-fixture'), phone=kwargs.get('phone', 'fixture-phone'),
         sender_name='Fixture customer', message_id=kwargs.get('message_id', 'fixture-message'),
-        dynamodb=db)
+        dynamodb=db, customer_uuid_value=kwargs.get('customer_uuid_value', ''))
 
 
 def test_save_links_full_idea_and_contact(db):
@@ -47,6 +47,13 @@ def test_save_links_full_idea_and_contact(db):
     assert row['reviewId'] == result.submission_id
     assert row['status'] == 'submitted' and row['paymentStatus'] == 'none'
     assert row['channel'] == 'whatsapp'
+
+
+def test_static_flow_carries_canonical_customer_uuid(db):
+    customer_uuid = '11111111-1111-4111-8111-111111111111'
+    result = save(db, customer_uuid_value=customer_uuid)
+    row = db.tables[SUBMISSIONS][result.submission_id]
+    assert row['customerUuid'] == customer_uuid
 
 
 def test_an_idea_never_expires(db):

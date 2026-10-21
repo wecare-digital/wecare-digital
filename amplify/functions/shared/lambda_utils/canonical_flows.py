@@ -27,9 +27,8 @@ CANONICAL_FLOWS = {
     'leave_review':   ('940049388908144',  'PUBLISHED', '01. WECARE REVIEW FLOW'),
     # Vault: website CTA + ₹49 catalog delivery, no Flow.
     'vault':          (None, 'NONE', None),
-    # Subscribe: NO production Flow. The 02.WD_Profile ids 1262971692700761 / 951987930811295
-    # are DEPRECATED and must not be resurrected; profile screens belong in the Orders draft.
-    'subscribe':      (None, 'NONE', None),
+    # Published 2026-10-21 on WABA 1. This is the retained Subscribe/Profile Flow.
+    'subscribe':      ('1386523953464380', 'PUBLISHED', 'WD_Subscribe_Design_v1'),
     # Track Request: not in keepIds. Former ids 1486454129852338 (DRAFT) / 973888792200167
     # (DEPRECATED) are not canonical. Tracking is served by
     # GET /wa-business/service/track/{orderId} + the /orders/ page, not a Flow.
@@ -47,3 +46,52 @@ def canonical_flow_status(capability: str) -> str:
     """The Meta lifecycle status for a capability's canonical flow."""
     row = CANONICAL_FLOWS.get(capability)
     return row[1] if row else 'NONE'
+
+
+def published_flow(capability: str):
+    """Published canonical Flow metadata, or None when the capability is not live.
+
+    DRAFT/NONE entries remain in the canonical registry for staff/reconciliation, but
+    customer-facing callers can use this helper without accidentally sending a draft Flow.
+    """
+    row = CANONICAL_FLOWS.get(capability)
+    if not row or not row[0] or row[1] != 'PUBLISHED':
+        return None
+    return {
+        'capability': capability,
+        'flowId': row[0],
+        'status': row[1],
+        'metaName': row[2],
+    }
+
+
+def published_flow_by_id(flow_id: str):
+    """Resolve a published Meta Flow id back to its canonical capability."""
+    target = str(flow_id or '').strip()
+    if not target:
+        return None
+    for capability, row in CANONICAL_FLOWS.items():
+        if row[0] == target and row[1] == 'PUBLISHED':
+            return published_flow(capability)
+    return None
+
+
+_TOKEN_PREFIX_OVERRIDES = {
+    'submit_request': 'sr',
+}
+
+
+def published_flow_by_name(meta_name: str):
+    """Resolve a published Meta Flow name back to canonical metadata."""
+    target = str(meta_name or '').strip().casefold()
+    if not target:
+        return None
+    for capability, row in CANONICAL_FLOWS.items():
+        if row[1] == 'PUBLISHED' and str(row[2] or '').strip().casefold() == target:
+            return published_flow(capability)
+    return None
+
+
+def published_flow_token_prefix(capability: str) -> str:
+    """Routing prefix for phone-backed Flow tokens."""
+    return _TOKEN_PREFIX_OVERRIDES.get(capability, capability)

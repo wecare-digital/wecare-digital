@@ -150,7 +150,7 @@ describe( 'safeLocalReturnPath — the accepted set', () => {
   // rejection is asserted positively in the inversion block further down, rather than only by
   // absence here.
   it( 'accepts each customer destination in its slashed form', () => {
-    for ( const ok of [ '/cart/', '/orders/', '/blog/', '/submit-request/', '/request-amendment/', '/drop-docs/', '/vault/', '/request-pickup/', '/' ] ) {
+    for ( const ok of [ '/cart/', '/checkout/', '/orders/', '/blog/', '/submit-request/', '/request-amendment/', '/drop-docs/', '/vault/', '/request-pickup/', '/' ] ) {
       expect( safeLocalReturnPath( ok ) ).toBe( ok );
     }
   } );
@@ -158,6 +158,7 @@ describe( 'safeLocalReturnPath — the accepted set', () => {
   it( 'normalises the unslashed form rather than rejecting it', () => {
     // `trailingSlash: true`, so the unslashed form would 301 to the slashed one anyway.
     expect( safeLocalReturnPath( '/cart' ) ).toBe( '/cart/' );
+    expect( safeLocalReturnPath( '/checkout' ) ).toBe( '/checkout/' );
     expect( safeLocalReturnPath( '/orders' ) ).toBe( '/orders/' );
     expect( safeLocalReturnPath( '/blog' ) ).toBe( '/blog/' );
   } );
@@ -177,11 +178,11 @@ describe( 'safeLocalReturnPath — the accepted set', () => {
     // Phase O-1 added the first two service pages, which link signed-out customers to sign in.
     // Phase O-2's two (`/drop-docs/`, `/vault/`) joined them on 2026-10-08: they carry the same
     // buy box and the same return, and their absence was sending those customers to `/cart/`.
-    const allowed = new Set( [ '/cart/', '/orders/', '/blog/', '/submit-request/', '/request-amendment/', '/drop-docs/', '/vault/', '/request-pickup/', '/' ] );
+    const allowed = new Set( [ '/cart/', '/checkout/', '/orders/', '/blog/', '/submit-request/', '/request-amendment/', '/drop-docs/', '/vault/', '/request-pickup/', '/' ] );
     const inputs = [
       '/cart', '/cart/', '/', '//evil', '/workspace/access', 'https://evil.example/',
       '%2f%2fevil', '/../x', '', null, undefined, '/terms/', '/cart/#f',
-      '/checkout/', '/account/', '\\\\evil.example',
+      '/account/', '\\\\evil.example',
       // Withdrawn 2026-10-04. Both spellings, plus a product page, must come back as the
       // fallback rather than as themselves.
       '/shop/', '/shop', '/shop/file-assist/',
@@ -275,7 +276,7 @@ describe( 'safeLocalReturnPath — the gap is closed and the validator is wired 
     const serviceSegments = SERVICE_CHOICES.map( choice => choice.slug );
     expect( serviceSegments ).toEqual(
       [ 'submit-request', 'request-amendment', 'drop-docs', 'vault', 'request-pickup' ] );
-    for ( const segment of [ 'cart', 'orders', 'blog', ...serviceSegments ] ) {
+    for ( const segment of [ 'cart', 'checkout', 'orders', 'blog', ...serviceSegments ] ) {
       expect( pageExists( segment ), `/${segment}/ must have an exported page` ).toBe( true );
     }
   } );
@@ -302,18 +303,14 @@ describe( 'safeLocalReturnPath — the gap is closed and the validator is wired 
     expect( safeLocalReturnPath( '/shop/file-assist/' ) ).toBe( DEFAULT );
   } );
 
-  it( 'no longer accepts /checkout/ or /account/, because neither has a page', () => {
-    // The measurement that drove the narrowing, re-asserted from the filesystem rather than
-    // trusted: `src/pages/checkout/` holds only status.tsx and success.tsx, `src/pages/account/`
-    // only sign-in.tsx. `output: 'export'` emits a page only where a source file exists, so
-    // both answered 404 live.
-    expect( pageExists( 'checkout' ) ).toBe( false );
+  it( 'accepts the real checkout method page but still rejects /account/', () => {
+    // /checkout/ now has an exported index and is the post-cart payment-method decision page.
+    // /account/ still has no index and remains outside the customer return allowlist.
+    expect( pageExists( 'checkout' ) ).toBe( true );
     expect( pageExists( 'account' ) ).toBe( false );
-
-    // INVERTED: they now fall back instead of being vouched for.
-    expect( safeLocalReturnPath( '/checkout/' ) ).toBe( DEFAULT );
+    expect( safeLocalReturnPath( '/checkout/' ) ).toBe( '/checkout/' );
+    expect( safeLocalReturnPath( '/checkout' ) ).toBe( '/checkout/' );
     expect( safeLocalReturnPath( '/account/' ) ).toBe( DEFAULT );
-    expect( safeLocalReturnPath( '/checkout' ) ).toBe( DEFAULT );
     expect( safeLocalReturnPath( '/account' ) ).toBe( DEFAULT );
   } );
 

@@ -26,9 +26,8 @@ describe( 'workspace pending-completion contracts', () => {
   } );
 
   it( 'refund initiation stays confirmed, server-derived and provider-gated', () => {
-    // The full+partial refund lifecycle supersedes the earlier full-only `initiateInvoiceRefund`.
-    // Amount and payment id are server-derived; the browser only chooses full vs partial + reason,
-    // and the provider webhook stays the authority for the terminal refunded state.
+    // Refund execution remains server-derived and provider-gated. The Orders UI exposes the
+    // simple full-refund path; the backend partial-refund capability remains independently tested.
     const orders = read( 'src/components/workspace/commerce/Orders.tsx' );
     const client = read( 'src/api/client.ts' );
     const handler = read( 'amplify/functions/payments/invoice-engine/handler.py' );
@@ -37,7 +36,7 @@ describe( 'workspace pending-completion contracts', () => {
     expect( orders ).toContain( 'useConfirm' );
     expect( orders ).not.toMatch( /\bwindow\.(alert|confirm|prompt)\s*\(/ );
     expect( orders ).toContain( 'api.initiateFullRefund' );
-    expect( orders ).toContain( 'api.initiatePartialRefund' );
+    expect( orders ).not.toContain( 'api.initiatePartialRefund' );
     expect( orders ).not.toContain( 'api.initiateInvoiceRefund' );
     expect( client ).toContain( "'initiate-refund'" );
     expect( client ).toContain( "'initiate-partial-refund'" );

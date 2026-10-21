@@ -3,23 +3,19 @@ import { useRouter } from 'next/router';
 
 import { addItem, type CartItem } from '../lib/cart';
 import type { ShopProduct } from '../content/shop';
-import { getSession, restoreSession } from '../lib/customerAuth';
-import { CHECKOUT_PATH, SIGN_IN_PATH } from '../lib/serviceEntry';
+import { CHECKOUT_PATH } from '../lib/serviceEntry';
 import { productCheckoutLine } from '../config/productCheckout';
 import CheckoutAction from './CheckoutAction';
 
 /**
- * THE PRODUCT "CONTINUE TO CHECKOUT" ACTION, mounted under the WhatsApp CTA on configured public
- * commerce pages.
+ * THE PRODUCT CHECKOUT ACTION.
  *
- * SAME SHAPE AS ServiceBuyBox, DIFFERENT RAIL. A product is an ORDINARY cart line — no
- * pre-payment intent, no target order — so this uses the plain shop path: `addItem` writes a
- * catalogue reference + quantity, then it navigates to `/cart/`, where the existing checkout
- * prices and collects. The WhatsApp pill above is untouched; this renders beneath it through
- * ProductPage's `belowCta` slot.
+ * Product routes expose one compact Checkout action only. It adds the authoritative catalogue
+ * identity to the browser cart and moves to /cart/. The customer reviews the basket there, then
+ * chooses WhatsApp or Here exactly once on the post-cart payment-method page.
  *
- * A product buy box renders only when a fresh configured checkout line exists. There is no
- * fallback product and no legacy checkout mapping. The server remains the price authority.
+ * No sign-in happens on the product route and no display price is sent to checkout. The server
+ * remains the price authority.
  */
 
 interface ProductBuyBoxProps {
@@ -37,7 +33,6 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( {
   offerNote = 'One-time purchase',
 } ) => {
   const router = useRouter();
-  const [ signedIn, setSignedIn ] = useState( false );
   const [ busy, setBusy ] = useState( false );
   const [ error, setError ] = useState<string | null>( null );
 
@@ -46,39 +41,9 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( {
 
   const line = productCheckoutLine( slug );
 
-  useEffect( () => {
-    let cancelled = false;
-    void ( async () => {
-      let live = getSession() !== null;
-      if ( !live ) {
-        try { live = ( await restoreSession() ) !== null; } catch { live = false; }
-      }
-      if ( !cancelled && alive.current ) setSignedIn( live );
-    } )();
-    return () => { cancelled = true; };
-  }, [] );
-
-  /**
-   * The click. Signed out → the one WhatsApp sign-in, returning to /cart/ (checkout is the
-   * destination for a product, there is nothing to pick first). Signed in → add the catalogue
-   * line and go to the cart. The line is a real in-stock product, so the server accepts it.
-   */
   const onContinue = useCallback( async () => {
     if ( !line || busy ) return;
     setError( null );
-
-    if ( !signedIn ) {
-      // The cart survives the sign-in redirect in localStorage, so adding the line BEFORE the
-      // redirect means it is already present on return — the same contract the shop cart uses.
-      try {
-        addProductLine( line );
-      } catch {
-        /* a malformed line writes nothing; the checkout still loads, just empty */
-      }
-      await router.push( `${ SIGN_IN_PATH }?return=${ encodeURIComponent( CHECKOUT_PATH ) }` );
-      return;
-    }
-
     setBusy( true );
     try {
       addProductLine( line );
@@ -89,12 +54,10 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( {
         setBusy( false );
       }
     }
-  }, [ busy, signedIn, router, line ] );
+  }, [ busy, router, line ] );
 
   // No fresh catalog line yet: keep the public product page, but offer no stale checkout action.
   if ( !line ) return null;
-
-  const label = 'Checkout';
 
   return (
     <div className="pbb">
@@ -103,7 +66,7 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( {
         disabled={ busy }
         busy={ busy }
       >
-        { busy ? 'One moment…' : label }
+        { busy ? 'One moment…' : 'Checkout' }
       </CheckoutAction>
 
       {/* Configured price and one supporting line are one canonical rail. */}
@@ -129,18 +92,11 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( {
         }
 
         .pbb-error{margin:12px 0 0;font-size:14px;color:#b91c1c}
-
       `}</style>
     </div>
   );
-
-  // ── helpers ────────────────────────────────────────────────────────────────────────────────
 };
 
-/**
- * Add the checkout line as an ordinary single-variant shop product. Built as a minimal ShopProduct
- * so `addItem` keys it on the real catalogue product id and variant, exactly like a /shop/ add.
- */
 function addProductLine ( line: NonNullable<ReturnType<typeof productCheckoutLine>> ): CartItem[] {
   const product: ShopProduct = {
     id: line.productId,

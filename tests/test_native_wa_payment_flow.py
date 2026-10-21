@@ -431,6 +431,8 @@ def _seed_paid_native_service(h, fake, *, verified_paise=TOTAL_PAYABLE_PAISE):
     attempt.update({
         'checkoutMode': h.CHECKOUT_MODE, 'nativeCatalogService': True, 'channel': 'whatsapp',
         'customerPhone': '+918100640044', 'catalogServiceSession': CATALOG_SESSION['orderId'],
+        'contactId': CATALOG_SESSION['contactId'],
+        'customerUuid': 'b5985cda-e76f-4d61-a8a9-97cb0d3225b8',
         'snapshotHash': 'sha256:native-service',
         'purchasedSnapshot': {
             'cart': {'id': 'native:service', 'revision': 0},

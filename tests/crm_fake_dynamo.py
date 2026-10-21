@@ -397,6 +397,12 @@ class FakeTable:
             return {"Attributes": dict(existing)} if existing else {}
         if ReturnValues == "ALL_NEW":
             return {"Attributes": dict(updated)}
+        if ReturnValues == "UPDATED_NEW":
+            changed = {
+                name: value for name, value in updated.items()
+                if name != self.key_attr and (not existing or existing.get(name) != value)
+            }
+            return {"Attributes": changed}
         return {}
 
     def delete_item(self, Key=None, ConditionExpression=None,

@@ -116,21 +116,18 @@ describe( 'the input that was missing', () => {
 } );
 
 describe( 'manual customer creation does not invent consent', () => {
-  it( 'submits every channel opt-in and allowlist false by default', async () => {
+  it( 'submits no consent or allowlist claim from manual profile creation', async () => {
     await openCreate();
     fireEvent.change( screen.getByLabelText( 'Name' ), { target: { value: 'Asha Rao' } } );
     fireEvent.change( screen.getByLabelText( 'Phone' ), { target: { value: '9812345678' } } );
     fireEvent.click( screen.getByRole( 'button', { name: /^Create|^Save/ } ) );
 
     await waitFor( () => expect( createContact ).toHaveBeenCalledTimes( 1 ) );
-    expect( createContact.mock.calls[ 0 ][ 0 ] ).toMatchObject( {
-      optInWhatsApp: false,
-      optInSms: false,
-      optInEmail: false,
-      allowlistWhatsApp: false,
-      allowlistSms: false,
-      allowlistEmail: false,
-    } );
+    const body = createContact.mock.calls[ 0 ][ 0 ];
+    for ( const field of [
+      'optInWhatsApp', 'optInSms', 'optInEmail',
+      'allowlistWhatsApp', 'allowlistSms', 'allowlistEmail',
+    ] ) expect( body ).not.toHaveProperty( field );
   } );
 } );
 

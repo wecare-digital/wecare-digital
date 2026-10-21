@@ -80,7 +80,7 @@ EXPECTED = {
     'shipments': ('849713848195607', 'DRAFT'),
     'leave_review': ('940049388908144', 'PUBLISHED'),
     'vault': (None, 'NONE'),
-    'subscribe': (None, 'NONE'),
+    'subscribe': ('1386523953464380', 'PUBLISHED'),
     'track_request': (None, 'NONE'),
 }
 
@@ -130,9 +130,9 @@ def test_canonical_ids_are_in_the_readback_keepids():
     data = json.loads(READBACK.read_text(encoding='utf-8'))
     keep = set(data.get('keepIds', []))
     for cap, (fid, _status) in EXPECTED.items():
-        # The retained-plan artifact is a 2026-10-09 historical snapshot. Leave Review was
-        # intentionally superseded by published Flow 940049388908144 on 2026-10-20.
-        if fid is not None and cap != 'leave_review':
+        # The retained-plan artifact is a 2026-10-09 historical snapshot. Leave Review and
+        # Subscribe were published after that snapshot, on 2026-10-20 and 2026-10-21.
+        if fid is not None and cap not in ('leave_review', 'subscribe'):
             assert fid in keep, f'{cap} canonical id {fid} is not in readback keepIds'
 
 
@@ -150,8 +150,7 @@ def test_inbound_handler_uses_canonical_ids():
     }
     for cap, fid in checks.items():
         assert triggers[cap]['flowId'] == fid, f"{cap} trigger flowId != canonical {fid}"
-    # Subscribe + track must NOT carry a (deprecated/draft) id any more.
-    assert not triggers['subscribe'].get('flowId'), 'subscribe must have no canonical flow'
+    assert triggers['subscribe'].get('flowId') == '1386523953464380'
     assert 'flowId2' not in triggers['subscribe'], 'deprecated subscribe flowId2 must be gone'
     assert not triggers['track_request'].get('flowId'), 'track_request must have no canonical flow'
 
@@ -164,3 +163,19 @@ def test_stale_ids_are_not_restated_anywhere():
             if sid in text:
                 offenders.append(f'{path.relative_to(ROOT)} still contains {sid} ({why})')
     assert not offenders, 'stale flow ids resurfaced:\n' + '\n'.join(offenders)
+
+
+def test_published_flow_lookup_only_returns_live_customer_flows():
+    ns: dict = {}
+    exec(PY_CANON.read_text(encoding='utf-8'), ns)
+    subscribe = ns['published_flow']('subscribe')
+    review = ns['published_flow_by_id']('940049388908144')
+    assert subscribe == {
+        'capability': 'subscribe',
+        'flowId': '1386523953464380',
+        'status': 'PUBLISHED',
+        'metaName': 'WD_Subscribe_Design_v1',
+    }
+    assert review and review['capability'] == 'leave_review'
+    assert ns['published_flow']('orders') is None
+    assert ns['published_flow_by_id']('') is None

@@ -110,7 +110,7 @@ const BharatRxPage: React.FC = () => (
           </li>
         </ol>
 
-        {/* One checkout entry. Payment mode is chosen once, after cart review. */}
+        {/* One checkout entry. Payment mode is chosen after cart review. */}
         <ProductBuyBox slug="bharat-rx" />
 
         <div className="brx-commerce">

@@ -191,9 +191,12 @@ PAYMENT_WABA_ID = os.environ.get("PAYMENT_WABA_ID", "2094615664435155")
 EXPECTED_CONFIGURATION_NAME = os.environ.get("EXPECTED_CONFIGURATION_NAME", "")
 EXPECTED_PROVIDER_MID = os.environ.get("EXPECTED_PROVIDER_MID", "")
 
-#: Off by default. The plumbing runs; the payable message does not go out until this is truthy.
-INITIATION_ENABLED = str(
-    os.environ.get("CHECKOUT_INITIATION_ENABLED", "")).strip().lower() in ("1", "true", "yes", "on")
+#: Hard-enabled by owner authorization (2026-10-21): the checkout initiation gate was removed.
+#: Previously read CHECKOUT_INITIATION_ENABLED (default off); that env toggle is deleted so
+#: initiation is always on. NOTE: payment_readiness.evaluate (EXPECTED_CONFIGURATION_NAME /
+#: EXPECTED_PROVIDER_MID) still independently governs whether a payable message actually goes
+#: out -- that readiness check is intentionally left intact by this change.
+INITIATION_ENABLED = True
 
 #: The catalogue product id of the live Contribute product, lowercased, as the deployment
 #: environment carries it (`config/lambda-env-manifest.json`). NOT a secret -- a catalogue
@@ -727,7 +730,11 @@ def _cart_order_details(snapshot, reference_id: str, profile: Dict[str, Any],
         }
         order["couponCode"] = default_coupon.DELIGHT_CODE
 
-    full_address = str(address.get("fullAddress") or address.get("addressLine1") or "").strip()
+    full_address = ", ".join(
+        part for part in (
+            str(address.get("addressLine1") or "").strip(),
+            str(address.get("addressLine2") or "").strip(),
+        ) if part)
     shipping_info = {
         "country": str(address.get("countryCode") or "IN"),
         "addresses": [{
@@ -1919,6 +1926,15 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
                 "error": "DELIVERY_DETAILS_REQUIRED",
                 "message": "Confirm your delivery address before paying on WhatsApp.",
             }, origin)
+        try:
+            payment_address.assert_payable(
+                cart_address, channel=payment_address.WHATSAPP_ORDER_DETAILS)
+        except payment_address.UnpayableAddress:
+            return cors_response(409, {
+                "error": "DELIVERY_DETAILS_REQUIRED",
+                "message": "This delivery address cannot be used for WhatsApp payment. "
+                           "Update it or choose Pay here.",
+            }, origin)
 
     # 1. Authoritative total, from ProductsTable. Both the ordinary cart WhatsApp rail and the
     #    catalog-service leg use the exact same native quote as website prepare. The browser sent
@@ -1979,10 +1995,14 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
     # 3. Reserve a canonical reference bound to a fresh attempt id, then build the attempt. The
     #    reference is minted and durably reserved BEFORE it is used, and never transformed after.
     attempt_id = payment_attempt.new_payment_attempt_id()
+    checkout_mode = (
+        CHECKOUT_MODE if catalog_session is not None
+        else wa_payment_request.WA_NATIVE_CART_CHECKOUT_MODE
+    )
     try:
         extra = {"customerId": identity.customer_id,
                  "amountPaise": amount_paise, "currency": "INR",
-                 "checkoutMode": CHECKOUT_MODE,
+                 "checkoutMode": checkout_mode,
                  "channel": order_channel.CHANNEL_WHATSAPP}
         if snapshot is not None:
             # The cart join keys. `cartId` + `cartRevision` is what reconciliation matches on,
@@ -2009,6 +2029,8 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         if catalog_session is not None:
             extra.update(channel='whatsapp', nativeCatalogService=True,
                          customerPhone=_profile_phone(identity))
+            if catalog_session.get('customerUuid'):
+                extra[customer_uuid.ATTRIBUTE] = str(catalog_session['customerUuid'])
         reference_id = order_keys.allocate_payment_reference(
             _keys_table(), payment_attempt_id=attempt_id, extra=extra,
         )
@@ -2023,7 +2045,7 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         configuration_name=EXPECTED_CONFIGURATION_NAME,
         payment_attempt_id=attempt_id,
     )
-    attempt["checkoutMode"] = CHECKOUT_MODE
+    attempt["checkoutMode"] = checkout_mode
     if catalog_session is None and cart_profile is not None:
         attempt.update(
             channel=order_channel.CHANNEL_WHATSAPP,
@@ -2048,6 +2070,8 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         # order inherits it so the WhatsApp purchase sits on the same contact as everything else.
         if catalog_session.get('contactId'):
             attempt['contactId'] = str(catalog_session['contactId'])
+        if catalog_session.get('customerUuid'):
+            attempt[customer_uuid.ATTRIBUTE] = str(catalog_session['customerUuid'])
         if len(json.dumps(attempt, default=str).encode()) > 350000:
             return cors_response(409, {'error': 'CATALOG_SERVICE_SNAPSHOT_TOO_LARGE'}, origin)
 
@@ -2366,5 +2390,8 @@ def _native_catalog_service(event: Dict[str, Any], origin: str):
         if getattr(error, 'response', {}).get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
             return {'outcome': 'CATALOG_SERVICE_RECONCILIATION_REQUIRED'}
         raise
+    public_uuid = customer_uuid.from_contact(contact)
+    if public_uuid:
+        row['customerUuid'] = public_uuid
     return _create(identity, {'lineItems': lines, 'serviceIntentId': row['serviceIntentId']},
                    origin, catalog_session=row)
