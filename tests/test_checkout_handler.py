@@ -359,11 +359,11 @@ def test_create_disabled_prepares_attempt_but_sends_nothing_and_makes_no_order(e
     assert body['amountPaise'] == TOTAL_PAYABLE_PAISE
     assert body['currency'] == 'INR'
 
-    # An ordinary cart attempt uses the dedicated WhatsApp-cart settlement mode.
+    # The catalog-service leg settles via the AWS_NATIVE checkout mode.
     attempts = fake.all_rows(ATTEMPTS_TABLE)
     assert len(attempts) == 1
     assert attempts[0]['customerId'] == CUSTOMER
-    assert attempts[0]['checkoutMode'] == 'WHATSAPP_NATIVE_CART'
+    assert attempts[0]['checkoutMode'] == 'AWS_NATIVE'
     assert attempts[0]['amountPaise'] == TOTAL_PAYABLE_PAISE
     assert attempts[0]['status'] == 'PAYMENT_READINESS_CHECKED'
 

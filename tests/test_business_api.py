@@ -383,9 +383,11 @@ class TestSendMessages:
         assert self.h._send_flow_msg({'to': '919900000000'})['statusCode'] == 400
 
     def test_flow_by_id_success(self):
-        with self._ok_send():
-            res = self.h._send_flow_msg({'to': '919900000000', 'flowId': 'f1', 'screen': 'WELCOME'})
+        with self._ok_send() as graph:
+            res = self.h._send_flow_msg({'to': '919900000000', 'flowId': '940049388908144', 'screen': 'WELCOME'})
             assert res['statusCode'] == 200
+            params = graph.call_args.kwargs['payload']['interactive']['action']['parameters']
+            assert params['flow_id'] == '940049388908144'
 
     def test_subscribe_uses_workspace_copy_for_the_saved_customer(self):
         from flows import subscribe_messages
@@ -430,7 +432,8 @@ class TestSendMessages:
         copy.assert_called_once_with(True)
         message=send.call_args.args[1]['interactive']
         assert message['body']['text']=='Welcome by name'
-        assert message['action']['parameters']['flow_name']==subscribe_messages.FLOW_NAME
+        assert message['action']['parameters']['flow_id']==subscribe_messages.FLOW_ID
+        assert 'flow_name' not in message['action']['parameters']
 
     def test_subscribe_bsuid_send_resolves_customer_for_copy_and_token(self):
         from flows import subscribe_messages
@@ -1031,7 +1034,9 @@ class TestCanonicalPublishedFlowSend:
                 self.h = handler
 
     def test_subscribe_flow_key_resolves_published_id_and_phone_token(self):
+        from lambda_utils import contact_store
         with patch.object(self.h, '_send_message', return_value={'statusCode': 200}) as send, \
+             patch.object(contact_store, 'lookup', return_value={}), \
              patch('flows.subscribe_messages.copy_for', return_value={
                  'body': 'Subscribe body', 'flowCta': 'Subscribe', 'confirmation': 'Saved'
              }), \
