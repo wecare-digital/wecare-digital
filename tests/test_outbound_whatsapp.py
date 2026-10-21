@@ -698,3 +698,73 @@ class TestDiscountLabel:
         order = {'couponCode': self.code, 'discount': {'value': 299, 'offset': 100}}
         assert self.label(order) == self.canonical
         assert self.canonical == 'Delight'
+
+
+class TestWhatsAppMarketingConsentEnforcement:
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'amplify', 'functions', 'messaging', 'outbound-whatsapp'))
+        with patch.dict(os.environ, {'AWS_REGION': 'us-east-1', 'SEND_MODE': 'LIVE'}):
+            with patch('boto3.resource'), patch('boto3.client'):
+                import handler as h
+        self.h = h
+
+    @staticmethod
+    def contact_with(records):
+        return {'id': 'contact-1', 'phone': '+919812345678', 'consentLedger': records}
+
+    def record(self, state, at):
+        return self.h.consent_evidence.build_record(
+            channel='WHATSAPP',
+            state=state,
+            source='WEB_FORM' if state == 'OPTED_IN' else 'CUSTOMER_REQUEST',
+            at=at,
+            purpose='MARKETING',
+            reference='otp-signin',
+        )
+
+    def test_marketing_opted_in_is_allowed(self):
+        contact=self.contact_with([self.record('OPTED_IN', 100)])
+        refusal=self.h._marketing_consent_refusal(contact, 'MARKETING', 'contact-1', 'r')
+        assert refusal is None
+
+    def test_marketing_without_evidence_is_blocked(self):
+        refusal=self.h._marketing_consent_refusal(
+            {'id':'contact-1','phone':'+919812345678'}, 'MARKETING', 'contact-1', 'r')
+        assert refusal['statusCode']==403
+        body=json.loads(refusal['body'])
+        assert body['error']=='WHATSAPP_MARKETING_CONSENT_REQUIRED'
+
+    def test_latest_marketing_opt_out_wins(self):
+        contact=self.contact_with([
+            self.record('OPTED_IN', 100),
+            self.record('OPTED_OUT', 200),
+        ])
+        refusal=self.h._marketing_consent_refusal(contact, 'MARKETING', 'contact-1', 'r')
+        assert refusal['statusCode']==403
+
+    @pytest.mark.parametrize('purpose',['SERVICE','TRANSACTIONAL'])
+    def test_non_marketing_purpose_does_not_require_marketing_opt_in(self,purpose):
+        refusal=self.h._marketing_consent_refusal(
+            {'id':'contact-1','phone':'+919812345678'}, purpose, 'contact-1', 'r')
+        assert refusal is None
+
+    def test_live_meta_marketing_category_cannot_be_downgraded_by_caller(self):
+        with patch.object(self.h,'_template_category_for_send',return_value='MARKETING'):
+            purpose=self.h._resolve_whatsapp_message_purpose(
+                {'messagePurpose':'SERVICE'},
+                self.h.PHONE_NUMBER_ID_1, True, 'promo_offer', False, 'r')
+        assert purpose=='MARKETING'
+
+    def test_utility_template_defaults_transactional(self):
+        with patch.object(self.h,'_template_category_for_send',return_value='UTILITY'):
+            purpose=self.h._resolve_whatsapp_message_purpose(
+                {}, self.h.PHONE_NUMBER_ID_1, True, 'order_update', False, 'r')
+        assert purpose=='TRANSACTIONAL'
+
+    def test_campaign_is_marketing_even_for_utility_named_request(self):
+        with patch.object(self.h,'_template_category_for_send',return_value='UTILITY'):
+            purpose=self.h._resolve_whatsapp_message_purpose(
+                {'campaignId':'WC123'}, self.h.PHONE_NUMBER_ID_1,
+                True, 'campaign_template', False, 'r')
+        assert purpose=='MARKETING'
