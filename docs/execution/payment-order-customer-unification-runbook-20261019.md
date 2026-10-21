@@ -10,9 +10,11 @@ public `customerUuid`. What remains is making the live index carry those fields,
 handlers, and recovering any stranded paid order.
 
 LIVE STATUS (verified read-only, updated 2026-10-21, us-east-1):
-- **Identity registry blocker:** `stack-wecare-digital-IdentityClaimsTable` is currently absent
-  in production even though current contact writers call `lambda_utils.identity_claims`. Provision
-  and backfill it before deploying those writers or accepting identity-changing traffic.
+- The strong-identity registry `stack-wecare-digital-IdentityClaimsTable` is now **ACTIVE** with
+  PITR **ENABLED** (verified 2026-10-21). The current live backfill has 8 expected strong-identity
+  claims with **0 duplicate groups, 0 missing claims, 0 wrong-owner claims and 0 stale claims**.
+  The minimal customer-managed IAM policy `wecare-customer-identity-claims` is attached to the
+  two deployed writer roles (`wecare-digital-lambda-role` and `wecare-customer-profile-role`).
 - The v2 index `customerId-createdAt-v2-index` is now **ACTIVE** with `Backfilling:false`
   on `stack-wecare-digital-OrderTable` (re-verified 2026-10-21). Its projection carries BOTH
   `channel` and `customerUuid`. The old v1 index still exists for rollback compatibility.
