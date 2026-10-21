@@ -166,7 +166,7 @@ PUBLIC_TOKEN_CONSUMERS = {
     SRC / "components/Footer.tsx": ("--public-content-max", "--public-muted"),
     SRC / "pages/grahak-os/index.tsx": (
         "--public-section-size", "--public-body-size", "--public-card-size", "--public-content-max",
-        "--public-mobile-section-size", "--public-mobile-card-size", "--public-mobile-cta-font-size",
+        "--public-mobile-section-size", "--public-mobile-card-size",
         "--public-mobile-page-gutter", "--public-mobile-section-gap",
     ),
     SRC / "pages/bharat-rx.tsx": ("--public-section-size", "--public-body-size", "--public-card-size"),
