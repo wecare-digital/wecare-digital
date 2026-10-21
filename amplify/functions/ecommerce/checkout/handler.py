@@ -2029,6 +2029,8 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         if catalog_session is not None:
             extra.update(channel='whatsapp', nativeCatalogService=True,
                          customerPhone=_profile_phone(identity))
+            if catalog_session.get('customerUuid'):
+                extra[customer_uuid.ATTRIBUTE] = str(catalog_session['customerUuid'])
         reference_id = order_keys.allocate_payment_reference(
             _keys_table(), payment_attempt_id=attempt_id, extra=extra,
         )
@@ -2068,6 +2070,8 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         # order inherits it so the WhatsApp purchase sits on the same contact as everything else.
         if catalog_session.get('contactId'):
             attempt['contactId'] = str(catalog_session['contactId'])
+        if catalog_session.get('customerUuid'):
+            attempt[customer_uuid.ATTRIBUTE] = str(catalog_session['customerUuid'])
         if len(json.dumps(attempt, default=str).encode()) > 350000:
             return cors_response(409, {'error': 'CATALOG_SERVICE_SNAPSHOT_TOO_LARGE'}, origin)
 
@@ -2386,5 +2390,8 @@ def _native_catalog_service(event: Dict[str, Any], origin: str):
         if getattr(error, 'response', {}).get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
             return {'outcome': 'CATALOG_SERVICE_RECONCILIATION_REQUIRED'}
         raise
+    public_uuid = customer_uuid.from_contact(contact)
+    if public_uuid:
+        row['customerUuid'] = public_uuid
     return _create(identity, {'lineItems': lines, 'serviceIntentId': row['serviceIntentId']},
                    origin, catalog_session=row)

@@ -402,6 +402,47 @@ def test_the_catalog_leg_prices_natively(env, monkeypatch):
     assert fake.count(ATTEMPTS_TABLE) == 1
 
 
+def _catalog_payref(fake):
+    rows = [row for row in fake.all_rows(KEYS_TABLE)
+            if str(row.get('orderId', '')).startswith('PAYREF#')]
+    assert len(rows) == 1
+    return rows[0]
+
+
+def test_catalog_service_customer_uuid_reaches_attempt_and_payref(env, monkeypatch):
+    h, fake, _lam, _mp = env
+    _enable_catalog_leg(h, monkeypatch)
+    session = dict(CATALOG_SESSION, customerUuid='33333333-3333-4333-8333-333333333333')
+    body = {'lineItems': [{'catalogReference': {
+        'catalogItemId': SERVICE_PRODUCT_ID,
+        'options': {'variantId': SERVICE_VARIANT_ID},
+    }, 'quantity': 1}], 'serviceIntentId': SERVICE_INTENT_ID}
+
+    resp = h._create(_Identity(CUSTOMER), body, 'http://localhost:3000',
+                     catalog_session=session)
+    assert resp['statusCode'] == 200
+
+    attempt = fake.all_rows(ATTEMPTS_TABLE)[0]
+    assert attempt['customerUuid'] == session['customerUuid']
+    assert _catalog_payref(fake)['customerUuid'] == session['customerUuid']
+
+
+def test_catalog_service_without_public_uuid_omits_attribute(env, monkeypatch):
+    h, fake, _lam, _mp = env
+    _enable_catalog_leg(h, monkeypatch)
+    body = {'lineItems': [{'catalogReference': {
+        'catalogItemId': SERVICE_PRODUCT_ID,
+        'options': {'variantId': SERVICE_VARIANT_ID},
+    }, 'quantity': 1}], 'serviceIntentId': SERVICE_INTENT_ID}
+
+    resp = h._create(_Identity(CUSTOMER), body, 'http://localhost:3000',
+                     catalog_session=dict(CATALOG_SESSION))
+    assert resp['statusCode'] == 200
+
+    assert 'customerUuid' not in fake.all_rows(ATTEMPTS_TABLE)[0]
+    assert 'customerUuid' not in _catalog_payref(fake)
+
+
 # ── fail-closed readiness ─────────────────────────────────────────────────────
 
 def test_blocked_readiness_creates_no_attempt_and_no_order(env):
