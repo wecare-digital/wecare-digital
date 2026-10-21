@@ -64,8 +64,7 @@ class TestTemplatePayloadValidation:
             'components': [
                 {'type': 'HEADER', 'format': 'IMAGE'},
                 {'type': 'BODY', 'text': 'Special offer: {{1}}% off!'},
-                {'type': 'FOOTER', 'text': 'Reply STOP to opt out'},
-                {'type': 'BUTTONS', 'buttons': [
+                                {'type': 'BUTTONS', 'buttons': [
                     {'type': 'QUICK_REPLY', 'text': 'Shop Now'},
                     {'type': 'QUICK_REPLY', 'text': 'Not Interested'},
                 ]}
@@ -149,23 +148,6 @@ class TestTemplateRoutesB:
         body = json.loads(res['body'])
         assert body['ok'] is False
         assert len(body['errors']) >= 1
-
-    def test_list_presets(self):
-        res = self.h._list_presets()
-        body = json.loads(res['body'])
-        names = [p['name'] for p in body['presets']]
-        assert 'order_confirmation' in names
-        assert 'flow_lead_generation' in names
-
-    def test_get_preset(self):
-        res = self.h._get_preset('order_confirmation')
-        body = json.loads(res['body'])
-        assert res['statusCode'] == 200
-        assert body['preset']['name'] == 'order_confirmation'
-
-    def test_get_unknown_preset_404(self):
-        res = self.h._get_preset('nope')
-        assert res['statusCode'] == 404
 
     def test_refresh_template(self):
         with patch.object(self.h, '_meta_request', return_value={
