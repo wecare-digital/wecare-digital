@@ -816,3 +816,275 @@ def test_an_unreconciled_service_order_keeps_the_session_open(env):
     assert stored['finalizationReason'] == 'TENDER_SUM_MISMATCH'
     session = fake.Table(KEYS_TABLE).get_item(Key={'orderId': NATIVE_SESSION_KEY})['Item']
     assert session['status'] == 'ACTIVE'
+
+
+# ── FEAT-002: the GENERAL PRODUCT CART native money leg (`prepareNativeCart`) ──
+#
+# The general cart converges on the SAME `_create` the website and the catalog-service leg use.
+# `_native_cart` is its internal-action entry: it resolves the verified customer from the contact,
+# turns the basket into `catalogReference` line items (productId/variantId/quantity only), and
+# calls `_create` so the amount comes from `_native_quote` and the ONE attempt + PAYREF# carry
+# contactId + customerUuid. These tests prove the five money-path invariants FEAT-002 requires.
+
+#: A Cognito sub (canonical lowercase UUID) for the verified native-cart customer.
+NATIVE_CART_SUB = '7c9e6679-7425-40de-944b-e07fc1f90ae7'
+NATIVE_CART_CONTACT_ID = 'wa919876543210'
+NATIVE_CART_PHONE = '+919876543210'
+NATIVE_CART_PRODUCT = 'eeeeeeee-5555-4555-8555-eeeeeeeeeeee'
+NATIVE_CART_VARIANT = 'ffffffff-6666-4666-8666-ffffffffffff'
+
+
+def _native_cart_contact():
+    """A verified contact row: a Cognito owner, the matching phone, not deleted."""
+    return {'id': NATIVE_CART_CONTACT_ID, 'contactId': NATIVE_CART_CONTACT_ID,
+            'checkoutCustomerId': NATIVE_CART_SUB, 'phone': NATIVE_CART_PHONE,
+            'customerUuid': '5f701556-7818-494a-a9aa-cf57da6287c2',
+            'email': 'customer@example.com'}
+
+
+def _native_cart_cognito_user(enabled=True):
+    return {'Enabled': enabled, 'Attributes': [
+        {'Name': 'sub', 'Value': NATIVE_CART_SUB},
+        {'Name': 'phone_number', 'Value': NATIVE_CART_PHONE},
+        {'Name': 'phone_number_verified', 'Value': 'true'}]}
+
+
+class _FakeCognito:
+    """A `cognito-idp` client whose `list_users` returns a fixed user list."""
+
+    def __init__(self, users):
+        self._users = users
+
+    def list_users(self, **_):
+        return {'Users': list(self._users)}
+
+
+def _native_cart_profile():
+    """The checkout profile `_create`'s general-cart arm reads, owned by the verified sub, with a
+    payable saved address. contactId + customerUuid come off THIS row."""
+    return {
+        'id': NATIVE_CART_CONTACT_ID, 'contactId': NATIVE_CART_CONTACT_ID,
+        'checkoutCustomerId': NATIVE_CART_SUB,
+        'customerUuid': '5f701556-7818-494a-a9aa-cf57da6287c2',
+        'phone': NATIVE_CART_PHONE, 'email': 'customer@example.com', 'emailVerifiedAt': 1,
+        'name': 'Checkout Customer', 'firstName': 'Checkout', 'lastName': 'Customer',
+        'checkoutDeliveryAddress': {
+            'addressLine1': '12 Example Road', 'city': 'Kolkata', 'state': 'West Bengal',
+            'postalCode': '700001', 'countryCode': 'IN', 'country': 'India',
+            'fullAddress': '12 Example Road, Kolkata, West Bengal 700001'},
+    }
+
+
+def _arm_native_cart(h, monkeypatch, *, users=None, profile=True, quote=True, initiation=True,
+                     cognito_raises=False):
+    """Put the handler on the general-cart native leg: a verified contact, a Cognito user list,
+    an owned profile and a stubbed native quote. Pricing itself is proven in
+    `tests/test_native_checkout.py`; this leg's subject is `_create`'s contract."""
+    if users is None:
+        users = [_native_cart_cognito_user()]
+
+    def client(service, **_):
+        if service == 'cognito-idp':
+            if cognito_raises:
+                raise RuntimeError('cognito unavailable')
+            return _FakeCognito(users)
+        raise AssertionError(f'unexpected boto3 client {service}')
+
+    monkeypatch.setattr(h.boto3, 'client', client)
+    if profile:
+        monkeypatch.setattr(h, '_checkout_profile', lambda identity: _native_cart_profile())
+    if quote:
+        monkeypatch.setattr(h, '_native_quote', lambda identity, line_items, now: _Snapshot())
+    monkeypatch.setattr(h, 'INITIATION_ENABLED', initiation)
+    # The default WABA1-inclusive, physical-goods order_details builder is stubbed so the leg
+    # does not need a ProductsTable display read; the amount still comes from the quote.
+    monkeypatch.setattr(h, '_cart_order_details', lambda *a, **k: {
+        'reference_id': 'ref', 'type': 'physical-goods', 'currency': 'INR',
+        'total_amount': {'value': TOTAL_PAYABLE_PAISE, 'offset': 100},
+        'shipping_info': {'country': 'IN', 'addresses': [{'name': 'Checkout Customer'}]},
+        'order': {'status': 'pending', 'items': []}})
+
+
+def _native_cart_event(**over):
+    event = {'internalAction': 'prepareNativeCart',
+             'contactId': NATIVE_CART_CONTACT_ID, 'senderPhone': NATIVE_CART_PHONE,
+             'phoneNumberId': h_phone_id(),
+             'lines': [{'productId': NATIVE_CART_PRODUCT, 'variantId': NATIVE_CART_VARIANT,
+                        'quantity': 2}]}
+    event.update(over)
+    return event
+
+
+def h_phone_id():
+    from lambda_utils.ecommerce import wa_payment_request
+    return wa_payment_request.PHONE_NUMBER_ID_1
+
+
+def _seed_native_cart_contact(fake):
+    fake.Table('stack-wecare-digital-ContactsTable').put_item(Item=_native_cart_contact())
+
+
+def test_native_cart_disabled_prepares_nothing(env):
+    h, fake, lam, monkeypatch = env
+    monkeypatch.delenv('WA_CATALOG_ORDERS_ENABLED', raising=False)
+    _arm_native_cart(h, monkeypatch)
+    _seed_native_cart_contact(fake)
+    result = h._native_cart(_native_cart_event(), 'http://localhost:3000')
+    assert result == {'outcome': 'NATIVE_CART_ROLLOUT_DISABLED'}
+    assert fake.count(ATTEMPTS_TABLE) == 0
+
+
+def test_native_cart_prices_server_side_and_reserves_one_attempt_with_identity(env):
+    """(1) The amount is the `_native_quote` total, never a client `item_price`; the ONE attempt
+    and ONE PAYREF# carry contactId + customerUuid."""
+    h, fake, lam, monkeypatch = env
+    monkeypatch.setenv('WA_CATALOG_ORDERS_ENABLED', 'true')
+    _arm_native_cart(h, monkeypatch)
+    _seed_native_cart_contact(fake)
+
+    result = h._native_cart(_native_cart_event(), 'http://localhost:3000')
+    assert result['outcome'] == 'NATIVE_CART_PREPARED', result
+
+    attempts = fake.all_rows(ATTEMPTS_TABLE)
+    assert len(attempts) == 1
+    attempt = attempts[0]
+    assert attempt['amountPaise'] == TOTAL_PAYABLE_PAISE
+    assert attempt['customerId'] == NATIVE_CART_SUB
+    assert attempt['channel'] == 'whatsapp'
+    assert attempt['checkoutMode'] == h.wa_payment_request.WA_NATIVE_CART_CHECKOUT_MODE
+    assert attempt['contactId'] == NATIVE_CART_CONTACT_ID
+    assert attempt['customerUuid'] == '5f701556-7818-494a-a9aa-cf57da6287c2'
+
+    payrefs = [r for r in fake.all_rows(KEYS_TABLE)
+               if str(r.get('orderId', '')).startswith('PAYREF#')]
+    assert len(payrefs) == 1
+    assert payrefs[0]['amountPaise'] == TOTAL_PAYABLE_PAISE
+    # The approved template send went through the outbound sender with the checkout envelope.
+    sends = [c for c in lam.invocations if c.get('isCheckoutTemplate') is True]
+    assert len(sends) == 1
+    assert sends[0]['phoneNumberId'] == h.wa_payment_request.PHONE_NUMBER_ID_1
+
+
+def test_native_cart_refuses_a_non_waba1_sender_before_any_effect(env):
+    """(5) A non-WABA1 sender is refused by PAYMENT_SENDERS before any read, attempt or send."""
+    h, fake, lam, monkeypatch = env
+    monkeypatch.setenv('WA_CATALOG_ORDERS_ENABLED', 'true')
+    _arm_native_cart(h, monkeypatch)
+    _seed_native_cart_contact(fake)
+    result = h._native_cart(_native_cart_event(phoneNumberId=WABA2_SENDER),
+                            'http://localhost:3000')
+    assert result == {'outcome': 'PAYMENT_SENDER_NOT_PERMITTED'}
+    assert fake.count(ATTEMPTS_TABLE) == 0
+    assert lam.invocations == []
+
+
+def test_native_cart_refuses_an_unverified_customer_with_no_side_effect(env):
+    """(2a) A contact with no Cognito owner is refused: no attempt, no reference, no order."""
+    h, fake, lam, monkeypatch = env
+    monkeypatch.setenv('WA_CATALOG_ORDERS_ENABLED', 'true')
+    _arm_native_cart(h, monkeypatch)
+    fake.Table('stack-wecare-digital-ContactsTable').put_item(Item={
+        'id': NATIVE_CART_CONTACT_ID, 'phone': NATIVE_CART_PHONE})  # no checkoutCustomerId
+    result = h._native_cart(_native_cart_event(), 'http://localhost:3000')
+    assert result == {'outcome': 'VERIFIED_CUSTOMER_REQUIRED'}
+    assert fake.count(ATTEMPTS_TABLE) == 0
+    assert not [r for r in fake.all_rows(KEYS_TABLE)
+                if str(r.get('orderId', '')).startswith('PAYREF#')]
+
+
+def test_native_cart_refuses_a_disabled_cognito_user(env):
+    """(2a) A disabled/mismatched Cognito user fails `verified_identity`: refused, nothing left."""
+    h, fake, lam, monkeypatch = env
+    monkeypatch.setenv('WA_CATALOG_ORDERS_ENABLED', 'true')
+    _arm_native_cart(h, monkeypatch, users=[_native_cart_cognito_user(enabled=False)])
+    _seed_native_cart_contact(fake)
+    result = h._native_cart(_native_cart_event(), 'http://localhost:3000')
+    assert result == {'outcome': 'VERIFIED_CUSTOMER_REQUIRED'}
+    assert fake.count(ATTEMPTS_TABLE) == 0
+
+
+def test_native_cart_that_cannot_be_priced_is_refused_with_no_attempt(env):
+    """(2b) `_native_quote` raising CatalogPricingError leaves NO attempt and NO reference."""
+    h, fake, lam, monkeypatch = env
+    monkeypatch.setenv('WA_CATALOG_ORDERS_ENABLED', 'true')
+    _arm_native_cart(h, monkeypatch, quote=False)
+    _seed_native_cart_contact(fake)
+
+    def unpriceable(identity, line_items, now):
+        raise h.catalog_pricing.CatalogPricingError('unknown variant')
+
+    monkeypatch.setattr(h, '_native_quote', unpriceable)
+    result = h._native_cart(_native_cart_event(), 'http://localhost:3000')
+    assert result['outcome'] == 'NATIVE_CART_NOT_PREPARED'
+    assert result['statusCode'] == 502
+    assert fake.count(ATTEMPTS_TABLE) == 0
+    assert not [r for r in fake.all_rows(KEYS_TABLE)
+                if str(r.get('orderId', '')).startswith('PAYREF#')]
+
+
+def test_native_cart_without_a_saved_address_is_refused(env):
+    """(2b) No payable saved address -> `_create` refuses DELIVERY_DETAILS_REQUIRED, no attempt."""
+    h, fake, lam, monkeypatch = env
+    monkeypatch.setenv('WA_CATALOG_ORDERS_ENABLED', 'true')
+    _arm_native_cart(h, monkeypatch, profile=False)
+    monkeypatch.setattr(h, '_checkout_profile',
+                        lambda identity: dict(_native_cart_profile(),
+                                              checkoutDeliveryAddress=None))
+    _seed_native_cart_contact(fake)
+    result = h._native_cart(_native_cart_event(), 'http://localhost:3000')
+    assert result['outcome'] == 'NATIVE_CART_NOT_PREPARED'
+    assert fake.count(ATTEMPTS_TABLE) == 0
+
+
+def test_native_cart_empty_or_malformed_lines_are_refused(env):
+    h, fake, lam, monkeypatch = env
+    monkeypatch.setenv('WA_CATALOG_ORDERS_ENABLED', 'true')
+    _arm_native_cart(h, monkeypatch)
+    _seed_native_cart_contact(fake)
+    for bad in ([], [{'productId': NATIVE_CART_PRODUCT, 'variantId': '', 'quantity': 1}],
+                [{'productId': NATIVE_CART_PRODUCT, 'variantId': NATIVE_CART_VARIANT,
+                  'quantity': 0}]):
+        result = h._native_cart(_native_cart_event(lines=bad), 'http://localhost:3000')
+        assert result == {'outcome': 'NATIVE_CART_EMPTY'}
+    assert fake.count(ATTEMPTS_TABLE) == 0
+
+
+def test_both_legs_land_on_one_attempt_carrying_contact_and_customer_uuid(env):
+    """(4) The catalog-service leg and the general-cart leg each produce exactly ONE attempt that
+    carries contactId + customerUuid, on the same `_create` machinery."""
+    h, fake, lam, monkeypatch = env
+    # General cart.
+    monkeypatch.setenv('WA_CATALOG_ORDERS_ENABLED', 'true')
+    _arm_native_cart(h, monkeypatch)
+    _seed_native_cart_contact(fake)
+    h._native_cart(_native_cart_event(), 'http://localhost:3000')
+    cart_attempts = fake.all_rows(ATTEMPTS_TABLE)
+    assert len(cart_attempts) == 1
+    assert cart_attempts[0]['contactId'] and cart_attempts[0]['customerUuid']
+
+    # Catalog service, on the same handler, through `_create` with a session.
+    _seed_catalog_session(fake)
+    session = dict(CATALOG_SESSION, contactId='contact-cat-1',
+                   customerUuid='33333333-3333-4333-8333-333333333333')
+    body = {'lineItems': [{'catalogReference': {
+        'catalogItemId': SERVICE_PRODUCT_ID,
+        'options': {'variantId': SERVICE_VARIANT_ID}}, 'quantity': 1}],
+        'serviceIntentId': SERVICE_INTENT_ID}
+    resp = h._create(_Identity(CATALOG_CUSTOMER), body, 'http://localhost:3000',
+                     catalog_session=session)
+    assert resp['statusCode'] == 200
+    service_attempt = [a for a in fake.all_rows(ATTEMPTS_TABLE)
+                       if a.get('nativeCatalogService')]
+    assert len(service_attempt) == 1
+    assert service_attempt[0]['contactId'] == 'contact-cat-1'
+    assert service_attempt[0]['customerUuid'] == '33333333-3333-4333-8333-333333333333'
+
+
+def test_native_cart_requires_internal_invocation():
+    """A caller-shaped event (requestContext/path) is refused: this action is internal only."""
+    spec = importlib.util.spec_from_file_location('checkout_internal_guard', _HANDLER_PATH)
+    h = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(h)
+    resp = h.handler({'internalAction': 'prepareNativeCart',
+                      'requestContext': {'http': {'method': 'POST'}}}, None)
+    assert resp['statusCode'] == 403

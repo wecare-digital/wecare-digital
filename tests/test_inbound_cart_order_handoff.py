@@ -1,19 +1,24 @@
-"""`_handle_cart_order` writes a hand-off and sends a link. It computes no money, and sends nothing
-at all while the gate is off.
+"""`_handle_cart_order` parses a catalogue cart and drives the NATIVE ORDER_DETAILS money leg.
 
-This file is half additive and half a REMOVAL TEST, and the removal half is the important one. The
-replaced implementation read Meta's `item_price` as a `float`, added 18% GST to goods whose
-catalogue price already carried it, logged a 2% convenience fee, rewrote every retailer id to
-`ITEM_n`, and then called `_send_payment_request` to build an `order_details` / Review-and-Pay
-message against a Meta payment configuration this account does not have. The AST assertions at
-the bottom are what stop any of that coming back by accident.
+THE AUTHORIZED CONTRACT (owner-authorised, FEAT-002). With the gate on and a verified customer, a
+product cart reaches a PRICED native payment send through the unified checkout machinery: the
+inbound handler invokes `wecare-checkout:live` with `internalAction == 'prepareNativeCart'`,
+passing variants and integer quantities ONLY. The amount, the single `PAYREF#` reservation and the
+approved-template send all live in `ecommerce/checkout`, never here.
+
+This file is HALF a behaviour test and HALF a removal test, and the removal half is the important
+one. The deleted sender read Meta's `item_price` as a `float`, added 18% GST, logged a 2%
+convenience fee, rewrote retailer ids to `ITEM_n`, and minted a `WD-PAY` reference reserved
+nowhere. The AST assertions at the bottom keep every one of those from coming back: the inbound
+cart path contains no float money arithmetic, no 2%/18% fee-or-GST constant, does not read
+`item_price` as a price, and mints no hand-built `WD-PAY` reference. Pricing and reservation are
+proven server-side in `tests/test_checkout_handler.py` (the `prepareNativeCart` / `_create` leg).
 """
 from __future__ import annotations
 
 import ast
 import importlib.util
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -42,10 +47,16 @@ PRODUCT_B = "cccccccc-3333-4333-8333-cccccccccccc"
 VARIANT_B = "dddddddd-4444-4444-8444-dddddddddddd"
 
 #: A plain fixture subscriber. NOT one of the three business numbers, and not the QA recipient
-#: either - no test in this file can reach a live send, but the fixtures stay honest about it.
+#: either.
 CUSTOMER = "919876543210"
 CONTACT_ID = "wa919876543210"
 WAMID = "wamid.HBgMOTE5ODc2NTQzMjEwFQIAEhggQkJDMTIz"
+
+#: The AWS-style WABA1 phone id — the only sender `wa_payment_request.PAYMENT_SENDERS` permits,
+#: and what the inbound handler passes through to `prepareNativeCart`.
+WABA1_PHONE_ID = "phone-number-id-waba1-direct-1016149501586345"
+
+CHECKOUT_FUNCTION = "wecare-checkout:live"
 
 
 def retailer(product_id: str, variant_id: str) -> str:
@@ -64,26 +75,44 @@ def order_message(items=None, *, message_id=WAMID, catalog_id="catalog-1"):
 
 
 class _Recorder:
-    """Stands in for the Lambda client, so an outbound send is a recorded fact rather than a call."""
+    """Stands in for the Lambda client. Records every invoke and answers a `RequestResponse`
+    checkout `prepareNativeCart` with a 200 `NATIVE_CART_PREPARED` outcome, so the inbound leg
+    exercises its success path without reaching the real checkout Lambda."""
 
     def __init__(self):
         self.invocations = []
+        self.outcome = {"outcome": "NATIVE_CART_PREPARED", "statusCode": 200,
+                        "status": "PAYMENT_REQUEST_SENT", "paymentAttemptId": "pa-fixture"}
 
     def invoke(self, **kwargs):
         payload = kwargs.get("Payload") or "{}"
-        body = json.loads(payload)
+        body = json.loads(payload.decode("utf-8") if isinstance(payload, bytes) else payload)
         inner = body.get("body")
         self.invocations.append({
             "function": kwargs.get("FunctionName"),
             "type": kwargs.get("InvocationType"),
+            "internalAction": body.get("internalAction"),
+            "payload": body,
             "message": json.loads(inner) if isinstance(inner, str) else (inner or {}),
         })
-        return {"StatusCode": 202}
+        return {"StatusCode": 202, "Payload": _Blob(json.dumps(self.outcome).encode("utf-8"))}
+
+    def checkout_calls(self):
+        return [c for c in self.invocations
+                if c["internalAction"] == "prepareNativeCart"]
 
     def sent(self, interactive_type=None):
         return [call for call in self.invocations
                 if interactive_type is None
                 or call["message"].get("interactiveType") == interactive_type]
+
+
+class _Blob:
+    def __init__(self, data):
+        self._data = data
+
+    def read(self):
+        return self._data
 
 
 @pytest.fixture
@@ -104,22 +133,20 @@ def handler(monkeypatch):
 
 
 def enable(module, monkeypatch):
-    """Turn the gate on for ONE test, at the module constant the SystemConfig default falls back to.
-
-    Never by writing an env var on the real function and never by touching a live-send flag: this
-    is a unit-level flip of a default, and nothing in this file can reach Meta.
-    """
+    """Turn the gate on for ONE test, at the module constant the SystemConfig default falls back to."""
     monkeypatch.setattr(module, "WA_CATALOG_ORDERS_ENABLED", True)
 
 
-def run(module, message=None, *, sender=CUSTOMER, contact_id=CONTACT_ID):
+def run(module, message=None, *, sender=CUSTOMER, contact_id=CONTACT_ID,
+        phone_number_id=WABA1_PHONE_ID):
     module._handle_cart_order(message or order_message(), contact_id, sender,
-                              "phone-number-id-waba1", "request-fixture")
+                              phone_number_id, "request-fixture")
 
 
-def handoffs(fake):
+def indexes(fake):
     return [row for row in fake.all_rows(KEYS)
-            if str(row.get("orderId", "")).startswith(wb.TOKEN_PREFIX)]
+            if str(row.get("orderId", "")).startswith(
+                (wb.MESSAGE_INDEX_PREFIX, wb.CONTENT_INDEX_PREFIX))]
 
 
 # ── the gate ──────────────────────────────────────────────────────────────────
@@ -150,87 +177,75 @@ def test_system_config_can_turn_the_gate_on_without_a_deploy(handler):
     assert module._catalog_orders_enabled() is False
 
 
-# ── the write ─────────────────────────────────────────────────────────────────
+# ── the money leg ───────────────────────────────────────────────────────────
 
 
-def test_two_catalogue_lines_write_exactly_one_handoff_row(handler):
+def test_a_product_cart_invokes_the_checkout_native_cart_action_with_variants_only(handler):
     module, fake, recorder, monkeypatch = handler
     enable(module, monkeypatch)
     run(module)
 
-    rows = handoffs(fake)
+    calls = recorder.checkout_calls()
+    assert len(calls) == 1
+    call = calls[0]
+    # The seam is the unified checkout, request/response, the general-cart twin of the service leg.
+    assert call["function"] == CHECKOUT_FUNCTION
+    assert call["type"] == "RequestResponse"
+    payload = call["payload"]
+    assert payload["contactId"] == CONTACT_ID
+    assert payload["phoneNumberId"] == WABA1_PHONE_ID
+    assert payload["senderPhone"] == CUSTOMER
+    # Variants and integer quantities ONLY. No money field under any spelling, and NOT the Meta
+    # `item_price` values 499 / 1299.
+    lines = payload["lines"]
+    assert [line["quantity"] for line in lines] == [2, 1]
+    assert all(set(line) == {"productId", "variantId", "quantity"} for line in lines)
+    blob = json.dumps(payload)
+    for money in ("item_price", "499", "1299", "amount", "paise", "price", "gst"):
+        assert money not in blob.lower()
+
+
+def test_the_same_wamid_twice_invokes_checkout_once(handler):
+    module, fake, recorder, monkeypatch = handler
+    enable(module, monkeypatch)
+    run(module)
+    run(module)
+
+    # Exactly one index row, and the checkout native-cart action reached exactly once: a
+    # redelivery cannot produce a second attempt or a second send.
+    assert len(indexes(fake)) == 1
+    assert len(recorder.checkout_calls()) == 1
+
+
+def test_a_message_with_no_wamid_still_dedupes_on_its_content_key(handler):
+    """No wamid to key on, so the deterministic content key is the dedup. The SAME cart from the
+    SAME customer twice still invokes checkout once."""
+    module, fake, recorder, monkeypatch = handler
+    enable(module, monkeypatch)
+    run(module, order_message(message_id=""))
+    run(module, order_message(message_id=""))
+
+    rows = indexes(fake)
     assert len(rows) == 1
-    row = rows[0]
-    assert row["phone"] == "+" + CUSTOMER
-    assert row["channel"] == "whatsapp"
-    assert row["sourceMessageId"] == WAMID
-    assert row["lineCount"] == 2
-    assert [line["quantity"] for line in row["lines"]] == [2, 1]
-    assert row["expiresAt"] > row["createdAt"]
-    # No money field under any spelling. `item_price` was 499 and 1299 on the message.
-    assert not [key for key in row if "paise" in key.lower() or "amount" in key.lower()
-                or "price" in key.lower() or "total" in key.lower() or "gst" in key.lower()]
-    # Match the structured payload contract. A timestamp or opaque identifier can
-    # contain the digits of a price without carrying that price as a money field.
-    assert all(set(line) == {"productId", "variantId", "quantity"}
-               for line in row["lines"])
+    assert str(rows[0]["orderId"]).startswith(wb.CONTENT_INDEX_PREFIX)
+    assert len(recorder.checkout_calls()) == 1
 
 
-def test_the_reply_is_a_cta_link_to_the_cart_and_carries_no_price(handler):
-    module, fake, recorder, monkeypatch = handler
-    enable(module, monkeypatch)
-    run(module)
-
-    cta = recorder.sent("cta_url")
-    assert len(cta) == 1
-    data = cta[0]["message"]["interactiveData"]
-    token = handoffs(fake)[0]["token"]
-    assert data["url"] == f"https://wecare.digital/cart/?basket={token}"
-    assert "\u20b9" not in data["body"] and "INR" not in data["body"]
-    for amount in ("499", "1299", "1798", "2.5", "2%", "18"):
-        assert amount not in data["body"]
-
-
-def test_the_same_wamid_twice_yields_one_row(handler):
-    module, fake, recorder, monkeypatch = handler
-    enable(module, monkeypatch)
-    run(module)
-    run(module)
-
-    assert len(handoffs(fake)) == 1
-    # And the customer is messaged once: Meta redelivers when OUR ack was lost, not when the
-    # reply was, so a second link for one cart would be a duplicate message.
-    assert len(recorder.sent("cta_url")) == 1
-
-
-def test_a_different_cart_from_the_same_customer_gets_its_own_handoff(handler):
+def test_a_different_cart_from_the_same_customer_gets_its_own_invoke(handler):
     module, fake, recorder, monkeypatch = handler
     enable(module, monkeypatch)
     run(module)
     run(module, order_message(message_id="wamid.SECOND"))
-    assert len(handoffs(fake)) == 2
-    assert len({row["token"] for row in handoffs(fake)}) == 2
+    assert len(recorder.checkout_calls()) == 2
 
 
-def test_a_message_with_no_wamid_still_writes_rather_than_refusing(handler):
-    """There is nothing to be idempotent ON without a message id, and refusing a real order over a
-    missing field would be the wrong trade. Meta also cannot redeliver under an id it did not send.
-    """
-    module, fake, recorder, monkeypatch = handler
-    enable(module, monkeypatch)
-    run(module, order_message(message_id=""))
-    assert len(handoffs(fake)) == 1
-
-
-# ── the refusals ──────────────────────────────────────────────────────────────
+# ── the refusals (all BEFORE the checkout invoke) ───────────────────────────
 
 
 @pytest.mark.parametrize("business", ["918031830030", "919330994400", "919903300044"])
 def test_a_business_number_sender_is_refused_before_any_write(handler, business):
     module, fake, recorder, monkeypatch = handler
     enable(module, monkeypatch)
-    # Armed so the test fails loudly if the code reaches the table at all, rather than relying on
-    # the row count alone.
     monkeypatch.setattr(module.dynamodb, "Table", _refuse_table(module, fake))
     run(module, sender=business)
     assert fake.count(KEYS) == 0
@@ -247,7 +262,7 @@ def _refuse_table(module, fake):
     return table
 
 
-def test_an_all_foreign_cart_writes_nothing_and_sends_nothing(handler):
+def test_an_all_foreign_cart_writes_nothing_and_invokes_nothing(handler):
     module, fake, recorder, monkeypatch = handler
     enable(module, monkeypatch)
     run(module, order_message([{"product_retailer_id": "WD-PARTNER-UP", "quantity": 1},
@@ -264,20 +279,18 @@ def test_a_sender_with_no_country_code_is_refused(handler):
     assert recorder.invocations == []
 
 
-# ── the address prompt, retained ──────────────────────────────────────────────
+# ── the address prompt, retained for physical goods ─────────────────────────
 
 
-def test_an_address_is_requested_only_when_none_is_on_file(handler):
+def test_an_address_is_requested_for_a_product_cart(handler):
     module, fake, recorder, monkeypatch = handler
     enable(module, monkeypatch)
     run(module)
+    # The in-chat address collection is retained: the checkout refuses a physical basket with no
+    # saved address, so the prompt is what lets the native leg become payable.
     assert len(recorder.sent("address_message")) == 1
-
-    recorder.invocations.clear()
-    fake.Table(CONTACTS).put_item(Item={"id": CONTACT_ID, "shippingAddress": "12 Dalhousie Square"})
-    run(module, order_message(message_id="wamid.WITHADDRESS"))
-    assert recorder.sent("address_message") == []
-    assert len(recorder.sent("cta_url")) == 1
+    # And the money leg was still driven.
+    assert len(recorder.checkout_calls()) == 1
 
 
 # ── logs ──────────────────────────────────────────────────────────────────────
@@ -295,10 +308,10 @@ def test_every_log_line_on_this_path_carries_a_suffix_and_never_a_full_phone(han
     text = caplog.text
     assert CUSTOMER not in text and "+" + CUSTOMER not in text
     assert '"phone_suffix": "3210"' in text
-    assert "cart_order_handoff_written" in text
-    assert "cart_order_handoff_replayed" in text
+    assert "cart_order_payment_prepared" in text
+    assert "cart_order_payment_replayed" in text
     assert "cart_order_business_sender_refused" in text
-    # `reference_id`-class ids are loggable in full: a wamid is a correlation id, not a secret.
+    # A wamid is a correlation id, not a secret, so it is loggable in full.
     assert WAMID in text
 
 
@@ -313,12 +326,21 @@ def test_with_the_gate_off_the_disabled_line_still_masks_the_phone(handler, capl
 # ── the removal, proved over the AST ──────────────────────────────────────────
 
 
-def _cart_order_tree() -> ast.FunctionDef:
+def _func_tree(name: str) -> ast.FunctionDef:
     tree = ast.parse(HANDLER_PATH.read_text())
     for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and node.name == "_handle_cart_order":
+        if isinstance(node, ast.FunctionDef) and node.name == name:
             return node
-    raise AssertionError("_handle_cart_order must keep its name - the dispatch calls it")
+    raise AssertionError(f"{name} must keep its name")
+
+
+def _cart_order_nodes() -> list:
+    """Both halves of the inbound cart money path: the entry parser and the rebuilt sender.
+
+    The safety invariants apply to the whole path, so the AST walks cover `_handle_cart_order`
+    AND `_send_payment_request` together — repricing or a self-minted reference is forbidden in
+    either one."""
+    return [_func_tree("_handle_cart_order"), _func_tree("_send_payment_request")]
 
 
 def _called_names(node: ast.AST) -> set:
@@ -334,58 +356,61 @@ def _called_names(node: ast.AST) -> set:
 
 def test_the_dispatch_still_routes_an_order_message_here():
     """The function name and the `msg_type == 'order'` dispatch are load-bearing: the body was
-    replaced, not the entry point."""
+    rebuilt, not the entry point."""
     source = HANDLER_PATH.read_text()
     assert "if msg_type == 'order':" in source
     assert "_handle_cart_order(message, contact_id, sender_phone" in source
 
 
-def test_no_float_and_no_two_percent_fee_survives_in_the_cart_order_path():
-    node = _cart_order_tree()
-    floats = [child for child in ast.walk(node)
-              if isinstance(child, ast.Constant) and isinstance(child.value, float)]
-    assert floats == [], "a float literal is back in the cart-order path"
-    assert "float" not in _called_names(node)
-    assert "round" not in _called_names(node)
-    # The old fee and GST constants, in every spelling they appeared in.
-    numbers = {child.value for child in ast.walk(node)
-               if isinstance(child, ast.Constant) and isinstance(child.value, (int, float))}
-    assert not ({0.02, 2.0, 2, 18, 18.0, 0.18} & numbers), \
-        "a fee or GST rate constant is back in the cart-order path"
-
-
-def test_send_payment_request_is_not_reachable_from_a_cart_order():
-    """The function stays for its other callers. What is gone is this path's call to it, so no
-    `order_details` / Review-and-Pay message is built for a catalogue order and no Meta payment
-    configuration is read."""
-    called = _called_names(_cart_order_tree())
-    assert "_send_payment_request" not in called
-    assert "_fetch_catalog_product_names" not in called
-    assert "_send_order_status_message" not in called
-    # Nor indirectly, through the one helper this path does delegate to.
+def test_the_cart_order_path_reaches_the_rebuilt_money_sender():
+    """`_handle_cart_order` delegates the general cart to `_send_payment_request`, which drives the
+    native `prepareNativeCart` leg on the unified checkout."""
+    called = _called_names(_func_tree("_handle_cart_order"))
+    assert "_send_payment_request" in called
     source = HANDLER_PATH.read_text()
-    tree = ast.parse(source)
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and node.name in (
-                "_request_shipping_address", "_catalog_orders_enabled", "_handoff_url",
-                "_phone_suffix"):
-            assert "_send_payment_request" not in _called_names(node)
+    assert "'internalAction': 'prepareNativeCart'" in source
+
+
+def test_no_float_and_no_fee_or_gst_constant_survives_in_the_cart_order_path():
+    for node in _cart_order_nodes():
+        floats = [child for child in ast.walk(node)
+                  if isinstance(child, ast.Constant) and isinstance(child.value, float)]
+        assert floats == [], "a float literal is back in the cart-order path"
+        assert "float" not in _called_names(node)
+        assert "round" not in _called_names(node)
+        # The old fee and GST constants, in every spelling they appeared in.
+        numbers = {child.value for child in ast.walk(node)
+                   if isinstance(child, ast.Constant) and isinstance(child.value, (int, float))}
+        assert not ({0.02, 2.0, 18, 18.0, 0.18} & numbers), \
+            "a fee or GST rate constant is back in the cart-order path"
+
+
+def test_no_hand_built_wd_pay_reference_in_the_cart_order_path():
+    """The single `PAYREF#` is minted by the checkout reservation. This path mints no reference of
+    its own — no `WD-PAY`, no `uuid` call, no reference-format string."""
+    source = HANDLER_PATH.read_text()
+    for node in _cart_order_nodes():
+        strings = {child.value for child in ast.walk(node)
+                   if isinstance(child, ast.Constant) and isinstance(child.value, str)}
+        assert not any("WD-PAY" in s for s in strings)
+        assert "uuid4" not in _called_names(node)
+        assert "uuid" not in _called_names(node)
 
 
 def test_item_price_is_not_read_anywhere_on_this_path():
-    node = _cart_order_tree()
-    strings = {child.value for child in ast.walk(node)
-               if isinstance(child, ast.Constant) and isinstance(child.value, str)}
-    assert "item_price" not in strings
-    assert "product_items" not in strings, "parsing belongs to whatsapp_basket, not the handler"
+    for node in _cart_order_nodes():
+        strings = {child.value for child in ast.walk(node)
+                   if isinstance(child, ast.Constant) and isinstance(child.value, str)}
+        assert "item_price" not in strings
+        assert "product_items" not in strings, "parsing belongs to whatsapp_basket, not the handler"
 
 
 def test_the_payment_status_vocabulary_import_survives():
     """This file is in `CONSULTING_FILES` in `tests/test_payment_vocabulary_at_decision_points.py`.
-    The import has to stay, and no raw `captured` literal may be introduced by this diff."""
+    The import has to stay, and no raw `captured`/`paid` literal may be introduced by this diff."""
     source = HANDLER_PATH.read_text()
     assert "from lambda_utils import payment_status as pay_status" in source
-    node = _cart_order_tree()
-    strings = {child.value for child in ast.walk(node)
-               if isinstance(child, ast.Constant) and isinstance(child.value, str)}
-    assert "captured" not in strings and "paid" not in strings
+    for node in _cart_order_nodes():
+        strings = {child.value for child in ast.walk(node)
+                   if isinstance(child, ast.Constant) and isinstance(child.value, str)}
+        assert "captured" not in strings and "paid" not in strings
