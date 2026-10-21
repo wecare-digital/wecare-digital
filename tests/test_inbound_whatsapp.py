@@ -794,3 +794,66 @@ class TestWabaLevelWebhooksDoNotWarn:
         with patch.object(h.logger, 'warning', side_effect=lambda m, *a: logs.append(str(m))):
             assert h._get_aws_phone_number_id('', '', ['999']) == h.PHONE_NUMBER_ID_1
         assert any('phone_number_mapping_not_found' in line for line in logs)
+
+
+class TestWhatsAppMarketingOptOut:
+    @pytest.fixture
+    def h(self):
+        return _load_inbound_handler('inbound_whatsapp_marketing_optout')
+
+    @pytest.mark.parametrize('text', [
+        'STOP', ' unsubscribe ', 'Opt Out', 'opt-out',
+        'stop marketing', 'STOP   PROMOTIONS', 'stop offers',
+    ])
+    def test_exact_withdrawal_commands_are_recognized(self, h, text):
+        assert h._is_whatsapp_marketing_opt_out(text) is True
+
+    @pytest.mark.parametrize('text', [
+        'please stop my order', 'do not stop', 'stop payment',
+        'unsubscribe me from email', 'hello stop there', '',
+    ])
+    def test_unrelated_text_is_not_treated_as_marketing_withdrawal(self, h, text):
+        assert h._is_whatsapp_marketing_opt_out(text) is False
+
+    def test_opt_out_appends_marketing_evidence_and_preserves_history(self, h):
+        opted_in = h.consent_evidence.build_record(
+            channel='WHATSAPP', state='OPTED_IN', source='WEB_FORM',
+            at=100, purpose='MARKETING', reference='otp')
+        row = {'id':'c1', 'consentLedger':[opted_in]}
+        table = MagicMock()
+        table.get_item.return_value = {'Item': row}
+        table.update_item.return_value = {}
+        with patch.object(h.dynamodb, 'Table', return_value=table):
+            ok = h._record_whatsapp_marketing_opt_out(
+                'c1', at=200, reference='wamid.STOP', request_id='r')
+        assert ok is True
+        kwargs = table.update_item.call_args.kwargs
+        ledger = kwargs['ExpressionAttributeValues'][':ledger']
+        assert ledger[0] == opted_in
+        assert ledger[-1]['channel'] == 'WHATSAPP'
+        assert ledger[-1]['purpose'] == 'MARKETING'
+        assert ledger[-1]['state'] == 'OPTED_OUT'
+        assert ledger[-1]['source'] == 'WHATSAPP_REPLY'
+        assert ledger[-1]['reference'] == 'wamid.STOP'
+        assert kwargs['ExpressionAttributeValues'][':old'] == [opted_in]
+
+    def test_already_opted_out_is_idempotent(self, h):
+        opted_out = h.consent_evidence.build_record(
+            channel='WHATSAPP', state='OPTED_OUT', source='WHATSAPP_REPLY',
+            at=100, purpose='MARKETING', reference='wamid.OLD')
+        table = MagicMock()
+        table.get_item.return_value = {'Item': {'id':'c1','consentLedger':[opted_out]}}
+        with patch.object(h.dynamodb, 'Table', return_value=table):
+            ok = h._record_whatsapp_marketing_opt_out(
+                'c1', at=200, reference='wamid.NEW', request_id='r')
+        assert ok is True
+        table.update_item.assert_not_called()
+
+    def test_opt_out_processing_precedes_automation_and_auto_reaction(self):
+        from pathlib import Path
+        source = (Path(__file__).resolve().parents[1] /
+                  'amplify/functions/messaging/inbound-whatsapp-handler/handler.py').read_text()
+        body = source[source.index('def _process_message('):]
+        opt = body.index("if _marketing_opt_out:")
+        assert opt < body.index("evaluate_rules(content, 'whatsapp')")
+        assert opt < body.index("_auto_thumb_enabled()")
