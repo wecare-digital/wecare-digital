@@ -80,7 +80,7 @@ EXPECTED = {
     'shipments': ('849713848195607', 'DRAFT'),
     'leave_review': ('940049388908144', 'PUBLISHED'),
     'vault': (None, 'NONE'),
-    'subscribe': (None, 'NONE'),
+    'subscribe': ('1386523953464380', 'PUBLISHED'),
     'track_request': (None, 'NONE'),
 }
 
@@ -150,8 +150,7 @@ def test_inbound_handler_uses_canonical_ids():
     }
     for cap, fid in checks.items():
         assert triggers[cap]['flowId'] == fid, f"{cap} trigger flowId != canonical {fid}"
-    # Subscribe + track must NOT carry a (deprecated/draft) id any more.
-    assert not triggers['subscribe'].get('flowId'), 'subscribe must have no canonical flow'
+    assert triggers['subscribe'].get('flowId') == '1386523953464380'
     assert 'flowId2' not in triggers['subscribe'], 'deprecated subscribe flowId2 must be gone'
     assert not triggers['track_request'].get('flowId'), 'track_request must have no canonical flow'
 
