@@ -164,9 +164,11 @@ PUBLIC_TOKEN_CONSUMERS = {
     SRC / "components/Header.tsx": ("--public-content-max", "--public-brand-green"),
     SRC / "components/HeaderCart.tsx": ("--public-brand-green", "--public-brand-lime"),
     SRC / "components/Footer.tsx": ("--public-content-max", "--public-muted"),
+    # Grahak OS delegates its paid checkout action to ProductBuyBox -> CheckoutAction,
+    # so route-local mobile CTA typography is no longer part of this page's contract.
     SRC / "pages/grahak-os/index.tsx": (
         "--public-section-size", "--public-body-size", "--public-card-size", "--public-content-max",
-        "--public-mobile-section-size", "--public-mobile-card-size", "--public-mobile-cta-font-size",
+        "--public-mobile-section-size", "--public-mobile-card-size",
         "--public-mobile-page-gutter", "--public-mobile-section-gap",
     ),
     SRC / "pages/bharat-rx.tsx": ("--public-section-size", "--public-body-size", "--public-card-size"),
@@ -184,7 +186,9 @@ PUBLIC_TOKEN_CONSUMERS = {
     SRC / "components/ServiceBuyBox.tsx": ("--public-card-size",),
     SRC / "components/PublicShare.tsx": ("--public-brand-green", "--public-hairline"),
     SRC / "components/Pager.tsx": ("--public-brand-green", "--public-hairline"),
-    SRC / "pages/shop/[slug].tsx": ("--public-body-size", "--public-card-size", "--public-cta-height"),
+    # Dynamic shop pages delegate the compact paid action to CheckoutAction; the page
+    # itself owns body/card typography, not the shared action's geometry.
+    SRC / "pages/shop/[slug].tsx": ("--public-body-size", "--public-card-size"),
     SRC / "components/VayuLokLive.tsx": ("--public-bg", "--public-brand-lime", "--public-hairline"),
 }
 
