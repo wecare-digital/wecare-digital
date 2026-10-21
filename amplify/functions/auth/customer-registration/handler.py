@@ -240,6 +240,10 @@ def _resolve_customer(e164: str) -> Optional[Dict[str, Any]]:
     """
     try:
         row = contact_store.lookup(_contacts_table(), e164)
+    except contact_store.IdentityConflict:
+        # A strong identity claimed by multiple live contacts must never be treated as a miss:
+        # doing so would create a third deterministic contact and make the split worse.
+        raise
     except Exception as error:  # noqa: BLE001
         logger.info(json.dumps({"event": "customer_lookup_miss",
                                  "error": type(error).__name__}))
