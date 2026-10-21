@@ -5,7 +5,9 @@ type TravelMode = 'flights' | 'hotels' | 'activities' | 'rail' | 'car' | 'bus';
 
 interface TravelResult {
   id: string;
-  provider: string;
+  sourceLabel: string;
+  /** Optional backend/provider identifier or raw display name from a live bridge response. */
+  provider?: string;
   title: string;
   description: string;
   meta: string[];
@@ -112,7 +114,7 @@ function demoResponse( mode: TravelMode ): TravelResponse {
     source: 'demo',
     results: config.results.map( ( item, index ) => ( {
       id: 'demo-' + mode + '-' + String( index + 1 ),
-      provider: 'WECARE.DIGITAL',
+      sourceLabel: 'WECARE.DIGITAL',
       title: item[ 0 ],
       description: item[ 1 ],
       meta: [ item[ 2 ], item[ 3 ], item[ 4 ] ],
@@ -125,7 +127,7 @@ function normaliseResponse( payload: Partial<TravelResponse> ): TravelResponse {
   const rows = Array.isArray( payload.results ) ? payload.results : [];
   const results = rows.slice( 0, 8 ).map( ( result, index ) => ( {
     id: String( result.id || 'result-' + String( index + 1 ) ),
-    provider: String( result.provider || 'WECARE.DIGITAL' ),
+    sourceLabel: String( result.sourceLabel || result.provider || 'WECARE.DIGITAL' ),
     title: String( result.title || 'Travel option' ),
     description: String( result.description || '' ),
     meta: Array.isArray( result.meta ) ? result.meta.slice( 0, 4 ).map( String ) : [],
@@ -361,7 +363,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
                         <span className="eta-rank">{ index + 1 }</span>
                         <h3>{ result.title }</h3>
                         { index === 0 && <span className="eta-best">Best match</span> }
-                        <span className="eta-provider">{ result.provider }</span>
+                        <span className="eta-provider">{ result.sourceLabel }</span>
                       </div>
                       <p className="eta-desc">{ result.description }</p>
                       <div className="eta-meta">
