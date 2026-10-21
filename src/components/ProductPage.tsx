@@ -66,6 +66,8 @@ interface ProductPageProps {
   belowCta?: React.ReactNode;
   /** Optional route-specific surface rendered after the rotating hero band and before the standard product content. */
   afterHero?: React.ReactNode;
+  /** Route-specific opt-out for the standard explainer/CTA body when the after-hero surface is the product experience. */
+  suppressProductDetails?: boolean;
 }
 
 // The SITE constant that used to live here is gone: PageMeta owns the origin now, so
@@ -82,6 +84,7 @@ const ProductPage: React.FC<ProductPageProps> = ( {
   crumbs,
   belowCta,
   afterHero,
+  suppressProductDetails = false,
 } ) => {
   const hasAside = Array.isArray( blogCards ) && blogCards.length > 0;
   const sku = PRODUCT_SKU_BY_SLUG[ product.slug ];
@@ -100,6 +103,7 @@ const ProductPage: React.FC<ProductPageProps> = ( {
       <PageShell title={ product.title } description={ product.description }
         canonical={ canonicalPath ?? `/${product.slug}/` }
         crumbs={ crumbs?.map( ( { label, href } ) => ( { name: label, href } ) ) }>
+      { !suppressProductDetails && (
       <section className="pdp" aria-label={ `About ${product.name}` }>
         <h2 className="pdp-h2">{ product.sectionHeading }</h2>
         {/* The lead may hold more than one paragraph, split on a blank line (\n\n) in the source,
@@ -193,6 +197,10 @@ const ProductPage: React.FC<ProductPageProps> = ( {
 
         {/* Contribute + Subscribe + Share is mounted once by _app after the route policy.
             ProductPage must not add a second page-level action dock. */}
+
+
+      </section>
+      ) }
 
         <style jsx>{`
           /* PHASE-1 UNIT (product pages): layered-defence min-width:0 containment so a long
@@ -318,9 +326,8 @@ const ProductPage: React.FC<ProductPageProps> = ( {
             :global(.pdp-wrap.has-aside .pdp-aside){margin:0;position:sticky;top:24px;align-self:start}
           }
         `}</style>
-      </section>
 
-      { hasAside && (
+      { !suppressProductDetails && hasAside && (
         <div className="pdp-aside">
           <ProductBlogPanel cards={ blogCards! } heading={ blogHeading } categories={ blogCategories } />
         </div>

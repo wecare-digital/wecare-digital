@@ -12,6 +12,7 @@ const ActivitiesPage: React.FC = () => (
     canonicalPath={ child.path }
     crumbs={ breadcrumbTrail( '/elsewhere/activities' ) }
     afterHero={ <ElsewhereTravelAssistant /> }
+    suppressProductDetails
   />
 );
 
