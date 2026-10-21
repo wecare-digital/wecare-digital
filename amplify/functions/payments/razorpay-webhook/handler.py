@@ -30,7 +30,7 @@ from decimal import Decimal
 
 from lambda_utils.response import cors_response, cors_headers, options_response, extract_origin
 from lambda_utils.logging import get_logger
-from lambda_utils import payment_status  # monotonic status, one vocabulary, dedup key
+from lambda_utils import payment_status, shared_tables  # monotonic status + canonical shared stores
 from lambda_utils.privacy import mask_phone  # a full number must never reach CloudWatch
 # Module scope, matching `invoice-engine`, because `COMMERCE_KEYS_TABLE` below is resolved from
 # it. Import-safe: `order_keys` creates no client and reads no secret at import.
