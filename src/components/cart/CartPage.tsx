@@ -236,9 +236,12 @@ type ProfileReply = {
   name?: string;
   firstName?: string;
   lastName?: string;
+  companyName?: string;
+  designation?: string;
   email?: string;
   phone?: string;
   emailVerified?: boolean;
+  profileComplete?: boolean;
   addressComplete?: boolean;
   address?: StoredAddress | null;
 };
@@ -252,8 +255,8 @@ type ProfileReply = {
  * empty Deliver row. It is a PURE function precisely so a caller can branch on its RETURNED value
  * rather than on the state it later writes - see `proceed`.
  */
-const deriveStatus = ( status: string, addressComplete: boolean ): ProfileStatus =>
-  status === 'PROFILE_READY' && addressComplete ? 'ready'
+const deriveStatus = ( status: string, addressComplete: boolean, profileComplete?: boolean ): ProfileStatus =>
+  status === 'PROFILE_READY' && addressComplete && profileComplete !== false ? 'ready'
     : status === 'PROFILE_READY' || status === 'PROFILE_REQUIRED' ? 'required'
       : 'unknown';
 
@@ -272,6 +275,8 @@ function profileFrom ( reply: ProfileReply ): CheckoutProfileValue | null {
     name: String( reply.name || '' ),
     firstName: String( reply.firstName || '' ),
     lastName: String( reply.lastName || '' ),
+    companyName: String( reply.companyName || '' ),
+    designation: String( reply.designation || '' ),
     email: String( reply.email || '' ),
     emailVerified: reply.emailVerified === true,
     phone: String( reply.phone || '' ),
@@ -668,7 +673,7 @@ export default function Cart (): React.ReactElement {
       const reply = await loadProfileStatus( session.accessToken );
       if ( !live || !reply ) return;
       setProfile( profileFrom( reply ) );
-      setProfileStatus( deriveStatus( String( reply.status || '' ), Boolean( reply.addressComplete ) ) );
+      setProfileStatus( deriveStatus( String( reply.status || '' ), Boolean( reply.addressComplete ), Boolean( reply.profileComplete ) ) );
     } )();
     return () => { live = false; };
   }, [] );
@@ -1403,13 +1408,15 @@ export default function Cart (): React.ReactElement {
     {
       setProfileStatus( 'checking' );
       const reply = await loadProfileStatus( session.accessToken );
-      status = reply ? deriveStatus( String( reply.status || '' ), Boolean( reply.addressComplete ) ) : 'unknown';
+      status = reply ? deriveStatus( String( reply.status || '' ), Boolean( reply.addressComplete ), Boolean( reply.profileComplete ) ) : 'unknown';
       if ( reply )
       {
         setProfile( profileFrom( reply ) );
         // The REPLY decides the mode, not a guess: PROFILE_READY with no usable address needs the
         // address form, PROFILE_REQUIRED needs the whole creation flow.
-        mode = String( reply.status || '' ) === 'PROFILE_READY' ? 'address' : 'create';
+        mode = String( reply.status || '' ) === 'PROFILE_READY'
+          ? ( reply.profileComplete === false ? 'name' : 'address' )
+          : 'create';
       }
       setProfileStatus( status );
     }
@@ -1768,6 +1775,8 @@ export default function Cart (): React.ReactElement {
                   initial={ {
                     firstName: profile?.firstName || '',
                     lastName: profile?.lastName || '',
+                    companyName: profile?.companyName || '',
+                    designation: profile?.designation || '',
                     email: profile?.email || '',
                     address: profile?.address || null,
                   } }
@@ -1777,7 +1786,11 @@ export default function Cart (): React.ReactElement {
                     // and then asking for an address is a dead end, and it is reachable - a
                     // stored address that stopped mapping, or a backend that wrote one it cannot
                     // re-validate.
-                    const nextStatus = deriveStatus( 'PROFILE_READY', next.addressComplete );
+                    const nextStatus = deriveStatus(
+                      'PROFILE_READY',
+                      next.addressComplete,
+                      Boolean( next.firstName && next.lastName && next.companyName && next.designation ),
+                    );
                     setProfile( next );
                     justSavedRef.current = true;
                     setProfileStatus( nextStatus );

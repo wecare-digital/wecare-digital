@@ -38,6 +38,7 @@ PEPPER = "profile-test-pepper"
 ADDRESS = {
     "addressLine1": "12 MG Road",
     "addressLine2": "Flat 3B",
+    "locality": "Indiranagar",
     "city": "Bengaluru",
     "state": "Karnataka",
     "postalCode": "560001",
@@ -117,6 +118,7 @@ def seed_owned(fake, **overrides):
         "id": "contact-1", "contactId": "contact-1",
         "phone": PHONE, "email": EMAIL, "name": "Asha Sen",
         "firstName": "Asha", "lastName": "Sen",
+        "companyName": "WECARE QA", "designation": "Tester",
         "checkoutCustomerId": CUSTOMER,
         "emailVerifiedAt": 1700000000,
         ADDRESS_ATTRIBUTE: dict(ADDRESS),
@@ -165,7 +167,7 @@ def test_rejects_unexpected_browser_fields(env):
 
 def test_whatsapp_owned_profile_creation_does_not_require_email_proof(env):
     h, fake, _ = env
-    resp = h.handler(event(firstName="Asha",lastName="Sen",email="other@example.com",address=dict(ADDRESS)),None)
+    resp = h.handler(event(firstName="Asha",lastName="Sen",companyName="WECARE QA",designation="Tester",email="other@example.com",address=dict(ADDRESS)),None)
     assert resp["statusCode"] == 200
     assert row_of(fake)["phone"] == PHONE
     assert "emailVerifiedAt" not in row_of(fake)
@@ -664,8 +666,9 @@ def refusals_of(recorded):
 
 
 def save_with_proof(h, fake):
-    return h.handler(event(firstName="Asha", lastName="Sen", email=EMAIL,
-                           emailProof=proof(h, fake), address=dict(ADDRESS)), None)
+    return h.handler(event(firstName="Asha", lastName="Sen",
+                           companyName="WECARE QA", designation="Tester",
+                           email=EMAIL, emailProof=proof(h, fake), address=dict(ADDRESS)), None)
 
 
 class TagRacingContacts:

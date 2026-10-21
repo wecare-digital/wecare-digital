@@ -834,12 +834,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     company_name = sanitize_html(body.get("companyName"), max_length=200).strip()
     designation = sanitize_html(body.get("designation"), max_length=200).strip()
-    if creating:
-        if not company_name:
-            return _no_store(cors_response(400, {"error": "ORGANISATION_REQUIRED"}, origin))
-        if not designation:
-            return _no_store(cors_response(400, {"error": "DESIGNATION_REQUIRED"}, origin))
-    elif bool(company_name) != bool(designation):
+    # Completeness is enforced by the customer-facing form and the checkout readiness gate.
+    # Keep this identity/claim writer tolerant of legacy/internal partial rows so profile edits
+    # cannot change security outcomes or make historical contacts unreadable.
+    if bool(company_name) != bool(designation):
         return _no_store(cors_response(400, {"error": "BUSINESS_PROFILE_REQUIRED"}, origin))
 
     email = None

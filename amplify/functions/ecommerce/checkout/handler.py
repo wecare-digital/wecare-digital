@@ -629,12 +629,16 @@ def _profile_status(identity: customer_auth.CustomerIdentity, origin: str) -> Di
         logger.info(json.dumps({"event": "checkout_stored_delivery_unusable"}))
     first = str(row.get("firstName") or "").strip()
     last = str(row.get("lastName") or "").strip()
+    company = str(row.get("companyName") or "").strip()
+    designation = str(row.get("designation") or "").strip()
     return _hardened(cors_response(200, {
         "status": "PROFILE_READY",
         "contactId": contact_key.resolve(row),
         "name": str(row.get("name") or f"{first} {last}").strip(),
         "firstName": first,
         "lastName": last,
+        "companyName": company,
+        "designation": designation,
         "email": str(row.get("email") or "").strip(),
         # From the ROW, with the session value only as a fallback: the row holds the
         # `normalize_phone_preserving_country` output that `customer-profile` also returns, so
@@ -642,6 +646,7 @@ def _profile_status(identity: customer_auth.CustomerIdentity, origin: str) -> Di
         # spelling after an edit.
         "phone": str(row.get("phone") or identity.phone),
         "emailVerified": bool(row.get("emailVerifiedAt")),
+        "profileComplete": bool(first and last and company and designation),
         "addressComplete": address is not None,
         "address": address,             # null when absent
     }, origin))
