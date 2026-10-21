@@ -6,7 +6,6 @@ import { join } from 'node:path';
 
 import ShipmentTrackPage from '../pages/shipments/track';
 import { SHIPMENT_TRACK } from '../content/shipments';
-import { whatsappServiceLink } from '../config/whatsappServiceEntries';
 
 vi.mock( 'next/router', () => ( {
   useRouter: () => ( { push: vi.fn().mockResolvedValue( true ) } ),
@@ -29,12 +28,10 @@ describe( 'Shipments Track child page', () => {
     expect( container.textContent ).not.toContain( 'Everything about your' );
   } );
 
-  it( 'keeps one checkout action and fresh checkout price', () => {
+  it( 'shows one Checkout action and the fresh checkout price', () => {
     render( <ShipmentTrackPage /> );
-    expect( SHIPMENT_TRACK.ctaHref ).toBe( 'https://wa.me/message/WGN4NMFLFSJVB1' );
-    expect( whatsappServiceLink( SHIPMENT_TRACK.slug ) ).toBe( SHIPMENT_TRACK.ctaHref );
-    expect( screen.queryByRole( 'link', { name: 'Checkout on WhatsApp →' } ) ).toBeNull();
     expect( screen.getByRole( 'button', { name: 'Checkout' } ) ).toBeInTheDocument();
+    expect( screen.queryByRole( 'link', { name: /Checkout on WhatsApp/i } ) ).toBeNull();
     expect( screen.getByText( '₹49.00' ) ).toBeInTheDocument();
   } );
 
