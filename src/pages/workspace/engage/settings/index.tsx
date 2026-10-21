@@ -1,14 +1,4 @@
-/**
- * Channel Settings — unified settings home: sender identities and deep links to each channel's
- * own configuration.
- *
- * FEAT-003: the old "opted in %" tiles were removed. They computed consent from the
- * `optInWhatsApp`/`optInSms`/`optInEmail` booleans on ContactsTable, which is the anti-pattern
- * the rebuild retires — a boolean has no provenance, is overwritable by an import, and conflates
- * "never asked" with "opted out". Consent is now EVIDENCE owned by the Customer and lives per
- * customer under Customers (`ConsentPanel`), backed by the append-only ledger. This page links
- * there instead of printing a meaningless aggregate percentage.
- */
+/** Channel Settings — sender identities and per-channel configuration. */
 import React from 'react';
 import Link from 'next/link';
 import Layout from '../../../../components/Layout';
@@ -42,19 +32,6 @@ const SettingsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
         <>
             <div className="st-wrap">
                 <PageHeader title="Channel Settings" subtitle="Sender identities & per-channel configuration" icon="settings" />
-
-                <div className="st-section">Consent</div>
-                <Link href="/workspace/customers" className="st-consent-link">
-                    <span className="st-consent-title">Consent is evidence, owned by the customer</span>
-                    <p className="st-consent-desc">
-                        Per-channel consent — opted in, opted out, or pending — is recorded as timestamped,
-                        sourced, referenced evidence with full history, not a boolean. Open a customer under
-                        Customers to view and record consent evidence. An import can carry existing evidence
-                        only; it can never manufacture an opt-in.
-                    </p>
-                    <span className="st-consent-cta">Open Customers →</span>
-                </Link>
-
                 <div className="st-section">Sender identities</div>
                 <div className="st-senders">
                     { senders.map( ( s, i ) => (
@@ -77,12 +54,7 @@ const SettingsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
             </div>
             <style jsx>{ `
                 .st-wrap { padding: 20px; max-width: 1000px; margin: 0 auto; }
-                .st-section { font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; color: ${colors.textMuted}; margin: 22px 0 10px; }
-                .st-consent-link { display: block; border: 1px solid ${colors.border}; border-radius: 12px; padding: 16px; background: #fff; text-decoration: none; }
-                .st-consent-link:hover { border-color: ${colors.primary}; }
-                .st-consent-title { font-size: var(--text-md); font-weight: 700; color: ${colors.text}; }
-                .st-consent-desc { font-size: var(--text-sm); color: ${colors.textSecondary}; margin: 6px 0 8px; line-height: 1.5; max-width: 680px; }
-                .st-consent-cta { font-size: var(--text-sm); font-weight: 700; color: ${colors.primary}; }
+                .st-section { font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; color: ${colors.textMuted}; margin: 22px 0 10px; }; }
                 .st-senders { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
                 .st-sender { display: flex; flex-direction: column; gap: 2px; border: 1px solid ${colors.border}; border-radius: 10px; padding: 12px; background: #fff; text-decoration: none; }
                 .st-sender:hover { border-color: ${colors.primary}; }
