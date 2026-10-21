@@ -38,6 +38,17 @@ from lambda_utils import contact_key, shared_tables
 PHONE_INDEX = 'phone-index'
 BSUID_INDEX = 'bsuid-index'
 
+
+class IdentityConflict(RuntimeError):
+    """More than one live canonical contact claims the same strong identity."""
+
+    def __init__(self, identity: str, contact_ids: Iterable[str]):
+        ids = tuple(sorted({str(value).strip() for value in contact_ids if str(value).strip()}))
+        self.identity = identity
+        self.contact_ids = ids
+        super().__init__(f'identity conflict for {identity}: {len(ids)} live contacts')
+
+
 _MIN_DIGITS = 7
 _MAX_DIGITS = 15
 _NON_DIGIT = re.compile(r'\D+')
@@ -120,37 +131,53 @@ def _get(
 
 
 def find_by_phone(table: Any, phone: Any) -> Optional[Dict[str, Any]]:
-    """The first live row on `phone-index` for any spelling of `phone`, or None."""
+    """Return the one canonical live row for ``phone``; fail closed on ambiguity.
+
+    A DynamoDB GSI cannot enforce uniqueness.  Query every known spelling, follow completed
+    merge aliases, deduplicate by canonical contact id, and refuse to pick an arbitrary row when
+    two live contacts still claim the same number.  Silently taking ``Items[0]`` would let the
+    inbox, checkout and Flows disagree about who owns an order or message.
+    """
+    matches: Dict[str, Dict[str, Any]] = {}
     for variant in phone_variants(phone):
         response = table.query(
             IndexName=PHONE_INDEX,
             KeyConditionExpression=Key('phone').eq(variant),
-            Limit=5,
+            Limit=25,
         )
         for item in response.get('Items') or []:
-            if is_live(item):
-                return item
-    return None
+            contact_id = str(item.get('id') or item.get('contactId') or '').strip()
+            canonical = _get(table, contact_id) if contact_id else None
+            if canonical:
+                canonical_id = contact_key.resolve(canonical)
+                if canonical_id:
+                    matches[canonical_id] = canonical
+    if len(matches) > 1:
+        raise IdentityConflict(f'phone:{canonical_phone(phone) or digits(phone)}', matches.keys())
+    return next(iter(matches.values()), None)
 
 
 def find_by_bsuid(table: Any, bsuid: Any) -> Optional[Dict[str, Any]]:
-    """The first live row on `bsuid-index` for an exact business-scoped user id."""
+    """The one live row on `bsuid-index`; fail closed if a BSUID is duplicated."""
     value = str(bsuid or '').strip()
     if not value:
         return None
     response = table.query(
         IndexName=BSUID_INDEX,
         KeyConditionExpression=Key('bsuid').eq(value),
-        Limit=5,
+        Limit=25,
     )
+    matches: Dict[str, Dict[str, Any]] = {}
     for item in response.get('Items') or []:
-        if is_live(item):
-            return item
         contact_id = str(item.get('id') or item.get('contactId') or '').strip()
         canonical = _get(table, contact_id) if contact_id else None
         if canonical:
-            return canonical
-    return None
+            canonical_id = contact_key.resolve(canonical)
+            if canonical_id:
+                matches[canonical_id] = canonical
+    if len(matches) > 1:
+        raise IdentityConflict(f'bsuid:{value}', matches.keys())
+    return next(iter(matches.values()), None)
 
 
 def lookup(table: Any, phone: Any = '', *, contact_id: str = '') -> Optional[Dict[str, Any]]:
