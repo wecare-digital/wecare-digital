@@ -26,6 +26,8 @@ import { getSession, restoreSession } from './customerAuth';
 
 /** The one checkout surface. Allowlisted in safeReturnPath, so it survives the sign-in return. */
 export const CHECKOUT_PATH = '/cart/';
+/** Payment-method chooser shown only after cart review. */
+export const CHECKOUT_METHOD_PATH = '/checkout/';
 /** The one WhatsApp login. */
 export const SIGN_IN_PATH = '/account/sign-in/';
 /** Out-of-band carrier for the pending action, so it survives the sign-in round trip. */
