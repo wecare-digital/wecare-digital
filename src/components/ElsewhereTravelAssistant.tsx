@@ -626,6 +626,9 @@ const ElsewhereTravelAssistant: React.FC = () => {
         .eta-tab:focus-visible,.eta-clear:focus-visible,.eta-send:focus-visible,.eta-chip:focus-visible,.eta-preference-clear:focus-visible,.eta-action:focus-visible{
           outline:3px solid var(--public-brand-green);outline-offset:3px;
         }
+        .eta-action:focus-visible{
+          background:var(--public-brand-lime);text-decoration-color:transparent;
+        }
         @media(hover:hover) and (pointer:fine){
           .eta-tab:hover::before{background:rgba(239,249,207,.78)}
           .eta-result:hover{transform:translateY(-1px);border-color:#c9dc84;background:rgba(209,244,112,.08);box-shadow:0 4px 12px rgba(26,58,42,.08)}
