@@ -186,7 +186,89 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
     }
     await reduceContext.close();
 
-    console.log( `elsewherecheck [${engineName}] ${checks}/${VIEWPORTS.length} touch viewports clean + reduced-motion clean` );
+    // Provider contract: a fresh complete live offer unlocks checkout; stale or unsafe
+    // variants do not. The injected bridge is a browser fixture only - no external network.
+    const liveContext = await browser.newContext( {
+      viewport: { width: 375, height: 812 },
+      hasTouch: true,
+    } );
+    await liveContext.addInitScript( () => {
+      window.ElsewhereTravelBridge = {
+        search: async () => ( {
+          source: 'api',
+          summary: 'Fresh provider fixture.',
+          results: [ {
+            id: 'live-1',
+            provider: 'Fixture Provider',
+            providerRef: 'provider-ref-1',
+            offerId: 'offer-1',
+            title: 'Fresh live activity',
+            description: 'Provider-confirmed fixture used only by the browser contract.',
+            meta: [ '3 h' ],
+            price: '₹1,850',
+            availability: 'Available',
+            cancellationSummary: 'Free cancellation until 24 hours before',
+            quoteExpiresAt: new Date( Date.now() + 30 * 60 * 1000 ).toISOString(),
+            checkoutReady: true,
+            websiteUrl: 'https://provider.example/checkout/offer-1',
+            whatsappUrl: 'https://wa.me/910000000000',
+          } ],
+        } ),
+      };
+    } );
+    const livePage = await liveContext.newPage();
+    await livePage.goto( `${t.base}/elsewhere/activities/`, { waitUntil: 'load', timeout: 60000 } );
+    await livePage.getByLabel( 'Ask about travel' ).fill( 'Provider contract check' );
+    await livePage.getByRole( 'button', { name: 'Send' } ).tap();
+    await livePage.locator( '.eta-result' ).waitFor( { state: 'visible', timeout: 5000 } );
+    const liveActions = livePage.locator( '.eta-action' );
+    if ( await liveActions.count() !== 2 ) fail( 'provider contract: missing checkout channels' );
+    if ( await liveActions.nth( 0 ).isDisabled() || await liveActions.nth( 1 ).isDisabled() ) {
+      fail( 'provider contract: fresh complete offer did not unlock checkout' );
+    }
+    if ( await livePage.locator( '.eta-provider' ).textContent() !== 'Fixture Provider' ) {
+      fail( 'provider contract: external provider label missing' );
+    }
+    await liveContext.close();
+
+    const staleContext = await browser.newContext( {
+      viewport: { width: 375, height: 812 },
+      hasTouch: true,
+    } );
+    await staleContext.addInitScript( () => {
+      window.ElsewhereTravelBridge = {
+        search: async () => ( {
+          source: 'api',
+          results: [ {
+            id: 'stale-1',
+            provider: 'Fixture Provider',
+            providerRef: 'provider-ref-stale',
+            title: 'Expired live activity',
+            description: 'Expired fixture.',
+            meta: [],
+            price: '₹1,850',
+            availability: 'Available',
+            cancellationSummary: 'Non-refundable',
+            quoteExpiresAt: new Date( Date.now() - 60 * 1000 ).toISOString(),
+            checkoutReady: true,
+            websiteUrl: 'http://provider.example/insecure',
+            whatsappUrl: 'https://wa.me/910000000000',
+          } ],
+        } ),
+      };
+    } );
+    const stalePage = await staleContext.newPage();
+    await stalePage.goto( `${t.base}/elsewhere/activities/`, { waitUntil: 'load', timeout: 60000 } );
+    await stalePage.getByLabel( 'Ask about travel' ).fill( 'Expired provider contract check' );
+    await stalePage.getByRole( 'button', { name: 'Send' } ).tap();
+    await stalePage.locator( '.eta-result' ).waitFor( { state: 'visible', timeout: 5000 } );
+    const staleActions = stalePage.locator( '.eta-action' );
+    if ( !( await staleActions.nth( 0 ).isDisabled() ) || !( await staleActions.nth( 1 ).isDisabled() ) ) {
+      fail( 'provider contract: expired offer still exposed checkout' );
+    }
+    await staleContext.close();
+
+    console.log( `elsewherecheck [${engineName}] ${checks}/${VIEWPORTS.length} touch viewports clean + reduced-motion + provider contract clean` );
   } finally {
     await browser.close();
     if ( t.close ) await t.close();
