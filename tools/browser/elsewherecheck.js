@@ -128,9 +128,18 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
       const cardCursor = await firstCard.evaluate( node => getComputedStyle( node ).cursor );
       if ( cardCursor === 'pointer' ) fail( `${viewport.name}: non-clickable result card advertises pointer affordance` );
 
-      const actions = firstCard.locator( '.eta-action' );
-      if ( await actions.count() !== 0 ) {
-        fail( `${viewport.name}: preview card exposes checkout before live provider confirmation` );
+      const demoCheckout = firstCard.locator( '.eta-demo-checkout' );
+      if ( await demoCheckout.count() !== 1 ) {
+        fail( `${viewport.name}: demo result is missing the cart Checkout control` );
+      }
+      if ( ( await demoCheckout.textContent() || '' ).trim() !== 'Checkout' ) {
+        fail( `${viewport.name}: demo checkout label is not Checkout` );
+      }
+      if ( await demoCheckout.getAttribute( 'href' ) !== '/cart/' ) {
+        fail( `${viewport.name}: demo checkout does not point to /cart/` );
+      }
+      if ( await firstCard.locator( '.eta-checkout' ).count() !== 0 ) {
+        fail( `${viewport.name}: demo result exposes live-provider checkout options` );
       }
 
       const after = await page.evaluate( () => ( {
@@ -214,8 +223,8 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
       fail( 'provider contract: checkout heading should appear once above channel options' );
     }
     const liveIcons = livePage.locator( '.eta-action-icon' );
-    if ( await liveIcons.count() !== 2 ) {
-      fail( 'provider contract: each checkout channel should have a submenu-style icon' );
+    if ( await liveIcons.count() !== 1 ) {
+      fail( 'provider contract: only WhatsApp should retain a submenu-style icon' );
     }
     if ( await livePage.locator( '.eta-action-icon-whatsapp' ).count() !== 1 ) {
       fail( 'provider contract: WhatsApp channel is missing its icon' );
