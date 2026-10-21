@@ -74,3 +74,24 @@ def published_flow_by_id(flow_id: str):
         if row[0] == target and row[1] == 'PUBLISHED':
             return published_flow(capability)
     return None
+
+
+_TOKEN_PREFIX_OVERRIDES = {
+    'submit_request': 'sr',
+}
+
+
+def published_flow_by_name(meta_name: str):
+    """Resolve a published Meta Flow name back to canonical metadata."""
+    target = str(meta_name or '').strip().casefold()
+    if not target:
+        return None
+    for capability, row in CANONICAL_FLOWS.items():
+        if row[1] == 'PUBLISHED' and str(row[2] or '').strip().casefold() == target:
+            return published_flow(capability)
+    return None
+
+
+def published_flow_token_prefix(capability: str) -> str:
+    """Routing prefix for phone-backed Flow tokens."""
+    return _TOKEN_PREFIX_OVERRIDES.get(capability, capability)
