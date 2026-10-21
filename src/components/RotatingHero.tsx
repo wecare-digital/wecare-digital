@@ -94,6 +94,8 @@ interface RotatingHeroProps {
    * retune the split itself with `.<page-root> :global(.rh-split)`, as /vayulok/ does.
    */
   visual?: React.ReactNode;
+  /** Optional route-specific surface immediately after the hero block and before normal page content. */
+  afterHero?: React.ReactNode;
   /** Extra content below the hero, inside the page measure. */
   children?: React.ReactNode;
   /**
@@ -130,7 +132,7 @@ interface RotatingHeroProps {
   mobileFoundation?: boolean;
 }
 
-const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPrefix, words, pillKey, sub, ariaLabel, visual, children, subordinate = false, insideMain = false, mobileFoundation = false } ) => {
+const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPrefix, words, pillKey, sub, ariaLabel, visual, afterHero, children, subordinate = false, insideMain = false, mobileFoundation = false } ) => {
   /**
    * 'final' is the CSS default: shutter gone, dot popped, nothing animating. 'armed' puts
    * the start state back, 'shown' plays it. Starting at 'final' is what makes the entrance
@@ -233,6 +235,7 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
           { visual }
         </div>
 
+        { afterHero }
         { children }
 
       </div>
