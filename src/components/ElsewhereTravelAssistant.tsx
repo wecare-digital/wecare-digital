@@ -418,24 +418,28 @@ const ElsewhereTravelAssistant: React.FC = () => {
                     </div>
                     <div className="eta-result-side">
                       <div className="eta-price">{ result.price }</div>
-                      <div className="eta-actions">
-                        <button
-                          type="button"
-                          className="eta-action primary"
-                          aria-label={ `Checkout ${result.title} on website` }
-                          disabled={ !checkoutAvailable( 'website', result ) }
-                          title={ checkoutAvailable( 'website', result ) ? 'Checkout on website' : 'Live provider confirmation required' }
-                          onClick={ () => continueWith( 'website', result ) }
-                        >Checkout on website</button>
-                        <button
-                          type="button"
-                          className="eta-action"
-                          aria-label={ `Checkout ${result.title} on WhatsApp` }
-                          disabled={ !checkoutAvailable( 'whatsapp', result ) }
-                          title={ checkoutAvailable( 'whatsapp', result ) ? 'Checkout on WhatsApp' : 'Live provider confirmation required' }
-                          onClick={ () => continueWith( 'whatsapp', result ) }
-                        >Checkout on WhatsApp</button>
-                      </div>
+                      { ( checkoutAvailable( 'website', result ) || checkoutAvailable( 'whatsapp', result ) ) && (
+                        <div className="eta-actions" aria-label="Checkout options">
+                          { checkoutAvailable( 'website', result ) && (
+                            <button
+                              type="button"
+                              className="eta-action"
+                              aria-label={ `Checkout ${result.title} on website for ${result.price}` }
+                              title={ `Checkout on website · ${result.price}` }
+                              onClick={ () => continueWith( 'website', result ) }
+                            >Website</button>
+                          ) }
+                          { checkoutAvailable( 'whatsapp', result ) && (
+                            <button
+                              type="button"
+                              className="eta-action"
+                              aria-label={ `Checkout ${result.title} on WhatsApp for ${result.price}` }
+                              title={ `Checkout on WhatsApp · ${result.price}` }
+                              onClick={ () => continueWith( 'whatsapp', result ) }
+                            >WhatsApp</button>
+                          ) }
+                        </div>
+                      ) }
                     </div>
                   </article>
                 ) ) }
@@ -585,22 +589,19 @@ const ElsewhereTravelAssistant: React.FC = () => {
         .eta-meta span:not(:last-child)::after{content:' · ';white-space:pre;color:#9aa196}
         .eta-result-side{display:flex;flex-direction:column;align-items:flex-end;gap:9px;text-align:end}
         .eta-price{color:var(--public-heading);font-size:17px;font-weight:700;line-height:1.25;letter-spacing:-.2px;white-space:nowrap}
-        .eta-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;width:min(100%,420px);margin-inline-start:auto}
+        .eta-actions{
+          display:flex;flex-direction:column;align-items:flex-end;gap:8px;width:auto;max-width:100%;margin-inline-start:auto;
+        }
         .eta-action{
-          display:inline-flex;align-items:center;justify-content:center;
-          min-width:0;min-height:var(--public-cta-height);box-sizing:border-box;
-          padding:8px 14px;border:2px solid var(--public-brand-green);border-radius:14px;background:var(--public-bg);
-          color:var(--public-brand-green);font-family:inherit;font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);
-          line-height:1.2;letter-spacing:-.05px;cursor:pointer;white-space:normal;text-align:center;text-decoration:none;
+          display:inline-flex;align-items:center;width:max-content;max-width:100%;min-height:var(--tap-min);box-sizing:border-box;
+          padding:6px 9px;border:0;border-radius:8px;background:var(--public-lime-tint);color:var(--public-brand-green);
+          font-family:inherit;font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);
+          line-height:1.4;letter-spacing:-.05px;cursor:pointer;white-space:normal;overflow-wrap:anywhere;text-align:start;
+          text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;
           touch-action:manipulation;-webkit-tap-highlight-color:transparent;
-          transition:background-color .18s,box-shadow .18s,border-color .18s;
+          transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s;
         }
-        .eta-action:active{background:var(--public-lime-tint);box-shadow:inset 0 0 0 1px rgba(26,58,42,.08)}
-        .eta-action.primary{background:var(--public-lime-tint)}
-        .eta-action.primary:active{background:var(--public-brand-lime)}
-        .eta-action:disabled{
-          color:#7b8379;background:#f0f2ec;border-color:#d7dcd3;cursor:not-allowed;opacity:.86;box-shadow:none;
-        }
+        .eta-action:active{background:var(--public-brand-lime);text-decoration-color:transparent}
         .eta-live-note,.eta-continuation{margin:0;color:var(--public-muted);font-size:13px;font-weight:500;line-height:1.45}
         .eta-composer{
           margin-top:24px;padding:18px 18px 14px;border:0;border-radius:18px;background:#fff;
@@ -666,15 +667,17 @@ const ElsewhereTravelAssistant: React.FC = () => {
         @media(hover:hover) and (pointer:fine){
           .eta-tab:hover::before{background:rgba(239,249,207,.78)}
           .eta-chip:hover{border-color:#bfd36f;background:var(--public-lime-tint)}
-          .eta-action:not(:disabled):hover{background:var(--public-lime-tint);box-shadow:var(--public-lift-shadow)}
-          .eta-action.primary:not(:disabled):hover{background:var(--public-brand-lime)}
+          .eta-action:hover{
+            background:var(--public-brand-lime);text-decoration-color:transparent;
+            transform:translateY(-1px);box-shadow:0 5px 14px rgba(26,58,42,.1);
+          }
           .eta-clear:hover{background:var(--public-lime-tint);color:var(--public-brand-green)}
           .eta-send:not(:disabled):hover{background:var(--lime-hover)}
         }
         @media(hover:none) and (pointer:coarse){
           .eta-composer:focus-within{background:rgba(209,244,112,.055);box-shadow:0 5px 14px rgba(26,58,42,.09)}
           .eta-mic-slot :global(.voice-search-mic:active){background:var(--public-lime-tint)}
-          .eta-action:not(:disabled):active,.eta-chip:active,.eta-send:not(:disabled):active,.eta-clear:active{
+          .eta-action:active,.eta-chip:active,.eta-send:not(:disabled):active,.eta-clear:active{
             filter:saturate(1.04);
           }
         }
@@ -689,7 +692,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
           .eta-line{font-size:18px}
           .eta-field textarea{font-size:var(--public-mobile-form-font-size)}
           .eta-composer-foot{flex-wrap:wrap}.eta-hint{flex:1 1 100%}.eta-tools{width:100%;justify-content:flex-end}
-          .eta-result{grid-template-columns:1fr;padding:18px}.eta-result h3{font-size:var(--public-mobile-card-size)}.eta-desc{font-size:16px}.eta-result-side{align-items:flex-start;text-align:start}.eta-actions{width:100%;margin-inline-start:0}
+          .eta-result{grid-template-columns:1fr;padding:18px}.eta-result h3{font-size:var(--public-mobile-card-size)}.eta-desc{font-size:16px}.eta-result-side{align-items:flex-start;text-align:start}.eta-actions{align-items:flex-start;margin-inline-start:0}
         }
         @media(max-width:380px){
           .eta-tab{font-size:13px;padding-inline:10px}
@@ -697,11 +700,10 @@ const ElsewhereTravelAssistant: React.FC = () => {
           .eta-panel{padding-inline:16px}
           .eta-result{padding-inline:16px}
           .eta-actions{gap:6px}
-          .eta-action{padding-inline:5px}
         }
         @media(prefers-reduced-motion:reduce){
           .eta-tab,.eta-tab::before,.eta-result,.eta-chip,.eta-action,.eta-clear,.eta-send,.eta-composer{transition:none}
-          .eta-action:hover{box-shadow:none}
+          .eta-action:hover{transform:none;box-shadow:none}
           .eta-loading-line::after{width:100%;transform:none;animation:none}
         }
         @media(prefers-reduced-motion:reduce) and (hover:none) and (pointer:coarse){
