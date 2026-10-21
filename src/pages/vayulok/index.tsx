@@ -213,7 +213,6 @@ const VayuLokPage: React.FC = () => {
            down to 861px, where the shared split would stack at 1024px. .vl-page makes
            the selector outrank the component's own .rh-split at every width. */
         .vl-page :global(.rh-split){display:grid;grid-template-columns:minmax(0,.95fr) minmax(0,1.05fr);gap:56px;align-items:center}
-        .vl-page :global(.rh-head){font-weight:500}
         .vl-hero-visual{min-width:0;width:100%;display:flex;justify-content:center}
         .vl-hero-visual :global(.vag-shell){width:100%;max-width:720px}
 
