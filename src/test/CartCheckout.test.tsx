@@ -131,6 +131,8 @@ const SAVED_PROFILE = {
   name: 'Asha Sen',
   firstName: 'Asha',
   lastName: 'Sen',
+  companyName: 'WECARE Test Customer',
+  designation: 'Buyer',
   email: 'asha@example.com',
   phone: '+919330994400',
   profileComplete: true,
