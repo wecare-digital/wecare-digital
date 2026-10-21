@@ -445,9 +445,9 @@ const ElsewhereTravelAssistant: React.FC = () => {
                 ) ) }
               </div>
               { responseSource === 'demo' ? (
-                <p className="eta-live-note eta-preview-note">Preview results — prices are illustrative and checkout stays disabled until live provider availability is connected.</p>
+                <p className="eta-live-note eta-preview-note">Preview results — prices are illustrative. Checkout appears only after a live provider confirms the offer.</p>
               ) : (
-                <p className="eta-live-note">Checkout only unlocks after the provider confirms price, availability, cancellation terms and a fresh offer reference.</p>
+                <p className="eta-live-note">Checkout options appear only after the provider confirms price, availability, cancellation terms and a fresh offer reference.</p>
               ) }
             </>
           ) }
