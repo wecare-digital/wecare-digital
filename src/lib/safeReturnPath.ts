@@ -97,6 +97,8 @@
  */
 const ALLOWED: ReadonlySet<string> = new Set( [
   '/cart/',
+  // Dedicated post-cart payment-method page; customer auth may return here before rail choice.
+  '/checkout/',
   '/orders/',
   '/blog/',
   // Phase O-1: the two service pages send a signed-out customer to sign in and back.
