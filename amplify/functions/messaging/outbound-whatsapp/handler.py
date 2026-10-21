@@ -36,7 +36,7 @@ from lambda_utils import direct_send  # Direct Send flag + WABA map, fails close
 from lambda_utils import contact_key
 from lambda_utils import template_status
 from lambda_utils.template_media import fixed_image_header
-from lambda_utils.identity import subscriber_id  # `id` is the physical key; `contactId` is its alias
+from lambda_utils.identity import subscriber_id, consent as consent_evidence  # canonical identity + evidence ledger
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
 # One source for Meta's reference_id contract, so the send path and the minter cannot disagree.
 from lambda_utils.ecommerce import order_keys
@@ -812,6 +812,135 @@ def _fetch_approved_templates(waba_id: str) -> Dict[str, Any]:
     return _invoke_payment_read('/wa-business/payment-templates/list', {'wabaId': waba_id})
 
 
+
+_TEMPLATE_CATEGORY_CACHE_TTL = 300
+_template_category_cache: Dict[Tuple[str, str], Tuple[str, float]] = {}
+
+
+class TemplateCategoryUnavailable(RuntimeError):
+    """The server could not prove a template's live Meta category, so it must not guess."""
+
+
+def _template_category_for_send(phone_number_id: str, template_name: str,
+                                request_id: str) -> str:
+    """Return the live APPROVED Meta category for one template, cached briefly per WABA.
+
+    Marketing classification is a server-side decision. The browser may tell us that a send is
+    marketing, but it may never downgrade a Meta MARKETING template to utility/service. The first
+    send on a warm Lambda reads the unfiltered WABA template list; subsequent recipients in the
+    same campaign reuse that proof for five minutes.
+    """
+    name = str(template_name or '').strip()
+    if not name:
+        raise TemplateCategoryUnavailable('template name is empty')
+    waba_id = _waba_for_sender(phone_number_id)
+    if not waba_id:
+        raise TemplateCategoryUnavailable('sender WABA cannot be resolved')
+
+    key = (waba_id, name.lower())
+    now = time.time()
+    cached = _template_category_cache.get(key)
+    if cached and (now - cached[1]) < _TEMPLATE_CATEGORY_CACHE_TTL:
+        return cached[0]
+
+    try:
+        rows = _fetch_approved_templates(waba_id).get('data', [])
+    except Exception as error:  # noqa: BLE001 - classification fails closed
+        logger.warning(json.dumps({
+            'event': 'template_category_read_failed',
+            'templateName': name,
+            'wabaId': waba_id,
+            'error': type(error).__name__,
+            'requestId': request_id,
+        }))
+        raise TemplateCategoryUnavailable('template category read failed') from None
+
+    categories = set()
+    for row in rows if isinstance(rows, list) else []:
+        if not isinstance(row, dict):
+            continue
+        row_name = str(row.get('name') or '').strip()
+        if not row_name or not template_status.is_sendable(row.get('status')):
+            continue
+        category = str(row.get('category') or '').strip().upper()
+        if category:
+            _template_category_cache[(waba_id, row_name.lower())] = (category, now)
+        if row_name.lower() == name.lower() and category:
+            categories.add(category)
+
+    if len(categories) != 1:
+        logger.warning(json.dumps({
+            'event': 'template_category_unresolved',
+            'templateName': name,
+            'wabaId': waba_id,
+            'categories': sorted(categories),
+            'requestId': request_id,
+        }))
+        raise TemplateCategoryUnavailable('template category is not uniquely provable')
+
+    category = next(iter(categories))
+    _template_category_cache[key] = (category, now)
+    return category
+
+
+def _resolve_whatsapp_message_purpose(body: Dict[str, Any], phone_number_id: str,
+                                      is_template: bool, template_name: Optional[str],
+                                      is_lto_template: bool, request_id: str) -> str:
+    """Resolve the consent purpose without trusting a caller to downgrade marketing.
+
+    Explicit MARKETING is always honoured. Campaign/LTO traffic is marketing by definition.
+    For every ordinary template, Meta's live category is authoritative: MARKETING upgrades the
+    purpose even if a caller supplied SERVICE/TRANSACTIONAL. Utility/authentication templates do
+    not require marketing consent. Free-form replies default to SERVICE.
+    """
+    raw = str(body.get('messagePurpose') or body.get('consentPurpose') or '').strip()
+    purpose = consent_evidence.SERVICE
+    if raw:
+        purpose = consent_evidence.normalize_purpose(raw)
+
+    if is_lto_template or body.get('campaignId') or body.get('campaignName'):
+        purpose = consent_evidence.MARKETING
+
+    if is_template:
+        category = _template_category_for_send(
+            phone_number_id, str(template_name or ''), request_id)
+        if category == 'MARKETING':
+            purpose = consent_evidence.MARKETING
+        elif category == 'UTILITY' and purpose != consent_evidence.MARKETING:
+            purpose = consent_evidence.TRANSACTIONAL
+        elif category == 'AUTHENTICATION' and purpose != consent_evidence.MARKETING:
+            purpose = consent_evidence.SERVICE
+
+    return purpose
+
+
+def _marketing_consent_refusal(contact: Optional[Dict[str, Any]], purpose: str,
+                               contact_id: str, request_id: str
+                               ) -> Optional[Dict[str, Any]]:
+    """Block a marketing send unless the canonical ledger currently proves WhatsApp opt-in."""
+    if purpose != consent_evidence.MARKETING:
+        return None
+
+    now = int(time.time())
+    state = consent_evidence.current_state(
+        contact, 'WHATSAPP', now=now, purpose=consent_evidence.MARKETING)
+    if state == consent_evidence.OPTED_IN:
+        return None
+
+    logger.warning(json.dumps({
+        'event': 'whatsapp_marketing_consent_refused',
+        'contactId': mask_contact_id(contact_id),
+        'consentState': state,
+        'purpose': consent_evidence.MARKETING,
+        'requestId': request_id,
+    }))
+    return _error_response(
+        403,
+        'WHATSAPP_MARKETING_CONSENT_REQUIRED',
+        'This customer has no current WhatsApp marketing opt-in. Nothing was sent.',
+    )
+
+
 def _approved_order_status_template(phone_number_id: str, request_id: str) -> str:
     """Return the configured Order Status template only after a live APPROVED readback."""
     if not WA_ORDER_STATUS_TEMPLATE:
@@ -1192,6 +1321,21 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # Native reply support — quote the WhatsApp message id being replied to.
         context_message_id = body.get('contextMessageId') or body.get('replyToMessageId')
         
+        # Resolve message purpose BEFORE any send-side effect. Meta's live template category is
+        # authoritative, so a caller cannot label a MARKETING template as utility/service.
+        try:
+            message_purpose = _resolve_whatsapp_message_purpose(
+                body, phone_number_id, is_template, template_name,
+                is_lto_template, request_id)
+        except consent_evidence.InvalidConsentRecord:
+            return _error_response(
+                400, 'INVALID_MESSAGE_PURPOSE',
+                'messagePurpose must be MARKETING, TRANSACTIONAL or SERVICE.')
+        except TemplateCategoryUnavailable:
+            return _error_response(
+                503, 'TEMPLATE_CATEGORY_UNAVAILABLE',
+                'Template category could not be verified. Nothing was sent.')
+
         # Allow sending without contactId if recipientPhone is provided (for order_status)
         if not contact_id and not recipient_phone_direct:
             return _error_response(400, 'contactId or recipientPhone is required')
@@ -1211,6 +1355,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if not recipient_bsuid and contact.get('bsuid'):
                 recipient_bsuid = contact.get('bsuid', '')
         
+        # The consent ledger is the single send-time authority for MARKETING. Legacy
+        # optInWhatsApp/allowlistWhatsApp booleans are deliberately ignored here: a boolean without
+        # evidence cannot grant permission, and an OPTED_OUT ledger entry must always win.
+        consent_refusal = _marketing_consent_refusal(
+            contact, message_purpose, contact_id, request_id)
+        if consent_refusal is not None:
+            return consent_refusal
+
         # ── Live-send smoke-test lockdown ────────────────────────────────────
         # Placed here, before the typing indicator, the block_users branch and
         # every send branch, so that in smoke mode nothing at all reaches a
