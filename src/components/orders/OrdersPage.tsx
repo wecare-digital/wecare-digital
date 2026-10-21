@@ -111,6 +111,8 @@ interface ProfilePayload {
   name: string;
   firstName: string;
   lastName: string;
+  companyName: string;
+  designation: string;
   email: string;
   emailVerified: boolean;
   phone: string;
@@ -789,6 +791,8 @@ export default function OrdersPage (): React.ReactElement {
                     initial={ {
                       firstName: profile.firstName,
                       lastName: profile.lastName,
+                      companyName: profile.companyName,
+                      designation: profile.designation,
                       email: profile.email,
                       address: profile.address,
                     } }
