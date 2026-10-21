@@ -7,6 +7,7 @@ import { type Crumb } from './Breadcrumbs';
 import type { ProductDef } from '../content/products';
 import type { BlogCard } from '../lib/public-blog';
 import PolicyDetails from './public/PolicyDetails';
+import ProductBuyBox from './ProductBuyBox';
 import { PRODUCT_SKU_BY_SLUG, productPolicyCopy } from '../content/productCommerce';
 
 /**
@@ -89,6 +90,7 @@ const ProductPage: React.FC<ProductPageProps> = ( {
   const hasAside = Array.isArray( blogCards ) && blogCards.length > 0;
   const sku = PRODUCT_SKU_BY_SLUG[ product.slug ];
   const policy = sku ? productPolicyCopy( product.slug, product.name, product.note ) : null;
+  const checkoutOwnedByBuyBox = React.isValidElement( belowCta ) && belowCta.type === ProductBuyBox;
   return (
   <>
     <RotatingHero
@@ -161,14 +163,16 @@ const ProductPage: React.FC<ProductPageProps> = ( {
             `ctaLabel` is kept in the content for menus/future use but is no longer the pill face;
             it is consumed nowhere else (verified). A page that declares a second anchor
             (ctaLabel2/ctaHref2) keeps its own labels rather than adopting checkout wording. */}
-        <div className="pdp-ctas">
-          <a className="pdp-cta" href={ whatsappServiceLink( product.slug ) || product.ctaHref }>
-            { product.ctaLabel2 ? product.ctaLabel : 'Checkout on WhatsApp \u2192' }
-          </a>
-          { product.ctaHref2 && product.ctaLabel2 && (
-            <a className="pdp-cta" href={ product.ctaHref2 }>{ product.ctaLabel2 }</a>
-          ) }
-        </div>
+        { !checkoutOwnedByBuyBox && (
+          <div className="pdp-ctas">
+            <a className="pdp-cta" href={ whatsappServiceLink( product.slug ) || product.ctaHref }>
+              { product.ctaLabel2 ? product.ctaLabel : 'Checkout on WhatsApp \u2192' }
+            </a>
+            { product.ctaHref2 && product.ctaLabel2 && (
+              <a className="pdp-cta" href={ product.ctaHref2 }>{ product.ctaLabel2 }</a>
+            ) }
+          </div>
+        ) }
 
         {/* OPTION A: the floating "Checkout on WhatsApp →" microcopy is GONE — that label now
             lives on the primary pill above, so a quiet grey note repeating it would be redundant.
