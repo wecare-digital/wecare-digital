@@ -4401,7 +4401,7 @@ export async function sendGroupMessage ( phoneId: string, groupId: string, conte
 
 
 // ============================================================================
-// PART 4 — TTL, Template validation/presets, Media, Send-test, Flow admin
+// PART 4 — TTL, Template validation, Media, Send-test, Flow admin
 // ============================================================================
 
 // ── Template TTL ──
@@ -4437,7 +4437,7 @@ export async function updateTemplateTtl ( templateId: string, ttl: number, wabaI
   return data || { success: false, error: 'No response' };
 }
 
-// ── Template validation / presets / send-test / refresh (template-management lambda) ──
+// ── Template validation / send-test / refresh (template-management lambda) ──
 const WA_TPL_BASE = `${API_BASE}/whatsapp/templates`;
 
 export interface TemplateValidationResult { ok: boolean; errors: string[]; warnings: string[]; }
