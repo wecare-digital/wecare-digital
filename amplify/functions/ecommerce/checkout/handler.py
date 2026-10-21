@@ -1987,9 +1987,11 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
     #    reference is minted and durably reserved BEFORE it is used, and never transformed after.
     attempt_id = payment_attempt.new_payment_attempt_id()
     try:
+        checkout_mode = (CHECKOUT_MODE if catalog_session is not None
+                         else wa_payment_request.WA_NATIVE_CART_CHECKOUT_MODE)
         extra = {"customerId": identity.customer_id,
                  "amountPaise": amount_paise, "currency": "INR",
-                 "checkoutMode": CHECKOUT_MODE,
+                 "checkoutMode": checkout_mode,
                  "channel": order_channel.CHANNEL_WHATSAPP}
         if snapshot is not None:
             # The cart join keys. `cartId` + `cartRevision` is what reconciliation matches on,
@@ -2005,7 +2007,13 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         if catalog_session is None and cart_profile is not None:
             public_uuid = customer_uuid.from_contact(cart_profile)
             public_contact_id = contact_key.resolve(cart_profile)
-            extra.update(customerPhone=_profile_phone(identity))
+            extra.update(
+                customerPhone=_profile_phone(identity),
+                phoneId=wa_payment_request.PHONE_NUMBER_ID_1,
+                wabaId=wa_payment_request.PHONE_ID_TO_WABA[wa_payment_request.PHONE_NUMBER_ID_1],
+                configurationName=EXPECTED_CONFIGURATION_NAME,
+                providerMid=EXPECTED_PROVIDER_MID,
+            )
             if public_uuid:
                 extra[customer_uuid.ATTRIBUTE] = public_uuid
             if public_contact_id:
@@ -2029,7 +2037,8 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         configuration_name=EXPECTED_CONFIGURATION_NAME,
         payment_attempt_id=attempt_id,
     )
-    attempt["checkoutMode"] = CHECKOUT_MODE
+    attempt["checkoutMode"] = (CHECKOUT_MODE if catalog_session is not None
+                               else wa_payment_request.WA_NATIVE_CART_CHECKOUT_MODE)
     if catalog_session is None and cart_profile is not None:
         attempt.update(
             channel=order_channel.CHANNEL_WHATSAPP,
