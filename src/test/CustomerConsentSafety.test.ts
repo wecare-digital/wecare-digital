@@ -17,20 +17,20 @@ describe( 'Customers consent safety', () => {
     expect( fallback ).not.toContain( 'allowlistWhatsApp: true' );
   } );
 
-  it( 'renders consent and allowlist state read-only in the generic customer editor', () => {
-    const start = customers.indexOf( 'Consent and channel allowlists are evidence-backed state.' );
-    expect( start ).toBeGreaterThan( 0 );
-    const block = customers.slice( start, start + 3500 );
-    expect( block ).toContain( 'disabled readOnly aria-readonly="true"' );
-    expect( block ).not.toContain( 'onChange={e => item.set(e.target.checked)}' );
-    expect( block ).not.toContain( 'set: setFormOptInWA' );
-    expect( block ).not.toContain( 'set: setFormAllowlistWA' );
+  it( 'keeps consent controls out of the generic customer editor', () => {
+    expect( customers ).not.toContain( 'setFormOptInWA' );
+    expect( customers ).not.toContain( 'setFormAllowlistWA' );
+    expect( customers ).not.toContain( 'onChange={e => item.set(e.target.checked)}' );
   } );
 
-  it( 'still preserves authoritative consent state on ordinary customer edits', () => {
-    expect( customers ).toContain( 'setFormOptInWA(contact.optInWhatsApp || false)' );
-    expect( customers ).toContain( 'setFormAllowlistWA(contact.allowlistWhatsApp || false)' );
-    expect( customers ).toContain( 'optInWhatsApp: formOptInWA' );
-    expect( customers ).toContain( 'allowlistWhatsApp: formAllowlistWA' );
+  it( 'ordinary customer create/update payloads do not rewrite evidence-backed consent', () => {
+    const createStart = customers.indexOf( 'const handleCreate = async' );
+    const updateStart = customers.indexOf( 'const handleUpdate = async' );
+    const createBlock = customers.slice( createStart, updateStart );
+    const updateBlock = customers.slice( updateStart, customers.indexOf( '// Archive is a distinct', updateStart ) );
+    for ( const block of [ createBlock, updateBlock ] ) {
+      expect( block ).not.toContain( 'optInWhatsApp:' );
+      expect( block ).not.toContain( 'allowlistWhatsApp:' );
+    }
   } );
 } );

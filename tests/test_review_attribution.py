@@ -100,6 +100,7 @@ def review_env(monkeypatch):
         {
             flows_common.DRAFTS_TABLE: "draftKey",
             fc.FLOW_SUBMISSIONS_TABLE: "submissionId",
+            flows_common.CONTACTS_TABLE: "id",
         },
         {
             flows_common.DRAFTS_TABLE: {},
@@ -109,6 +110,11 @@ def review_env(monkeypatch):
     monkeypatch.setattr(flows_common, "dynamodb", fake)
     monkeypatch.setattr(leave_review, "dynamodb", fake)
     monkeypatch.setattr(fc, "_table", lambda: fake.Table(fc.FLOW_SUBMISSIONS_TABLE))
+    fake.Table(flows_common.CONTACTS_TABLE).put_item(Item={
+        "id": "wa918100640044",
+        "phone": "+918100640044",
+        "customerUuid": "b5985cda-e76f-4d61-a8a9-97cb0d3225b8",
+    })
     # Attribution is what is under test, not contact lookup.
     monkeypatch.setattr(flows_common, "find_contact_by_phone", lambda phone: "wa918100640044")
     monkeypatch.setattr(flows_common, "get_contact_name", lambda cid: "QA Tester")

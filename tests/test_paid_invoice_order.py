@@ -134,7 +134,8 @@ def materialization_tables():
     fake = FakeDynamo(keys={'invoices':'invoiceId','items':'itemId','contacts':'id',
         'attempts':'paymentAttemptId','keys':'orderId','orders':'orderId'},
         indexes={'invoices':{'referenceId-index':('referenceId', None)}}, base_query_tables={'items'})
-    tables = {name:fake.Table(name) for name in fake.keys}
+    tables = {name: fake.Table(name) for name in (
+        'invoices', 'items', 'contacts', 'attempts', 'keys', 'orders')}
     tables['invoices'].put_item(Item=args['invoice'])
     tables['contacts'].put_item(Item=args['contact'])
     tables['attempts'].put_item(Item=args['attempt'])
