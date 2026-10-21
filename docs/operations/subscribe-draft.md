@@ -1,12 +1,13 @@
-# Subscribe profile draft
+# Subscribe profile Flow
 
 Selected Meta Flow: `1386523953464380` (`WD_Subscribe_Design_v1`), WABA1 only.
-Keep DRAFT. No publication or automatic customer trigger is enabled by this change.
+Owner-confirmed **PUBLISHED on 2026-10-21**. The canonical Flow registry now exposes it to the
+existing Subscribe keyword/send path; the published Flow itself is immutable from draft tooling.
 
 Definition: `flows/design-drafts/subscribe.json` in the WhatsApp business API package.
 Screens: PROFILE -> ADDRESS -> REVIEW -> COMPLETE. No Preferences screen.
 The existing WECARE app and `https://wecare.digital/api/wa-business/flow-data`
-endpoint remain attached. Send controlled tests with `mode: draft`,
+endpoint remain attached. For controlled QA, use the existing send API with the published Flow,
 `flowAction: data_exchange`, and a unique `subscribe-<uuid>-waba-1-ph-<phone>` token.
 Use the existing internal `/wa-business/messages/send/flow` API; no new send path is needed.
 
@@ -33,7 +34,7 @@ Handset submission is a separate verification step; sending a draft is not proof
 
 The confirmation distinguishes a new profile (details saved) from one with a saved address (details updated), preserving the result on retry. Opening messages are edited in Communications -> Manage -> WhatsApp -> Auto response. That editor does not publish this draft or grant subscription consent.
 
-The IAM-only `serviceDesignDrafts` prepare action accepts `service: subscribe` solely for existing draft `1386523953464380`; it fails closed if missing, replaced or published. No new Subscribe Flow is created.
+The IAM-only `serviceDesignDrafts` prepare action now refuses `service: subscribe` mutations because this Flow is published. New published Flow IDs belong in the canonical registry instead of the draft builder.
 
 ## Workspace Subscribe settings
 
@@ -41,4 +42,4 @@ Communications -> Manage -> WhatsApp -> Auto response -> Subscribe edits separat
 
 Customer search opens the existing canonical ConsentPanel, recording channel, state, source, purpose and reference in the customer's consent ledger. Profile saves and copy changes do not write consent. This records evidence; the existing outbound WhatsApp sender does not consistently enforce this ledger, so these controls must not be described as a universal delivery block. Identity-change acknowledgment is also separate and is not enabled here.
 
-No Preferences screen is restored. The Flow remains Draft. Website/backend deployment requires approval.
+No Preferences screen is restored. The Flow is Published; runtime/backend deployment remains a separate controlled release.
