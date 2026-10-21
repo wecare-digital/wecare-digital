@@ -2065,8 +2065,9 @@ def _from_dynamo(item: Dict[str, Any]) -> Dict[str, Any]:
     result = {k: (int(v) if isinstance(v, Decimal) and v % 1 == 0 else float(v) if isinstance(v, Decimal) else v)
             for k, v in item.items()}
     result['customerDisplayId'] = customer_uuid.display_code(item)
-    # Purpose-specific, ledger-derived UI summary. Legacy optInWhatsApp / allowlistWhatsApp
-    # booleans remain on old rows for compatibility but are never the authority for marketing.
+    # Purpose-specific, ledger-derived UI summary consumed by Broadcast audience eligibility.
+    # Legacy optInWhatsApp / allowlistWhatsApp booleans remain on old rows for compatibility
+    # but are never the authority for WhatsApp marketing.
     result['whatsappMarketingConsent'] = consent_evidence.current_state(
         item, 'WHATSAPP', now=int(time.time()), purpose=consent_evidence.MARKETING)
     return result
