@@ -136,13 +136,13 @@
                 "type": "TextInput",
                 "name": "company_name",
                 "label": "Organisation",
-                "required": false
+                "required": true
               },
               {
                 "type": "TextInput",
                 "name": "designation",
                 "label": "Role / designation",
-                "required": false
+                "required": true
               }
             ],
             "init-values": {
@@ -282,13 +282,13 @@
                 "type": "TextInput",
                 "name": "address_line2",
                 "label": "Address line 2",
-                "required": false
+                "required": true
               },
               {
                 "type": "TextInput",
                 "name": "locality",
-                "label": "Locality / landmark",
-                "required": false
+                "label": "Landmark / locality",
+                "required": true
               },
               {
                 "type": "TextInput",
