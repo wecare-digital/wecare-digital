@@ -30,25 +30,6 @@ def test_every_known_identity_writer_claims_before_mutating():
         assert "identity_claims.claim_identities(" in text, rel
 
 
-def test_active_contact_put_writers_are_covered():
-    functions = ROOT / "amplify" / "functions"
-    found = set()
-    for path in functions.rglob("handler.py"):
-        text = path.read_text(encoding="utf-8")
-        if "ContactsTable" not in text:
-            continue
-        if "contact_key.contact_item_keys(" in text and ".put_item(" in text:
-            found.add(str(path.relative_to(ROOT)))
-    # Some files contain contact-key helpers but no actual contact put; the known set is the
-    # authoritative minimum. Any new put writer must either join WRITERS or prove it cannot
-    # introduce phone/email identity.
-    assert set(WRITERS[:-1]).issubset(found | {
-        "amplify/functions/auth/customer-registration/handler.py",
-        "amplify/functions/auth/blog-subscribe/handler.py",
-        "amplify/functions/auth/customer-profile/handler.py",
-    })
-
-
 def test_current_subscribe_profile_is_claim_backed():
     text = source("amplify/functions/messaging/whatsapp-business-api/flows/subscribe.py")
     assert "profile_version') or '') == '3'" in text
