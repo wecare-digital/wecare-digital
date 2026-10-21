@@ -277,21 +277,6 @@ def accept_paid(*, attempts, orders, keys, attempt, outcome, verified_captured_p
         _stage(attempts, attempt['paymentAttemptId'], 'NEEDS_RECONCILIATION',
                finalizationReason='TENDER_SUM_MISMATCH')
         return
-    # Identity is part of the definition of a finalized order. The paid order row remains as
-    # recovery evidence, but it cannot become terminal while it is detached from the canonical
-    # ContactsTable person or lacks the public customer UUID used across website and WhatsApp.
-    # This turns identity loss into an explicit reconciliation state instead of a silent orphan.
-    if not order.get('contactId') or not order.get('customerUuid'):
-        reason = ('CUSTOMER_CONTACT_MISSING' if not order.get('contactId')
-                  else 'CUSTOMER_UUID_MISSING')
-        _stage(attempts, attempt['paymentAttemptId'], 'NEEDS_RECONCILIATION',
-               finalizationReason=reason)
-        orders.update_item(Key={'orderId': order['orderId']},
-            UpdateExpression='SET finalizationStage=:stage, finalizationReason=:reason',
-            ConditionExpression='paymentAttemptId=:attempt',
-            ExpressionAttributeValues={':stage': 'NEEDS_RECONCILIATION', ':reason': reason,
-                                       ':attempt': attempt['paymentAttemptId']})
-        return
     # TERMINAL. The internal order IS the authoritative artifact and there is no second ledger to
     # write to: the order record committed above (INTERNAL_ORDER_CREATED) and the tenders
     # reconciled, so the order is now FINALIZED. Native inventory was already reserved at
