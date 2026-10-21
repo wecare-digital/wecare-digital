@@ -6,6 +6,7 @@ on:
     branches: [stack]
     paths:
       - 'amplify/functions/ai/ai-generate-response/**'
+      - 'amplify/functions/core/contacts/**'
       - 'amplify/functions/core/service-api/**'
       - 'amplify/functions/core/messages-read/**'
       - 'amplify/functions/auth/customer-whatsapp-auth/**'
@@ -61,6 +62,7 @@ jobs:
         run: |
           python -m py_compile \
             amplify/functions/ai/ai-generate-response/handler.py \
+            amplify/functions/core/contacts/handler.py \
             amplify/functions/core/service-api/handler.py \
             amplify/functions/core/messages-read/handler.py \
             amplify/functions/auth/customer-whatsapp-auth/handler.py \
@@ -72,10 +74,10 @@ jobs:
             amplify/functions/ecommerce/product-image-gen/handler.py \
             amplify/functions/ecommerce/meta-catalog-sync/handler.py \
             amplify/functions/payments/razorpay-webhook/handler.py \
-            amplify/functions/payments/invoice-engine/handler.py \
-            amplify/functions/auth/customer-whatsapp-auth/handler.py
+            amplify/functions/payments/invoice-engine/handler.py
           python scripts/deploy_all_lambdas.py --dry-run \
             wecare-ai-generate-response \
+            wecare-contacts \
             wecare-service-api \
             wecare-messages-read \
             wecare-customer-whatsapp-auth \
@@ -85,13 +87,13 @@ jobs:
             wecare-product-image-gen \
             wecare-meta-catalog-sync \
             wecare-razorpay-webhook \
-            wecare-invoice-engine \
-            wecare-customer-whatsapp-auth
+            wecare-invoice-engine
 
       - name: Deploy selected runtime functions
         run: |
           python scripts/deploy_all_lambdas.py \
             wecare-ai-generate-response \
+            wecare-contacts \
             wecare-service-api \
             wecare-messages-read \
             wecare-customer-whatsapp-auth \
@@ -101,8 +103,7 @@ jobs:
             wecare-product-image-gen \
             wecare-meta-catalog-sync \
             wecare-razorpay-webhook \
-            wecare-invoice-engine \
-            wecare-customer-whatsapp-auth
+            wecare-invoice-engine
 
       - name: Verify live aliases serve latest code
         run: |
@@ -111,6 +112,7 @@ jobs:
           lam = boto3.client("lambda", region_name="us-east-1")
           names = [
               "wecare-ai-generate-response",
+              "wecare-contacts",
               "wecare-service-api",
               "wecare-messages-read",
               "wecare-customer-whatsapp-auth",
@@ -121,7 +123,6 @@ jobs:
               "wecare-meta-catalog-sync",
               "wecare-razorpay-webhook",
               "wecare-invoice-engine",
-              "wecare-customer-whatsapp-auth",
           ]
           bad = []
           for name in names:
