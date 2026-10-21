@@ -238,6 +238,7 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
         height: rect.height,
         fontSize: style.fontSize,
         textDecorationLine: style.textDecorationLine,
+        borderTopWidth: style.borderTopWidth,
         backgroundColor: style.backgroundColor,
         transform: style.transform,
         scrollWidth: node.scrollWidth,
@@ -247,7 +248,11 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
     for ( const action of liveActionBoxes ) {
       if ( action.height < 44 ) fail( 'provider contract: checkout button below 44px' );
       if ( px( action.fontSize ) < 16 ) fail( `provider contract: checkout font too small (${action.fontSize})` );
-      if ( !action.textDecorationLine.includes( 'underline' ) ) fail( 'provider contract: checkout control lost Policy-details underline' );
+      // Checkout intentionally diverged from Policy Details in #1211: amber + green contour,
+      // with no underline. The previous assertion still required the older disclosure styling
+      // and blocked the browser matrix before device/RTL checks could run.
+      if ( action.textDecorationLine !== 'none' ) fail( `provider contract: checkout text decoration drifted (${action.textDecorationLine})` );
+      if ( px( action.borderTopWidth ) < 1.5 ) fail( `provider contract: checkout contour is too weak (${action.borderTopWidth})` );
       if ( action.scrollWidth > action.clientWidth + 1 ) fail( 'provider contract: checkout label overflows horizontally' );
       if ( liveCardBox && action.width >= liveCardBox.width * 0.75 ) {
         fail( 'provider contract: checkout control is no longer compact/content-width' );
