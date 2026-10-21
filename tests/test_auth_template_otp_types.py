@@ -28,7 +28,7 @@ from lambda_utils import template_validation as tv  # noqa: E402
 from lambda_utils import whatsapp_types as wt  # noqa: E402
 
 # Test fixtures only. Nothing here is this project's app identity, and nothing here
-# is written into whatsapp_types.py or template_presets.py — see test 12.
+# is written into whatsapp_types.py — see test 12.
 FIXTURE_PACKAGE = 'com.example.app'
 FIXTURE_HASH = 'K1Xy9Zq2Ab3'          # 11 chars, the documented length
 assert len(FIXTURE_HASH) == wt.SIGNATURE_HASH_LEN
