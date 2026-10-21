@@ -96,8 +96,8 @@ def _text(value: Any, *, limit: int) -> str:
 #: `countryCode`, which is tightened to 2 because that is what an ISO 3166-1 alpha-2 code is.
 _RULES = {
     "addressLine1": (True, 200),
-    "addressLine2": (True, 200),
-    "locality": (True, 100),
+    "addressLine2": (False, 200),
+    "locality": (False, 100),
     "city": (True, 100),
     "state": (True, 100),
     "postalCode": (True, 100),
