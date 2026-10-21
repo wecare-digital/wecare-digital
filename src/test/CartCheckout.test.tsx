@@ -286,7 +286,7 @@ async function flush ( rounds = 8 ): Promise<void> {
 async function proceedPastProfile (): Promise<void> {
   fireEvent.click( await screen.findByRole( 'button', { name: 'Proceed' } ) );
   fireEvent.click( await screen.findByRole( 'button', { name: 'Complete checkout details' } ) );
-  fireEvent.click( await screen.findByRole( 'button', { name: /Pay securely/ } ) );
+  fireEvent.click( await screen.findByRole( 'button', { name: /Pay here/ } ) );
 }
 
 describe( 'the cart store', () => {
@@ -577,7 +577,7 @@ describe( 'legacy cart option recovery', () => {
 
     render( <Cart /> );
     expect( await screen.findByText( 'Ready to pay' ) ).toBeTruthy();
-    fireEvent.click( await screen.findByRole( 'button', { name: /Pay securely/ } ) );
+    fireEvent.click( await screen.findByRole( 'button', { name: /Pay here/ } ) );
 
     expect( await screen.findByText(
       'Choose a current product option below before secure payment.',
@@ -960,7 +960,7 @@ describe( 'the cart page asks the readiness question before rendering anything',
     // The Deliver line is the server's composed string, verbatim.
     expect( screen.getByText( ADDRESS_FIXTURE.fullAddress ) ).toBeTruthy();
 
-    fireEvent.click( await screen.findByRole( 'button', { name: /Pay securely/ } ) );
+    fireEvent.click( await screen.findByRole( 'button', { name: /Pay here/ } ) );
     await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 ) );
     // Still no form: a returning customer never meets one.
     expect( screen.queryByTestId( 'checkout-profile' ) ).toBeNull();
@@ -999,7 +999,7 @@ describe( 'the cart page asks the readiness question before rendering anything',
     cart.addItem( PRODUCT, 1 );
 
     render( <Cart /> );
-    fireEvent.click( await screen.findByRole( 'button', { name: /Pay securely/ } ) );
+    fireEvent.click( await screen.findByRole( 'button', { name: /Pay here/ } ) );
 
     const editor = await screen.findByTestId( 'checkout-profile' );
     expect( editor.getAttribute( 'data-mode' ) ).toBe( 'address' );
@@ -1066,7 +1066,7 @@ describe( 'the cart page asks the readiness question before rendering anything',
     await flush();
     fireEvent.click( screen.getByRole( 'button', { name: 'Complete checkout details' } ) );
     await flush();
-    fireEvent.click( screen.getByRole( 'button', { name: /Pay securely/ } ) );
+    fireEvent.click( screen.getByRole( 'button', { name: /Pay here/ } ) );
     await flush();
 
     // One refusal so far, and nothing has been asked of the customer.
@@ -1095,7 +1095,7 @@ describe( 'the cart page asks the readiness question before rendering anything',
     await flush();
     fireEvent.click( screen.getByRole( 'button', { name: 'Complete checkout details' } ) );
     await flush();
-    fireEvent.click( screen.getByRole( 'button', { name: /Pay securely/ } ) );
+    fireEvent.click( screen.getByRole( 'button', { name: /Pay here/ } ) );
     await flush();
 
     await act( async () => { vi.advanceTimersByTime( RETRY_WAIT_MS ); } );
@@ -1121,7 +1121,7 @@ describe( 'the cart page asks the readiness question before rendering anything',
 
     render( <Cart /> );
     expect( await screen.findByText( 'Ready to pay' ) ).toBeTruthy();
-    fireEvent.click( await screen.findByRole( 'button', { name: /Pay securely/ } ) );
+    fireEvent.click( await screen.findByRole( 'button', { name: /Pay here/ } ) );
 
     const editor = await screen.findByTestId( 'checkout-profile' );
     expect( editor.getAttribute( 'data-mode' ) ).toBe( 'address' );
@@ -1142,7 +1142,7 @@ describe( 'the cart page asks the readiness question before rendering anything',
 
     render( <Cart /> );
     expect( await screen.findByText( 'Ready to pay' ) ).toBeTruthy();
-    fireEvent.click( await screen.findByRole( 'button', { name: /Pay securely/ } ) );
+    fireEvent.click( await screen.findByRole( 'button', { name: /Pay here/ } ) );
 
     expect( await screen.findByText(
       'We could not get a delivery option for this address. Nothing was charged.',
@@ -1165,7 +1165,7 @@ describe( 'the cart page asks the readiness question before rendering anything',
 
     render( <Cart /> );
     expect( await screen.findByText( 'Ready to pay' ) ).toBeTruthy();
-    fireEvent.click( await screen.findByRole( 'button', { name: /Pay securely/ } ) );
+    fireEvent.click( await screen.findByRole( 'button', { name: /Pay here/ } ) );
 
     const editor = await screen.findByTestId( 'checkout-profile' );
     expect( editor.getAttribute( 'data-mode' ) ).toBe( 'create' );
@@ -1292,8 +1292,7 @@ describe( 'the initiation-failure sentence is pinned to its evidence', () => {
  *
  * Every assertion below is POSITIVE -- a call count, a URL, `pill === null || pill.disabled`.
  * A `queryBy*` returning `null` on its own asserts nothing, because a renamed element returns
- * null too. The CTA's accessible name is one of `Checkout Proceed`, `Checkout Pay securely` or
- * `Checkout Try again`, so it is found by ROLE AND POSITION inside the `cart-pill` region rather
+ * null too. The CTA's accessible name is one of `Pay on WhatsApp` or `Pay here`, so it is found by ROLE AND POSITION inside the `cart-pill` region rather
  * than by a guessed name.
  *
  * The latch is DEFENCE IN DEPTH, not the guarantee: it dies with the page. The server-side
@@ -1774,7 +1773,7 @@ describe( 'the payment rail latches once it has returned a result', () => {
  * 'Preparing...' while busy. A test that pins one of them is really pinning the state it happened
  * to be in, which is not what any of the cases below are about.
  */
-const CTA = /Pay securely|Proceed|Try again|Preparing/;
+const CTA = /Pay here|Pay on WhatsApp|Preparing/;
 
 describe( 'a contribution basket skips the address gate, on the FIRST click', () => {
   /**
@@ -2553,7 +2552,7 @@ describe( 'the request key is scoped to the basket, and rotates once on INTENT_C
     expect( keys[ 0 ] ).not.toBe( keys[ 1 ] );
     // NOT LATCHED: the refusal no human caused did not end the tab's ability to pay. The CTA is
     // still the ordinary one rather than the post-block 'Try again'.
-    expect( await screen.findByRole( 'button', { name: /Pay securely/ } ) ).toBeInTheDocument();
+    expect( await screen.findByRole( 'button', { name: /Pay here/ } ) ).toBeInTheDocument();
   } );
 
   it( 'is BOUNDED: a second INTENT_CHANGED latches and issues no third post', async () => {

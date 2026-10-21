@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import React, { useCallback, useState } from 'react';
 
 import RotatingHero from '../../components/RotatingHero';
+import CheckoutAction from '../../components/CheckoutAction';
 import { readCart } from '../../lib/cart';
 import {
   CHECKOUT_PATH,
@@ -57,27 +58,24 @@ export default function CheckoutMethodPage (): React.ReactElement {
         ariaLabel="Choose payment method"
       >
         <section className="checkout-method" aria-label="Payment method">
-          <button
-            type="button"
-            className="checkout-method-card checkout-method-primary"
-            disabled={ Boolean( busy ) }
-            aria-busy={ busy === 'whatsapp' }
-            onClick={ () => { void choose( 'whatsapp' ); } }
-          >
-            <strong>{ busy === 'whatsapp' ? 'Preparing…' : 'WhatsApp' }</strong>
-            <span>Send the order to your verified WhatsApp number and complete Review and Pay there.</span>
-          </button>
-
-          <button
-            type="button"
-            className="checkout-method-card"
-            disabled={ Boolean( busy ) }
-            aria-busy={ busy === 'website' }
-            onClick={ () => { void choose( 'website' ); } }
-          >
-            <strong>{ busy === 'website' ? 'Preparing…' : 'Here' }</strong>
-            <span>Complete secure payment on WECARE.DIGITAL.</span>
-          </button>
+          <div className="checkout-method-actions">
+            <CheckoutAction
+              disabled={ Boolean( busy ) }
+              busy={ busy === 'whatsapp' }
+              ariaLabel="Pay on WhatsApp"
+              onClick={ () => { void choose( 'whatsapp' ); } }
+            >
+              { busy === 'whatsapp' ? 'Preparing…' : 'Pay on WhatsApp' }
+            </CheckoutAction>
+            <CheckoutAction
+              disabled={ Boolean( busy ) }
+              busy={ busy === 'website' }
+              ariaLabel="Pay here"
+              onClick={ () => { void choose( 'website' ); } }
+            >
+              { busy === 'website' ? 'Preparing…' : 'Pay here' }
+            </CheckoutAction>
+          </div>
 
           <p className="checkout-method-note">
             You sign in only once. Both methods use the same cart, customer and final Orders history.
@@ -88,33 +86,11 @@ export default function CheckoutMethodPage (): React.ReactElement {
             .checkout-method{
               width:min(100%,720px);display:grid;gap:14px;margin-top:26px;
             }
-            .checkout-method-card{
-              width:100%;min-height:92px;padding:18px 20px;text-align:left;
-              display:grid;gap:5px;border:2px solid var(--public-brand-green);
-              border-radius:18px;background:#fff;color:var(--public-brand-green);
-              cursor:pointer;transition:transform .2s,box-shadow .2s,background-color .2s;
-              font:inherit;
-            }
-            .checkout-method-card strong{font-size:18px;line-height:1.25}
-            .checkout-method-card span{
-              color:var(--public-muted);font-size:15px;line-height:1.45;
-            }
-            .checkout-method-primary{background:var(--public-brand-lime)}
-            .checkout-method-card:hover:not(:disabled){
-              transform:translateY(-2px);box-shadow:var(--public-lift-shadow);
-            }
-            .checkout-method-card:focus-visible{
-              outline:3px solid var(--public-brand-green);outline-offset:3px;
-            }
-            .checkout-method-card:disabled{opacity:.55;cursor:default}
+            .checkout-method-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
             .checkout-method-note{
               margin:4px 0 0;color:var(--public-muted);font-size:14px;line-height:1.5;
             }
             .checkout-method-error{margin:0;color:#b91c1c;font-size:14px;line-height:1.5}
-            @media(prefers-reduced-motion:reduce){
-              .checkout-method-card{transition:background-color .2s}
-              .checkout-method-card:hover:not(:disabled){transform:none;box-shadow:none}
-            }
           `}</style>
         </section>
       </RotatingHero>

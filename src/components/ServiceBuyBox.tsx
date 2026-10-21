@@ -9,6 +9,7 @@ import { getSession, restoreSession } from '../lib/customerAuth';
 import { postRequestIntent, fetchMyRequests, type ServiceRequestRow } from '../lib/serviceRequests';
 import { setServiceLine } from '../lib/cart';
 import { CHECKOUT_PATH, goToServiceAction } from '../lib/serviceEntry';
+import CheckoutAction from './CheckoutAction';
 
 /**
  * THE SERVICE "CONTINUE TO CHECKOUT" ACTION, mounted under the WhatsApp CTA on the five service
@@ -208,7 +209,7 @@ const ServiceBuyBox: React.FC<ServiceBuyBoxProps> = ( { service } ) => {
   // ALWAYS "Continue to checkout →", signed in or out. A signed-out tap still routes through the
   // WhatsApp sign-in and returns here — but the label must not read as a second WhatsApp button
   // under the first one. The sign-in is a step on the way to checkout, not the button's identity.
-  const label = 'Continue to checkout →';
+  const label = 'Checkout';
 
   return (
     <div className="sbb">
@@ -240,15 +241,13 @@ const ServiceBuyBox: React.FC<ServiceBuyBoxProps> = ( { service } ) => {
         </div>
       ) }
 
-      <button
-        type="button"
-        className="sbb-cta"
+      <CheckoutAction
         onClick={ () => { void onContinue(); } }
         disabled={ disabled }
-        aria-busy={ busy }
+        busy={ busy }
       >
         { busy ? 'One moment…' : label }
-      </button>
+      </CheckoutAction>
 
       {/* The price, in /anew/'s own treatment: just the amount, no fee copy. */}
       <p className="sbb-buy">
@@ -275,18 +274,6 @@ const ServiceBuyBox: React.FC<ServiceBuyBoxProps> = ( { service } ) => {
         .sbb-select:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:2px}
         .sbb-hint{margin:0 0 2px;font-size:14px;color:var(--public-muted)}
 
-        .sbb-cta{
-          display:inline-flex;align-items:center;justify-content:center;min-height:var(--public-cta-height);
-          padding:0 26px;border:var(--public-cta-border) solid var(--public-brand-green);border-radius:var(--public-cta-radius);
-          background:#fff;color:var(--public-brand-green);font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);cursor:pointer;
-          transition:background-color .2s,transform .2s,box-shadow .2s;
-        }
-        .sbb-cta:hover:not(:disabled){
-          background:var(--public-brand-lime);transform:translateY(-2px);box-shadow:var(--public-lift-shadow);
-        }
-        .sbb-cta:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
-        .sbb-cta:disabled{opacity:.5;cursor:default}
-
         /* The shared commerce price rung: 22px/700 dark green, tabular numerals, with one
            muted body-typography supporting line below it. */
         .sbb-buy{display:flex;flex-wrap:wrap;align-items:baseline;gap:16px;margin:22px 0 0}
@@ -300,10 +287,6 @@ const ServiceBuyBox: React.FC<ServiceBuyBoxProps> = ( { service } ) => {
 
         .sbb-error{margin:12px 0 0;font-size:14px;color:#b91c1c}
 
-        @media(prefers-reduced-motion:reduce){
-          .sbb-cta{transition:background-color .2s}
-          .sbb-cta:hover:not(:disabled){transform:none;box-shadow:none}
-        }
       `}</style>
     </div>
   );
