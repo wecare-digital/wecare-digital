@@ -71,12 +71,10 @@ export const CANONICAL_FLOWS: Record<string, CanonicalFlow> = {
     capability: 'vault', label: 'Vault',
     flowId: null, status: 'NONE', metaName: null,
   },
-  // Subscribe has NO production Flow. The historical 02.WD_Profile ids (1262971692700761 /
-  // 951987930811295) are DEPRECATED and must not be resurrected. Public Subscribe actions open
-  // the dedicated WhatsApp Meta short link directly; there is no /subscribe website page.
+  // Published 2026-10-21 on WABA 1. This is the retained Subscribe/Profile Flow.
   subscribe: {
     capability: 'subscribe', label: 'Subscribe',
-    flowId: null, status: 'NONE', metaName: null,
+    flowId: '1386523953464380', status: 'PUBLISHED', metaName: 'WD_Subscribe_Design_v1',
   },
   // Track Request has no retained canonical Flow (not in keepIds). The former ids
   // 1486454129852338 (DRAFT) and 973888792200167 (DEPRECATED) are not canonical. Tracking is
