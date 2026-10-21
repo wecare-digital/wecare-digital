@@ -164,8 +164,8 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
              the whole reason this page stopped hand-rolling them: a page that states its own
              clearance has to restate it at both header heights, and getting that wrong paints the
              first line under the header. This div only sets its own reading measure. */
-          /* :global() IS MANDATORY ON BOTH OF THESE NOW, for the reason .shopd-cta below records
-             at length: styled-jsx attaches its scoping class only to the lowercase DOM tags it
+          /* :global() IS MANDATORY ON BOTH OF THESE NOW: styled-jsx attaches its scoping class
+             only to the lowercase DOM tags it
              can see in this file, and .shopd-options is now a className handed to the Select
              component, which forwards it to a node styled-jsx never saw. Without :global() the compiled
              rules match nothing and the chooser renders as an unstyled button.
