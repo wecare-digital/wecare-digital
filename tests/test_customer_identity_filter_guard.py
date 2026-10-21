@@ -299,6 +299,9 @@ def test_every_list_users_filter_site_is_guarded():
             assert 'is_cognito_subject' in block.split("Filter='sub")[0], (
                 f"{path.relative_to(ROOT).as_posix()}: a ListUsers filter is built from an "
                 f"unvalidated subject in {block.splitlines()[0]}")
-    # Six live filter sites remain after retiring the two standalone review senders.
+    # Seven live filter sites: the six that remained after retiring the two standalone review
+    # senders, plus the general-cart native money leg (`checkout._native_cart`, FEAT-002), which
+    # resolves the verified customer the same way the catalog-service leg does and is guarded by
+    # `is_cognito_subject` ahead of its ListUsers call.
     # The census moves only when a real ListUsers call site is added or removed.
-    assert sites == 6
+    assert sites == 7

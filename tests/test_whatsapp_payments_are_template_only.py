@@ -365,30 +365,54 @@ def test_the_two_payment_gates_expect_the_same_configuration_and_mid():
     assert checkout['EXPECTED_PROVIDER_MID'] == invoice['EXPECTED_PROVIDER_MID']
 
 
-def test_the_two_free_form_payment_composers_are_gone():
-    """A3.2 and A3.3 step 1, by AST so a comment naming either does not pass the test.
+def test_the_free_form_business_api_payment_composer_is_gone():
+    """A3.2, by AST so a comment naming it does not pass the test.
 
     `whatsapp-business-api._send_payment_direct_fallback` fired exactly when the invoice-engine
     invoke RAISED — which, now that the invoice path is readiness-gated, is when a refusal is the
     legitimate answer. It was the one path that could have taken money while every gate said no:
-    free-form interactive, float GST, no reservation, no interlock, no readiness.
-
-    `inbound-whatsapp-handler._send_payment_request` had zero callers and the same defects.
+    free-form interactive, float GST, no reservation, no interlock, no readiness. It stays gone.
     """
-    gone = {
-        FUNCTIONS / 'messaging' / 'whatsapp-business-api' / 'handler.py':
-            '_send_payment_direct_fallback',
-        FUNCTIONS / 'messaging' / 'inbound-whatsapp-handler' / 'handler.py':
-            '_send_payment_request',
-    }
-    for path, name in gone.items():
-        tree = ast.parse(path.read_text(encoding='utf-8'))
-        defined = {node.name for node in ast.walk(tree)
-                   if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
-        called = {node.func.id for node in ast.walk(tree)
-                  if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)}
-        assert name not in defined, f'{name} is still defined in {path.name}'
-        assert name not in called, f'{name} is still called in {path.name}'
+    path = FUNCTIONS / 'messaging' / 'whatsapp-business-api' / 'handler.py'
+    name = '_send_payment_direct_fallback'
+    tree = ast.parse(path.read_text(encoding='utf-8'))
+    defined = {node.name for node in ast.walk(tree)
+               if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
+    called = {node.func.id for node in ast.walk(tree)
+              if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)}
+    assert name not in defined, f'{name} is still defined in {path.name}'
+    assert name not in called, f'{name} is still called in {path.name}'
+
+
+def test_the_rebuilt_inbound_payment_sender_composes_no_free_form_payment():
+    """A3.3, rewritten for FEAT-002. `inbound-whatsapp-handler._send_payment_request` has been
+    REBUILT (owner-authorised) onto the unified checkout machinery: it invokes
+    `wecare-checkout:live`'s `prepareNativeCart` action with variants and quantities only, and the
+    amount, the single `PAYREF#` and the approved-template send all live in `ecommerce/checkout`.
+
+    The template-only guarantee this file defends is therefore kept STRUCTURALLY: the rebuilt
+    sender composes NO free-form payment envelope of its own (`isInteractivePayment`,
+    `orderDetails`, an inline `payment_settings`/`payment_link_uri`/`upi_intent_link`), so the only
+    payable message a cart can produce is the approved ORDER_DETAILS template the checkout seam
+    sends. Proven by AST, so a comment cannot satisfy it.
+    """
+    path = FUNCTIONS / 'messaging' / 'inbound-whatsapp-handler' / 'handler.py'
+    tree = ast.parse(path.read_text(encoding='utf-8'))
+    forbidden_keys = {'isInteractivePayment', 'orderDetails', 'payment_link_uri',
+                      'upi_intent_link', 'payment_settings'}
+    offenders = []
+    for func in ast.walk(tree):
+        if (isinstance(func, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and func.name in ('_send_payment_request', '_handle_cart_order')):
+            for node in ast.walk(func):
+                if isinstance(node, ast.Dict):
+                    for key in node.keys:
+                        if (isinstance(key, ast.Constant)
+                                and key.value in forbidden_keys):
+                            offenders.append(f'{func.name}:{key.value}@{node.lineno}')
+    assert not offenders, (
+        'a free-form payment composer reappeared on the inbound cart path: '
+        + ', '.join(offenders))
 
 
 def test_a_payment_send_is_only_logged_as_sent_on_a_2xx():

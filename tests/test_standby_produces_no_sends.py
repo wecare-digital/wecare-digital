@@ -514,7 +514,7 @@ class TestTheMoneyPath:
             assert 'isInteractivePayment' not in payload, \
                 'the deleted in-thread Review & Pay came back'
 
-    def test_there_is_no_payment_mint_left_to_guard(self):
+    def test_the_rebuilt_payment_sender_mints_and_composes_nothing(self):
         """REPLACES `test_the_guard_precedes_the_mint_in_source`, with a stronger property.
 
         That test pinned an ORDERING inside `_send_payment_request`: the `_may_send` check had to
@@ -522,28 +522,27 @@ class TestTheMoneyPath:
         minted reference and a `status: 'pending'` row behind it, and a customer who retried would
         produce the duplicate-paid-order shape this domain must never have.
 
-        `_send_payment_request` has been DELETED. It had zero callers, and it composed a free-form
-        `isInteractivePayment` order_details with float GST and a reference reserved nowhere — an
-        unreserved reference has no `PAYREF#` row, so a capture against it quarantines as
-        PAID_BUT_NO_ORDER regardless of any ordering.
+        `_send_payment_request` has been REBUILT (owner-authorised, FEAT-002) — but NOT as the
+        self-contained calculator-and-sender it used to be. It mints no `WD-PAY-` reference and
+        composes no payment envelope: it invokes `wecare-checkout:live`'s `prepareNativeCart`
+        action with variants and integer quantities only, and the amount, the single `PAYREF#`
+        and the approved-template send all live in `ecommerce/checkout`. So the ordering has no
+        subject any more — not because the function is gone, but because the handler holds nothing
+        for a guard to be on the wrong side of.
 
-        So the ordering has no subject any more, and the honest assertion is the one that
-        subsumes it: this file mints no payment reference and composes no payment at all, so there
-        is nothing for a guard to be on the wrong side of. Payments are collected through
-        `invoice-engine.send_payment_link`, which reserves identity before it sends.
+        This test therefore pins the SAFETY property that survives: the inbound handler mints no
+        payment reference and composes no payment envelope, whether or not `_send_payment_request`
+        exists.
         """
         source = HANDLER_PATH.read_text(encoding='utf-8')
         tree = ast.parse(source)
-        defined = {node.name for node in ast.walk(tree)
-                   if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
-        assert '_send_payment_request' not in defined
 
-        # No payment ENVELOPE is composed here any more. Keyed on the request keys rather than on
-        # the `WD-PAY-` prefix, because that prefix is also the POS receipt-image reference in
+        # No payment ENVELOPE is composed here. Keyed on the envelope keys rather than on the
+        # `WD-PAY-` prefix, because that prefix is also the POS receipt-image reference in
         # `_generate_and_send_invoice` — a display string on an already-paid entry, which
         # initiates nothing and reserves nothing.
         #
-        # AST, so the comment recording the deletion does not pass the test.
+        # AST, so a comment naming an envelope key does not pass the test.
         composers = []
         for node in ast.walk(tree):
             if isinstance(node, ast.Dict):
@@ -555,6 +554,24 @@ class TestTheMoneyPath:
                         composers.append(f'{key.value}@{node.lineno}')
         assert not composers, (
             'a payment composer reappeared in the inbound handler: ' + ', '.join(composers))
+
+        # The rebuilt sender mints no reference of its own. Walk its body (and the cart entry
+        # function) for a `WD-PAY` literal or a `uuid` call — the reference comes ONLY from the
+        # checkout reservation it delegates to.
+        for name in ('_send_payment_request', '_handle_cart_order'):
+            for node in ast.walk(tree):
+                if (isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                        and node.name == name):
+                    strings = {c.value for c in ast.walk(node)
+                               if isinstance(c, ast.Constant) and isinstance(c.value, str)}
+                    assert not any('WD-PAY' in s for s in strings), \
+                        f'{name} mints a browser-style reference'
+                    called = {c.func.attr for c in ast.walk(node)
+                              if isinstance(c, ast.Call) and isinstance(c.func, ast.Attribute)}
+                    called |= {c.func.id for c in ast.walk(node)
+                               if isinstance(c, ast.Call) and isinstance(c.func, ast.Name)}
+                    assert 'uuid4' not in called and 'uuid' not in called, \
+                        f'{name} mints a reference with uuid'
 
 
 class TestTheReadReceiptStaysUngated:

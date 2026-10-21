@@ -109,6 +109,12 @@ OUTBOUND_WHATSAPP_FUNCTION = os.environ.get('OUTBOUND_WHATSAPP_FUNCTION', 'wecar
 # WhatsApp Voice Lambda function name (TTS via Amazon Polly)
 WHATSAPP_VOICE_FUNCTION = os.environ.get('WHATSAPP_VOICE_FUNCTION', 'wecare-whatsapp-voice')
 
+# The unified checkout Lambda. The native WhatsApp cart money leg reaches its `prepareNativeCart`
+# internal action through this name - the SAME machinery the website and the catalog-service leg
+# use - so pricing, the single attempt + PAYREF# reservation and the approved-template send all
+# live in one place. `:live` pins the alias the service leg also invokes.
+CHECKOUT_FUNCTION = os.environ.get('CHECKOUT_FUNCTION', 'wecare-checkout:live')
+
 # ── the WhatsApp catalogue-order hand-off (see `_handle_cart_order`) ──────────
 #
 # The commerce-keys table, which holds the `WABASKET#` hand-off row beside `PAYREF#` and
@@ -6337,43 +6343,31 @@ def _request_shipping_address(contact_id: str, phone_number_id: str, sender_phon
 
 def _handle_cart_order(message: Dict, contact_id: str, sender_phone: str,
                        phone_number_id: str, request_id: str) -> None:
-    """Native catalog checkout, handed off to the website to be priced and paid.
+    """Native catalog checkout: parse the cart, then drive the unified native money leg.
 
-    WHAT THIS USED TO DO, AND WHY NONE OF IT IS LEFT
-    ------------------------------------------------
-    It built a native `order_details` (Review & Pay) message out of Meta's own numbers:
-    `item_price` read as a **float**, `gst_rate: 18.0` added to goods whose catalogue price
-    already includes GST, supply GST re-added per item inside `_send_payment_request`, a
-    convenience fee logged at **2%** against the 2.5% the rest of the system charges, and every
-    `retailer_id` rewritten to `ITEM_1..n` so a line could never be resolved back to the catalogue
-    variant it came from. Five numbers, not one of which agreed with what the website would charge
-    for the same basket.
+    WHAT THIS DOES
+    --------------
+    Parses the catalogue `order` message into variants and integer quantities, refuses the three
+    things that must never reach a commerce write (one of our own numbers as sender, a sender that
+    is not E.164, a basket with no resolvable catalogue line), routes a SERVICE basket to the
+    proven catalog-service convergence, and routes a general PRODUCT cart to `_send_payment_request`
+    — the rebuilt money sender that drives a priced native ORDER_DETAILS send through the unified
+    checkout machinery.
 
-    It also could not complete. `_send_payment_request` reaches
-    `outbound-whatsapp::_build_payment_settings`, the single per-WABA payment-configuration
-    resolver, which refuses an unmapped name - and this account records ZERO live payment
-    configurations (measured 2026-09-30). So the path computed a wrong total and then failed.
+    WHY THERE IS NO PRICE AND NO REFERENCE IN THIS FILE
+    ---------------------------------------------------
+    The amount a customer pays and the single `PAYREF#` they pay against are BOTH owned by
+    `ecommerce/checkout`. This function reads no `item_price`, computes no total, and mints no
+    reference: the parse produces variants + quantities only (`whatsapp_basket`), and everything
+    priced or reserved happens behind `_send_payment_request`'s one invoke of the checkout
+    `prepareNativeCart` action. The defects the old build carried — a client price read as a float,
+    18 percent GST re-added, a 2 percent convenience fee, synthetic retailer ids, a self-minted
+    browser-style reference reserved nowhere, a free-form interactive-payment envelope — are
+    structurally unreachable because none of those computations exist here any more.
 
-    WHAT IT DOES NOW
-    ----------------
-    Parses the cart into variants and integer quantities, writes a phone-bound HAND-OFF row, and
-    replies with a CTA link to `/cart/?basket=<token>`. The customer signs in with the same
-    WhatsApp OTP they already use, the lines land in their existing website cart, and
-    `checkout_pricing.compute_quote` produces the one and only payable.
-
-    `_send_payment_request` IS GONE ENTIRELY (A3.3). This path's call to it was removed in
-    Phase W, and the function itself has now been deleted because it had no other callers — so no
-    `order_details` / Review-and-Pay message is built for a cart, no Meta payment configuration
-    is read, and there is no second payment path in this file. `_fetch_catalog_product_names` is
-    not called either: its only purpose was a display name on that message.
-
-    THE REPLY CARRIES NO PRICE, deliberately. Meta's `item_price` is the customer's client's view;
-    the website checkout prices the basket from ProductsTable after the claim. Quoting a figure
-    here would be a second total with a different authority - the defect being removed, not a
-    feature being kept.
-
-    All the real logic is in `lambda_utils.ecommerce.whatsapp_basket`, which is pure and tested on
-    its own. This function is wiring: a gate, two refusals, two conditional writes and a reply.
+    All the parse logic is in `lambda_utils.ecommerce.whatsapp_basket`, which is pure and tested on
+    its own. This function is wiring: a gate, three refusals, a service branch and the general-cart
+    hand-off to `_send_payment_request`.
     """
     try:
         if (not _catalog_orders_enabled()
@@ -6432,65 +6426,10 @@ def _handle_cart_order(message: Dict, contact_id: str, sender_phone: str,
         if not _catalog_orders_enabled():
             return
 
-        keys = dynamodb.Table(COMMERCE_KEYS_TABLE)
-        now = int(time.time())
-
-        # RESOLVE BEFORE GENERATE. Meta redelivers a webhook whenever our acknowledgement is lost,
-        # and a fresh token per delivery would be a second basket for one cart - the same failure
-        # `REFERENCE#<metaReferenceId>` prevents for a replayed payment event. The wamid index is
-        # written FIRST and conditionally, so whichever delivery wins that write owns the token and
-        # every later delivery reads it back instead of minting another.
-        token = whatsapp_basket.new_token()
-        # ALWAYS a row now: wamid-keyed when Meta sent an id, else a deterministic content+phone
-        # key, so a redelivered cart WITH OR WITHOUT a wamid loses this conditional write and
-        # cannot mint a second basket (hence cannot become a duplicate order). `phone` feeds the
-        # content fallback.
-        index = whatsapp_basket.build_message_index(basket, token, now, phone=phone)
-        try:
-            keys.put_item(Item=index, ConditionExpression='attribute_not_exists(orderId)')
-        except ClientError as error:
-            if error.response.get('Error', {}).get('Code') != 'ConditionalCheckFailedException':
-                raise
-            # A redelivery. The basket already exists and the link already went out on the
-            # delivery that won: Meta re-sends when OUR ack was lost, not when our reply was,
-            # so replying again would be a second message to the customer for one cart. Read the
-            # winner back by the SAME key this delivery computed (wamid or content hash).
-            existing = keys.get_item(Key={'orderId': index['orderId']}).get('Item') or {}
-            logger.info(json.dumps({
-                'event': 'cart_order_handoff_replayed',
-                'indexType': str(index.get('indexType') or ''),
-                'sourceMessageId': basket.message_id,
-                'resolvedHandoff': str(existing.get('handoffId') or ''),
-                'phone_suffix': _phone_suffix(sender_phone),
-                'requestId': request_id,
-            }))
-            return
-
-        row = whatsapp_basket.build_handoff(basket, phone, token=token, now=now)
-        keys.put_item(Item=row, ConditionExpression='attribute_not_exists(orderId)')
-
-        logger.info(json.dumps(dict(
-            {'event': 'cart_order_handoff_written',
-             # `phone_suffix` only. The row stores the full E.164 because that is the claim key; a
-             # log line does not need it, and every other log site in this file masks to four.
-             'phone_suffix': _phone_suffix(sender_phone),
-             'contactId': mask_contact_id(contact_id),
-             'handoffId': row['orderId'],
-             'channel': row['channel'],
-             'requestId': request_id},
-            **basket.log_fields())))
-
-        # IN-WINDOW BY CONSTRUCTION: the customer sent this cart, so the 24-hour customer-service
-        # window is open and no template is needed. A CTA URL button rather than a text link,
-        # because `_send_cta_button` is the path this file already uses for exactly this.
-        _send_cta_button(
-            contact_id=contact_id, phone_number_id=phone_number_id,
-            cta_text=CART_HANDOFF_BUTTON, cta_url=_handoff_url(row['token']),
-            request_id=request_id, body_text=CART_HANDOFF_BODY)
-
-        # Physical goods still need a delivery address, and the website refuses a basket without
-        # one. Retained unchanged; see `_request_shipping_address`.
-        _request_shipping_address(contact_id, phone_number_id, sender_phone, request_id)
+        # The general PRODUCT cart. Everything priced, reserved and sent is owned by
+        # `_send_payment_request` -> `ecommerce/checkout`; this function has already parsed the
+        # basket and refused the three unsafe senders.
+        _send_payment_request(basket, phone, contact_id, sender_phone, phone_number_id, request_id)
     except Exception as error:
         # `type(error).__name__`, not `str(error)`: an exception message on this path can carry
         # request content, and a phone number is request content.
@@ -6498,18 +6437,144 @@ def _handle_cart_order(message: Dict, contact_id: str, sender_phone: str,
                                  'error': type(error).__name__, 'requestId': request_id}))
 
 
-# `_send_payment_request` was DELETED (A3.3). It composed a free-form `isInteractivePayment`
-# order_details message - not the approved template - with float GST, a browser-style
-# `WD-PAY-` reference minted in-process and reserved nowhere, a 2% convenience fee against the
-# 2.5% the rest of the system charges, and every `retailer_id` rewritten to `ITEM_n` so a line
-# could never be resolved back to the catalogue variant it came from. It had ZERO callers: the
-# catalogue-order path stopped calling it in Phase W, and nothing else ever did.
-#
-# A minted-but-unreserved reference is the failure `wa_payment_request` exists to prevent: it
-# has no `PAYREF#` row, so a capture against it resolves to nothing and quarantines as
-# PAID_BUT_NO_ORDER. Payments are collected through `invoice-engine.send_payment_link`, which
-# reserves identity before it sends, and the free-form envelope is now refused at the
-# `outbound-whatsapp` boundary regardless.
+def _rollback_cart_order_index(keys, order_id: str, token: str, request_id: str) -> None:
+    """Delete the resolve-before-generate index row this invocation wrote, so a redelivery retries.
+
+    Called only when the `prepareNativeCart` invoke failed to reserve an attempt (the invoke
+    raised, or the action answered anything other than `NATIVE_CART_PREPARED`). The delete is
+    CONDITIONAL on `token = :token`: the row we wrote carries this invocation's unguessable token,
+    so if a concurrent winner has already replaced the row with its own the condition fails and we
+    leave that live row untouched. That keeps the single-attempt invariant intact (we only ever
+    clear an index that no prepared attempt is relying on) while making a transient failure
+    recoverable. A missed condition is the expected, benign outcome, not an error.
+    """
+    try:
+        keys.delete_item(Key={'orderId': order_id},
+                         ConditionExpression='#t = :token',
+                         ExpressionAttributeNames={'#t': 'token'},
+                         ExpressionAttributeValues={':token': str(token)})
+    except ClientError as error:
+        if error.response.get('Error', {}).get('Code') != 'ConditionalCheckFailedException':
+            raise
+        # A concurrent winner replaced our row; its attempt is the live one. Nothing to roll back.
+        logger.info(json.dumps({'event': 'cart_order_payment_index_retained',
+                                 'requestId': request_id}))
+
+
+def _send_payment_request(basket, phone: str, contact_id: str, sender_phone: str,
+                          phone_number_id: str, request_id: str) -> None:
+    """Drive the native WhatsApp ORDER_DETAILS money leg for a general PRODUCT cart.
+
+    THE MONEY SENDER, REBUILT ON THE UNIFIED MACHINERY. The owner authorised rebuilding this
+    function; it is deliberately NOT the self-contained calculator-and-sender that was deleted.
+    It computes NO money and mints NO reference. The amount comes from `_native_quote`
+    (ProductsTable, integer paise) and the ONE `PAYREF#` + ONE PaymentAttempt come from the
+    checkout reservation — both reached through a single invoke of `wecare-checkout:live`'s
+    `prepareNativeCart` internal action, the general-cart twin of the catalog-service convergence.
+    The approved Meta template `wecare_whatapp_native_pay_template` is sent by `_send_order_details`
+    inside that action, never from here.
+
+    IDEMPOTENCY AGAINST A REDELIVERED WEBHOOK. Meta redelivers an `order` webhook whenever our ack
+    is lost. The resolve-before-generate `build_message_index` conditional write is the guard: the
+    FIRST delivery to win `attribute_not_exists(orderId)` is the only one that invokes checkout, so
+    a redelivery (same wamid, or the no-wamid content key) cannot produce a second attempt or a
+    second `order_details` send. The attempt-level send claim in the checkout reservation
+    (`wa_payment_request.claim_send` / the `sendStatus` guard on the native service leg) is the
+    second line of defence for the catalog-service path; for the general cart the message index is
+    the single point a duplicate is collapsed before any attempt is minted.
+
+    NO client price, NO float, NO self-minted browser-style reference, NO 2%/18% constant. All of
+    those lived in the deleted sender's own arithmetic; this function performs none.
+    """
+    keys = dynamodb.Table(COMMERCE_KEYS_TABLE)
+    now = int(time.time())
+
+    # RESOLVE BEFORE GENERATE. A redelivered cart must not mint a second attempt. The index row is
+    # written FIRST and conditionally; whichever delivery wins it is the only one that reaches the
+    # checkout invoke, and every later delivery reads it back and stops. ALWAYS a row: wamid-keyed
+    # when Meta sent an id, else a deterministic content+phone key, so a redelivery WITH OR WITHOUT
+    # a wamid loses this write.
+    token = whatsapp_basket.new_token()
+    index = whatsapp_basket.build_message_index(basket, token, now, phone=phone)
+    try:
+        keys.put_item(Item=index, ConditionExpression='attribute_not_exists(orderId)')
+    except ClientError as error:
+        if error.response.get('Error', {}).get('Code') != 'ConditionalCheckFailedException':
+            raise
+        # A redelivery. The attempt was already prepared and the message already went out on the
+        # delivery that won. Re-invoking checkout would risk a second attempt, so we stop here.
+        existing = keys.get_item(Key={'orderId': index['orderId']}).get('Item') or {}
+        logger.info(json.dumps({
+            'event': 'cart_order_payment_replayed',
+            'indexType': str(index.get('indexType') or ''),
+            'sourceMessageId': basket.message_id,
+            'resolvedHandoff': str(existing.get('handoffId') or ''),
+            'phone_suffix': _phone_suffix(sender_phone),
+            'requestId': request_id,
+        }))
+        return
+
+    # Physical goods still need a delivery address, and the checkout refuses a basket without one
+    # (DELIVERY_DETAILS_REQUIRED). Ask for it in chat so the customer can complete, exactly as the
+    # hand-off path did. Retained unchanged; see `_request_shipping_address`.
+    _request_shipping_address(contact_id, phone_number_id, sender_phone, request_id)
+
+    # THE ONE SEAM. `prepareNativeCart` resolves the verified customer from the contact, prices the
+    # basket via `_native_quote`, reserves the single attempt + `PAYREF#` carrying contactId +
+    # customerUuid, and sends the approved template through `_send_order_details`. We pass variants
+    # and integer quantities only; no amount of any kind travels in this payload.
+    #
+    # ROLLBACK ON A FAILED PREPARE. The index row was written BEFORE this invoke so a redelivery
+    # cannot race us into a second attempt, but a transient checkout failure (the invoke raises,
+    # or the action answers anything other than `NATIVE_CART_PREPARED`) means NO attempt was
+    # reserved and NO template went out. If we left the index in place, Meta's redelivery of the
+    # same cart would be swallowed as a replay and the customer would silently never get a payment
+    # request. So on any non-success we delete OUR index row, conditionally on `token`, so a
+    # redelivery can retry. The `token = :token` guard is the single-attempt safety net: the row
+    # we wrote carries this invocation's unguessable token, so if a concurrent winner replaced it
+    # the delete misses and we never clear an index another live prepare is relying on. The SUCCESS
+    # path never deletes, so a prepared cart still collapses every redelivery to one attempt.
+    outcome = ''
+    try:
+        response = lambda_client.invoke(
+            FunctionName=CHECKOUT_FUNCTION, InvocationType='RequestResponse',
+            Payload=json.dumps({'internalAction': 'prepareNativeCart', 'lines': basket.lines,
+                                'sourceMessageId': basket.message_id, 'contactId': contact_id,
+                                'senderPhone': sender_phone,
+                                'phoneNumberId': phone_number_id}).encode())
+        raw = response['Payload'].read()
+        result = json.loads(raw.decode('utf-8')) if raw else {}
+        outcome = str(result.get('outcome') or '')
+    except Exception as error:  # noqa: BLE001
+        logger.error(json.dumps({'event': 'cart_order_payment_invoke_error',
+                                 'error': type(error).__name__,
+                                 'phone_suffix': _phone_suffix(sender_phone),
+                                 'requestId': request_id}))
+        _rollback_cart_order_index(keys, index['orderId'], token, request_id)
+        return
+
+    if outcome != 'NATIVE_CART_PREPARED':
+        # A reachable-but-not-prepared answer (e.g. NATIVE_CART_NOT_PREPARED): no attempt, no send.
+        # Clear the index so a redelivery retries, exactly as for an invoke that raised.
+        logger.warning(json.dumps({'event': 'cart_order_payment_not_prepared',
+                                    'outcome': outcome,
+                                    'sourceMessageId': basket.message_id,
+                                    'phone_suffix': _phone_suffix(sender_phone),
+                                    'requestId': request_id}))
+        _rollback_cart_order_index(keys, index['orderId'], token, request_id)
+        return
+
+    logger.info(json.dumps({
+        'event': 'cart_order_payment_prepared',
+        'outcome': outcome,
+        'indexType': str(index.get('indexType') or ''),
+        # `sourceMessageId` is a wamid: a correlation id, loggable in full. No phone, no price.
+        'sourceMessageId': basket.message_id,
+        'contactId': mask_contact_id(contact_id),
+        'phone_suffix': _phone_suffix(sender_phone),
+        'lineCount': len(basket.lines),
+        'requestId': request_id,
+    }))
 
 
 # ============================================================================

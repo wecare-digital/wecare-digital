@@ -464,6 +464,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
             return cors_response(403, {'error': 'Internal invocation required'}, origin)
         return _native_catalog_service(event, origin)
+    if event.get('internalAction') == 'prepareNativeCart':
+        if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
+            return cors_response(403, {'error': 'Internal invocation required'}, origin)
+        return _native_cart(event, origin)
     rc = event.get("requestContext", {}) or {}
     method = rc.get("http", {}).get("method", event.get("httpMethod", "")).upper()
     if method == "OPTIONS":
@@ -2395,3 +2399,86 @@ def _native_catalog_service(event: Dict[str, Any], origin: str):
         row['customerUuid'] = public_uuid
     return _create(identity, {'lineItems': lines, 'serviceIntentId': row['serviceIntentId']},
                    origin, catalog_session=row)
+
+
+def _native_cart(event: Dict[str, Any], origin: str):
+    """Prepare a native WhatsApp ORDER_DETAILS payment for a GENERAL PRODUCT CART.
+
+    THE GENERAL-CART TWIN OF `_native_catalog_service`. The inbound WhatsApp handler parsed a
+    catalogue `order` message into variants and integer quantities and routed them here; this is
+    the one place the general cart reaches the unified checkout machinery. It does NOT price, mint
+    a reference or send anything itself: it resolves the verified customer from the contact, turns
+    the basket lines into `catalogReference` line items (productId/variantId/quantity ONLY, never
+    a client amount), and hands them to `_create` — the SAME `_create` the website prepare path
+    uses — so pricing comes from `_native_quote` (ProductsTable, integer paise) and the ONE
+    PaymentAttempt + PAYREF# reservation carries contactId + customerUuid.
+
+    The gates mirror the service leg's, in the same order so the same precedence tests hold:
+      1. The rollout flag. OFF means no customer, no attempt, no reference, no order.
+      2. A WABA1-only sender (`wa_payment_request.PAYMENT_SENDERS`): only WABA1 may collect.
+      3. A verified customer: the contact must carry a Cognito `checkoutCustomerId` whose
+         ListUsers record matches the sender's E.164, or the cart is refused with no side effect.
+    `_create`'s general-cart arm then refuses anything it cannot price (`_native_quote` raising ->
+    no attempt, no order) and anything with no saved checkout profile/address, so an unpriceable
+    or unattributable cart leaves nothing behind.
+
+    NO float money, no `item_price`, no hand-built `WD-PAY` reference: the amount is whatever
+    `_native_quote` computes and the reference is whatever `order_keys.allocate_payment_reference`
+    mints inside `_create`.
+    """
+    from lambda_utils.ecommerce import catalog_service_checkout as catalog
+    if os.environ.get('WA_CATALOG_ORDERS_ENABLED', 'false').lower() != 'true':
+        return {'outcome': 'NATIVE_CART_ROLLOUT_DISABLED'}
+
+    phone_number_id = str(event.get('phoneNumberId') or '')
+    # A2.5 — ONLY WABA1 MAY TAKE A PAYMENT. Checked before any contacts read, Cognito call,
+    # pricing or send, so a non-permitted sender reaches none of them.
+    if phone_number_id not in wa_payment_request.PAYMENT_SENDERS:
+        logger.error(json.dumps({'event': 'native_cart_sender_not_permitted'}))
+        return {'outcome': 'PAYMENT_SENDER_NOT_PERMITTED'}
+
+    lines_in = event.get('lines')
+    if not isinstance(lines_in, list) or not lines_in:
+        return {'outcome': 'NATIVE_CART_EMPTY'}
+    line_items = []
+    for line in lines_in:
+        if not isinstance(line, dict):
+            return {'outcome': 'NATIVE_CART_EMPTY'}
+        product_id = str(line.get('productId') or '').strip()
+        variant_id = str(line.get('variantId') or '').strip()
+        quantity = line.get('quantity')
+        if not product_id or not variant_id or type(quantity) is not int or quantity <= 0:
+            return {'outcome': 'NATIVE_CART_EMPTY'}
+        line_items.append({'catalogReference': {'catalogItemId': product_id,
+                                                'options': {'variantId': variant_id}},
+                          'quantity': quantity})
+
+    contact = _table(CONTACTS_TABLE).get_item(
+        Key={'id': str(event.get('contactId') or '')}, ConsistentRead=True).get('Item') or {}
+    owner = contact.get('checkoutCustomerId')
+    # Cognito sub is canonical UUID. Refuse malformed filter inputs before ListUsers.
+    if not customer_auth.is_cognito_subject(owner):
+        return {'outcome': 'VERIFIED_CUSTOMER_REQUIRED'}
+    sender_phone = str(event.get('senderPhone') or '')
+    users = boto3.client('cognito-idp', region_name=os.environ.get('AWS_REGION', 'us-east-1')).list_users(
+        UserPoolId=customer_auth.CUSTOMER_POOL_ID, Filter='sub = "' + owner + '"', Limit=2).get('Users') or []
+    try:
+        identity = catalog.verified_identity(contact, users, sender_phone)
+    except customer_auth.CustomerNotAuthorized:
+        return {'outcome': 'VERIFIED_CUSTOMER_REQUIRED'}
+
+    # The general-cart arm of `_create` (catalog_session=None) owns the rest: it requires a saved
+    # checkout profile and address, prices via `_native_quote`, reserves ONE attempt + PAYREF#
+    # carrying contactId + customerUuid read from that profile, and sends `_cart_order_details`
+    # through `_send_order_details` with the approved template. Anything it cannot price or
+    # attribute is refused there with no attempt and no order.
+    response = _create(identity, {'lineItems': line_items}, origin)
+    status = int(response.get('statusCode') or 0)
+    body = {}
+    try:
+        body = json.loads(response.get('body') or '{}')
+    except (TypeError, ValueError):
+        body = {}
+    return {'outcome': 'NATIVE_CART_PREPARED' if status == 200 else 'NATIVE_CART_NOT_PREPARED',
+            'statusCode': status, 'status': body.get('status'),
+            'paymentAttemptId': body.get('paymentAttemptId')}

@@ -2,7 +2,7 @@
   "_comment": "Recorded state of live Lambda environment variables. Not deployed by anything - this is the source of truth to diff against. Regenerate with scripts/env_manifest.py --export; verify with no arguments.",
   "_region": "us-east-1",
   "_functions": 66,
-  "_variables": 404,
+  "_variables": 408,
   "_fingerprinted": 7,
   "functions": {
     "stack-wecare-url-shortener": {
@@ -106,7 +106,8 @@
       "CHECKOUT_MODE": "AWS_NATIVE",
       "CATALOG_SOURCE": "aws",
       "PRODUCTS_TABLE": "stack-wecare-digital-ProductsTable",
-      "NATIVE_STOCK_RESERVATION_ENABLED": "true"
+      "NATIVE_STOCK_RESERVATION_ENABLED": "true",
+      "WHATSAPP_CATALOG_SERVICES_ENABLED": "true"
     },
     "wecare-cognito-custom-message": {
       "BRAND_NAME": "sha256:d185a0daa945",
@@ -168,6 +169,7 @@
     "wecare-faq-handler": {},
     "wecare-get-miss-redirect": {},
     "wecare-inbound-whatsapp": {
+      "CHECKOUT_FUNCTION": "wecare-checkout:live",
       "COMMERCE_KEYS_TABLE": "stack-wecare-digital-CommerceKeys",
       "CONTACTS_TABLE": "stack-wecare-digital-ContactsTable",
       "IAM_REFRESH": "1772814879",
@@ -175,7 +177,8 @@
       "MEDIA_BUCKET": "wecare-digital-get",
       "OUTBOUND_TABLE": "stack-wecare-digital-WhatsAppOutboundTable",
       "STANDBY_REPLY_ENABLED": "false",
-      "WA_CATALOG_ORDERS_ENABLED": "false",
+      "WA_CATALOG_ORDERS_ENABLED": "true",
+      "WHATSAPP_CATALOG_SERVICES_ENABLED": "true",
       "WHATSAPP_PHONE_NUMBER_ID_1": "phone-number-id-waba1-direct-1016149501586345",
       "WHATSAPP_PHONE_NUMBER_ID_2": "phone-number-id-waba-t-direct-1055232054343117"
     },
@@ -495,7 +498,8 @@
       "PAYMENT_WABA_ID": "2094615664435155",
       "RAZORPAY_MID": "acc_TTFSyolquKEZEy",
       "RAZORPAY_UPI_ID": "wecaredigitalbh511413.rzp@rxairtel",
-      "COMMERCE_KEYS_TABLE": "stack-wecare-digital-CommerceKeys"
+      "COMMERCE_KEYS_TABLE": "stack-wecare-digital-CommerceKeys",
+      "WHATSAPP_CATALOG_SERVICES_ENABLED": "true"
     },
     "wecare-whatsapp-calling": {
       "ADMIN_MFA_REQUIRED": "true",
