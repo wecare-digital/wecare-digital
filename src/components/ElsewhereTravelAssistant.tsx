@@ -481,11 +481,6 @@ const ElsewhereTravelAssistant: React.FC = () => {
                   </article>
                 ) ) }
               </div>
-              { responseSource === 'demo' ? (
-                <p className="eta-live-note eta-preview-note">Preview results — prices are illustrative. Checkout appears only after a live provider confirms the offer.</p>
-              ) : (
-                <p className="eta-live-note">Checkout options appear only after the provider confirms price, availability, cancellation terms and a fresh offer reference.</p>
-              ) }
             </>
           ) }
           </div>

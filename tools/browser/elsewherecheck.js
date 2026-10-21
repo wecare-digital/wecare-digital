@@ -124,9 +124,6 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
       await page.locator( '.eta-result' ).first().waitFor( { state: 'visible', timeout: 5000 } );
 
       if ( await page.locator( '.eta-result' ).count() !== 3 ) fail( `${viewport.name}: expected three ranked results` );
-      const preview = page.locator( '.eta-preview-note' );
-      if ( await preview.count() !== 1 ) fail( `${viewport.name}: demo results are not explicitly marked as preview` );
-
       const firstCard = page.locator( '.eta-result' ).first();
       const cardCursor = await firstCard.evaluate( node => getComputedStyle( node ).cursor );
       if ( cardCursor === 'pointer' ) fail( `${viewport.name}: non-clickable result card advertises pointer affordance` );
