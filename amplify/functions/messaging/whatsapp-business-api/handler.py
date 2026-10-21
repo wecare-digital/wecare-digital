@@ -2363,49 +2363,80 @@ def _send_request_contact_info(body: Dict) -> Dict:
 
 
 def _send_flow_msg(body: Dict) -> Dict:
-    """Send an interactive Flow message by flow_id or flow_name.
+    """Send a WhatsApp Flow through the canonical published-flow registry.
 
-    Body: { to|recipient, flowId|flowName, flowToken?, flowCta, bodyText, headerText?, footerText?,
-            screen, flowAction(navigate|data_exchange), flowActionPayload?, mode(draft|published), phoneId }
+    Prefer `flowKey` for production sends. A caller may also provide a published canonical
+    `flowId` or `flowName`; both resolve back to the same registry record. Draft mode may still
+    send an explicit non-canonical id/name for workspace testing.
+
+    Canonical production sends receive a phone-backed token:
+      {routing-prefix}-{uuid}-waba-1-ph-{phone}
+    so Flow responses resolve the same ContactsTable person used by Inbox and checkout.
     """
-    flow_id = body.get('flowId')
-    flow_name = body.get('flowName')
-    if not flow_id and not flow_name:
-        return _resp(400, {'error': 'one of flowId/flowName is required'})
-    phone_id = body.get('phoneId') or PHONE1_META_ID
-
     from flows import subscribe_messages, common as flow_common
-    is_subscribe = (
-        str(flow_id or '') == subscribe_messages.FLOW_ID
-        or str(flow_name or '') == subscribe_messages.FLOW_NAME
-    )
-    subscribe_row: Dict[str, Any] = {}
-    if is_subscribe:
-        from lambda_utils import contact_store
-        recipient = str(body.get('to') or body.get('recipient') or '').strip()
-        needs_workspace_copy = not body.get('bodyText') or not body.get('flowCta')
-        direct_phone = contact_store.digits(body.get('to') or body.get('recipient') or '')
-        needs_recipient_phone = not body.get('flowToken') and not direct_phone
-        if needs_workspace_copy or needs_recipient_phone:
+    from lambda_utils import canonical_flows, contact_store
+
+    requested_key = str(body.get('flowKey') or '').strip()
+    requested_id = str(body.get('flowId') or '').strip()
+    requested_name = str(body.get('flowName') or '').strip()
+    mode = str(body.get('mode') or 'published').strip().lower()
+
+    if not requested_key and not requested_id and not requested_name:
+        return _resp(400, {'error': 'one of flowKey/flowId/flowName is required'})
+
+    record = None
+    if requested_key:
+        record = canonical_flows.published_flow(requested_key)
+    elif requested_id:
+        record = canonical_flows.published_flow_by_id(requested_id)
+    elif requested_name:
+        record = canonical_flows.published_flow_by_name(requested_name)
+
+    if mode != 'draft' and not record:
+        return _resp(400, {'error': 'flow is not registered as published'})
+
+    capability = str((record or {}).get('capability') or requested_key)
+    flow_id = str((record or {}).get('flowId') or requested_id)
+    flow_name = str((record or {}).get('metaName') or requested_name)
+    phone_id = PHONE1_META_ID if record else (body.get('phoneId') or PHONE1_META_ID)
+
+    contact_row: Dict[str, Any] = {}
+    recipient = str(body.get('to') or body.get('recipient') or '').strip()
+    direct_phone = contact_store.digits(recipient)
+    is_subscribe = capability == 'subscribe'
+
+    if record:
+        needs_workspace_copy = is_subscribe and (
+            not body.get('bodyText') or not body.get('flowCta'))
+        needs_contact = needs_workspace_copy or (
+            not body.get('flowToken') and not direct_phone)
+        if needs_contact:
             table = flow_common.dynamodb.Table(flow_common.CONTACTS_TABLE)
-            if body.get('to'):
-                subscribe_row = contact_store.lookup(table, body.get('to')) or {}
-            elif contact_store.digits(recipient):
-                subscribe_row = contact_store.lookup(table, recipient) or {}
+            if direct_phone:
+                contact_row = contact_store.lookup(table, recipient) or {}
             else:
-                subscribe_row = contact_store.find_by_bsuid(table, recipient) or {}
+                contact_row = contact_store.find_by_bsuid(table, recipient) or {}
+
         if needs_workspace_copy:
-            copy = subscribe_messages.copy_for(subscribe_messages.is_returning(subscribe_row))
-            # Explicit one-off operator copy still wins; workspace copy supplies defaults.
-            body = {**body, 'bodyText': body.get('bodyText') or copy['body'],
-                    'flowCta': body.get('flowCta') or copy['flowCta']}
+            selected = subscribe_messages.copy_for(
+                subscribe_messages.is_returning(contact_row))
+            body = {
+                **body,
+                'bodyText': body.get('bodyText') or selected['body'],
+                'flowCta': body.get('flowCta') or selected['flowCta'],
+            }
+
         if not body.get('flowToken'):
-            token_phone = direct_phone
+            token_phone = direct_phone or contact_store.digits(contact_row.get('phone') or '')
             if not token_phone:
-                token_phone = contact_store.digits(subscribe_row.get('phone') or '')
-            if not token_phone:
-                return _resp(400, {'error': 'Subscribe sends require a phone-backed customer or explicit flowToken'})
-            body = {**body, 'flowToken': f'subscribe-{uuid.uuid4().hex}-waba-1-ph-{token_phone}'}
+                return _resp(400, {
+                    'error': 'Published Flow sends require a phone-backed customer or explicit flowToken'
+                })
+            token_prefix = canonical_flows.published_flow_token_prefix(capability)
+            body = {
+                **body,
+                'flowToken': f'{token_prefix}-{uuid.uuid4().hex}-waba-1-ph-{token_phone}',
+            }
 
     parameters: Dict[str, Any] = {
         'flow_message_version': '3',
@@ -2417,7 +2448,7 @@ def _send_flow_msg(body: Dict) -> Dict:
         parameters['flow_id'] = flow_id
     else:
         parameters['flow_name'] = flow_name
-    if (body.get('mode') or '').lower() == 'draft':
+    if mode == 'draft':
         parameters['mode'] = 'draft'
     if parameters['flow_action'] == 'navigate':
         parameters['flow_action_payload'] = body.get('flowActionPayload') or {
@@ -2436,7 +2467,6 @@ def _send_flow_msg(body: Dict) -> Dict:
         interactive['footer'] = {'text': body['footerText']}
 
     return _send_message(phone_id, {'type': 'interactive', 'interactive': interactive}, body)
-
 
 def _send_contacts_msg(body: Dict) -> Dict:
     contacts = body.get('contacts')
