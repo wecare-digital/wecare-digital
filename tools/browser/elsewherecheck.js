@@ -210,8 +210,8 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
       fail( 'provider contract: fresh complete offer did not unlock checkout' );
     }
     const liveLabels = await liveActions.allTextContents();
-    if ( liveLabels.join( '|' ) !== 'Website|WhatsApp' ) {
-      fail( `provider contract: checkout labels are not compact (${liveLabels.join( '|' )})` );
+    if ( liveLabels.join( '|' ) !== 'Checkout here|Checkout on WhatsApp' ) {
+      fail( `provider contract: checkout labels are wrong (${liveLabels.join( '|' )})` );
     }
     const liveCardBox = await livePage.locator( '.eta-result' ).boundingBox();
     const liveActionBoxes = await liveActions.evaluateAll( nodes => nodes.map( node => {
