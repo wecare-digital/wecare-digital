@@ -507,7 +507,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
           padding:20px;border:1px solid var(--public-hairline);border-radius:14px;background:var(--public-bg);
           transition:transform .2s ease,box-shadow .2s ease,border-color .16s ease;
         }
-        .eta-result:first-child{border-color:#bfdc66;background:#fbfff0}
+        .eta-result:first-child{border-color:#bfdc66;background:var(--public-lime-tint)}
         .eta-result:hover{transform:translateY(-2px);border-color:#cbd4c4;box-shadow:var(--public-lift-shadow)}
         .eta-result-main{min-width:0}
         .eta-result-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
