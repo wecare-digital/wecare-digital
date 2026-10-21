@@ -13,4 +13,9 @@ def test_runtime_deploy_covers_contacts_source_and_live_function():
     source = WORKFLOW.read_text(encoding="utf-8")
     assert "amplify/functions/core/contacts/**" in source
     assert "amplify/functions/core/contacts/handler.py" in source
-    assert source.count("wecare-contacts") >= 3
+    dry_run = source.index("python scripts/deploy_all_lambdas.py --dry-run")
+    deploy = source.index("python scripts/deploy_all_lambdas.py \\\n", dry_run + 1)
+    verify = source.index('names = [', deploy)
+    assert "wecare-contacts" in source[dry_run:deploy]
+    assert "wecare-contacts" in source[deploy:verify]
+    assert '"wecare-contacts"' in source[verify:]
