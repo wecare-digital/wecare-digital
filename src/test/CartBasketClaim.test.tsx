@@ -339,7 +339,7 @@ describe( 'success', () => {
       await waitFor( () => expect(
         screen.getByText( CATALOGUE_PRODUCT.name ) ).toBeInTheDocument() );
 
-      fireEvent.click( await screen.findByRole( 'button', { name: /Pay securely/ } ) );
+      fireEvent.click( await screen.findByRole( 'button', { name: /Pay here/ } ) );
       await waitFor( () => expect( prepares( fetchMock ) ).toHaveLength( 1 ) );
 
       expect( prepares( fetchMock )[ 0 ].lineItems ).toEqual( [ {
