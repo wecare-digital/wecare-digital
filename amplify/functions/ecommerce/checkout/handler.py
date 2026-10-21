@@ -1895,17 +1895,11 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         return cors_response(400, {"error": "LINE_ITEMS_REQUIRED",
                                    "message": "Your cart is empty."}, origin)
 
-    # Phase O-1: A SERVICE IS NEVER BOUGHT ON THIS ROUTE'S CART LEG, refused first and before any
-    # I/O. The cart leg reads no `serviceIntentId` and never runs `_website_prepare`'s
-    # `_allocate_reference`, so its PAYREF# row would carry no `serviceLine`, and a capture here
-    # would be a paid service with no request, recoverable only by a human. The catalog-service
-    # leg (`catalog_session`) carries its intent and is priced per line below. Returned as a 409
-    # directly rather than raised, so it can never reach `handler`'s outer 500.
-    if service_requests.has_service_line(line_items) and catalog_session is None:
-        logger.info(json.dumps({"event": "service_refused",
-                                "reason": service_requests.SERVICE_WEBSITE_ONLY}))
-        return cors_response(409, service_requests.refusal(
-            service_requests.SERVICE_WEBSITE_ONLY), origin)
+    # Services use the same pre-payment intent guard on both payment rails. A WhatsApp payment
+    # must never be able to create a paid service with no request/target attached.
+    service_guard = service_requests.checkout_preflight(line_items, body)
+    if service_guard is not None:
+        return cors_response(service_guard[0], service_guard[1], origin)
 
     # Ordinary cart checkout may now continue to either payment rail. The rail is chosen only
     # after the reviewed cart and authenticated profile are known. Services keep their dedicated
@@ -1955,14 +1949,10 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
                                    "message": "We could not price this cart. Please try "
                                               "again."}, origin)
 
-    if catalog_session is not None:
-        # Native services require the same authoritative per-line guard as website services;
-        # the snapshot above is a ProductsTable-backed price.
-        guard = service_requests.checkout_preflight(line_items, body)
-        if guard is not None:
-            return cors_response(guard[0], guard[1], origin)
+    if service_requests.has_service_line(line_items):
         # The authoritative per-line price, read from the FROZEN native quote (never a client
-        # amount). It fails closed on any disagreement before a reference is minted.
+        # amount). Both website-origin and WhatsApp-origin service purchases bind this figure to
+        # the PAYREF serviceLine so post-payment activation resolves the same service intent.
         try:
             native_service_paise = service_requests.native_service_line_paise(snapshot, line_items)
         except service_requests.ServicePriceChanged:
@@ -2013,14 +2003,12 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
                 extra[customer_uuid.ATTRIBUTE] = public_uuid
             if public_contact_id:
                 extra["contactId"] = public_contact_id
+        if service_requests.has_service_line(line_items):
+            extra.update(**service_requests.payref_extra(
+                line_items, body, line_paise=native_service_paise))
         if catalog_session is not None:
-            # `native_service_paise` is the service line's price read from the FROZEN native quote
-            # (ProductsTable-authoritative). It is already validated by
-            # `native_service_line_paise` above, so an unpriced row can never be minted here.
             extra.update(channel='whatsapp', nativeCatalogService=True,
-                customerPhone=_profile_phone(identity),
-                **service_requests.payref_extra(line_items, body,
-                    line_paise=native_service_paise))
+                         customerPhone=_profile_phone(identity))
         reference_id = order_keys.allocate_payment_reference(
             _keys_table(), payment_attempt_id=attempt_id, extra=extra,
         )
