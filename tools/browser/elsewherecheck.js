@@ -216,6 +216,13 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
     if ( ( await livePage.locator( '.eta-checkout-label' ).textContent() ) !== 'Checkout' ) {
       fail( 'provider contract: checkout heading should appear once above channel options' );
     }
+    const liveIcons = livePage.locator( '.eta-action-icon' );
+    if ( await liveIcons.count() !== 2 ) {
+      fail( 'provider contract: each checkout channel should have a submenu-style icon' );
+    }
+    if ( await livePage.locator( '.eta-action-icon-whatsapp' ).count() !== 1 ) {
+      fail( 'provider contract: WhatsApp channel is missing its icon' );
+    }
     const liveCardBox = await livePage.locator( '.eta-result' ).boundingBox();
     const liveActionBoxes = await liveActions.evaluateAll( nodes => nodes.map( node => {
       const rect = node.getBoundingClientRect();
