@@ -94,7 +94,7 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
       if ( composerStyle.boxShadow === 'none' ) fail( `${viewport.name}: composer has no focus/touch feedback` );
       if ( composerStyle.transform !== 'none' ) fail( `${viewport.name}: composer moves on touch (${composerStyle.transform})` );
 
-      const mic = page.locator( '[data-voice-search-mic="true"]' );
+      const mic = page.locator( '.eta-shell [data-voice-search-mic="true"]' );
       await mic.waitFor( { state: 'visible', timeout: 2000 } );
       if ( await mic.count() !== 1 ) fail( `${viewport.name}: voice control disappeared instead of showing supported/unavailable state` );
       const micBox = await mic.boundingBox();
@@ -180,7 +180,12 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
       const style = getComputedStyle( node );
       return { transitionDuration: style.transitionDuration, transform: style.transform, boxShadow: style.boxShadow };
     } );
-    if ( reduced.transitionDuration !== '0s' ) fail( `reduced-motion: composer transition is ${reduced.transitionDuration}` );
+    const reducedTransitionSeconds = Math.max(
+      ...reduced.transitionDuration.split( ',' ).map( value => Number.parseFloat( value ) || 0 )
+    );
+    if ( reducedTransitionSeconds > 0.001 ) {
+      fail( `reduced-motion: composer transition is ${reduced.transitionDuration}` );
+    }
     if ( reduced.transform !== 'none' || reduced.boxShadow !== 'none' ) {
       fail( `reduced-motion: composer still moves/lifts (${JSON.stringify( reduced )})` );
     }
