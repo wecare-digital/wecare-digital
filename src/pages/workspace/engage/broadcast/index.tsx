@@ -40,11 +40,19 @@ const pickChannel = ( c: api.Contact ): Exclude<Channel, 'auto' | 'whatsapp'> | 
     return null;
 };
 
-const eligible = ( c: api.Contact, ch: Channel ): boolean => {
+const eligible = (
+    c: api.Contact,
+    ch: Channel,
+    whatsappCategory?: api.WhatsAppTemplate[ 'category' ],
+): boolean => {
     if ( ch === 'auto' ) return !!c.phone || !!c.email;
     if ( ch === 'email' ) return !!c.email && ( c.optInEmail || c.allowlistEmail );
     if ( ch === 'sms' ) return !!c.phone && ( c.optInSms || c.allowlistSms );
-    if ( ch === 'whatsapp' ) return !!c.phone && ( c.optInWhatsApp || c.allowlistWhatsApp );
+    if ( ch === 'whatsapp' ) {
+        if ( !c.phone || !whatsappCategory ) return false;
+        return whatsappCategory !== 'MARKETING'
+            || c.whatsappMarketingConsent === 'OPTED_IN';
+    }
     return !!c.phone; // rcs — phone-based
 };
 
@@ -59,6 +67,10 @@ const BroadcastPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
     const [ smsType, setSmsType ] = useState<'TRANSACTIONAL' | 'PROMOTIONAL'>( 'TRANSACTIONAL' );
     const [ templates, setTemplates ] = useState<api.WhatsAppTemplate[]>( [] );
     const [ templateName, setTemplateName ] = useState( '' );
+    const selectedTemplate = useMemo(
+        () => templates.find( t => t.name === templateName ) || null,
+        [ templates, templateName ],
+    );
     const [ sending, setSending ] = useState( false );
     const [ progress, setProgress ] = useState<{ sent: number; failed: number; total: number } | null>( null );
 
@@ -67,14 +79,15 @@ const BroadcastPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
         api.listTemplates().then( t => setTemplates( ( t || [] ).filter( ( x: any ) => x.status === 'APPROVED' ) ) ).catch( () => { } );
     }, [ toast ] );
 
-    // Reset selection when channel changes (eligibility differs).
-    useEffect( () => { setSelected( new Set() ); }, [ channel ] );
+    // Reset selection whenever eligibility can change. Switching a Utility audience to a
+    // Marketing template must not carry previously-selected, non-consented contacts into send().
+    useEffect( () => { setSelected( new Set() ); }, [ channel, templateName ] );
 
     const audience = useMemo( () => {
         const q = search.trim().toLowerCase();
-        return contacts.filter( c => eligible( c, channel ) )
+        return contacts.filter( c => eligible( c, channel, selectedTemplate?.category ) )
             .filter( c => !q || c.name?.toLowerCase().includes( q ) || c.phone?.includes( q ) || c.email?.toLowerCase().includes( q ) );
-    }, [ contacts, channel, search ] );
+    }, [ contacts, channel, search, selectedTemplate ] );
 
     /* The fetched template list, memoised on `templates`: same order, same values, same
        visible text, with the '' placeholder row kept as the first option. */
@@ -152,7 +165,13 @@ const BroadcastPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                             <button className="bc-mini" onClick={ clearAll }>None</button>
                         </div>
                         <div className="bc-aud-list">
-                            { audience.length === 0 ? <div className="bc-empty">No eligible contacts (opt-in required)</div> :
+                            { audience.length === 0 ? <div className="bc-empty">{
+                                channel === 'whatsapp' && !selectedTemplate
+                                    ? 'Select an approved template to calculate WhatsApp eligibility'
+                                    : channel === 'whatsapp' && selectedTemplate?.category === 'MARKETING'
+                                        ? 'No eligible contacts with current WhatsApp marketing opt-in'
+                                        : 'No eligible contacts'
+                            }</div> :
                                 audience.map( c => (
                                     <label key={ c.contactId } className="bc-aud-row">
                                         <input type="checkbox" checked={ selected.has( c.contactId ) } onChange={ () => toggle( c.contactId ) } />
@@ -168,7 +187,7 @@ const BroadcastPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                         <div className="bc-step-label">3 · Message</div>
                         { channel === 'whatsapp' ? (
                             <>
-                                <p className="bc-hint">WhatsApp broadcasts must use an approved template.</p>
+                                <p className="bc-hint">WhatsApp broadcasts must use an approved template. Marketing templates show only customers with current ledger-backed WhatsApp marketing opt-in; Utility and Authentication templates are not filtered by marketing consent.</p>
                                 { /* `.bc-input` SKINNED the native control and is dropped rather than
                                      forwarded. The fetched list is memoised below. */ }
                                 <Select ariaLabel="Template" value={ templateName }
