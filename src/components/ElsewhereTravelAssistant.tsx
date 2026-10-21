@@ -683,7 +683,11 @@ const ElsewhereTravelAssistant: React.FC = () => {
           .eta-tab,.eta-tab::before,.eta-result,.eta-chip,.eta-action,.eta-clear,.eta-send,.eta-preference-clear,.eta-composer{transition:none}
           .eta-tab:active,.eta-result:active,.eta-chip:active,.eta-action:active,.eta-clear:active,.eta-send:active,.eta-preference-clear:active,.eta-composer:active,.eta-composer:focus-within,
           .eta-result:hover,.eta-chip:hover,.eta-action:hover{transform:none;box-shadow:none}
+          .eta-mic-slot :global(.voice-search-mic:active){transform:none}
           .eta-loading-line::after{width:100%;transform:none;animation:none}
+        }
+        @media(prefers-reduced-motion:reduce) and (hover:none) and (pointer:coarse){
+          .eta-composer:focus-within{transform:none;box-shadow:none}
         }
         @media(horizontal-viewport-segments:2){
           .eta-shell{max-width:calc(env(viewport-segment-width 0 0) - 32px);margin-inline-start:max(16px,env(viewport-segment-left 0 0));margin-inline-end:auto}
