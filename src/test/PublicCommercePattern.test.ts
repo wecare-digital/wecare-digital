@@ -43,7 +43,9 @@ describe( 'canonical public commerce pattern', () => {
       [ 'src/components/ServiceBuyBox.tsx', 'sbb' ],
     ] as const ) {
       const source = read( file );
-      const cta = source.indexOf( `className="${ prefix }-cta"` );
+      const cta = prefix === 'pbb'
+        ? source.indexOf( '<CheckoutAction' )
+        : source.indexOf( `className="${ prefix }-cta"` );
       const price = source.indexOf( `className="${ prefix }-buy"` );
       const note = source.indexOf( `className="${ prefix }-offer-note"` );
       expect( cta, file ).toBeGreaterThan( -1 );
