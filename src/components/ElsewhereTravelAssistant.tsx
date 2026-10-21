@@ -328,18 +328,17 @@ const ElsewhereTravelAssistant: React.FC = () => {
     setQuery( current => current.trim() ? current.trim() + ' ' + transcript : transcript );
   };
 
-  const checkoutAvailable = ( kind: 'website' | 'whatsapp', result: TravelResult ) => {
+  const checkoutAvailable = ( result: TravelResult ) => {
     if ( responseSource !== 'api' && responseSource !== 'mcp' ) return false;
     const providerIdentity = Boolean( result.providerRef || result.offerId );
     const providerFacts = Boolean( result.price && result.availability && result.cancellationSummary );
     if ( !result.checkoutReady || !providerIdentity || !providerFacts || !quoteIsFresh( result.quoteExpiresAt ) ) return false;
-    return Boolean( kind === 'website' ? result.websiteUrl : result.whatsappUrl );
+    return Boolean( safeHttpsUrl( result.websiteUrl || result.whatsappUrl ) );
   };
 
-  const continueWith = ( kind: 'website' | 'whatsapp', result: TravelResult ) => {
-    const target = kind === 'website' ? result.websiteUrl : result.whatsappUrl;
-    const safeTarget = safeHttpsUrl( target );
-    if ( !checkoutAvailable( kind, result ) || !safeTarget ) {
+  const continueWith = ( result: TravelResult ) => {
+    const safeTarget = safeHttpsUrl( result.websiteUrl || result.whatsappUrl );
+    if ( !checkoutAvailable( result ) || !safeTarget ) {
       setContinuationNote( 'This offer needs fresh provider confirmation before checkout.' );
       return;
     }
@@ -444,40 +443,16 @@ const ElsewhereTravelAssistant: React.FC = () => {
                           aria-label={ `Checkout ${result.title}` }
                         >Checkout</a>
                       ) }
-                      { ( checkoutAvailable( 'website', result ) || checkoutAvailable( 'whatsapp', result ) ) && (
-                        <div className="eta-checkout">
-                          <span className="eta-checkout-label">Checkout</span>
-                          <div className="eta-actions" aria-label="Checkout options">
-                            { checkoutAvailable( 'website', result ) && (
-                              <button
-                                type="button"
-                                className="eta-action"
-                                aria-label={ `Checkout ${result.title} here for ${result.price}` }
-                                title={ `Checkout here · ${result.price}` }
-                                onClick={ () => continueWith( 'website', result ) }
-                              >
-                                <span>Here</span>
-                              </button>
-                            ) }
-                            { checkoutAvailable( 'whatsapp', result ) && (
-                              <button
-                                type="button"
-                                className="eta-action"
-                                aria-label={ `Checkout ${result.title} on WhatsApp for ${result.price}` }
-                                title={ `Checkout on WhatsApp · ${result.price}` }
-                                onClick={ () => continueWith( 'whatsapp', result ) }
-                              >
-                                <svg className="eta-action-icon eta-action-icon-whatsapp" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                  <path d="M20.2 11.7a8.2 8.2 0 0 1-11.7 7.4L4 20.5l1.4-4.3a8.2 8.2 0 1 1 14.8-4.5Z" />
-                                  <path d="M9.1 8.1c.4 2.9 2.8 5.3 5.7 5.7" />
-                                  <path d="m9.1 8.1 1.3-.7 1.2 2-.9 1" />
-                                  <path d="m14.8 13.8 1-.9 2 1.2-.7 1.3" />
-                                </svg>
-                                <span>WhatsApp</span>
-                              </button>
-                            ) }
-                          </div>
-                        </div>
+                      { checkoutAvailable( result ) && (
+                        <button
+                          type="button"
+                          className="eta-action"
+                          aria-label={ `Checkout ${result.title} for ${result.price}` }
+                          title={ `Checkout · ${result.price}` }
+                          onClick={ () => continueWith( result ) }
+                        >
+                          <span>Checkout</span>
+                        </button>
                       ) }
                     </div>
                   </article>
