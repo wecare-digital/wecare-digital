@@ -210,8 +210,11 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
       fail( 'provider contract: fresh complete offer did not unlock checkout' );
     }
     const liveLabels = await liveActions.allTextContents();
-    if ( liveLabels.join( '|' ) !== 'Checkout here|Checkout on WhatsApp' ) {
-      fail( `provider contract: checkout labels are wrong (${liveLabels.join( '|' )})` );
+    if ( liveLabels.join( '|' ) !== 'Here|WhatsApp' ) {
+      fail( `provider contract: checkout channel labels are wrong (${liveLabels.join( '|' )})` );
+    }
+    if ( ( await livePage.locator( '.eta-checkout-label' ).textContent() ) !== 'Checkout' ) {
+      fail( 'provider contract: checkout heading should appear once above channel options' );
     }
     const liveCardBox = await livePage.locator( '.eta-result' ).boundingBox();
     const liveActionBoxes = await liveActions.evaluateAll( nodes => nodes.map( node => {
