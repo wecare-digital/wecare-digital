@@ -33,6 +33,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 REGION = "us-east-1"
 ACCOUNT = "775261844268"
 ORDERS_TABLE = "stack-wecare-digital-OrderTable"
+IDENTITY_CLAIMS_TABLE = "stack-wecare-digital-IdentityClaimsTable"
 ATTEMPTS_TABLE = "stack-wecare-digital-PaymentAttemptsTable"
 KEYS_TABLE = "stack-wecare-digital-CommerceKeys"
 QUARANTINE_PREFIX = "CAPTUREQUARANTINE#"
@@ -120,6 +121,22 @@ def deployment_consistency() -> dict:
     ddb_client = boto3.client("dynamodb", region_name=REGION)
     events = boto3.client("events", region_name=REGION)
 
+    # Strong identity serialization must be live before any contact writer can safely create.
+    try:
+        claim_meta = ddb_client.describe_table(TableName=IDENTITY_CLAIMS_TABLE)["Table"]
+        out["identityClaimsTableStatus"] = claim_meta.get("TableStatus", "")
+        out["identityClaimsTableActive"] = claim_meta.get("TableStatus") == "ACTIVE"
+        backups = ddb_client.describe_continuous_backups(
+            TableName=IDENTITY_CLAIMS_TABLE
+        ).get("ContinuousBackupsDescription", {})
+        pitr = backups.get("PointInTimeRecoveryDescription", {}).get(
+            "PointInTimeRecoveryStatus", ""
+        )
+        out["identityClaimsPitrStatus"] = pitr
+        out["identityClaimsPitrEnabled"] = pitr == "ENABLED"
+    except (ClientError, BotoCoreError) as exc:
+        out["identityClaims_error"] = type(exc).__name__
+
     # The website order history must serve the v2 index (channel + customerUuid).
     try:
         env = lam.get_function_configuration(
@@ -162,6 +179,8 @@ def _green(health: dict, deploy: dict) -> bool:
     return (health.get("paidAttemptsMissingOrder", 0) == 0
             and health.get("ordersPendingCustomerLink", 0) == 0
             and health.get("quarantineUnacknowledged", 0) == 0
+            and deploy.get("identityClaimsTableActive") is True
+            and deploy.get("identityClaimsPitrEnabled") is True
             and deploy.get("servingIndexMatches") is True
             and deploy.get("servingIndexActive") is True
             and deploy.get("reconciliationEnabled") is True
@@ -208,6 +227,8 @@ def main(argv=None) -> int:
     print("\n" + "=" * 70)
     print("DEPLOYMENT CONSISTENCY")
     print("=" * 70)
+    print(f"  identity claims table           : {deploy.get('identityClaimsTableStatus', '?')}"
+          f"  (pitr={deploy.get('identityClaimsPitrStatus', '?')})")
     print(f"  serving index                   : {deploy.get('servingIndex', '?')}"
           f"  (matches={deploy.get('servingIndexMatches')})")
     print(f"  serving index status            : {deploy.get('servingIndexStatus', '?')}"

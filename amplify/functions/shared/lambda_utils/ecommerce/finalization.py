@@ -270,6 +270,13 @@ def accept_paid(*, attempts, orders, keys, attempt, outcome, verified_captured_p
     # A public number may now be returned. Its order record has actually committed.
     _stage(attempts, attempt['paymentAttemptId'], 'INTERNAL_ORDER_CREATED',
            orderId=order['orderId'], orderNumber=order['orderNumber'])
+    # Identity is a terminal-finalization invariant. Keep the committed order as recoverable
+    # evidence that money moved, but never call it finalized until it is attached to the same
+    # canonical ContactsTable row used by Inbox/Flows and carries the public customer UUID.
+    if not order.get('contactId') or not order.get('customerUuid'):
+        _stage(attempts, attempt['paymentAttemptId'], 'NEEDS_RECONCILIATION',
+               finalizationReason='CUSTOMER_IDENTITY_MISSING')
+        return
     # The tender identity, checked AFTER the order record committed and BEFORE the terminal
     # stage: a tender sum that does not close is a fact about money, so the order keeps its
     # record and its number but rests at NEEDS_RECONCILIATION and never reaches ORDER_FINALIZED.

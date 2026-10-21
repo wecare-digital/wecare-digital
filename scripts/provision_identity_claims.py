@@ -31,6 +31,7 @@ ROLES = (
     "wecare-blog-subscribe-role",
 )
 POLICY_NAME = "CustomerIdentityClaimsRegistry"
+MANAGED_POLICY_NAME = "wecare-customer-identity-claims"
 
 
 def ddb():
@@ -132,7 +133,10 @@ def inventory():
 
 
 def grant_roles(apply):
-    arn = f"arn:aws:dynamodb:{REGION}:{account_id()}:table/{CLAIMS_TABLE}"
+    """Attach a small customer-managed policy instead of growing already-large inline policies."""
+    account = account_id()
+    table_arn = f"arn:aws:dynamodb:{REGION}:{account}:table/{CLAIMS_TABLE}"
+    policy_arn = f"arn:aws:iam::{account}:policy/{MANAGED_POLICY_NAME}"
     policy = {
         "Version": "2012-10-17",
         "Statement": [{
@@ -143,10 +147,26 @@ def grant_roles(apply):
                 "dynamodb:UpdateItem",
                 "dynamodb:DeleteItem",
             ],
-            "Resource": arn,
+            "Resource": table_arn,
         }],
     }
-    states = {}
+
+    try:
+        iam().get_policy(PolicyArn=policy_arn)
+        policy_state = "exists"
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") != "NoSuchEntity":
+            raise
+        policy_state = "would create"
+        if apply:
+            iam().create_policy(
+                PolicyName=MANAGED_POLICY_NAME,
+                PolicyDocument=json.dumps(policy),
+                Description="Minimal access to WECARE.DIGITAL customer identity claims registry",
+            )
+            policy_state = "created"
+
+    states = {"managedPolicy": policy_state}
     for role in ROLES:
         try:
             iam().get_role(RoleName=role)
@@ -156,14 +176,10 @@ def grant_roles(apply):
                 continue
             raise
         if not apply:
-            states[role] = "would ensure"
+            states[role] = "would attach"
             continue
-        iam().put_role_policy(
-            RoleName=role,
-            PolicyName=POLICY_NAME,
-            PolicyDocument=json.dumps(policy),
-        )
-        states[role] = "ensured"
+        iam().attach_role_policy(RoleName=role, PolicyArn=policy_arn)
+        states[role] = "attached"
     return states
 
 
