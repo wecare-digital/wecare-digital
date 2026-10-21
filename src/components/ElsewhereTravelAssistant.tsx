@@ -626,7 +626,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
           display:flex;flex-direction:column;align-items:flex-end;gap:8px;width:auto;max-width:100%;margin-inline-start:auto;
         }
         .eta-action{
-          display:inline-flex;align-items:center;width:max-content;max-width:100%;min-height:var(--tap-min);box-sizing:border-box;
+          display:inline-flex;align-items:center;gap:8px;width:max-content;max-width:100%;min-height:var(--tap-min);box-sizing:border-box;
           padding:6px 9px;border:0;border-radius:8px;background:var(--public-lime-tint);color:var(--public-brand-green);
           font-family:inherit;font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);
           line-height:1.4;letter-spacing:-.05px;cursor:pointer;white-space:normal;overflow-wrap:anywhere;text-align:start;
@@ -634,6 +634,11 @@ const ElsewhereTravelAssistant: React.FC = () => {
           touch-action:manipulation;-webkit-tap-highlight-color:transparent;
           transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s;
         }
+        .eta-action-icon{
+          width:17px;height:17px;flex:0 0 17px;fill:none;stroke:currentColor;stroke-width:1.8;
+          stroke-linecap:round;stroke-linejoin:round;opacity:.86;
+        }
+        .eta-action-icon-whatsapp{fill:currentColor;stroke:none;opacity:.9}
         .eta-action:active{background:var(--public-brand-lime);text-decoration-color:transparent}
         .eta-live-note,.eta-continuation{margin:0;color:var(--public-muted);font-size:13px;font-weight:500;line-height:1.45}
         .eta-composer{
