@@ -1,11 +1,10 @@
-"""Tests for the decomposed template validation service + presets."""
+"""Tests for the decomposed template validation service."""
 import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'amplify', 'functions', 'shared'))
 
 from lambda_utils import template_validation as tv  # noqa: E402
-from lambda_utils import template_presets as tp  # noqa: E402
 
 
 def _valid_body(text='Hi {{1}}', example=None):
@@ -139,23 +138,3 @@ def test_validate_template_ok():
     res = tv.validate_template({'name': 'order_ok', 'language': 'en', 'category': 'UTILITY',
                                 'components': [_valid_body('Hi {{1}}')]})
     assert res['ok'] is True
-
-
-# ── presets ──
-
-def test_all_presets_validate():
-    for summary in tp.list_presets():
-        preset = tp.get_preset(summary['name'])
-        # Flow presets carry a placeholder flow_name which is valid for validation.
-        res = tv.validate_template(preset)
-        assert res['ok'] is True, f"{summary['name']} failed: {res['errors']}"
-
-
-def test_get_unknown_preset():
-    assert tp.get_preset('does_not_exist') is None
-
-
-def test_preset_flow_flag():
-    summaries = {s['name']: s for s in tp.list_presets()}
-    assert summaries['flow_lead_generation']['hasFlowButton'] is True
-    assert summaries['order_confirmation']['hasFlowButton'] is False

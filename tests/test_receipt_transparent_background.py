@@ -208,14 +208,11 @@ def test_the_fixed_payment_template_header_is_untouched():
     break every approved payment template. The receipt artifact is separate.
     """
     outbound = (FUNCTIONS / "messaging" / "outbound-whatsapp" / "handler.py").read_text()
-    presets = (FUNCTIONS / "shared" / "lambda_utils" / "template_presets.py").read_text()
 
     assert f"FIXED_CHECKOUT_HEADER = '{PAYMENT_TEMPLATE_HEADER_URL}'" in outbound
-    assert PAYMENT_TEMPLATE_HEADER_URL in presets
 
-    # And the receipt asset has not been substituted into either of them.
+    # And the receipt asset has not been substituted into the send path.
     assert "invoice-receipt.png" not in outbound
-    assert "invoice-receipt.png" not in presets
 
 
 def test_the_approved_specimen_is_not_attached_to_any_send_path():

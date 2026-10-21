@@ -190,13 +190,8 @@ def handler(event, context):
                 return _list_template_library(waba_id, query_params)
             if '/templates/send-media' in path:
                 return _list_send_media(query_params)
-            if '/templates/presets' in path:
-                preset_name = _extract_path_param(path, '/templates/presets/')
-                if preset_name:
-                    return _get_preset(preset_name)
-                return _list_presets()
             template_id = _extract_path_param(path, '/templates/')
-            if template_id and template_id not in ('library', 'analytics', 'carousel', 'carousel-media', 'media', 'from-library', 'send-media', 'presets', 'validate'):
+            if template_id and template_id not in ('library', 'analytics', 'carousel', 'carousel-media', 'media', 'from-library', 'send-media', 'validate'):
                 return _get_template_details(waba_id, template_id, query_params)
             return _list_templates(waba_id, query_params)
 
@@ -431,29 +426,6 @@ def _validate_template_route(body):
         'statusCode': 200,
         'headers': cors_headers(origin),
         'body': json.dumps(result),
-    }
-
-
-def _list_presets():
-    """GET /templates/presets — list available preset template definitions."""
-    from lambda_utils import template_presets as tp
-    return {
-        'statusCode': 200,
-        'headers': cors_headers(origin),
-        'body': json.dumps({'presets': tp.list_presets()}),
-    }
-
-
-def _get_preset(name):
-    """GET /templates/presets/{name} — return a single preset definition."""
-    from lambda_utils import template_presets as tp
-    preset = tp.get_preset(name)
-    if not preset:
-        return _error_response(404, f'Unknown preset: {name}')
-    return {
-        'statusCode': 200,
-        'headers': cors_headers(origin),
-        'body': json.dumps({'preset': preset}),
     }
 
 

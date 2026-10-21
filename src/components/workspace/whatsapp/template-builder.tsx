@@ -1,7 +1,7 @@
 /**
  * Template Builder wizard (Part 5) — Basics → Header → Body → Footer → Buttons →
  * Flow button → TTL → Preview → Submit. Live chat preview, local validation
- * (errors + warnings), payload + cURL preview, presets, create.
+ * (errors + warnings), payload + cURL preview, create.
  */
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import Layout from '../../../components/Layout';
@@ -99,33 +99,6 @@ const TemplateBuilder: React.FC<PageProps> = ( { signOut, user, embedded = false
 
     useEffect( () => { if ( step === STEPS.length - 1 ) runValidate(); }, [ step, runValidate ] );
 
-    const loadPreset = async ( presetName: string ) => {
-        const p = await api.getTemplatePreset( presetName );
-        if ( !p ) return;
-        setName( p.name ); setLanguage( p.language ); setCategory( p.category );
-        if ( p.message_send_ttl_seconds != null ) setTtl( p.message_send_ttl_seconds );
-        for ( const c of p.components || [] )
-        {
-            const t = ( c.type || '' ).toUpperCase();
-            if ( t === 'HEADER' ) { setHeaderFormat( c.format || 'TEXT' ); setHeaderText( c.text || '' ); }
-            else if ( t === 'BODY' ) setBodyText( c.text || '' );
-            else if ( t === 'FOOTER' ) setFooterText( c.text || '' );
-            else if ( t === 'LIMITED_TIME_OFFER' )
-            {
-                setOfferEnabled( true );
-                setOfferText( c.limited_time_offer?.text || '' );
-                setOfferHasExpiration( c.limited_time_offer?.has_expiration !== false );
-            }
-            else if ( t === 'BUTTONS' )
-            {
-                const flow = ( c.buttons || [] ).find( ( b: any ) => ( b.type || '' ).toUpperCase() === 'FLOW' );
-                if ( flow ) { setFlowEnabled( true ); setFlowName( flow.flow_name || '' ); setFlowScreen( flow.navigate_screen || 'WELCOME' ); setFlowCtaText( flow.text || 'Open' ); }
-                setButtons( ( c.buttons || [] ).filter( ( b: any ) => ( b.type || '' ).toUpperCase() !== 'FLOW' ).map( ( b: any ) => ( { type: b.type, text: b.text, url: b.url, phone_number: b.phone_number, example: b.example } ) ) );
-            }
-        }
-        toast.success( `Loaded preset ${presetName}` );
-    };
-
     const submit = async () => {
         const v = await api.validateTemplateDefinition( templateDef );
         setResult( v );
@@ -148,13 +121,7 @@ const TemplateBuilder: React.FC<PageProps> = ( { signOut, user, embedded = false
         <div style={ { maxWidth: 900, margin: '0 auto', padding: 16 } }>
             <SEO title="Template Builder" description="Build and validate WhatsApp message templates." noindex />
             <h1 style={ { fontSize: 22, fontWeight: 700, marginBottom: 4 } }>Template Builder</h1>
-            <p style={ { color: '#777', fontSize: 'var(--text-sm)', marginBottom: 12 } }>Build, validate, and submit a WhatsApp template. Presets below to start fast.</p>
-
-            <div style={ { display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' } }>
-                { [ 'seasonal_promotion', 'limited_time_offer', 'order_confirmation', 'flow_lead_generation' ].map( p => (
-                    <button key={ p } onClick={ () => loadPreset( p ) } style={ { fontSize: 'var(--text-xs)', padding: '3px 10px', borderRadius: 999, border: '1px solid #d0d0d0', background: '#fff', cursor: 'pointer' } }>{ p }</button>
-                ) ) }
-            </div>
+            <p style={ { color: '#777', fontSize: 'var(--text-sm)', marginBottom: 12 } }>Build, validate, and submit a WhatsApp template.</p>
 
             <div style={ { display: 'flex', gap: 4, borderBottom: '1px solid #e5e5e5', marginBottom: 16, flexWrap: 'wrap' } }>
                 { STEPS.map( ( s, i ) => (

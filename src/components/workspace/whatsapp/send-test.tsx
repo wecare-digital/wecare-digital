@@ -1,7 +1,7 @@
 /**
  * WhatsApp Send Test Console (Part 4 E + tools)
  * Exercises the live /wa-business/messages/send/* routes plus the
- * TTL rules/validate, template validate, and preset endpoints.
+ * TTL rules/validate and template validation endpoints.
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import Layout from '../../../components/Layout';
@@ -77,7 +77,6 @@ const SendTestConsole: React.FC<PageProps> = ( { signOut, user, embedded = false
     const [ ttlCategory, setTtlCategory ] = useState( 'UTILITY' );
     const [ ttlSeconds, setTtlSeconds ] = useState( 43200 );
     const [ ttlResult, setTtlResult ] = useState<api.TtlValidationResult | null>( null );
-    const [ presets, setPresets ] = useState<api.TemplatePresetSummary[]>( [] );
     const [ validateJson, setValidateJson ] = useState( '' );
     const [ validateResult, setValidateResult ] = useState<api.TemplateValidationResult | null>( null );
 
@@ -102,9 +101,8 @@ const SendTestConsole: React.FC<PageProps> = ( { signOut, user, embedded = false
     const loadTools = useCallback( async () => {
         try
         {
-            const [ rules, ps ] = await Promise.all( [ api.getTemplateTtlRules(), api.listTemplatePresets() ] );
+            const rules = await api.getTemplateTtlRules();
             setTtlRules( rules );
-            setPresets( ps );
         } catch ( e: any )
         {
             toast.error( e?.message || 'Failed to load tools' );
@@ -147,11 +145,6 @@ const SendTestConsole: React.FC<PageProps> = ( { signOut, user, embedded = false
         catch { toast.error( 'Invalid JSON' ); return; }
         try { setValidateResult( await api.validateTemplateDefinition( def ) ); }
         catch ( e: any ) { toast.error( e?.message || 'Validation failed' ); }
-    };
-
-    const loadPreset = async ( name: string ) => {
-        const p = await api.getTemplatePreset( name );
-        if ( p ) { setValidateJson( JSON.stringify( p, null, 2 ) ); toast.success( `Loaded preset ${name}` ); }
     };
 
     // ── media management helpers ──
@@ -368,12 +361,7 @@ const SendTestConsole: React.FC<PageProps> = ( { signOut, user, embedded = false
 
                     <div style={ card }>
                         <h3 style={ { marginTop: 0, fontSize: 'var(--text-md)' } }>Template validation</h3>
-                        <div style={ { fontSize: 'var(--text-xs)', color: '#666', marginBottom: 8 } }>
-                            Presets:{ ' ' }
-                            { presets.map( p => (
-                                <button key={ p.name } onClick={ () => loadPreset( p.name ) } style={ { ...btn, padding: '3px 8px', fontSize: 'var(--text-xs)', marginRight: 6, background: '#444' } }>{ p.name }{ p.hasFlowButton ? ' (flow)' : '' }</button>
-                            ) ) }
-                        </div>
+                        
                         <textarea style={ { ...input, minHeight: 140, fontFamily: 'monospace', fontSize: 'var(--text-xs)' } } value={ validateJson } onChange={ e => setValidateJson( e.target.value ) } placeholder='{"name":"order_ok","language":"en","category":"UTILITY","components":[...]}' />
                         <button style={ btn } onClick={ runValidateTemplate }>Validate template</button>
                         { validateResult && (
