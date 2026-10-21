@@ -90,7 +90,7 @@ describe( 'the catalogue snapshot is read correctly', () => {
         { id: 'size-m', label: 'Medium', inStock: true },
       ],
     };
-    render( <ShopProductPage product={ merchandise } /> );
+    const first = render( <ShopProductPage product={ merchandise } /> );
     const button = screen.getByRole( 'button', { name: 'Checkout Merchandise' } );
     expect( button ).toBeDisabled();
     const variants = merchandise.variants!;
@@ -110,6 +110,11 @@ describe( 'the catalogue snapshot is read correctly', () => {
     fireEvent.click( chooser() );
     fireEvent.click( screen.getByRole( 'option', { name: variants[0].label } ) );
     fireEvent.click( button );
+
+    // A successful Checkout navigates to /cart/ and leaves this page busy. Returning to the
+    // product is a fresh page visit, so remount before choosing the second size.
+    first.unmount();
+    render( <ShopProductPage product={ merchandise } /> );
     fireEvent.click( chooser() );
     fireEvent.click( screen.getByRole( 'option', { name: variants[1].label } ) );
     fireEvent.click( screen.getByRole( 'button', { name: 'Checkout Merchandise' } ) );
