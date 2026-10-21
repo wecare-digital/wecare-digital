@@ -327,6 +327,7 @@ const ProductPage: React.FC<ProductPageProps> = ( {
       </PageShell>
       </div>
     </RotatingHero>
+    { afterHero }
   </>
   );
 };
