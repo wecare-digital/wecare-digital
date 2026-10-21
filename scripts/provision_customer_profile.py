@@ -27,6 +27,7 @@ SHARED_DIR = ROOT / "amplify/functions/shared"
 
 OTP_TABLE = "stack-wecare-digital-DownloadGrantsTable"
 CONTACTS_TABLE = "stack-wecare-digital-ContactsTable"
+IDENTITY_CLAIMS_TABLE = "stack-wecare-digital-IdentityClaimsTable"
 #: Where `lambda_utils.audit.record_audit` writes. A module constant rather than a literal in the
 #: policy for the same reason the other two are: the ARN and the helper's default must agree, and
 #: `tests/test_customer_profile_iam.py` asserts on this name.
@@ -73,9 +74,9 @@ def expected_role_policy(acct=None):
     Lifted out of `ensure_role` so `tests/test_customer_profile_iam.py` can assert the document
     rather than the source text, the same shape `provision_customer_orders.py` already uses.
 
-    What is ABSENT is the point: no `Scan`, no `DeleteItem`, no S3, no SES, no SNS and no
-    `lambda:InvokeFunction`. The only write outside the contacts table is a single `PutItem` on
-    the audit log.
+    What is ABSENT is the point: no `Scan`, no S3, no SES, no SNS and no `lambda:InvokeFunction`.
+    The only mutable stores outside ContactsTable are the narrow identity-claim registry and the
+    append-only audit log. `DeleteItem` is scoped only to releasing a claim this contact owned.
     """
     acct = acct or account_id()
     return {"Version":"2012-10-17","Statement":[
@@ -83,6 +84,9 @@ def expected_role_policy(acct=None):
          "Resource":[f"arn:aws:secretsmanager:{REGION}:{acct}:secret:{OTP_PEPPER_SECRET_ID}-*"]},
         {"Sid":"ReadEmailProof","Effect":"Allow","Action":["dynamodb:GetItem"],
          "Resource":[f"arn:aws:dynamodb:{REGION}:{acct}:table/{OTP_TABLE}"]},
+        {"Sid":"CustomerIdentityClaims","Effect":"Allow",
+         "Action":["dynamodb:GetItem","dynamodb:UpdateItem","dynamodb:DeleteItem"],
+         "Resource":[f"arn:aws:dynamodb:{REGION}:{acct}:table/{IDENTITY_CLAIMS_TABLE}"]},
         # Unchanged by the identity claim. `UpdateItem` and `Query` were already here, and the
         # conditional claim write needs nothing beyond them.
         {"Sid":"ContactsUpsert","Effect":"Allow",
@@ -158,6 +162,7 @@ def ensure_function(dry_run):
                 Environment={"Variables":{
                     "OTP_TABLE":OTP_TABLE,
                     "CONTACTS_TABLE":CONTACTS_TABLE,
+                    "IDENTITY_CLAIMS_TABLE":IDENTITY_CLAIMS_TABLE,
                     "OTP_PEPPER_SECRET_ID":OTP_PEPPER_SECRET_ID,
                 }},
                 Description="Authenticated checkout identity -> Workspace Contacts",
