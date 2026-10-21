@@ -32,7 +32,9 @@ def test_role_can_write_contacts_and_otp_proofs_but_has_no_cognito_or_delete():
     assert "dynamodb:Query" in text
     assert "ses:SendEmail" in text
     assert "lambda:InvokeFunction" in text
-    assert "dynamodb:DeleteItem" not in text
+    # DeleteItem exists only to release a phone/email claim after a successful identity change.
+    assert text.count("dynamodb:DeleteItem") == 1
+    assert "IdentityClaimsTable" in text
     assert "dynamodb:Scan" not in text
     assert "cognito-idp" not in text.lower()
 
