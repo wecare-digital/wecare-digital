@@ -6437,6 +6437,30 @@ def _handle_cart_order(message: Dict, contact_id: str, sender_phone: str,
                                  'error': type(error).__name__, 'requestId': request_id}))
 
 
+def _rollback_cart_order_index(keys, order_id: str, token: str, request_id: str) -> None:
+    """Delete the resolve-before-generate index row this invocation wrote, so a redelivery retries.
+
+    Called only when the `prepareNativeCart` invoke failed to reserve an attempt (the invoke
+    raised, or the action answered anything other than `NATIVE_CART_PREPARED`). The delete is
+    CONDITIONAL on `token = :token`: the row we wrote carries this invocation's unguessable token,
+    so if a concurrent winner has already replaced the row with its own the condition fails and we
+    leave that live row untouched. That keeps the single-attempt invariant intact (we only ever
+    clear an index that no prepared attempt is relying on) while making a transient failure
+    recoverable. A missed condition is the expected, benign outcome, not an error.
+    """
+    try:
+        keys.delete_item(Key={'orderId': order_id},
+                         ConditionExpression='#t = :token',
+                         ExpressionAttributeNames={'#t': 'token'},
+                         ExpressionAttributeValues={':token': str(token)})
+    except ClientError as error:
+        if error.response.get('Error', {}).get('Code') != 'ConditionalCheckFailedException':
+            raise
+        # A concurrent winner replaced our row; its attempt is the live one. Nothing to roll back.
+        logger.info(json.dumps({'event': 'cart_order_payment_index_retained',
+                                 'requestId': request_id}))
+
+
 def _send_payment_request(basket, phone: str, contact_id: str, sender_phone: str,
                           phone_number_id: str, request_id: str) -> None:
     """Drive the native WhatsApp ORDER_DETAILS money leg for a general PRODUCT cart.
@@ -6499,19 +6523,45 @@ def _send_payment_request(basket, phone: str, contact_id: str, sender_phone: str
     # basket via `_native_quote`, reserves the single attempt + `PAYREF#` carrying contactId +
     # customerUuid, and sends the approved template through `_send_order_details`. We pass variants
     # and integer quantities only; no amount of any kind travels in this payload.
-    response = lambda_client.invoke(
-        FunctionName=CHECKOUT_FUNCTION, InvocationType='RequestResponse',
-        Payload=json.dumps({'internalAction': 'prepareNativeCart', 'lines': basket.lines,
-                            'sourceMessageId': basket.message_id, 'contactId': contact_id,
-                            'senderPhone': sender_phone, 'phoneNumberId': phone_number_id}).encode())
+    #
+    # ROLLBACK ON A FAILED PREPARE. The index row was written BEFORE this invoke so a redelivery
+    # cannot race us into a second attempt, but a transient checkout failure (the invoke raises,
+    # or the action answers anything other than `NATIVE_CART_PREPARED`) means NO attempt was
+    # reserved and NO template went out. If we left the index in place, Meta's redelivery of the
+    # same cart would be swallowed as a replay and the customer would silently never get a payment
+    # request. So on any non-success we delete OUR index row, conditionally on `token`, so a
+    # redelivery can retry. The `token = :token` guard is the single-attempt safety net: the row
+    # we wrote carries this invocation's unguessable token, so if a concurrent winner replaced it
+    # the delete misses and we never clear an index another live prepare is relying on. The SUCCESS
+    # path never deletes, so a prepared cart still collapses every redelivery to one attempt.
     outcome = ''
     try:
+        response = lambda_client.invoke(
+            FunctionName=CHECKOUT_FUNCTION, InvocationType='RequestResponse',
+            Payload=json.dumps({'internalAction': 'prepareNativeCart', 'lines': basket.lines,
+                                'sourceMessageId': basket.message_id, 'contactId': contact_id,
+                                'senderPhone': sender_phone,
+                                'phoneNumberId': phone_number_id}).encode())
         raw = response['Payload'].read()
         result = json.loads(raw.decode('utf-8')) if raw else {}
         outcome = str(result.get('outcome') or '')
     except Exception as error:  # noqa: BLE001
         logger.error(json.dumps({'event': 'cart_order_payment_invoke_error',
-                                 'error': type(error).__name__, 'requestId': request_id}))
+                                 'error': type(error).__name__,
+                                 'phone_suffix': _phone_suffix(sender_phone),
+                                 'requestId': request_id}))
+        _rollback_cart_order_index(keys, index['orderId'], token, request_id)
+        return
+
+    if outcome != 'NATIVE_CART_PREPARED':
+        # A reachable-but-not-prepared answer (e.g. NATIVE_CART_NOT_PREPARED): no attempt, no send.
+        # Clear the index so a redelivery retries, exactly as for an invoke that raised.
+        logger.warning(json.dumps({'event': 'cart_order_payment_not_prepared',
+                                    'outcome': outcome,
+                                    'sourceMessageId': basket.message_id,
+                                    'phone_suffix': _phone_suffix(sender_phone),
+                                    'requestId': request_id}))
+        _rollback_cart_order_index(keys, index['orderId'], token, request_id)
         return
 
     logger.info(json.dumps({

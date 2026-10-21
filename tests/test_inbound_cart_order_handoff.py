@@ -239,6 +239,123 @@ def test_a_different_cart_from_the_same_customer_gets_its_own_invoke(handler):
     assert len(recorder.checkout_calls()) == 2
 
 
+# ── rollback on a failed prepare, so a redelivery can retry ─────────────────
+
+
+class _Raiser:
+    """A Lambda client that raises only on the `prepareNativeCart` checkout invoke, standing in
+    for a transient checkout outage. Other invokes (the in-chat address request) succeed, so the
+    test isolates the checkout failure. Records the checkout attempts so we can prove a retry
+    actually re-invokes."""
+
+    def __init__(self):
+        self.checkout_invocations = []
+
+    def invoke(self, **kwargs):
+        payload = kwargs.get("Payload") or b"{}"
+        body = json.loads(payload.decode("utf-8") if isinstance(payload, bytes) else payload)
+        if body.get("internalAction") == "prepareNativeCart":
+            self.checkout_invocations.append(kwargs.get("FunctionName"))
+            raise RuntimeError("checkout momentarily unavailable")
+        return {"StatusCode": 202, "Payload": _Blob(b"{}")}
+
+    def checkout_calls(self):
+        return list(self.checkout_invocations)
+
+
+def test_a_raising_invoke_rolls_the_index_back_so_a_redelivery_retries(handler):
+    """If the `prepareNativeCart` invoke raises, no attempt was reserved and no template went out.
+    The resolve-before-generate index row must NOT survive, so Meta's redelivery of the SAME cart
+    re-invokes checkout rather than being swallowed as a replay."""
+    module, fake, recorder, monkeypatch = handler
+    enable(module, monkeypatch)
+    raiser = _Raiser()
+    monkeypatch.setattr(module, "lambda_client", raiser)
+
+    run(module)
+    # The failed prepare left no index behind.
+    assert indexes(fake) == []
+    assert len(raiser.checkout_calls()) == 1
+
+    # A redelivery of the same cart is now free to retry.
+    run(module)
+    assert len(raiser.checkout_calls()) == 2
+    assert indexes(fake) == []
+
+
+def test_a_non_prepared_outcome_rolls_the_index_back_so_a_redelivery_retries(handler):
+    """A reachable checkout that answers anything other than NATIVE_CART_PREPARED reserved no
+    attempt. Same contract as a raising invoke: the index is cleared and a redelivery retries."""
+    module, fake, recorder, monkeypatch = handler
+    enable(module, monkeypatch)
+    recorder.outcome = {"outcome": "NATIVE_CART_NOT_PREPARED", "statusCode": 409}
+
+    run(module)
+    assert indexes(fake) == []
+    assert len(recorder.checkout_calls()) == 1
+
+    # The redelivery retries because nothing is holding the dedup key.
+    run(module)
+    assert len(recorder.checkout_calls()) == 2
+    assert indexes(fake) == []
+
+    # And once checkout recovers and prepares the cart, the index persists again.
+    recorder.outcome = {"outcome": "NATIVE_CART_PREPARED", "statusCode": 200}
+    run(module)
+    assert len(recorder.checkout_calls()) == 3
+    assert len(indexes(fake)) == 1
+
+
+def test_a_successful_prepare_keeps_the_index_so_a_redelivery_invokes_once(handler):
+    """The idempotency guarantee is intact on the SUCCESS path: a prepared cart leaves its index
+    row in place, so a redelivery of the same wamid collapses to exactly one invoke and one send,
+    and the rollback delete is never taken."""
+    module, fake, recorder, monkeypatch = handler
+    enable(module, monkeypatch)
+
+    run(module)
+    assert len(recorder.checkout_calls()) == 1
+    assert len(indexes(fake)) == 1
+
+    run(module)                                   # the redelivery
+    assert len(recorder.checkout_calls()) == 1    # still one: collapsed as a replay
+    assert len(indexes(fake)) == 1
+    # No rollback delete ran on the success path; the index row is load-bearing and untouched.
+    assert (KEYS, "delete_item") not in fake.calls
+
+
+def test_the_rollback_never_deletes_a_concurrent_winners_index(handler):
+    """The rollback delete is conditional on the token WE wrote. If a concurrent winner already
+    holds the index row under its own token (its prepare is the live one), a later loser whose
+    invoke fails must NOT clear that row: the token-guarded delete misses, so the single-attempt
+    invariant is never broken by a late loser's rollback."""
+    module, fake, recorder, monkeypatch = handler
+    enable(module, monkeypatch)
+    raiser = _Raiser()
+    monkeypatch.setattr(module, "lambda_client", raiser)
+
+    # Pre-seed the index row with a DIFFERENT token, as a concurrent winner would have left it.
+    winner_token = "winner-token-not-ours"
+    order_id = wb.message_key(WAMID)
+    fake.Table(KEYS).put_item(Item={
+        "orderId": order_id, "token": winner_token,
+        "handoffId": wb.handoff_key(winner_token), "indexType": "wamid", "createdAt": 1})
+
+    run(module)
+    # Our conditional put loses (the winner's row exists), so this delivery is a replay and never
+    # invokes; the winner's row stands untouched and its token is intact.
+    rows = indexes(fake)
+    assert len(rows) == 1
+    assert rows[0]["token"] == winner_token
+    assert raiser.checkout_calls() == []
+
+    # Directly exercise the rollback helper with a losing token: it must leave the winner's row.
+    module._rollback_cart_order_index(fake.Table(KEYS), order_id, "a-losers-token", "req")
+    rows = indexes(fake)
+    assert len(rows) == 1
+    assert rows[0]["token"] == winner_token
+
+
 # ── the refusals (all BEFORE the checkout invoke) ───────────────────────────
 
 
