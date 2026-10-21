@@ -119,7 +119,9 @@ const BroadcastPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
     }, [ content, smsType, subject, templateName ] );
 
     const send = useCallback( async () => {
-        const targets = contacts.filter( c => selected.has( c.contactId ) );
+        const targets = contacts.filter(
+            c => selected.has( c.contactId ) && eligible( c, channel, selectedTemplate?.category )
+        );
         if ( !targets.length ) return;
         setSending( true );
         setProgress( { sent: 0, failed: 0, total: targets.length } );
@@ -138,7 +140,7 @@ const BroadcastPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
         }
         setSending( false );
         toast[ failed === 0 ? 'success' : 'warning' ]( `Broadcast done — ${sent} sent, ${failed} failed` );
-    }, [ contacts, selected, channel, sendOne, toast ] );
+    }, [ contacts, selected, channel, selectedTemplate, sendOne, toast ] );
 
     const content_ = (
         <>
