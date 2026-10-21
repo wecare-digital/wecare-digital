@@ -27,6 +27,7 @@ from lambda_utils.ecommerce import contact_address, india_address  # noqa: E402
 VALID = {
     "addressLine1": "12 MG Road",
     "addressLine2": "Flat 3B",
+    "locality": "Indiranagar",
     "city": "Bengaluru",
     "state": "Karnataka",
     "postalCode": "560001",
@@ -56,12 +57,12 @@ def test_anything_that_is_not_a_non_empty_object_is_address_required(raw):
 
 # -- step 2: required fields and lengths, each naming its own field ----------------------
 
-@pytest.mark.parametrize("field", ["addressLine1", "city", "state", "postalCode"])
+@pytest.mark.parametrize("field", ["addressLine1", "addressLine2", "locality", "city", "state", "postalCode"])
 def test_a_missing_required_field_is_refused_by_name(field):
     assert refusal(address(**{field: None})) == ("FIELD_REQUIRED", field)
 
 
-@pytest.mark.parametrize("field", ["addressLine1", "city", "state", "postalCode"])
+@pytest.mark.parametrize("field", ["addressLine1", "addressLine2", "locality", "city", "state", "postalCode"])
 def test_a_whitespace_only_required_field_is_refused_by_name(field):
     assert refusal(address(**{field: "   "})) == ("FIELD_REQUIRED", field)
 
@@ -119,14 +120,8 @@ def test_an_integer_country_code_defaults_rather_than_raising_attribute_error():
 
 # -- the two step-4-input pins, asserted on the RETURNED VALUE ---------------------------
 
-def test_a_non_scalar_on_an_optional_field_is_stored_as_empty_not_stringified():
-    # Fails if step 4 is handed `raw`: `identity.address._clean` stringifies rather than refuses,
-    # so `addressLine2` would be stored as "{'long_name': 'Flat 3B'}" and printed on the
-    # identity card's Deliver line.
-    out = contact_address.normalize_for_storage(
-        address(addressLine2={"long_name": "Flat 3B"}))
-    assert out["addressLine2"] == ""
-    assert "long_name" not in out["fullAddress"]
+def test_a_non_scalar_on_newly_required_line2_is_refused():
+    assert refusal(address(addressLine2={"long_name": "Flat 3B"})) == ("FIELD_REQUIRED", "addressLine2")
 
 
 def test_a_non_scalar_country_code_defaults_to_in_rather_than_misnaming_state():
@@ -155,7 +150,7 @@ def test_storage_accepts_any_pin_shape_now_that_the_rule_moved_to_payment(pin):
 
 def test_a_non_india_address_is_not_held_to_the_india_pin_rule():
     out = contact_address.normalize_for_storage({
-        "addressLine1": "1 Market St", "city": "San Francisco",
+        "addressLine1": "1 Market St", "addressLine2": "Suite 2", "locality": "SoMa", "city": "San Francisco",
         "state": "US-CA", "postalCode": "94105", "countryCode": "us",
     })
     assert out["postalCode"] == "94105"
@@ -178,7 +173,7 @@ def test_a_state_alias_the_tax_table_knows_still_maps_to_a_delivery_subdivision(
 
 def test_storage_accepts_a_non_india_address_without_an_iso_subdivision_now():
     out = contact_address.normalize_for_storage({
-        "addressLine1": "1 Market St", "city": "San Francisco",
+        "addressLine1": "1 Market St", "addressLine2": "Suite 2", "locality": "SoMa", "city": "San Francisco",
         "state": "California", "postalCode": "94105", "countryCode": "US",
     })
     assert out["state"] == "California"
@@ -227,9 +222,9 @@ def test_the_stored_shape_is_exactly_what_normalize_address_emits():
     }
     assert out["country"] == "India"
     assert out["countryCode"] == "IN"
-    assert out["locality"] == ""
+    assert out["locality"] == "Indiranagar"
     assert out["fullAddress"] == (
-        "12 MG Road, Flat 3B, Bengaluru, Karnataka, 560001, India")
+        "12 MG Road, Flat 3B, Indiranagar, Bengaluru, Karnataka, 560001, India")
 
 
 # -- the round trip into the shape that prices the cart -----------------------------------
