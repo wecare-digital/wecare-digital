@@ -1762,9 +1762,9 @@ describe( 'the payment rail latches once it has returned a result', () => {
     expect( source ).not.toMatch( /cartRequiresDelivery\( items \)/ );
     // The branch must never test the state directly.
     expect( source ).not.toMatch( /if \( profileStatus === 'required' \)/ );
-    // Three posts now, all keyed on the `lineItems` ARGUMENT rather than on a storage read: the
-    // first (carrying the one-shot reset flag), the post-save retry, and the one rotation.
-    expect( source.match( /postPrepare\( session, lineItems(, resetCart)? \)/g ) || [] )
+    // Three posts now, all keyed on the `lineItems` ARGUMENT and the chosen payment channel:
+    // the first (carrying the one-shot reset flag), the post-save retry, and the one rotation.
+    expect( source.match( /postPrepare\( session, lineItems, chosenChannel(, resetCart)? \)/g ) || [] )
       .toHaveLength( 3 );
   } );
 } );
