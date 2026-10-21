@@ -1,5 +1,6 @@
 import React from 'react';
 import ProductPage from '../../components/ProductPage';
+import ElsewhereTravelAssistant from '../../components/ElsewhereTravelAssistant';
 import { breadcrumbTrail } from '../../content/breadcrumbTrails';
 import { productChildByPath } from '../../content/productChildren';
 
@@ -10,6 +11,7 @@ const ActivitiesPage: React.FC = () => (
     product={ child.product }
     canonicalPath={ child.path }
     crumbs={ breadcrumbTrail( '/elsewhere/activities' ) }
+    afterHero={ <ElsewhereTravelAssistant /> }
   />
 );
 
