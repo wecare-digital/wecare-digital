@@ -1589,7 +1589,7 @@ export default function Cart (): React.ReactElement {
    * "Preparing…" on the CTA, and "please wait" on top of that explains nothing the customer cannot
    * already see.
    */
-  const proceed = useCallback( async ( paymentMode: PaymentMode ): Promise<void> => {
+  const proceed = useCallback( async ( paymentMode: PaymentMode = 'website' ): Promise<void> => {
     if ( proceedInFlightRef.current )
     {
       resetCartRef.current = false;
