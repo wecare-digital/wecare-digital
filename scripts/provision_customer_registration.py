@@ -56,6 +56,7 @@ OTP_TABLE = "stack-wecare-digital-DownloadGrantsTable"
 #: the same row the WhatsApp inbox and the website checkout use; there is no separate customer
 #: table. Reads go through the `phone-index` GSI only.
 CONTACTS_TABLE = "stack-wecare-digital-ContactsTable"
+IDENTITY_CLAIMS_TABLE = "stack-wecare-digital-IdentityClaimsTable"
 CONTACTS_PHONE_INDEX = "phone-index"
 CUSTOMER_POOL_ID = "us-east-1_46ULYuukt"
 META_WABA_ID = "2094615664435155"
@@ -161,6 +162,14 @@ def ensure_role(dry_run: bool) -> str:
         "Version": "2012-10-17",
         "Statement": [
             {
+                "Sid": "CustomerIdentityClaims",
+                "Effect": "Allow",
+                "Action": ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem"],
+                "Resource": [
+                    f"arn:aws:dynamodb:{REGION}:{acct}:table/{IDENTITY_CLAIMS_TABLE}"
+                ],
+            },
+            {
                 "Sid": "ReadOtpPepper",
                 "Effect": "Allow",
                 "Action": ["secretsmanager:GetSecretValue"],
@@ -232,6 +241,7 @@ def expected_environment() -> dict:
     return {
         "OTP_TABLE": OTP_TABLE,
         "CONTACTS_TABLE": CONTACTS_TABLE,
+        "IDENTITY_CLAIMS_TABLE": IDENTITY_CLAIMS_TABLE,
         "CUSTOMER_POOL_ID": CUSTOMER_POOL_ID,
         "OTP_PEPPER_SECRET_ID": PEPPER_SECRET_ID,
         "META_WABA_ID": META_WABA_ID,
