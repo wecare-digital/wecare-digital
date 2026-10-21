@@ -198,6 +198,10 @@ const ProductPage: React.FC<ProductPageProps> = ( {
         {/* Contribute + Subscribe + Share is mounted once by _app after the route policy.
             ProductPage must not add a second page-level action dock. */}
 
+
+      </section>
+      ) }
+
         <style jsx>{`
           /* PHASE-1 UNIT (product pages): layered-defence min-width:0 containment so a long
              unbreakable token - a SKU value, a long point heading, a URL in body copy - cannot
@@ -322,8 +326,6 @@ const ProductPage: React.FC<ProductPageProps> = ( {
             :global(.pdp-wrap.has-aside .pdp-aside){margin:0;position:sticky;top:24px;align-self:start}
           }
         `}</style>
-      </section>
-      ) }
 
       { !suppressProductDetails && hasAside && (
         <div className="pdp-aside">
