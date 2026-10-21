@@ -95,6 +95,7 @@ jobs:
         run: |
           python scripts/deploy_all_lambdas.py \
             wecare-ai-generate-response \
+            wecare-contacts \
             wecare-service-api \
             wecare-messages-read \
             wecare-customer-whatsapp-auth \
