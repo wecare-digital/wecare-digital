@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import VoiceSearchMic from './VoiceSearchMic';
 
 type TravelMode = 'flights' | 'hotels' | 'activities' | 'rail' | 'car' | 'bus';
@@ -248,6 +248,23 @@ const ElsewhereTravelAssistant: React.FC = () => {
   const config = MODES[ mode ];
   const canSubmit = query.trim().length > 0 || preferences.length > 0;
 
+  // On a phone the six service tabs intentionally stay on one horizontal rail. The
+  // Activities route starts in activities mode, so keeping scrollLeft=0 makes the
+  // selected tab begin off-screen (Flights + Hotels consume the first viewport). Keep
+  // the selected service in view on initial load and after a mode change; use an
+  // immediate alignment so the page does not visibly slide after hydration.
+  useEffect( () => {
+    if ( typeof window === 'undefined' || !window.matchMedia( '(max-width: 720px)' ).matches ) return;
+    const frame = window.requestAnimationFrame( () => {
+      tabRefs.current[ mode ]?.scrollIntoView( {
+        behavior: 'auto',
+        block: 'nearest',
+        inline: 'center',
+      } );
+    } );
+    return () => window.cancelAnimationFrame( frame );
+  }, [ mode ] );
+
   const changeMode = useCallback( ( next: TravelMode ) => {
     abortRef.current?.abort();
     setMode( next );
@@ -258,15 +275,6 @@ const ElsewhereTravelAssistant: React.FC = () => {
     setResponseSource( null );
     setStatus( 'idle' );
     setContinuationNote( '' );
-    if ( typeof window !== 'undefined' && window.matchMedia( '(max-width: 720px)' ).matches ) {
-      window.requestAnimationFrame( () => {
-        tabRefs.current[ next ]?.scrollIntoView( {
-          behavior: window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches ? 'auto' : 'smooth',
-          block: 'nearest',
-          inline: 'nearest',
-        } );
-      } );
-    }
   }, [] );
 
   const selectedPreferenceText = useMemo( () => preferences.join( ', ' ), [ preferences ] );
@@ -712,7 +720,11 @@ const ElsewhereTravelAssistant: React.FC = () => {
           .eta-tab{flex:0 0 auto;min-width:max-content;padding:5px 12px;font-size:14px;gap:7px;scroll-snap-align:start}
           .eta-tab-icon{width:26px;height:26px;flex-basis:26px;font-size:18px}
           .eta-panel{padding:20px var(--public-mobile-page-gutter)}
-          .eta-response-view{min-height:164px;max-height:420px;max-height:min(44dvh,420px);padding-inline-end:2px}
+          /* Phones use the page itself as the vertical scroller, like Home. A capped
+             response pane made result cards disappear under the composer and forced a
+             second scroll gesture inside the card. Let the conversation take its
+             natural height; the desktop/tablet response rail stays capped above. */
+          .eta-response-view{min-height:0;max-height:none;overflow-y:visible;overscroll-behavior-y:auto;scrollbar-gutter:auto;padding-inline-end:0}
           .eta-line{font-size:var(--public-body-size)}
           .eta-field textarea{font-size:var(--public-mobile-form-font-size)}
           .eta-composer-foot{flex-wrap:wrap}.eta-hint{flex:1 1 100%}.eta-tools{width:100%;justify-content:flex-end}
