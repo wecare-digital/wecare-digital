@@ -280,7 +280,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
     }
     setContinuationNote(
       kind === 'website'
-        ? 'Website checkout will use this provider reference once live search is connected.'
+        ? 'Checkout will use this provider reference once live search is connected.'
         : 'WhatsApp continuation will carry this provider reference once live search is connected.',
     );
   };
@@ -374,7 +374,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
                       <div className="eta-price">{ result.price }</div>
                       <div className="eta-price-note">estimated until confirmed</div>
                       <div className="eta-actions">
-                        <button type="button" className="eta-action primary" onClick={ () => continueWith( 'website', result ) }>Website</button>
+                        <button type="button" className="eta-action primary" aria-label={ `Checkout ${result.title}` } onClick={ () => continueWith( 'website', result ) }>Checkout</button>
                         <button type="button" className="eta-action" onClick={ () => continueWith( 'whatsapp', result ) }>WhatsApp</button>
                       </div>
                     </div>
