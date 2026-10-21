@@ -517,6 +517,7 @@ class _Rig:
     def _profile(self):
         self.db.Table(CONTACTS_TABLE).put_item(Item={
             "id": "contact-1", "contactId": "contact-1", "phone": PHONE,
+            "customerUuid": "b5985cda-e76f-4d61-a8a9-97cb0d3225b8",
             "email": "asha@example.com", "name": "Asha Sen",
             "checkoutCustomerId": CUSTOMER, "emailVerifiedAt": 1, "deletedAt": None})
 

@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import React from 'react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { readCart, toLineItems } from '../lib/cart';
 import { CONTRIBUTION_CHOICES } from '../config/contribution';
@@ -21,6 +21,10 @@ import type { ShopProduct } from '../content/shop';
 // `.github/workflows/catalogue-sync.yml` rewrites this file on a schedule.
 import catalog from '../content/catalogSnapshot';
 import { SERVICE_PRODUCT_IDS } from '../config/services';
+
+vi.mock( 'next/router', () => ( {
+  useRouter: () => ( { push: vi.fn().mockResolvedValue( true ) } ),
+} ) );
 
 /**
  * The /shop/ catalogue: the snapshot reader, and the two pages built on it.
@@ -82,7 +86,7 @@ describe( 'the catalogue snapshot is read correctly', () => {
       ],
     };
     render( <ShopProductPage product={ merchandise } /> );
-    const button = screen.getByRole( 'button', { name: 'Add Merchandise to cart' } );
+    const button = screen.getByRole( 'button', { name: 'Checkout Merchandise' } );
     expect( button ).toBeDisabled();
     const variants = merchandise.variants!;
     /*
@@ -103,7 +107,7 @@ describe( 'the catalogue snapshot is read correctly', () => {
     fireEvent.click( button );
     fireEvent.click( chooser() );
     fireEvent.click( screen.getByRole( 'option', { name: variants[1].label } ) );
-    fireEvent.click( screen.getByRole( 'button', { name: 'Add Merchandise to cart' } ) );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Checkout Merchandise' } ) );
     expect( readCart() ).toHaveLength( 2 );
     expect( readCart().map( item => item.name ) ).toEqual( [
       `Merchandise (${variants[0].label})`, `Merchandise (${variants[1].label})`,
@@ -476,15 +480,15 @@ describe( 'the product page', () => {
     }
   } );
 
-  it( 'offers an add-to-cart action rather than a contact link', () => {
-    // The CTA is now the page's single lime surface: it adds the item to the browser cart. It is a
-    // button (a client action) before anything is added, so there is no /contact/ link to find.
+  it( 'offers one Checkout action rather than a contact or channel-specific payment link', () => {
+    // The route has one Checkout action. It adds the item to the browser cart and hands off to
+    // /cart/; payment mode is selected later on the post-cart chooser.
     const kiosk: ShopProduct = {
       ...SYNTHETIC, id: 'synthetic-kiosk', name: 'Kiosk', slug: 'kiosk', inStock: true,
       formattedPrice: '₹26,999.00', price: '26999.00',
     };
     render( <ShopProductPage product={ kiosk } /> );
-    const cta = screen.getByRole( 'button', { name: 'Add Kiosk to cart' } );
+    const cta = screen.getByRole( 'button', { name: 'Checkout Kiosk' } );
     expect( cta ).toBeTruthy();
     expect( screen.queryByRole( 'link', { name: 'Ask about Kiosk' } ) ).toBeNull();
   } );

@@ -143,20 +143,20 @@ describe( 'scrollbar thumb colour is declared in exactly two files', () => {
     }
   } );
 
-  it( 'leaves the fourteen display:none and height:6px hiders alone', () => {
+  it( 'leaves the fifteen display:none and height:6px hiders alone', () => {
     // They set no colour, so they do not compete, and deleting one would bring back a visible
     // scrollbar on a tab strip or carousel. Counted so a silent cull is caught here.
     // Nine are the long-standing tab-strip/carousel hiders, including Anew's "Perspectives"
     // swipe pager. VayuLok contributes four legitimate colourless hiders: the Air forecast
     // carousel, health-persona tabs, Weather range controls and Weather history strip.
     // Restoring Weather brought the repository-wide invariant to thirteen; the Workspace Inbox
-    // mobile hardening added one colourless 6px tools scroller, making the reviewed total fourteen.
+    // mobile hardening added one colourless 6px tools scroller, making the reviewed total fourteen; the current public checkout/payment surface adds one more reviewed colorless hider.
     const hiders = files.flatMap( f => {
       const src = stripComments( fs.readFileSync( f, 'utf8' ) );
       return Array.from( src.matchAll( /::-webkit-scrollbar(?!-)[^{}]*\{([^}]*)\}/g ) )
         .filter( m => /display\s*:\s*none|height\s*:\s*6px/.test( m[ 1 ] ) );
     } );
-    expect( hiders.length ).toBe( 14 );
+    expect( hiders.length ).toBe( 15 );
   } );
 
   it( 'finds a planted declaration, and loses a commented one', () => {

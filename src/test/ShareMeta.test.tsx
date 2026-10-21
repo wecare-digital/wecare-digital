@@ -1,4 +1,3 @@
-import { CONTRIBUTE_CTA_HREF } from '../config/contribution';
 import PublicShare from '../components/PublicShare';
 import fs from 'fs';
 import path from 'path';
@@ -260,18 +259,15 @@ describe( 'current shared action dock', () => {
     }
   } );
 
-  it( 'offers both the WhatsApp contribution and the live website checkout', () => {
-    // The ₹250 contribution SKU (CNT5Q2M8) is live, so the website checkout path is enabled
-    // again (reverses the "unavailable until the SKU is live" placeholder). WhatsApp stays a
-    // direct link; Website is an enabled button that seeds the cart and goes to /cart/.
+  it( 'offers one contribution Checkout action before the shared post-cart choice', () => {
     render( <PublicShare url="https://wecare.digital/post/x/" title="A Post" /> );
     expect( screen.getByText( /Contribute ₹250/ ) ).toBeInTheDocument();
     fireEvent.click( screen.getByRole( 'button', { name: /Contribute ₹/ } ) );
-    expect( screen.getByRole( 'link', { name: 'Contribute on WhatsApp' } ) )
-      .toHaveAttribute( 'href', CONTRIBUTE_CTA_HREF );
-    const website = screen.getByRole( 'button', { name: 'Contribute on the website at checkout' } );
-    expect( website ).not.toBeDisabled();
-    expect( website.textContent ).toContain( 'Continue to checkout' );
+    expect( screen.queryByRole( 'link', { name: 'Contribute on WhatsApp' } ) ).toBeNull();
+    const checkout = screen.getByRole( 'button', { name: 'Checkout contribution' } );
+    expect( checkout ).not.toBeDisabled();
+    expect( checkout.textContent ).toContain( 'Checkout' );
+    expect( checkout.textContent ).toContain( 'Review contribution in cart' );
   } );
 
   it( 'uses the native share sheet and clipboard only when supported', async () => {
