@@ -525,8 +525,7 @@ paths:
       tags: [WhatsApp Templates]
       summary: Validate a template definition (errors + warnings)
       responses: { '200': { description: Validation result } }
-  /whatsapp/templates/presets:
-    get: { tags: [WhatsApp Templates], summary: List preset template definitions, responses: { '200': { description: Preset list } } }
+
   /whatsapp/templates/presets/{name}:
     get:
       tags: [WhatsApp Templates]
