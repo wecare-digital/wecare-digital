@@ -56,15 +56,23 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
           const rect = node.getBoundingClientRect();
           return { top: rect.top, height: rect.height };
         } );
+        const activeTab = tabs.querySelector( '.eta-tab.active' );
+        const activeRect = activeTab ? activeTab.getBoundingClientRect() : null;
         return {
           pageScrollWidth: root.scrollWidth,
           clientWidth: root.clientWidth,
           shellLeft: shellRect.left,
           shellRight: shellRect.right,
+          tabsLeft: tabs.getBoundingClientRect().left,
+          tabsRight: tabs.getBoundingClientRect().right,
           tabsScrollWidth: tabs.scrollWidth,
           tabsClientWidth: tabs.clientWidth,
           tabsTouchAction: getComputedStyle( tabs ).touchAction,
           responseTouchAction: getComputedStyle( response ).touchAction,
+          responseOverflowY: getComputedStyle( response ).overflowY,
+          activeLeft: activeRect?.left ?? null,
+          activeRight: activeRect?.right ?? null,
+          activeLabel: activeTab?.textContent?.trim() || '',
           tabButtons,
         };
       } );
@@ -84,8 +92,17 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
       if ( viewport.width <= 720 ) {
         if ( geometry.tabsTouchAction !== 'pan-x' ) fail( `${viewport.name}: tab rail touch-action ${geometry.tabsTouchAction}` );
         if ( geometry.tabsScrollWidth <= geometry.tabsClientWidth ) fail( `${viewport.name}: tab rail is not horizontally scrollable` );
+        if ( geometry.activeLabel !== 'Activities' ) fail( `${viewport.name}: Activities is not the initial active service` );
+        if ( geometry.activeLeft === null || geometry.activeRight === null
+          || geometry.activeLeft < geometry.tabsLeft - 1 || geometry.activeRight > geometry.tabsRight + 1 ) {
+          fail( `${viewport.name}: active Activities tab is off-screen on initial load` );
+        }
+        if ( geometry.responseOverflowY !== 'visible' ) {
+          fail( `${viewport.name}: mobile results still use a nested vertical scroller (${geometry.responseOverflowY})` );
+        }
+      } else if ( geometry.responseTouchAction !== 'pan-y' ) {
+        fail( `${viewport.name}: response touch-action ${geometry.responseTouchAction}` );
       }
-      if ( geometry.responseTouchAction !== 'pan-y' ) fail( `${viewport.name}: response touch-action ${geometry.responseTouchAction}` );
 
       const textarea = page.getByLabel( 'Ask about travel' );
       await textarea.tap();
