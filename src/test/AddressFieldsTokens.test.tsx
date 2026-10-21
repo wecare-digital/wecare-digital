@@ -34,7 +34,8 @@ import type { AddressDraft } from '../components/AddressFields';
  */
 const DRAFT: AddressDraft = {
   addressLine1: '12 MG Road',
-  addressLine2: '',
+  addressLine2: 'Flat 3B',
+  locality: 'Indiranagar',
   city: 'Bengaluru',
   state: 'Karnataka',
   postalCode: '560001',
@@ -140,7 +141,7 @@ describe( 'AddressFields uses the shared control tokens', () => {
     // The five text inputs keep theirs: address-line1/2, address-level2, postal-code and
     // country-name are unaffected, and losing them too would be a much larger regression than
     // the one accepted here.
-    expect( container.querySelectorAll( 'input[autocomplete]' ).length ).toBe( 5 );
+    expect( container.querySelectorAll( 'input[autocomplete]' ).length ).toBe( 6 );
   } );
 
   it( 'still marks the state field invalid when the server names it', () => {
