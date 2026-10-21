@@ -28,6 +28,7 @@ const SHARED_PUBLIC_FAMILIES = [
   '/shop/[slug]',
   '/account/sign-in',
   '/cart',
+  '/checkout',
   '/checkout/status',
   '/checkout/success',
   '/get',

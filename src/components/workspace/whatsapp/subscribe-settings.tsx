@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import * as api from '../../../api/client';
 import { useToastContext } from '../../../contexts/ToastContext';
+import ConsentPanel from '../customers/ConsentPanel';
 
 const CONFIG_KEY = 'subscribe_messages_config';
 type Scenario = 'newCustomer' | 'returningCustomer';
@@ -25,6 +26,11 @@ export default function SubscribeSettings () {
   const [ ready, setReady ] = useState( false );
   const [ error, setError ] = useState( '' );
   const [ saving, setSaving ] = useState( false );
+  const [ customerQuery, setCustomerQuery ] = useState( '' );
+  const [ customerMatches, setCustomerMatches ] = useState<api.Contact[]>( [] );
+  const [ customerSearchMessage, setCustomerSearchMessage ] = useState( '' );
+  const [ searchingCustomers, setSearchingCustomers ] = useState( false );
+  const [ selectedContactId, setSelectedContactId ] = useState( '' );
 
   const load = async () => {
     setReady( false ); setError( '' );
@@ -63,6 +69,29 @@ export default function SubscribeSettings () {
     finally { setSaving( false ); }
   };
 
+  const searchCustomers = async ( event: React.FormEvent ) => {
+    event.preventDefault();
+    const query = customerQuery.trim();
+    setSelectedContactId( '' );
+    setCustomerMatches( [] );
+    setCustomerSearchMessage( '' );
+    if ( !query ) return;
+    setSearchingCustomers( true );
+    try {
+      const result = await api.searchContactsResult( query );
+      if ( !result.ok ) {
+        setCustomerSearchMessage( result.failure.message || 'Customer search unavailable.' );
+        return;
+      }
+      setCustomerMatches( result.data );
+      if ( result.data.length === 0 ) setCustomerSearchMessage( 'No matching customers found.' );
+    } catch {
+      setCustomerSearchMessage( 'Customer search unavailable.' );
+    } finally {
+      setSearchingCustomers( false );
+    }
+  };
+
   return <section aria-label="Subscribe settings">
     <h3>Subscribe messages</h3>
     <p>Edit the message before the form opens and the confirmation shown inside the form. Customer ID is displayed separately.</p>
@@ -84,5 +113,42 @@ export default function SubscribeSettings () {
         <button type="submit">{ saving ? 'Saving…' : 'Save Subscribe messages' }</button>
       </fieldset>
     </form>
+
+    <hr style={{ margin: '24px 0', border: 0, borderTop: '1px solid var(--border)' }} />
+    <h3>Customer consent</h3>
+    <p>Saving profile details does not change consent. Select a customer to review or record consent evidence separately.</p>
+    <form onSubmit={ searchCustomers }>
+      <label style={{ display: 'block', marginBottom: 12 }}>
+        Find customer
+        <input
+          aria-label="Find customer"
+          value={ customerQuery }
+          onChange={ event => {
+            setCustomerQuery( event.target.value );
+            setSelectedContactId( '' );
+            setCustomerMatches( [] );
+            setCustomerSearchMessage( '' );
+          } }
+          style={{ display: 'block', width: '100%', padding: 10, border: '1px solid var(--border)', borderRadius: 8 }}
+        />
+      </label>
+      <button type="submit" disabled={ searchingCustomers || !customerQuery.trim() }>
+        { searchingCustomers ? 'Searching…' : 'Search customers' }
+      </button>
+    </form>
+    { customerSearchMessage && <p role="status">{ customerSearchMessage }</p> }
+    { customerMatches.length > 0 && (
+      <div aria-label="Customer search results" style={{ display: 'grid', gap: 8, marginTop: 12 }}>
+        { customerMatches.map( contact => {
+          const label = contact.name || contact.phone || contact.contactId;
+          const publicId = contact.customerDisplayId || contact.customerUuid || contact.contactId;
+          return <button key={ contact.contactId } type="button"
+            onClick={ () => setSelectedContactId( contact.contactId ) }>
+            { label } · { publicId }
+          </button>;
+        } ) }
+      </div>
+    ) }
+    { selectedContactId && <ConsentPanel contactId={ selectedContactId } /> }
   </section>;
 }

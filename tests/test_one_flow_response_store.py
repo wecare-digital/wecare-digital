@@ -134,6 +134,11 @@ def flows_env(db, monkeypatch):
     from flows import common as flows_common
     monkeypatch.setattr(flows_common, 'dynamodb', db)
     monkeypatch.setattr(flows_common, 'send_simple_confirmation', lambda *a, **k: None)
+    db.Table(CONTACTS).put_item(Item={
+        'id': 'wa' + QA_PHONE,
+        'phone': '+' + QA_PHONE,
+        'customerUuid': 'b5985cda-e76f-4d61-a8a9-97cb0d3225b8',
+    })
     return db
 
 
