@@ -28,7 +28,7 @@ def unwrap(response):
 def inventory(graph):
     rows, after, seen = [], None, set()
     while True:
-        params = {'fields': 'id,name,status,validation_errors', 'limit': 100}
+        params = {'fields': 'id,name,status,validation_errors,data_api_version,endpoint_uri,json_version', 'limit': 100}
         if after:
             params['after'] = after
         response = graph(WABA + '/flows', params=params, waba_id=WABA)
