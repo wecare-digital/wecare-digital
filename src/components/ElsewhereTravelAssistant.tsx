@@ -167,9 +167,9 @@ async function searchTravel( mode: TravelMode, query: string, preferences: strin
   }
 
   await new Promise<void>( ( resolve, reject ) => {
-    const timer = window.setTimeout( resolve, 420 );
+    const timer = globalThis.setTimeout( resolve, 420 );
     signal.addEventListener( 'abort', () => {
-      window.clearTimeout( timer );
+      globalThis.clearTimeout( timer );
       reject( new DOMException( 'Aborted', 'AbortError' ) );
     }, { once: true } );
   } );
@@ -270,7 +270,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
     if ( target ) {
       try {
         const parsed = new URL( target, window.location.href );
-        if ( parsed.protocol === 'https:' || parsed.protocol === 'http:' ) {
+        if ( parsed.protocol === 'https:' ) {
           window.location.href = parsed.href;
           return;
         }
