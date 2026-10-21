@@ -4,6 +4,9 @@ import { describe, expect, it } from 'vitest';
 
 const ROOT = path.join( __dirname, '..', '..' );
 const read = ( relative: string ): string => fs.readFileSync( path.join( ROOT, relative ), 'utf8' );
+const visibleSource = ( source: string ): string => source
+  .replace( /\/\*[\s\S]*?\*\//g, '' )
+  .replace( /^\s*\/\/.*$/gm, '' );
 
 describe( 'public visible-copy audit', () => {
   it( 'keeps retired checkout and secure-access implementation wording out of customer UI', () => {
@@ -58,7 +61,7 @@ describe( 'public visible-copy audit', () => {
   } );
 
   it( 'keeps every public commerce entry single-channel until after cart review', () => {
-    const entrySources = [
+    const entrySources = visibleSource( [
       read( 'src/pages/grahak-os/index.tsx' ),
       read( 'src/pages/bharat-rx.tsx' ),
       read( 'src/pages/shop/[slug].tsx' ),
@@ -67,7 +70,7 @@ describe( 'public visible-copy audit', () => {
       read( 'src/components/ServiceBuyBox.tsx' ),
       read( 'src/components/PublicShare.tsx' ),
       read( 'src/components/ElsewhereTravelAssistant.tsx' ),
-    ].join( '\n' );
+    ].join( '\n' ) );
 
     // Route/widget commerce must not expose a payment-channel choice before the cart.
     expect( entrySources ).not.toContain( 'Checkout on WhatsApp' );
