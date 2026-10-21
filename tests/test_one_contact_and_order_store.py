@@ -235,6 +235,39 @@ def test_an_attempt_without_a_contact_writes_no_contact_field():
     assert 'contactId' not in _accept(_paid_attempt())
 
 
+def test_paid_order_without_canonical_identity_is_not_finalized():
+    class Attempts(_Attempts):
+        def __init__(self):
+            self.updates = []
+        def update_item(self, **kwargs):
+            self.updates.append(kwargs)
+            return {}
+
+    class Orders(_Orders):
+        def __init__(self):
+            super().__init__()
+            self.updates = []
+        def update_item(self, **kwargs):
+            self.updates.append(kwargs)
+            return {}
+        def get_item(self, **_):
+            return {'Item': self.items[0] if self.items else {}}
+
+    attempts, orders = Attempts(), Orders()
+    finalization.accept_paid(
+        attempts=attempts, orders=orders, keys=None,
+        attempt=_paid_attempt(channel='website'),
+        outcome={'hasOrder': True, 'orderId': '0192f3a4-5b6c-7d8e-9f00-112233445566',
+                 'orderNumber': 'WD-ORD-K4M7PQR9', 'providerPaymentId': 'pay_1'},
+        verified_captured_paise=59900)
+    assert any(call.get('ExpressionAttributeValues', {}).get(':stage') == 'NEEDS_RECONCILIATION'
+               for call in attempts.updates)
+    assert any(call.get('ExpressionAttributeValues', {}).get(':reason') == 'CUSTOMER_CONTACT_MISSING'
+               for call in orders.updates)
+    assert not any(call.get('ExpressionAttributeValues', {}).get(':stage') == 'ORDER_FINALIZED'
+                   for call in orders.updates)
+
+
 # ── the staff order API (both service-api copies share the shape) ──────────────────
 
 @pytest.fixture()
