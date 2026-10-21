@@ -64,6 +64,7 @@ const CATALOGUE_VARIANT = ( CATALOGUE_PRODUCT.variants || [] )
   .find( variant => variant.inStock )!;
 
 const PREPARE_URL = '/ecommerce/prepare-checkout';
+const CTA = /Pay securely|Proceed|Preparing|Try again/;
 
 /** The `action:'profile'` reply for a customer who can pay right now, so no editor intervenes. */
 const PROFILE_READY = {
@@ -339,7 +340,7 @@ describe( 'success', () => {
       await waitFor( () => expect(
         screen.getByText( CATALOGUE_PRODUCT.name ) ).toBeInTheDocument() );
 
-      fireEvent.click( await screen.findByRole( 'button', { name: /Pay here/ } ) );
+      fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
       await waitFor( () => expect( prepares( fetchMock ) ).toHaveLength( 1 ) );
 
       expect( prepares( fetchMock )[ 0 ].lineItems ).toEqual( [ {
