@@ -41,7 +41,7 @@ from lambda_utils import wa_internal_event  # typed ingress -> worker contract
 from lambda_utils import contact_key
 from lambda_utils import contact_store  # one contact row per person, whichever channel minted it
 from lambda_utils import shared_tables  # one name per shared store (contacts, orders, flows)
-from lambda_utils.identity import subscriber_id  # `id` is the physical key; `contactId` is its alias
+from lambda_utils.identity import subscriber_id, consent as consent_evidence  # identity + append-only consent evidence
 from lambda_utils import customer_ideas
 from lambda_utils.canonical_flows import canonical_flow_id  # one source of truth for WABA 1 flow ids
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
@@ -176,6 +176,88 @@ REVOKE_CORRELATION_WINDOW_SECONDS = 3600
 # All three are checked because the exact join is strictly better than the inference and
 # costs one dict lookup; today none of them is present in a measured payload.
 _REVOKE_TARGET_ID_KEYS = ('revoked_message_id', 'id', 'message_id')
+
+
+
+_MARKETING_OPT_OUT_TEXT = frozenset({
+    'stop', 'unsubscribe', 'opt out', 'opt-out', 'stop marketing',
+    'stop promotions', 'stop offers',
+})
+
+
+def _is_whatsapp_marketing_opt_out(content: Any) -> bool:
+    """True only for an explicit whole-message marketing withdrawal command."""
+    if not isinstance(content, str):
+        return False
+    normalized = ' '.join(content.strip().lower().split())
+    return normalized in _MARKETING_OPT_OUT_TEXT
+
+
+def _record_whatsapp_marketing_opt_out(contact_id: str, *, at: int,
+                                       reference: str, request_id: str) -> bool:
+    """Append WHATSAPP/MARKETING OPTED_OUT without clobbering concurrent ledger writes."""
+    table = dynamodb.Table(CONTACTS_TABLE)
+    for attempt in range(2):
+        try:
+            item = table.get_item(Key={'id': contact_id}, ConsistentRead=True).get('Item') or {}
+            if not item:
+                return False
+            if consent_evidence.current_state(
+                    item, 'WHATSAPP', now=at, purpose=consent_evidence.MARKETING
+            ) == consent_evidence.OPTED_OUT:
+                return True
+
+            old_ledger = consent_evidence.ledger_of(item)
+            record = consent_evidence.build_record(
+                channel='WHATSAPP',
+                state=consent_evidence.OPTED_OUT,
+                source='WHATSAPP_REPLY',
+                at=at,
+                purpose=consent_evidence.MARKETING,
+                reference=reference or 'whatsapp-stop',
+            )
+            new_ledger = consent_evidence.append(
+                {consent_evidence.ATTRIBUTE: old_ledger}, record)
+            names = {'#ledger': consent_evidence.ATTRIBUTE}
+            values = {':ledger': new_ledger, ':now': Decimal(str(at))}
+            if old_ledger:
+                condition = '#ledger = :old'
+                values[':old'] = old_ledger
+            else:
+                condition = 'attribute_not_exists(#ledger)'
+            table.update_item(
+                Key={'id': contact_id},
+                UpdateExpression='SET #ledger = :ledger, updatedAt = :now',
+                ExpressionAttributeNames=names,
+                ExpressionAttributeValues=values,
+                ConditionExpression='attribute_exists(id) AND (' + condition + ')',
+            )
+            logger.info(json.dumps({
+                'event': 'whatsapp_marketing_opt_out_recorded',
+                'contactId': mask_contact_id(contact_id),
+                'requestId': request_id,
+            }))
+            return True
+        except ClientError as exc:
+            if (exc.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException'
+                    and attempt == 0):
+                continue
+            logger.warning(json.dumps({
+                'event': 'whatsapp_marketing_opt_out_write_failed',
+                'contactId': mask_contact_id(contact_id),
+                'error': exc.response.get('Error', {}).get('Code', type(exc).__name__),
+                'requestId': request_id,
+            }))
+            return False
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(json.dumps({
+                'event': 'whatsapp_marketing_opt_out_write_failed',
+                'contactId': mask_contact_id(contact_id),
+                'error': type(exc).__name__,
+                'requestId': request_id,
+            }))
+            return False
+    return False
 
 
 def _get_welcome_config_key(phone_number_id: str) -> str:
@@ -2099,6 +2181,7 @@ def _process_message(
     # `[Flow Response: {...}]` transport preview. The FlowSubmission row remains the
     # durable business record; these fields are the Inbox projection of that same row.
     content = _extract_content(message, msg_type)
+    _marketing_opt_out = (msg_type == 'text' and _is_whatsapp_marketing_opt_out(content))
     _idea_inbox = None
     if _idea_data is not None and _idea_result is not None:
         _topic = str(_idea_data.get('topic') or 'other')
@@ -2345,6 +2428,24 @@ def _process_message(
         timestamp=timestamp,
         **(_idea_inbox or {}),
     )
+
+    # STOP/unsubscribe is a customer withdrawal, not a conversation command. The message is
+    # already stored in both inboxes; append canonical evidence and stop before any automation,
+    # menu, AI reply or auto-reaction can answer the withdrawal.
+    if _marketing_opt_out:
+        recorded = _record_whatsapp_marketing_opt_out(
+            contact_id, at=timestamp,
+            reference=whatsapp_message_id or message_id,
+            request_id=request_id)
+        _update_contact_timestamp(
+            contact_id, int(time.time()), wamid=whatsapp_message_id or '')
+        logger.info(json.dumps({
+            'event': 'whatsapp_marketing_opt_out_processed',
+            'contactId': mask_contact_id(contact_id),
+            'recorded': recorded,
+            'requestId': request_id,
+        }))
+        return
 
     # ── A revoke marks the message it deleted ──
     # Runs AFTER both stores so the revoke's own row exists to be back-linked, and
