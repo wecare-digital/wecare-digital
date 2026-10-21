@@ -35,9 +35,16 @@ function pageVoiceLocale (): string {
 interface VoiceSearchMicProps {
   onTranscript: ( transcript: string ) => void;
   ariaLabel?: string;
+  /** Keep a disabled mic visible when the browser has no SpeechRecognition implementation. */
+  showUnsupportedState?: boolean;
 }
 
-const VoiceSearchMic: React.FC<VoiceSearchMicProps> = ( { onTranscript, ariaLabel = 'Search by voice' } ) => {
+const VoiceSearchMic: React.FC<VoiceSearchMicProps> = ( {
+  onTranscript,
+  ariaLabel = 'Search by voice',
+  showUnsupportedState = false,
+} ) => {
+  const [ supportChecked, setSupportChecked ] = useState( false );
   const [ supported, setSupported ] = useState( false );
   const [ listening, setListening ] = useState( false );
   const recognitionRef = useRef<VoiceRecognitionLike | null>( null );
@@ -54,7 +61,10 @@ const VoiceSearchMic: React.FC<VoiceSearchMicProps> = ( { onTranscript, ariaLabe
       webkitSpeechRecognition?: VoiceRecognitionConstructor;
     };
     const Recognition = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
-    if ( !Recognition ) return;
+    if ( !Recognition ) {
+      setSupportChecked( true );
+      return;
+    }
 
     const recognition = new Recognition();
     recognition.continuous = false;
@@ -69,6 +79,7 @@ const VoiceSearchMic: React.FC<VoiceSearchMicProps> = ( { onTranscript, ariaLabe
     };
     recognitionRef.current = recognition;
     setSupported( true );
+    setSupportChecked( true );
 
     return () => {
       recognition.onstart = null;
@@ -95,18 +106,25 @@ const VoiceSearchMic: React.FC<VoiceSearchMicProps> = ( { onTranscript, ariaLabe
     }
   }, [ listening ] );
 
-  if ( !supported ) return null;
+  if ( !supportChecked ) return null;
+  if ( !supported && !showUnsupportedState ) return null;
+
+  const unavailable = !supported;
+  const controlLabel = unavailable
+    ? 'Voice search unavailable in this browser'
+    : listening ? `Stop ${ariaLabel.toLowerCase()}` : ariaLabel;
 
   return (
     <>
       <button
         type="button"
-        className={ `voice-search-mic ${listening ? 'is-listening' : ''}`.trim() }
-        aria-label={ listening ? `Stop ${ariaLabel.toLowerCase()}` : ariaLabel }
-        title={ listening ? `Stop ${ariaLabel.toLowerCase()}` : ariaLabel }
-        aria-pressed={ listening }
+        className={ `voice-search-mic ${listening ? 'is-listening' : ''} ${unavailable ? 'is-unavailable' : ''}`.trim() }
+        aria-label={ controlLabel }
+        title={ controlLabel }
+        aria-pressed={ supported ? listening : undefined }
         data-voice-search-mic="true"
-        onClick={ toggle }
+        disabled={ unavailable }
+        onClick={ supported ? toggle : undefined }
       >
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path className="voice-search-mic-glyph" d={ VOICE_SEARCH_MIC_PATH } />
@@ -122,9 +140,10 @@ const VoiceSearchMic: React.FC<VoiceSearchMicProps> = ( { onTranscript, ariaLabe
         }
         .voice-search-mic svg{width:23px;height:23px;display:block;overflow:visible}
         .voice-search-mic-glyph{fill:currentColor}
-        .voice-search-mic:hover{color:#2f9e44}
-        .voice-search-mic:active{transform:scale(.94)}
+        .voice-search-mic:not(:disabled):hover{color:#2f9e44}
+        .voice-search-mic:not(:disabled):active{transform:scale(.94)}
         .voice-search-mic:focus-visible{outline:2px solid #1a3a2a;outline-offset:2px}
+        .voice-search-mic.is-unavailable{color:#8a9288;opacity:.72;cursor:not-allowed}
         .voice-search-mic.is-listening{color:#3da35a;animation:voice-search-pulse 1.1s ease-in-out infinite}
         @keyframes voice-search-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
         @media(prefers-reduced-motion:reduce){.voice-search-mic{transition:none}.voice-search-mic.is-listening{animation:none}}
