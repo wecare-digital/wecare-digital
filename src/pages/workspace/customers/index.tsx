@@ -10,7 +10,6 @@ import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import { SkeletonTable } from '../../../components/Skeleton';
 import CustomerManageData from '../../../components/workspace/customers/ManageData';
-import ConsentPanel from '../../../components/workspace/customers/ConsentPanel';
 import { useToastContext } from '../../../contexts/ToastContext';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 import * as api from '../../../api/client';
@@ -336,12 +335,6 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
 
   const [showCountryDropdown, setShowCountryDropdown] = useState(false);
   const [countrySearch, setCountrySearch] = useState('');
-  const [formOptInWA, setFormOptInWA] = useState(false);
-  const [formOptInSms, setFormOptInSms] = useState(false);
-  const [formOptInEmail, setFormOptInEmail] = useState(false);
-  const [formAllowlistWA, setFormAllowlistWA] = useState(false);
-  const [formAllowlistSms, setFormAllowlistSms] = useState(false);
-  const [formAllowlistEmail, setFormAllowlistEmail] = useState(false);
 
   // Delete confirmation (uses global useConfirm)
 
@@ -401,7 +394,6 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
   }, [contacts]);
   const [showTagMenu, setShowTagMenu] = useState<string | null>(null);
   const [tagMenuPos, setTagMenuPos] = useState<{ top: number; left: number; flipUp: boolean }>({ top: 0, left: 0, flipUp: false });
-  const [showOptIn, setShowOptIn] = useState(false);
   const [showManageData, setShowManageData] = useState(false);
 
   // Fix #10: Close tag menu on scroll to prevent stale positioning
@@ -490,8 +482,6 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
     setFormAddress({ ...EMPTY_ADDRESS_FIELDS });
     setFormGstin('');
     setFormCompanyName(''); setFormDesignation('');
-    setFormOptInWA(false); setFormOptInSms(false); setFormOptInEmail(false);
-    setFormAllowlistWA(false); setFormAllowlistSms(false); setFormAllowlistEmail(false);
   };
 
   // Keyboard shortcuts
@@ -624,8 +614,6 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
         gstin: formGstin || undefined,
         companyName: formCompanyName || undefined,
         designation: formDesignation || undefined,
-        optInWhatsApp: formOptInWA, optInSms: formOptInSms, optInEmail: formOptInEmail,
-        allowlistWhatsApp: formAllowlistWA, allowlistSms: formAllowlistSms, allowlistEmail: formAllowlistEmail,
       } as any);
       if (result) { toast.success('Customer created'); setShowModal(false); resetForm(); await loadContacts(); }
       else toast.error('Failed to create contact');
@@ -691,8 +679,6 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
     setFormGstin((contact as any).gstin || '');
     setFormCompanyName(contact.companyName || '');
     setFormDesignation(contact.designation || '');
-    setFormOptInWA(contact.optInWhatsApp || false); setFormOptInSms(contact.optInSms || false); setFormOptInEmail(contact.optInEmail || false);
-    setFormAllowlistWA(contact.allowlistWhatsApp || false); setFormAllowlistSms(contact.allowlistSms || false); setFormAllowlistEmail(contact.allowlistEmail || false);
     setShowEditModal(true);
   };
 
@@ -717,8 +703,6 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
         gstin: formGstin || undefined,
         companyName: formCompanyName || undefined,
         designation: formDesignation || undefined,
-        optInWhatsApp: formOptInWA, optInSms: formOptInSms, optInEmail: formOptInEmail,
-        allowlistWhatsApp: formAllowlistWA, allowlistSms: formAllowlistSms, allowlistEmail: formAllowlistEmail,
       } as any);
       if (result) { toast.success('Customer updated'); setShowEditModal(false); setEditingContact(null); resetForm(); await loadContacts(); }
       else toast.error('Failed to update contact');
@@ -1075,46 +1059,17 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
           {formatAddress(formAddress) || formShippingAddress || '\u2014'}
         </div>
       </div>
-      {/* Opt-in toggle */}
-      <div>
-        <button type="button" onClick={() => setShowOptIn(!showOptIn)} style={{ fontSize: 'var(--text-md)', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
-          <span style={{ transform: showOptIn ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s', display: 'inline-block', color: 'var(--accent)', fontSize: 'var(--text-base)' }}>▶</span>
-          Opt-in &amp; Allowlist
-        </button>
-        {showOptIn && (
-          <div style={{ marginTop: 10 }}>
-            <p style={{ margin: '0 0 8px', fontSize: 'var(--text-xs)', lineHeight: 1.45, color: 'var(--text-muted)' }}>
-              Consent and channel allowlists are evidence-backed state. This customer editor shows the current values but cannot grant or revoke them. Use the channel-specific verified consent workflow so the evidence and history stay attached.
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, padding: 14, background: 'var(--bg-secondary)', borderRadius: 13, border: '2px solid #f3f4f6' }}>
-            {[
-              { label: 'WhatsApp Opt-in', val: formOptInWA },
-              { label: 'WhatsApp Allowlist', val: formAllowlistWA },
-              { label: 'SMS Opt-in', val: formOptInSms },
-              { label: 'SMS Allowlist', val: formAllowlistSms },
-              { label: 'Email Opt-in', val: formOptInEmail },
-              { label: 'Email Allowlist', val: formAllowlistEmail },
-            ].map(item => (
-              <label key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 'var(--text-md)', cursor: 'default' }}>
-                <input type="checkbox" checked={item.val} disabled readOnly aria-readonly="true" style={{ accentColor: 'var(--accent)', width: 16, height: 16 }} />
-                {item.label}
-              </label>
-            ))}
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   );
 
   return (
     <Layout onSignOut={signOut} user={user}>
-      <SEO title="Customers" description="Canonical customer identity, address, consent and activity." noindex />
+      <SEO title="Customers" description="Canonical customer identity, address and activity." noindex />
       <div className="inner-page-container">
         <header className="workspace-page-head">
           <p className="workspace-page-eyebrow">Workspace</p>
           <h1>Customers</h1>
-          <p>Identity, address, consent and customer history in one canonical record.</p>
+          <p>Identity, address and customer history in one canonical record.</p>
         </header>
 
         {/* Toolbar */}
@@ -1498,62 +1453,11 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
                     </div>
                   </div>
                 )}
-                {/* Opt-in status */}
-                <div style={{ marginBottom: 12 }}>
-                  <p style={{ fontSize: 'var(--text-xs)', color: '#9ca3af', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Opt-in Status</p>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {[
-                      { label: 'WA', on: detailContact.optInWhatsApp },
-                      { label: 'SMS', on: detailContact.optInSms },
-                      { label: 'Email', on: detailContact.optInEmail },
-                    ].map(ch => (
-                      <span key={ch.label} style={{ padding: '2px 8px', borderRadius: 10, fontSize: 'var(--text-xs)', fontWeight: 500, background: ch.on ? 'var(--bg-secondary)' : '#f3f4f6', color: ch.on ? 'var(--accent)' : '#9ca3af' }}>
-                        {ch.on ? '✓' : '✗'} {ch.label}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                { detailContact.consentHistory && detailContact.consentHistory.length > 0 && (
-                  <div style={{ marginBottom: 12 }}>
-                    <p style={{ fontSize: 'var(--text-xs)', color: '#9ca3af', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Consent evidence</p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      { detailContact.consentHistory.slice().reverse().slice(0, 8).map(event => (
-                        <div key={event.eventId} style={{ padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 10, background: '#fff' }}>
-                          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                            <strong style={{ fontSize: 'var(--text-xs)' }}>{event.channel.toUpperCase()} · {event.scope}</strong>
-                            <span style={{ fontSize: 'var(--text-xs)', color: event.state ? 'var(--accent)' : '#991b1b' }}>{event.status}</span>
-                          </div>
-                          <div style={{ marginTop: 3, fontSize: 'var(--text-xs)', color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                            {event.source} · {event.purpose} · {event.reference}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {/* Fix #15: Allowlist status */}
-                <div style={{ marginBottom: 12 }}>
-                  <p style={{ fontSize: 'var(--text-xs)', color: '#9ca3af', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Allowlist Status</p>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {[
-                      { label: 'WA', on: detailContact.allowlistWhatsApp },
-                      { label: 'SMS', on: detailContact.allowlistSms },
-                      { label: 'Email', on: detailContact.allowlistEmail },
-                    ].map(ch => (
-                      <span key={`al-${ch.label}`} style={{ padding: '2px 8px', borderRadius: 10, fontSize: 'var(--text-xs)', fontWeight: 500, background: ch.on ? 'var(--bg-secondary)' : '#f3f4f6', color: ch.on ? 'var(--accent)' : '#9ca3af' }}>
-                        {ch.on ? '✓' : '✗'} {ch.label}
-                      </span>
-                    ))}
-                  </div>
-                </div>
                 {/* Actions */}
                 <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
                   <button onClick={() => { handleEdit(detailContact); setDetailContact(null); }} style={{ flex: 1, padding: '8px 12px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 13, fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer' }}>Edit</button>
                   <button onClick={() => { const c = detailContact; setDetailContact(null); handleArchive(c.contactId, c.name); }} style={{ flex: 1, padding: '8px 12px', background: '#fff', color: 'var(--accent)', border: '2px solid var(--accent)', borderRadius: 13, fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer' }}>Archive</button>
                 </div>
-
-                {/* Consent evidence — consent is owned by the Customer (charter). */}
-                <ConsentPanel contactId={detailContact.contactId} />
 
                 {/* Activity Timeline */}
                 <ContactActivityTimeline phone={detailContact.phone} contactId={detailContact.contactId} createdAt={detailContact.createdAt} />

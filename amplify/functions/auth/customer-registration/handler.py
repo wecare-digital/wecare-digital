@@ -62,9 +62,10 @@ from typing import Any, Dict, Optional
 
 import boto3
 
-from lambda_utils import contact_key, contact_store, customer_session, otp_throttle, shared_tables
+from lambda_utils import contact_key, contact_store, customer_auth, customer_session, otp_throttle, shared_tables
 from lambda_utils.identity import customer as identity
 from lambda_utils.identity import registration
+from lambda_utils.identity import consent as consent_evidence
 from lambda_utils.identity import subscriber_id
 from lambda_utils.logging import get_logger
 from lambda_utils.response import cors_response, extract_origin, options_response
@@ -373,7 +374,7 @@ def _body(event: Dict[str, Any]) -> Dict[str, Any]:
 def _action(event: Dict[str, Any], body: Dict[str, Any]) -> str:
     """Which operation to run: explicit `action`, or inferred from the path suffix."""
     explicit = str(body.get("action") or event.get("action") or "").strip().lower()
-    if explicit in ("request", "verify"):
+    if explicit in ("request", "verify", "consent"):
         return explicit
     path = str(event.get("rawPath") or event.get("path") or "").lower()
     if path.endswith("/verify"):
@@ -401,6 +402,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     body = _body(event)
     action = _action(event, body)
     try:
+        if action == "consent":
+            return _consent(event, origin)
         if action == "verify":
             return _verify(event, body, origin)
         return _request(event, body, origin)
@@ -410,6 +413,50 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                                  "action": action, "error": type(exc).__name__}))
         return _no_store(cors_response(500, {"error": "INTERNAL_ERROR"}, origin))
 
+
+
+def _consent(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
+    """Record the one explicit marketing opt-in shown with the successful sign-in OTP.
+
+    The endpoint is public at API-Gateway level because request/verify must be, so this action
+    authenticates itself with the customer access token. The proven session phone is the lookup
+    key; no browser-supplied phone or contact id is accepted.
+    """
+    customer, denied = customer_auth.require_customer(event)
+    if denied:
+        return _no_store(denied)
+    try:
+        phone = identity.normalize_phone_preserving_country(customer.phone)
+    except identity.InvalidPhoneNumber:
+        return _no_store(cors_response(400, {"error": "INVALID_SESSION_PHONE"}, origin))
+    row = contact_store.lookup(_contacts_table(), phone) or {}
+    contact_id = contact_key.resolve(row)
+    if not contact_id:
+        return _no_store(cors_response(409, {"error": "CONTACT_NOT_FOUND"}, origin))
+
+    now = int(time.time())
+    if consent_evidence.current_state(
+            row, "WHATSAPP", now=now, purpose=consent_evidence.MARKETING
+    ) == consent_evidence.OPTED_IN:
+        return _no_store(cors_response(200, {"status": "CONSENT_RECORDED"}, origin))
+
+    record = consent_evidence.build_record(
+        channel="WHATSAPP",
+        state=consent_evidence.OPTED_IN,
+        source="WEB_FORM",
+        at=now,
+        purpose=consent_evidence.MARKETING,
+        reference="customer-sign-in-otp",
+    )
+    ledger = consent_evidence.append(row, record)
+    _contacts_table().update_item(
+        Key=contact_key.key(contact_id),
+        UpdateExpression="SET #ledger=:ledger, optInWhatsApp=:yes, updatedAt=:now",
+        ConditionExpression="attribute_exists(id)",
+        ExpressionAttributeNames={"#ledger": consent_evidence.ATTRIBUTE},
+        ExpressionAttributeValues={":ledger": ledger, ":yes": True, ":now": now},
+    )
+    return _no_store(cors_response(200, {"status": "CONSENT_RECORDED"}, origin))
 
 def _request(event: Dict[str, Any], body: Dict[str, Any], origin: str) -> Dict[str, Any]:
     """Issue and send a WhatsApp OTP. Same response whether or not the number is a customer."""

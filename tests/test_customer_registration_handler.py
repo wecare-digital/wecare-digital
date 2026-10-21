@@ -237,6 +237,39 @@ def test_the_code_never_appears_in_logs(handler_env, caplog):
     assert '919330994400' not in caplog.text
 
 
+
+# ── authenticated one-time consent ─────────────────────────────────────────
+
+def test_consent_requires_an_authenticated_customer(handler_env, monkeypatch):
+    h, _fake, _lam, _cog = handler_env
+    denied = {'statusCode': 401, 'headers': {}, 'body': json.dumps({'error':'UNAUTHORIZED'})}
+    monkeypatch.setattr(h.customer_auth, 'require_customer', lambda event: (None, denied))
+    resp = h.handler(_event('consent'), None)
+    assert resp['statusCode'] == 401
+
+
+def test_explicit_otp_consent_appends_once_and_does_not_allowlist(handler_env, monkeypatch):
+    h, fake, lam, _cog = handler_env
+    code = _issue_and_capture_code(h, lam)
+    assert h.handler(_event('verify', phone=RAW_PHONE, code=code), None)['statusCode'] == 200
+
+    identity = type('Identity', (), {'phone': E164})()
+    monkeypatch.setattr(h.customer_auth, 'require_customer', lambda event: (identity, None))
+
+    first = h.handler(_event('consent'), None)
+    second = h.handler(_event('consent'), None)
+    assert first['statusCode'] == second['statusCode'] == 200
+    row = fake.all_rows(CONTACTS_TABLE)[0]
+    assert row['optInWhatsApp'] is True
+    assert row['allowlistWhatsApp'] is False
+    ledger = row[h.consent_evidence.ATTRIBUTE]
+    assert len(ledger) == 1
+    assert ledger[0]['channel'] == 'WHATSAPP'
+    assert ledger[0]['state'] == 'OPTED_IN'
+    assert ledger[0]['purpose'] == 'MARKETING'
+    assert ledger[0]['reference'] == 'customer-sign-in-otp'
+
+
 # ── verify ────────────────────────────────────────────────────────────────
 
 def test_verify_creates_the_customer_and_provisions_a_login(handler_env):
