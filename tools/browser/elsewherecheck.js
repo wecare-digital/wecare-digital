@@ -95,6 +95,7 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
       if ( composerStyle.transform !== 'none' ) fail( `${viewport.name}: composer moves on touch (${composerStyle.transform})` );
 
       const mic = page.locator( '[data-voice-search-mic="true"]' );
+      await mic.waitFor( { state: 'visible', timeout: 2000 } );
       if ( await mic.count() !== 1 ) fail( `${viewport.name}: voice control disappeared instead of showing supported/unavailable state` );
       const micBox = await mic.boundingBox();
       if ( !micBox || micBox.width < 44 || micBox.height < 44 ) fail( `${viewport.name}: mic target below 44px` );
