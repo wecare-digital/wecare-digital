@@ -33,6 +33,15 @@ interface ModeConfig {
 
 const MODE_ORDER: TravelMode[] = [ 'flights', 'hotels', 'activities', 'rail', 'car', 'bus' ];
 
+const MODE_RESULT_SUMMARIES: Record<TravelMode, string> = {
+  flights: 'I found a few flight options that balance timing, stops and fare rules. I’d start with the first one.',
+  hotels: 'I found a few stays that fit the location, comfort and flexibility you described. I’d start with the first one.',
+  activities: 'I found a few options that fit your timing, pace and budget. I’d start with the first one.',
+  rail: 'I found a few rail options that fit the arrival time and class you described. I’d start with the first one.',
+  car: 'I found a few car options that fit the pickup, space and comfort you described. I’d start with the first one.',
+  bus: 'I found a few bus options that fit your boarding point, timing and fare preferences. I’d start with the first one.',
+};
+
 const MODES: Record<TravelMode, ModeConfig> = {
   flights: {
     label: 'Flights',
@@ -112,6 +121,7 @@ function demoResponse( mode: TravelMode ): TravelResponse {
   const config = MODES[ mode ];
   return {
     source: 'demo',
+    summary: MODE_RESULT_SUMMARIES[ mode ],
     results: config.results.map( ( item, index ) => ( {
       id: 'demo-' + mode + '-' + String( index + 1 ),
       sourceLabel: 'WECARE.DIGITAL',
@@ -136,7 +146,11 @@ function normaliseResponse( payload: Partial<TravelResponse> ): TravelResponse {
     whatsappUrl: typeof result.whatsappUrl === 'string' ? result.whatsappUrl : '',
   } ) );
   if ( !results.length ) throw new Error( 'No usable provider results' );
-  return { source: payload.source || 'api', results };
+  return {
+    source: payload.source || 'api',
+    summary: typeof payload.summary === 'string' ? payload.summary.trim() : undefined,
+    results,
+  };
 }
 
 async function searchTravel( mode: TravelMode, query: string, preferences: string[], signal: AbortSignal ): Promise<TravelResponse> {
@@ -181,6 +195,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
   const [ query, setQuery ] = useState( '' );
   const [ preferences, setPreferences ] = useState<string[]>( [] );
   const [ results, setResults ] = useState<TravelResult[]>( [] );
+  const [ responseSummary, setResponseSummary ] = useState( '' );
   const [ status, setStatus ] = useState<'idle' | 'loading' | 'ready' | 'error'>( 'idle' );
   const [ continuationNote, setContinuationNote ] = useState( '' );
   const abortRef = useRef<AbortController | null>( null );
@@ -197,6 +212,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
     setQuery( '' );
     setPreferences( [] );
     setResults( [] );
+    setResponseSummary( '' );
     setStatus( 'idle' );
     setContinuationNote( '' );
     if ( typeof window !== 'undefined' && window.matchMedia( '(max-width: 720px)' ).matches ) {
@@ -228,6 +244,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
     abortRef.current = controller;
     setStatus( 'loading' );
     setResults( [] );
+    setResponseSummary( '' );
     setContinuationNote( '' );
 
     try {
@@ -238,6 +255,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
         controller.signal,
       );
       setResults( response.results.slice( 0, 3 ) );
+      setResponseSummary( response.summary || MODE_RESULT_SUMMARIES[ mode ] );
       setStatus( 'ready' );
     } catch ( error ) {
       if ( error instanceof DOMException && error.name === 'AbortError' ) return;
@@ -280,8 +298,8 @@ const ElsewhereTravelAssistant: React.FC = () => {
     }
     setContinuationNote(
       kind === 'website'
-        ? 'Checkout will use this provider reference once live search is connected.'
-        : 'WhatsApp continuation will carry this provider reference once live search is connected.',
+        ? 'Website checkout will open here once live provider checkout is connected.'
+        : 'Checkout on WhatsApp will open here once live provider checkout is connected.',
     );
   };
 
@@ -354,7 +372,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
 
           { status === 'ready' && (
             <>
-              <p className="eta-line"><strong>Guide</strong> These are the strongest matches for what you described.</p>
+              <p className="eta-line eta-response-intro"><strong>Guide</strong> { responseSummary || MODE_RESULT_SUMMARIES[ mode ] }</p>
               <div className="eta-results">
                 { results.map( ( result, index ) => (
                   <article className={ 'eta-result eta-result-' + mode } key={ result.id }>
@@ -363,7 +381,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
                         <span className="eta-rank">{ index + 1 }</span>
                         <h3>{ result.title }</h3>
                         { index === 0 && <span className="eta-best">Best match</span> }
-                        <span className="eta-provider">{ result.sourceLabel }</span>
+                        { result.sourceLabel !== 'WECARE.DIGITAL' && <span className="eta-provider">{ result.sourceLabel }</span> }
                       </div>
                       <p className="eta-desc">{ result.description }</p>
                       <div className="eta-meta">
@@ -372,16 +390,15 @@ const ElsewhereTravelAssistant: React.FC = () => {
                     </div>
                     <div className="eta-result-side">
                       <div className="eta-price">{ result.price }</div>
-                      <div className="eta-price-note">estimated until confirmed</div>
                       <div className="eta-actions">
-                        <button type="button" className="eta-action primary" aria-label={ `Checkout ${result.title}` } onClick={ () => continueWith( 'website', result ) }>Checkout</button>
-                        <button type="button" className="eta-action" onClick={ () => continueWith( 'whatsapp', result ) }>WhatsApp</button>
+                        <button type="button" className="eta-action primary" aria-label={ `Checkout ${result.title} on website` } onClick={ () => continueWith( 'website', result ) }>Checkout on website</button>
+                        <button type="button" className="eta-action" aria-label={ `Checkout ${result.title} on WhatsApp` } onClick={ () => continueWith( 'whatsapp', result ) }>Checkout on WhatsApp</button>
                       </div>
                     </div>
                   </article>
                 ) ) }
               </div>
-              <p className="eta-live-note">Live availability, rules and final price are confirmed before checkout.</p>
+              <p className="eta-live-note">Final price, availability and provider rules are confirmed before checkout.</p>
             </>
           ) }
           </div>
@@ -507,16 +524,17 @@ const ElsewhereTravelAssistant: React.FC = () => {
         .eta-line strong{display:inline-block;min-width:58px;color:var(--public-heading);font-size:15px;font-weight:600;line-height:1.3;letter-spacing:-.1px}
         .eta-results{display:flex;flex-direction:column;gap:10px;margin-top:2px}
         .eta-result{
-          min-width:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(116px,auto);gap:18px;align-items:start;
-          padding:20px;border:1px solid var(--public-hairline);border-radius:14px;background:var(--public-bg);
-          transition:transform .2s ease,box-shadow .2s ease,border-color .16s ease;
+          min-width:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,auto);gap:18px;align-items:start;
+          padding:17px 18px;border:1px solid rgba(17,21,18,.09);border-radius:14px;background:rgba(255,255,255,.84);
+          box-shadow:0 1px 0 rgba(17,21,18,.02);
+          transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease,background .16s ease;
         }
-        .eta-result:first-child{border-color:#bfdc66;background:var(--public-lime-tint)}
+        .eta-result:first-child{border-color:#c9dc84;background:#fff}
         .eta-result-main{min-width:0}
         .eta-result-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
         .eta-result h3{
-          margin:0;color:var(--public-heading);font-size:var(--public-card-size);font-weight:var(--public-card-weight);
-          line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);overflow-wrap:anywhere;
+          margin:0;color:var(--public-heading);font-size:20px;font-weight:700;
+          line-height:1.3;letter-spacing:-.2px;overflow-wrap:anywhere;
         }
         .eta-rank{width:22px;height:22px;display:grid;place-items:center;border-radius:7px;font-size:11px;font-weight:800;line-height:1}
         .eta-result-flights .eta-rank{background:var(--public-accent-blue-tint);color:var(--public-accent-blue)}
@@ -525,18 +543,19 @@ const ElsewhereTravelAssistant: React.FC = () => {
         .eta-result-rail .eta-rank{background:var(--public-accent-green-tint);color:var(--public-accent-green)}
         .eta-result-car .eta-rank{background:var(--public-lime-tint);color:var(--public-brand-green)}
         .eta-result-bus .eta-rank{background:var(--public-accent-red-tint);color:var(--public-accent-red)}
-        .eta-provider,.eta-best{font-size:11px;font-weight:700;line-height:1.2;text-transform:uppercase;letter-spacing:.055em}
-        .eta-provider{color:var(--public-muted)}.eta-best{color:#4a6512}
+        .eta-provider,.eta-best{font-size:10px;font-weight:700;line-height:1.2;text-transform:uppercase;letter-spacing:.045em}
+        .eta-provider{color:var(--public-muted)}
+        .eta-best{display:inline-flex;align-items:center;gap:5px;color:#4a6512}
+        .eta-best::before{content:'';width:7px;height:7px;border-radius:999px;background:var(--public-brand-lime);box-shadow:0 0 0 2px var(--public-lime-tint)}
         .eta-desc{margin:8px 0 0;color:var(--public-body);font-size:16px;font-weight:400;line-height:1.5;letter-spacing:-.1px;overflow-wrap:anywhere}
         .eta-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
-        .eta-meta span{padding:6px 9px;border:1px solid var(--public-hairline);border-radius:999px;background:#f7f8f5;color:#5d655b;font-size:12px;font-weight:600;line-height:1.2}
-        .eta-result-side{text-align:end}
-        .eta-price{color:var(--public-heading);font-size:18px;font-weight:700;line-height:1.25;letter-spacing:-.2px;white-space:nowrap}
-        .eta-price-note{margin-top:3px;color:var(--public-muted);font-size:11px;line-height:1.3}
-        .eta-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:8px}
+        .eta-meta span{padding:5px 8px;border:0;border-radius:999px;background:#f1f3ed;color:#667064;font-size:11px;font-weight:600;line-height:1.2}
+        .eta-result-side{display:flex;flex-direction:column;align-items:flex-end;gap:9px;text-align:end}
+        .eta-price{color:var(--public-heading);font-size:17px;font-weight:700;line-height:1.25;letter-spacing:-.2px;white-space:nowrap}
+        .eta-actions{display:flex;justify-content:flex-end;gap:7px;flex-wrap:wrap}
         .eta-action{
-          min-width:44px;min-height:44px;padding:0 10px;border:1px solid #cdd3ca;border-radius:13px;background:#fff;
-          color:var(--public-brand-green);font-size:11px;font-weight:650;line-height:1;cursor:pointer;
+          min-width:44px;min-height:44px;padding:0 12px;border:1px solid #cdd3ca;border-radius:12px;background:#fff;
+          color:var(--public-brand-green);font-size:12px;font-weight:650;line-height:1.15;cursor:pointer;
           touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:transform .12s ease,background .14s ease,border-color .14s ease;
         }
         .eta-action:active{transform:scale(.96);background:var(--public-lime-tint);border-color:#bfd36f}
@@ -602,7 +621,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
         }
         @media(hover:hover) and (pointer:fine){
           .eta-tab:hover::before{background:rgba(239,249,207,.78)}
-          .eta-result:hover{transform:translateY(-2px);border-color:#cbd4c4;box-shadow:var(--public-lift-shadow)}
+          .eta-result:hover{transform:translateY(-1px);border-color:#c9dc84;background:rgba(209,244,112,.08);box-shadow:0 4px 12px rgba(26,58,42,.08)}
           .eta-chip:hover{border-color:#bfd36f;background:#f3fad9;box-shadow:var(--public-lift-shadow);transform:translateY(-1px)}
           .eta-action:hover{border-color:#bfd36f;background:var(--public-lime-tint)}
           .eta-action.primary:hover{background:var(--lime-hover)}
@@ -611,7 +630,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
         }
         @media(hover:none) and (pointer:coarse){
           .eta-result:active{
-            transform:scale(.995);border-color:#bfd36f;box-shadow:0 2px 8px rgba(26,58,42,.10);
+            transform:scale(.995);border-color:#bfd36f;background:rgba(209,244,112,.08);box-shadow:0 2px 8px rgba(26,58,42,.10);
           }
         }
         @media(max-width:720px){
@@ -625,7 +644,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
           .eta-line{font-size:18px}
           .eta-field textarea{font-size:var(--public-mobile-form-font-size)}
           .eta-composer-foot{flex-wrap:wrap}.eta-hint{flex:1 1 100%}.eta-tools{width:100%;justify-content:flex-end}
-          .eta-result{grid-template-columns:1fr;padding:18px}.eta-result h3{font-size:20px}.eta-result-side{text-align:start}.eta-actions{justify-content:flex-start;flex-wrap:wrap}
+          .eta-result{grid-template-columns:1fr;padding:16px}.eta-result h3{font-size:18px}.eta-result-side{align-items:flex-start;text-align:start}.eta-actions{justify-content:flex-start;flex-wrap:wrap}
         }
         @media(max-width:380px){.eta-tab{font-size:13px;padding-inline:10px}.eta-keyhint{display:none}}
         @media(prefers-reduced-motion:reduce){
