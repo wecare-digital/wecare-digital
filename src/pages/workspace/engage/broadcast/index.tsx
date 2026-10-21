@@ -79,8 +79,9 @@ const BroadcastPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
         api.listTemplates().then( t => setTemplates( ( t || [] ).filter( ( x: any ) => x.status === 'APPROVED' ) ) ).catch( () => { } );
     }, [ toast ] );
 
-    // Reset selection when channel changes (eligibility differs).
-    useEffect( () => { setSelected( new Set() ); }, [ channel ] );
+    // Reset selection whenever eligibility can change. Switching a Utility audience to a
+    // Marketing template must not carry previously-selected, non-consented contacts into send().
+    useEffect( () => { setSelected( new Set() ); }, [ channel, templateName ] );
 
     const audience = useMemo( () => {
         const q = search.trim().toLowerCase();
