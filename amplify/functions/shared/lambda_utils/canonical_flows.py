@@ -46,3 +46,31 @@ def canonical_flow_status(capability: str) -> str:
     """The Meta lifecycle status for a capability's canonical flow."""
     row = CANONICAL_FLOWS.get(capability)
     return row[1] if row else 'NONE'
+
+
+def published_flow(capability: str):
+    """Published canonical Flow metadata, or None when the capability is not live.
+
+    DRAFT/NONE entries remain in the canonical registry for staff/reconciliation, but
+    customer-facing callers can use this helper without accidentally sending a draft Flow.
+    """
+    row = CANONICAL_FLOWS.get(capability)
+    if not row or not row[0] or row[1] != 'PUBLISHED':
+        return None
+    return {
+        'capability': capability,
+        'flowId': row[0],
+        'status': row[1],
+        'metaName': row[2],
+    }
+
+
+def published_flow_by_id(flow_id: str):
+    """Resolve a published Meta Flow id back to its canonical capability."""
+    target = str(flow_id or '').strip()
+    if not target:
+        return None
+    for capability, row in CANONICAL_FLOWS.items():
+        if row[0] == target and row[1] == 'PUBLISHED':
+            return published_flow(capability)
+    return None

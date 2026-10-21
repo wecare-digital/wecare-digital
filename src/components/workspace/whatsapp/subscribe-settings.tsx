@@ -66,7 +66,7 @@ export default function SubscribeSettings () {
   return <section aria-label="Subscribe settings">
     <h3>Subscribe messages</h3>
     <p>Edit the message before the form opens and the confirmation shown inside the form. Customer ID is displayed separately.</p>
-    <p>Flow 1386523953464380 stays in Draft. Saving wording does not publish the Flow or enable automatic sending. One-off send text can override the opening message.</p>
+    <p>Flow 1386523953464380 is Published. Saving wording changes message copy only; it does not modify or republish the Flow. One-off send text can override the opening message.</p>
     { error && <p role="alert">{ error } <button type="button" onClick={ load }>Retry loading messages</button></p> }
     { !ready && !error && <p>Loading Subscribe messages…</p> }
     <form onSubmit={ save }>
