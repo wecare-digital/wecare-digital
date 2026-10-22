@@ -1,3 +1,5 @@
+> **SUPERSEDED.** This draft is retained as prior art only. The authoritative FINAL plan is [`whatsapp-commerce-FINAL-plan.md`](./whatsapp-commerce-FINAL-plan.md).
+
 # WhatsApp Commerce Consolidation: Function Audit and Two-Track Implementation Plan
 
 Status: PLAN ONLY (no code changes in this pass). Owner review required before any implementation is delegated. This document REPLACES the prior plan and resolves its open A-vs-B question into two concrete tracks per the owner's finalized decisions.
