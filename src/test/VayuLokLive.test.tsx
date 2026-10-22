@@ -1344,7 +1344,13 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( historyBtnRule ).toContain( 'width:var(--vl-action-size)' );
     expect( historyBtnRule ).toContain( 'border-radius:50%' );
 
-    const hoverRule = css.match( /\.vl-live-air-pollutant-info:hover,[\s\S]*?\{[^}]*\}/ )?.[ 0 ] || '';
+    // The air panel's interactive controls get the lime-hover LIFT treatment (not a flat green).
+    // The retired `vl-live-air-pollutant-info` tooltip control carried this hover rule; with the
+    // "compact pollutant metrics without tooltip controls" redesign that element is gone (the
+    // test above asserts `.vl-live-air-pollutant-info` is absent from the DOM), so the hover
+    // contract now lives on the surviving history-nav control, which carries the identical
+    // lime-hover / border:0 / box-shadow / translateY-scale lift.
+    const hoverRule = css.match( /\.vl-live-air-history-nav button:hover[\s\S]*?\{[^}]*\}/ )?.[ 0 ] || '';
     expect( hoverRule ).toContain( 'background:var(--lime-hover)' );
     expect( hoverRule ).toContain( 'border:0' );
     expect( hoverRule ).toContain( 'box-shadow:0 6px 14px rgba(26,58,42,.16)' );
@@ -2280,11 +2286,19 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
 
     // Pollutant info control follows the SupportWidget WhatsApp skin exactly:
     // lime surface, deep-green icon, lighter-lime hover, circular shape.
-    const infoRule = cssRuleFor( css, '.vl-live-air-pollutant-info' );
+    // The round lime action-control idiom (lime bg, green text, 50% radius; lime-hover on hover)
+    // was carried by the retired `vl-live-air-pollutant-info` tooltip control. After the "compact
+    // pollutant metrics without tooltip controls" redesign that element is gone, and the idiom now
+    // lives on the surviving round controls (health page-btn / tab / history-nav button), which
+    // share one grouped base rule and one grouped hover rule. Assert the idiom on the health
+    // page-btn, which sits in both groups.
+    const infoRule = css.match(
+      /\.vl-live-air-health-page-btn[^{]*\{[^}]*\}/ )?.[ 0 ] || '';
     expect( infoRule ).toContain( 'background:var(--lime)' );
     expect( infoRule ).toContain( 'color:var(--green)' );
     expect( infoRule ).toContain( 'border-radius:50%' );
-    const infoHoverRule = cssRuleFor( css, '.vl-live-air-pollutant-info:hover' );
+    const infoHoverRule = css.match(
+      /\.vl-live-air-health-page-btn:hover:not\(:disabled\)[\s\S]*?\{[^}]*\}/ )?.[ 0 ] || '';
     expect( infoHoverRule ).toContain( 'background:var(--lime-hover)' );
     expect( infoHoverRule ).toContain( 'color:var(--green)' );
     expect( css ).toContain( '.vl-live-air-health-tabs{scroll-snap-type:x mandatory' );
@@ -2309,13 +2323,22 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( sectionRule ).toContain( 'padding-top:var(--vl-section-pad)' );
     expect( css ).not.toContain( '.vl-live-air-pollutants-title::before' );
     const pollutantLabelRule = css.match( /\.vl-live-air-pollutant-label\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( pollutantLabelRule ).toContain( 'font-size:17px' );
+    // The pollutant-label font-size was tokenised to `--vl-data-size` (consistent with the rest of
+    // VayuLok's token system); the token resolves to the same 17px this once pinned as a literal.
+    expect( pollutantLabelRule ).toContain( 'font-size:var(--vl-data-size)' );
+    expect( css ).toContain( '--vl-data-size:17px' );
     const pollutantRowRule = css.match( /\.vl-live-air-pollutant-row\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( pollutantRowRule ).toContain( 'grid-template-columns:minmax(0,1fr) minmax(118px,auto) var(--vl-action-size)' );
+    // The pollutant row is the COMPACT inline-flex chip from the "compact pollutant metrics
+    // without tooltip controls" redesign (validated by the sibling test above), NOT the former
+    // three-column grid with a right-aligned 118px value column and a per-row action cell. The
+    // value keeps its tabular-nums + no-wrap treatment so digits still align within the chip.
+    expect( pollutantRowRule ).toContain( 'display:inline-flex' );
+    expect( pollutantRowRule ).toContain( 'align-items:baseline' );
+    expect( pollutantRowRule ).not.toContain( 'grid-template-columns' );
     const pollutantValueRule = css.match( /\.vl-live-air-pollutant-value\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( pollutantValueRule ).toContain( 'min-width:118px' );
-    expect( pollutantValueRule ).toContain( 'text-align:end' );
     expect( pollutantValueRule ).toContain( 'font-variant-numeric:tabular-nums' );
+    expect( pollutantValueRule ).toContain( 'white-space:nowrap' );
+    expect( pollutantValueRule ).not.toContain( 'min-width:118px' );
     // Shared Air + Weather forecast cards are deliberately readable, not metadata-sized.
     const forecastTimeRule = css.match( /\.vl-live-air-forecast-card span\{[^}]*\}/ )?.[ 0 ] || '';
     const forecastValueRule = css.match( /\.vl-live-air-forecast-card strong\{[^}]*\}/ )?.[ 0 ] || '';

@@ -4897,7 +4897,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         /* DESTINATION SEARCH is a separate page section ABOVE the map shell. Its outer
            wrapper is deliberately invisible: the only visible field chrome is the same
            bottom hairline used by Header .nav-search and ProductBlogPanel .pbp-search. */
-        .vl-live-map-search{position:relative;z-index:30;width:min(820px,calc(100% - 48px));margin:14px auto 24px;padding:0;background:transparent;border:0;border-radius:0;box-shadow:none}
+        .vl-live-map-search{position:relative;z-index:30;width:min(760px,calc(100% - 48px));margin:14px auto 20px;padding:0;background:transparent;border:0;border-radius:0;box-shadow:none}
         .vl-live-search{position:relative}
         /* Exact Header.tsx .nav-search INPUT treatment, with one optional voice action floated
            inside the right edge. The mic does not change the hairline/search-box geometry. */
