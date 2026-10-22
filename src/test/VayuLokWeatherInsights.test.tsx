@@ -9,7 +9,7 @@ afterEach( () => {
 } );
 
 describe( 'VayuLok Weather history public typography', () => {
-  it( 'keeps location copy compact and the range selector neutral', async () => {
+  it( 'keeps location copy compact and the range selector on the VayuLok lime interaction language', async () => {
     vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue(
       new Response( JSON.stringify( {
         ok: true,
@@ -55,11 +55,14 @@ describe( 'VayuLok Weather history public typography', () => {
       .join( '\n' );
     expect( css ).toContain( '.vl-wi-head p{margin:6px 0 0;color:var(--public-muted);font-size:var(--vl-subtext-size,var(--text-base));font-weight:600' );
     expect( css ).toContain( '.vl-wi-head p{font-size:var(--vl-subtext-size,var(--public-mobile-form-font-size));font-weight:600' );
-    expect( css ).toContain( '.vl-wi-range button.is-active{background:rgba(17,21,18,.07);color:var(--public-heading)}' );
-    expect( css ).not.toContain( '.vl-wi-range button:hover,.vl-wi-range button.is-active{background:var(--lime-tint)' );
+    expect( css ).toContain( '.vl-wi-range button:hover{background:var(--public-lime-tint);color:var(--public-brand-green)}' );
+    expect( css ).toContain( '.vl-wi-range button.is-active{background:var(--public-brand-lime);color:var(--public-brand-green)}' );
+    expect( css ).not.toContain( 'background:rgba(17,21,18,.07)' );
     expect( css ).not.toContain( '.vl-wi-source{' );
     expect( css ).toContain( '.vl-wi-stamp{display:flex;width:fit-content;align-items:center;gap:6px' );
     expect( css ).toContain( 'font-size:var(--vl-meta-size,var(--text-md))' );
     expect( css ).toContain( '.vl-wi-grid strong{color:var(--public-heading);font-size:var(--vl-data-size,var(--public-cta-font-size))' );
+    expect( container.textContent ).not.toContain( 'Loading history…' );
+    expect( css ).toContain( '.vl-wi-sr{position:absolute!important;width:1px!important;height:1px!important' );
   } );
 } );
