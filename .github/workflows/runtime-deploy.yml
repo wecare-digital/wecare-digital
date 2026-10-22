@@ -101,8 +101,11 @@ jobs:
             wecare-invoice-engine
 
       - name: Deploy selected runtime functions
+        # Commerce dependency ordering is deliberate: checkout must publish its embedded invoice
+        # runtime before any caller that now invokes wecare-checkout:live for /invoices*.
         run: |
           python scripts/deploy_all_lambdas.py \
+            wecare-checkout \
             wecare-ai-generate-response \
             wecare-contacts \
             wecare-secure-files \
@@ -113,7 +116,6 @@ jobs:
             wecare-outbound-whatsapp \
             wecare-whatsapp-business-api \
             wecare-whatsapp-template-management \
-            wecare-checkout \
             wecare-product-image-gen \
             wecare-meta-catalog-sync \
             wecare-razorpay-webhook \
