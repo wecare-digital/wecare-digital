@@ -480,6 +480,91 @@ def test_register_validates_every_entry(env, entry, message):
                            "admin", q.CATEGORIES)
 
 
+def _published_post(env, slug="legacy-post", category="Conversations"):
+    now = "2026-10-01T00:00:00Z"
+    record = {
+        "id": "blog_live_legacy_1",
+        "recordType": "blogPost",
+        "createdAt": now,
+        "updatedAt": now,
+        "publishedAt": now,
+        "slug": slug,
+        "title": "A Legacy Published Article",
+        "excerpt": "A legacy article that predates Blog Production source records.",
+        "content": " ".join([
+            "A published migration-era article can need an editorial revision later.",
+            "The safe answer is not to patch the live row directly.",
+            "It must first enter the production controls that bind review and sign-off to exact text.",
+        ] * 20),
+        "status": "published",
+        "category": category,
+        "tags": ["Legacy"],
+        "hashtags": [],
+        "authorName": "Anew by WECARE.DIGITAL",
+        "seoTitle": "A Legacy Published Article | WECARE.DIGITAL",
+        "metaDescription": "A legacy published article used to test safe revision adoption.",
+        "focusKeyword": "",
+        "secondaryKeywords": [],
+        "jsonLd": {},
+        "robots": "index, follow, max-image-preview:large",
+        "url": f"https://wecare.digital/post/{slug}",
+        "version": 3,
+    }
+    env["table"].items[record["id"]] = env["storage"]._clean(record)
+    return record
+
+
+def test_adopting_a_published_post_creates_revision_work_without_changing_live(env):
+    live = _published_post(env)
+    before = dict(env["table"].items[live["id"]])
+
+    result = env["bs"].adopt_published(
+        {"slug": live["slug"], "articleClass": "ARCHIVE_DERIVED"},
+        "admin", q.CATEGORIES)
+
+    assert result["alreadyKnown"] is False
+    source = env["bs"].get_source(result["sourceId"])
+    assert source["status"] == env["bs"].EXTRACTED
+    assert source["adoptionMode"] == "PUBLISHED_REVISION"
+    assert source["pipeline"]["publishStatus"] == "PUBLISHED"
+    assert source["pipeline"]["postId"] == live["id"]
+    assert source["draftRecord"]["slug"] == live["slug"]
+    assert source["draftRecord"]["contentMarkdown"] == live["content"]
+    assert source["pipeline"]["sourceReviewedFully"] == ""
+    assert source["pipeline"]["qaRunId"] == ""
+    assert source["pipeline"]["signoffId"] == ""
+    assert env["table"].items[live["id"]] == before
+
+
+def test_adoption_resolves_before_generate_for_the_same_live_post(env):
+    live = _published_post(env)
+    first = env["bs"].adopt_published(
+        {"slug": live["slug"], "articleClass": "ARCHIVE_DERIVED"},
+        "admin", q.CATEGORIES)
+    second = env["bs"].adopt_published(
+        {"slug": live["slug"], "articleClass": "ORIGINAL_109"},
+        "admin", q.CATEGORIES)
+
+    assert second["alreadyKnown"] is True
+    assert second["sourceId"] == first["sourceId"]
+    adopted = [row for row in env["table"].items.values()
+               if row.get("recordType") == env["bs"].RECORD_TYPE
+               and row.get("adoptionMode") == "PUBLISHED_REVISION"]
+    assert len(adopted) == 1
+
+
+def test_adoption_refuses_unknown_category_and_unknown_slug(env):
+    _published_post(env, slug="bad-category", category="Insights")
+    with pytest.raises(ValueError, match="category"):
+        env["bs"].adopt_published(
+            {"slug": "bad-category", "articleClass": "ARCHIVE_DERIVED"},
+            "admin", q.CATEGORIES)
+    with pytest.raises(LookupError, match="Published blog post not found"):
+        env["bs"].adopt_published(
+            {"slug": "missing-post", "articleClass": "ARCHIVE_DERIVED"},
+            "admin", q.CATEGORIES)
+
+
 def test_register_refuses_a_category_outside_the_two(env):
     with pytest.raises(ValueError, match="category"):
         env["bs"].register(
