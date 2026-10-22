@@ -9,7 +9,7 @@ afterEach( () => {
 } );
 
 describe( 'VayuLok Weather history public typography', () => {
-  it( 'keeps location copy concise and true metadata on the 14px public rung', async () => {
+  it( 'keeps location copy compact and the range selector neutral', async () => {
     vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue(
       new Response( JSON.stringify( {
         ok: true,
@@ -35,15 +35,19 @@ describe( 'VayuLok Weather history public typography', () => {
     );
 
     await waitFor( () => {
-      expect( screen.getByText( 'Shillong · past conditions' ) ).toBeTruthy();
+      expect( screen.getByText( 'Past weather for Shillong' ) ).toBeTruthy();
       expect( screen.getByText( /Grid 5\.46 km/ ) ).toBeTruthy();
     } );
 
-    expect( container.textContent ).not.toContain( 'Past weather for Shillong.' );
+    expect( container.textContent ).not.toContain( 'Shillong · past conditions' );
 
     const css = Array.from( container.querySelectorAll( 'style' ) )
       .map( style => style.textContent || '' )
       .join( '\n' );
+    expect( css ).toContain( '.vl-wi-head p{margin:6px 0 0;color:var(--public-muted);font-size:var(--text-base);font-weight:600' );
+    expect( css ).toContain( '.vl-wi-head p{font-size:var(--public-mobile-form-font-size);font-weight:600' );
+    expect( css ).toContain( '.vl-wi-range button.is-active{background:rgba(17,21,18,.07);color:var(--public-heading)}' );
+    expect( css ).not.toContain( '.vl-wi-range button:hover,.vl-wi-range button.is-active{background:var(--lime-tint)' );
     expect( css ).toContain( '.vl-wi-source{display:flex;flex-wrap:wrap;gap:0;margin-top:var(--space-2);color:var(--public-muted);font-size:var(--text-md)' );
     expect( css ).toContain( '.vl-wi-source{font-size:var(--text-md)}' );
   } );
