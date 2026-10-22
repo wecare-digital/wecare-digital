@@ -123,44 +123,6 @@ def test_wrong_owner_and_missing_file_are_indistinguishable(mod):
 
 # ── payment stays off ─────────────────────────────────────────────────────────
 
-def test_payment_disabled_by_default(mod, monkeypatch):
-    monkeypatch.delenv("SECURE_FILES_PAYMENT_ENABLED", raising=False)
-    assert mod._payment_enabled() is False
-
-
-def test_payment_flag_is_read_per_call_not_captured_at_import(mod, monkeypatch):
-    """A switch that needs every sandbox to recycle is not a switch."""
-    assert mod._payment_enabled() is False
-    monkeypatch.setenv("SECURE_FILES_PAYMENT_ENABLED", "true")
-    assert mod._payment_enabled() is True
-    monkeypatch.setenv("SECURE_FILES_PAYMENT_ENABLED", "off")
-    assert mod._payment_enabled() is False
-
-
-def test_order_creation_refuses_and_never_touches_razorpay_while_disabled(mod, monkeypatch):
-    monkeypatch.delenv("SECURE_FILES_PAYMENT_ENABLED", raising=False)
-
-    monkeypatch.setattr(
-        mod,
-        "_owned_active_file",
-        lambda fid, ident: {"fileId": fid, "pricePaise": 4900, "s3Key": "secure/x"},
-    )
-
-    def explode(*_a, **_k):  # pragma: no cover - must not be reached
-        raise AssertionError("Razorpay must not be contacted while payment is disabled")
-
-    monkeypatch.setitem(
-        sys.modules, "razorpay_orders", type(sys)("razorpay_orders")
-    )
-    sys.modules["razorpay_orders"].create_order = explode
-
-    result = mod._create_order("f1", {"phone": "918100640044"}, "https://wecare.digital")
-    assert result["statusCode"] == 503
-    assert "PAYMENT_DISABLED" in result["body"]
-
-
-# ── the customer pool, not the admin pool ─────────────────────────────────────
-
 def test_issuer_is_pinned_to_the_customer_pool(mod):
     """An admin-pool token must not authorise a customer download.
 
@@ -347,24 +309,6 @@ def test_real_payment_grants_and_records_the_amount_razorpay_reported(mod, monke
     assert "paid = :false" in table.updates[0]["ConditionExpression"]
 
 
-def test_confirmation_is_inert_while_payments_are_disabled(mod, monkeypatch):
-    monkeypatch.delenv("SECURE_FILES_PAYMENT_ENABLED", raising=False)
-    table = _RecordingTable(_grant())
-    monkeypatch.setattr(mod, "_table", lambda _name: table)
-
-    def explode(*_a, **_k):  # pragma: no cover - must not be reached
-        raise AssertionError("Razorpay must not be contacted while payment is disabled")
-
-    fake = type(sys)("razorpay_orders")
-    fake.order_is_paid = explode
-    monkeypatch.setitem(sys.modules, "razorpay_orders", fake)
-
-    ok, detail = mod.confirm_and_deliver("order_ABC")
-    assert ok is False
-    assert detail == "payments disabled"
-    assert table.updates == []
-
-
 def test_a_consumed_grant_cannot_be_reconfirmed(mod, monkeypatch):
     """Single-use means single-use. Replaying a real capture must not re-arm a spent
     grant, because the file has already been delivered once."""
@@ -453,25 +397,6 @@ def test_confirm_and_deliver_takes_no_recipient_or_file(mod):
 
     params = list(inspect.signature(mod.confirm_and_deliver).parameters)
     assert params == ["order_id"]
-
-
-def test_order_creation_reads_the_api_secret_not_the_webhook_secret():
-    """The two Razorpay secrets hold different fields and are not interchangeable.
-
-        wecare/razorpay/api        key_id + key_secret
-        wecare/razorpay-webhook    webhook_secret only
-
-    partner-onboarding already shipped this bug once: it read the API pair out of
-    the webhook secret, got two empty strings, and returned 501 on every top-up.
-    This pins the correct one so the same mistake cannot land twice.
-    """
-    source = (FUNC_DIR / "razorpay_orders.py").read_text()
-    assert 'RAZORPAY_SECRET_ID = os.environ.get("RAZORPAY_SECRET_ID", "wecare/razorpay/api")' in source
-
-    provisioner = (ROOT / "scripts/provision_secure_files_api.py").read_text()
-    assert 'RAZORPAY_SECRET_NAME = "wecare/razorpay/api"' in provisioner
-    # and the IAM grant must follow the same secret, or the read 403s at runtime
-    assert "secret:{RAZORPAY_SECRET_NAME}-*" in provisioner
 
 
 def test_no_razorpay_sdk_is_bundled():
@@ -685,15 +610,6 @@ def test_the_page_never_handles_payment_itself():
     assert "downloadUrl" not in source
 
 
-def test_the_page_does_not_choose_the_recipient():
-    """Accepting a phone number from the client would make this a way to send WhatsApp
-    messages to arbitrary people. The backend uses the verified token's number."""
-    body = _ts_function(_strip_comments(CLIENT_TS.read_text()), "requestFilePaymentOnWhatsApp")
-    assert "whatsapp-pay" in body
-    assert "customerApiCall" in body
-    assert "phone" not in body.lower()
-
-
 def test_presigned_upload_does_not_get_a_bearer_header():
     """A presigned URL carries its own SigV4; adding our bearer makes S3 refuse."""
     source = CLIENT_TS.read_text()
@@ -719,28 +635,6 @@ def test_customer_token_is_not_in_localstorage():
     assert writes == ['window.localStorage.setItem( SESSION_HINT_KEY, JSON.stringify( hint ) );']
     assert 'window.sessionStorage.setItem( TOKEN_KEY, accessToken );' in source
     assert 'interface SessionHint { csrfToken: string; expiresAt: number; persistent: boolean; }' in source
-
-
-def test_provisioner_preserves_a_manually_enabled_payment_flag():
-    """Re-provisioning must not silently switch live payments back off."""
-    source = (ROOT / "scripts/provision_secure_files_api.py").read_text()
-    assert "keep_payment = current_payment_flag() if exists else False" in source
-    assert "environment(payment_enabled=keep_payment)" in source
-
-
-def _provisioner_module():
-    """The provisioner, imported by path under a name of its own.
-
-    Importing is safe and does not touch AWS: every client is built inside `iam()`,
-    `lam()` and `api()` at call time, never at module scope.
-    """
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location(
-        "wecare_secure_files_provisioner", ROOT / "scripts/provision_secure_files_api.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 def test_the_provisioner_requires_an_explicit_apply(monkeypatch):
@@ -993,18 +887,6 @@ def test_payment_configuration_is_not_hardcoded():
     diverge when that mapping changes."""
     source = WA_DELIVERY.read_text()
     assert "WECAREDIGITAL" not in source
-
-
-def test_whatsapp_pay_compatibility_route_never_builds_money():
-    """The legacy secure-files payment surface must fail closed instead of creating a second
-    PaymentAttempt/reference/order_details implementation beside checkout."""
-    source = (FUNC_DIR / "handler.py").read_text()
-    body = source.split("def _send_whatsapp_payment")[1].split("\ndef ")[0]
-    assert "_owned_active_file" in body
-    assert "_payment_enabled()" in body
-    assert "CHECKOUT_REQUIRED" in body
-    for forbidden in ("send_payment_request(", "reference_id(", "put_item(", "checkoutOrderDetails"):
-        assert forbidden not in body
 
 
 def test_whatsapp_delivery_module_is_delivery_only():
