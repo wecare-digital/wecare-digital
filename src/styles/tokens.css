@@ -139,6 +139,12 @@
   --public-card-leading: 1.27;
   --public-card-tracking: -0.25px;
 
+  /* PUBLIC COMPACT UI TYPE — shared by live-data cards and dense controls.
+   * These complement (not replace) the 20px narrative body and 22px card heading rungs. */
+  --public-supporting-size: 16px;
+  --public-data-size: 17px;
+  --public-meta-size: 14px;
+
   --public-content-max: 1300px;
   --public-reading-max: 700px;
   --public-copy-max: 560px;
