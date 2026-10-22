@@ -92,7 +92,9 @@ def catalog_product_identifier(value):
         raise ValueError("invalid catalog product identifier")
     text = value.strip()
     try:
-        return str(UUID(text)).lower()
+        canonical_uuid = str(UUID(text))
+        if canonical_uuid == text.lower():
+            return canonical_uuid
     except (ValueError, AttributeError):
         pass
     if _NATIVE_PRODUCT_ID.fullmatch(text):
