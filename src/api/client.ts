@@ -7331,18 +7331,6 @@ export async function listMySecureFiles (): Promise<ApiResult<{
 }
 
 /**
- * Start a paid download. Returns 503 PAYMENT_DISABLED while the backend flag is
- * off, which is the current state — enabling paid downloads is an owner action.
- */
-export async function createSecureFileOrder ( fileId: string ): Promise<ApiResult<{
-  grantId: string; orderId: string; amountPaise: number; currency: string; keyId: string;
-}>> {
-  return customerApiCall( `${API_BASE}/secure-files/${encodeURIComponent( fileId )}/order`, {
-    method: 'POST',
-  } );
-}
-
-/**
  * Redeem a paid grant for a short-lived download URL.
  *
  * Single use: the backend spends the grant with a conditional write, so calling
@@ -7357,8 +7345,3 @@ export async function redeemSecureFileDownload ( fileId: string, grantId: string
   );
 }
 
->> {
-  return customerApiCall( `${API_BASE}/secure-files/${encodeURIComponent( fileId )}/whatsapp-pay`, {
-    method: 'POST',
-  } );
-}
