@@ -87,6 +87,8 @@ def test_order_replay_preserves_fulfilment_and_cannot_duplicate():
     orders.update_item(Key={'orderId':row['orderId']}, UpdateExpression='SET orderStatus = :s',
         ExpressionAttributeValues={':s':'shipped'})
     subject.store(orders=orders, row=row)
+    saved = orders.get_item(Key={'orderId':row['orderId']})['Item']
+    assert saved['orderStatus'] == 'shipped'
 
 
 def test_replay_repairs_stale_paid_order_snapshot_without_duplication():
@@ -115,8 +117,6 @@ def test_replay_repairs_stale_paid_order_snapshot_without_duplication():
     assert repaired['channel'] == 'whatsapp'
     assert repaired['invoiceSnapshot']['channel'] == 'whatsapp'
     assert 'notes' not in repaired['invoiceSnapshot']
-    saved = orders.get_item(Key={'orderId':row['orderId']})['Item']
-    assert saved['orderStatus'] == 'shipped'
 
 
 def test_only_the_original_contact_can_promote_an_unlinked_order():
