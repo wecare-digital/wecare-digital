@@ -391,27 +391,8 @@ const PublicShare: React.FC<PublicShareProps> = ( {
         }
         .ps-menu-item:hover{background:#f7fbe9}
         .ps-menu-item:disabled{opacity:.55;cursor:default}
-        /* Checkout is the one paid action in this menu. Keep Share rows neutral, but give this
-           cart hand-off the same Option B language used by CheckoutAction and Elsewhere. */
-        .contribute-link-btn{
-          border:2px solid transparent;border-radius:11px;
-          background:var(--public-accent-amber);color:var(--public-brand-green);
-          transition:background-color .18s,border-color .18s,color .18s,transform .18s,box-shadow .18s;
-        }
-        .contribute-link-btn .ps-menu-icon{background:transparent}
-        .contribute-link-btn .ps-menu-note{color:rgba(26,58,42,.78)}
-        .contribute-link-btn .ps-chevron{color:var(--public-brand-green)}
-        @media(hover:hover) and (pointer:fine){
-          .contribute-link-btn:hover:not(:disabled){
-            background:#fff;border-color:var(--public-accent-amber);
-            transform:translateY(-1px);
-            box-shadow:0 5px 14px rgba(240,168,24,.18),0 2px 5px rgba(26,58,42,.08);
-          }
-        }
-        .contribute-link-btn:active:not(:disabled){
-          background:var(--public-accent-amber-tint);border-color:var(--public-accent-amber);
-          transform:translateY(0) scale(.98);box-shadow:none;
-        }
+        /* Contribution checkout stays inside the widget's own white / light-lime / green menu
+           language. Standalone commerce Checkout actions may use their separate amber treatment. */
         .ps-menu-icon{
           width:38px;height:38px;border-radius:50%;
           display:inline-flex;align-items:center;justify-content:center;
@@ -439,9 +420,8 @@ const PublicShare: React.FC<PublicShareProps> = ( {
           .ps-menu{width:calc(100vw - 40px)}
         }
         @media(prefers-reduced-motion:reduce){
-          .ps-action,.ps-tip,.contribute-link-btn{transition:none}
+          .ps-action,.ps-tip{transition:none}
           .ps-action:hover{transform:none;box-shadow:none}
-          .contribute-link-btn:hover:not(:disabled){transform:none;box-shadow:none}
         }
       `}</style>
       <style jsx global>{`
