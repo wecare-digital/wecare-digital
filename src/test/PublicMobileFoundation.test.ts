@@ -61,6 +61,18 @@ describe( 'public mobile foundation', () => {
     expect( vayulokLive ).toContain( 'font-family:var(--font-sans)' );
   } );
 
+  it( 'keeps VayuLok Weather history on the public typography and touch contract', () => {
+    const insights = read( 'src/components/VayuLokWeatherInsights.tsx' );
+
+    expect( insights ).toContain( '<h4>Weather history</h4>' );
+    expect( insights ).toContain( 'Long-term patterns for' );
+    expect( insights ).not.toContain( 'Google Weather historical aggregates for' );
+    expect( insights ).toContain( 'font-size:var(--public-card-size)' );
+    expect( insights ).toContain( 'font-size:var(--public-body-size)' );
+    expect( insights ).toContain( 'min-height:var(--tap-min)' );
+    expect( insights ).toContain( 'font-family:var(--font-sans)' );
+  } );
+
   it( 'records the public blog listing and post reader as mobile-foundation adopters', () => {
     const listing = read( 'src/components/BlogIndexView.tsx' );
     const post = read( 'src/pages/post/[slug].tsx' );
