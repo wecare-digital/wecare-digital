@@ -3,18 +3,22 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 beforeEach( () => { window.localStorage.clear(); window.sessionStorage.clear(); vi.resetModules(); } );
 afterEach( () => { vi.unstubAllGlobals(); vi.restoreAllMocks(); } );
 const hint = { csrfToken: 'qa-csrf', expiresAt: Date.now() + 86_400_000, persistent: true };
+const profile = { status: 'PROFILE_READY', contactId: 'contact-1' };
 const response = ( body: unknown, status = 200 ) => ({ ok: status === 200, status,
   text: async () => JSON.stringify( body ), json: async () => body });
 
 it( 'exchanges refresh custody without persisting the refresh token in browser storage', async () => {
   const fetchMock = vi.fn().mockResolvedValueOnce( response( {
     AuthenticationResult: { AccessToken: 'qa-access', RefreshToken: 'qa-refresh', ExpiresIn: 3600 },
-  } ) ).mockResolvedValueOnce( response( hint ) );
+  } ) ).mockResolvedValueOnce( response( profile ) ).mockResolvedValueOnce( response( hint ) );
   vi.stubGlobal( 'fetch', fetchMock );
   const auth = await import( '../lib/customerAuth' );
   await auth.submitOtp( '+910000000000', '000000', 'qa-challenge' );
-  expect( fetchMock.mock.calls[1][0] ).toBe( '/api/ecommerce/customer-session' );
-  expect( fetchMock.mock.calls[1][1].credentials ).toBe( 'same-origin' );
+  expect( fetchMock.mock.calls[1][0] ).toBe( 'https://wecare.digital/api/customer/profile' );
+  expect( fetchMock.mock.calls[1][1].headers.Authorization ).toBe( 'Bearer qa-access' );
+  expect( fetchMock.mock.calls[1][1].body ).toBe( '{}' );
+  expect( fetchMock.mock.calls[2][0] ).toBe( '/api/ecommerce/customer-session' );
+  expect( fetchMock.mock.calls[2][1].credentials ).toBe( 'same-origin' );
   expect( JSON.stringify( { ...window.localStorage, ...window.sessionStorage } ) ).not.toContain( 'qa-refresh' );
 } );
 
@@ -33,7 +37,8 @@ it( 'exchanges refresh custody without persisting the refresh token in browser s
 it( 'keeps a successful sign-in when the session exchange is refused', async () => {
   const fetchMock = vi.fn().mockResolvedValueOnce( response( {
     AuthenticationResult: { AccessToken: 'qa-access', RefreshToken: 'qa-refresh', ExpiresIn: 3600 },
-  } ) ).mockResolvedValueOnce( response( { error: 'VERIFICATION_REQUIRED' }, 401 ) );
+  } ) ).mockResolvedValueOnce( response( profile ) )
+    .mockResolvedValueOnce( response( { error: 'VERIFICATION_REQUIRED' }, 401 ) );
   vi.stubGlobal( 'fetch', fetchMock );
   const auth = await import( '../lib/customerAuth' );
 
@@ -55,7 +60,7 @@ it( 'keeps a successful sign-in when the session exchange is refused', async () 
 it( 'marks a successful exchange as remembered and writes the hint', async () => {
   const fetchMock = vi.fn().mockResolvedValueOnce( response( {
     AuthenticationResult: { AccessToken: 'qa-access', RefreshToken: 'qa-refresh', ExpiresIn: 3600 },
-  } ) ).mockResolvedValueOnce( response( hint ) );
+  } ) ).mockResolvedValueOnce( response( profile ) ).mockResolvedValueOnce( response( hint ) );
   vi.stubGlobal( 'fetch', fetchMock );
   const auth = await import( '../lib/customerAuth' );
 
@@ -70,7 +75,7 @@ it( 'treats a 200 with an unreadable body as a degraded session, not a failure',
   // a valid sign-in, so an unparseable success body must degrade rather than reject.
   const fetchMock = vi.fn().mockResolvedValueOnce( response( {
     AuthenticationResult: { AccessToken: 'qa-access', RefreshToken: 'qa-refresh', ExpiresIn: 3600 },
-  } ) ).mockResolvedValueOnce( {
+  } ) ).mockResolvedValueOnce( response( profile ) ).mockResolvedValueOnce( {
     ok: true, status: 200,
     text: async () => 'not json',
     json: async () => { throw new SyntaxError( 'Unexpected token' ); },
@@ -82,6 +87,24 @@ it( 'treats a 200 with an unreadable body as a degraded session, not a failure',
   expect( session?.accessToken ).toBe( 'qa-access' );
   expect( session?.remembered ).toBe( false );
   expect( window.localStorage.getItem( 'wecare.customer.sessionHint' ) ).toBeNull();
+} );
+
+
+it( 'does not turn a temporary profile-claim failure into a failed OTP sign-in', async () => {
+  const fetchMock = vi.fn().mockResolvedValueOnce( response( {
+    AuthenticationResult: { AccessToken: 'qa-access', RefreshToken: 'qa-refresh', ExpiresIn: 3600 },
+  } ) ).mockRejectedValueOnce( new TypeError( 'profile offline' ) )
+    .mockResolvedValueOnce( response( hint ) );
+  vi.stubGlobal( 'fetch', fetchMock );
+  const auth = await import( '../lib/customerAuth' );
+
+  const session = await auth.submitOtp( '+910000000000', '000000', 'qa-challenge' );
+
+  expect( session?.accessToken ).toBe( 'qa-access' );
+  expect( session?.remembered ).toBe( true );
+  expect( auth.getSession()?.accessToken ).toBe( 'qa-access' );
+  expect( fetchMock.mock.calls[1][0] ).toBe( 'https://wecare.digital/api/customer/profile' );
+  expect( fetchMock.mock.calls[2][0] ).toBe( '/api/ecommerce/customer-session' );
 } );
 
 it( 'restores a new tab silently and shares one refresh between simultaneous requests', async () => {
