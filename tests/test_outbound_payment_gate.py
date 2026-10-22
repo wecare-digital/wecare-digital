@@ -185,9 +185,10 @@ def test_an_order_status_notification_is_never_gated(outbound):
     assert 'isOrderStatus' not in outbound._PAYMENT_REQUEST_KEYS
 
 
-def test_the_arming_keys_are_exactly_the_three_payment_request_shapes(outbound):
-    assert set(outbound._PAYMENT_REQUEST_KEYS) == {
-        'isCheckoutTemplate', 'isPaymentTemplate', 'isInteractivePayment'}
+def test_the_arming_keys_are_only_the_native_checkout_template(outbound):
+    assert set(outbound._PAYMENT_REQUEST_KEYS) == {'isCheckoutTemplate'}
+    assert set(outbound._REMOVED_PAYMENT_REQUEST_KEYS) == {
+        'isPaymentTemplate', 'isInteractivePayment'}
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -243,79 +244,23 @@ def test_a_sender_that_resolves_to_no_waba_at_all_is_refused(outbound):
 # 3. the two non-resolver envelopes are refused by name  (review HIGH-1)
 # ══════════════════════════════════════════════════════════════════════════════
 
-class TestTheNonResolverEnvelopesAreRefused:
-    """The hole this closes is specific, and it is the reason "template-only" was not yet true.
+class TestRemovedPaymentEnvelopes:
+    """Legacy payment envelopes have no composer and are rejected by the public handler."""
 
-    `_build_payment_settings` has two call sites: the `isCheckoutTemplate` branch and the
-    `isInteractivePayment` branch. The `isPaymentTemplate` branch calls it NEVER — it attaches
-    the caller's `order_details` dict VERBATIM as the button action. So an `isPaymentTemplate`
-    request carrying a raw `payment_settings` with a `payment_link` would pass an account-level
-    readiness check and be sent to Meta INSIDE the approved template, with none of the resolver's
-    three controls applying: not the WABA1-only refusal, not the `payment_link_uri` /
-    `upi_intent_link` refusals, not the `VALID_PAYMENT_CONFIGS` membership check.
+    def test_the_removed_envelopes_are_not_payment_gate_inputs(self, outbound):
+        for envelope in outbound._REMOVED_PAYMENT_REQUEST_KEYS:
+            refusal, reads = _gate(outbound, {envelope: True})
+            assert refusal is None
+            assert reads.fetches == 0
 
-    `isInteractivePayment` is refused for a different reason: it is a free-form interactive
-    message rather than the approved template, so "payments are template-only" was true of the
-    LINK and never of the MESSAGE TYPE.
-
-    Both have zero callers in this repository, so refusing them costs nothing.
-    """
-
-    @pytest.mark.parametrize('envelope', ['isPaymentTemplate', 'isInteractivePayment'])
-    def test_the_envelope_is_refused_before_any_provider_read(self, outbound, envelope):
-        refusal, reads = _gate(outbound, {envelope: True, 'templateName': TEMPLATE,
-                                          'orderDetails': dict(ORDER_DETAILS)})
-        assert refusal is not None
-        assert refusal['statusCode'] == 409
-        assert _error(refusal)['error'] == 'WA_PAY_ENVELOPE_NOT_PERMITTED'
-        assert _error(refusal)['message'] == (
-            'WhatsApp payments must travel in the approved order_details template through the '
-            'resolver. Nothing has been charged.')
-        assert reads.fetches == 0
-
-    def test_a_raw_payment_link_inside_the_template_envelope_never_reaches_meta(self, outbound):
-        """The exploit shape, stated as a test. This payload would otherwise have been sent."""
-        refusal, reads = _gate(outbound, {
-            'isPaymentTemplate': True, 'isTemplate': True, 'templateName': TEMPLATE,
-            'orderDetails': {
-                'reference_id': 'WD-PAY-GATE0001',
-                'payment_configuration': TEST_CONFIG,
-                'payment_settings': [{'type': 'payment_link',
-                                      'payment_link': {'uri': 'https://rzp.io/i/attacker'}}]}})
-        assert _error(refusal)['error'] == 'WA_PAY_ENVELOPE_NOT_PERMITTED'
-        assert reads.fetches == 0
-
-    def test_both_envelopes_have_no_caller_left_in_the_repository(self):
-        """Refusing them is free only because nothing sends them. Measured, not assumed."""
-        import pathlib
-        offenders = []
-        for root in ('amplify', 'src'):
-            for path in (pathlib.Path(REPO) / root).rglob('*'):
-                if path.suffix not in ('.py', '.ts', '.tsx') or not path.is_file():
-                    continue
-                text = path.read_text(encoding='utf-8', errors='ignore')
-                for key in ('isPaymentTemplate', 'isInteractivePayment'):
-                    for lineno, line in enumerate(text.splitlines(), start=1):
-                        if key not in line:
-                            continue
-                        stripped = line.strip()
-                        # A comment or a docstring line explaining the refusal is not a caller,
-                        # and the gate's own refusal list necessarily names both keys.
-                        if stripped.startswith(('#', '*', '//', '/*', '"""', "'''", "#:")):
-                            continue
-                        if 'outbound-whatsapp/handler.py' in str(path):
-                            continue
-                        offenders.append(f'{path.relative_to(REPO)}:{lineno}')
-        assert not offenders, (
-            'a caller of a non-resolver payment envelope appeared: ' + ', '.join(offenders))
-
-    def test_the_envelope_refusal_follows_the_sender_check(self, outbound):
+    def test_the_payload_builder_contains_no_legacy_payment_implementation(self, outbound):
         import inspect
-        source = inspect.getsource(outbound._refuse_unless_payment_ready)
-        assert (source.index('PAYMENT_SENDERS')
-                < source.index('_REFUSED_PAYMENT_ENVELOPES')
-                < source.index('_resolve_payment_config_name')
-                < source.index('evaluate_for_delivery'))
+        source = inspect.getsource(outbound._build_message_payload)
+        assert "interactive_payment_payload_built" not in source
+        assert "Handle INTERACTIVE order_details message" not in source
+        assert "payment_link_uri" not in source
+        assert "upi_intent_link" not in source
+
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -339,13 +284,12 @@ def test_an_absent_or_empty_order_details_is_refused(outbound, details):
     assert reads.fetches == 0
 
 
-def test_either_order_details_key_satisfies_the_shape_check(outbound):
-    """`checkoutOrderDetails` is the checkout-template key and `orderDetails` the other two's, so
-    the gate reads both — otherwise an envelope could arm the gate and then be judged on an empty
-    dict."""
-    refusal, _ = _gate(outbound, {'isCheckoutTemplate': True, 'templateName': TEMPLATE,
-                                  'orderDetails': dict(ORDER_DETAILS)})
-    assert refusal is None
+def test_only_checkout_order_details_satisfies_the_shape_check(outbound):
+    refusal, reads = _gate(outbound, {'isCheckoutTemplate': True, 'templateName': TEMPLATE,
+                                      'orderDetails': dict(ORDER_DETAILS)})
+    assert refusal is not None
+    assert refusal['statusCode'] == 400
+    assert reads.fetches == 0
 
 
 # ══════════════════════════════════════════════════════════════════════════════
