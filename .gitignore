@@ -201,7 +201,6 @@ public/vendor/amplify-ui.css
 # plan survives a fresh clone and a handover while the per-run notes stay local.
 .kiro/work/deep-repository-audit/*
 !.kiro/work/deep-repository-audit/plan.md
-.github/
 # Ignore everything under .kiro/ EXCEPT the shared steering rules. This uses
 # `.kiro/*` (not a blanket `.kiro/`) on purpose: a directory-level ignore stops
 # git descending into .kiro/ at all, which makes it impossible to re-include a

@@ -32,7 +32,8 @@ permissions:
 
 concurrency:
   group: runtime-deploy-production
-  # Serialize production deploys. A newer stack push must never cancel an alias update halfway.
+  # Never cancel an in-flight production deploy because a newer stack commit arrived.
+  # Serialising deploys is slower but leaves every alias in a known, verified state.
   cancel-in-progress: false
 
 jobs:
