@@ -423,11 +423,6 @@ export const moduleHomes: ModuleHome[] = [
 export const contextualRoutes: { path: string; label: string; parent: string }[] = [
   { path: '/workspace/content', label: 'Publishing', parent: 'Contextual workflows' },
   { path: '/workspace/content?view=blog', label: 'Blog', parent: 'Publishing' },
-  { path: '/workspace/seo/blog-studio', label: 'Blog Studio', parent: 'Publishing' },
-  { path: '/workspace/content?view=production', label: 'Production', parent: 'Publishing' },
-  { path: '/workspace/seo/blog-production?tab=review', label: 'Source review', parent: 'Publishing' },
-  { path: '/workspace/seo/blog-production?tab=qa', label: 'QA review', parent: 'Publishing' },
-  { path: '/workspace/seo/blog-production?tab=publish', label: 'Publish queue', parent: 'Publishing' },
   { path: '/workspace/content?view=seo&area=tools', label: 'SEO Tools', parent: 'Publishing' },
   { path: '/workspace/content?view=seo&area=pages', label: 'SEO Pages', parent: 'Publishing' },
   { path: '/workspace/automation', label: 'Automation & AI', parent: 'Contextual workflows' },
