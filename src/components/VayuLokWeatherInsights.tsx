@@ -30,7 +30,7 @@ interface Props {
   placeName?: string;
 }
 
-const INSIGHTS_URL = ( process.env.NEXT_PUBLIC_VAYULOK_INSIGHTS_URL || '' ).replace( /\/$/, '' );
+const INSIGHTS_URL = 'https://wecare-digital-hrkl3sncxq-el.a.run.app';
 
 function analyticsEvent( event: string, range: Range, status?: string ) {
   if ( typeof window === 'undefined' ) return;

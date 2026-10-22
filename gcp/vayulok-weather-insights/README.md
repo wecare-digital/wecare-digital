@@ -60,7 +60,7 @@ unexpected large query.
 
 The Google Cloud Console currently shows `wecare-digital` in `asia-south1` on Google's
 placeholder image. To use that service for this adapter after the Analytics Hub linked dataset
-exists:
+exists, first run from a checked-out repository root:
 
 ```bash
 # Run from the repository root.
@@ -83,13 +83,9 @@ curl -sS "$SERVICE_URL/healthz"
 curl -sS "$SERVICE_URL/v1/weather-insights/status" | python3 -m json.tool
 ```
 
-When status is ready, set the Amplify build-time variable:
-
-```
-NEXT_PUBLIC_VAYULOK_INSIGHTS_URL=<Cloud Run service URL>
-```
-
-and redeploy the `stack` branch so the static VayuLok bundle receives the endpoint.
+The frontend uses the stable Cloud Run service origin directly:
+`https://wecare-digital-hrkl3sncxq-el.a.run.app`.
+No additional `NEXT_PUBLIC_*` variable is required for Weather Insights.
 
 
 ## Verified India listing
