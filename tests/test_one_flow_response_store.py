@@ -8,6 +8,7 @@ Flow logs are one store too: FlowLogTable, which the journey view already read.
 from __future__ import annotations
 
 import importlib
+import importlib.util
 import json
 import sys
 import time
@@ -18,6 +19,11 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 SHARED = ROOT / 'amplify' / 'functions' / 'shared'
 WBA = ROOT / 'amplify' / 'functions' / 'messaging' / 'whatsapp-business-api'
+# The duplicate `whatsapp-business-api/service_api.py` was RETIRED by the service-API
+# consolidation (tests/test_service_api_twin_divergence.py); the one implementation is
+# `core/service-api/handler.py`, loaded below by explicit file path under a unique module name.
+# WBA stays on sys.path because the flow modules (`flows.*`) are still imported from there.
+SERVICE_API_HANDLER = ROOT / 'amplify' / 'functions' / 'core' / 'service-api' / 'handler.py'
 for _path in (str(SHARED), str(WBA), str(Path(__file__).resolve().parent),
               str(ROOT / 'scripts')):
     if _path not in sys.path:
@@ -184,7 +190,10 @@ def test_flow_logs_land_in_the_flow_log_table(flows_env):
 
 @pytest.fixture()
 def service_api(db, monkeypatch):
-    module = importlib.import_module('service_api')
+    spec = importlib.util.spec_from_file_location(
+        'wecare_service_api_flow_response_store', SERVICE_API_HANDLER)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
     monkeypatch.setattr(module, 'dynamodb', db)
     return module, db
 

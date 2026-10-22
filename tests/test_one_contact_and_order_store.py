@@ -8,6 +8,7 @@ catalog orders and staff-entered orders list, pick and track alike.
 from __future__ import annotations
 
 import importlib
+import importlib.util
 import sys
 from decimal import Decimal
 from pathlib import Path
@@ -17,6 +18,13 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 SHARED = ROOT / 'amplify' / 'functions' / 'shared'
 WBA = ROOT / 'amplify' / 'functions' / 'messaging' / 'whatsapp-business-api'
+# The duplicate `whatsapp-business-api/service_api.py` was RETIRED by the service-API
+# consolidation (see tests/test_service_api_twin_divergence.py); the one implementation is
+# `core/service-api/handler.py`. It is loaded by explicit file path under a UNIQUE module name
+# rather than as the bare name `handler`, because dozens of functions ship a `handler.py` and a
+# bare import collides across the full suite (the `ModuleNotFoundError: service_api` this fixes).
+# WBA stays on sys.path because the flow modules (`flows.*`) are still imported from there.
+SERVICE_API_HANDLER = ROOT / 'amplify' / 'functions' / 'core' / 'service-api' / 'handler.py'
 for _path in (str(SHARED), str(WBA), str(Path(__file__).resolve().parent)):
     if _path not in sys.path:
         sys.path.insert(0, _path)
@@ -260,7 +268,10 @@ def test_an_attempt_without_a_contact_writes_no_contact_field():
 
 @pytest.fixture()
 def service_api(monkeypatch):
-    module = importlib.import_module('service_api')
+    spec = importlib.util.spec_from_file_location(
+        'wecare_service_api_contact_order_store', SERVICE_API_HANDLER)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
     db = FakeDynamo(
         {ORDERS: 'orderId', CONTACTS: 'id', SUBMISSIONS: 'submissionId',
          shared_tables.STATUS_HISTORY.default_name: 'historyId'},
