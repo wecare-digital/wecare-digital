@@ -141,6 +141,11 @@ const WIDTHS = [ 320, 360, 375, 390, 412, 430 ];
       const historyHeading = q( '.vl-wi-head h4' );
       const historyBody = q( '.vl-wi-head p' );
       const historyButtons = Array.from( document.querySelectorAll( '.vl-wi-range button' ) );
+      const airGaugeWord = q( '.vl-live-air-gauge-word' );
+      const weatherDayCond = q( '.vl-live-wx-daily-cond' );
+      const weatherDayTemp = q( '.vl-live-wx-daily-temp' );
+      const weatherGridKey = q( '.vl-live-wx-grid-k' );
+      const weatherGridValue = q( '.vl-live-wx-grid-v' );
       return {
         docScroll: de.scrollWidth, docClient: de.clientWidth,
         day: rect( day ), cond: rect( cond ), temp: rect( temp ), row: rect( row ),
@@ -150,6 +155,13 @@ const WIDTHS = [ 320, 360, 375, 390, 412, 430 ];
         historyHeadingSize: historyHeading ? parseFloat( getComputedStyle( historyHeading ).fontSize ) : -1,
         historyBodySize: historyBody ? parseFloat( getComputedStyle( historyBody ).fontSize ) : -1,
         historyButtonHeights: historyButtons.map( button => rect( button ).h ),
+        airGaugeWordSize: airGaugeWord ? parseFloat( getComputedStyle( airGaugeWord ).fontSize ) : -1,
+        airGaugeWordWeight: airGaugeWord ? getComputedStyle( airGaugeWord ).fontWeight : '',
+        weatherDayCondSize: weatherDayCond ? parseFloat( getComputedStyle( weatherDayCond ).fontSize ) : -1,
+        weatherDayTempSize: weatherDayTemp ? parseFloat( getComputedStyle( weatherDayTemp ).fontSize ) : -1,
+        weatherGridKeySize: weatherGridKey ? parseFloat( getComputedStyle( weatherGridKey ).fontSize ) : -1,
+        weatherGridValueSize: weatherGridValue ? parseFloat( getComputedStyle( weatherGridValue ).fontSize ) : -1,
+        weatherGridValueWeight: weatherGridValue ? getComputedStyle( weatherGridValue ).fontWeight : '',
       };
     } );
     const hOverflow = r.docScroll > r.docClient + 1;
@@ -172,14 +184,18 @@ const WIDTHS = [ 320, 360, 375, 390, 412, 430 ];
     const historyType = Math.abs( r.historyHeadingSize - 24 ) <= 0.1 && Math.abs( r.historyBodySize - 20 ) <= 0.1;
     const historyButtonCount = r.historyButtonHeights.length;
     const historyTouches = historyButtonCount === 3 && r.historyButtonHeights.every( height => height >= 44 );
-    const ok = !hOverflow && condBelowDay && tempTopLine && pollutantCompact && summaryCentered && historyFits && historyType && historyTouches;
+    const airType = r.airGaugeWordSize >= 23.9 && Number( r.airGaugeWordWeight ) >= 700;
+    const weatherType = r.weatherDayCondSize >= 14.9 && r.weatherDayTempSize >= 16.9 &&
+      r.weatherGridKeySize >= 16.9 && r.weatherGridValueSize >= 16.9 && Number( r.weatherGridValueWeight ) <= 600;
+    const ok = !hOverflow && condBelowDay && tempTopLine && pollutantCompact && summaryCentered && historyFits && historyType && historyTouches && airType && weatherType;
     if ( !ok ) failures++;
     console.log(
       `@${w}px  h-overflow=${hOverflow ? 'YES(' + r.docScroll + '>' + r.docClient + ')' : 'no'}` +
       `  cond-below-day=${condBelowDay}  temp-on-top-line=${tempTopLine}  pollutant-compact=${pollutantCompact}` +
       `  score-centered=${scoreCentered}  meta-centered=${metaCentered}` +
       `  history-found=${historyFound}  history-buttons=${historyButtonCount}` +
-      `  history-fits=${historyFits}  history-type=${historyType}  history-touch=${historyTouches}  => ${ok ? 'PASS' : 'FAIL'}`
+      `  history-fits=${historyFits}  history-type=${historyType}  history-touch=${historyTouches}` +
+      `  air-type=${airType}  weather-type=${weatherType}  => ${ok ? 'PASS' : 'FAIL'}`
     );
     await page.close();
   }
