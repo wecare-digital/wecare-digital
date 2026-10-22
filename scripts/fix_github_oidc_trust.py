@@ -124,14 +124,16 @@ BRANCH = "stack"
 # else.
 ROLES = [
     "GitHubActions-bharat-stack-docs-scraper",
-    "GitHubActions-bharat-stack-seo-tools",
+    # seo-tools and native-catalog were removed 2026-10-22: the CI-consolidation pass deleted
+    # seo-tools-deploy.yml and native-catalog-admin-deploy.yml, so neither role is declared
+    # anywhere in the repo any more. A role the repo no longer wires up must not stay registered
+    # here — test_fixer_covers_every_oidc_role's reverse check fails on exactly that drift — and
+    # the fixer should not keep rewriting the trust of a role nothing assumes. If either workflow
+    # returns, re-add its role alongside the workflow that declares it.
     "GitHubActions-wecare-digital-route-auth",
     "GitHubActions-wecare-digital-public-surface",
     "GitHubActions-wecare-digital-public-surface-read",
     "GitHubActions-wecare-digital-plivo-drift",
-    # The AWS-native catalog deploy role is declared by native-catalog-admin-deploy.yml.
-    # The retired static-catalog reader role was removed with the old storefront snapshot path.
-    "GitHubActions-wecare-native-catalog-deploy",
     # The selected runtime-deploy role, declared by .github/workflows/runtime-deploy.yml.
     # Registered here so it gets the SAME repo-pinned OIDC trust document as every other role
     # rather than whatever its creator hand-wrote.

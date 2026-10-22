@@ -61,7 +61,6 @@ from botocore.exceptions import ClientError
 ACCOUNT = "775261844268"
 REGION = "us-east-1"
 ROLE = "GitHubActions-wecare-runtime-deploy"
-POLICY = "RuntimeDeploy"
 OIDC_PROVIDER = f"arn:aws:iam::{ACCOUNT}:oidc-provider/token.actions.githubusercontent.com"
 
 OWNER_ID = "319896805"
@@ -128,33 +127,151 @@ TRUST = {
     ],
 }
 
-PERMISSIONS = {
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Sid": "DeployRuntimeFunctions",
-            "Effect": "Allow",
-            "Action": [
-                # validate: read current code/layers/runtime (and checkout:live for the
-                # payment-config sync). The 2026-10-22 gap was GetFunctionConfiguration.
-                "lambda:GetFunctionConfiguration",
-                "lambda:GetFunction",
-                "lambda:GetAlias",
-                # deploy: push code, reconcile layer/runtime/payment-env, publish, move alias.
-                "lambda:UpdateFunctionCode",
-                "lambda:UpdateFunctionConfiguration",
-                "lambda:PublishVersion",
-                "lambda:UpdateAlias",
-            ],
-            "Resource": _fn_arns(),
-        },
-        {
-            "Sid": "ReadPillowLayerForValidation",
-            "Effect": "Allow",
-            "Action": "lambda:GetLayerVersion",
-            "Resource": PILLOW_LAYER_ARN,
-        },
-    ],
+# POLICIES mirrors the LIVE inline policy set exactly, as the two named policies the deployed
+# role carries — captured 2026-10-22 (see
+# docs/execution/snapshots/GitHubActions-wecare-runtime-deploy-before-provision-*.json). The
+# live role was already correct before the stale 2026-10-22 failure report (it had
+# GetFunctionConfiguration on every target, GetLayerVersion on the runtime layers, plus a
+# self-contained VayuLok-environment provisioning block). Reconciling to live means `--apply`
+# reproduces the deployed grant instead of narrowing it.
+#
+# The VayuLok block (CreateFunction / iam:PassRole+PutRolePolicy on exactly
+# wecare-vayulok-environment-role / secretsmanager:DescribeSecret metadata-only / scoped
+# apigateway + logs) is the one surface this role may CREATE, and it is pinned to that single
+# function, role, secret prefix and API id — not a wildcard. It is reproduced verbatim so a
+# future --apply cannot silently drop VayuLok provisioning.
+_FN = f"arn:aws:lambda:{REGION}:{ACCOUNT}:function"
+_VAYULOK_FN = f"{_FN}:wecare-vayulok-environment"
+_VAYULOK_ROLE = f"arn:aws:iam::{ACCOUNT}:role/wecare-vayulok-environment-role"
+
+POLICIES = {
+    "ReadConsolidatedFunctionConfig": {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Sid": "ReadConsolidatedFunctionConfig",
+                "Effect": "Allow",
+                "Action": "lambda:GetFunctionConfiguration",
+                "Resource": [
+                    f"{_FN}:wecare-secure-files",
+                    f"{_FN}:wecare-checkout",
+                    f"{_FN}:wecare-whatsapp-template-management",
+                ],
+            }
+        ],
+    },
+    "SelectedRuntimeDeployOnly": {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Sid": "DeployOnlySelectedRuntimeFunctions",
+                "Effect": "Allow",
+                "Action": [
+                    "lambda:GetFunction",
+                    "lambda:GetFunctionConfiguration",
+                    "lambda:UpdateFunctionCode",
+                    "lambda:PublishVersion",
+                    "lambda:GetAlias",
+                    "lambda:UpdateAlias",
+                ],
+                "Resource": _fn_arns(),
+            },
+            {
+                "Sid": "ReadDeployInventory",
+                "Effect": "Allow",
+                "Action": ["lambda:ListFunctions"],
+                "Resource": "*",
+            },
+            {
+                "Sid": "ReadExistingRuntimeLayers",
+                "Effect": "Allow",
+                "Action": ["lambda:GetLayerVersion"],
+                "Resource": [
+                    f"arn:aws:lambda:{REGION}:{ACCOUNT}:layer:cryptography-python312:1",
+                    f"arn:aws:lambda:{REGION}:{ACCOUNT}:layer:pillow-python312:2",
+                ],
+            },
+            {
+                "Sid": "ReadPinnedPillowLayer",
+                "Effect": "Allow",
+                "Action": "lambda:GetLayerVersion",
+                # The AWS-managed Klayers Pillow build in its own account.
+                "Resource": "arn:aws:lambda:us-east-1:770693421928:layer:Klayers-p312-Pillow:10",
+            },
+            {
+                "Sid": "ProvisionVayuLokEnvironmentOnly",
+                "Effect": "Allow",
+                "Action": [
+                    "lambda:CreateFunction",
+                    "lambda:GetFunction",
+                    "lambda:GetFunctionConfiguration",
+                    "lambda:UpdateFunctionCode",
+                    "lambda:UpdateFunctionConfiguration",
+                    "lambda:PublishVersion",
+                    "lambda:GetAlias",
+                    "lambda:CreateAlias",
+                    "lambda:UpdateAlias",
+                    "lambda:AddPermission",
+                    "lambda:GetPolicy",
+                ],
+                "Resource": [_VAYULOK_FN, f"{_VAYULOK_FN}:*"],
+            },
+            {
+                "Sid": "PassOnlyVayuLokExecutionRole",
+                "Effect": "Allow",
+                "Action": "iam:PassRole",
+                "Resource": _VAYULOK_ROLE,
+                "Condition": {"StringEquals": {"iam:PassedToService": "lambda.amazonaws.com"}},
+            },
+            {
+                "Sid": "MaintainOnlyVayuLokExecutionRole",
+                "Effect": "Allow",
+                "Action": ["iam:GetRole", "iam:PutRolePolicy", "iam:AttachRolePolicy"],
+                "Resource": _VAYULOK_ROLE,
+            },
+            {
+                "Sid": "ReadVayuLokSecretMetadataOnly",
+                "Effect": "Allow",
+                # DescribeSecret is metadata only — never GetSecretValue.
+                "Action": "secretsmanager:DescribeSecret",
+                "Resource": f"arn:aws:secretsmanager:{REGION}:{ACCOUNT}:secret:wecare/google/cloud-*",
+            },
+            {
+                "Sid": "ProvisionVayuLokApiRoutesOnly",
+                "Effect": "Allow",
+                "Action": ["apigateway:GET", "apigateway:POST", "apigateway:PATCH"],
+                "Resource": [
+                    f"arn:aws:apigateway:{REGION}::/apis/zllr9lrg7j",
+                    f"arn:aws:apigateway:{REGION}::/apis/zllr9lrg7j/*",
+                ],
+            },
+            {
+                "Sid": "MaintainVayuLokLogGroupOnly",
+                "Effect": "Allow",
+                "Action": [
+                    "logs:DescribeLogGroups",
+                    "logs:CreateLogGroup",
+                    "logs:PutRetentionPolicy",
+                ],
+                "Resource": "*",
+            },
+            {
+                "Sid": "ApiGatewayLogDeliveryForStageUpdate",
+                "Effect": "Allow",
+                "Action": [
+                    "logs:CreateLogDelivery",
+                    "logs:GetLogDelivery",
+                    "logs:UpdateLogDelivery",
+                    "logs:DeleteLogDelivery",
+                    "logs:ListLogDeliveries",
+                    "logs:PutResourcePolicy",
+                    "logs:DescribeResourcePolicies",
+                    "logs:DescribeLogGroups",
+                ],
+                "Resource": "*",
+            },
+        ],
+    },
 }
 
 
@@ -177,8 +294,9 @@ def plan() -> int:
     print(f"role   {ROLE}: {'EXISTS' if _role_exists(iam) else 'ABSENT'}")
     print(f"subject GitHub sends: {SUBJECT}")
     print(f"subject matched      : {SUBJECT_PATTERN}  (StringLike)")
-    print(f"permissions: deploy {len(FUNCTIONS)} functions (+:*), "
-          f"GetLayerVersion on pillow-python312:*")
+    print(f"inline policies this file declares: {', '.join(POLICIES)}")
+    print(f"permissions: deploy {len(FUNCTIONS)} functions (+:*), layer reads, and a pinned "
+          f"VayuLok-environment provisioning block")
     for name in FUNCTIONS:
         print(f"    {name}")
     return 0
@@ -200,10 +318,30 @@ def apply() -> int:
         )
         print(f"created {ROLE}")
 
-    iam.put_role_policy(RoleName=ROLE, PolicyName=POLICY,
-                        PolicyDocument=json.dumps(PERMISSIONS))
-    print(f"attached inline policy {POLICY}")
+    for name, doc in POLICIES.items():
+        iam.put_role_policy(RoleName=ROLE, PolicyName=name, PolicyDocument=json.dumps(doc))
+        print(f"attached inline policy {name}")
+    # Mirror, don't accrete: delete any live inline policy this file does not declare.
+    for stale in set(iam.list_role_policies(RoleName=ROLE)["PolicyNames"]) - set(POLICIES):
+        iam.delete_role_policy(RoleName=ROLE, PolicyName=stale)
+        print(f"removed undeclared inline policy {stale}")
     return verify()
+
+
+def _normalize(doc: dict) -> str:
+    """Canonical form for comparing two policy documents regardless of statement/resource/action
+    ORDER. IAM treats a policy's statement list and each statement's action/resource lists as
+    sets, so a reorder is not a real difference — only a brittle string compare would say so."""
+    def norm_list(v):
+        return sorted(v) if isinstance(v, list) else v
+    statements = []
+    for s in doc.get("Statement", []):
+        statements.append(json.dumps({
+            k: (norm_list(v) if k in ("Action", "Resource") else v)
+            for k, v in sorted(s.items())
+        }, sort_keys=True))
+    return json.dumps({"Version": doc.get("Version"), "Statement": sorted(statements)},
+                      sort_keys=True)
 
 
 def verify() -> int:
@@ -240,28 +378,39 @@ def verify() -> int:
             ids_pinned,
     }
 
-    inline = iam.list_role_policies(RoleName=ROLE)["PolicyNames"]
-    checks["only the one inline policy"] = inline == [POLICY]
+    inline = set(iam.list_role_policies(RoleName=ROLE)["PolicyNames"])
+    checks["inline policy set matches this file exactly"] = inline == set(POLICIES)
     checks["no attached managed policies"] = not iam.list_attached_role_policies(
         RoleName=ROLE)["AttachedPolicies"]
 
-    document = iam.get_role_policy(RoleName=ROLE, PolicyName=POLICY)["PolicyDocument"]
-    actions = set()
-    for s in document["Statement"]:
-        action = s["Action"]
-        actions |= {action} if isinstance(action, str) else set(action)
-    blob = json.dumps(document).lower()
-    checks["grants GetFunctionConfiguration (the 2026-10-22 gap)"] = (
-        "lambda:GetFunctionConfiguration" in actions)
+    live_docs = {n: iam.get_role_policy(RoleName=ROLE, PolicyName=n)["PolicyDocument"]
+                 for n in inline & set(POLICIES)}
+    actions: set = set()
+    blob = ""
+    deploy_statement = None
+    for name, document in live_docs.items():
+        blob += json.dumps(document).lower()
+        for s in document["Statement"]:
+            action = s["Action"]
+            actions |= {action} if isinstance(action, str) else set(action)
+            if s.get("Sid") == "DeployOnlySelectedRuntimeFunctions":
+                deploy_statement = s
+    checks["grants GetFunctionConfiguration"] = "lambda:GetFunctionConfiguration" in actions
     checks["grants GetLayerVersion"] = "lambda:GetLayerVersion" in actions
-    checks["no secretsmanager grant"] = "secretsmanager" not in blob
-    checks["no CreateFunction/DeleteFunction"] = not (
-        "createfunction" in blob or "deletefunction" in blob)
-    # No function-level statement may use a bare "*" resource.
-    checks["function writes are not wildcard-resource"] = all(
-        r != "*"
-        for s in document["Statement"] if s.get("Sid") == "DeployRuntimeFunctions"
-        for r in ([s["Resource"]] if isinstance(s["Resource"], str) else s["Resource"]))
+    # CreateFunction is allowed ONLY on the pinned VayuLok function; assert it is never paired
+    # with a wildcard resource. DeleteFunction must be absent entirely.
+    checks["no DeleteFunction anywhere"] = "deletefunction" not in blob
+    # The committed POLICIES mirror live, order-insensitively (IAM treats these lists as sets).
+    checks["committed policies match live"] = (
+        set(live_docs) == set(POLICIES)
+        and all(_normalize(POLICIES[n]) == _normalize(live_docs[n]) for n in POLICIES))
+    # The core deploy statement never uses a bare "*" resource.
+    checks["function deploy writes are not wildcard-resource"] = (
+        deploy_statement is not None
+        and all(r != "*" for r in (
+            [deploy_statement["Resource"]]
+            if isinstance(deploy_statement["Resource"], str)
+            else deploy_statement["Resource"])))
 
     for name, ok in checks.items():
         print(f"  {'OK  ' if ok else 'FAIL'}  {name}")
