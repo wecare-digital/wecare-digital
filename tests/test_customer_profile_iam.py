@@ -126,7 +126,7 @@ def test_the_policy_is_exactly_the_declared_scoped_statements(provisioner):
     """Equality on the `Sid` set, so any extra statement is a failure rather than an unnoticed
     addition."""
     assert sorted(_by_sid(provisioner)) == [
-        "ContactsUpsert", "CustomerIdentityClaims", "DiscoverContactOrders", "LinkContactOrders", "ReadEmailProof", "ReadOtpPepper", "ValidateCustomerToken",
+        "ContactsUpsert", "CustomerIdentityClaims", "DiscoverContactOrders", "FinalizeLinkedPaymentAttempt", "LinkContactOrders", "ReadEmailProof", "ReadOtpPepper", "ValidateCustomerToken",
         "WriteIdentityClaimAudit",
     ]
 
@@ -286,3 +286,6 @@ def test_historical_link_can_only_query_phone_index_and_conditionally_update_ord
     assert statements['LinkContactOrders']['Action']==['dynamodb:UpdateItem']
     assert statements['LinkContactOrders']['Resource']==[
         f'arn:aws:dynamodb:us-east-1:{ACCOUNT}:table/stack-wecare-digital-OrderTable']
+    assert statements['FinalizeLinkedPaymentAttempt']['Action']==['dynamodb:UpdateItem']
+    assert statements['FinalizeLinkedPaymentAttempt']['Resource']==[
+        f'arn:aws:dynamodb:us-east-1:{ACCOUNT}:table/stack-wecare-digital-PaymentAttemptsTable']
