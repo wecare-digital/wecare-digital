@@ -76,7 +76,6 @@ jobs:
             amplify/functions/messaging/inbound-whatsapp-handler/handler.py \
             amplify/functions/messaging/outbound-whatsapp/handler.py \
             amplify/functions/messaging/whatsapp-business-api/handler.py \
-            amplify/functions/messaging/whatsapp-business-api/service_api.py \
             amplify/functions/messaging/whatsapp-template-management/handler.py \
             amplify/functions/messaging/whatsapp-business-api/flows/orders.py \
             amplify/functions/ecommerce/checkout/handler.py \
