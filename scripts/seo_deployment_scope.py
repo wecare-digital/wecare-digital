@@ -9,9 +9,7 @@ def packaged_source(path: str) -> bool:
     file = PurePosixPath(path)
     if path in ('amplify/functions/seo_tools_handler.py',
                 'amplify/functions/shared/static_knowledge_base.py',
-                'amplify/functions/shared/blog_pipeline.py',
-                'scripts/blog_quality_v2.py',
-                'content/conversations/corpus-index.json',                'config/public-pages.json'):
+                'config/public-pages.json',                'config/public-pages.json'):
         return True
     return (file.suffix == '.py' and str(file.parent) in (
         'amplify/functions/operations/seo-tools',
