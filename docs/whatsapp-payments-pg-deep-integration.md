@@ -112,17 +112,56 @@ name; `WECAREDIGITAL` is now verified, so it is not a guess.
 - Response `status` ∈ `pending|captured`; `transactions[]` present once attempted; at
   most one `success`. This is the source of truth, not the webhook.
 
-### 5. Order status updates (Step 6) — mandatory after any transaction update
-- `status` ∈ `pending|processing|partially_shipped|shipped|completed|canceled`.
-- Transition rules: `pending` → any; `processing/shipped/partially_shipped` interchange
-  or → terminal; `completed`/`canceled` terminal. Errors `2046` (bad transition),
-  `2047` (cannot cancel a paid order). The order page in-chat only reflects
-  `order_status` messages, so one MUST be sent after every PG transaction update.
-- After Meta accepts a fulfilment `order_status` update for a paid order, WECARE.DIGITAL also
-  sends the approved `wecare_default_invoice_image_template` using the already-issued invoice
-  image from `s3://wecare-digital-get/secure/Invoice/customer_invoice/`. The invoice send is a
-  separate template delivery; it does not replace the `order_status` message or alter the
-  `reference_id` lifecycle.
+### 5. Fulfilment status + customer notification (owner decision 2026-10-22)
+
+WECARE.DIGITAL does **not** depend on a separate Meta `wecare_order_status` template and does
+not send a second customer-facing Meta `order_status` message. The application owns the
+fulfilment state; the customer-facing status notification is the approved invoice-image template.
+
+- Canonical fulfilment state remains
+  `pending|processing|partially_shipped|shipped|completed|canceled`.
+- Transition rules remain local application invariants: `pending` → any;
+  `processing/shipped/partially_shipped` interchange or → terminal;
+  `completed`/`canceled` terminal.
+- The state transition is validated and persisted by invoice-engine before notification.
+- Customer notification uses **only**
+  `wecare_default_invoice_image_template · English`.
+- The template header uses the already-issued invoice image under
+  `s3://wecare-digital-get/secure/Invoice/customer_invoice/`.
+- The invoice object stays private. Delivery reads the secured S3 object and uploads the media
+  through the WhatsApp send path; it must never be moved back under the unauthenticated public
+  `o/` tree merely to make template delivery work.
+- Legacy `isOrderStatus` / direct Meta order-status envelopes fail closed. No runtime,
+  release-audit, provisioning, or environment dependency may require
+  `WA_ORDER_STATUS_TEMPLATE` or `wecare_order_status`.
+- Re-sending the invoice template for a later fulfilment state reuses the same issued invoice
+  identity and image unless the invoice itself was legitimately re-issued. A status change must
+  not mint a new invoice number, order identity, payment reference, or provider charge.
+
+#### Paid-capture completion invariant
+
+A captured payment is not complete until the same commerce identity has progressed through all
+of these durable stages:
+
+1. verified provider capture is stored against the existing `reference_id` / payment attempt;
+2. the reserved `orderId` + `orderNumber` are materialized into OrderTable idempotently;
+3. the invoice carries authoritative `contactId`, `customerUuid`, and `channel` from the
+   verified checkout/payment context;
+4. the paid invoice image is generated under
+   `secure/Invoice/customer_invoice/` and recorded in InvoiceAssetsTable;
+5. `wecare_default_invoice_image_template` is sent only for an invoice whose canonical payment
+   state is captured/paid and whose order projection is valid.
+
+Recovery MUST reuse the existing payment attempt, order reservation, reference, invoice identity,
+and provider payment. It must never charge again or mint a second order to repair a stranded
+`PAYMENT_PAID` attempt.
+
+#### Test/live isolation invariant
+
+QA, cancelled, pending, and synthetic invoices must never pass the paid-invoice delivery gate for
+a production customer. Test metadata must not survive into a real captured invoice. Production
+invoice numbering, assets, and outbound delivery must be attributable to the same real
+`reference_id` and provider payment that earned the capture.
 
 ### 6. Refunds (Step 8)
 - `POST /[PHONE_NUMBER_ID]/payments_refund` with `reference_id`, `speed`
