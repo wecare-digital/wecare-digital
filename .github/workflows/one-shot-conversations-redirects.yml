@@ -1,0 +1,44 @@
+name: One-shot approved Conversations redirects
+
+on:
+  push:
+    branches: [stack]
+    paths:
+      - '.github/workflows/one-shot-conversations-redirects.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: public-surface-deploy
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install pinned AWS SDK
+        run: |
+          grep -E '^(boto3|botocore)==' requirements-dev.txt > ci-aws-requirements.txt
+          python -m pip install -r ci-aws-requirements.txt
+      - name: Require public-surface write role
+        run: |
+          test -n "${{ vars.PUBLIC_SURFACE_ROLE_ARN }}" || {
+            echo "::error::PUBLIC_SURFACE_ROLE_ARN is not set"
+            exit 1
+          }
+      - name: Assume write role
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.PUBLIC_SURFACE_ROLE_ARN }}
+          aws-region: us-east-1
+      - name: Apply approved redirects
+        run: python scripts/provision_legacy_redirects.py --apply
+      - name: Verify approved redirects
+        run: python scripts/provision_legacy_redirects.py --verify
