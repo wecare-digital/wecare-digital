@@ -996,9 +996,12 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       expect( detail?.textContent ).toContain( 'Wind' );
       expect( detail?.textContent ).toContain( 'Cloud' );
     } );
-    // Alerts: India has no coverage, so the neutral customer-facing line avoids provider/internal wording.
-    expect( panel.textContent ).toContain( 'No alerts here.' );
-    // Unsupported is a distinct state, not the same as a successful "no alerts" response.
+    // Alerts: India has no coverage, so an empty/unsupported alert state does not consume
+    // card space. Unsupported is still distinct from a successful empty provider response,
+    // and no publicAlerts request is made for India.
+    expect( panel.querySelector( '.vl-live-wx-alerts' ) ).toBeNull();
+    expect( panel.textContent ).not.toContain( 'No alerts here.' );
+    expect( panel.textContent ).not.toContain( 'No active alerts.' );
     // No publicAlerts request was made for India.
     expect( fetchSpy.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/publicAlerts' ) ) ).toBe( false );
     // Raw temperature value carries data-wc-no-translate (keeps numbers honest under translation).
@@ -2383,8 +2386,10 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( css ).toContain( '.vl-live-mobile-copy>strong{color:#000;font-size:16px}' );
     expect( css ).toContain( '.vl-live-mobile-copy small{margin-top:2px;color:var(--muted);font-size:14px}' );
     expect( css ).toContain( '.vl-live-air-context-item small{color:var(--muted);font-size:var(--text-md)' );
-    expect( css ).toContain( '.vl-live-wx-now-sub{display:flex;flex-wrap:wrap;gap:4px 12px;color:var(--muted);font-size:var(--text-base)' );
-    expect( css ).toContain( '.vl-live-wx-freshness{margin-top:8px;color:var(--muted);font-size:var(--text-md)' );
+    expect( css ).toContain( '--vl-subtext-size:var(--text-base)' );
+    expect( css ).toContain( '.vl-live-air-summary-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:8px;color:var(--muted);font-size:var(--vl-subtext-size)' );
+    expect( css ).toContain( '.vl-live-wx-now-sub{display:flex;flex-wrap:wrap;gap:4px 12px;color:var(--muted);font-size:var(--vl-subtext-size)' );
+    expect( css ).toContain( '.vl-live-wx-freshness{margin-top:8px;color:var(--muted);font-size:var(--vl-subtext-size)' );
     expect( css ).toContain( '.vl-live-air-gauge-word{display:block;color:#000;font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight)' );
     expect( css ).toContain( '.vl-live-wx-grid-k{min-width:0;color:var(--body);font-size:var(--vl-data-size);font-weight:700;line-height:1.35' );
     expect( css ).toContain( '.vl-live-wx-grid-v{color:var(--muted);font-size:var(--vl-data-size);font-weight:600;line-height:1.35' );
