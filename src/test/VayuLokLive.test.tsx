@@ -1321,6 +1321,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( healthBtnRule ).toContain( 'width:var(--vl-action-size)' );
     expect( healthBtnRule ).toContain( 'height:var(--vl-action-size)' );
     expect( css ).toContain( '--vl-action-size:var(--tap-min)' );
+    expect( container.innerHTML ).toContain( 'Weather history' );
     expect( css ).toContain( '--vl-card-heading-size:var(--public-card-size)' );
     expect( css ).toContain( '--vl-body-size:var(--public-body-size)' );
     expect( css ).toContain( 'font-family:var(--font-sans)' );
@@ -2329,7 +2330,7 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     // The pollutant-label font-size was tokenised to `--vl-data-size` (consistent with the rest of
     // VayuLok's token system); the token resolves to the same 17px this once pinned as a literal.
     expect( pollutantLabelRule ).toContain( 'font-size:var(--vl-data-size)' );
-    expect( css ).toContain( '--vl-data-size:17px' );
+    expect( css ).toContain( '--vl-data-size:var(--public-data-size)' );
     const pollutantRowRule = css.match( /\.vl-live-air-pollutant-row\{[^}]*\}/ )?.[ 0 ] || '';
     // The pollutant row is the COMPACT inline-flex chip from the "compact pollutant metrics
     // without tooltip controls" redesign (validated by the sibling test above), NOT the former
@@ -2346,9 +2347,9 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     const forecastTimeRule = css.match( /\.vl-live-air-forecast-card span\{[^}]*\}/ )?.[ 0 ] || '';
     const forecastValueRule = css.match( /\.vl-live-air-forecast-card strong\{[^}]*\}/ )?.[ 0 ] || '';
     const forecastMetaRule = css.match( /\.vl-live-air-forecast-card small\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( forecastTimeRule ).toContain( 'font-size:13px' );
-    expect( forecastValueRule ).toContain( 'font-size:18px' );
-    expect( forecastMetaRule ).toContain( 'font-size:13px' );
+    expect( forecastTimeRule ).toContain( 'font-size:var(--vl-meta-size)' );
+    expect( forecastValueRule ).toContain( 'font-size:var(--vl-data-size)' );
+    expect( forecastMetaRule ).toContain( 'font-size:var(--vl-meta-size)' );
     const weatherDailyListRule = css.match( /\.vl-live-wx-daily-list\{[^}]*\}/ )?.[ 0 ] || '';
     expect( weatherDailyListRule ).toContain( 'max-height:430px' );
     expect( weatherDailyListRule ).toContain( 'overflow-y:auto' );
@@ -2386,7 +2387,9 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( css ).toContain( '.vl-live-mobile-copy>strong{color:#000;font-size:16px}' );
     expect( css ).toContain( '.vl-live-mobile-copy small{margin-top:2px;color:var(--muted);font-size:14px}' );
     expect( css ).toContain( '.vl-live-air-context-item small{color:var(--muted);font-size:var(--text-md)' );
-    expect( css ).toContain( '--vl-subtext-size:var(--text-base)' );
+    expect( css ).toContain( '--vl-subtext-size:var(--public-supporting-size)' );
+    expect( css ).toContain( '--vl-meta-size:var(--public-meta-size)' );
+    expect( css ).toContain( '--vl-compact-copy-size:var(--vl-subtext-size)' );
     expect( css ).toContain( '.vl-live-air-summary-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:8px;color:var(--muted);font-size:var(--vl-subtext-size)' );
     expect( css ).toContain( '.vl-live-wx-now-sub{display:flex;flex-wrap:wrap;gap:4px 12px;color:var(--muted);font-size:var(--vl-subtext-size)' );
     expect( css ).toContain( '.vl-live-wx-freshness{margin-top:8px;color:var(--muted);font-size:var(--vl-subtext-size)' );
@@ -2395,7 +2398,7 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( css ).toContain( '.vl-live-wx-grid-v{color:var(--muted);font-size:var(--vl-data-size);font-weight:600;line-height:1.35' );
     expect( css ).toContain( '.vl-live-wx-daily-cond{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:var(--vl-compact-copy-size)' );
     expect( css ).toContain( '.vl-live-wx-alert p{margin:2px 0 0;color:var(--body);font-size:var(--vl-compact-copy-size)' );
-    expect( css ).toContain( '.vl-live{--vl-card-heading-size:var(--public-mobile-card-size);--vl-meta-size:var(--text-md);--vl-compact-copy-size:15px}' );
+    expect( css ).toContain( '.vl-live{--vl-card-heading-size:var(--public-mobile-card-size);--vl-meta-size:var(--text-md);--vl-compact-copy-size:var(--vl-subtext-size)}' );
 
   } );
 } );
