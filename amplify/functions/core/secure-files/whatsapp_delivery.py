@@ -1,27 +1,8 @@
-"""Send the payment request and the file itself over WhatsApp, using approved templates.
+"""Deliver already-authorized secure files over WhatsApp using approved templates.
 
-Both templates already existed and are APPROVED, which is why this path uses them
-rather than creating new ones and waiting on Meta:
-
-    wecare_whatapp_native_pay_template      UTILITY  [IMAGE, BODY, FOOTER, BUTTONS(ORDER_DETAILS)]
-    01_wecare_doc   UTILITY  [DOCUMENT, BODY, FOOTER, BUTTONS(FLOW)]
-
-Two consequences of reusing them, both accepted deliberately:
-
-* Neither BODY has variables, so neither message can name the file, the amount or the
-  customer. The amount reaches the customer through the ORDER_DETAILS payload, not the
-  text. The document arrives with generic wording.
-* ``01_wecare_doc`` carries a stray FLOW button labelled "Subscribe", left over from
-  another use. It is harmless but confusing on a paid delivery. Fixing either point
-  means a new template and a Meta approval wait.
-
-Why ORDER_DETAILS and not a Razorpay link
------------------------------------------
-The approved payment template's button is ``ORDER_DETAILS``, which is WhatsApp Pay's
-native checkout. A URL button would have been needed for a Razorpay payment link, and
-this template does not have one. So the payment path is WhatsApp Pay, which
-``payments/invoice-engine`` already builds - the order_details shape here is copied
-from it rather than invented.
+Payment initiation deliberately does not live here.  Secure-file purchases use the canonical
+commerce/checkout PaymentAttempt path; this module owns only the post-payment file delivery
+transport.
 
 Why the document goes via a media id
 ------------------------------------
@@ -40,7 +21,6 @@ from __future__ import annotations
 
 import json
 import os
-import uuid
 from typing import Any, Dict, Optional, Tuple
 
 import boto3
@@ -51,8 +31,6 @@ SENDER_FUNCTION = os.environ.get("WA_SENDER_FUNCTION", "wecare-outbound-whatsapp
 MEDIA_FUNCTION = os.environ.get(
     "WA_MEDIA_FUNCTION", "wecare-whatsapp-business-api:live"
 )
-PAY_TEMPLATE = os.environ.get("WA_PAY_TEMPLATE", "wecare_whatapp_native_pay_template")
-
 # Defaults to the older approved template so delivery never depends on an approval
 # that has not landed. `wd_file_delivery` was submitted to replace it - it has BODY
 # variables for the customer and file name, and no stray "Subscribe" button - and
@@ -84,12 +62,6 @@ WA_SEND_PHONE_ID = os.environ.get(
     "WA_SEND_PHONE_ID", "phone-number-id-waba1-direct-1016149501586345")
 
 BUCKET = os.environ.get("SECURE_FILES_BUCKET", "wecare-digital-get")
-# Reused from the invoice flow so the payment card carries the same branding.
-HEADER_IMAGE = os.environ.get(
-    "WA_PAY_HEADER_IMAGE",
-    "https://wecare.digital/get/o/stream/media/m/wecare-digital.png",
-)
-
 _lambda = None
 
 
@@ -121,84 +93,6 @@ def _invoke(function_name: str, payload: Dict[str, Any]) -> Tuple[int, Dict[str,
         except json.JSONDecodeError:
             body = {"raw": body[:200]}
     return status, (body if isinstance(body, dict) else {})
-
-
-def reference_id() -> str:
-    """A reference the Razorpay webhook can correlate back to this download.
-
-    `WD-FILE-` rather than the invoice flow's `WD-PAY-`, so a file download is
-    distinguishable from an invoice payment in the webhook log without having to look
-    anything up.
-    """
-    return f"WD-FILE-{uuid.uuid4().hex[:8].upper()}"
-
-
-def send_payment_request(
-    *,
-    phone: str,
-    file_row: Dict[str, Any],
-    grant_id: str,
-    order_id: str,
-    reference: str,
-) -> Tuple[bool, str]:
-    """Send the wecare_whatapp_native_pay_template template with an ORDER_DETAILS payload. Returns (ok, detail).
-
-    ``type`` is ``digital-goods`` deliberately: physical-goods makes WhatsApp collect a
-    delivery address, which is nonsense for a file and was a real bug in the invoice
-    flow. digital-goods omits ``shipping_info`` entirely, so no address is requested.
-    """
-    amount_paise = int(file_row.get("pricePaise") or 0)
-    if amount_paise <= 0:
-        return False, "no price on this file"
-
-    item_name = str(file_row.get("displayName") or "Document")[:60]
-
-    order_details = {
-        "reference_id": reference,
-        "type": "digital-goods",
-        # payment_configuration is left out on purpose: outbound-whatsapp resolves it
-        # per phone number and falls back to DEFAULT_PAYMENT_CONFIG. Hardcoding a name
-        # here would silently diverge the moment that mapping changes.
-        "currency": "INR",
-        "itemName": item_name,
-        "quantity": 1,
-        "orderId": order_id,
-        "total_amount": {"value": amount_paise, "offset": 100},
-        "order": {
-            "status": "pending",
-            "items": [
-                {
-                    "name": item_name,
-                    "quantity": 1,
-                    "amount": {"value": amount_paise, "offset": 100},
-                }
-            ],
-            "subtotal": {"value": amount_paise, "offset": 100},
-        },
-    }
-
-    status, body = _invoke(
-        SENDER_FUNCTION,
-        {
-            "body": json.dumps(
-                {
-                    "recipientPhone": phone,
-                    "phoneNumberId": WA_SEND_PHONE_ID,
-                    "isTemplate": True,
-                    "isCheckoutTemplate": True,
-                    "templateName": PAY_TEMPLATE,
-                    # wecare_whatapp_native_pay_template has no body variables; the amount travels in
-                    # checkoutOrderDetails, not in the text.
-                    "templateParams": [],
-                    "checkoutOrderDetails": order_details,
-                    "headerImageUrl": HEADER_IMAGE,
-                }
-            )
-        },
-    )
-    if status >= 300:
-        return False, f"sender returned HTTP {status}"
-    return True, str(body.get("messageId") or body.get("id") or "sent")
 
 
 def upload_to_meta(file_row: Dict[str, Any]) -> Tuple[Optional[str], str]:
