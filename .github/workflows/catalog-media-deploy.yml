@@ -1,0 +1,59 @@
+name: Secure catalog media deploy
+
+on:
+  pull_request:
+    branches: [stack]
+    paths:
+      - 'amplify/functions/ecommerce/catalog-media/**'
+      - 'scripts/provision_catalog_media.py'
+      - '.github/workflows/catalog-media-deploy.yml'
+  push:
+    branches: [stack]
+    paths:
+      - 'amplify/functions/ecommerce/catalog-media/**'
+      - 'scripts/provision_catalog_media.py'
+      - '.github/workflows/catalog-media-deploy.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: catalog-media-production
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --disable-pip-version-check boto3==1.43.98
+      - run: |
+          python -m py_compile amplify/functions/ecommerce/catalog-media/handler.py scripts/provision_catalog_media.py
+          python scripts/provision_catalog_media.py
+
+  deploy:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/stack'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --disable-pip-version-check boto3==1.43.98
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::775261844268:role/GitHubActions-wecare-native-catalog-deploy
+          role-session-name: catalog-media-deploy
+          aws-region: us-east-1
+      - run: test "$(aws sts get-caller-identity --query Account --output text)" = "775261844268"
+      - run: python scripts/provision_catalog_media.py --apply
+      - run: python scripts/provision_catalog_media.py --verify
