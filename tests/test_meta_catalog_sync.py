@@ -145,6 +145,15 @@ def test_diff_create_update_retire_and_foreign():
     assert sync.diff(desired, foreign).counts()["foreign"] == 1
 
 
+def test_diff_matches_v2_by_decoded_identity_without_lowercasing_base64():
+    desired = sync.desired_items([
+        product(product_id="native:hunar-kaushal", variant_id="KSL9M2Q4",
+                slug="hunar-kaushal", name="Kaushal"),
+    ])
+    matching = [{"id": "meta-v2", **sync.meta_payload(desired[0])}]
+    assert sync.diff(desired, matching).is_empty is True
+
+
 @pytest.mark.parametrize("paise,text", [
     (1, "0.01"),
     (50, "0.50"),
