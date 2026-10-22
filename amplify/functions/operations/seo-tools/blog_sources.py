@@ -323,6 +323,212 @@ def _safe_extension(name: str) -> str:
     return ""
 
 
+def adopted_source_id(post_id: str) -> str:
+    """Deterministic production identity for a live post adopted for revision.
+
+    The post id, not the title or URL, is the immutable join. Repeating an adoption therefore
+    resolves to the same work record, while a title edit cannot accidentally mint another source.
+    """
+    identity = str(post_id or "").strip()
+    if not identity:
+        raise ValueError("postId is required")
+    return "blogsrc_adopted_" + _sha256_text(identity)
+
+
+def _existing_source_for_post(post_id: str) -> Optional[Dict[str, Any]]:
+    """Find an already-linked production record before creating an adoption record.
+
+    Native sources and multi-article work records can both own a published post. Adoption must
+    resolve to either rather than creating a second production identity for the same live URL.
+    """
+    wanted = str(post_id or "").strip()
+    if not wanted:
+        return None
+    for record_type in (RECORD_TYPE, ARTICLE_WORK_RECORD_TYPE):
+        for row in storage.scan_by_record_type(record_type, limit=0):
+            pipeline = dict(row.get("pipeline") or {})
+            if str(pipeline.get("postId") or "") == wanted:
+                return storage._json_safe(row)
+    return None
+
+
+def adopt_published(body: Dict[str, Any], actor: str, categories: Tuple[str, ...]) -> Dict[str, Any]:
+    """Adopt one already-published native post into Blog Production for a SAFE revision.
+
+    This is intentionally NOT a publish or update operation. It copies the current live article
+    into a new EXTRACTED source record, records the existing immutable post identity in pipeline,
+    and leaves sourceReviewedFully/sign-off/gates empty. The normal analysis -> human source
+    review -> draft edit -> QA -> sign-off -> blog-publish/revise path is therefore still required.
+
+    Migration-era posts were written before blogSource records existed. Without this bridge their
+    only revision path would be a direct DynamoDB edit, which bypasses the exact-version controls.
+    """
+    import blog_gate
+    import blog_quality_v2 as q
+
+    slug = str(body.get("slug") or "").strip().strip("/")
+    if not slug:
+        raise ValueError("slug is required")
+    post = storage.get_blog_post(slug, published_only=True)
+    if not post:
+        raise LookupError("Published blog post not found")
+
+    category = str(post.get("category") or "").strip()
+    if category not in categories:
+        raise ValueError(f"published post category must be one of {list(categories)}")
+    article_class = str(body.get("articleClass") or "").strip().upper()
+    if article_class not in q.ARTICLE_CLASSES:
+        raise ValueError(f"articleClass must be one of {list(q.ARTICLE_CLASSES)}")
+
+    post_id = str(post.get("id") or "").strip()
+    if not post_id:
+        raise ValueError("published post is missing its immutable post id")
+    linked = _existing_source_for_post(post_id)
+    if linked:
+        return {
+            "sourceId": str(linked.get("id") or ""),
+            "postId": post_id,
+            "slug": str(post.get("slug") or slug),
+            "category": category,
+            "articleClass": str(linked.get("articleClass") or article_class),
+            "alreadyKnown": True,
+            "source": source_detail(str(linked.get("id") or "")),
+            "note": "This live post already has a Blog Production record; no adoption record was created.",
+        }
+
+    content = str(post.get("content") or "").strip()
+    title = str(post.get("title") or "").strip()
+    if not title or not content:
+        raise ValueError("published post must have a title and body before it can be adopted")
+
+    record_id = adopted_source_id(post_id)
+    existing = storage.get_typed(record_id, RECORD_TYPE)
+    if existing:
+        pipeline = dict(existing.get("pipeline") or {})
+        if str(pipeline.get("postId") or "") != post_id:
+            raise ValueError("adoption id collision: existing source points to another post")
+        return {
+            "sourceId": record_id,
+            "postId": post_id,
+            "slug": str(post.get("slug") or slug),
+            "category": category,
+            "articleClass": str(existing.get("articleClass") or article_class),
+            "alreadyKnown": True,
+            "source": source_detail(record_id),
+            "note": "This published post was already adopted; the existing production record was returned.",
+        }
+
+    source_hash = _sha256_text(content)
+    words = len(re.findall(r"\b[\w'-]+\b", content))
+    if words <= 420:
+        article_type = "DISTINCTION"
+    elif words <= 820:
+        article_type = "REFLECTION"
+    elif words <= 1500:
+        article_type = "ARTICLE"
+    else:
+        article_type = "DEEP_ARTICLE"
+
+    canonical_slug = str(post.get("slug") or slug).strip()
+    source_ref = str(post.get("url") or f"https://wecare.digital/post/{canonical_slug}/").strip()
+    draft = {
+        "sourceId": record_id,
+        "articleClass": article_class,
+        "status": "SOURCE_REVIEW",
+        "sourceFile": source_ref,
+        "originalSourceTitle": title,
+        "originalSourceDate": str(post.get("publishedDate") or ""),
+        "sourceType": "published",
+        "sourceHash": source_hash,
+        "title": title,
+        "slug": canonical_slug,
+        "category": category,
+        "author": str(post.get("authorName") or q.AUTHOR),
+        "authorName": str(post.get("authorName") or q.AUTHOR),
+        "canonical": q.expected_canonical(canonical_slug),
+        "tags": list(post.get("tags") or []),
+        "hashtags": list(post.get("hashtags") or []),
+        "seoTitle": str(post.get("seoTitle") or ""),
+        "metaDescription": str(post.get("metaDescription") or ""),
+        "focusKeyword": str(post.get("focusKeyword") or ""),
+        "secondaryKeywords": list(post.get("keywords") or []),
+        "excerpt": str(post.get("excerpt") or ""),
+        "coverImage": str(post.get("coverImage") or ""),
+        "jsonLd": dict(post.get("jsonLd") or {}),
+        "articleType": article_type,
+        "imageStatus": "none",
+        "contentMarkdown": content,
+        "centralDistinction": "",
+        "distinctPurpose": "",
+    }
+    pipeline = {
+        **empty_pipeline(),
+        "publishStatus": "PUBLISHED",
+        "publishedAt": str(post.get("publishedDate") or ""),
+        "postId": post_id,
+        "postUrl": source_ref,
+    }
+    now = storage.now_iso()
+    record = {
+        "id": record_id,
+        "recordType": RECORD_TYPE,
+        "createdAt": now,
+        "updatedAt": now,
+        "slug": record_id,
+        "batchId": NO_BATCH,
+        "sourceType": "published",
+        "sourceRef": source_ref,
+        "sourceSha256": source_hash,
+        "s3Key": "",
+        "sourceBytes": len(content.encode("utf-8")),
+        "category": category,
+        "articleClass": article_class,
+        "status": EXTRACTED,
+        "sourceTitle": title,
+        "sourceDate": str(post.get("publishedDate") or ""),
+        "sourcePages": 0,
+        "extractedChars": len(content),
+        "extractedWords": words,
+        "contentSha256": source_hash,
+        "extractPreview": content[:EXTRACT_PREVIEW_CHARS],
+        "draftRecord": draft,
+        "pipeline": pipeline,
+        "adoptionMode": "PUBLISHED_REVISION",
+        "adoptedFromPostId": post_id,
+        "adoptedFromSlug": canonical_slug,
+        "adoptedFromVersion": int((next((row for row in storage.list_slug_records(canonical_slug)
+                                           if row.get("recordType") == storage.BLOG_RECORD_TYPE), {})
+                                  or {}).get("version") or 0),
+        "adoptedAt": now,
+        "adoptedBy": actor,
+        "createdBy": actor,
+        "error": "",
+    }
+    key = write_extract(category, record_id, content)
+    record["extractKey"] = key
+    draft["extractKey"] = key
+    assessment = blog_gate.assess_draft(record, draft)
+    record["articleStatus"] = assessment["status"]
+    record["gateBlocking"] = assessment["blocking"]
+    record["gateReview"] = assessment["review"]
+    storage.put_record(record)
+    logger.info(json.dumps({
+        "event": "blog_published_post_adopted", "sourceId": record_id, "postId": post_id,
+        "slug": canonical_slug, "category": category, "actor": actor,
+    }))
+    return {
+        "sourceId": record_id,
+        "postId": post_id,
+        "slug": canonical_slug,
+        "category": category,
+        "articleClass": article_class,
+        "alreadyKnown": False,
+        "source": source_detail(record_id),
+        "note": ("Adopted for revision only. The live post was not changed. Analyse and record "
+                 "the source review, edit the working draft, run QA, sign off, then use revise."),
+    }
+
+
 def view(item: Dict[str, Any]) -> Dict[str, Any]:
     """The public name for the listing projection, so `blog_batches` need not reach for `_view`."""
     return _view(item)
