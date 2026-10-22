@@ -4878,10 +4878,6 @@ export interface CreateInvoiceEngineRequest {
   paymentId?: string;
   gstin?: string;
   currency?: string;
-  /** Preferred PG. Razorpay is the only gateway; PayU was retired 2026-08-23. */
-  preferredGateway?: string;
-  /** Exact Meta PG config name (e.g. 'WECAREDIGITAL') — stored on invoice for keyword-triggered payments */
-  paymentConfiguration?: string;
   /** Structured address fields for WhatsApp Payments shipping_info */
   addressLine1?: string;
   addressLine2?: string;
@@ -5026,7 +5022,7 @@ export async function sendInvoiceWhatsApp ( invoiceId: string, toWhatsAppNumber:
 }
 
 /**
- * The invoice-engine `send_payment_link` command response.
+ * The invoice-engine native ORDER_DETAILS payment send response.
  *
  * `status` is the primary verdict (`payment_link_sent` is the ONLY success;
  * `payment_link_rejected` is terminal; `send_in_progress` is a deduplicated no-op). The remaining
@@ -5047,11 +5043,11 @@ export interface SendPaymentLinkResult {
   retryable?: boolean;
 }
 
-// Send WhatsApp interactive payment link for a pending invoice
-export async function sendPaymentLink ( invoiceId: string, phoneNumberId?: string, paymentConfiguration?: string ): Promise<SendPaymentLinkResult | null> {
+// Send the approved WhatsApp native ORDER_DETAILS payment template for a pending invoice.
+export async function sendPaymentLink ( invoiceId: string, phoneNumberId?: string ): Promise<SendPaymentLinkResult | null> {
   return apiCall<SendPaymentLinkResult>( `${INVOICE_BASE}/${invoiceId}/send-payment-link`, {
     method: 'POST',
-    body: JSON.stringify( { invoiceId, phoneNumberId, paymentConfiguration } ),
+    body: JSON.stringify( { invoiceId, phoneNumberId } ),
   } );
 }
 
