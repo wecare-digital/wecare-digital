@@ -434,37 +434,20 @@ def test_a_payment_send_is_only_logged_as_sent_on_a_2xx():
             f'{path.name} must log a refusal line too, carrying the status and the code')
 
 
-def test_the_secure_files_sends_carry_a_sender_the_resolver_accepts():
-    """A3.5. Every WhatsApp send from secure-files was structurally broken: all three passed the
-    BARE Meta phone id as `phoneNumberId`, which `_resolve_meta_phone_id` refuses outright rather
-    than falling back to another WABA, and `PAYMENT_SENDERS` refused the payment one again.
-
-    This makes the surface CORRECT, not ENABLED: `SECURE_FILES_PAYMENT_ENABLED` stays "false".
-    """
+def test_secure_files_keeps_only_delivery_sender_configuration():
+    """Secure-files may send authorised documents, but it must not own payment configuration."""
     import json as _json
     import pathlib
     path = FUNCTIONS / 'core' / 'secure-files' / 'whatsapp_delivery.py'
-    tree = ast.parse(path.read_text(encoding='utf-8'))
-    senders = [node.value.id for node in ast.walk(tree)
-               if isinstance(node, ast.Dict)
-               for key, node.value in zip(node.keys, node.values)
-               if isinstance(key, ast.Constant) and key.value == 'phoneNumberId'
-               and isinstance(node.value, ast.Name)]
-    assert senders and set(senders) == {'WA_SEND_PHONE_ID'}
-
-    namespace = {}
-    exec(compile(ast.Module(body=[n for n in tree.body if isinstance(n, ast.Assign)],
-                            type_ignores=[]), str(path), 'exec'),
-         {'os': os}, namespace)
-    assert namespace['WA_SEND_PHONE_ID'] in wpr.PAYMENT_SENDERS
-    assert namespace['META_PHONE_NUMBER_ID'] not in wpr.PAYMENT_SENDERS
+    source = path.read_text(encoding='utf-8')
+    assert 'WA_PAY_TEMPLATE' not in source
+    assert 'wecare_whatapp_native_pay_template' not in source
 
     manifest = _json.loads((pathlib.Path(REPO) / 'config' / 'lambda-env-manifest.json')
                            .read_text(encoding='utf-8'))['functions']['wecare-secure-files']
-    assert manifest['WA_SEND_PHONE_ID'] == namespace['WA_SEND_PHONE_ID']
-    # The capability stays OFF. This item makes it correct, not live.
-    assert manifest['SECURE_FILES_PAYMENT_ENABLED'] == 'false'
-
+    assert 'WA_PAY_TEMPLATE' not in manifest
+    assert 'SECURE_FILES_PAYMENT_ENABLED' not in manifest
+    assert manifest['WA_DOC_TEMPLATE'] == 'wd_file_delivery'
 
 def test_the_two_waba_derivations_cannot_drift(outbound):
     """The gate derives the WABA from `_waba_for_sender`; the invoice engine derives it from
