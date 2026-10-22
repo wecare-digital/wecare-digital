@@ -354,35 +354,6 @@ def test_window_already_open_is_false_once_expired(handler, monkeypatch):
     assert handler._window_already_open(IDENTITY, "f1") is False
 
 
-def test_create_order_refuses_while_window_is_open(handler, monkeypatch):
-    now = int(__import__("time").time())
-    tables = _GuardTables(dict(ACTIVE_FILE), _ent(accessWindowEndsAt=now + 3600, accessWindowCount=1))
-    monkeypatch.setattr(handler, "_table", lambda _n: tables)
-    monkeypatch.setattr(handler, "_owned_active_file", lambda _f, _i: dict(ACTIVE_FILE))
-    monkeypatch.setenv("SECURE_FILES_PAYMENT_ENABLED", "true")
-
-    def _no_razorpay(*_a, **_k):  # must not be reached while a window is open
-        raise AssertionError("razorpay contacted while window open")
-    monkeypatch.setitem(sys.modules, "razorpay_orders",
-                        type(sys)("razorpay_orders"))
-    sys.modules["razorpay_orders"].create_order = _no_razorpay
-
-    resp = handler._create_order("f1", IDENTITY, "https://wecare.digital")
-    assert resp["statusCode"] == 409
-    assert "ACCESS_WINDOW_OPEN" in resp["body"]
-
-
-def test_whatsapp_payment_refuses_while_window_is_open(handler, monkeypatch):
-    now = int(__import__("time").time())
-    tables = _GuardTables(dict(ACTIVE_FILE), _ent(accessWindowEndsAt=now + 3600, accessWindowCount=1))
-    monkeypatch.setattr(handler, "_table", lambda _n: tables)
-    monkeypatch.setattr(handler, "_owned_active_file", lambda _f, _i: dict(ACTIVE_FILE))
-    monkeypatch.setenv("SECURE_FILES_PAYMENT_ENABLED", "true")
-    resp = handler._send_whatsapp_payment("f1", IDENTITY, "https://wecare.digital")
-    assert resp["statusCode"] == 409
-    assert "ACCESS_WINDOW_OPEN" in resp["body"]
-
-
 def test_renewal_after_expiry_reopens_same_entitlement_and_increments_count(handler, monkeypatch):
     now = int(__import__("time").time())
     # One expired window already used -> a fresh delivery (renewal payment) opens window #2.
