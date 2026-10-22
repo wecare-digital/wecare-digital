@@ -3,7 +3,7 @@
 Both templates already existed and are APPROVED, which is why this path uses them
 rather than creating new ones and waiting on Meta:
 
-    wecare_pay      UTILITY  [IMAGE, BODY, FOOTER, BUTTONS(ORDER_DETAILS)]
+    wecare_whatapp_native_pay_template      UTILITY  [IMAGE, BODY, FOOTER, BUTTONS(ORDER_DETAILS)]
     01_wecare_doc   UTILITY  [DOCUMENT, BODY, FOOTER, BUTTONS(FLOW)]
 
 Two consequences of reusing them, both accepted deliberately:
@@ -141,7 +141,7 @@ def send_payment_request(
     order_id: str,
     reference: str,
 ) -> Tuple[bool, str]:
-    """Send the wecare_pay template with an ORDER_DETAILS payload. Returns (ok, detail).
+    """Send the wecare_whatapp_native_pay_template template with an ORDER_DETAILS payload. Returns (ok, detail).
 
     ``type`` is ``digital-goods`` deliberately: physical-goods makes WhatsApp collect a
     delivery address, which is nonsense for a file and was a real bug in the invoice
@@ -187,7 +187,7 @@ def send_payment_request(
                     "isTemplate": True,
                     "isCheckoutTemplate": True,
                     "templateName": PAY_TEMPLATE,
-                    # wecare_pay has no body variables; the amount travels in
+                    # wecare_whatapp_native_pay_template has no body variables; the amount travels in
                     # checkoutOrderDetails, not in the text.
                     "templateParams": [],
                     "checkoutOrderDetails": order_details,
