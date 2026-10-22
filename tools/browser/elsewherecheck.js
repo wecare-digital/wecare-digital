@@ -24,6 +24,7 @@ const VIEWPORTS = [
   { name: 'phone-375', width: 375, height: 812 },
   { name: 'phone-390', width: 390, height: 844 },
   { name: 'phone-412', width: 412, height: 915 },
+  { name: 'phone-430', width: 430, height: 932 },
   { name: 'tablet', width: 768, height: 1024 },
 ];
 
@@ -67,6 +68,7 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
           tabsRight: tabs.getBoundingClientRect().right,
           tabsScrollWidth: tabs.scrollWidth,
           tabsClientWidth: tabs.clientWidth,
+          tabsDisplay: getComputedStyle( tabs ).display,
           tabsTouchAction: getComputedStyle( tabs ).touchAction,
           responseTouchAction: getComputedStyle( response ).touchAction,
           responseOverflowY: getComputedStyle( response ).overflowY,
@@ -91,8 +93,9 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
         fail( `${viewport.name}: travel tabs wrapped to multiple rows` );
       }
       if ( viewport.width <= 720 ) {
-        if ( geometry.tabsTouchAction !== 'pan-x' ) fail( `${viewport.name}: tab rail touch-action ${geometry.tabsTouchAction}` );
-        if ( geometry.tabsScrollWidth <= geometry.tabsClientWidth ) fail( `${viewport.name}: tab rail is not horizontally scrollable` );
+        if ( geometry.tabsDisplay !== 'grid' ) fail( `${viewport.name}: mobile service rail is not a four-column grid` );
+        if ( geometry.tabsScrollWidth > geometry.tabsClientWidth + 1 ) fail( `${viewport.name}: mobile service rail still scrolls horizontally` );
+        if ( geometry.tabsTouchAction !== 'manipulation' ) fail( `${viewport.name}: tab rail touch-action ${geometry.tabsTouchAction}` );
         if ( geometry.activeId !== 'elsewhere-travel-tab-activities' || geometry.activeSelected !== 'true' ) {
           fail( `${viewport.name}: Activities is not the initial active service` );
         }
