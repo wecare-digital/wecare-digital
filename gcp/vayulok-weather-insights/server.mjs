@@ -5,7 +5,7 @@ const PORT = Number(process.env.PORT || 8080);
 const PROJECT = process.env.GOOGLE_CLOUD_PROJECT || process.env.BQ_PROJECT || 'wecaredigitalbw';
 const DATASET = process.env.WEATHER_INSIGHTS_DATASET || 'weather_insights';
 const LOCATION = process.env.BQ_LOCATION || 'US';
-const TABLE_OVERRIDE = process.env.WEATHER_INSIGHTS_TABLE || '';
+const TABLE_OVERRIDE = process.env.WEATHER_INSIGHTS_TABLE || 'wecaredigitalbw.weather_insights.weather_history_in';
 const GLOBAL_MAX_BYTES_BILLED = String(process.env.BQ_MAX_BYTES_BILLED || '');
 const RANGE_MAX_BYTES_BILLED = {
   '30d': String(process.env.BQ_MAX_BYTES_BILLED_30D || GLOBAL_MAX_BYTES_BILLED || '1200000000'),
@@ -438,7 +438,7 @@ async function statusPayload() {
     };
   } catch (error) {
     const message = String(error?.message || error);
-    if (/Not found|404|dataset/i.test(message)) {
+    if (/Not found|404/i.test(message)) {
       return { ok: false, project: PROJECT, dataset: DATASET, location: LOCATION, reason: 'linked_dataset_missing' };
     }
     return { ok: false, project: PROJECT, dataset: DATASET, location: LOCATION, reason: 'bigquery_unavailable', detail: DEBUG_SCHEMA ? message : undefined };
