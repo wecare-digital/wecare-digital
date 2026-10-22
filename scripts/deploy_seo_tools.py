@@ -35,21 +35,7 @@ TABLE_NAME = "stack-wecare-digital-SeoToolsTable"
 DEDUP_TABLE = "stack-wecare-digital-WebhookDedup"
 ROLE_NAME = "wecare-digital-lambda-role"
 ROLE_ARN = f"arn:aws:iam::{ACCOUNT}:role/{ROLE_NAME}"
-
-#: Blog Production uses ONE existing bucket and two deliberately different roots.
-#:
-#: Internal working material belongs under secure/blog-production/: source PDFs, extracted
-#: text, analyses, working articles, QA, repetition, publish records and verification.
-#: Public output belongs under o/blog-production/: only published post mirrors and the
-#: catalog index. No bucket is created by this script.
-SOURCE_BUCKET = "wecare-digital-get"
-PUBLIC_BLOG_PREFIX = "o/blog-production/"
-SECURE_BLOG_PREFIX = "secure/blog-production/"
-
-#: Pure-python wheel, no compiled parts, so it zips straight into the function package -
-#: no layer, no Amazon Linux cross-compile. Pinned, and the same version
-#: requirements-dev.txt pins, so local extraction and Lambda extraction cannot differ.
-PYPDF_VERSION = "6.21.1"
+FUNCTION_TIMEOUT = 120
 
 # HTTP API behind wecare.digital/api (stage prod, AutoDeploy on).
 # Frontend calls https://wecare.digital/api/seo-tools/{route} (src/api/seo.ts).
@@ -60,25 +46,7 @@ ENV_VARS = {
     "SEO_TOOLS_TABLE": TABLE_NAME,
     "WEBHOOK_DEDUP_TABLE": DEDUP_TABLE,
     "BEDROCK_MODEL_ID": "global.anthropic.claude-sonnet-4-6",
-    "COGNITO_USER_POOL_ID": "us-east-1_cSx0RHCIR",
-    # Blog Production storage uses the existing bucket. Runtime code splits internal
-    # artifacts under secure/blog-production/ from public projections under o/blog-production/.
-    "BLOG_SOURCE_BUCKET": SOURCE_BUCKET,
-    # Static blog delivery bridge. Publishing writes the native store immediately; the site
-    # remains a static export, so one coalesced Amplify build turns a wave into real /post pages.
-    "AWS_AMPLIFY_APP_ID": "d22dm4b0jn71jw",
-    "AWS_AMPLIFY_BRANCH": "stack",
-    "BLOG_SITE_PUBLIC_URL": "https://wecare.digital",
-    "BLOG_SITE_BUILD_DELAY_SECONDS": "45",
-    "BLOG_SITE_CHECK_DELAY_SECONDS": "90",
-    "BLOG_SITE_VERIFY_RETRY_DELAY_SECONDS": "30",
-    # AI drafting costs money per call, so it is a cost flag rather than always-on.
-    # Enabled here because this function ALREADY invokes Bedrock for ai-seo-audit and
-    # already holds the IAM for it - this adds volume to an accepted cost category, not a
-    # new one. Turn it off in the SystemConfig cost_flags item without a deploy; the route
-    # then answers 409 with the reason instead of silently doing nothing.
-    "ENABLE_BEDROCK_ASSIST": "true",
-    # Derived-SEO cost/AI posture (seo_config.py). FREE + AI off is the fail-safe default the
+    "COGNITO_USER_POOL_ID": "us-east-1_cSx0RHCIR",    # Derived-SEO cost/AI posture (seo_config.py). FREE + AI off is the fail-safe default the
     # brief mandates: the deterministic engine and the scheduled freshness check need none of
     # these on, and a public read path must never be one typo from a model call. seo_config
     # additionally requires ENABLE_BEDROCK_ASSIST for AI, so either flag off is sufficient to
@@ -89,139 +57,11 @@ ENV_VARS = {
 }
 
 
-#: Blog Production needs one source's batch without reading every source in the system.
-#:
-#: WHY `INCLUDE` AND NOT `ALL`, unlike the two older indexes. A source item carries
-#: `extractPreview` (1,500 characters) and `draftRecord`, and an ALL projection would copy
-#: both into the index for data that no listing renders - roughly doubling the storage for the
-#: hottest record type. The projected list is exactly what `blog_sources._view` returns plus
-#: what `blog_batches.rollup` counts.
-#:
-#: KEEP THE TWO IN STEP. A field added to `_view` but not projected here reads as EMPTY for
-#: batch-scoped queries while working fine for every other query - which is a defect that
-#: only shows up on the batches page.
-#:
-#: AND KEEP IT UNDER 20. DynamoDB refuses an index with more than 20 `NonKeyAttributes`:
-#:
-#:     ValidationException: Value '[...]' at
-#:     'globalSecondaryIndexUpdates.1.member.create.projection.nonKeyAttributes'
-#:     failed to satisfy constraint: Member must have length less than or equal to 20
-#:
-#: The first attempt asked for 24 and was refused at deploy time rather than at test time,
-#: which is why `test_the_batch_index_respects_the_twenty_attribute_cap` now asserts it. Both
-#: `_view` and this list were trimmed to fit; the six fields that went are on `source_detail`,
-#: which reads the whole item and has no projection limit.
-MAX_INDEX_NON_KEY_ATTRIBUTES = 20
-BATCH_INDEX_NAME = "batchId-createdAt-index"
-BATCH_INDEX_DEFINITION = {
-    "IndexName": BATCH_INDEX_NAME,
-    "KeySchema": [
-        {"AttributeName": "batchId", "KeyType": "HASH"},
-        {"AttributeName": "createdAt", "KeyType": "RANGE"},
-    ],
-    "Projection": {
-        "ProjectionType": "INCLUDE",
-        "NonKeyAttributes": [
-            "recordType", "slug", "status", "sourceType", "sourceRef", "s3Key",
-            "category", "articleClass", "sourceTitle", "extractedWords", "title",
-            "articleStatus", "aiDraftStatus", "gateBlocking", "gateReview", "error",
-            "updatedAt",
-            #: ONE NAME FOR EVERY DOWNSTREAM STAGE. `blog_sources.PIPELINE_FIELDS` holds
-            #: sixteen states - analysis, template, QA, sign-off, publish, verification - and
-            #: projecting them individually would need sixteen of the twenty slots. A Map
-            #: counts as one attribute, so the cap stops constraining the design.
-            #:
-            #: Also the reason this landed early: a GSI's projection CANNOT be modified in
-            #: place. Widening it means deleting and recreating the index, which is free while
-            #: the batch partition holds nothing and a migration once a wave is in flight.
-            "pipeline",
-            #: Analysis records share this index (same `batchId`), and a batch page reports how
-            #: much of the wave has actually been read. `slug` above carries the analysed
-            #: source id, so only the version number needs its own slot.
-            "version",
-        ],
-    },
-}
-
-
-def _wait_for_index(ddb, gone: bool = False, attempts: int = 60) -> None:
-    for _ in range(attempts):
-        indexes = {
-            index["IndexName"]: index
-            for index in ddb.describe_table(TableName=TABLE_NAME)["Table"].get(
-                "GlobalSecondaryIndexes") or []
-        }
-        found = indexes.get(BATCH_INDEX_NAME)
-        if gone and not found:
-            return
-        if not gone and found and found["IndexStatus"] == "ACTIVE" and not found.get(
-                "Backfilling"):
-            return
-        time.sleep(10)
-    raise SystemExit(f"[table] timed out waiting for {BATCH_INDEX_NAME}")
-
-
-def ensure_batch_index(ddb) -> None:
-    """Create the batch index, or replace it when its projection has drifted.
-
-    A GSI is created online: the table stays readable and writable while it backfills, and a
-    query against an index still building returns partial results rather than failing. So the
-    only ordering requirement is that this runs before anything depends on batch-scoped
-    queries returning complete answers, which is why it happens in the deploy rather than
-    lazily on first use.
-
-    THE PROJECTION CANNOT BE MODIFIED IN PLACE. DynamoDB offers no "change the projected
-    attributes" operation - the only route is delete the index and create it again. That is
-    cheap while the partition holds nothing and a real migration once it does, so this refuses
-    to do it silently: if the projection has drifted AND the index holds records, it prints
-    what is missing and stops rather than dropping an index something is querying.
-    """
-    indexes = {
-        index["IndexName"]: index
-        for index in ddb.describe_table(TableName=TABLE_NAME)["Table"].get(
-            "GlobalSecondaryIndexes") or []
-    }
-    found = indexes.get(BATCH_INDEX_NAME)
-    if found:
-        live = set((found.get("Projection") or {}).get("NonKeyAttributes") or [])
-        wanted = set(BATCH_INDEX_DEFINITION["Projection"]["NonKeyAttributes"])
-        if live == wanted:
-            print(f"[table] GSI {BATCH_INDEX_NAME} already present ({len(live)} attributes)")
-            return
-        missing = sorted(wanted - live)
-        held = int(found.get("ItemCount") or 0)
-        print(f"[table] GSI {BATCH_INDEX_NAME} projection drifted; missing={missing} "
-              f"extra={sorted(live - wanted)} itemCount={held}")
-        if held:
-            raise SystemExit(
-                f"[table] {BATCH_INDEX_NAME} holds {held} items and its projection cannot be "
-                f"changed in place. Recreating it would leave batch-scoped queries returning "
-                f"partial results while it backfills. Do it deliberately: delete the index, "
-                f"wait, and re-run this script.")
-        print(f"[table] recreating {BATCH_INDEX_NAME} (it projects nothing anybody is reading)")
-        ddb.update_table(TableName=TABLE_NAME,
-                         GlobalSecondaryIndexUpdates=[
-                             {"Delete": {"IndexName": BATCH_INDEX_NAME}}])
-        _wait_for_index(ddb, gone=True)
-
-    print(f"[table] adding GSI {BATCH_INDEX_NAME} (online, backfills in the background)")
-    ddb.update_table(
-        TableName=TABLE_NAME,
-        AttributeDefinitions=[
-            {"AttributeName": "batchId", "AttributeType": "S"},
-            {"AttributeName": "createdAt", "AttributeType": "S"},
-        ],
-        GlobalSecondaryIndexUpdates=[{"Create": BATCH_INDEX_DEFINITION}],
-    )
-    print(f"[table] GSI {BATCH_INDEX_NAME} creation requested")
-
-
 def ensure_table() -> None:
     ddb = boto3.client("dynamodb", region_name=REGION)
     try:
         ddb.describe_table(TableName=TABLE_NAME)
         print(f"[table] {TABLE_NAME} already exists — skipping create")
-        ensure_batch_index(ddb)
         return
     except ddb.exceptions.ResourceNotFoundException:
         pass
@@ -253,8 +93,7 @@ def ensure_table() -> None:
                     {"AttributeName": "createdAt", "KeyType": "RANGE"},
                 ],
                 "Projection": {"ProjectionType": "ALL"},
-            },
-            BATCH_INDEX_DEFINITION,
+            }
         ],
     )
     ddb.get_waiter("table_exists").wait(TableName=TABLE_NAME)
@@ -289,300 +128,6 @@ def ensure_bedrock_inference_profile_perms() -> None:
         PolicyDocument=json.dumps(policy),
     )
     print(f"[iam] ensured inline policy seo-bedrock-inference-profiles on {ROLE_NAME}")
-
-
-def _vendor_pypdf(z: zipfile.ZipFile) -> int:
-    """Put pypdf in the package, from the local install rather than a fresh download.
-
-    Resolved from the interpreter running this script, which is the same version
-    requirements-dev.txt pins and the same one the local CLI extracts with. That equality
-    is the point: if the Lambda extracted with a different pypdf, the same PDF could
-    produce different article text depending on which door it came through, and nobody
-    would notice until somebody compared two extracts of one document.
-
-    Safe to zip from a Mac because pypdf is pure python - `pypdf-6.21.1-py3-none-any.whl`
-    has no compiled parts and no platform tag. Do NOT use this helper for anything with a
-    C extension; lxml would need building on Amazon Linux, which is exactly why
-    `shared/blog_pipeline.py` parses HTML with the stdlib instead.
-    """
-    try:
-        import pypdf
-    except ImportError:
-        raise SystemExit(
-            f"pypdf is not installed locally. Run:\n"
-            f"    python -m pip install pypdf=={PYPDF_VERSION}\n"
-            "It is pinned in requirements-dev.txt and is vendored into this package."
-        )
-    version = getattr(pypdf, "__version__", "?")
-    if version != PYPDF_VERSION:
-        raise SystemExit(
-            f"pypdf {version} is installed but this deploy pins {PYPDF_VERSION}. "
-            "Matching versions is what keeps local and Lambda extraction identical."
-        )
-    root = Path(pypdf.__file__).resolve().parent
-    count = 0
-    for path in sorted(root.rglob("*.py")):
-        if "__pycache__" in path.parts or "tests" in path.parts:
-            continue
-        z.write(path, f"pypdf/{path.relative_to(root).as_posix()}")
-        count += 1
-    # pypdf ships a py.typed marker; harmless to include and keeps the tree faithful.
-    marker = root / "py.typed"
-    if marker.exists():
-        z.write(marker, "pypdf/py.typed")
-    print(f"[package] vendored pypdf {version}: {count} modules")
-    return count
-
-
-def ensure_blog_source_perms() -> None:
-    """Grant the blog pipeline only its public-output and private-working prefixes.
-
-    The role may read/write both blog-production roots because one Lambda owns intake,
-    extraction, QA and public mirroring. It still has no bucket-wide grant and no DeleteObject.
-    """
-    iam = boto3.client("iam")
-    policy = {
-        "Version": "2012-10-17",
-        "Statement": [
-            {
-                "Sid": "BlogProductionObjects",
-                "Effect": "Allow",
-                "Action": ["s3:PutObject", "s3:GetObject", "s3:HeadObject"],
-                "Resource": [
-                    f"arn:aws:s3:::{SOURCE_BUCKET}/{PUBLIC_BLOG_PREFIX}*",
-                    f"arn:aws:s3:::{SOURCE_BUCKET}/{SECURE_BLOG_PREFIX}*",
-                ],
-            },
-            {
-                "Sid": "BlogWorkerSelfInvoke",
-                "Effect": "Allow",
-                "Action": "lambda:InvokeFunction",
-                "Resource": f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:{FUNCTION_NAME}",
-            },
-        ],
-    }
-    iam.put_role_policy(
-        RoleName=ROLE_NAME,
-        PolicyName="seo-blog-source-intake",
-        PolicyDocument=json.dumps(policy),
-    )
-    print(f"[iam] ensured inline policy seo-blog-source-intake on {ROLE_NAME}")
-
-
-AMPLIFY_BRIDGE_POLICY_NAME = "wecare-blog-site-bridge-amplify"
-AMPLIFY_BRIDGE_POLICY_ARN = f"arn:aws:iam::{ACCOUNT}:policy/{AMPLIFY_BRIDGE_POLICY_NAME}"
-AMPLIFY_APP_ID = "d22dm4b0jn71jw"
-AMPLIFY_BRANCH = "stack"
-
-
-def ensure_blog_site_bridge_perms() -> None:
-    """Attach a tiny managed policy for the static-site build bridge.
-
-    The shared Lambda role already sits at AWS's aggregate inline-policy size ceiling. Putting
-    Amplify permissions into seo-blog-source-intake therefore fails even though the individual
-    document is small. A dedicated managed policy avoids that ceiling and makes this permission
-    independently auditable/revocable.
-
-    The resource is constrained to jobs on the one production Amplify app/branch. The wildcard
-    is only the runtime-generated job id.
-    """
-    iam = boto3.client("iam")
-    document = {
-        "Version": "2012-10-17",
-        "Statement": [{
-            "Sid": "BlogStaticSiteBuild",
-            "Effect": "Allow",
-            "Action": ["amplify:StartJob", "amplify:GetJob"],
-            "Resource": (
-                f"arn:aws:amplify:{REGION}:{ACCOUNT}:apps/"
-                f"{AMPLIFY_APP_ID}/branches/{AMPLIFY_BRANCH}/jobs/*"
-            ),
-        }],
-    }
-
-    try:
-        iam.get_policy(PolicyArn=AMPLIFY_BRIDGE_POLICY_ARN)
-        exists = True
-    except iam.exceptions.NoSuchEntityException:
-        exists = False
-
-    if not exists:
-        iam.create_policy(
-            PolicyName=AMPLIFY_BRIDGE_POLICY_NAME,
-            PolicyDocument=json.dumps(document),
-            Description="Allow wecare-seo-tools to rebuild/check only the production Amplify blog site.",
-        )
-        print(f"[iam] created managed policy {AMPLIFY_BRIDGE_POLICY_NAME}")
-    else:
-        current = iam.get_policy(PolicyArn=AMPLIFY_BRIDGE_POLICY_ARN)["Policy"]
-        version = iam.get_policy_version(
-            PolicyArn=AMPLIFY_BRIDGE_POLICY_ARN,
-            VersionId=current["DefaultVersionId"],
-        )["PolicyVersion"]["Document"]
-        if version != document:
-            versions = iam.list_policy_versions(PolicyArn=AMPLIFY_BRIDGE_POLICY_ARN)["Versions"]
-            non_default = [v for v in versions if not v.get("IsDefaultVersion")]
-            if len(versions) >= 5 and non_default:
-                oldest = sorted(non_default, key=lambda v: v["CreateDate"])[0]
-                iam.delete_policy_version(
-                    PolicyArn=AMPLIFY_BRIDGE_POLICY_ARN,
-                    VersionId=oldest["VersionId"],
-                )
-            iam.create_policy_version(
-                PolicyArn=AMPLIFY_BRIDGE_POLICY_ARN,
-                PolicyDocument=json.dumps(document),
-                SetAsDefault=True,
-            )
-            print(f"[iam] updated managed policy {AMPLIFY_BRIDGE_POLICY_NAME}")
-        else:
-            print(f"[iam] managed policy {AMPLIFY_BRIDGE_POLICY_NAME} already current")
-
-    iam.attach_role_policy(RoleName=ROLE_NAME, PolicyArn=AMPLIFY_BRIDGE_POLICY_ARN)
-    print(f"[iam] attached {AMPLIFY_BRIDGE_POLICY_NAME} to {ROLE_NAME}")
-
-
-#: The ingest queue. Names, and the numbers that matter, all in one place so the deploy and the
-#: Lambda cannot disagree - `blog_queue` reads the same constants for its consume batch and
-#: concurrency cap.
-QUEUE_NAME = "wecare-blog-ingest"
-DLQ_NAME = QUEUE_NAME + "-dlq"
-#: The function's own timeout, named rather than repeated as a literal, because the queue's
-#: visibility timeout has to be DERIVED from it - see `VISIBILITY_TIMEOUT`. It was a bare `120`
-#: in two places, which is exactly how the two drift apart.
-FUNCTION_TIMEOUT = 120
-CONSUME_BATCH = 5
-#: DERIVED from the function timeout, not a coincidentally larger number. A visibility timeout
-#: shorter than the handler's worst case is the classic SQS mistake: the message reappears while
-#: the first consumer is still working, a second consumer picks it up, and the work happens
-#: twice. The worst case is a full batch of documents each taking the whole function timeout,
-#: plus headroom for the cold start and the batch refresh at the end.
-VISIBILITY_TIMEOUT = FUNCTION_TIMEOUT * CONSUME_BATCH + FUNCTION_TIMEOUT
-#: Four days. Long enough that a weekend outage does not silently discard a wave.
-MESSAGE_RETENTION = 345_600
-DLQ_RETENTION = 1_209_600  # 14 days, the maximum: a dead-lettered document is evidence.
-MAX_RECEIVES = 3
-#: Why this is capped at all: this function ALSO serves the admin HTTP API. Left alone, SQS
-#: scales a consumer to 1,000 concurrent executions, which would consume the account's
-#: concurrency and put every admin request behind document extraction. Five is still five times
-#: the old serial rate.
-MAX_CONCURRENCY = 5
-
-
-def ensure_queues() -> Dict[str, str]:
-    """Create the ingest queue and its dead-letter queue. Idempotent.
-
-    The DLQ is created FIRST, because the main queue's redrive policy names its ARN. Creating a
-    queue with attributes it already has is a no-op that returns the existing URL, so re-running
-    is safe - `create_queue` only errors when the attributes CONFLICT with an existing queue, and
-    then `set_queue_attributes` is the fix rather than a delete and recreate.
-    """
-    sqs = boto3.client("sqs", region_name=REGION)
-
-    dlq_url = sqs.create_queue(QueueName=DLQ_NAME, Attributes={
-        "MessageRetentionPeriod": str(DLQ_RETENTION),
-    })["QueueUrl"]
-    dlq_arn = sqs.get_queue_attributes(
-        QueueUrl=dlq_url, AttributeNames=["QueueArn"])["Attributes"]["QueueArn"]
-
-    attributes = {
-        "VisibilityTimeout": str(VISIBILITY_TIMEOUT),
-        "MessageRetentionPeriod": str(MESSAGE_RETENTION),
-        #: Long polling. Without it a consumer with an empty queue returns immediately and is
-        #: re-invoked in a tight loop, which is billed.
-        "ReceiveMessageWaitTimeSeconds": "20",
-        "RedrivePolicy": json.dumps({
-            "deadLetterTargetArn": dlq_arn, "maxReceiveCount": MAX_RECEIVES}),
-    }
-    queue_url = sqs.create_queue(QueueName=QUEUE_NAME, Attributes=attributes)["QueueUrl"]
-    #: Applied again after create, because `create_queue` on an EXISTING queue ignores
-    #: attributes rather than updating them - so a changed visibility timeout would otherwise
-    #: never take effect and the deploy would report success.
-    sqs.set_queue_attributes(QueueUrl=queue_url, Attributes=attributes)
-    queue_arn = sqs.get_queue_attributes(
-        QueueUrl=queue_url, AttributeNames=["QueueArn"])["Attributes"]["QueueArn"]
-    print(f"[sqs] {QUEUE_NAME} ready (visibility={VISIBILITY_TIMEOUT}s, "
-          f"maxReceive={MAX_RECEIVES}, dlq={DLQ_NAME})")
-    return {"url": queue_url, "arn": queue_arn, "dlqUrl": dlq_url, "dlqArn": dlq_arn}
-
-
-def ensure_queue_perms(queue_arn: str, dlq_arn: str) -> None:
-    """Send on the ingest queue, consume from it, and read the DLQ.
-
-    `ReceiveMessage`/`DeleteMessage`/`GetQueueAttributes` are what the event source mapping
-    itself needs - Lambda polls using THIS role, so a missing permission shows up as a mapping
-    stuck in `Disabled` with a `PROBLEM: Insufficient permissions` cause rather than as a runtime
-    error.
-
-    Scoped to two queue ARNs, not `sqs:*`, because this role is shared by the whole fleet.
-    """
-    iam = boto3.client("iam")
-    policy = {
-        "Version": "2012-10-17",
-        "Statement": [{
-            "Sid": "BlogIngestQueue",
-            "Effect": "Allow",
-            "Action": ["sqs:SendMessage", "sqs:SendMessageBatch", "sqs:ReceiveMessage",
-                       "sqs:DeleteMessage", "sqs:GetQueueAttributes", "sqs:GetQueueUrl"],
-            "Resource": [queue_arn, dlq_arn],
-        }],
-    }
-    iam.put_role_policy(RoleName=ROLE_NAME, PolicyName="seo-blog-ingest-queue",
-                        PolicyDocument=json.dumps(policy))
-    print(f"[iam] ensured inline policy seo-blog-ingest-queue on {ROLE_NAME}")
-
-
-def ensure_event_source(queue_arn: str) -> None:
-    """Wire the queue to this function, concurrency-capped and reporting per-message failures.
-
-    `FunctionResponseTypes=['ReportBatchItemFailures']` is the setting that makes partial failure
-    work. Without it, one bad document in a batch of five redelivers all five: four
-    already-extracted sources are re-read, lose the conditional claim, and the batch makes no
-    progress while looking busy.
-    """
-    client = boto3.client("lambda", region_name=REGION)
-    existing = None
-    for mapping in client.list_event_source_mappings(
-            EventSourceArn=queue_arn, FunctionName=FUNCTION_NAME).get(
-                "EventSourceMappings") or []:
-        existing = mapping
-        break
-    wanted = {
-        "BatchSize": CONSUME_BATCH,
-        "FunctionResponseTypes": ["ReportBatchItemFailures"],
-        "ScalingConfig": {"MaximumConcurrency": MAX_CONCURRENCY},
-    }
-    if existing:
-        client.update_event_source_mapping(UUID=existing["UUID"], Enabled=True, **wanted)
-        print(f"[lambda] event source mapping updated "
-              f"(batch={CONSUME_BATCH}, maxConcurrency={MAX_CONCURRENCY})")
-        return
-    client.create_event_source_mapping(
-        EventSourceArn=queue_arn, FunctionName=FUNCTION_NAME, Enabled=True, **wanted)
-    print(f"[lambda] event source mapping created "
-          f"(batch={CONSUME_BATCH}, maxConcurrency={MAX_CONCURRENCY})")
-
-
-# ── Scheduled derived-SEO freshness check ────────────────────────────────────────
-#
-# A single EventBridge Scheduler schedule invokes this function once a day with the payload
-# `{"seoFreshness": true}`. The handler recognises that shape (a top-level key, no
-# requestContext) and runs `seo_freshness.run`, which reads the blog corpus and re-derives ONLY
-# the records whose sourceHash changed. Unchanged posts cost nothing, so the steady-state daily
-# run is a cached corpus read plus a handful of writes at most.
-#
-# WHY EventBridge Scheduler AND NOT a Lambda self-loop or a 1-minute rule: Scheduler has no idle
-# cost, bills per invocation at a rate that is free at one-per-day, and cannot become a tight
-# poll. Daily is the lowest reasonable frequency for a blog that publishes at most a few times a
-# day; raise it only with a reason.
-#
-# IAM: a dedicated execution role scoped to invoke EXACTLY this one function - not the shared
-# fleet role, and not a wildcard. Creating it is why this step is OPT-IN behind --with-schedule:
-# the code path works without the schedule (invoke the function with {"seoFreshness":true} by
-# hand, or wire the schedule later), so deploying code never forces an IAM role creation.
-SCHEDULE_NAME = "wecare-seo-freshness-daily"
-SCHEDULE_ROLE_NAME = "wecare-seo-scheduler-role"
-#: Once a day, early UTC. cron rather than rate() so the time of day is explicit and stable.
-SCHEDULE_EXPRESSION = "cron(15 2 * * ? *)"
 
 
 def ensure_freshness_schedule() -> None:
@@ -737,162 +282,32 @@ LOG_ALARMS = (
 )
 
 
-def provision_alarms(queue_url: str) -> None:
-    """Metric filters and alarms for the recorded failure modes. Idempotent.
-
-    `put_metric_filter` and `put_metric_alarm` are both upserts, so re-running is safe and a
-    threshold change here takes effect on the next deploy rather than needing a console edit.
-    """
-    logs = boto3.client("logs", region_name=REGION)
-    cw = boto3.client("cloudwatch", region_name=REGION)
-    log_group = f"/aws/lambda/{FUNCTION_NAME}"
-
-    for name, event, metric, threshold, period, description in LOG_ALARMS:
-        logs.put_metric_filter(
-            logGroupName=log_group,
-            filterName=event.replace("_", "-"),
-            filterPattern=f'"{event}"',
-            metricTransformations=[{
-                "metricName": metric,
-                "metricNamespace": ALARM_NAMESPACE,
-                "metricValue": "1",
-                #: Without a default the metric has NO datapoints while nothing is failing, and
-                #: `TreatMissingData` then decides the state instead of the data. With 0 the alarm
-                #: sits in OK on evidence rather than on a default.
-                "defaultValue": 0.0,
-            }],
-        )
-        cw.put_metric_alarm(
-            AlarmName=name,
-            AlarmDescription=description,
-            Namespace=ALARM_NAMESPACE,
-            MetricName=metric,
-            Statistic="Sum",
-            Period=period,
-            EvaluationPeriods=1,
-            Threshold=threshold,
-            ComparisonOperator="GreaterThanThreshold",
-            TreatMissingData="notBreaching",
-            AlarmActions=[ALARM_TOPIC],
-        )
-        print(f"[alarm] {name} (>{threshold} in {period}s on {event})")
-
-    #: THE DEAD-LETTER QUEUE IS THE ONE THAT MATTERS MOST. A message reaches it after three
-    #: deliveries, and at that point nothing else in this system will ever mention that document
-    #: again - it is not in the queue, its source row still says UPLOADED, and the reconciliation
-    #: sweep will re-queue it only to have it fail three more times. Threshold 0, matching the
-    #: eight existing `wecare-*-dlq-depth` alarms.
-    cw.put_metric_alarm(
-        AlarmName=f"wecare-{QUEUE_NAME.removeprefix('wecare-')}-dlq-depth",
-        AlarmDescription=(
-            f"{DLQ_NAME} has messages - a source failed {MAX_RECEIVES} deliveries and nothing "
-            "else in the pipeline will mention it again. Read the source's error, fix the cause, "
-            "then POST /blog-sources/redrive."),
-        Namespace="AWS/SQS",
-        MetricName="ApproximateNumberOfMessagesVisible",
-        Dimensions=[{"Name": "QueueName", "Value": DLQ_NAME}],
-        Statistic="Maximum",
-        Period=300,
-        EvaluationPeriods=1,
-        Threshold=0.0,
-        ComparisonOperator="GreaterThanThreshold",
-        TreatMissingData="notBreaching",
-        AlarmActions=[ALARM_TOPIC],
-    )
-    print(f"[alarm] wecare-{QUEUE_NAME.removeprefix('wecare-')}-dlq-depth (>0 on {DLQ_NAME})")
-
-    #: Age rather than depth on the main queue. Depth is meaningless mid-wave - 2,000 messages is
-    #: a healthy fan-out - whereas an oldest message older than the visibility timeout means the
-    #: consumer is not keeping up or the mapping is disabled. 900s matches `wecare-queue-age-bulk`.
-    cw.put_metric_alarm(
-        AlarmName=f"wecare-queue-age-{QUEUE_NAME.removeprefix('wecare-')}",
-        AlarmDescription=(
-            f"{QUEUE_NAME}'s oldest message is over 15 minutes old - the consumer is not keeping "
-            "up, or the event source mapping is disabled. Depth alone says nothing here, because "
-            "a large wave is a legitimately deep queue."),
-        Namespace="AWS/SQS",
-        MetricName="ApproximateAgeOfOldestMessage",
-        Dimensions=[{"Name": "QueueName", "Value": QUEUE_NAME}],
-        Statistic="Maximum",
-        Period=300,
-        EvaluationPeriods=1,
-        Threshold=900.0,
-        ComparisonOperator="GreaterThanThreshold",
-        TreatMissingData="notBreaching",
-        AlarmActions=[ALARM_TOPIC],
-    )
-    print(f"[alarm] wecare-queue-age-{QUEUE_NAME.removeprefix('wecare-')} (>900s on {QUEUE_NAME})")
-
-    #: Verified, not assumed. `put_metric_alarm` accepts an empty `AlarmActions` without complaint,
-    #: so an alarm that pages nobody is created just as successfully as one that works - and reads
-    #: identically in a deploy log.
-    names = [name for name, *_ in LOG_ALARMS] + [
-        f"wecare-{QUEUE_NAME.removeprefix('wecare-')}-dlq-depth",
-        f"wecare-queue-age-{QUEUE_NAME.removeprefix('wecare-')}",
-    ]
-    live = {alarm["AlarmName"]: alarm
-            for alarm in cw.describe_alarms(AlarmNames=names)["MetricAlarms"]}
-    actionless = [name for name in names
-                  if not (live.get(name, {}).get("AlarmActions") or [])]
-    if actionless:
-        raise SystemExit(f"[alarm] these alarms have no action and would page nobody: {actionless}")
-    print(f"[alarm] {len(live)}/{len(names)} present, all routed to "
-          f"{ALARM_TOPIC.rsplit(':', 1)[-1]}")
-
-
 def package() -> bytes:
-    """Zip: shim + operations/seo-tools + shared/lambda_utils + blog pipeline + pypdf."""
+    """Zip the live SEO/public-blog Lambda runtime."""
     shim = FUNCTIONS_DIR / "seo_tools_handler.py"
     seo_dir = FUNCTIONS_DIR / "operations" / "seo-tools"
     lambda_utils = FUNCTIONS_DIR / "shared" / "lambda_utils"
-    pipeline = FUNCTIONS_DIR / "shared" / "blog_pipeline.py"
-    # The quality gate is SHARED WITH THE CLI rather than reimplemented, which is the only
-    # way the browser path and the bulk path can agree on what passes. It is dependency-free
-    # by design so it can be dropped into a Lambda package unchanged.
-    gate = ROOT / "scripts" / "blog_quality_v2.py"
-    #: THE PUBLISHED CORPUS SKETCH INDEX, AND IT IS NOT OPTIONAL BALLAST.
-    #:
-    #: `blog_quality_v2.CorpusIndex.load_published_index` reads this path, and when it is
-    #: absent it returns 0 SILENTLY - by design, so a unit test building a two-record corpus
-    #: does not depend on a 1.4 MB file. In a Lambda that silence is the dangerous case: a QA
-    #: run would report NON_DUPLICATION PASS having compared the article against nothing,
-    #: which is precisely the "worse than no gate, because it is believed" failure the index
-    #: was built to fix. It was missing from this package until the QA run needed it.
-    #:
-    #: The relative path is what `PUBLISHED_INDEX` expects, and Lambda's working directory is
-    #: /var/task, so packaging it at the same relative location makes it resolve unchanged.
-    #: `blog_gate` loads it lazily and caches it, and `blog_qa` refuses to accept a sign-off
-    #: against a run that did not load it.
-    corpus = ROOT / "content" / "conversations" / "corpus-index.json"
-    conversations_master = seo_dir / "conversations-production-master.md"
-    for required in (shim, seo_dir, lambda_utils, pipeline, gate, corpus, conversations_master):
+    for required in (shim, seo_dir, lambda_utils):
         assert required.exists(), f"missing {required}"
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
         z.write(shim, "seo_tools_handler.py")
-        for f in sorted(seo_dir.glob("*.py")):
-            z.write(f, f"operations/seo-tools/{f.name}")
-        z.write(conversations_master, "operations/seo-tools/conversations-production-master.md")
-        z.write(ROOT / "config" / "public-pages.json", "operations/seo-tools/public-pages.json")
-        for f in sorted(lambda_utils.glob("*.py")):
-            z.write(f, f"shared/lambda_utils/{f.name}")
+        for path in sorted(seo_dir.glob("*.py")):
+            z.write(path, f"operations/seo-tools/{path.name}")
+        z.write(ROOT / "config" / "public-pages.json",
+                "operations/seo-tools/public-pages.json")
+        for path in sorted(lambda_utils.glob("*.py")):
+            z.write(path, f"shared/lambda_utils/{path.name}")
         skb = FUNCTIONS_DIR / "shared" / "static_knowledge_base.py"
         if skb.exists():
             z.write(skb, "shared/static_knowledge_base.py")
-        # Flat at the root, because the shim puts operations/seo-tools on sys.path and
-        # these are imported as bare module names (`import blog_pipeline`,
-        # `import blog_quality_v2`) from handler-local code.
-        z.write(pipeline, "blog_pipeline.py")
-        z.write(gate, "blog_quality_v2.py")
-        z.write(corpus, "content/conversations/corpus-index.json")
-        _vendor_pypdf(z)
+
     data = buf.getvalue()
     print(f"[package] built zip: {len(data)} bytes")
     if len(data) > 50 * 1024 * 1024:
         raise SystemExit("package exceeds the 50MB direct-upload limit; use S3 instead")
     return data
-
 
 def deploy_lambda(zip_bytes: bytes) -> None:
     lam = boto3.client("lambda", region_name=REGION)
@@ -992,36 +407,17 @@ def main() -> None:
     with_schedule = "--with-schedule" in _sys.argv[1:]
     print("=== deploy wecare-seo-tools ===")
     ensure_table()
+    # Retained for the separate ai-seo-audit feature. Blog Studio/Production AI is removed.
     ensure_bedrock_inference_profile_perms()
-    ensure_blog_source_perms()
-    ensure_blog_site_bridge_perms()
-    #: ORDER MATTERS. The queue has to exist before its URL can go into the function's
-    #: environment, the IAM policy has to be in place before the event source mapping is
-    #: created or Lambda parks it in `Disabled` with an insufficient-permissions cause, and the
-    #: mapping must come last so the first message arrives at code that can handle it.
-    queues = ensure_queues()
-    ensure_queue_perms(queues["arn"], queues["dlqArn"])
-    ENV_VARS["BLOG_INGEST_QUEUE_URL"] = queues["url"]
-    ENV_VARS["BLOG_INGEST_QUEUE_NAME"] = QUEUE_NAME
     zip_bytes = package()
     deploy_lambda(zip_bytes)
-    ensure_event_source(queues["arn"])
-    #: AFTER the function, because a metric filter needs its log group to exist - Lambda creates
-    #: `/aws/lambda/<name>` on the first invocation, and `put_metric_filter` against a missing
-    #: group is a ResourceNotFoundException rather than a no-op.
-    provision_alarms(queues["url"])
     ensure_api_route()
-    #: OPT-IN. Creating the scheduler's IAM role is the one step here that creates IAM, so it is
-    #: gated: `python scripts/deploy_seo_tools.py --with-schedule`. Without the flag the code is
-    #: deployed and the freshness check is reachable (invoke with {"seoFreshness": true}); the
-    #: daily automation is simply not wired until someone opts in.
     if with_schedule:
         ensure_freshness_schedule()
     else:
-        print("[schedule] skipped (pass --with-schedule to create the daily freshness schedule "
-              "and its scoped IAM role)")
+        print("[schedule] skipped (pass --with-schedule to create the daily freshness schedule)")
     print("=== done ===")
-    print(f"Endpoint: https://wecare.digital/api/seo-tools/  (stage prod, auto-deploy)")
+    print("Endpoint: https://wecare.digital/api/seo-tools/  (stage prod, auto-deploy)")
 
 
 if __name__ == "__main__":
