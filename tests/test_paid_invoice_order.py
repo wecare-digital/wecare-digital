@@ -155,6 +155,15 @@ def test_verified_paid_attempt_overrides_stale_invoice_origin_metadata():
     assert 'notes' not in row['invoiceSnapshot']
 
 
+def test_website_paid_attempt_keeps_order_and_snapshot_channel_consistent():
+    args = inputs()
+    args['attempt']['channel'] = 'website'
+    args['invoice']['channel'] = 'whatsapp'
+    row = subject.build(**args)
+    assert row['channel'] == 'website'
+    assert row['invoiceSnapshot']['channel'] == 'website'
+
+
 def test_non_contradictory_invoice_note_is_preserved():
     args = inputs()
     args['attempt']['channel'] = 'whatsapp'
