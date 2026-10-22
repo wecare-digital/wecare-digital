@@ -66,6 +66,27 @@ describe( 'WhatsApp subscribe CTA design', () => {
   } );
 
 
+  it( 'gives the contribution Checkout the shared Option B interaction states', () => {
+    const share = read( 'src/components/PublicShare.tsx' );
+    const checkout = ruleFor( share, '.contribute-link-btn{' );
+    const hover = ruleFor( share, '.contribute-link-btn:hover:not(:disabled){' );
+    const active = ruleFor( share, '.contribute-link-btn:active:not(:disabled){' );
+
+    expect( share ).toContain( '<span className="ps-material">shopping_cart_checkout</span>' );
+    expect( checkout ).toContain( 'border:2pxsolidtransparent' );
+    expect( checkout ).toContain( 'border-radius:11px' );
+    expect( checkout ).toContain( 'background:var(--public-accent-amber)' );
+    expect( share ).toContain( '.contribute-link-btn .ps-menu-icon{background:transparent}' );
+    expect( hover ).toContain( 'background:#fff' );
+    expect( hover ).toContain( 'border-color:var(--public-accent-amber)' );
+    expect( hover ).toContain( 'transform:translateY(-1px)' );
+    expect( hover ).toContain( 'box-shadow:05px14pxrgba(240,168,24,.18),02px5pxrgba(26,58,42,.08)' );
+    expect( active ).toContain( 'background:var(--public-accent-amber-tint)' );
+    expect( active ).toContain( 'border-color:var(--public-accent-amber)' );
+    expect( active ).toContain( 'box-shadow:none' );
+    expect( share ).toContain( '.ps-action:focus-visible,.ps-menu-item:focus-visible{' );
+  } );
+
   it( 'keeps the global action dock on the shared font, translation and RTL contracts', () => {
     const share = read( 'src/components/PublicShare.tsx' );
     const shell = ruleFor( share, '.public-share{' );
