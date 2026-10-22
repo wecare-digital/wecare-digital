@@ -822,7 +822,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( weatherTab ).toHaveAttribute( 'aria-selected', 'false' );
   } );
 
-  it( 'shows AQI context, inline dominant metadata and pollutant details with one Material icon language', async () => {
+  it( 'shows AQI context, inline dominant metadata and compact pollutant metrics without tooltip controls', async () => {
     vi.stubGlobal( 'fetch', environmentFetch() );
     const VayuLokLive = await loadComponent();
     const { container } = render( <VayuLokLive /> );
@@ -865,79 +865,19 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( panel.querySelector( '.vl-live-air-index-name' ) ).toBeNull();
     expect( panel.querySelector( '.vl-live-air-fact' ) ).toBeNull();
 
-    // Pollutant rows keep value + unit + label, and the info control uses the supplied
-    // Google Material Symbols icon rather than a hand-drawn circle/i glyph.
+    // Pollutant measurements are read-only compact metrics: no info buttons/tooltips,
+    // no reserved action column, and the value/unit remains visible beside the label.
     const rows = panel.querySelectorAll( '.vl-live-air-pollutant-row' );
     expect( rows.length ).toBeGreaterThan( 0 );
     const firstRow = rows[ 0 ] as HTMLElement;
     expect( firstRow.querySelector( '.vl-live-air-pollutant-value' )?.textContent ).toMatch( /\d/ );
     expect( firstRow.querySelector( '.vl-live-air-pollutant-label' )?.textContent?.length ).toBeGreaterThan( 0 );
-    const info = firstRow.querySelector( '.vl-live-air-pollutant-info' ) as HTMLButtonElement;
-    expect( info ).not.toBeNull();
-    expect( info.tagName ).toBe( 'BUTTON' );
-    expect( info.querySelector( 'svg' )?.getAttribute( 'viewBox' ) ).toBe( '0 -960 960 960' );
-    expect( info.querySelector( 'path' )?.getAttribute( 'd' )?.length ).toBeGreaterThan( 100 );
+    expect( firstRow.querySelector( '.vl-live-air-pollutant-info' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-air-pollutant-tip' ) ).toBeNull();
 
-    // Tooltip is created only while active, and is OUTSIDE the scrollable Air card.
-    fireEvent.focus( info );
-    const describedBy = await waitFor( () => {
-      const id = info.getAttribute( 'aria-describedby' );
-      expect( id ).toBeTruthy();
-      return id as string;
-    } );
-    const tip = document.getElementById( describedBy );
-    expect( tip ).not.toBeNull();
-    expect( tip?.getAttribute( 'role' ) ).toBe( 'dialog' );
-    expect( tip?.querySelector( '[aria-label="Close pollutant details"]' ) ).not.toBeNull();
-    expect( tip?.closest( '.vl-live-air-card' ) ).toBeNull();
-    expect( tip?.textContent ).toContain( 'PM2.5' );
-    expect( tip?.textContent ).toContain( 'Fine particulate matter' );
-    expect( tip?.textContent ).toContain( 'Sources' );
-    expect( tip?.textContent ).toContain( 'Combustion of fuels' );
-    expect( tip?.textContent ).toContain( 'Effects' );
-    expect( tip?.textContent ).toContain( 'Penetrates deep into lungs' );
-
-    // Explicit close button removes the viewport-level popup without relying on hover/blur.
-    const closeButton = tip?.querySelector( '[aria-label="Close pollutant details"]' ) as HTMLButtonElement;
-    fireEvent.click( closeButton );
-    await waitFor( () => expect( document.getElementById( describedBy ) ).toBeNull() );
-
-    // Re-open and Escape closes it too.
-    fireEvent.focus( info );
-    await waitFor( () => expect( document.getElementById( describedBy ) ).not.toBeNull() );
-    fireEvent.keyDown( document, { key: 'Escape' } );
-    await waitFor( () => expect( document.getElementById( describedBy ) ).toBeNull() );
-
-    // Re-open and an outside pointer closes it.
-    fireEvent.focus( info );
-    await waitFor( () => expect( document.getElementById( describedBy ) ).not.toBeNull() );
-    fireEvent.pointerDown( document.body );
-    await waitFor( () => expect( document.getElementById( describedBy ) ).toBeNull() );
-
-    // No additionalInfo -> honest value/unit fallback, never invented Sources/Effects.
-    fireEvent.blur( info );
-    const pm10Row = Array.from( rows ).find(
-      r => ( r.querySelector( '.vl-live-air-pollutant-label' )?.textContent ?? '' ).includes( 'PM10' )
-    ) as HTMLElement;
-    expect( pm10Row ).toBeTruthy();
-    const pm10Info = pm10Row.querySelector( '.vl-live-air-pollutant-info' ) as HTMLButtonElement;
-    fireEvent.focus( pm10Info );
-    const pm10Id = await waitFor( () => {
-      const id = pm10Info.getAttribute( 'aria-describedby' );
-      expect( id ).toBeTruthy();
-      return id as string;
-    } );
-    const pm10Tip = document.getElementById( pm10Id );
-    expect( pm10Tip?.textContent ).toContain( 'PM10' );
-    expect( pm10Tip?.textContent ).toMatch( /\d/ );
-    expect( pm10Tip?.textContent ).not.toContain( 'Sources' );
-    expect( pm10Tip?.textContent ).not.toContain( 'Effects' );
-    fireEvent.blur( pm10Info );
-
-    // The unit symbol carries a plain-language expansion as a title, so a reader who does not
-    // know the abbreviation can still understand it (µg/m³ -> micrograms per cubic metre).
     const pm25Unit = firstRow.querySelector( '.vl-live-air-pollutant-value small' );
-    expect( pm25Unit?.getAttribute( 'title' ) ).toBe( 'micrograms per cubic metre' );
+    expect( pm25Unit?.textContent ).toBe( 'µg/m³' );
+    expect( pm25Unit?.getAttribute( 'title' ) ).toBeNull();
 
     // NO RED anywhere in the rendered card markup/styles.
     expect( container.innerHTML ).not.toContain( 'dc2626' );
@@ -2242,7 +2182,7 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( container.querySelector( 'section.bc.is-embedded' ) ).toBeNull();
     expect( container.querySelector( '[aria-label="Share this page on WhatsApp"]' ) ).toBeNull();
 
-    // No live pollutant tooltip can exist without live Air data.
+    // No pollutant tooltip UI exists; pollutants are always read-only metrics.
     expect( container.querySelector( '.vl-live-air-pollutant-pop' ) ).toBeNull();
 
     expect( fetchSpy ).not.toHaveBeenCalled();
