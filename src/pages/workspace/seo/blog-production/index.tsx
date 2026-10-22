@@ -52,6 +52,7 @@ const BlogProductionHub: React.FC<PageProps> = ( { signOut, user, embedded } ) =
     const defaultTab = resolveDefaultTab( router.query.tab );
     const content = (
         <PageShell
+            className="blog-production-shell"
             // Re-key on the full path+query so a cross-stage deep-link (which only
             // changes the query) re-reads the active tab and the stage params.
             key={ router.asPath }
