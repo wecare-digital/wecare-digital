@@ -12,21 +12,24 @@
  * and mounting a representative DOM (the exact class names the render emits) under it, then
  * reading getBoundingClientRect at phone widths.
  *
- * It asserts, at 320 / 375 / 430 CSS px:
+ * It asserts, at 320 / 360 / 375 / 390 / 412 / 430 CSS px:
  *   (1) the page/container never scrolls horizontally (scrollWidth <= clientWidth);
  *   (2) the daily-forecast row renders as TWO visual lines (temp sits on the top line with the
  *       day; the condition wraps onto a second line BELOW the day) — i.e. it is stacked, not a
  *       single cramped 4/5-column strip;
- *   (3) the pollutant row stacks (label on its own line, value below the label's top).
+ *   (3) the pollutant row stacks (label on its own line, value below the label's top);
+ *   (4) Weather history uses the public 24px mobile card heading + 20px body rung;
+ *   (5) every Weather history range control keeps the canonical 44px touch floor.
  */
 
 const fs = require( 'node:fs' );
 const path = require( 'node:path' );
 const { launch } = require( './lib/browser.js' );
 const COMPONENT = path.join( __dirname, '..', '..', 'src', 'components', 'VayuLokLive.tsx' );
+const INSIGHTS_COMPONENT = path.join( __dirname, '..', '..', 'src', 'components', 'VayuLokWeatherInsights.tsx' );
 
-function extractCss() {
-  const src = fs.readFileSync( COMPONENT, 'utf8' );
+function extractCss( component ) {
+  const src = fs.readFileSync( component, 'utf8' );
   const open = src.indexOf( '<style jsx>{`' );
   const close = src.indexOf( '`}</style>', open );
   if ( open < 0 || close < 0 ) throw new Error( 'could not locate styled-jsx block' );
@@ -77,22 +80,44 @@ const BODY = `
         <span class="vl-live-wx-daily-rain">5%</span>
       </button></li>
     </ul>
+    <section class="vl-wi" aria-label="Weather history">
+      <div class="vl-wi-head">
+        <div>
+          <h4>Weather history</h4>
+          <p>Long-term patterns for Thiruvananthapuram Metropolitan Region and surrounding districts.</p>
+        </div>
+        <div class="vl-wi-range" role="group" aria-label="Weather history range">
+          <button type="button">30D</button><button type="button">1Y</button><button type="button">5Y</button>
+        </div>
+      </div>
+      <div class="vl-wi-grid">
+        <div><span>Typical temperature</span><strong>21.8°C</strong></div>
+        <div><span>Total precipitation</span><strong>151.8 mm</strong></div>
+      </div>
+      <div class="vl-wi-source"><span>Source: Google Weather Insights</span><span> · coverage Oct 2025–Oct 2026</span></div>
+    </section>
   </aside></div>
 </div></div>`;
 
-const WIDTHS = [ 320, 375, 430 ];
+const WIDTHS = [ 320, 360, 375, 390, 412, 430 ];
 
 ( async () => {
-  const css = extractCss();
+  const css = extractCss( COMPONENT );
+  const insightsCss = extractCss( INSIGHTS_COMPONENT );
   const html = `<!doctype html><html><head><meta charset="utf-8">
     <style>*{box-sizing:border-box}body{margin:0}
     /* root vars the component reads (lifted names; values are representative) */
     :root{--hair:#e5e7eb;--muted:#6b7280;--body:#111;--green:#1a3a2a;--lime:#d1f470;--lime-tint:rgba(209,244,112,.22);
       --status:#2563eb;--radius-lg:12px;--panel-r:16px;--pill-r:12px;
-      --tap-min:44px;--vl-action-size:var(--tap-min);--vl-content-gap:12px;--vl-heading-gap:12px;--vl-section-gap:20px;--vl-section-pad:16px}
+      --tap-min:44px;--vl-action-size:var(--tap-min);--vl-content-gap:12px;--vl-heading-gap:12px;--vl-section-gap:20px;--vl-section-pad:16px;
+      --font-sans:Inter,ui-sans-serif,system-ui,sans-serif;--public-heading:rgba(0,0,0,.95);--public-body:rgba(0,0,0,.898);--public-muted:rgba(0,0,0,.54);
+      --public-card-size:22px;--public-card-weight:700;--public-card-leading:1.27;--public-card-tracking:-.25px;
+      --public-body-size:20px;--public-body-weight:400;--public-body-leading:1.4;--public-body-tracking:-.125px;
+      --public-mobile-card-size:24px;--public-mobile-form-font-size:16px;--public-mobile-section-gap:64px;
+      --radius-full:9999px;--space-2:8px;--space-3:12px;--space-4:16px;--space-6:24px;--text-xs:12px;--text-sm:13px;--text-base:16px}
     .vl-live-air-card-wrap{display:grid}
     </style>
-    <style>${css}</style></head><body>${BODY}</body></html>`;
+    <style>${css}</style><style>${insightsCss}</style></head><body>${BODY}</body></html>`;
 
   const browser = await launch();
   let failures = 0;
@@ -113,11 +138,19 @@ const WIDTHS = [ 320, 375, 430 ];
       const score = q( '.vl-live-air-aqi-score' );
       const meta = q( '.vl-live-air-gauge-meta' );
       const gaugeRow = q( '.vl-live-air-gauge-row' );
+      const history = q( '.vl-wi' );
+      const historyHeading = q( '.vl-wi-head h4' );
+      const historyBody = q( '.vl-wi-head p' );
+      const historyButtons = Array.from( document.querySelectorAll( '.vl-wi-range button' ) );
       return {
         docScroll: de.scrollWidth, docClient: de.clientWidth,
         day: rect( day ), cond: rect( cond ), temp: rect( temp ), row: rect( row ),
         plabel: rect( plabel ), pval: rect( pval ), prow: rect( prow ),
         score: rect( score ), meta: rect( meta ), gaugeRow: rect( gaugeRow ),
+        history: rect( history ),
+        historyHeadingSize: parseFloat( getComputedStyle( historyHeading ).fontSize ),
+        historyBodySize: parseFloat( getComputedStyle( historyBody ).fontSize ),
+        historyButtonHeights: historyButtons.map( button => rect( button ).h ),
       };
     } );
     const hOverflow = r.docScroll > r.docClient + 1;
@@ -135,16 +168,20 @@ const WIDTHS = [ 320, 375, 430 ];
     const scoreCentered = Math.abs( scoreCenter - rowCenter ) <= 2;
     const metaCentered = Math.abs( metaCenter - rowCenter ) <= 2;
     const summaryCentered = scoreCentered && metaCentered;
-    const ok = !hOverflow && condBelowDay && tempTopLine && valBelowLabel && summaryCentered;
+    const historyFits = r.history.right <= r.docClient + 1 && r.history.x >= -1;
+    const historyType = Math.abs( r.historyHeadingSize - 24 ) <= 0.1 && Math.abs( r.historyBodySize - 20 ) <= 0.1;
+    const historyTouches = r.historyButtonHeights.length === 3 && r.historyButtonHeights.every( height => height >= 44 );
+    const ok = !hOverflow && condBelowDay && tempTopLine && valBelowLabel && summaryCentered && historyFits && historyType && historyTouches;
     if ( !ok ) failures++;
     console.log(
       `@${w}px  h-overflow=${hOverflow ? 'YES(' + r.docScroll + '>' + r.docClient + ')' : 'no'}` +
       `  cond-below-day=${condBelowDay}  temp-on-top-line=${tempTopLine}  pollutant-stacked=${valBelowLabel}` +
-      `  score-centered=${scoreCentered}  meta-centered=${metaCentered}  => ${ok ? 'PASS' : 'FAIL'}`
+      `  score-centered=${scoreCentered}  meta-centered=${metaCentered}` +
+      `  history-fits=${historyFits}  history-type=${historyType}  history-touch=${historyTouches}  => ${ok ? 'PASS' : 'FAIL'}`
     );
     await page.close();
   }
   await browser.close();
   if ( failures ) { console.error( `\n${failures} width(s) FAILED` ); process.exit( 1 ); }
-  console.log( '\nAll phone widths PASS: tables stack vertically, no horizontal overflow.' );
+  console.log( '\nAll VayuLok phone widths PASS: tables stack, Weather history matches the public type/touch contract, no horizontal overflow.' );
 } )().catch( ( e ) => { console.error( e ); process.exit( 1 ); } );
