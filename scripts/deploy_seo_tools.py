@@ -407,7 +407,7 @@ def main() -> None:
     with_schedule = "--with-schedule" in _sys.argv[1:]
     print("=== deploy wecare-seo-tools ===")
     ensure_table()
-    # Retained for the separate ai-seo-audit feature. Blog Studio/Production AI is removed.
+    # Retained only for the separate page-SEO audit feature.
     ensure_bedrock_inference_profile_perms()
     zip_bytes = package()
     deploy_lambda(zip_bytes)
