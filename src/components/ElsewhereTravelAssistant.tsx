@@ -544,7 +544,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
         }
         .eta-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
         .eta-tabs{
-          display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px;width:100%;
+          display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;width:100%;
           padding:5px;background:var(--public-brand-lime);border-bottom:1px solid rgba(26,58,42,.14);
         }
         .eta-tab{
