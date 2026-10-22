@@ -1277,6 +1277,12 @@ export default function OrdersPage (): React.ReactElement {
              min-content and refuses to shrink. No position:sticky - the panel is short, and
              sticky interacts badly with overflow ancestors. */
           .ord-panel,.ord-main{display:flex;flex-direction:column;gap:18px;min-inline-size:0}
+          /* Customer/account context is a single contained surface, matching the cart review
+             card rather than floating controls beside the history table. */
+          .ord-panel{
+            align-self:start;padding:20px;border:1px solid var(--public-hairline);
+            border-radius:16px;background:#fff;
+          }
 
           /* The section rung: 700 against the band's 600 h1. That inversion is the site's and is
              deliberate - PageTopBand says not to "correct" it. Font stack DECLARED, not
@@ -1319,7 +1325,7 @@ export default function OrdersPage (): React.ReactElement {
             width:100%;border-collapse:collapse;
             font-family:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
           }
-          .ord-tablewrap{overflow-x:auto;border:1px solid var(--public-hairline);border-radius:14px;background:#fff}
+          .ord-tablewrap{overflow-x:auto;border:1px solid var(--public-hairline);border-radius:16px;background:#fff}
           .ord-tablewrap:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
 
           /* 1px and static: these borders never change. The row's hover is a background tint
@@ -1327,6 +1333,7 @@ export default function OrdersPage (): React.ReactElement {
           .ord-th{
             text-align:start;padding:14px 16px;border-block-end:1px solid var(--public-hairline);
             font-size:12px;font-weight:700;letter-spacing:0;color:var(--public-brand-green);white-space:nowrap;
+            background:#f7fbf4;
           }
           .ord-th-num{text-align:end}
           .ord-tr{border-block-start:1px solid var(--public-hairline)}
@@ -1387,7 +1394,10 @@ export default function OrdersPage (): React.ReactElement {
           .ord-caret{font-size:12px;color:var(--public-brand-green)}
 
           .ord-tr-open{background:var(--public-lime-tint)}
-          .ord-detailcell{padding:0 16px 18px;border-block-end:1px solid var(--public-hairline)}
+          .ord-detailcell{
+            padding:4px 16px 20px;border-block-end:1px solid var(--public-hairline);
+            background:var(--public-lime-tint);
+          }
           .ord-live{font-size:14px;color:var(--public-muted)}
 
           /* THE ONE PERMITTED HIDE MECHANISM ON THIS PAGE, and it appears exactly once.
@@ -1476,6 +1486,7 @@ export default function OrdersPage (): React.ReactElement {
           }
 
           @media(max-width:767px){
+            .ord-panel{padding:16px;border-radius:14px}
             .ord-p,.ord-aside{font-size:18px}
             .ord-facts{grid-template-columns:1fr;gap:4px}
             /* BOTH HALVES OF THE FOLD, IN ONE QUERY. The fold hides a COLUMN, so the class sits
