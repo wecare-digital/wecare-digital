@@ -7,12 +7,14 @@ on:
     paths:
       - 'amplify/functions/ai/ai-generate-response/**'
       - 'amplify/functions/core/contacts/**'
+      - 'amplify/functions/core/secure-files/**'
       - 'amplify/functions/core/service-api/**'
       - 'amplify/functions/core/messages-read/**'
       - 'amplify/functions/auth/customer-whatsapp-auth/**'
       - 'amplify/functions/messaging/inbound-whatsapp-handler/**'
       - 'amplify/functions/messaging/outbound-whatsapp/**'
       - 'amplify/functions/messaging/whatsapp-business-api/**'
+      - 'amplify/functions/messaging/whatsapp-template-management/**'
       - 'amplify/functions/ecommerce/product-image-gen/**'
       - 'amplify/functions/ecommerce/meta-catalog-sync/**'
       - 'amplify/functions/payments/razorpay-webhook/**'
@@ -63,6 +65,8 @@ jobs:
           python -m py_compile \
             amplify/functions/ai/ai-generate-response/handler.py \
             amplify/functions/core/contacts/handler.py \
+            amplify/functions/core/secure-files/handler.py \
+            amplify/functions/core/secure-files/whatsapp_delivery.py \
             amplify/functions/core/service-api/handler.py \
             amplify/functions/core/messages-read/handler.py \
             amplify/functions/auth/customer-whatsapp-auth/handler.py \
@@ -70,6 +74,7 @@ jobs:
             amplify/functions/messaging/outbound-whatsapp/handler.py \
             amplify/functions/messaging/whatsapp-business-api/handler.py \
             amplify/functions/messaging/whatsapp-business-api/service_api.py \
+            amplify/functions/messaging/whatsapp-template-management/handler.py \
             amplify/functions/messaging/whatsapp-business-api/flows/orders.py \
             amplify/functions/ecommerce/product-image-gen/handler.py \
             amplify/functions/ecommerce/meta-catalog-sync/handler.py \
@@ -78,12 +83,14 @@ jobs:
           python scripts/deploy_all_lambdas.py --dry-run \
             wecare-ai-generate-response \
             wecare-contacts \
+            wecare-secure-files \
             wecare-service-api \
             wecare-messages-read \
             wecare-customer-whatsapp-auth \
             wecare-inbound-whatsapp \
             wecare-outbound-whatsapp \
             wecare-whatsapp-business-api \
+            wecare-whatsapp-template-management \
             wecare-product-image-gen \
             wecare-meta-catalog-sync \
             wecare-razorpay-webhook \
@@ -94,12 +101,14 @@ jobs:
           python scripts/deploy_all_lambdas.py \
             wecare-ai-generate-response \
             wecare-contacts \
+            wecare-secure-files \
             wecare-service-api \
             wecare-messages-read \
             wecare-customer-whatsapp-auth \
             wecare-inbound-whatsapp \
             wecare-outbound-whatsapp \
             wecare-whatsapp-business-api \
+            wecare-whatsapp-template-management \
             wecare-product-image-gen \
             wecare-meta-catalog-sync \
             wecare-razorpay-webhook \
@@ -113,12 +122,14 @@ jobs:
           names = [
               "wecare-ai-generate-response",
               "wecare-contacts",
+              "wecare-secure-files",
               "wecare-service-api",
               "wecare-messages-read",
               "wecare-customer-whatsapp-auth",
               "wecare-inbound-whatsapp",
               "wecare-outbound-whatsapp",
               "wecare-whatsapp-business-api",
+              "wecare-whatsapp-template-management",
               "wecare-product-image-gen",
               "wecare-meta-catalog-sync",
               "wecare-razorpay-webhook",
