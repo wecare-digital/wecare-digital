@@ -23,7 +23,7 @@ Screens (routing SELECT_ORDER → DOCUMENT → REVIEW):
 ## How it drives the ₹49/24h model (both entry paths)
 - Entry 1 (keyword): Vault keyword → THIS Flow → customer picks their own file → backend checks a
   deliverable active file → none = "no document available, nothing charged" → deliverable = ₹49
-  wecarepay_wa Review&Pay → paid → open 24h window → wecare_default_download auto-fires (file id
+  wecare_whatapp_native_pay_template Review&Pay → paid → open 24h window → wecare_default_download auto-fires (file id
   suffix only) → tap → sign in → fresh 60s S3 link → download. Re-download free within 24h; after
   the window, Path C = fresh ₹49 opens a new window (same durable entitlement).
 - Entry 2 (direct ₹49 catalog item): pay ₹49 → active file known = auto download template; no
