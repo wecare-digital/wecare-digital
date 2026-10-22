@@ -233,12 +233,13 @@ const VayuLokWeatherInsights: React.FC<Props> = ( { lat, lng, placeName } ) => {
         .vl-wi{margin-top:var(--vl-section-gap);padding-top:var(--vl-section-gap);border-top:1px solid var(--hair);font-family:var(--font-sans)}
         .vl-wi-head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--space-4)}
         .vl-wi-head h4{margin:0;color:var(--public-heading);font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking)}
-        .vl-wi-head p{margin:6px 0 0;color:var(--public-body);font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking)}
+        .vl-wi-head p{margin:6px 0 0;color:var(--public-muted);font-size:var(--text-base);font-weight:600;line-height:1.4;letter-spacing:0}
         .vl-wi-range{display:flex;flex:0 0 auto;border:1px solid var(--hair);border-radius:var(--radius-full);overflow:hidden;background:#fff}
         .vl-wi-range button{min-width:var(--tap-min);min-height:var(--tap-min);padding:8px 12px;border:0;border-inline-start:1px solid var(--hair);background:#fff;color:var(--public-muted);font:inherit;font-size:var(--text-sm);font-weight:700;cursor:pointer}
         .vl-wi-range button:first-child{border-inline-start:0}
-        .vl-wi-range button:hover,.vl-wi-range button.is-active{background:var(--lime-tint);color:var(--green)}
-        .vl-wi-loading,.vl-wi-note{margin-top:var(--space-3);padding:var(--space-3) var(--space-4);border:1px solid var(--hair);border-radius:var(--radius-lg);background:#fff;color:var(--public-body);font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking)}
+        .vl-wi-range button:hover{background:rgba(17,21,18,.04);color:var(--public-heading)}
+        .vl-wi-range button.is-active{background:rgba(17,21,18,.07);color:var(--public-heading)}
+        .vl-wi-loading,.vl-wi-note{margin-top:var(--space-3);padding:var(--space-3) var(--space-4);border:1px solid var(--hair);border-radius:var(--radius-lg);background:#fff;color:var(--public-muted);font-size:var(--text-base);font-weight:600;line-height:1.4;letter-spacing:0}
         .vl-wi-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;margin-top:var(--space-3);border:1px solid var(--hair);border-radius:var(--radius-lg);overflow:hidden;background:var(--hair)}
         .vl-wi-grid>div{display:flex;align-items:baseline;justify-content:space-between;gap:var(--space-3);padding:var(--space-4);background:#fff}
         .vl-wi-grid span{color:var(--public-muted);font-size:var(--text-base);font-weight:600;line-height:1.4}
@@ -258,10 +259,10 @@ const VayuLokWeatherInsights: React.FC<Props> = ( { lat, lng, placeName } ) => {
           .vl-wi{margin-top:var(--public-mobile-section-gap);padding-top:var(--space-6)}
           .vl-wi-head{flex-direction:column;gap:var(--space-3)}
           .vl-wi-head h4{font-size:var(--public-mobile-card-size)}
-          .vl-wi-head p{font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading)}
+          .vl-wi-head p{font-size:var(--public-mobile-form-font-size);font-weight:600;line-height:1.4}
           .vl-wi-range{width:100%}
           .vl-wi-range button{flex:1;min-height:var(--tap-min);font-size:var(--public-mobile-form-font-size)}
-          .vl-wi-loading,.vl-wi-note{font-size:var(--public-body-size)}
+          .vl-wi-loading,.vl-wi-note{font-size:var(--public-mobile-form-font-size)}
           .vl-wi-grid{grid-template-columns:1fr}
           .vl-wi-grid>div{padding:var(--space-4)}
           .vl-wi-grid span{font-size:var(--public-mobile-form-font-size)}
