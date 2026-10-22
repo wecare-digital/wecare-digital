@@ -135,7 +135,7 @@ export const META_AUTH_TEMPLATE: VendorVersion = {
   evidence: 'LIVE',
   drift: 'must-be-latest',
   rederive:
-    'aws lambda invoke --function-name wecare-whatsapp-templates:live ' +
+    'aws lambda invoke --function-name wecare-whatsapp-template-management:live ' +
     "--payload '{\"httpMethod\":\"GET\",\"path\":\"/wa-business/templates\"," +
     '"queryStringParameters":{"wabaId":"2094615664435155"}}\'',
 } as const;
@@ -147,7 +147,7 @@ export const META_AUTH_TEMPLATE: VendorVersion = {
  * after it. `configured` read `legacy-web-service` and `upgradeBlockedReason` named
  * `wecare/google-maps-server` as the server-key store. Both are now wrong:
  *
- *   1. `messaging/whatsapp-templates/handler.py` no longer touches a legacy endpoint. Both
+ *   1. `messaging/whatsapp-template-management/handler.py` no longer touches a legacy endpoint. Both
  *      server-side Places calls — Autocomplete and Place Details — go to
  *      `places.googleapis.com/v1`, and the legacy keyless-GET helper was deleted rather
  *      than left behind for a future call site to re-use. `maps.googleapis.com` appears in
