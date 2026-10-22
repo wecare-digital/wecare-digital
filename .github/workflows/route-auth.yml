@@ -66,7 +66,7 @@ jobs:
     # change is least welcome: a red source-gate blocks every pull request. Both steps
     # below pin their own Python and install every dependency from requirements-dev.txt,
     # so nothing here reads software off the image.
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
 
