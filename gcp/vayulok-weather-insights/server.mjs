@@ -420,7 +420,6 @@ function cleanSummary(row, range) {
       precipitationMm: round(item.precipitation_mm),
       meanHumidityPct: round(item.mean_humidity_pct),
     })) : [],
-    source: 'Google Weather Insights',
   };
 }
 
