@@ -382,6 +382,7 @@ def _mark_conflict(contact_id: str, tags: Any, reason: str, now: int, *, retry: 
 #: `finalizationStage == 'NEEDS_CUSTOMER_LINK'`, so it is queryable on this index by the contact
 #: id and is the exact set this sweep promotes.
 ORDERS_TABLE = shared_tables.orders_table_name()
+PAYMENT_ATTEMPTS_TABLE = shared_tables.payment_attempts_table_name()
 
 
 def _promote_linked_orders(contact_id: str, customer_id: str) -> int:
@@ -394,7 +395,9 @@ def _promote_linked_orders(contact_id: str, customer_id: str) -> int:
     try:
         saved = _table(CONTACTS_TABLE).get_item(
             Key=contact_key.key(contact_id), ConsistentRead=True).get('Item') or {}
-        return customer_order_link.link(orders=_table(ORDERS_TABLE),
+        return customer_order_link.link(
+            orders=_table(ORDERS_TABLE),
+            attempts=_table(PAYMENT_ATTEMPTS_TABLE),
             contact=saved, customer_id=customer_id)
     except Exception as exc:
         logger.warning(json.dumps({'event': 'order_link_promotion_unavailable',
@@ -899,7 +902,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         from lambda_utils.ecommerce import customer_order_link
         saved_contact = _table(CONTACTS_TABLE).get_item(
             Key=contact_key.key(result['contactId']), ConsistentRead=True).get('Item') or {}
-        customer_order_link.link(orders=_table(shared_tables.orders_table_name()),
+        customer_order_link.link(
+            orders=_table(shared_tables.orders_table_name()),
+            attempts=_table(shared_tables.payment_attempts_table_name()),
             contact=saved_contact, customer_id=identity_session.customer_id)
     except ValueError as exc:
         if str(exc) == "CONTACT_IDENTITY_CONFLICT":
