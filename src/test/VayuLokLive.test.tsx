@@ -1321,7 +1321,9 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( healthBtnRule ).toContain( 'width:var(--vl-action-size)' );
     expect( healthBtnRule ).toContain( 'height:var(--vl-action-size)' );
     expect( css ).toContain( '--vl-action-size:var(--tap-min)' );
-    // This contract exercises the Air panel. Weather history is mounted only after switching\n    // to Weather, so its absence here is intentional rather than a missing feature.\n    expect( container.querySelector( '.vl-wi' ) ).toBeNull();
+    // This contract exercises the Air panel. Weather history is mounted only after switching
+    // to Weather, so its absence here is intentional rather than a missing feature.
+    expect( container.querySelector( '.vl-wi' ) ).toBeNull();
     expect( css ).toContain( '--vl-card-heading-size:var(--public-card-size)' );
     expect( css ).toContain( '--vl-body-size:var(--public-body-size)' );
     expect( css ).toContain( 'font-family:var(--font-sans)' );
@@ -2377,10 +2379,12 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     // asserted earlier in this test - it is replaced by the honest empty state rather than a
     // live pollutant list.
     expect( container.textContent ).not.toContain( 'Air Quality Details' );
-    // textContent includes styled-jsx <style> comments, including the word \"Pollutants\".\n    // Assert the rendered section instead so this remains a visible-DOM contract.\n    expect( container.querySelector( '.vl-live-air-pollutants' ) ).toBeNull();
+    // textContent includes styled-jsx <style> comments, including the word "Pollutants".
+    // Assert the rendered section instead so this remains a visible-DOM contract.
+    expect( container.querySelector( '.vl-live-air-pollutants' ) ).toBeNull();
     expect( container.querySelector( '.vl-live-air-empty' )?.textContent )
       .toContain( 'Live air quality appears here once a place is selected.' );
-    expect( css ).toContain( '.vl-live{--vl-card-heading-size:var(--public-mobile-card-size)}' );
+    expect( css ).toContain( '.vl-live{--vl-card-heading-size:var(--public-mobile-card-size);' );
     expect( css ).toContain( '.vl-live-mobile-snapshot-head strong{overflow:hidden;color:var(--heading);font-size:16px' );
     expect( css ).toContain( '.vl-live-mobile-snapshot-head small{color:var(--muted);font-size:14px' );
     expect( css ).toContain( '.vl-live-mobile-copy{display:flex;min-width:0;flex-direction:column;gap:3px;color:var(--body);font-size:15px' );
