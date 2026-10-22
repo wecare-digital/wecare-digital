@@ -96,6 +96,7 @@ describe( 'public mobile foundation', () => {
 
   it( 'records shared service/product ProductPage routes as explicit mobile-foundation adopters', () => {
     const productPage = read( 'src/components/ProductPage.tsx' );
+    const productBlogPanel = read( 'src/components/ProductBlogPanel.tsx' );
     const adopted = [
       'src/pages/anew.tsx',
       'src/pages/expo-week.tsx',
@@ -125,6 +126,8 @@ describe( 'public mobile foundation', () => {
     expect( productPage ).toContain( '.pdp.uses-mobile-foundation .pdp-point-t{font-size:var(--public-mobile-card-size)}' );
     expect( productPage ).toContain( '.pdp.uses-mobile-foundation .pdp-cta{font-size:var(--public-mobile-cta-font-size)}' );
     expect( productPage ).toContain( '.pdp.uses-mobile-foundation :global(.checkout-action){font-size:var(--public-mobile-cta-font-size)}' );
+    expect( productBlogPanel ).toContain( 'margin-inline-start:-10px' );
+    expect( productBlogPanel ).not.toContain( 'margin-left:-10px' );
 
     for ( const path of adopted ) expect( read( path ), path ).toContain( 'mobileFoundation' );
     for ( const path of deferredCustomerForms ) expect( read( path ), path ).not.toContain( 'mobileFoundation' );
