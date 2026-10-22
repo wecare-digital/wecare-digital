@@ -707,11 +707,13 @@ def handler(event, context, *, graph_requester=None,
         allowed = {value.strip().lower() for value in
                    os.environ.get("META_CATALOG_SYNC_VARIANT_IDS", "").split(",") if value.strip()}
         if allowed:
-            desired = [item for item in desired
-                       if (catalog.parse_retailer_id(item["retailer_id"]) or (None, None))[1] in allowed]
+            def _variant_in_scope(item):
+                parsed = catalog.parse_retailer_id(item.get("retailer_id"))
+                return bool(parsed and str(parsed[1]).lower() in allowed)
+            desired = [item for item in desired if _variant_in_scope(item)]
             existing = [item for item in existing
                         if not catalog.parse_retailer_id(item.get("retailer_id"))
-                        or (catalog.parse_retailer_id(item.get("retailer_id")) or (None, None))[1] in allowed]
+                        or _variant_in_scope(item)]
         if os.environ.get("META_CATALOG_SYNC_FORCE_OUT_OF_STOCK", "").lower() in _TRUE:
             for item in desired:
                 item["availability"] = catalog.OUT_OF_STOCK

@@ -7,6 +7,7 @@ share this vocabulary (the `CartContractError` family) and these pure utilities 
 A cart line is identified by its ProductsTable product id and variant id, carried in the
 `catalogReference` shape (`catalogItemId` + `options.variantId`) the website cart sends.
 """
+import re
 from uuid import UUID
 
 from .money import Money
@@ -67,10 +68,52 @@ class CartQuantityReduced(CartContractError):
 
 
 def identifier(value):
-    """A lowercased UUID string, or raise. The identity a cart/catalog line keys on."""
+    """A lowercased UUID string, or raise.
+
+    Used for cart ids, request ids and line-item ids whose persisted contract remains UUID-only.
+    Catalogue product/variant identities have their own validators below and MUST NOT widen this.
+    """
     if not isinstance(value, str) or str(UUID(value)) != value.lower():
-        raise ValueError("invalid cart/catalog identifier")
+        raise ValueError("invalid identifier")
     return value.lower()
+
+
+_NATIVE_PRODUCT_ID = re.compile(r"^native:[a-z0-9]+(?:-[a-z0-9]+)*$")
+_CATALOG_VARIANT_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$")
+
+
+def catalog_product_identifier(value):
+    """A ProductsTable product identity, preserving the live catalogue contract.
+
+    Existing UUID products remain canonical lowercase UUIDs. Native products are the exact
+    `native:<slug>` form minted by native-catalog-admin. Nothing else is accepted.
+    """
+    if not isinstance(value, str):
+        raise ValueError("invalid catalog product identifier")
+    text = value
+    try:
+        canonical_uuid = str(UUID(text))
+        if canonical_uuid == text.lower():
+            return canonical_uuid
+    except (ValueError, AttributeError):
+        pass
+    if _NATIVE_PRODUCT_ID.fullmatch(text):
+        return text
+    raise ValueError("invalid catalog product identifier")
+
+
+def catalog_variant_identifier(value):
+    """A ProductsTable variant SKU.
+
+    Variant identity is the stored SKU and is case-sensitive. Preserve its spelling exactly so
+    Meta/WhatsApp lines resolve to the same ProductsTable variant rather than a lowercased alias.
+    """
+    if not isinstance(value, str):
+        raise ValueError("invalid catalog variant identifier")
+    text = value
+    if not _CATALOG_VARIANT_ID.fullmatch(text):
+        raise ValueError("invalid catalog variant identifier")
+    return text
 
 
 def catalog_item(item):
@@ -84,8 +127,8 @@ def catalog_item(item):
     if type(quantity) is not int or not 1 <= quantity <= 100000:
         raise ValueError("quantity must be a positive integer")
     return {"catalogReference": {
-        "catalogItemId": identifier(item["productId"]),
-        "options": {"variantId": identifier(item["variantId"])}}, "quantity": quantity}
+        "catalogItemId": catalog_product_identifier(item["productId"]),
+        "options": {"variantId": catalog_variant_identifier(item["variantId"])}}, "quantity": quantity}
 
 
 def cheapest_delivery_option(options):

@@ -7,6 +7,7 @@ Fresh catalog rows are projected from their current data and publication flags.
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import re
@@ -23,9 +24,13 @@ RETAILER_PREFIX = "WECARE.DIGITAL"
 #: the catalogue's id format would otherwise fail at Meta instead of here.
 RETAILER_ID_MAX_LENGTH = 100
 
-#: ProductsTable product ids and variant ids (the variant `sku`) are canonical lowercase UUIDs.
-#: Anchored, so a value carrying a colon cannot smuggle an extra segment past `parse_retailer_id`.
+#: Legacy catalogue identities were canonical lowercase UUID pairs. Keep the regex only for
+#: backward-compatible parsing/emission of that original three-segment contract.
 _UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+
+#: V2 encodes the exact ProductsTable ids losslessly instead of inventing replacement UUIDs.
+#: Base64url has no ':' separator, so ids such as `native:hunar-kaushal` remain unambiguous.
+_RETAILER_V2 = "v2"
 
 #: Meta's availability vocabulary, which is not ours. Two literals in one place so no caller
 #: spells them by hand.
@@ -88,54 +93,92 @@ class RetailerIdError(ValueError):
 # ─────────────────────────────────────────────────────────────────────────────────────────────
 
 
+def _b64url_encode(value: str) -> str:
+    return base64.urlsafe_b64encode(value.encode("utf-8")).decode("ascii").rstrip("=")
+
+
+def _b64url_decode(value: str) -> Optional[str]:
+    try:
+        raw = str(value or "").strip()
+        if not raw:
+            return None
+        padded = raw + "=" * (-len(raw) % 4)
+        decoded = base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8")
+        # Canonical round-trip rejects malformed/non-canonical spellings rather than accepting
+        # multiple retailer ids for one ProductsTable identity.
+        if not decoded or _b64url_encode(decoded) != raw:
+            return None
+        return decoded
+    except (ValueError, UnicodeError):
+        return None
+
+
 def retailer_id(product_id: Any, variant_id: Any) -> str:
-    """`<RETAILER_PREFIX>:<productId>:<variantId>` with canonical lowercase UUIDs.
+    """Stable Meta join key for the exact ProductsTable product/variant identity.
 
-    REFUSES RATHER THAN NORMALISES ANYTHING BUT CASE. A retailer id is the join key between a
-    WhatsApp order line and a ProductsTable line, so a value that is nearly right is worse than no
-    value: it would create a Meta item nothing can resolve, and the resolution failure would show
-    up at order time as "we cannot price this line" rather than here.
+    Legacy UUID pairs retain the original `WECARE.DIGITAL:<uuid>:<uuid>` representation so
+    already-published valid identities do not fork. Current native rows use a versioned,
+    base64url-encoded representation:
 
-    The namespace is emitted exactly as configured. UUIDs are normalised to lowercase so their
-    input case cannot fork a Meta item; incoming ids are parsed case-insensitively.
+        WECARE.DIGITAL:v2:<base64url(productId)>:<base64url(variantId)>
+
+    V2 is lossless and separator-safe, including product ids such as
+    `native:hunar-kaushal` and short SKU variant ids such as `KSL9M2Q4`.
     """
-    product = str(product_id or "").strip().lower()
-    variant = str(variant_id or "").strip().lower()
-    if not _UUID_RE.match(product):
-        raise RetailerIdError("product id is not a catalogue UUID")
-    if not _UUID_RE.match(variant):
-        raise RetailerIdError("variant id is not a catalogue UUID")
-    value = f"{RETAILER_PREFIX}:{product}:{variant}"
+    product = str(product_id or "").strip()
+    variant = str(variant_id or "").strip()
+    if not product or not variant:
+        raise RetailerIdError("product id and variant id are required")
+
+    legacy_product = product.lower()
+    legacy_variant = variant.lower()
+    if _UUID_RE.fullmatch(legacy_product) and _UUID_RE.fullmatch(legacy_variant):
+        value = f"{RETAILER_PREFIX}:{legacy_product}:{legacy_variant}"
+    else:
+        value = (
+            f"{RETAILER_PREFIX}:{_RETAILER_V2}:"
+            f"{_b64url_encode(product)}:{_b64url_encode(variant)}"
+        )
+
     if len(value) > RETAILER_ID_MAX_LENGTH:
-        # Unreachable with today's UUIDs (88 characters), and asserted anyway so an id format
-        # change fails here with a readable reason instead of at Meta with a 400.
         raise RetailerIdError(
             f"retailer id is {len(value)} characters, over Meta's {RETAILER_ID_MAX_LENGTH}")
     return value
 
 
 def parse_retailer_id(value: Any) -> Optional[Tuple[str, str]]:
-    """`(productId, variantId)` for one of ours, `None` for anything else.
+    """Return the exact `(productId, variantId)` for one of our retailer ids.
 
-    `None` IS THE SAFE ANSWER AND IT IS WHAT MAKES `foreign` WORK. Every id this returns `None`
-    for is reported and never modified, so the set of things this sync can touch is exactly the
-    set it can parse. That covers three cases on purpose:
+    Both contracts are accepted:
+    - legacy `WECARE.DIGITAL:<uuid>:<uuid>`;
+    - v2 `WECARE.DIGITAL:v2:<b64url(productId)>:<b64url(variantId)>`.
 
-    - a hand-made SKU from the catalog builder (`WD-PARTNER-UP`) - not ours, leave it;
-    - an id carrying the prefix but not two UUIDs - ours in intention, broken in fact, and
-      modifying it blind could overwrite an item we cannot identify;
-    - an id with extra colon-separated segments - `_UUID_RE` is anchored, so it cannot pass.
+    Anything else is foreign and therefore never modified by the sync.
     """
-    text = str(value or "").strip().lower()
+    text = str(value or "").strip()
     parts = text.split(":")
-    if len(parts) != 3:
-        return None
-    prefix, product, variant = parts
-    if prefix != RETAILER_PREFIX.lower():
-        return None
-    if not _UUID_RE.match(product) or not _UUID_RE.match(variant):
-        return None
-    return product, variant
+
+    if len(parts) == 3:
+        prefix, product, variant = parts
+        product = product.lower()
+        variant = variant.lower()
+        if prefix.lower() != RETAILER_PREFIX.lower():
+            return None
+        if not _UUID_RE.fullmatch(product) or not _UUID_RE.fullmatch(variant):
+            return None
+        return product, variant
+
+    if len(parts) == 4:
+        prefix, version, product_encoded, variant_encoded = parts
+        if prefix.lower() != RETAILER_PREFIX.lower() or version.lower() != _RETAILER_V2:
+            return None
+        product = _b64url_decode(product_encoded)
+        variant = _b64url_decode(variant_encoded)
+        if not product or not variant:
+            return None
+        return product, variant
+
+    return None
 
 
 # ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -479,28 +522,29 @@ def diff(desired: Sequence[Mapping[str, Any]],
     hand through `catalog-builder.tsx`, and a sync that tidied up what it did not recognise would
     delete someone's work.
     """
-    by_retailer: Dict[str, Mapping[str, Any]] = {}
+    by_identity: Dict[Tuple[str, str], Mapping[str, Any]] = {}
     foreign: List[str] = []
     for row in existing or []:
         if not isinstance(row, Mapping):
             continue
         raw = str(row.get("retailer_id") or "").strip()
-        if parse_retailer_id(raw) is None:
+        identity = parse_retailer_id(raw)
+        if identity is None:
             if raw:
                 foreign.append(raw)
             continue
-        by_retailer[raw.lower()] = row
+        by_identity[identity] = row
 
     create: List[Dict[str, Any]] = []
     update: List[Dict[str, Any]] = []
     seen: set = set()
 
     for item in desired or []:
-        key = str(item.get("retailer_id") or "").strip().lower()
-        if not key:
+        identity = parse_retailer_id(item.get("retailer_id"))
+        if identity is None:
             continue
-        seen.add(key)
-        current = by_retailer.get(key)
+        seen.add(identity)
+        current = by_identity.get(identity)
         if current is None:
             create.append(dict(item))
             continue
@@ -512,8 +556,8 @@ def diff(desired: Sequence[Mapping[str, Any]],
             update.append(changed)
 
     retire: List[Dict[str, Any]] = []
-    for key, row in by_retailer.items():
-        if key in seen:
+    for identity, row in by_identity.items():
+        if identity in seen:
             continue
         if str(row.get("availability") or "").strip().lower() == OUT_OF_STOCK:
             # Already retired. Re-sending it would be a write that changes nothing, and a plan
