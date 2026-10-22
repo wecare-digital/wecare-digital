@@ -32,14 +32,10 @@ name: Media prefixes
 # through `lambda_utils.media_paths`, named a bucket that no longer exists, or placed the
 # `media_paths` import below its first use. The failure message names the file and line.
 on:
-  push:
-    branches: [stack]
-  pull_request:
-    branches: [stack]
   schedule:
-    # 07:20 UTC daily, just after the route-auth drift job.
     - cron: '20 7 * * *'
   workflow_dispatch:
+
 permissions:
   contents: read
   id-token: write   # for the OIDC role assumption in live-gate
