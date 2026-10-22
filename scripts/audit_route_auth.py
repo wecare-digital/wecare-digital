@@ -186,6 +186,11 @@ EXPECTED_PUBLIC_ROUTES = {
     # this line must come out and the route must move behind require_auth.
     "ANY /mcp": "read-only MCP server over public content; no auth possible in-protocol",
     "GET /workspace/mcp/oauth/callback": "provider OAuth callback; exact route, ten-minute principal-bound one-use state and PKCE; no administrative tools exposed",
+    # Public catalogue artwork is fetched by browsers and Meta before any customer identity
+    # exists. The dedicated handler accepts GET only, validates an exact lowercase
+    # *-4096.png filename, and its execution role can only GetObject below the one
+    # secure/catalog/products/ prefix.
+    "GET /catalog-media/{filename}": "anonymous approved-catalog-artwork read; GET only, strict *-4096.png filename validation, and read-only S3 permission scoped to secure/catalog/products/",
     # The live price shown on the four public service pages. A visitor reads it BEFORE signing
     # in -- the price is what decides whether they sign in at all -- so there is no identity to
     # authenticate. Narrow by construction: GET only, and the handler arm accepts no path

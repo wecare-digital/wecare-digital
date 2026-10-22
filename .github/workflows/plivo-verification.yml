@@ -17,6 +17,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: plivo-verification-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   plivo-tests:
     runs-on: ubuntu-26.04

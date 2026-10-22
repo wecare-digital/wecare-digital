@@ -210,6 +210,10 @@ class TestAuditMarkerPolicy:
             # one-use state and PKCE, tested for expiry, replay and supersession
             # in test_workspace_mcp.py. No administrative tool is reachable.
             "GET /workspace/mcp/oauth/callback",
+            # Catalogue artwork must be anonymous because browsers and Meta fetch it before
+            # any customer identity exists. The dedicated handler is GET-only, accepts only
+            # exact lowercase *-4096.png names and has read-only S3 access to one prefix.
+            "GET /catalog-media/{filename}",
             # An MCP client has no Cognito session and the protocol defines no
             # place to carry one, so require_auth would make the endpoint
             # unusable for its only purpose. Admitted because the capability to

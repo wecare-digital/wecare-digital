@@ -61,6 +61,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ui-labels-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   ui-labels:
     name: Product vocabulary gate

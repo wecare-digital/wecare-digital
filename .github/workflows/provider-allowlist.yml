@@ -49,6 +49,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: provider-allowlist-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   provider-allowlist:
     name: Provider allow-list gate
