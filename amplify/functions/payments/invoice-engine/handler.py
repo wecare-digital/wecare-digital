@@ -3151,12 +3151,9 @@ def send_pending_by_phone(body: Dict, request_id: str) -> Dict:
     # Send payment link for FIRST invoice only (sequential pay)
     first = all_pending[0]
     first_id = first.get('invoiceId', '')
-    # Use the PG config stored on the invoice (set by admin at creation time)
-    # Falls back to empty string → outbound handler uses phone's default Razorpay
-    first_pg_config = first.get('paymentConfiguration', '') or ''
     send_error = ''
     try:
-        result = send_payment_link(first_id, phone_number_id, first_pg_config, request_id,
+        result = send_payment_link(first_id, phone_number_id, request_id,
                                    verify_phone=customer_phone)
         result_code = result.get('statusCode', 0)
         if result_code == 200:
@@ -3528,9 +3525,8 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
                 'invoiceId': invoice.get('invoiceId', ''),
                 'paymentConfiguration': WA_PAY_CONFIG_NAME,
                 'phoneId': phone_number_id,
-                'note': 'config name cannot identify a WABA; both expose '
-                        'WECAREDIGITAL/WECAREUPI. Defaulting to the primary '
-                        'identity; never to the admin-gated secondary.',
+                'note': 'WhatsApp payments are pinned to the primary WABA and the '
+                        'WECAREDIGITAL Razorpay configuration.',
             }))
 
     # ══ RESERVE BEFORE SEND ══════════════════════════════════════════════════════════════
@@ -3576,20 +3572,6 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
         return _resp(409, {'error': wa_payment_request.REFUSAL_MESSAGES[
                                wa_payment_request.WA_PAY_SENDER_NOT_PERMITTED],
                            'code': wa_payment_request.WA_PAY_SENDER_NOT_PERMITTED})
-
-    # A configuration this deployment cannot prove is refused by name, with a cause, before the
-    # provider read. In practice this refuses `WECAREUPI`; nothing live sends it. With
-    # `WA_PAY_CONFIG_NAME` unset both sides are `''`, so this check passes and `evaluate` then
-    # reports CONFIGURATION_UNVERIFIED on the empty name — still closed, one branch later.
-    if configuration_name != WA_PAY_CONFIG_NAME:
-        logger.error(json.dumps({'event': 'wa_payment_config_not_provable',
-                                 'invoiceId': invoice_id,
-                                 'configurationName': configuration_name,
-                                 'code': WA_PAY_CONFIG_NOT_PROVABLE,
-                                 'requestId': request_id}))
-        return _resp(409, {'error': 'That payment configuration cannot be verified on this '
-                                    'path. Nothing has been charged.',
-                           'code': WA_PAY_CONFIG_NOT_PROVABLE})
 
     # `evaluate`, not `evaluate_for_delivery`. The send is unconditionally template-only
     # (`isCheckoutTemplate` + `WA_PAY_TEMPLATE`), so the 24-hour window is irrelevant to
