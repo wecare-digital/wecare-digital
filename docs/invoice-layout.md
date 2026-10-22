@@ -201,7 +201,7 @@ Delivery constraints that apply to the WhatsApp version:
 - It is a free-form media message, so it only sends inside the 24-hour service window. Outside it
   an owner-approved UTILITY template with an IMAGE or DOCUMENT header is needed; none exists today
   (only `wecare_otp` is approved, per Phase P findings).
-- The image is uploaded to Meta as a media id from the secure `secure/stack/invoices/...` key, so no
+- The image is uploaded to Meta as a media id from the secure `secure/Invoice/customer_invoice/...` key, so no
   public URL is created.
 - No live send is enabled by this document. QA sends go only to the owner-nominated QA recipient.
 
