@@ -8,6 +8,7 @@ const child = productChildByPath( '/hunar/kaushal/' );
 
 const KaushalPage: React.FC = () => (
   <ProductPage
+      mobileFoundation
     product={ child.product }
     canonicalPath={ child.path }
     belowCta={ <ProductBuyBox slug="hunar-kaushal" /> }
