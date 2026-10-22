@@ -22,16 +22,6 @@ import seo_refresh
 import storage
 import page_catalog
 
-#: The two categories the live site actually has. Imported from the quality gate so the
-#: Lambda, the CLI and the admin page cannot disagree about what is acceptable -
-#: `src/test/BlogStudioContract.test.ts` asserts the page agrees with the same list.
-try:  # pragma: no cover - exercised implicitly by every blog-source route
-    import blog_quality_v2 as _quality
-    BLOG_CATEGORIES = _quality.CATEGORIES
-except ImportError:  # pragma: no cover - a package built without the gate
-    _quality = None
-    BLOG_CATEGORIES = ('Conversations', 'Gastronomy')
-
 logger = logging.getLogger(__name__)
 INPUT_COST_PER_M = 3.0
 OUTPUT_COST_PER_M = 15.0
