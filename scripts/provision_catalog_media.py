@@ -111,6 +111,7 @@ def apply():
         lam.get_waiter("function_updated").wait(FunctionName=FUNCTION)
         lam.update_function_configuration(
             FunctionName=FUNCTION,
+            Handler="handler.handler",
             Environment={"Variables": {"CATALOG_BUCKET": "wecare-digital-get"}},
             Timeout=15,
             MemorySize=512,
