@@ -84,7 +84,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install focused test dependencies
-        run: python -m pip install --disable-pip-version-check pytest boto3 pypdf==6.19.0
+        run: python -m pip install --disable-pip-version-check pytest boto3 pypdf==6.21.1
 
       - name: Determine whether packaged SEO source changed
         if: github.event_name == 'push'
@@ -132,7 +132,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install packaging dependencies
-        run: python -m pip install --disable-pip-version-check boto3 pypdf==6.19.0
+        run: python -m pip install --disable-pip-version-check boto3 pypdf==6.21.1
 
       - name: Package SEO tools Lambda
         run: |

@@ -52,6 +52,6 @@ def test_seo_ci_deploy_installs_pinned_packaging_dependencies():
     deploy_setup = workflow.split("\n  deploy:", 1)[1].split(
         "      - name: Package SEO tools Lambda", 1
     )[0]
-    assert "python -m pip install --disable-pip-version-check boto3 pypdf==6.19.0" in deploy_setup, (
+    assert "python -m pip install --disable-pip-version-check boto3 pypdf==6.21.1" in deploy_setup, (
         "The deploy job runs on a fresh runner; test-job dependencies are not inherited"
     )

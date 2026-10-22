@@ -49,7 +49,7 @@ SECURE_BLOG_PREFIX = "secure/blog-production/"
 #: Pure-python wheel, no compiled parts, so it zips straight into the function package -
 #: no layer, no Amazon Linux cross-compile. Pinned, and the same version
 #: requirements-dev.txt pins, so local extraction and Lambda extraction cannot differ.
-PYPDF_VERSION = "6.19.0"
+PYPDF_VERSION = "6.21.1"
 
 # HTTP API behind wecare.digital/api (stage prod, AutoDeploy on).
 # Frontend calls https://wecare.digital/api/seo-tools/{route} (src/api/seo.ts).
@@ -300,7 +300,7 @@ def _vendor_pypdf(z: zipfile.ZipFile) -> int:
     produce different article text depending on which door it came through, and nobody
     would notice until somebody compared two extracts of one document.
 
-    Safe to zip from a Mac because pypdf is pure python - `pypdf-6.19.0-py3-none-any.whl`
+    Safe to zip from a Mac because pypdf is pure python - `pypdf-6.21.1-py3-none-any.whl`
     has no compiled parts and no platform tag. Do NOT use this helper for anything with a
     C extension; lxml would need building on Amazon Linux, which is exactly why
     `shared/blog_pipeline.py` parses HTML with the stdlib instead.
