@@ -518,9 +518,10 @@ def _native_products(scanner=None) -> List[Dict[str, Any]]:
     for item in raw:
         if str(item.get("status") or "active") == "archived":
             continue
-        # Backward compatible migration: legacy rows without the flag remain eligible;
-        # every new native product is created with metaEnabled=false and stays out until approved.
-        if item.get("metaEnabled") is False:
+        # Meta publication is explicit and fail-closed. Only rows deliberately marked
+        # metaEnabled=true may enter the desired Meta catalogue. Missing, false, null, or
+        # malformed values all remain out until an Admin explicitly enables the product.
+        if item.get("metaEnabled") is not True:
             continue
         price_minor = _paise(item.get("priceMinor"))
         variants = []
