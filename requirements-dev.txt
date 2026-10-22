@@ -89,7 +89,7 @@ PyJWT==2.15.0
 pillow==13.0.0
 # PDF text extraction for scripts/blog_ingest.py. Pure-python wheel with no required
 # runtime dependencies on 3.12, so it needs no Lambda layer and no native toolchain.
-pypdf==6.19.0
+pypdf==6.21.1
 pytest==9.1.1
 python-dateutil==2.9.0.post0
 PyYAML==6.0.3
