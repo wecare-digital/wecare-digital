@@ -4643,6 +4643,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
       <style jsx>{`
         .vl-live{
           --page:var(--public-bg);--alt:#fafafa;--lime:var(--public-brand-lime);--lime-hover:#c5e866;--lime-tint:var(--public-lime-tint);
+          font-family:var(--font-sans);
           --green:var(--public-brand-green);--hair:var(--public-hairline);--heading:var(--public-heading);--body:var(--public-body);
           --muted:var(--public-muted);--status:rgba(0,0,0,.70);
           /* Corner radii source from the shared homepage tokens (src/styles/tokens.css) so
