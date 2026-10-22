@@ -90,7 +90,7 @@ def catalog_product_identifier(value):
     """
     if not isinstance(value, str):
         raise ValueError("invalid catalog product identifier")
-    text = value.strip()
+    text = value
     try:
         canonical_uuid = str(UUID(text))
         if canonical_uuid == text.lower():
@@ -110,7 +110,7 @@ def catalog_variant_identifier(value):
     """
     if not isinstance(value, str):
         raise ValueError("invalid catalog variant identifier")
-    text = value.strip()
+    text = value
     if not _CATALOG_VARIANT_ID.fullmatch(text):
         raise ValueError("invalid catalog variant identifier")
     return text
