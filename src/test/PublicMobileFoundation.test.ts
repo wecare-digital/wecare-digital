@@ -61,6 +61,23 @@ describe( 'public mobile foundation', () => {
     expect( vayulokLive ).toContain( 'font-family:var(--font-sans)' );
   } );
 
+  it( 'records the public blog listing and post reader as mobile-foundation adopters', () => {
+    const listing = read( 'src/components/BlogIndexView.tsx' );
+    const post = read( 'src/pages/post/[slug].tsx' );
+
+    expect( listing ).toContain( 'mobileFoundation' );
+    expect( listing ).toContain( '--public-mobile-card-size' );
+    expect( listing ).toContain( '--public-mobile-form-font-size' );
+
+    expect( post ).toContain( 'mobileFoundation' );
+    expect( post ).toContain( '--public-mobile-hero-size' );
+    expect( post ).toContain( '--public-mobile-section-size' );
+    expect( post ).toContain( '--public-mobile-card-size' );
+    expect( post ).toContain( '--public-mobile-form-font-size' );
+    expect( post ).toContain( 'font-size:var(--public-body-size);line-height:1.55' );
+    expect( post ).not.toContain( 'font-size:18px;line-height:1.6' );
+  } );
+
   it( 'keeps the bespoke Activities experience explicitly on the Home-aligned mobile foundation', () => {
     const productPage = read( 'src/components/ProductPage.tsx' );
     const activities = read( 'src/pages/elsewhere/activities.tsx' );
