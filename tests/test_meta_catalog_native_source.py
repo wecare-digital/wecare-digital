@@ -45,9 +45,22 @@ def test_catalog_source_is_unconditionally_native(monkeypatch):
     assert "products = _native_products()" in source
 
 
+def test_native_products_require_explicit_meta_opt_in():
+    base = {
+        "id": "prod-opt", "title": "Opt in", "slug": "opt-in",
+        "status": "active", "priceMinor": 100, "currency": "INR",
+        "variants": [{"sku": "OPT-1", "inventory": 1, "priceMinor": 100}],
+    }
+    assert receiver._native_products(scanner=lambda: [base]) == []
+    assert receiver._native_products(scanner=lambda: [{**base, "metaEnabled": False}]) == []
+    assert len(receiver._native_products(
+        scanner=lambda: [{**base, "metaEnabled": True}]
+    )) == 1
+
+
 def test_native_products_projects_slim_shape():
     items = [{
-        "id": "prod-1", "title": "Starter Kit", "slug": "starter-kit",
+        "metaEnabled": True, "id": "prod-1", "title": "Starter Kit", "slug": "starter-kit",
         "status": "active", "priceMinor": 659900, "currency": "INR",
         "inventory": 5, "tagline": "A starter.",
         "variants": [{"sku": "SK-S", "label": "Small", "inventory": 2, "priceMinor": 659900}],
@@ -69,7 +82,7 @@ def test_native_products_projects_slim_shape():
 
 def test_untracked_zero_inventory_is_sellable_like_native_checkout():
     items = [{
-        "id": "prod-untracked", "title": "Digital Service", "slug": "digital-service",
+        "metaEnabled": True, "id": "prod-untracked", "title": "Digital Service", "slug": "digital-service",
         "status": "active", "priceMinor": 9900, "currency": "INR",
         "variants": [{
             "sku": "DIGI1", "label": "Standard", "inventory": 0,
@@ -84,7 +97,7 @@ def test_untracked_zero_inventory_is_sellable_like_native_checkout():
 
 def test_tracked_inventory_controls_meta_availability():
     items = [{
-        "id": "prod-tracked", "title": "Physical", "slug": "physical",
+        "metaEnabled": True, "id": "prod-tracked", "title": "Physical", "slug": "physical",
         "status": "active", "priceMinor": 9900, "currency": "INR",
         "variants": [
             {"sku": "ZERO1", "label": "Zero", "inventory": 0,
@@ -100,9 +113,9 @@ def test_tracked_inventory_controls_meta_availability():
 
 def test_native_products_excludes_archived():
     items = [
-        {"id": "a", "title": "Live", "slug": "live", "status": "active", "priceMinor": 100,
+        {"metaEnabled": True, "id": "a", "title": "Live", "slug": "live", "status": "active", "priceMinor": 100,
          "variants": [{"sku": "a1", "inventory": 1, "priceMinor": 100}]},
-        {"id": "b", "title": "Gone", "slug": "gone", "status": "archived", "priceMinor": 100},
+        {"metaEnabled": True, "id": "b", "title": "Gone", "slug": "gone", "status": "archived", "priceMinor": 100},
     ]
     rows = receiver._native_products(scanner=lambda: items)
     assert [r["id"] for r in rows] == ["a"]
@@ -113,7 +126,7 @@ def test_native_products_feed_desired_items_with_variant_price():
     product_id = "native:hunar-kaushal"
     variant_id = "KSL9M2Q4"
     items = [{
-        "id": product_id, "title": "Kaushal", "slug": "hunar-kaushal", "status": "active",
+        "metaEnabled": True, "id": product_id, "title": "Kaushal", "slug": "hunar-kaushal", "status": "active",
         "priceMinor": 50000, "currency": "INR", "inventory": 3,
         "variants": [{"sku": variant_id, "label": "Standard", "inventory": 3,
                       "priceMinor": 50000}],
@@ -135,7 +148,7 @@ def test_missing_status_defaults_visible_from_productstable():
     that would hide legitimate legacy rows.
     """
     items = [{
-        "id": "no-status", "title": "Legacy", "slug": "legacy", "priceMinor": 100,
+        "metaEnabled": True, "id": "no-status", "title": "Legacy", "slug": "legacy", "priceMinor": 100,
         "variants": [{"sku": "L-1", "inventory": 1, "priceMinor": 100}],
     }]
     rows = receiver._native_products(scanner=lambda: items)
@@ -155,9 +168,9 @@ def test_visibility_is_sourced_only_from_productstable_scanner():
     `visible` site in the handler.
     """
     items = [
-        {"id": "keep", "title": "Keep", "slug": "keep",
+        {"metaEnabled": True, "id": "keep", "title": "Keep", "slug": "keep",
          "variants": [{"sku": "k1", "inventory": 1, "priceMinor": 100}]},  # no status -> visible
-        {"id": "drop", "title": "Drop", "slug": "drop", "status": "archived", "priceMinor": 100},
+        {"metaEnabled": True, "id": "drop", "title": "Drop", "slug": "drop", "status": "archived", "priceMinor": 100},
     ]
     rows = receiver._native_products(scanner=lambda: items)
     assert [r["id"] for r in rows] == ["keep"]   # archived skipped, derived from the scanner
@@ -166,7 +179,7 @@ def test_visibility_is_sourced_only_from_productstable_scanner():
 
 def test_native_variant_without_price_is_refused():
     items = [{
-        "id": "prod-x", "title": "Unpriced", "slug": "unpriced", "status": "active",
+        "metaEnabled": True, "id": "prod-x", "title": "Unpriced", "slug": "unpriced", "status": "active",
         "priceMinor": 0, "currency": "INR", "inventory": 1,
         "variants": [{"sku": "U-1", "label": "One", "inventory": 1}],  # no priceMinor
     }]
