@@ -3586,8 +3586,6 @@ _PAYMENT_WABA_ID = os.environ.get('PAYMENT_WABA_ID', '')
 _DECLARED_CONFIGS = [
     {'name': 'WECAREDIGITAL', 'status': 'local_only', 'type': 'payment_gateway',
      'gateway': 'razorpay', 'mid': _RAZORPAY_MID},
-    {'name': 'WECAREUPI', 'status': 'local_only', 'type': 'upi',
-     'gateway': 'razorpay', 'upiId': _RAZORPAY_UPI_ID},
 ]
 
 PAYMENT_CONFIGS = {
@@ -4643,7 +4641,7 @@ def _sync_flows(params: Dict, body: Dict) -> Dict:
             update['previewExpiresAt'] = Decimal(str(now + 600))
         # Preserve config-only fields already present.
         for keep in ('flowCode', 'flowType', 'flowVersion', 'requiresPayment', 'paymentAmount',
-                     'paymentConfigName', 'screenConfig', 'contactMapping', 'dataFetchers',
+                     'screenConfig', 'contactMapping', 'dataFetchers',
                      'submissionPrefix', 'endpointUri', 'createdAt'):
             if keep in existing and keep not in update:
                 update[keep] = existing[keep]
