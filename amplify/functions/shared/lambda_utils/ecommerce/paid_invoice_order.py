@@ -12,6 +12,27 @@ from lambda_utils.ecommerce import finalization, order_keys, order_record
 from lambda_utils.identity import customer_uuid
 
 
+_PAID_NOTE_CONTRADICTIONS = ('cancelled', 'unpaid', 'no money moved')
+
+
+def _authoritative_invoice_metadata(invoice, attempt):
+    """Project non-fiscal paid metadata from verified attempt evidence.
+
+    This intentionally does not touch amounts, tax fields, invoice numbering, provider evidence,
+    or delivery state. A fully paid attempt is authoritative for order origin, and notes which
+    explicitly describe that same transaction as cancelled/unpaid are stale QA metadata.
+    """
+    projected = deepcopy(invoice)
+    channel = str(attempt.get('channel') or '').strip().lower()
+    if channel in ('whatsapp', 'website'):
+        projected['channel'] = channel
+    if attempt.get('status') == 'PAYMENT_PAID':
+        note = str(projected.get('notes') or '').strip().lower()
+        if note and any(marker in note for marker in _PAID_NOTE_CONTRADICTIONS):
+            projected.pop('notes', None)
+    return projected
+
+
 def build(*, invoice, attempt, contact, outcome, items, now):
     amount = finalization.integer_paise(attempt.get('verifiedCapturedPaise'))
     expected = finalization.integer_paise(attempt.get('amountPaise'))
@@ -41,7 +62,7 @@ def build(*, invoice, attempt, contact, outcome, items, now):
     public_uuid = customer_uuid.from_contact(attempt) or customer_uuid.from_contact(contact)
     if invoice.get('customerUuid') and invoice['customerUuid'] != public_uuid:
         raise ValueError('invoice customer identity does not agree')
-    snapshot = deepcopy(invoice)
+    snapshot = _authoritative_invoice_metadata(invoice, attempt)
     if public_uuid:
         snapshot['customerUuid'] = public_uuid
     row = {
@@ -145,17 +166,18 @@ def materialize(*, invoices, items, contacts, attempts, keys, orders, reference_
         raise ValueError('unique saved invoice required')
     # The GSI only locates the invoice; the evidence is read consistently from its table.
     invoice = invoices.get_item(Key={'invoiceId': matches[0]['invoiceId']}, ConsistentRead=True).get('Item') or {}
+    projected_invoice = _authoritative_invoice_metadata(invoice, attempt)
     contact = contacts.get_item(Key={'id': invoice.get('contactId', '')}, ConsistentRead=True).get('Item') or {}
     lines = _query_all(items, KeyConditionExpression=Key('invoiceId').eq(invoice['invoiceId']), ConsistentRead=True)
     outcome = {'hasOrder': True, 'orderId': claim['orderIdRef'],
         'orderNumber': claim['orderNumber'], 'providerPaymentId': provider}
-    row = build(invoice=invoice, attempt=attempt, contact=contact, outcome=outcome, items=lines, now=now)
+    row = build(invoice=projected_invoice, attempt=attempt, contact=contact, outcome=outcome, items=lines, now=now)
     row = store(orders=orders, row=row)
     # A profile can bind the contact after our first read and before this insert.
     # Rebuild only the ownership projection from a fresh read, retaining the claim.
     fresh_contact = contacts.get_item(Key={'id': row['contactId']}, ConsistentRead=True).get('Item') or {}
     if fresh_contact.get('checkoutCustomerId') and fresh_contact.get('checkoutCustomerId') != row['customerId']:
-        row = store(orders=orders, row=build(invoice=invoice, attempt=attempt,
+        row = store(orders=orders, row=build(invoice=projected_invoice, attempt=attempt,
             contact=fresh_contact, outcome=outcome, items=lines, now=now))
     attempt_update = ('SET finalizationStage = :stage, orderId = :order, '
                       'orderNumber = :number, contactId = :contact')
@@ -171,10 +193,19 @@ def materialize(*, invoices, items, contacts, attempts, keys, orders, reference_
             'AND (attribute_not_exists(contactId) OR contactId = :contact)'),
         ExpressionAttributeValues=attempt_values)
     values = {':order': row['orderId'], ':number': row['orderNumber'], ':ref': reference_id}
+    names = {}
     expression = 'SET orderId = :order, orderNumber = :number'
+    channel = str(projected_invoice.get('channel') or '')
+    if channel in ('whatsapp', 'website'):
+        names['#channel'] = 'channel'
+        expression += ', #channel = :channel'
+        values[':channel'] = channel
     if row.get('customerUuid'):
         expression += ', customerUuid = :uuid'
         values[':uuid'] = row['customerUuid']
+    if invoice.get('notes') and not projected_invoice.get('notes'):
+        expression += ' REMOVE notes'
     invoices.update_item(Key={'invoiceId': invoice['invoiceId']}, UpdateExpression=expression,
-        ConditionExpression='referenceId = :ref', ExpressionAttributeValues=values)
+        ConditionExpression='referenceId = :ref', ExpressionAttributeValues=values,
+        **({'ExpressionAttributeNames': names} if names else {}))
     return {key: row[key] for key in ('orderId', 'orderNumber', 'finalizationStage')}

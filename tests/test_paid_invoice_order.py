@@ -115,6 +115,27 @@ def test_public_customer_uuid_reaches_order_and_invoice_snapshot():
     assert row['customerUuid'] == PUBLIC_UUID
     assert row['invoiceSnapshot']['customerUuid'] == PUBLIC_UUID
 
+
+def test_verified_paid_attempt_overrides_stale_invoice_origin_metadata():
+    args = inputs()
+    args['attempt']['channel'] = 'whatsapp'
+    args['invoice']['channel'] = 'website'
+    args['invoice']['notes'] = 'Cancelled: native-pay live proof; unpaid, no money moved'
+    row = subject.build(**args)
+    assert row['channel'] == 'whatsapp'
+    assert row['invoiceSnapshot']['channel'] == 'whatsapp'
+    assert 'notes' not in row['invoiceSnapshot']
+
+
+def test_non_contradictory_invoice_note_is_preserved():
+    args = inputs()
+    args['attempt']['channel'] = 'whatsapp'
+    args['invoice']['channel'] = 'website'
+    args['invoice']['notes'] = 'Customer requested GST copy by email'
+    row = subject.build(**args)
+    assert row['invoiceSnapshot']['channel'] == 'whatsapp'
+    assert row['invoiceSnapshot']['notes'] == 'Customer requested GST copy by email'
+
 @pytest.mark.parametrize('change', ['currency', 'attempt_owner', 'attempt_contact', 'deleted_contact', 'provider_conflict'])
 def test_projection_refuses_cross_domain_evidence(change):
     args = inputs()
