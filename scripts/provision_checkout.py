@@ -20,12 +20,12 @@ What it stands up
   wildcard at all — see `source_arn`, which records why the obvious `/ecommerce/*` prefix was not
   good enough.
 
-Initiation stays OFF. `CHECKOUT_INITIATION_ENABLED` is deliberately absent from the environment
-this script sets, so the deployed function prepares attempts and reserves references but sends no
-payable message until someone sets that flag on purpose. Readiness inputs
-(`EXPECTED_CONFIGURATION_NAME`, `EXPECTED_PROVIDER_MID`) are also left empty here, so even if
-initiation were flipped on, `payment_readiness` blocks until an owner supplies the values from a
-live Meta/Razorpay read. There is no path from this script to a live charge.
+Native initiation is hard-enabled in the checkout handler. The retired
+`CHECKOUT_INITIATION_ENABLED` environment flag is intentionally absent. Safety now comes from
+the provider-readiness contract: `EXPECTED_CONFIGURATION_NAME` and `EXPECTED_PROVIDER_MID`
+must match the live Meta payment-configuration readback before any payable WhatsApp message is sent.
+This provisioner records those non-secret expectations exactly so a later deploy cannot blank or
+silently change the production readiness contract.
 
 Packaging is delegated, deliberately
 ------------------------------------
@@ -176,6 +176,8 @@ SENDER_FUNCTION = "wecare-whatsapp-business-api"
 #: are all written, surfacing as a 500 that looks like a Meta problem.
 OUTBOUND_SENDER_FUNCTION = "wecare-outbound-whatsapp"
 PAYMENT_WABA_ID = "2094615664435155"
+EXPECTED_CONFIGURATION_NAME = "WECAREDIGITAL"
+EXPECTED_PROVIDER_MID = "acc_TTFSyolquKEZEy"
 
 _account_id_cache = None
 
@@ -519,11 +521,10 @@ def ensure_log_group(dry_run: bool) -> str:
     return "exists; retention verified" if exists else "created"
 
 
-#: Environment keys this script seeds empty and an owner later fills from a live Meta/Razorpay
-#: read. `--verify` checks them for PRESENCE only; every other key in `expected_environment()` is
-#: checked for an exact value.
+#: Provider-readiness expectations are non-secret identifiers and are checked exactly.
+#: They are compared with a live Meta readback by payment_readiness before any native send.
 READINESS_KEYS = ("EXPECTED_CONFIGURATION_NAME", "EXPECTED_PROVIDER_MID")
-PRESENCE_ONLY_KEYS = READINESS_KEYS
+PRESENCE_ONLY_KEYS = ()
 
 def expected_environment() -> dict:
     return {
@@ -538,10 +539,9 @@ def expected_environment() -> dict:
         "NATIVE_STOCK_RESERVATION_ENABLED": "true",
         "SENDER_FUNCTION": f"{SENDER_FUNCTION}:{LIVE_ALIAS}",
         "PAYMENT_WABA_ID": PAYMENT_WABA_ID,
-        # Deliberately empty: payment_readiness remains independently owner-gated.
-        "EXPECTED_CONFIGURATION_NAME": "",
-        "EXPECTED_PROVIDER_MID": "",
-        # CHECKOUT_INITIATION_ENABLED intentionally omitted -> initiation OFF.
+        "EXPECTED_CONFIGURATION_NAME": EXPECTED_CONFIGURATION_NAME,
+        "EXPECTED_PROVIDER_MID": EXPECTED_PROVIDER_MID,
+        # CHECKOUT_INITIATION_ENABLED is retired; handler initiation is hard-enabled.
     }
 
 
@@ -582,8 +582,8 @@ def reconcile_environment(dry_run: bool) -> str:
     config = lam().get_function_configuration(FunctionName=FUNCTION_NAME)
     current = dict((config.get("Environment") or {}).get("Variables") or {})
     wanted = expected_environment()
-    # Only ADD/repair the keys this script owns; never clobber an operator-set
-    # CHECKOUT_INITIATION_ENABLED or live-read EXPECTED_* readiness values.
+    # Only ADD/repair the keys this script owns. The retired initiation flag is not owned here;
+    # readiness expectations are exact non-secret configuration and must not drift.
     drifted = {k: v for k, v in wanted.items()
                if k not in PRESENCE_ONLY_KEYS and current.get(k) != v}
     for k in PRESENCE_ONLY_KEYS:
@@ -610,7 +610,7 @@ def ensure_live_alias(dry_run: bool) -> str:
     if dry_run:
         return "would publish v1 and create live alias"
     published = lam().publish_version(
-        FunctionName=FUNCTION_NAME, Description="initial checkout release (initiation off)")
+        FunctionName=FUNCTION_NAME, Description="initial checkout release (provider readiness gated)")
     version = published["Version"]
     lam().get_waiter("function_active_v2").wait(
         FunctionName=FUNCTION_NAME, Qualifier=version)
@@ -1104,23 +1104,18 @@ def verify(members: dict | None = None, source_note: str = "") -> int:
         if live_env.get(key) != want:
             problems.append(f"env {key} mismatch on live (v{alias['FunctionVersion']})")
 
-    initiation = str(live_env.get("CHECKOUT_INITIATION_ENABLED", "")).strip().lower()
-    if initiation in ("1", "true", "yes", "on"):
-        problems.append("CHECKOUT_INITIATION_ENABLED is ON — live payment initiation is enabled")
-
-    # Readiness blocks independently of the gate. Both empty means `payment_readiness.evaluate`
-    # returns CONFIGURATION_UNVERIFIED, so a flipped flag alone still cannot produce a payment.
-    readiness_empty = not (live_env.get("EXPECTED_CONFIGURATION_NAME")
-                           or live_env.get("EXPECTED_PROVIDER_MID"))
+    # The old initiation flag is retired; the handler is hard-enabled. Safety is the exact
+    # readiness expectation plus the live Meta configuration readback performed at request time.
+    if "CHECKOUT_INITIATION_ENABLED" in live_env:
+        problems.append("retired env CHECKOUT_INITIATION_ENABLED is still present on live")
 
     print(f"function: present (live v{alias['FunctionVersion']})")
-    print(f"initiation: {'ON' if initiation in ('1','true','yes','on') else 'OFF (expected)'}")
-    print(f"readiness inputs: {'empty — blocks regardless of the gate' if readiness_empty else 'SET by an operator'}")
+    print("initiation: hard-enabled in handler; retired env flag absent")
+    print(f"readiness inputs: {EXPECTED_CONFIGURATION_NAME} / {EXPECTED_PROVIDER_MID}")
     print(f"sender: {SENDER_FUNCTION}:{LIVE_ALIAS}; WABA {PAYMENT_WABA_ID}")
 
-    # Pricing and stock authority remain AWS-native regardless of readiness state. Payment
-    # initiation is still independently controlled by CHECKOUT_INITIATION_ENABLED and provider
-    # readiness; this provisioner never seeds the initiation flag.
+    # Pricing and stock authority remain AWS-native. A native send still fails closed unless
+    # payment_readiness confirms the live Meta configuration matches these expectations.
 
     # Routes + integration: the half that turns a deployed function into a reachable endpoint.
     want_uri = function_arn(qualified=True)

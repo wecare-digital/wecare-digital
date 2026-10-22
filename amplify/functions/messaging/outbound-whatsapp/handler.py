@@ -528,6 +528,13 @@ _NOT_READY_MESSAGE = 'WhatsApp payment is not ready. Nothing has been charged.'
 #: surface as META_UNAVAILABLE - the hardest state on this path to tell from a real outage.
 _PAYMENT_READ_FUNCTION = 'wecare-whatsapp-business-api:live'
 
+#: Approved Meta Order Status template used only when the 24-hour customer-service window is
+#: closed. No default is invented: provider approval is external state and must be configured
+#: explicitly after readback proves the template APPROVED on the sender's WABA.
+WA_ORDER_STATUS_TEMPLATE = os.environ.get('WA_ORDER_STATUS_TEMPLATE', '').strip()
+WA_ORDER_STATUS_TEMPLATE_LANGUAGE = os.environ.get('WA_ORDER_STATUS_TEMPLATE_LANGUAGE', 'en').strip() or 'en'
+
+
 #: Refusal codes this gate owns. Deliberately NOT added to
 #: `wa_payment_request.REFUSAL_MESSAGES`: none of them is a `PaymentRequestRefused`, and putting
 #: them there would pull readiness vocabulary into the reservation module, which holds none.
@@ -941,6 +948,51 @@ def _marketing_consent_refusal(contact: Optional[Dict[str, Any]], purpose: str,
     )
 
 
+
+def _approved_order_status_template(phone_number_id: str, request_id: str) -> str:
+    """Return the configured Order Status template only after a live APPROVED readback."""
+    if not WA_ORDER_STATUS_TEMPLATE:
+        logger.warning(json.dumps({
+            'event': 'order_status_template_not_configured',
+            'requestId': request_id,
+        }))
+        return ''
+    waba_id = _waba_for_sender(phone_number_id)
+    if not waba_id:
+        logger.warning(json.dumps({
+            'event': 'order_status_template_waba_unresolved',
+            'phoneNumberId': phone_number_id,
+            'requestId': request_id,
+        }))
+        return ''
+    try:
+        rows = _fetch_approved_templates(waba_id).get('data', [])
+        approved = {
+            row.get('name') for row in rows if isinstance(row, dict)
+            and row.get('status') == 'APPROVED'
+            and row.get('category') == 'UTILITY'
+            and row.get('sub_category') == 'ORDER_STATUS'
+            and row.get('language') == WA_ORDER_STATUS_TEMPLATE_LANGUAGE
+        }
+    except Exception as error:  # noqa: BLE001 - fail closed on provider/read errors
+        logger.warning(json.dumps({
+            'event': 'order_status_template_read_failed',
+            'error': type(error).__name__,
+            'wabaId': waba_id,
+            'requestId': request_id,
+        }))
+        return ''
+    if WA_ORDER_STATUS_TEMPLATE not in approved:
+        logger.warning(json.dumps({
+            'event': 'order_status_template_not_approved',
+            'templateName': WA_ORDER_STATUS_TEMPLATE,
+            'wabaId': waba_id,
+            'requestId': request_id,
+        }))
+        return ''
+    return WA_ORDER_STATUS_TEMPLATE
+
+
 def _refuse_unless_payment_ready(body: Dict[str, Any], phone_number_id: str,
                                  request_id: str) -> Optional[Dict[str, Any]]:
     """Refuse a payment REQUEST unless a live provider readback proves it can be collected.
@@ -1259,16 +1311,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         interactive_type = body.get('interactiveType')  # 'list', 'button', 'location_request'
         interactive_data = body.get('interactiveData', {})
         
-        # Legacy order-status envelope. Customer-facing fulfilment updates are now sent only
-        # through wecare_default_invoice_image_template by invoice-engine.send_order_status.
+        # Meta order_status is a post-payment fulfilment notification. It is NOT a payment
+        # request and therefore is not blocked by the payment-readiness gate.
         is_order_status = body.get('isOrderStatus', False)
         order_status_details = body.get('orderStatusDetails')
-        if is_order_status:
-            return _error_response(
-                409,
-                'ORDER_STATUS_INVOICE_TEMPLATE_ONLY',
-                'Order status notifications must use the approved invoice image template.'
-            )
         
         # Direct phone number (fallback when contactId not available)
         recipient_phone_direct = body.get('recipientPhone')
@@ -1479,6 +1525,33 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             else:
                 return _outside_window_refusal(contact_id, bool(contact), request_id)
         
+        order_status_template_name = ''
+        if not within_window and is_order_status:
+            # An interactive order_status is a service-window message. Outside 24h it may travel
+            # only through an APPROVED Order Status template, proven live for this sender's WABA.
+            order_status_template_name = _approved_order_status_template(
+                phone_number_id, request_id)
+
+        if not within_window and not is_template:
+            if order_status_template_name:
+                logger.info(json.dumps({
+                    'event': 'order_status_template_fallback_selected',
+                    'templateName': order_status_template_name,
+                    'contactId': mask_contact_id(contact_id),
+                    'requestId': request_id,
+                }))
+            elif direct_send_category:
+                # A WABA id is not a secret and already appears in committed source.
+                logger.info(json.dumps({
+                    'event': 'direct_send_attempt',
+                    'category': direct_send_category,
+                    'wabaId': direct_send_waba,
+                    'contactId': mask_contact_id(contact_id),
+                    'requestId': request_id,
+                }))
+            else:
+                return _outside_window_refusal(contact_id, bool(contact), request_id)
+        
         # Requirement 5.4: Validate text length (skip for reactions)
         if not is_reaction and content and len(content) > MAX_TEXT_LENGTH:
             return _error_response(400, f'Content exceeds {MAX_TEXT_LENGTH} characters')
@@ -1532,6 +1605,15 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 message_id, contact_id, recipient_phone, phone_number_id,
                 reaction_message_id, reaction_emoji, request_id,
                 recipient_bsuid=recipient_bsuid
+            )
+        
+        # Handle order_status messages (payment confirmation)
+        if is_order_status and order_status_details:
+            return _handle_order_status_send(
+                message_id, contact_id, recipient_phone, phone_number_id,
+                order_status_details, request_id,
+                recipient_bsuid=recipient_bsuid,
+                template_name=order_status_template_name,
             )
         
         # Handle interactive messages (list, buttons, location request)
@@ -1740,25 +1822,212 @@ def _handle_reaction_send(message_id: str, contact_id: str, recipient_phone: str
 
 def _handle_order_status_send(message_id: str, contact_id: str, recipient_phone: str,
                                phone_number_id: str, order_status_details: Dict,
-                               request_id: str, recipient_bsuid: Optional[str] = None,
+                               request_id: str,
+                               recipient_bsuid: Optional[str] = None,
                                template_name: str = '') -> Dict[str, Any]:
-    """Refuse the retired direct Meta order-status path.
-
-    Fulfilment state is persisted by invoice-engine.send_order_status and the customer receives
-    wecare_default_invoice_image_template with the issued PNG from
-    secure/Invoice/customer_invoice/. Keeping this shim fail-closed protects any stale caller.
     """
-    logger.warning(json.dumps({
-        'event': 'legacy_order_status_send_refused',
-        'contactId': mask_contact_id(contact_id),
-        'requestId': request_id,
-    }))
-    return _error_response(
-        409,
-        'ORDER_STATUS_INVOICE_TEMPLATE_ONLY',
-        'Order status notifications must use the approved invoice image template.',
-    )
+    Send order_status interactive message to confirm payment status.
+    
+    Messages:
+    - Payment Success (captured): Payment of ₹{amount} received successfully! Thank you ✅
+    - Payment Failed: Payment failed. Please try again ❌
+    """
+    try:
+        raw_reference_id = order_status_details.get('reference_id', '')
+        # Sanitize reference_id to remove duplicate WD prefixes
+        reference_id = _sanitize_reference_id(raw_reference_id)
+        order_status = order_status_details.get('order_status', 'processing')
 
+        # ── `orderStatusDetails.amount` has TWO producers, so this read accepts BOTH keys ──
+        #
+        # `razorpay-webhook` now sends `amountPaise` (an integer); `inbound-whatsapp-handler`
+        # sends `amount` in rupees and is deliberately left untouched - the retirement block in
+        # that file is the thing this change most needs not to reach into.
+        #
+        # Reading only the new key would resolve `0` for an inbound-origin confirmation, fall
+        # through to the `description` default, and lose the figure with NO error anywhere - on
+        # the one message that tells a paying customer their money arrived. So: prefer the
+        # integer, accept the legacy rupee key, and convert it EXACTLY rather than coercing it
+        # with `float()`. The legacy KEY is accepted; the legacy ARITHMETIC is not.
+        amount_paise = order_status_details.get('amountPaise')
+        if amount_paise is None:
+            amount_paise = _paise_from_rupees(order_status_details.get('amount'))
+        elif isinstance(amount_paise, bool) or not isinstance(amount_paise, int):
+            # `bool` excluded explicitly: `isinstance(True, int)` is True in Python, so `True`
+            # would otherwise pass as one paise.
+            raise ValueError('amountPaise must be an integer')
+        amount_display = pay_status.rupees_str(amount_paise) if amount_paise else ''
+
+        # Log the received order_status_details for debugging
+        logger.info(json.dumps({
+            'event': 'order_status_details_received',
+            'rawReferenceId': raw_reference_id,
+            'sanitizedReferenceId': reference_id,
+            'amountPaise': amount_paise,
+            'requestId': request_id
+        }))
+        
+        # Generate appropriate message based on status.
+        #
+        # Canonical, not a two-spelling `or`. That `or` was already an admission that one state
+        # has several words, and it listed two of the five `payment_status` measured - so a status
+        # of `paid` or `success` fell through to the failure branch and told a customer who had
+        # just paid that their payment did not work. `completed` maps to `captured`, so the
+        # canonical form covers both arms of the original test plus the ones it missed.
+        payment_state = pay_status.canonical(order_status)
+        if payment_state == pay_status.CAPTURED and order_status != 'completed':
+            # Use description from inbound handler if amount is 0 (fallback)
+            if amount_paise > 0:
+                body_text = f"Payment of ₹{amount_display} received successfully! Thank you ✅"
+            else:
+                # Use the description passed from inbound handler which may have the amount
+                body_text = order_status_details.get('description', 'Payment received successfully! Thank you ✅')
+            description = "Payment received. Thank you!"
+            # Meta's own order_status vocabulary, which is not the payment vocabulary - this is the
+            # word that goes back to Meta on the wire, so it stays literal rather than canonical.
+            order_status = 'processing'
+        elif payment_state == pay_status.FAILED:
+            body_text = "Payment failed. Please try again ❌"
+            description = "Payment failed"
+            order_status = 'pending'
+        else:
+            # A FULFILMENT status (shipped/completed/processing/…), not a payment word. The
+            # caller's description wins; otherwise the shared order-status vocabulary supplies a
+            # plain default line per status, so a "shipped" update never falls back to the bare
+            # "Order status updated". `order_status` already carries the wire spelling the caller
+            # sent and is passed through unchanged.
+            from lambda_utils.ecommerce import wa_order_status as _wa_os
+            body_text = (order_status_details.get('description') or '').strip() \
+                or _wa_os.default_body(order_status)
+            description = body_text
+        
+        # Normalize phone number
+        formatted_phone = _normalize_phone_number(recipient_phone)
+        whatsapp_phone = f"+{formatted_phone}"
+        
+        # Build the in-window interactive message or the out-of-window approved template.
+        status_action = {
+            'reference_id': reference_id,
+            'order': {
+                'status': order_status,
+                'description': description,
+            },
+        }
+        if template_name:
+            order_status_payload = {
+                'messaging_product': 'whatsapp',
+                'recipient_type': 'individual',
+                'to': whatsapp_phone,
+                'type': 'template',
+                'template': {
+                    'name': template_name,
+                    'language': {
+                        'policy': 'deterministic',
+                        'code': WA_ORDER_STATUS_TEMPLATE_LANGUAGE,
+                    },
+                    'components': [{
+                        'type': 'order_status',
+                        'parameters': [{
+                            'type': 'order_status',
+                            'order_status': status_action,
+                        }],
+                    }],
+                },
+            }
+        else:
+            order_status_payload = {
+                'messaging_product': 'whatsapp',
+                'recipient_type': 'individual',
+                'to': whatsapp_phone,
+                'type': 'interactive',
+                'interactive': {
+                    'type': 'order_status',
+                    'body': {
+                        'text': body_text,
+                    },
+                    'action': {
+                        'name': 'review_order',
+                        'parameters': status_action,
+                    },
+                },
+            }
+        # Add BSUID recipient if available (per Meta BSUID docs)
+        if recipient_bsuid:
+            order_status_payload['recipient'] = recipient_bsuid
+        
+        logger.info(json.dumps({
+            'event': 'order_status_payload',
+            'to': mask_phone(whatsapp_phone),
+            'referenceId': reference_id,
+            'orderStatus': order_status,
+            'payloadKeys': sorted(order_status_payload.keys()),
+            'requestId': request_id
+        }))
+        
+        # Call SendWhatsAppMessage API (Direct API)
+        response = _send_message(phone_number_id, order_status_payload)
+        
+        whatsapp_message_id = response.get('messageId', '')
+        
+        # Store message record
+        _store_message_record(
+            message_id=message_id,
+            contact_id=contact_id,
+            content=f'Order Status: {order_status} - {description}',
+            status=WA_INITIAL_STATUS,
+            is_template=bool(template_name),
+            whatsapp_message_id=whatsapp_message_id,
+            phone_number_id=phone_number_id,
+            recipient_bsuid=recipient_bsuid,
+        )
+        
+        logger.info(json.dumps({
+            'event': 'order_status_sent',
+            'messageId': message_id,
+            'whatsappMessageId': whatsapp_message_id,
+            'contactId': mask_contact_id(contact_id),
+            'referenceId': reference_id,
+            'orderStatus': order_status,
+            'requestId': request_id
+        }))
+        
+        # Emit success metric
+        _emit_delivery_metric('success', is_template=bool(template_name))
+        
+        return {
+            'statusCode': 200,
+            'headers': cors_headers(origin),
+            'body': json.dumps({
+                'messageId': message_id,
+                'whatsappMessageId': whatsapp_message_id,
+                'status': 'sent',
+                'mode': 'LIVE',
+                'type': 'order_status',
+                'referenceId': reference_id,
+                'orderStatus': order_status
+            })
+        }
+        
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(json.dumps({
+            'event': 'order_status_send_error',
+            'messageId': message_id,
+            'referenceId': order_status_details.get('reference_id', ''),
+            'error': error_msg,
+            'requestId': request_id
+        }))
+        _emit_delivery_metric('failed', is_template=bool(template_name))
+        return _error_response(500, f'Failed to send order status: {error_msg}')
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CHECKOUT BUTTON TEMPLATE — Send handler
+# Per Meta docs: Checkout button templates use order_details button with
+# sale_amount, shipping_info, importer_address, and payment_settings.
+# https://developers.facebook.com/docs/whatsapp/cloud-api/payments-api/
+#   payments-in/checkout-button-templates
+# ═══════════════════════════════════════════════════════════════════════════
 
 def _handle_checkout_template_send(
         message_id: str, contact_id: str, recipient_phone: str,

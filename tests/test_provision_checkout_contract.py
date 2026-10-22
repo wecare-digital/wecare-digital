@@ -6,9 +6,9 @@ Why these assertions and not others
 properties are the difference between "deployed and inert" and "deployed and chargeable", and
 none of them is visible from reading the handler:
 
-1. **The gate is absent from the environment the script sets.** Not `"false"` - absent. A key
-   that exists is a key someone can flip with one `update-function-configuration`; an absent key
-   plus two empty readiness inputs means two separate owner actions are required.
+1. **The retired initiation flag is absent and provider-readiness expectations are exact.**
+   Native initiation is hard-enabled in code, while a live Meta readback must match the recorded
+   configuration name and provider MID before any payable WhatsApp message is sent.
 2. **The integration targets the `live` alias, and the invoke permission is qualified to it.** A
    function-level permission does not authorise an alias invoke, and the failure is a 500 with no
    Lambda log line at all - the function is never entered, so there is nothing to debug.
@@ -57,13 +57,12 @@ def test_the_initiation_flag_is_absent_not_false(provisioner):
     assert "CHECKOUT_INITIATION_ENABLED" not in env
 
 
-def test_both_readiness_inputs_are_empty(provisioner):
-    """The second, independent block. `payment_readiness.evaluate` returns
-    CONFIGURATION_UNVERIFIED on an empty configuration name or MID, so flipping the gate alone
-    still cannot produce a payable message."""
+def test_readiness_inputs_match_the_live_contract(provisioner):
+    """Provisioning must not blank the non-secret expectations used by payment_readiness."""
     env = provisioner.expected_environment()
-    assert env["EXPECTED_CONFIGURATION_NAME"] == ""
-    assert env["EXPECTED_PROVIDER_MID"] == ""
+    assert env["EXPECTED_CONFIGURATION_NAME"] == "WECAREDIGITAL"
+    assert env["EXPECTED_PROVIDER_MID"] == "acc_TTFSyolquKEZEy"
+    assert provisioner.PRESENCE_ONLY_KEYS == ()
 
 
 def test_no_environment_value_looks_like_a_credential(provisioner):

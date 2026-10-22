@@ -1467,6 +1467,62 @@ def _notification_recipient(reference_id: str, provider_contact: str) -> str:
         return ''
 
 
+
+def _send_processing_order_status(contact: str, reference_id: str, amount_paise: int,
+                                  request_id: str) -> bool:
+    """Send Meta order_status=processing only after provider-verified commerce payment.
+
+    This is a fulfilment notification, never evidence of payment.  It is deliberately synchronous
+    so the normal successful sequence is Meta order_status first, then the statutory invoice
+    template.  Failure is logged and returned to the caller but MUST NOT suppress invoice delivery:
+    once money moved, withholding the receipt because Meta messaging is unavailable would be worse.
+    """
+    if not contact or not reference_id:
+        return False
+    clean_phone = str(contact).replace('+', '').replace(' ', '').replace('-', '')
+    if not clean_phone.startswith('91') and len(clean_phone) == 10:
+        clean_phone = '91' + clean_phone
+    if not clean_phone:
+        return False
+
+    payload = {
+        'body': json.dumps({
+            'recipientPhone': '+' + clean_phone,
+            # Owner decision: every payment/fulfilment message uses WABA1.
+            'phoneNumberId': WABA1_PHONE_ID,
+            'isOrderStatus': True,
+            'orderStatusDetails': {
+                'reference_id': reference_id,
+                'order_status': 'processing',
+                'amountPaise': int(amount_paise),
+                'description': 'Payment received. Your order is being processed.',
+            },
+        })
+    }
+    try:
+        response = lambda_client.invoke(
+            FunctionName=os.environ.get('OUTBOUND_FUNCTION', 'wecare-outbound-whatsapp'),
+            InvocationType='RequestResponse',
+            Payload=json.dumps(payload),
+        )
+        answer = json.loads(response['Payload'].read())
+        status = int(answer.get('statusCode', response.get('StatusCode', 0)) or 0)
+        sent = status == 200 and not response.get('FunctionError')
+        logger.info(json.dumps({
+            'event': 'razorpay_order_status_processing',
+            'referenceId': reference_id, 'sent': sent, 'statusCode': status,
+            'requestId': request_id,
+        }))
+        return sent
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(json.dumps({
+            'event': 'razorpay_order_status_processing_failed',
+            'referenceId': reference_id, 'error': type(exc).__name__,
+            'requestId': request_id,
+        }))
+        return False
+
+
 def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
     """Handle payment.captured — the main success event. Store payment + mark invoice paid + trigger invoice."""
     payment = event_data.get('payment', {}).get('entity', {})
@@ -1649,11 +1705,14 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
     contact = _notification_recipient(reference_id, contact)
     originating_phone_id = _resolve_originating_phone(reference_id) or WABA1_PHONE_ID
 
+    # Commerce orders get the provider-supported fulfilment update BEFORE the invoice template.
+    # Legacy invoice-only settlements have no Order lifecycle, so they deliberately skip this.
+    if verified_paid:
+        _send_processing_order_status(contact, reference_id, amount_paise, request_id)
+
     _post_payment_handler(payment_id, contact, email, description, notes, request_id,
                           channel=str((outcome or {}).get('channel') or ''),
                           customer_uuid=str((outcome or {}).get('customerUuid') or ''),
-                          # MECHANICS. Defaulting to '' is the fail-closed direction: an absent
-                          # value closes the invoice-delivery gate.
                           checkout_mode=str((outcome or {}).get('checkoutMode') or ''),
                           originating_phone_id=originating_phone_id,
                           reference_id=reference_id)
@@ -2420,8 +2479,8 @@ def _post_payment_handler(payment_id: str, contact: str,
     This is the BACKUP path — WhatsApp inbound handler is the primary invoice generator.
     1. Invoke invoice-engine to create invoice from payment (dedup will return existing if WhatsApp path already created it)
     2. Generate invoice image (POS receipt style)
-    3. Deliver the GST invoice IMAGE template on WhatsApp for every paid commerce order
-    4. The invoice template itself exposes the Leave Review Flow button; no second review template is sent
+    3. Deliver the GST invoice IMAGE template on WhatsApp after the caller's Meta order_status update
+    4. The invoice template itself exposes the Leave Review Flow button; no standalone review send
 
     `channel` is WHERE the order came from (`website` / `whatsapp`), read off the `PAYREF#` row by
     the reconciliation above. KEYWORD-ONLY and defaulted so the legacy callers that pass eight
@@ -2527,10 +2586,9 @@ def _post_payment_handler(payment_id: str, contact: str,
     # resolves empty unless existing server-owned invoice/reference evidence supplies it.
     #
     # It travels as the approved `wecare_default_invoice_image_template` (invoice PNG in its
-    # header), a TEMPLATE deliverable INSIDE OR OUTSIDE the 24-hour service window - unlike the
-    # free-form `isOrderStatus` message it replaces, which Meta blocked outside the window and
-    # which was why captured payments reached customers with no confirmation. This is now the ONE
-    # confirmation for a paid order; the separate `isOrderStatus` send below is removed.
+    # header), after the provider-supported Meta order_status fulfilment update.  The two messages
+    # have different jobs: order_status updates the in-chat order lifecycle; this template delivers
+    # the statutory receipt and its embedded Leave Review Flow button.
     #
     # Delivery is retried by REPLAY: a miss raises so the webhook lease lapses and Razorpay
     # redelivers the capture, and the delivery CLAIM inside `send_invoice_whatsapp` makes the
