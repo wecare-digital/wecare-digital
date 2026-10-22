@@ -78,24 +78,21 @@ def test_native_products_excludes_archived():
 
 
 def test_native_products_feed_desired_items_with_variant_price():
-    """A native product with a priced variant must survive desired_items'
-    require_variant_price=True gate.
-
-    The retailer-id contract requires product AND variant ids to be UUIDs
-    (`<prefix>:<productUUID>:<variantUUID>` is the Meta<->catalog join key), so
-    ProductsTable MUST mint UUID ids for products and variants.
-    """
-    product_uuid = "11111111-1111-4111-8111-111111111111"
-    variant_uuid = "22222222-2222-4222-8222-222222222222"
+    """A priced native row survives projection with its actual ProductsTable identities."""
+    product_id = "native:hunar-kaushal"
+    variant_id = "KSL9M2Q4"
     items = [{
-        "id": product_uuid, "title": "Thing", "slug": "thing", "status": "active",
+        "id": product_id, "title": "Kaushal", "slug": "hunar-kaushal", "status": "active",
         "priceMinor": 50000, "currency": "INR", "inventory": 3,
-        "variants": [{"sku": variant_uuid, "label": "One", "inventory": 3,
+        "variants": [{"sku": variant_id, "label": "Standard", "inventory": 3,
                       "priceMinor": 50000}],
+        "imageRefs": ["https://wecare.digital/api/catalog-media/kaushal-4096.png"],
     }]
     rows = receiver._native_products(scanner=lambda: items)
     desired = sync.desired_items(rows, require_variant_price=True)
-    assert len(desired) >= 1
+    assert len(desired) == 1
+    assert desired[0]["retailer_id"].startswith("WECARE.DIGITAL:v2:")
+    assert sync.parse_retailer_id(desired[0]["retailer_id"]) == (product_id, variant_id)
 
 
 def test_missing_status_defaults_visible_from_productstable():
