@@ -3832,13 +3832,15 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                           ) ) }
                         </ul>
 
-                        {/* ALERTS - render only when a real live alert exists. Unsupported regions,
-                            an empty response and transient provider errors stay quiet instead of
-                            adding an empty "Alerts" section to the weather card. */}
-                        { weatherAlertStatus === 'active' && weatherAlerts.length > 0 && (
+                        {/* ALERTS - empty/unsupported states stay out of the layout. A provider
+                            failure remains visible, matching VayuLok's failure contract; real
+                            alerts render with their authority/source attribution as before. */}
+                        { ( weatherAlertStatus === 'error' || ( weatherAlertStatus === 'active' && weatherAlerts.length > 0 ) ) && (
                           <div className="vl-live-wx-alerts">
                             <h4 className="vl-live-air-forecast-title">Alerts</h4>
-                            { weatherAlerts.map( alert => (
+                            { weatherAlertStatus === 'error' ? (
+                              <p className="vl-live-air-history-empty" role="status">Alerts unavailable.</p>
+                            ) : weatherAlerts.map( alert => (
                               <div key={ alert.id } className={ `vl-live-wx-alert sev-${( alert.severity || 'minor' ).toLowerCase()}` }>
                               <strong>{ alert.title }</strong>
                               { alert.eventType && <span className="vl-live-wx-alert-event">{ alert.eventType.replace( /_/g, ' ' ) }</span> }
