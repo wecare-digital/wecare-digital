@@ -31,22 +31,28 @@ const CheckoutAction: React.FC<CheckoutActionProps> = ( {
       aria-busy={ busy }
       aria-label={ busy ? undefined : ariaLabel }
     >
-      { busy ? 'One moment…' : children }
+      <span className="checkout-action-icon" aria-hidden="true">shopping_cart_checkout</span>
+      <span>{ busy ? 'One moment…' : children }</span>
     </button>
     <style jsx>{`
       .checkout-action{
         display:inline-flex;align-items:center;gap:8px;width:max-content;max-width:100%;
-        min-height:var(--tap-min);box-sizing:border-box;padding:6px 9px;
-        border:2px solid var(--public-brand-green);border-radius:8px;
+        min-height:var(--tap-min);box-sizing:border-box;padding:8px 12px;
+        border:2px solid transparent;border-radius:11px;
         background:var(--public-accent-amber);color:var(--public-brand-green);font-family:inherit;
         font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);
         line-height:1.4;letter-spacing:-.05px;cursor:pointer;white-space:normal;overflow-wrap:anywhere;
         text-align:start;text-decoration:none;
         touch-action:manipulation;-webkit-tap-highlight-color:transparent;
-        transition:background-color .18s,transform .18s,box-shadow .18s;
+        transition:background-color .18s,border-color .18s,color .18s,transform .18s,box-shadow .18s;
+      }
+      .checkout-action-icon{
+        font-family:'Material Symbols Rounded';font-size:20px;font-weight:500;line-height:1;
+        font-variation-settings:'FILL' 0,'wght' 500,'GRAD' 0,'opsz' 20;
       }
       .checkout-action:active:not(:disabled){
-        background:var(--public-accent-amber-tint);transform:translateY(0);
+        background:var(--public-accent-amber-tint);border-color:var(--public-accent-amber);
+        transform:translateY(0) scale(.98);
       }
       .checkout-action:focus-visible{
         background:#fff;
@@ -56,8 +62,9 @@ const CheckoutAction: React.FC<CheckoutActionProps> = ( {
       .checkout-action[aria-busy='true']{cursor:progress}
       @media(hover:hover) and (pointer:fine){
         .checkout-action:hover:not(:disabled){
-          background:#fff;
-          transform:translateY(-1px);box-shadow:0 5px 14px rgba(26,58,42,.1);
+          background:#fff;border-color:var(--public-accent-amber);
+          transform:translateY(-1px);
+          box-shadow:0 5px 14px rgba(240,168,24,.18),0 2px 5px rgba(26,58,42,.08);
         }
       }
       @media(prefers-reduced-motion:reduce){
