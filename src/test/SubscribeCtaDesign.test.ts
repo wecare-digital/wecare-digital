@@ -6,22 +6,14 @@ const read = ( relative: string ) =>
   fs.readFileSync( path.resolve( process.cwd(), relative ), 'utf8' );
 
 const ruleFor = ( source: string, selector: string ) => {
-  // Resolve a standalone selector rather than the same text inside a more-specific rule.
-  // For example, ".ps-menu-note{" must not match
+  // Resolve a standalone selector at the start of a CSS line rather than the same text
+  // nested inside a more-specific rule. For example, ".ps-menu-note{" must not match
   // ".contribute-link-btn .ps-menu-note{" first.
-  let start = -1;
-  let from = 0;
-  while ( from < source.length ) {
-    const candidate = source.indexOf( selector, from );
-    if ( candidate < 0 ) break;
-    let previous = candidate - 1;
-    while ( previous >= 0 && /\s/.test( source[ previous ] ) ) previous -= 1;
-    if ( previous < 0 || source[ previous ] === '}' ) {
-      start = candidate;
-      break;
-    }
-    from = candidate + selector.length;
-  }
+  const escaped = selector.replace( /[.*+?^${}()|[\]\\]/g, '\\$&' );
+  const match = new RegExp( `(?:^|\\n)\\s*(${ escaped })` ).exec( source );
+  const start = match?.index === undefined
+    ? -1
+    : match.index + match[ 0 ].lastIndexOf( match[ 1 ] );
 
   expect( start ).toBeGreaterThanOrEqual( 0 );
   const open = source.indexOf( '{', start );
