@@ -2,12 +2,9 @@
 
 Why this is not paranoia
 -----------------------
-``core/secure-files`` carries its OWN Razorpay implementation - ``razorpay_orders.create_order``,
-``POST /secure-files/{fileId}/order`` and ``/whatsapp-pay`` - priced at
-``SECURE_FILE_PRICE_PAISE = 4900``, which is **the same Rs49 as Vault**. Two independent
-payment paths at an identical price, one of which is reached by a route whose name
-("whatsapp-pay") reads like the right thing to call, is exactly how a customer ends up
-charged twice for one service.
+``core/secure-files`` previously carried its own Razorpay payment initiation routes.
+Those routes are retired; this test now pins the absence so secure-files remains storage,
+entitlement and delivery only.
 
 The locker is reused by Phase O-2 for **storage and privacy only**. Drop Docs and Vault are
 paid once, on the one checkout, through ``prepare-checkout`` ->
@@ -17,8 +14,8 @@ an enumeration at the HTTP seam (``urllib.request.urlopen``, which is how BOTH
 ``razorpay_orders`` and ``razorpay_verify`` reach Razorpay) rather than a claim in a docstring,
 in the shape ``tests/test_one_service_money_path.py`` case (b) uses.
 
-It also pins the posture the absence depends on: both flags ``false`` in the manifest, and
-an IAM document that reads one public prefix and cannot delete anything anywhere.
+It also pins the IAM posture: one public prefix is read-only and secure-files cannot delete
+objects anywhere.
 """
 
 from __future__ import annotations
@@ -171,11 +168,11 @@ def test_b_the_existing_locker_routes_are_untouched():
                      "POST /secure-files/{fileId}/confirm",
                      "POST /secure-files/{fileId}/revoke",
                      "GET /secure-files/mine",
-                     "POST /secure-files/{fileId}/order",
-                     "POST /secure-files/{fileId}/whatsapp-pay",
                      "GET /secure-files/{fileId}/download"):
         assert existing in keys
-    assert len(keys) == len(set(keys)) == 10
+    assert "POST /secure-files/{fileId}/order" not in keys
+    assert "POST /secure-files/{fileId}/whatsapp-pay" not in keys
+    assert len(keys) == len(set(keys)) == 8
     # every new key is Drop Docs; nothing else was added under cover of this phase
     assert {key for key in keys if "dropdocs" in key} == {
         "POST /secure-files/dropdocs/attach",
