@@ -27,3 +27,14 @@ def test_checkout_package_contains_exact_invoice_runtime_assets():
     assert '("payments/invoice-engine/receipt_layout.py", "receipt_layout.py")' in checkout
     assert '("payments/invoice-engine/fonts", "fonts")' in checkout
     assert "required_layers=[PILLOW_LAYER_ARN]" in checkout
+
+
+def test_checkout_declares_invoice_workload_runtime_shape():
+    source = DEPLOY.read_text(encoding="utf-8")
+    checkout = source.split('"wecare-checkout"', 1)[1].split("),", 1)[0]
+    assert "required_memory=512" in checkout
+    assert "required_timeout=60" in checkout
+
+    infra = (ROOT / "amplify/infra/checkout.json").read_text(encoding="utf-8")
+    assert '"MemorySize": 512' in infra
+    assert '"Timeout": 60' in infra
