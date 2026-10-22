@@ -1,6 +1,6 @@
 # Manual WhatsApp payment collection
 
-The reusable, Meta-approved payment template is `wecarepay_wa` (English, primary account,
+The reusable, Meta-approved payment template is `wecare_whatapp_native_pay_template` (English, primary account,
 Review and Pay / ORDER_DETAILS). Checkout and invoice requests already use it. Staff do not
 create a new template per invoice or fill its order parameters by hand.
 
@@ -22,7 +22,7 @@ create a new template per invoice or fill its order parameters by hand.
    goods type, amount and delivery details.
 6. Use the primary sender **+91 93309 94400** and choose **Send payment request**. The server
    resolves and verifies the registered payment configuration and reserves the invoice's
-   payment identity before sending `wecarepay_wa`.
+   payment identity before sending `wecare_whatapp_native_pay_template`.
 7. The customer receives **Review and Pay**, checks the order and pays inside WhatsApp using
    the verified Razorpay configuration. Sending the message does not itself charge them.
 8. Check **Invoices**, **Dues**, or **Invoice records** (`/workspace/pay?tab=records`) for the
@@ -50,7 +50,7 @@ For a payment that needs review before send, use the two-step Pay Flow route abo
 
 ## Reuse, retries and status updates
 
-- Reuse `wecarepay_wa` for different invoices with server-reserved references and exact totals.
+- Reuse `wecare_whatapp_native_pay_template` for different invoices with server-reserved references and exact totals.
 - Retrying a single invoice goes through the same reservation/interlock. It does not authorize
   a new charge. Resolve uncertain/pending outcomes before creating a replacement collection.
 - Paid or canceled invoices cannot be collected again. To correct an unpaid issued invoice,
@@ -58,7 +58,7 @@ For a payment that needs review before send, use the two-step Pay Flow route abo
 - The generic template picker is not a payment composer: it does not reserve an invoice or
   construct the authoritative order_details action. Use Pay Flow, Inbox Request payment, or
   the Commerce bill composer for collection.
-- `wecarepay_wa` requests payment. A separate approved ORDER_STATUS template is required for
+- `wecare_whatapp_native_pay_template` requests payment. A separate approved ORDER_STATUS template is required for
   structured order-status notifications outside the customer-service window. Approval must
   come from the actual provider inventory, not a local template preset.
 - Capture receipt maps to processing; completed must be an explicit fulfillment update.
