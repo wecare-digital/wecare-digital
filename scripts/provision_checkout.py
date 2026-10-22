@@ -337,6 +337,8 @@ def build_package(source_root: Path) -> tuple:
         external_files=[("payments/invoice-engine/receipt_layout.py", "receipt_layout.py")],
         external_dirs=[("payments/invoice-engine/fonts", "fonts")],
         required_layers=[PILLOW_LAYER_ARN],
+        required_memory=512,
+        required_timeout=60,
         provisioned_by="python scripts/provision_checkout.py",
     )
     zip_bytes, members = dal.build_zip(spec)
@@ -707,7 +709,7 @@ def ensure_function(dry_run: bool, zip_bytes: bytes) -> str:
                 Code={"ZipFile": zip_bytes},
                 Description="Customer checkout: AWS-native catalog total, readiness gate, "
                             "PaymentAttempt, stock reservation and handoff.",
-                Timeout=20,
+                Timeout=60,
                 MemorySize=512,
                 Layers=[PILLOW_LAYER_ARN],
                 Environment={"Variables": expected_environment()},
@@ -744,6 +746,26 @@ def reconcile_environment(dry_run: bool) -> str:
         FunctionName=FUNCTION_NAME, Environment={"Variables": current})
     lam().get_waiter("function_updated_v2").wait(FunctionName=FUNCTION_NAME)
     return f"set {', '.join(sorted(drifted))}"
+
+
+def reconcile_runtime_shape(dry_run: bool) -> str:
+    if not function_exists():
+        return "function absent - nothing to reconcile"
+    config = lam().get_function_configuration(FunctionName=FUNCTION_NAME)
+    updates = {}
+    if config.get("MemorySize") != 512:
+        updates["MemorySize"] = 512
+    if config.get("Timeout") != 60:
+        updates["Timeout"] = 60
+    if not updates:
+        return "runtime shape already canonical"
+    if dry_run:
+        return "would update " + ", ".join(
+            f"{key}={value}" for key, value in sorted(updates.items()))
+    lam().update_function_configuration(FunctionName=FUNCTION_NAME, **updates)
+    lam().get_waiter("function_updated_v2").wait(FunctionName=FUNCTION_NAME)
+    return "updated " + ", ".join(
+        f"{key}={value}" for key, value in sorted(updates.items()))
 
 
 def reconcile_layers(dry_run: bool) -> str:
@@ -1425,6 +1447,7 @@ def main(argv=None) -> int:
     print(f"log group: {ensure_log_group(args.dry_run)}")
     print(f"Lambda: {ensure_function(args.dry_run, zip_bytes)}")
     print(f"env: {reconcile_environment(args.dry_run)}")
+    print(f"runtime: {reconcile_runtime_shape(args.dry_run)}")
     print(f"layers: {reconcile_layers(args.dry_run)}")
     print(f"live alias: {ensure_live_alias(args.dry_run)}")
     print(f"invoke permission: {ensure_invoke_permission(args.dry_run)}")
