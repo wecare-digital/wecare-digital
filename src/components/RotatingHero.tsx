@@ -74,6 +74,14 @@ interface RotatingHeroProps {
   frame: string;
   /** Optional fixed prefix rendered on the second line immediately before the rotating pill. */
   pillPrefix?: string;
+  /**
+   * Put the rotating keyword directly after the fixed frame on the first headline line.
+   * When used, `secondLine` is rendered as the fixed second line. VayuLok uses this so
+   * the headline reads "Bharat [keyword]" / "Intelligence" without changing other heroes.
+   */
+  pillAfterFrame?: boolean;
+  /** Fixed second headline line used with `pillAfterFrame`. */
+  secondLine?: string;
   words: CycleWord[];
   /** Optional remount key for the rotating pill when an external mode must become the first word. */
   pillKey?: React.Key;
@@ -132,7 +140,7 @@ interface RotatingHeroProps {
   mobileFoundation?: boolean;
 }
 
-const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPrefix, words, pillKey, sub, ariaLabel, visual, afterHero, children, subordinate = false, insideMain = false, mobileFoundation = false } ) => {
+const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPrefix, pillAfterFrame = false, secondLine, words, pillKey, sub, ariaLabel, visual, afterHero, children, subordinate = false, insideMain = false, mobileFoundation = false } ) => {
   /**
    * 'final' is the CSS default: shutter gone, dot popped, nothing animating. 'armed' puts
    * the start state back, 'shown' plays it. Starting at 'final' is what makes the entrance
@@ -222,11 +230,23 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
           ) }
 
           <Head className={ pillPrefix ? 'rh-head has-prefix' : 'rh-head' }>
-            <span className="rh-head-line">{ frame }</span>
-            <span className="rh-head-line rh-head-rotate">
-              { pillPrefix && <span className="rh-head-prefix">{ pillPrefix } </span> }
-              <RotatingPill key={ pillKey } words={ words } phase={ phase } />
-            </span>
+            { pillAfterFrame ? (
+              <>
+                <span className="rh-head-line rh-head-inline-rotate">
+                  <span>{ frame }</span>
+                  <RotatingPill key={ pillKey } words={ words } phase={ phase } />
+                </span>
+                { secondLine && <span className="rh-head-line">{ secondLine }</span> }
+              </>
+            ) : (
+              <>
+                <span className="rh-head-line">{ frame }</span>
+                <span className="rh-head-line rh-head-rotate">
+                  { pillPrefix && <span className="rh-head-prefix">{ pillPrefix } </span> }
+                  <RotatingPill key={ pillKey } words={ words } phase={ phase } />
+                </span>
+              </>
+            ) }
           </Head>
 
           { sub && <p className="rh-sub">{ sub }</p> }
@@ -292,6 +312,7 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, pillPre
            its own rp-* CSS - styled-jsx here cannot reach a child component's markup. */
         .rh-head-line{display:block}
         .rh-head-rotate{display:flex;align-items:baseline;gap:.18em;flex-wrap:nowrap}
+        .rh-head-inline-rotate{display:flex;align-items:baseline;gap:.18em;flex-wrap:nowrap}
         .rh-head-prefix{display:inline-block}
 
         /* The single body rung the contract allows: 20px/400/1.4/-.125px at
