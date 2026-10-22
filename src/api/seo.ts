@@ -222,6 +222,18 @@ export interface BlogSourceRetryResponse {
   workerStarted: boolean;
 }
 
+export interface BlogPublishedAdoptionResponse {
+  ok: boolean;
+  sourceId: string;
+  postId: string;
+  slug: string;
+  category: string;
+  articleClass: string;
+  alreadyKnown: boolean;
+  source: BlogSourceDetail;
+  note: string;
+}
+
 export interface BlogDraftResponse {
   ok: boolean;
   sourceId: string;
@@ -283,6 +295,12 @@ export const confirmBlogSources = ( sourceIds: string[] ) =>
 export const retryBlogSource = ( sourceId: string ) =>
   seoToolsJson<BlogSourceRetryResponse>( 'blog-sources/retry', {
     method: 'POST', body: JSON.stringify( { sourceId } ),
+  } );
+
+/** Adopt an existing native published post into Blog Production for revision only. */
+export const adoptPublishedBlogPost = ( slug: string, articleClass = 'ARCHIVE_DERIVED' ) =>
+  seoToolsJson<BlogPublishedAdoptionResponse>( 'blog-sources/adopt-published', {
+    method: 'POST', body: JSON.stringify( { slug, articleClass } ),
   } );
 
 /** Ask the model for an article. A proposal only — it cannot reach READY_TO_PUBLISH. */
