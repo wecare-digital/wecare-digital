@@ -65,7 +65,7 @@ const VayuLokFixture: React.FC = () => {
   return (
     <div id="__next">
       <main>
-        <h1>Bharat air and weather intelligence</h1>
+        <h1>Bharat air and weather insights</h1>
         <p>Forecasts cover cities.</p>
         <input aria-label="Search a city or place" placeholder="Search a city or pincode" />
         <button type="button">Air</button>
@@ -115,7 +115,7 @@ describe( 'VayuLok translation', () => {
     await act( async () => { await selectLanguage( /Hindi/ ); } );
 
     await waitFor( () => {
-      expect( container.querySelector( 'h1' )?.textContent ).toBe( '[hi] Bharat air and weather intelligence' );
+      expect( container.querySelector( 'h1' )?.textContent ).toBe( '[hi] Bharat air and weather insights' );
     } );
     // Static labels.
     expect( screen.getByText( '[hi] Air Forecast' ) ).toBeTruthy();
@@ -167,7 +167,7 @@ describe( 'VayuLok translation', () => {
 
     await act( async () => { await selectLanguage( /English/ ); } );
     await waitFor( () => {
-      expect( container.querySelector( 'h1' )?.textContent ).toBe( 'Bharat air and weather intelligence' );
+      expect( container.querySelector( 'h1' )?.textContent ).toBe( 'Bharat air and weather insights' );
     } );
     const input = container.querySelector( 'input' ) as HTMLInputElement;
     expect( input.getAttribute( 'placeholder' ) ).toBe( 'Search a city or pincode' );
