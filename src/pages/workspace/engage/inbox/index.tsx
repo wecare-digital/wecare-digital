@@ -25,7 +25,7 @@ import * as api from '../../../../api/client';
 import { colors, shadow } from '../../../../lib/design-tokens';
 import { WHATSAPP_PHONES, PAYMENT_PHONES, DEFAULT_GSTIN, PAYMENT_CONFIG, GST_RATES } from '../../../../config/constants';
 import { searchEmojiCategories } from '../../../../lib/emoji-data';
-import { inferMimeFromName, validateWaMediaSize, formatBytes, waMediaCategory, WA_ACCEPT_STRING } from '../../../../lib/wa-media';
+import { resolveWaMime, validateWaMediaSize, formatBytes, waMediaCategory, WA_ACCEPT_STRING } from '../../../../lib/wa-media';
 import { waErrorTooltip } from '../../../../lib/wa-errors';
 import { scrollToEnd } from '../../../../lib/scroll-to-end';
 
@@ -450,14 +450,20 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
         const accepted: File[] = [];
         for ( const file of files )
         {
-            const ftype = file.type || inferMimeFromName( file.name );
+            const ftype = resolveWaMime( file );
             const check = validateWaMediaSize( { size: file.size, name: file.name, type: ftype }, ftype );
-            if ( !check.ok ) { toast.error( `${file.name} too large. Max: ${formatBytes( check.limit )}` ); continue; }
+            if ( !check.ok )
+            {
+                toast.error( check.limit > 0
+                    ? `${file.name} too large. Max: ${formatBytes( check.limit )}`
+                    : `${file.name}: ${check.message || 'Unsupported WhatsApp file type'}` );
+                continue;
+            }
             accepted.push( file );
         }
         if ( !accepted.length ) return;
         setMediaFiles( prev => [ ...prev, ...accepted ] );
-        const firstImage = accepted.find( f => ( f.type || inferMimeFromName( f.name ) ).startsWith( 'image/' ) );
+        const firstImage = accepted.find( f => resolveWaMime( f ).startsWith( 'image/' ) );
         if ( firstImage && !mediaPreview )
         {
             const reader = new FileReader();
@@ -618,21 +624,52 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                     // captions are dropped server-side by Meta's rules, so warn once if
                     // the user typed text alongside a lone audio/sticker.
                     let sent = 0;
-                    let captionPlaced = false;
                     const failed: string[] = [];
-                    const soloCaptionDropped = waText && mediaFiles.length === 1
-                        && [ 'audio', 'sticker' ].includes( waMediaCategory( mediaFiles[ 0 ].type || inferMimeFromName( mediaFiles[ 0 ].name ) ) );
+                    // Whether the typed text can ride the attachments as a caption at all:
+                    // only image/video/document carry captions in Meta's API. Audio and
+                    // sticker cannot, so the text must not simply vanish.
+                    const captionCapable = !!waText
+                        && [ 'image', 'video', 'document' ].includes(
+                            waMediaCategory( resolveWaMime( mediaFiles[ 0 ] ) ) );
+                    // When the text cannot be a caption (e.g. a lone audio/sticker), send
+                    // it as its own message FIRST so it still reaches the recipient rather
+                    // than being dropped. It also claims the native reply context.
+                    let captionPlaced = false;
+                    let contextClaimed = false;
+                    if ( waText && !captionCapable )
+                    {
+                        const textResult = await api.sendWhatsAppMessage( {
+                            contactId, content: waText, phoneNumberId: sendWaba || undefined,
+                            recipientBsuid: bsuid, contextMessageId: waContext,
+                        } );
+                        if ( textResult ) { sent++; contextClaimed = true; }
+                    }
                     for ( let i = 0; i < mediaFiles.length; i++ )
                     {
                         const file = mediaFiles[ i ];
-                        const type = file.type || inferMimeFromName( file.name );
+                        const type = resolveWaMime( file );
                         const s3Key = await api.uploadMediaForSend( file, type, file.name );
                         if ( !s3Key ) { failed.push( file.name ); continue; }
-                        // The first message to go out claims the reply context; the caption
-                        // additionally needs a type that can carry it (image/video/document).
-                        const giveCaption = !captionPlaced && !!waText && [ 'image', 'video', 'document' ].includes( waMediaCategory( type ) );
-                        const r = await api.sendWhatsAppMessage( { contactId, content: giveCaption ? waText : '', phoneNumberId: sendWaba || undefined, recipientBsuid: bsuid, mediaFile: s3Key, mediaType: type, mediaFileName: file.name, contextMessageId: !captionPlaced ? waContext : undefined } );
-                        if ( r ) { sent++; captionPlaced = true; } else { failed.push( file.name ); }
+                        // The typed text rides the FIRST media that actually goes out, but
+                        // only when it can carry a caption (image/video/document). If the
+                        // text was already sent as its own message above (audio/sticker),
+                        // captionCapable is false and no media claims it again.
+                        const giveCaption = captionCapable && !captionPlaced;
+                        // The first message to leave claims the native reply context —
+                        // unless the separate text message above already took it.
+                        const giveContext = !contextClaimed;
+                        const r = await api.sendWhatsAppMessage( {
+                            contactId,
+                            content: giveCaption ? waText : '',
+                            phoneNumberId: sendWaba || undefined,
+                            recipientBsuid: bsuid,
+                            mediaFile: s3Key,
+                            mediaType: type,
+                            mediaFileName: file.name,
+                            contextMessageId: giveContext ? waContext : undefined,
+                        } );
+                        if ( r ) { sent++; contextClaimed = true; if ( giveCaption ) captionPlaced = true; }
+                        else { failed.push( file.name ); }
                     }
                     ok = sent > 0;
                     // Keep only the files that failed, so the user can retry them without
@@ -646,7 +683,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                     } else if ( ok )
                     {
                         setMediaFiles( [] ); setMediaPreview( null );
-                        if ( soloCaptionDropped ) toast.info( 'Your caption was not sent — WhatsApp does not allow captions on audio or stickers' );
+                        if ( waText && !captionCapable ) toast.info( 'Your text was sent as a separate message — WhatsApp does not allow captions on audio or stickers' );
                     }
                 } else
                 {
@@ -1381,7 +1418,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                                     <span className="ui-fmt-hint">{ replyText.length } chars · { Math.max( 1, Math.ceil( replyText.length / 160 ) ) } seg</span>
                                                 ) }
                                                 <button className="ui-ai-btn" disabled={ aiSuggesting } onClick={ handleSuggest } title="AI suggest reply"><Icon name="sparkle" size={ 15 } /> { aiSuggesting ? '…' : 'Suggest' }</button>
-                                                <button className="ui-reply-btn" disabled={ sending || !replyText.trim() } onClick={ handleReply }>{ sending ? 'Sending…' : 'Send' }</button>
+                                                <button className="ui-reply-btn" disabled={ sending || ( !replyText.trim() && !( replyChannel === 'whatsapp' && mediaFiles.length > 0 ) ) } onClick={ handleReply }>{ sending ? 'Sending…' : 'Send' }</button>
                                             </div>
                                             { replyChannel === 'whatsapp' && (
                                                 <input ref={ fileRef } type="file" hidden multiple accept={ MEDIA_ACCEPT } onChange={ handleMediaSelect } />

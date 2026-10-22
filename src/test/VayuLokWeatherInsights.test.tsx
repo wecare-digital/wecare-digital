@@ -9,7 +9,7 @@ afterEach( () => {
 } );
 
 describe( 'VayuLok Weather history public typography', () => {
-  it( 'keeps location copy concise and true metadata on the 14px public rung', async () => {
+  it( 'keeps location copy compact and the range selector neutral', async () => {
     vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue(
       new Response( JSON.stringify( {
         ok: true,
@@ -31,20 +31,35 @@ describe( 'VayuLok Weather history public typography', () => {
     ) );
 
     const { container } = render(
-      <VayuLokWeatherInsights lat={ 25.5788 } lng={ 91.8933 } placeName="Shillong" />,
+      <VayuLokWeatherInsights
+        lat={ 25.5788 }
+        lng={ 91.8933 }
+        placeName="Shillong"
+        timeZoneId="Asia/Kolkata"
+        zoneLabel="IST"
+      />,
     );
 
     await waitFor( () => {
-      expect( screen.getByText( 'Shillong · past conditions' ) ).toBeTruthy();
-      expect( screen.getByText( /Grid 5\.46 km/ ) ).toBeTruthy();
+      expect( screen.getByText( 'Past weather for Shillong' ) ).toBeTruthy();
+      expect( screen.getByLabelText( 'Weather history updated time' ) ).toBeTruthy();
     } );
 
-    expect( container.textContent ).not.toContain( 'Past weather for Shillong.' );
+    expect( container.textContent ).not.toContain( 'Grid 5.46 km' );
+    expect( container.textContent ).not.toContain( 'Sep 2026–Oct 2026' );
+    expect( container.textContent ).not.toContain( 'Shillong · past conditions' );
+    expect( screen.getByLabelText( 'Weather history updated time' ).textContent ).toContain( 'IST' );
 
     const css = Array.from( container.querySelectorAll( 'style' ) )
       .map( style => style.textContent || '' )
       .join( '\n' );
-    expect( css ).toContain( '.vl-wi-source{display:flex;flex-wrap:wrap;gap:0;margin-top:var(--space-2);color:var(--public-muted);font-size:var(--text-md)' );
-    expect( css ).toContain( '.vl-wi-source{font-size:var(--text-md)}' );
+    expect( css ).toContain( '.vl-wi-head p{margin:6px 0 0;color:var(--public-muted);font-size:var(--vl-subtext-size,var(--text-base));font-weight:600' );
+    expect( css ).toContain( '.vl-wi-head p{font-size:var(--vl-subtext-size,var(--public-mobile-form-font-size));font-weight:600' );
+    expect( css ).toContain( '.vl-wi-range button.is-active{background:rgba(17,21,18,.07);color:var(--public-heading)}' );
+    expect( css ).not.toContain( '.vl-wi-range button:hover,.vl-wi-range button.is-active{background:var(--lime-tint)' );
+    expect( css ).not.toContain( '.vl-wi-source{' );
+    expect( css ).toContain( '.vl-wi-stamp{display:flex;width:fit-content;align-items:center;gap:6px' );
+    expect( css ).toContain( 'font-size:var(--vl-meta-size,var(--text-md))' );
+    expect( css ).toContain( '.vl-wi-grid strong{color:var(--public-heading);font-size:var(--vl-data-size,var(--public-cta-font-size))' );
   } );
 } );

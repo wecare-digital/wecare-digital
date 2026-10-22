@@ -18,7 +18,7 @@
  *       day; the condition wraps onto a second line BELOW the day) — i.e. it is stacked, not a
  *       single cramped 4/5-column strip;
  *   (3) pollutant metrics stay inside the viewport with no reserved tooltip/action column;
- *   (4) Weather history uses the public 24px mobile card heading + 20px body rung;
+ *   (4) Weather history keeps the 24px mobile card heading but uses compact 16px supporting copy;
  *   (5) every Weather history range control keeps the canonical 44px touch floor.
  */
 
@@ -92,7 +92,7 @@ const BODY = `
         <div><span>Typical temperature</span><strong>21.8°C</strong></div>
         <div><span>Total precipitation</span><strong>151.8 mm</strong></div>
       </div>
-      <div class="vl-wi-source"><span>Oct 2025–Oct 2026</span><span> · Grid 5.46 km</span></div>
+      <div class="vl-wi-stamp"><svg class="vl-wi-stamp-icon"></svg><span>22 Oct 2026 · 08:30 PM IST</span></div>
     </section>
   </aside></div>
 </div></div>`;
@@ -111,6 +111,7 @@ const WIDTHS = [ 320, 360, 375, 390, 412, 430 ];
       --font-sans:Inter,ui-sans-serif,system-ui,sans-serif;--public-heading:rgba(0,0,0,.95);--public-body:rgba(0,0,0,.898);--public-muted:rgba(0,0,0,.54);
       --public-card-size:22px;--public-card-weight:700;--public-card-leading:1.27;--public-card-tracking:-.25px;
       --public-body-size:20px;--public-body-weight:400;--public-body-leading:1.4;--public-body-tracking:-.125px;
+      --public-cta-font-size:17px;--public-brand-green:#1a3a2a;--public-lime-tint:rgba(209,244,112,.22);
       --public-mobile-card-size:24px;--public-mobile-form-font-size:16px;--public-mobile-section-gap:64px;
       --radius-full:9999px;--space-2:8px;--space-3:12px;--space-4:16px;--space-6:24px;--text-xs:12px;--text-sm:13px;--text-base:16px}
     .vl-live-air-card-wrap{display:grid}
@@ -141,6 +142,7 @@ const WIDTHS = [ 320, 360, 375, 390, 412, 430 ];
       const historyHeading = q( '.vl-wi-head h4' );
       const historyBody = q( '.vl-wi-head p' );
       const historyButtons = Array.from( document.querySelectorAll( '.vl-wi-range button' ) );
+      const historyStamp = q( '.vl-wi-stamp' );
       const airGaugeWord = q( '.vl-live-air-gauge-word' );
       const weatherDayCond = q( '.vl-live-wx-daily-cond' );
       const weatherDayTemp = q( '.vl-live-wx-daily-temp' );
@@ -155,6 +157,7 @@ const WIDTHS = [ 320, 360, 375, 390, 412, 430 ];
         historyHeadingSize: historyHeading ? parseFloat( getComputedStyle( historyHeading ).fontSize ) : -1,
         historyBodySize: historyBody ? parseFloat( getComputedStyle( historyBody ).fontSize ) : -1,
         historyButtonHeights: historyButtons.map( button => rect( button ).h ),
+        historyStamp: historyStamp ? rect( historyStamp ) : null,
         airGaugeWordSize: airGaugeWord ? parseFloat( getComputedStyle( airGaugeWord ).fontSize ) : -1,
         airGaugeWordWeight: airGaugeWord ? getComputedStyle( airGaugeWord ).fontWeight : '',
         weatherDayCondSize: weatherDayCond ? parseFloat( getComputedStyle( weatherDayCond ).fontSize ) : -1,
@@ -181,25 +184,26 @@ const WIDTHS = [ 320, 360, 375, 390, 412, 430 ];
     const summaryCentered = scoreCentered && metaCentered;
     const historyFound = Boolean( r.history );
     const historyFits = historyFound && r.history.right <= r.docClient + 1 && r.history.x >= -1;
-    const historyType = Math.abs( r.historyHeadingSize - 24 ) <= 0.1 && Math.abs( r.historyBodySize - 20 ) <= 0.1;
+    const historyType = Math.abs( r.historyHeadingSize - 24 ) <= 0.1 && Math.abs( r.historyBodySize - 16 ) <= 0.1;
     const historyButtonCount = r.historyButtonHeights.length;
     const historyTouches = historyButtonCount === 3 && r.historyButtonHeights.every( height => height >= 44 );
+    const historyStampFits = Boolean( r.historyStamp ) && r.historyStamp.x >= -1 && r.historyStamp.right <= r.docClient + 1;
     const airType = r.airGaugeWordSize >= 23.9 && Number( r.airGaugeWordWeight ) >= 700;
     const weatherType = r.weatherDayCondSize >= 14.9 && r.weatherDayTempSize >= 16.9 &&
       r.weatherGridKeySize >= 16.9 && r.weatherGridValueSize >= 16.9 && Number( r.weatherGridValueWeight ) <= 600;
-    const ok = !hOverflow && condBelowDay && tempTopLine && pollutantCompact && summaryCentered && historyFits && historyType && historyTouches && airType && weatherType;
+    const ok = !hOverflow && condBelowDay && tempTopLine && pollutantCompact && summaryCentered && historyFits && historyType && historyTouches && historyStampFits && airType && weatherType;
     if ( !ok ) failures++;
     console.log(
       `@${w}px  h-overflow=${hOverflow ? 'YES(' + r.docScroll + '>' + r.docClient + ')' : 'no'}` +
       `  cond-below-day=${condBelowDay}  temp-on-top-line=${tempTopLine}  pollutant-compact=${pollutantCompact}` +
       `  score-centered=${scoreCentered}  meta-centered=${metaCentered}` +
       `  history-found=${historyFound}  history-buttons=${historyButtonCount}` +
-      `  history-fits=${historyFits}  history-type=${historyType}  history-touch=${historyTouches}` +
+      `  history-fits=${historyFits}  history-type=${historyType}  history-touch=${historyTouches}  history-stamp=${historyStampFits}` +
       `  air-type=${airType}  weather-type=${weatherType}  => ${ok ? 'PASS' : 'FAIL'}`
     );
     await page.close();
   }
   await browser.close();
   if ( failures ) { console.error( `\n${failures} width(s) FAILED` ); process.exit( 1 ); }
-  console.log( '\nAll VayuLok phone widths PASS: pollutant metrics stay compact, Weather history matches the public type/touch contract, no horizontal overflow.' );
+  console.log( '\nAll VayuLok phone widths PASS: pollutant metrics stay compact, Weather history keeps compact supporting copy, local-time footer and the touch contract, no horizontal overflow.' );
 } )().catch( ( e ) => { console.error( e ); process.exit( 1 ); } );
