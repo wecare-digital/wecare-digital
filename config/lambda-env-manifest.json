@@ -123,7 +123,8 @@
       "PAYMENTS_TABLE": "stack-wecare-digital-PaymentsTable",
       "WA_PAY_TEMPLATE": "wecare_whatapp_native_pay_template",
       "WA_INVOICE_TEMPLATE": "wecare_default_invoice_image_template",
-      "REFUND_INITIATION_ENABLED": "false"
+      "REFUND_INITIATION_ENABLED": "false",
+      "OUTBOUND_FUNCTION": "wecare-outbound-whatsapp:live"
     },
     "wecare-cognito-custom-message": {
       "BRAND_NAME": "sha256:d185a0daa945",
