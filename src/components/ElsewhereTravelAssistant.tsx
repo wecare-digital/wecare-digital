@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import VoiceSearchMic from './VoiceSearchMic';
 
 type TravelMode = 'flights' | 'hotels' | 'activities' | 'rail' | 'car' | 'bus';
