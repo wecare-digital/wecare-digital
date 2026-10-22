@@ -1,8 +1,8 @@
 /**
  * Canonical Content workspace.
  *
- * Four operator jobs, one primary destination:
- * Blog | Production | SEO | Short links.
+ * Three operator jobs, one primary destination:
+ * Blog | SEO | Short links.
  *
  * Only AWS-native/currently supported SEO surfaces are mounted here. Older external seoFetch
  * routes remain compatibility/history pages and are not advertised as live capabilities.
@@ -17,7 +17,7 @@ import PageShell, { ShellTab } from '../../../components/PageShell';
 import ShortLinks from '../../../components/workspace/content/ShortLinks';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
-type View = 'blog' | 'production' | 'seo' | 'links';
+type View = 'blog' | 'seo' | 'links';
 type SeoArea = 'tools' | 'pages';
 
 function lazyPanel<P> ( loader: () => Promise<{ default: React.ComponentType<P> }> ) {
@@ -27,11 +27,9 @@ function lazyPanel<P> ( loader: () => Promise<{ default: React.ComponentType<P> 
 const BlogManager = lazyPanel<PageProps>( () => import( '../../../components/workspace/seo/BlogManager' ) );
 const SeoTools = lazyPanel<PageProps>( () => import( '../../../components/workspace/seo/Tools' ) );
 const PagesManager = lazyPanel<PageProps>( () => import( '../../../components/workspace/seo/PagesManager' ) );
-const BlogProduction = lazyPanel<PageProps>( () => import( '../seo/blog-production' ) );
 
 const TABS: ShellTab[] = [
   { id: 'blog', label: 'Blog' },
-  { id: 'production', label: 'Production' },
   { id: 'seo', label: 'SEO' },
   { id: 'links', label: 'Short links' },
 ];
@@ -42,7 +40,7 @@ function one ( raw: string | string[] | undefined ): string {
 
 function resolveView ( raw: string | string[] | undefined ): View {
   const value = one( raw );
-  return value === 'production' || value === 'seo' || value === 'links' ? value : 'blog';
+  return value === 'seo' || value === 'links' ? value : 'blog';
 }
 
 function resolveSeoArea ( raw: string | string[] | undefined ): SeoArea {
@@ -64,12 +62,12 @@ const ContentPage: React.FC<PageProps> = ( { signOut, user } ) => {
     <Layout user={ user } onSignOut={ signOut }>
       <SEO
         title="Content"
-        description="Blog, production, AWS-native SEO and short links."
+        description="Blog, AWS-native SEO and short links."
         noindex
       />
       <PageShell
         title="Content"
-        subtitle="Create, review, optimize and publish from the supported content stack."
+        subtitle="Manage published blog content, SEO and short links."
         tabs={ TABS }
         activeTab={ view }
         defaultTab={ view }
@@ -79,20 +77,7 @@ const ContentPage: React.FC<PageProps> = ( { signOut, user } ) => {
           <Suspense fallback={ <div className="content-state">Loading…</div> }>
             { active === 'blog' && (
               <section className="content-mode">
-                <div className="content-context">
-                  <div>
-                    <strong>Source intake &amp; drafting</strong>
-                    <span>Upload PDFs or URLs, inspect extraction, and propose drafts in Blog Studio.</span>
-                  </div>
-                  <Link href="/workspace/seo/blog-studio">Open Blog Studio →</Link>
-                </div>
                 <BlogManager signOut={ signOut } user={ user } embedded />
-              </section>
-            ) }
-
-            { active === 'production' && (
-              <section className="content-mode">
-                <BlogProduction signOut={ signOut } user={ user } embedded />
               </section>
             ) }
 
