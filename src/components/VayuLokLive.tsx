@@ -4745,7 +4745,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-air-context-item.is-time{justify-content:flex-end;white-space:nowrap}
         .vl-live-local-datetime{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
         .vl-live-air-context-item time{color:var(--heading);font-weight:600}
-        .vl-live-air-context-item small{color:var(--muted);font-size:var(--text-xs);font-weight:600}
+        .vl-live-air-context-item small{color:var(--muted);font-size:var(--text-md);font-weight:600}
 
         /* Air/Weather toggle - same pale tint + saturated same-hue dot as the hero pill. */
         .vl-live-air-toggle{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:3px;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff}
@@ -4908,7 +4908,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-wx-now-icon{width:52px;height:52px;flex:0 0 52px;object-fit:contain}
         .vl-live-wx-now-temp{display:block;color:#000;font-size:40px;font-weight:700;line-height:1;letter-spacing:-1px}
         .vl-live-wx-now-cond{display:block;margin-top:2px;color:#000;font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight);line-height:var(--vl-card-heading-lh);letter-spacing:var(--vl-card-heading-track)}
-        .vl-live-wx-now-sub{display:flex;flex-wrap:wrap;gap:4px 12px;color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.35}
+        .vl-live-wx-now-sub{display:flex;flex-wrap:wrap;gap:4px 12px;color:var(--muted);font-size:var(--text-base);font-weight:600;line-height:1.35}
         .vl-live-wx-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;margin:0 0 var(--vl-section-gap);padding:0;list-style:none;border:1px solid var(--hair);border-radius:var(--radius-lg,12px);overflow:hidden;background:var(--hair)}
         .vl-live-wx-grid-item{display:flex;align-items:baseline;justify-content:space-between;gap:var(--vl-content-gap);padding:14px;background:#fff;transition:background-color .14s ease}
         .vl-live-wx-grid-k{min-width:0;color:var(--body);font-size:17px;font-weight:700;line-height:1.25;letter-spacing:-.18px}
@@ -4971,7 +4971,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-wx-period-summary{display:flex;align-items:center;gap:8px;margin-bottom:8px}
         .vl-live-wx-period-summary img{width:34px;height:34px;object-fit:contain}
         .vl-live-wx-period-summary strong{font-size:17px;font-weight:700;line-height:1.25}
-        .vl-live-wx-freshness{margin-top:8px;color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.35}
+        .vl-live-wx-freshness{margin-top:8px;color:var(--muted);font-size:var(--text-md);font-weight:600;line-height:1.35}
 
         /* ── HEALTH RECOMMENDATIONS ──────────────────────────────────────────────
            Icons and arrows inherit the ONE action-icon system above. The row stays horizontal;

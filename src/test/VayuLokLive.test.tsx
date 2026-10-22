@@ -2419,5 +2419,8 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( css ).toContain( '.vl-live-mobile-copy{display:flex;min-width:0;flex-direction:column;gap:3px;color:var(--body);font-size:15px' );
     expect( css ).toContain( '.vl-live-mobile-copy>strong{color:#000;font-size:16px}' );
     expect( css ).toContain( '.vl-live-mobile-copy small{margin-top:2px;color:var(--muted);font-size:14px}' );
+    expect( css ).toContain( '.vl-live-air-context-item small{color:var(--muted);font-size:var(--text-md)' );
+    expect( css ).toContain( '.vl-live-wx-now-sub{display:flex;flex-wrap:wrap;gap:4px 12px;color:var(--muted);font-size:var(--text-base)' );
+    expect( css ).toContain( '.vl-live-wx-freshness{margin-top:8px;color:var(--muted);font-size:var(--text-md)' );
   } );
 } );
