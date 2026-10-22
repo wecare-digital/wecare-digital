@@ -487,7 +487,7 @@ const PUBLIC_PAGE_META: Record<string, {
   name: string; type: string; description: string; serviceType?: string;
 }> = {
   '/grahak-os': { name: 'Grahak OS', type: 'WebPage', description: 'Customer engagement across WhatsApp, SMS, Email and Voice.', serviceType: 'Customer engagement platform' },
-  '/vayulok': { name: 'VayuLok', type: 'WebPage', description: 'Bharat air and weather intelligence.', serviceType: 'Air quality and weather intelligence' },
+  '/vayulok': { name: 'VayuLok', type: 'WebPage', description: 'Bharat air and weather insights.', serviceType: 'Air quality and weather insights' },
   '/contact': { name: 'Contact', type: 'ContactPage', description: 'Submit, amend or track a request, drop documents, or leave a review.' },
   '/terms': { name: 'Terms', type: 'WebPage', description: 'Terms of service.' },
   '/privacy': { name: 'Privacy', type: 'WebPage', description: 'How WECARE.DIGITAL handles your data.' },
