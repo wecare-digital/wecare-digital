@@ -4025,12 +4025,14 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
 
 def send_order_status(invoice_id: str, target_status: str, description: str,
                       phone_number_id: str, request_id: str) -> Dict:
-    """Advance a paid order's fulfilment state and send its invoice image on WhatsApp.
+    """Send a WhatsApp order_status fulfilment update (shipped / completed / …) for a PAID order.
 
-    `send_payment_link` asks the customer to pay. This route handles the later fulfilment
-    lifecycle. WECARE.DIGITAL does not use a separate Meta ORDER_STATUS template here: it validates
-    the local transition, persists it, then sends `wecare_default_invoice_image_template` using
-    the issued image under `secure/Invoice/customer_invoice/`.
+    Separate from the payment path on purpose. `send_payment_link` asks the customer to PAY;
+    this one tells a customer who ALREADY PAID what happened to their order next. Meta owns the
+    order's real lifecycle, so this validates the requested transition against the status this
+    invoice last recorded (`wa_order_status.can_transition`) and refuses locally what Meta would
+    refuse with 2046/2047 — keeping a bad request off the wire and giving staff a named reason —
+    then invokes `outbound-whatsapp` with the `isOrderStatus` envelope.
 
     Guards, in order:
       * the invoice must exist and be PAID. A fulfilment update on an unpaid order is meaningless,
@@ -4103,14 +4105,55 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
             'orderStatus': current_status,
         })
 
+    body_text = (description or '').strip() or wa_order_status.default_body(target)
     contact = _lookup_contact_by_phone(customer_phone)
     contact_id = (contact.get('contactId') or contact.get('id', '')) if contact else ''
 
-    # Owner decision 2026-10-22: there is NO separate Meta ORDER_STATUS customer message.
-    # The fulfilment state is our order/invoice lifecycle field. After it advances, the customer
-    # receives the approved invoice-image template from the gated customer-invoice S3 prefix.
-    # This keeps one customer-facing status channel and removes the unapproved/stale
-    # `wecare_order_status` dependency entirely.
+    wa_payload = {
+        'body': json.dumps({
+            'contactId': contact_id,
+            'recipientPhone': customer_phone,
+            'phoneNumberId': phone_number_id,
+            'isOrderStatus': True,
+            'orderStatusDetails': {
+                'reference_id': reference_id,
+                # The wire spelling Meta expects; `status_action.order.status` carries it through.
+                'order_status': target,
+                'description': body_text,
+            },
+        })
+    }
+
+    try:
+        wa_response = lambda_client.invoke(
+            FunctionName=os.environ.get('OUTBOUND_FUNCTION', 'wecare-outbound-whatsapp'),
+            InvocationType='RequestResponse',
+            Payload=json.dumps(wa_payload),
+        )
+        wa_result = json.loads(wa_response['Payload'].read())
+        wa_status_code = int(wa_result.get('statusCode', wa_response.get('StatusCode', 0)) or 0)
+    except Exception as e:  # noqa: BLE001
+        logger.error(json.dumps({
+            'event': 'order_status_invoke_error', 'invoiceId': invoice_id,
+            'targetStatus': target, 'error': type(e).__name__, 'requestId': request_id,
+        }))
+        return _resp(502, {'error': 'Could not send the order status update.',
+                           'code': 'ORDER_STATUS_SEND_FAILED'})
+
+    if wa_status_code != 200:
+        # Meta refused (e.g. 2046 bad transition, 2047 cancel-after-pay) or the send failed.
+        # The order's recorded status is NOT advanced: the wire is the authority, and marking it
+        # shipped locally when Meta rejected the message would be a lie on the invoice row.
+        logger.warning(json.dumps({
+            'event': 'order_status_send_rejected', 'invoiceId': invoice_id,
+            'targetStatus': target, 'waStatus': wa_status_code, 'requestId': request_id,
+        }))
+        return _resp(502, {'error': 'WhatsApp did not accept the order status update.',
+                           'code': 'ORDER_STATUS_REJECTED', 'waStatus': wa_status_code})
+
+    # The send succeeded, so record the new fulfilment status on the invoice row. `orderStatus`
+    # is NOT a financial field — it does not touch the issued-invoice immutability contract — so
+    # advancing it on a paid, issued invoice is correct.
     now = int(time.time())
     try:
         table.update_item(
@@ -4119,59 +4162,21 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
             ExpressionAttributeValues={':os': target, ':now': now},
         )
     except Exception as e:  # noqa: BLE001
+        # The customer already got the message; a failed row update must not read as a failed
+        # send. Logged and swallowed, like the delivery-log writes elsewhere on this path.
         logger.error(json.dumps({
             'event': 'order_status_row_update_failed', 'invoiceId': invoice_id,
             'targetStatus': target, 'error': type(e).__name__, 'requestId': request_id,
         }))
-        return _resp(500, {
-            'error': 'Could not save the order status. No customer message was sent.',
-            'code': 'ORDER_STATUS_SAVE_FAILED',
-        })
-
-    logger.info(json.dumps({
-        'event': 'order_status_updated', 'invoiceId': invoice_id, 'referenceId': reference_id,
-        'fromStatus': current_status, 'toStatus': target, 'requestId': request_id,
-    }))
-
-    # Every successful fulfilment-status update is followed by the
-    # approved invoice-image template. This is deliberately a FORCE resend: capture already sends
-    # the statutory invoice once, and an order-status notification must not be silently swallowed
-    # by the normal duplicate-delivery claim. The invoice itself is not mutated; the same issued
-    # image is read from secure/Invoice/customer_invoice/ and uploaded to Meta by
-    # send_invoice_whatsapp using wecare_default_invoice_image_template.
-    invoice_delivery = send_invoice_whatsapp(
-        invoice_id, customer_phone, phone_number_id, request_id, force=True)
-    invoice_delivery_code = int(invoice_delivery.get('statusCode', 0) or 0)
-    try:
-        invoice_delivery_body = json.loads(invoice_delivery.get('body', '{}'))
-    except (TypeError, ValueError, json.JSONDecodeError):
-        invoice_delivery_body = {}
-
-    if invoice_delivery_code not in (200, 202):
-        logger.error(json.dumps({
-            'event': 'order_status_invoice_delivery_failed',
-            'invoiceId': invoice_id, 'referenceId': reference_id,
-            'orderStatus': target, 'invoiceStatusCode': invoice_delivery_code,
-            'requestId': request_id,
-        }))
-        return _resp(502, {
-            'error': 'Order status was updated, but the invoice image template could not be sent.',
-            'code': 'ORDER_STATUS_INVOICE_SEND_FAILED',
-            'invoiceId': invoice_id,
-            'referenceId': reference_id,
-            'orderStatus': target,
-            'previousStatus': current_status,
-            'orderStatusApplied': True,
-            'invoiceDeliveryStatus': invoice_delivery_body.get('status', 'failed'),
-        })
 
     try:
         dynamodb.Table(INVOICE_DELIVERY_TABLE).put_item(Item={
             'invoiceId': invoice_id,
             'timestamp': now,
-            'channel': 'whatsapp_order_status_invoice',
+            'channel': 'whatsapp_order_status',
             'toNumber': customer_phone,
-            'waMessageId': str(invoice_delivery_body.get('waMessageId') or ''),
+            'waMessageId': str((wa_result.get('body') and json.loads(wa_result['body']).get(
+                'whatsappMessageId')) or '') if isinstance(wa_result.get('body'), str) else '',
             'status': target,
             'imageUrl': '',
             'phoneNumberId': phone_number_id,
@@ -4181,15 +4186,13 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
     except Exception:  # noqa: BLE001
         pass
 
-    return _resp(200, {
-        'invoiceId': invoice_id,
-        'referenceId': reference_id,
-        'orderStatus': target,
-        'previousStatus': current_status,
-        'status': 'order_status_invoice_sent',
-        'invoiceTemplate': WA_INVOICE_TEMPLATE,
-        'invoiceDeliveryStatus': invoice_delivery_body.get('status', 'sent'),
-    })
+    logger.info(json.dumps({
+        'event': 'order_status_sent', 'invoiceId': invoice_id, 'referenceId': reference_id,
+        'from': current_status, 'to': target, 'requestId': request_id,
+    }))
+    return _resp(200, {'invoiceId': invoice_id, 'referenceId': reference_id,
+                       'orderStatus': target, 'previousStatus': current_status,
+                       'status': 'order_status_sent'})
 
 
 # ─── Cancel Invoice ───
