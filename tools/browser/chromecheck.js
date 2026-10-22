@@ -255,7 +255,7 @@ function main() {
     }
 
     if ( route === '/grahak-os' ) {
-      const checkoutCount = ( html.match( /<button[^>]*class="[^"]*checkout-action[^"]*"[^>]*>[\s\S]*?<span>Checkout<\/span>[\s\S]*?<\/button>/g ) || [] ).length;
+      const checkoutCount = ( html.match( />shopping_cart_checkout<\/span>\s*<span[^>]*>Checkout<\/span>\s*<\/button>/g ) || [] ).length;
       record( checkoutCount === 1 && !html.includes( 'Checkout on WhatsApp' ),
         '/grahak-os single checkout entry',
         checkoutCount === 1 && !html.includes( 'Checkout on WhatsApp' )
