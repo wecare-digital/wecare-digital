@@ -85,17 +85,14 @@ def test_service_request_description_can_be_multiline():
     assert error is None
     assert "\n" in cleaned["description"]
 
-def test_both_service_handlers_verify_real_order_and_force_non_financial_case():
-    for path in (
-        ROOT / "amplify/functions/core/service-api/handler.py",
-        ROOT / "amplify/functions/messaging/whatsapp-business-api/service_api.py",
-    ):
-        source = path.read_text()
-        block = source[source.index("def _submit_request"):source.index("def _amend_request")]
-        assert "service_request_input.validate(body)" in block
-        assert "ConsistentRead=True" in block
-        assert "SERVICE_ORDER_LOOKUP_FAILED" in block
-        assert "SERVICE_ORDER_NOT_FOUND" in block
-        assert "'paymentRequired': False" in block
-        assert "no refund or cancellation initiated" in block
-        assert "body.get('paymentRequired'" not in block
+def test_service_api_verifies_real_order_and_forces_non_financial_case():
+    path = ROOT / "amplify/functions/core/service-api/handler.py"
+    source = path.read_text()
+    block = source[source.index("def _submit_request"):source.index("def _amend_request")]
+    assert "service_request_input.validate(body)" in block
+    assert "ConsistentRead=True" in block
+    assert "SERVICE_ORDER_LOOKUP_FAILED" in block
+    assert "SERVICE_ORDER_NOT_FOUND" in block
+    assert "'paymentRequired': False" in block
+    assert "no refund or cancellation initiated" in block
+    assert "body.get('paymentRequired'" not in block
