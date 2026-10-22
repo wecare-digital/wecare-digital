@@ -154,7 +154,7 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
            indent the prose away from the h1 and break that vertical line.
            Below 1100px it collapses to one column and the contents return inline above
            the document, which is where they have to be on a phone. */
-        .lgd{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+        .lgd{font-family:var(--font-sans)}
         /* Single column below the grid breakpoint. */
         @media(max-width:1099px){
           .lgd{max-width:720px}
@@ -203,7 +203,7 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
            not have. */
         .lgd-notice{
           margin:28px 0 36px;padding:16px 18px;
-          background:var(--public-lime-tint);border-left:4px solid var(--public-brand-lime);border-radius:8px;
+          background:var(--public-lime-tint);border-inline-start:4px solid var(--public-brand-lime);border-radius:8px;
           font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-muted);
         }
 
@@ -219,7 +219,7 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
            is doing the opposite job to the notice - it wants to be skimmed past once the
            reader has found their section, not fixated on. Every value here is already
            in the palette. */
-        .lgd-short{margin:0 0 14px;padding:0 0 0 14px;border-left:2px solid var(--public-hairline);font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-muted)}
+        .lgd-short{margin:0 0 14px;padding-block:0;padding-inline:14px 0;border-inline-start:2px solid var(--public-hairline);font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-muted)}
         /* display:block puts the tag on its own line so the summary text stays a clean
            rectangle - inline, the first line was indented by the tag width and the
            result read as a hanging indent rather than a label. */
@@ -251,7 +251,7 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
           .lgd-toc-list{columns:2}
         }
         .lgd-toc-list li{break-inside:avoid;margin:0 0 2px}
-        .lgd-toc-link{display:flex;gap:10px;padding:6px 8px;margin:0 -8px;border-radius:7px;font-size:15px;line-height:1.45;color:var(--public-brand-green);text-decoration:none}
+        .lgd-toc-link{display:flex;align-items:center;gap:10px;min-height:var(--tap-min);box-sizing:border-box;padding:6px 8px;margin:0 -8px;border-radius:7px;font-size:15px;line-height:1.45;color:var(--public-brand-green);text-decoration:none}
         /* HOVER AND FOCUS ARE SPLIT, because one rule cannot serve both here.
            This was a single declaration: hover and focus-visible shared the lime tint AND
            outline:none. So a keyboard user's only focus indicator was that tint, which
@@ -272,7 +272,7 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
            contents link puts the heading underneath the header and the reader lands
            mid-paragraph with no idea which section they are in. */
         .lgd-section{margin:0 0 34px;scroll-margin-top:128px}
-        .lgd-section.is-sub{margin-left:0}
+        .lgd-section.is-sub{margin-inline-start:0}
 
         /* Legal sections use the same public hierarchy as the rest of the site: section H2,
            then card/subsection H3. Density is handled by the reading measure and spacing, not
@@ -294,10 +294,11 @@ const LegalDocument: React.FC<LegalDocumentProps> = ( { sections, intro, notice 
           .lgd-toc-list{columns:1}
           .lgd-toc{padding:18px 16px;margin-bottom:36px}
           .lgd-section{scroll-margin-top:112px}
-          /* Keep the shared type ladder intact on narrow screens; only geometry changes. */
-          .lgd-short{padding-left:12px}
+          .lgd-h2{font-size:var(--public-mobile-section-size)}
+          .lgd-h3{font-size:var(--public-mobile-card-size)}
+          .lgd-short{padding-inline-start:12px}
           /* Numbers move inline: a 44px gutter on a 320px screen costs 14% of the width. */
-          .lgd-num{min-width:0;margin-right:8px}
+          .lgd-num{min-width:0;margin-inline-end:8px}
         }
       `}</style>
     </div>

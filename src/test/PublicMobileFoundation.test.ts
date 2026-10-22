@@ -78,6 +78,22 @@ describe( 'public mobile foundation', () => {
     expect( post ).not.toContain( 'font-size:18px;line-height:1.6' );
   } );
 
+  it( 'records Terms and Privacy as explicit long-form mobile-foundation adopters', () => {
+    const terms = read( 'src/pages/terms.tsx' );
+    const privacy = read( 'src/pages/privacy.tsx' );
+    const legal = read( 'src/components/LegalDocument.tsx' );
+
+    expect( terms ).toContain( 'mobileFoundation' );
+    expect( privacy ).toContain( 'mobileFoundation' );
+    expect( legal ).toContain( 'font-family:var(--font-sans)' );
+    expect( legal ).toContain( 'font-size:var(--public-mobile-section-size)' );
+    expect( legal ).toContain( 'font-size:var(--public-mobile-card-size)' );
+    expect( legal ).toContain( 'min-height:var(--tap-min)' );
+    expect( legal ).toContain( 'border-inline-start' );
+    expect( legal ).toContain( 'padding-inline-start' );
+    expect( legal ).toContain( 'margin-inline-end' );
+  } );
+
   it( 'keeps the bespoke Activities experience explicitly on the Home-aligned mobile foundation', () => {
     const productPage = read( 'src/components/ProductPage.tsx' );
     const activities = read( 'src/pages/elsewhere/activities.tsx' );
