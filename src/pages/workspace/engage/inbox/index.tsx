@@ -29,6 +29,37 @@ import { inferMimeFromName, validateWaMediaSize, formatBytes } from '../../../..
 import { waErrorTooltip } from '../../../../lib/wa-errors';
 import { scrollToEnd } from '../../../../lib/scroll-to-end';
 
+/**
+ * Inbound WhatsApp media lives under the gated `secure/` prefix, which cannot be
+ * served through CloudFront, so messages-read hands us a presigned S3 URL with a
+ * finite TTL. If a thread is left open past that TTL the URL 403s and the <img>
+ * goes blank — which is exactly how inbound images "stopped showing" once inbound
+ * media moved into secure/. The signature is now 1h (see messages-read), but a
+ * thread can outlive even that, so on a load error we re-fetch the single message
+ * once to mint a fresh URL rather than leaving a dead tile. One retry only: a
+ * genuinely missing object must still fail visibly rather than loop.
+ */
+const GatedMedia: React.FC<{ messageId?: string; url: string; kind: 'image' | 'video' | 'audio' | 'document'; filename?: string }>
+    = ( { messageId, url, kind, filename } ) => {
+        const [ src, setSrc ] = useState( url );
+        const [ dead, setDead ] = useState( false );
+        const retried = useRef( false );
+        useEffect( () => { setSrc( url ); setDead( false ); retried.current = false; }, [ url ] );
+
+        const refresh = useCallback( async () => {
+            if ( retried.current || !messageId ) { setDead( true ); return; }
+            retried.current = true;
+            const fresh = await api.getMessage( messageId );
+            if ( fresh?.mediaUrl ) setSrc( fresh.mediaUrl ); else setDead( true );
+        }, [ messageId ] );
+
+        if ( dead ) return <span className="ui-msg-doc">⚠️ Media unavailable</span>;
+        if ( kind === 'image' ) return <img className="ui-msg-img" src={ src } alt="image" onError={ refresh } />;
+        if ( kind === 'video' ) return <video className="ui-msg-img" src={ src } controls onError={ refresh } />;
+        if ( kind === 'audio' ) return <audio src={ src } controls style={ { maxWidth: '100%' } } onError={ refresh } />;
+        return <a className="ui-msg-doc" href={ src } target="_blank" rel="noopener noreferrer">📄 { filename || 'Document' }</a>;
+    };
+
 const WABAS = [
     { id: WHATSAPP_PHONES.primary.id, name: WHATSAPP_PHONES.primary.name, display: WHATSAPP_PHONES.primary.display },
     { id: WHATSAPP_PHONES.secondary.id, name: WHATSAPP_PHONES.secondary.name, display: WHATSAPP_PHONES.secondary.display },
@@ -1073,10 +1104,11 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                                     { ( () => {
                                                         const mt = ( m.messageType || '' ).toLowerCase();
                                                         const url = m.mediaUrl || '';
-                                                        if ( url && ( mt === 'image' || mt === 'sticker' ) ) return <img className="ui-msg-img" src={ url } alt="image" />;
-                                                        if ( url && mt === 'video' ) return <video className="ui-msg-img" src={ url } controls />;
-                                                        if ( url && ( mt === 'audio' || mt === 'voice' ) ) return <audio src={ url } controls style={ { maxWidth: '100%' } } />;
-                                                        if ( url && mt === 'document' ) return <a className="ui-msg-doc" href={ url } target="_blank" rel="noopener noreferrer">📄 { ( m as any ).displayFilename || 'Document' }</a>;
+                                                        const mid = m.messageId || ( m as any ).id;
+                                                        if ( url && ( mt === 'image' || mt === 'sticker' ) ) return <GatedMedia messageId={ mid } url={ url } kind="image" />;
+                                                        if ( url && mt === 'video' ) return <GatedMedia messageId={ mid } url={ url } kind="video" />;
+                                                        if ( url && ( mt === 'audio' || mt === 'voice' ) ) return <GatedMedia messageId={ mid } url={ url } kind="audio" />;
+                                                        if ( url && mt === 'document' ) return <GatedMedia messageId={ mid } url={ url } kind="document" filename={ ( m as any ).displayFilename } />;
                                                         return null;
                                                     } )() }
                                                     { ( () => {
