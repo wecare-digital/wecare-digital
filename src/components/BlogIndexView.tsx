@@ -258,6 +258,7 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
 
   return (
     <RotatingHero
+      mobileFoundation
       frame="Notes on"
       words={ HERO_WORDS }
       sub="Short pieces on the distinctions that change how a thing is seen — written by the people doing the work."
@@ -561,10 +562,18 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
            gone to its narrow treatment while the grid below was still in its wide one. */
         @media(max-width:1024px){.post-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
         @media(max-width:767px){
-          /* Nothing to override for the hero: its own narrow-screen padding applies. */
-          .category-switch{margin-bottom:24px}
+          /* This family now opts into the shared public-mobile foundation through
+             RotatingHero. Keep the listing-specific pieces on those same tokens rather
+             than inventing a second phone scale. */
+          .blog-search{max-width:100%}
+          .blog-search input{font-size:var(--public-mobile-form-font-size)}
+          .category-switch{
+            margin-bottom:24px;overscroll-behavior-inline:contain;
+            -webkit-overflow-scrolling:touch;
+          }
           .post-grid{grid-template-columns:1fr;gap:18px}
           .post-copy{padding:22px}
+          h2{font-size:var(--public-mobile-card-size)}
           /* The excerpt gets the full measure at one column, so it can run longer before the
              clamp bites - six lines rather than four. No new font size: same rung. */
           .post-copy p{-webkit-line-clamp:6}
