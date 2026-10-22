@@ -7,6 +7,7 @@ const child = productChildByPath( '/ritual-guru/ritva/' );
 
 const RitvaPage: React.FC = () => (
   <ProductPage
+      mobileFoundation
     product={ child.product }
     canonicalPath={ child.path }
     crumbs={ breadcrumbTrail( '/ritual-guru/ritva' ) }
