@@ -1349,3 +1349,38 @@ def test_readiness_set_with_the_gate_on_is_still_a_problem(verify_run):
     """Both conditions report; neither masks the other."""
     assert verify_run({"EXPECTED_CONFIGURATION_NAME": "c",
                        "CHECKOUT_INITIATION_ENABLED": "true"}) == 1
+
+
+def test_checkout_provisioner_packages_embedded_invoice_engine(provisioner):
+    source = SCRIPT.read_text(encoding="utf-8")
+    assert 'extra_files=["invoice_engine.py"]' in source
+
+
+def test_invoice_authority_is_separate_and_narrow(provisioner):
+    policy = provisioner.expected_invoice_role_policy("775261844268")
+    statements = {s["Sid"]: s for s in policy["Statement"]}
+    assert set(statements) == {
+        "InvoiceRecords", "InvoicePaymentEvidence", "InvoiceRefundCases",
+        "InvoiceContactLookup", "InvoiceAudit", "InvoicePaymentReservationTransaction",
+        "InvoiceMediaRead", "InvoiceMediaObjects", "InvoiceMediaList",
+    }
+    raw = json.dumps(policy)
+    assert "wecare/razorpay-webhook" not in raw
+    assert "secretsmanager:" not in raw
+    assert "lambda:InvokeFunction" not in raw
+    assert "s3:PutObject" in statements["InvoiceMediaObjects"]["Action"]
+    assert statements["InvoiceMediaObjects"]["Resource"] == [
+        "arn:aws:s3:::wecare-digital-get/secure/Invoice/customer_invoice/*"
+    ]
+    assert statements["InvoiceMediaRead"]["Resource"] == [
+        "arn:aws:s3:::wecare-digital-get/o/*"
+    ]
+    assert statements["InvoicePaymentReservationTransaction"]["Action"] == [
+        "dynamodb:TransactWriteItems"
+    ]
+
+
+def test_role_reconciliation_writes_invoice_authority(provisioner):
+    body = SCRIPT.read_text(encoding="utf-8").split("def ensure_role", 1)[1].split("\ndef ", 1)[0]
+    assert 'PolicyName="CheckoutInvoiceAuthority"' in body
+    assert "expected_invoice_role_policy()" in body
