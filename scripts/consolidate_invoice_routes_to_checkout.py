@@ -2,7 +2,8 @@
 """Move /invoices* API routes from invoice-engine to the staged checkout commerce runtime.
 
 Dry-run by default. The script refuses unless:
-- checkout:live exists and its deployed ZIP actually contains invoice_engine.py;
+- checkout:live exists and its deployed ZIP contains invoice_engine.py plus exact renderer assets;
+- checkout:live has the Pillow dependency layer;
 - the checkout role has the exact CheckoutInvoiceAuthority policy;
 - every invoice route currently targets either invoice-engine or checkout;
 - the checkout integration is AWS_PROXY payload 2.0.
@@ -26,6 +27,8 @@ OLD_FUNCTION = "wecare-invoice-engine"
 NEW_FUNCTION = "wecare-checkout"
 NEW_ROLE = "wecare-checkout-role"
 POLICY_NAME = "CheckoutInvoiceAuthority"
+STAGE = "prod"
+PILLOW_LAYER_ARN = "arn:aws:lambda:us-east-1:775261844268:layer:pillow-python312:2"
 REQUIRED_SIDS = {
     "InvoiceRecords",
     "InvoicePaymentEvidence",
@@ -58,8 +61,15 @@ def _live_package_has_invoice_engine(lam) -> None:
         payload = response.read()
     with zipfile.ZipFile(io.BytesIO(payload)) as archive:
         members = set(archive.namelist())
-    if "invoice_engine.py" not in members:
-        raise RuntimeError("checkout:live does not contain invoice_engine.py")
+    required = {
+        "invoice_engine.py",
+        "receipt_layout.py",
+        "fonts/DotGothic16-Regular.ttf",
+    }
+    missing = required - members
+    if missing:
+        raise RuntimeError(
+            "checkout:live is missing invoice runtime assets: " + ", ".join(sorted(missing)))
 
 
 def _role_has_invoice_authority(iam) -> None:
@@ -69,6 +79,50 @@ def _role_has_invoice_authority(iam) -> None:
     missing = REQUIRED_SIDS - sids
     if missing:
         raise RuntimeError("checkout invoice IAM is incomplete: " + ", ".join(sorted(missing)))
+
+
+def _live_has_pillow_layer(lam) -> None:
+    alias = lam.get_alias(FunctionName=NEW_FUNCTION, Name="live")
+    config = lam.get_function_configuration(
+        FunctionName=NEW_FUNCTION, Qualifier=alias["FunctionVersion"])
+    layers = {row.get("Arn") for row in (config.get("Layers") or [])}
+    if PILLOW_LAYER_ARN not in layers:
+        raise RuntimeError("checkout:live is missing the Pillow layer")
+
+
+def _route_source_arn(route_key: str) -> str:
+    method, path = route_key.split(" ", 1)
+    # API Gateway invokes a concrete path, so path parameters must match one segment.
+    import re
+    concrete_pattern = re.sub(r"\{[^/]+\}", "*", path)
+    return (
+        f"arn:aws:execute-api:{REGION}:775261844268:{API_ID}/"
+        f"{STAGE}/{method}{concrete_pattern}"
+    )
+
+
+def _permission_sid(route_key: str) -> str:
+    import hashlib
+    digest = hashlib.sha256(route_key.encode("utf-8")).hexdigest()[:12]
+    return "apigw-invoice-" + digest
+
+
+def _ensure_route_permissions(lam, route_keys) -> None:
+    for route_key in route_keys:
+        sid = _permission_sid(route_key)
+        try:
+            lam.add_permission(
+                FunctionName=NEW_FUNCTION,
+                Qualifier="live",
+                StatementId=sid,
+                Action="lambda:InvokeFunction",
+                Principal="apigateway.amazonaws.com",
+                SourceArn=_route_source_arn(route_key),
+            )
+        except Exception as exc:
+            code = getattr(exc, "response", {}).get("Error", {}).get("Code")
+            if code != "ResourceConflictException":
+                raise
 
 
 def plan(api):
@@ -121,6 +175,7 @@ def main() -> int:
     api = boto3.client("apigatewayv2", region_name=REGION)
 
     _live_package_has_invoice_engine(lam)
+    _live_has_pillow_layer(lam)
     _role_has_invoice_authority(iam)
     changes, target_id, count = plan(api)
 
@@ -132,6 +187,8 @@ def main() -> int:
     if not args.apply:
         print(f"dry-run: {len(changes)} route(s) would move")
         return 0
+
+    _ensure_route_permissions(lam, [row["routeKey"] for row in changes])
 
     for row in changes:
         api.update_route(
