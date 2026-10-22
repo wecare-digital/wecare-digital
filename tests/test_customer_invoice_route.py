@@ -47,7 +47,7 @@ CUSTOMER_ISSUER = "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_46ULYuu
 STAFF_ISSUER = "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_cSx0RHCIR"
 
 #: The gated key the invoice engine actually writes.
-GATED_KEY = "secure/stack/invoices/wecare-digital-REF-ABCDEF.png"
+GATED_KEY = "secure/Invoice/customer_invoice/wecare-digital-REF-ABCDEF.png"
 #: The same shape under the PUBLIC root - a legal string a row could still carry, because
 #: the prefix only moved to `secure/` on 2026-09-30.
 PUBLIC_KEY = "o/stack/invoices/wecare-digital-REF-ABCDEF.png"
