@@ -4928,8 +4928,24 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-wx-history{margin-top:var(--vl-section-gap)}
         .vl-live-wx-history .vl-live-air-forecast-head{display:block;margin-bottom:8px}
         .vl-live-wx-history .vl-live-air-forecast-title{white-space:nowrap}
-        .vl-live-wx-history .vl-live-air-range{display:flex;width:100%;max-width:100%;margin-top:8px;overflow-x:auto;scrollbar-width:none}
+        .vl-live-wx-history .vl-live-air-range{
+          display:flex;gap:4px;width:100%;max-width:100%;margin-top:8px;padding:6px;
+          overflow-x:auto;overflow-y:hidden;scroll-snap-type:x proximity;
+          -webkit-overflow-scrolling:touch;overscroll-behavior-inline:contain;scrollbar-width:none;
+          touch-action:pan-x;border-radius:14px;background:var(--lime);
+        }
         .vl-live-wx-history .vl-live-air-range::-webkit-scrollbar{display:none}
+        .vl-live-wx-history .vl-live-air-range button{
+          position:relative;flex:0 0 auto;min-width:max-content;min-height:var(--tap-min);
+          padding:8px 14px;scroll-snap-align:center;border-radius:10px;background:transparent;
+          color:var(--public-heading);font-size:16px;font-weight:700;white-space:nowrap;
+        }
+        .vl-live-wx-history .vl-live-air-range button:hover{background:rgba(239,249,207,.78);color:var(--green)}
+        .vl-live-wx-history .vl-live-air-range button.is-active{background:rgba(17,21,18,.06);color:var(--green)}
+        .vl-live-wx-history .vl-live-air-range button.is-active::after{
+          content:'';position:absolute;left:50%;bottom:4px;width:18px;height:2px;
+          transform:translateX(-50%);border-radius:999px;background:#111512;opacity:.78;
+        }
         .vl-live-wx-hist-strip{display:flex;gap:8px;margin:8px 0 0;padding:0 0 6px;overflow-x:auto;list-style:none;scrollbar-width:none}
         .vl-live-wx-hist-strip::-webkit-scrollbar{display:none}
         .vl-live-wx-hist-slot{flex:0 0 86px}
