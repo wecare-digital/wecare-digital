@@ -38,7 +38,7 @@ jobs:
     # the browser harness below resolves the preinstalled Chromium. Ubuntu 26.04 ships
     # Google Chrome and Chromium 153, so the fallback path still resolves. Bump this
     # label deliberately when the next LTS image goes GA, and re-run the harness.
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
