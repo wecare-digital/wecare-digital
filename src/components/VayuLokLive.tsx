@@ -3269,7 +3269,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
               or an actual failure - show visible helper text. */}
           { searchStatus === 'searching' && <p className="vl-live-sr-only" role="status" aria-live="polite">Searching worldwide…</p> }
           { searchStatus === 'no-results' && <p className="vl-live-search-status" role="status">Place not found.</p> }
-          { searchStatus === 'unavailable' && <p className="vl-live-search-status" role="status">Place search is temporarily unavailable.</p> }
+          { searchStatus === 'unavailable' && <p className="vl-live-search-status" role="status">Search unavailable.</p> }
         </div>
       </div>
 
@@ -3934,11 +3934,11 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                         <div className="vl-live-wx-alerts">
                           <h4 className="vl-live-air-forecast-title">Alerts</h4>
                           { weatherAlertStatus === 'loading' ? (
-                            <p className="vl-live-air-history-empty" role="status">Checking weather alerts…</p>
+                            <p className="vl-live-air-history-empty" role="status">Checking alerts…</p>
                           ) : weatherAlertStatus === 'unsupported' ? (
-                            <p className="vl-live-air-history-empty">Weather alerts aren’t available for this location.</p>
+                            <p className="vl-live-air-history-empty">No alerts here.</p>
                           ) : weatherAlertStatus === 'error' ? (
-                            <p className="vl-live-air-history-empty" role="status">Weather alerts are temporarily unavailable.</p>
+                            <p className="vl-live-air-history-empty" role="status">Alerts unavailable.</p>
                           ) : weatherAlertStatus === 'active' && weatherAlerts.length ? weatherAlerts.map( alert => (
                             <div key={ alert.id } className={ `vl-live-wx-alert sev-${( alert.severity || 'minor' ).toLowerCase()}` }>
                               <strong>{ alert.title }</strong>
@@ -3982,7 +3982,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                               ) }
                             </div>
                           ) ) : (
-                            <p className="vl-live-air-history-empty">No active weather or hazard alerts for this location.</p>
+                            <p className="vl-live-air-history-empty">No active alerts.</p>
                           ) }
                         </div>
 
