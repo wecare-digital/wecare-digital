@@ -503,15 +503,11 @@ EXPECTED_PROVIDER_MID = os.environ.get('EXPECTED_PROVIDER_MID', '')
 #: The three payload shapes that REQUEST a payment. `isOrderStatus` is deliberately absent because it is not a payment request. The envelope itself
 #: is refused later: customer-facing fulfilment updates use the approved invoice-image template. `payment_action` in `handler` stays as it is - it answers a
 #: different question (does this need Admin?) and order_status does.
-_PAYMENT_REQUEST_KEYS = ('isCheckoutTemplate', 'isPaymentTemplate', 'isInteractivePayment')
+_PAYMENT_REQUEST_KEYS = ('isCheckoutTemplate',)
+_REMOVED_PAYMENT_REQUEST_KEYS = ('isPaymentTemplate', 'isInteractivePayment')
 
-#: The two non-resolver envelopes, refused BY NAME. Neither reaches
-#: `_build_payment_settings`: `isInteractivePayment` is a free-form interactive message rather
-#: than the approved template, and `isPaymentTemplate` attaches the caller's `order_details`
-#: dict VERBATIM as the button action (see `_build_message_payload`), so the WABA1-only refusal,
-#: the `payment_link_uri` / `upi_intent_link` refusals and the `VALID_PAYMENT_CONFIGS`
-#: membership check do not apply to it. Both have zero callers in this repository.
-_REFUSED_PAYMENT_ENVELOPES = ('isInteractivePayment', 'isPaymentTemplate')
+#: Removed payment envelopes. They are rejected at the public handler boundary and have no
+#: payload-building implementation. WhatsApp collection is template ORDER_DETAILS only.
 
 #: The two states that mean "ask again later". Everything else means a human must act.
 _READINESS_TRANSIENT = frozenset({payment_readiness.META_UNAVAILABLE,
@@ -604,119 +600,32 @@ def _resolve_payment_config_name(phone_number_id: str, order_details: dict) -> s
 
 
 def _build_payment_settings(phone_number_id: str, order_details: dict) -> list:
-    """Build payment_settings array per Meta's latest PG deep integration spec (v25.0).
+    """Build the one supported WhatsApp payment setting.
 
-    Supports 3 modes:
-    1. PG Deep Integration (default) — razorpay with configuration_name
-    2. Enhanced Payment Links — payment_link with PG-generated URL
-    3. UPI Intent — upi_intent_link with raw UPI deep link
-
-    Also supports TPV (Third Party Validation) for Razorpay.
-    Meta allows ONE payment_setting per review_and_pay message."""
-    ref_id = order_details.get('reference_id', '')
-
-    # ══ Two refusals, placed AHEAD of every other branch. The ordering is the control. ═══════
-    #
-    # ── 1. Only WABA1 may take payments. ──
-    #
-    # Checked before the explicit-configuration override, because an explicit
-    # `payment_configuration` is a CHOICE OF CONFIGURATION, not a grant of permission: both WABAs
-    # expose the identical pair WECAREDIGITAL/WECAREUPI, so a caller naming one would otherwise
-    # resolve for either sender. Removing WABA2 from the map above is agreement, not the control.
-    #
-    # It lives in the RESOLVER and not only in the caller-side module, because a refusal in a new
-    # module protects callers that use the new module - and `invoice-engine.send_payment_link`
-    # has three internal Lambda callers that are exactly such callers today. This is the one
-    # place no caller can bypass.
-    #
-    # Note what this does NOT do: no Meta payment configuration is created, deleted or mutated.
-    # Both WABAs keep whatever Meta holds. This is purely which sender THIS CODE will compose a
-    # payment for.
+    WECARE.DIGITAL uses only the approved ORDER_DETAILS template backed by the Razorpay
+    payment-gateway configuration. Payment links, raw UPI intents, alternate gateways and
+    caller-selected payment settings are deliberately unsupported.
+    """
     if phone_number_id not in PAYMENT_SENDERS:
         raise PaymentConfigurationUnresolved(
-            f'sender {phone_number_id!r} may not take payments; an explicit '
-            'payment_configuration does not grant it')
+            f'sender {phone_number_id!r} may not take payments')
 
-    # ── 2. WhatsApp payments are TEMPLATE-ONLY. A link path is refused, never silently taken. ──
-    #
-    # `wecare_whatapp_native_pay_template` carrying `order_details` is the ONE way this business collects a WhatsApp
-    # payment. The two link modes below `return` BEFORE the PG deep-integration mode, so a caller
-    # setting either key bypasses `configuration_name` entirely - and with it the payment
-    # configuration, the readiness verdict and the approved template. Measured, NOTHING in this
-    # repository sets either key; this refusal exists so that stays true, which makes it a pure
-    # tightening with zero behavioural change today.
-    #
-    # Refusing `upi_intent_link` does NOT refuse UPI. `WECAREUPI` stays reachable exactly as it
-    # should be - as a `configuration_name` through Mode 3, where Meta owns the UPI collection
-    # inside the template. Mode 2 is a different mechanism: a raw UPI deep link that bypasses
-    # `configuration_name`, and therefore bypasses the merchant-id verification that proves the
-    # money lands in our Razorpay account. So this refuses UPI OUTSIDE the verified configuration.
-    #
-    # It raises the EXISTING exception rather than inventing one, so it is fail-closed for every
-    # caller on day one: a new type would need every caller updated before it refused anything.
-    for _forbidden in ('payment_link_uri', 'upi_intent_link'):
-        if order_details.get(_forbidden):
-            raise PaymentConfigurationUnresolved(
-                f'{_forbidden} is not permitted on the WhatsApp payment path; payments must '
-                'travel in the approved order_details template. Refusing rather than sending '
-                'a link.')
-
-    # ── Mode 1: Enhanced Payment Links (Gap 9) ──
-    payment_link_uri = order_details.get('payment_link_uri', '')
-    if payment_link_uri:
-        link_obj = {'uri': payment_link_uri}
-        success_url = order_details.get('payment_link_success_url', '')
-        cancel_url = order_details.get('payment_link_cancel_url', '')
-        if success_url:
-            link_obj['success_url'] = success_url
-        if cancel_url:
-            link_obj['cancel_url'] = cancel_url
-        return [{'type': 'payment_link', 'payment_link': link_obj}]
-
-    # ── Mode 2: UPI Intent Link ──
-    upi_intent = order_details.get('upi_intent_link', '')
-    if upi_intent:
-        return [{'type': 'upi_intent_link', 'upi_intent_link': {'link': upi_intent}}]
-
-    # ── Mode 3: PG Deep Integration (default) ──
-    # Razorpay is the only provider; PayU no longer exists on Meta and its secret is
-    # permanently deleted.
-    #
-    # THERE IS NO FALLBACK, AND THAT IS THE POINT. The name resolution and its two refusals
-    # moved VERBATIM into `_resolve_payment_config_name` above, which carries the full reasoning,
-    # so the A0 readiness gate and this sender ask ONE function for the answer. They still run
-    # after the two refusals above, which is the ordering that is the control.
-    gw_type = 'razorpay'
     config_name = _resolve_payment_config_name(phone_number_id, order_details)
-
-    pg_obj = {
-        'type': gw_type,
-        'configuration_name': config_name,
-    }
-
-    # Cross-WABA correction removed 2026-08-23. It keyed off the substrings
-    # "wecare.digital" and "manishagarwal", neither of which occurs in the current
-    # config names (WECAREDIGITAL / WECAREUPI), so it could never fire. Both WABAs
-    # now share identical config names, making the whole concept obsolete.
-
-    # Add PG-specific fields per Meta docs
-    if gw_type == 'razorpay':
-        pg_obj['razorpay'] = {
-            'receipt': ref_id[:40] if ref_id else '',
-            'notes': {
-                'referenceId': ref_id,
-                'source': 'wecare_invoice_engine',
+    ref_id = order_details.get('reference_id', '')
+    return [{
+        'type': 'payment_gateway',
+        'payment_gateway': {
+            'type': 'razorpay',
+            'configuration_name': config_name,
+            'razorpay': {
+                'receipt': ref_id[:40] if ref_id else '',
+                'notes': {
+                    'referenceId': ref_id,
+                    'source': 'wecare_invoice_engine',
+                },
             },
-        }
-        # TPV support for Razorpay (Gap 11) — encrypted bank account validation
-        encrypted_tpv = order_details.get('encrypted_payment_gateway_data', '')
-        if encrypted_tpv:
-            pg_obj['razorpay']['encrypted_payment_gateway_data'] = encrypted_tpv
-    # The PayU branch (udf1-udf4 + TPV) was removed 2026-08-23. gw_type is now
-    # unconditionally 'razorpay' and no PayU config exists on either WABA, so it
-    # was unreachable. It also carried a stale hardcoded GSTIN default.
-
-    return [{'type': 'payment_gateway', 'payment_gateway': pg_obj}]
+        },
+    }]
 
 
 # ══ A0: one readiness gate at the boundary every payment send must cross ═════════════════════
@@ -1020,20 +929,6 @@ def _refuse_unless_payment_ready(body: Dict[str, Any], phone_number_id: str,
         return _error_response(409, wa_payment_request.WA_PAY_SENDER_NOT_PERMITTED,
                                _NOT_READY_MESSAGE)
 
-    # 3. Both non-resolver envelopes are refused by name. `isInteractivePayment` is a free-form
-    #    message, not the approved template; `isPaymentTemplate` is a template whose
-    #    order_details dict is attached VERBATIM as the button action and never passes through
-    #    `_build_payment_settings` - so the WABA1 refusal, the link refusals and the
-    #    VALID_PAYMENT_CONFIGS check do not apply to it, and a raw payment_link could be sent
-    #    inside the approved template. Zero callers remain for either.
-    for envelope in _REFUSED_PAYMENT_ENVELOPES:
-        if body.get(envelope):
-            logger.error(json.dumps({'event': 'wa_payment_envelope_refused',
-                                     'envelope': envelope, 'requestId': request_id}))
-            return _error_response(409, WA_PAY_ENVELOPE_NOT_PERMITTED,
-                                   'WhatsApp payments must travel in the approved order_details '
-                                   'template through the resolver. Nothing has been charged.')
-
     # 4. Shape. An EMPTY dict is refused too: it would fall through to the phone map and let the
     #    gate prove a configuration for a payment request that names no order at all.
     order_details = (body.get('checkoutOrderDetails') or body.get('orderDetails') or {})
@@ -1186,10 +1081,17 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     except (json.JSONDecodeError, TypeError, ValueError):
         return _error_response(400, 'Invalid JSON in request body')
 
-    payment_action = any((
-        body.get('isPaymentTemplate'), body.get('isInteractivePayment'),
-        body.get('isCheckoutTemplate'), body.get('isOrderStatus'),
-    ))
+    for removed_key in _REMOVED_PAYMENT_REQUEST_KEYS:
+        if body.get(removed_key):
+            return _error_response(
+                400, WA_PAY_ENVELOPE_NOT_PERMITTED,
+                'This WhatsApp payment mode has been removed. Use the approved ORDER_DETAILS template.')
+    if body.get('orderDetails') and not body.get('isCheckoutTemplate'):
+        return _error_response(
+            400, WA_PAY_ENVELOPE_NOT_PERMITTED,
+            'Raw order_details payments have been removed. Use checkoutOrderDetails with the approved template.')
+
+    payment_action = any((body.get('isCheckoutTemplate'), body.get('isOrderStatus')))
     auth_result = require_auth(event, required_role='Admin' if payment_action else None)
     if auth_result is not None:
         return auth_result
@@ -1243,9 +1145,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         template_name = body.get('templateName')
         template_params = body.get('templateParams', [])
         
-        # Payment template support (order_details)
-        is_payment_template = body.get('isPaymentTemplate', False)
-        order_details = body.get('orderDetails')
+        # Approved checkout ORDER_DETAILS template support.
         header_image_url = body.get('headerImageUrl')
         
         # OTP / Authentication template support
@@ -1299,9 +1199,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         template_flow_button = body.get('flowButton') or body.get('templateFlowButton')
         template_url_button = body.get('templateUrlButton')
 
-        # Interactive payment support (for within 24h window - uses payment_settings)
-        is_interactive_payment = body.get('isInteractivePayment', False)
-        
         # Checkout button template support (order_details button with sale_amount + shipping_info)
         is_checkout_template = body.get('isCheckoutTemplate', False)
         checkout_order_details = body.get('checkoutOrderDetails')  # Full Meta order_details object
@@ -1637,8 +1534,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return _handle_live_send(
             message_id, contact_id, recipient_phone, phone_number_id,
             content, media_file, media_type, media_filename, is_template, template_name,
-            template_params, within_window, request_id, is_payment_template, order_details, 
-            header_image_url, is_interactive_payment, is_otp_template, otp_code, otp_button_type,
+            template_params, within_window, request_id, False, None,
+            header_image_url, False, is_otp_template, otp_code, otp_button_type,
             recipient_bsuid=recipient_bsuid,
             template_header_media=template_header_media,
             template_header_type=template_header_type,
@@ -3905,272 +3802,6 @@ def _build_message_payload(recipient_phone: str, content: str, media_type: Optio
     if not whatsapp_phone and not recipient_bsuid:
         payload['to'] = whatsapp_phone  # Will fail at API level with clear error
     
-    # Default header image for interactive payments
-    DEFAULT_PAYMENT_HEADER_IMAGE = 'https://wecare.digital/get/o/stream/media/m/wecare-digital.png'
-    
-    # Handle INTERACTIVE order_details message (for within 24h window)
-    # Structure:
-    # BODY: Your payment is overdue—please tap below to complete it 💳🤝
-    # CART ITEMS: from input items array
-    # BREAKDOWN: Subtotal, Discount, Shipping, Tax (with GSTIN)
-    # TOTAL: auto-calculated
-    if is_interactive_payment and order_details:
-        from decimal import Decimal, ROUND_HALF_UP
-        
-        def round_paise(x: Decimal) -> int:
-            """Round to nearest paise"""
-            return int(x.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
-        
-        payload['type'] = 'interactive'
-        
-        # Use provided header image or default
-        payment_header_image = header_image_url or DEFAULT_PAYMENT_HEADER_IMAGE
-        
-        # Get order components from frontend
-        order_data = order_details.get('order', {})
-        
-        # GSTIN
-        gstin = business_identity.GSTIN
-        
-        # Discount, Delivery (user input, mandatory - show even if 0)
-        discount_paise = int(order_data.get('discount', {}).get('value', 0))
-        delivery_paise = int(order_data.get('shipping', {}).get('value', 0))
-        
-        # Build items from input array (multi-item support with per-item GST)
-        items_list = order_data.get('items', [])
-        items_for_whatsapp = []
-        item_total_paise = 0
-        gst_paise = 0  # Total GST across all items
-        importer_fields = business_identity.meta_importer_fields()
-        
-        for i, item in enumerate(items_list):
-            item_amount = int(item.get('amount', {}).get('value', 100))
-            item_qty = int(item.get('quantity', 1))
-            item_name = item.get('name', 'Service Fee')
-            item_line_total = item_amount * item_qty
-            item_total_paise += item_line_total
-            
-            # Per-item GST rate. `Decimal(str(...))` DIRECTLY - the `float()` round-trip that
-            # used to sit in front of it was pointless and lossy: the value was immediately
-            # re-wrapped as `Decimal(str(rate))`, so the float existed only long enough to lose
-            # precision. This figure multiplies a paise line total into the GST the customer is
-            # charged, so it is money of record.
-            item_gst_rate = Decimal(str(item.get('gstRate', 0) or 0))
-            if item_gst_rate > 0:
-                gst_paise += round_paise(Decimal(item_line_total) * item_gst_rate / Decimal("100"))
-            
-            items_for_whatsapp.append({
-                'retailer_id': item.get('retailer_id', f'ITEM_{i+1}'),
-                'name': item_name,
-                'amount': {'value': item_amount, 'offset': 100},
-                'quantity': item_qty,
-                **importer_fields,
-            })
-        
-        # Fallback if no items
-        if not items_for_whatsapp:
-            item_name = order_details.get('itemName', 'Service Fee')
-            item_quantity = int(order_details.get('quantity', 1))
-            fallback_amount = int(order_data.get('subtotal', {}).get('value', 100))
-            item_total_paise = fallback_amount
-            items_for_whatsapp.append({
-                'retailer_id': 'ITEM_MAIN',
-                'name': item_name,
-                'amount': {'value': fallback_amount // max(item_quantity, 1), 'offset': 100},
-                'quantity': item_quantity,
-                **importer_fields,
-            })
-            # Use tax value from order_data as fallback
-            gst_paise = int(order_data.get('tax', {}).get('value', 0))
-        
-        # Convenience fee policy has ONE home: checkout_pricing.compute_quote.
-        # The basis is the collection the customer actually owes BEFORE the fee: item total
-        # minus discount, plus shipping and supply GST. This matches website/cart pricing.
-        skip_conv_fee = bool(order_details.get('skipConvenienceFee', False))
-        if not skip_conv_fee:
-            collection_paise = item_total_paise - discount_paise + delivery_paise + gst_paise
-            quote = checkout_pricing.compute_quote(
-                collection_paise, currency=order_details.get('currency', 'INR'))
-            conv_total = quote.convenience_fee_paise + quote.convenience_gst_paise
-        else:
-            conv_total = 0
-
-        # Add convenience fee as a line item (only if > 0)
-        if conv_total > 0:
-            items_for_whatsapp.append({
-                'retailer_id': 'ITEM_CONV',
-                'name': 'Convenience Fee (Collected by Bank)',
-                'amount': {'value': conv_total, 'offset': 100},
-                'quantity': 1,
-                **importer_fields,
-            })
-        
-        # Build reference ID
-        ref_id = _sanitize_reference_id(order_details.get('reference_id', ''))
-        
-        # WhatsApp subtotal = sum of (item.amount * item.quantity) for all items
-        whatsapp_subtotal = item_total_paise + conv_total
-        
-        total_paise = whatsapp_subtotal - discount_paise + delivery_paise + gst_paise
-        
-        # Build order object - ALL fields mandatory (show even if 0)
-        # WhatsApp only supports: subtotal, discount, shipping, tax
-        order_obj = {
-            'status': 'pending',
-            'items': items_for_whatsapp,
-            'subtotal': {'value': whatsapp_subtotal, 'offset': 100},
-            'discount': {
-                'value': discount_paise,
-                'offset': 100,
-                # Only the fixed DELIGHT policy is named "Delight" (from the canonical label);
-                # any other discount keeps its own description or a generic fallback.
-                'description': _discount_description(order_data)
-            },
-            'shipping': {
-                'value': delivery_paise,
-                'offset': 100,
-                'description': order_data.get('shipping', {}).get('description', 'Express')
-            },
-            'tax': {
-                'value': gst_paise,
-                'offset': 100,
-                'description': f'GSTIN: {gstin}'
-            }
-        }
-
-        # Gap 8: quick_pay — hides "Review and Pay", shows only "Pay Now" button
-        if order_details.get('quick_pay', False):
-            order_obj['type'] = 'quick_pay'
-        
-        # Build interactive order_details payload
-        goods_type = order_details.get('type', 'digital-goods')
-        
-        # Order expiration: default 24h from now (Meta minimum: 300 seconds)
-        import time as _time
-        expiration_seconds = int(order_details.get('expiration_seconds', 86400))  # default 24h
-        if expiration_seconds < 300:
-            expiration_seconds = 300  # Meta minimum threshold
-        expiration_ts = str(int(_time.time()) + expiration_seconds)
-        expiration_desc = order_details.get('expiration_description', 'This payment link will expire in 24 hours')
-        
-        order_obj['expiration'] = {
-            'timestamp': expiration_ts,
-            'description': expiration_desc[:120],  # Meta max 120 chars
-        }
-        
-        action_params = {
-            'reference_id': ref_id,
-            'type': goods_type,
-            'payment_settings': _build_payment_settings(phone_number_id, order_details),
-            'currency': order_details.get('currency', 'INR'),
-            'total_amount': {'value': total_paise, 'offset': 100},
-            'order': order_obj
-        }
-        
-        # Merchant preferred UPI app + payment options (only for PG deep integration mode)
-        ps = action_params['payment_settings'][0]
-        if 'payment_gateway' in ps:
-            preferred_upi_app = order_details.get('preferred_upi_app', '')
-            if preferred_upi_app:
-                ps['payment_gateway']['preferred_payment_methods'] = [
-                    {'method': preferred_upi_app}
-                ]
-            
-            # Restrict payment options: "upi" or "web" (optional)
-            # UPI transactions limited to ₹5,00,000 — auto-switch to web for higher amounts
-            enabled_options = order_details.get('enabled_payment_options', '')
-            if total_paise > 50000000:  # > ₹5,00,000 in paise
-                enabled_options = 'web'
-            if enabled_options:
-                ps['payment_gateway']['enabled_payment_options'] = [enabled_options]
-
-        # For payment_link mode: add payment_type: "upi" (required by Meta)
-        if 'payment_link' in ps:
-            action_params['payment_type'] = 'upi'
-        
-        # For shipped physical goods Meta requires the intended RECIPIENT as beneficiary.
-        # A merchant-address fallback is not a customer shipping address, so missing/unpayable
-        # delivery details fail closed instead of producing a legally misleading payment payload.
-        if goods_type == 'physical-goods':
-            from lambda_utils.ecommerce import payment_address as _pa
-
-            customer_address = order_details.get('customer_address')
-            recipient = order_details.get('recipient_name') or 'Customer'
-
-            if customer_address is None:
-                shipping_info = order_details.get('shipping_info') or {}
-                addresses = shipping_info.get('addresses') or []
-                if not addresses:
-                    raise PaymentConfigurationUnresolved(
-                        'delivery details are required for physical-goods order_details')
-                addr = addresses[0] or {}
-                customer_address = {
-                    'addressLine1': addr.get('address') or addr.get('address_line1') or '',
-                    'addressLine2': addr.get('landmark_area') or addr.get('address_line2') or '',
-                    'city': addr.get('city') or '',
-                    'state': addr.get('state') or '',
-                    'postalCode': addr.get('in_pin_code') or addr.get('postal_code') or '',
-                    'countryCode': str(shipping_info.get('country') or 'IN').upper(),
-                    'country': 'India' if str(shipping_info.get('country') or 'IN').upper() == 'IN'
-                               else str(shipping_info.get('country') or ''),
-                }
-                recipient = addr.get('name') or recipient
-
-            required_delivery = ('addressLine1', 'city', 'state', 'postalCode')
-            if any(not str(customer_address.get(field) or '').strip() for field in required_delivery):
-                raise PaymentConfigurationUnresolved(
-                    'delivery details are incomplete for physical-goods order_details')
-
-            try:
-                action_params['beneficiaries'] = [
-                    _pa.for_meta_beneficiary(customer_address, recipient_name=recipient)]
-            except _pa.UnpayableAddress as exc:
-                logger.info(json.dumps({
-                    'event': 'order_details_beneficiary_unpayable_refused',
-                    'code': exc.code, 'field': exc.field, 'referenceId': ref_id}))
-                raise PaymentConfigurationUnresolved(
-                    f'customer_address is not payable on WhatsApp: {exc.code}') from None
-
-        interactive_payload = {
-            'type': 'order_details',
-            'header': {
-                'type': 'image',
-                'image': {'link': payment_header_image}
-            },
-            'body': {
-                'text': 'Your payment is ready \u2014 tap below to complete it \U0001f4b3'
-            },
-            'footer': {
-                'text': order_details.get('footer_text', 'WECARE.DIGITAL')
-            },
-            'action': {
-                'name': 'review_and_pay',
-                'parameters': action_params
-            }
-        }
-        
-        payload['interactive'] = interactive_payload
-        
-        logger.info(json.dumps({
-            'event': 'interactive_payment_payload_built',
-            'referenceId': ref_id,
-            'goodsType': goods_type,
-            'hasBeneficiaries': 'beneficiaries' in action_params,
-            'itemCount': len(items_list),
-            'itemTotal': item_total_paise / 100,
-            'gstTotal': gst_paise / 100,
-            'discount': discount_paise / 100,
-            'shipping': delivery_paise / 100,
-            'convFee': conv_total / 100,
-            'whatsappSubtotal': whatsapp_subtotal / 100,
-            'total': total_paise / 100,
-            'gstin': gstin,
-            'orderId': order_details.get('orderId', 'Offline'),
-            'paymentConfig': order_details.get('payment_configuration', PHONE_PAYMENT_CONFIG.get(phone_number_id, DEFAULT_PAYMENT_CONFIG))
-        }))
-        
-        return payload
-    
     if is_template and template_name:
         # Template message
         # Get language from template_params if provided, otherwise default to 'en'
@@ -4195,7 +3826,7 @@ def _build_message_payload(recipient_phone: str, content: str, media_type: Optio
         # Media header for standard (non-payment) templates. Must be appended
         # first so the component order is header → body → button per Meta spec.
         # Accepts a public https link OR a pre-resolved WhatsApp media id.
-        if (template_header_media and not is_payment_template
+        if (template_header_media
                 and template_header_type in ('image', 'video', 'document')):
             _is_link = str(template_header_media).startswith('http')
             _ref = {'link': template_header_media} if _is_link else {'id': template_header_media}
@@ -4219,7 +3850,7 @@ def _build_message_payload(recipient_phone: str, content: str, media_type: Optio
         # Location header for standard (non-payment) templates. Coordinates are
         # supplied at send time (latitude/longitude required; name/address optional).
         if (template_header_type == 'location' and template_header_location
-                and not is_payment_template):
+):
             _loc = {}
             for _k in ('latitude', 'longitude', 'name', 'address'):
                 _v = template_header_location.get(_k)
@@ -4235,46 +3866,6 @@ def _build_message_payload(recipient_phone: str, content: str, media_type: Optio
                     'templateName': template_name,
                     'hasName': bool(_loc.get('name')),
                 }))
-        # Handle payment template with order_details button
-        if is_payment_template and order_details:
-            # Add header image if provided
-            if header_image_url:
-                payload['template']['components'].append({
-                    'type': 'header',
-                    'parameters': [{
-                        'type': 'image',
-                        'image': {'link': header_image_url}
-                    }]
-                })
-            
-            # Add body parameters if provided (for templates with variables like {{1}})
-            if actual_params and len(actual_params) > 0:
-                payload['template']['components'].append({
-                    'type': 'body',
-                    'parameters': [{'type': 'text', 'text': str(p)} for p in actual_params]
-                })
-            
-            # Add order_details button component
-            payload['template']['components'].append({
-                'type': 'button',
-                'sub_type': 'order_details',
-                'index': 0,
-                'parameters': [{
-                    'type': 'action',
-                    'action': {'order_details': order_details}
-                }]
-            })
-            
-            logger.info(json.dumps({
-                'event': 'payment_template_payload_built',
-                'templateName': template_name,
-                'language': template_language,
-                'referenceId': order_details.get('reference_id'),
-                'totalAmount': order_details.get('total_amount', {}).get('value'),
-                'currency': order_details.get('currency'),
-                'hasHeaderImage': bool(header_image_url),
-                'bodyParamCount': len(actual_params)
-            }))
         # OTP / Authentication template support
         # WhatsApp authentication templates use a button component with:
         # - sub_type 'url' with {{1}} OTP code parameter (URL button with OTP appended)
@@ -4362,7 +3953,7 @@ def _build_message_payload(recipient_phone: str, content: str, media_type: Optio
         
         if template_url_button is not None:
             from lambda_utils.ecommerce.catalog_service_checkout import url_button_component
-            if (is_payment_template or is_otp_template or template_flow_button
+            if (is_otp_template or template_flow_button
                     or template_name != 'wecare_default_download'):
                 raise ValueError('incompatible dynamic download template')
             payload['template']['components'].append(url_button_component(template_url_button))
@@ -4374,7 +3965,7 @@ def _build_message_payload(recipient_phone: str, content: str, media_type: Optio
         # passes {index, flowToken?, flowActionData?}. NAVIGATE flows default the
         # token to "unused"; flowActionData is only needed when the target screen
         # requires input data.
-        if template_flow_button and not is_payment_template and not is_otp_template:
+        if template_flow_button and not is_otp_template:
             try:
                 _fb_index = template_flow_button.get('index', 0)
                 _fb_token = (template_flow_button.get('flowToken')
