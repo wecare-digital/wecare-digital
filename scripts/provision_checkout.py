@@ -682,6 +682,8 @@ def expected_environment() -> dict:
         "CDN_DOMAIN": "wecare.digital/get",
         "WA_PAY_TEMPLATE": "wecare_whatapp_native_pay_template",
         "WA_INVOICE_TEMPLATE": "wecare_default_invoice_image_template",
+        "OUTBOUND_FUNCTION": "wecare-outbound-whatsapp:live",
+        "REFUND_INITIATION_ENABLED": "false",
         "ADMIN_MFA_REQUIRED": "true",
         "LOG_LEVEL": "INFO",
         # CHECKOUT_INITIATION_ENABLED is retired; handler initiation is hard-enabled.
@@ -1411,7 +1413,7 @@ def main(argv=None) -> int:
     print(f"region: {REGION}")
     print(f"source root: {why}")
     print(f"sender: {SENDER_FUNCTION}:{LIVE_ALIAS}; WABA {PAYMENT_WABA_ID}")
-    print("initiation: OFF (CHECKOUT_INITIATION_ENABLED not set)")
+    print("initiation: source-enabled; live payment-readiness gate remains authoritative")
     print(f"dry run: {args.dry_run}\n")
 
     zip_bytes, members, errors, warnings = build_package(source_root)
