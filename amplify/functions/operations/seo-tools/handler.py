@@ -316,15 +316,6 @@ def _run_audit(
         raise
 
 
-def _blog_audit(body: Dict[str, Any], actor: str, origin: str):
-    slug = str(body.get('slug', '')).strip()
-    if not slug:
-        raise ValueError('slug is required')
-    post = storage.get_blog_post(slug)
-    if not post:
-        raise LookupError('Blog post not found')
-    return _guarded_audit(post, 'blog', body, actor, origin)
-
 
 def _guarded_audit(page, page_type, body, actor, origin):
     # Audits write derived results, not source/payment state. A fenced lease prevents
@@ -404,51 +395,10 @@ def _review(body: Dict[str, Any], actor: str, origin: str):
         if not updated:
             return _response(409, {'ok': False, 'error': 'Audit state changed; refresh and retry'}, origin)
         return _response(200, {'ok': True, 'audit': updated}, origin)
-    if audit.get('pageType') != 'blog':
-        return _response(501, {
-            'ok': False,
-            'error': 'Applying SEO is currently supported for blog posts only',
-        }, origin)
-    if audit.get('status') != 'approved':
-        return _response(409, {'ok': False, 'error': 'Audit must be approved before apply'}, origin)
-    duplicate = _claim({'auditId': audit_id}, actor, 'seo.blog.apply', origin)
-    if duplicate:
-        return duplicate
-    applying = storage.transition_audit(audit_id, ['approved'], 'applying', actor)
-    if not applying:
-        return _response(409, {'ok': False, 'error': 'Audit state changed; refresh and retry'}, origin)
-    try:
-        storage.apply_blog_audit(applying, actor)
-    except Exception:
-        logger.exception('AWS blog SEO apply failed')
-        try:
-            restored = storage.transition_audit(
-                audit_id, ['applying'], 'approved', actor,
-                {'applicationError': 'Blog SEO apply failed'},
-            )
-        except Exception:
-            logger.exception('Failed to restore SEO audit after blog apply failure')
-            restored = None
-        if not restored:
-            logger.error('SEO audit state is unconfirmed after blog apply failure')
-            return _response(502, {
-                'ok': False,
-                'error': 'Blog SEO apply failed; audit state could not be confirmed. Refresh before retrying',
-                'stateUnconfirmed': True,
-            }, origin)
-        return _response(502, {'ok': False, 'error': 'Blog SEO apply failed; audit remains approved'}, origin)
-    applied_at = storage.now_iso()
-    updated = storage.transition_audit(
-        audit_id, ['applying'], 'applied', actor,
-        {'appliedAt': applied_at, 'applicationError': ''},
-    )
-    if not updated:
-        return _response(500, {
-            'ok': False,
-            'error': 'SEO was applied but final audit status persistence failed',
-            'applied': True,
-        }, origin)
-    return _response(200, {'ok': True, 'audit': updated, 'applied': True}, origin)
+    return _response(501, {
+        'ok': False,
+        'error': 'Applying model-generated SEO is not supported',
+    }, origin)
 
 
 def _route_get(path: str, event: Dict[str, Any], origin: str):
@@ -503,8 +453,6 @@ def _route_post(path: str, body: Dict[str, Any], actor: str, origin: str):
         if duplicate:
             return duplicate
         return _response(200, {'ok': True, **storage.clean_blog_post(slug, actor)}, origin)
-    if path.endswith('/ai-seo-audit'):
-        return _blog_audit(body, actor, origin)
     if path.endswith('/page-audit'):
         return _page_audit(body, actor, origin)
     if path.endswith('/page-clean'):
