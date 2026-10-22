@@ -328,7 +328,6 @@ SPECS: List[Spec] = [
         "wecare-whatsapp-business-api",
         "messaging/whatsapp-business-api",
         extra_dirs=["flows"],
-        extra_files=["service_api.py"],
     ),
     Spec("wecare-waba-management", "messaging/waba-management"),
     Spec("wecare-media-cleanup", "messaging/media-cleanup"),
