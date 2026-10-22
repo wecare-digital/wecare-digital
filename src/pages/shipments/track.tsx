@@ -6,6 +6,7 @@ import { SHIPMENT_TRACK } from '../../content/shipments';
 
 const ShipmentTrackPage: React.FC = () => (
   <ProductPage
+      mobileFoundation
     product={ SHIPMENT_TRACK }
     canonicalPath="/shipments/track/"
     belowCta={ <ProductBuyBox slug="shipments-track" /> }

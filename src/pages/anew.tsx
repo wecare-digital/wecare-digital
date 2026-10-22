@@ -22,6 +22,7 @@ interface AnewPageProps {
 
 const AnewPage: React.FC<AnewPageProps> = ( { blogCards, blogCategories } ) => (
   <ProductPage
+      mobileFoundation
     product={ productBySlug( 'anew' ) }
     crumbs={ breadcrumbTrail( '/anew' ) }
     blogCards={ blogCards }

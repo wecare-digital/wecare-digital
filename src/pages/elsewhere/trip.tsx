@@ -8,6 +8,7 @@ const child = productChildByPath( '/elsewhere/trip/' );
 
 const TripPage: React.FC = () => (
   <ProductPage
+      mobileFoundation
     product={ child.product }
     canonicalPath={ child.path }
     belowCta={ <ProductBuyBox slug={ child.product.slug } /> }

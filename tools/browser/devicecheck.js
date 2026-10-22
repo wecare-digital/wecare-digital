@@ -137,6 +137,22 @@ const PROBE = () => {
       };
     } )()
     : null;
+  const productFoundation = document.querySelector( '.pdp.uses-mobile-foundation' ) && vw <= 767
+    ? ( () => {
+      const root = document.querySelector( '.pdp.uses-mobile-foundation' );
+      const h2 = root?.querySelector( '.pdp-h2' );
+      const h3 = root?.querySelector( '.pdp-point-t' );
+      const cta = root?.querySelector( '.pdp-cta, .checkout-action' );
+      const body = root?.querySelector( '.pdp-lead, .pdp-p' );
+      return {
+        h2: h2 ? getComputedStyle( h2 ).fontSize : null,
+        h3: h3 ? getComputedStyle( h3 ).fontSize : null,
+        cta: cta ? getComputedStyle( cta ).fontSize : null,
+        ctaHeight: cta ? Math.round( r( cta ).height ) : null,
+        body: body ? getComputedStyle( body ).fontSize : null,
+      };
+    } )()
+    : null;
   const vayuSmallTargets = location.pathname.startsWith( '/vayulok' )
     ? Array.from( document.querySelectorAll( '.vl-live button, .vl-live input, .vl-live summary' ) )
       .map( el => ( { el, b: r( el ) } ) )
@@ -169,6 +185,7 @@ const PROBE = () => {
     } )() : null,
     smallTargets: small,
     legalFoundation,
+    productFoundation,
     vayuSmallTargets,
   };
 };
@@ -208,6 +225,13 @@ const PROBE = () => {
             if ( x.legalFoundation.h2 !== '32px' ) problems.push( `legal h2 ${x.legalFoundation.h2}` );
             if ( x.legalFoundation.h3 && x.legalFoundation.h3 !== '24px' ) problems.push( `legal h3 ${x.legalFoundation.h3}` );
             if ( !x.legalFoundation.fontFamily.toLowerCase().includes( 'inter' ) ) problems.push( `legal font ${x.legalFoundation.fontFamily}` );
+          }
+          if ( x.productFoundation ) {
+            if ( x.productFoundation.h2 !== '32px' ) problems.push( `product h2 ${x.productFoundation.h2}` );
+            if ( x.productFoundation.h3 !== '24px' ) problems.push( `product h3 ${x.productFoundation.h3}` );
+            if ( x.productFoundation.cta && x.productFoundation.cta !== '18px' ) problems.push( `product cta ${x.productFoundation.cta}` );
+            if ( x.productFoundation.ctaHeight !== null && x.productFoundation.ctaHeight < 44 ) problems.push( `product cta tap<44: ${x.productFoundation.ctaHeight}px` );
+            if ( x.productFoundation.body && x.productFoundation.body !== '20px' ) problems.push( `product body ${x.productFoundation.body}` );
           }
           if ( x.vayuSmallTargets.length ) problems.push( `VayuLok tap<44: ${x.vayuSmallTargets.join( ',' )}` );
           if ( problems.length ) { bad.push( `${route} — ${problems.join( ' · ' )}` ); fail++; }

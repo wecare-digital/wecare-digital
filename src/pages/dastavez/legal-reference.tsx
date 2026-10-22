@@ -8,6 +8,7 @@ const child = productChildByPath( '/dastavez/legal-reference/' );
 
 const LegalReferencePage: React.FC = () => (
   <ProductPage
+      mobileFoundation
     product={ child.product }
     canonicalPath={ child.path }
     belowCta={ <ProductBuyBox slug={ child.product.slug } /> }

@@ -24,6 +24,7 @@ import { productBySlug } from '../content/products';
    a product is unbroken. ProductPage's `crumbs` prop is opt-in - see its docblock for why. */
 const NijiSetuPage: React.FC = () => (
   <ProductPage
+      mobileFoundation
     product={ productBySlug( 'niji-setu' ) }
     crumbs={ breadcrumbTrail( '/niji-setu' ) }
     belowCta={ <ProductBuyBox slug="niji-setu" /> }

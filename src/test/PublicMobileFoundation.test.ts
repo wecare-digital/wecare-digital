@@ -94,6 +94,42 @@ describe( 'public mobile foundation', () => {
     expect( legal ).toContain( 'margin-inline-end' );
   } );
 
+  it( 'records shared service/product ProductPage routes as explicit mobile-foundation adopters', () => {
+    const productPage = read( 'src/components/ProductPage.tsx' );
+    const adopted = [
+      'src/pages/anew.tsx',
+      'src/pages/expo-week.tsx',
+      'src/pages/niji-setu.tsx',
+      'src/pages/hunar/kaushal.tsx',
+      'src/pages/hunar/prastuti.tsx',
+      'src/pages/shipments/track.tsx',
+      'src/pages/elsewhere/visa.tsx',
+      'src/pages/elsewhere/trip.tsx',
+      'src/pages/dastavez/drafting.tsx',
+      'src/pages/dastavez/registration.tsx',
+      'src/pages/dastavez/legal-reference.tsx',
+      'src/pages/ritual-guru/ritva.tsx',
+      'src/pages/ritual-guru/puja-guidance.tsx',
+      'src/pages/ritual-guru/diy-puja-kit.tsx',
+    ];
+    const deferredCustomerForms = [
+      'src/pages/submit-request.tsx',
+      'src/pages/request-amendment.tsx',
+      'src/pages/drop-docs.tsx',
+      'src/pages/vault.tsx',
+      'src/pages/request-pickup.tsx',
+    ];
+
+    expect( productPage ).toContain( "mobileFoundation ? 'pdp uses-mobile-foundation' : 'pdp'" );
+    expect( productPage ).toContain( '.pdp.uses-mobile-foundation .pdp-h2{font-size:var(--public-mobile-section-size)}' );
+    expect( productPage ).toContain( '.pdp.uses-mobile-foundation .pdp-point-t{font-size:var(--public-mobile-card-size)}' );
+    expect( productPage ).toContain( '.pdp.uses-mobile-foundation .pdp-cta{font-size:var(--public-mobile-cta-font-size)}' );
+    expect( productPage ).toContain( '.pdp.uses-mobile-foundation :global(.checkout-action){font-size:var(--public-mobile-cta-font-size)}' );
+
+    for ( const path of adopted ) expect( read( path ), path ).toContain( 'mobileFoundation' );
+    for ( const path of deferredCustomerForms ) expect( read( path ), path ).not.toContain( 'mobileFoundation' );
+  } );
+
   it( 'keeps the bespoke Activities experience explicitly on the Home-aligned mobile foundation', () => {
     const productPage = read( 'src/components/ProductPage.tsx' );
     const activities = read( 'src/pages/elsewhere/activities.tsx' );

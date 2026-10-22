@@ -110,7 +110,7 @@ const ProductPage: React.FC<ProductPageProps> = ( {
         canonical={ canonicalPath ?? `/${product.slug}/` }
         crumbs={ crumbs?.map( ( { label, href } ) => ( { name: label, href } ) ) }>
       { !suppressProductDetails && (
-      <section className="pdp" aria-label={ `About ${product.name}` }>
+      <section className={ mobileFoundation ? 'pdp uses-mobile-foundation' : 'pdp' } aria-label={ `About ${product.name}` }>
         <h2 className="pdp-h2">{ product.sectionHeading }</h2>
         {/* The lead may hold more than one paragraph, split on a blank line (\n\n) in the source,
             the same way the boundary note does - so an opener line can sit above the main
@@ -250,6 +250,12 @@ const ProductPage: React.FC<ProductPageProps> = ( {
           }
           .pdp-cta:hover{background:#fff;transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
           .pdp-cta:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:3px}
+          @media(max-width:767px){
+            .pdp.uses-mobile-foundation .pdp-h2{font-size:var(--public-mobile-section-size)}
+            .pdp.uses-mobile-foundation .pdp-point-t{font-size:var(--public-mobile-card-size)}
+            .pdp.uses-mobile-foundation .pdp-cta{font-size:var(--public-mobile-cta-font-size)}
+            .pdp.uses-mobile-foundation :global(.checkout-action){font-size:var(--public-mobile-cta-font-size)}
+          }
           /* MICROCOPY under the CTA row now uses the shared global .wc-sweep-note class
              (src/styles/inner-ux.css) - the footer-tagline lime sweep on hover - so there is no
              per-page copy of it here. The element carries className="wc-sweep-note" above. */
