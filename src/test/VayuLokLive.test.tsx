@@ -822,7 +822,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( weatherTab ).toHaveAttribute( 'aria-selected', 'false' );
   } );
 
-  it( 'shows AQI context, inline dominant metadata and compact pollutant metrics without tooltip controls', async () => {
+  it( 'shows AQI context, inline dominant metadata and pollutant details with one Material icon language', async () => {
     vi.stubGlobal( 'fetch', environmentFetch() );
     const VayuLokLive = await loadComponent();
     const { container } = render( <VayuLokLive /> );
@@ -865,19 +865,79 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( panel.querySelector( '.vl-live-air-index-name' ) ).toBeNull();
     expect( panel.querySelector( '.vl-live-air-fact' ) ).toBeNull();
 
-    // Pollutant measurements are read-only compact metrics: no info buttons/tooltips,
-    // no reserved action column, and the value/unit remains visible beside the label.
+    // Pollutant rows keep value + unit + label, and the info control uses the supplied
+    // Google Material Symbols icon rather than a hand-drawn circle/i glyph.
     const rows = panel.querySelectorAll( '.vl-live-air-pollutant-row' );
     expect( rows.length ).toBeGreaterThan( 0 );
     const firstRow = rows[ 0 ] as HTMLElement;
     expect( firstRow.querySelector( '.vl-live-air-pollutant-value' )?.textContent ).toMatch( /\d/ );
     expect( firstRow.querySelector( '.vl-live-air-pollutant-label' )?.textContent?.length ).toBeGreaterThan( 0 );
-    expect( firstRow.querySelector( '.vl-live-air-pollutant-info' ) ).toBeNull();
-    expect( container.querySelector( '.vl-live-air-pollutant-tip' ) ).toBeNull();
+    const info = firstRow.querySelector( '.vl-live-air-pollutant-info' ) as HTMLButtonElement;
+    expect( info ).not.toBeNull();
+    expect( info.tagName ).toBe( 'BUTTON' );
+    expect( info.querySelector( 'svg' )?.getAttribute( 'viewBox' ) ).toBe( '0 -960 960 960' );
+    expect( info.querySelector( 'path' )?.getAttribute( 'd' )?.length ).toBeGreaterThan( 100 );
 
+    // Tooltip is created only while active, and is OUTSIDE the scrollable Air card.
+    fireEvent.focus( info );
+    const describedBy = await waitFor( () => {
+      const id = info.getAttribute( 'aria-describedby' );
+      expect( id ).toBeTruthy();
+      return id as string;
+    } );
+    const tip = document.getElementById( describedBy );
+    expect( tip ).not.toBeNull();
+    expect( tip?.getAttribute( 'role' ) ).toBe( 'dialog' );
+    expect( tip?.querySelector( '[aria-label="Close pollutant details"]' ) ).not.toBeNull();
+    expect( tip?.closest( '.vl-live-air-card' ) ).toBeNull();
+    expect( tip?.textContent ).toContain( 'PM2.5' );
+    expect( tip?.textContent ).toContain( 'Fine particulate matter' );
+    expect( tip?.textContent ).toContain( 'Sources' );
+    expect( tip?.textContent ).toContain( 'Combustion of fuels' );
+    expect( tip?.textContent ).toContain( 'Effects' );
+    expect( tip?.textContent ).toContain( 'Penetrates deep into lungs' );
+
+    // Explicit close button removes the viewport-level popup without relying on hover/blur.
+    const closeButton = tip?.querySelector( '[aria-label="Close pollutant details"]' ) as HTMLButtonElement;
+    fireEvent.click( closeButton );
+    await waitFor( () => expect( document.getElementById( describedBy ) ).toBeNull() );
+
+    // Re-open and Escape closes it too.
+    fireEvent.focus( info );
+    await waitFor( () => expect( document.getElementById( describedBy ) ).not.toBeNull() );
+    fireEvent.keyDown( document, { key: 'Escape' } );
+    await waitFor( () => expect( document.getElementById( describedBy ) ).toBeNull() );
+
+    // Re-open and an outside pointer closes it.
+    fireEvent.focus( info );
+    await waitFor( () => expect( document.getElementById( describedBy ) ).not.toBeNull() );
+    fireEvent.pointerDown( document.body );
+    await waitFor( () => expect( document.getElementById( describedBy ) ).toBeNull() );
+
+    // No additionalInfo -> honest value/unit fallback, never invented Sources/Effects.
+    fireEvent.blur( info );
+    const pm10Row = Array.from( rows ).find(
+      r => ( r.querySelector( '.vl-live-air-pollutant-label' )?.textContent ?? '' ).includes( 'PM10' )
+    ) as HTMLElement;
+    expect( pm10Row ).toBeTruthy();
+    const pm10Info = pm10Row.querySelector( '.vl-live-air-pollutant-info' ) as HTMLButtonElement;
+    fireEvent.focus( pm10Info );
+    const pm10Id = await waitFor( () => {
+      const id = pm10Info.getAttribute( 'aria-describedby' );
+      expect( id ).toBeTruthy();
+      return id as string;
+    } );
+    const pm10Tip = document.getElementById( pm10Id );
+    expect( pm10Tip?.textContent ).toContain( 'PM10' );
+    expect( pm10Tip?.textContent ).toMatch( /\d/ );
+    expect( pm10Tip?.textContent ).not.toContain( 'Sources' );
+    expect( pm10Tip?.textContent ).not.toContain( 'Effects' );
+    fireEvent.blur( pm10Info );
+
+    // The unit symbol carries a plain-language expansion as a title, so a reader who does not
+    // know the abbreviation can still understand it (µg/m³ -> micrograms per cubic metre).
     const pm25Unit = firstRow.querySelector( '.vl-live-air-pollutant-value small' );
-    expect( pm25Unit?.textContent ).toBe( 'µg/m³' );
-    expect( pm25Unit?.getAttribute( 'title' ) ).toBeNull();
+    expect( pm25Unit?.getAttribute( 'title' ) ).toBe( 'micrograms per cubic metre' );
 
     // NO RED anywhere in the rendered card markup/styles.
     expect( container.innerHTML ).not.toContain( 'dc2626' );
@@ -1350,13 +1410,8 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( historyBtnRule ).toContain( 'width:var(--vl-action-size)' );
     expect( historyBtnRule ).toContain( 'border-radius:50%' );
 
-    // The air panel's interactive controls get the lime-hover LIFT treatment (not a flat green).
-    // The retired `vl-live-air-pollutant-info` tooltip control carried this hover rule; with the
-    // "compact pollutant metrics without tooltip controls" redesign that element is gone (the
-    // test above asserts `.vl-live-air-pollutant-info` is absent from the DOM), so the hover
-    // contract now lives on the surviving history-nav control, which carries the identical
-    // lime-hover / border:0 / box-shadow / translateY-scale lift.
-    const hoverRule = css.match( /\.vl-live-air-history-nav button:hover[\s\S]*?\{[^}]*\}/ )?.[ 0 ] || '';
+    // Pollutant info controls use the same lime-hover lift treatment as the rest of the Air actions.
+    const hoverRule = css.match( /\.vl-live-air-pollutant-info:hover,[\s\S]*?\{[^}]*\}/ )?.[ 0 ] || '';
     expect( hoverRule ).toContain( 'background:var(--lime-hover)' );
     expect( hoverRule ).toContain( 'border:0' );
     expect( hoverRule ).toContain( 'box-shadow:0 6px 14px rgba(26,58,42,.16)' );
@@ -2192,7 +2247,7 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( container.querySelector( 'section.bc.is-embedded' ) ).toBeNull();
     expect( container.querySelector( '[aria-label="Share this page on WhatsApp"]' ) ).toBeNull();
 
-    // No pollutant tooltip UI exists; pollutants are always read-only metrics.
+    // No live pollutant details popup can exist without live Air data.
     expect( container.querySelector( '.vl-live-air-pollutant-pop' ) ).toBeNull();
 
     expect( fetchSpy ).not.toHaveBeenCalled();
@@ -2290,19 +2345,11 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
 
     // Pollutant info control follows the SupportWidget WhatsApp skin exactly:
     // lime surface, deep-green icon, lighter-lime hover, circular shape.
-    // The round lime action-control idiom (lime bg, green text, 50% radius; lime-hover on hover)
-    // was carried by the retired `vl-live-air-pollutant-info` tooltip control. After the "compact
-    // pollutant metrics without tooltip controls" redesign that element is gone, and the idiom now
-    // lives on the surviving round controls (health page-btn / tab / history-nav button), which
-    // share one grouped base rule and one grouped hover rule. Assert the idiom on the health
-    // page-btn, which sits in both groups.
-    const infoRule = css.match(
-      /\.vl-live-air-health-page-btn[^{]*\{[^}]*\}/ )?.[ 0 ] || '';
+    const infoRule = cssRuleFor( css, '.vl-live-air-pollutant-info' );
     expect( infoRule ).toContain( 'background:var(--lime)' );
     expect( infoRule ).toContain( 'color:var(--green)' );
     expect( infoRule ).toContain( 'border-radius:50%' );
-    const infoHoverRule = css.match(
-      /\.vl-live-air-health-page-btn:hover:not\(:disabled\)[\s\S]*?\{[^}]*\}/ )?.[ 0 ] || '';
+    const infoHoverRule = cssRuleFor( css, '.vl-live-air-pollutant-info:hover' );
     expect( infoHoverRule ).toContain( 'background:var(--lime-hover)' );
     expect( infoHoverRule ).toContain( 'color:var(--green)' );
     expect( css ).toContain( '.vl-live-air-health-tabs{scroll-snap-type:x mandatory' );
@@ -2332,17 +2379,11 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( pollutantLabelRule ).toContain( 'font-size:var(--vl-data-size)' );
     expect( css ).toContain( '--vl-data-size:var(--public-data-size)' );
     const pollutantRowRule = css.match( /\.vl-live-air-pollutant-row\{[^}]*\}/ )?.[ 0 ] || '';
-    // The pollutant row is the COMPACT inline-flex chip from the "compact pollutant metrics
-    // without tooltip controls" redesign (validated by the sibling test above), NOT the former
-    // three-column grid with a right-aligned 118px value column and a per-row action cell. The
-    // value keeps its tabular-nums + no-wrap treatment so digits still align within the chip.
-    expect( pollutantRowRule ).toContain( 'display:inline-flex' );
-    expect( pollutantRowRule ).toContain( 'align-items:baseline' );
-    expect( pollutantRowRule ).not.toContain( 'grid-template-columns' );
+    expect( pollutantRowRule ).toContain( 'grid-template-columns:minmax(0,1fr) minmax(118px,auto) var(--vl-action-size)' );
     const pollutantValueRule = css.match( /\.vl-live-air-pollutant-value\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( pollutantValueRule ).toContain( 'min-width:118px' );
+    expect( pollutantValueRule ).toContain( 'text-align:end' );
     expect( pollutantValueRule ).toContain( 'font-variant-numeric:tabular-nums' );
-    expect( pollutantValueRule ).toContain( 'white-space:nowrap' );
-    expect( pollutantValueRule ).not.toContain( 'min-width:118px' );
     // Shared Air + Weather forecast cards are deliberately readable, not metadata-sized.
     const forecastTimeRule = css.match( /\.vl-live-air-forecast-card span\{[^}]*\}/ )?.[ 0 ] || '';
     const forecastValueRule = css.match( /\.vl-live-air-forecast-card strong\{[^}]*\}/ )?.[ 0 ] || '';
