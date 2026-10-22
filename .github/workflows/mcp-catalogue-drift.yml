@@ -38,6 +38,16 @@ name: MCP catalogue drift
 #      exit code. A network blip here must not page anyone about a page catalogue.
 
 on:
+  # Keyed on the file, so it fires exactly when a deploy becomes necessary. This is the trigger
+  # that turns "someone has to remember" into a red check on the merge that caused it.
+  push:
+    branches: [stack]
+    paths:
+      - 'config/public-pages.json'
+  # Out-of-band drift needs a clock: someone can redeploy the Lambda from a laptop, or an older
+  # zip can be rolled back, with no commit to key off. 06:40 UTC = 12:10 IST, inside the Indian
+  # working day so a finding reaches someone who can act on it, and ten minutes after
+  # plivo-drift so the two do not report at the same instant.
   schedule:
     - cron: '40 6 * * *'
   workflow_dispatch:
