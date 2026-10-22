@@ -444,7 +444,10 @@ const ElsewhereTravelAssistant: React.FC = () => {
                           className="eta-action eta-demo-checkout"
                           href="/cart/"
                           aria-label={ `Checkout ${result.title}` }
-                        >Checkout</a>
+                        >
+                          <span className="eta-material eta-checkout-icon" aria-hidden="true">shopping_cart_checkout</span>
+                          <span className="eta-action-label">Checkout</span>
+                        </a>
                       ) }
                       { checkoutAvailable( result ) && (
                         <button
@@ -454,7 +457,8 @@ const ElsewhereTravelAssistant: React.FC = () => {
                           title={ `Checkout · ${result.price}` }
                           onClick={ () => continueWith( result ) }
                         >
-                          <span>Checkout</span>
+                          <span className="eta-material eta-checkout-icon" aria-hidden="true">shopping_cart_checkout</span>
+                          <span className="eta-action-label">Checkout</span>
                         </button>
                       ) }
                     </div>
@@ -617,18 +621,22 @@ const ElsewhereTravelAssistant: React.FC = () => {
         }
         .eta-action{
           display:inline-flex;align-items:center;gap:8px;width:max-content;max-width:100%;min-height:var(--tap-min);box-sizing:border-box;
-          padding:6px 9px;border:2px solid var(--public-brand-green);border-radius:8px;background:var(--public-accent-amber);color:var(--public-brand-green);
+          padding:8px 12px;border:2px solid transparent;border-radius:11px;background:var(--public-accent-amber);color:var(--public-brand-green);
           font-family:inherit;font-size:var(--public-cta-font-size);font-weight:var(--public-cta-font-weight);
           line-height:1.4;letter-spacing:-.05px;cursor:pointer;white-space:normal;overflow-wrap:anywhere;text-align:start;
           text-decoration:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
-          transition:background-color .18s,transform .18s,box-shadow .18s;
+          transition:background-color .18s,border-color .18s,color .18s,transform .18s,box-shadow .18s;
         }
+        .eta-checkout-icon{flex:0 0 auto}
         .eta-action-icon{
           width:17px;height:17px;flex:0 0 17px;fill:none;stroke:currentColor;stroke-width:1.8;
           stroke-linecap:round;stroke-linejoin:round;opacity:.86;
         }
         .eta-action-icon-whatsapp{opacity:.9}
-        .eta-action:active{background:var(--public-accent-amber-tint);transform:translateY(0)}
+        .eta-action:active{
+          background:var(--public-accent-amber-tint);border-color:var(--public-accent-amber);
+          transform:translateY(0) scale(.98);box-shadow:none;
+        }
         .eta-live-note,.eta-continuation{margin:0;color:var(--public-muted);font-size:13px;font-weight:500;line-height:1.45}
         .eta-composer{
           margin-top:24px;padding:18px 18px 14px;border:0;border-radius:18px;background:#fff;
@@ -693,15 +701,13 @@ const ElsewhereTravelAssistant: React.FC = () => {
         .eta-tab:focus-visible,.eta-clear:focus-visible,.eta-send:focus-visible,.eta-chip:focus-visible,.eta-action:focus-visible{
           outline:3px solid var(--public-brand-green);outline-offset:3px;
         }
-        .eta-action:focus-visible{
-          background:#fff;
-        }
         @media(hover:hover) and (pointer:fine){
           .eta-tab:hover::before{background:rgba(239,249,207,.78)}
           .eta-chip:hover{border-color:var(--public-brand-lime);background:var(--public-lime-tint);transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
           .eta-action:hover{
-            background:#fff;
-            transform:translateY(-1px);box-shadow:0 5px 14px rgba(26,58,42,.1);
+            background:#fff;border-color:var(--public-accent-amber);
+            transform:translateY(-1px);
+            box-shadow:0 5px 14px rgba(240,168,24,.18),0 2px 5px rgba(26,58,42,.08);
           }
           .eta-clear:hover{background:var(--public-lime-tint);color:var(--public-brand-green)}
           .eta-send:not(:disabled):hover{background:var(--lime-hover)}
