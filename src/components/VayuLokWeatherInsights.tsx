@@ -213,7 +213,7 @@ const VayuLokWeatherInsights: React.FC<Props> = ( { lat, lng, placeName } ) => {
           ) }
 
           <div className="vl-wi-source">
-            { data.source || 'Google Weather Insights via BigQuery' }
+            { data.source || 'Google Weather Insights' }
             { Number.isFinite( data.gridDistanceKm ) ? <span data-wc-no-translate="true"> · nearest grid { fmt( data.gridDistanceKm, ' km', 2 ) }</span> : null }
           </div>
         </>
