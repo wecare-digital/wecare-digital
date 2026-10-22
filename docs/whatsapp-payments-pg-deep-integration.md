@@ -66,7 +66,7 @@ both WABAs use it uniformly — so the code constant matches live reality.
 3. **Owner** confirms the WhatsApp Payments Terms of Service is accepted (error 134011
    would appear on first send if not). The config being "working" strongly implies ToS
    is already accepted, but confirm on the first QA send.
-4. **Owner** creates + gets approved the `wecare_pay` UTILITY order-details template (for
+4. **Owner** creates + gets approved the `wecare_whatapp_native_pay_template` UTILITY order-details template (for
    out-of-24h-window pay prompts). Not needed for in-window native sends.
 
 Until `EXPECTED_CONFIGURATION_NAME` is set and deployed, the handler still fails closed
@@ -95,7 +95,7 @@ name; `WECAREDIGITAL` is now verified, so it is not a guess.
 
 ### 2. Order details **template** message (out-of-window)
 - UTILITY template with a fixed `ORDER_DETAILS` button ("Review and Pay"). Owner creates
-  + gets approved. `WA_PAY_TEMPLATE = wecare_pay` already reserved in manifest.
+  + gets approved. `WA_PAY_TEMPLATE = wecare_whatapp_native_pay_template` already reserved in manifest.
 - Lets us send a pay prompt outside the 24h window. Carries the same `order_details`
   action payload in the button component.
 
@@ -152,7 +152,7 @@ name; `WECAREDIGITAL` is now verified, so it is not a guess.
 1. Create + publish Razorpay payment configuration on each WABA; record
    `configuration_name`.
 2. Accept WhatsApp Payments Terms of Service.
-3. Create + get approved the `wecare_pay` UTILITY order-details template.
+3. Create + get approved the `wecare_whatapp_native_pay_template` UTILITY order-details template.
 4. Verify merchant is business-verified and WABA contact shows the verified check.
 5. Confirm messaging tier (1k/10k/100k per day).
 6. After code lands + flags flipped, QA a real pay to +918100640044.
@@ -160,12 +160,12 @@ name; `WECAREDIGITAL` is now verified, so it is not a guess.
 
 ## Owner decision 2026-10-07: WhatsApp order payments send from WABA1 ONLY
 
-All WhatsApp order-payment sends (the `wecarepay_wa` order-details message) go from
+All WhatsApp order-payment sends (the `wecare_whatapp_native_pay_template` order-details message) go from
 **WABA1 only**: phone-number-id `1016149501586345`, Meta phone `+91 93309 94400`, WABA
 `2094615664435155`. Reason, verified live 2026-10-07 by read-only invoke of
 `wecare-whatsapp-templates:live`:
 
-| WABA | `wecarepay_wa` |
+| WABA | `wecare_whatapp_native_pay_template` |
 |---|---|
 | WABA1 `2094615664435155` (+91 93309 94400) | **APPROVED**, UTILITY, en |
 | WABA2 `2513394156072604` (+91 99033 00044) | **NOT PRESENT** (7 other templates, not this one) |
@@ -175,7 +175,7 @@ approved only on WABA1, and `payment_readiness` fails closed (`PAYMENT_TEMPLATE_
 on a WABA without it. Rather than create the template on WABA2, the owner's decision is to
 **pin the payment sender to WABA1**.
 
-Implementation requirement (Phase P2 send-leg): the native order-details / `wecarepay_wa`
+Implementation requirement (Phase P2 send-leg): the native order-details / `wecare_whatapp_native_pay_template`
 send MUST use `PHONE_NUMBER_ID_1` (WABA1) regardless of which WABA the conversation arrived
 on. A payment must never be sent from WABA2. Pin it in the send path, with a test asserting
 a payment send resolves to WABA1's phone id even when `phone_number_id` arrives as WABA2.
