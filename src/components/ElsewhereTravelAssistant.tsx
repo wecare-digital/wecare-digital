@@ -713,7 +713,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
              response pane made result cards disappear under the composer and forced a
              second scroll gesture inside the card. Let the conversation take its
              natural height; the desktop/tablet response rail stays capped above. */
-          .eta-response-view{min-height:0;max-height:none;overflow-y:visible;overscroll-behavior-y:auto;scrollbar-gutter:auto;padding-inline-end:0}
+          .eta-response-view{min-height:0;max-height:none;overflow:visible;overscroll-behavior-y:auto;scrollbar-gutter:auto;padding-inline-end:0}
           .eta-line{font-size:var(--public-body-size)}
           .eta-field textarea{font-size:var(--public-mobile-form-font-size)}
           .eta-composer-foot{flex-wrap:wrap}.eta-hint{flex:1 1 100%}.eta-tools{width:100%;justify-content:flex-end}
