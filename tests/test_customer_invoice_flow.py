@@ -27,7 +27,7 @@ def invoice_fixture():
     orders=FakeTable(key_attr='orderId');orders.seed({'orderId':'order','customerId':'owner','orderNumber':'WD-ORDER','referenceId':'REF-OWN'})
     invoices=Mock();invoices.query.return_value={'Items':[{'invoiceId':'invoice'}]}
     invoices.get_item.return_value={'Item':{'invoiceId':'invoice','referenceId':'REF-OWN'}}
-    assets=Mock();assets.get_item.return_value={'Item':{'s3Key':'secure/stack/invoices/wecare-digital-REF-OWN.png'}}
+    assets=Mock();assets.get_item.return_value={'Item':{'s3Key':'secure/Invoice/customer_invoice/wecare-digital-REF-OWN.png'}}
     db=Mock();db.Table.side_effect=lambda name: orders if name.endswith('OrderTable') else invoices if name.endswith('InvoicesTable') else assets
     return db,invoices,assets
 
@@ -38,7 +38,7 @@ def test_invoice_association_and_exact_private_asset_are_required(copy_module):
     invoices.get_item.return_value={'Item':{'invoiceId':'invoice','referenceId':'REF-FOREIGN'}}
     with pytest.raises(customer_auth.CustomerNotAuthorized):copy_module.resolve(db,identity,'order')
     invoices.get_item.return_value={'Item':{'invoiceId':'invoice','referenceId':'REF-OWN'}}
-    assets.get_item.return_value={'Item':{'s3Key':'secure/stack/invoices/wecare-digital-REF-FOREIGN.png'}}
+    assets.get_item.return_value={'Item':{'s3Key':'secure/Invoice/customer_invoice/wecare-digital-REF-FOREIGN.png'}}
     assert copy_module.resolve(db,identity,'order')[1] is None
 
 
@@ -59,7 +59,7 @@ def test_copy_reuses_invoice_and_fixed_recipient_once_per_day(copy_module,monkey
     identity=SimpleNamespace(customer_id='owner',phone='+919000000000')
     monkeypatch.setattr(copy_module.customer_orders,'_context',lambda token:(db,{},identity,{'contactId':'contact'}))
     monkeypatch.setattr(copy_module,'resolve',lambda *args:({'orderId':'order','orderNumber':'WD-ORDER'},
-        {'invoiceId':'existing-invoice','s3Key':'secure/stack/invoices/wecare-digital-REF.png'}))
+        {'invoiceId':'existing-invoice','s3Key':'secure/Invoice/customer_invoice/wecare-digital-REF.png'}))
     template=Mock(return_value={'data':[{'name':'wecare_share_pdf','language':'en','status':'APPROVED','components':[{'type':'HEADER','format':'IMAGE'}]}]})
     sender=Mock();sender.invoke.side_effect=lambda **kwargs:{'Payload':io.BytesIO(b'{"statusCode":200}')}
     s3=Mock();s3.generate_presigned_url.return_value='https://signed.example/short-lived'
