@@ -15,7 +15,7 @@ DynamoDB Tables:
 - stack-wecare-digital-InvoiceDeliveryLogTable
 
 S3 Bucket: wecare-digital-get  (was app.wecare.digital until it was deleted 2026-09-28)
-Prefix: secure/stack/invoices/  (GATED - moved off the public `o/` root 2026-09-30, because a
+Prefix: secure/Invoice/customer_invoice/  (GATED - moved off the public `o/` root 2026-09-30, because a
         rendered invoice carries the customer's name, address, amount and GST breakdown.
         Rendered invoices are handed out as short-lived presigned URLs; WhatsApp delivery does
         not use a URL at all, it uploads the bytes to Meta.)
@@ -4028,8 +4028,10 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
     """Send a WhatsApp order_status fulfilment update (shipped / completed / …) for a PAID order.
 
     Separate from the payment path on purpose. `send_payment_link` asks the customer to PAY;
-    this one tells a customer who ALREADY PAID what happened to their order next. Meta owns the
-    order's real lifecycle, so this validates the requested transition against the status this
+    this one tells a customer who ALREADY PAID what happened to their order next. After Meta
+    accepts the lifecycle update, the same issued invoice image is re-sent with
+    `wecare_default_invoice_image_template`. Meta owns the order's real lifecycle, so this
+    validates the requested transition against the status this
     invoice last recorded (`wa_order_status.can_transition`) and refuses locally what Meta would
     refuse with 2046/2047 — keeping a bad request off the wire and giving staff a named reason —
     then invokes `outbound-whatsapp` with the `isOrderStatus` envelope.
@@ -4190,9 +4192,48 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
         'event': 'order_status_sent', 'invoiceId': invoice_id, 'referenceId': reference_id,
         'fromStatus': current_status, 'toStatus': target, 'requestId': request_id,
     }))
-    return _resp(200, {'invoiceId': invoice_id, 'referenceId': reference_id,
-                       'orderStatus': target, 'previousStatus': current_status,
-                       'status': 'order_status_sent'})
+
+    # Owner decision 2026-10-22: every successful fulfilment-status update is followed by the
+    # approved invoice-image template. This is deliberately a FORCE resend: capture already sends
+    # the statutory invoice once, and an order-status notification must not be silently swallowed
+    # by the normal duplicate-delivery claim. The invoice itself is not mutated; the same issued
+    # image is read from secure/Invoice/customer_invoice/ and uploaded to Meta by
+    # send_invoice_whatsapp using wecare_default_invoice_image_template.
+    invoice_delivery = send_invoice_whatsapp(
+        invoice_id, customer_phone, phone_number_id, request_id, force=True)
+    invoice_delivery_code = int(invoice_delivery.get('statusCode', 0) or 0)
+    try:
+        invoice_delivery_body = json.loads(invoice_delivery.get('body', '{}'))
+    except (TypeError, ValueError, json.JSONDecodeError):
+        invoice_delivery_body = {}
+
+    if invoice_delivery_code not in (200, 202):
+        logger.error(json.dumps({
+            'event': 'order_status_invoice_delivery_failed',
+            'invoiceId': invoice_id, 'referenceId': reference_id,
+            'orderStatus': target, 'invoiceStatusCode': invoice_delivery_code,
+            'requestId': request_id,
+        }))
+        return _resp(502, {
+            'error': 'Order status was updated, but the invoice image could not be sent.',
+            'code': 'ORDER_STATUS_INVOICE_SEND_FAILED',
+            'invoiceId': invoice_id,
+            'referenceId': reference_id,
+            'orderStatus': target,
+            'previousStatus': current_status,
+            'orderStatusApplied': True,
+            'invoiceDeliveryStatus': invoice_delivery_body.get('status', 'failed'),
+        })
+
+    return _resp(200, {
+        'invoiceId': invoice_id,
+        'referenceId': reference_id,
+        'orderStatus': target,
+        'previousStatus': current_status,
+        'status': 'order_status_sent',
+        'invoiceTemplate': WA_INVOICE_TEMPLATE,
+        'invoiceDeliveryStatus': invoice_delivery_body.get('status', 'sent'),
+    })
 
 
 # ─── Cancel Invoice ───
