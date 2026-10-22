@@ -31,7 +31,7 @@ def resolve(db, identity, order_id):
         raise customer_auth.CustomerNotAuthorized('invoice unavailable')
     asset = db.Table('stack-wecare-digital-InvoiceAssetsTable').get_item(
         Key={'invoiceId': invoice_id, 'assetType': 'image'}, ConsistentRead=True).get('Item') or {}
-    expected_key = media_paths.secure('stack/invoices/wecare-digital-' + reference + '.png')
+    expected_key = media_paths.secure('Invoice/customer_invoice/wecare-digital-' + reference + '.png')
     if asset.get('s3Key') != expected_key:
         return order, None
     return order, {'invoiceId': invoice_id, 's3Key': expected_key}
