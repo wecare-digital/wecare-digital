@@ -8,6 +8,7 @@ const child = productChildByPath( '/elsewhere/visa/' );
 
 const VisaPage: React.FC = () => (
   <ProductPage
+      mobileFoundation
     product={ child.product }
     canonicalPath={ child.path }
     belowCta={ <ProductBuyBox slug={ child.product.slug } /> }
