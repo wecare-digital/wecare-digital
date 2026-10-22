@@ -37,14 +37,14 @@ interface ModeConfig {
   results: Array<[ string, string, string, string, string, string ]>;
 }
 
-const MODE_ORDER: TravelMode[] = [ 'flights', 'hotels', 'activities', 'rail', 'car', 'bus' ];
+const MODE_ORDER: TravelMode[] = [ 'flights', 'hotels', 'activities', 'car' ];
 
 const MODE_RESULT_SUMMARIES: Record<TravelMode, string> = {
   flights: 'I found a few flight options that balance timing, stops and fare rules. I’d start with the first one.',
   hotels: 'I found a few stays that fit the location, comfort and flexibility you described. I’d start with the first one.',
   activities: 'I found a few options that fit your timing, pace and budget. I’d start with the first one.',
   rail: 'I found a few rail options that fit the arrival time and class you described. I’d start with the first one.',
-  car: 'I found a few car options that fit the pickup, space and comfort you described. I’d start with the first one.',
+  car: 'I found a few transfer options that fit the pickup, space and comfort you described. I’d start with the first one.',
   bus: 'I found a few bus options that fit your boarding point, timing and fare preferences. I’d start with the first one.',
 };
 
@@ -98,7 +98,7 @@ const MODES: Record<TravelMode, ModeConfig> = {
     ],
   },
   car: {
-    label: 'Car',
+    label: 'Transfer',
     icon: 'directions_car',
     placeholder: 'e.g. Jaipur airport to Amer Fort tomorrow at 10 AM. 3 people, luggage, prefer a clean AC car with an English-speaking driver.',
     understanding: 'I’ll compare vehicle type, pickup convenience, included distance or time, cancellation terms and the total fare.',
@@ -544,7 +544,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
         }
         .eta-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
         .eta-tabs{
-          display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px;width:100%;
+          display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;width:100%;
           padding:5px;background:var(--public-brand-lime);border-bottom:1px solid rgba(26,58,42,.14);
         }
         .eta-tab{

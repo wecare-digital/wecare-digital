@@ -85,7 +85,7 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
       if ( geometry.shellLeft < -1 || geometry.shellRight > viewport.width + 1 ) {
         fail( `${viewport.name}: assistant escapes viewport` );
       }
-      if ( geometry.tabButtons.length !== 6 ) fail( `${viewport.name}: expected six travel tabs` );
+      if ( geometry.tabButtons.length !== 4 ) fail( `${viewport.name}: expected four travel tabs` );
       const firstTop = geometry.tabButtons[ 0 ].top;
       if ( geometry.tabButtons.some( item => Math.abs( item.top - firstTop ) > 1 ) ) {
         fail( `${viewport.name}: travel tabs wrapped to multiple rows` );
