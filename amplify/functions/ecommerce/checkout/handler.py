@@ -462,8 +462,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     origin = extract_origin(event)
 
     # Strangler seam: invoice-engine is packaged inside checkout but receives no live traffic
-    # until API/internal callers are migrated deliberately. Lazy import keeps ordinary checkout
-    # cold starts and trust decisions unchanged.
+    # until API/internal callers are migrated deliberately. This dispatch MUST remain before
+    # checkout's customer-session gate: invoice routes keep the invoice engine's existing auth
+    # contract and must never be rejected as customer checkout with VERIFICATION_REQUIRED.
+    # Lazy import keeps ordinary checkout cold starts and trust decisions unchanged.
     commerce_path = str(event.get("rawPath") or event.get("path") or "")
     if commerce_path.startswith("/invoices"):
         import invoice_engine as commerce_invoice_engine
