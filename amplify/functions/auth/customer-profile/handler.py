@@ -896,16 +896,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             address=address,
             proof_validated=False,
         )
-        # Ownership was established by the existing authenticated profile path. Read the
-        # saved contact consistently; request body fields never authorize order access.
-        from lambda_utils import shared_tables
-        from lambda_utils.ecommerce import customer_order_link
-        saved_contact = _table(CONTACTS_TABLE).get_item(
-            Key=contact_key.key(result['contactId']), ConsistentRead=True).get('Item') or {}
-        customer_order_link.link(
-            orders=_table(shared_tables.orders_table_name()),
-            attempts=_table(shared_tables.payment_attempts_table_name()),
-            contact=saved_contact, customer_id=identity_session.customer_id)
+        # Ownership was established by the existing authenticated profile path. Promotion is
+        # intentionally best-effort: the profile write has already committed, and the scheduled
+        # reconciler repairs any transient order/attempt projection failure.
+        _promote_linked_orders(result['contactId'], identity_session.customer_id)
     except ValueError as exc:
         if str(exc) == "CONTACT_IDENTITY_CONFLICT":
             return _no_store(cors_response(409, {"error": "CONTACT_IDENTITY_CONFLICT"}, origin))
