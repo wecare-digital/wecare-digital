@@ -9,7 +9,7 @@ const TABLE_OVERRIDE = process.env.WEATHER_INSIGHTS_TABLE || 'wecaredigitalbw.we
 const GLOBAL_MAX_BYTES_BILLED = String(process.env.BQ_MAX_BYTES_BILLED || '');
 const RANGE_MAX_BYTES_BILLED = {
   '30d': String(process.env.BQ_MAX_BYTES_BILLED_30D || GLOBAL_MAX_BYTES_BILLED || '1200000000'),
-  '1y': String(process.env.BQ_MAX_BYTES_BILLED_1Y || GLOBAL_MAX_BYTES_BILLED || '9500000000'),
+  '1y': String(process.env.BQ_MAX_BYTES_BILLED_1Y || GLOBAL_MAX_BYTES_BILLED || '15000000000'),
   '5y': String(process.env.BQ_MAX_BYTES_BILLED_5Y || GLOBAL_MAX_BYTES_BILLED || '40000000000'),
 };
 const CACHE_TTL_MS = Number(process.env.INSIGHTS_CACHE_TTL_MS || 24 * 60 * 60 * 1000);
