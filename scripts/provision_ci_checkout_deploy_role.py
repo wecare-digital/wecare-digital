@@ -57,7 +57,6 @@ from botocore.exceptions import ClientError
 ACCOUNT = "775261844268"
 REGION = "us-east-1"
 ROLE = "GitHubActions-wecare-checkout-deploy"
-POLICY = "CheckoutDeploy"
 OIDC_PROVIDER = f"arn:aws:iam::{ACCOUNT}:oidc-provider/token.actions.githubusercontent.com"
 
 OWNER_ID = "319896805"
@@ -99,37 +98,49 @@ TRUST = {
     ],
 }
 
-PERMISSIONS = {
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Sid": "DeployCheckoutFunction",
-            "Effect": "Allow",
-            "Action": [
-                # validate: read current code/layers/runtime, and the published-alias sha.
-                "lambda:GetFunctionConfiguration",
-                "lambda:GetFunction",
-                "lambda:GetAlias",
-                # deploy: push code, reconcile layer/runtime, publish and move `live`.
-                "lambda:UpdateFunctionCode",
-                "lambda:UpdateFunctionConfiguration",
-                "lambda:PublishVersion",
-                "lambda:UpdateAlias",
-            ],
-            "Resource": [
-                FUNCTION_ARN,
-                f"{FUNCTION_ARN}:*",  # version/alias qualifiers (e.g. wecare-checkout:live)
-            ],
-        },
-        {
-            "Sid": "ReadPillowLayerForValidation",
-            "Effect": "Allow",
-            # The 2026-10-22 failure. validate resolves the Pillow layer's module list by
-            # reading the layer zip; without this the PIL import check cannot run.
-            "Action": "lambda:GetLayerVersion",
-            "Resource": PILLOW_LAYER_ARN,
-        },
-    ],
+# POLICIES mirrors the LIVE inline policy set exactly, as two named policies — not one.
+# Captured from the deployed role on 2026-10-22 (see
+# docs/execution/snapshots/GitHubActions-wecare-checkout-deploy-before-provision-*.json).
+# Reconciling to live rather than to a first-draft single policy means `--apply` reproduces
+# the deployed grant instead of narrowing it: the live role was already correct (it had both
+# GetLayerVersion and GetFunctionConfiguration before the 2026-10-22 failure report, which was
+# stale). Each statement is still least-privilege and scoped to wecare-checkout + the Pillow
+# layer; no CreateFunction/DeleteFunction, no secretsmanager.
+POLICIES = {
+    "CheckoutDeployOnly": {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Sid": "DeployOnlyCheckout",
+                "Effect": "Allow",
+                "Action": [
+                    "lambda:GetFunction",
+                    "lambda:GetFunctionConfiguration",
+                    "lambda:UpdateFunctionCode",
+                    "lambda:PublishVersion",
+                    "lambda:GetAlias",
+                    "lambda:UpdateAlias",
+                ],
+                "Resource": [
+                    FUNCTION_ARN,
+                    f"{FUNCTION_ARN}:*",  # version/alias qualifiers (e.g. wecare-checkout:live)
+                ],
+            }
+        ],
+    },
+    # The 2026-10-22 report named this as missing; it was in fact present. validate resolves
+    # the Pillow layer's module list by reading the layer zip, which needs GetLayerVersion.
+    "ReadPillowLayer": {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Sid": "ReadPillowLayer",
+                "Effect": "Allow",
+                "Action": "lambda:GetLayerVersion",
+                "Resource": PILLOW_LAYER_ARN,
+            }
+        ],
+    },
 }
 
 
@@ -152,6 +163,7 @@ def plan() -> int:
     print(f"role   {ROLE}: {'EXISTS' if _role_exists(iam) else 'ABSENT'}")
     print(f"subject GitHub sends: {SUBJECT}")
     print(f"subject matched      : {SUBJECT_PATTERN}  (StringLike)")
+    print(f"inline policies this file declares: {', '.join(POLICIES)}")
     print(f"permissions: deploy {FUNCTION} (+:*), GetLayerVersion on pillow-python312:*")
     return 0
 
@@ -172,9 +184,14 @@ def apply() -> int:
         )
         print(f"created {ROLE}")
 
-    iam.put_role_policy(RoleName=ROLE, PolicyName=POLICY,
-                        PolicyDocument=json.dumps(PERMISSIONS))
-    print(f"attached inline policy {POLICY}")
+    for name, doc in POLICIES.items():
+        iam.put_role_policy(RoleName=ROLE, PolicyName=name, PolicyDocument=json.dumps(doc))
+        print(f"attached inline policy {name}")
+    # Mirror, don't accrete: delete any live inline policy this file does not declare, so the
+    # role ends up EXACTLY as described here rather than carrying an orphan a past run left.
+    for stale in set(iam.list_role_policies(RoleName=ROLE)["PolicyNames"]) - set(POLICIES):
+        iam.delete_role_policy(RoleName=ROLE, PolicyName=stale)
+        print(f"removed undeclared inline policy {stale}")
     return verify()
 
 
@@ -212,27 +229,33 @@ def verify() -> int:
             ids_pinned,
     }
 
-    inline = iam.list_role_policies(RoleName=ROLE)["PolicyNames"]
-    checks["only the one inline policy"] = inline == [POLICY]
+    inline = set(iam.list_role_policies(RoleName=ROLE)["PolicyNames"])
+    checks["inline policy set matches this file exactly"] = inline == set(POLICIES)
     checks["no attached managed policies"] = not iam.list_attached_role_policies(
         RoleName=ROLE)["AttachedPolicies"]
 
-    document = iam.get_role_policy(RoleName=ROLE, PolicyName=POLICY)["PolicyDocument"]
-    actions = set()
-    for s in document["Statement"]:
-        action = s["Action"]
-        actions |= {action} if isinstance(action, str) else set(action)
-    blob = json.dumps(document).lower()
-    checks["grants GetLayerVersion (the 2026-10-22 gap)"] = "lambda:GetLayerVersion" in actions
+    # Fold every declared policy's live document into one view for the grant checks.
+    actions: set = set()
+    blob = ""
+    for name in POLICIES:
+        if name not in inline:
+            continue
+        document = iam.get_role_policy(RoleName=ROLE, PolicyName=name)["PolicyDocument"]
+        blob += json.dumps(document).lower()
+        for s in document["Statement"]:
+            action = s["Action"]
+            actions |= {action} if isinstance(action, str) else set(action)
+    checks["grants GetLayerVersion"] = "lambda:GetLayerVersion" in actions
     checks["grants GetFunctionConfiguration"] = "lambda:GetFunctionConfiguration" in actions
     checks["no secretsmanager grant"] = "secretsmanager" not in blob
     checks["no CreateFunction/DeleteFunction"] = not (
         "createfunction" in blob or "deletefunction" in blob)
-    # Function-level writes stay scoped to wecare-checkout, never "*".
-    checks["function writes scoped to wecare-checkout"] = all(
-        (("*" not in (r if isinstance(r, str) else "")) or FUNCTION in (r if isinstance(r, str) else ""))
-        for s in document["Statement"] if s.get("Sid") == "DeployCheckoutFunction"
-        for r in ([s["Resource"]] if isinstance(s["Resource"], str) else s["Resource"]))
+    # The committed POLICIES mirror live byte-for-byte; a drift between them is the signal.
+    live_docs = {n: iam.get_role_policy(RoleName=ROLE, PolicyName=n)["PolicyDocument"]
+                 for n in inline & set(POLICIES)}
+    checks["committed policies match live byte-for-byte"] = all(
+        json.dumps(POLICIES[n], sort_keys=True) == json.dumps(live_docs[n], sort_keys=True)
+        for n in POLICIES if n in live_docs) and set(live_docs) == set(POLICIES)
 
     for name, ok in checks.items():
         print(f"  {'OK  ' if ok else 'FAIL'}  {name}")

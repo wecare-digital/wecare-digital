@@ -148,7 +148,7 @@ const VayuLokWeatherInsights: React.FC<Props> = ( { lat, lng, placeName } ) => {
       <div className="vl-wi-head">
         <div>
           <h4>Weather history</h4>
-          <p>{ placeName || 'Selected place' } · past conditions</p>
+          <p>Past weather for { placeName || 'this place' }</p>
         </div>
         <div className="vl-wi-range" role="group" aria-label="Weather history range">
           { ( Object.keys( RANGE_LABELS ) as Range[] ).map( item => (

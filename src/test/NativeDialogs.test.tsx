@@ -257,15 +257,21 @@ describe( 'no native browser dialogs outside src/test/', () => {
     expect( undeclaredDialogCalls( src ) ).toEqual( [] );
   } );
 
-  it( 'routes all six migrated sites through a hook', () => {
-    // The six sites keep their no-native-dialog guarantee at their CURRENT paths: the
-    // workspace redesign (FEAT-005/006) relocated five of them out of src/pages/workspace/**
+  it( 'routes every surviving migrated site through a hook', () => {
+    // These sites keep their no-native-dialog guarantee at their CURRENT paths: the
+    // workspace redesign (FEAT-005/006) relocated them out of src/pages/workspace/**
     // into src/components/workspace/** when their dense sections folded into tabbed hubs.
+    //
+    // BlogManager.tsx was DROPPED from this list: the "Remove retired blog production" work
+    // reduced it to a read-only published-post browser (no bulk "Clean All Posts", no delete),
+    // so it no longer owns a destructive action and therefore no longer uses useConfirmDanger.
+    // A surface with no dialog cannot regress to a native one — the guards below (undeclared/
+    // native-dialog scans over every file) still cover it. Re-add it here only if a destructive
+    // action returns to the component.
     const expected: [ string, RegExp ][] = [
       [ 'src/components/TemplateSender.tsx', /useConfirm\b/ ],
       [ 'src/components/workspace/service/SecureFiles.tsx', /useConfirm\b/ ],
       [ 'src/components/workspace/whatsapp/ctwa-ads.tsx', /useConfirmDanger\b/ ],
-      [ 'src/components/workspace/seo/BlogManager.tsx', /useConfirmDanger\b/ ],
     ];
     for ( const [ file, hook ] of expected ) {
       const src = codeOnly( fs.readFileSync( path.join( REPO, file ), 'utf8' ) );
