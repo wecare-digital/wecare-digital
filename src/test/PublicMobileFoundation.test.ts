@@ -88,6 +88,10 @@ describe( 'public mobile foundation', () => {
     expect( activities ).toContain( 'mobileFoundation' );
     expect( assistant ).toContain( 'var(--public-mobile-page-gutter)' );
     expect( assistant ).toContain( 'font-size:var(--public-body-size)' );
+    expect( assistant ).toContain( 'font-family:var(--font-sans)' );
+    expect( assistant ).toContain( 'grid-template-columns:repeat(4,minmax(0,1fr))' );
+    expect( assistant ).toContain( 'min-height:var(--tap-min)' );
+    expect( assistant ).toContain( 'padding-inline:var(--public-mobile-page-gutter)' );
   } );
 
   it( 'documents opt-in family-by-family adoption', () => {
