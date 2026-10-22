@@ -80,7 +80,7 @@ Two implementations exist:
 - `amplify/functions/core/service-api/handler.py` — VERIFIED it exists (49,429 bytes). This is the ONE implementation.
 - `amplify/functions/messaging/whatsapp-business-api/service_api.py` — VERIFIED it exists (34,968 bytes). This maintains a duplicate.
 
-The service surface includes `/orders`, `/service/submit`, `/service/amend`, `/service/track`, `/documents`, `/faq`, `/appointments`, `/rx-slots`, `/enterprise-assist`, `/reviews`. Keeping two handlers aligned by hand is a documented drift risk.
+The service surface includes orders, service submission/amendment/tracking, documents, FAQ, appointments, prescription slots, enterprise assistance, and reviews. Keeping two handlers aligned by hand is a documented drift risk.
 
 **Target:** keep `wecare-service-api` as the domain service. WhatsApp Flows invoke the shared service-domain module / `wecare-service-api` instead of `whatsapp-business-api` maintaining a second REST implementation.
 
