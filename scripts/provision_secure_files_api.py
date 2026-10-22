@@ -96,8 +96,6 @@ ROUTES = [
     ("POST", "/secure-files/{fileId}/revoke"),
     # customer surface (customer-pool token, checked inside the handler)
     ("GET", "/secure-files/mine"),
-    ("POST", "/secure-files/{fileId}/order"),
-    ("POST", "/secure-files/{fileId}/whatsapp-pay"),
     ("GET", "/secure-files/{fileId}/download"),
     # Drop Docs: promote a document into secure/ and register it against a paid request,
     # and read back the caller's own documents for one request. Both flag-gated OFF by
@@ -288,7 +286,7 @@ def ensure_role(dry_run: bool) -> str:
 # ── packaging ─────────────────────────────────────────────────────────────────
 
 def package() -> bytes:
-    """handler.py + razorpay_orders.py + lambda_utils/, deterministically."""
+    """handler.py + settlement compatibility + lambda_utils/, deterministically."""
     if not (SOURCE_DIR / "handler.py").exists():
         raise SystemExit(f"missing {SOURCE_DIR / 'handler.py'}")
 
@@ -305,7 +303,7 @@ def package() -> bytes:
     return buffer.getvalue()
 
 
-def environment(payment_enabled: bool = False) -> dict:
+def environment() -> dict:
     # AWS_REGION is deliberately absent: Lambda reserves it and rejects it.
     return {
         "SECURE_FILES_BUCKET": BUCKET,
@@ -317,18 +315,11 @@ def environment(payment_enabled: bool = False) -> dict:
         # Meta's OWN phone-number id, which is what the business-API `/wa-business/media` route
         # wants. It is NOT a valid `phoneNumberId` for `wecare-outbound-whatsapp`.
         "META_PHONE_NUMBER_ID": "1016149501586345",
-        # The AWS-style sender id `outbound-whatsapp` requires, for the three sends that go
-        # there. Every WhatsApp send from this function used to pass the bare Meta id above, and
-        # `_resolve_meta_phone_id` refuses that outright rather than falling back to another
-        # WABA — so all three were structurally broken, and the payment one was refused a second
-        # time by `PAYMENT_SENDERS`. This makes the surface CORRECT, not ENABLED:
-        # SECURE_FILES_PAYMENT_ENABLED stays "false".
+        # The AWS-style sender id `outbound-whatsapp` requires for secure-file delivery.
+        # Payment initiation no longer exists in this Lambda; commerce/checkout owns it.
         "WA_SEND_PHONE_ID": "phone-number-id-waba1-direct-1016149501586345",
         "PARTNER_GROUP": "Partner",
-        # Both templates are already APPROVED; nothing here waits on Meta.
-        # wecare_whatapp_native_pay_template    [IMAGE, BODY, FOOTER, BUTTONS(ORDER_DETAILS)]
-        # 01_wecare_doc [DOCUMENT, BODY, FOOTER, BUTTONS(FLOW)]
-        "WA_PAY_TEMPLATE": "wecare_whatapp_native_pay_template",
+        # Secure-files owns document delivery only; payment templates belong to commerce.
         # wd_file_delivery: APPROVED 2026-09-25. DOCUMENT header, BODY variables for
         # customer and file name, and no buttons. Replaced 01_wecare_doc, which could
         # name neither and carried a stray FLOW button labelled "Subscribe".
@@ -358,105 +349,11 @@ def environment(payment_enabled: bool = False) -> dict:
         # row there, not in SecureFilesTable.
         "SERVICE_REQUESTS_TABLE": REQUESTS_TABLE,
         # Drop Docs document attach. Ships OFF and stays off: there is no upload UI in
-        # Phase O-2, so the only thing turning this on would do is open a route nothing
-        # calls. Read per call in the handler, so flipping it does not need a republish
-        # to be observed - but it DOES need one to reach production, because the HTTP API
-        # invokes the live alias. Separate from SECURE_FILES_PAYMENT_ENABLED and must
-        # never be confused with it: this one stores a document, that one takes money.
+        # Phase O-2, so the only thing turning this on would do is open a route nothing calls.
         "DROPDOCS_ATTACH_ENABLED": "false",
         # A secret NAME, never a value. See .kiro/steering/secret-handling.md.
         "RAZORPAY_SECRET_ID": RAZORPAY_SECRET_NAME,
-        # Enabling paid downloads is an owner action. While off, the order route
-        # refuses and razorpay_orders is never even imported, so no Razorpay
-        # endpoint is contacted and no credential is read.
-        #
-        # Defaults to off, and a plain re-provision therefore never silently turns
-        # payments on: only --enable-payment does that.
-        "SECURE_FILES_PAYMENT_ENABLED": "true" if payment_enabled else "false",
     }
-
-
-def current_payment_flag() -> bool:
-    variables = (
-        lam().get_function_configuration(FunctionName=f"{FUNCTION_NAME}:{LIVE_ALIAS}")
-        .get("Environment", {})
-        .get("Variables", {})
-    )
-    return str(variables.get("SECURE_FILES_PAYMENT_ENABLED", "")).strip().lower() in (
-        "1", "true", "yes", "on",
-    )
-
-
-def set_payment_flag(enabled: bool) -> int:
-    """Turn paid downloads on or off, and actually make it reach production.
-
-    Three steps, not one, and skipping any of them leaves a misleading state:
-
-    1. ``update_function_configuration`` with the **whole** variable map. Passing a
-       partial map would delete every variable not mentioned - the function would
-       come back up with no bucket, no table and no pool id.
-    2. Publish a version. A version freezes its environment, so the flag has to be
-       captured into a new one.
-    3. Move the ``live`` alias. The HTTP API invokes the alias, so until this runs
-       the change is real on ``$LATEST`` and invisible to every request.
-
-    Written out because doing only step 1 by hand looks like it worked.
-    """
-    client = lam()
-
-    # Preflight: confirm the key secret exists. Metadata only - this deliberately
-    # does not read the secret's value, so nothing lands in a log or a terminal.
-    # It catches a typo'd secret name, which would otherwise surface much later as
-    # an opaque order-creation failure.
-    if enabled:
-        try:
-            boto3.client("secretsmanager", region_name=REGION).describe_secret(
-                SecretId=RAZORPAY_SECRET_NAME
-            )
-            print(f"preflight: secret {RAZORPAY_SECRET_NAME} exists")
-        except ClientError as exc:
-            print(f"ABORT: cannot find secret {RAZORPAY_SECRET_NAME}: "
-                  f"{exc.response['Error']['Code']}")
-            return 1
-        print("preflight: this script cannot verify the secret's key_id/key_secret "
-              "values, and deliberately does not read them.")
-        print("           If order creation fails after this, check those two fields "
-              "in the Razorpay dashboard.")
-
-    was = current_payment_flag()
-    print(f"payment flag: {was} -> {enabled}")
-    if was == enabled:
-        print("already in the requested state; nothing to do")
-        return 0
-
-    rollback_version = client.get_alias(
-        FunctionName=FUNCTION_NAME, Name=LIVE_ALIAS
-    )["FunctionVersion"]
-
-    client.update_function_configuration(
-        FunctionName=FUNCTION_NAME,
-        Environment={"Variables": environment(payment_enabled=enabled)},
-    )
-    client.get_waiter("function_updated_v2").wait(FunctionName=FUNCTION_NAME)
-
-    version = client.publish_version(
-        FunctionName=FUNCTION_NAME,
-        Description=f"payment {'enabled' if enabled else 'disabled'}",
-    )["Version"]
-    client.update_alias(
-        FunctionName=FUNCTION_NAME, Name=LIVE_ALIAS, FunctionVersion=version
-    )
-
-    print(f"live: v{rollback_version} -> v{version}")
-    print(f"rollback: aws lambda update-alias --function-name {FUNCTION_NAME} "
-          f"--name {LIVE_ALIAS} --function-version {rollback_version} --region {REGION}")
-
-    now = current_payment_flag()
-    if now != enabled:
-        print(f"FAIL read-back says {now}, expected {enabled}")
-        return 1
-    print(f"read-back: payment enabled = {now}")
-    return 0
 
 
 def ensure_function(zip_bytes: bytes, dry_run: bool) -> str:
@@ -467,20 +364,8 @@ def ensure_function(zip_bytes: bytes, dry_run: bool) -> str:
     except client.exceptions.ResourceNotFoundException:
         exists = False
 
-    # Preserve whatever the owner set, rather than resetting to the default.
-    #
-    # Without this, re-running the provisioner after payments were deliberately
-    # enabled would quietly turn them back OFF: `environment()` defaults the flag to
-    # false and the update below writes the whole map. Customers would stop being
-    # able to pay, with nothing in the output saying so.
-    #
-    # Read from the live alias, not $LATEST, because the alias is what production
-    # actually serves. A fresh function has nothing to preserve and stays off.
-    keep_payment = current_payment_flag() if exists else False
-
     if dry_run:
-        state = "on" if keep_payment else "off"
-        return f"exists (would update, payment stays {state})" if exists else "would create"
+        return "exists (would update)" if exists else "would create"
 
     if exists:
         client.update_function_code(FunctionName=FUNCTION_NAME, ZipFile=zip_bytes)
@@ -492,10 +377,10 @@ def ensure_function(zip_bytes: bytes, dry_run: bool) -> str:
             Runtime="python3.12",
             Timeout=30,
             MemorySize=512,
-            Environment={"Variables": environment(payment_enabled=keep_payment)},
+            Environment={"Variables": environment()},
         )
         client.get_waiter("function_updated_v2").wait(FunctionName=FUNCTION_NAME)
-        return f"updated (payment left {'on' if keep_payment else 'off'})"
+        return "updated"
 
     client.create_function(
         FunctionName=FUNCTION_NAME,
@@ -692,13 +577,6 @@ def verify() -> int:
         print(f"PASS {FUNCTION_NAME}:{LIVE_ALIAS} {config['Runtime']} {config['State']}")
         variables = (config.get("Environment") or {}).get("Variables") or {}
 
-        # Reported, not judged. Once the owner enables payments deliberately, a
-        # verifier that fails because of it is a verifier people learn to ignore.
-        if variables.get("SECURE_FILES_PAYMENT_ENABLED", "").lower() in ("1", "true", "yes", "on"):
-            print("INFO payment flag is ON - paid downloads are live, real money moves")
-        else:
-            print("PASS payment flag off - the order route refuses")
-
         for key in ("SECURE_FILES_BUCKET", "SECURE_FILES_TABLE", "DOWNLOAD_GRANTS_TABLE",
                     "CUSTOMER_USER_POOL_ID", "RAZORPAY_SECRET_ID"):
             if variables.get(key):
@@ -799,27 +677,10 @@ def main(argv=None) -> int:
                     help="explicitly report the delta and change nothing. The default, "
                          "kept so an existing command keeps meaning what it meant.")
     ap.add_argument("--verify", action="store_true")
-    group = ap.add_mutually_exclusive_group()
-    group.add_argument(
-        "--enable-payment",
-        action="store_true",
-        help="turn paid downloads ON: sets the flag, publishes a version and moves "
-             "the live alias. Real money starts moving.",
-    )
-    group.add_argument(
-        "--disable-payment",
-        action="store_true",
-        help="turn paid downloads OFF again (the safe direction).",
-    )
     args = ap.parse_args(argv)
 
     if args.verify:
         return verify()
-    if args.enable_payment:
-        return set_payment_flag(True)
-    if args.disable_payment:
-        return set_payment_flag(False)
-
     if args.apply and args.dry_run:
         # Refuse rather than pick one. Both flags together means the caller does not know
         # which they want, and guessing in either direction is worse than stopping.

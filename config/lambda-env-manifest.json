@@ -2,7 +2,7 @@
   "_comment": "Recorded state of live Lambda environment variables. Not deployed by anything - this is the source of truth to diff against. Regenerate with scripts/env_manifest.py --export; verify with no arguments.",
   "_region": "us-east-1",
   "_functions": 65,
-  "_variables": 422,
+  "_variables": 420,
   "_fingerprinted": 7,
   "functions": {
     "stack-wecare-url-shortener": {
@@ -414,7 +414,6 @@
       "PARTNER_GROUP": "Partner",
       "RAZORPAY_SECRET_ID": "wecare/razorpay/api",
       "SECURE_FILES_BUCKET": "wecare-digital-get",
-      "SECURE_FILES_PAYMENT_ENABLED": "false",
       "SECURE_FILES_TABLE": "stack-wecare-digital-SecureFilesTable",
       "SECURE_FILE_PRICE_PAISE": "4900",
       "SERVICE_REQUESTS_TABLE": "stack-wecare-digital-ServiceRequestsTable",
@@ -423,7 +422,6 @@
       "VAULT_ACCESS_WINDOW_GRACE_SECONDS": "300",
       "WA_DOC_TEMPLATE": "wd_file_delivery",
       "WA_MEDIA_FUNCTION": "wecare-whatsapp-business-api:live",
-      "WA_PAY_TEMPLATE": "wecare_whatapp_native_pay_template",
       "WA_SEND_PHONE_ID": "phone-number-id-waba1-direct-1016149501586345",
       "WA_SENDER_FUNCTION": "wecare-outbound-whatsapp",
       "WHATSAPP_LINK_TTL_SECONDS": "21600"

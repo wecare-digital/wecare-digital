@@ -7357,20 +7357,7 @@ export async function redeemSecureFileDownload ( fileId: string, grantId: string
   );
 }
 
-/**
- * Send the ₹49 request to the customer's own WhatsApp as an approved template.
- *
- * This is the primary payment path. The customer pays inside WhatsApp via the
- * `wecare_whatapp_native_pay_template` template's ORDER_DETAILS button, and the file is then delivered on
- * WhatsApp too — so the browser has nothing left to do once this returns 202.
- *
- * It takes no phone number. The backend sends only to the number on the verified
- * token; accepting one here would make this a way to send WhatsApp messages to
- * arbitrary people.
- */
-export async function requestFilePaymentOnWhatsApp ( fileId: string ): Promise<ApiResult<{
-  grantId: string; reference: string; amountPaise: number; sentTo: string; message: string;
-}>> {
+>> {
   return customerApiCall( `${API_BASE}/secure-files/${encodeURIComponent( fileId )}/whatsapp-pay`, {
     method: 'POST',
   } );
