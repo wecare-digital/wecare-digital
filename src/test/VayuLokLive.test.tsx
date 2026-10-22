@@ -69,6 +69,7 @@ interface MapsRecorder {
   // Geocoder now arrives via importLibrary('geocoding'), so this proves the import happened.
   importedLibraries: string[];
   markerOpts: Record<string, unknown>[];
+  markerTitleUpdates: string[];
   fitBoundsCalls: { bounds: unknown; padding?: number }[];
   setZoomCalls: number[];
   setCenterCalls: { lat: number; lng: number }[];
@@ -138,6 +139,7 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
     placeFetchFields: [],
     importedLibraries: [],
     markerOpts: [],
+    markerTitleUpdates: [],
     fitBoundsCalls: [],
     setZoomCalls: [],
     setCenterCalls: [],
@@ -201,7 +203,7 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
   class FakeMarker {
     constructor( opts: Record<string, unknown> ) { rec.markerOpts.push( opts ); }
     setPosition() { /* no-op */ }
-    setTitle() { /* no-op */ }
+    setTitle( title: string ) { rec.markerTitleUpdates.push( title ); }
     setMap() { /* no-op */ }
   }
   class FakeGeocoder {
@@ -753,6 +755,8 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( container.querySelector( '.vl-live-map-destbar-chevron' ) ).toBeNull();
 
     await waitFor( () => expect( rec.markerOpts.length ).toBeGreaterThan( 0 ) );
+    expect( rec.markerOpts[ 0 ] ).not.toHaveProperty( 'title' );
+    expect( rec.markerTitleUpdates ).toHaveLength( 0 );
     const icon = rec.markerOpts[ 0 ].icon;
     expect( typeof icon ).toBe( 'string' );
     const decodedIcon = decodeURIComponent( String( icon ) );
@@ -2221,9 +2225,15 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( shellRule ).toContain( 'overflow:visible' );
     expect( shellRule ).toContain( 'isolation:isolate' );
     expect( shellRule ).toContain( 'height:auto' );
+    expect( shellRule ).toContain( 'border:1px solid var(--hair)' );
+    expect( css ).toContain( '.vl-live-shell{max-width:var(--public-content-max)' );
+    const spineRule = css.match( /\.vl-live-air-aqi-spine\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( spineRule ).toContain( 'width:3px' );
+    expect( spineRule ).toContain( 'background:#3da35a' );
+    expect( spineRule ).not.toContain( 'linear-gradient' );
     const cardWrapRule = css.match( /\.vl-live-air-card-wrap\{[^}]*\}/ )?.[ 0 ] || '';
     expect( cardWrapRule ).toContain( 'width:min(416px,calc(100% - 32px))' );
-    expect( cardWrapRule ).toContain( 'drop-shadow(0 8px 18px rgba(26,58,42,.10))' );
+    expect( cardWrapRule ).not.toContain( 'drop-shadow' );
     expect( css ).not.toContain( '.vl-live-air-card-wrap::after{' );
 
     // GLOBAL SEARCH FIELD: the outer wrapper is visually absent. The input itself reuses
