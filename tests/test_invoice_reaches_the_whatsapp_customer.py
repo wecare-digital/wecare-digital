@@ -106,7 +106,7 @@ def _seed(fake, *, with_asset=True):
         'orderId': 'Offline', 'createdAt': 1770000000})
     if with_asset:
         fake.Table(ASSETS).put_item(Item={'invoiceId': INVOICE_ID, 'assetType': 'image',
-                                          's3Key': 'secure/stack/invoices/x.png',
+                                          's3Key': 'secure/Invoice/customer_invoice/x.png',
                                           'url': 'ignored'})
 
 
