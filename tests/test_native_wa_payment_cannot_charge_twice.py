@@ -157,15 +157,15 @@ PAID_REQUEST_FLOW_HINT = 'wecare-whatsapp-business-api:live'
 PERMITTED_LAMBDA_INVOKES_FRESH_CAPTURE = frozenset({
     SERVICE_REQUEST_HINT,
     PAID_REQUEST_FLOW_HINT,
-    'wecare-invoice-engine POST /invoices/from-payment',
-    'wecare-invoice-engine POST /invoices/{id}/generate-image',
-    'wecare-invoice-engine:live POST /invoices/{id}/send-whatsapp',
+    'wecare-checkout:live POST /invoices/from-payment',
+    'wecare-checkout:live POST /invoices/{id}/generate-image',
+    'wecare-checkout:live POST /invoices/{id}/send-whatsapp',
 })
 PERMITTED_LAMBDA_INVOKES_DEDUPLICATED = frozenset({
     SERVICE_REQUEST_HINT,
     PAID_REQUEST_FLOW_HINT,
-    'wecare-invoice-engine POST /invoices/from-payment',
-    'wecare-invoice-engine:live POST /invoices/{id}/send-whatsapp',
+    'wecare-checkout:live POST /invoices/from-payment',
+    'wecare-checkout:live POST /invoices/{id}/send-whatsapp',
 })
 #: A FOURTH drive: a website-settled capture (`channel=whatsapp`, WEBSITE_RAZORPAY_STANDARD).
 #:
@@ -177,9 +177,9 @@ PERMITTED_LAMBDA_INVOKES_DEDUPLICATED = frozenset({
 PERMITTED_LAMBDA_INVOKES_CATALOGUE_CAPTURE = frozenset({
     SERVICE_REQUEST_HINT,
     PAID_REQUEST_FLOW_HINT,
-    'wecare-invoice-engine POST /invoices/from-payment',
-    'wecare-invoice-engine POST /invoices/{id}/generate-image',
-    'wecare-invoice-engine:live POST /invoices/{id}/send-whatsapp',
+    'wecare-checkout:live POST /invoices/from-payment',
+    'wecare-checkout:live POST /invoices/{id}/generate-image',
+    'wecare-checkout:live POST /invoices/{id}/send-whatsapp',
 })
 
 #: ONE global absence assertion across every drive, so a new call cannot hide in a drive nobody
