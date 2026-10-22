@@ -72,7 +72,8 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
           responseOverflowY: getComputedStyle( response ).overflowY,
           activeLeft: activeRect?.left ?? null,
           activeRight: activeRect?.right ?? null,
-          activeLabel: activeTab?.textContent?.trim() || '',
+          activeId: activeTab?.id || '',
+          activeSelected: activeTab?.getAttribute( 'aria-selected' ) || '',
           tabButtons,
         };
       } );
@@ -92,7 +93,9 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
       if ( viewport.width <= 720 ) {
         if ( geometry.tabsTouchAction !== 'pan-x' ) fail( `${viewport.name}: tab rail touch-action ${geometry.tabsTouchAction}` );
         if ( geometry.tabsScrollWidth <= geometry.tabsClientWidth ) fail( `${viewport.name}: tab rail is not horizontally scrollable` );
-        if ( geometry.activeLabel !== 'Activities' ) fail( `${viewport.name}: Activities is not the initial active service` );
+        if ( geometry.activeId !== 'elsewhere-travel-tab-activities' || geometry.activeSelected !== 'true' ) {
+          fail( `${viewport.name}: Activities is not the initial active service` );
+        }
         if ( geometry.activeLeft === null || geometry.activeRight === null
           || geometry.activeLeft < geometry.tabsLeft - 1 || geometry.activeRight > geometry.tabsRight + 1 ) {
           fail( `${viewport.name}: active Activities tab is off-screen on initial load` );
