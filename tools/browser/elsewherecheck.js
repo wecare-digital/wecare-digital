@@ -93,9 +93,9 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
         fail( `${viewport.name}: travel tabs wrapped to multiple rows` );
       }
       if ( viewport.width <= 720 ) {
-        if ( geometry.tabsDisplay !== 'grid' ) fail( `${viewport.name}: mobile service rail is not a four-column grid` );
-        if ( geometry.tabsScrollWidth > geometry.tabsClientWidth + 1 ) fail( `${viewport.name}: mobile service rail still scrolls horizontally` );
-        if ( geometry.tabsTouchAction !== 'manipulation' ) fail( `${viewport.name}: tab rail touch-action ${geometry.tabsTouchAction}` );
+        if ( geometry.tabsDisplay !== 'flex' ) fail( `${viewport.name}: mobile service rail is not a horizontal flex scroller` );
+        if ( geometry.tabsScrollWidth <= geometry.tabsClientWidth ) fail( `${viewport.name}: mobile service rail is not horizontally scrollable` );
+        if ( geometry.tabsTouchAction !== 'pan-x' ) fail( `${viewport.name}: tab rail touch-action ${geometry.tabsTouchAction}` );
         if ( geometry.activeId !== 'elsewhere-travel-tab-activities' || geometry.activeSelected !== 'true' ) {
           fail( `${viewport.name}: Activities is not the initial active service` );
         }
