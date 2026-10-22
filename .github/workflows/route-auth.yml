@@ -167,7 +167,7 @@ jobs:
     # for "any PR in this repo" to gain no signal: this job audits live AWS state,
     # which does not depend on the contents of the PR. What must run on a PR is
     # source-gate, and it does, and it is the blocking gate.
-    if: github.event_name != 'pull_request' && vars.ROUTE_AUTH_ROLE_ARN != ''
+    if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && vars.ROUTE_AUTH_ROLE_ARN != ''
     steps:
       - uses: actions/checkout@v7
 
