@@ -2330,7 +2330,7 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     // The pollutant-label font-size was tokenised to `--vl-data-size` (consistent with the rest of
     // VayuLok's token system); the token resolves to the same 17px this once pinned as a literal.
     expect( pollutantLabelRule ).toContain( 'font-size:var(--vl-data-size)' );
-    expect( css ).toContain( '--vl-data-size:var(--public-cta-font-size,17px)' );
+    expect( css ).toContain( '--vl-data-size:var(--public-data-size)' );
     const pollutantRowRule = css.match( /\.vl-live-air-pollutant-row\{[^}]*\}/ )?.[ 0 ] || '';
     // The pollutant row is the COMPACT inline-flex chip from the "compact pollutant metrics
     // without tooltip controls" redesign (validated by the sibling test above), NOT the former
@@ -2387,8 +2387,8 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( css ).toContain( '.vl-live-mobile-copy>strong{color:#000;font-size:16px}' );
     expect( css ).toContain( '.vl-live-mobile-copy small{margin-top:2px;color:var(--muted);font-size:14px}' );
     expect( css ).toContain( '.vl-live-air-context-item small{color:var(--muted);font-size:var(--text-md)' );
-    expect( css ).toContain( '--vl-subtext-size:var(--public-mobile-form-font-size,16px)' );
-    expect( css ).toContain( '--vl-meta-size:var(--text-md)' );
+    expect( css ).toContain( '--vl-subtext-size:var(--public-supporting-size)' );
+    expect( css ).toContain( '--vl-meta-size:var(--public-meta-size)' );
     expect( css ).toContain( '--vl-compact-copy-size:var(--vl-subtext-size)' );
     expect( css ).toContain( '.vl-live-air-summary-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:8px;color:var(--muted);font-size:var(--vl-subtext-size)' );
     expect( css ).toContain( '.vl-live-wx-now-sub{display:flex;flex-wrap:wrap;gap:4px 12px;color:var(--muted);font-size:var(--vl-subtext-size)' );
