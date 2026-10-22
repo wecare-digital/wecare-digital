@@ -190,3 +190,36 @@ def test_attempt_sync_is_evidence_conditioned():
     assert subject.link(orders=table, attempts=attempts, contact=contact, customer_id=OWNER) == 1
     saved = attempts.get_item(Key={'paymentAttemptId':'attempt-1'})['Item']
     assert saved['finalizationStage'] == 'NEEDS_CUSTOMER_LINK'
+
+
+def test_reconciler_repairs_stale_attempt_for_already_finalized_order(monkeypatch):
+    from lambda_utils.ecommerce import customer_order_link as subject
+    table, attempts, contact, row = setup()
+    finalized = {**row, 'customerId': OWNER, 'finalizationStage': 'ORDER_FINALIZED',
+                 'createdAt': 900_000}
+    table.put_item(Item=finalized)
+    contacts = FakeDynamo(keys={'contacts': 'id'}).Table('contacts')
+    contacts.put_item(Item=contact)
+    monkeypatch.setattr(table, 'scan', lambda **kw: {'Items': [deepcopy(finalized)]}, raising=False)
+
+    metrics = subject.reconcile_metrics(
+        orders=table, contacts=contacts, attempts=attempts, now=1_000_000)
+
+    assert metrics == {
+        'promoted': 0, 'pendingRemaining': 0,
+        'oldestPendingAgeSeconds': 0, 'failures': 0,
+    }
+    assert attempts.get_item(
+        Key={'paymentAttemptId':'attempt-1'})['Item']['finalizationStage'] == 'ORDER_FINALIZED'
+
+
+def test_attempt_sync_failure_never_turns_a_successful_order_link_into_an_error(monkeypatch):
+    from lambda_utils.ecommerce import customer_order_link as subject
+    table, attempts, contact, row = setup()
+    def boom(**kw):
+        raise RuntimeError('attempt table unavailable')
+    monkeypatch.setattr(attempts, 'update_item', boom)
+
+    assert subject.link(
+        orders=table, attempts=attempts, contact=contact, customer_id=OWNER) == 1
+    assert table.get_item(Key={'orderId':'ord-1'})['Item']['finalizationStage'] == 'ORDER_FINALIZED'
