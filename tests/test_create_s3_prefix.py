@@ -80,7 +80,7 @@ def test_a_missing_trailing_slash_is_added():
     `_wipe_s3_prefix` would delete it on the first cleanup run, which is the exact opposite of
     why it was created."""
     mod = load_validate()
-    assert mod.validate("secure/stack/invoices") == "secure/Invoice/customer_invoice/"
+    assert mod.validate("secure/Invoice/customer_invoice") == "secure/Invoice/customer_invoice/"
 
 
 @pytest.mark.parametrize("root", ["o/", "secure/", "/o/"])
