@@ -4516,7 +4516,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
           /* Dense live-data roles still inherit from the public type ladder instead of carrying
              one-off 11.5/13px values. Mobile raises readable copy one rung without inflating
              true metadata, matching the Home mobile foundation's readability contract. */
-          --vl-data-size:var(--public-cta-font-size,17px);--vl-subtext-size:var(--public-mobile-form-font-size,16px);--vl-meta-size:var(--text-md);--vl-compact-copy-size:var(--vl-subtext-size);
+          --vl-data-size:var(--public-data-size);--vl-subtext-size:var(--public-supporting-size);--vl-meta-size:var(--public-meta-size);--vl-compact-copy-size:var(--vl-subtext-size);
           --vl-section-gap:24px;--vl-section-pad:20px;--vl-heading-gap:14px;--vl-content-gap:16px;--vl-action-size:var(--tap-min);
           font-family:var(--font-sans);color:var(--body);background:var(--page);padding-bottom:72px;-webkit-font-smoothing:antialiased;
         }
