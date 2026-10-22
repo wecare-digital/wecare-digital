@@ -1946,13 +1946,20 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
             color:var(--public-body);margin:0;
           }
           .cart-empty{margin:0}
-          .cart-list{list-style:none;margin:0;padding:0}
-          /* 1px #e5e7eb is the static hairline, per the rule that 1px is a static edge and 2px a
-             hoverable one. Logical block-end so a mirrored document keeps the rule under the row. */
+          /* The cart is one review surface rather than a stack of loose divider rows. Keep one
+             neutral card around the basket, matching the Orders table container: white fill,
+             1px static hairline, 16px radius, no decorative shadow. */
+          .cart-list{
+            list-style:none;margin:0;padding:0 20px;
+            border:1px solid var(--public-hairline);border-radius:16px;background:#fff;
+            overflow:hidden;
+          }
+          /* Rows stay structurally identical; only the visual grouping changes. */
           .cart-row{
             display:flex;justify-content:space-between;align-items:center;gap:24px;
-            padding-block:20px;border-block-end:1px solid #e5e7eb;flex-wrap:wrap;
+            padding-block:20px;border-block-end:1px solid var(--public-hairline);flex-wrap:wrap;
           }
+          .cart-row:last-child{border-block-end:0}
           .cart-row-main{min-width:0}
           /* The card-heading rung: 22px/700/lh1.27/-.25px, the same three numbers as .shop-name
              and .shopd-price, which is what makes the cart read as the same site as the catalogue.
@@ -2076,7 +2083,10 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
           }
           .cart-utility :global(a:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px;border-radius:2px}
           @media(max-width:767px){
-            .cart-row{gap:16px}
+            .cart-list{padding-inline:16px;border-radius:14px}
+            .cart-row{gap:16px;padding-block:18px}
+            .cart-row-main{flex:1 1 100%}
+            .cart-row-controls{width:100%;justify-content:space-between}
             .cart-utility{display:grid;grid-template-columns:1fr}
             .cart-utility :global(a){width:100%}
           }
