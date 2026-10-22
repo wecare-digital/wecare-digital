@@ -673,14 +673,19 @@ const ElsewhereTravelAssistant: React.FC = () => {
         }
         .eta-send:not(:disabled):active{background:var(--lime-hover);box-shadow:inset 0 0 0 2px rgba(26,58,42,.10)}
         .eta-send:disabled{background:#e4e8dd;color:#8b9288;box-shadow:none;cursor:not-allowed}
-        .eta-chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+        .eta-chips{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:16px}
         .eta-chip{
-          min-height:44px;padding:12px 16px;border:1px solid var(--public-hairline);border-radius:999px;background:#fff;color:var(--public-heading);
-          font-size:15px;font-weight:600;line-height:1.2;letter-spacing:-.1px;cursor:pointer;transition:background .15s ease,border-color .15s ease,box-shadow .15s ease;
+          flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+          width:max-content;max-width:100%;min-height:var(--tap-min);box-sizing:border-box;
+          padding:0 18px;border:2px solid var(--public-hairline);border-radius:999px;
+          background:#fff;color:var(--public-brand-green);font-family:var(--font-sans);
+          font-size:14px;font-weight:600;line-height:1.2;letter-spacing:-.125px;text-align:center;
+          white-space:normal;overflow-wrap:anywhere;cursor:pointer;
+          transition:background-color .2s,border-color .2s,transform .2s,box-shadow .2s;
           touch-action:manipulation;-webkit-tap-highlight-color:transparent;
         }
-        .eta-chip:active{border-color:var(--public-brand-green);background:var(--public-lime-tint);box-shadow:inset 0 0 0 1px rgba(26,58,42,.06)}
-        .eta-chip.active{border-color:#aeca47;background:var(--public-lime-tint);color:var(--public-brand-green);box-shadow:none}
+        .eta-chip:active{border-color:var(--public-brand-green);background:var(--public-lime-tint)}
+        .eta-chip.active{border-color:var(--public-brand-green);background:var(--public-brand-lime);color:var(--public-brand-green);box-shadow:none}
         .eta-loading{display:flex;align-items:center;gap:10px;margin-top:6px;color:var(--public-muted);font-size:13px;font-weight:600;line-height:1.4}
         .eta-loading-line{position:relative;width:34px;height:3px;flex:0 0 34px;overflow:hidden;border-radius:999px;background:var(--public-lime-tint)}
         .eta-loading-line::after{content:'';position:absolute;inset:0 auto 0 0;width:45%;border-radius:inherit;background:var(--public-brand-lime);animation:eta-loading 1.15s ease-in-out infinite}
@@ -693,7 +698,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
         }
         @media(hover:hover) and (pointer:fine){
           .eta-tab:hover::before{background:rgba(239,249,207,.78)}
-          .eta-chip:hover{border-color:#bfd36f;background:var(--public-lime-tint)}
+          .eta-chip:hover{border-color:var(--public-brand-lime);background:var(--public-lime-tint);transform:translateY(-2px);box-shadow:var(--public-lift-shadow)}
           .eta-action:hover{
             background:#fff;
             transform:translateY(-1px);box-shadow:0 5px 14px rgba(26,58,42,.1);
