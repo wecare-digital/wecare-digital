@@ -224,7 +224,7 @@ CLEANUP_RESOURCES = {
         # This entry has to move with it or cleanup silently sweeps an empty prefix and the real
         # objects accumulate forever — a counter reading zero looks like success.
         'type': 's3',
-        'prefix': media_paths.secure('stack/invoices/'),
+        'prefix': media_paths.secure('Invoice/customer_invoice/'),
     },
     's3_whatsapp_media': {
         'label': 'S3: WhatsApp Media',
