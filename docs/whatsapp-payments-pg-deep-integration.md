@@ -119,6 +119,11 @@ name; `WECAREDIGITAL` is now verified, so it is not a guess.
   or → terminal; `completed`/`canceled` terminal. Errors `2046` (bad transition),
   `2047` (cannot cancel a paid order). The order page in-chat only reflects
   `order_status` messages, so one MUST be sent after every PG transaction update.
+- After Meta accepts a fulfilment `order_status` update for a paid order, WECARE.DIGITAL also
+  sends the approved `wecare_default_invoice_image_template` using the already-issued invoice
+  image from `s3://wecare-digital-get/secure/Invoice/customer_invoice/`. The invoice send is a
+  separate template delivery; it does not replace the `order_status` message or alter the
+  `reference_id` lifecycle.
 
 ### 6. Refunds (Step 8)
 - `POST /[PHONE_NUMBER_ID]/payments_refund` with `reference_id`, `speed`
