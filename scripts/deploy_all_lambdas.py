@@ -224,6 +224,7 @@ SPECS: List[Spec] = [
     Spec(
         "wecare-checkout",
         "ecommerce/checkout",
+        extra_files=["invoice_engine.py"],
         provisioned_by="python scripts/provision_checkout.py",
     ),
     # The customer's own order history and profile summary, read-only. One Query on the sparse
