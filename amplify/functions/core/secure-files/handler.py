@@ -43,11 +43,12 @@ pool id, so a customer token would pass ``get_user`` and then silently fall
 through to role ``Viewer`` when its group lookup found nothing. Customer auth is
 ``_customer_identity`` below.
 
-Payment is built but switched off
----------------------------------
-``SECURE_FILES_PAYMENT_ENABLED`` defaults to off. While off, order creation
-refuses rather than contacting Razorpay, so no payment configuration is touched
-and no credential is read. Enabling it is an owner action.
+Payment initiation does not live here
+-------------------------------------
+Secure-files owns entitlement verification, redemption and delivery only. New purchases must
+enter through the canonical commerce/checkout PaymentAttempt path. Legacy settlement helpers are
+retained temporarily only so an already-issued historical secure-file Razorpay order can still be
+verified and delivered; no HTTP route in this Lambda can create a new payment.
 """
 
 from __future__ import annotations
@@ -1183,86 +1184,6 @@ def _owned_active_file(file_id: str, identity: Dict[str, Any]) -> Optional[Dict[
     return item
 
 
-def _create_order(file_id: str, identity: Dict[str, Any], origin: str) -> Dict[str, Any]:
-    """Razorpay Checkout on the web. FALLBACK, not the primary path.
-
-    Nothing in the UI calls this - the page uses ``/whatsapp-pay``. It is kept
-    deliberately rather than left behind as an oversight: it is the only route by which
-    a customer who has already paid can collect a file when WhatsApp delivery keeps
-    failing. ``scripts/reconcile_file_deliveries.py`` retries the send, but a
-    permanently unreachable number - blocked, ported away, WhatsApp removed - cannot be
-    retried into working, and without this the only recovery is an operator presigning
-    an object by hand.
-
-    See docs/SECURE-FILE-SHARING.md. If it is ever removed, a replacement recovery path
-    has to exist first.
-    """
-    item = _owned_active_file(file_id, identity)
-    if not item:
-        return _not_registered(origin)
-
-    # feat-006: never charge while a window is open. The customer already has free access.
-    if _window_already_open(identity, file_id):
-        return cors_response(
-            409,
-            {
-                "error": "ACCESS_WINDOW_OPEN",
-                "message": "Your access window is still open — download is free right now, no payment needed.",
-            },
-            origin,
-        )
-
-    if not _payment_enabled():
-        # Refuse loudly rather than silently granting. Nothing here contacts
-        # Razorpay or reads a credential while the flag is off.
-        return cors_response(
-            503,
-            {
-                "error": "PAYMENT_DISABLED",
-                "message": "Paid downloads are not enabled yet.",
-                "pricePaise": int(item.get("pricePaise", PRICE_PAISE)),
-            },
-            origin,
-        )
-
-    from razorpay_orders import create_order  # imported lazily: only needed when live
-
-    order = create_order(
-        amount_paise=int(item.get("pricePaise", PRICE_PAISE)),
-        receipt=f"dl_{file_id[:24]}",
-        notes={"fileId": file_id, "purpose": "secure_file_download"},
-    )
-
-    now = int(time.time())
-    grant_id = uuid.uuid4().hex
-    _table(GRANTS_TABLE).put_item(
-        Item={
-            "grantId": grant_id,
-            "fileId": file_id,
-            "ownerPhone": identity["phone"],
-            "customerId": identity['subject'],
-            "orderId": order["id"],
-            "amountPaise": int(item.get("pricePaise", PRICE_PAISE)),
-            # paid flips only in the webhook, never from a client callback
-            "paid": False,
-            "consumed": False,
-            "createdAt": now,
-            "expiresAt": now + GRANT_TTL,
-        }
-    )
-    return cors_response(
-        201,
-        {
-            "grantId": grant_id,
-            "orderId": order["id"],
-            "amountPaise": int(item.get("pricePaise", PRICE_PAISE)),
-            "currency": "INR",
-            "keyId": order.get("key_id", ""),
-        },
-        origin,
-    )
-
-
 def _confirm_with_razorpay(grant: Dict[str, Any], via: str = "webhook") -> Tuple[bool, str]:
     """Ask Razorpay whether this grant's order really has a captured payment.
 
@@ -1490,55 +1411,6 @@ def _download_url(item: Dict[str, Any], ttl: Optional[int] = None) -> str:
         ExpiresIn=int(ttl or DOWNLOAD_URL_TTL),
     )
 
-
-def _send_whatsapp_payment(file_id: str, identity: Dict[str, Any], origin: str):
-    """Compatibility endpoint for the retired secure-files-specific payment rail.
-
-    Secure files no longer construct ORDER_DETAILS or reserve an independent payment reference.
-    All new payable products must enter through the canonical commerce/checkout path so there is
-    only one PaymentAttempt, one provider binding and one finalization path.
-
-    The production feature flag is already off.  Keep the route during migration so old clients
-    fail closed with a named response instead of falling through to a different handler.
-    """
-    item = _owned_active_file(file_id, identity)
-    if not item:
-        return _not_registered(origin)
-
-    # Never charge while an existing entitlement window is open.
-    if _window_already_open(identity, file_id):
-        return cors_response(
-            409,
-            {
-                "error": "ACCESS_WINDOW_OPEN",
-                "message": "Your access window is still open — download is free right now, no payment needed.",
-            },
-            origin,
-        )
-
-    if not _payment_enabled():
-        return cors_response(
-            503,
-            {
-                "error": "PAYMENT_DISABLED",
-                "message": "Paid downloads are not enabled yet.",
-                "pricePaise": int(item.get("pricePaise", PRICE_PAISE)),
-            },
-            origin,
-        )
-
-    # Fail closed even if somebody accidentally flips the legacy feature flag.  The old
-    # implementation minted WD-FILE references and built its own ORDER_DETAILS payload, which
-    # created a second money state machine beside checkout.  That path is deliberately retired.
-    return cors_response(
-        409,
-        {
-            "error": "CHECKOUT_REQUIRED",
-            "message": "This purchase must be started from checkout.",
-            "pricePaise": int(item.get("pricePaise", PRICE_PAISE)),
-        },
-        origin,
-    )
 
 def deliver_over_whatsapp(grant_id: str) -> Tuple[bool, str]:
     """Send the paid file to the customer on WhatsApp. Called only after payment.
@@ -2020,15 +1892,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return _no_store(cors_response(401, {"error": "Verification required"}, origin))
             return _dropdocs_list(tail[1], identity, origin)
 
-        if len(tail) == 2 and tail[1] in ("order", "download", "whatsapp-pay"):
+        if len(tail) == 2 and tail[1] == "download":
             identity = _customer_identity(event)
             if not identity:
                 return cors_response(401, {"error": "Verification required"}, origin)
-            if tail[1] == "order" and method == "POST":
-                return _create_order(tail[0], identity, origin)
-            if tail[1] == "whatsapp-pay" and method == "POST":
-                return _send_whatsapp_payment(tail[0], identity, origin)
-            if tail[1] == "download" and method == "GET":
+            if method == "GET":
                 return _redeem(tail[0], event, identity, origin)
             return cors_response(405, {"error": "Method not allowed"}, origin)
 
