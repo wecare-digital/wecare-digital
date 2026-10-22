@@ -12,6 +12,9 @@ on:
       - 'src/components/SupportWidget.tsx'
       - 'src/components/WorkflowTerminal.tsx'
       - 'src/components/RotatingHero.tsx'
+      - 'src/components/LegalDocument.tsx'
+      - 'src/pages/privacy.tsx'
+      - 'src/pages/terms.tsx'
       - 'src/components/VayuLok*.tsx'
       - 'src/components/public/**'
       - 'src/pages/index.tsx'
@@ -37,6 +40,9 @@ on:
       - 'src/components/SupportWidget.tsx'
       - 'src/components/WorkflowTerminal.tsx'
       - 'src/components/RotatingHero.tsx'
+      - 'src/components/LegalDocument.tsx'
+      - 'src/pages/privacy.tsx'
+      - 'src/pages/terms.tsx'
       - 'src/components/VayuLok*.tsx'
       - 'src/components/public/**'
       - 'src/pages/index.tsx'
@@ -135,5 +141,5 @@ jobs:
 
       - name: Run migrated public-page device + 200% reflow contracts
         run: |
-          node tools/browser/devicecheck.js --${{ matrix.browser }} / /grahak-os/ /vayulok/ /elsewhere/activities/
-          node tools/browser/rtlcheck.js --${{ matrix.browser }} / /grahak-os/ /vayulok/ /elsewhere/activities/
+          node tools/browser/devicecheck.js --${{ matrix.browser }} / /grahak-os/ /vayulok/ /elsewhere/activities/ /terms/ /privacy/
+          node tools/browser/rtlcheck.js --${{ matrix.browser }} / /grahak-os/ /vayulok/ /elsewhere/activities/ /terms/ /privacy/
