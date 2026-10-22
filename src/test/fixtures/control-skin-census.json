@@ -522,8 +522,7 @@
     "src/styles/form-controls.css",
     "src/styles/inner-pages.css",
     "src/styles/inner-ux.css",
-    "src/styles/tokens.css",
-    "src/styles/workspace.css"
+    "src/styles/tokens.css"
   ],
   "generator": "scripts/census_control_skins.py --json",
   "hits": [
@@ -1971,19 +1970,19 @@
     "sample": ".ui-planted{border:1px solid ${colors.border};border-radius:9px;padding:4px 8px} .ui-planted:focus{box-shadow:${shadow.focus}} .ui-untouched{color:#333}"
   },
   "summary": {
-    "files": 24,
-    "geometryFiles": 23,
-    "geometryRuleSets": 31,
+    "files": 23,
+    "geometryFiles": 22,
+    "geometryRuleSets": 30,
     "matchModes": {
       "class": 4,
-      "element": 64
+      "element": 63
     },
     "mechanisms": {
       "A-global": {
-        "files": 10,
-        "geometryFiles": 10,
-        "geometryRuleSets": 18,
-        "ruleSets": 43
+        "files": 9,
+        "geometryFiles": 9,
+        "geometryRuleSets": 17,
+        "ruleSets": 42
       },
       "A-module": {
         "files": 0,
@@ -2004,7 +2003,7 @@
         "ruleSets": 3
       }
     },
-    "pairings": 22,
-    "ruleSets": 68
+    "pairings": 21,
+    "ruleSets": 67
   }
 }
