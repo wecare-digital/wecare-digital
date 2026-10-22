@@ -185,6 +185,18 @@ def test_catalogue_accepts_wecare_digital_retailer_ids():
     ]
 
 
+def test_catalogue_v2_retailer_id_round_trips_native_product_and_short_sku():
+    product_id = "native:hunar-kaushal"
+    variant_id = "KSL9M2Q4"
+    encoded = retailer(product_id, variant_id)
+    assert encoded.startswith("WECARE.DIGITAL:v2:")
+    basket = wb.parse_order_message(order_message([item(encoded, 2)]))
+    assert basket is not None
+    assert basket.lines == [
+        {"productId": product_id, "variantId": variant_id, "quantity": 2},
+    ]
+
+
 # ── the phone binding ─────────────────────────────────────────────────────────
 
 
