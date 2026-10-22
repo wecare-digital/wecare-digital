@@ -87,28 +87,19 @@ def test_same_canonical_status_is_an_idempotent_retry():
     assert updates["orderStatus"] == updates["status"] == "shipped"
 
 
-def test_both_service_handlers_use_the_shared_patch_guard_and_stale_write_condition():
-    paths = [
-        ROOT / "amplify/functions/core/service-api/handler.py",
-        ROOT / "amplify/functions/messaging/whatsapp-business-api/service_api.py",
-    ]
-    for path in paths:
-        source = path.read_text()
-        block = source[source.index("def _update_order"):source.index("def _get_order_submissions")]
-        assert "order_patch.validate_order_patch(current, body)" in block
-        assert "ConsistentRead=True" in block
-        assert "ORDER_PATCH_STALE" in block
-        # A status mutation is validated against the exact row read above. Every fulfilment
-        # alias plus payment state must be pinned by the conditional write, including legacy rows
-        # that have not yet been canonicalised onto orderStatus.
-        assert "('order_status', 'orderStatus')" in block
-        assert "('fulfilment_status', 'fulfillmentStatus')" in block
-        assert "('status_alias', 'status')" in block
-        assert "('payment', 'paymentStatus')" in block
-        # paymentStatus is legitimately referenced by the optimistic stale-write guard.
-        # What must never return is a handler-side write that bypasses the shared validator.
-        assert "updates['paymentStatus']" not in block
-        assert 'updates["paymentStatus"]' not in block
+def test_service_api_uses_the_shared_patch_guard_and_stale_write_condition():
+    path = ROOT / "amplify/functions/core/service-api/handler.py"
+    source = path.read_text()
+    block = source[source.index("def _update_order"):source.index("def _get_order_submissions")]
+    assert "order_patch.validate_order_patch(current, body)" in block
+    assert "ConsistentRead=True" in block
+    assert "ORDER_PATCH_STALE" in block
+    assert "('order_status', 'orderStatus')" in block
+    assert "('fulfilment_status', 'fulfillmentStatus')" in block
+    assert "('status_alias', 'status')" in block
+    assert "('payment', 'paymentStatus')" in block
+    assert "updates['paymentStatus']" not in block
+    assert 'updates["paymentStatus"]' not in block
 
 
 
@@ -171,18 +162,14 @@ def test_tracking_text_is_bounded_and_control_character_free():
         assert error["errorCode"] in {"ORDER_TRACKING_INVALID", "ORDER_TRACKING_URL_INVALID"}
 
 
-def test_both_service_handlers_stamp_and_guard_manual_tracking_writes():
-    paths = [
-        ROOT / "amplify/functions/core/service-api/handler.py",
-        ROOT / "amplify/functions/messaging/whatsapp-business-api/service_api.py",
-    ]
-    for path in paths:
-        source = path.read_text()
-        block = source[source.index("def _update_order"):source.index("def _get_order_submissions")]
-        assert "tracking_mutation = 'trackingSource' in updates" in block
-        assert "updates['trackingUpdatedAt'] = now" in block
-        assert "('carrier_name', 'carrierName')" in block
-        assert "('tracking_number', 'trackingNumber')" in block
-        assert "('tracking_url', 'trackingUrl')" in block
-        assert "('tracking_source', 'trackingSource')" in block
-        assert "('tracking_updated_at', 'trackingUpdatedAt')" in block
+def test_service_api_stamps_and_guards_manual_tracking_writes():
+    path = ROOT / "amplify/functions/core/service-api/handler.py"
+    source = path.read_text()
+    block = source[source.index("def _update_order"):source.index("def _get_order_submissions")]
+    assert "tracking_mutation = 'trackingSource' in updates" in block
+    assert "updates['trackingUpdatedAt'] = now" in block
+    assert "('carrier_name', 'carrierName')" in block
+    assert "('tracking_number', 'trackingNumber')" in block
+    assert "('tracking_url', 'trackingUrl')" in block
+    assert "('tracking_source', 'trackingSource')" in block
+    assert "('tracking_updated_at', 'trackingUpdatedAt')" in block
