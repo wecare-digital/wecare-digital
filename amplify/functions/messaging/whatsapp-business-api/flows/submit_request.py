@@ -206,8 +206,6 @@ def handle_review(data: Dict, flow_token: str, request_id: str,
 
     # ── Payment + confirmation (async) ──
     try:
-        _gw = cfg.get('preferredGateway', '')
-        _pg = cfg.get('paymentConfigName', '')
         lambda_client.invoke(
             FunctionName=lambda_client._endpoint.host.split('/')[-1] if hasattr(lambda_client, '_endpoint') else 'wecare-whatsapp-business-api',
             InvocationType='Event',
@@ -221,7 +219,6 @@ def handle_review(data: Dict, flow_token: str, request_id: str,
                 'payment_amount': payment_amount,
                 'flow_name': flow_name,
                 'flow_code': cfg.get('flowCode', FLOW_CODE),
-                'preferred_gateway': _gw, 'payment_config_name': _pg,
             })
         )
     except Exception as e:
@@ -235,7 +232,6 @@ def handle_review(data: Dict, flow_token: str, request_id: str,
                     order_id=order_id, subject=subject, request_id=request_id,
                     request_number=request_number, payment_ref_id=payment_ref_id,
                     payment_amount_paise=payment_amount, flow_name=flow_name,
-                    preferred_gateway=_gw, payment_config_name=_pg,
                 )
             send_confirmation(
                 phone=phone, phone_number_id=phone_number_id, request_id=request_id,

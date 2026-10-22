@@ -87,10 +87,11 @@ def test_upi_intent_link_is_refused_by_the_resolver(outbound):
             WABA1, {'reference_id': 'WD-PAY-TPLONLY1',
                     'upi_intent_link': 'upi://pay?pa=someone@bank'})
 
-    # WECAREUPI through the configuration name is still fine.
-    settings = outbound._build_payment_settings(
-        WABA1, {'reference_id': 'WD-PAY-TPLONLY1', 'payment_configuration': 'WECAREUPI'})
-    assert settings[0]['payment_gateway']['configuration_name'] == 'WECAREUPI'
+    # Alternate configuration names are removed too: only WECAREDIGITAL is supported.
+    with pytest.raises(outbound.PaymentConfigurationUnresolved):
+        outbound._build_payment_settings(
+            WABA1, {'reference_id': 'WD-PAY-TPLONLY1',
+                    'payment_configuration': 'WECAREUPI'})
 
 
 def test_the_refusal_precedes_both_link_branches(outbound):
@@ -488,16 +489,10 @@ def test_payment_details_leaves_mode_3_to_the_resolver_and_still_carries_the_nam
     assert 'payment_link_uri' not in details and 'upi_intent_link' not in details
 
 
-def test_the_configuration_the_caller_names_is_the_configuration_the_payload_sends(outbound):
-    """Asserted as an IDENTITY against a non-default name, deliberately.
-
-    Asserting `'WECAREDIGITAL'` would pass by accident of `PHONE_PAYMENT_GATEWAYS` and would not
-    catch the divergence this change exists to prevent.
-    """
+def test_caller_cannot_select_an_alternate_payment_configuration(outbound):
     details = _payment_details(configuration='WECAREUPI')
-    settings = outbound._build_payment_settings(WABA1, details)
-    assert settings[0]['payment_gateway']['configuration_name'] == 'WECAREUPI'
-
+    with pytest.raises(outbound.PaymentConfigurationUnresolved):
+        outbound._build_payment_settings(WABA1, details)
 
 def test_the_composed_order_adds_up_to_the_total_it_charges():
     """Arithmetic identity, against the keys `payment_details` actually emits — `status`, `items`,

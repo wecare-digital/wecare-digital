@@ -284,9 +284,8 @@ def save_flow_submission(flow_code: str, flow_type: str, phone: str,
 
 def send_payment(phone: str, phone_number_id: str, order_id: str, subject: str,
                  request_id: str, request_number: str, payment_ref_id: str,
-                 payment_amount_paise: int, flow_name: str = 'Service Request',
-                 preferred_gateway: str = '', payment_config_name: str = '') -> str:
-    """Create invoice + send payment link. Returns invoice number or empty string.
+                 payment_amount_paise: int, flow_name: str = 'Service Request') -> str:
+    """Create invoice + send the approved WhatsApp ORDER_DETAILS template. Returns invoice number or empty string.
     ONLY call this for flows that require payment. Amount comes from flow config.
     """
     if not payment_amount_paise or not phone:
@@ -316,11 +315,6 @@ def send_payment(phone: str, phone_number_id: str, order_id: str, subject: str,
         'gstRate': 18,
         'items': [{'name': flow_name, 'amount': amount_rupees, 'quantity': 1, 'gstRate': 18}],
     }
-    if preferred_gateway:
-        invoice_body['preferredGateway'] = preferred_gateway
-    if payment_config_name:
-        invoice_body['paymentConfiguration'] = payment_config_name
-
     try:
         resp = lambda_client.invoke(
             FunctionName=INVOICE_ENGINE_FUNCTION,
@@ -340,7 +334,7 @@ def send_payment(phone: str, phone_number_id: str, order_id: str, subject: str,
             logger.error(json.dumps({'event': 'invoice_create_failed', 'response': body, 'requestId': request_id}))
             return ''
 
-        # Send payment link
+        # Send approved WhatsApp ORDER_DETAILS payment template
         send_phone_id = phone_number_id or PHONE1_ID
         send_resp = lambda_client.invoke(
             FunctionName=INVOICE_ENGINE_FUNCTION,

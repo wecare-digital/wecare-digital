@@ -3586,8 +3586,6 @@ _PAYMENT_WABA_ID = os.environ.get('PAYMENT_WABA_ID', '')
 _DECLARED_CONFIGS = [
     {'name': 'WECAREDIGITAL', 'status': 'local_only', 'type': 'payment_gateway',
      'gateway': 'razorpay', 'mid': _RAZORPAY_MID},
-    {'name': 'WECAREUPI', 'status': 'local_only', 'type': 'upi',
-     'gateway': 'razorpay', 'upiId': _RAZORPAY_UPI_ID},
 ]
 
 PAYMENT_CONFIGS = {
@@ -4440,8 +4438,6 @@ def _upsert_flow_registry(body: Dict) -> Dict:
             'requiresPayment': body.get('requiresPayment', False),
             'paymentAmount': int(body.get('paymentAmount', 0)),
             'paymentDescription': body.get('paymentDescription', ''),
-            'preferredGateway': body.get('preferredGateway', ''),
-            'paymentConfigName': body.get('paymentConfigName', ''),
             'screenConfig': body.get('screenConfig', '{}'),
             'contactMapping': body.get('contactMapping', '{}'),
             'dataFetchers': body.get('dataFetchers', '{}'),
@@ -4454,7 +4450,7 @@ def _upsert_flow_registry(body: Dict) -> Dict:
         if body.get('publishedAt'):
             item['publishedAt'] = Decimal(str(body['publishedAt']))
         # Optional extended metadata (Part 4 A) — only persisted when provided.
-        for opt_key in ('preferredGateway', 'abTestConfig', 'healthStatusJson', 'validationErrorsJson',
+        for opt_key in ('abTestConfig', 'healthStatusJson', 'validationErrorsJson',
                         'previewUrl', 'clonedFromFlowId', 'migrationBatchId', 'dataChannelUri',
                         'jsonVersion', 'applicationId', 'categories'):
             if body.get(opt_key):
@@ -4645,7 +4641,7 @@ def _sync_flows(params: Dict, body: Dict) -> Dict:
             update['previewExpiresAt'] = Decimal(str(now + 600))
         # Preserve config-only fields already present.
         for keep in ('flowCode', 'flowType', 'flowVersion', 'requiresPayment', 'paymentAmount',
-                     'paymentConfigName', 'screenConfig', 'contactMapping', 'dataFetchers',
+                     'screenConfig', 'contactMapping', 'dataFetchers',
                      'submissionPrefix', 'endpointUri', 'createdAt'):
             if keep in existing and keep not in update:
                 update[keep] = existing[keep]
@@ -5196,20 +5192,16 @@ def _checkout_apply_shipping(order_details: dict, input_data: dict,
 
 def _send_payment_after_flow(phone: str, order_id: str, subject: str, request_id: str,
                              request_number: str = '', payment_ref_id: str = '',
-                             preferred_gateway: str = '', payment_config_name: str = '',
                              phone_number_id: str = '',
                              payment_amount_paise: int = 0,
                              flow_name: str = 'Service Request') -> str:
     """
-    Create an invoice via invoice-engine, then send payment link through that invoice.
+    Create an invoice via invoice-engine, then send the approved WhatsApp ORDER_DETAILS template.
     This integrates Submit Request payments into the common invoice infrastructure
     so they appear in the Pay Flow / Invoices tab alongside all other invoices.
     
     CRITICAL: payment_amount_paise MUST be passed by the caller from flow registry.
     Do NOT hardcode any amount — each flow defines its own payment config.
-    
-    preferred_gateway: 'razorpay' (only supported value) — passed to invoice-engine
-    payment_config_name: specific Meta PG config name ('WECAREDIGITAL' or 'WECAREUPI')
     
     Returns the invoice number (or empty string on failure).
     """
@@ -5273,11 +5265,6 @@ def _send_payment_after_flow(phone: str, order_id: str, subject: str, request_id
             'gstRate': 18,
         }],
     }
-    # Add gateway preference from flow registry config
-    if preferred_gateway:
-        invoice_body['preferredGateway'] = preferred_gateway
-    if payment_config_name:
-        invoice_body['paymentConfiguration'] = payment_config_name
 
     try:
         create_resp = lambda_client.invoke(
@@ -5746,8 +5733,6 @@ def _handle_async_post_submit(event: Dict, request_id: str) -> Dict:
     subject = event.get('subject', '')
     request_number = event.get('request_number', '')
     payment_ref_id = event.get('payment_ref_id', '')
-    preferred_gateway = event.get('preferred_gateway', '')
-    payment_config_name = event.get('payment_config_name', '')
     requires_payment = event.get('requires_payment', False)
     payment_amount = event.get('payment_amount', 0)
     flow_name = event.get('flow_name', 'Request')
@@ -5789,8 +5774,6 @@ def _handle_async_post_submit(event: Dict, request_id: str) -> Dict:
                     subject=subject, request_id=request_id,
                     request_number=request_number,
                     payment_ref_id=payment_ref_id,
-                    preferred_gateway=preferred_gateway,
-                    payment_config_name=payment_config_name,
                     phone_number_id=phone_number_id,
                     payment_amount_paise=payment_amount,
                     flow_name=flow_name,

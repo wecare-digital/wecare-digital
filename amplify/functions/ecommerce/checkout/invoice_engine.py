@@ -406,8 +406,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if method == 'POST' and 'send-payment-link' in path:
             inv_id = path_params.get('invoiceId') or body.get('invoiceId')
             phone_number_id = body.get('phoneNumberId')
-            payment_configuration = body.get('paymentConfiguration', '')
-            return send_payment_link(inv_id, phone_number_id, payment_configuration, request_id)
+            return send_payment_link(inv_id, phone_number_id, request_id)
 
         # POST /invoices/{id}/order-status — send a WhatsApp fulfilment status update
         # (shipped/completed/…) for a PAID order. Checked BEFORE 'cancel' because the two share
@@ -1354,9 +1353,7 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
         'gstin': body.get('gstin', COMPANY['gstin']),
         'purpose': body.get('purpose', ''),
         'notes': body.get('notes', ''),
-        # Payment routing — which PG config to use when customer triggers via keyword
-        'preferredGateway': body.get('preferredGateway', ''),  # 'razorpay' only
-        'paymentConfiguration': body.get('paymentConfiguration', ''),  # exact Meta config name
+        # WhatsApp payment routing is server-owned: WABA1 + WECAREDIGITAL + Razorpay.
         # Structured address for WhatsApp Payments shipping_info
         'addressLine1': body.get('addressLine1', ''),
         'addressLine2': body.get('addressLine2', ''),
@@ -3154,12 +3151,9 @@ def send_pending_by_phone(body: Dict, request_id: str) -> Dict:
     # Send payment link for FIRST invoice only (sequential pay)
     first = all_pending[0]
     first_id = first.get('invoiceId', '')
-    # Use the PG config stored on the invoice (set by admin at creation time)
-    # Falls back to empty string → outbound handler uses phone's default Razorpay
-    first_pg_config = first.get('paymentConfiguration', '') or ''
     send_error = ''
     try:
-        result = send_payment_link(first_id, phone_number_id, first_pg_config, request_id,
+        result = send_payment_link(first_id, phone_number_id, request_id,
                                    verify_phone=customer_phone)
         result_code = result.get('statusCode', 0)
         if result_code == 200:
@@ -3316,13 +3310,13 @@ def _payment_delivery_info(invoice: Dict, contact: Optional[Dict], phone: str) -
     }]}
 
 
-def send_payment_link(invoice_id: str, phone_number_id: str, payment_configuration: str,
+def send_payment_link(invoice_id: str, phone_number_id: str,
                       request_id: str, verify_phone: str = '') -> Dict:
-    """Send WhatsApp interactive payment message for a pending invoice.
-    Creates the order_details message with review_and_pay action.
-    payment_configuration: optional PG config name ('WECAREDIGITAL' or 'WECAREUPI').
-    If empty, outbound handler uses the phone's default Razorpay config.
-    verify_phone: if provided, blocks sending if invoice doesn't belong to this phone.
+    """Send the one supported WhatsApp payment: approved ORDER_DETAILS template.
+
+    The payment configuration is server-owned (WECAREDIGITAL/Razorpay). Callers cannot choose
+    another configuration or payment mechanism. ``verify_phone`` may additionally pin the
+    invoice to a verified recipient.
     """
     if not invoice_id:
         return _resp(400, {'error': 'invoiceId required'})
@@ -3529,11 +3523,10 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
             logger.warning(json.dumps({
                 'event': 'invoice_phone_unresolved_using_primary',
                 'invoiceId': invoice.get('invoiceId', ''),
-                'paymentConfiguration': payment_configuration or invoice.get('paymentConfiguration', ''),
+                'paymentConfiguration': WA_PAY_CONFIG_NAME,
                 'phoneId': phone_number_id,
-                'note': 'config name cannot identify a WABA; both expose '
-                        'WECAREDIGITAL/WECAREUPI. Defaulting to the primary '
-                        'identity; never to the admin-gated secondary.',
+                'note': 'WhatsApp payments are pinned to the primary WABA and the '
+                        'WECAREDIGITAL Razorpay configuration.',
             }))
 
     # ══ RESERVE BEFORE SEND ══════════════════════════════════════════════════════════════
@@ -3548,9 +3541,7 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
     # UI, the business-API route, a Flow completion, the inbound auto-send and the auto-send
     # chain - and without it one pending invoice can receive a payment request from two of them
     # concurrently, producing two references, two captures and two orders.
-    configuration_name = (payment_configuration
-                          or invoice.get('paymentConfiguration', '')
-                          or WA_PAY_CONFIG_NAME)
+    configuration_name = WA_PAY_CONFIG_NAME
 
     # ══ A1: READINESS BEFORE RESERVATION ═════════════════════════════════════════════════════
     #
@@ -3581,20 +3572,6 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
         return _resp(409, {'error': wa_payment_request.REFUSAL_MESSAGES[
                                wa_payment_request.WA_PAY_SENDER_NOT_PERMITTED],
                            'code': wa_payment_request.WA_PAY_SENDER_NOT_PERMITTED})
-
-    # A configuration this deployment cannot prove is refused by name, with a cause, before the
-    # provider read. In practice this refuses `WECAREUPI`; nothing live sends it. With
-    # `WA_PAY_CONFIG_NAME` unset both sides are `''`, so this check passes and `evaluate` then
-    # reports CONFIGURATION_UNVERIFIED on the empty name — still closed, one branch later.
-    if configuration_name != WA_PAY_CONFIG_NAME:
-        logger.error(json.dumps({'event': 'wa_payment_config_not_provable',
-                                 'invoiceId': invoice_id,
-                                 'configurationName': configuration_name,
-                                 'code': WA_PAY_CONFIG_NOT_PROVABLE,
-                                 'requestId': request_id}))
-        return _resp(409, {'error': 'That payment configuration cannot be verified on this '
-                                    'path. Nothing has been charged.',
-                           'code': WA_PAY_CONFIG_NOT_PROVABLE})
 
     # `evaluate`, not `evaluate_for_delivery`. The send is unconditionally template-only
     # (`isCheckoutTemplate` + `WA_PAY_TEMPLATE`), so the 24-hour window is irrelevant to
