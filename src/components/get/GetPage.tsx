@@ -237,45 +237,6 @@ export default function FilesPage () {
         }
     };
 
-    /**
-     * Hand the payment off to WhatsApp and stop.
-     *
-     * Everything after this happens on the handset: the customer pays through the
-     * `wecare_whatapp_native_pay_template` template's ORDER_DETAILS button, the Razorpay webhook verifies the
-     * signature, and the file is delivered as a WhatsApp document. So this page has
-     * nothing to poll for and no download to trigger — which is why there is no
-     * Razorpay Checkout script here any more.
-     */
-    /* Website checkout is intentionally unavailable for file delivery. Payment remains on
-     * WhatsApp until a fresh, dedicated website payment product is deliberately introduced. */
-    const handlePayOnWhatsApp = async ( file: SecureFile ) => {
-        setError( '' );
-        setMessage( '' );
-        setWorking( file.fileId );
-        try
-        {
-            const sent = await api.requestFilePaymentOnWhatsApp( file.fileId );
-            if ( !sent.ok )
-            {
-                setError(
-                    sent.failure.status === 503
-                        ? 'Paid downloads are not switched on yet. Please contact us.'
-                        : sent.failure.message || 'Could not send the payment request',
-                );
-                return;
-            }
-            setMessage(
-                `Payment request sent to ${sent.data.sentTo} on WhatsApp. `
-                + 'Pay there and your file will arrive in the same chat.',
-            );
-        } catch ( err: any )
-        {
-            setError( err?.message || 'Could not send the payment request' );
-        } finally
-        {
-            setWorking( '' );
-        }
-    };
 
     return (
         <>
@@ -476,25 +437,15 @@ export default function FilesPage () {
                                         amount is the thing being agreed to, and the action segment
                                         is the control's accessible name - so the button answers to
                                         "Pay ₹49 on WhatsApp", which is what it does. */}
-                                    <PillButton
-                                        as="button"
-                                        type="button"
-                                        label="Pay"
-                                        action={ working === file.fileId
-                                            ? 'Sending…'
-                                            : `${rupees( file.pricePaise || price )} on WhatsApp` }
-                                        block
-                                        onClick={ () => handlePayOnWhatsApp( file ) }
-                                        disabled={ !!working }
-                                        busy={ working === file.fileId }
-                                    />
-                                    {/* File payment is handled by the verified WhatsApp payment flow above. */}
+                                    <p className="sf-fine">
+                                        Purchase access is handled through the main checkout flow.
+                                    </p>
+
                                 </div>
                             ) ) }
 
                             <p className="sf-fine">
-                                Each download is charged separately. Payment and the file
-                                both happen on WhatsApp, on the number you verified.
+                                Secure-file delivery remains here; new purchases are created through checkout.
                             </p>
                             <button
                                 className="sf-quiet"
