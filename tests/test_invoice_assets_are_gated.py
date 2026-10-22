@@ -1,14 +1,14 @@
 """A rendered invoice must not be fetchable by URL.
 
 An invoice PNG/PDF carries the customer's name, address, the amount and the GST breakdown.
-It used to be written under `media_paths.public('stack/invoices/')` — the `o/` root, which
+It used to be written under `media_paths.public('Invoice/customer_invoice/')` — the `o/` root, which
 CloudFront serves with **no authentication** — and the API handed back
 `https://{CDN_DOMAIN}/{s3_key}`, a permanent link. The exposure was bounded rather than
 absent (the key embeds a 70-bit reference and bucket listing is off, so it was
 unlisted-but-public: safe from enumeration, unsafe the moment a URL leaks) which is why it
 was a P1 rather than a P0.
 
-It moved to the gated root while `o/stack/invoices/` held **0 objects** and `InvoicesTable`
+It moved to the gated root while `o/Invoice/customer_invoice/` held **0 objects** and `InvoicesTable`
 held **0 rows** — measured at the time. That timing is the point: once an invoice URL has
 been delivered it cannot be retracted, which is the same argument `media_paths` records for
 the 61 approved WhatsApp template URLs.
@@ -53,11 +53,11 @@ PREFIX_SITES = [INVOICE_ENGINE, INBOUND, CLEANUP]
 
 @pytest.mark.parametrize("path", PREFIX_SITES, ids=lambda p: p.parent.name)
 def test_no_backend_site_writes_invoices_to_the_public_root(path):
-    """`media_paths.public('stack/invoices/...')` anywhere means a publicly fetchable invoice."""
+    """`media_paths.public('Invoice/customer_invoice/...')` anywhere means a publicly fetchable invoice."""
     source = path.read_text(encoding="utf-8")
     offenders = [
         match.group(0)
-        for match in re.finditer(r"media_paths\.public\(\s*f?['\"]stack/invoices/[^)]*\)", source)
+        for match in re.finditer(r"media_paths\.public\(\s*f?['\"]Invoice/customer_invoice/[^)]*\)", source)
     ]
     assert not offenders, (
         f"{path.parent.name} composes an invoice key under the PUBLIC root: {offenders}. "
@@ -71,7 +71,7 @@ def test_every_backend_site_uses_the_gated_root(path):
     """Present as well as absent: a site that stopped naming the prefix at all would pass the
     test above while quietly writing somewhere else."""
     source = path.read_text(encoding="utf-8")
-    assert re.search(r"media_paths\.secure\(\s*f?['\"]stack/invoices/", source), (
+    assert re.search(r"media_paths\.secure\(\s*f?['\"]Invoice/customer_invoice/", source), (
         f"{path.parent.name} no longer composes an invoice key with media_paths.secure(...). "
         f"All writers and the cleanup sweeper must agree on the root."
     )
@@ -219,8 +219,8 @@ def test_the_cleanup_registry_keeps_invoice_files_on_the_gated_root():
     invoice files must be swept from the same gated prefix the writers use."""
     source = CLEANUP.read_text(encoding="utf-8")
     block = source.split("'s3_invoices':", 1)[1].split("},", 1)[0]
-    assert "media_paths.secure('stack/invoices/')" in block
-    assert "media_paths.public('stack/invoices/')" not in block
+    assert "media_paths.secure('Invoice/customer_invoice/')" in block
+    assert "media_paths.public('Invoice/customer_invoice/')" not in block
 
 
 def test_a_gated_key_answers_200_with_a_fallback_rather_than_403():
