@@ -18,7 +18,7 @@
  *       day; the condition wraps onto a second line BELOW the day) — i.e. it is stacked, not a
  *       single cramped 4/5-column strip;
  *   (3) pollutant metrics stay inside the viewport with no reserved tooltip/action column;
- *   (4) Weather history uses the public 24px mobile card heading + 20px body rung;
+ *   (4) Weather history keeps the 24px mobile card heading but uses compact 16px supporting copy;
  *   (5) every Weather history range control keeps the canonical 44px touch floor.
  */
 
@@ -181,7 +181,7 @@ const WIDTHS = [ 320, 360, 375, 390, 412, 430 ];
     const summaryCentered = scoreCentered && metaCentered;
     const historyFound = Boolean( r.history );
     const historyFits = historyFound && r.history.right <= r.docClient + 1 && r.history.x >= -1;
-    const historyType = Math.abs( r.historyHeadingSize - 24 ) <= 0.1 && Math.abs( r.historyBodySize - 20 ) <= 0.1;
+    const historyType = Math.abs( r.historyHeadingSize - 24 ) <= 0.1 && Math.abs( r.historyBodySize - 16 ) <= 0.1;
     const historyButtonCount = r.historyButtonHeights.length;
     const historyTouches = historyButtonCount === 3 && r.historyButtonHeights.every( height => height >= 44 );
     const airType = r.airGaugeWordSize >= 23.9 && Number( r.airGaugeWordWeight ) >= 700;
@@ -201,5 +201,5 @@ const WIDTHS = [ 320, 360, 375, 390, 412, 430 ];
   }
   await browser.close();
   if ( failures ) { console.error( `\n${failures} width(s) FAILED` ); process.exit( 1 ); }
-  console.log( '\nAll VayuLok phone widths PASS: pollutant metrics stay compact, Weather history matches the public type/touch contract, no horizontal overflow.' );
+  console.log( '\nAll VayuLok phone widths PASS: pollutant metrics stay compact, Weather history keeps compact supporting copy and the touch contract, no horizontal overflow.' );
 } )().catch( ( e ) => { console.error( e ); process.exit( 1 ); } );
