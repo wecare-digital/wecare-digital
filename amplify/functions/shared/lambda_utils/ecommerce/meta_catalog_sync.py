@@ -522,28 +522,29 @@ def diff(desired: Sequence[Mapping[str, Any]],
     hand through `catalog-builder.tsx`, and a sync that tidied up what it did not recognise would
     delete someone's work.
     """
-    by_retailer: Dict[str, Mapping[str, Any]] = {}
+    by_identity: Dict[Tuple[str, str], Mapping[str, Any]] = {}
     foreign: List[str] = []
     for row in existing or []:
         if not isinstance(row, Mapping):
             continue
         raw = str(row.get("retailer_id") or "").strip()
-        if parse_retailer_id(raw) is None:
+        identity = parse_retailer_id(raw)
+        if identity is None:
             if raw:
                 foreign.append(raw)
             continue
-        by_retailer[raw.lower()] = row
+        by_identity[identity] = row
 
     create: List[Dict[str, Any]] = []
     update: List[Dict[str, Any]] = []
     seen: set = set()
 
     for item in desired or []:
-        key = str(item.get("retailer_id") or "").strip().lower()
-        if not key:
+        identity = parse_retailer_id(item.get("retailer_id"))
+        if identity is None:
             continue
-        seen.add(key)
-        current = by_retailer.get(key)
+        seen.add(identity)
+        current = by_identity.get(identity)
         if current is None:
             create.append(dict(item))
             continue
@@ -555,8 +556,8 @@ def diff(desired: Sequence[Mapping[str, Any]],
             update.append(changed)
 
     retire: List[Dict[str, Any]] = []
-    for key, row in by_retailer.items():
-        if key in seen:
+    for identity, row in by_identity.items():
+        if identity in seen:
             continue
         if str(row.get("availability") or "").strip().lower() == OUT_OF_STOCK:
             # Already retired. Re-sending it would be a write that changes nothing, and a plan
