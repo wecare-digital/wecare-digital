@@ -322,7 +322,6 @@ SPECS: List[Spec] = [
     Spec("wecare-outbound-whatsapp", "messaging/outbound-whatsapp"),
     Spec("wecare-whatsapp-voice", "messaging/whatsapp-voice"),
     Spec("wecare-whatsapp-calling", "messaging/whatsapp-calling"),
-    Spec("wecare-whatsapp-templates", "messaging/whatsapp-templates"),
     Spec("wecare-whatsapp-template-management", "messaging/whatsapp-template-management"),
     Spec(
         "wecare-whatsapp-business-api",
