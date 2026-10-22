@@ -51,6 +51,11 @@ name: UI labels
 # provider that is genuinely in use is approved in scripts/provider_allowlist.py, not here.
 
 on:
+  push:
+    branches: [stack]
+  merge_group:
+  pull_request:
+    branches: [stack]
   workflow_dispatch:
 
 permissions:
