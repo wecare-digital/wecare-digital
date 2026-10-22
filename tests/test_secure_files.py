@@ -1000,24 +1000,24 @@ def test_payment_configuration_is_not_hardcoded():
     assert "WECAREDIGITAL" not in source
 
 
-def test_whatsapp_pay_sends_only_to_the_verified_number():
-    """Taking a number from the request body would turn this route into a way to send
-    WhatsApp messages to arbitrary people."""
+def test_whatsapp_pay_compatibility_route_never_builds_money():
+    """The legacy secure-files payment surface must fail closed instead of creating a second
+    PaymentAttempt/reference/order_details implementation beside checkout."""
     source = (FUNC_DIR / "handler.py").read_text()
     body = source.split("def _send_whatsapp_payment")[1].split("\ndef ")[0]
-    assert 'phone=identity["phone"]' in body
-    # never from the request
-    assert "json.loads(event" not in body
     assert "_owned_active_file" in body
     assert "_payment_enabled()" in body
+    assert "CHECKOUT_REQUIRED" in body
+    for forbidden in ("send_payment_request(", "reference_id(", "put_item(", "checkoutOrderDetails"):
+        assert forbidden not in body
 
 
-def test_grant_is_written_before_the_send():
-    """If the send fails the grant just expires; the reverse order would let a customer
-    pay against a grant that does not exist."""
-    source = (FUNC_DIR / "handler.py").read_text()
-    body = source.split("def _send_whatsapp_payment")[1].split("\ndef ")[0]
-    assert body.index("put_item") < body.index("send_payment_request(")
+def test_whatsapp_delivery_module_is_delivery_only():
+    source = WA_DELIVERY.read_text()
+    assert "def send_payment_request" not in source
+    assert "def reference_id" not in source
+    assert "checkoutOrderDetails" not in source
+    assert "wecare_whatapp_native_pay_template" not in source
 
 
 def test_delivery_requires_a_paid_grant_and_matching_owner():
