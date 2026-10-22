@@ -52,10 +52,9 @@ const CheckoutAction: React.FC<CheckoutActionProps> = ( {
       }
       .checkout-action:active:not(:disabled){
         background:var(--public-accent-amber-tint);border-color:var(--public-accent-amber);
-        transform:translateY(0) scale(.98);
+        transform:translateY(0) scale(.98);box-shadow:none;
       }
       .checkout-action:focus-visible{
-        background:#fff;
         outline:3px solid var(--public-brand-green);outline-offset:3px;
       }
       .checkout-action:disabled{opacity:.5;cursor:default}
