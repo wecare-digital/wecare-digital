@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import VoiceSearchMic from './VoiceSearchMic';
+import VayuLokWeatherInsights from './VayuLokWeatherInsights';
 import { API_BASE } from '../config/constants';
 
 /**
@@ -4173,6 +4174,12 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                           </div>
                         ) }
                         { weatherHistoryFetchedAt && <div className="vl-live-wx-freshness">History · { relativeAgeLabel( weatherHistoryFetchedAt ).label.replace( /^Updated\s*/i, 'latest ' ) }</div> }
+
+                        <VayuLokWeatherInsights
+                          lat={ place.lat }
+                          lng={ place.lng }
+                          placeName={ place.name }
+                        />
 
                         { weather.currentTime && <span className="vl-live-sr-only">Weather updated for the selected place.</span> }
                       </>
