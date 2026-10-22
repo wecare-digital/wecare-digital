@@ -159,7 +159,7 @@ class TestOrderStatusSend:
             {'reference_id': 'WD-001', 'order_status': 'completed'}, 'req-1')
         assert result['statusCode'] == 409
         body = json.loads(result['body'])
-        assert body['errorCode'] == 'ORDER_STATUS_INVOICE_TEMPLATE_ONLY'
+        assert body['error'] == 'ORDER_STATUS_INVOICE_TEMPLATE_ONLY'
 
 
 
