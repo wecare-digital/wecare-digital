@@ -298,35 +298,30 @@ def test_a_dry_run_is_the_default_and_calls_no_mutating_api(provisioner):
 
 
 def test_the_provisioned_environment_matches_the_product_scoped_rollout(provisioner):
-    """The gates are open, and only a bounded, non-destructive plan applies without approval.
+    """The Meta rollout stays planning-only until an exact plan is owner-approved.
 
-    #525 ("Restore real-time Meta catalog sync with safe auto-apply") opened the global gates on
-    purpose: sync enabled, dry run off, no forced out-of-stock. The rollout list is the live scope the gates
-    were opened with on 2026-10-15 (21 variants), recorded identically here and in the manifest. What still protects Meta is
-    the auto-apply bound: at most META_CATALOG_AUTO_APPLY_MAX_CHANGES creates and updates, from a
-    stream or schedule trigger only, with zero retires and zero foreign rows. Anything else still
-    needs an exact-plan approval (asserted against the handler below).
+    Product-level metaEnabled flags may build the desired catalogue, but neither a stream nor the
+    schedule may write while the plan still contains legacy retires or foreign rows. Pin the
+    provisioner and manifest to the same dry-run/no-auto-apply state as production.
     """
     manifest = json.loads((ROOT / "config/lambda-env-manifest.json").read_text())
     live = manifest["functions"]["wecare-meta-catalog-sync"]
     expected = {
         "META_CATALOG_SYNC_ENABLED": "true",
-        "META_CATALOG_SYNC_DRY_RUN": "false",
+        "META_CATALOG_SYNC_DRY_RUN": "true",
         "META_CATALOG_SYNC_VARIANT_IDS": provisioner.ENVIRONMENT["META_CATALOG_SYNC_VARIANT_IDS"],
         "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "false",
-        "META_CATALOG_AUTO_APPLY_SAFE": "true",
+        "META_CATALOG_AUTO_APPLY_SAFE": "false",
         "META_CATALOG_AUTO_APPLY_MAX_CHANGES": "50",
     }
     for key, value in expected.items():
         assert provisioner.ENVIRONMENT[key] == value
         assert live[key] == value
 
-    # The bound lives in the handler; pin its shape so opening the gates cannot widen it.
     handler = HANDLER.read_text(encoding="utf-8")
     assert 'trigger.get("source") not in {"ddb-stream", "schedule"}' in handler
     assert 'int(counts.get("retire", 0)) == 0' in handler
     assert 'int(counts.get("foreign", 0)) == 0' in handler
-    assert "return value if 0 < value <= 1000 else 0" in handler
     assert '"approval_required_for_destructive_or_unusual_plan"' in handler
 
 

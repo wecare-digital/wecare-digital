@@ -115,8 +115,8 @@ ENVIRONMENT = {
     "META_TOKEN_FIELD": "access_token",
     "META_CATALOG_ID": "1457045652952851",
     "META_CATALOG_SYNC_ENABLED": "true",
-    "META_CATALOG_SYNC_DRY_RUN": "false",
-    "META_CATALOG_AUTO_APPLY_SAFE": "true",
+    "META_CATALOG_SYNC_DRY_RUN": "true",
+    "META_CATALOG_AUTO_APPLY_SAFE": "false",
     "META_CATALOG_AUTO_APPLY_MAX_CHANGES": "50",
     "META_CATALOG_APPROVALS_TABLE": CATALOG_APPROVALS_TABLE,
     # Empty means the product-level metaEnabled flag owns scope. Existing legacy rows remain
