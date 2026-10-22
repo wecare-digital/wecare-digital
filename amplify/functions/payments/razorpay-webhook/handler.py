@@ -224,7 +224,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if event['internalAction'] == 'reconcileCustomerOrderLinks':
             metrics = customer_order_link.reconcile_metrics(
                 orders=dynamodb.Table(shared_tables.orders_table_name()),
-                contacts=dynamodb.Table(shared_tables.contacts_table_name()))
+                contacts=dynamodb.Table(shared_tables.contacts_table_name()),
+                attempts=dynamodb.Table(PAYMENT_ATTEMPTS_TABLE))
             # Publish the sweep's health so a schedule that runs green while the backlog grows or
             # a promotion fails is visible. A small-but-OLD backlog and a large-but-fresh one are
             # different incidents, so age is emitted beside count. Best-effort: a metrics failure
