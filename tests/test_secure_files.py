@@ -589,26 +589,15 @@ def test_admin_routes_still_use_the_staff_token():
         assert "customerApiCall" not in body, f"{fn} must not use a customer token"
 
 
-def test_the_page_never_handles_payment_itself():
-    """Payment and delivery both happen on WhatsApp, so the browser is out of the loop.
-
-    The page asks the backend to send the approved wecare_pay template and stops. The
-    customer pays through the template's ORDER_DETAILS button and the file arrives as a
-    WhatsApp document, so nothing here can grant anything.
-    """
+def test_the_page_has_no_secure_files_payment_initiation():
+    """Secure-files is delivery-only; new purchases must enter the canonical checkout."""
     source = FILES_PAGE.read_text()
-    assert "requestFilePaymentOnWhatsApp" in source
-
-    # No Razorpay Checkout machinery on the page at all. This is a stronger guarantee
-    # than the earlier "do not trust the success callback": there is no callback,
-    # because the browser is no longer in the payment path.
-    for gone in ("checkout.razorpay.com", "window.Razorpay", "loadCheckout", "order_id"):
-        assert gone not in source, f"{gone} should have left with Checkout"
-
-    # and nothing polls for or triggers a download
-    assert "pollForDownload" not in source
-    assert "downloadUrl" not in source
-
+    client = CLIENT_TS.read_text()
+    assert "requestFilePaymentOnWhatsApp" not in source
+    assert "requestFilePaymentOnWhatsApp" not in client
+    assert "/whatsapp-pay" not in client
+    for gone in ("checkout.razorpay.com", "window.Razorpay", "loadCheckout"):
+        assert gone not in source
 
 def test_presigned_upload_does_not_get_a_bearer_header():
     """A presigned URL carries its own SigV4; adding our bearer makes S3 refuse."""
