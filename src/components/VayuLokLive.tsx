@@ -3832,17 +3832,14 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                           ) ) }
                         </ul>
 
-                        {/* ALERTS - explicit live state; unsupported regions never call Google. */}
-                        <div className="vl-live-wx-alerts">
-                          <h4 className="vl-live-air-forecast-title">Alerts</h4>
-                          { weatherAlertStatus === 'loading' ? (
-                            <p className="vl-live-air-history-empty" role="status">Checking alerts…</p>
-                          ) : weatherAlertStatus === 'unsupported' ? (
-                            <p className="vl-live-air-history-empty">No alerts here.</p>
-                          ) : weatherAlertStatus === 'error' ? (
-                            <p className="vl-live-air-history-empty" role="status">Alerts unavailable.</p>
-                          ) : weatherAlertStatus === 'active' && weatherAlerts.length ? weatherAlerts.map( alert => (
-                            <div key={ alert.id } className={ `vl-live-wx-alert sev-${( alert.severity || 'minor' ).toLowerCase()}` }>
+                        {/* ALERTS - render only when a real live alert exists. Unsupported regions,
+                            an empty response and transient provider errors stay quiet instead of
+                            adding an empty "Alerts" section to the weather card. */}
+                        { weatherAlertStatus === 'active' && weatherAlerts.length > 0 && (
+                          <div className="vl-live-wx-alerts">
+                            <h4 className="vl-live-air-forecast-title">Alerts</h4>
+                            { weatherAlerts.map( alert => (
+                              <div key={ alert.id } className={ `vl-live-wx-alert sev-${( alert.severity || 'minor' ).toLowerCase()}` }>
                               <strong>{ alert.title }</strong>
                               { alert.eventType && <span className="vl-live-wx-alert-event">{ alert.eventType.replace( /_/g, ' ' ) }</span> }
                               { ( alert.severity || alert.certainty || alert.urgency ) && (
@@ -3883,10 +3880,9 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                                 </small>
                               ) }
                             </div>
-                          ) ) : (
-                            <p className="vl-live-air-history-empty">No active alerts.</p>
-                          ) }
-                        </div>
+                            ) ) }
+                          </div>
+                        ) }
 
                         {/* HOURLY FORECAST - reuses the Air Forecast strip interaction. */}
                         { weatherHourly.length > 0 && (
@@ -4516,7 +4512,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
           /* Dense live-data roles still inherit from the public type ladder instead of carrying
              one-off 11.5/13px values. Mobile raises readable copy one rung without inflating
              true metadata, matching the Home mobile foundation's readability contract. */
-          --vl-data-size:17px;--vl-meta-size:var(--text-sm);--vl-compact-copy-size:var(--text-md);
+          --vl-data-size:17px;--vl-subtext-size:var(--text-base);--vl-meta-size:var(--text-sm);--vl-compact-copy-size:var(--text-md);
           --vl-section-gap:24px;--vl-section-pad:20px;--vl-heading-gap:14px;--vl-content-gap:16px;--vl-action-size:var(--tap-min);
           font-family:var(--font-sans);color:var(--body);background:var(--page);padding-bottom:72px;-webkit-font-smoothing:antialiased;
         }
@@ -4632,7 +4628,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-air-aqi-unit{display:block;margin-top:4px;color:var(--muted);font-size:var(--text-xs);font-weight:700;line-height:1;letter-spacing:.08em;text-transform:uppercase}
         .vl-live-air-gauge-meta{min-width:0}
         .vl-live-air-gauge-word{display:block;color:#000;font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight);line-height:var(--vl-card-heading-lh);letter-spacing:var(--vl-card-heading-track)}
-        .vl-live-air-summary-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:8px;color:var(--muted);font-size:var(--text-sm);font-weight:600;line-height:1.4}
+        .vl-live-air-summary-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:8px;color:var(--muted);font-size:var(--vl-subtext-size);font-weight:600;line-height:1.35}
         .vl-live-air-summary-meta strong{color:var(--status);font-weight:700}
         .vl-live-air-summary-chip{display:inline-flex;align-items:center;gap:5px}
         .vl-live-air-summary-icon{flex:0 0 16px;width:16px;height:16px;padding:2px;border-radius:50%;background:var(--lime);fill:var(--green)}
@@ -4734,7 +4730,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-wx-now-icon{width:52px;height:52px;flex:0 0 52px;object-fit:contain}
         .vl-live-wx-now-temp{display:block;color:#000;font-size:40px;font-weight:700;line-height:1;letter-spacing:-1px}
         .vl-live-wx-now-cond{display:block;margin-top:2px;color:#000;font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight);line-height:var(--vl-card-heading-lh);letter-spacing:var(--vl-card-heading-track)}
-        .vl-live-wx-now-sub{display:flex;flex-wrap:wrap;gap:4px 12px;color:var(--muted);font-size:var(--text-base);font-weight:600;line-height:1.35}
+        .vl-live-wx-now-sub{display:flex;flex-wrap:wrap;gap:4px 12px;color:var(--muted);font-size:var(--vl-subtext-size);font-weight:600;line-height:1.35}
         .vl-live-wx-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;margin:0 0 var(--vl-section-gap);padding:0;list-style:none;border:1px solid var(--hair);border-radius:var(--radius-lg,12px);overflow:hidden;background:var(--hair)}
         .vl-live-wx-grid-item{display:flex;align-items:baseline;justify-content:space-between;gap:var(--vl-content-gap);padding:14px;background:#fff;transition:background-color .14s ease}
         .vl-live-wx-grid-k{min-width:0;color:var(--body);font-size:var(--vl-data-size);font-weight:700;line-height:1.35;letter-spacing:-.18px}
@@ -4797,7 +4793,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-wx-period-summary{display:flex;align-items:center;gap:8px;margin-bottom:8px}
         .vl-live-wx-period-summary img{width:34px;height:34px;object-fit:contain}
         .vl-live-wx-period-summary strong{font-size:17px;font-weight:700;line-height:1.25}
-        .vl-live-wx-freshness{margin-top:8px;color:var(--muted);font-size:var(--text-md);font-weight:600;line-height:1.35}
+        .vl-live-wx-freshness{margin-top:8px;color:var(--muted);font-size:var(--vl-subtext-size);font-weight:600;line-height:1.35}
 
         /* ── HEALTH RECOMMENDATIONS ──────────────────────────────────────────────
            Icons and arrows inherit the ONE action-icon system above. The row stays horizontal;
