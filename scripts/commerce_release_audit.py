@@ -60,7 +60,7 @@ def audit_release(lam, hosting, manifest, expected_commit, *, app_id, branch='st
             row.get('name') == name and row.get('status') == 'APPROVED'
             and row.get('language') == 'en' and row.get('category') == 'UTILITY'
             and row.get('sub_category') == 'ORDER_DETAILS' for row in templates)
-        invoice_name = (invoice_engine.get('WA_INVOICE_TEMPLATE')
+        invoice_name = (invoice.get('WA_INVOICE_TEMPLATE')
                         or 'wecare_default_invoice_image_template')
         provider['invoice_template_approved'] = any(
             row.get('name') == invoice_name and row.get('status') == 'APPROVED'
