@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import VoiceSearchMic from './VoiceSearchMic';
 
 type TravelMode = 'flights' | 'hotels' | 'activities' | 'rail' | 'car' | 'bus';
@@ -247,6 +247,18 @@ const ElsewhereTravelAssistant: React.FC = () => {
 
   const config = MODES[ mode ];
   const canSubmit = query.trim().length > 0 || preferences.length > 0;
+
+  useEffect( () => {
+    if ( typeof window === 'undefined' || !window.matchMedia( '(max-width: 720px)' ).matches ) return;
+    const frame = window.requestAnimationFrame( () => {
+      tabRefs.current[ mode ]?.scrollIntoView( {
+        behavior: 'auto',
+        block: 'nearest',
+        inline: 'nearest',
+      } );
+    } );
+    return () => window.cancelAnimationFrame( frame );
+  }, [ mode ] );
 
   const changeMode = useCallback( ( next: TravelMode ) => {
     abortRef.current?.abort();
@@ -699,15 +711,19 @@ const ElsewhereTravelAssistant: React.FC = () => {
         @media(max-width:720px){
           .eta-shell{border-radius:22px}
           .eta-tabs{
-            display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2px;
-            overflow:visible;scroll-snap-type:none;overscroll-behavior:auto;touch-action:manipulation;
-            padding:4px;
+            display:flex;gap:4px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x proximity;
+            -webkit-overflow-scrolling:touch;overscroll-behavior-inline:contain;scrollbar-width:none;
+            touch-action:pan-x;padding:6px;
           }
+          .eta-tabs::-webkit-scrollbar{display:none}
           .eta-tab{
-            min-width:0;min-height:var(--tap-min);padding:6px 4px;font-size:13px;gap:4px;
-            white-space:normal;overflow-wrap:anywhere;text-align:center;
+            flex:0 0 auto;min-width:max-content;min-height:var(--tap-min);
+            padding:8px 14px;gap:8px;scroll-snap-align:center;
+            white-space:nowrap;overflow-wrap:normal;text-align:center;
+            font-size:var(--public-mobile-cta-font-size);font-weight:var(--public-cta-font-weight);
+            line-height:1.2;letter-spacing:-.1px;
           }
-          .eta-tab-icon{width:24px;height:24px;flex-basis:24px;font-size:17px}
+          .eta-tab-icon{width:28px;height:28px;flex-basis:28px;font-size:19px}
           .eta-panel{padding-block:20px;padding-inline:var(--public-mobile-page-gutter)}
           /* Phones use the page itself as the vertical scroller, like Home. A capped
              response pane made result cards disappear under the composer and forced a
@@ -720,8 +736,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
           .eta-result{grid-template-columns:1fr;padding:18px}.eta-result h3{font-size:var(--public-mobile-card-size)}.eta-desc{font-size:16px}.eta-result-side{align-items:flex-start;text-align:start}.eta-checkout{align-items:flex-start}.eta-actions{align-items:flex-start;margin-inline-start:0}
         }
         @media(max-width:380px){
-          .eta-tab{font-size:12px;padding-inline:2px}
-          .eta-tab-icon{width:22px;height:22px;flex-basis:22px;font-size:16px}
+          .eta-tab{padding-inline:12px}
           .eta-keyhint{display:none}
           .eta-panel{padding-inline:var(--public-mobile-page-gutter)}
           .eta-result{padding-inline:16px}
