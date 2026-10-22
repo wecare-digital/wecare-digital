@@ -215,188 +215,187 @@ This is the function-consolidation plan to approve before touching tables or ena
 
 ---
 
-# TRACK B — wecare-commerce consolidation
+# TRACK B — safe commerce consolidation
 
-Track B reframes the prior plan's generic "unified WhatsApp-commerce" into a precise target: merge exactly THREE core commerce Lambdas into ONE new `wecare-commerce`. It DEPENDS on Track A's A3 (one payment engine) and A4 (one order-status module).
+Track B keeps the external-money verification boundary independent. The final target is:
 
-## B0. Live commerce journey today
+- **NEW `wecare-commerce`** absorbs checkout business orchestration + invoice/order/fulfilment orchestration.
+- **KEEP `wecare-razorpay-webhook` separate** as the thin, independent verifier of external money.
+- **KEEP `wecare-outbound-whatsapp` separate** as Meta transport.
+- Retire `wecare-checkout` and `wecare-invoice-engine` only after parity and route/caller migration.
 
-| Live function | Live alias | What it currently owns | Recommendation |
-|---|---|---|---|
-| `wecare-checkout` | v97 | cart pricing, PaymentAttempt creation, payment rail preparation, native ORDER_DETAILS initiation | **MERGE** |
-| `wecare-razorpay-webhook` | v92 | Razorpay verification, paid-state processing, order finalization/recovery, post-payment orchestration | **MERGE** |
-| `wecare-invoice-engine` | v93 | invoice creation, numbering, items, PNG rendering, fulfilment status logic, WhatsApp invoice delivery | **MERGE** |
-| `wecare-outbound-whatsapp` | v86 | actual Meta transport, template/order_details/media payload construction | **KEEP SEPARATE** |
-| `wecare-inbound-whatsapp` | v117 | incoming WhatsApp, catalog/order messages, starting checkout | **KEEP SEPARATE** |
-| `wecare-customer-whatsapp-auth` | v16 | `wecare_otp`, WhatsApp OTP authentication | **KEEP SEPARATE** |
-| `wecare-customer-orders` | v9 | read-only `/orders/` customer history / profile projection | **KEEP SEPARATE** |
-| `wecare-whatsapp-business-api` | v187 | WABA/Flow/payment-config/admin/provider operations | **KEEP SEPARATE** |
+This replaces the older 3-into-1 proposal. A component that creates the expected payment must not also be the component that independently proves the provider moved money.
 
-Repo sources: `amplify/functions/ecommerce/checkout/handler.py`, `amplify/functions/payments/razorpay-webhook/handler.py`, `amplify/functions/payments/invoice-engine/handler.py`, `amplify/functions/messaging/outbound-whatsapp/handler.py`.
+## B0. Live commerce responsibilities
 
-Live config confirms `wecare-checkout` is bound to WABA1 `2094615664435155`, `WECAREDIGITAL`, `OrderTable`, `ContactsTable`, `PaymentAttemptsTable`. Live `wecare-invoice-engine` uses `wecare_whatapp_native_pay_template` and `wecare_default_invoice_image_template`.
+| Function | Responsibility now | Final decision |
+|---|---|---|
+| `wecare-checkout` | pricing, PaymentAttempt, rail preparation | **ABSORB into `wecare-commerce`** |
+| `wecare-razorpay-webhook` | signature/provider verification, dedup, paid evidence | **KEEP SEPARATE; thin it** |
+| `wecare-invoice-engine` | GST invoice, rendering, delivery, fulfilment orchestration | **ABSORB into `wecare-commerce`** |
+| `wecare-outbound-whatsapp` | Meta transport | **KEEP SEPARATE** |
+| `wecare-inbound-whatsapp` | inbound ingestion | **KEEP SEPARATE** |
+| `wecare-whatsapp-business-api` | provider/admin/Flow surface | **KEEP SEPARATE** |
+| customer auth/read Lambdas | auth and read-only projections | **KEEP SEPARATE** |
 
-## B1. Why three functions is the real problem
-
-The current call chain is `checkout → outbound → webhook → invoice-engine → outbound`: three different functions jointly own ONE financial state machine. That shared ownership is exactly where real drift appeared: a checkout/payment reference that did not match the captured payment; a webhook reserving an order number while the OrderTable projection failed; an invoice missing `contactId` / `customerUuid`; invoice-engine believing the invoice template had only an IMAGE header while live Meta required IMAGE plus a Flow button; and live webhook config still carrying post-payment Flow/template variables the repo's own tests say must not exist. The fix is to make ONE function own the state machine, with internal module calls instead of Lambda-to-Lambda hops.
-
-## B2. The consolidated function
-
-Create ONE Lambda `wecare-commerce` with separate Python modules deployed as one runtime:
+## B1. Target state machine
 
 ```
-wecare-commerce
-├── identity.py
-├── cart.py
-├── pricing.py
-├── payment_attempt.py
-├── native_whatsapp_pay.py
-├── website_pay.py
-├── provider_verification.py
-├── finalization.py
-├── order.py
-├── fulfilment.py
-├── invoice.py
-├── invoice_render.py
-├── invoice_delivery.py
-├── idempotency.py
-└── handler.py
+Cart / offer
+   ↓
+resolve ONE ContactsTable identity
+   ↓
+server-side quote
+   ↓
+choose payment rail
+   ↓
+ONE active PaymentAttempt
+   ├── WhatsApp ORDER_DETAILS
+   └── Website Razorpay
+             ↓
+      Razorpay provider event
+             ↓
+   wecare-razorpay-webhook
+   HMAC + provider verification
+   replay/idempotency protection
+             ↓
+        VERIFIED_PAID
+             ↓
+       wecare-commerce
+             ↓
+          ONE Order
+             ↓
+ Meta order_status=processing
+             ↓
+       GST invoice once
+             ↓
+secure/Invoice/customer_invoice/
+             ↓
+wecare_default_invoice_image_template
+  IMAGE + embedded Leave Review Flow
 ```
 
-One handler routes events internally instead of Lambda to Lambda to Lambda.
+Later `processing → shipped → completed` changes Meta fulfilment state only. It does not issue or resend another GST invoice.
 
-### API / internal actions
-
-```
-POST /commerce/checkout/prepare
-POST /commerce/checkout/verify
-POST /commerce/webhooks/razorpay
-POST /commerce/orders/{id}/fulfilment
-GET  /commerce/invoices/{id}
-POST /commerce/invoices/{id}/render
-POST /commerce/invoices/{id}/deliver
-
-internalAction:
-  prepareNativeCart
-  prepareNativeCatalogService
-  recoverPaidOrder
-  finalizePayment
-  deliverInvoice
-```
-
-These become MODULE calls inside one runtime, not remote Lambda calls.
-
-### Canonical payment state machine (inside the function)
+## B2. `wecare-commerce` internal modules
 
 ```
-Cart
- └─ resolve canonical Contact (contactId + customerUuid; LINK, never recreate)
- └─ price server-side
- └─ create ONE PaymentAttempt {referenceId, contactId, customerUuid, basket identity,
-                               selected channel, expected amount, expected currency}
-      ├── WhatsApp ORDER_DETAILS ──┐
-      └── Website Razorpay Checkout ┘
-            └─ Provider verification → PAYMENT_PAID
-                 └─ idempotent ONE Order
-                      └─ Meta order_status = processing
-                           └─ Invoice: fiscal number once → render PNG once
-                                → secure/Invoice/customer_invoice/
-                                → wecare_default_invoice_image_template (IMAGE + Flow button 0)
+commerce/
+    handler.py
+    identity.py
+    cart.py
+    pricing.py
+    payment_attempt.py
+    native_whatsapp_pay.py
+    website_pay.py
+    finalization.py
+    orders.py
+    fulfilment.py
+    invoice.py
+    invoice_render.py
+    invoice_delivery.py
+    idempotency.py
 ```
 
-## B3. Functions that MUST stay OUTSIDE wecare-commerce (and why)
+Commerce owns business state transitions. It does **not** own Meta credentials or the Razorpay webhook-signing trust boundary.
 
-- **`wecare-outbound-whatsapp` — Meta transport.** Commerce only says "send this approved template to this canonical recipient with these validated components". The sender owns Meta Graph calls, media upload, template serialization, WABA/phone-number routing, WhatsApp send logging, and provider errors. This keeps payment code from handling Meta access tokens and general messaging behavior.
-- **`wecare-inbound-whatsapp` — ingestion.** It reduces a WhatsApp webhook to `{ "action": "prepareNativeCart", "contactId": "...", "basket": "..." }` and hands it to commerce. It must NOT price money, create an invoice, or finalize an order.
-- **`wecare-customer-whatsapp-auth` — auth security boundary.** Canonical chain: `wecare_otp` → Cognito authentication → resolve/link `ContactsTable`. Payment must not own OTP.
-- **`wecare-customer-orders` — read-only.** Its provisioner describes it as read-only customer order history. Commerce WRITES `OrderTable`; customer-orders READS it.
-- **`wecare-whatsapp-business-api` — admin/provider surface.** Flow registry, Flow submissions, WABA configuration, payment-configuration reads, provider administration. Keeping it out keeps the payment IAM blast radius small.
+## B3. Razorpay webhook final shape
 
-## B4. Tables stay DECOMPOSED (one function does not equal one table)
-
-Do NOT merge tables. These are different entities and stay different:
-
-- **Identity:** `ContactsTable`, `IdentityClaimsTable`
-- **Checkout/payment:** `PaymentAttemptsTable`, `PaymentsTable`, `CommerceKeys`, `RazorpayWebhookLogTable`
-- **Commerce:** `OrderTable` (SINGULAR; the `ORDERS_TABLE` env var is PLURAL and maps to the singular `OrderTable` — a documented trap, do not "fix" the env name)
-- **Fiscal invoice:** `InvoicesTable`, `InvoiceItemsTable`, `InvoiceAssetsTable`, `InvoiceSequenceTable`, `InvoiceDeliveryLogTable`
-- **WhatsApp/Flow:** Messages / transport logs, `FlowRegistryTable`, `FlowSubmissionTable`, `FlowLogTable`
-
-**`CommerceKeys` MUST NOT merge into `OrderTable`.** It answers concurrency/idempotency questions, not order questions: has reference X already been used; has payment Y already created an order; has this invoice already been sent; does this cart already have a payable attempt; has this webhook already won the race. It is a primary protection against duplicate charges/orders/invoices.
-
-## B5. ONE PaymentAttempt rule
-
-Do NOT create two simultaneous attempts for the two rails:
+The webhook is intentionally small:
 
 ```
-checkout intent / basket → choose payment rail → create ONE active PaymentAttempt
+signed Razorpay event
+    ↓
+verify HMAC
+    ↓
+deduplicate / replay guard
+    ↓
+resolve OUR PaymentAttempt/reference
+    ↓
+authoritative provider verification
+    ↓
+emit VERIFIED_PAID / VERIFIED_REFUNDED
+    ↓
+invoke commerce finalization
 ```
 
-If the user switches rail BEFORE provider initiation, the attempt may be replaced/cancelled per a defined rule. Once a WhatsApp ORDER_DETAILS message OR a Razorpay gateway order has been issued, that provider-bound attempt is **IMMUTABLE**. This prevents the reference-mismatch class of bug. Settlement-mode guard to PRESERVE: VERIFIED `finalization.ACCEPTED_CHECKOUT_MODES = {AWS_NATIVE, WEBSITE_RAZORPAY_STANDARD, WHATSAPP_NATIVE_CART}` (`shared/lambda_utils/ecommerce/finalization.py` L28); `WHATSAPP_NATIVE_PG` is deliberately EXCLUDED because the native leg settles via the webhook, not via cart finalization.
+It must not become the home for:
+- invoice rendering;
+- review Flow sends;
+- business fulfilment policy;
+- a second order-construction implementation.
 
-**OPEN RISK (owner input needed):** the exact rail-switch replace/cancel rule (window, who may trigger it, what state the superseded attempt lands in).
+## B4. One PaymentAttempt rule
 
-## B6. Fulfilment contract restoration (the one behavior change in scope)
-
-The repo currently has a regression: fulfilment-status effectively maps to the invoice-image template, and direct Meta `order_status` sending was retired. Build `wecare-commerce` to the OWNER'S CANONICAL CONTRACT, not the regression:
-
-```
-PAYMENT_PAID
-   → Meta order_status = processing
-   → wecare_default_invoice_image_template  (IMAGE header + Flow button index 0)
-```
-
-Later `processing → shipped → completed` updates Meta fulfilment status WITHOUT sending a new GST invoice each time. (Track A A4 supplies the single order-status module this depends on.)
-
-**OPEN RISK (owner input needed):** the exact Meta `order_status` send mechanism and the approved payload (named template vs native `order_status` message). The env var `WA_ORDER_STATUS_TEMPLATE` currently fails closed with an empty default. Do NOT invent a Meta template name.
-
-## B7. Review Flow
-
-Zero standalone review-template logic in commerce. The invoice sender supplies `templateName = wecare_default_invoice_image_template` with components: IMAGE header = generated invoice, FLOW button index 0. Meta's approved template opens the Review Flow. There is NO `wecare_leave_review` send anywhere in commerce. VERIFIED the allowlist test (`tests/test_transaction_whatsapp_template_allowlist.py` L26-28) forbids `postpay_request_v1`, `wecare_leave_review`, and `isInteractive`, and forbids the literal `'flowButton':` in invoice-engine. The Flow itself stays under WhatsApp Business / Flow Registry.
-
-## B8. Live config drift to clean up (do NOT copy env vars blindly)
-
-VERIFIED: the repo manifest `config/lambda-env-manifest.json` for `wecare-razorpay-webhook` does NOT contain `POST_PAYMENT_FLOW_WABA1`, `POST_PAYMENT_FLOW_WABA2`, or `POST_PAYMENT_REQUEST_TEMPLATE`, and the test `test_webhook_has_no_extra_post_payment_template_configuration` (L49-53) asserts those three plus `WA_REVIEW_TEMPLATE` MUST NOT exist. The **LIVE AWS** `wecare-razorpay-webhook` still carries those POST_PAYMENT_* vars — so live config and repo policy are already divergent. The migration MUST include an env/IAM cleanup step so the new `wecare-commerce` does NOT inherit those obsolete vars, and the retirement of `wecare-razorpay-webhook` must strip them from the live function.
-
-## B9. Migration (strangler pattern, 13 steps)
-
-Do not replace three functions on day one.
-
-1. Build `wecare-commerce` beside existing functions with NO live routes.
-2. Move shared pricing, identity validation, PaymentAttempt, finalization, order, and invoice modules into it.
-3. Run the existing checkout/webhook/invoice tests against the new modules.
-4. Route checkout `prepare` to `wecare-commerce`.
-5. Verify Rs 1 prepare/send behavior.
-6. Route the Razorpay webhook to `wecare-commerce`.
-7. Verify captured payment to ONE Order.
-8. Enable Meta `order_status = processing`.
-9. Generate the invoice PNG at `secure/Invoice/customer_invoice/`.
-10. Send `wecare_default_invoice_image_template` with IMAGE + embedded Flow.
-11. Move invoice API routes to `wecare-commerce`.
-12. After a monitoring window, retire `wecare-checkout`, `wecare-razorpay-webhook`, `wecare-invoice-engine`.
-13. Remove obsolete webhook post-payment Flow/template env vars (B8).
-
-**End state:** `wecare-commerce` owns payment (both rails) + provider verification + `OrderTable` + fulfilment + invoice, and calls `wecare-outbound-whatsapp` only for the actual Meta send:
+The UI may offer two rails, but it must not create two simultaneous payable attempts.
 
 ```
-                    ┌─ WhatsApp payment
-wecare-commerce ────┼─ Website payment
-                    ├─ provider verification
-                    ├─ OrderTable
-                    ├─ fulfilment
-                    └─ invoice
-                           ↓
-                 wecare-outbound-whatsapp   (Meta send only)
+frozen CheckoutIntent
+       ↓
+choose rail
+       ↓
+ONE active PaymentAttempt
 ```
+
+Before provider initiation, a rail switch may explicitly supersede/cancel and replace the attempt. Once ORDER_DETAILS has been sent or a Razorpay gateway order has been created, that provider-bound attempt is immutable.
+
+## B5. Fulfilment and invoice contract
+
+The canonical sequence is now explicit:
+
+```
+VERIFIED_PAID
+  → ONE Order
+  → Meta order_status=processing
+  → issue/render GST invoice once
+  → wecare_default_invoice_image_template
+```
+
+The invoice template's embedded Flow button is the only automatic Leave Review entry. Commerce sends no standalone `wecare_leave_review`, no post-payment review interactive message, and no free-form payment confirmation.
+
+## B6. Tables remain decomposed
+
+Do not merge DynamoDB tables just because functions are reduced. Keep distinct entities for identity, PaymentAttempts, provider payments, idempotency keys, Orders, GST invoice header/items/assets/sequence/delivery, Flow records, and message transport.
+
+`CommerceKeys` remains separate from `OrderTable`; it is a concurrency/idempotency ledger, not an order record.
+
+## B7. Safe strangler migration
+
+1. Keep the current production routes/functions live.
+2. Extract/reuse shared identity, pricing, PaymentAttempt, finalization and invoice domain code behind compatibility contracts.
+3. Deploy `wecare-commerce` beside existing functions with no live customer routes.
+4. Route checkout preparation to commerce first; retain old response shapes.
+5. Verify website rail and native ORDER_DETAILS each produce one provider-bound PaymentAttempt.
+6. Keep Razorpay webhook route unchanged; after verification it calls commerce finalization.
+7. Verify duplicate webhook replay cannot create a second Order.
+8. Verify `VERIFIED_PAID → order_status=processing → invoice template`.
+9. Move invoice API/internal callers to commerce one-by-one.
+10. After parity/readback, retire `wecare-checkout`.
+11. After all invoice callers/routes are migrated, retire `wecare-invoice-engine`.
+12. Keep `wecare-razorpay-webhook` as the independent external-money verifier.
+
+No big-bang route swap is allowed.
+
+## B8. Non-negotiable regression gates
+
+- exactly one active/provider-bound PaymentAttempt per purchase;
+- only provider-verified evidence may produce `PAYMENT_PAID`;
+- duplicate Razorpay webhook → no second Order;
+- duplicate Meta event → no second payable attempt;
+- exactly one fiscal invoice number for one paid Order;
+- invoice delivery retry → no duplicate customer receipt;
+- shipped/completed → status update only, no second invoice;
+- WABA1 remains the payment sender;
+- invoice template remains the only automatic review prompt.
 
 ---
 
 # Relationship between the tracks and overall sequencing
 
-Track A's A3 (retire the secure-files payment builder; route through checkout) and A4 (one order-status module) FEED Track B's `wecare-commerce`. Sequence Track A's low-risk whole-Lambda removal (A1 templates merge) and the shared-module extractions (A2, A3, A4, A6) FIRST, then Track B's commerce consolidation (which depends on the one-order-status-module and the one-payment-engine decisions).
+Track A's A3 (retire the secure-files payment builder) and A4 (one order-status implementation) feed the safe commerce strangler. The Razorpay webhook remains outside commerce as the independent verifier. Sequence Track A's low-risk whole-Lambda removal (A1 templates merge) and the shared-module extractions (A2, A3, A4, A6) FIRST, then Track B's commerce consolidation (which depends on the one-order-status-module and the one-payment-engine decisions).
 
 ```
-Track A (A1 → A2 → A3 → A4 → A6 → A5) → Track B (B9 strangler steps 1-13)
+Track A low-risk consolidation → commerce strangler (checkout + invoice orchestration) while Razorpay verification stays separate
 ```
 
 ---
