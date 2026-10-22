@@ -425,7 +425,7 @@
           }
         },
         "Description": "Unified commerce runtime: checkout, PaymentAttempt, order finalization and invoice delivery.",
-        "Timeout": 20,
+        "Timeout": 60,
         "MemorySize": 512,
         "Environment": {
           "Variables": {
