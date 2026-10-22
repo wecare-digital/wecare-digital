@@ -78,6 +78,7 @@ FUNCTIONS = ROOT / "amplify" / "functions"
 SHARED = FUNCTIONS / "shared"
 LAMBDA_UTILS = SHARED / "lambda_utils"
 STATIC_KB = SHARED / "static_knowledge_base.py"
+PILLOW_LAYER_ARN = "arn:aws:lambda:us-east-1:775261844268:layer:pillow-python312:2"
 
 # Fixed timestamp so identical content yields an identical CodeSha256.
 ZIP_DATE = (2026, 1, 1, 0, 0, 0)
@@ -102,6 +103,7 @@ class Spec:
         extra_files: Sequence[str] = (),
         external_dirs: Sequence[Tuple[str, str]] = (),
         external_files: Sequence[Tuple[str, str]] = (),
+        required_layers: Sequence[str] = (),
         provisioned_by: str = "",
     ) -> None:
         self.name = name
@@ -127,6 +129,7 @@ class Spec:
         # during a strangler migration; avoids source copies that can drift.
         self.external_dirs = list(external_dirs)
         self.external_files = list(external_files)
+        self.required_layers = list(required_layers)
 
     @property
     def handler_file(self) -> Path:
@@ -234,6 +237,7 @@ SPECS: List[Spec] = [
         extra_files=["invoice_engine.py"],
         external_files=[("payments/invoice-engine/receipt_layout.py", "receipt_layout.py")],
         external_dirs=[("payments/invoice-engine/fonts", "fonts")],
+        required_layers=[PILLOW_LAYER_ARN],
         provisioned_by="python scripts/provision_checkout.py",
     ),
     # The customer's own order history and profile summary, read-only. One Query on the sparse
@@ -869,9 +873,21 @@ def main() -> int:
             failures.append(spec.name)
             continue
 
+        current_layer_arns = [layer["Arn"] for layer in (current.get("Layers") or [])]
+        missing_layers = [arn for arn in spec.required_layers if arn not in current_layer_arns]
+        if missing_layers:
+            if args.dry_run:
+                print("    WOULD ADD LAYER(S): " + ", ".join(missing_layers))
+            else:
+                wanted_layers = current_layer_arns + missing_layers
+                lam.update_function_configuration(FunctionName=spec.name, Layers=wanted_layers)
+                lam.get_waiter("function_updated_v2").wait(FunctionName=spec.name)
+                current = lam.get_function_configuration(FunctionName=spec.name)
+                current_layer_arns = [layer["Arn"] for layer in (current.get("Layers") or [])]
+
         provided: frozenset = frozenset()
-        for layer in current.get("Layers") or []:
-            provided |= layer_modules(lam, layer["Arn"])
+        for arn in sorted(set(current_layer_arns) | set(spec.required_layers)):
+            provided |= layer_modules(lam, arn)
 
         errors, warnings = validate(spec, members, provided)
         errors += validate_handler(members, current.get("Handler", ""))
