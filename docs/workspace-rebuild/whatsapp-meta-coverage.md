@@ -40,7 +40,7 @@ Legend: ✅ built · 🟡 partial / gated · ❌ not built · ⛔ intentionally 
 | Interactive — **Flow** | ✅ | `flow` (see §4) |
 | Interactive — **product / product_list** | ✅ | `product`, `product_list` (catalog §5) |
 | **order_details** (WhatsApp Pay / native checkout) | 🟡 gated | `order_details`; native in-chat pay is **not live** (`CHECKOUT_INITIATION_ENABLED` off; website Razorpay is the money path) |
-| **order_status** (post-pay fulfilment) | ✅ | `order_status` (`wecare_order_status` template APPROVED) |
+| **order status** (post-pay fulfilment) | ✅ | Local fulfilment state + `wecare_default_invoice_image_template` using the issued invoice PNG |
 | Mark as read | 🟡 | inbound handler tracks read; verify explicit read-receipt POST |
 | Media upload / download / resumable | ✅ | `/media` edge, `meta_client.upload_multipart`/`download_file` |
 
