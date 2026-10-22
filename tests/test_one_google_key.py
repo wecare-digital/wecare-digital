@@ -11,7 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE_LANGUAGE = ROOT / "amplify/functions/core/site-language/handler.py"
-WHATSAPP_TEMPLATES = ROOT / "amplify/functions/messaging/whatsapp-templates/handler.py"
+WHATSAPP_TEMPLATES = ROOT / "amplify/functions/messaging/whatsapp-template-management/handler.py"
 VAYULOK_ENVIRONMENT = ROOT / "amplify/functions/core/vayulok-environment/handler.py"
 
 #: The one id every consumer must read the Google API key from.
@@ -75,7 +75,7 @@ def test_no_lambda_reads_a_retired_google_secret_id():
 def test_google_key_consumers_pin_their_intended_secret_field_contracts():
     """Keep the compatibility readers aligned without weakening VayuLok's hardened boundary.
 
-    site-language and whatsapp-templates still support the legacy field name while the repository
+    site-language and whatsapp-template-management still support the legacy field name while the repository
     completes that migration. VayuLok intentionally does not: its server gateway was hardened to
     read only the canonical `api_key` field, so silently restoring the legacy fallback would undo
     that boundary.
