@@ -457,39 +457,29 @@ def test_the_environment_uses_only_approved_providers(provisioner):
     assert env["CATALOG_SOURCE"] == "aws"
 
 
-def test_presence_only_keys_are_exactly_the_readiness_inputs(provisioner):
-    """The only presence-only keys are the two readiness inputs — an owner fills them from a
-    live Meta/Razorpay read, so `--verify` tolerates any value and `reconcile_environment` never
-    clobbers them."""
-    assert provisioner.PRESENCE_ONLY_KEYS == provisioner.READINESS_KEYS
+def test_readiness_inputs_are_exact_value_checked(provisioner):
+    """Readiness identifiers are pinned non-secret expectations, never operator-owned drift."""
+    assert provisioner.PRESENCE_ONLY_KEYS == ()
     assert provisioner.READINESS_KEYS == (
         "EXPECTED_CONFIGURATION_NAME", "EXPECTED_PROVIDER_MID")
+    env = provisioner.expected_environment()
+    assert env["EXPECTED_CONFIGURATION_NAME"] == "WECAREDIGITAL"
+    assert env["EXPECTED_PROVIDER_MID"] == "acc_TTFSyolquKEZEy"
 
 
-def test_reconcile_seeds_the_switches_only_when_absent(provisioner):
-    """`reconcile_environment` adds a presence-only switch when it is MISSING, but never overwrites
-    an owner-set value. Asserted over the source so no account is touched."""
+def test_reconcile_repairs_readiness_drift(provisioner):
+    """The provisioner must overwrite a wrong readiness expectation, not merely require presence."""
     body = SCRIPT.read_text(encoding="utf-8").split(
         "def reconcile_environment")[1].split("\ndef ")[0]
     assert "k not in PRESENCE_ONLY_KEYS and current.get(k) != v" in body
-    assert "for k in PRESENCE_ONLY_KEYS:" in body
-    assert "if k not in current:" in body
+    assert "PRESENCE_ONLY_KEYS = ()" in SCRIPT.read_text(encoding="utf-8")
 
 
-def test_readiness_inputs_are_reported_but_not_a_gate_off_problem(provisioner):
-    """Native: readiness-set-with-gate-off is no longer a `--verify` failure.
-
-    The old refusal existed because, on the previous create path, an owner filling the readiness
-    values in with the gate off turned every `action=create` into a live third-party write before
-    refusing. Native checkout performs no such write, so setting readiness while the gate is off
-    is harmless operator state and
-    `verify()` only REPORTS it — it computes `readiness_empty` for the printed status line and
-    appends no problem for it. The gate itself being ON is still a problem (asserted elsewhere).
-    """
+def test_verify_reports_the_exact_readiness_expectations(provisioner):
     body = SCRIPT.read_text(encoding="utf-8").split("def verify(")[1].split("\ndef ")[0]
-    assert "readiness_empty" in body, "verify no longer reports readiness state at all"
-    # The old refusal must not have come back.
-    assert 'if not readiness_empty and initiation not in' not in body
+    assert "EXPECTED_CONFIGURATION_NAME" in body
+    assert "EXPECTED_PROVIDER_MID" in body
+    assert "readiness inputs:" in body
 
 
 def test_the_role_cannot_delete_checkout_evidence(provisioner):
@@ -991,8 +981,8 @@ def test_the_template_keeps_the_gate_absent():
     env = (template["Resources"]["CheckoutFunction"]["Properties"]
            ["Environment"]["Variables"])
     assert "CHECKOUT_INITIATION_ENABLED" not in env
-    assert env["EXPECTED_CONFIGURATION_NAME"] == ""
-    assert env["EXPECTED_PROVIDER_MID"] == ""
+    assert env["EXPECTED_CONFIGURATION_NAME"] == "WECAREDIGITAL"
+    assert env["EXPECTED_PROVIDER_MID"] == "acc_TTFSyolquKEZEy"
 
 
 def test_the_template_qualifies_every_invoke_permission(provisioner):
@@ -1312,17 +1302,12 @@ def test_every_non_readiness_key_is_actually_checked(provisioner, verify_run):
         assert verify_run({key: f"wrong-{want}-x"}) == 1, f"{key} is not verified on live"
 
 
-def test_a_readiness_key_is_checked_for_presence_not_for_an_empty_value(provisioner, verify_run):
-    """Presence-only, and both halves of that matter.
-
-    An owner filling these in from a live Meta/Razorpay read is legitimate drift from what this
-    script writes, so a non-empty value must not be an env MISMATCH - it is reported by the
-    readiness check instead, with the right explanation. A missing key is a different fault:
-    `payment_readiness` has nothing to evaluate.
-    """
+def test_readiness_keys_are_checked_for_exact_values(provisioner, verify_run):
+    """Missing, blank, or changed readiness expectations are all configuration drift."""
     for key in provisioner.READINESS_KEYS:
         assert verify_run(drop=(key,)) == 1, f"{key} absent from live is not reported"
-    # Present-but-empty is the provisioned state, and must stay clean.
+        assert verify_run({key: ""}) == 1, f"{key} blank on live is not reported"
+        assert verify_run({key: "wrong-value"}) == 1, f"{key} drift is not reported"
     assert verify_run() == 0
 
 
@@ -1330,19 +1315,11 @@ def test_the_gate_being_on_is_a_problem(verify_run):
     assert verify_run({"CHECKOUT_INITIATION_ENABLED": "true"}) == 1
 
 
-def test_readiness_set_with_the_gate_off_is_tolerated(verify_run):
-    """Native: readiness set with the gate OFF is clean operator state, not a `--verify` failure.
-
-    The old refusal existed because the previous create path performed a live third-party
-    checkout write and wrote a PaymentAttempt row before the gate refused, so "gate off" stopped
-    meaning "inert" the moment an owner filled the readiness values in. The native create path is
-    AWS-native, so filling readiness in while the gate stays off moves no money and writes nothing
-    surprising — `verify()` reports it and exits 0. The gate being ON is
-    still caught (see `test_readiness_set_with_the_gate_on_is_still_a_problem`).
-    """
-    assert verify_run({"EXPECTED_CONFIGURATION_NAME": "some-config"}) == 0
-    assert verify_run({"EXPECTED_PROVIDER_MID": "some-mid"}) == 0
-    assert verify_run({"EXPECTED_CONFIGURATION_NAME": "c", "EXPECTED_PROVIDER_MID": "m"}) == 0
+def test_readiness_drift_is_a_problem_even_without_the_retired_gate(verify_run):
+    """The retired initiation flag no longer controls safety; exact readiness expectations do."""
+    assert verify_run({"EXPECTED_CONFIGURATION_NAME": "some-config"}) == 1
+    assert verify_run({"EXPECTED_PROVIDER_MID": "some-mid"}) == 1
+    assert verify_run({"EXPECTED_CONFIGURATION_NAME": "c", "EXPECTED_PROVIDER_MID": "m"}) == 1
 
 
 def test_readiness_set_with_the_gate_on_is_still_a_problem(verify_run):
