@@ -48,6 +48,7 @@ const PrivacyPage: React.FC = () => (
       frame="Your data, your"
       words={ CYCLE_WORDS }
       sub="What we collect, why we collect it, and how to ask us to change or delete it."
+      mobileFoundation
     >
       {/* THE VISIBLE BREADCRUMB mirroring _app.tsx's BreadcrumbList for this route:
           Home -> 'Privacy' (the PUBLIC_PAGE_META name). No page-level JSON-LD - _app.tsx
