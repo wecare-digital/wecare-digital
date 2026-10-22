@@ -100,6 +100,8 @@ class Spec:
         standalone: bool = False,
         extra_dirs: Sequence[str] = (),
         extra_files: Sequence[str] = (),
+        external_dirs: Sequence[Tuple[str, str]] = (),
+        external_files: Sequence[Tuple[str, str]] = (),
         provisioned_by: str = "",
     ) -> None:
         self.name = name
@@ -120,6 +122,11 @@ class Spec:
         self.standalone = standalone
         self.extra_dirs = list(extra_dirs)
         self.extra_files = list(extra_files)
+        # (source path relative to amplify/functions, destination path in the zip).
+        # Used only when two runtimes temporarily share an exact implementation/asset
+        # during a strangler migration; avoids source copies that can drift.
+        self.external_dirs = list(external_dirs)
+        self.external_files = list(external_files)
 
     @property
     def handler_file(self) -> Path:
@@ -225,6 +232,8 @@ SPECS: List[Spec] = [
         "wecare-checkout",
         "ecommerce/checkout",
         extra_files=["invoice_engine.py"],
+        external_files=[("payments/invoice-engine/receipt_layout.py", "receipt_layout.py")],
+        external_dirs=[("payments/invoice-engine/fonts", "fonts")],
         provisioned_by="python scripts/provision_checkout.py",
     ),
     # The customer's own order history and profile summary, read-only. One Query on the sparse
@@ -494,6 +503,19 @@ def build_zip(spec: Spec) -> Tuple[bytes, Dict[str, bytes]]:
             if not extra.is_file():
                 raise FileNotFoundError(f"missing extra file: {extra}")
             members[rel] = extra.read_bytes()
+
+        for source_rel, dest_rel in spec.external_dirs:
+            extra = FUNCTIONS / source_rel
+            if not extra.is_dir():
+                raise FileNotFoundError(f"missing external dir: {extra}")
+            for path in _iter_dir(extra):
+                members[f"{dest_rel}/{path.relative_to(extra).as_posix()}"] = path.read_bytes()
+
+        for source_rel, dest_rel in spec.external_files:
+            extra = FUNCTIONS / source_rel
+            if not extra.is_file():
+                raise FileNotFoundError(f"missing external file: {extra}")
+            members[dest_rel] = extra.read_bytes()
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as archive:
