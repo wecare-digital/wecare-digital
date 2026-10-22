@@ -10,10 +10,10 @@ const seoRedirect = fs.readFileSync( path.join( ROOT, 'pages/workspace/seo/index
 const linkRedirect = fs.readFileSync( path.join( ROOT, 'pages/workspace/link/index.tsx' ), 'utf8' );
 
 describe( 'canonical Content workspace', () => {
-  it( 'has exactly Blog, Production, SEO and Short links as primary modes', () => {
+  it( 'has exactly Blog, SEO and Short links as primary modes', () => {
     const block = page.slice( page.indexOf( 'const TABS' ), page.indexOf( 'function one' ) );
     const labels = [ ...block.matchAll( /label: '([^']+)'/g ) ].map( match => match[ 1 ] );
-    expect( labels ).toEqual( [ 'Blog', 'Production', 'SEO', 'Short links' ] );
+    expect( labels ).toEqual( [ 'Blog', 'SEO', 'Short links' ] );
   } );
 
   it( 'keeps publishing contextual instead of promoting another permanent workspace', () => {
@@ -24,17 +24,12 @@ describe( 'canonical Content workspace', () => {
     expect( getAllNavItems().map( item => item.path ) ).toContain( '/workspace/content' );
   } );
 
-  it( 'keeps supported AWS-native SEO and production work reachable', () => {
+  it( 'keeps supported AWS-native blog and SEO work reachable', () => {
     const all = getAllNavItems().map( item => item.path );
     for ( const destination of [
       '/workspace/content?view=blog',
-      '/workspace/content?view=production',
       '/workspace/content?view=seo&area=tools',
       '/workspace/content?view=seo&area=pages',
-      '/workspace/seo/blog-studio',
-      '/workspace/seo/blog-production?tab=review',
-      '/workspace/seo/blog-production?tab=qa',
-      '/workspace/seo/blog-production?tab=publish',
     ] ) {
       expect( all ).toContain( destination );
     }
@@ -72,7 +67,7 @@ describe( 'canonical Content workspace', () => {
 
   it( 'maps the old SEO hub only into supported Content modes', () => {
     expect( seoRedirect ).toContain( "view: 'blog'" );
-    expect( seoRedirect ).toContain( "view: 'production'" );
+    expect( seoRedirect ).not.toContain( "view: 'production'" );
     expect( seoRedirect ).toContain( "view: 'seo'" );
     expect( seoRedirect ).not.toContain( 'NEXT_PUBLIC_SEO_API_URL' );
   } );
