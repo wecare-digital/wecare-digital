@@ -14,7 +14,7 @@ was built for a different job:
 ``wd_file_delivery`` fixes both: BODY variables for the customer name and the file
 name, and no buttons at all.
 
-The payment template is deliberately NOT recreated. ``wecare_pay``'s only gap is that
+The payment template is deliberately NOT recreated. ``wecare_whatapp_native_pay_template``'s only gap is that
 its BODY has no variables, and the amount already reaches the customer through the
 ORDER_DETAILS payload rather than the text - so the gap is cosmetic. Its button is an
 ORDER_DETAILS button, which is coupled to the account's payment configuration; hand-
