@@ -8,6 +8,7 @@ const child = productChildByPath( '/ritual-guru/puja-guidance/' );
 
 const PujaGuidancePage: React.FC = () => (
   <ProductPage
+      mobileFoundation
     product={ child.product }
     canonicalPath={ child.path }
     belowCta={ <ProductBuyBox slug={ child.product.slug } /> }
