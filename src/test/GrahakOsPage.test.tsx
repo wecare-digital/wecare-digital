@@ -470,7 +470,9 @@ describe( 'Grahak OS: API-panel "Open demo in WhatsApp" link', () => {
     const checkoutAction = readFileSync( resolve( process.cwd(), 'src/components/CheckoutAction.tsx' ), 'utf8' );
     const ctaRule = cssRuleFor( checkoutAction, '.checkout-action' );
     expect( ctaRule ).toContain( 'background:var(--public-accent-amber)' );
-    expect( ctaRule ).toContain( 'border:2px solid var(--public-brand-green)' );
+    expect( ctaRule ).toContain( 'border:2px solid transparent' );
+    expect( ctaRule ).toContain( 'border-radius:11px' );
+    expect( checkoutAction ).toContain( 'shopping_cart_checkout' );
     const apiCss = source.slice( source.indexOf( '.api-demo-stack{' ) );
     expect( cssRuleFor( apiCss, '.api-wa-link' ) ).toContain( 'text-decoration:underline' );
   } );
