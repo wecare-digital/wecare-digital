@@ -460,6 +460,14 @@ def _service_prices(origin: str) -> Dict[str, Any]:
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     origin = extract_origin(event)
+
+    # Strangler seam: invoice-engine is packaged inside checkout but receives no live traffic
+    # until API/internal callers are migrated deliberately. Lazy import keeps ordinary checkout
+    # cold starts and trust decisions unchanged.
+    commerce_path = str(event.get("rawPath") or event.get("path") or "")
+    if commerce_path.startswith("/invoices"):
+        import invoice_engine as commerce_invoice_engine
+        return commerce_invoice_engine.handler(event, context)
     if event.get('internalAction') in ('prepareNativeCatalogService', 'finalizeNativeCatalogService'):
         if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
             return cors_response(403, {'error': 'Internal invocation required'}, origin)
