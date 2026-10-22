@@ -15,21 +15,7 @@ from lambda_utils.response import (
 )
 
 import ai
-import blog_analysis
-import blog_batches
-import blog_catalog
-import blog_draft
-import blog_gate
-import blog_publish
-import blog_production
-import blog_qa
-import blog_queue
-import blog_repetition
-import blog_sources
-import blog_templates
-import blog_verify
 import blog_source
-import blog_site_bridge
 import faq
 import seo_freshness
 import seo_refresh
@@ -476,11 +462,6 @@ def _review(body: Dict[str, Any], actor: str, origin: str):
 
 
 def _route_get(path: str, event: Dict[str, Any], origin: str):
-    if path.endswith('/blog-production'):
-        category = _query(event, 'category').strip()
-        if category:
-            return _response(200, {'ok': True, **blog_production.resume(category)}, origin)
-        return _response(200, {'ok': True, **blog_production.dashboard()}, origin)
     if path.endswith('/blog-posts'):
         posts = storage.list_blog_posts()
         return _response(200, {'ok': True, 'posts': posts, 'total': len(posts)}, origin)
@@ -492,219 +473,6 @@ def _route_get(path: str, event: Dict[str, Any], origin: str):
         records = storage.list_records(record_type, scope)
         key = 'logs' if record_type == 'log' else 'audits'
         return _response(200, {'ok': True, key: records}, origin)
-    if '/blog-batches/' in path:
-        # One batch with its rollup and its sources. `?limit=` bounds the source list for a
-        # UI page; absent, it returns all of them, which is the point of the batch index.
-        batch_id = path.split('/blog-batches/', 1)[1].strip('/')
-        limit = int(_query(event, 'limit', '0') or 0)
-        return _response(200, {
-            'ok': True, 'batch': blog_batches.detail(batch_id, source_limit=limit),
-        }, origin)
-    if path.endswith('/blog-catalog'):
-        return _response(200, {
-            'ok': True,
-            'bucket': blog_sources.BUCKET,
-            'catalogIndexKey': blog_catalog.CATALOG_INDEX_KEY,
-            'productionMasterKey': blog_catalog.PRODUCTION_MASTER_KEY,
-            'governedCategories': list(blog_catalog.GOVERNED_CATEGORIES),
-            'unlimitedBulk': blog_catalog.UNLIMITED_BULK,
-        }, origin)
-    if path.endswith('/blog-batches'):
-        # `?rollup=none` skips the per-batch source count, which is a real cost switch: each
-        # rollup pages that batch's sources, so 50 batches with rollups is 50 index queries.
-        with_rollup = _query(event, 'rollup', 'full') != 'none'
-        batches = blog_batches.list_batches(with_rollup=with_rollup)
-        return _response(200, {
-            'ok': True, 'batches': batches, 'total': len(batches),
-            'categories': list(BLOG_CATEGORIES),
-            'articleClasses': list(_quality.ARTICLE_CLASSES) if _quality else [],
-            'batchStatuses': list(blog_batches.BATCH_STATUSES),
-        }, origin)
-    if path.endswith('/blog-site-build'):
-        return _response(200, {'ok': True, **blog_site_bridge.state()}, origin)
-    if '/blog-site-build/' in path:
-        reference = path.split('/blog-site-build/', 1)[1].strip('/')
-        return _response(200, {
-            'ok': True, 'build': blog_site_bridge.get_build(reference) or {},
-        }, origin)
-    if '/blog-verify/' in path:
-        return _response(200, {
-            'ok': True,
-            'run': blog_verify.detail(path.split('/blog-verify/', 1)[1].strip('/')),
-        }, origin)
-    if path.endswith('/blog-verify'):
-        source_ref = _query(event, 'sourceId')
-        batch_ref = _query(event, 'batchId')
-        payload: Dict[str, Any] = {
-            'ok': True,
-            # The assertion list, so the UI renders the thirteen by name rather than hard-coding
-            # a list that can fall out of step with the ones that actually run.
-            'assertions': [{'assertion': name, 'description': description}
-                           for name, description in blog_verify.ASSERTIONS],
-        }
-        if source_ref:
-            payload['runs'] = [blog_verify.view(row)
-                               for row in blog_verify.history(source_ref)]
-            try:
-                payload['expected'] = blog_verify.expectation(source_ref)
-            except LookupError:
-                # The RUNS outlive the source. A verification record is the evidence that an
-                # article was checked, so a deleted source must not take the history with it -
-                # answering 404 for the whole payload would do exactly that.
-                payload['expected'] = {}
-                payload['expectationNote'] = 'the source record no longer exists'
-        if batch_ref:
-            payload['batchState'] = blog_verify.batch_verify_state(batch_ref)
-            # Published and unchecked: live articles nobody has looked at.
-            payload['pending'] = blog_verify.pending_verification(batch_ref)
-        return _response(200, payload, origin)
-    if '/blog-publish/' in path:
-        return _response(200, {
-            'ok': True,
-            'job': blog_publish.detail(path.split('/blog-publish/', 1)[1].strip('/')),
-        }, origin)
-    if path.endswith('/blog-publish'):
-        # `?batchId=` answers the release page's real question: which sources could be released
-        # right now, AND why each of the others cannot. Filtering to the eligible rows leaves an
-        # operator with no idea why the other forty are missing.
-        batch_ref = _query(event, 'batchId')
-        payload: Dict[str, Any] = {
-            'ok': True,
-            'jobStatuses': list(blog_publish.JOB_STATUSES),
-            'queue': blog_publish.queue(status=_query(event, 'status'),
-                                        limit=int(_query(event, 'limit', '0') or 0)),
-            # AWS-native blog writes are the active publisher; the retired-provider flag is kept
-            # in the response for client compatibility, but is explicitly false.
-            'providerWritesRetired': False,
-        }
-        if batch_ref:
-            payload['batchState'] = blog_publish.batch_publish_state(batch_ref)
-            payload['candidates'] = blog_publish.releasable_in_batch(batch_ref)
-        return _response(200, payload, origin)
-    if '/blog-repetition/' in path:
-        return _response(200, {
-            'ok': True,
-            'run': blog_repetition.detail(path.split('/blog-repetition/', 1)[1].strip('/')),
-        }, origin)
-    if path.endswith('/blog-repetition'):
-        batch_ref = _query(event, 'batchId')
-        if not batch_ref:
-            raise ValueError('batchId is required; repetition is a property of a collection')
-        return _response(200, {
-            'ok': True,
-            'state': blog_repetition.batch_state(batch_ref),
-            'runs': [blog_repetition.view(row)
-                     for row in blog_repetition.history(batch_ref)],
-            'thresholds': {
-                'pairBody': blog_repetition.PAIR_BODY,
-                'pairBodyNearDuplicate': blog_repetition.PAIR_BODY_NEAR_DUPLICATE,
-                'shapeNoticeable': blog_repetition.SHAPE_NOTICEABLE,
-                'shapeDominant': blog_repetition.SHAPE_DOMINANT,
-                'minCollection': blog_repetition.MIN_COLLECTION,
-            },
-        }, origin)
-    if '/blog-qa/' in path:
-        # One run with its full report, proxied from S3 for the same reason the analysis
-        # evidence is: the prefix is public and nothing should hand out a URL to it.
-        return _response(200, {
-            'ok': True,
-            'run': blog_qa.run_detail(path.split('/blog-qa/', 1)[1].strip('/')),
-        }, origin)
-    if path.endswith('/blog-qa'):
-        source_ref = _query(event, 'sourceId')
-        batch_ref = _query(event, 'batchId')
-        payload: Dict[str, Any] = {'ok': True, 'humanGates': list(blog_qa.human_gates()),
-                                   'gateAnswers': list(blog_qa.GATE_ANSWERS)}
-        if source_ref:
-            payload['state'] = blog_qa.source_state(source_ref)
-            payload['runs'] = [blog_qa.run_view(row)
-                               for row in blog_qa.run_history(source_ref)]
-            payload['signoffs'] = [blog_qa.signoff_view(row)
-                                   for row in blog_qa.signoff_history(source_ref)]
-        if batch_ref:
-            payload['batchState'] = blog_qa.batch_qa_state(batch_ref)
-        if not source_ref and not batch_ref:
-            # The corpus coverage on its own, which is the one thing worth reading without
-            # naming an article: a QA run is only worth what this reports.
-            payload['corpus'] = blog_gate.corpus_state()
-        return _response(200, payload, origin)
-    if '/blog-templates/' in path:
-        # `?history=1` returns every version of the family, which is the audit trail an
-        # article's recorded `templateVersion` points into.
-        reference = path.split('/blog-templates/', 1)[1].strip('/')
-        if _query(event, 'history'):
-            versions = blog_templates.history(reference)
-            return _response(200, {
-                'ok': True,
-                'templateId': blog_templates.family_id(reference),
-                'versions': [blog_templates.view(row) for row in versions],
-            }, origin)
-        template = blog_templates.get(reference) or blog_templates.resolve(reference)
-        if not template:
-            return _response(404, {'ok': False, 'error': 'Unknown template'}, origin)
-        return _response(200, {
-            'ok': True, 'template': blog_templates.view(template),
-            # Whether this exact version may still be edited in place, and by implication
-            # whether an edit will fork it. Derived from published articles, not a flag.
-            'locked': blog_templates.locked(template['templateId'],
-                                            int(template['version'])),
-        }, origin)
-    if path.endswith('/blog-templates'):
-        templates = blog_templates.list_templates(
-            include_deprecated=bool(_query(event, 'deprecated')))
-        return _response(200, {
-            'ok': True, 'templates': templates, 'total': len(templates),
-            'anyCategory': blog_templates.ANY_CATEGORY,
-            'categories': list(BLOG_CATEGORIES),
-        }, origin)
-    if '/blog-analysis/' in path:
-        # One analysis with its evidence. The evidence is PROXIED through this authenticated
-        # route rather than linked: the prefix is on the public root, so returning a URL would
-        # hand out the file to anyone it was forwarded to.
-        return _response(200, {
-            'ok': True,
-            'analysis': blog_analysis.detail(path.split('/blog-analysis/', 1)[1].strip('/')),
-        }, origin)
-    if path.endswith('/blog-analysis'):
-        # `?sourceId=` gives one source's version history; `?batchId=` gives how much of a
-        # wave has actually been read. Neither is derived from a counter.
-        source_ref = _query(event, 'sourceId')
-        batch_ref = _query(event, 'batchId')
-        payload: Dict[str, Any] = {'ok': True}
-        if source_ref:
-            payload['history'] = [blog_analysis.view(row)
-                                  for row in blog_analysis.history(source_ref)]
-        if batch_ref:
-            payload['reviewState'] = blog_analysis.batch_review_state(batch_ref)
-            payload['pendingAnalysis'] = blog_analysis.pending_analysis(batch_ref)
-        if not source_ref and not batch_ref:
-            raise ValueError('sourceId or batchId is required')
-        return _response(200, payload, origin)
-    if '/blog-sources/' in path:
-        # One source with its extract and draft. Split out from the list route because the
-        # extract is hundreds of kB and returning it for 200 sources would make the list
-        # response megabytes.
-        return _response(200, {
-            'ok': True,
-            'source': blog_sources.source_detail(path.split('/blog-sources/', 1)[1].strip('/')),
-        }, origin)
-    if path.endswith('/blog-sources'):
-        # `?batchId=` scopes the listing through the batch index rather than reading every
-        # source in the system, which is what makes a thousand-source batch viewable.
-        return _response(200, {
-            'ok': True,
-            'categories': list(BLOG_CATEGORIES),
-            'articleClasses': list(_quality.ARTICLE_CLASSES) if _quality else [],
-            'humanGates': list(_quality.HUMAN_GATES) if _quality else [],
-            'aiDraftEnabled': blog_draft.enabled(),
-            'maxSourceBytes': blog_sources.MAX_SOURCE_BYTES,
-            # Queue and DLQ depth beside the source list, because "nothing is progressing" and
-            # "three documents are dead-lettered" look identical from the statuses alone.
-            'queue': blog_queue.depth(),
-            **blog_sources.status_report(
-                limit=int(_query(event, 'limit', '0') or 0),
-                batch_id=_query(event, 'batchId')),
-        }, origin)
     if path.endswith('/site-pages'):
         pages = page_catalog.list_site_pages()
         return _response(200, {'ok': True, 'pages': pages, 'total': len(pages)}, origin)
@@ -715,292 +483,21 @@ def _route_get(path: str, event: Dict[str, Any], origin: str):
 
 
 def _route_post(path: str, body: Dict[str, Any], actor: str, origin: str):
-    # ── Zero-paid-AI editorial production state ────────────────────────────────
-    if path.endswith('/blog-production/init'):
-        duplicate = _claim({'version': 1}, actor, 'seo.blogproduction.init', origin)
-        if duplicate:
-            return duplicate
-        return _response(200, {'ok': True, **blog_production.initialize(actor)}, origin)
-
-    if path.endswith('/blog-production/claim'):
-        category = str(body.get('category') or '').strip()
-        return _response(200, {'ok': True, **blog_production.claim_next_source(
-            category, actor)}, origin)
-
-    if path.endswith('/blog-production/manifest'):
-        return _response(200, {'ok': True, **blog_production.submit_manifest(
-            body, actor)}, origin)
-
-    if path.endswith('/blog-production/sample'):
-        return _response(200, {'ok': True, **blog_production.save_sample(
-            body, actor)}, origin)
-
-    if path.endswith('/blog-production/sample-approve'):
-        duplicate = _claim(body, actor, 'seo.blogproduction.sampleapprove', origin)
-        if duplicate:
-            return duplicate
-        return _response(200, {'ok': True, **blog_production.approve_sample(
-            body, actor)}, origin)
-
-    if path.endswith('/blog-production/article-upload'):
-        return _response(200, {'ok': True, **blog_production.stage_article_upload(
-            body, actor)}, origin)
-
-    if path.endswith('/blog-production/article'):
-        return _response(200, {'ok': True, **blog_production.save_article(
-            body, actor)}, origin)
-
-    if path.endswith('/blog-production/checkpoint'):
-        category = str(body.get('category') or '').strip()
-        return _response(200, {'ok': True, **blog_production.checkpoint(
-            category, body, actor)}, origin)
-
-    if path.endswith('/blog-production/complete-source'):
-        category = str(body.get('category') or '').strip()
-        source_id = str(body.get('sourceId') or '').strip()
-        return _response(200, {'ok': True, **blog_production.complete_source(
-            category, source_id, actor)}, origin)
-
-    # ── Blog source intake ──────────────────────────────────────────────────────
-    #
-    # All four of these sit inside _route_post, which runs AFTER the require_auth call in
-    # `handler`. That placement is load-bearing for the route-auth gate: the API already
-    # carries `ANY /seo-tools/{proxy+}`, so these add no new API Gateway route key and
-    # `audit_route_auth.py` continues to classify the whole surface as
-    # handler-authenticated on the strength of that one require_auth.
-    if path.endswith('/blog-batches/close'):
-        batch_id = str(body.get('batchId') or '').strip()
-        if not batch_id:
-            raise ValueError('batchId is required')
-        return _response(200, {'ok': True, **blog_batches.close(batch_id, actor)}, origin)
-    if path.endswith('/blog-batches'):
-        # Claimed: a double-submitted form would otherwise create two batches with the same
-        # name and split one wave's sources across both.
-        duplicate = _claim(body, actor, 'seo.blogbatch.create', origin)
-        if duplicate:
-            return duplicate
-        return _response(200, {'ok': True, **blog_batches.create(
-            body, actor, tuple(BLOG_CATEGORIES),
-            tuple(_quality.ARTICLE_CLASSES) if _quality else ('ARCHIVE_DERIVED',),
-        )}, origin)
-
-    if path.endswith('/blog-catalog/sync'):
-        # Rebuildable projections only. DynamoDB remains authoritative and the production
-        # master stays under secure/, while the public catalog contains public post fields.
-        return _response(200, {'ok': True, **blog_catalog.sync()}, origin)
-
-    if path.endswith('/blog-site-build/trigger'):
-        return _response(200, {
-            'ok': True, **blog_site_bridge.trigger_pending(actor),
-        }, origin)
-    if path.endswith('/blog-publish/bulk'):
-        job_ids = body.get('jobIds')
-        if not isinstance(job_ids, list) or not job_ids:
-            raise ValueError('jobIds must be a non-empty array')
-        wanted = [str(value or '').strip() for value in job_ids if str(value or '').strip()]
-        jobs = storage.get_typed_many(wanted, blog_publish.RECORD_TYPE)
-        queued_ids = []
-        skipped = []
-        for job_id in wanted:
-            job = jobs.get(job_id)
-            if not job:
-                skipped.append({'jobId': job_id, 'reason': 'UNKNOWN_JOB'})
-            elif str(job.get('status') or '') != blog_publish.QUEUED:
-                skipped.append({'jobId': job_id, 'reason': str(job.get('status') or 'NOT_QUEUED')})
-            else:
-                queued_ids.append(job_id)
-        result = blog_queue.enqueue_publish(queued_ids, actor)
-        return _response(200, {
-            'ok': True, **result, 'requested': len(wanted),
-            'accepted': len(queued_ids), 'skipped': skipped,
-            'note': ('Only jobs already released and still QUEUED were accepted. '
-                     'Bulk publishing never releases or approves articles.'),
-        }, origin)
-    if path.endswith('/blog-verify'):
-        source_id = str(body.get('sourceId') or '').strip()
-        if not source_id:
-            raise ValueError('sourceId is required')
-        # Read-only, and NOT idempotency-claimed: re-verifying is exactly what an operator does
-        # after fixing something, and each run is its own record of a moment.
-        return _response(200, {'ok': True, **blog_verify.run(source_id, actor)}, origin)
-
-    if path.endswith('/blog-publish/revise'):
-        source_id = str(body.get('sourceId') or '').strip()
-        if not source_id:
-            raise ValueError('sourceId is required')
-        # A revision never creates a second URL/post. It mutates the already-published native
-        # post in place, but only after fresh QA/sign-off over the exact revised body.
-        return _response(200, {'ok': True, **blog_publish.revise(source_id, actor)}, origin)
-
-    if path.endswith('/blog-publish/release'):
-        # Records a decision. Performs NO publish write - publishing is a separate call, because
-        # section 38 requires that processing completion never automatically mean publishing.
-        source_id = str(body.get('sourceId') or '').strip()
-        if not source_id:
-            raise ValueError('sourceId is required')
-        # NOT idempotency-claimed, because `release` is idempotent in the way that matters: a
-        # second release resolves to the job that already exists. A 409 would leave the operator
-        # unsure whether the first one landed, which is worse on exactly this route.
-        return _response(200, {'ok': True, **blog_publish.release(source_id, actor)}, origin)
-    if path.endswith('/blog-publish/withdraw'):
-        job_id = str(body.get('jobId') or '').strip()
-        if not job_id:
-            raise ValueError('jobId is required')
-        return _response(200, {'ok': True, **blog_publish.unrelease(
-            job_id, str(body.get('reason') or ''), actor)}, origin)
-    if path.endswith('/blog-publish'):
-        job_id = str(body.get('jobId') or '').strip()
-        if not job_id:
-            raise ValueError('jobId is required')
-        # DELIBERATELY NOT IDEMPOTENCY-CLAIMED, and this is the one route where that looks
-        # wrong. It is the only write that puts a post live, so a claim is the obvious reflex.
-        #
-        # It was there, and the first live run caught it doing harm. The claim keys on the
-        # request body, and the body is just `{jobId}` - so the FIRST attempt records the claim
-        # whatever its outcome, and a later legitimate retry of the same job answers 409. The run
-        # hit exactly that: a publish correctly refused because the article had been edited, then
-        # the operator restored the body, re-signed, pressed Publish again, and got "This Admin
-        # action was already submitted" with no way forward.
-        #
-        # The conditional QUEUED -> PUBLISHING claim inside `publish` is the real guard and it is
-        # strictly better, because it is tied to the JOB'S STATE rather than to a request shape.
-        # Two simultaneous submits both read QUEUED, both call it, one wins the conditional
-        # write and the other returns "another publisher holds this job" having written nothing.
-        # A body-hash claim adds no safety on top of that and costs a retry that has to work.
-        return _response(200, {'ok': True, **blog_publish.publish(job_id, actor)}, origin)
-
-    if path.endswith('/blog-repetition'):
-        batch_id = str(body.get('batchId') or '').strip()
-        if not batch_id:
-            raise ValueError('batchId is required')
-        return _response(200, {
-            'ok': True, **blog_repetition.run(batch_id, actor),
-        }, origin)
-
-    if path.endswith('/blog-qa/sign-off'):
-        # The ONLY route that can make READY_TO_PUBLISH reachable. It does not publish, and no
-        # model-writable field reaches it - `gate` is absent from blog_draft.WRITABLE_FIELDS.
-        return _response(200, {'ok': True, **blog_qa.sign_off(body, actor)}, origin)
-    if path.endswith('/blog-qa/revoke'):
-        signoff_ref = str(body.get('signoffId') or '').strip()
-        if not signoff_ref:
-            raise ValueError('signoffId is required')
-        return _response(200, {'ok': True, **blog_qa.revoke(
-            signoff_ref, str(body.get('reason') or ''), actor)}, origin)
-    if path.endswith('/blog-qa'):
-        source_id = str(body.get('sourceId') or '').strip()
-        if not source_id:
-            raise ValueError('sourceId is required')
-        # NOT idempotency-claimed. A QA run is a cheap, deliberately repeatable record - it
-        # reads the article and applies rules, with no model call - and an operator must be able
-        # to re-run it immediately after an edit, which is exactly when a 409 would bite.
-        return _response(200, {'ok': True, **blog_qa.run(source_id, actor)}, origin)
-
-    if path.endswith('/blog-templates/assign'):
-        return _response(200, {'ok': True, **blog_templates.assign(
-            str(body.get('sourceId') or '').strip(),
-            str(body.get('templateId') or '').strip(),
-            body.get('version') or 0, actor)}, origin)
-    if path.endswith('/blog-templates/deprecate'):
-        record_id = str(body.get('recordId') or '').strip()
-        if not record_id:
-            raise ValueError('recordId is required, naming the exact version')
-        return _response(200, {'ok': True, **blog_templates.deprecate(record_id, actor)},
-                         origin)
-    if path.endswith('/blog-templates'):
-        # NOT idempotency-claimed. `save` is itself idempotent in the way that matters: a
-        # replayed edit of an unlocked version writes the same fields again, and a replayed
-        # edit of a LOCKED version forks - which is the correct outcome either way, whereas a
-        # 409 would leave the operator unsure which of the two happened.
-        return _response(200, {'ok': True, **blog_templates.save(
-            body, actor, tuple(BLOG_CATEGORIES),
-            tuple(_quality.ARTICLE_CLASSES) if _quality else ('ARCHIVE_DERIVED',),
-        )}, origin)
-
-    if path.endswith('/blog-analysis/review'):
-        # The ONLY route that can write `sourceReviewedFully`, and it insists the reviewer
-        # names the analysis version they read. No model-writable field reaches here.
-        return _response(200, {
-            'ok': True, **blog_analysis.record_review(body, actor),
-        }, origin)
-    if path.endswith('/blog-analysis'):
-        source_id = str(body.get('sourceId') or '').strip()
-        if not source_id:
-            raise ValueError('sourceId is required')
-        # NOT idempotency-claimed. Analysis is deliberately versioned and cheap - it reads the
-        # extract and runs regular expressions, with no model call - so a double submit
-        # producing v2 is harmless, whereas a 409 would leave an operator unable to re-analyse
-        # after a re-extraction, which is the one time they must be able to.
-        return _response(200, {
-            'ok': True, **blog_analysis.analyse(source_id, actor),
-        }, origin)
-
-    if path.endswith('/blog-sources/adopt-published'):
-        # Migration bridge only. Copies one existing published post into Blog Production
-        # state and changes NOTHING live. Fresh analysis, human source review, QA/sign-off
-        # and blog-publish/revise are still required before any revision reaches the site.
-        return _response(200, {
-            'ok': True, **blog_sources.adopt_published(
-                body, actor, tuple(BLOG_CATEGORIES)),
-        }, origin)
-
-    if path.endswith('/blog-sources/confirm'):
-        # NO idempotency claim, deliberately. Confirm is naturally idempotent - it
-        # head_objects each key and moves PENDING_UPLOAD to UPLOADED - and a claim would
-        # make a legitimate retry after a dropped response return 409 with the sources
-        # still unconfirmed.
-        return _response(200, {'ok': True, **blog_sources.confirm(body, actor)}, origin)
-    if path.endswith('/blog-sources/drain'):
-        # RECONCILIATION, not the steady-state path. The queue cannot find a source whose
-        # message was never sent or was lost - a record written before the queue existed, a
-        # SendMessageBatch that partially failed, a message that aged out. This asks the table
-        # what is outstanding, which is the only check that does not assume the queue is right.
-        requeue = str(body.get('requeue') or '').lower() not in ('0', 'false', 'no')
-        outstanding = [str(row['id']) for row in blog_sources.pending_sources()]
-        if requeue and outstanding:
-            result = blog_queue.enqueue(outstanding, reason='drain')
-            if not result['configured']:
-                result = {'queued': 0, 'failed': 0, 'configured': False,
-                          'workerStarted': blog_sources.start_worker('drain')}
-            return _response(200, {'ok': True, 'outstanding': len(outstanding),
-                                   'sourceIds': outstanding[:200], **result}, origin)
-        return _response(200, {'ok': True, 'outstanding': len(outstanding),
-                               'sourceIds': outstanding[:200], 'queued': 0,
-                               'requeued': False}, origin)
-    if path.endswith('/blog-sources/redrive'):
-        # Explicit on purpose. A message reaches the DLQ after three failures, so the cause is
-        # usually not transient - re-driving without reading the source's `error` first is how
-        # an unreadable PDF cycles forever.
-        return _response(200, {'ok': True, **blog_queue.redrive(
-            int(body.get('limit') or 0))}, origin)
-    if path.endswith('/blog-sources/retry'):
-        source_id = str(body.get('sourceId') or '').strip()
-        if not source_id:
-            raise ValueError('sourceId is required')
-        return _response(200, {'ok': True, **blog_sources.retry(source_id)}, origin)
-    if path.endswith('/blog-sources'):
-        duplicate = _claim(body, actor, 'seo.blogsource.register', origin)
+    if path.endswith('/blog-update'):
+        slug = str(body.get('slug') or '').strip()
+        if not slug:
+            raise ValueError('slug required')
+        post = body.get('post') if isinstance(body.get('post'), dict) else body
+        expected_post_id = str(body.get('expectedPostId') or body.get('postId') or '').strip()
+        duplicate = _claim(
+            {'slug': slug, 'expectedPostId': expected_post_id, 'post': post},
+            actor, 'seo.blog.update', origin)
         if duplicate:
             return duplicate
         return _response(200, {
-            'ok': True, **blog_sources.register(body, actor, tuple(BLOG_CATEGORIES)),
-        }, origin)
-    if path.endswith('/blog-draft'):
-        source_id = str(body.get('sourceId') or '').strip()
-        if not source_id:
-            raise ValueError('sourceId is required')
-        # Claimed, because this one costs money per call and a double-submitted button
-        # would pay twice for the same article.
-        duplicate = _claim({'sourceId': source_id}, actor, 'seo.blogdraft.propose', origin)
-        if duplicate:
-            return duplicate
-        return _response(200, {'ok': True, **blog_draft.propose(source_id, actor)}, origin)
-    if path.endswith('/blog-draft-accept'):
-        source_id = str(body.get('sourceId') or '').strip()
-        if not source_id:
-            raise ValueError('sourceId is required')
-        return _response(200, {
-            'ok': True, **blog_draft.apply_draft(source_id, body, actor),
+            'ok': True,
+            **storage.update_blog_post(
+                slug, post, actor, expected_post_id=expected_post_id),
         }, origin)
 
     if path.endswith('/blog-create'):
@@ -1025,8 +522,6 @@ def _route_post(path: str, body: Dict[str, Any], actor: str, origin: str):
     if path.endswith('/seo-approve'):
         return _review(body, actor, origin)
     if path.endswith('/cache-purge'):
-        # Compatibility route retained for existing Admin callers. The native blog source
-        # reads DynamoDB directly and has no provider-side per-sandbox cache to purge.
         logger.info(json.dumps({'event': 'seo_native_cache_purge_noop', 'actor': actor}))
         return _response(200, {
             'ok': True,
@@ -1034,23 +529,7 @@ def _route_post(path: str, body: Dict[str, Any], actor: str, origin: str):
             'note': 'Native blog reads have no provider cache to purge.',
         }, origin)
     return _response(404, {'ok': False, 'error': 'SEO route not found'}, origin)
-
-
 def handler(event: Dict[str, Any], context: Optional[Any]):
-    # ── The SQS ingest consumer ──────────────────────────────────────────────────
-    #
-    # Checked FIRST, before HTTP handling and before the legacy sweep branch, because an SQS
-    # batch is not an HTTP request and carries no requestContext at all.
-    #
-    # NOT AN UNAUTHENTICATED HOLE, for the same reason the worker branch below is not. An API
-    # Gateway request cannot produce a top-level `Records` key - its payload arrives under
-    # `body` as a JSON string - and `blog_queue.is_queue_event` additionally requires every
-    # record to name `eventSource: aws:sqs`, which only the event source mapping can do. That
-    # mapping is IAM-gated.
-    #
-    # The return value is the `batchItemFailures` shape, so ReportBatchItemFailures retries
-    # only the messages that actually need it. Exceptions are caught inside `consume`: letting
-    # one escape here would redeliver the whole batch, including the documents that succeeded.
     # ── The scheduled derived-SEO freshness check ────────────────────────────────
     #
     # Checked among the non-HTTP branches for the same reason the blog worker is: it arrives
@@ -1069,46 +548,6 @@ def handler(event: Dict[str, Any], context: Optional[Any]):
             # deterministic failure (e.g. upstream down) would just retry into the same wall.
             # The next scheduled run picks it up.
             return {'event': 'seo_freshness_run', 'error': 'sweep failed', 'refreshed': 0}
-
-    if blog_queue.is_queue_event(event):
-        try:
-            return blog_queue.consume(event)
-        except Exception:
-            logger.exception('blog ingest batch failed')
-            # Report EVERY message as failed rather than swallowing the batch. A failure this
-            # far out is infrastructural, so the messages should redeliver and eventually
-            # dead-letter rather than vanish.
-            return {'batchItemFailures': [
-                {'itemIdentifier': str(record.get('messageId') or '')}
-                for record in (event.get('Records') or [])
-                if record.get('messageId')]}
-
-    # ── The async extraction worker ──────────────────────────────────────────────
-    #
-    # Checked FIRST, before any HTTP handling, because this is not an HTTP request: it
-    # arrives from `blog_sources.start_worker` via InvocationType='Event' and carries no
-    # requestContext at all.
-    #
-    # THIS IS NOT AN UNAUTHENTICATED HOLE, and it is worth being explicit about why. There
-    # is no API Gateway route that can produce `blogWorker` in the body - the routes are
-    # `ANY /seo-tools` and `ANY /seo-tools/{proxy+}`, and an HTTP request arrives with its
-    # payload under `body` as a JSON STRING, never as a top-level key on the event. So the
-    # only way to reach this branch is `lambda:InvokeFunction` on this function, which is
-    # IAM-gated and held by this function's own role. Same reasoning
-    # `lambda_utils.middleware.require_auth` uses to skip internal invokes.
-    #
-    # The `not event.get('requestContext')` half is belt and braces: even if a future route
-    # shape let a caller put arbitrary keys at the top level, an API Gateway event always
-    # carries a requestContext, so this branch would still refuse it.
-    if event.get('blogWorker') is True and not event.get('requestContext'):
-        try:
-            return blog_sources.run_worker(event)
-        except Exception:
-            logger.exception('blog source worker failed')
-            # Returned rather than raised: an async invoke that raises is retried twice by
-            # Lambda, and a source that fails deterministically would be extracted three
-            # times. The per-source status already records the failure durably.
-            return {'processed': 0, 'failed': 0, 'error': 'worker failed'}
 
     origin = extract_origin(event)
     method, path = _method_path(event)
