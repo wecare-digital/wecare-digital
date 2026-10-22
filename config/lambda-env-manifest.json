@@ -249,7 +249,7 @@
       "LOG_LEVEL": "INFO",
       "META_CATALOG_ID": "1457045652952851",
       "META_CATALOG_SYNC_ENABLED": "true",
-      "META_CATALOG_SYNC_DRY_RUN": "false",
+      "META_CATALOG_SYNC_DRY_RUN": "true",
       "META_CATALOG_SYNC_VARIANT_IDS": "",
       "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "false",
       "META_TOKEN_FIELD": "access_token",
@@ -257,7 +257,7 @@
       "META_CATALOG_APPROVALS_TABLE": "stack-wecare-digital-AgentApprovalsTable",
       "CATALOG_SOURCE": "aws",
       "PRODUCTS_TABLE": "stack-wecare-digital-ProductsTable",
-      "META_CATALOG_AUTO_APPLY_SAFE": "true",
+      "META_CATALOG_AUTO_APPLY_SAFE": "false",
       "META_CATALOG_AUTO_APPLY_MAX_CHANGES": "50"
     },
     "wecare-notification-worker": {
