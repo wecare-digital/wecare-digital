@@ -70,7 +70,13 @@ def env(monkeypatch):
     spec.loader.exec_module(h)
 
     fake = FakeDynamo(
-        keys={OTP_TABLE: "grantId", CONTACTS_TABLE: "id", "stack-wecare-digital-OrderTable": "orderId"},
+        # PaymentAttemptsTable is declared because order promotion (`_promote_linked_orders` ->
+        # `customer_order_link.link` -> `_sync_attempt`) opens it to align the paid attempt's
+        # finalization stage. Without it the fake raises `unknown table`, the promotion swallows
+        # it as `order_link_promotion_unavailable`, and the order is never re-owned.
+        keys={OTP_TABLE: "grantId", CONTACTS_TABLE: "id",
+              "stack-wecare-digital-OrderTable": "orderId",
+              "stack-wecare-digital-PaymentAttemptsTable": "paymentAttemptId"},
         indexes={CONTACTS_TABLE: {
             "phone-index": ("phone", None),
             "email-index": ("email", None),

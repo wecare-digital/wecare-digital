@@ -260,7 +260,7 @@
                   "Sid": "InvoicePaymentReservationTransaction",
                   "Effect": "Allow",
                   "Action": [
-                    "dynamodb:TransactWriteItems"
+                    "dynamodb:PutItem"
                   ],
                   "Resource": [
                     {

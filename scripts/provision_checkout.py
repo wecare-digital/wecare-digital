@@ -551,10 +551,15 @@ def expected_invoice_role_policy(acct: str | None = None) -> dict:
                 "Resource": [table + AUDIT_LOG_TABLE],
             },
             {
-                # wa_payment_request.reserve is an atomic transaction over these two stores.
+                # wa_payment_request.reserve is an atomic TransactWriteItems over these two stores,
+                # writing a `Put` to each. IAM authorises a transaction by the UNDERLYING item
+                # action on each table, not by a `dynamodb:TransactWriteItems` pseudo-action — that
+                # name is not a valid IAM action and can never satisfy a grant (pinned by
+                # tests/test_commerce_keys_iam_alignment.py::test_no_policy_relies_on_the_transact_pseudo_action).
+                # Every entry is a `Put`, so the action is `PutItem`.
                 "Sid": "InvoicePaymentReservationTransaction",
                 "Effect": "Allow",
-                "Action": ["dynamodb:TransactWriteItems"],
+                "Action": ["dynamodb:PutItem"],
                 "Resource": [
                     table + PAYMENT_ATTEMPTS_TABLE,
                     table + COMMERCE_KEYS_TABLE,

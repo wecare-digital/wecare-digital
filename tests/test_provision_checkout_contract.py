@@ -867,7 +867,10 @@ def test_packaging_is_delegated_so_the_two_scripts_cannot_drift(provisioner):
     after. Two packers meant the first package and every later one were assembled differently."""
     source = SCRIPT.read_text(encoding="utf-8")
     assert "dal.build_zip(spec)" in source
-    assert "dal.validate(spec, members, frozenset())" in source
+    # The embedded invoice engine renders the receipt PNG with PIL, which is layer-provided, so
+    # the validation declares PIL as `provided` rather than an empty set. receipt_layout + fonts
+    # ship in the package via the spec's external_files/external_dirs.
+    assert "dal.validate(spec, members, frozenset({\"PIL\"}))" in source
     assert 'dal.validate_handler(members, "handler.handler")' in source
     assert "_zip_package" not in source, "the private packer is back"
 
@@ -881,7 +884,12 @@ def test_source_root_lets_a_clean_archive_be_packaged(provisioner):
     # The globals must be re-pointed BEFORE a Spec is built: Spec.__init__ resolves its source
     # from the module-level FUNCTIONS at construction time.
     assert body.index("module.FUNCTIONS = functions") < body.index("return module")
-    assert "dal.Spec(FUNCTION_NAME" in source.split("def build_package")[1]
+    # `dal.Spec(` is built inside build_package with FUNCTION_NAME as its first argument. The call
+    # now spans multiple lines (the spec carries external_files/external_dirs/required_layers for
+    # the embedded invoice engine), so match the construction and its first argument tolerantly.
+    build_body = source.split("def build_package")[1]
+    assert "dal.Spec(" in build_body
+    assert "FUNCTION_NAME" in build_body.split("dal.Spec(")[1][:120]
 
 
 def _synthetic_root(base):
@@ -1352,8 +1360,12 @@ def test_invoice_authority_is_separate_and_narrow(provisioner):
     assert statements["InvoiceMediaRead"]["Resource"] == [
         "arn:aws:s3:::wecare-digital-get/o/*"
     ]
+    # The reservation runs as a TransactWriteItems of `Put` entries, but the IAM action that
+    # authorises it is the underlying item action — `dynamodb:PutItem`. There is no
+    # `dynamodb:TransactWriteItems` IAM action; granting it authorises nothing (pinned by
+    # tests/test_commerce_keys_iam_alignment.py::test_no_policy_relies_on_the_transact_pseudo_action).
     assert statements["InvoicePaymentReservationTransaction"]["Action"] == [
-        "dynamodb:TransactWriteItems"
+        "dynamodb:PutItem"
     ]
 
 
