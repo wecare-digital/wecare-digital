@@ -164,6 +164,15 @@ def test_non_contradictory_invoice_note_is_preserved():
     assert row['invoiceSnapshot']['channel'] == 'whatsapp'
     assert row['invoiceSnapshot']['notes'] == 'Customer requested GST copy by email'
 
+
+
+def test_legitimate_cancelled_word_in_paid_note_is_preserved():
+    args = inputs()
+    args['attempt']['channel'] = 'whatsapp'
+    args['invoice']['notes'] = 'Customer cancelled pickup and requested courier delivery'
+    row = subject.build(**args)
+    assert row['invoiceSnapshot']['notes'] == args['invoice']['notes']
+
 @pytest.mark.parametrize('change', ['currency', 'attempt_owner', 'attempt_contact', 'deleted_contact', 'provider_conflict'])
 def test_projection_refuses_cross_domain_evidence(change):
     args = inputs()
