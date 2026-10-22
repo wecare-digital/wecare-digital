@@ -945,17 +945,12 @@ def test_a_failed_delivery_copy_downgrades_rather_than_failing_the_upload():
 WA_DELIVERY = FUNC_DIR / "whatsapp_delivery.py"
 
 
-def test_delivery_uses_approved_templates():
-    """Both defaults must name a template Meta has APPROVED, so a send never depends on
-    an approval that has not landed.
-
-    wd_file_delivery replaced 01_wecare_doc once Meta approved it; 01_wecare_doc remains
-    a valid rollback value for WA_DOC_TEMPLATE.
-    """
+def test_delivery_uses_only_the_approved_document_template():
+    """Secure-files delivers paid entitlements; checkout owns every payment prompt."""
     source = WA_DELIVERY.read_text()
-    assert '"WA_PAY_TEMPLATE", "wecare_whatapp_native_pay_template"' in source
     assert '"WA_DOC_TEMPLATE", "wd_file_delivery"' in source
-    # and the parameterised template must be declared as such, or Meta rejects the send
+    assert "WA_PAY_TEMPLATE" not in source
+    assert "wecare_whatapp_native_pay_template" not in source
     assert '"wd_file_delivery"' in source.split("TEMPLATES_WITH_BODY_VARS")[1][:80]
 
 
@@ -983,14 +978,14 @@ def test_delivery_reads_the_d_rendition_not_the_original():
     assert 'file_row.get("s3Key")' not in body
 
 
-def test_payment_request_is_digital_goods_so_no_address_is_collected():
-    """physical-goods makes WhatsApp demand a delivery address, which is nonsense for
-    a file and was a real bug in the invoice flow."""
+def test_delivery_module_contains_no_payment_order_details():
+    """Digital-goods/payment composition was retired from secure-files entirely."""
     source = WA_DELIVERY.read_text()
-    assert '"type": "digital-goods"' in source
-    # the dict KEY, not the word: the comment above it explains why the key is absent
-    assert '"shipping_info"' not in source
-    assert "'shipping_info'" not in source
+    for forbidden in (
+        '"type": "digital-goods"', '"shipping_info"', "'shipping_info'",
+        "checkoutOrderDetails", "isCheckoutTemplate", "send_payment_request",
+    ):
+        assert forbidden not in source
 
 
 def test_payment_configuration_is_not_hardcoded():
