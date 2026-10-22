@@ -33,7 +33,7 @@ jobs:
     # Consider using larger runners or machines with greater resources for possible analysis time improvements.
     # All analysed languages use build-mode 'none' and run on Linux.
     # Mobile scaffold languages are deliberately excluded; see matrix notes below.
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-24.04
     permissions:
       # required for all workflows
       security-events: write

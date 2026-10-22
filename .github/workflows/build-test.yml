@@ -30,15 +30,13 @@ concurrency:
 jobs:
   build-test:
     name: Build, typecheck and test
-    # PINNED, not `ubuntu-latest`. GitHub moved the `ubuntu-latest` label to Ubuntu
-    # 26.04 from 19 October 2026; pinning puts this job on 26.04 on our schedule rather
-    # than on GitHub's, so a runner-image regression shows up in a commit we can point
-    # at. It matters more here than in the other workflows because this is the only job
-    # that depends on software the IMAGE ships rather than software a step installs:
-    # the browser harness below resolves the preinstalled Chromium. Ubuntu 26.04 ships
-    # Google Chrome and Chromium 153, so the fallback path still resolves. Bump this
-    # label deliberately when the next LTS image goes GA, and re-run the harness.
-    runs-on: ubuntu-26.04
+    # PINNED, not `ubuntu-latest`. Verification currently uses Ubuntu 24.04 because
+    # the newer runner pool is saturated; pinning makes that choice explicit and keeps
+    # runner-image changes reviewable. This job still installs its Node/Python toolchain
+    # explicitly, while the browser harness resolves the image's preinstalled browser
+    # fallback. Bump the label deliberately after validating the browser harness on the
+    # target image.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
@@ -64,8 +62,8 @@ jobs:
       # fingerprint convention. Declared explicitly rather than relying on `python`
       # happening to be on the runner's PATH: the image ships a python3, but an implicit
       # alias is precisely how a check turns into a silent no-op. The image's python3
-      # also moves with the image - 26.04 carries a newer one than 24.04 did - which is
-      # the second reason to pin the interpreter here rather than inherit it. Same
+      # also moves with the image, which is the second reason to pin the interpreter
+      # here rather than inherit it. Same
       # version and action as route-auth.yml. No dependencies are installed - the
       # script uses only the standard library.
       - uses: actions/setup-python@v7
