@@ -105,6 +105,15 @@ jobs:
             > ci-test-requirements.txt
           python -m pip install -r ci-test-requirements.txt
 
+      - name: Consolidated source policy gates
+        run: |
+          python scripts/check_provider_allowlist.py --verbose
+          python scripts/rcs_template_sync.py --validate --check
+          python scripts/check_ui_labels.py --gate
+          python scripts/check_design_drift.py --gate
+          python scripts/check_retired_origins.py --repo
+          python scripts/verify_media_prefixes.py
+
       - name: Assert every guarded handler authenticates its caller
         run: |
           python -m pytest -q \
