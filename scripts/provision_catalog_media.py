@@ -117,14 +117,9 @@ def apply():
         )
 
     lam.get_waiter("function_updated").wait(FunctionName=FUNCTION)
-    version = lam.publish_version(FunctionName=FUNCTION)["Version"]
-    alias = existing(lam.get_alias, FunctionName=FUNCTION, Name="live")
-    if alias:
-        lam.update_alias(FunctionName=FUNCTION, Name="live", FunctionVersion=version)
-    else:
-        lam.create_alias(FunctionName=FUNCTION, Name="live", FunctionVersion=version)
+    version = lam.get_function_configuration(FunctionName=FUNCTION)["Version"]
 
-    arn = f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:{FUNCTION}:live"
+    arn = f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:{FUNCTION}"
     integrations = all_items(apigw.get_integrations, ApiId=API_ID)
     integration = next((i for i in integrations if i.get("IntegrationUri") == arn), None)
     if integration:
@@ -153,7 +148,6 @@ def apply():
     try:
         lam.add_permission(
             FunctionName=FUNCTION,
-            Qualifier="live",
             StatementId="ApiGatewayCatalogMedia",
             Action="lambda:InvokeFunction",
             Principal="apigateway.amazonaws.com",
@@ -169,12 +163,12 @@ def apply():
 def verify():
     lam = client("lambda")
     apigw = client("apigatewayv2")
-    cfg = lam.get_function_configuration(FunctionName=FUNCTION, Qualifier="live")
+    cfg = lam.get_function_configuration(FunctionName=FUNCTION)
     routes = {r["RouteKey"]: r for r in all_items(apigw.get_routes, ApiId=API_ID)}
     if ROUTE not in routes:
         raise RuntimeError("catalog-media route missing")
     integrations = all_items(apigw.get_integrations, ApiId=API_ID)
-    expected_arn = f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:{FUNCTION}:live"
+    expected_arn = f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:{FUNCTION}"
     matches = [i for i in integrations if i.get("IntegrationUri") == expected_arn]
     if len(matches) != 1:
         raise RuntimeError("catalog-media integration missing or ambiguous")
