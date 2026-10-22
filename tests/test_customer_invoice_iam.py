@@ -116,7 +116,7 @@ def test_the_policy_is_exactly_these_five_statements(provisioner):
                 "Sid": "SignGatedInvoiceObject",
                 "Effect": "Allow",
                 "Action": ["s3:GetObject"],
-                "Resource": ["arn:aws:s3:::wecare-digital-get/secure/stack/invoices/*"],
+                "Resource": ["arn:aws:s3:::wecare-digital-get/secure/Invoice/customer_invoice/*"],
             },
             {
                 "Sid": "RateLimitCounter",
@@ -215,9 +215,9 @@ def test_the_s3_grant_is_pinned_to_the_gated_prefix(provisioner):
           if statement["Action"] == ["s3:GetObject"]]
     assert len(s3) == 1
     assert s3[0]["Resource"] == [
-        "arn:aws:s3:::wecare-digital-get/secure/stack/invoices/*"]
+        "arn:aws:s3:::wecare-digital-get/secure/Invoice/customer_invoice/*"]
     for resource in s3[0]["Resource"]:
-        assert resource.startswith("arn:aws:s3:::wecare-digital-get/secure/stack/invoices/")
+        assert resource.startswith("arn:aws:s3:::wecare-digital-get/secure/Invoice/customer_invoice/")
         # Exactly one wildcard, and it is the trailing object segment - not a bucket-wide
         # grant and not a second wildcard somewhere in the prefix.
         assert resource.count("*") == 1
@@ -237,7 +237,7 @@ def test_no_statement_reaches_the_public_root(provisioner):
 
 def test_it_creates_no_bucket_and_names_only_the_one_that_exists(provisioner):
     assert provisioner.MEDIA_BUCKET == "wecare-digital-get"
-    assert provisioner.INVOICE_PREFIX == "secure/stack/invoices/"
+    assert provisioner.INVOICE_PREFIX == "secure/Invoice/customer_invoice/"
     source = SCRIPT.read_text(encoding="utf-8")
     for forbidden in ("create_bucket", "wecare-difital-get"):
         assert forbidden not in source
