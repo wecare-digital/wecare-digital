@@ -82,7 +82,7 @@ def build(*, invoice, attempt, contact, outcome, items, now):
         'invoiceNumber': str(invoice.get('invoiceNumber') or ''),
         'amountPaise': amount, 'totalAmount': Decimal(amount) / 100, 'currency': 'INR',
         'paymentStatus': 'PAYMENT_PAID', 'orderStatus': 'processing', 'status': 'processing',
-        'channel': 'whatsapp', 'source': 'manual', 'checkoutMode': attempt.get('checkoutMode', ''),
+        'channel': snapshot.get('channel', 'whatsapp'), 'source': 'manual', 'checkoutMode': attempt.get('checkoutMode', ''),
         'finalizationStage': stage,
         'createdAt': int(invoice.get('createdAt') or now), 'updatedAt': int(now),
         'invoiceSnapshot': snapshot, 'items': deepcopy(items),
