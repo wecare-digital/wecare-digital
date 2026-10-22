@@ -1365,9 +1365,8 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( screen.getByRole( 'tab', { name: 'Pregnant women' } ) ).toBeTruthy();
     expect( screen.getByRole( 'tab', { name: 'Children' } ) ).toBeTruthy();
 
-    // Health icons stay in one horizontal row; text labels are tooltip/ARIA only, not stacked
-    // under each icon. Pager arrows cycle the active profile.
-    expect( healthTablist.querySelectorAll( '.vl-live-air-health-tab-label' ) ).toHaveLength( 0 );
+    // Health profiles are a horizontal labeled rail; pager arrows still cycle the active profile.
+    expect( healthTablist.querySelectorAll( '.vl-live-air-health-tab-label' ) ).toHaveLength( 7 );
     const prevHealth = screen.getByRole( 'button', { name: 'Previous health recommendation' } );
     const nextHealth = screen.getByRole( 'button', { name: 'Next health recommendation' } );
     expect( prevHealth ).toBeTruthy();
@@ -1405,8 +1404,9 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( healthBtnRule ).toContain( 'border-radius:50%' );
     expect( healthBtnRule ).toContain( 'background:var(--lime)' );
     expect( healthBtnRule ).toContain( 'color:var(--green)' );
-    expect( healthTabRule ).toContain( 'width:var(--vl-action-size)' );
-    expect( healthTabRule ).toContain( 'border-radius:50%' );
+    expect( healthTabRule ).toContain( 'flex:0 0 auto' );
+    expect( healthTabRule ).toContain( 'border-radius:var(--pill-r)' );
+    expect( healthTabRule ).toContain( 'scroll-snap-align:start' );
     expect( historyBtnRule ).toContain( 'width:var(--vl-action-size)' );
     expect( historyBtnRule ).toContain( 'border-radius:50%' );
 
@@ -1419,14 +1419,13 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( hoverRule ).not.toContain( 'background:var(--green)' );
 
     const personaRule = css.match( /\.vl-live-air-health-persona\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( personaRule ).toContain( 'font-size:var(--vl-card-heading-size)' );
-    expect( personaRule ).toContain( 'font-weight:var(--vl-card-heading-weight)' );
-    expect( personaRule ).toContain( 'letter-spacing:var(--vl-card-heading-track)' );
+    expect( personaRule ).toContain( 'font-size:var(--vl-data-size)' );
+    expect( personaRule ).toContain( 'font-weight:700' );
     const healthTextRule = css.match( /\.vl-live-air-health-text\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( healthTextRule ).toContain( 'font-size:var(--vl-body-size)' );
-    expect( healthTextRule ).toContain( 'font-weight:var(--vl-body-weight)' );
-    expect( healthTextRule ).toContain( 'line-height:var(--vl-body-lh)' );
-    expect( healthTextRule ).toContain( 'letter-spacing:var(--vl-body-track)' );
+    expect( healthTextRule ).toContain( 'font-size:var(--vl-subtext-size)' );
+    expect( healthTextRule ).toContain( 'font-weight:600' );
+    expect( healthTextRule ).toContain( 'line-height:1.4' );
+    expect( healthTextRule ).toContain( 'letter-spacing:0' );
     expect( css ).toContain( '--vl-card-heading-size:var(--public-card-size)' );
     expect( css ).toContain( '--vl-body-size:var(--public-body-size)' );
 
@@ -1476,6 +1475,13 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( historyStamp?.textContent ).toMatch( /IST/ );
     expect( historyStamp?.querySelector( '.vl-live-air-history-stamp-icon' ) ).not.toBeNull();
     expect( container.querySelector( '.vl-live-air-history-bubble' ) ).toBeNull();
+    const historyDetailRule = css.match( /\.vl-live-air-history-detail\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( historyDetailRule ).toContain( 'flex-wrap:nowrap' );
+    expect( historyDetailRule ).toContain( 'overflow-x:auto' );
+    expect( historyDetailRule ).toContain( 'scroll-snap-type:x proximity' );
+    const popupRule = css.match( /\.vl-live-air-pollutant-tip\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( popupRule ).toContain( 'width:min(280px,calc(100vw - 20px))' );
+    expect( popupRule ).toContain( 'max-height:min(196px,calc(100dvh - 20px))' );
     const stampRule = css.match( /\.vl-live-air-history-stamp\{[^}]*\}/ )?.[ 0 ] || '';
     expect( stampRule ).toContain( 'background:var(--lime-tint)' );
     expect( stampRule ).toContain( 'color:var(--green)' );
