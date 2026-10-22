@@ -522,7 +522,8 @@
     "src/styles/form-controls.css",
     "src/styles/inner-pages.css",
     "src/styles/inner-ux.css",
-    "src/styles/tokens.css"
+    "src/styles/tokens.css",
+    "src/styles/workspace.css"
   ],
   "generator": "scripts/census_control_skins.py --json",
   "hits": [
@@ -1939,6 +1940,25 @@
         0,
         1
       ]
+    },
+    {
+      "classes": [],
+      "decls": "max-width: 100%; box-sizing: border-box; border-radius: var(--workspace-control-radius) !important;",
+      "file": "src/styles/workspace.css",
+      "geometry": true,
+      "line": 382,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": true,
+      "props": {
+        "border-radius": true
+      },
+      "sel": ".workspace-shell .blog-production-shell input:not([type=\"checkbox\"]):not([type=\"radio\"]), .workspace-shell .blog-production-shell textarea, .workspace-shell .blog-production-shell select",
+      "spec": [
+        0,
+        4,
+        1
+      ]
     }
   ],
   "selfTest": {
@@ -1970,19 +1990,19 @@
     "sample": ".ui-planted{border:1px solid ${colors.border};border-radius:9px;padding:4px 8px} .ui-planted:focus{box-shadow:${shadow.focus}} .ui-untouched{color:#333}"
   },
   "summary": {
-    "files": 23,
-    "geometryFiles": 22,
-    "geometryRuleSets": 30,
+    "files": 24,
+    "geometryFiles": 23,
+    "geometryRuleSets": 31,
     "matchModes": {
       "class": 4,
-      "element": 63
+      "element": 64
     },
     "mechanisms": {
       "A-global": {
-        "files": 9,
-        "geometryFiles": 9,
-        "geometryRuleSets": 17,
-        "ruleSets": 42
+        "files": 10,
+        "geometryFiles": 10,
+        "geometryRuleSets": 18,
+        "ruleSets": 43
       },
       "A-module": {
         "files": 0,
@@ -2003,7 +2023,7 @@
         "ruleSets": 3
       }
     },
-    "pairings": 21,
-    "ruleSets": 67
+    "pairings": 22,
+    "ruleSets": 68
   }
 }

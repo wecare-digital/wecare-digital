@@ -250,14 +250,33 @@ const ElsewhereTravelAssistant: React.FC = () => {
 
   useEffect( () => {
     if ( typeof window === 'undefined' || !window.matchMedia( '(max-width: 720px)' ).matches ) return;
-    const frame = window.requestAnimationFrame( () => {
-      tabRefs.current[ mode ]?.scrollIntoView( {
-        behavior: 'auto',
-        block: 'nearest',
-        inline: 'center',
+
+    // SupportWidget changes <html lang> and <html dir> in place. Firefox/WebKit keep the
+    // horizontal tab rail's old physical scroll position when that happens, so the active tab
+    // stops being the mirror of its LTR position. Re-centre on both mode and direction changes.
+    let frame = 0;
+    const centreActiveTab = () => {
+      window.cancelAnimationFrame( frame );
+      frame = window.requestAnimationFrame( () => {
+        tabRefs.current[ mode ]?.scrollIntoView( {
+          behavior: 'auto',
+          block: 'nearest',
+          inline: 'center',
+        } );
       } );
+    };
+
+    centreActiveTab();
+    const observer = new MutationObserver( centreActiveTab );
+    observer.observe( document.documentElement, {
+      attributes: true,
+      attributeFilter: [ 'dir', 'lang' ],
     } );
-    return () => window.cancelAnimationFrame( frame );
+
+    return () => {
+      observer.disconnect();
+      window.cancelAnimationFrame( frame );
+    };
   }, [ mode ] );
 
   const changeMode = useCallback( ( next: TravelMode ) => {
