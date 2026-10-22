@@ -115,6 +115,27 @@ RATIFIED_REDIRECTS: dict[tuple[str, str, str], str] = {
         "landing on home would no longer distinguish path preservation from path loss. "
         "/contact/ is a terminal 200, so it still tells the two apart. The path-preservation "
         "PROPERTY is unchanged; only the sample URL moved.",
+
+    ("/post/sincerity-is-not-the-same-as-authenticity", "/post/sincerity-and-authenticity-are-not-the-same/", "301"):
+        "Owner approved canonical merge on 2026-10-22 after editorial review found the two Conversations posts materially overlapping.",
+    ("/post/sincerity-is-not-the-same-as-authenticity/", "/post/sincerity-and-authenticity-are-not-the-same/", "301"):
+        "Owner approved canonical merge on 2026-10-22 after editorial review found the two Conversations posts materially overlapping.",
+    ("/post/learning-from-a-teacher-does-not-require-defending-them", "/post/learning-does-not-require-defending-the-teacher/", "301"):
+        "Owner approved canonical merge on 2026-10-22 after editorial review found the two Conversations posts materially overlapping.",
+    ("/post/learning-from-a-teacher-does-not-require-defending-them/", "/post/learning-does-not-require-defending-the-teacher/", "301"):
+        "Owner approved canonical merge on 2026-10-22 after editorial review found the two Conversations posts materially overlapping.",
+    ("/post/communication-can-interrupt-a-fixed-self-story", "/post/communication-can-interrupt-a-self-story/", "301"):
+        "Owner approved canonical merge on 2026-10-22 after editorial review found the two Conversations posts materially overlapping.",
+    ("/post/communication-can-interrupt-a-fixed-self-story/", "/post/communication-can-interrupt-a-self-story/", "301"):
+        "Owner approved canonical merge on 2026-10-22 after editorial review found the two Conversations posts materially overlapping.",
+    ("/post/familiarity-can-feel-safer-than-possibility", "/post/familiarity-can-be-safer-than-possibility/", "301"):
+        "Owner approved canonical merge on 2026-10-22 after editorial review found the two Conversations posts materially overlapping.",
+    ("/post/familiarity-can-feel-safer-than-possibility/", "/post/familiarity-can-be-safer-than-possibility/", "301"):
+        "Owner approved canonical merge on 2026-10-22 after editorial review found the two Conversations posts materially overlapping.",
+    ("/post/the-word-that-allows-for-yes", "/post/choice-the-word-that-allows-yes/", "301"):
+        "Owner approved canonical merge on 2026-10-22 after editorial review found the two Conversations posts materially overlapping.",
+    ("/post/the-word-that-allows-for-yes/", "/post/choice-the-word-that-allows-yes/", "301"):
+        "Owner approved canonical merge on 2026-10-22 after editorial review found the two Conversations posts materially overlapping.",
     # THE THREE /shop 301 RULES ARE GONE, 2026-10-10. They sent /shop, /shop/ and
     # /shop/index.html to the home page while the catalogue index was withdrawn (owner
     # instruction 2026-10-04). The owner reversed that on 2026-10-10: the index is browsable
