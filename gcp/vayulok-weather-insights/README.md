@@ -25,7 +25,7 @@ GOOGLE_CLOUD_PROJECT=wecaredigitalbw
 WEATHER_INSIGHTS_DATASET=weather_insights
 BQ_LOCATION=US
 BQ_MAX_BYTES_BILLED_30D=1200000000
-BQ_MAX_BYTES_BILLED_1Y=9500000000
+BQ_MAX_BYTES_BILLED_1Y=15000000000
 BQ_MAX_BYTES_BILLED_5Y=40000000000
 ALLOWED_ORIGINS=https://wecare.digital,https://www.wecare.digital
 ```
@@ -45,7 +45,8 @@ available. Nested field paths are accepted.
 
 - BigQuery query cache is enabled.
 - Each range has its own hard `maximumBytesBilled` cap. Current defaults are 1.2 GB for
-  30D, 9.5 GB for 1Y, and 40 GB for 5Y, based on dry runs against the linked India view.
+  30D, 15 GB for 1Y, and 40 GB for 5Y. The 1Y cap includes headroom above the current
+  linked-view dry-run estimate (~13.03 GB on 2026-10-22); 5Y remains below its 40 GB guard.
 - Requests are cached in-process for 24 hours by location and range.
 - The UI defaults to 30D; 1Y and 5Y are explicit user choices, so the most expensive query is
   never fired merely by opening the Weather tab.
@@ -89,7 +90,7 @@ GOOGLE_CLOUD_PROJECT=wecaredigitalbw
 WEATHER_INSIGHTS_DATASET=weather_insights
 BQ_LOCATION=US
 BQ_MAX_BYTES_BILLED_30D=1200000000
-BQ_MAX_BYTES_BILLED_1Y=9500000000
+BQ_MAX_BYTES_BILLED_1Y=15000000000
 BQ_MAX_BYTES_BILLED_5Y=40000000000
 ALLOWED_ORIGINS=https://wecare.digital,https://www.wecare.digital
 ```
