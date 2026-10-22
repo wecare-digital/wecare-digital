@@ -1,6 +1,6 @@
 """The Places proxy sends its credential in a HEADER, and no URL can carry it.
 
-WHY THIS FILE EXISTS. `whatsapp-templates`' two Places proxies used to build
+WHY THIS FILE EXISTS. `whatsapp-template-management`' two Places proxies used to build
 `...&key={key}` into the URL they called. Today's value is a referrer-restricted
 browser key, which Google's own model treats as public; the moment
 `scripts/provision_maps_server_key.py --create` lands a key with NO application
@@ -29,7 +29,7 @@ from unittest.mock import patch
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-HANDLER = ROOT / "amplify/functions/messaging/whatsapp-templates/handler.py"
+HANDLER = ROOT / "amplify/functions/messaging/whatsapp-template-management/handler.py"
 
 KEY = "server-test-key"
 
@@ -44,7 +44,7 @@ def _strip_comments(source: str) -> str:
 
 @pytest.fixture
 def mod():
-    name = "whatsapp_templates_handler_places"
+    name = "whatsapp_template_management_handler_places"
     for extra in (
         str(ROOT / "amplify/functions/shared"),
         str(HANDLER.parent),
