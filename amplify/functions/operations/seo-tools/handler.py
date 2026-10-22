@@ -935,6 +935,15 @@ def _route_post(path: str, body: Dict[str, Any], actor: str, origin: str):
             'ok': True, **blog_analysis.analyse(source_id, actor),
         }, origin)
 
+    if path.endswith('/blog-sources/adopt-published'):
+        # Migration bridge only. Copies one existing published post into Blog Production
+        # state and changes NOTHING live. Fresh analysis, human source review, QA/sign-off
+        # and blog-publish/revise are still required before any revision reaches the site.
+        return _response(200, {
+            'ok': True, **blog_sources.adopt_published(
+                body, actor, tuple(BLOG_CATEGORIES)),
+        }, origin)
+
     if path.endswith('/blog-sources/confirm'):
         # NO idempotency claim, deliberately. Confirm is naturally idempotent - it
         # head_objects each key and moves PENDING_UPLOAD to UPLOADED - and a claim would
