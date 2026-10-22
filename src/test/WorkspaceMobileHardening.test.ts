@@ -66,6 +66,19 @@ describe( 'Workspace mobile hardening', () => {
     expect( inbox ).toContain( '.ui-msg-bubble{overflow-wrap:anywhere' );
   } );
 
+  it( 'keeps Blog Production usable on phones without changing its desktop data model', () => {
+    const hub = read( 'src/pages/workspace/seo/blog-production/index.tsx' );
+    const css = read( 'src/styles/workspace.css' );
+
+    expect( hub ).toContain( 'className="blog-production-shell"' );
+    expect( css ).toContain( '.blog-production-shell > .ps-content > .inner-page' );
+    expect( css ).toContain( '.blog-production-shell table' );
+    expect( css ).toContain( 'min-width: 680px' );
+    expect( css ).toContain( 'safe-area-inset-bottom' );
+    expect( css ).toContain( '.blog-production-shell button' );
+    expect( css ).toContain( 'touch-action: manipulation' );
+  } );
+
   it( 'keeps shared Workspace content contained and controls at the 44px floor', () => {
     const css = read( 'src/styles/workspace.css' );
     expect( css ).toContain( '.workspace-shell .ps-content > *' );
