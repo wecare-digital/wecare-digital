@@ -1492,18 +1492,20 @@ def _download_url(item: Dict[str, Any], ttl: Optional[int] = None) -> str:
 
 
 def _send_whatsapp_payment(file_id: str, identity: Dict[str, Any], origin: str):
-    """Send the ₹49 request to the customer's WhatsApp as an approved template.
+    """Compatibility endpoint for the retired secure-files-specific payment rail.
 
-    The customer has already proved they own this number by completing the OTP, so the
-    template goes to the verified number from their token - never to a number supplied
-    in the request body, which would turn this route into a way to send WhatsApp
-    messages to arbitrary people.
+    Secure files no longer construct ORDER_DETAILS or reserve an independent payment reference.
+    All new payable products must enter through the canonical commerce/checkout path so there is
+    only one PaymentAttempt, one provider binding and one finalization path.
+
+    The production feature flag is already off.  Keep the route during migration so old clients
+    fail closed with a named response instead of falling through to a different handler.
     """
     item = _owned_active_file(file_id, identity)
     if not item:
         return _not_registered(origin)
 
-    # feat-006: never charge while a window is open — the customer already has free access.
+    # Never charge while an existing entitlement window is open.
     if _window_already_open(identity, file_id):
         return cors_response(
             409,
@@ -1525,68 +1527,18 @@ def _send_whatsapp_payment(file_id: str, identity: Dict[str, Any], origin: str):
             origin,
         )
 
-    from whatsapp_delivery import reference_id, send_payment_request
-
-    reference = reference_id()
-    now = int(time.time())
-    grant_id = uuid.uuid4().hex
-
-    # The grant is written BEFORE the send. If the send fails the grant simply expires
-    # unredeemed via TTL; if the order were written after a successful send, a customer
-    # could pay against a grant that does not exist yet.
-    _table(GRANTS_TABLE).put_item(
-        Item={
-            "grantId": grant_id,
-            "fileId": file_id,
-            "ownerPhone": identity["phone"],
-            "customerId": identity['subject'],
-            # The webhook correlates on this. WhatsApp Pay reports the reference, so
-            # the reference IS the order id as far as the order-index GSI is concerned.
-            "orderId": reference,
-            "amountPaise": int(item.get("pricePaise", PRICE_PAISE)),
-            "channel": "whatsapp",
-            "paid": False,
-            "consumed": False,
-            "createdAt": now,
-            "expiresAt": now + GRANT_TTL,
-        }
-    )
-
-    ok, detail = send_payment_request(
-        phone=identity["phone"],
-        file_row=item,
-        grant_id=grant_id,
-        order_id=reference,
-        reference=reference,
-    )
-    logger.info(
-        json.dumps(
-            {
-                "event": "whatsapp_payment_request",
-                "fileId": file_id,
-                "ownerPhone": mask_phone(identity["phone"]),
-                "ok": ok,
-                "detail": detail if ok else "send failed",
-            }
-        )
-    )
-    if not ok:
-        return cors_response(
-            502, {"error": "SEND_FAILED", "message": "Could not send the payment request."}, origin
-        )
-
+    # Fail closed even if somebody accidentally flips the legacy feature flag.  The old
+    # implementation minted WD-FILE references and built its own ORDER_DETAILS payload, which
+    # created a second money state machine beside checkout.  That path is deliberately retired.
     return cors_response(
-        202,
+        409,
         {
-            "grantId": grant_id,
-            "reference": reference,
-            "amountPaise": int(item.get("pricePaise", PRICE_PAISE)),
-            "sentTo": mask_phone(identity["phone"]),
-            "message": "Payment request sent on WhatsApp.",
+            "error": "CHECKOUT_REQUIRED",
+            "message": "This purchase must be started from checkout.",
+            "pricePaise": int(item.get("pricePaise", PRICE_PAISE)),
         },
         origin,
     )
-
 
 def deliver_over_whatsapp(grant_id: str) -> Tuple[bool, str]:
     """Send the paid file to the customer on WhatsApp. Called only after payment.
