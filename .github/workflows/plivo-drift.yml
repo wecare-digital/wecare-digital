@@ -37,12 +37,12 @@ permissions:
 
 concurrency:
   group: plivo-drift
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   drift:
     name: Plivo control-plane drift
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
 
