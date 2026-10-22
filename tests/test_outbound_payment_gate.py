@@ -296,25 +296,12 @@ def test_only_checkout_order_details_satisfies_the_shape_check(outbound):
 # 5-6. the configuration name: ONE resolver, and only a provable name
 # ══════════════════════════════════════════════════════════════════════════════
 
-def test_an_unprovable_configuration_is_refused_by_name_before_the_provider_read(outbound):
-    """`WECAREUPI` is a `upi` configuration with a VPA and NO Razorpay merchant id, so
-    `evaluate` — which compares a merchant id and nothing else — could only ever report it as
-    CONFIGURATION_UNVERIFIED or RAZORPAY_MID_MISMATCH. Both read as "something is misconfigured"
-    and would send an operator looking for a configuration error that does not exist.
-
-    Refusing UPI OUTSIDE a provable configuration is not refusing UPI: collecting it INSIDE the
-    approved template through `configuration_name: 'WECAREUPI'` stays a legitimate capability
-    this business does not currently use, and enabling it is an owner decision that needs
-    `payment_readiness` to learn a per-configuration expectation.
-    """
+def test_alternate_configuration_is_refused_before_provider_read(outbound):
     details = dict(ORDER_DETAILS, payment_configuration='WECAREUPI')
     refusal, reads = _gate(outbound, _payment_body(checkoutOrderDetails=details))
-
     assert refusal['statusCode'] == 409
-    assert _error(refusal)['error'] == 'WA_PAY_CONFIG_NOT_PROVABLE'
-    assert 'Nothing has been charged.' in _error(refusal)['message']
+    assert _error(refusal)['error'] == wpr.WA_PAY_CONFIG_UNRESOLVED
     assert reads.fetches == 0
-
 
 def test_an_unrecognised_configuration_is_refused_rather_than_substituted(outbound):
     details = dict(ORDER_DETAILS, payment_configuration='WECARE-RAZOR-PAY')
@@ -325,31 +312,20 @@ def test_an_unrecognised_configuration_is_refused_rather_than_substituted(outbou
     assert reads.fetches == 0
 
 
-def test_the_proven_configuration_and_the_sent_configuration_come_from_one_resolver(outbound):
-    """THE identity that makes the gate meaningful.
+def test_the_proven_and_sent_configuration_is_always_wecaredigital(outbound):
+    details = dict(ORDER_DETAILS)
+    assert outbound._resolve_payment_config_name(WABA1, details) == TEST_CONFIG
+    settings = outbound._build_payment_settings(WABA1, details)
+    assert settings[0]['payment_gateway']['configuration_name'] == TEST_CONFIG
 
-    Across the whole matrix — explicit configuration, mapped sender, unknown name — the gate's
-    resolver and the sender's resolver give the same answer, because they are the SAME FUNCTION.
-    Two copies of the resolution expression is how a proven name and a sent name diverge.
-    """
-    cases = [
-        (WABA1, {}, TEST_CONFIG),
-        (WABA1, {'payment_configuration': TEST_CONFIG}, TEST_CONFIG),
-        (WABA1, {'payment_configuration': 'WECAREUPI'}, 'WECAREUPI'),
-    ]
-    for phone_id, extra, expected in cases:
-        details = dict(ORDER_DETAILS, **extra)
-        assert outbound._resolve_payment_config_name(phone_id, details) == expected
-        settings = outbound._build_payment_settings(phone_id, details)
-        assert settings[0]['payment_gateway']['configuration_name'] == expected
-
-    for phone_id, details in ((WABA1, {'payment_configuration': 'NOPE'}),
-                              ('phone-number-id-unmapped', {})):
+    for details in (
+        {'payment_configuration': 'WECAREUPI'},
+        {'payment_configuration': 'NOPE'},
+    ):
         with pytest.raises(outbound.PaymentConfigurationUnresolved):
-            outbound._resolve_payment_config_name(phone_id, dict(ORDER_DETAILS, **details))
+            outbound._resolve_payment_config_name(WABA1, dict(ORDER_DETAILS, **details))
         with pytest.raises(outbound.PaymentConfigurationUnresolved):
-            outbound._build_payment_settings(phone_id, dict(ORDER_DETAILS, **details))
-
+            outbound._build_payment_settings(WABA1, dict(ORDER_DETAILS, **details))
 
 def test_the_resolver_extraction_did_not_move_the_senders_refusal(outbound):
     """The refactor's one invariant: `_build_payment_settings` keeps every refusal it had, in the
