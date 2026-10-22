@@ -168,6 +168,20 @@ CONTACTS_TABLE = "stack-wecare-digital-ContactsTable"
 #: `finalization.accept_paid` is what writes it. Granted GetItem/PutItem/UpdateItem and
 #: explicitly NOT DeleteItem or Scan: an order record is evidence that money moved.
 ORDERS_TABLE = "stack-wecare-digital-OrderTable"
+
+# Invoice domain stores absorbed by the checkout/commerce strangler.
+INVOICES_TABLE = "stack-wecare-digital-InvoicesTable"
+INVOICE_ITEMS_TABLE = "stack-wecare-digital-InvoiceItemsTable"
+INVOICE_SEQUENCE_TABLE = "stack-wecare-digital-InvoiceSequenceTable"
+INVOICE_ASSETS_TABLE = "stack-wecare-digital-InvoiceAssetsTable"
+INVOICE_DELIVERY_TABLE = "stack-wecare-digital-InvoiceDeliveryLogTable"
+PAYMENTS_TABLE = "stack-wecare-digital-PaymentsTable"
+FLOW_SUBMISSIONS_TABLE = "stack-wecare-digital-FlowSubmissionTable"
+RAZORPAY_WEBHOOK_LOG_TABLE = "stack-wecare-digital-RazorpayWebhookLogTable"
+AUDIT_LOG_TABLE = "stack-wecare-digital-AuditLogsTable"
+MEDIA_BUCKET = "wecare-digital-get"
+INVOICE_PREFIX = "secure/Invoice/customer_invoice/"
+
 #: The business-API Lambda. Holds the Meta token; answers the readiness readback.
 SENDER_FUNCTION = "wecare-whatsapp-business-api"
 #: The in-chat payment sender — the only function that composes a Meta `review_and_pay` message.
@@ -317,6 +331,7 @@ def build_package(source_root: Path) -> tuple:
     """
     dal = _deploy_module(source_root)
     spec = dal.Spec(FUNCTION_NAME, "ecommerce/checkout",
+                    extra_files=["invoice_engine.py"],
                     provisioned_by="python scripts/provision_checkout.py")
     zip_bytes, members = dal.build_zip(spec)
     errors, warnings = dal.validate(spec, members, frozenset())
@@ -380,7 +395,7 @@ def validate_members(members: dict, source_root: Path) -> tuple:
     Lambda. That is what makes a verdict about the live artifact possible at all.
     """
     dal = _deploy_module(source_root)
-    spec = dal.Spec(FUNCTION_NAME, "ecommerce/checkout")
+    spec = dal.Spec(FUNCTION_NAME, "ecommerce/checkout", extra_files=["invoice_engine.py"])
     errors, warnings = dal.validate(spec, members, frozenset())
     errors += dal.validate_handler(members, "handler.handler")
     return sorted(set(errors)), sorted(set(warnings))
@@ -461,6 +476,104 @@ def expected_role_policy(acct: str | None = None) -> dict:
     }
 
 
+
+def expected_invoice_role_policy(acct: str | None = None) -> dict:
+    """Least-privilege additions for the invoice engine staged inside checkout.
+
+    Kept separate from CheckoutLeastPrivilege so the strangler's widened authority is explicit,
+    reviewable and removable.  This is intentionally much narrower than the legacy invoice
+    Lambda's shared fleet role.
+    """
+    acct = acct or account_id()
+    table = f"arn:aws:dynamodb:{REGION}:{acct}:table/"
+    invoice_tables = [
+        INVOICES_TABLE, INVOICE_ITEMS_TABLE, INVOICE_SEQUENCE_TABLE,
+        INVOICE_ASSETS_TABLE, INVOICE_DELIVERY_TABLE,
+    ]
+    return {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Sid": "InvoiceRecords",
+                "Effect": "Allow",
+                "Action": [
+                    "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem",
+                    "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:Scan",
+                    "dynamodb:BatchWriteItem",
+                ],
+                "Resource": (
+                    [table + name for name in invoice_tables]
+                    + [table + name + "/index/*" for name in invoice_tables]
+                ),
+            },
+            {
+                "Sid": "InvoicePaymentEvidence",
+                "Effect": "Allow",
+                "Action": ["dynamodb:GetItem", "dynamodb:Scan", "dynamodb:BatchWriteItem"],
+                "Resource": [
+                    table + PAYMENTS_TABLE,
+                    table + RAZORPAY_WEBHOOK_LOG_TABLE,
+                ],
+            },
+            {
+                "Sid": "InvoiceRefundCases",
+                "Effect": "Allow",
+                "Action": ["dynamodb:GetItem", "dynamodb:UpdateItem"],
+                "Resource": [table + FLOW_SUBMISSIONS_TABLE],
+            },
+            {
+                "Sid": "InvoiceContactLookup",
+                "Effect": "Allow",
+                "Action": ["dynamodb:GetItem", "dynamodb:Query"],
+                "Resource": [
+                    table + CONTACTS_TABLE,
+                    table + CONTACTS_TABLE + "/index/phone-index",
+                ],
+            },
+            {
+                "Sid": "InvoiceAudit",
+                "Effect": "Allow",
+                "Action": ["dynamodb:PutItem"],
+                "Resource": [table + AUDIT_LOG_TABLE],
+            },
+            {
+                # wa_payment_request.reserve is an atomic transaction over these two stores.
+                "Sid": "InvoicePaymentReservationTransaction",
+                "Effect": "Allow",
+                "Action": ["dynamodb:TransactWriteItems"],
+                "Resource": [
+                    table + PAYMENT_ATTEMPTS_TABLE,
+                    table + COMMERCE_KEYS_TABLE,
+                ],
+            },
+            {
+                "Sid": "InvoiceMediaRead",
+                "Effect": "Allow",
+                "Action": ["s3:GetObject"],
+                "Resource": [f"arn:aws:s3:::{MEDIA_BUCKET}/o/*"],
+            },
+            {
+                "Sid": "InvoiceMediaObjects",
+                "Effect": "Allow",
+                "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+                "Resource": [f"arn:aws:s3:::{MEDIA_BUCKET}/{INVOICE_PREFIX}*"],
+            },
+            {
+                "Sid": "InvoiceMediaList",
+                "Effect": "Allow",
+                "Action": ["s3:ListBucket"],
+                "Resource": [f"arn:aws:s3:::{MEDIA_BUCKET}"],
+                "Condition": {
+                    "StringLike": {"s3:prefix": [
+                        INVOICE_PREFIX,
+                        INVOICE_PREFIX + "*",
+                    ]}
+                },
+            },
+        ],
+    }
+
+
 def ensure_role(dry_run: bool) -> str:
     """Create OR reconcile the dedicated checkout role.
 
@@ -499,6 +612,11 @@ def ensure_role(dry_run: bool) -> str:
         RoleName=ROLE_NAME,
         PolicyName="CheckoutLeastPrivilege",
         PolicyDocument=json.dumps(expected_role_policy()),
+    )
+    iam().put_role_policy(
+        RoleName=ROLE_NAME,
+        PolicyName="CheckoutInvoiceAuthority",
+        PolicyDocument=json.dumps(expected_invoice_role_policy()),
     )
     return "reconciled" if exists else "created"
 

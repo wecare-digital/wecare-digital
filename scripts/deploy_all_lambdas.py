@@ -224,6 +224,7 @@ SPECS: List[Spec] = [
     Spec(
         "wecare-checkout",
         "ecommerce/checkout",
+        extra_files=["invoice_engine.py"],
         provisioned_by="python scripts/provision_checkout.py",
     ),
     # The customer's own order history and profile summary, read-only. One Query on the sparse
@@ -322,7 +323,6 @@ SPECS: List[Spec] = [
     Spec("wecare-outbound-whatsapp", "messaging/outbound-whatsapp"),
     Spec("wecare-whatsapp-voice", "messaging/whatsapp-voice"),
     Spec("wecare-whatsapp-calling", "messaging/whatsapp-calling"),
-    Spec("wecare-whatsapp-templates", "messaging/whatsapp-templates"),
     Spec("wecare-whatsapp-template-management", "messaging/whatsapp-template-management"),
     Spec(
         "wecare-whatsapp-business-api",

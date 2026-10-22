@@ -1940,25 +1940,6 @@
         0,
         1
       ]
-    },
-    {
-      "classes": [],
-      "decls": "max-width: 100%; box-sizing: border-box; border-radius: var(--workspace-control-radius) !important;",
-      "file": "src/styles/workspace.css",
-      "geometry": true,
-      "line": 382,
-      "mech": "A-global",
-      "mode": "element",
-      "pairing": true,
-      "props": {
-        "border-radius": true
-      },
-      "sel": ".workspace-shell .blog-production-shell input:not([type=\"checkbox\"]):not([type=\"radio\"]), .workspace-shell .blog-production-shell textarea, .workspace-shell .blog-production-shell select",
-      "spec": [
-        0,
-        4,
-        1
-      ]
     }
   ],
   "selfTest": {

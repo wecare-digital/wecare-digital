@@ -16,10 +16,6 @@ const LegacySeoHub = () => {
       void router.replace( { pathname: '/workspace/content', query: { view: 'blog' } } );
       return;
     }
-    if ( raw === 'pipeline' ) {
-      void router.replace( { pathname: '/workspace/content', query: { view: 'production' } } );
-      return;
-    }
     if ( raw === 'pages' ) {
       void router.replace( { pathname: '/workspace/content', query: { view: 'seo', area: 'pages' } } );
       return;

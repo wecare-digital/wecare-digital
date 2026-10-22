@@ -174,7 +174,7 @@ export function addBackendResources ( stack: Stack ) {
   const LAMBDA_FUNCTIONS = [
     'wecare-inbound-whatsapp', 'wecare-outbound-whatsapp', 'wecare-whatsapp-calling',
     'wecare-whatsapp-business-api', 'wecare-whatsapp-voice', 'wecare-whatsapp-template-management',
-    'wecare-whatsapp-templates', 'wecare-scheduled-messages', 'wecare-bulk-job-create',
+    'wecare-scheduled-messages', 'wecare-bulk-job-create',
     'wecare-bulk-worker', 'wecare-bulk-job-control', 'wecare-ai-query-kb',
     'wecare-ai-generate-response', 'wecare-ai-config-management', 'wecare-agent-action-group',
     'wecare-razorpay-webhook', 'wecare-payments-read', 'wecare-invoice-engine',

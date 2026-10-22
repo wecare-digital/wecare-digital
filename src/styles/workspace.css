@@ -339,54 +339,6 @@
   max-width: var(--workspace-measure);
 }
 
-/* Blog Production is a dense operational surface: preserve the desktop tables, but make the
-   family phone-safe without globally restyling unrelated Workspace routes. PageShell owns the
-   header/tabs; its embedded stage bodies need their own content gutter and containment. */
-.workspace-shell .blog-production-shell > .ps-content > .inner-page {
-  height: auto;
-  min-height: 0;
-  overflow: visible;
-  box-sizing: border-box;
-  padding: 0 var(--workspace-page-x) 72px;
-}
-
-.workspace-shell .blog-production-shell .card {
-  max-width: 100%;
-  box-sizing: border-box;
-  overflow-wrap: anywhere;
-}
-
-.workspace-shell .blog-production-shell .card > table,
-.workspace-shell .blog-production-shell table {
-  min-width: 680px;
-}
-
-.workspace-shell .blog-production-shell .card[style*="overflow"] {
-  overscroll-behavior-inline: contain;
-  -webkit-overflow-scrolling: touch;
-}
-
-.workspace-shell .blog-production-shell pre {
-  max-width: 100%;
-  overflow-x: auto;
-  overflow-wrap: anywhere;
-}
-
-.workspace-shell .blog-production-shell button {
-  min-height: var(--tap-min) !important;
-  max-width: 100%;
-  border-radius: var(--workspace-control-radius) !important;
-  touch-action: manipulation;
-}
-
-.workspace-shell .blog-production-shell input:not([type="checkbox"]):not([type="radio"]),
-.workspace-shell .blog-production-shell textarea,
-.workspace-shell .blog-production-shell select {
-  max-width: 100%;
-  box-sizing: border-box;
-  border-radius: var(--workspace-control-radius) !important;
-}
-
 /* Mobile uses the same locked public foundation tokens as Workspace Home. */
 @media (max-width: 768px) {
   .workspace-shell {
@@ -414,27 +366,6 @@
       max(var(--workspace-page-x), env(safe-area-inset-left, 0px));
   }
 
-  .workspace-shell .blog-production-shell > .ps-content > .inner-page {
-    padding:
-      0
-      max(var(--workspace-page-x), env(safe-area-inset-right, 0px))
-      calc(48px + env(safe-area-inset-bottom, 0px))
-      max(var(--workspace-page-x), env(safe-area-inset-left, 0px));
-  }
-
-  .workspace-shell .blog-production-shell .inner-page-title {
-    font-size: var(--public-mobile-section-size);
-    line-height: 1.05;
-    overflow-wrap: anywhere;
-  }
-
-  .workspace-shell .blog-production-shell .card {
-    max-width: 100%;
-  }
-
-  .workspace-shell .blog-production-shell a {
-    overflow-wrap: anywhere;
-  }
 
   .workspace-shell .ps-tabs-wrapper {
     padding-inline:

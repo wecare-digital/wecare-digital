@@ -266,8 +266,6 @@ describe( 'no native browser dialogs outside src/test/', () => {
       [ 'src/components/workspace/service/SecureFiles.tsx', /useConfirm\b/ ],
       [ 'src/components/workspace/whatsapp/ctwa-ads.tsx', /useConfirmDanger\b/ ],
       [ 'src/components/workspace/seo/BlogManager.tsx', /useConfirmDanger\b/ ],
-      [ 'src/components/workspace/seo/blog-production/Qa.tsx', /usePromptDialog\b/ ],
-      [ 'src/components/workspace/seo/blog-production/Publish.tsx', /usePromptDialog\b/ ],
     ];
     for ( const [ file, hook ] of expected ) {
       const src = codeOnly( fs.readFileSync( path.join( REPO, file ), 'utf8' ) );

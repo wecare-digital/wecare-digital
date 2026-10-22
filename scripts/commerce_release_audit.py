@@ -12,7 +12,7 @@ import boto3
 FUNCTIONS = (
     'wecare-checkout', 'wecare-invoice-engine', 'wecare-outbound-whatsapp',
     'wecare-whatsapp-business-api', 'wecare-razorpay-webhook',
-    'wecare-whatsapp-templates', 'wecare-whatsapp-template-management',
+    'wecare-whatsapp-template-management',
 )
 EXPECTATIONS = ('EXPECTED_CONFIGURATION_NAME', 'EXPECTED_PROVIDER_MID')
 
