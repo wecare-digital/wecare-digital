@@ -212,4 +212,4 @@ def test_retired_order_status_sender_refuses_payment_words(payment_state):
         'message', 'contact', '+919999999999', 'sender',
         {'reference_id': 'OFFLINE', 'order_status': payment_state, 'amountPaise': 10000}, 'request')
     assert response['statusCode'] == 409
-    assert json.loads(response['body'])['errorCode'] == 'ORDER_STATUS_INVOICE_TEMPLATE_ONLY'
+    assert json.loads(response['body'])['error'] == 'ORDER_STATUS_INVOICE_TEMPLATE_ONLY'
