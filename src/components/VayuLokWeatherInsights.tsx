@@ -5,6 +5,8 @@ type Range = '30d' | '1y' | '5y';
 interface WeatherInsightsSummary {
   ok?: boolean;
   range: Range;
+  coverageStart?: string | null;
+  coverageEnd?: string | null;
   gridDistanceKm?: number | null;
   sampleHours: number;
   meanTemperatureC?: number | null;
@@ -55,7 +57,7 @@ const RANGE_LABELS: Record<Range, string> = {
 const MONTHS = [ 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec' ];
 
 const VayuLokWeatherInsights: React.FC<Props> = ( { lat, lng, placeName } ) => {
-  const [ range, setRange ] = useState<Range>( '5y' );
+  const [ range, setRange ] = useState<Range>( '30d' );
   const [ data, setData ] = useState<WeatherInsightsSummary | null>( null );
   const [ status, setStatus ] = useState<'idle' | 'loading' | 'ready' | 'unavailable' | 'error'>( 'idle' );
   const [ errorCode, setErrorCode ] = useState( '' );
@@ -214,6 +216,9 @@ const VayuLokWeatherInsights: React.FC<Props> = ( { lat, lng, placeName } ) => {
 
           <div className="vl-wi-source">
             { data.source || 'Google Weather Insights' }
+            { data.coverageStart && data.coverageEnd ? (
+              <span data-wc-no-translate="true"> · coverage { new Date( data.coverageStart ).toLocaleDateString( 'en-IN', { month: 'short', year: 'numeric' } ) }–{ new Date( data.coverageEnd ).toLocaleDateString( 'en-IN', { month: 'short', year: 'numeric' } ) }</span>
+            ) : null }
             { Number.isFinite( data.gridDistanceKm ) ? <span data-wc-no-translate="true"> · nearest grid { fmt( data.gridDistanceKm, ' km', 2 ) }</span> : null }
           </div>
         </>

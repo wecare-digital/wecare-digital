@@ -6,8 +6,13 @@ const PROJECT = process.env.GOOGLE_CLOUD_PROJECT || process.env.BQ_PROJECT || 'w
 const DATASET = process.env.WEATHER_INSIGHTS_DATASET || 'weather_insights';
 const LOCATION = process.env.BQ_LOCATION || 'US';
 const TABLE_OVERRIDE = process.env.WEATHER_INSIGHTS_TABLE || '';
-const MAX_BYTES_BILLED = String(process.env.BQ_MAX_BYTES_BILLED || '134217728');
-const CACHE_TTL_MS = Number(process.env.INSIGHTS_CACHE_TTL_MS || 6 * 60 * 60 * 1000);
+const GLOBAL_MAX_BYTES_BILLED = String(process.env.BQ_MAX_BYTES_BILLED || '');
+const RANGE_MAX_BYTES_BILLED = {
+  '30d': String(process.env.BQ_MAX_BYTES_BILLED_30D || GLOBAL_MAX_BYTES_BILLED || '1200000000'),
+  '1y': String(process.env.BQ_MAX_BYTES_BILLED_1Y || GLOBAL_MAX_BYTES_BILLED || '9500000000'),
+  '5y': String(process.env.BQ_MAX_BYTES_BILLED_5Y || GLOBAL_MAX_BYTES_BILLED || '40000000000'),
+};
+const CACHE_TTL_MS = Number(process.env.INSIGHTS_CACHE_TTL_MS || 24 * 60 * 60 * 1000);
 const RATE_LIMIT_PER_MINUTE = Number(process.env.INSIGHTS_RATE_LIMIT_PER_MINUTE || 30);
 const ALLOW_ORIGINLESS = process.env.ALLOW_ORIGINLESS === '1';
 const DEBUG_SCHEMA = process.env.DEBUG_SCHEMA === '1';
@@ -23,12 +28,14 @@ const rate = new Map();
 let tokenCache = { token: '', expiresAt: 0 };
 
 const COLUMN_CANDIDATES = {
-  time: ['observed_at', 'observation_time', 'timestamp', 'valid_time', 'date_time', 'datetime'],
+  time: ['forecast_time', 'observed_at', 'observation_time', 'timestamp', 'valid_time', 'date_time', 'datetime'],
+  geography: ['geography'],
+  geographyPolygon: ['geography_polygon'],
   lat: ['latitude', 'lat', 'grid_latitude'],
   lng: ['longitude', 'lng', 'lon', 'grid_longitude'],
   temp: ['temperature_c', 'temperature_celsius', 'air_temperature_c', 'temp_c'],
-  rain: ['precipitation_mm', 'rain_mm', 'qpf_mm'],
-  humidity: ['relative_humidity_pct', 'humidity_pct'],
+  rain: ['qpf_mm', 'precipitation_mm', 'rain_mm'],
+  humidity: ['relative_humidity_percent', 'relative_humidity_pct', 'humidity_pct'],
 };
 
 function json(res, status, body, origin = '') {
@@ -180,6 +187,8 @@ async function discoverSource() {
 
   const columns = {
     time: envColumn('WEATHER_INSIGHTS_TIME_COLUMN') || findCandidate(fields, COLUMN_CANDIDATES.time),
+    geography: envColumn('WEATHER_INSIGHTS_GEOGRAPHY_COLUMN') || findCandidate(fields, COLUMN_CANDIDATES.geography),
+    geographyPolygon: envColumn('WEATHER_INSIGHTS_GEOGRAPHY_POLYGON_COLUMN') || findCandidate(fields, COLUMN_CANDIDATES.geographyPolygon),
     lat: envColumn('WEATHER_INSIGHTS_LAT_COLUMN') || findCandidate(fields, COLUMN_CANDIDATES.lat),
     lng: envColumn('WEATHER_INSIGHTS_LNG_COLUMN') || findCandidate(fields, COLUMN_CANDIDATES.lng),
     temp: envColumn('WEATHER_INSIGHTS_TEMP_C_COLUMN') || findCandidate(fields, COLUMN_CANDIDATES.temp),
@@ -187,7 +196,8 @@ async function discoverSource() {
     humidity: envColumn('WEATHER_INSIGHTS_HUMIDITY_PCT_COLUMN') || findCandidate(fields, COLUMN_CANDIDATES.humidity),
   };
 
-  const missing = ['time', 'lat', 'lng', 'temp'].filter((key) => !columns[key]);
+  const missing = ['time', 'temp'].filter((key) => !columns[key]);
+  if (!columns.geography && !(columns.lat && columns.lng)) missing.push('geography_or_lat_lng');
   return {
     ready: missing.length === 0,
     reason: missing.length ? 'column_configuration_required' : 'ready',
@@ -239,12 +249,12 @@ function decodeRows(result) {
   });
 }
 
-async function runQuery(query, parameters) {
+async function runQuery(query, parameters, maximumBytesBilled) {
   const request = {
     query,
     useLegacySql: false,
     useQueryCache: true,
-    maximumBytesBilled: MAX_BYTES_BILLED,
+    maximumBytesBilled,
     timeoutMs: 20000,
     location: LOCATION,
     parameterMode: 'NAMED',
@@ -278,6 +288,53 @@ function weatherSql(source) {
   const rain = c.rain ? 'SAFE_CAST(' + c.rain + ' AS FLOAT64)' : 'CAST(NULL AS FLOAT64)';
   const humidity = c.humidity ? 'SAFE_CAST(' + c.humidity + ' AS FLOAT64)' : 'CAST(NULL AS FLOAT64)';
 
+  if (c.geography) {
+    return [
+      'WITH target AS (',
+      '  SELECT ST_GEOGPOINT(@lng, @lat) AS p',
+      '),',
+      'base AS (',
+      '  SELECT',
+      '    ' + c.time + ' AS observed_at,',
+      '    SAFE_CAST(' + c.temp + ' AS FLOAT64) AS temperature_c,',
+      '    ' + rain + ' AS precipitation_mm,',
+      '    ' + humidity + ' AS humidity_pct,',
+      '    ST_DISTANCE(' + c.geography + ', p) AS distance_m',
+      '  FROM ' + table + ', target',
+      '  WHERE ' + c.time + ' >= @start_ts',
+      '    AND ST_DWITHIN(' + c.geography + ', p, 10000)',
+      '  QUALIFY ROW_NUMBER() OVER (',
+      '    PARTITION BY ' + c.time,
+      '    ORDER BY ST_DISTANCE(' + c.geography + ', p)',
+      '  ) = 1',
+      '),',
+      'monthly AS (',
+      '  SELECT',
+      '    EXTRACT(MONTH FROM observed_at) AS month,',
+      '    AVG(temperature_c) AS mean_temperature_c,',
+      '    SUM(precipitation_mm) AS precipitation_mm,',
+      '    AVG(humidity_pct) AS mean_humidity_pct',
+      '  FROM base',
+      '  GROUP BY month',
+      ')',
+      'SELECT',
+      '  AVG(distance_m) / 1000 AS grid_distance_km,',
+      '  MIN(observed_at) AS coverage_start,',
+      '  MAX(observed_at) AS coverage_end,',
+      '  COUNT(*) AS sample_hours,',
+      '  AVG(temperature_c) AS mean_temperature_c,',
+      '  MIN(temperature_c) AS min_temperature_c,',
+      '  MAX(temperature_c) AS max_temperature_c,',
+      '  SUM(precipitation_mm) AS precipitation_mm,',
+      '  AVG(humidity_pct) AS mean_humidity_pct,',
+      '  ARRAY(',
+      '    SELECT AS STRUCT month, mean_temperature_c, precipitation_mm, mean_humidity_pct',
+      '    FROM monthly ORDER BY month',
+      '  ) AS monthly',
+      'FROM base',
+    ].join('\n');
+  }
+
   return [
     'WITH candidate_grid AS (',
     '  SELECT',
@@ -286,7 +343,7 @@ function weatherSql(source) {
     '    POW(SAFE_CAST(' + c.lat + ' AS FLOAT64) - @lat, 2) +',
     '      POW((SAFE_CAST(' + c.lng + ' AS FLOAT64) - @lng) * COS(RADIANS(@lat)), 2) AS distance_score',
     '  FROM ' + table,
-    '  WHERE DATE(' + c.time + ') >= @start_date',
+    '  WHERE ' + c.time + ' >= @start_ts',
     '    AND SAFE_CAST(' + c.lat + ' AS FLOAT64) BETWEEN @lat - 0.3 AND @lat + 0.3',
     '    AND SAFE_CAST(' + c.lng + ' AS FLOAT64) BETWEEN @lng - 0.3 AND @lng + 0.3',
     '  GROUP BY grid_lat, grid_lng',
@@ -300,7 +357,7 @@ function weatherSql(source) {
     '    ' + rain + ' AS precipitation_mm,',
     '    ' + humidity + ' AS humidity_pct',
     '  FROM ' + table + ', candidate_grid',
-    '  WHERE DATE(' + c.time + ') >= @start_date',
+    '  WHERE ' + c.time + ' >= @start_ts',
     '    AND SAFE_CAST(' + c.lat + ' AS FLOAT64) = grid_lat',
     '    AND SAFE_CAST(' + c.lng + ' AS FLOAT64) = grid_lng',
     '),',
@@ -314,8 +371,6 @@ function weatherSql(source) {
     '  GROUP BY month',
     ')',
     'SELECT',
-    '  (SELECT grid_lat FROM candidate_grid) AS grid_lat,',
-    '  (SELECT grid_lng FROM candidate_grid) AS grid_lng,',
     '  SQRT(',
     '    POW(((SELECT grid_lat FROM candidate_grid) - @lat) * 111.0, 2) +',
     '    POW(((SELECT grid_lng FROM candidate_grid) - @lng) * 111.0 * COS(RADIANS(@lat)), 2)',
@@ -346,6 +401,8 @@ function cleanSummary(row, range) {
   };
   return {
     range,
+    coverageStart: row.coverage_start || null,
+    coverageEnd: row.coverage_end || null,
     gridDistanceKm: round(row.grid_distance_km, 2),
     sampleHours: Number(row.sample_hours),
     meanTemperatureC: round(row.mean_temperature_c),
@@ -359,7 +416,7 @@ function cleanSummary(row, range) {
       precipitationMm: round(item.precipitation_mm),
       meanHumidityPct: round(item.mean_humidity_pct),
     })) : [],
-    source: 'Google Weather Insights via BigQuery',
+    source: 'Google Weather Insights',
   };
 }
 
@@ -420,8 +477,8 @@ async function handleInsights(req, res, url) {
     const rows = await runQuery(weatherSql(source), [
       param('lat', 'FLOAT64', lat),
       param('lng', 'FLOAT64', lng),
-      param('start_date', 'DATE', startDate(range)),
-    ]);
+      param('start_ts', 'TIMESTAMP', startDate(range) + 'T00:00:00Z'),
+    ], RANGE_MAX_BYTES_BILLED[range]);
     const summary = cleanSummary(rows[0], range);
     if (!summary) return json(res, 404, { error: 'no_historical_weather_for_location' }, origin);
     const body = { ok: true, ...summary };
@@ -476,6 +533,6 @@ server.listen(PORT, '0.0.0.0', () => {
     project: PROJECT,
     dataset: DATASET,
     location: LOCATION,
-    maxBytesBilled: MAX_BYTES_BILLED,
+    maxBytesBilledByRange: RANGE_MAX_BYTES_BILLED,
   }));
 });
