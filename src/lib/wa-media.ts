@@ -38,10 +38,34 @@ const EXT_TO_MIME: Record<string, string> = {
     pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
 };
 
+/** Exact MIME types accepted by WhatsApp Cloud API for ordinary media messages. */
+export const WA_SUPPORTED_MIME_TYPES = new Set( Object.values( EXT_TO_MIME ) );
+
 /** Infer a WhatsApp-supported MIME type from a filename extension. */
 export function inferMimeFromName ( name: string ): string {
     const ext = ( name.split( '.' ).pop() || '' ).toLowerCase();
     return EXT_TO_MIME[ ext ] || 'application/octet-stream';
+}
+
+/** True only for a MIME type WhatsApp documents as supported. */
+export function isWaSupportedMime ( mime: string ): boolean {
+    return WA_SUPPORTED_MIME_TYPES.has( ( mime || '' ).toLowerCase() );
+}
+
+/** Resolve browser-reported MIME + filename to the canonical WhatsApp MIME.
+ * Browsers sometimes report an empty or generic/incorrect File.type, so a supported
+ * filename extension is allowed to correct it. Unknown files remain unsupported. */
+export function resolveWaMime ( file: { name?: string; type?: string } ): string {
+    const declared = ( file.type || '' ).toLowerCase();
+    if ( isWaSupportedMime( declared ) ) return declared;
+    return file.name ? inferMimeFromName( file.name ) : 'application/octet-stream';
+}
+
+/** Meta permits captions on image, video and document messages. Audio and sticker
+ * messages have no caption field, so companion text must travel as a separate message. */
+export function waMediaSupportsCaption ( mime: string ): boolean {
+    const category = waMediaCategory( mime );
+    return category === 'image' || category === 'video' || category === 'document';
 }
 
 /** Resolve a MIME type to its WhatsApp media category for limit lookup. */
@@ -79,8 +103,17 @@ export interface WaSizeValidation {
  * Pass an explicit mime when File.type may be empty (use inferMimeFromName).
  */
 export function validateWaMediaSize ( file: { size: number; name?: string; type?: string }, mime?: string ): WaSizeValidation {
-    const resolved = mime || file.type || ( file.name ? inferMimeFromName( file.name ) : 'application/octet-stream' );
+    const resolved = mime || resolveWaMime( file );
     const category = waMediaCategory( resolved );
+    if ( !isWaSupportedMime( resolved ) )
+    {
+        return {
+            ok: false,
+            category,
+            limit: 0,
+            message: 'This file type is not supported by WhatsApp.',
+        };
+    }
     const limit = WA_MEDIA_LIMITS[ category ];
     if ( file.size > limit )
     {

@@ -25,7 +25,7 @@ import * as api from '../../../../api/client';
 import { colors, shadow } from '../../../../lib/design-tokens';
 import { WHATSAPP_PHONES, PAYMENT_PHONES, DEFAULT_GSTIN, PAYMENT_CONFIG, GST_RATES } from '../../../../config/constants';
 import { searchEmojiCategories } from '../../../../lib/emoji-data';
-import { inferMimeFromName, validateWaMediaSize, formatBytes } from '../../../../lib/wa-media';
+import { WA_ACCEPT_STRING, formatBytes, resolveWaMime, validateWaMediaSize, waMediaSupportsCaption } from '../../../../lib/wa-media';
 import { waErrorTooltip } from '../../../../lib/wa-errors';
 import { scrollToEnd } from '../../../../lib/scroll-to-end';
 
@@ -413,9 +413,15 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
         const accepted: File[] = [];
         for ( const file of files )
         {
-            const ftype = file.type || inferMimeFromName( file.name );
+            const ftype = resolveWaMime( file );
             const check = validateWaMediaSize( { size: file.size, name: file.name, type: ftype }, ftype );
-            if ( !check.ok ) { toast.error( `${file.name} too large. Max: ${formatBytes( check.limit )}` ); continue; }
+            if ( !check.ok )
+            {
+                toast.error( check.limit > 0
+                    ? `${file.name} too large. Max: ${formatBytes( check.limit )}`
+                    : `${file.name}: ${check.message || 'Unsupported WhatsApp file type'}` );
+                continue;
+            }
             accepted.push( file );
         }
         if ( !accepted.length ) return;
@@ -574,13 +580,41 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                 if ( hasMedia )
                 {
                     let sent = 0;
+                    const firstType = resolveWaMime( mediaFiles[ 0 ] );
+                    const captionOnFirstMedia = !!waText && waMediaSupportsCaption( firstType );
+
+                    // Audio and sticker messages cannot carry captions in Meta's API.
+                    // Preserve typed text by sending it as a separate message before the
+                    // attachments instead of silently dropping it.
+                    if ( waText && !captionOnFirstMedia )
+                    {
+                        const textResult = await api.sendWhatsAppMessage( {
+                            contactId, content: waText, phoneNumberId: sendWaba || undefined,
+                            recipientBsuid: bsuid, contextMessageId: waContext,
+                        } );
+                        if ( textResult ) sent++;
+                    }
+
                     for ( let i = 0; i < mediaFiles.length; i++ )
                     {
                         const file = mediaFiles[ i ];
-                        const type = file.type || inferMimeFromName( file.name );
+                        const type = resolveWaMime( file );
                         const s3Key = await api.uploadMediaForSend( file, type, file.name );
                         if ( !s3Key ) { toast.error( `Upload failed: ${file.name}` ); continue; }
-                        const r = await api.sendWhatsAppMessage( { contactId, content: i === 0 ? waText : '', phoneNumberId: sendWaba || undefined, recipientBsuid: bsuid, mediaFile: s3Key, mediaType: type, mediaFileName: file.name, contextMessageId: i === 0 ? waContext : undefined } );
+
+                        // WhatsApp sends one media object per message. Multiple selected
+                        // files therefore become multiple sequential messages. The typed
+                        // text is a caption only on the first caption-capable attachment.
+                        const r = await api.sendWhatsAppMessage( {
+                            contactId,
+                            content: i === 0 && captionOnFirstMedia ? waText : '',
+                            phoneNumberId: sendWaba || undefined,
+                            recipientBsuid: bsuid,
+                            mediaFile: s3Key,
+                            mediaType: type,
+                            mediaFileName: file.name,
+                            contextMessageId: i === 0 && ( captionOnFirstMedia || !waText ) ? waContext : undefined,
+                        } );
                         if ( r ) sent++;
                     }
                     ok = sent > 0;
@@ -1317,10 +1351,10 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                                     <span className="ui-fmt-hint">{ replyText.length } chars · { Math.max( 1, Math.ceil( replyText.length / 160 ) ) } seg</span>
                                                 ) }
                                                 <button className="ui-ai-btn" disabled={ aiSuggesting } onClick={ handleSuggest } title="AI suggest reply"><Icon name="sparkle" size={ 15 } /> { aiSuggesting ? '…' : 'Suggest' }</button>
-                                                <button className="ui-reply-btn" disabled={ sending || !replyText.trim() } onClick={ handleReply }>{ sending ? 'Sending…' : 'Send' }</button>
+                                                <button className="ui-reply-btn" disabled={ sending || ( !replyText.trim() && !( replyChannel === 'whatsapp' && mediaFiles.length > 0 ) ) } onClick={ handleReply }>{ sending ? 'Sending…' : 'Send' }</button>
                                             </div>
                                             { replyChannel === 'whatsapp' && (
-                                                <input ref={ fileRef } type="file" hidden multiple accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt" onChange={ handleMediaSelect } />
+                                                <input ref={ fileRef } type="file" hidden multiple accept={ WA_ACCEPT_STRING } onChange={ handleMediaSelect } />
                                             ) }
                                         </>
                                     ) }
