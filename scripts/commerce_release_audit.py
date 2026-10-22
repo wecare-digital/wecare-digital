@@ -51,7 +51,7 @@ def audit_release(lam, hosting, manifest, expected_commit, *, app_id, branch='st
     invoice = configs['wecare-invoice-engine'].get('Environment', {}).get('Variables', {})
     smoke_mode = outbound.get('WA_LIVE_SMOKE_TEST', '').strip().lower() == 'true'
     provider = {'payment_template_approved': False, 'payment_configuration_matches': False,
-                'order_status_template_approved': False}
+                'invoice_template_approved': False}
     try:
         waba = checkout.get('WABA_ID') or '2094615664435155'
         templates = _provider_read(lam, '/wa-business/payment-templates/list', waba).get('data', [])
@@ -60,12 +60,12 @@ def audit_release(lam, hosting, manifest, expected_commit, *, app_id, branch='st
             row.get('name') == name and row.get('status') == 'APPROVED'
             and row.get('language') == 'en' and row.get('category') == 'UTILITY'
             and row.get('sub_category') == 'ORDER_DETAILS' for row in templates)
-        status_name = outbound.get('WA_ORDER_STATUS_TEMPLATE')
-        provider['order_status_template_approved'] = bool(status_name) and any(
-            row.get('name') == status_name and row.get('status') == 'APPROVED'
-            and row.get('sub_category') == 'ORDER_STATUS'
+        invoice_name = (invoice.get('WA_INVOICE_TEMPLATE')
+                        or 'wecare_default_invoice_image_template')
+        provider['invoice_template_approved'] = any(
+            row.get('name') == invoice_name and row.get('status') == 'APPROVED'
             and row.get('category') == 'UTILITY'
-            and row.get('language') == outbound.get('WA_ORDER_STATUS_TEMPLATE_LANGUAGE', 'en')
+            and row.get('language') == 'en'
             for row in templates)
         configurations = _provider_read(lam, '/wa-business/payment-config/list', waba).get('data', [])
         provider['payment_configuration_matches'] = any(

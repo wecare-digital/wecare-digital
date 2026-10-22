@@ -7049,7 +7049,7 @@ def _generate_and_send_invoice(contact_id: str, phone_number_id: str, amount: fl
         # A rendered invoice carries the customer's name, address, amount and GST breakdown, and
         # `o/` is served by CloudFront with no authentication. Delivery does not need a public
         # URL: the bytes are read from S3 and uploaded to Meta, so Meta never fetches by URL.
-        s3_key = media_paths.secure(f'stack/invoices/wecare-digital-{inv_ref}.png')
+        s3_key = media_paths.secure(f'Invoice/customer_invoice/wecare-digital-{inv_ref}.png')
         s3.put_object(
             Bucket=MEDIA_BUCKET,
             Key=s3_key,

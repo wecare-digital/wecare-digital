@@ -50,8 +50,8 @@ These are ordered. Do not skip the verification sub-steps; each one is the diffe
       (WABA1 — the only one permitted to collect).
 - [ ] An **active payment configuration** (Razorpay) is attached to that WABA and is in **live**
       (not test) mode.
-- [ ] If out-of-window order-status updates are wanted, the **ORDER_STATUS** template is approved:
-      `python scripts/provision_order_status_template.py`.
+- [ ] The approved invoice template `wecare_default_invoice_image_template` is ACTIVE in English.
+      Fulfilment-status customer messages use this template with the issued invoice PNG.
 
 ### 2. Supply the readiness values to the LIVE checkout function
 

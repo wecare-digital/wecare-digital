@@ -140,7 +140,7 @@ class TestOTPTemplatePayload:
 
 
 class TestOrderStatusSend:
-    """Test order_status message sending."""
+    """The retired direct Meta order-status path must fail closed."""
 
     @pytest.fixture(autouse=True)
     def setup(self):
@@ -153,78 +153,13 @@ class TestOrderStatusSend:
                 self.h = h
                 self.send_order_status = h._handle_order_status_send
 
-    def test_completed_order_status(self):
-        details = {'reference_id': 'WD-001', 'order_status': 'completed', 'amount': 49.00}
-        with patch.object(self.h, '_send_message', return_value={'messageId': 'wamid.test'}), \
-             patch.object(self.h, '_store_message_record'):
-            result = self.send_order_status('msg-1', 'contact-1', '+919330994400',
-                                             'phone-id-1', details, 'req-1')
-        assert result['statusCode'] == 200
+    def test_direct_order_status_send_is_retired(self):
+        result = self.send_order_status(
+            'msg-1', 'contact-1', '+919330994400', 'phone-id-1',
+            {'reference_id': 'WD-001', 'order_status': 'completed'}, 'req-1')
+        assert result['statusCode'] == 409
         body = json.loads(result['body'])
-        assert body['type'] == 'order_status'
-        assert body['orderStatus'] == 'completed'
-
-    def test_failed_order_status(self):
-        details = {'reference_id': 'WD-002', 'order_status': 'failed', 'amount': 0}
-        with patch.object(self.h, '_send_message', return_value={'messageId': 'wamid.test'}), \
-             patch.object(self.h, '_store_message_record'):
-            result = self.send_order_status('msg-2', 'contact-2', '+919330994400',
-                                             'phone-id-1', details, 'req-2')
-        assert result['statusCode'] == 200
-        body = json.loads(result['body'])
-        assert body['orderStatus'] == 'pending'  # payment failure is not a fulfillment state
-
-    def test_completed_order_status_uses_configured_template_outside_window(self):
-        details = {'reference_id': 'WD-003', 'order_status': 'completed', 'amountPaise': 4900}
-        with patch.object(self.h, '_send_message', return_value={'messageId': 'wamid.template'}) as send, \
-             patch.object(self.h, '_store_message_record') as store:
-            result = self.send_order_status(
-                'msg-3', 'contact-3', '+919330994400', 'phone-id-1',
-                details, 'req-3', template_name='wecare_order_status',
-            )
-
-        assert result['statusCode'] == 200
-        payload = send.call_args.args[1]
-        assert payload['type'] == 'template'
-        assert payload['template']['name'] == 'wecare_order_status'
-        component = payload['template']['components'][0]
-        assert component['type'] == 'order_status'
-        parameter = component['parameters'][0]
-        assert parameter['type'] == 'order_status'
-        assert parameter['order_status']['reference_id']
-        assert parameter['order_status']['order']['status'] == 'completed'
-        assert store.call_args.kwargs['is_template'] is True
-
-    def test_completed_order_status_stays_interactive_inside_window(self):
-        details = {'reference_id': 'WD-004', 'order_status': 'completed', 'amountPaise': 4900}
-        with patch.object(self.h, '_send_message', return_value={'messageId': 'wamid.interactive'}) as send, \
-             patch.object(self.h, '_store_message_record') as store:
-            result = self.send_order_status(
-                'msg-4', 'contact-4', '+919330994400', 'phone-id-1',
-                details, 'req-4',
-            )
-
-        assert result['statusCode'] == 200
-        payload = send.call_args.args[1]
-        assert payload['type'] == 'interactive'
-        assert payload['interactive']['type'] == 'order_status'
-        assert payload['interactive']['action']['name'] == 'review_order'
-        assert store.call_args.kwargs['is_template'] is False
-
-    @pytest.mark.parametrize('changes', [
-        {}, {'status':'PAUSED'}, {'language':'hi'}, {'category':'MARKETING'},
-        {'sub_category':'OTHER'},
-    ])
-    def test_status_template_readback_checks_type_language_and_approval(self, changes):
-        row={'name':'verified_status','status':'APPROVED','category':'UTILITY',
-             'sub_category':'ORDER_STATUS','language':'en',**changes}
-        with patch.object(self.h,'WA_ORDER_STATUS_TEMPLATE','verified_status'), \
-             patch.object(self.h,'WA_ORDER_STATUS_TEMPLATE_LANGUAGE','en'), \
-             patch.object(self.h,'_waba_for_sender',return_value='sender-waba'), \
-             patch.object(self.h,'_fetch_approved_templates',return_value={'data':[row]}) as fetch:
-            result=self.h._approved_order_status_template('phone-1','req')
-        assert result == ('verified_status' if not changes else '')
-        fetch.assert_called_once_with('sender-waba')
+        assert body['error'] == 'ORDER_STATUS_INVOICE_TEMPLATE_ONLY'
 
 
 
@@ -271,25 +206,10 @@ class TestPairRateLimit:
 
 
 @pytest.mark.parametrize('payment_state', ['captured', 'paid', 'success'])
-def test_payment_receipt_does_not_complete_fulfillment(payment_state):
-    # Load through the same fixture-independent AST seam used by the monetary boundary tests.
-    import ast
-    import pathlib
-    from typing import Dict, Any, Optional
-    from unittest.mock import Mock
-    from lambda_utils import payment_status
-    source = pathlib.Path(__file__).resolve().parents[1] / 'amplify/functions/messaging/outbound-whatsapp/handler.py'
-    node = next(n for n in ast.parse(source.read_text()).body
-                if isinstance(n, ast.FunctionDef) and n.name == '_handle_order_status_send')
-    send = Mock(return_value={'messageId': 'offline'})
-    namespace = dict(Dict=Dict, Any=Any, Optional=Optional, json=json, pay_status=payment_status,
-                     _send_message=send, _sanitize_reference_id=lambda value: value,
-                     _normalize_phone_number=lambda value: value.lstrip('+'),
-                     mask_phone=lambda value: 'masked', mask_contact_id=lambda value: 'masked',
-                     logger=Mock(), _store_message_record=Mock(), _emit_delivery_metric=Mock(),
-                     WA_INITIAL_STATUS='sent', cors_headers=lambda _: {}, origin='offline')
-    exec(compile(ast.Module(body=[node], type_ignores=[]), str(source), 'exec'), namespace)
-    response = namespace[node.name]('message', 'contact', '+919999999999', 'sender',
+def test_retired_order_status_sender_refuses_payment_words(payment_state):
+    import handler
+    response = handler._handle_order_status_send(
+        'message', 'contact', '+919999999999', 'sender',
         {'reference_id': 'OFFLINE', 'order_status': payment_state, 'amountPaise': 10000}, 'request')
-    assert response['statusCode'] == 200
-    assert send.call_args.args[1]['interactive']['action']['parameters']['order']['status'] == 'processing'
+    assert response['statusCode'] == 409
+    assert json.loads(response['body'])['error'] == 'ORDER_STATUS_INVOICE_TEMPLATE_ONLY'

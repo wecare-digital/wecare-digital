@@ -11,7 +11,7 @@ return `SHIPPING_REQUIRES_CHECKOUT`; the customer must choose delivery before a 
 request is reserved. Retired coupon actions return a versioned refusal without mutating the order.
 
 The order-status template fallback from upstream is retained. Its readback now requires the
-configured language, `APPROVED`, `UTILITY` and `sub_category=ORDER_STATUS` on the sender's WABA.
+the approved `wecare_default_invoice_image_template` in English on the sender's WABA.
 The template inventory follows cursors on the same WABA endpoint and refuses partial results.
 The `order_status` preset creates a fixed-body utility template with the required subcategory;
 its provider approval remains an external prerequisite. A captured Razorpay payment reports
@@ -42,32 +42,9 @@ the published checkout had both. An order-status template was not configured on 
 3. In an authorized rollout, run the same command without `--dry-run`. Selected functions that
    fail validation/update prevent alias publication for the batch. Publication detects changed
    environment variables even if the code hash is unchanged.
-4. Create/review the order-status template on the intended WABA, wait for provider approval,
-   then publish the matching outbound environment. The template name and language are already
-   pinned in `config/lambda-env-manifest.json` (`wecare-outbound-whatsapp` →
-   `WA_ORDER_STATUS_TEMPLATE=wecare_order_status`, `WA_ORDER_STATUS_TEMPLATE_LANGUAGE=en`), so
-   the submitted template MUST use that exact name/language or the send path and the release
-   audit both read it as "not configured".
-
-   ```sh
-   # Preview the exact UTILITY / ORDER_STATUS definition without submitting:
-   python scripts/provision_order_status_template.py --dry-run
-   # Submit it to the sender's WABA (approval is Meta's, this does not wait):
-   python scripts/provision_order_status_template.py
-   # Re-run until APPROVED — checks name, status, UTILITY, ORDER_STATUS, language
-   # against the same readback the live gate uses:
-   python scripts/provision_order_status_template.py --verify
-   ```
-
-   Only after `--verify` passes, publish the outbound environment change so the manifest
-   values reach the live function, then verify the live version. Until the template is
-   APPROVED and the env is published, out-of-window order_status updates are not sent (the
-   in-window interactive path is unaffected and keeps working).
-5. Verify live package policy, payment expectations, template readback, frozen quote amounts,
-   fulfillment state and settlement reconciliation before enabling customer traffic.
-6. Retire the seven coupon routes, coupon Lambda and table only after all live callers have
-   moved off the old coupon/gift-card implementation and legacy pending payments are accounted
-   for. Preserve rollback information; resource deletion is not part of this code push.
+4. Verify `wecare_default_invoice_image_template` is APPROVED in English on the payment WABA.
+   Fulfilment state is stored internally and every customer-facing status notification re-sends
+   the issued invoice image from `secure/Invoice/customer_invoice/`.
 
 MCP's bundled page catalogue matched the source at audit time; the source handler's newer
 sitemap filtering still requires its separate deployment/verification workflow.

@@ -45,5 +45,5 @@ def test_release_cannot_pass_with_partial_deployment_or_qa_lockdown(gap):
     result = audit.audit_release(lam, hosting, [{'name': n, 'sha': n} for n in audit.FUNCTIONS],
                                  'new', app_id='test')
     assert result['release_complete'] is (gap == 'none')
-    assert result['provider']['order_status_template_approved'] is False
+    assert result['provider']['invoice_template_approved'] is False
     assert 'acc_TEST' not in json.dumps(result)  # never print config environment values

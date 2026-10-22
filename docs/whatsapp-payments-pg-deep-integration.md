@@ -113,7 +113,6 @@ name; `WECAREDIGITAL` is now verified, so it is not a guess.
   most one `success`. This is the source of truth, not the webhook.
 
 ### 5. Order status updates (Step 6) — mandatory after any transaction update
-- `interactive.type = "order_status"`, `action.name = "review_order"`.
 - `status` ∈ `pending|processing|partially_shipped|shipped|completed|canceled`.
 - Transition rules: `pending` → any; `processing/shipped/partially_shipped` interchange
   or → terminal; `completed`/`canceled` terminal. Errors `2046` (bad transition),
