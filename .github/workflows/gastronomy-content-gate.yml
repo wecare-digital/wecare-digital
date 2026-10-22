@@ -31,7 +31,7 @@ on:
 
 concurrency:
   group: gastronomy-content-gate
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: read

@@ -59,7 +59,7 @@ permissions:
 
 concurrency:
   group: mcp-catalogue-drift
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   drift:
