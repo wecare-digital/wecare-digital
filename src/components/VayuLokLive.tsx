@@ -4913,7 +4913,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-wx-grid-item{display:flex;align-items:baseline;justify-content:space-between;gap:var(--vl-content-gap);padding:14px;background:#fff;transition:background-color .14s ease}
         .vl-live-wx-grid-k{min-width:0;color:var(--body);font-size:17px;font-weight:700;line-height:1.25;letter-spacing:-.18px}
         .vl-live-wx-grid-v{color:#000;font-size:17px;font-weight:700;line-height:1.25;letter-spacing:-.2px;font-variant-numeric:tabular-nums;text-align:end}
-        .vl-live-wx-grid-item:hover{background:var(--lime-tint)}
+        .vl-live-wx-grid-item:last-child:nth-child(odd){grid-column:1/-1}
+.vl-live-wx-grid-item:hover{background:var(--lime-tint)}
         .vl-live-wx-daily{margin-top:var(--vl-section-gap)}
         .vl-live-wx-daily-list{max-height:430px;margin:var(--vl-heading-gap) 0 0;padding:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;list-style:none}
         .vl-live-wx-daily-row{display:grid;grid-template-columns:68px 30px minmax(0,1fr) auto auto;align-items:center;gap:10px;width:100%;min-height:48px;padding:12px 14px;border:0;border-top:1px solid var(--hair);border-inline-start:2px solid transparent;border-radius:0;background:#fff;color:var(--body);text-align:start;cursor:pointer;transition:background-color .14s ease,border-color .14s ease}
