@@ -84,7 +84,7 @@ const BODY = `
       <div class="vl-wi-head">
         <div>
           <h4>Weather history</h4>
-          <p>Long-term patterns for Thiruvananthapuram Metropolitan Region and surrounding districts.</p>
+          <p>Past weather for Thiruvananthapuram.</p>
         </div>
         <div class="vl-wi-range" role="group" aria-label="Weather history range">
           <button type="button">30D</button><button type="button">1Y</button><button type="button">5Y</button>
@@ -94,7 +94,7 @@ const BODY = `
         <div><span>Typical temperature</span><strong>21.8°C</strong></div>
         <div><span>Total precipitation</span><strong>151.8 mm</strong></div>
       </div>
-      <div class="vl-wi-source"><span>Source: Google Weather Insights</span><span> · coverage Oct 2025–Oct 2026</span></div>
+      <div class="vl-wi-source"><span>Oct 2025–Oct 2026</span><span> · Grid 5.46 km</span></div>
     </section>
   </aside></div>
 </div></div>`;
@@ -147,9 +147,9 @@ const WIDTHS = [ 320, 360, 375, 390, 412, 430 ];
         day: rect( day ), cond: rect( cond ), temp: rect( temp ), row: rect( row ),
         plabel: rect( plabel ), pval: rect( pval ), prow: rect( prow ),
         score: rect( score ), meta: rect( meta ), gaugeRow: rect( gaugeRow ),
-        history: rect( history ),
-        historyHeadingSize: parseFloat( getComputedStyle( historyHeading ).fontSize ),
-        historyBodySize: parseFloat( getComputedStyle( historyBody ).fontSize ),
+        history: history ? rect( history ) : null,
+        historyHeadingSize: historyHeading ? parseFloat( getComputedStyle( historyHeading ).fontSize ) : -1,
+        historyBodySize: historyBody ? parseFloat( getComputedStyle( historyBody ).fontSize ) : -1,
         historyButtonHeights: historyButtons.map( button => rect( button ).h ),
       };
     } );
@@ -168,15 +168,18 @@ const WIDTHS = [ 320, 360, 375, 390, 412, 430 ];
     const scoreCentered = Math.abs( scoreCenter - rowCenter ) <= 2;
     const metaCentered = Math.abs( metaCenter - rowCenter ) <= 2;
     const summaryCentered = scoreCentered && metaCentered;
-    const historyFits = r.history.right <= r.docClient + 1 && r.history.x >= -1;
+    const historyFound = Boolean( r.history );
+    const historyFits = historyFound && r.history.right <= r.docClient + 1 && r.history.x >= -1;
     const historyType = Math.abs( r.historyHeadingSize - 24 ) <= 0.1 && Math.abs( r.historyBodySize - 20 ) <= 0.1;
-    const historyTouches = r.historyButtonHeights.length === 3 && r.historyButtonHeights.every( height => height >= 44 );
+    const historyButtonCount = r.historyButtonHeights.length;
+    const historyTouches = historyButtonCount === 3 && r.historyButtonHeights.every( height => height >= 44 );
     const ok = !hOverflow && condBelowDay && tempTopLine && valBelowLabel && summaryCentered && historyFits && historyType && historyTouches;
     if ( !ok ) failures++;
     console.log(
       `@${w}px  h-overflow=${hOverflow ? 'YES(' + r.docScroll + '>' + r.docClient + ')' : 'no'}` +
       `  cond-below-day=${condBelowDay}  temp-on-top-line=${tempTopLine}  pollutant-stacked=${valBelowLabel}` +
       `  score-centered=${scoreCentered}  meta-centered=${metaCentered}` +
+      `  history-found=${historyFound}  history-buttons=${historyButtonCount}` +
       `  history-fits=${historyFits}  history-type=${historyType}  history-touch=${historyTouches}  => ${ok ? 'PASS' : 'FAIL'}`
     );
     await page.close();

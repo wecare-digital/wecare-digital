@@ -165,7 +165,7 @@ const VayuLokPage: React.FC = () => {
           frame="Bharat intelligence"
           words={ cycleWords }
           pillKey={ mode }
-          sub="VayuLok reads your chosen place — live air quality and weather, with forecast, history and heatmap."
+          sub="Live air and weather for your place."
           visual={ (
           <div className="vl-hero-visual">
             <VayuLokApprovedGlobe
