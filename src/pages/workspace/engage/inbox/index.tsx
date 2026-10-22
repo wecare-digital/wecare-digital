@@ -25,7 +25,7 @@ import * as api from '../../../../api/client';
 import { colors, shadow } from '../../../../lib/design-tokens';
 import { WHATSAPP_PHONES, PAYMENT_PHONES, DEFAULT_GSTIN, PAYMENT_CONFIG, GST_RATES } from '../../../../config/constants';
 import { searchEmojiCategories } from '../../../../lib/emoji-data';
-import { inferMimeFromName, validateWaMediaSize, formatBytes } from '../../../../lib/wa-media';
+import { inferMimeFromName, validateWaMediaSize, formatBytes, waMediaCategory, WA_ACCEPT_STRING } from '../../../../lib/wa-media';
 import { waErrorTooltip } from '../../../../lib/wa-errors';
 import { scrollToEnd } from '../../../../lib/scroll-to-end';
 
@@ -64,6 +64,12 @@ const WABAS = [
     { id: WHATSAPP_PHONES.primary.id, name: WHATSAPP_PHONES.primary.name, display: WHATSAPP_PHONES.primary.display },
     { id: WHATSAPP_PHONES.secondary.id, name: WHATSAPP_PHONES.secondary.name, display: WHATSAPP_PHONES.secondary.display },
 ];
+
+// The media picker's accept list: every WhatsApp-supported MIME from WA_ACCEPT_STRING
+// (the one source of truth in wa-media.ts), plus the image/video/audio wildcards for a
+// friendlier OS dialog. Type and size are still gated by validateWaMediaSize on select,
+// so the wildcards can never let an unsupported file actually be sent.
+const MEDIA_ACCEPT = `image/*,video/*,audio/*,${WA_ACCEPT_STRING}`;
 
 interface PageProps {
     signOut?: () => void;
@@ -604,18 +610,44 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                 const bsuid = selected ? contactDir[ selected ]?.bsuid : undefined;
                 if ( hasMedia )
                 {
+                    // Send each staged file as its own WhatsApp media message — Meta
+                    // carries one media object per message, so N files is N sends.
+                    // The caption (and the native reply context) ride the FIRST message
+                    // that actually goes out, not a fixed index: if the first file fails
+                    // to upload, the caption must not vanish with it. Audio and sticker
+                    // captions are dropped server-side by Meta's rules, so warn once if
+                    // the user typed text alongside a lone audio/sticker.
                     let sent = 0;
+                    let captionPlaced = false;
+                    const failed: string[] = [];
+                    const soloCaptionDropped = waText && mediaFiles.length === 1
+                        && [ 'audio', 'sticker' ].includes( waMediaCategory( mediaFiles[ 0 ].type || inferMimeFromName( mediaFiles[ 0 ].name ) ) );
                     for ( let i = 0; i < mediaFiles.length; i++ )
                     {
                         const file = mediaFiles[ i ];
                         const type = file.type || inferMimeFromName( file.name );
                         const s3Key = await api.uploadMediaForSend( file, type, file.name );
-                        if ( !s3Key ) { toast.error( `Upload failed: ${file.name}` ); continue; }
-                        const r = await api.sendWhatsAppMessage( { contactId, content: i === 0 ? waText : '', phoneNumberId: sendWaba || undefined, recipientBsuid: bsuid, mediaFile: s3Key, mediaType: type, mediaFileName: file.name, contextMessageId: i === 0 ? waContext : undefined } );
-                        if ( r ) sent++;
+                        if ( !s3Key ) { failed.push( file.name ); continue; }
+                        // The first message to go out claims the reply context; the caption
+                        // additionally needs a type that can carry it (image/video/document).
+                        const giveCaption = !captionPlaced && !!waText && [ 'image', 'video', 'document' ].includes( waMediaCategory( type ) );
+                        const r = await api.sendWhatsAppMessage( { contactId, content: giveCaption ? waText : '', phoneNumberId: sendWaba || undefined, recipientBsuid: bsuid, mediaFile: s3Key, mediaType: type, mediaFileName: file.name, contextMessageId: !captionPlaced ? waContext : undefined } );
+                        if ( r ) { sent++; captionPlaced = true; } else { failed.push( file.name ); }
                     }
                     ok = sent > 0;
-                    if ( ok ) { setMediaFiles( [] ); setMediaPreview( null ); }
+                    // Keep only the files that failed, so the user can retry them without
+                    // re-picking the whole set; clear the preview only when all went out.
+                    if ( failed.length )
+                    {
+                        setMediaFiles( prev => prev.filter( f => failed.includes( f.name ) ) );
+                        toast.error( sent > 0
+                            ? `Sent ${sent} of ${mediaFiles.length} — failed: ${failed.join( ', ' )}`
+                            : `Could not send: ${failed.join( ', ' )}` );
+                    } else if ( ok )
+                    {
+                        setMediaFiles( [] ); setMediaPreview( null );
+                        if ( soloCaptionDropped ) toast.info( 'Your caption was not sent — WhatsApp does not allow captions on audio or stickers' );
+                    }
                 } else
                 {
                     const r = await api.sendWhatsAppMessage( { contactId, content: waText, phoneNumberId: sendWaba || undefined, recipientBsuid: bsuid, contextMessageId: waContext } );
@@ -1352,7 +1384,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                                 <button className="ui-reply-btn" disabled={ sending || !replyText.trim() } onClick={ handleReply }>{ sending ? 'Sending…' : 'Send' }</button>
                                             </div>
                                             { replyChannel === 'whatsapp' && (
-                                                <input ref={ fileRef } type="file" hidden multiple accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt" onChange={ handleMediaSelect } />
+                                                <input ref={ fileRef } type="file" hidden multiple accept={ MEDIA_ACCEPT } onChange={ handleMediaSelect } />
                                             ) }
                                         </>
                                     ) }

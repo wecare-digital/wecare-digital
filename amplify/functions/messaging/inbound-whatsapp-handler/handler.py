@@ -3760,16 +3760,14 @@ def _download_media_direct_api(whatsapp_media_id: str, message_id: str, media_ty
 
 
 def _get_media_extension_from_mime(mime_type: str) -> str:
-    """Get file extension from MIME type."""
-    MIME_MAP = {
-        'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp',
-        'audio/ogg': '.ogg', 'audio/mpeg': '.mp3', 'audio/aac': '.aac',
-        'video/mp4': '.mp4', 'video/3gpp': '.3gp',
-        'application/pdf': '.pdf', 'application/vnd.ms-excel': '.xls',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
-        'application/msword': '.doc', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
-    }
-    return MIME_MAP.get(mime_type, '.bin')
+    """Get file extension from MIME type.
+
+    Delegates to `_get_extension_from_mime` so there is one inbound MIME→ext table
+    rather than three that drift. This wrapper previously carried a shorter copy that
+    dropped audio/amr, audio/mp4, text/plain, ppt and pptx to '.bin' (a .bin landed a
+    wrong display filename and broke the inbox's extension-driven document link).
+    """
+    return _get_extension_from_mime(mime_type)
 
 
 def _download_media(whatsapp_media_id: str, message_id: str, media_type: str, 
@@ -3838,14 +3836,11 @@ def _download_media(whatsapp_media_id: str, message_id: str, media_type: str,
         with urllib.request.urlopen(dl_req, timeout=60) as dl_resp:
             media_bytes = dl_resp.read()
 
-        # Step 3: Determine extension and upload to S3
-        ext_map = {
-            'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp',
-            'video/mp4': '.mp4', 'audio/ogg': '.ogg', 'audio/mpeg': '.mp3',
-            'audio/aac': '.aac', 'application/pdf': '.pdf',
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
-        }
-        ext = ext_map.get(mime_type, '')
+        # Step 3: Determine extension and upload to S3. Use the one shared inbound
+        # MIME→ext table (full Meta set) rather than a short inline copy that dropped
+        # 3gp/amr/m4a/txt/doc/xls/xlsx/ppt/pptx to no-extension. '' only when the MIME
+        # is genuinely unknown; the rename below then re-derives from the type.
+        ext = _get_extension_from_mime(mime_type) if mime_type else ''
         actual_s3_key = f"{s3_key_prefix}{whatsapp_media_id}{ext}"
         s3.put_object(
             Bucket=MEDIA_BUCKET,
