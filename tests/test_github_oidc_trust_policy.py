@@ -302,7 +302,14 @@ def test_route_auth_live_gate_does_not_run_on_pull_requests():
     Both forms keep PRs out; a brittle substring match would fail the stricter —
     and still-correct — form, so match either.
     """
-    workflow = (ROOT / ".github/workflows/route-auth.yml").read_text(encoding="utf-8")
+    route_auth = ROOT / ".github/workflows/route-auth.yml"
+    if not route_auth.exists():
+        # The workflow was removed in `ci: remove route auth workflow for now` (e8882658) while
+        # the CI gates were consolidated. There is no live-gate to constrain when the file is
+        # absent, so this property is vacuously satisfied — skip rather than hard-error on a
+        # deleted path. If route-auth.yml returns, this test resumes guarding it.
+        pytest.skip("route-auth.yml is not present on this tree (CI gate consolidation)")
+    workflow = route_auth.read_text(encoding="utf-8")
     live_gate_if = next(
         (ln.split("if:", 1)[1].strip()
          for ln in workflow.splitlines()
