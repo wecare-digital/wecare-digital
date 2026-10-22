@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PreToolUse guard: refuse any attempt to create an S3 bucket for Blog Production.
+"""PreToolUse guard: refuse unapproved attempts to create an S3 bucket.
 
 WHY A HOOK AND NOT JUST A STEERING RULE.
 
@@ -28,7 +28,7 @@ import json
 import re
 import sys
 
-#: The one bucket Blog Production may use.
+#: Established shared bucket used by the repository.
 APPROVED_BUCKET = "wecare-digital-get"
 
 #: The typo in the project specification. Called out by name so the refusal can explain
@@ -91,9 +91,8 @@ def inspect(command: str) -> tuple[bool, str]:
             reason = (
                 f"BLOCKED: {label} creates an S3 bucket.\n"
                 f"\n"
-                f"Blog Production must use the EXISTING bucket {APPROVED_BUCKET!r} under the "
-                f"prefixes secure/blog-production/ (working data) and o/blog-production/ (public output). Creating a bucket is prohibited without "
-                f"explicit owner approval - see .kiro/steering/blog-production-s3.md.\n"
+                f"Use established repository storage such as {APPROVED_BUCKET!r}. Creating a "
+                f"new bucket is prohibited without explicit owner approval.\n"
                 f"\n"
                 f"If you reached for this because a bucket lookup returned 404: the project "
                 f"specification spells the name {KNOWN_TYPO!r}, which is a known typo and "
