@@ -87,6 +87,34 @@ def test_order_replay_preserves_fulfilment_and_cannot_duplicate():
     orders.update_item(Key={'orderId':row['orderId']}, UpdateExpression='SET orderStatus = :s',
         ExpressionAttributeValues={':s':'shipped'})
     subject.store(orders=orders, row=row)
+
+
+def test_replay_repairs_stale_paid_order_snapshot_without_duplication():
+    from crm_fake_dynamo import FakeDynamo
+    args = inputs()
+    args['attempt']['channel'] = 'whatsapp'
+    args['invoice']['channel'] = 'website'
+    args['invoice']['notes'] = 'Cancelled: native-pay live proof; unpaid, no money moved'
+    desired = subject.build(**args)
+    orders = FakeDynamo(keys={'orders':'orderId'}).Table('orders')
+    stale = dict(desired)
+    stale['channel'] = 'whatsapp'
+    stale['invoiceSnapshot'] = dict(args['invoice'])
+    stale['orderStatus'] = 'shipped'
+    orders.put_item(Item=stale)
+
+    repaired = subject.store(orders=orders, row=desired)
+    assert len(orders.rows) == 1
+    assert repaired['orderId'] == desired['orderId']
+    assert repaired['paymentAttemptId'] == desired['paymentAttemptId']
+    assert repaired['providerPaymentId'] == desired['providerPaymentId']
+    assert repaired['referenceId'] == desired['referenceId']
+    assert repaired['invoiceId'] == desired['invoiceId']
+    assert repaired['orderNumber'] == desired['orderNumber']
+    assert repaired['orderStatus'] == 'shipped'
+    assert repaired['channel'] == 'whatsapp'
+    assert repaired['invoiceSnapshot']['channel'] == 'whatsapp'
+    assert 'notes' not in repaired['invoiceSnapshot']
     saved = orders.get_item(Key={'orderId':row['orderId']})['Item']
     assert saved['orderStatus'] == 'shipped'
 
