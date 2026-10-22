@@ -145,19 +145,21 @@ describe( 'form-controls.css — invariant 4', () => {
       'src/styles/inner-pages.css',
       'src/styles/inner-ux.css',
       'src/styles/tokens.css',
+      'src/styles/workspace.css',
     ] );
 
     // The counts are asserted SEPARATELY from the file set, so a new rule added to an
     // already-allowed file is caught as well as a new file. The arithmetic from 1.3a's frozen
     // 83/41/29 to these figures is in this file's header, property by property.
     // The Workspace rebuild then added two reviewed surfaces to the census:
-    // ConsentPanel contributes two styled-jsx rules (one geometry/pairing), and flex-layout.css
-    // contributes two global .link-input rules (one geometry). That moves the frozen baseline
-    // from 63/21/28 to 67 rule sets / 23 files / 30 geometry rules.
-    expect( census.summary.ruleSets ).toBe( 67 );
-    expect( census.summary.files ).toBe( 23 );
-    expect( census.summary.geometryRuleSets ).toBe( 30 );
-    expect( census.summary.mechanisms[ 'A-global' ] ).toMatchObject( { ruleSets: 42, files: 9 } );
+    // ConsentPanel contributes two styled-jsx rules (one geometry/pairing), flex-layout.css
+    // contributes two global .link-input rules (one geometry), and workspace.css contributes
+    // the reviewed blog-production input/textarea/select radius rule. That moves the frozen
+    // baseline to 68 rule sets / 24 files / 31 geometry rules.
+    expect( census.summary.ruleSets ).toBe( 68 );
+    expect( census.summary.files ).toBe( 24 );
+    expect( census.summary.geometryRuleSets ).toBe( 31 );
+    expect( census.summary.mechanisms[ 'A-global' ] ).toMatchObject( { ruleSets: 43, files: 10 } );
     expect( census.summary.mechanisms[ 'A-module' ] ).toMatchObject( { ruleSets: 0, files: 0 } );
     expect( census.summary.mechanisms[ 'B-styledjsx' ] ).toMatchObject( { ruleSets: 22, files: 12 } );
     expect( census.summary.mechanisms[ 'C-injected' ] ).toMatchObject( { ruleSets: 3, files: 2 } );
@@ -218,20 +220,15 @@ describe( 'form-controls.css — invariant 4', () => {
     expect( phone ).toMatch( /min-width:\s*var\(--tap-target\)/ );
   } );
 
-  it( '7. the current pairing count is 21', () => {
+  it( '7. the current pairing count is 22', () => {
     // A pairing rule is a geometry rule whose selector list names BOTH an input and a select, so
     // form-controls.css reaches one half of it and not the other - which is the criterion the
     // design uses to decide rewrite-versus-accept. It was 22 before this batch; tokens.css's
     // `input, select, textarea` base and inner-ux.css's `.inner-page` base both lost `select`
-    // (-2) and form-controls.css's own base rule is a new one (+1), so 21.
-    // LAYER 2 DID NOT MOVE IT. All 16 rule sets that left the census in 2b-2f are mechanism-B
-    // class hits plus one deleted styled-jsx rule, and a pairing needs a selector list naming
-    // both an input and a select - which none of those 16 was. AddressFields' `input,select` is
-    // still a pairing, and still counted, because the input half is live.
-    // ConsentPanel's .cp-form select,.cp-form input is the reviewed twenty-first pairing.
-    // A TWENTY-SECOND means a new pairing exists whose accept-versus-rewrite decision has not
-    // been taken rather than inherited.
-    expect( census.summary.pairings ).toBe( 21 );
+    // (-2) and form-controls.css's own base rule is a new one (+1), producing 21.
+    // The reviewed workspace.css blog-production rule later adds one scoped input/select pairing,
+    // bringing the current frozen count to 22.
+    expect( census.summary.pairings ).toBe( 22 );
   } );
 
   it( '8. every global rule setting a border width or radius on a select sets 1px and 8px', () => {
@@ -271,6 +268,9 @@ describe( 'form-controls.css — invariant 4', () => {
       'src/styles/inner-ux.css': [ 'var(--radius-md)' ],
       'src/styles/Layout.css': [ 'var(--radius-md)' ],
       'src/styles/flex-layout.css': [ '10px' ],
+      // Authenticated Workspace intentionally keeps its denser 10px control radius; this scoped
+      // blog-production rule is not part of the public 8px request/checkout control redesign.
+      'src/styles/workspace.css': [ 'var(--workspace-control-radius)' ],
     };
 
     const failures: string[] = [];
