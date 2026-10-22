@@ -248,23 +248,6 @@ const ElsewhereTravelAssistant: React.FC = () => {
   const config = MODES[ mode ];
   const canSubmit = query.trim().length > 0 || preferences.length > 0;
 
-  // On a phone the six service tabs intentionally stay on one horizontal rail. The
-  // Activities route starts in activities mode, so keeping scrollLeft=0 makes the
-  // selected tab begin off-screen (Flights + Hotels consume the first viewport). Keep
-  // the selected service in view on initial load and after a mode change; use an
-  // immediate alignment so the page does not visibly slide after hydration.
-  useEffect( () => {
-    if ( typeof window === 'undefined' || !window.matchMedia( '(max-width: 720px)' ).matches ) return;
-    const frame = window.requestAnimationFrame( () => {
-      tabRefs.current[ mode ]?.scrollIntoView( {
-        behavior: 'auto',
-        block: 'nearest',
-        inline: 'center',
-      } );
-    } );
-    return () => window.cancelAnimationFrame( frame );
-  }, [ mode ] );
-
   const changeMode = useCallback( ( next: TravelMode ) => {
     abortRef.current?.abort();
     setMode( next );
@@ -568,7 +551,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
         .eta-panel{min-width:0;padding:28px 30px 26px}
         .eta-response-view{
           min-height:180px;max-height:460px;max-height:min(48dvh,460px);overflow-y:auto;overflow-x:hidden;
-          padding:2px 4px 8px 0;overscroll-behavior-y:contain;scrollbar-gutter:stable;scrollbar-width:thin;
+          padding-block:2px 8px;padding-inline:0 4px;overscroll-behavior-y:contain;scrollbar-gutter:stable;scrollbar-width:thin;
           -webkit-overflow-scrolling:touch;touch-action:pan-y;
         }
         .eta-conversation{display:flex;flex-direction:column;gap:16px;min-width:0}
@@ -715,11 +698,17 @@ const ElsewhereTravelAssistant: React.FC = () => {
         }
         @media(max-width:720px){
           .eta-shell{border-radius:22px}
-          .eta-tabs{display:flex;gap:3px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;overscroll-behavior-inline:contain;scrollbar-width:none;touch-action:pan-x}
-          .eta-tabs::-webkit-scrollbar{display:none}
-          .eta-tab{flex:0 0 auto;min-width:max-content;padding:5px 12px;font-size:14px;gap:7px;scroll-snap-align:start}
-          .eta-tab-icon{width:26px;height:26px;flex-basis:26px;font-size:18px}
-          .eta-panel{padding:20px var(--public-mobile-page-gutter)}
+          .eta-tabs{
+            display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2px;
+            overflow:visible;scroll-snap-type:none;overscroll-behavior:auto;touch-action:manipulation;
+            padding:4px;
+          }
+          .eta-tab{
+            min-width:0;min-height:var(--tap-min);padding:6px 4px;font-size:13px;gap:4px;
+            white-space:normal;overflow-wrap:anywhere;text-align:center;
+          }
+          .eta-tab-icon{width:24px;height:24px;flex-basis:24px;font-size:17px}
+          .eta-panel{padding-block:20px;padding-inline:var(--public-mobile-page-gutter)}
           /* Phones use the page itself as the vertical scroller, like Home. A capped
              response pane made result cards disappear under the composer and forced a
              second scroll gesture inside the card. Let the conversation take its
@@ -731,7 +720,8 @@ const ElsewhereTravelAssistant: React.FC = () => {
           .eta-result{grid-template-columns:1fr;padding:18px}.eta-result h3{font-size:var(--public-mobile-card-size)}.eta-desc{font-size:16px}.eta-result-side{align-items:flex-start;text-align:start}.eta-checkout{align-items:flex-start}.eta-actions{align-items:flex-start;margin-inline-start:0}
         }
         @media(max-width:380px){
-          .eta-tab{font-size:13px;padding-inline:10px}
+          .eta-tab{font-size:12px;padding-inline:2px}
+          .eta-tab-icon{width:22px;height:22px;flex-basis:22px;font-size:16px}
           .eta-keyhint{display:none}
           .eta-panel{padding-inline:var(--public-mobile-page-gutter)}
           .eta-result{padding-inline:16px}
