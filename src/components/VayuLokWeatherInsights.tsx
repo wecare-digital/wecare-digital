@@ -20,7 +20,6 @@ interface WeatherInsightsSummary {
     precipitationMm?: number | null;
     meanHumidityPct?: number | null;
   }>;
-  source?: string;
   cached?: boolean;
 }
 
@@ -46,6 +45,13 @@ function analyticsEvent( event: string, range: Range, status?: string ) {
 function fmt( value: number | null | undefined, suffix = '', digits = 1 ) {
   if ( !Number.isFinite( value ) ) return '—';
   return Number( value ).toFixed( digits ).replace( /\.0$/, '' ) + suffix;
+}
+
+function monthYear( value: string | null | undefined ) {
+  if ( !value ) return '';
+  const date = new Date( value );
+  if ( Number.isNaN( date.getTime() ) ) return '';
+  return date.toLocaleDateString( 'en-IN', { month: 'short', year: 'numeric' } );
 }
 
 const RANGE_LABELS: Record<Range, string> = {
@@ -142,7 +148,7 @@ const VayuLokWeatherInsights: React.FC<Props> = ( { lat, lng, placeName } ) => {
       <div className="vl-wi-head">
         <div>
           <h4>Weather history</h4>
-          <p>Long-term patterns for { placeName || 'this location' }.</p>
+          <p>Past weather for { placeName || 'this place' }.</p>
         </div>
         <div className="vl-wi-range" role="group" aria-label="Weather history range">
           { ( Object.keys( RANGE_LABELS ) as Range[] ).map( item => (
@@ -163,39 +169,39 @@ const VayuLokWeatherInsights: React.FC<Props> = ( { lat, lng, placeName } ) => {
       </div>
 
       { status === 'loading' && (
-        <div className="vl-wi-loading" role="status">Loading historical weather…</div>
+        <div className="vl-wi-loading" role="status">Loading history…</div>
       ) }
 
       { status === 'unavailable' && (
         <div className="vl-wi-note" role="status">
-          Historical weather isn’t available for this location yet.
+          History isn’t available here yet.
         </div>
       ) }
 
       { status === 'error' && (
         <div className="vl-wi-note" role="status">
-          Historical weather is temporarily unavailable.
+          History is unavailable.
         </div>
       ) }
 
       { status === 'ready' && data && (
         <>
           <div className="vl-wi-grid">
-            <div><span>Typical temperature</span><strong data-wc-no-translate="true">{ fmt( data.meanTemperatureC, '°C' ) }</strong></div>
-            <div><span>Historical low</span><strong data-wc-no-translate="true">{ fmt( data.minTemperatureC, '°C' ) }</strong></div>
-            <div><span>Historical high</span><strong data-wc-no-translate="true">{ fmt( data.maxTemperatureC, '°C' ) }</strong></div>
-            <div><span>Total precipitation</span><strong data-wc-no-translate="true">{ fmt( data.precipitationMm, ' mm' ) }</strong></div>
-            <div><span>Typical humidity</span><strong data-wc-no-translate="true">{ fmt( data.meanHumidityPct, '%' ) }</strong></div>
-            <div><span>Hourly samples</span><strong data-wc-no-translate="true">{ Number( data.sampleHours || 0 ).toLocaleString( 'en-IN' ) }</strong></div>
+            <div><span>Avg temp</span><strong data-wc-no-translate="true">{ fmt( data.meanTemperatureC, '°C' ) }</strong></div>
+            <div><span>Low</span><strong data-wc-no-translate="true">{ fmt( data.minTemperatureC, '°C' ) }</strong></div>
+            <div><span>High</span><strong data-wc-no-translate="true">{ fmt( data.maxTemperatureC, '°C' ) }</strong></div>
+            <div><span>Rain</span><strong data-wc-no-translate="true">{ fmt( data.precipitationMm, ' mm' ) }</strong></div>
+            <div><span>Humidity</span><strong data-wc-no-translate="true">{ fmt( data.meanHumidityPct, '%' ) }</strong></div>
+            <div><span>Hours</span><strong data-wc-no-translate="true">{ Number( data.sampleHours || 0 ).toLocaleString( 'en-IN' ) }</strong></div>
           </div>
 
           { monthly.length > 1 && (
             <div className="vl-wi-trend">
               <div className="vl-wi-trend-head">
-                <strong>Seasonal temperature pattern</strong>
-                <span>Month-of-year average</span>
+                <strong>Monthly temp</strong>
+                <span>Monthly avg</span>
               </div>
-              <div className="vl-wi-bars" aria-label="Monthly average temperature">
+              <div className="vl-wi-bars" aria-label="Monthly temperature">
                 { monthly.map( row => {
                   const temp = Number( row.meanTemperatureC );
                   const span = Math.max( 1, maxMonthlyTemp - minMonthlyTemp );
@@ -215,11 +221,10 @@ const VayuLokWeatherInsights: React.FC<Props> = ( { lat, lng, placeName } ) => {
           ) }
 
           <div className="vl-wi-source">
-            <span>Source: { data.source || 'Google Weather Insights' }</span>
-            { data.coverageStart && data.coverageEnd ? (
-              <span data-wc-no-translate="true"> · coverage { new Date( data.coverageStart ).toLocaleDateString( 'en-IN', { month: 'short', year: 'numeric' } ) }–{ new Date( data.coverageEnd ).toLocaleDateString( 'en-IN', { month: 'short', year: 'numeric' } ) }</span>
+            { monthYear( data.coverageStart ) && monthYear( data.coverageEnd ) ? (
+              <span data-wc-no-translate="true">{ monthYear( data.coverageStart ) }–{ monthYear( data.coverageEnd ) }</span>
             ) : null }
-            { Number.isFinite( data.gridDistanceKm ) ? <span data-wc-no-translate="true"> · nearest grid { fmt( data.gridDistanceKm, ' km', 2 ) }</span> : null }
+            { Number.isFinite( data.gridDistanceKm ) ? <span data-wc-no-translate="true"> · Grid { fmt( data.gridDistanceKm, ' km', 2 ) }</span> : null }
           </div>
         </>
       ) }
