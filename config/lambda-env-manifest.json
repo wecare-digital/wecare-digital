@@ -1,8 +1,8 @@
 {
   "_comment": "Recorded state of live Lambda environment variables. Not deployed by anything - this is the source of truth to diff against. Regenerate with scripts/env_manifest.py --export; verify with no arguments.",
   "_region": "us-east-1",
-  "_functions": 66,
-  "_variables": 409,
+  "_functions": 65,
+  "_variables": 405,
   "_fingerprinted": 7,
   "functions": {
     "stack-wecare-url-shortener": {
@@ -525,12 +525,6 @@
       "CDN_DOMAIN": "wecare.digital/get",
       "LOG_LEVEL": "INFO",
       "MEDIA_BUCKET": "wecare-digital-get"
-    },
-    "wecare-whatsapp-templates": {
-      "AWS_ACCOUNT_ID": "775261844268",
-      "MEDIA_BUCKET": "wecare-digital-get",
-      "REGION": "us-east-1",
-      "S3_BUCKET": "wecare-digital-get"
     },
     "wecare-whatsapp-voice": {
       "ADMIN_MFA_REQUIRED": "true",

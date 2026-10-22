@@ -49,7 +49,7 @@ except ImportError:  # pragma: no cover
 
 REGION = "us-east-1"
 WABA_ID = "2094615664435155"
-TEMPLATES_FUNCTION = "wecare-whatsapp-templates:live"
+TEMPLATES_FUNCTION = "wecare-whatsapp-template-management:live"
 MEDIA_FUNCTION = "wecare-whatsapp-business-api:live"
 
 TEMPLATE_NAME = "wd_file_delivery"
