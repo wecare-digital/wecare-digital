@@ -18,7 +18,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, os.path.join(str(ROOT), "amplify", "functions", "shared"))
 
-from lambda_utils.ecommerce import meta_catalog_sync  # noqa: E402
+from lambda_utils.ecommerce import cart_contract, meta_catalog_sync  # noqa: E402
 from lambda_utils.ecommerce import order_channel, whatsapp_basket as wb  # noqa: E402
 
 MODULE_PATH = (ROOT / "amplify/functions/shared/lambda_utils/ecommerce/whatsapp_basket.py")
@@ -195,6 +195,22 @@ def test_catalogue_v2_retailer_id_round_trips_native_product_and_short_sku():
     assert basket.lines == [
         {"productId": product_id, "variantId": variant_id, "quantity": 2},
     ]
+
+
+def test_catalogue_v2_line_survives_the_customer_cart_contract():
+    product_id = "native:hunar-kaushal"
+    variant_id = "KSL9M2Q4"
+    basket = wb.parse_order_message(order_message([
+        item(retailer(product_id, variant_id), 1),
+    ]))
+    assert basket is not None
+    assert cart_contract.catalog_item(basket.lines[0]) == {
+        "catalogReference": {
+            "catalogItemId": product_id,
+            "options": {"variantId": variant_id},
+        },
+        "quantity": 1,
+    }
 
 
 # ── the phone binding ─────────────────────────────────────────────────────────
