@@ -254,7 +254,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
       tabRefs.current[ mode ]?.scrollIntoView( {
         behavior: 'auto',
         block: 'nearest',
-        inline: 'nearest',
+        inline: 'center',
       } );
     } );
     return () => window.cancelAnimationFrame( frame );
