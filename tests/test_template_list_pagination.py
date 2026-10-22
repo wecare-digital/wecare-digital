@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 
 def test_template_listing_follows_all_provider_pages():
-    source = Path(__file__).resolve().parents[1] / 'amplify/functions/messaging/whatsapp-templates/handler.py'
+    source = Path(__file__).resolve().parents[1] / 'amplify/functions/messaging/whatsapp-template-management/handler.py'
     spec = importlib.util.spec_from_file_location('paginated_template_handler', source)
     module = importlib.util.module_from_spec(spec)
     with patch('boto3.client'), patch('boto3.resource'):
@@ -23,7 +23,7 @@ def test_template_listing_follows_all_provider_pages():
 
 
 def test_listing_supplies_fixed_review_header():
-    source = Path(__file__).resolve().parents[1] / 'amplify/functions/messaging/whatsapp-templates/handler.py'
+    source = Path(__file__).resolve().parents[1] / 'amplify/functions/messaging/whatsapp-template-management/handler.py'
     spec = importlib.util.spec_from_file_location('fixed_header_template_handler', source)
     module = importlib.util.module_from_spec(spec)
     with patch('boto3.client'), patch('boto3.resource'):
