@@ -6379,7 +6379,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             # The UNFILTERED WABA template list, for the A0 payment gate's template proof.
             #
             # A separate arm from `/direct-send/templates` on purpose: that route filters
-            # `source=AUTO_GENERATED`, and `wecarepay_wa` is manually created and manually
+            # `source=AUTO_GENERATED`, and `wecare_whatapp_native_pay_template` is manually created and manually
             # approved, so it can never appear in that response - a gate reading it would block
             # every payment send on PAYMENT_TEMPLATE_MISSING. This arm drops the `source`
             # filter and includes type/language fields for the order-status approval gate,
