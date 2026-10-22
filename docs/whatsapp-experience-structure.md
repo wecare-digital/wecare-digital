@@ -144,7 +144,7 @@ never a cold-open surface.
 | Verified name | WECARE.DIGITAL | Manish Agarwal |
 | Quality / status | GREEN · CONNECTED · OBA | GREEN · CONNECTED · OBA |
 | Throughput | STANDARD, 80 mps | STANDARD, 80 mps |
-| Template language for `wecare_pay` | `en` | `en_US` |
+| Template language for `wecare_whatapp_native_pay_template` | `en` | `en_US` |
 | Native WhatsApp Pay | **yes** | **no** — sends a CTA to `wecare.digital/r/pay` |
 | WhatsApp Flows | 10 of 10 | **1 of 10** (`subscribe` only, via `flowId2`) |
 | QR deep link | `wa.me/message/APDM5HUWH26SG1` → "Get Help" | `wa.me/message/DPESCFW7U4FXO1` → "Hi 👋" |
@@ -374,7 +374,7 @@ Four entry points converge on one pipeline:
                            • items + GST + 2% convenience fee (+18% GST on the fee)
                            • digital-goods unless goodsType == physical-goods
                            └─► wecare-outbound-whatsapp
-                                 • template wecare_pay (en on WABA1, en_US on WABA2)
+                                 • template wecare_whatapp_native_pay_template (en on WABA1, en_US on WABA2)
                                  • IMAGE header, no body vars, ORDER_DETAILS button
                                  • payment_settings → Razorpay WECAREDIGITAL
                                  └─► customer taps → WhatsApp Pay → Razorpay
@@ -436,7 +436,7 @@ Post-flow actions the AI layer can return: `showOptions`, `showMainMenu`, `showS
 `showRating` (`🙌 Great` / `😐 Just okay` / `🥲 Could be better`), `sendPayment`,
 `sendPendingPayments`, `humanHandoff`, `end`.
 
-Outbound templates: `wecare_pay` (checkout), `postpay_request_v1` (post-pay flow outside 24h),
+Outbound templates: `wecare_whatapp_native_pay_template` (checkout), `postpay_request_v1` (post-pay flow outside 24h),
 `wd_file_delivery` (secure file), `01_wecare_doc` (rollback predecessor), `wecare_otp` (auth),
 `wd_call_permission` (calling). `postpay_details_v1` is approved on Meta but has **no code
 reference**. There is no code-level template registry.

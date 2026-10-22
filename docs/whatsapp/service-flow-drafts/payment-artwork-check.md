@@ -7,7 +7,7 @@ Vault does not require a WhatsApp Flow. The owner-selected journey is catalog �
 ## Verified live
 
 - Business API live version 79 and checkout live version 40 have native catalog service flags unset, so this rollout is off. `VAULT_DYNAMIC_DOWNLOAD_TEMPLATE_ENABLED` is also unset.
-- Meta readback confirms `wecarepay_wa`, `wecare_default_download` and `wecare_leave_review` are APPROVED in English. Download template 1410998911012572 has an IMAGE header and URL button `https://wecare.digital/vault/?file={{1}}`.
+- Meta readback confirms `wecare_whatapp_native_pay_template`, `wecare_default_download` and `wecare_leave_review` are APPROVED in English. Download template 1410998911012572 has an IMAGE header and URL button `https://wecare.digital/vault/?file={{1}}`.
 - Paid Submit Request Flow 1107164111921876 is PUBLISHED, with no validation errors and the WECARE flow-data endpoint.
 - Each of the six stored catalog PNG objects has a 4096 × 4096 IHDR. Verified by S3 GetObject range bytes 0–23, not inferred from the filename. Exact keys, sizes and ETags are in payment-artwork-check.json. No image compression or replacement occurred.
 

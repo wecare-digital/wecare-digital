@@ -16,7 +16,7 @@ What it stands up, in this order
 IT CREATES NO TABLE AND NO INDEX. Every resource this function reads already exists and is
 owned elsewhere: `customerId-createdAt-index` by `scripts/provision_customer_orders.py`,
 `referenceId-index` and both invoice tables by the invoice engine's own provisioning, and
-`secure/stack/invoices/` by `payments/invoice-engine`. This script therefore has no
+`secure/Invoice/customer_invoice/` by `payments/invoice-engine`. This script therefore has no
 `update_table` call at all, which is deliberate — a second writer for one GSI is how a
 projection gets silently recreated.
 
@@ -110,7 +110,7 @@ MEDIA_BUCKET = "wecare-digital-get"
 #: The GATED root, not the public `o/` one. A rendered invoice carries a name, an address,
 #: an amount and a GSTIN, and this prefix moved off `o/` on 2026-09-30 for exactly that
 #: reason. The object-prefix wildcard is permitted here BECAUSE the prefix is pinned.
-INVOICE_PREFIX = "secure/stack/invoices/"
+INVOICE_PREFIX = "secure/Invoice/customer_invoice/"
 
 #: The CUSTOMER pool, deliberately not the staff pool. `customer_auth` pins the token issuer
 #: to it, and a single env var holding "the pool" is how the two get confused.

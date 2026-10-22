@@ -464,7 +464,7 @@ DEFAULT_PAYMENT_CONFIG = 'WECAREDIGITAL'
 # maps below. Because _build_payment_settings resolves the config name from these maps and
 # raises PaymentConfigurationUnresolved on a miss, a payment attempt on WABA2 fails closed
 # at this one chokepoint rather than sending a prompt the customer cannot complete
-# (wecarepay_wa is only approved on WABA1, verified live 2026-10-07). Do NOT re-add
+# (wecare_whatapp_native_pay_template is only approved on WABA1, verified live 2026-10-07). Do NOT re-add
 # PHONE_NUMBER_ID_2 here without the owner reversing that decision.
 PHONE_PAYMENT_CONFIG = {
     PHONE_NUMBER_ID_1: 'WECAREDIGITAL',                  # +919330994400 (WABA1) — the only payment WABA
@@ -640,7 +640,7 @@ def _build_payment_settings(phone_number_id: str, order_details: dict) -> list:
 
     # ── 2. WhatsApp payments are TEMPLATE-ONLY. A link path is refused, never silently taken. ──
     #
-    # `wecarepay_wa` carrying `order_details` is the ONE way this business collects a WhatsApp
+    # `wecare_whatapp_native_pay_template` carrying `order_details` is the ONE way this business collects a WhatsApp
     # payment. The two link modes below `return` BEFORE the PG deep-integration mode, so a caller
     # setting either key bypasses `configuration_name` entirely - and with it the payment
     # configuration, the readiness verdict and the approved template. Measured, NOTHING in this
@@ -803,7 +803,7 @@ def _fetch_approved_templates(waba_id: str) -> Dict[str, Any]:
 
     Uses `/wa-business/payment-templates/list`, which is an UNFILTERED
     `GET /{waba_id}/message_templates`. Deliberately NOT `/direct-send/templates`: that route
-    filters `source=AUTO_GENERATED`, and `wecarepay_wa` is manually created and manually
+    filters `source=AUTO_GENERATED`, and `wecare_whatapp_native_pay_template` is manually created and manually
     approved, so it can never appear there - every payment send would block on
     PAYMENT_TEMPLATE_MISSING. Deliberately NOT the `catalogServiceReadiness` action either: it
     takes no `wabaId` and reads three hardcoded template ids, so it would prove one WABA's
@@ -2038,7 +2038,7 @@ def _handle_checkout_template_send(
         whatsapp_phone = f"+{formatted_phone}"
 
         # Determine template language from params or auto-detect per WABA
-        # wecare_pay: WABA1 uses 'en', WABA-T uses 'en_US'
+        # wecare_whatapp_native_pay_template: WABA1 uses 'en', WABA-T uses 'en_US'
         template_language = 'en_US'  # default
         actual_params = list(template_params) if template_params else []
         if actual_params and isinstance(actual_params[0], str) and (
@@ -2143,7 +2143,7 @@ def _handle_checkout_template_send(
         # Build template components
         components = []
 
-        # Header (image) — wecarepay_wa template REQUIRES an image header.
+        # Header (image) — wecare_whatapp_native_pay_template template REQUIRES an image header.
         # FIXED company-logo header on EVERY payment, by owner decision 2026-10-07:
         # the same WECARE.DIGITAL logo on every payment message, never varied per order.
         # The per-call header_image_url override is deliberately ignored for the checkout

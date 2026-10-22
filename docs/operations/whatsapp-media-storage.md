@@ -7,7 +7,7 @@ Bucket: `wecare-digital-get`. Use the existing keys and shared `media_paths` hel
 | Public reusable template assets | `o/public/wa-tpl/{img,docs,vid,aud,stk}/` | Upload once, select from the media library for later sends |
 | Fixed Leave Review image | `o/public/wa-tpl/img/wecare-digital-cebc83f1_img.png` | Automatically enforced by `lambda_utils.template_media`; deletion through the library is blocked |
 | Customer WhatsApp uploads | `secure/u/whatsapp/incoming/` | Private customer records; resolve signed links on read |
-| Generated invoices | `secure/stack/invoices/` | Individual transaction outputs; never replace with the brand image |
+| Generated invoices | `secure/Invoice/customer_invoice/` | Individual transaction outputs; never replace with the brand image |
 | Historical public WhatsApp media | `o/stack/whatsapp-media/` | Retain referenced files at their existing URLs |
 | Calling audio | `o/whatsapp-media/whatsapp-calling/` | Separate operational assets; retain configured greeting files |
 | Storage audits and rollback manifests | `secure/stack/storage-audits/` | Operational records |

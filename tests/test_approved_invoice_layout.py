@@ -82,7 +82,7 @@ def test_approved_receipt_is_delivered_as_same_engine_png_image(invoice_engine, 
     monkeypatch.setattr(invoice_engine, 'dynamodb', dynamodb)
     image = MagicMock(return_value={'statusCode': 200, 'body': json.dumps({
         'imageUrl': 'https://example.invalid/private.png',
-        's3Key': 'secure/stack/invoices/fixture.png'})})
+        's3Key': 'secure/Invoice/customer_invoice/fixture.png'})})
     monkeypatch.setattr(invoice_engine, 'generate_invoice_image', image)
     monkeypatch.setattr(invoice_engine, '_lookup_contact_by_phone', lambda _: None)
     sender = MagicMock()
@@ -99,7 +99,7 @@ def test_approved_receipt_is_delivered_as_same_engine_png_image(invoice_engine, 
     assert payload['isTemplate'] is True
     assert payload['templateName'] == 'wecare_default_invoice_image_template'
     assert payload['templateHeaderType'] == 'image'
-    assert payload['templateHeaderMedia'] == 'secure/stack/invoices/fixture.png'
+    assert payload['templateHeaderMedia'] == 'secure/Invoice/customer_invoice/fixture.png'
     assert payload['content'] == ''
     assert 'flowButton' not in payload
     assert 'mediaFile' not in payload

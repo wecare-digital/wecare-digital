@@ -57,7 +57,7 @@ that exists returns 200 from S3, so keying only off errors would serve it.
 ## Paid download flow
 
     GET  /secure-files/mine                  customer's own files
-    POST /secure-files/{fileId}/whatsapp-pay PRIMARY: sends the wecare_pay template
+    POST /secure-files/{fileId}/whatsapp-pay PRIMARY: sends the wecare_whatapp_native_pay_template template
     POST /secure-files/{fileId}/order        FALLBACK: Razorpay Checkout on the web
     GET  /secure-files/{fileId}/download     FALLBACK: redeems a grant -> presigned URL
 
@@ -201,11 +201,11 @@ Payment request and file both go out as approved templates.
 
 | Template | Components | Role |
 |---|---|---|
-| `wecare_pay` | IMAGE, BODY, FOOTER, BUTTONS(`ORDER_DETAILS`) | ₹49 request |
+| `wecare_whatapp_native_pay_template` | IMAGE, BODY, FOOTER, BUTTONS(`ORDER_DETAILS`) | ₹49 request |
 | `wd_file_delivery` | DOCUMENT, BODY({{1}} name, {{2}} file), FOOTER, no buttons | delivery, **current default, APPROVED** |
 | `01_wecare_doc` | DOCUMENT, BODY, FOOTER, BUTTONS(`FLOW`) | delivery, rollback only |
 
-`wecare_pay`'s button is `ORDER_DETAILS`, i.e. WhatsApp Pay's native checkout, not a URL
+`wecare_whatapp_native_pay_template`'s button is `ORDER_DETAILS`, i.e. WhatsApp Pay's native checkout, not a URL
 button — which is why a Razorpay payment link was never an option for it. The amount
 travels in the `order_details` payload rather than the message text, because that BODY
 has no variables.
@@ -223,7 +223,7 @@ Body parameters are keyed on the template **name** (`TEMPLATES_WITH_BODY_VARS`),
 separate flag, because sending parameters to a template without placeholders is a Meta
 parameter mismatch — the two must move together.
 
-`wecare_pay` is deliberately not recreated. Its gap is cosmetic, and its `ORDER_DETAILS`
+`wecare_whatapp_native_pay_template` is deliberately not recreated. Its gap is cosmetic, and its `ORDER_DETAILS`
 button is coupled to the account payment configuration, so hand-rolling a replacement
 risks breaking a working checkout to fix wording.
 

@@ -184,7 +184,7 @@ Business Management API, System Users & Tokens.
 ## Gaps worth a decision (not yet built / gated)
 
 1. **Native WhatsApp Pay (order_details)** — 🟡 gated off; website Razorpay is the
-   live money path. (Templates `wecarepay_wa` + config are APPROVED/Active, but
+   live money path. (Templates `wecare_whatapp_native_pay_template` + config are APPROVED/Active, but
    `CHECKOUT_INITIATION_ENABLED` is off and the binding/reconcile path is the one
    under active repair — see `meta-payment-binding-redrive-*.md`.)
 2. **Native catalog `order` inbound** — 🟡 `WA_CATALOG_ORDERS_ENABLED=false`;

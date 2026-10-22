@@ -326,9 +326,9 @@ def environment(payment_enabled: bool = False) -> dict:
         "WA_SEND_PHONE_ID": "phone-number-id-waba1-direct-1016149501586345",
         "PARTNER_GROUP": "Partner",
         # Both templates are already APPROVED; nothing here waits on Meta.
-        # wecare_pay    [IMAGE, BODY, FOOTER, BUTTONS(ORDER_DETAILS)]
+        # wecare_whatapp_native_pay_template    [IMAGE, BODY, FOOTER, BUTTONS(ORDER_DETAILS)]
         # 01_wecare_doc [DOCUMENT, BODY, FOOTER, BUTTONS(FLOW)]
-        "WA_PAY_TEMPLATE": "wecarepay_wa",
+        "WA_PAY_TEMPLATE": "wecare_whatapp_native_pay_template",
         # wd_file_delivery: APPROVED 2026-09-25. DOCUMENT header, BODY variables for
         # customer and file name, and no buttons. Replaced 01_wecare_doc, which could
         # name neither and carried a stray FLOW button labelled "Subscribe".

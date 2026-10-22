@@ -1,9 +1,9 @@
 """Creating a folder must not be able to put private data in the public tree.
 
-`scripts/create_s3_prefix.py` exists because S3 has no directories: `secure/stack/invoices/x.png`
+`scripts/create_s3_prefix.py` exists because S3 has no directories: `secure/Invoice/customer_invoice/x.png`
 is one flat key, and the "folders" a console shows are inferred from the `/` characters in keys
 that already exist. So a prefix with no objects does not appear at all — which is what
-`secure/stack/invoices/` looked like after the invoice assets moved to the gated root, since
+`secure/Invoice/customer_invoice/` looked like after the invoice assets moved to the gated root, since
 invoices are rendered on demand and none had been.
 
 A 0-byte key ending in `/` is the only thing S3 treats as a folder, and this codebase already
@@ -67,7 +67,7 @@ def test_an_unrooted_prefix_is_refused_rather_than_defaulted(mod, unrooted):
 
 
 @pytest.mark.parametrize("rooted", [
-    "secure/stack/invoices/",
+    "secure/Invoice/customer_invoice/",
     "o/stack/whatsapp-media/",
     "secure/d/",
 ])
@@ -80,7 +80,7 @@ def test_a_missing_trailing_slash_is_added():
     `_wipe_s3_prefix` would delete it on the first cleanup run, which is the exact opposite of
     why it was created."""
     mod = load_validate()
-    assert mod.validate("secure/stack/invoices") == "secure/stack/invoices/"
+    assert mod.validate("secure/stack/invoices") == "secure/Invoice/customer_invoice/"
 
 
 @pytest.mark.parametrize("root", ["o/", "secure/", "/o/"])
@@ -118,7 +118,7 @@ def test_the_gated_root_is_reported_as_gated(mod):
     backwards would be worse than not printing it."""
     from lambda_utils import media_paths
 
-    assert media_paths.is_gated(mod.validate("secure/stack/invoices/")) is True
+    assert media_paths.is_gated(mod.validate("secure/Invoice/customer_invoice/")) is True
     assert media_paths.is_gated(mod.validate("o/stack/invoices/")) is False
 
 
