@@ -574,7 +574,7 @@ describe( 'Select - the accessible name computes, one case per labelling row', (
     render(
       <>
         <label id="retained-label">Category</label>
-        <Select labelledBy="retained-label" id="blog-studio-category" value="" options={ OPTIONS } onChange={ noop } />
+        <Select labelledBy="retained-label" id="retained-category" value="" options={ OPTIONS } onChange={ noop } />
       </>
     );
     expect( screen.getByRole( 'combobox', { name: 'Category' } ) ).toBeInTheDocument();
