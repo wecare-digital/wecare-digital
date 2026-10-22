@@ -278,20 +278,6 @@ def _cognito_client():
     return _cognito
 
 
-def _payment_enabled() -> bool:
-    """Read per call, not captured at import.
-
-    A posture switch that only takes effect once every warm sandbox recycles is
-    not much of a switch.
-    """
-    return str(os.environ.get("SECURE_FILES_PAYMENT_ENABLED", "")).strip().lower() in (
-        "1",
-        "true",
-        "yes",
-        "on",
-    )
-
-
 def _dropdocs_attach_enabled() -> bool:
     """Whether the Drop Docs attach route answers at all. Defaults OFF.
 
@@ -1210,9 +1196,6 @@ def _confirm_with_razorpay(grant: Dict[str, Any], via: str = "webhook") -> Tuple
     the sweep got there before the webhook did, which is worth noticing because it
     usually means the webhook subscription is broken.
     """
-    if not _payment_enabled():
-        return False, "payments disabled"
-
     order_id = str(grant.get("orderId") or "")
     if not order_id:
         return False, "grant has no orderId"
