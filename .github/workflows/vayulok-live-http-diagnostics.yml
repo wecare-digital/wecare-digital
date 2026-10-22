@@ -13,6 +13,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: vayulok-http-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   public-smoke:
     runs-on: ubuntu-latest
