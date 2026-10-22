@@ -162,7 +162,9 @@ const VayuLokPage: React.FC = () => {
           mobileFoundation
           ariaLabel="VayuLok"
           badgeLabel="VayuLok by WECARE.DIGITAL"
-          frame="Bharat intelligence"
+          frame="Bharat"
+          pillAfterFrame
+          secondLine="Intelligence"
           words={ cycleWords }
           pillKey={ mode }
           sub="Live air and weather for your place."
