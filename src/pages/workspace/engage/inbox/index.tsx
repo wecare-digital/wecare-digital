@@ -426,7 +426,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
         }
         if ( !accepted.length ) return;
         setMediaFiles( prev => [ ...prev, ...accepted ] );
-        const firstImage = accepted.find( f => ( f.type || inferMimeFromName( f.name ) ).startsWith( 'image/' ) );
+        const firstImage = accepted.find( f => resolveWaMime( f ).startsWith( 'image/' ) );
         if ( firstImage && !mediaPreview )
         {
             const reader = new FileReader();
