@@ -311,7 +311,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
         .pbp{max-width:560px;width:100%}
         .pbp-foot{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:22px 0 0}
         .pbp :global(.pbp-browse){
-          display:inline-flex;align-items:center;gap:5px;width:max-content;margin-left:-10px;padding:8px 10px;
+          display:inline-flex;align-items:center;gap:5px;width:max-content;margin-inline-start:-10px;padding:8px 10px;
           border-radius:10px;color:var(--public-brand-green);
           font-size:17px;font-weight:600;line-height:1.4;letter-spacing:-.05px;
           text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;
