@@ -148,7 +148,7 @@ const VayuLokWeatherInsights: React.FC<Props> = ( { lat, lng, placeName } ) => {
       <div className="vl-wi-head">
         <div>
           <h4>Weather history</h4>
-          <p>Past weather for { placeName || 'this place' }.</p>
+          <p>{ placeName || 'Selected place' } · past conditions</p>
         </div>
         <div className="vl-wi-range" role="group" aria-label="Weather history range">
           { ( Object.keys( RANGE_LABELS ) as Range[] ).map( item => (
@@ -253,7 +253,7 @@ const VayuLokWeatherInsights: React.FC<Props> = ( { lat, lng, placeName } ) => {
         .vl-wi-bar{width:min(16px,80%);min-height:6px;border-radius:5px 5px 2px 2px;background:var(--lime)}
         .vl-wi-bar-slot strong{font-size:11px;color:var(--public-heading);font-variant-numeric:tabular-nums}
         .vl-wi-bar-slot span{font-size:10px;color:var(--public-muted)}
-        .vl-wi-source{display:flex;flex-wrap:wrap;gap:0;margin-top:var(--space-2);color:var(--public-muted);font-size:var(--text-xs);font-weight:600;line-height:1.4}
+        .vl-wi-source{display:flex;flex-wrap:wrap;gap:0;margin-top:var(--space-2);color:var(--public-muted);font-size:var(--text-md);font-weight:600;line-height:1.4}
         @media(max-width:767px){
           .vl-wi{margin-top:var(--public-mobile-section-gap);padding-top:var(--space-6)}
           .vl-wi-head{flex-direction:column;gap:var(--space-3)}
@@ -272,7 +272,7 @@ const VayuLokWeatherInsights: React.FC<Props> = ( { lat, lng, placeName } ) => {
           .vl-wi-bars{gap:2px;padding-inline:4px}
           .vl-wi-bar-slot strong{font-size:var(--text-xs)}
           .vl-wi-bar-slot span{font-size:11px}
-          .vl-wi-source{font-size:var(--text-xs)}
+          .vl-wi-source{font-size:var(--text-md)}
         }
       `}</style>
     </section>
