@@ -33,9 +33,9 @@ SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 SKU = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$")
 STAFF_ROLES = {"Viewer", "Operator", "Admin"}
 STATUS = {"draft", "active", "archived"}
-CATALOG_IMAGE_PREFIX = "o/stream/media/m/wd-catalog-live/"
+CATALOG_IMAGE_PREFIX = "secure/catalog/products/"
 CATALOG_IMAGE_NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*-4096[.]png$")
-PUBLIC_MEDIA_BASE = "https://wecare.digital/get/"
+CATALOG_MEDIA_BASE = "https://wecare.digital/api/catalog-media/"
 
 
 def _table():
@@ -96,7 +96,7 @@ def _catalog_image_key(value: Any) -> str:
         raise ValueError("catalogImageKey must be a string")
     key = value.strip().lstrip("/")
     if not key.startswith(CATALOG_IMAGE_PREFIX):
-        raise ValueError("catalogImageKey must use the approved live catalog prefix")
+        raise ValueError("catalogImageKey must use the approved secure catalog prefix")
     name = key[len(CATALOG_IMAGE_PREFIX):]
     if "/" in name or not CATALOG_IMAGE_NAME.fullmatch(name):
         raise ValueError("catalogImageKey must name an approved *-4096.png artwork")
@@ -104,7 +104,7 @@ def _catalog_image_key(value: Any) -> str:
 
 
 def _catalog_image_url(key: str) -> str:
-    return PUBLIC_MEDIA_BASE + key
+    return CATALOG_MEDIA_BASE + key[len(CATALOG_IMAGE_PREFIX):]
 
 
 def _channel_flag(value: Any, name: str) -> bool:
