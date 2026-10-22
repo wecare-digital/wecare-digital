@@ -12,12 +12,9 @@
 name: "CodeQL Advanced"
 
 on:
-  push:
-    branches: [ "stack" ]
-  pull_request:
-    branches: [ "stack" ]
   schedule:
     - cron: '32 15 * * 1'
+  workflow_dispatch:
 
 concurrency:
   group: codeql-${{ github.ref }}
