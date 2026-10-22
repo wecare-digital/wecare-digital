@@ -406,8 +406,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if method == 'POST' and 'send-payment-link' in path:
             inv_id = path_params.get('invoiceId') or body.get('invoiceId')
             phone_number_id = body.get('phoneNumberId')
-            payment_configuration = body.get('paymentConfiguration', '')
-            return send_payment_link(inv_id, phone_number_id, payment_configuration, request_id)
+            return send_payment_link(inv_id, phone_number_id, request_id)
 
         # POST /invoices/{id}/order-status — send a WhatsApp fulfilment status update
         # (shipped/completed/…) for a PAID order. Checked BEFORE 'cancel' because the two share
@@ -3316,13 +3315,13 @@ def _payment_delivery_info(invoice: Dict, contact: Optional[Dict], phone: str) -
     }]}
 
 
-def send_payment_link(invoice_id: str, phone_number_id: str, payment_configuration: str,
+def send_payment_link(invoice_id: str, phone_number_id: str,
                       request_id: str, verify_phone: str = '') -> Dict:
-    """Send WhatsApp interactive payment message for a pending invoice.
-    Creates the order_details message with review_and_pay action.
-    payment_configuration: optional PG config name ('WECAREDIGITAL' or 'WECAREUPI').
-    If empty, outbound handler uses the phone's default Razorpay config.
-    verify_phone: if provided, blocks sending if invoice doesn't belong to this phone.
+    """Send the one supported WhatsApp payment: approved ORDER_DETAILS template.
+
+    The payment configuration is server-owned (WECAREDIGITAL/Razorpay). Callers cannot choose
+    another configuration or payment mechanism. ``verify_phone`` may additionally pin the
+    invoice to a verified recipient.
     """
     if not invoice_id:
         return _resp(400, {'error': 'invoiceId required'})
@@ -3529,7 +3528,7 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
             logger.warning(json.dumps({
                 'event': 'invoice_phone_unresolved_using_primary',
                 'invoiceId': invoice.get('invoiceId', ''),
-                'paymentConfiguration': payment_configuration or invoice.get('paymentConfiguration', ''),
+                'paymentConfiguration': WA_PAY_CONFIG_NAME,
                 'phoneId': phone_number_id,
                 'note': 'config name cannot identify a WABA; both expose '
                         'WECAREDIGITAL/WECAREUPI. Defaulting to the primary '
@@ -3548,9 +3547,7 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
     # UI, the business-API route, a Flow completion, the inbound auto-send and the auto-send
     # chain - and without it one pending invoice can receive a payment request from two of them
     # concurrently, producing two references, two captures and two orders.
-    configuration_name = (payment_configuration
-                          or invoice.get('paymentConfiguration', '')
-                          or WA_PAY_CONFIG_NAME)
+    configuration_name = WA_PAY_CONFIG_NAME
 
     # ══ A1: READINESS BEFORE RESERVATION ═════════════════════════════════════════════════════
     #
