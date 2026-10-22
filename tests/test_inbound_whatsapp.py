@@ -794,3 +794,52 @@ class TestWabaLevelWebhooksDoNotWarn:
         with patch.object(h.logger, 'warning', side_effect=lambda m, *a: logs.append(str(m))):
             assert h._get_aws_phone_number_id('', '', ['999']) == h.PHONE_NUMBER_ID_1
         assert any('phone_number_mapping_not_found' in line for line in logs)
+
+
+class TestInboundMediaExtensionCoverage:
+    """Every WhatsApp-supported media MIME must resolve to a real extension.
+
+    Inbound media lands in S3 at wecare-digital-<id><ext>, and the inbox derives
+    the document download name and the renderer from that extension. A MIME that
+    fell through to '.bin' (which happened for amr/m4a/txt/ppt/pptx on two of the
+    three inbound maps before they were consolidated) produced a wrong filename and
+    an unopenable document link. These pin the full Meta set and that the two
+    remaining call sites agree with the reference map.
+    """
+
+    # The complete Meta-supported set (WhatsApp Business Platform "Supported Media Types").
+    FULL_SET = {
+        'image/jpeg', 'image/png', 'image/webp',
+        'video/mp4', 'video/3gpp',
+        'audio/aac', 'audio/amr', 'audio/mpeg', 'audio/mp4', 'audio/ogg',
+        'application/pdf', 'text/plain', 'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-powerpoint',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    }
+
+    @pytest.fixture
+    def h(self):
+        return _load_inbound_handler('inbound_media_ext_coverage')
+
+    def test_every_supported_mime_has_a_real_extension(self, h):
+        for mime in self.FULL_SET:
+            ext = h._get_extension_from_mime(mime)
+            assert ext and ext != '.bin', f'{mime} fell through to {ext!r}'
+
+    def test_wrapper_agrees_with_reference_map(self, h):
+        # _get_media_extension_from_mime now delegates to _get_extension_from_mime,
+        # so the S3-upload extension and the rename extension can never diverge.
+        for mime in self.FULL_SET:
+            assert h._get_media_extension_from_mime(mime) == h._get_extension_from_mime(mime)
+
+    def test_generic_type_fallback_covers_every_category(self, h):
+        for media_type in ('image', 'video', 'audio', 'document', 'sticker'):
+            ext = h._get_extension_from_type(media_type)
+            assert ext and ext != '.bin', f'{media_type} fell through to {ext!r}'
+
+    def test_unknown_mime_still_degrades_to_bin(self, h):
+        # A genuinely unknown type must stay distinguishable, not masquerade as a real one.
+        assert h._get_extension_from_mime('application/x-not-a-real-type') == '.bin'

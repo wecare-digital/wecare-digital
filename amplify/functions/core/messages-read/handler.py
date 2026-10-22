@@ -403,9 +403,16 @@ def _convert_from_dynamodb(item: Dict[str, Any]) -> Dict[str, Any]:
             actual_s3_key = _find_actual_s3_key(s3_key, message_id)
             
             if actual_s3_key:
-                # Use CloudFront CDN URL instead of pre-signed S3 URL
+                # Gated (`secure/`) media cannot go through CloudFront (the
+                # get-miss-redirect edge denies it), so it is served as a presigned
+                # S3 URL. The inbox caches this URL in React state for the life of an
+                # open thread, so a 300s signature went blank (403) after ~5 minutes —
+                # which is why inbound images stopped showing once inbound media moved
+                # into secure/. Sign for PRESIGNED_URL_EXPIRY (1h) so a normal staff
+                # session outlives the URL; public o/ media keeps its stable CDN URL.
                 cdn_url = (s3_client.generate_presigned_url('get_object',
-                    Params={'Bucket': MEDIA_BUCKET, 'Key': actual_s3_key}, ExpiresIn=300)
+                    Params={'Bucket': MEDIA_BUCKET, 'Key': actual_s3_key},
+                    ExpiresIn=PRESIGNED_URL_EXPIRY)
                     if media_paths.is_gated(actual_s3_key)
                     else f"https://{MEDIA_CDN_DOMAIN}/{actual_s3_key}")
                 result['mediaUrl'] = cdn_url
@@ -480,8 +487,12 @@ def _convert_from_dynamodb(item: Dict[str, Any]) -> Dict[str, Any]:
                 try:
                     key = media_paths.canonical(key)
                     entry['key'] = key
+                    # Same 1h signature as inbound media above: a flow-response card
+                    # sits in the inbox just as long, so a 300s URL would 403 blank
+                    # after ~5 minutes on an open thread.
                     entry['url'] = (s3_client.generate_presigned_url(
-                        'get_object', Params={'Bucket': MEDIA_BUCKET, 'Key': key}, ExpiresIn=300)
+                        'get_object', Params={'Bucket': MEDIA_BUCKET, 'Key': key},
+                        ExpiresIn=PRESIGNED_URL_EXPIRY)
                         if media_paths.is_gated(key)
                         else f"https://{MEDIA_CDN_DOMAIN}/{key}")
                 except Exception as exc:

@@ -25,14 +25,51 @@ import * as api from '../../../../api/client';
 import { colors, shadow } from '../../../../lib/design-tokens';
 import { WHATSAPP_PHONES, PAYMENT_PHONES, DEFAULT_GSTIN, PAYMENT_CONFIG, GST_RATES } from '../../../../config/constants';
 import { searchEmojiCategories } from '../../../../lib/emoji-data';
-import { WA_ACCEPT_STRING, formatBytes, resolveWaMime, validateWaMediaSize, waMediaSupportsCaption } from '../../../../lib/wa-media';
+import { resolveWaMime, validateWaMediaSize, formatBytes, waMediaCategory, WA_ACCEPT_STRING } from '../../../../lib/wa-media';
 import { waErrorTooltip } from '../../../../lib/wa-errors';
 import { scrollToEnd } from '../../../../lib/scroll-to-end';
+
+/**
+ * Inbound WhatsApp media lives under the gated `secure/` prefix, which cannot be
+ * served through CloudFront, so messages-read hands us a presigned S3 URL with a
+ * finite TTL. If a thread is left open past that TTL the URL 403s and the <img>
+ * goes blank — which is exactly how inbound images "stopped showing" once inbound
+ * media moved into secure/. The signature is now 1h (see messages-read), but a
+ * thread can outlive even that, so on a load error we re-fetch the single message
+ * once to mint a fresh URL rather than leaving a dead tile. One retry only: a
+ * genuinely missing object must still fail visibly rather than loop.
+ */
+const GatedMedia: React.FC<{ messageId?: string; url: string; kind: 'image' | 'video' | 'audio' | 'document'; filename?: string }>
+    = ( { messageId, url, kind, filename } ) => {
+        const [ src, setSrc ] = useState( url );
+        const [ dead, setDead ] = useState( false );
+        const retried = useRef( false );
+        useEffect( () => { setSrc( url ); setDead( false ); retried.current = false; }, [ url ] );
+
+        const refresh = useCallback( async () => {
+            if ( retried.current || !messageId ) { setDead( true ); return; }
+            retried.current = true;
+            const fresh = await api.getMessage( messageId );
+            if ( fresh?.mediaUrl ) setSrc( fresh.mediaUrl ); else setDead( true );
+        }, [ messageId ] );
+
+        if ( dead ) return <span className="ui-msg-doc">⚠️ Media unavailable</span>;
+        if ( kind === 'image' ) return <img className="ui-msg-img" src={ src } alt="image" onError={ refresh } />;
+        if ( kind === 'video' ) return <video className="ui-msg-img" src={ src } controls onError={ refresh } />;
+        if ( kind === 'audio' ) return <audio src={ src } controls style={ { maxWidth: '100%' } } onError={ refresh } />;
+        return <a className="ui-msg-doc" href={ src } target="_blank" rel="noopener noreferrer">📄 { filename || 'Document' }</a>;
+    };
 
 const WABAS = [
     { id: WHATSAPP_PHONES.primary.id, name: WHATSAPP_PHONES.primary.name, display: WHATSAPP_PHONES.primary.display },
     { id: WHATSAPP_PHONES.secondary.id, name: WHATSAPP_PHONES.secondary.name, display: WHATSAPP_PHONES.secondary.display },
 ];
+
+// The media picker's accept list: every WhatsApp-supported MIME from WA_ACCEPT_STRING
+// (the one source of truth in wa-media.ts), plus the image/video/audio wildcards for a
+// friendlier OS dialog. Type and size are still gated by validateWaMediaSize on select,
+// so the wildcards can never let an unsupported file actually be sent.
+const MEDIA_ACCEPT = `image/*,video/*,audio/*,${WA_ACCEPT_STRING}`;
 
 interface PageProps {
     signOut?: () => void;
@@ -579,46 +616,75 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                 const bsuid = selected ? contactDir[ selected ]?.bsuid : undefined;
                 if ( hasMedia )
                 {
+                    // Send each staged file as its own WhatsApp media message — Meta
+                    // carries one media object per message, so N files is N sends.
+                    // The caption (and the native reply context) ride the FIRST message
+                    // that actually goes out, not a fixed index: if the first file fails
+                    // to upload, the caption must not vanish with it. Audio and sticker
+                    // captions are dropped server-side by Meta's rules, so warn once if
+                    // the user typed text alongside a lone audio/sticker.
                     let sent = 0;
-                    const firstType = resolveWaMime( mediaFiles[ 0 ] );
-                    const captionOnFirstMedia = !!waText && waMediaSupportsCaption( firstType );
-
-                    // Audio and sticker messages cannot carry captions in Meta's API.
-                    // Preserve typed text by sending it as a separate message before the
-                    // attachments instead of silently dropping it.
-                    if ( waText && !captionOnFirstMedia )
+                    const failed: string[] = [];
+                    // Whether the typed text can ride the attachments as a caption at all:
+                    // only image/video/document carry captions in Meta's API. Audio and
+                    // sticker cannot, so the text must not simply vanish.
+                    const captionCapable = !!waText
+                        && [ 'image', 'video', 'document' ].includes(
+                            waMediaCategory( resolveWaMime( mediaFiles[ 0 ] ) ) );
+                    // When the text cannot be a caption (e.g. a lone audio/sticker), send
+                    // it as its own message FIRST so it still reaches the recipient rather
+                    // than being dropped. It also claims the native reply context.
+                    let captionPlaced = false;
+                    let contextClaimed = false;
+                    if ( waText && !captionCapable )
                     {
                         const textResult = await api.sendWhatsAppMessage( {
                             contactId, content: waText, phoneNumberId: sendWaba || undefined,
                             recipientBsuid: bsuid, contextMessageId: waContext,
                         } );
-                        if ( textResult ) sent++;
+                        if ( textResult ) { sent++; contextClaimed = true; }
                     }
-
                     for ( let i = 0; i < mediaFiles.length; i++ )
                     {
                         const file = mediaFiles[ i ];
                         const type = resolveWaMime( file );
                         const s3Key = await api.uploadMediaForSend( file, type, file.name );
-                        if ( !s3Key ) { toast.error( `Upload failed: ${file.name}` ); continue; }
-
-                        // WhatsApp sends one media object per message. Multiple selected
-                        // files therefore become multiple sequential messages. The typed
-                        // text is a caption only on the first caption-capable attachment.
+                        if ( !s3Key ) { failed.push( file.name ); continue; }
+                        // The typed text rides the FIRST media that actually goes out, but
+                        // only when it can carry a caption (image/video/document). If the
+                        // text was already sent as its own message above (audio/sticker),
+                        // captionCapable is false and no media claims it again.
+                        const giveCaption = captionCapable && !captionPlaced;
+                        // The first message to leave claims the native reply context —
+                        // unless the separate text message above already took it.
+                        const giveContext = !contextClaimed;
                         const r = await api.sendWhatsAppMessage( {
                             contactId,
-                            content: i === 0 && captionOnFirstMedia ? waText : '',
+                            content: giveCaption ? waText : '',
                             phoneNumberId: sendWaba || undefined,
                             recipientBsuid: bsuid,
                             mediaFile: s3Key,
                             mediaType: type,
                             mediaFileName: file.name,
-                            contextMessageId: i === 0 && ( captionOnFirstMedia || !waText ) ? waContext : undefined,
+                            contextMessageId: giveContext ? waContext : undefined,
                         } );
-                        if ( r ) sent++;
+                        if ( r ) { sent++; contextClaimed = true; if ( giveCaption ) captionPlaced = true; }
+                        else { failed.push( file.name ); }
                     }
                     ok = sent > 0;
-                    if ( ok ) { setMediaFiles( [] ); setMediaPreview( null ); }
+                    // Keep only the files that failed, so the user can retry them without
+                    // re-picking the whole set; clear the preview only when all went out.
+                    if ( failed.length )
+                    {
+                        setMediaFiles( prev => prev.filter( f => failed.includes( f.name ) ) );
+                        toast.error( sent > 0
+                            ? `Sent ${sent} of ${mediaFiles.length} — failed: ${failed.join( ', ' )}`
+                            : `Could not send: ${failed.join( ', ' )}` );
+                    } else if ( ok )
+                    {
+                        setMediaFiles( [] ); setMediaPreview( null );
+                        if ( waText && !captionCapable ) toast.info( 'Your text was sent as a separate message — WhatsApp does not allow captions on audio or stickers' );
+                    }
                 } else
                 {
                     const r = await api.sendWhatsAppMessage( { contactId, content: waText, phoneNumberId: sendWaba || undefined, recipientBsuid: bsuid, contextMessageId: waContext } );
@@ -1107,10 +1173,11 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                                     { ( () => {
                                                         const mt = ( m.messageType || '' ).toLowerCase();
                                                         const url = m.mediaUrl || '';
-                                                        if ( url && ( mt === 'image' || mt === 'sticker' ) ) return <img className="ui-msg-img" src={ url } alt="image" />;
-                                                        if ( url && mt === 'video' ) return <video className="ui-msg-img" src={ url } controls />;
-                                                        if ( url && ( mt === 'audio' || mt === 'voice' ) ) return <audio src={ url } controls style={ { maxWidth: '100%' } } />;
-                                                        if ( url && mt === 'document' ) return <a className="ui-msg-doc" href={ url } target="_blank" rel="noopener noreferrer">📄 { ( m as any ).displayFilename || 'Document' }</a>;
+                                                        const mid = m.messageId || ( m as any ).id;
+                                                        if ( url && ( mt === 'image' || mt === 'sticker' ) ) return <GatedMedia messageId={ mid } url={ url } kind="image" />;
+                                                        if ( url && mt === 'video' ) return <GatedMedia messageId={ mid } url={ url } kind="video" />;
+                                                        if ( url && ( mt === 'audio' || mt === 'voice' ) ) return <GatedMedia messageId={ mid } url={ url } kind="audio" />;
+                                                        if ( url && mt === 'document' ) return <GatedMedia messageId={ mid } url={ url } kind="document" filename={ ( m as any ).displayFilename } />;
                                                         return null;
                                                     } )() }
                                                     { ( () => {
@@ -1354,7 +1421,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                                 <button className="ui-reply-btn" disabled={ sending || ( !replyText.trim() && !( replyChannel === 'whatsapp' && mediaFiles.length > 0 ) ) } onClick={ handleReply }>{ sending ? 'Sending…' : 'Send' }</button>
                                             </div>
                                             { replyChannel === 'whatsapp' && (
-                                                <input ref={ fileRef } type="file" hidden multiple accept={ WA_ACCEPT_STRING } onChange={ handleMediaSelect } />
+                                                <input ref={ fileRef } type="file" hidden multiple accept={ MEDIA_ACCEPT } onChange={ handleMediaSelect } />
                                             ) }
                                         </>
                                     ) }
