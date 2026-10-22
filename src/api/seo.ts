@@ -866,6 +866,11 @@ export const publishBlogArticle = ( jobId: string ) =>
   seoToolsJson<BlogPublishJobView & { ok: boolean; published: boolean; refused?: boolean; postId?: string; postUrl?: string; note: string }>(
     'blog-publish', { method: 'POST', body: JSON.stringify( { jobId } ) } );
 
+/** Revise an already-published native post in place after fresh QA/sign-off. Slug is immutable. */
+export const revisePublishedBlogArticle = ( sourceId: string ) =>
+  seoToolsJson<{ ok: boolean; revised: boolean; postId: string; postUrl: string; version: number; bodySha256: string; revisionId: string; revisionKey: string; siteBuild: Record<string, unknown>; note: string }>(
+    'blog-publish/revise', { method: 'POST', body: JSON.stringify( { sourceId } ) } );
+
 /* ── Publish verification ────────────────────────────────────────────────── */
 
 export const getBlogVerifyAssertions = () =>
