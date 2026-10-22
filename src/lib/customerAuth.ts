@@ -40,6 +40,7 @@ const TOKEN_KEY = 'wecare.customer.accessToken';
 const EXPIRY_KEY = 'wecare.customer.expiresAt';
 
 const SESSION_ENDPOINT = '/api/ecommerce/customer-session';
+const PROFILE_ENDPOINT = `${process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api'}/customer/profile`;
 const SESSION_HINT_KEY = 'wecare.customer.sessionHint';
 interface SessionHint { csrfToken: string; expiresAt: number; persistent: boolean; }
 let refreshInFlight: Promise<CustomerSession | null> | null = null;
@@ -230,6 +231,33 @@ export async function submitOtp (
    * "sign in again", so `remembered: false` is a state the library already models.
    */
   storeSession( token, expiresAt );
+
+  /*
+   * CLAIM THE EXISTING WHATSAPP CONTACT IMMEDIATELY AFTER AUTHENTICATION.
+   *
+   * The customer-profile endpoint owns the evidence-checked `checkoutCustomerId` claim and the
+   * conditional promotion of any `NEEDS_CUSTOMER_LINK` orders. An empty body is intentional:
+   * for an existing WhatsApp-first contact it changes no customer-entered profile field; it only
+   * lets the authenticated Cognito subject claim that exact verified-phone row and promotes the
+   * already-paid order to website ownership.
+   *
+   * Best-effort is load-bearing. The Cognito challenge has already succeeded, so a temporary
+   * profile/index outage must never turn a correct OTP into a failed sign-in. Customer-profile
+   * save and the scheduled reconciler remain idempotent fallbacks.
+   */
+  try {
+    await fetch( PROFILE_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Authorization: `Bearer ${ token }`,
+      },
+      body: JSON.stringify( {} ),
+    } );
+  } catch {
+    // Authentication succeeded. Linking can retry on profile save / scheduled reconciliation.
+  }
 
   if ( refreshToken )
   {
