@@ -91,6 +91,34 @@ def test_order_replay_preserves_fulfilment_and_cannot_duplicate():
     assert saved['orderStatus'] == 'shipped'
 
 
+def test_replay_repairs_stale_paid_order_snapshot_without_duplication():
+    from crm_fake_dynamo import FakeDynamo
+    args = inputs()
+    args['attempt']['channel'] = 'whatsapp'
+    args['invoice']['channel'] = 'website'
+    args['invoice']['notes'] = 'Cancelled: native-pay live proof; unpaid, no money moved'
+    desired = subject.build(**args)
+    orders = FakeDynamo(keys={'orders':'orderId'}).Table('orders')
+    stale = dict(desired)
+    stale['channel'] = 'whatsapp'
+    stale['invoiceSnapshot'] = dict(args['invoice'])
+    stale['orderStatus'] = 'shipped'
+    orders.put_item(Item=stale)
+
+    repaired = subject.store(orders=orders, row=desired)
+    assert len(orders.rows) == 1
+    assert repaired['orderId'] == desired['orderId']
+    assert repaired['paymentAttemptId'] == desired['paymentAttemptId']
+    assert repaired['providerPaymentId'] == desired['providerPaymentId']
+    assert repaired['referenceId'] == desired['referenceId']
+    assert repaired['invoiceId'] == desired['invoiceId']
+    assert repaired['orderNumber'] == desired['orderNumber']
+    assert repaired['orderStatus'] == 'shipped'
+    assert repaired['channel'] == 'whatsapp'
+    assert repaired['invoiceSnapshot']['channel'] == 'whatsapp'
+    assert 'notes' not in repaired['invoiceSnapshot']
+
+
 def test_only_the_original_contact_can_promote_an_unlinked_order():
     import sys
     from pathlib import Path
@@ -114,6 +142,36 @@ def test_public_customer_uuid_reaches_order_and_invoice_snapshot():
     row = subject.build(**args)
     assert row['customerUuid'] == PUBLIC_UUID
     assert row['invoiceSnapshot']['customerUuid'] == PUBLIC_UUID
+
+
+def test_verified_paid_attempt_overrides_stale_invoice_origin_metadata():
+    args = inputs()
+    args['attempt']['channel'] = 'whatsapp'
+    args['invoice']['channel'] = 'website'
+    args['invoice']['notes'] = 'Cancelled: native-pay live proof; unpaid, no money moved'
+    row = subject.build(**args)
+    assert row['channel'] == 'whatsapp'
+    assert row['invoiceSnapshot']['channel'] == 'whatsapp'
+    assert 'notes' not in row['invoiceSnapshot']
+
+
+def test_non_contradictory_invoice_note_is_preserved():
+    args = inputs()
+    args['attempt']['channel'] = 'whatsapp'
+    args['invoice']['channel'] = 'website'
+    args['invoice']['notes'] = 'Customer requested GST copy by email'
+    row = subject.build(**args)
+    assert row['invoiceSnapshot']['channel'] == 'whatsapp'
+    assert row['invoiceSnapshot']['notes'] == 'Customer requested GST copy by email'
+
+
+
+def test_legitimate_cancelled_word_in_paid_note_is_preserved():
+    args = inputs()
+    args['attempt']['channel'] = 'whatsapp'
+    args['invoice']['notes'] = 'Customer cancelled pickup and requested courier delivery'
+    row = subject.build(**args)
+    assert row['invoiceSnapshot']['notes'] == args['invoice']['notes']
 
 @pytest.mark.parametrize('change', ['currency', 'attempt_owner', 'attempt_contact', 'deleted_contact', 'provider_conflict'])
 def test_projection_refuses_cross_domain_evidence(change):
