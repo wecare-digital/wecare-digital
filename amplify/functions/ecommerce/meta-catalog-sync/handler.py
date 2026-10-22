@@ -525,10 +525,13 @@ def _native_products(scanner=None) -> List[Dict[str, Any]]:
         price_minor = _paise(item.get("priceMinor"))
         variants = []
         for v in item.get("variants", []) or []:
+            tracked = v.get("trackInventory") is True
             variant: Dict[str, Any] = {
                 "id": str(v.get("sku") or v.get("id") or ""),
                 "label": str(v.get("label") or ""),
-                "inStock": bool(_paise(v.get("inventory"))),
+                # Mirror native checkout exactly: an untracked variant is sellable regardless
+                # of its numeric inventory. Only tracked stock uses the quantity counter.
+                "inStock": (not tracked) or _paise(v.get("inventory")) > 0,
             }
             # A priced variant carries pricePaise; an unpriced one omits it, so
             # desired_items(require_variant_price=True) refuses it rather than guessing a price.
