@@ -227,7 +227,7 @@ def test_new_product_starts_with_both_publication_channels_off():
     assert product["metaEnabled"] is False
     assert product["catalogImageKey"].endswith("kiosk-4096.png")
     assert product["imageRefs"] == [
-        "https://wecare.digital/get/secure/catalog/products/kiosk-4096.png"
+        "https://wecare.digital/api/catalog-media/kiosk-4096.png"
     ]
 
 
