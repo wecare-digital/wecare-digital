@@ -424,7 +424,7 @@
             "Ref": "CodeS3Key"
           }
         },
-        "Description": "Customer checkout: AWS-native catalog pricing, atomic stock reservation, readiness gate and PaymentAttempt.",
+        "Description": "Unified commerce runtime: checkout, PaymentAttempt, order finalization and invoice delivery.",
         "Timeout": 20,
         "MemorySize": 512,
         "Environment": {
@@ -454,7 +454,8 @@
             "WA_INVOICE_TEMPLATE": "wecare_default_invoice_image_template",
             "ADMIN_MFA_REQUIRED": "true",
             "LOG_LEVEL": "INFO",
-            "REFUND_INITIATION_ENABLED": "false"
+            "REFUND_INITIATION_ENABLED": "false",
+            "OUTBOUND_FUNCTION": "wecare-outbound-whatsapp:live"
           }
         },
         "Tags": [
