@@ -74,24 +74,21 @@ describe( 'WhatsApp subscribe CTA design', () => {
   } );
 
 
-  it( 'gives the contribution Checkout the shared Option B interaction states', () => {
+  it( 'keeps contribution Checkout on the widget menu color contract', () => {
     const share = read( 'src/components/PublicShare.tsx' );
-    const checkout = ruleFor( share, '.contribute-link-btn{' );
-    const hover = ruleFor( share, '.contribute-link-btn:hover:not(:disabled){' );
-    const active = ruleFor( share, '.contribute-link-btn:active:not(:disabled){' );
+    const item = ruleFor( share, '.ps-menu-item{' );
+    const hover = ruleFor( share, '.ps-menu-item:hover{' );
+    const icon = ruleFor( share, '.ps-menu-icon{' );
 
     expect( share ).toContain( '<span className="ps-material">shopping_cart_checkout</span>' );
-    expect( checkout ).toContain( 'border:2pxsolidtransparent' );
-    expect( checkout ).toContain( 'border-radius:11px' );
-    expect( checkout ).toContain( 'background:var(--public-accent-amber)' );
-    expect( share ).toContain( '.contribute-link-btn .ps-menu-icon{background:transparent}' );
-    expect( hover ).toContain( 'background:#fff' );
-    expect( hover ).toContain( 'border-color:var(--public-accent-amber)' );
-    expect( hover ).toContain( 'transform:translateY(-1px)' );
-    expect( hover ).toContain( 'box-shadow:05px14pxrgba(240,168,24,.18),02px5pxrgba(26,58,42,.08)' );
-    expect( active ).toContain( 'background:var(--public-accent-amber-tint)' );
-    expect( active ).toContain( 'border-color:var(--public-accent-amber)' );
-    expect( active ).toContain( 'box-shadow:none' );
+    expect( item ).toContain( 'background:#fff' );
+    expect( item ).toContain( 'color:var(--public-brand-green)' );
+    expect( hover ).toContain( 'background:#f7fbe9' );
+    expect( icon ).toContain( 'background:#eef7d6' );
+    expect( icon ).toContain( 'color:var(--public-brand-green)' );
+    expect( share ).not.toContain( '.contribute-link-btn{' );
+    expect( share ).not.toContain( 'background:var(--public-accent-amber)' );
+    expect( share ).not.toContain( 'border-color:var(--public-accent-amber)' );
     expect( share ).toContain( '.ps-action:focus-visible,.ps-menu-item:focus-visible{' );
   } );
 
