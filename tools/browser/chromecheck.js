@@ -202,12 +202,11 @@ function main() {
 
   console.log( 'chromecheck - header, footer and widget in the built export\n' );
 
-  // Anti-vacuous AND complete: Step 7 pins the exact public-shell contract at 42
-  // route patterns (30 canonical + 11 shared/customer + redirect-only /404). A smaller
-  // count means this parser dropped coverage; a larger count means the route contract
+  // Anti-vacuous AND complete: pin the reviewed public-shell contract at 43 route patterns.
+  // A smaller count means this parser dropped coverage; a larger count means the route contract
   // changed and the closure guards must be reviewed together.
-  record( allowlist.length === 42, 'exact public allowlist parsed from _app.tsx',
-    `${allowlist.length} public routes (expected 42)` );
+  record( allowlist.length === 43, 'exact public allowlist parsed from _app.tsx',
+    `${allowlist.length} public routes (expected 43)` );
   record( allowlist.includes( '/404' ),
     'the 404 page is registered as public',
     allowlist.includes( '/404' )
@@ -256,12 +255,12 @@ function main() {
     }
 
     if ( route === '/grahak-os' ) {
-      const checkoutCount = ( html.match( />Checkout<\/button>/g ) || [] ).length;
+      const checkoutCount = ( html.match( />shopping_cart_checkout<\/span>\s*<span[^>]*>Checkout<\/span>\s*<\/button>/g ) || [] ).length;
       record( checkoutCount === 1 && !html.includes( 'Checkout on WhatsApp' ),
         '/grahak-os single checkout entry',
         checkoutCount === 1 && !html.includes( 'Checkout on WhatsApp' )
           ? 'one Checkout action; payment channel deferred until after cart review'
-          : `expected one Checkout and no channel-specific checkout, found ${checkoutCount}` );
+          : `expected one shared CheckoutAction and no channel-specific checkout, found ${checkoutCount}` );
     }
   }
 

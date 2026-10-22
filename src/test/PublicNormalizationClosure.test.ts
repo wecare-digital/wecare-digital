@@ -232,7 +232,7 @@ describe( 'Step 7 public normalization closure', () => {
     const chromecheck = read( 'tools/browser/chromecheck.js' );
     expect( chromecheck ).toContain( "const contentBlock = app.slice( contentAt, gateAt );" );
     expect( chromecheck ).toContain( "const publicBlock = app.slice( gateAt, canonicalAt );" );
-    expect( chromecheck ).toContain( "allowlist.length === 42" );
+    expect( chromecheck ).toContain( "allowlist.length === 43" );
     expect( chromecheck ).toContain( "function exportedInstanceForPattern( pattern )" );
     expect( chromecheck ).toContain( "target = instance;" );
     expect( chromecheck ).not.toContain( "app.slice( gateAt, app.indexOf( ';', gateAt ) )" );
