@@ -211,7 +211,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
           <div className="ps-menu-list">
             <button
               type="button"
-              className="ps-menu-item contribute-link-btn"
+              className="ps-menu-item"
               onClick={ onCheckout }
               disabled={ busy }
               aria-busy={ busy }
