@@ -1,6 +1,6 @@
 /**
  * VayuLok public product page
- * Bharat Air + Weather Intelligence, by WECARE.DIGITAL
+ * Bharat Air + Weather Insights, by WECARE.DIGITAL
  *
  * DELIBERATELY CLEAR. The page is the hero - the tag, the rotating line beneath it and
  * the approved globe beside them - followed by the live VayuLok section. That is the
@@ -52,7 +52,7 @@ import VayuLokLive from '../../components/VayuLokLive';
  */
 const VAYULOK_SOCIAL_CARD = {
   url: 'https://wecare.digital/get/o/stream/media/m/vayulok-social.png',
-  alt: 'VayuLok by WECARE.DIGITAL — Bharat air and weather intelligence',
+  alt: 'VayuLok by WECARE.DIGITAL — Bharat air and weather insights',
   width: 1200,
   height: 630,
   card: 'summary_large_image' as const,
@@ -75,7 +75,7 @@ function vayulokJsonLd(): Record<string, unknown>[] {
       url: 'https://wecare.digital/vayulok/',
       applicationCategory: 'HealthApplication',
       operatingSystem: 'Web Browser',
-      description: 'Air and weather intelligence for Bharat: live air quality, weather, a 96-hour forecast and recent history for a chosen location.',
+      description: 'Air and weather insights for Bharat: live air quality, weather, a 96-hour forecast and recent history for a chosen location.',
       inLanguage: 'en-IN',
       isAccessibleForFree: true,
       provider: { '@id': 'https://wecare.digital/#organization' },
@@ -138,18 +138,18 @@ const VayuLokPage: React.FC = () => {
       {/* THIS PAGE'S TITLE AND DESCRIPTION WERE THE THINNEST ON THE SITE, measured against
           the other fourteen public routes. The title was "VayuLok by WECARE.DIGITAL" - 25
           characters, where the product pages run 52-68 - and the description was "VayuLok -
-          Bharat Air Intelligence, by WECARE.DIGITAL." at 53 characters, which restates the
+          Bharat Air Insights, by WECARE.DIGITAL." at 53 characters, which restates the
           brand name twice and tells a reader nothing. Every other page follows one house
           pattern: "<Name> by WECARE.DIGITAL - <what it does>".
           The wording below is assembled from copy already committed elsewhere in the repo
-          rather than invented: "Bharat air and weather intelligence" is this route's own
+          rather than invented: "Bharat air and weather insights" is this route's own
           entry in PUBLIC_PAGE_META in _app.tsx.
           DELIBERATELY NOT LISTING Pollen OR Heatmap even though the hero rotates both -
           docs/grahak-os-handoff.md records that neither has an endpoint wired, and a meta
           description is the wrong place to promise an unbuilt feature. Solar is left out on
           the same caution. Add them here when they are real. */}
       <PageMeta
-        title="VayuLok — Bharat air and weather intelligence | WECARE.DIGITAL"
+        title="VayuLok — Bharat air and weather insights | WECARE.DIGITAL"
         description="VayuLok by WECARE.DIGITAL — live air quality, weather, forecasts, history and heatmaps for a chosen location."
         path="/vayulok/"
         jsonLd={ vayulokJsonLd() }
@@ -164,7 +164,7 @@ const VayuLokPage: React.FC = () => {
           badgeLabel="VayuLok by WECARE.DIGITAL"
           frame="Bharat"
           pillAfterFrame
-          secondLine="Intelligence"
+          secondLine="Insights"
           words={ cycleWords }
           pillKey={ mode }
           sub="Live air and weather for your place."
