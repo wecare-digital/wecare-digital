@@ -15,6 +15,7 @@ on:
       - 'amplify/functions/messaging/outbound-whatsapp/**'
       - 'amplify/functions/messaging/whatsapp-business-api/**'
       - 'amplify/functions/messaging/whatsapp-template-management/**'
+      - 'amplify/functions/ecommerce/checkout/**'
       - 'amplify/functions/ecommerce/product-image-gen/**'
       - 'amplify/functions/ecommerce/meta-catalog-sync/**'
       - 'amplify/functions/payments/razorpay-webhook/**'
@@ -76,6 +77,7 @@ jobs:
             amplify/functions/messaging/whatsapp-business-api/service_api.py \
             amplify/functions/messaging/whatsapp-template-management/handler.py \
             amplify/functions/messaging/whatsapp-business-api/flows/orders.py \
+            amplify/functions/ecommerce/checkout/handler.py \
             amplify/functions/ecommerce/product-image-gen/handler.py \
             amplify/functions/ecommerce/meta-catalog-sync/handler.py \
             amplify/functions/payments/razorpay-webhook/handler.py \
@@ -91,6 +93,7 @@ jobs:
             wecare-outbound-whatsapp \
             wecare-whatsapp-business-api \
             wecare-whatsapp-template-management \
+            wecare-checkout \
             wecare-product-image-gen \
             wecare-meta-catalog-sync \
             wecare-razorpay-webhook \
@@ -109,6 +112,7 @@ jobs:
             wecare-outbound-whatsapp \
             wecare-whatsapp-business-api \
             wecare-whatsapp-template-management \
+            wecare-checkout \
             wecare-product-image-gen \
             wecare-meta-catalog-sync \
             wecare-razorpay-webhook \
@@ -130,6 +134,7 @@ jobs:
               "wecare-outbound-whatsapp",
               "wecare-whatsapp-business-api",
               "wecare-whatsapp-template-management",
+              "wecare-checkout",
               "wecare-product-image-gen",
               "wecare-meta-catalog-sync",
               "wecare-razorpay-webhook",
