@@ -157,7 +157,8 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
       if ( await demoCheckout.count() !== 1 ) {
         fail( `${viewport.name}: demo result is missing the cart Checkout control` );
       }
-      if ( ( await demoCheckout.textContent() || '' ).trim() !== 'Checkout' ) {
+      const demoCheckoutLabel = await demoCheckout.locator( '.eta-action-label' ).textContent();
+      if ( ( demoCheckoutLabel || '' ).trim() !== 'Checkout' ) {
         fail( `${viewport.name}: demo checkout label is not Checkout` );
       }
       if ( await demoCheckout.getAttribute( 'href' ) !== '/cart/' ) {
