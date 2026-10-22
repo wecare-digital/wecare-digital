@@ -172,13 +172,10 @@ class TestTheGuardedRoute:
         resp, invoice_send = _send(engine, fake, lam, target='shipped')
         assert _status(resp) == 200, resp
         assert _body(resp)['orderStatus'] == 'shipped'
-        # The outbound Lambda was invoked with the isOrderStatus envelope carrying the wire word.
-        payloads = lam.sent_payloads()
-        assert len(payloads) == 1
-        assert payloads[0]['isOrderStatus'] is True
-        assert payloads[0]['orderStatusDetails']['order_status'] == 'shipped'
-        assert payloads[0]['orderStatusDetails']['reference_id'] == REFERENCE
-        # The row advanced only after the send succeeded.
+        # No separate Meta order-status message is sent. The customer-facing message is the
+        # approved invoice-image template sent by send_invoice_whatsapp below.
+        assert lam.invokes == []
+        # The local fulfilment row advances before invoice-template delivery.
         row = fake.Table(INVOICES).get_item(Key={'invoiceId': INVOICE_ID})['Item']
         assert row['orderStatus'] == 'shipped'
         invoice_send.assert_called_once_with(INVOICE_ID, PHONE, WABA1, 'req-ost', force=True)
@@ -232,23 +229,20 @@ class TestTheGuardedRoute:
         assert _body(resp)['code'] == wpr.WA_PAY_SENDER_NOT_PERMITTED
         assert lam.invokes == []
 
-    def test_a_meta_rejection_does_not_advance_the_recorded_status(self, engine, fake):
+    def test_no_separate_meta_order_status_message_is_sent(self, engine, fake):
         _seed(fake, order_status='processing')
-        lam = _RecordingLambda(status=400)  # Meta refused (e.g. 2046)
+        lam = _RecordingLambda(status=400)
         resp, invoice_send = _send(engine, fake, lam, target='shipped')
-        assert _status(resp) == 502
-        assert _body(resp)['code'] == 'ORDER_STATUS_REJECTED'
-        # The row still reads `processing`: the wire is the authority.
-        row = fake.Table(INVOICES).get_item(Key={'invoiceId': INVOICE_ID})['Item']
-        assert row['orderStatus'] == 'processing'
+        assert _status(resp) == 200
+        assert lam.invokes == []
+        invoice_send.assert_called_once_with(INVOICE_ID, PHONE, WABA1, 'req-ost', force=True)
 
-    def test_a_custom_description_rides_through_to_the_customer(self, engine, fake):
+    def test_description_does_not_create_a_second_customer_message(self, engine, fake):
         _seed(fake, order_status='processing')
         lam = _RecordingLambda(status=200)
         _response, invoice_send = _send(engine, fake, lam, target='shipped',
               description='Shipped via BlueDart, AWB 12345.')
-        detail = lam.sent_payloads()[0]['orderStatusDetails']
-        assert detail['description'] == 'Shipped via BlueDart, AWB 12345.'
+        assert lam.invokes == []
         invoice_send.assert_called_once_with(INVOICE_ID, PHONE, WABA1, 'req-ost', force=True)
 
     def test_invoice_failure_reports_partial_success_after_status_applied(self, engine, fake):
