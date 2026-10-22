@@ -46,7 +46,6 @@ SKIP_DIRS = {
 # break Service Ops and is outside the public-URL retirement.
 INTERNAL_API_CONTRACT_FILES = {
     pathlib.Path("amplify/functions/core/service-api/handler.py"),
-    pathlib.Path("amplify/functions/messaging/whatsapp-business-api/service_api.py"),
     pathlib.Path("amplify/functions/messaging/whatsapp-business-api/handler.py"),
     pathlib.Path("src/api/client.ts"),
     pathlib.Path("src/components/workspace/platform/LambdaFunctions.tsx"),
