@@ -33,7 +33,7 @@ SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 SKU = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$")
 STAFF_ROLES = {"Viewer", "Operator", "Admin"}
 STATUS = {"draft", "active", "archived"}
-CATALOG_IMAGE_PREFIX = "secure/catalog/products/"
+CATALOG_IMAGE_PREFIX = "secure/catalog/products/"  # protected source; served via catalog-media
 CATALOG_IMAGE_NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*-4096[.]png$")
 CATALOG_MEDIA_BASE = "https://wecare.digital/api/catalog-media/"
 
