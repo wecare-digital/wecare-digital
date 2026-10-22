@@ -12,7 +12,13 @@ from lambda_utils.ecommerce import finalization, order_keys, order_record
 from lambda_utils.identity import customer_uuid
 
 
-_PAID_NOTE_CONTRADICTIONS = ('cancelled', 'unpaid', 'no money moved')
+def _paid_note_is_contradictory(note):
+    note = str(note or '').strip().lower()
+    if not note:
+        return False
+    if 'unpaid' in note or 'no money moved' in note:
+        return True
+    return 'cancelled' in note and any(marker in note for marker in ('qa', 'test', 'proof'))
 
 
 def _authoritative_invoice_metadata(invoice, attempt):
@@ -28,7 +34,7 @@ def _authoritative_invoice_metadata(invoice, attempt):
         projected['channel'] = channel
     if attempt.get('status') == 'PAYMENT_PAID':
         note = str(projected.get('notes') or '').strip().lower()
-        if note and any(marker in note for marker in _PAID_NOTE_CONTRADICTIONS):
+        if _paid_note_is_contradictory(note):
             projected.pop('notes', None)
     return projected
 
