@@ -63,11 +63,32 @@ def test_foreign_or_malformed_retailer_ids_do_not_resolve(value):
     assert sync.parse_retailer_id(value) is None
 
 
-def test_retailer_id_rejects_non_uuid_parts():
+def test_retailer_id_v2_round_trips_current_native_identifiers():
+    cases = [
+        ("6794847f-303e-598e-bdfb-74db0a642fed", "ANW7Q5K2"),
+        ("native:hunar-kaushal", "KSL9M2Q4"),
+        ("native:hunar-prastuti", "PST7K4N2"),
+    ]
+    for product_id, variant_id in cases:
+        value = sync.retailer_id(product_id, variant_id)
+        assert value.startswith("WECARE.DIGITAL:v2:")
+        assert len(value) <= sync.RETAILER_ID_MAX_LENGTH
+        assert sync.parse_retailer_id(value) == (product_id, variant_id)
+
+
+def test_retailer_id_refuses_missing_or_oversized_identity():
     with pytest.raises(ValueError):
-        sync.retailer_id("not-a-uuid", VARIANT)
+        sync.retailer_id("", "SKU1")
     with pytest.raises(ValueError):
-        sync.retailer_id(PRODUCT, "not-a-uuid")
+        sync.retailer_id("product", "")
+    with pytest.raises(ValueError):
+        sync.retailer_id("x" * 100, "y" * 100)
+
+
+def test_v2_parser_refuses_noncanonical_or_broken_encoding():
+    assert sync.parse_retailer_id("WECARE.DIGITAL:v2:not*base64:also*bad") is None
+    assert sync.parse_retailer_id("WECARE.DIGITAL:v3:bmF0aXZlOmE:U0tVMQ") is None
+    assert sync.parse_retailer_id("WECARE.DIGITAL:v2::U0tVMQ") is None
 
 
 def test_visible_product_projects_one_meta_item():
