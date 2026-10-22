@@ -4440,8 +4440,6 @@ def _upsert_flow_registry(body: Dict) -> Dict:
             'requiresPayment': body.get('requiresPayment', False),
             'paymentAmount': int(body.get('paymentAmount', 0)),
             'paymentDescription': body.get('paymentDescription', ''),
-            'preferredGateway': body.get('preferredGateway', ''),
-            'paymentConfigName': body.get('paymentConfigName', ''),
             'screenConfig': body.get('screenConfig', '{}'),
             'contactMapping': body.get('contactMapping', '{}'),
             'dataFetchers': body.get('dataFetchers', '{}'),
@@ -4454,7 +4452,7 @@ def _upsert_flow_registry(body: Dict) -> Dict:
         if body.get('publishedAt'):
             item['publishedAt'] = Decimal(str(body['publishedAt']))
         # Optional extended metadata (Part 4 A) — only persisted when provided.
-        for opt_key in ('preferredGateway', 'abTestConfig', 'healthStatusJson', 'validationErrorsJson',
+        for opt_key in ('abTestConfig', 'healthStatusJson', 'validationErrorsJson',
                         'previewUrl', 'clonedFromFlowId', 'migrationBatchId', 'dataChannelUri',
                         'jsonVersion', 'applicationId', 'categories'):
             if body.get(opt_key):
@@ -5737,8 +5735,6 @@ def _handle_async_post_submit(event: Dict, request_id: str) -> Dict:
     subject = event.get('subject', '')
     request_number = event.get('request_number', '')
     payment_ref_id = event.get('payment_ref_id', '')
-    preferred_gateway = event.get('preferred_gateway', '')
-    payment_config_name = event.get('payment_config_name', '')
     requires_payment = event.get('requires_payment', False)
     payment_amount = event.get('payment_amount', 0)
     flow_name = event.get('flow_name', 'Request')
