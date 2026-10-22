@@ -87,7 +87,11 @@ def env(monkeypatch):
     spec.loader.exec_module(h)
 
     fake = FakeDynamo(
-        keys={OTP_TABLE: "grantId", CONTACTS_TABLE: "id", "stack-wecare-digital-OrderTable": "orderId"},
+        # PaymentAttemptsTable: order promotion opens it to align the paid attempt's finalization
+        # stage; without it the fake raises `unknown table` and the promotion silently no-ops.
+        keys={OTP_TABLE: "grantId", CONTACTS_TABLE: "id",
+              "stack-wecare-digital-OrderTable": "orderId",
+              "stack-wecare-digital-PaymentAttemptsTable": "paymentAttemptId"},
         indexes={CONTACTS_TABLE: {
             "phone-index": ("phone", None),
             "email-index": ("email", None),
@@ -575,6 +579,7 @@ def test_an_audit_failure_cannot_change_the_outcome(env):
 
 ORDERS_TABLE_NAME = "stack-wecare-digital-OrderTable"
 ORDERS_BY_CUSTOMER_INDEX = "customerId-createdAt-index"
+PAYMENT_ATTEMPTS_TABLE_NAME = "stack-wecare-digital-PaymentAttemptsTable"
 
 
 @pytest.fixture
@@ -588,7 +593,10 @@ def env_with_orders(monkeypatch):
     spec.loader.exec_module(h)
 
     fake = FakeDynamo(
-        keys={OTP_TABLE: "grantId", CONTACTS_TABLE: "id", ORDERS_TABLE_NAME: "orderId"},
+        # PaymentAttemptsTable: order promotion opens it to align the paid attempt's finalization
+        # stage; without it the fake raises `unknown table` and the promotion silently no-ops.
+        keys={OTP_TABLE: "grantId", CONTACTS_TABLE: "id", ORDERS_TABLE_NAME: "orderId",
+              PAYMENT_ATTEMPTS_TABLE_NAME: "paymentAttemptId"},
         indexes={
             CONTACTS_TABLE: {"phone-index": ("phone", None), "email-index": ("email", None)},
             ORDERS_TABLE_NAME: {ORDERS_BY_CUSTOMER_INDEX: ("customerId", "createdAt"), "customerPhone": ("customerPhone", None)},

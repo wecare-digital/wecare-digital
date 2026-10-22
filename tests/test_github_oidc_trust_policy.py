@@ -294,8 +294,32 @@ def test_route_auth_live_gate_does_not_run_on_pull_requests():
     A PR emits `...:pull_request` rather than `...:ref:refs/heads/stack`, so the job
     can never authenticate there; and a fork PR gets no OIDC token at all. Running
     it on PRs made the job red for a reason a contributor could not fix.
+
+    This asserts the PROPERTY (the live-gate's guard excludes pull_request), not a
+    single literal spelling. The guard was later tightened from
+    `github.event_name != 'pull_request'` to an allowlist of
+    `schedule`/`workflow_dispatch` (moving the live-AWS job off the push fan-out).
+    Both forms keep PRs out; a brittle substring match would fail the stricter —
+    and still-correct — form, so match either.
     """
     workflow = (ROOT / ".github/workflows/route-auth.yml").read_text(encoding="utf-8")
-    assert "if: github.event_name != 'pull_request'" in workflow, (
-        "route-auth live-gate must be excluded from pull_request events"
+    live_gate_if = next(
+        (ln.split("if:", 1)[1].strip()
+         for ln in workflow.splitlines()
+         if "if:" in ln and "ROUTE_AUTH_ROLE_ARN" in ln),
+        "",
+    )
+    assert live_gate_if, "could not find the live-gate's `if:` guard in route-auth.yml"
+    excludes_prs = (
+        "github.event_name != 'pull_request'" in live_gate_if
+        or (
+            "pull_request" not in live_gate_if
+            and "github.event_name ==" in live_gate_if
+            and "schedule" in live_gate_if
+            and "workflow_dispatch" in live_gate_if
+        )
+    )
+    assert excludes_prs, (
+        "route-auth live-gate must be excluded from pull_request events; its guard was: "
+        + live_gate_if
     )

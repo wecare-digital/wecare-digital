@@ -201,12 +201,19 @@ def test_no_tests_or_caches_ship(built):
     assert not junk, "shipped in the Lambda package:\n  " + "\n  ".join(junk)
 
 
-def test_the_package_is_python_only(built):
-    """No template, font or data file is read from disk anywhere in the checkout path, so a
-    non-.py member would be an accident. Stated as an assertion rather than a comment, because
-    "we don't need templates" is exactly the kind of claim that silently stops being true."""
+#: The only non-.py members the checkout package is allowed to ship. The embedded invoice engine
+#: renders the receipt PNG and loads these font assets from disk (DotGothic16 + its OFL licence),
+#: brought into the package by the checkout spec's `external_dirs` entry for the invoice-engine
+#: `fonts/` directory. Anything OTHER than these is still an accident.
+ALLOWED_NON_PY = {"fonts/DotGothic16-Regular.ttf", "fonts/OFL.txt"}
+
+
+def test_the_package_is_python_only_apart_from_the_invoice_fonts(built):
+    """Only the receipt fonts may be non-.py. A template or data file anywhere else would be an
+    accident, so this is stated as an assertion rather than a comment: "we only ship the fonts" is
+    exactly the kind of claim that silently stops being true."""
     _, members, _, _ = built
-    assert sorted(n for n in members if not n.endswith(".py")) == []
+    assert sorted(n for n in members if not n.endswith(".py")) == sorted(ALLOWED_NON_PY)
 
 
 # ── the same questions, asked of committed state ──────────────────────────────
@@ -239,8 +246,9 @@ def test_the_committed_package_ships_no_tests_or_caches(committed):
     assert not junk, "shipped in the Lambda package:\n  " + "\n  ".join(junk)
 
 
-def test_the_committed_package_is_python_only(committed):
-    assert sorted(n for n in committed.members if not n.endswith(".py")) == []
+def test_the_committed_package_is_python_only_apart_from_the_invoice_fonts(committed):
+    assert sorted(n for n in committed.members
+                  if not n.endswith(".py")) == sorted(ALLOWED_NON_PY)
 
 
 def test_the_committed_handler_symbol_exists(committed):
@@ -289,6 +297,16 @@ def test_source_root_actually_packages_from_that_root(tmp_path):
     (handler_dir / "handler.py").write_text(
         "from lambda_utils import only_in_the_synthetic_root\n\n\ndef handler(e, c):\n"
         "    return only_in_the_synthetic_root.MARKER\n")
+    # The checkout spec packages the embedded engine (extra_files, in the checkout dir) and the
+    # invoice-engine renderer + fonts by EXTERNAL path (external_files/external_dirs resolve from
+    # the functions root). A synthetic source root must carry all three or build_zip raises
+    # FileNotFoundError before it can prove --source-root is honoured. Byte content is irrelevant.
+    (handler_dir / "invoice_engine.py").write_text("def handler(e, c):\n    return None\n")
+    invoice_engine_dir = tmp_path / "amplify" / "functions" / "payments" / "invoice-engine"
+    (invoice_engine_dir / "fonts").mkdir(parents=True)
+    (invoice_engine_dir / "receipt_layout.py").write_text("def render(*a, **k):\n    return b''\n")
+    (invoice_engine_dir / "fonts" / "DotGothic16-Regular.ttf").write_bytes(b"synthetic-font")
+    (invoice_engine_dir / "fonts" / "OFL.txt").write_text("synthetic licence\n")
 
     _, members, errors, _ = module.build_package(tmp_path)
     assert errors == []

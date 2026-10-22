@@ -51,10 +51,15 @@ RETAINED_NET = "amplify/functions/payments/razorpay-webhook/handler.py"
 #: it here; and an allowlist rather than a list of banned endpoints, so a new endpoint of any kind
 #: (an order create, a capture, a refund) fails here until it is reviewed and listed.
 PREPARE_PATH_LITERALS = {
-    # The handler's own routes, and the payment-config read it makes by internal Lambda invoke.
+    # The handler's own routes, the payment-config read it makes by internal Lambda invoke, and
+    # the `/invoices` strangler-seam prefix. `/invoices` is the gated seam that delegates invoice
+    # routes to the embedded invoice engine (`commerce_path.startswith("/invoices")`): it
+    # creates/renders/delivers a GST INVOICE — a statutory document distinct from an order — and
+    # never creates, places, captures or refunds a Razorpay order, so it cannot be a second charge
+    # path. That is why it is listed here rather than refused.
     "amplify/functions/ecommerce/checkout/handler.py": frozenset({
         "/", "/ecommerce/service-prices", "/prepare-checkout", "/status", "/verify-callback",
-        "/wa-business/payment-config/list",
+        "/wa-business/payment-config/list", "/invoices",
     }),
     # The AWS-native supply modules: `_native_quote` prices off ProductsTable through native_cart +
     # native_checkout, with native_shipping as the (free) delivery policy. They compute over rows
