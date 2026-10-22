@@ -117,6 +117,8 @@ name: Kiro PR review
 # no `contents: write`, so a review cannot push.
 
 on:
+  pull_request:
+    types: [ opened, synchronize, reopened ]
   workflow_dispatch:
 
 permissions:
