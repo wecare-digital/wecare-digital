@@ -19,13 +19,25 @@ describe( 'canonical public commerce pattern', () => {
 
   it( 'keeps Checkout visually distinct from the Policy details disclosure', () => {
     const checkout = read( 'src/components/CheckoutAction.tsx' );
+    const elsewhere = read( 'src/components/ElsewhereTravelAssistant.tsx' );
     const policy = read( 'src/components/public/PolicyDetails.tsx' );
 
+    expect( checkout ).toContain( 'shopping_cart_checkout' );
     expect( checkout ).toContain( 'background:var(--public-accent-amber)' );
-    expect( checkout ).toContain( 'border:2px solid var(--public-brand-green)' );
+    expect( checkout ).toContain( 'border:2px solid transparent;border-radius:11px' );
     expect( checkout ).toContain( 'text-decoration:none' );
-    expect( checkout ).toContain( 'background:#fff' );
-    expect( checkout ).toContain( 'transform:translateY(-1px);box-shadow:0 5px 14px rgba(26,58,42,.1)' );
+    expect( checkout ).toContain( 'background:#fff;border-color:var(--public-accent-amber)' );
+    expect( checkout ).toContain( 'box-shadow:0 5px 14px rgba(240,168,24,.18),0 2px 5px rgba(26,58,42,.08)' );
+    expect( checkout ).toContain( 'transform:translateY(0) scale(.98);box-shadow:none' );
+    expect( checkout ).toContain( 'outline:3px solid var(--public-brand-green);outline-offset:3px' );
+
+    // Elsewhere owns a route-local Checkout renderer, so it must use the same house icon and
+    // Option B surface instead of silently drifting back to the old green contour.
+    expect( elsewhere ).toContain( 'eta-material eta-checkout-icon' );
+    expect( elsewhere ).toContain( '>shopping_cart_checkout</span>' );
+    expect( elsewhere ).toContain( 'border:2px solid transparent;border-radius:11px;background:var(--public-accent-amber)' );
+    expect( elsewhere ).toContain( 'background:#fff;border-color:var(--public-accent-amber)' );
+    expect( elsewhere ).toContain( 'box-shadow:0 5px 14px rgba(240,168,24,.18),0 2px 5px rgba(26,58,42,.08)' );
 
     expect( policy ).toContain( 'background:var(--public-lime-tint)' );
     expect( policy ).toContain( 'text-decoration:underline' );
