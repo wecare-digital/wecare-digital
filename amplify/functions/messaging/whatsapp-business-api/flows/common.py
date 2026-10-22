@@ -304,6 +304,7 @@ def send_payment(phone: str, phone_number_id: str, order_id: str, subject: str,
 
     invoice_body = {
         'referenceId': ref_id,
+        'channel': 'whatsapp',
         'customerPhone': phone,
         'customerName': sender_name,
         'contactId': contact_id or '',
