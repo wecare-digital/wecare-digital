@@ -555,6 +555,15 @@ def _resolve_payment_config_name(phone_number_id: str, order_details: dict) -> s
         raise PaymentConfigurationUnresolved(
             f'sender {phone_number_id!r} may not take payments')
 
+    removed_keys = (
+        'payment_link_uri', 'upi_intent_link', 'payment_link', 'payment_settings',
+        'preferred_upi_app', 'enabled_payment_options',
+    )
+    present = [key for key in removed_keys if order_details.get(key)]
+    if present:
+        raise PaymentConfigurationUnresolved(
+            'unsupported WhatsApp payment option: ' + ','.join(sorted(present)))
+
     config_name = (PHONE_PAYMENT_GATEWAYS.get(phone_number_id) or {}).get('razorpay', '')
     supplied = str(order_details.get('payment_configuration') or '').strip()
     if supplied and supplied != config_name:
