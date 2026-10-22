@@ -40,10 +40,6 @@ name: Provider allow-list
 # lockfiles are out of scope, so prose about a provider is never reported as a use of it.
 
 on:
-  push:
-    branches: [stack]
-  pull_request:
-    branches: [stack]
   workflow_dispatch:
 
 permissions:
