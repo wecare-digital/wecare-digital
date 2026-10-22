@@ -36,11 +36,8 @@ def test_server_side_template_gates_use_shared_status_helper():
 
 
 def test_template_management_exposes_raw_and_canonical_status():
-    for rel in (
-        'amplify/functions/messaging/whatsapp-template-management/handler.py',
-        'amplify/functions/messaging/whatsapp-templates/handler.py',
-    ):
-        source = (ROOT / rel).read_text(encoding='utf-8')
-        assert "'templateStatus':" in source
-        assert "'templateState': template_status.canonical" in source
-        assert "'sendable': template_status.is_sendable" in source
+    source = (ROOT / 'amplify/functions/messaging/whatsapp-template-management/handler.py').read_text(
+        encoding='utf-8')
+    assert "'templateStatus':" in source
+    assert "'templateState': template_status.canonical" in source
+    assert "'sendable': template_status.is_sendable" in source

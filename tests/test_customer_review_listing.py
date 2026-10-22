@@ -4,16 +4,12 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'amplify/functions/shared'))
 from lambda_utils import flow_records  # noqa: E402
 
-COPIES = [
-    'amplify/functions/core/service-api/handler.py',
-    'amplify/functions/messaging/whatsapp-business-api/service_api.py',
-]
+SERVICE_API = 'amplify/functions/core/service-api/handler.py'
 
 
 def test_contact_reviews_use_the_flow_code_index_and_all_pages():
@@ -46,10 +42,9 @@ def test_contact_reviews_use_the_flow_code_index_and_all_pages():
     table.scan.assert_not_called()
 
 
-@pytest.mark.parametrize('path', COPIES)
-def test_both_service_api_copies_delegate_to_the_one_review_reader(path):
-    """The two near-identical service-api files must not each grow their own review query."""
-    tree = ast.parse((ROOT / path).read_text())
+def test_service_api_delegates_to_the_one_review_reader():
+    """The canonical service API must use the shared review reader."""
+    tree = ast.parse((ROOT / SERVICE_API).read_text())
     node = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == '_list_reviews')
     calls = {f'{c.func.value.id}.{c.func.attr}' for c in ast.walk(node)
              if isinstance(c, ast.Call) and isinstance(c.func, ast.Attribute)

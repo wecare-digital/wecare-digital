@@ -143,7 +143,7 @@ MEDIA_ALLOWED_MIME = {
     'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     'text/plain',
 }
-INVOICE_ENGINE_FUNCTION = os.environ.get('INVOICE_ENGINE_FUNCTION', 'wecare-invoice-engine')
+INVOICE_ENGINE_FUNCTION = os.environ.get('INVOICE_ENGINE_FUNCTION', 'wecare-checkout:live')
 META_CATALOG_SYNC_FUNCTION = os.environ.get(
     'META_CATALOG_SYNC_FUNCTION', 'wecare-meta-catalog-sync:live')
 # The shared stores (contacts, orders, flow responses, flow logs, status history) resolve in
@@ -5921,57 +5921,13 @@ def _verify_webhook_signature(event: Dict[str, Any], request_id: str) -> bool:
     return ok
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# SERVICE MODULE HANDLERS — Orders, Documents, FAQ, Appointments, RX Slots,
-# Enterprise Assist, Reviews, Service (submit/amend/track/drafts)
-# Imported from service_api module (bundled with this Lambda)
-# ══════════════════════════════════════════════════════════════════════════════
-
-try:
-    from service_api import (
-        _list_orders as _svc_list_orders, _get_order as _svc_get_order,
-        _create_order as _svc_create_order, _update_order as _svc_update_order,
-        _get_order_submissions as _svc_get_order_submissions,
-        _submit_request as _svc_submit_request, _amend_request as _svc_amend_request,
-        _track_order as _svc_track_order, _get_status_history as _svc_get_status_history,
-        _save_draft as _svc_save_draft, _get_draft as _svc_get_draft, _delete_draft as _svc_delete_draft,
-        _list_documents as _svc_list_documents, _get_document as _svc_get_document,
-        _update_document as _svc_update_document, _get_document_download_url as _svc_get_document_download,
-        _create_document as _svc_create_document,
-        _list_faqs as _svc_list_faqs, _create_faq as _svc_create_faq,
-        _update_faq as _svc_update_faq, _delete_faq as _svc_delete_faq,
-        _list_appointments as _svc_list_appointments, _create_appointment as _svc_create_appointment,
-        _update_appointment as _svc_update_appointment,
-        _list_rx_slots as _svc_list_rx_slots, _create_rx_slot as _svc_create_rx_slot,
-        _update_rx_slot as _svc_update_rx_slot,
-        _list_enterprise_cases as _svc_list_enterprise_cases, _create_enterprise_case as _svc_create_enterprise_case,
-        _update_enterprise_case as _svc_update_enterprise_case,
-        _list_reviews as _svc_list_reviews, _create_review as _svc_create_review,
-        _update_review as _svc_update_review,
-        _extract_path_param as _svc_path_param,
-    )
-    _SVC_AVAILABLE = True
-    logger.info('Service module loaded successfully')
-except ImportError as _svc_err:
-    _SVC_AVAILABLE = False
-    logger.warning(f'Service module not available: {_svc_err}')
-
-    def _svc_unavailable(*args, **kwargs):
-        return _resp(501, {'error': 'Service module not deployed. Bundle service_api.py with this Lambda.'})
-
-    _svc_list_orders = _svc_get_order = _svc_create_order = _svc_update_order = _svc_unavailable
-    _svc_get_order_submissions = _svc_sync_orders = _svc_submit_request = _svc_unavailable
-    _svc_amend_request = _svc_track_order = _svc_get_status_history = _svc_unavailable
-    _svc_save_draft = _svc_get_draft = _svc_delete_draft = _svc_unavailable
-    _svc_list_documents = _svc_get_document = _svc_update_document = _svc_unavailable
-    _svc_get_document_download = _svc_create_document = _svc_unavailable
-    _svc_list_faqs = _svc_create_faq = _svc_update_faq = _svc_delete_faq = _svc_unavailable
-    _svc_list_appointments = _svc_create_appointment = _svc_update_appointment = _svc_unavailable
-    _svc_list_rx_slots = _svc_create_rx_slot = _svc_update_rx_slot = _svc_unavailable
-    _svc_list_enterprise_cases = _svc_create_enterprise_case = _svc_update_enterprise_case = _svc_unavailable
-    _svc_list_reviews = _svc_create_review = _svc_update_review = _svc_unavailable
-    _svc_path_param = lambda path, resource: path.split(f'/{resource}/')[-1].split('/')[0].split('?')[0] if f'/{resource}/' in path else ''
-
+# Shared path extractor used by non-service WhatsApp admin routes.
+# Service-domain HTTP routes are owned by wecare-service-api directly at API Gateway.
+def _svc_path_param(path: str, resource: str) -> str:
+    marker = f'/{resource}/'
+    if marker not in path:
+        return ''
+    return path.split(marker, 1)[1].split('/')[0].split('?')[0]
 
 
 def _catalog_sync_admin_control(event: Dict[str, Any], method: str,
@@ -6696,120 +6652,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if method == 'GET':
                 return _list_flow_logs(params)
             return _resp(405, {'error': 'GET only'})
-
-        # ══════════════════════════════════════════════════════════════
-        # SERVICE MODULE ROUTES (orders, documents, faq, appointments,
-        # rx-slots, enterprise-assist, reviews, service/*)
-        # ══════════════════════════════════════════════════════════════
-
-        # ── ORDERS ──
-        elif '/orders/' in path and '/submissions' in path:
-            oid = _svc_path_param(path, 'orders')
-            return _svc_get_order_submissions(oid)
-        elif '/orders/' in path:
-            oid = _svc_path_param(path, 'orders')
-            if method == 'GET':
-                return _svc_get_order(oid)
-            elif method in ('PATCH', 'PUT'):
-                return _svc_update_order(oid, body)
-        elif '/orders' in path:
-            if method == 'GET':
-                return _svc_list_orders(params)
-            elif method == 'POST':
-                return _svc_create_order(body)
-
-        # ── SERVICE (submit/amend/track/drafts) ──
-        elif '/service/submit' in path and method == 'POST':
-            return _svc_submit_request(body)
-        elif '/service/amend' in path and method == 'POST':
-            return _svc_amend_request(body)
-        elif '/service/track/' in path:
-            oid = path.split('/service/track/')[-1].split('?')[0]
-            return _svc_track_order(oid)
-        elif '/service/history' in path:
-            return _svc_get_status_history(params)
-        elif '/service/drafts' in path:
-            if method == 'POST':
-                return _svc_save_draft(body)
-            elif method == 'GET':
-                fc = params.get('flowCode', path.split('/service/drafts/')[-1].split('?')[0])
-                return _svc_get_draft(fc)
-            elif method == 'DELETE':
-                fc = path.split('/service/drafts/')[-1].split('?')[0]
-                return _svc_delete_draft(fc)
-
-        # ── DOCUMENTS ──
-        elif '/documents/' in path and '/download' in path:
-            did = _svc_path_param(path, 'documents')
-            return _svc_get_document_download(did)
-        elif '/documents/' in path:
-            did = _svc_path_param(path, 'documents')
-            if method == 'GET':
-                return _svc_get_document(did)
-            elif method in ('PUT', 'PATCH'):
-                return _svc_update_document(did, body)
-        elif '/documents' in path:
-            if method == 'GET':
-                return _svc_list_documents(params)
-            elif method == 'POST':
-                return _svc_create_document(body)
-
-        # ── FAQ ──
-        elif '/faq/' in path:
-            fid = _svc_path_param(path, 'faq')
-            if method in ('PUT', 'PATCH'):
-                return _svc_update_faq(fid, body)
-            elif method == 'DELETE':
-                return _svc_delete_faq(fid)
-        elif '/faq' in path:
-            if method == 'GET':
-                return _svc_list_faqs(params)
-            elif method == 'POST':
-                return _svc_create_faq(body)
-
-        # ── APPOINTMENTS ──
-        elif '/appointments/' in path:
-            aid = _svc_path_param(path, 'appointments')
-            if method in ('PUT', 'PATCH'):
-                return _svc_update_appointment(aid, body)
-        elif '/appointments' in path:
-            if method == 'GET':
-                return _svc_list_appointments(params)
-            elif method == 'POST':
-                return _svc_create_appointment(body)
-
-        # ── RX SLOTS ──
-        elif '/rx-slots/' in path:
-            sid = _svc_path_param(path, 'rx-slots')
-            if method in ('PUT', 'PATCH'):
-                return _svc_update_rx_slot(sid, body)
-        elif '/rx-slots' in path:
-            if method == 'GET':
-                return _svc_list_rx_slots(params)
-            elif method == 'POST':
-                return _svc_create_rx_slot(body)
-
-        # ── ENTERPRISE ASSIST ──
-        elif '/enterprise-assist/' in path:
-            cid = _svc_path_param(path, 'enterprise-assist')
-            if method in ('PUT', 'PATCH'):
-                return _svc_update_enterprise_case(cid, body)
-        elif '/enterprise-assist' in path:
-            if method == 'GET':
-                return _svc_list_enterprise_cases(params)
-            elif method == 'POST':
-                return _svc_create_enterprise_case(body)
-
-        # ── REVIEWS ──
-        elif '/reviews/' in path:
-            rid = _svc_path_param(path, 'reviews')
-            if method in ('PUT', 'PATCH'):
-                return _svc_update_review(rid, body)
-        elif '/reviews' in path:
-            if method == 'GET':
-                return _svc_list_reviews(params)
-            elif method == 'POST':
-                return _svc_create_review(body)
 
         return _resp(404, {'error': f'Unknown path: {path}'})
     except Exception as e:

@@ -181,6 +181,7 @@ RAZORPAY_WEBHOOK_LOG_TABLE = "stack-wecare-digital-RazorpayWebhookLogTable"
 AUDIT_LOG_TABLE = "stack-wecare-digital-AuditLogsTable"
 MEDIA_BUCKET = "wecare-digital-get"
 INVOICE_PREFIX = "secure/Invoice/customer_invoice/"
+PILLOW_LAYER_ARN = "arn:aws:lambda:us-east-1:775261844268:layer:pillow-python312:2"
 
 #: The business-API Lambda. Holds the Meta token; answers the readiness readback.
 SENDER_FUNCTION = "wecare-whatsapp-business-api"
@@ -330,11 +331,18 @@ def build_package(source_root: Path) -> tuple:
     package, or come from the python3.12 runtime / stdlib.
     """
     dal = _deploy_module(source_root)
-    spec = dal.Spec(FUNCTION_NAME, "ecommerce/checkout",
-                    extra_files=["invoice_engine.py"],
-                    provisioned_by="python scripts/provision_checkout.py")
+    spec = dal.Spec(
+        FUNCTION_NAME, "ecommerce/checkout",
+        extra_files=["invoice_engine.py"],
+        external_files=[("payments/invoice-engine/receipt_layout.py", "receipt_layout.py")],
+        external_dirs=[("payments/invoice-engine/fonts", "fonts")],
+        required_layers=[PILLOW_LAYER_ARN],
+        required_memory=512,
+        required_timeout=60,
+        provisioned_by="python scripts/provision_checkout.py",
+    )
     zip_bytes, members = dal.build_zip(spec)
-    errors, warnings = dal.validate(spec, members, frozenset())
+    errors, warnings = dal.validate(spec, members, frozenset({"PIL"}))
     errors += dal.validate_handler(members, "handler.handler")
     return zip_bytes, members, sorted(set(errors)), sorted(set(warnings))
 
@@ -395,8 +403,14 @@ def validate_members(members: dict, source_root: Path) -> tuple:
     Lambda. That is what makes a verdict about the live artifact possible at all.
     """
     dal = _deploy_module(source_root)
-    spec = dal.Spec(FUNCTION_NAME, "ecommerce/checkout", extra_files=["invoice_engine.py"])
-    errors, warnings = dal.validate(spec, members, frozenset())
+    spec = dal.Spec(
+        FUNCTION_NAME, "ecommerce/checkout",
+        extra_files=["invoice_engine.py"],
+        external_files=[("payments/invoice-engine/receipt_layout.py", "receipt_layout.py")],
+        external_dirs=[("payments/invoice-engine/fonts", "fonts")],
+        required_layers=[PILLOW_LAYER_ARN],
+    )
+    errors, warnings = dal.validate(spec, members, frozenset({"PIL"}))
     errors += dal.validate_handler(members, "handler.handler")
     return sorted(set(errors)), sorted(set(warnings))
 
@@ -659,6 +673,21 @@ def expected_environment() -> dict:
         "PAYMENT_WABA_ID": PAYMENT_WABA_ID,
         "EXPECTED_CONFIGURATION_NAME": EXPECTED_CONFIGURATION_NAME,
         "EXPECTED_PROVIDER_MID": EXPECTED_PROVIDER_MID,
+        # Invoice domain absorbed into the checkout/commerce strangler.
+        "INVOICES_TABLE": INVOICES_TABLE,
+        "INVOICE_ITEMS_TABLE": INVOICE_ITEMS_TABLE,
+        "INVOICE_SEQ_TABLE": INVOICE_SEQUENCE_TABLE,
+        "INVOICE_ASSETS_TABLE": INVOICE_ASSETS_TABLE,
+        "INVOICE_DELIVERY_TABLE": INVOICE_DELIVERY_TABLE,
+        "PAYMENTS_TABLE": PAYMENTS_TABLE,
+        "MEDIA_BUCKET": MEDIA_BUCKET,
+        "CDN_DOMAIN": "wecare.digital/get",
+        "WA_PAY_TEMPLATE": "wecare_whatapp_native_pay_template",
+        "WA_INVOICE_TEMPLATE": "wecare_default_invoice_image_template",
+        "OUTBOUND_FUNCTION": "wecare-outbound-whatsapp:live",
+        "REFUND_INITIATION_ENABLED": "false",
+        "ADMIN_MFA_REQUIRED": "true",
+        "LOG_LEVEL": "INFO",
         # CHECKOUT_INITIATION_ENABLED is retired; handler initiation is hard-enabled.
     }
 
@@ -680,8 +709,9 @@ def ensure_function(dry_run: bool, zip_bytes: bytes) -> str:
                 Code={"ZipFile": zip_bytes},
                 Description="Customer checkout: AWS-native catalog total, readiness gate, "
                             "PaymentAttempt, stock reservation and handoff.",
-                Timeout=20,
-                MemorySize=256,
+                Timeout=60,
+                MemorySize=512,
+                Layers=[PILLOW_LAYER_ARN],
                 Environment={"Variables": expected_environment()},
                 Tags={"Project": "WECARE.DIGITAL", "Purpose": "Checkout"},
             )
@@ -716,6 +746,41 @@ def reconcile_environment(dry_run: bool) -> str:
         FunctionName=FUNCTION_NAME, Environment={"Variables": current})
     lam().get_waiter("function_updated_v2").wait(FunctionName=FUNCTION_NAME)
     return f"set {', '.join(sorted(drifted))}"
+
+
+def reconcile_runtime_shape(dry_run: bool) -> str:
+    if not function_exists():
+        return "function absent - nothing to reconcile"
+    config = lam().get_function_configuration(FunctionName=FUNCTION_NAME)
+    updates = {}
+    if config.get("MemorySize") != 512:
+        updates["MemorySize"] = 512
+    if config.get("Timeout") != 60:
+        updates["Timeout"] = 60
+    if not updates:
+        return "runtime shape already canonical"
+    if dry_run:
+        return "would update " + ", ".join(
+            f"{key}={value}" for key, value in sorted(updates.items()))
+    lam().update_function_configuration(FunctionName=FUNCTION_NAME, **updates)
+    lam().get_waiter("function_updated_v2").wait(FunctionName=FUNCTION_NAME)
+    return "updated " + ", ".join(
+        f"{key}={value}" for key, value in sorted(updates.items()))
+
+
+def reconcile_layers(dry_run: bool) -> str:
+    if not function_exists():
+        return "function absent - nothing to reconcile"
+    config = lam().get_function_configuration(FunctionName=FUNCTION_NAME)
+    current = [row["Arn"] for row in (config.get("Layers") or [])]
+    if PILLOW_LAYER_ARN in current:
+        return "Pillow layer already present"
+    if dry_run:
+        return "would add Pillow layer"
+    lam().update_function_configuration(
+        FunctionName=FUNCTION_NAME, Layers=current + [PILLOW_LAYER_ARN])
+    lam().get_waiter("function_updated_v2").wait(FunctionName=FUNCTION_NAME)
+    return "added Pillow layer"
 
 
 def ensure_live_alias(dry_run: bool) -> str:
@@ -1370,7 +1435,7 @@ def main(argv=None) -> int:
     print(f"region: {REGION}")
     print(f"source root: {why}")
     print(f"sender: {SENDER_FUNCTION}:{LIVE_ALIAS}; WABA {PAYMENT_WABA_ID}")
-    print("initiation: OFF (CHECKOUT_INITIATION_ENABLED not set)")
+    print("initiation: source-enabled; live payment-readiness gate remains authoritative")
     print(f"dry run: {args.dry_run}\n")
 
     zip_bytes, members, errors, warnings = build_package(source_root)
@@ -1382,6 +1447,8 @@ def main(argv=None) -> int:
     print(f"log group: {ensure_log_group(args.dry_run)}")
     print(f"Lambda: {ensure_function(args.dry_run, zip_bytes)}")
     print(f"env: {reconcile_environment(args.dry_run)}")
+    print(f"runtime: {reconcile_runtime_shape(args.dry_run)}")
+    print(f"layers: {reconcile_layers(args.dry_run)}")
     print(f"live alias: {ensure_live_alias(args.dry_run)}")
     print(f"invoke permission: {ensure_invoke_permission(args.dry_run)}")
     integration_id, integration_note = ensure_integration(args.dry_run)

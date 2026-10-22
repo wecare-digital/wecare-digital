@@ -166,16 +166,36 @@
                     "dynamodb:BatchWriteItem"
                   ],
                   "Resource": [
-                    { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-InvoicesTable" },
-                    { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-InvoicesTable/index/*" },
-                    { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-InvoiceItemsTable" },
-                    { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-InvoiceItemsTable/index/*" },
-                    { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-InvoiceSequenceTable" },
-                    { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-InvoiceSequenceTable/index/*" },
-                    { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-InvoiceAssetsTable" },
-                    { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-InvoiceAssetsTable/index/*" },
-                    { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-InvoiceDeliveryLogTable" },
-                    { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-InvoiceDeliveryLogTable/index/*" }
+                    {
+                      "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-InvoicesTable"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-InvoicesTable/index/*"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-InvoiceItemsTable"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-InvoiceItemsTable/index/*"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-InvoiceSequenceTable"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-InvoiceSequenceTable/index/*"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-InvoiceAssetsTable"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-InvoiceAssetsTable/index/*"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-InvoiceDeliveryLogTable"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-InvoiceDeliveryLogTable/index/*"
+                    }
                   ]
                 },
                 {
@@ -187,8 +207,12 @@
                     "dynamodb:BatchWriteItem"
                   ],
                   "Resource": [
-                    { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-PaymentsTable" },
-                    { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-RazorpayWebhookLogTable" }
+                    {
+                      "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-PaymentsTable"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-RazorpayWebhookLogTable"
+                    }
                   ]
                 },
                 {
@@ -199,7 +223,9 @@
                     "dynamodb:UpdateItem"
                   ],
                   "Resource": [
-                    { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-FlowSubmissionTable" }
+                    {
+                      "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-FlowSubmissionTable"
+                    }
                   ]
                 },
                 {
@@ -210,8 +236,12 @@
                     "dynamodb:Query"
                   ],
                   "Resource": [
-                    { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-ContactsTable" },
-                    { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-ContactsTable/index/phone-index" }
+                    {
+                      "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-ContactsTable"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-ContactsTable/index/phone-index"
+                    }
                   ]
                 },
                 {
@@ -221,7 +251,9 @@
                     "dynamodb:PutItem"
                   ],
                   "Resource": [
-                    { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-AuditLogsTable" }
+                    {
+                      "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-AuditLogsTable"
+                    }
                   ]
                 },
                 {
@@ -231,8 +263,12 @@
                     "dynamodb:TransactWriteItems"
                   ],
                   "Resource": [
-                    { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-PaymentAttemptsTable" },
-                    { "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-CommerceKeys" }
+                    {
+                      "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-PaymentAttemptsTable"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-CommerceKeys"
+                    }
                   ]
                 },
                 {
@@ -242,7 +278,9 @@
                     "s3:GetObject"
                   ],
                   "Resource": [
-                    { "Fn::Sub": "arn:aws:s3:::wecare-digital-get/o/*" }
+                    {
+                      "Fn::Sub": "arn:aws:s3:::wecare-digital-get/o/*"
+                    }
                   ]
                 },
                 {
@@ -254,7 +292,9 @@
                     "s3:DeleteObject"
                   ],
                   "Resource": [
-                    { "Fn::Sub": "arn:aws:s3:::wecare-digital-get/secure/Invoice/customer_invoice/*" }
+                    {
+                      "Fn::Sub": "arn:aws:s3:::wecare-digital-get/secure/Invoice/customer_invoice/*"
+                    }
                   ]
                 },
                 {
@@ -264,7 +304,9 @@
                     "s3:ListBucket"
                   ],
                   "Resource": [
-                    { "Fn::Sub": "arn:aws:s3:::wecare-digital-get" }
+                    {
+                      "Fn::Sub": "arn:aws:s3:::wecare-digital-get"
+                    }
                   ],
                   "Condition": {
                     "StringLike": {
@@ -382,9 +424,9 @@
             "Ref": "CodeS3Key"
           }
         },
-        "Description": "Customer checkout: AWS-native catalog pricing, atomic stock reservation, readiness gate and PaymentAttempt.",
-        "Timeout": 20,
-        "MemorySize": 256,
+        "Description": "Unified commerce runtime: checkout, PaymentAttempt, order finalization and invoice delivery.",
+        "Timeout": 60,
+        "MemorySize": 512,
         "Environment": {
           "Variables": {
             "PAYMENT_ATTEMPTS_TABLE": "stack-wecare-digital-PaymentAttemptsTable",
@@ -399,7 +441,21 @@
             "PRODUCTS_TABLE": "stack-wecare-digital-ProductsTable",
             "CHECKOUT_MODE": "AWS_NATIVE",
             "CATALOG_SOURCE": "aws",
-            "NATIVE_STOCK_RESERVATION_ENABLED": "true"
+            "NATIVE_STOCK_RESERVATION_ENABLED": "true",
+            "INVOICES_TABLE": "stack-wecare-digital-InvoicesTable",
+            "INVOICE_ITEMS_TABLE": "stack-wecare-digital-InvoiceItemsTable",
+            "INVOICE_SEQ_TABLE": "stack-wecare-digital-InvoiceSequenceTable",
+            "INVOICE_ASSETS_TABLE": "stack-wecare-digital-InvoiceAssetsTable",
+            "INVOICE_DELIVERY_TABLE": "stack-wecare-digital-InvoiceDeliveryLogTable",
+            "PAYMENTS_TABLE": "stack-wecare-digital-PaymentsTable",
+            "MEDIA_BUCKET": "wecare-digital-get",
+            "CDN_DOMAIN": "wecare.digital/get",
+            "WA_PAY_TEMPLATE": "wecare_whatapp_native_pay_template",
+            "WA_INVOICE_TEMPLATE": "wecare_default_invoice_image_template",
+            "ADMIN_MFA_REQUIRED": "true",
+            "LOG_LEVEL": "INFO",
+            "REFUND_INITIATION_ENABLED": "false",
+            "OUTBOUND_FUNCTION": "wecare-outbound-whatsapp:live"
           }
         },
         "Tags": [
@@ -411,6 +467,9 @@
             "Key": "Purpose",
             "Value": "Checkout"
           }
+        ],
+        "Layers": [
+          "arn:aws:lambda:us-east-1:775261844268:layer:pillow-python312:2"
         ]
       }
     },

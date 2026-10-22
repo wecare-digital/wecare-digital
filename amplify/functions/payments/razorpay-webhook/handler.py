@@ -2536,7 +2536,7 @@ def _post_payment_handler(payment_id: str, contact: str,
         }
 
         inv_response = lambda_client.invoke(
-            FunctionName='wecare-invoice-engine',
+            FunctionName='wecare-checkout:live',
             InvocationType='RequestResponse',
             Payload=json.dumps(invoice_payload),
         )
@@ -2643,7 +2643,7 @@ def _generate_invoice_assets(invoice_id: str, request_id: str) -> None:
             'body': json.dumps({'invoiceId': invoice_id}),
         }
         img_response = lambda_client.invoke(
-            FunctionName='wecare-invoice-engine',
+            FunctionName='wecare-checkout:live',
             InvocationType='RequestResponse',
             Payload=json.dumps(img_payload),
         )
@@ -2715,7 +2715,7 @@ def _deliver_invoice_on_whatsapp(invoice_id: str, contact: str, phone_number_id:
                                                             channel='whatsapp-dispatch') or {}
             return previous.get('deliveryStatus') == order_keys.DELIVERY_CONFIRMED
         response = lambda_client.invoke(
-            FunctionName='wecare-invoice-engine:live', InvocationType='RequestResponse',
+            FunctionName='wecare-checkout:live', InvocationType='RequestResponse',
             Payload=json.dumps({'rawPath': f'/invoices/{invoice_id}/send-whatsapp',
                 'requestContext': {'http': {'method': 'POST'}},
                 'pathParameters': {'invoiceId': invoice_id},

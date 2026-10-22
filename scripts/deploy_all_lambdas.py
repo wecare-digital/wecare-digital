@@ -78,6 +78,7 @@ FUNCTIONS = ROOT / "amplify" / "functions"
 SHARED = FUNCTIONS / "shared"
 LAMBDA_UTILS = SHARED / "lambda_utils"
 STATIC_KB = SHARED / "static_knowledge_base.py"
+PILLOW_LAYER_ARN = "arn:aws:lambda:us-east-1:775261844268:layer:pillow-python312:2"
 
 # Fixed timestamp so identical content yields an identical CodeSha256.
 ZIP_DATE = (2026, 1, 1, 0, 0, 0)
@@ -100,6 +101,11 @@ class Spec:
         standalone: bool = False,
         extra_dirs: Sequence[str] = (),
         extra_files: Sequence[str] = (),
+        external_dirs: Sequence[Tuple[str, str]] = (),
+        external_files: Sequence[Tuple[str, str]] = (),
+        required_layers: Sequence[str] = (),
+        required_memory: Optional[int] = None,
+        required_timeout: Optional[int] = None,
         provisioned_by: str = "",
     ) -> None:
         self.name = name
@@ -120,6 +126,14 @@ class Spec:
         self.standalone = standalone
         self.extra_dirs = list(extra_dirs)
         self.extra_files = list(extra_files)
+        # (source path relative to amplify/functions, destination path in the zip).
+        # Used only when two runtimes temporarily share an exact implementation/asset
+        # during a strangler migration; avoids source copies that can drift.
+        self.external_dirs = list(external_dirs)
+        self.external_files = list(external_files)
+        self.required_layers = list(required_layers)
+        self.required_memory = required_memory
+        self.required_timeout = required_timeout
 
     @property
     def handler_file(self) -> Path:
@@ -225,6 +239,11 @@ SPECS: List[Spec] = [
         "wecare-checkout",
         "ecommerce/checkout",
         extra_files=["invoice_engine.py"],
+        external_files=[("payments/invoice-engine/receipt_layout.py", "receipt_layout.py")],
+        external_dirs=[("payments/invoice-engine/fonts", "fonts")],
+        required_layers=[PILLOW_LAYER_ARN],
+        required_memory=512,
+        required_timeout=60,
         provisioned_by="python scripts/provision_checkout.py",
     ),
     # The customer's own order history and profile summary, read-only. One Query on the sparse
@@ -328,7 +347,6 @@ SPECS: List[Spec] = [
         "wecare-whatsapp-business-api",
         "messaging/whatsapp-business-api",
         extra_dirs=["flows"],
-        extra_files=["service_api.py"],
     ),
     Spec("wecare-waba-management", "messaging/waba-management"),
     Spec("wecare-media-cleanup", "messaging/media-cleanup"),
@@ -495,6 +513,19 @@ def build_zip(spec: Spec) -> Tuple[bytes, Dict[str, bytes]]:
             if not extra.is_file():
                 raise FileNotFoundError(f"missing extra file: {extra}")
             members[rel] = extra.read_bytes()
+
+        for source_rel, dest_rel in spec.external_dirs:
+            extra = FUNCTIONS / source_rel
+            if not extra.is_dir():
+                raise FileNotFoundError(f"missing external dir: {extra}")
+            for path in _iter_dir(extra):
+                members[f"{dest_rel}/{path.relative_to(extra).as_posix()}"] = path.read_bytes()
+
+        for source_rel, dest_rel in spec.external_files:
+            extra = FUNCTIONS / source_rel
+            if not extra.is_file():
+                raise FileNotFoundError(f"missing external file: {extra}")
+            members[dest_rel] = extra.read_bytes()
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as archive:
@@ -848,9 +879,35 @@ def main() -> int:
             failures.append(spec.name)
             continue
 
+        current_layer_arns = [layer["Arn"] for layer in (current.get("Layers") or [])]
+        missing_layers = [arn for arn in spec.required_layers if arn not in current_layer_arns]
+        if missing_layers:
+            if args.dry_run:
+                print("    WOULD ADD LAYER(S): " + ", ".join(missing_layers))
+            else:
+                wanted_layers = current_layer_arns + missing_layers
+                lam.update_function_configuration(FunctionName=spec.name, Layers=wanted_layers)
+                lam.get_waiter("function_updated_v2").wait(FunctionName=spec.name)
+                current = lam.get_function_configuration(FunctionName=spec.name)
+                current_layer_arns = [layer["Arn"] for layer in (current.get("Layers") or [])]
+
+        runtime_changes = {}
+        if spec.required_memory is not None and current.get("MemorySize") != spec.required_memory:
+            runtime_changes["MemorySize"] = spec.required_memory
+        if spec.required_timeout is not None and current.get("Timeout") != spec.required_timeout:
+            runtime_changes["Timeout"] = spec.required_timeout
+        if runtime_changes:
+            if args.dry_run:
+                print("    WOULD UPDATE RUNTIME: " + ", ".join(
+                    f"{key}={value}" for key, value in sorted(runtime_changes.items())))
+            else:
+                lam.update_function_configuration(FunctionName=spec.name, **runtime_changes)
+                lam.get_waiter("function_updated_v2").wait(FunctionName=spec.name)
+                current = lam.get_function_configuration(FunctionName=spec.name)
+
         provided: frozenset = frozenset()
-        for layer in current.get("Layers") or []:
-            provided |= layer_modules(lam, layer["Arn"])
+        for arn in sorted(set(current_layer_arns) | set(spec.required_layers)):
+            provided |= layer_modules(lam, arn)
 
         errors, warnings = validate(spec, members, provided)
         errors += validate_handler(members, current.get("Handler", ""))
