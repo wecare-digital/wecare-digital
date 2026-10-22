@@ -24,36 +24,32 @@ JSON key or Google API key is accepted.
 GOOGLE_CLOUD_PROJECT=wecaredigitalbw
 WEATHER_INSIGHTS_DATASET=weather_insights
 BQ_LOCATION=US
-BQ_MAX_BYTES_BILLED=134217728
+BQ_MAX_BYTES_BILLED_30D=1200000000
+BQ_MAX_BYTES_BILLED_1Y=9500000000
+BQ_MAX_BYTES_BILLED_5Y=40000000000
 ALLOWED_ORIGINS=https://wecare.digital,https://www.wecare.digital
 ```
 
-`WEATHER_INSIGHTS_TABLE` is optional when the linked dataset contains exactly one table/view.
-If the dataset contains more than one, set the fully qualified table:
+The subscribed India listing currently exposes one linked view:
 
 ```
-WEATHER_INSIGHTS_TABLE=publisher_or_subscriber_project.weather_insights.table_name
+wecaredigitalbw.weather_insights.weather_history_in
 ```
 
-The adapter only auto-detects unit-explicit columns. If Google's experimental schema uses
-different names, set these after inspecting the linked table:
-
-```
-WEATHER_INSIGHTS_TIME_COLUMN=observed_at
-WEATHER_INSIGHTS_LAT_COLUMN=latitude
-WEATHER_INSIGHTS_LNG_COLUMN=longitude
-WEATHER_INSIGHTS_TEMP_C_COLUMN=temperature_c
-WEATHER_INSIGHTS_RAIN_MM_COLUMN=precipitation_mm
-WEATHER_INSIGHTS_HUMIDITY_PCT_COLUMN=relative_humidity_pct
-```
-
-Nested BigQuery field paths such as `location.latitude` are accepted.
+The adapter auto-detects Google's current schema: `forecast_time`, `geography`,
+`temperature_c`, `qpf_mm`, and `relative_humidity_percent`. If the experimental schema
+changes later, the corresponding `WEATHER_INSIGHTS_*_COLUMN` environment overrides remain
+available. Nested field paths are accepted.
 
 ## Cost guards
 
 - BigQuery query cache is enabled.
-- Each query has a hard `maximumBytesBilled` cap (128 MiB by default).
-- Requests are cached in-process for six hours by 0.1-degree location cell and range.
+- Each range has its own hard `maximumBytesBilled` cap. Current defaults are 1.2 GB for
+  30D, 9.5 GB for 1Y, and 40 GB for 5Y, based on dry runs against the linked India view.
+- Requests are cached in-process for 24 hours by location and range.
+- The UI defaults to 30D; 1Y and 5Y are explicit user choices, so the most expensive query is
+  never fired merely by opening the Weather tab.
+- BigQuery query cache remains enabled for repeated identical requests.
 - Per-instance request rate is limited.
 - Deploy Cloud Run with `--max-instances=1` initially while validating actual bytes scanned.
 
@@ -67,13 +63,13 @@ placeholder image. To use that service for this adapter after the Analytics Hub 
 exists:
 
 ```bash
+# Run from the repository root.
 gcloud run deploy wecare-digital \
-  --source gcp/vayulok-weather-insights \
+  --source ./gcp/vayulok-weather-insights \
   --project wecaredigitalbw \
   --region asia-south1 \
-  --allow-unauthenticated \
   --max-instances 1 \
-  --set-env-vars GOOGLE_CLOUD_PROJECT=wecaredigitalbw,WEATHER_INSIGHTS_DATASET=weather_insights,BQ_LOCATION=US,BQ_MAX_BYTES_BILLED=134217728,ALLOWED_ORIGINS=https://wecare.digital
+  --set-env-vars GOOGLE_CLOUD_PROJECT=wecaredigitalbw,WEATHER_INSIGHTS_DATASET=weather_insights,BQ_LOCATION=US,ALLOWED_ORIGINS=https://wecare.digital
 ```
 
 Before public traffic, grant the Cloud Run runtime service account the minimum BigQuery job
@@ -94,3 +90,15 @@ NEXT_PUBLIC_VAYULOK_INSIGHTS_URL=<Cloud Run service URL>
 ```
 
 and redeploy the `stack` branch so the static VayuLok bundle receives the endpoint.
+
+
+## Verified India listing
+
+The Analytics Hub subscription is active in `US`, the linked dataset type is `LINKED`,
+and the published view is `weather_history_in`. The linked dataset carries
+`RESTRICTED_DATA_EGRESS`, so this service queries it in place and returns only aggregate JSON;
+it does not copy or export the publisher dataset.
+
+The listing documentation states historical availability starts in 2024. The public UI therefore
+shows the actual returned coverage dates instead of claiming a full five calendar years when the
+provider does not currently supply them.
