@@ -145,16 +145,12 @@ def _seed(fake, *, paid=True, order_status=None, phone=PHONE, reference=REFERENC
     return inv
 
 
-def _send(engine, fake, lam, *, target, phone_id=WABA1, description='', invoice_result=None):
-    if invoice_result is None:
-        invoice_result = {'statusCode': 200, 'body': json.dumps({'status': 'sent'})}
-    with patch.object(engine, 'dynamodb') as ddb, patch.object(engine, 'lambda_client', lam), \
-            patch.object(engine, 'send_invoice_whatsapp', return_value=invoice_result) as invoice_send:
+def _send(engine, fake, lam, *, target, phone_id=WABA1, description=''):
+    with patch.object(engine, 'dynamodb') as ddb, patch.object(engine, 'lambda_client', lam):
         ddb.Table.side_effect = fake.Table
         with patch.object(engine, '_lookup_contact_by_phone',
                           return_value={'contactId': 'contact-ost'}):
-            response = engine.send_order_status(INVOICE_ID, target, description, phone_id, 'req-ost')
-    return response, invoice_send
+            return engine.send_order_status(INVOICE_ID, target, description, phone_id, 'req-ost')
 
 
 def _status(resp):
@@ -169,29 +165,30 @@ class TestTheGuardedRoute:
     def test_shipped_on_a_paid_processing_order_sends_and_records(self, engine, fake):
         _seed(fake, order_status='processing')
         lam = _RecordingLambda(status=200)
-        resp, invoice_send = _send(engine, fake, lam, target='shipped')
+        resp = _send(engine, fake, lam, target='shipped')
         assert _status(resp) == 200, resp
         assert _body(resp)['orderStatus'] == 'shipped'
-        # No separate Meta order-status message is sent. The customer-facing message is the
-        # approved invoice-image template sent by send_invoice_whatsapp below.
-        assert lam.invokes == []
-        # The local fulfilment row advances before invoice-template delivery.
+        # The outbound Lambda was invoked with the isOrderStatus envelope carrying the wire word.
+        payloads = lam.sent_payloads()
+        assert len(payloads) == 1
+        assert payloads[0]['isOrderStatus'] is True
+        assert payloads[0]['orderStatusDetails']['order_status'] == 'shipped'
+        assert payloads[0]['orderStatusDetails']['reference_id'] == REFERENCE
+        # The row advanced only after the send succeeded.
         row = fake.Table(INVOICES).get_item(Key={'invoiceId': INVOICE_ID})['Item']
         assert row['orderStatus'] == 'shipped'
-        invoice_send.assert_called_once_with(INVOICE_ID, PHONE, WABA1, 'req-ost', force=True)
-        assert _body(resp)['invoiceTemplate'] == 'wecare_default_invoice_image_template'
 
     def test_a_row_with_no_recorded_status_defaults_to_processing(self, engine, fake):
         # Capture set processing even if the attribute was never written; shipped is legal.
         _seed(fake, order_status=None)
         lam = _RecordingLambda(status=200)
-        resp, invoice_send = _send(engine, fake, lam, target='shipped')
+        resp = _send(engine, fake, lam, target='shipped')
         assert _status(resp) == 200, resp
 
     def test_an_unpaid_order_cannot_be_fulfilled(self, engine, fake):
         _seed(fake, paid=False)
         lam = _RecordingLambda()
-        resp, invoice_send = _send(engine, fake, lam, target='shipped')
+        resp = _send(engine, fake, lam, target='shipped')
         assert _status(resp) == 400
         assert _body(resp)['code'] == 'ORDER_NOT_PAID'
         assert lam.invokes == []  # nothing sent
@@ -199,7 +196,7 @@ class TestTheGuardedRoute:
     def test_an_illegal_transition_is_refused_with_a_named_reason(self, engine, fake):
         _seed(fake, order_status='completed')
         lam = _RecordingLambda()
-        resp, invoice_send = _send(engine, fake, lam, target='shipped')
+        resp = _send(engine, fake, lam, target='shipped')
         assert _status(resp) == 409
         assert _body(resp)['code'] == 'ORDER_STATUS_TRANSITION_INVALID'
         assert lam.invokes == []
@@ -207,7 +204,7 @@ class TestTheGuardedRoute:
     def test_resending_the_same_status_is_refused(self, engine, fake):
         _seed(fake, order_status='shipped')
         lam = _RecordingLambda()
-        resp, invoice_send = _send(engine, fake, lam, target='shipped')
+        resp = _send(engine, fake, lam, target='shipped')
         assert _status(resp) == 409
         assert _body(resp)['code'] == 'ORDER_STATUS_UNCHANGED'
         assert lam.invokes == []
@@ -216,7 +213,7 @@ class TestTheGuardedRoute:
         _seed(fake, order_status='processing')
         lam = _RecordingLambda()
         for bad in ('pending', 'canceled', 'nonsense'):
-            resp, invoice_send = _send(engine, fake, lam, target=bad)
+            resp = _send(engine, fake, lam, target=bad)
             assert _status(resp) == 400, bad
             assert _body(resp)['code'] == 'ORDER_STATUS_NOT_ALLOWED', bad
         assert lam.invokes == []
@@ -224,41 +221,31 @@ class TestTheGuardedRoute:
     def test_only_a_payment_waba_may_send(self, engine, fake):
         _seed(fake, order_status='processing')
         lam = _RecordingLambda()
-        resp, invoice_send = _send(engine, fake, lam, target='shipped', phone_id=WABA2)
+        resp = _send(engine, fake, lam, target='shipped', phone_id=WABA2)
         assert _status(resp) == 409
         assert _body(resp)['code'] == wpr.WA_PAY_SENDER_NOT_PERMITTED
         assert lam.invokes == []
 
-    def test_no_separate_meta_order_status_message_is_sent(self, engine, fake):
+    def test_a_meta_rejection_does_not_advance_the_recorded_status(self, engine, fake):
         _seed(fake, order_status='processing')
-        lam = _RecordingLambda(status=400)
-        resp, invoice_send = _send(engine, fake, lam, target='shipped')
-        assert _status(resp) == 200
-        assert lam.invokes == []
-        invoice_send.assert_called_once_with(INVOICE_ID, PHONE, WABA1, 'req-ost', force=True)
-
-    def test_description_does_not_create_a_second_customer_message(self, engine, fake):
-        _seed(fake, order_status='processing')
-        lam = _RecordingLambda(status=200)
-        _response, invoice_send = _send(engine, fake, lam, target='shipped',
-              description='Shipped via BlueDart, AWB 12345.')
-        assert lam.invokes == []
-        invoice_send.assert_called_once_with(INVOICE_ID, PHONE, WABA1, 'req-ost', force=True)
-
-    def test_invoice_failure_reports_partial_success_after_status_applied(self, engine, fake):
-        _seed(fake, order_status='processing')
-        lam = _RecordingLambda(status=200)
-        resp, invoice_send = _send(engine, fake, lam, target='shipped', invoice_result={
-            'statusCode': 500, 'body': json.dumps({'status': 'failed'})})
+        lam = _RecordingLambda(status=400)  # Meta refused (e.g. 2046)
+        resp = _send(engine, fake, lam, target='shipped')
         assert _status(resp) == 502
-        body = _body(resp)
-        assert body['code'] == 'ORDER_STATUS_INVOICE_SEND_FAILED'
-        assert body['orderStatusApplied'] is True
-        assert body['orderStatus'] == 'shipped'
-        invoice_send.assert_called_once_with(INVOICE_ID, PHONE, WABA1, 'req-ost', force=True)
+        assert _body(resp)['code'] == 'ORDER_STATUS_REJECTED'
+        # The row still reads `processing`: the wire is the authority.
+        row = fake.Table(INVOICES).get_item(Key={'invoiceId': INVOICE_ID})['Item']
+        assert row['orderStatus'] == 'processing'
+
+    def test_a_custom_description_rides_through_to_the_customer(self, engine, fake):
+        _seed(fake, order_status='processing')
+        lam = _RecordingLambda(status=200)
+        _send(engine, fake, lam, target='shipped',
+              description='Shipped via BlueDart, AWB 12345.')
+        detail = lam.sent_payloads()[0]['orderStatusDetails']
+        assert detail['description'] == 'Shipped via BlueDart, AWB 12345.'
 
     def test_a_missing_invoice_is_404(self, engine, fake):
         lam = _RecordingLambda()
-        resp, invoice_send = _send(engine, fake, lam, target='shipped')
+        resp = _send(engine, fake, lam, target='shipped')
         assert _status(resp) == 404
         assert lam.invokes == []
