@@ -101,7 +101,6 @@ const STATUS_FILTERS = [
    panel and the dues table, so each one states its own flex basis rather than a width. */
 const DETAIL_SELECT_STYLE: React.CSSProperties = { flex: 1 };
 const DUES_PHONE_SELECT_STYLE: React.CSSProperties = { flex: '0 0 180px' };
-const DUES_PG_SELECT_STYLE: React.CSSProperties = { flex: '0 0 130px' };
 const badgeClass = ( inv: Invoice ) => inv.status === 'paid' || inv.paymentStatus === 'captured' ? 'success' : inv.status === 'cancelled' ? 'danger' : 'muted';
 const fmtDate = ( ts: number ) => {
   if ( !ts ) return '\u2014';
@@ -279,7 +278,6 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
   const [ selInvoice, setSelInvoice ] = useState<Invoice | null>( null );
   const [ deliveryLogs, setDeliveryLogs ] = useState<InvoiceDeliveryLog[]>( [] );
   const [ actionLoading, setActionLoading ] = useState( '' );
-  const [ paymentGateway, setPaymentGateway ] = useState( 'razorpay' );
   const goodsType = 'physical-goods' as const;
   /* WABA1, the only number permitted to take a payment (`wa_payment_request.PAYMENT_SENDERS`).
      This defaulted to WABA2, so every staff send from a freshly loaded page was refused
@@ -452,7 +450,6 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
         shipping: parseFloat( invForm.shipping ) || 0,
         gstRate: config.default_gst_rate,
         purpose: DEFAULT_BRAND, orderId: invForm.orderId, gstin: config.gstin,
-        preferredGateway: paymentGateway,
         // No discount is sent: the invoice engine auto-applies the standalone Delight policy
         // (0.5% up to Rs50) server-side. There is no coupon code and no manual adjustment to pass.
       };
@@ -517,19 +514,8 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
   const PHONE_OPTIONS = [
     { id: 'phone-number-id-waba1-direct-1016149501586345', label: '+91 93309 94400' },
   ];
-  // PayU removed 2026-08-23 - no PayU payment configuration exists on either
-  // WABA. Both WABAs expose only WECAREDIGITAL (Razorpay) and WECAREUPI.
-  const PG_OPTIONS = [
-    { id: 'razorpay', label: 'Razorpay' },
-  ];
-  /*
-   * The same two lists in the shape Select takes - `id` becomes `value`, nothing else moves.
-   * Derived here beside the arrays they come from, which are themselves rebuilt per render.
-   * The phone id is the Meta phone-number id the payment link is sent FROM, so the value set
-   * is fixed by the account rather than by this page.
-   */
+  /* The phone id is the Meta phone-number id the payment template is sent FROM. */
   const phoneSelectOptions: SelectOption[] = PHONE_OPTIONS.map( p => ( { value: p.id, label: p.label } ) );
-  const pgSelectOptions: SelectOption[] = PG_OPTIONS.map( pg => ( { value: pg.id, label: pg.label } ) );
   /* `brandOptions` (and the "— Select —" empty row it opened with) stood here and is GONE with
      the two Brand choosers it fed: `purposes` is the single entry WECARE.DIGITAL, so the list
      could only ever offer one brand and a placeholder. `config.purposes` is still read by the
@@ -891,10 +877,8 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                         options={ phoneSelectOptions } />
                     </div>
                     <div className="form-group">
-                      <label>Payment Gateway</label>
-                      <Select ariaLabel="Payment gateway" value={ paymentGateway }
-                        onChange={ v => setPaymentGateway( v ) }
-                        options={ pgSelectOptions } />
+                      <label>WhatsApp payment</label>
+                      <span>WECAREDIGITAL · Razorpay · ORDER_DETAILS template</span>
                     </div>
                     <div className="form-group">
                       <label>Goods Type</label>
@@ -1045,12 +1029,6 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                               onChange={ v => setSendPhone( v ) }
                               options={ phoneSelectOptions } style={ DETAIL_SELECT_STYLE } />
                           </div>
-                          <div style={ { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 } }>
-                            <label style={ { fontSize: 'var(--text-xs)', fontWeight: 500, whiteSpace: 'nowrap' } }>PG</label>
-                            <Select ariaLabel="Payment gateway" value={ paymentGateway }
-                              onChange={ v => setPaymentGateway( v ) }
-                              options={ pgSelectOptions } style={ DETAIL_SELECT_STYLE } />
-                          </div>
                           <Button variant="primary" size="sm" loading={ actionLoading === 'send' } onClick={ () => doSendPaymentLink( selInvoice ) }>
                             { selInvoice.status === 'pending_payment' ? 'Retry payment request' : 'Send payment request' }
                           </Button>
@@ -1150,9 +1128,6 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                             <Select ariaLabel="Send from" value={ sendPhone }
                               onChange={ v => setSendPhone( v ) }
                               options={ phoneSelectOptions } style={ DUES_PHONE_SELECT_STYLE } />
-                            <Select ariaLabel="Payment gateway" value={ paymentGateway }
-                              onChange={ v => setPaymentGateway( v ) }
-                              options={ pgSelectOptions } style={ DUES_PG_SELECT_STYLE } />
                             <Button variant="primary" size="sm" loading={ actionLoading === 'send' } onClick={ () => doSendPaymentLink( inv ) }>Send</Button>
                           </div>
                         </td>
