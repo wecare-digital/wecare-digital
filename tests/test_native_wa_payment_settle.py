@@ -666,7 +666,8 @@ def test_scheduled_reconciliation_uses_the_saved_contact_linker(webhook, monkeyp
     }
     reconcile_metrics.assert_called_once_with(
         orders=webhook.dynamodb.Table.return_value,
-        contacts=webhook.dynamodb.Table.return_value)
+        contacts=webhook.dynamodb.Table.return_value,
+        attempts=webhook.dynamodb.Table.return_value)
     emit_metrics.assert_called_once_with(metrics, 'local')
 
     assert webhook.handler({

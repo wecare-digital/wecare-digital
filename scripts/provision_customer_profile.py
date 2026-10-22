@@ -104,6 +104,8 @@ def expected_role_policy(acct=None):
          "Resource":[f"arn:aws:dynamodb:{REGION}:{acct}:table/stack-wecare-digital-OrderTable/index/customerPhone"]},
         {"Sid":"LinkContactOrders","Effect":"Allow","Action":["dynamodb:UpdateItem"],
          "Resource":[f"arn:aws:dynamodb:{REGION}:{acct}:table/stack-wecare-digital-OrderTable"]},
+        {"Sid":"FinalizeLinkedPaymentAttempt","Effect":"Allow","Action":["dynamodb:UpdateItem"],
+         "Resource":[f"arn:aws:dynamodb:{REGION}:{acct}:table/stack-wecare-digital-PaymentAttemptsTable"]},
         # customer_auth.GetUser validates the caller's own access token.
         {"Sid":"ValidateCustomerToken","Effect":"Allow","Action":["cognito-idp:GetUser"],"Resource":["*"]},
     ]}
