@@ -37,14 +37,32 @@ def amplify():
 
 
 def desired_redirects() -> list[dict]:
-    """Only canonicalise the apex host.
+    """Return the explicitly approved permanent redirects.
 
-    Retired path aliases intentionally fall through to the 404 document. No retired
-    customer-facing path is maintained as a compatibility redirect.
+    The host canonicalisation remains first. The five blog-path redirects below were
+    explicitly approved on 2026-10-22 to consolidate near-duplicate Conversations posts.
+    Other retired paths continue to fall through to the 404 document.
     """
-    return [
-        {"source": "https://wecare.digital", "target": SITE, "status": "301"},
+    blog_merges = [
+        ("sincerity-is-not-the-same-as-authenticity", "sincerity-and-authenticity-are-not-the-same"),
+        ("learning-from-a-teacher-does-not-require-defending-them", "learning-does-not-require-defending-the-teacher"),
+        ("communication-can-interrupt-a-fixed-self-story", "communication-can-interrupt-a-self-story"),
+        ("familiarity-can-feel-safer-than-possibility", "familiarity-can-be-safer-than-possibility"),
+        ("the-word-that-allows-for-yes", "choice-the-word-that-allows-yes"),
     ]
+    rules = [{"source": "https://wecare.digital", "target": SITE, "status": "301"}]
+    for source_slug, target_slug in blog_merges:
+        rules.append({
+            "source": f"/post/{source_slug}",
+            "target": f"/post/{target_slug}/",
+            "status": "301",
+        })
+        rules.append({
+            "source": f"/post/{source_slug}/",
+            "target": f"/post/{target_slug}/",
+            "status": "301",
+        })
+    return rules
 
 
 def is_ours(rule: dict) -> bool:
@@ -88,7 +106,7 @@ def verify() -> int:
     if removable != desired_redirects():
         print("FAIL: redirects differ from the approved home routing policy", file=sys.stderr)
         return 1
-    print("Verified: only www canonicalisation remains; retired paths do not redirect")
+    print("Verified: approved canonical redirects are live and unapproved retired paths do not redirect")
     return 0
 
 
