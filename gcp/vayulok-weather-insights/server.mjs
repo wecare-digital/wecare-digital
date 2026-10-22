@@ -235,6 +235,10 @@ function decodeValue(field, cell) {
     return Number.isFinite(n) ? n : null;
   }
   if (field.type === 'BOOLEAN' || field.type === 'BOOL') return value === true || value === 'true';
+  if (field.type === 'TIMESTAMP') {
+    const seconds = Number(value);
+    if (Number.isFinite(seconds)) return new Date(seconds * 1000).toISOString();
+  }
   return value;
 }
 
