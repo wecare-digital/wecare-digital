@@ -14,9 +14,10 @@ def _bound(contact, customer_id):
 
 
 def _sync_attempt(attempts, row):
-    """Keep the paid PaymentAttempt's projection stage aligned with its finalized Order."""
-    if attempts is None or not row.get('paymentAttemptId') or not row.get('providerPaymentId'):
-        return
+    """Best-effort projection repair; the scheduled sweep retries any transient failure."""
+    if (attempts is None or not row.get('paymentAttemptId')
+            or not row.get('providerPaymentId') or not row.get('orderId')):
+        return False
     try:
         attempts.update_item(
             Key={'paymentAttemptId': row['paymentAttemptId']},
@@ -29,9 +30,11 @@ def _sync_attempt(attempts, row):
                 ':paid': 'PAYMENT_PAID', ':order': row['orderId'],
                 ':provider': row['providerPaymentId'],
             })
-    except Exception as error:
-        if not order_keys.is_conditional_failure(error):
-            raise
+        return True
+    except Exception:
+        # Never turn a successful contact/order ownership write into a failed profile save.
+        # The five-minute reconciler scans finalized orders too and retries this exact repair.
+        return False
 
 
 def _promote(orders, row, contact, customer_id, attempts=None):
