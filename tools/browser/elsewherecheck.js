@@ -157,8 +157,11 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
       if ( await demoCheckout.count() !== 1 ) {
         fail( `${viewport.name}: demo result is missing the cart Checkout control` );
       }
-      if ( ( await demoCheckout.textContent() || '' ).trim() !== 'Checkout' ) {
+      if ( ( await demoCheckout.locator( '.eta-action-label' ).textContent() || '' ).trim() !== 'Checkout' ) {
         fail( `${viewport.name}: demo checkout label is not Checkout` );
+      }
+      if ( await demoCheckout.locator( '.eta-checkout-icon' ).textContent() !== 'shopping_cart_checkout' ) {
+        fail( `${viewport.name}: demo checkout is missing the shared shopping_cart_checkout icon` );
       }
       if ( await demoCheckout.getAttribute( 'href' ) !== '/cart/' ) {
         fail( `${viewport.name}: demo checkout does not point to /cart/` );
