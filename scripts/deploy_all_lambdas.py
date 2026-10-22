@@ -104,6 +104,8 @@ class Spec:
         external_dirs: Sequence[Tuple[str, str]] = (),
         external_files: Sequence[Tuple[str, str]] = (),
         required_layers: Sequence[str] = (),
+        required_memory: Optional[int] = None,
+        required_timeout: Optional[int] = None,
         provisioned_by: str = "",
     ) -> None:
         self.name = name
@@ -130,6 +132,8 @@ class Spec:
         self.external_dirs = list(external_dirs)
         self.external_files = list(external_files)
         self.required_layers = list(required_layers)
+        self.required_memory = required_memory
+        self.required_timeout = required_timeout
 
     @property
     def handler_file(self) -> Path:
@@ -238,6 +242,8 @@ SPECS: List[Spec] = [
         external_files=[("payments/invoice-engine/receipt_layout.py", "receipt_layout.py")],
         external_dirs=[("payments/invoice-engine/fonts", "fonts")],
         required_layers=[PILLOW_LAYER_ARN],
+        required_memory=512,
+        required_timeout=60,
         provisioned_by="python scripts/provision_checkout.py",
     ),
     # The customer's own order history and profile summary, read-only. One Query on the sparse
@@ -884,6 +890,20 @@ def main() -> int:
                 lam.get_waiter("function_updated_v2").wait(FunctionName=spec.name)
                 current = lam.get_function_configuration(FunctionName=spec.name)
                 current_layer_arns = [layer["Arn"] for layer in (current.get("Layers") or [])]
+
+        runtime_changes = {}
+        if spec.required_memory is not None and current.get("MemorySize") != spec.required_memory:
+            runtime_changes["MemorySize"] = spec.required_memory
+        if spec.required_timeout is not None and current.get("Timeout") != spec.required_timeout:
+            runtime_changes["Timeout"] = spec.required_timeout
+        if runtime_changes:
+            if args.dry_run:
+                print("    WOULD UPDATE RUNTIME: " + ", ".join(
+                    f"{key}={value}" for key, value in sorted(runtime_changes.items())))
+            else:
+                lam.update_function_configuration(FunctionName=spec.name, **runtime_changes)
+                lam.get_waiter("function_updated_v2").wait(FunctionName=spec.name)
+                current = lam.get_function_configuration(FunctionName=spec.name)
 
         provided: frozenset = frozenset()
         for arn in sorted(set(current_layer_arns) | set(spec.required_layers)):
