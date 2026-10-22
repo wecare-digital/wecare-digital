@@ -121,6 +121,22 @@ const PROBE = () => {
     const cls = ( x.el.className || '' ).toString().split( /\s+/ ).filter( c => c && !c.startsWith( 'jsx-' ) )[ 0 ] || x.el.tagName;
     return `${cls}:${Math.round( x.b.height )}px`;
   } );
+  const legalFoundation = ( location.pathname === '/terms/' || location.pathname === '/privacy/' ) && vw <= 767
+    ? ( () => {
+      const tocLinks = Array.from( document.querySelectorAll( '.lgd-toc-link' ) )
+        .map( el => r( el ) )
+        .filter( box => box.width > 0 && box.height > 0 );
+      const h2 = document.querySelector( '.lgd-h2' );
+      const h3 = document.querySelector( '.lgd-h3' );
+      const root = document.querySelector( '.lgd' );
+      return {
+        smallToc: tocLinks.filter( box => box.height < 44 ).map( box => Math.round( box.height ) ),
+        h2: h2 ? getComputedStyle( h2 ).fontSize : null,
+        h3: h3 ? getComputedStyle( h3 ).fontSize : null,
+        fontFamily: root ? getComputedStyle( root ).fontFamily : '',
+      };
+    } )()
+    : null;
   const vayuSmallTargets = location.pathname.startsWith( '/vayulok' )
     ? Array.from( document.querySelectorAll( '.vl-live button, .vl-live input, .vl-live summary' ) )
       .map( el => ( { el, b: r( el ) } ) )
@@ -152,6 +168,7 @@ const PROBE = () => {
       };
     } )() : null,
     smallTargets: small,
+    legalFoundation,
     vayuSmallTargets,
   };
 };
@@ -186,6 +203,12 @@ const PROBE = () => {
           if ( x.menu && x.menu.offBottom > 0 ) problems.push( `menu +${x.menu.offBottom}px off-bottom` );
           if ( x.grahakMobileOrder && !x.grahakMobileOrder.ok ) problems.push( `Grahak mobile order: ${x.grahakMobileOrder.detail}` );
           if ( x.smallTargets.length ) problems.push( `tap<44: ${x.smallTargets.join( ',' )}` );
+          if ( x.legalFoundation ) {
+            if ( x.legalFoundation.smallToc.length ) problems.push( `legal toc tap<44: ${x.legalFoundation.smallToc.join( ',' )}` );
+            if ( x.legalFoundation.h2 !== '32px' ) problems.push( `legal h2 ${x.legalFoundation.h2}` );
+            if ( x.legalFoundation.h3 && x.legalFoundation.h3 !== '24px' ) problems.push( `legal h3 ${x.legalFoundation.h3}` );
+            if ( !x.legalFoundation.fontFamily.toLowerCase().includes( 'inter' ) ) problems.push( `legal font ${x.legalFoundation.fontFamily}` );
+          }
           if ( x.vayuSmallTargets.length ) problems.push( `VayuLok tap<44: ${x.vayuSmallTargets.join( ',' )}` );
           if ( problems.length ) { bad.push( `${route} — ${problems.join( ' · ' )}` ); fail++; }
         } catch ( e ) {
