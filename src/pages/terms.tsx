@@ -51,6 +51,7 @@ const TermsPage: React.FC = () => (
       frame="Terms of"
       words={ CYCLE_WORDS }
       sub="The agreement between you and WECARE.DIGITAL when you use our services."
+      mobileFoundation
     >
       {/* THE VISIBLE BREADCRUMB that _app.tsx's BreadcrumbList already describes for this
           route: Home -> the PUBLIC_PAGE_META name ('Terms'). Rendered first inside the hero
