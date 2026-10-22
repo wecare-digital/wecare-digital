@@ -240,15 +240,18 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
     if ( await liveActions.nth( 0 ).isDisabled() ) {
       fail( 'provider contract: fresh complete offer did not unlock checkout' );
     }
-    const liveLabels = await liveActions.allTextContents();
+    const liveLabels = await livePage.locator( '.eta-action-label' ).allTextContents();
     if ( liveLabels.join( '|' ) !== 'Checkout' ) {
       fail( `provider contract: checkout label is wrong (${liveLabels.join( '|' )})` );
     }
     if ( await livePage.locator( '.eta-checkout-label' ).count() !== 0 ) {
       fail( 'provider contract: route-level payment channel chooser should be gone' );
     }
+    if ( await livePage.locator( '.eta-checkout-icon' ).count() !== await liveActions.count() ) {
+      fail( 'provider contract: checkout action is missing the shared shopping_cart_checkout icon' );
+    }
     if ( await livePage.locator( '.eta-action-icon' ).count() !== 0 ) {
-      fail( 'provider contract: the single checkout action should not carry a channel icon' );
+      fail( 'provider contract: the single checkout action should not carry a payment-channel icon' );
     }
     const liveCardBox = await livePage.locator( '.eta-result' ).boundingBox();
     const liveActionBoxes = await liveActions.evaluateAll( nodes => nodes.map( node => {
@@ -271,8 +274,8 @@ const px = value => Number.parseFloat( String( value || '0' ) ) || 0;
     for ( const action of liveActionBoxes ) {
       if ( action.height < 44 ) fail( 'provider contract: checkout button below 44px' );
       if ( px( action.fontSize ) < 16 ) fail( `provider contract: checkout font too small (${action.fontSize})` );
-      // Checkout intentionally diverged from Policy Details in #1211: amber + green contour,
-      // with no underline. The previous assertion still required the older disclosure styling
+      // Checkout intentionally diverges from Policy Details: amber surface + a reserved 2px
+      // contour (transparent until interaction), with no underline. The older assertion required
       // and blocked the browser matrix before device/RTL checks could run.
       if ( action.textDecorationLine !== 'none' ) fail( `provider contract: checkout text decoration drifted (${action.textDecorationLine})` );
       if ( px( action.borderTopWidth ) < 1.5 ) fail( `provider contract: checkout contour is too weak (${action.borderTopWidth})` );
