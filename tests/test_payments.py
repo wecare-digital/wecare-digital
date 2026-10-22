@@ -271,10 +271,17 @@ class TestPairRateLimit:
 
 
 @pytest.mark.parametrize('payment_state', ['captured', 'paid', 'success'])
-def test_retired_order_status_sender_refuses_payment_words(payment_state):
+def test_verified_payment_words_project_to_processing_order_status(payment_state):
+    """Verified payment vocabulary is translated to Meta fulfilment vocabulary before send."""
     import handler
-    response = handler._handle_order_status_send(
-        'message', 'contact', '+919999999999', 'sender',
-        {'reference_id': 'OFFLINE', 'order_status': payment_state, 'amountPaise': 10000}, 'request')
-    assert response['statusCode'] == 409
-    assert json.loads(response['body'])['error'] == 'ORDER_STATUS_INVOICE_TEMPLATE_ONLY'
+    with patch.object(handler, '_send_message', return_value={'messageId': 'wamid.test'}), \
+            patch.object(handler, '_store_message_record'), \
+            patch.object(handler, '_emit_delivery_metric'):
+        response = handler._handle_order_status_send(
+            'message', 'contact', '+919999999999', 'sender',
+            {'reference_id': 'OFFLINE', 'order_status': payment_state, 'amountPaise': 10000},
+            'request')
+    assert response['statusCode'] == 200
+    body = json.loads(response['body'])
+    assert body['orderStatus'] == 'processing'
+    assert body['type'] == 'order_status'

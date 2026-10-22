@@ -245,7 +245,6 @@ def _string_constants(source, within=None):
 #: `order_details` and `review_and_pay`, then reading each hit.
 PAYMENT_SENDER_FILES = [
     FUNCTIONS / 'payments' / 'invoice-engine' / 'handler.py',
-    FUNCTIONS / 'core' / 'secure-files' / 'whatsapp_delivery.py',
     FUNCTIONS / 'ecommerce' / 'checkout' / 'handler.py',
 ]
 
@@ -255,7 +254,7 @@ def test_the_template_name_is_not_duplicated_a_fourth_time():
     from the one the send uses can pass while the send fails, so there is one home per sender and
     no literal anywhere else.
 
-    EXTENDED to the three senders. The previous version inspected only `wa_payment_request` and
+    Measured over the two remaining payment senders after secure-files payment retirement. The previous version inspected only `wa_payment_request` and
     `_build_payment_settings`, which was true but vacuous: neither has ever carried the name, and
     nothing guarded the count in the files that actually send. `checkout/handler.py` carries it
     exactly once, inside `_send_order_details`, which is now the one in-chat sender in that file.
