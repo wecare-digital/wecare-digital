@@ -2356,6 +2356,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
           markerRef.current = new MarkerCtor( {
             position: { lat: place.lat, lng: place.lng },
             map,
+            title: place.name,
             icon: LOCATION_MARKER_ICON,
           } );
         }
@@ -2364,6 +2365,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
       if ( cancelled ) return;
       const marker = markerRef.current as {
         setPosition?: ( p: { lat: number; lng: number } ) => void;
+        setTitle?: ( t: string ) => void;
         setMap?: ( m: unknown ) => void;
       } | null;
 
@@ -2378,6 +2380,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
       }
       marker?.setMap?.( map );
       marker?.setPosition?.( { lat: place.lat, lng: place.lng } );
+      marker?.setTitle?.( place.name );
     };
 
     void syncPlace();
@@ -3722,19 +3725,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                                     </>
                                   ) }
                                 </svg>
-                                { inspected && (
-                                  <span
-                                    className="vl-live-air-history-inspect"
-                                    style={ {
-                                      left: `${( inspectX / W ) * 100}%`,
-                                      top: `${Math.max( 10, ( inspectY / H ) * 100 )}%`,
-                                    } }
-                                  >
-                                    <span>{ formatHistoryPointLabel( inspected.time, locationTime.timeZoneId, locationZoneLabel ) }</span>
-                                  </span>
-                                ) }
-                                {/* Screen-reader announcement of the inspected hour, including the
-                                    AQI value (the visible tooltip shows only the time). */}
+                                {/* Screen-reader announcement of the inspected hour and AQI.
+                                    The visual floating tooltip is intentionally omitted. */}
                                 <span className="vl-live-sr-only" role="status" aria-live="polite">
                                   { inspected
                                     ? `${formatHistoryPointLabel( inspected.time, locationTime.timeZoneId, locationZoneLabel )}, AQI ${Math.round( inspected.aqi )}`
@@ -4523,7 +4515,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live button:focus-visible{outline:3px solid var(--green);outline-offset:3px}
         .vl-live input:focus-visible{outline:none}
         .vl-live-sr,.vl-live-sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
-        .vl-live-shell{max-width:var(--public-content-max);margin:0 auto;padding:0 max(var(--public-page-gutter),var(--safe-right)) max(72px,var(--safe-bottom)) max(var(--public-page-gutter),var(--safe-left))}
+        .vl-live-shell{max-width:1320px;margin:0 auto;padding:0 max(var(--public-page-gutter),var(--safe-right)) max(72px,var(--safe-bottom)) max(var(--public-page-gutter),var(--safe-left))}
         /* The map is now the full-width backdrop; the former two-column workspace
            collapses to a single region that the map shell fills edge to edge. */
         .vl-live-workspace{display:block}
@@ -4535,7 +4527,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-tools-head{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-bottom:16px}
         .vl-live-tools-head h3{margin:0;color:#000;font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight);line-height:var(--vl-card-heading-lh);letter-spacing:var(--vl-card-heading-track)}
         .vl-live-tools-head p{max-width:520px;margin:0;color:var(--body);font-size:var(--vl-body-size);font-weight:var(--vl-body-weight);line-height:var(--vl-body-lh);letter-spacing:var(--vl-body-track)}
-        .vl-live-tool-card{position:relative;min-width:0;flex:1;padding:24px;border:1px solid var(--hair);border-radius:var(--panel-r);background:#fff}
+        .vl-live-tool-card{position:relative;min-width:0;flex:1;padding:24px;border:1px solid var(--hair);border-radius:var(--panel-r);background:#fff;filter:drop-shadow(0 8px 18px rgba(26,58,42,.06))}
         .vl-live-tool-toggle{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:3px;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff}
         .vl-live-tool-toggle-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:var(--tap-min);border:0;border-radius:var(--pill-r);background:transparent;color:var(--green);font-size:16px;font-weight:700;letter-spacing:-.15px}
         .vl-live-tool-toggle-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:rgba(26,58,42,.3)}
@@ -4594,7 +4586,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
            A white, rounded, home-system card floating over the full-bleed map's top-left corner,
            inset so it clears Google's bottom-left logo and bottom-right legal notices.
            Scrollable so a long pollutant list never spills past the map. NO red. */
-        .vl-live-air-card-wrap{position:relative;z-index:12;grid-area:1/1;align-self:start;justify-self:start;width:min(416px,calc(100% - 32px));margin-block:16px 112px;margin-inline:16px 0}
+        .vl-live-air-card-wrap{position:relative;z-index:12;grid-area:1/1;align-self:start;justify-self:start;width:min(416px,calc(100% - 32px));margin-block:16px 112px;margin-inline:16px 0;filter:drop-shadow(0 8px 18px rgba(26,58,42,.10))}
         .vl-live-mobile-snapshot{display:none}
         .vl-live-air-card{position:relative;width:100%;overflow:visible;padding:24px;border:1px solid var(--hair);border-radius:var(--panel-r);background:#fff;box-shadow:none;color:var(--body)}
 
@@ -4620,10 +4612,10 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-air-empty{margin:0;padding:14px 0;color:var(--muted);font-size:var(--vl-subtext-size);font-weight:600;line-height:1.4}
         .vl-live-air-gauge-label{margin:0 0 10px;color:var(--green);font-size:var(--text-xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase}
         .vl-live-air-gauge-row{display:grid;grid-template-columns:4px auto minmax(0,1fr);align-items:center;gap:14px}
-        /* HOME-PAGE ACCENT SPINE. Home uses narrow start-edge accent bars rather than a
-           multi-colour meter inside one item. Keep this decorative and single-hue; the AQI
-           number + category text carry the environmental meaning. */
-        .vl-live-air-aqi-spine{display:block;width:3px;height:64px;border-radius:999px;background:#3da35a}
+        /* HOME-PAGE HUE SPINE, not an AQI severity encoding. These are the exact three
+           accent bars used by .home-flow-list: green / blue / purple. The AQI number +
+           category text carry the meaning, so the decorative hue never has to be decoded. */
+        .vl-live-air-aqi-spine{display:block;width:4px;height:64px;border-radius:999px;background:linear-gradient(180deg,#3da35a 0 33.333%,#2563eb 33.333% 66.666%,#9849e8 66.666% 100%)}
         .vl-live-air-aqi-score{display:flex;min-width:56px;flex-direction:column;align-items:flex-start;justify-content:center}
         .vl-live-air-aqi-number{display:block;color:#000;font-size:30px;font-weight:700;line-height:1;letter-spacing:-.6px}
         .vl-live-air-aqi-unit{display:block;margin-top:4px;color:var(--muted);font-size:var(--text-xs);font-weight:700;line-height:1;letter-spacing:.08em;text-transform:uppercase}
@@ -4838,9 +4830,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-air-history-dot{stroke:#fff;stroke-width:2}
         .vl-live-air-history-inspect-line{stroke:rgba(26,58,42,.42);stroke-width:1;stroke-dasharray:2 2}
         .vl-live-air-history-inspect-dot{fill:var(--lime);stroke:var(--green);stroke-width:2}
-        .vl-live-air-history-inspect{position:absolute;z-index:2;display:flex;flex-direction:column;gap:2px;max-width:150px;transform:translate(-50%,-112%);padding:6px 8px;border:1px solid var(--hair);border-radius:8px;background:#fff;color:var(--green);box-shadow:0 6px 16px rgba(26,58,42,.12);pointer-events:none;white-space:nowrap}
-        .vl-live-air-history-inspect strong{font-size:11.5px;font-weight:700;line-height:1.2}
-        .vl-live-air-history-inspect span{color:var(--muted);font-size:10.5px;font-weight:600;line-height:1.2}
         /* The chart colour walks the no-red ramp from the current point's severity. */
         .vl-live-air-sev-good .vl-live-air-history-line,.vl-live-air-sev-good .vl-live-air-history-dot{stroke:#1a3a2a}
         .vl-live-air-sev-good .vl-live-air-history-area{color:#1a3a2a}
@@ -4862,7 +4851,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
            overflow:hidden, so the Google tiles/overlays and loading/fallback states clip to the
            rounded corners. isolation:isolate keeps the overlay z-stack contained; the height band
            is unchanged. */
-        .vl-live-map-shell{position:relative;display:grid;height:auto;min-height:min(620px,72svh);max-height:none;overflow:visible;border:1px solid var(--hair);border-radius:var(--panel-r);background:#eef1ed;isolation:isolate;contain:layout}
+        .vl-live-map-shell{position:relative;display:grid;height:auto;min-height:min(620px,72svh);max-height:none;overflow:visible;border-radius:var(--panel-r);background:#eef1ed;isolation:isolate;contain:layout}
         .vl-live-map-canvas,.vl-live-map-placeholder{position:absolute;inset:0;width:100%;height:100%;border-radius:var(--panel-r);overflow:hidden}
         .vl-live-map-canvas{opacity:0}
         .vl-live-map-canvas.is-ready{opacity:1}
