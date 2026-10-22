@@ -1353,9 +1353,7 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
         'gstin': body.get('gstin', COMPANY['gstin']),
         'purpose': body.get('purpose', ''),
         'notes': body.get('notes', ''),
-        # Payment routing — which PG config to use when customer triggers via keyword
-        'preferredGateway': body.get('preferredGateway', ''),  # 'razorpay' only
-        'paymentConfiguration': body.get('paymentConfiguration', ''),  # exact Meta config name
+        # WhatsApp payment routing is server-owned: WABA1 + WECAREDIGITAL + Razorpay.
         # Structured address for WhatsApp Payments shipping_info
         'addressLine1': body.get('addressLine1', ''),
         'addressLine2': body.get('addressLine2', ''),
