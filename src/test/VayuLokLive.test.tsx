@@ -1057,7 +1057,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       expect( detail?.textContent ).toContain( 'Cloud' );
     } );
     // Alerts: India has no coverage, so the neutral customer-facing line avoids provider/internal wording.
-    expect( panel.textContent ).toContain( 'Weather alerts aren’t available for this location.' );
+    expect( panel.textContent ).toContain( 'No alerts here.' );
     // Unsupported is a distinct state, not the same as a successful "no alerts" response.
     // No publicAlerts request was made for India.
     expect( fetchSpy.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/publicAlerts' ) ) ).toBe( false );
