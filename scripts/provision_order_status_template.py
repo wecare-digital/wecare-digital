@@ -48,7 +48,7 @@ except ImportError:  # pragma: no cover
 
 REGION = "us-east-1"
 WABA_ID = "2094615664435155"
-TEMPLATES_FUNCTION = "wecare-whatsapp-templates:live"
+TEMPLATES_FUNCTION = "wecare-whatsapp-template-management:live"
 # The UNFILTERED, sub_category-bearing readback the payment/order-status gate itself
 # trusts. Deliberately the SAME route the outbound handler and the release audit use, so
 # --verify proves exactly what production proves — not a laxer view that lists templates
