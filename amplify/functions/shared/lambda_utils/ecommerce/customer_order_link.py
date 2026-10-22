@@ -13,37 +13,68 @@ def _bound(contact, customer_id):
         and bool(contact_key.resolve(contact)) and bool(to_e164(contact.get('phone'))))
 
 
-def _promote(orders, row, contact, customer_id):
-    contact_id = contact_key.resolve(contact)
-    if (not _bound(contact, customer_id) or row.get('contactId') != contact_id
-            or row.get('customerId') != contact_id
-            or row.get('finalizationStage') != 'NEEDS_CUSTOMER_LINK'
-            or row.get('paymentStatus') != 'PAYMENT_PAID'
-            or not row.get('paymentAttemptId') or not row.get('providerPaymentId')):
-        return False
-    values = {':owner': customer_id, ':contact': contact_id,
-        ':waiting': 'NEEDS_CUSTOMER_LINK', ':done': 'ORDER_FINALIZED',
-        ':paid': 'PAYMENT_PAID', ':attempt': row['paymentAttemptId'], ':provider': row['providerPaymentId']}
-    update = 'SET customerId = :owner, finalizationStage = :done'
-    public_uuid = customer_uuid.from_contact(contact)
-    if public_uuid:
-        update += ', customerUuid = :uuid'
-        values[':uuid'] = public_uuid
+def _sync_attempt(attempts, row):
+    """Keep the paid PaymentAttempt's projection stage aligned with its finalized Order."""
+    if attempts is None or not row.get('paymentAttemptId') or not row.get('providerPaymentId'):
+        return
     try:
-        orders.update_item(Key={'orderId': row['orderId']}, UpdateExpression=update,
-            ConditionExpression=('contactId = :contact AND customerId = :contact '
-                'AND finalizationStage = :waiting AND paymentStatus = :paid '
-                'AND paymentAttemptId = :attempt AND providerPaymentId = :provider'),
-            ExpressionAttributeValues=values)
-        return True
+        attempts.update_item(
+            Key={'paymentAttemptId': row['paymentAttemptId']},
+            UpdateExpression='SET finalizationStage = :done',
+            ConditionExpression=(
+                'status = :paid AND orderId = :order AND verifiedProviderPaymentId = :provider '
+                'AND (finalizationStage = :waiting OR finalizationStage = :done)'),
+            ExpressionAttributeValues={
+                ':done': 'ORDER_FINALIZED', ':waiting': 'NEEDS_CUSTOMER_LINK',
+                ':paid': 'PAYMENT_PAID', ':order': row['orderId'],
+                ':provider': row['providerPaymentId'],
+            })
     except Exception as error:
         if not order_keys.is_conditional_failure(error):
             raise
+
+
+def _promote(orders, row, contact, customer_id, attempts=None):
+    contact_id = contact_key.resolve(contact)
+    if (not _bound(contact, customer_id) or row.get('contactId') != contact_id
+            or row.get('paymentStatus') != 'PAYMENT_PAID'
+            or not row.get('paymentAttemptId') or not row.get('providerPaymentId')):
         return False
 
+    promoted = False
+    if row.get('customerId') == contact_id and row.get('finalizationStage') == 'NEEDS_CUSTOMER_LINK':
+        values = {':owner': customer_id, ':contact': contact_id,
+            ':waiting': 'NEEDS_CUSTOMER_LINK', ':done': 'ORDER_FINALIZED',
+            ':paid': 'PAYMENT_PAID', ':attempt': row['paymentAttemptId'], ':provider': row['providerPaymentId']}
+        update = 'SET customerId = :owner, finalizationStage = :done'
+        public_uuid = customer_uuid.from_contact(contact)
+        if public_uuid:
+            update += ', customerUuid = :uuid'
+            values[':uuid'] = public_uuid
+        try:
+            orders.update_item(Key={'orderId': row['orderId']}, UpdateExpression=update,
+                ConditionExpression=('contactId = :contact AND customerId = :contact '
+                    'AND finalizationStage = :waiting AND paymentStatus = :paid '
+                    'AND paymentAttemptId = :attempt AND providerPaymentId = :provider'),
+                ExpressionAttributeValues=values)
+            promoted = True
+            row = {**row, 'customerId': customer_id, 'finalizationStage': 'ORDER_FINALIZED'}
+            if public_uuid:
+                row['customerUuid'] = public_uuid
+        except Exception as error:
+            if not order_keys.is_conditional_failure(error):
+                raise
+            return False
+    elif not (row.get('customerId') == customer_id
+              and row.get('finalizationStage') == 'ORDER_FINALIZED'):
+        return False
 
-def link(*, orders, contact, customer_id):
-    """Promote eligible orders after authenticated profile binding. Phone only discovers rows."""
+    _sync_attempt(attempts, row)
+    return promoted
+
+
+def link(*, orders, contact, customer_id, attempts=None):
+    """Promote eligible orders and keep their paid-attempt projection stage aligned."""
     if not _bound(contact, customer_id):
         return 0
     count = 0
@@ -52,23 +83,23 @@ def link(*, orders, contact, customer_id):
     while True:
         page = orders.query(**kwargs)
         for row in page.get('Items') or []:
-            count += int(_promote(orders, row, contact, customer_id))
+            count += int(_promote(orders, row, contact, customer_id, attempts=attempts))
         last = page.get('LastEvaluatedKey')
         if not last:
             return count
         kwargs['ExclusiveStartKey'] = last
 
 
-def reconcile(*, orders, contacts):
+def reconcile(*, orders, contacts, attempts=None):
     """Scheduled repair covers index lag and profile/projection races. No payment or send.
 
     The profile role cannot scan. Only the existing private webhook worker runs this
     pending-only scan; contact reads are consistent and every ownership write is conditional.
     """
-    return reconcile_metrics(orders=orders, contacts=contacts)['promoted']
+    return reconcile_metrics(orders=orders, contacts=contacts, attempts=attempts)['promoted']
 
 
-def reconcile_metrics(*, orders, contacts, now=None):
+def reconcile_metrics(*, orders, contacts, attempts=None, now=None):
     """`reconcile`, but returning the operational metrics a scheduled sweep should publish.
 
     A sweep can run green while business work piles up or quietly fails, which is the blind spot
@@ -91,7 +122,10 @@ def reconcile_metrics(*, orders, contacts, now=None):
     oldest_created = None
     fields = ['orderId', 'contactId', 'customerId', 'paymentStatus', 'finalizationStage',
               'paymentAttemptId', 'providerPaymentId', 'createdAt']
-    kwargs = {'FilterExpression': Attr('finalizationStage').eq('NEEDS_CUSTOMER_LINK'),
+    # Include finalized rows too so a transient PaymentAttempt sync failure self-heals on the
+    # scheduled sweep. Pending/backlog metrics below still count NEEDS_CUSTOMER_LINK rows only.
+    kwargs = {'FilterExpression': (Attr('finalizationStage').eq('NEEDS_CUSTOMER_LINK')
+                                  | Attr('finalizationStage').eq('ORDER_FINALIZED')),
         'ProjectionExpression': ', '.join(fields), 'Limit': 100, 'ConsistentRead': True}
     while True:
         page = orders.scan(**kwargs)
@@ -104,7 +138,8 @@ def reconcile_metrics(*, orders, contacts, now=None):
             contact = contacts.get_item(Key={'id': cid}, ConsistentRead=True).get('Item') or {}
             try:
                 linked = _promote(orders, row, contact,
-                                  str(contact.get('checkoutCustomerId') or ''))
+                                  str(contact.get('checkoutCustomerId') or ''),
+                                  attempts=attempts)
             except Exception:  # noqa: BLE001 - a raised promotion is a failure to COUNT, not swallow silently
                 failures += 1
                 pending_remaining += 1
@@ -112,7 +147,7 @@ def reconcile_metrics(*, orders, contacts, now=None):
                 continue
             if linked:
                 promoted += 1
-            else:
+            elif row.get('finalizationStage') == 'NEEDS_CUSTOMER_LINK':
                 # Still pending: no account linked yet (the common, benign case), or ineligible.
                 pending_remaining += 1
                 oldest_created = _min_created(oldest_created, row)
