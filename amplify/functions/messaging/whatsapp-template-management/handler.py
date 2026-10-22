@@ -5,7 +5,7 @@ import uuid
 import hashlib
 import hmac
 import boto3
-from lambda_utils.template_media import FIXED_IMAGE_HEADERS
+from lambda_utils.template_media import FIXED_IMAGE_HEADERS, fixed_image_header
 import urllib.request
 import urllib.parse
 import urllib.error
@@ -155,6 +155,275 @@ def _meta_request(url: str, method: str = 'GET', data: bytes = None, headers: di
         raise RuntimeError(f'Meta API {e.code}: {msg}')
 
 
+
+# ── Google Maps Places proxy (location templates) ──────────────────────────
+#
+# ONE GOOGLE KEY, ONE SECRET ID. This read 'wecare/google-maps'; site-language reads
+# 'wecare/google/cloud'. Both secrets hold the SAME key - docs/CREDENTIAL-ROTATION-RUNBOOK.md
+# records one key, `WECARE Unified Google API Key`, with fingerprint sha256:0bd4beb6... present
+# in wecare/google/cloud, wecare/google-api-key AND wecare/google-maps. Three copies of one
+# value, read through two different ids.
+#
+# site-language's own comment already stated the rule this violated: "Do NOT point this at a new
+# secret: a parallel id means rotation updates one copy and consumers keep reading the other."
+# The owner has said they will rotate and update AWS themselves once the project is complete, and
+# with three ids in play that rotation updates one copy and leaves the other consumers on a dead
+# key. So the id is consolidated here BEFORE the rotation rather than after it, which is the only
+# ordering that makes the rotation safe.
+#
+# wecare/google-api-key and wecare/google-maps are now read by NO code. They are not deleted from
+# AWS here - that is an owner action, and deleting a secret is not something a code change should
+# do - but nothing in this repository depends on them any more.
+#
+# THE COMMENT THAT USED TO BE HERE SAID THE KEY IS "never exposed to the browser", AND THAT IS
+# BACKWARDS. The key is a browser key with referrer restrictions, and Google refuses referrer-
+# restricted keys for server-side calls: measured as
+# `REQUEST_DENIED: API keys with referer restrictions cannot be used with this API`. So these
+# Places calls have been failing, not succeeding secretly. The runbook's step 3 is the fix and it
+# needs a SERVER key, which is the one thing "use only one key" cannot satisfy - a referrer-
+# restricted key cannot serve a Lambda, and an unrestricted key must not ship in a public bundle.
+# Repointing the id does not fix that and is not pretending to; it makes the single rotation the
+# owner is planning reach every consumer.
+GOOGLE_SECRET_NAME = os.environ.get('WHATSAPP_TEMPLATES_GOOGLE_SECRET', 'wecare/google/cloud')
+# Same two candidates, and the same reason, as site-language: store_provider_secret.py declares
+# this secret's field as `api_key` while check_secrets_live.py probes it for
+# `unified_google_api_key`. One of them is wrong and the repository cannot settle which, so both
+# are tried. Kept identical to site-language's list on purpose - a test asserts they match.
+GOOGLE_SECRET_FIELDS = tuple(
+    part.strip() for part in os.environ.get(
+        'WHATSAPP_TEMPLATES_GOOGLE_SECRET_FIELD', 'api_key,unified_google_api_key'
+    ).split(',') if part.strip()
+)
+_gmaps_key_cache = {}
+
+
+def _get_gmaps_key() -> str:
+    if 'key' in _gmaps_key_cache:
+        return _gmaps_key_cache['key']
+    key = ''
+    resolved_from = ''
+    failure = ''
+    try:
+        resp = secrets_client.get_secret_value(SecretId=GOOGLE_SECRET_NAME)
+        data = json.loads(resp['SecretString'])
+        if isinstance(data, dict):
+            for candidate in GOOGLE_SECRET_FIELDS:
+                value = (data.get(candidate) or '').strip()
+                if value:
+                    key = value
+                    resolved_from = candidate
+                    break
+        if not key:
+            failure = 'no_candidate_field'
+    except Exception as e:
+        failure = type(e).__name__
+        logger.error(json.dumps({'event': 'gmaps_key_load_error', 'error': str(e)}))
+    # The failure CLASS, and which field answered, so a miss is diagnosable. Field names are not
+    # secrets; `resolved_from` is a literal from the constant tuple above and the key value never
+    # appears in a log expression. AccessDeniedException here is most likely kms:Decrypt on the
+    # CMK rather than GetSecretValue - iam-policies.ts grants GetSecretValue on the wildcard
+    # wecare/*, and no kms:Decrypt grant appears in that file at all.
+    if failure == 'no_candidate_field':
+        logger.error(json.dumps({
+            'event': 'gmaps_key_no_field', 'secret': GOOGLE_SECRET_NAME,
+            'candidates': list(GOOGLE_SECRET_FIELDS)}))
+    elif not failure and resolved_from:
+        logger.info(json.dumps({'event': 'gmaps_key_loaded', 'field': resolved_from}))
+    _gmaps_key_cache['key'] = key
+    return key
+
+
+def _places_new_json(url: str, *, method: str = 'GET', body: dict | None = None,
+                     field_mask: str = '') -> dict:
+    """Call Places API (New) with the credential in a HEADER, never in the URL.
+
+    REPLACES a keyless `_http_get_json(url)` that had exactly two callers, both of
+    which appended `&key={key}` to the URL they passed in. A URL-borne key reaches
+    Google's access logs, any request tracing, and - via the `except Exception as e`
+    paths below - a 502 response body and a CloudWatch log line. The key is now
+    unreachable from the URL by construction, so no caller can reintroduce that:
+    there is no keyless GET helper left to reuse.
+
+    `X-Goog-FieldMask` is sent only when asked for. Place Details (New) requires one;
+    Autocomplete (New) is the documented exception and must not carry it.
+    """
+    key = _get_gmaps_key()
+    headers = {'Accept': 'application/json', 'X-Goog-Api-Key': key}
+    data = None
+    if body is not None:
+        headers['Content-Type'] = 'application/json'
+        data = json.dumps(body).encode()
+    if field_mask:
+        headers['X-Goog-FieldMask'] = field_mask
+    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        return json.loads(resp.read().decode())
+
+
+def _legacy_shape_from_http_error(exc: urllib.error.HTTPError) -> dict:
+    """Map a Places API (New) error body onto the legacy `status` vocabulary.
+
+    `_google_status_problem` below, and the test that pins it, both speak the legacy
+    `status`/`error_message` dialect. A refused credential has to keep arriving in
+    that dialect or the referrer-specific diagnosis stops firing and a refusal looks
+    like an empty result again - the exact regression that function exists to prevent.
+    """
+    try:
+        error = json.loads(exc.read() or b'{}').get('error', {})
+    except (json.JSONDecodeError, OSError, ValueError):
+        error = {}
+    message = str(error.get('message') or '')
+    reasons = [str(d.get('reason') or '') for d in (error.get('details') or [])]
+    if 'API_KEY_HTTP_REFERRER_BLOCKED' in reasons:
+        # Places API (New)'s spelling of the measured refusal. Carry the word
+        # "referer" so _google_status_problem's referrer branch still matches.
+        return {'status': 'REQUEST_DENIED',
+                'error_message': message or ('API keys with referer restrictions cannot be '
+                                             'used with this API')}
+    if exc.code in (401, 403):
+        return {'status': 'REQUEST_DENIED', 'error_message': message}
+    return {'status': 'UNKNOWN_ERROR', 'error_message': message}
+
+
+def _legacy_shape_from_autocomplete(data: dict) -> dict:
+    """Places API (New) `suggestions[]` -> the legacy `predictions[]` dict."""
+    predictions = []
+    for suggestion in data.get('suggestions') or []:
+        prediction = (suggestion or {}).get('placePrediction') or {}
+        predictions.append({
+            'description': ((prediction.get('text') or {}).get('text') or ''),
+            'place_id': prediction.get('placeId') or '',
+        })
+    return {'status': 'OK' if predictions else 'ZERO_RESULTS',
+            'predictions': predictions}
+
+
+def _legacy_shape_from_place_details(data: dict) -> dict:
+    """Places API (New) place resource -> the legacy `result` dict."""
+    location = data.get('location') or {}
+    return {
+        'status': 'OK',
+        'result': {
+            'geometry': {'location': {'lat': location.get('latitude'),
+                                      'lng': location.get('longitude')}},
+            'name': ((data.get('displayName') or {}).get('text') or ''),
+            'formatted_address': data.get('formattedAddress') or '',
+        },
+    }
+
+
+def _google_status_problem(data: dict) -> str:
+    """'' when Google answered normally, else a diagnosis naming the cause.
+
+    WHY THIS EXISTS. Both Places proxies returned HTTP 200 with Google's `status` echoed in the
+    body and an empty result list. So `REQUEST_DENIED` - a refused credential - reached the
+    caller looking exactly like "no matching addresses", and the feature appeared to work badly
+    rather than to be broken. docs/CREDENTIAL-ROTATION-RUNBOOK.md records this as measured:
+    the key these calls use is referrer-restricted, and Google refuses referrer-restricted keys
+    for server-side calls, so REQUEST_DENIED is the EXPECTED answer here until a server key
+    exists. An expected failure that is indistinguishable from an empty result is the worst of
+    both - nobody investigates it and nobody fixes it.
+
+    ZERO_RESULTS stays a success: it is a real, correct answer to a query that matched nothing.
+    """
+    status = str(data.get('status') or '')
+    if status in ('OK', 'ZERO_RESULTS', ''):
+        return ''
+    detail = str(data.get('error_message') or '')
+    if status == 'REQUEST_DENIED' and 'referer' in detail.lower():
+        return ('Google refused the credential: this is a referrer-restricted BROWSER key being '
+                'used server-side, which Google does not allow. A server key is required - see '
+                'step 3 in docs/CREDENTIAL-ROTATION-RUNBOOK.md.')
+    return f'Google returned {status}' + (f': {detail}' if detail else '')
+
+
+def _places_autocomplete(q: str, session_token: str = ''):
+    """Proxy Google Places Autocomplete. Returns [{description, placeId}].
+    A session token bundles autocomplete keystrokes + the final details call
+    into one billable session (cheaper than per-request pricing)."""
+    if not q or len(q.strip()) < 3:
+        return {'statusCode': 200, 'headers': cors_headers(origin), 'body': json.dumps({'predictions': []})}
+    key = _get_gmaps_key()
+    if not key:
+        return _error_response(500, 'Maps key not configured')
+    # Places API (New), POST, key in X-Goog-Api-Key only. Autocomplete (New) takes the
+    # session token in the request BODY, not a query parameter. No regionCode and no
+    # locationBias: the legacy call had neither, and adding one would change which
+    # suggestions a user sees.
+    url = 'https://places.googleapis.com/v1/places:autocomplete'
+    request_body = {'input': q}
+    if session_token:
+        request_body['sessionToken'] = session_token
+    try:
+        try:
+            data = _legacy_shape_from_autocomplete(
+                _places_new_json(url, method='POST', body=request_body))
+        except urllib.error.HTTPError as http_exc:
+            data = _legacy_shape_from_http_error(http_exc)
+        problem = _google_status_problem(data)
+        if problem:
+            logger.error(json.dumps({'event': 'places_autocomplete_denied',
+                                     'status': data.get('status'), 'diagnosis': problem}))
+            return _error_response(502, problem)
+        preds = [{'description': p.get('description'), 'placeId': p.get('place_id')}
+                 for p in data.get('predictions', [])]
+        return {'statusCode': 200, 'headers': cors_headers(origin),
+                'body': json.dumps({'predictions': preds, 'status': data.get('status')})}
+    except Exception as e:
+        logger.error(json.dumps({'event': 'places_autocomplete_error', 'error': str(e)}))
+        return _error_response(502, f'Places autocomplete failed: {e}')
+
+
+def _place_details(place_id: str, session_token: str = ''):
+    """Proxy Google Place Details. Returns {latitude, longitude, name, address}.
+    Pass the same session token used for autocomplete to close the session."""
+    if not place_id:
+        return _error_response(400, 'placeId required')
+    key = _get_gmaps_key()
+    if not key:
+        return _error_response(500, 'Maps key not configured')
+    # Places API (New), GET, key in X-Goog-Api-Key only. A field mask IS required here,
+    # and the session token IS a query parameter on Place Details (New) - it is a
+    # billing-session identifier, not a credential, so it is safe in the URL.
+    url = f'https://places.googleapis.com/v1/places/{urllib.parse.quote(place_id)}'
+    if session_token:
+        url += f'?sessionToken={urllib.parse.quote(session_token)}'
+    try:
+        try:
+            data = _legacy_shape_from_place_details(
+                _places_new_json(url, field_mask='location,displayName,formattedAddress'))
+        except urllib.error.HTTPError as http_exc:
+            data = _legacy_shape_from_http_error(http_exc)
+        problem = _google_status_problem(data)
+        if problem:
+            logger.error(json.dumps({'event': 'place_details_denied',
+                                     'status': data.get('status'), 'diagnosis': problem}))
+            return _error_response(502, problem)
+        r = data.get('result', {})
+        loc = r.get('geometry', {}).get('location', {})
+        place = {
+            'latitude': loc.get('lat'),
+            'longitude': loc.get('lng'),
+            'name': r.get('name', ''),
+            'address': r.get('formatted_address', ''),
+        }
+        if place['latitude'] is None or place['longitude'] is None:
+            # A 200 with no `location` is degenerate rather than an error: Places API (New)
+            # answers HTTP 4xx for a place that does not exist, so this means the resource
+            # came back without the field the mask asked for. The response body keeps
+            # `status: OK` deliberately - it is part of the contract the caller already
+            # reads, and ZERO_RESULTS would not change the HTTP outcome anyway, because
+            # _google_status_problem treats it as success. Make it diagnosable in the log
+            # instead, so a silently coordinate-less location template can be traced.
+            logger.warning(json.dumps({'event': 'place_details_no_location',
+                                       'status': data.get('status')}))
+        return {'statusCode': 200, 'headers': cors_headers(origin),
+                'body': json.dumps({'place': place, 'status': data.get('status')})}
+    except Exception as e:
+        logger.error(json.dumps({'event': 'place_details_error', 'error': str(e)}))
+        return _error_response(502, f'Place details failed: {e}')
+
+
 def handler(event, context):
     global origin
     request_id = context.aws_request_id if context else 'local'
@@ -186,6 +455,14 @@ def handler(event, context):
 
         # Route requests
         if http_method == 'GET':
+            # Compatibility while /whatsapp/templates is consolidated onto this Lambda.
+            action = query_params.get('action', '')
+            if action == 'places-autocomplete':
+                return _places_autocomplete(
+                    query_params.get('q', ''), query_params.get('sessiontoken', ''))
+            if action == 'place-details':
+                return _place_details(
+                    query_params.get('placeId', ''), query_params.get('sessiontoken', ''))
             if '/templates/library' in path:
                 return _list_template_library(waba_id, query_params)
             if '/templates/send-media' in path:
@@ -248,13 +525,38 @@ def _list_templates(waba_id, query_params):
         url += f'&limit={limit}'
         data = _meta_request(url)
         templates = []
-        for t in data.get('data', []):
+        records = list(data.get('data', []))
+        seen_pages = set()
+        next_url = data.get('paging', {}).get('next')
+        while isinstance(next_url, str) and next_url:
+            if next_url in seen_pages:
+                raise ValueError('Repeated template pagination cursor')
+            if urllib.parse.urlparse(next_url).netloc != 'graph.facebook.com':
+                raise ValueError('Invalid template pagination origin')
+            seen_pages.add(next_url)
+            page = _meta_request(next_url)
+            records.extend(page.get('data', []))
+            next_url = page.get('paging', {}).get('next')
+        for t in records:
+            # Return both Meta-native keys (id/name/status/components) and the
+            # legacy *metaTemplateId/templateName/templateStatus* aliases so the
+            # frontend normalizer can resolve every field. Previously only the
+            # three aliases were returned, which dropped `components`, `language`
+            # and `category` — causing template text/preview to render blank and
+            # sends to fail (language defaulted to en_US instead of the real code).
             templates.append({
+                'id': t.get('id'),
                 'metaTemplateId': t.get('id'),
+                'name': t.get('name'),
                 'templateName': t.get('name'),
+                'status': t.get('status'),
                 'templateStatus': t.get('status'),
                 'templateState': template_status.canonical(t.get('status')),
                 'sendable': template_status.is_sendable(t.get('status')),
+                'category': t.get('category'),
+                'language': t.get('language'),
+                'components': t.get('components', []),
+                'fixedHeaderMedia': fixed_image_header(t.get('name', '')),
             })
         return {'statusCode': 200, 'headers': cors_headers(origin), 'body': json.dumps({'templates': templates})}
     except Exception as e:
