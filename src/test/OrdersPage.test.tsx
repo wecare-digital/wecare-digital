@@ -1692,7 +1692,7 @@ describe( '/orders/ — the invoice control', () => {
   beforeEach( () => { flags.invoiceDownload = true; } );
   afterEach( () => { flags.invoiceDownload = false; } );
 
-  const SIGNED = 'https://wecare-digital-get.s3.amazonaws.com/secure/stack/invoices/x.png'
+  const SIGNED = 'https://wecare-digital-get.s3.amazonaws.com/secure/Invoice/customer_invoice/x.png'
     + '?X-Amz-Signature=abc123&X-Amz-Credential=cred';
 
   function invoiceButton ( container: HTMLElement ) {
