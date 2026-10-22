@@ -7,8 +7,8 @@ const read = ( relative: string ) =>
 
 const ruleFor = ( source: string, selector: string ) => {
   // Resolve a standalone selector at the start of a CSS line rather than the same text
-  // nested inside a more-specific rule. For example, ".ps-menu-note{" must not match
-  // ".contribute-link-btn .ps-menu-note{" first.
+  // nested inside a more-specific rule. This keeps helper lookups anchored to the base
+  // widget contract instead of accidentally matching a descendant selector first.
   const escaped = selector.replace( /[.*+?^${}()|[\]\\]/g, '\\$&' );
   const match = new RegExp( `(?:^|\\n)\\s*(${ escaped })` ).exec( source );
   const start = match?.index === undefined
