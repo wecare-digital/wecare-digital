@@ -12,13 +12,6 @@ on:
       - 'requirements-dev.txt'
   pull_request:
     branches: [stack]
-    paths:
-      - '.github/workflows/plivo-verification.yml'
-      - 'scripts/plivo*'
-      - 'amplify/functions/messaging/plivo-answer/**'
-      - 'amplify/functions/shared/lambda_utils/**'
-      - 'tests/test_plivo*'
-      - 'requirements-dev.txt'
   workflow_dispatch:
 
 permissions:
@@ -30,7 +23,7 @@ concurrency:
 
 jobs:
   plivo-tests:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     env:
       AWS_EC2_METADATA_DISABLED: 'true'
