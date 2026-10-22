@@ -2,6 +2,7 @@ name: Public foundation
 
 on:
   pull_request:
+    branches: [ stack ]
   push:
     branches: [ stack ]
   workflow_dispatch:
@@ -84,10 +85,10 @@ jobs:
         run: npm ci --no-audit --no-fund --prefix tools/browser
 
       - name: Install ${{ matrix.browser }} and native dependencies
-        run: node tools/browser/node_modules/playwright-core/cli.js install --with-deps ${{ matrix.browser }}
+        run: node tools/browser/node_modules/playwright-core/cli.js install --with-deps "${{ matrix.browser }}"
 
       - name: Device, touch and 200% reflow matrix
-        run: node tools/browser/devicecheck.js --${{ matrix.browser }}
+        run: node tools/browser/devicecheck.js "--${{ matrix.browser }}"
 
       - name: Frozen foundation + VayuLok RTL matrix
-        run: node tools/browser/rtlcheck.js --${{ matrix.browser }} / /grahak-os/ /vayulok/
+        run: node tools/browser/rtlcheck.js "--${{ matrix.browser }}" / /grahak-os/ /vayulok/
