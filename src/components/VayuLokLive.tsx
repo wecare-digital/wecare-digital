@@ -320,6 +320,16 @@ const HEALTH_PERSONAS: HealthPersonaDefinition[] = [
   { id: 'children', label: 'Children', apiKey: 'children', icon: 'children' },
 ];
 
+function compactAirInfo( value?: string, maxChars = 92 ): string | undefined {
+  if ( typeof value !== 'string' ) return undefined;
+  const clean = value.replace( /\s+/g, ' ' ).trim();
+  if ( !clean ) return undefined;
+  if ( clean.length <= maxChars ) return clean;
+  const cut = clean.slice( 0, maxChars + 1 );
+  const wordBoundary = cut.lastIndexOf( ' ' );
+  return `${cut.slice( 0, wordBoundary > 72 ? wordBoundary : maxChars ).replace( /[,:;\s]+$/, '' )}…`;
+}
+
 // Pollen category 0-5 UPI -> word (Google's universal pollen index).
 function pollenCategory( idx: number ): string {
   if ( idx <= 0 ) return 'None';
@@ -632,6 +642,20 @@ function concUnitLabel( unit?: string ): string {
     case 'MILLIGRAMS_PER_CUBIC_METER': return 'mg/m\u00B3';
     case 'NANOGRAMS_PER_CUBIC_METER': return 'ng/m\u00B3';
     default: return unit || '';
+  }
+}
+
+// Plain-language expansion of the short unit symbol, surfaced as a title/tooltip so a reader who
+// does not know "ppb" or "µg/m³" can still understand the number. Keyed on the short symbol that
+// concUnitLabel produces.
+function unitTermLabel( unitSymbol: string ): string {
+  switch ( unitSymbol ) {
+    case '\u00B5g/m\u00B3': return 'micrograms per cubic metre';
+    case 'mg/m\u00B3': return 'milligrams per cubic metre';
+    case 'ng/m\u00B3': return 'nanograms per cubic metre';
+    case 'ppb': return 'parts per billion';
+    case 'ppm': return 'parts per million';
+    default: return unitSymbol;
   }
 }
 
@@ -1144,6 +1168,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   // to the Elderly persona (index 1) per the reference design. Pure UI state - no fetch.
   const [ healthPersona, setHealthPersona ] = useState( 1 );
   const [ healthExpanded, setHealthExpanded ] = useState( false );
+  const [ pollutantTip, setPollutantTip ] = useState<{ code: string; top: number; left: number; side: 'left' | 'right' | 'top' | 'bottom' } | null>( null );
   // Hourly History: window offset for the prev/next chart navigation. 0 = latest week; a
   // positive value scrolls further back through the loaded airHistory points. Pure UI state.
   const [ historyOffset, setHistoryOffset ] = useState( 0 );
@@ -1318,6 +1343,40 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     return () => ac.abort();
   }, [ place.lat, place.lng, hasSelection ] );
 
+  const openPollutantTip = useCallback( ( code: string, el: HTMLElement ) => {
+    if ( typeof window === 'undefined' ) return;
+    const rect = el.getBoundingClientRect();
+    const gutter = 12;
+    const gap = 12;
+    const width = Math.min( 320, Math.max( 220, window.innerWidth - gutter * 2 ) );
+    const estimatedHeight = Math.min( 208, Math.max( 120, window.innerHeight - gutter * 2 ) );
+    const maxLeft = Math.max( gutter, window.innerWidth - width - gutter );
+    const maxTop = Math.max( gutter, window.innerHeight - estimatedHeight - gutter );
+
+    let left: number;
+    let top: number;
+    let side: 'left' | 'right' | 'top' | 'bottom';
+
+    if ( window.innerWidth <= 700 ) {
+      const below = rect.bottom + gap;
+      const canOpenBelow = below + estimatedHeight <= window.innerHeight - gutter;
+      side = canOpenBelow ? 'bottom' : 'top';
+      left = clamp( rect.left + rect.width / 2 - width / 2, gutter, maxLeft );
+      top = canOpenBelow
+        ? clamp( below, gutter, maxTop )
+        : clamp( rect.top - gap - estimatedHeight, gutter, maxTop );
+    } else {
+      const canOpenRight = rect.right + gap + width <= window.innerWidth - gutter;
+      side = canOpenRight ? 'right' : 'left';
+      left = canOpenRight
+        ? clamp( rect.right + gap, gutter, maxLeft )
+        : clamp( rect.left - width - gap, gutter, maxLeft );
+      top = clamp( rect.top - 16, gutter, maxTop );
+    }
+
+    setPollutantTip( { code, top, left, side } );
+  }, [] );
+
   const clearAlertBoundary = useCallback( () => {
     const map = mapRef.current as { data?: { remove?: ( feature: unknown ) => void } } | null;
     if ( map?.data?.remove ) {
@@ -1380,6 +1439,27 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
       clearAlertBoundary();
     }
   }, [ clearAlertBoundary ] );
+
+  useEffect( () => {
+    if ( !pollutantTip || typeof document === 'undefined' ) return;
+
+    const onPointerDown = ( event: PointerEvent ) => {
+      const target = event.target;
+      if ( !( target instanceof Element ) ) return;
+      if ( target.closest( '.vl-live-air-pollutant-tip' ) || target.closest( '.vl-live-air-pollutant-info' ) ) return;
+      setPollutantTip( null );
+    };
+    const onKeyDown = ( event: KeyboardEvent ) => {
+      if ( event.key === 'Escape' ) setPollutantTip( null );
+    };
+
+    document.addEventListener( 'pointerdown', onPointerDown, true );
+    document.addEventListener( 'keydown', onKeyDown );
+    return () => {
+      document.removeEventListener( 'pointerdown', onPointerDown, true );
+      document.removeEventListener( 'keydown', onKeyDown );
+    };
+  }, [ pollutantTip ] );
 
   useEffect( () => {
     setMapCandidate( null );
@@ -3050,6 +3130,9 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   // Weather phase and the map layers.
   const previewPlace = mapCandidate || place;
   const currentPm25 = air?.pollutants.find( p => p.code === 'pm25' ) || null;
+  const activePollutant = pollutantTip
+    ? air?.pollutants.find( p => p.code === pollutantTip.code ) || null
+    : null;
   const mapActive = Boolean( MAPS_KEY );
   const regionalWeatherMapType = useMemo( () => {
     const region = ( place.regionCode || '' ).toUpperCase();
@@ -3374,7 +3457,22 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                             { air.pollutants.map( p => (
                               <li className="vl-live-air-pollutant-row" key={ p.code }>
                                 <span className="vl-live-air-pollutant-label">{ p.label }</span>
-                                <span className="vl-live-air-pollutant-value" data-wc-no-translate="true">{ formatPollutantValue( p.value ) } <small>{ p.unit }</small></span>
+                                <span className="vl-live-air-pollutant-value" data-wc-no-translate="true">{ formatPollutantValue( p.value ) } <small title={ unitTermLabel( p.unit ) }>{ p.unit }</small></span>
+                                <button
+                                  type="button"
+                                  className="vl-live-air-pollutant-info"
+                                  aria-label={ `${p.label} details` }
+                                  aria-expanded={ pollutantTip?.code === p.code }
+                                  aria-haspopup="dialog"
+                                  aria-describedby={ pollutantTip?.code === p.code ? `vl-live-air-pollutant-tip-${p.code}` : undefined }
+                                  onMouseEnter={ e => openPollutantTip( p.code, e.currentTarget ) }
+                                  onFocus={ e => openPollutantTip( p.code, e.currentTarget ) }
+                                  onClick={ e => openPollutantTip( p.code, e.currentTarget ) }
+                                >
+                                  <svg viewBox="0 -960 960 960" aria-hidden="true">
+                                    <path d={ MATERIAL_SYMBOL_PATHS.info } />
+                                  </svg>
+                                </button>
                               </li>
                             ) ) }
                           </ul>
@@ -4487,6 +4585,50 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         </section>
       </div>
 
+      { pollutantTip && activePollutant && (
+        <div
+          className={ `vl-live-air-pollutant-tip is-${pollutantTip.side}` }
+          id={ `vl-live-air-pollutant-tip-${activePollutant.code}` }
+          role="dialog"
+          aria-modal="false"
+          aria-label={ `${activePollutant.label} pollutant details` }
+          style={ { top: pollutantTip.top, left: pollutantTip.left } }
+        >
+          <div className="vl-live-air-pollutant-pop">
+            <div className="vl-live-air-pollutant-pop-head">
+              <span>
+                <span className="vl-live-air-pollutant-pop-title">{ activePollutant.label }</span>
+                { activePollutant.fullName && <span className="vl-live-air-pollutant-pop-fullname">{ activePollutant.fullName }</span> }
+              </span>
+              <button
+                type="button"
+                className="vl-live-air-pollutant-pop-close"
+                aria-label="Close pollutant details"
+                onClick={ () => setPollutantTip( null ) }
+              >
+                <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.close } /></svg>
+              </button>
+            </div>
+            { activePollutant.sources && (
+              <div className="vl-live-air-pollutant-pop-line is-source">
+                <strong>Sources</strong>
+                <span>{ compactAirInfo( activePollutant.sources ) }</span>
+              </div>
+            ) }
+            { activePollutant.effects && (
+              <div className="vl-live-air-pollutant-pop-line is-effect">
+                <strong>Effects</strong>
+                <span>{ compactAirInfo( activePollutant.effects ) }</span>
+              </div>
+            ) }
+            { !activePollutant.sources && !activePollutant.effects && (
+              <div className="vl-live-air-pollutant-pop-text">
+                { `${activePollutant.label}: ${Math.round( activePollutant.value )} ${activePollutant.unit}` }
+              </div>
+            ) }
+          </div>
+        </div>
+      ) }
       <style jsx>{`
         .vl-live{
           --page:var(--public-bg);--alt:#fafafa;--lime:var(--public-brand-lime);--lime-hover:#c5e866;--lime-tint:var(--public-lime-tint);
@@ -4629,40 +4771,54 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-air-pollutants,.vl-live-air-heatmap,.vl-live-air-forecast,.vl-live-air-health,.vl-live-air-history{margin-top:var(--vl-section-gap);padding-top:var(--vl-section-pad);border-top:1px solid var(--hair)}
         .vl-live-air-pollutants-title,.vl-live-air-heatmap-label,.vl-live-air-forecast-title,.vl-live-air-health-title,.vl-live-air-history-title{display:block;margin:0;color:#000;font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight);line-height:var(--vl-card-heading-lh);letter-spacing:var(--vl-card-heading-track);padding-inline-start:10px;border-inline-start:3px solid var(--lime)}
         .vl-live-air-pollutants-title{margin-bottom:var(--vl-heading-gap)}
-        /* Pollutants are read-only measurements, not actions. Keep them in the same compact,
-           wrapping metric language as the forecast detail: label first, value/unit second, and
-           let each item wrap as a unit when translated copy or a narrow viewport needs room. */
-        .vl-live-air-pollutant-list{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 20px;margin:0;padding:0;list-style:none}
-        .vl-live-air-pollutant-row{display:inline-flex;min-width:0;align-items:baseline;gap:6px}
-        .vl-live-air-pollutant-value{min-width:0;color:var(--muted);font-size:var(--vl-data-size);font-weight:600;line-height:1.35;letter-spacing:-.1px;font-variant-numeric:tabular-nums;white-space:nowrap}
-        .vl-live-air-pollutant-value small{margin-inline-start:2px;color:inherit;font-size:inherit;font-weight:inherit;letter-spacing:0}
-        .vl-live-air-pollutant-label{min-width:0;color:var(--body);font-size:var(--vl-data-size);font-weight:700;line-height:1.35;letter-spacing:-.18px;overflow-wrap:anywhere}
+        /* overflow:visible (was hidden) so the side popover below can escape the list box
+           and float beside its row without being clipped. The list keeps its rounded 12px
+           frame; the first/last rows round their own outer corners so the row fills still
+           follow the frame now that the list no longer clips them. No scrollbar colour and
+           no scrollbar hider are introduced here (the card keeps only scrollbar-width:thin). */
+        .vl-live-air-pollutant-list{margin:0;padding:0;list-style:none;border:1px solid var(--hair);border-radius:var(--radius-lg,12px);overflow:visible}
+        .vl-live-air-pollutant-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(118px,auto) var(--vl-action-size);align-items:center;gap:var(--vl-content-gap);padding:14px 14px;background:#fff;border-inline-start:2px solid transparent;transition:background .15s ease,border-color .15s ease}
+        .vl-live-air-pollutant-row:first-child{border-top-left-radius:11px;border-top-right-radius:11px}
+        .vl-live-air-pollutant-row:last-child{border-bottom-left-radius:11px;border-bottom-right-radius:11px}
+        .vl-live-air-pollutant-row+.vl-live-air-pollutant-row{border-top:1px solid var(--hair)}
+        .vl-live-air-pollutant-value{justify-self:end;min-width:118px;color:#000;font-size:var(--vl-data-size);font-weight:700;line-height:1.25;letter-spacing:-.2px;text-align:end;font-variant-numeric:tabular-nums}
+        .vl-live-air-pollutant-value small{margin-inline-start:4px;color:var(--muted);font-size:11px;font-weight:600;letter-spacing:0}
+        .vl-live-air-pollutant-label{min-width:0;color:var(--body);font-size:var(--vl-data-size);font-weight:700;line-height:1.25;letter-spacing:-.18px}
         /* ONE ACTION-ICON SYSTEM for the Air card. Every clickable icon uses the shared
            44px tap floor, lime surface, deep-green glyph, lighter-lime hover and focus ring.
            No hover border, no dark-green hover fill, no inversion, no section-specific skin. */
+        .vl-live-air-pollutant-info,
         .vl-live-air-heatmap-switch,
+        .vl-live-air-pollutant-pop-close,
         .vl-live-air-health-page-btn,
         .vl-live-air-health-tab,
         .vl-live-air-history-nav button{display:inline-flex;align-items:center;justify-content:center;flex:0 0 var(--vl-action-size);width:var(--vl-action-size);height:var(--vl-action-size);padding:0;border:0;border-radius:50%;background:var(--lime);color:var(--green);box-shadow:none;transition:background-color .2s,transform .16s ease,box-shadow .16s ease;color-scheme:light}
+        .vl-live-air-pollutant-info,
         .vl-live-air-heatmap-switch,
+        .vl-live-air-pollutant-pop-close,
         .vl-live-air-health-page-btn,
         .vl-live-air-health-tab{transition:background-color .2s,transform .16s ease,box-shadow .16s ease}
+        .vl-live-air-pollutant-info{cursor:help}
+        .vl-live-air-pollutant-info:hover,
         .vl-live-air-heatmap-switch:hover:not(:disabled),
+        .vl-live-air-pollutant-pop-close:hover,
         .vl-live-air-health-page-btn:hover:not(:disabled),
         .vl-live-air-health-tab:hover,
         .vl-live-air-history-nav button:hover:not(:disabled){background:var(--lime-hover);color:var(--green);border:0;box-shadow:0 6px 14px rgba(26,58,42,.16);transform:translateY(-2px) scale(1.04)}
         /* ONE keyboard-focus ring for every VayuLok interactive control, using the site's green
            outline. :focus-visible means mouse users do not get a ring, only keyboard/AT users.
            Covers the Air/Weather tabs, the heatmap metric + On/Off controls, the forecast and
-           history range controls, the history prev/next, the history
+           history range controls, the history prev/next, pollutant info buttons, the history
            chart (made focusable below), and the search input + its options. */
         /* ONE keyboard-focus ring for every VayuLok interactive control, using the site's green
            outline. :focus-visible means mouse users do not get a ring, only keyboard/AT users.
            Covers the Air/Weather tabs, the heatmap metric + On/Off controls (metric buttons live
            inside .vl-live-air-range), the forecast and history range controls, the history
-           prev/next, the history chart (made focusable below) and the
+           prev/next, pollutant info buttons, the history chart (made focusable below) and the
            search options. The search input keeps its own underline+ring rule further down. */
+        .vl-live-air-pollutant-info:focus-visible,
         .vl-live-air-heatmap-switch:focus-visible,
+        .vl-live-air-pollutant-pop-close:focus-visible,
         .vl-live-air-health-page-btn:focus-visible,
         .vl-live-air-health-tab:focus-visible,
         .vl-live-air-toggle-btn:focus-visible,
@@ -4671,13 +4827,36 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-map-retry:focus-visible,
         .vl-live-air-history-chart:focus-visible,
         .vl-live-air-history-nav button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
+        .vl-live-air-pollutant-info svg,
         .vl-live-air-heatmap-switch svg,
+        .vl-live-air-pollutant-pop-close svg,
         .vl-live-air-health-page-btn svg,
         .vl-live-air-health-tab svg,
         .vl-live-air-history-nav button svg{width:21px;height:21px;fill:currentColor}
         .vl-live-air-heatmap-switch:disabled,
         .vl-live-air-health-page-btn:disabled,
         .vl-live-air-history-nav button:disabled{opacity:.4;cursor:not-allowed}
+
+        /* Fixed sibling OUTSIDE the scrollable Air card: white home-page surface, compact copy,
+           viewport-clamped position and an explicit close affordance. Lime is an accent only,
+           never the popup background. The directional notch is shape-only reference language. */
+        .vl-live-air-pollutant-tip{position:fixed;z-index:2200;width:min(320px,calc(100vw - 24px));max-height:min(240px,calc(100dvh - 24px));overflow:auto;padding:16px;border:1px solid var(--hair);border-top:3px solid var(--lime);border-radius:var(--panel-r);background:#fff;color:var(--body);box-shadow:0 14px 34px rgba(26,58,42,.16);font-size:15px;line-height:1.42;text-align:start}
+        .vl-live-air-pollutant-tip::before{content:"";position:absolute;width:12px;height:12px;background:#fff}
+        .vl-live-air-pollutant-tip.is-right::before{left:-7px;top:30px;transform:rotate(45deg);border-left:1px solid var(--hair);border-bottom:1px solid var(--hair)}
+        .vl-live-air-pollutant-tip.is-left::before{right:-7px;top:30px;transform:rotate(45deg);border-top:1px solid var(--hair);border-right:1px solid var(--hair)}
+        .vl-live-air-pollutant-tip.is-bottom::before{top:-7px;left:50%;transform:translateX(-50%) rotate(45deg);border-left:1px solid var(--hair);border-top:1px solid var(--hair)}
+        .vl-live-air-pollutant-tip.is-top::before{bottom:-7px;left:50%;transform:translateX(-50%) rotate(45deg);border-right:1px solid var(--hair);border-bottom:1px solid var(--hair)}
+        .vl-live-air-pollutant-pop{display:flex;flex-direction:column;gap:11px}
+        .vl-live-air-pollutant-pop-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+        .vl-live-air-pollutant-pop-title{display:inline-flex;min-height:32px;align-items:center;padding:0 10px;border:1px solid var(--hair);border-radius:999px;background:#f7f7f5;color:var(--green);font-size:13px;font-weight:700;letter-spacing:-.1px}
+        .vl-live-air-pollutant-pop-fullname{display:block;margin-top:5px;color:var(--muted);font-size:14px;font-weight:600;line-height:1.3}
+        .vl-live-air-pollutant-pop-line{display:grid;grid-template-columns:64px 1fr;gap:10px;align-items:start}
+        .vl-live-air-pollutant-pop-line strong{font-size:15px;font-weight:700;letter-spacing:.01em}
+        .vl-live-air-pollutant-pop-line span{color:var(--status);font-size:15px;font-weight:400;line-height:1.42}
+        .vl-live-air-pollutant-pop-line.is-source strong{color:#2563eb}
+        .vl-live-air-pollutant-pop-line.is-effect strong{color:#9849e8}
+        .vl-live-air-pollutant-pop-text{color:var(--status);font-size:15px;line-height:1.42}
+        .vl-live-air-pollutant-row:focus-within,.vl-live-air-pollutant-row:hover{background:rgba(209,244,112,.18);border-inline-start-color:var(--lime)}
 
         /* ── HEATMAP ──────────────────────────────────────────────────────────────
            One compact Material Symbols control; the separate Storm switch is intentionally gone. */
@@ -5024,10 +5203,16 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
           .vl-live-wx-daily-cond{grid-area:cond;white-space:normal;overflow:visible;text-overflow:clip}
           /* Rain% rides the end of the condition line, so clear the display:none fallback. */
           .vl-live-wx-daily-rain{grid-area:cond;justify-self:end;display:block}
-          /* Read-only pollutant metrics stay inline on phones and wrap by item; there is no
-             action column to reserve and no tooltip control to push values onto a second row. */
-          .vl-live-air-pollutant-list{gap:8px 16px}
-          .vl-live-air-pollutant-row{max-width:100%;flex-wrap:wrap;row-gap:2px}
+          /* MOBILE: STACK THE AIR POLLUTANT TABLE. The desktop 3-column row
+             (label / value>=118px / 36px info button) had no phone rule, so on a 320-430px screen
+             the label was squeezed against a 118px value reservation. Stack it: the pollutant
+             name on its own line, then the value (left-aligned now) and the info button paired on
+             the line below. Base rule + the value's min-width/right-align/tabular-nums pins at
+             ~4707/4712 stay as-is for desktop; these only apply under 700px. */
+          .vl-live-air-pollutant-row{grid-template-columns:minmax(0,1fr) var(--vl-action-size);grid-template-areas:'label label' 'value info';row-gap:6px}
+          .vl-live-air-pollutant-label{grid-area:label}
+          .vl-live-air-pollutant-value{grid-area:value;justify-self:start;min-width:0;text-align:start}
+          .vl-live-air-pollutant-info{grid-area:info;justify-self:end}
           /* MOBILE: the 2-up weather stat grid becomes a single column so each stat gets a full,
              uncramped line. */
           .vl-live-wx-grid{grid-template-columns:1fr}
