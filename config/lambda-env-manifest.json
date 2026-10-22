@@ -296,7 +296,6 @@
       "REGION": "us-east-1",
       "S3_BUCKET": "wecare-digital-get",
       "SEND_MODE": "LIVE",
-      "WA_ORDER_STATUS_TEMPLATE_LANGUAGE": "en",
       "WHATSAPP_PHONE_NUMBER_ID_1": "phone-number-id-waba1-direct-1016149501586345",
       "WHATSAPP_PHONE_NUMBER_ID_2": "phone-number-id-waba-t-direct-1055232054343117"
     },
