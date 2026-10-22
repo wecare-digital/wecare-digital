@@ -241,7 +241,7 @@ export default function FilesPage () {
      * Hand the payment off to WhatsApp and stop.
      *
      * Everything after this happens on the handset: the customer pays through the
-     * `wecare_pay` template's ORDER_DETAILS button, the Razorpay webhook verifies the
+     * `wecare_whatapp_native_pay_template` template's ORDER_DETAILS button, the Razorpay webhook verifies the
      * signature, and the file is delivered as a WhatsApp document. So this page has
      * nothing to poll for and no download to trigger — which is why there is no
      * Razorpay Checkout script here any more.
