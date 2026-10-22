@@ -3283,7 +3283,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
               </div>
 
               <div className="vl-live-air-card-wrap">
-              <aside className="vl-live-air-card" aria-label="Air quality details" onScroll={ () => setPollutantTip( null ) }>
+              <aside className="vl-live-air-card" aria-label="Air quality details">
                 {/* Place name (as Google returned it), the live clock and the zone label are raw
                     data, not UI copy - kept out of translation per the data-honesty rule. */}
                 <div className="vl-live-air-context" aria-label="Selected location and local time" data-wc-no-translate="true">
