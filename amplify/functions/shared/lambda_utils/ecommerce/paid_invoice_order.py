@@ -110,19 +110,31 @@ def store(*, orders, row):
         raise ValueError('existing order customer identity disagrees')
     assignments = []
     values = {':previous': current['customerId'], ':contact': row['contactId'],
-              ':attempt': row['paymentAttemptId'], ':provider': row['providerPaymentId']}
+              ':attempt': row['paymentAttemptId'], ':provider': row['providerPaymentId'],
+              ':reference': row['referenceId'], ':invoice': row['invoiceId'],
+              ':number': row['orderNumber'], ':amount': row['amountPaise']}
     if promoting:
         assignments.extend(['customerId = :customer', 'finalizationStage = :done'])
         values.update({':customer': row['customerId'], ':done': 'ORDER_FINALIZED'})
     if public_uuid and not current.get('customerUuid'):
         assignments.append('customerUuid = :uuid')
         values[':uuid'] = public_uuid
+    desired_channel = row.get('channel')
+    if desired_channel in ('whatsapp', 'website') and current.get('channel') != desired_channel:
+        assignments.append('channel = :channel')
+        values[':channel'] = desired_channel
+    desired_snapshot = row.get('invoiceSnapshot')
+    if isinstance(desired_snapshot, dict) and current.get('invoiceSnapshot') != desired_snapshot:
+        assignments.append('invoiceSnapshot = :snapshot')
+        values[':snapshot'] = desired_snapshot
     if not assignments:
         return current
     orders.update_item(Key={'orderId': row['orderId']},
         UpdateExpression='SET ' + ', '.join(assignments),
         ConditionExpression=('customerId = :previous AND contactId = :contact '
-            'AND paymentAttemptId = :attempt AND providerPaymentId = :provider'),
+            'AND paymentAttemptId = :attempt AND providerPaymentId = :provider '
+            'AND referenceId = :reference AND invoiceId = :invoice '
+            'AND orderNumber = :number AND amountPaise = :amount'),
         ExpressionAttributeValues=values)
     return orders.get_item(Key={'orderId': row['orderId']}, ConsistentRead=True)['Item']
 
