@@ -5256,6 +5256,7 @@ def _send_payment_after_flow(phone: str, order_id: str, subject: str, request_id
     amount_rupees = payment_amount_paise / 100
     invoice_body = {
         'referenceId': ref_id,
+        'channel': 'whatsapp',
         'customerPhone': phone,
         'customerName': sender_name,
         'contactId': contact_id or '',
