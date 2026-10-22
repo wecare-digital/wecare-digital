@@ -451,10 +451,7 @@ RATE_LIMIT_PER_SECOND = 80  # Requirement 5.9
 #   WECAREDIGITAL - Razorpay gateway, provider_mid acc_TTFSyolquKEZEy
 #   WECAREUPI     - UPI VPA wecaredigitalbh511413.rzp@rxairtel
 # MCC 7392, purpose code 03 on all four. No PayU config exists on either WABA.
-VALID_PAYMENT_CONFIGS = {
-    'WECAREDIGITAL',   # Razorpay PG deep integration (default)
-    'WECAREUPI',       # UPI VPA
-}
+VALID_PAYMENT_CONFIGS = {'WECAREDIGITAL'}
 DEFAULT_PAYMENT_CONFIG = 'WECAREDIGITAL'
 # Both WABAs share the same config names, so the mapping is uniform. It is kept
 # per-phone so a future divergence needs only a value change here.
@@ -549,53 +546,23 @@ class PaymentConfigurationUnresolved(ValueError):
 
 
 def _resolve_payment_config_name(phone_number_id: str, order_details: dict) -> str:
-    """The Meta payment configuration name for this sender and this order_details, or raise.
+    """Return the single server-owned WhatsApp payment configuration.
 
-    Extracted from `_build_payment_settings` so there is exactly ONE resolver. The A0 gate has
-    to prove a configuration name against a live provider read, and the sender has to put a
-    configuration name in the payload; a second copy of this expression is how a proven name and
-    a sent name diverge.
-
-    THERE IS NO FALLBACK, AND THAT IS THE POINT.
-    It used to log `unknown_payment_config_ignored` and then send DEFAULT_PAYMENT_CONFIG anyway.
-    Three things were wrong with that, and the third is the one that cost something:
-
-      1. Meta's reference states that when `configuration_name` is invalid the customer is
-         unable to pay. Substituting a different name does not rescue the send, it just moves
-         the failure to the customer's screen.
-      2. The substituted name was itself unverified. Measured live 2026-09-30,
-         `GET /{waba}/payment_configurations` returned ZERO configurations on this WABA, so
-         `WECAREDIGITAL` existed only as a constant in this file. Falling back to it is falling
-         back to a guess.
-      3. A warning log is not a control. The send proceeded, Meta accepted the message, and the
-         failure surfaced only when a customer tapped Pay - by which point the order exists in
-         their mind and nothing in our logs says the payment was impossible from the start.
-
-    Readiness belongs to lambda_utils/payment_readiness.py, which proves the configuration
-    against a live provider read rather than against `VALID_PAYMENT_CONFIGS`.
-
-    This function deliberately does NOT check `PAYMENT_SENDERS`. That refusal stays where it is,
-    ahead of this call inside `_build_payment_settings` and ahead of this call inside the A0
-    gate, because naming a configuration is a choice of configuration and not a grant of
-    permission - and because both gates must refuse a forbidden sender before they resolve
-    anything at all.
+    Callers cannot select a payment configuration. The only supported rail is WABA1 +
+    WECAREDIGITAL + Razorpay through the approved ORDER_DETAILS template.
     """
-    config_name = order_details.get('payment_configuration', '') or (
-        PHONE_PAYMENT_GATEWAYS.get(phone_number_id) or {}
-    ).get('razorpay', '')
+    if phone_number_id not in PAYMENT_SENDERS:
+        raise PaymentConfigurationUnresolved(
+            f'sender {phone_number_id!r} may not take payments')
 
-    if not config_name:
+    config_name = (PHONE_PAYMENT_GATEWAYS.get(phone_number_id) or {}).get('razorpay', '')
+    supplied = str(order_details.get('payment_configuration') or '').strip()
+    if supplied and supplied != config_name:
         raise PaymentConfigurationUnresolved(
-            f'no payment configuration is mapped for sender {phone_number_id!r}; '
-            'refusing to send a payment request rather than guessing one'
-        )
-    if config_name not in VALID_PAYMENT_CONFIGS:
+            'caller-selected payment configuration is not permitted')
+    if config_name != 'WECAREDIGITAL':
         raise PaymentConfigurationUnresolved(
-            f'payment configuration {config_name!r} is not recognised '
-            f'(known: {sorted(VALID_PAYMENT_CONFIGS)}); refusing to substitute a '
-            'different one, because an invalid configuration_name leaves the customer '
-            'unable to pay'
-        )
+            'the server payment configuration is not WECAREDIGITAL')
     return config_name
 
 
@@ -946,17 +913,7 @@ def _refuse_unless_payment_ready(body: Dict[str, Any], phone_number_id: str,
         return _error_response(409, wa_payment_request.WA_PAY_CONFIG_UNRESOLVED,
                                _NOT_READY_MESSAGE)
 
-    # 6. Only a configuration this deployment can PROVE may be used. `WECAREUPI` is a `upi`
-    #    configuration with a VPA and no Razorpay merchant id, so `evaluate` - which compares a
-    #    merchant id and nothing else - could only ever report it as CONFIGURATION_UNVERIFIED or
-    #    RAZORPAY_MID_MISMATCH, sending an operator to look for a configuration error that does
-    #    not exist. Refused by name instead, with a cause, before the provider read.
-    #
-    #    Collecting UPI INSIDE the approved template through `configuration_name: 'WECAREUPI'`
-    #    stays a legitimate capability this business does not currently use. Enabling it needs
-    #    `payment_readiness` to learn a per-configuration expectation (a VPA for a `upi`
-    #    configuration, a MID for a `payment_gateway` one); that is an owner decision and a
-    #    feature addition to a module this gate does not modify.
+    # 6. The only configuration permitted by this application is WECAREDIGITAL/Razorpay.
     if config_name != EXPECTED_CONFIGURATION_NAME:
         logger.error(json.dumps({'event': 'wa_payment_config_not_provable_refused',
                                  'configurationName': config_name,
