@@ -142,13 +142,11 @@ class _Spies:
             p.stop()
 
     @property
-    def free_form_order_status_sends(self):
-        """Count of FREE-FORM `isOrderStatus` confirmations the webhook tried to send.
+    def order_status_sends(self):
+        """Count provider-supported Meta order_status notifications emitted by the webhook.
 
-        This must be ZERO on every path now. The single customer confirmation is the approved
-        `wecare_default_invoice_image_template`, delivered inside `_post_payment_handler` (which
-        this harness patches), so the webhook no longer builds an `isOrderStatus` message at all -
-        the free-form message Meta blocked outside the 24-hour window is gone.
+        Only an authoritatively verified commerce capture with a saved customer may emit one.
+        Legacy/unverified/no-recipient paths stay at zero. Invoice delivery is separate.
         """
         n = 0
         for call in self.lambda_client.invoke.call_args_list:
@@ -243,7 +241,7 @@ def test_not_paid_commerce_capture_fires_no_side_effects(webhook, fake_ddb):
         spies.post_payment.assert_not_called()
         spies.ctwa.assert_not_called()
         spies.store.assert_not_called()          # no money-confirmed 'captured' record
-        assert spies.free_form_order_status_sends == 0
+        assert spies.order_status_sends == 0
 
 
 def test_amount_mismatch_commerce_capture_fires_no_side_effects(webhook, fake_ddb):
@@ -258,7 +256,7 @@ def test_amount_mismatch_commerce_capture_fires_no_side_effects(webhook, fake_dd
         spies.post_payment.assert_not_called()
         spies.ctwa.assert_not_called()
         spies.store.assert_not_called()
-        assert spies.free_form_order_status_sends == 0
+        assert spies.order_status_sends == 0
 
 
 def test_currency_mismatch_commerce_capture_fires_no_side_effects(webhook, fake_ddb):
@@ -271,7 +269,7 @@ def test_currency_mismatch_commerce_capture_fires_no_side_effects(webhook, fake_
         spies.post_payment.assert_not_called()
         spies.ctwa.assert_not_called()
         spies.store.assert_not_called()
-        assert spies.free_form_order_status_sends == 0
+        assert spies.order_status_sends == 0
 
 
 def test_unknown_reference_with_no_invoice_fires_no_side_effects(webhook, fake_ddb):
@@ -286,7 +284,7 @@ def test_unknown_reference_with_no_invoice_fires_no_side_effects(webhook, fake_d
         spies.post_payment.assert_not_called()
         spies.ctwa.assert_not_called()
         spies.store.assert_not_called()
-        assert spies.free_form_order_status_sends == 0
+        assert spies.order_status_sends == 0
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -306,9 +304,8 @@ def test_verified_paid_commerce_capture_fires_each_effect_exactly_once(webhook, 
         assert spies.mark_by_ref.call_count == 1
         assert spies.post_payment.call_count == 1
         assert spies.ctwa.call_count == 1
-        # The single confirmation is the invoice template inside _post_payment_handler;
-        # the free-form isOrderStatus message is gone.
-        assert spies.free_form_order_status_sends == 0
+        # Verified commerce: processing order_status first, then invoice delivery.
+        assert spies.order_status_sends == 1
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -329,7 +326,7 @@ def test_verified_legacy_invoice_marks_paid_and_runs_post_payment(webhook, fake_
         assert spies.mark_by_ref.call_count == 1
         assert spies.post_payment.call_count == 1
         assert spies.store.call_count == 1
-        assert spies.free_form_order_status_sends == 0
+        assert spies.order_status_sends == 0
 
 
 def test_legacy_invoice_with_provider_amount_mismatch_quarantines(webhook, fake_ddb):
@@ -344,7 +341,7 @@ def test_legacy_invoice_with_provider_amount_mismatch_quarantines(webhook, fake_
         spies.mark_by_ref.assert_not_called()
         spies.post_payment.assert_not_called()
         spies.store.assert_not_called()
-        assert spies.free_form_order_status_sends == 0
+        assert spies.order_status_sends == 0
 
 
 def test_legacy_invoice_not_captured_by_provider_quarantines(webhook, fake_ddb):
@@ -359,7 +356,7 @@ def test_legacy_invoice_not_captured_by_provider_quarantines(webhook, fake_ddb):
         spies.mark_by_ref.assert_not_called()
         spies.post_payment.assert_not_called()
         spies.store.assert_not_called()
-        assert spies.free_form_order_status_sends == 0
+        assert spies.order_status_sends == 0
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -380,7 +377,7 @@ def test_reconciliation_error_quarantines_without_side_effects(webhook, fake_ddb
         spies.post_payment.assert_not_called()
         spies.ctwa.assert_not_called()
         spies.store.assert_not_called()
-        assert spies.free_form_order_status_sends == 0
+        assert spies.order_status_sends == 0
 
 
 def test_unknown_reference_with_invoice_query_failure_quarantines(webhook, fake_ddb):
@@ -394,7 +391,7 @@ def test_unknown_reference_with_invoice_query_failure_quarantines(webhook, fake_
         spies.mark_by_phone.assert_not_called()
         spies.post_payment.assert_not_called()
         spies.store.assert_not_called()
-        assert spies.free_form_order_status_sends == 0
+        assert spies.order_status_sends == 0
 
 
 def test_quarantine_emits_a_single_staff_alert(webhook, fake_ddb, caplog):
@@ -477,8 +474,8 @@ def test_verified_capture_uses_saved_customer_instead_of_payer(webhook, fake_ddb
                verifier=lambda _r: (True, TXN, AMOUNT, 'INR'))
         # The billed customer is the recipient, never the payer's number from the event.
         assert spies.post_payment.call_args.args[1] == CONTACT
-        # And the removed free-form message is not sent as a second confirmation.
-        assert spies.free_form_order_status_sends == 0
+        # The billed customer receives one processing order_status; the payer is never substituted.
+        assert spies.order_status_sends == 1
 
 
 def test_verified_capture_without_saved_customer_does_not_notify_payer(webhook, fake_ddb):
@@ -489,5 +486,5 @@ def test_verified_capture_without_saved_customer_does_not_notify_payer(webhook, 
     with _Spies(webhook) as spies:
         _drive(webhook, fake_ddb, _event(),
                verifier=lambda _r: (True, TXN, AMOUNT, 'INR'))
-        assert spies.free_form_order_status_sends == 0
+        assert spies.order_status_sends == 0
         assert spies.post_payment.call_args.args[1] == ''
