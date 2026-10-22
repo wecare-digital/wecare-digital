@@ -217,10 +217,11 @@ PROVIDERS: tuple = (
         key="google",
         name="Google",
         purpose=("Maps, OAuth, Search Console, Ads, GA4/Tag Manager, Business Profile, "
-                 "Play reporting, Translate/Weather/Air Quality/People APIs."),
+                 "Play reporting, Translate/Weather/Air Quality/People APIs and the "
+                 "first-party VayuLok Cloud Run service."),
         domains=("google.com", "googleapis.com", "gstatic.com", "googletagmanager.com",
                  "google-analytics.com", "googleusercontent.com", "googlehosted.com",
-                 "goog", "youtube.com"),
+                 "wecare-digital-hrkl3sncxq-el.a.run.app", "goog", "youtube.com"),
         vault_prefixes=("wecare/google/", "wecare/google-", "wecare/seo/google-"),
         provider_ids=("google", "google-cloud", "google-ads"),
         env_namespaces=("GOOGLE", "GA4", "GTM", "GSC", "MAPS"),
