@@ -358,6 +358,7 @@ export default function BlogPostPage ( {
           dynamic template, so every post - today's and any added tomorrow - gets it automatically.
           The shared action dock is outside this template and owned once by _app. */}
       <RotatingHero
+        mobileFoundation
         frame="Read and"
         words={ [
           { word: 'reflect', tint: '#e0f7c8', dot: '#3da35a' },
@@ -741,16 +742,22 @@ export default function BlogPostPage ( {
           transform:rotate(45deg);
         }
         .post-related :global(.post-related-all:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px}
-        @media(max-width:680px){
-          /* No header clearance here on mobile either - RotatingHero's .rh-layout owns it. */
-          .article-shell{padding:0}
-          h1{max-width:none}
+        @media(max-width:767px){
+          /* Blog is now an explicit adopter of the shared public-mobile foundation.
+             Body copy deliberately stays on --public-body-size (20px): the foundation
+             says that value is global, not a mobile-only token to shrink locally. */
+          .article-shell{padding:0;min-width:0}
+          .post-title{font-size:var(--public-mobile-hero-size);max-width:none}
+          .post-search{max-width:100%}
+          .post-search input{font-size:var(--public-mobile-form-font-size)}
           .byline{margin-bottom:34px}
-          .content :global(p),.content :global(li){font-size:18px;line-height:1.6}
+          .content{min-width:0;overflow-wrap:anywhere}
+          .content :global(p),.content :global(li){font-size:var(--public-body-size);line-height:1.55}
           .content :global(p + p){margin-top:24px}
           .content :global(.spacer){height:24px}
-          .content :global(h2){font-size:27px;margin-top:42px}
-          .content :global(h3){font-size:22px}
+          .content :global(h2){font-size:var(--public-mobile-section-size);margin-top:42px}
+          .content :global(h3){font-size:var(--public-mobile-card-size)}
+          .post-related-card h3{font-size:var(--public-mobile-card-size)}
           .content :global(blockquote){font-size:19px;line-height:1.55;margin:32px 0;padding-inline-start:18px}
           /* ONE COLUMN BELOW 680px, and the older half stops being end-aligned with it. Two
              44px-plus boxes side by side at 360px leaves about 160px each, which clamps a title
