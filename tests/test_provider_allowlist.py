@@ -86,6 +86,12 @@ def test_every_entry_states_its_purpose_and_well_formed_vocabulary():
     assert len(ids) == len(set(ids)), "a provider id is claimed twice"
 
 
+def test_vayulok_weather_insights_cloud_run_host_is_exactly_approved():
+    owner = "src/components/VayuLokWeatherInsights.tsx"
+    assert allow.host_owner("wecare-digital-hrkl3sncxq-el.a.run.app", owner)[0] == "google"
+    assert allow.host_owner("unrelated-service.a.run.app", owner)[0] is None
+
+
 def test_single_capability_providers_are_scoped():
     sinch = next(p for p in allow.PROVIDERS if p.key == "sinch")
     assert sinch.transport_scope == allow.RCS_TRANSPORT_SCOPE
