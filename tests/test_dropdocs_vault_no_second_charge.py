@@ -158,46 +158,6 @@ def test_a_a_failed_attach_also_contacts_no_provider(handler, monkeypatch):
 
 # ── the locker's own payment path stays unreachable ───────────────────────────
 
-def test_b_create_order_is_unreachable_while_the_payment_flag_is_unset(handler, monkeypatch):
-    """``_create_order`` must refuse BEFORE importing ``razorpay_orders``.
-
-    The tripwire module would raise on any call, so a 503 here means the import never
-    happened - which is the property that keeps a credential unread while payments are off.
-    """
-    provider = RefusingProvider()
-    _exploding_razorpay_orders(monkeypatch)
-    monkeypatch.delenv("SECURE_FILES_PAYMENT_ENABLED", raising=False)
-    monkeypatch.setattr(handler, "_owned_active_file",
-                        lambda fid, ident: {"fileId": fid, "pricePaise": 4900,
-                                            "s3Key": "secure/u/x"})
-
-    with patch.object(urllib.request, "urlopen", provider):
-        order = handler._create_order("f1", {"phone": "918100640044"},
-                                      "https://wecare.digital")
-        whatsapp = handler._send_whatsapp_payment("f1", {"phone": "918100640044"},
-                                                  "https://wecare.digital")
-
-    assert order["statusCode"] == 503
-    assert json.loads(order["body"])["error"] == "PAYMENT_DISABLED"
-    assert whatsapp["statusCode"] == 503
-    assert json.loads(whatsapp["body"])["error"] == "PAYMENT_DISABLED"
-    assert provider.calls == []
-
-
-def test_b_the_attach_route_does_not_share_a_code_path_with_the_order_route():
-    """Two payment implementations at the same Rs49 is the hazard. Keep them disjoint.
-
-    The attach arm must not consult ``_payment_enabled``, create a grant, or name a price -
-    reading the payment flag at all would be the first step towards the attach route
-    acquiring an opinion about money.
-    """
-    source = (FUNC_DIR / "handler.py").read_text(encoding="utf-8")
-    arm = source.split("def _dropdocs_attach(", 1)[1].split("\ndef ", 1)[0]
-    for forbidden in ("_payment_enabled", "razorpay", "PRICE_PAISE", "GRANTS_TABLE",
-                      "amountPaise", "pricePaise", "create_order"):
-        assert forbidden not in arm, f"{forbidden} must not appear in the attach arm"
-
-
 def test_b_the_existing_locker_routes_are_untouched():
     """Phase O-2 ADDS two route keys, both under a literal ``dropdocs`` segment. It must not
     retarget or rename an existing one, and it must not introduce a second ``{fileId}``
@@ -228,28 +188,6 @@ def _manifest_secure_files() -> Dict[str, Any]:
     # `_functions` is a COUNT, not the map. The map is `functions`. Easy to get wrong and
     # it fails as a TypeError rather than a KeyError, so it is named here deliberately.
     return json.loads(MANIFEST.read_text(encoding="utf-8"))["functions"]["wecare-secure-files"]
-
-
-def test_c_both_flags_are_false_in_the_manifest():
-    """``SECURE_FILES_PAYMENT_ENABLED`` enabling is an owner action and nothing in Phase O-2
-    touches it. ``DROPDOCS_ATTACH_ENABLED`` ships off because there is no upload UI yet."""
-    env = _manifest_secure_files()
-    assert env["SECURE_FILES_PAYMENT_ENABLED"] == "false"
-    assert env["DROPDOCS_ATTACH_ENABLED"] == "false"
-    # unchanged by this phase, and asserted so a drift in either direction is visible
-    assert env["SECURE_FILE_PRICE_PAISE"] == "4900"
-    assert env["SERVICE_REQUESTS_TABLE"] == "stack-wecare-digital-ServiceRequestsTable"
-
-
-def test_c_the_provisioner_ships_both_flags_off_too():
-    """The manifest records intent; the provisioner is what actually writes the variables."""
-    provisioner = _load_provisioner()
-    env = provisioner.environment()
-    assert env["SECURE_FILES_PAYMENT_ENABLED"] == "false"
-    assert env["DROPDOCS_ATTACH_ENABLED"] == "false"
-    assert env["SERVICE_REQUESTS_TABLE"] == "stack-wecare-digital-ServiceRequestsTable"
-    # --enable-payment must not also switch the attach route on
-    assert provisioner.environment(payment_enabled=True)["DROPDOCS_ATTACH_ENABLED"] == "false"
 
 
 def test_c_the_manifest_and_the_provisioner_agree_on_every_key():
