@@ -17,7 +17,7 @@
  *   (2) the daily-forecast row renders as TWO visual lines (temp sits on the top line with the
  *       day; the condition wraps onto a second line BELOW the day) — i.e. it is stacked, not a
  *       single cramped 4/5-column strip;
- *   (3) the pollutant row stacks (label on its own line, value below the label's top);
+ *   (3) pollutant metrics stay inside the viewport with no reserved tooltip/action column;
  *   (4) Weather history uses the public 24px mobile card heading + 20px body rung;
  *   (5) every Weather history range control keeps the canonical 44px touch floor.
  */
@@ -56,13 +56,11 @@ const BODY = `
       <li><div class="vl-live-air-pollutant-row">
         <span class="vl-live-air-pollutant-label">Particulate matter (PM2.5)</span>
         <span class="vl-live-air-pollutant-value">38<small>µg/m³</small></span>
-        <button class="vl-live-air-pollutant-info" type="button">i</button>
-      </div></li>
+              </div></li>
       <li><div class="vl-live-air-pollutant-row">
         <span class="vl-live-air-pollutant-label">Nitrogen dioxide (NO₂)</span>
         <span class="vl-live-air-pollutant-value">12<small>ppb</small></span>
-        <button class="vl-live-air-pollutant-info" type="button">i</button>
-      </div></li>
+              </div></li>
     </ul>
     <ul class="vl-live-wx-daily-list">
       <li><button class="vl-live-wx-daily-row" type="button">
@@ -135,6 +133,7 @@ const WIDTHS = [ 320, 360, 375, 390, 412, 430 ];
       const prow = q( '.vl-live-air-pollutant-row' );
       const plabel = q( '.vl-live-air-pollutant-label' );
       const pval = q( '.vl-live-air-pollutant-value' );
+      const pinfo = q( '.vl-live-air-pollutant-info' );
       const score = q( '.vl-live-air-aqi-score' );
       const meta = q( '.vl-live-air-gauge-meta' );
       const gaugeRow = q( '.vl-live-air-gauge-row' );
@@ -145,7 +144,7 @@ const WIDTHS = [ 320, 360, 375, 390, 412, 430 ];
       return {
         docScroll: de.scrollWidth, docClient: de.clientWidth,
         day: rect( day ), cond: rect( cond ), temp: rect( temp ), row: rect( row ),
-        plabel: rect( plabel ), pval: rect( pval ), prow: rect( prow ),
+        plabel: rect( plabel ), pval: rect( pval ), prow: rect( prow ), pinfo: Boolean( pinfo ),
         score: rect( score ), meta: rect( meta ), gaugeRow: rect( gaugeRow ),
         history: history ? rect( history ) : null,
         historyHeadingSize: historyHeading ? parseFloat( getComputedStyle( historyHeading ).fontSize ) : -1,
@@ -158,8 +157,8 @@ const WIDTHS = [ 320, 360, 375, 390, 412, 430 ];
     const condBelowDay = r.cond.y >= r.day.y + r.day.h - 2;
     // temp shares the top line with the day (roughly same y)
     const tempTopLine = Math.abs( r.temp.y - r.day.y ) <= 8;
-    // pollutant value sits BELOW the label => stacked
-    const valBelowLabel = r.pval.y >= r.plabel.y + r.plabel.h - 2;
+    const pollutantFits = r.prow.x >= -1 && r.prow.right <= r.docClient + 1;
+    const pollutantCompact = !r.pinfo && pollutantFits;
     // Mobile AQI score + status must be centered against the FULL gauge/card row.
     // Comparing the children to each other can false-green when both are shifted together.
     const rowCenter = r.gaugeRow.x + r.gaugeRow.w / 2;
@@ -173,11 +172,11 @@ const WIDTHS = [ 320, 360, 375, 390, 412, 430 ];
     const historyType = Math.abs( r.historyHeadingSize - 24 ) <= 0.1 && Math.abs( r.historyBodySize - 20 ) <= 0.1;
     const historyButtonCount = r.historyButtonHeights.length;
     const historyTouches = historyButtonCount === 3 && r.historyButtonHeights.every( height => height >= 44 );
-    const ok = !hOverflow && condBelowDay && tempTopLine && valBelowLabel && summaryCentered && historyFits && historyType && historyTouches;
+    const ok = !hOverflow && condBelowDay && tempTopLine && pollutantCompact && summaryCentered && historyFits && historyType && historyTouches;
     if ( !ok ) failures++;
     console.log(
       `@${w}px  h-overflow=${hOverflow ? 'YES(' + r.docScroll + '>' + r.docClient + ')' : 'no'}` +
-      `  cond-below-day=${condBelowDay}  temp-on-top-line=${tempTopLine}  pollutant-stacked=${valBelowLabel}` +
+      `  cond-below-day=${condBelowDay}  temp-on-top-line=${tempTopLine}  pollutant-compact=${pollutantCompact}` +
       `  score-centered=${scoreCentered}  meta-centered=${metaCentered}` +
       `  history-found=${historyFound}  history-buttons=${historyButtonCount}` +
       `  history-fits=${historyFits}  history-type=${historyType}  history-touch=${historyTouches}  => ${ok ? 'PASS' : 'FAIL'}`
@@ -186,5 +185,5 @@ const WIDTHS = [ 320, 360, 375, 390, 412, 430 ];
   }
   await browser.close();
   if ( failures ) { console.error( `\n${failures} width(s) FAILED` ); process.exit( 1 ); }
-  console.log( '\nAll VayuLok phone widths PASS: tables stack, Weather history matches the public type/touch contract, no horizontal overflow.' );
+  console.log( '\nAll VayuLok phone widths PASS: pollutant metrics stay compact, Weather history matches the public type/touch contract, no horizontal overflow.' );
 } )().catch( ( e ) => { console.error( e ); process.exit( 1 ); } );
