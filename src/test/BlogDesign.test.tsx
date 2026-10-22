@@ -860,7 +860,10 @@ describe( 'Blog post page', () => {
     const menu = dock.querySelector( '#ps-contribute-menu' )!;
 
     expect( menu.querySelector( 'a.contribute-link' ) ).toBeNull();
-    const checkout = menu.querySelector( 'button.contribute-link-btn' )!;
+    // The contribute menu redesigned to the shared `ps-menu` pattern: the one Checkout entry is a
+    // `button.ps-menu-item` (the old `contribute-link-btn` class is retired — SubscribeCtaDesign
+    // asserts `.contribute-link-btn{` is absent from the CSS and `.ps-menu-item{` is the styled one).
+    const checkout = menu.querySelector( 'button.ps-menu-item' )!;
     expect( checkout.getAttribute( 'aria-label' ) ).toBe( 'Checkout contribution' );
     expect( checkout.textContent ).toContain( 'Checkout' );
     expect( checkout.textContent ).toContain( 'Review contribution in cart' );
@@ -878,7 +881,7 @@ describe( 'Blog post page', () => {
     );
 
     const dock = container.querySelector( 'section.public-share' )!;
-    const contribute = dock.querySelector( '#ps-contribute-menu button.contribute-link-btn' )!;
+    const contribute = dock.querySelector( '#ps-contribute-menu button.ps-menu-item' )!;
     const subscribe = dock.querySelector( 'a.ps-subscribe' )!;
 
     expect( contribute ).not.toBeNull();

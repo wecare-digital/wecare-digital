@@ -59,17 +59,10 @@ vi.mock( '../api/client', async importOriginal => ( {
   },
 } ) );
 
-const seoToolsFetch = vi.fn();
-vi.mock( '../api/seo', async importOriginal => ( {
-  ...await importOriginal<typeof import( '../api/seo' )>(),
-  seoToolsFetch: ( ...a: unknown[] ) => seoToolsFetch( ...a ),
-} ) );
-
 import { ConfirmProvider, usePromptDialog, useConfirm } from '../contexts/ConfirmContext';
 import TemplateSender from '../components/TemplateSender';
 import SecureFilesPage from '../components/workspace/service/SecureFiles';
 import CtwaAdsPage from '../components/workspace/whatsapp/ctwa-ads';
-import BlogSeoManager from '../components/workspace/seo/BlogManager';
 
 type PromptOptions = Parameters<ReturnType<typeof usePromptDialog>>[ 0 ];
 
@@ -341,22 +334,10 @@ describe( 'the four migrated confirm sites render a dialog instead of calling a 
     await waitFor( () => expect( publish ).toHaveBeenCalledWith( 'ad1' ) );
   } );
 
-  it( 'blog-manager keeps the verbatim leading clause as the title and types CLEAN', async () => {
-    seoToolsFetch.mockImplementation( ( path: string ) => Promise.resolve( {
-      json: async () => ( path === 'blog-posts'
-        ? { ok: true, total: 2, posts: [ { id: '1', slug: 'a', title: 'A' }, { id: '2', slug: 'b', title: 'B' } ] }
-        : { ok: true, audits: [], logs: [] } ),
-    } ) );
-
-    render( <ConfirmProvider><BlogSeoManager /></ConfirmProvider> );
-    fireEvent.click( await screen.findByRole( 'button', { name: 'Clean All 2 Posts' } ) );
-
-    const dialog = await screen.findByRole( 'dialog' );
-    // The title is the native string's leading clause, ALL capitalised as the author wrote it
-    // and the count preserved. "Clean all posts" is the BUTTON label, not the title.
-    expect( dialog.textContent ).toContain( 'Clean ALL 2 posts?' );
-    expect( dialog.textContent ).toContain( 'This wipes all existing SEO data.' );
-    expect( dialog.textContent ).toContain( 'Type "CLEAN" to confirm' );
-    expect( screen.getByRole( 'button', { name: 'Clean all posts' } ) ).toBeDisabled();
-  } );
+  // REMOVED: "blog-manager keeps the verbatim leading clause as the title and types CLEAN".
+  // The "Remove retired blog production" work reduced BlogManager to a read-only published-post
+  // browser — the bulk "Clean All N Posts" destructive action and its type-CLEAN confirm dialog
+  // were deleted from the component. The test rendered BlogManager and clicked a "Clean All 2
+  // Posts" button that no longer exists, so it tested a removed feature. The three surviving
+  // migrated confirm sites (TemplateSender, SecureFiles, ctwa-ads) are still covered above.
 } );
