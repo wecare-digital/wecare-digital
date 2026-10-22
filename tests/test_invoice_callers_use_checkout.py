@@ -25,3 +25,17 @@ def test_checkout_strangler_accepts_invoice_http_envelopes():
     block = source.split("def handler(", 1)[1].split("if event.get('internalAction')", 1)[0]
     assert 'commerce_path.startswith("/invoices")' in block
     assert "commerce_invoice_engine.handler(event, context)" in block
+
+
+def test_runtime_deploy_publishes_checkout_before_invoice_callers():
+    source = (ROOT / ".github/workflows/runtime-deploy.yml").read_text(encoding="utf-8")
+    deploy = source.split("- name: Deploy selected runtime functions", 1)[1]
+    deploy = deploy.split("- name: Verify live aliases serve latest code", 1)[0]
+    checkout = deploy.index("wecare-checkout")
+    for caller in (
+        "wecare-ai-generate-response",
+        "wecare-service-api",
+        "wecare-whatsapp-business-api",
+        "wecare-razorpay-webhook",
+    ):
+        assert checkout < deploy.index(caller), caller
