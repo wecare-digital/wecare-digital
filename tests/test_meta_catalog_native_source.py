@@ -67,6 +67,37 @@ def test_native_products_projects_slim_shape():
     assert row["variants"][0]["inStock"] is True
 
 
+def test_untracked_zero_inventory_is_sellable_like_native_checkout():
+    items = [{
+        "id": "prod-untracked", "title": "Digital Service", "slug": "digital-service",
+        "status": "active", "priceMinor": 9900, "currency": "INR",
+        "variants": [{
+            "sku": "DIGI1", "label": "Standard", "inventory": 0,
+            "trackInventory": False, "inventoryVerified": True, "priceMinor": 9900,
+        }],
+    }]
+    rows = receiver._native_products(scanner=lambda: items)
+    assert rows[0]["variants"][0]["inStock"] is True
+    desired = sync.desired_items(rows, require_variant_price=True)
+    assert desired[0]["availability"] == sync.IN_STOCK
+
+
+def test_tracked_inventory_controls_meta_availability():
+    items = [{
+        "id": "prod-tracked", "title": "Physical", "slug": "physical",
+        "status": "active", "priceMinor": 9900, "currency": "INR",
+        "variants": [
+            {"sku": "ZERO1", "label": "Zero", "inventory": 0,
+             "trackInventory": True, "inventoryVerified": True, "priceMinor": 9900},
+            {"sku": "ONE1", "label": "One", "inventory": 1,
+             "trackInventory": True, "inventoryVerified": True, "priceMinor": 9900},
+        ],
+    }]
+    rows = receiver._native_products(scanner=lambda: items)
+    projected = {v["id"]: v["inStock"] for v in rows[0]["variants"]}
+    assert projected == {"ZERO1": False, "ONE1": True}
+
+
 def test_native_products_excludes_archived():
     items = [
         {"id": "a", "title": "Live", "slug": "live", "status": "active", "priceMinor": 100,
