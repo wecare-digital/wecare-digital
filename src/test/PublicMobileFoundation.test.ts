@@ -93,6 +93,8 @@ describe( 'public mobile foundation', () => {
     expect( assistant ).toContain( 'touch-action:pan-x' );
     expect( assistant ).toContain( 'min-height:var(--tap-min)' );
     expect( assistant ).toContain( 'padding-inline:var(--public-mobile-page-gutter)' );
+    expect( assistant ).toContain( 'new MutationObserver( centreActiveTab )' );
+    expect( assistant ).toContain( "attributeFilter: [ 'dir', 'lang' ]" );
   } );
 
   it( 'documents opt-in family-by-family adoption', () => {
