@@ -82,6 +82,8 @@ const ROUTES = [ '/', '/grahak-os/', '/vayulok/', '/bharat-rx/', '/contact/', '/
   '/post/a-bad-event-and-a-catastrophic-forecast-are-not-the-same/' ];
 
 // CSS pixels. DevTools presets where one exists, marked approx where modelled.
+const PUBLIC_SHARE_PHONE_WIDTHS = new Set( [ 320, 360, 390, 412 ] );
+
 const DEVICES = [
   { n: 'Fold folded',        w: 280,  h: 653 },
   { n: 'Fold folded land',   w: 653,  h: 280 },   // wide AND short
@@ -214,6 +216,51 @@ const PROBE = () => {
           const x = await page.evaluate( PROBE );
           checks++;
           const problems = [];
+
+          // The global PublicShare contribution popup is a separate interaction surface from the
+          // header menu. Exercise it explicitly on the four phone widths we support as named mobile
+          // contracts so a future color/layout change cannot quietly push the popup off-screen.
+          if ( PUBLIC_SHARE_PHONE_WIDTHS.has( d.w ) ) {
+            const navExpanded = await page.getAttribute( '.nav-trigger', 'aria-expanded' ).catch( () => null );
+            if ( navExpanded === 'true' ) {
+              await page.click( '.nav-trigger', { timeout: 1200 } ).catch( () => {} );
+              await page.waitForTimeout( 80 );
+            }
+
+            const shareTrigger = await page.$( '.public-share .ps-contribute' );
+            if ( shareTrigger ) {
+              await shareTrigger.scrollIntoViewIfNeeded();
+              await shareTrigger.click();
+              await page.waitForTimeout( 80 );
+
+              const widget = await page.evaluate( () => {
+                const menu = document.querySelector( '.public-share .ps-contribute-menu:not([hidden])' );
+                const checkout = menu?.querySelector( '.ps-menu-item' );
+                if ( !menu || !checkout ) return { present: false };
+                const mb = menu.getBoundingClientRect();
+                const cb = checkout.getBoundingClientRect();
+                return {
+                  present: true,
+                  left: Math.round( mb.left ),
+                  right: Math.round( mb.right ),
+                  width: Math.round( mb.width ),
+                  viewport: window.innerWidth,
+                  checkoutHeight: Math.round( cb.height ),
+                };
+              } );
+
+              if ( !widget.present ) problems.push( 'PublicShare contribution popup did not open' );
+              else {
+                if ( widget.left < -1 || widget.right > widget.viewport + 1 ) {
+                  problems.push( `PublicShare popup outside viewport ${widget.left}..${widget.right}/${widget.viewport}` );
+                }
+                if ( widget.width <= 0 ) problems.push( 'PublicShare popup has zero width' );
+                if ( widget.checkoutHeight < 44 ) problems.push( `PublicShare checkout tap<44: ${widget.checkoutHeight}px` );
+              }
+
+              await shareTrigger.click().catch( () => {} );
+            }
+          }
           if ( x.overflow > 0 ) problems.push( `overflow ${x.overflow}px` );
           if ( x.h1Fits === false ) problems.push( `h1 ${x.h1.right}>${d.w}` );
           if ( x.menu && x.menu.h > 0 && x.menu.h < 120 ) problems.push( `menu ${x.menu.h}px for ${x.menu.content}px` );
