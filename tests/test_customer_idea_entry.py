@@ -31,6 +31,7 @@ def load_entry(source=None):
          _canon_ns)
     ns = {'Dict': dict, 'json': json, 're': re, 'uuid': uuid, 'logger': logging.getLogger('test'),
           'canonical_flow_id': _canon_ns['canonical_flow_id'],
+          'canonical_flow_status': _canon_ns['canonical_flow_status'],
           'PHONE_NUMBER_ID_1': 'phone1', 'PHONE_NUMBER_ID_2': 'phone2',
           'OUTBOUND_WHATSAPP_FUNCTION': 'fixture-outbound',
           'lambda_client': SimpleNamespace(invoke=invoke),
