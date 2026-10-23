@@ -521,7 +521,7 @@
       "ADMIN_MFA_REQUIRED": "true",
       "AI_LANGUAGE": "en-IN",
       "AI_VOICE_ID": "Kajal",
-      "AUTO_PICKUP_AUDIO_KEY": "whatsapp-media/whatsapp-calling/auto-pickup-greeting.ogg",
+      "AUTO_PICKUP_AUDIO_KEY": "secure/d/public/whatsapp/whatsapp-calling/auto-pickup-greeting.ogg",
       "AUTO_PICKUP_ENABLED": "true",
       "AUTO_PICKUP_IVR_URL": "https://wecare.digital/get/o/stream/media/ivr/incoming_welcome.sln16",
       "CALL_LOG_TABLE": "stack-wecare-digital-WhatsAppCallingTable",
