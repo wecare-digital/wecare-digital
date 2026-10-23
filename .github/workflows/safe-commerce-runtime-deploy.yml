@@ -11,6 +11,10 @@ on:
       - 'amplify/functions/messaging/whatsapp-business-api/**'
       - 'amplify/functions/shared/lambda_utils/**'
       - 'scripts/deploy_all_lambdas.py'
+      - 'scripts/provision_checkout.py'
+      - 'config/lambda-env-manifest.json'
+      - 'amplify/infra/checkout.json'
+      - 'tests/test_provision_checkout_contract.py'
       - 'scripts/snapstart_publish.py'
       - 'tests/test_payments.py'
       - 'tests/test_whatsapp_commerce_gap_closure.py'
@@ -54,7 +58,11 @@ jobs:
       - name: Compile and regression test
         run: |
           python -m py_compile             amplify/functions/ecommerce/checkout/handler.py             amplify/functions/ecommerce/checkout/invoice_engine.py             amplify/functions/payments/invoice-engine/handler.py             amplify/functions/messaging/whatsapp-business-api/handler.py             amplify/functions/messaging/whatsapp-business-api/flows/paid_submit_request.py
-          python -m pytest             tests/test_whatsapp_commerce_gap_closure.py             tests/test_payments.py -q
+          python -m pytest             tests/test_whatsapp_commerce_gap_closure.py             tests/test_payments.py             tests/test_provision_checkout_contract.py -q
+
+      - name: Reconcile checkout production environment
+        run: |
+          python scripts/provision_checkout.py
 
       - name: Package validation
         run: |
