@@ -521,11 +521,10 @@ _NOT_READY_MESSAGE = 'WhatsApp payment is not ready. Nothing has been charged.'
 #: surface as META_UNAVAILABLE - the hardest state on this path to tell from a real outage.
 _PAYMENT_READ_FUNCTION = 'wecare-whatsapp-business-api:live'
 
-#: Approved Meta Order Status template used only when the 24-hour customer-service window is
-#: closed. No default is invented: provider approval is external state and must be configured
-#: explicitly after readback proves the template APPROVED on the sender's WABA.
-WA_ORDER_STATUS_TEMPLATE = os.environ.get('WA_ORDER_STATUS_TEMPLATE', '').strip()
-WA_ORDER_STATUS_TEMPLATE_LANGUAGE = os.environ.get('WA_ORDER_STATUS_TEMPLATE_LANGUAGE', 'en').strip() or 'en'
+#: Single approved Meta Order Status template used for every fulfilment update.
+#: There is no service-window alternative: processing/shipped/completed always use this template.
+WA_ORDER_STATUS_TEMPLATE = 'wecare_order_status_v2'
+WA_ORDER_STATUS_TEMPLATE_LANGUAGE = 'en'
 
 
 #: Refusal codes this gate owns. Deliberately NOT added to
@@ -835,13 +834,7 @@ def _marketing_consent_refusal(contact: Optional[Dict[str, Any]], purpose: str,
 
 
 def _approved_order_status_template(phone_number_id: str, request_id: str) -> str:
-    """Return the configured Order Status template only after a live APPROVED readback."""
-    if not WA_ORDER_STATUS_TEMPLATE:
-        logger.warning(json.dumps({
-            'event': 'order_status_template_not_configured',
-            'requestId': request_id,
-        }))
-        return ''
+    """Return the single Order Status template only after a live APPROVED readback."""
     waba_id = _waba_for_sender(phone_number_id)
     if not waba_id:
         logger.warning(json.dumps({
@@ -1389,22 +1382,16 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return _outside_window_refusal(contact_id, bool(contact), request_id)
         
         order_status_template_name = ''
-        if not within_window and is_order_status:
-            # An interactive order_status is a service-window message. Outside 24h it may travel
-            # only through an APPROVED Order Status template, proven live for this sender's WABA.
+        if is_order_status:
             order_status_template_name = _approved_order_status_template(
                 phone_number_id, request_id)
+            if not order_status_template_name:
+                return _error_response(
+                    409, 'ORDER_STATUS_TEMPLATE_NOT_READY',
+                    'The approved order status template is not ready. Nothing was sent.')
 
-        if not within_window and not is_template:
-            if order_status_template_name:
-                logger.info(json.dumps({
-                    'event': 'order_status_template_fallback_selected',
-                    'templateName': order_status_template_name,
-                    'contactId': mask_contact_id(contact_id),
-                    'requestId': request_id,
-                }))
-            elif direct_send_category:
-                # A WABA id is not a secret and already appears in committed source.
+        if not within_window and not is_template and not is_order_status:
+            if direct_send_category:
                 logger.info(json.dumps({
                     'event': 'direct_send_attempt',
                     'category': direct_send_category,
@@ -1768,7 +1755,11 @@ def _handle_order_status_send(message_id: str, contact_id: str, recipient_phone:
         formatted_phone = _normalize_phone_number(recipient_phone)
         whatsapp_phone = f"+{formatted_phone}"
         
-        # Build the in-window interactive message or the out-of-window approved template.
+        # Build the single template-based order_status message.
+        if not template_name:
+            return _error_response(
+                409, 'ORDER_STATUS_TEMPLATE_NOT_READY',
+                'The approved order status template is not ready. Nothing was sent.')
         status_action = {
             'reference_id': reference_id,
             'order': {
@@ -1776,44 +1767,26 @@ def _handle_order_status_send(message_id: str, contact_id: str, recipient_phone:
                 'description': description,
             },
         }
-        if template_name:
-            order_status_payload = {
-                'messaging_product': 'whatsapp',
-                'recipient_type': 'individual',
-                'to': whatsapp_phone,
-                'type': 'template',
-                'template': {
-                    'name': template_name,
-                    'language': {
-                        'policy': 'deterministic',
-                        'code': WA_ORDER_STATUS_TEMPLATE_LANGUAGE,
-                    },
-                    'components': [{
-                        'type': 'order_status',
-                        'parameters': [{
-                            'type': 'order_status',
-                            'order_status': status_action,
-                        }],
-                    }],
+        order_status_payload = {
+            'messaging_product': 'whatsapp',
+            'recipient_type': 'individual',
+            'to': whatsapp_phone,
+            'type': 'template',
+            'template': {
+                'name': template_name,
+                'language': {
+                    'policy': 'deterministic',
+                    'code': WA_ORDER_STATUS_TEMPLATE_LANGUAGE,
                 },
-            }
-        else:
-            order_status_payload = {
-                'messaging_product': 'whatsapp',
-                'recipient_type': 'individual',
-                'to': whatsapp_phone,
-                'type': 'interactive',
-                'interactive': {
+                'components': [{
                     'type': 'order_status',
-                    'body': {
-                        'text': body_text,
-                    },
-                    'action': {
-                        'name': 'review_order',
-                        'parameters': status_action,
-                    },
-                },
-            }
+                    'parameters': [{
+                        'type': 'order_status',
+                        'order_status': status_action,
+                    }],
+                }],
+            },
+        }
         # Add BSUID recipient if available (per Meta BSUID docs)
         if recipient_bsuid:
             order_status_payload['recipient'] = recipient_bsuid
