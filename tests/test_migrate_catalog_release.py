@@ -54,3 +54,33 @@ def test_plan_summary_preserves_wix_foreign_readback():
     assert summary["retire"] == 0
     assert summary["foreign"] == 2
     assert summary["foreignIds"] == ["wix:a:b", "wix:c:d"]
+
+
+def test_inspect_meta_returns_status_and_does_not_raise_on_409():
+    """The Meta inspect must hand the status back so the caller can distinguish an owner-gated
+    'plan not loaded' (409) from an unexpected transport error - it no longer raises on 409."""
+    mod = load_module()
+
+    captured = {}
+
+    def fake_http_json(method, url, token, body=None):
+        captured["method"] = method
+        return 409, {"ok": False, "reason": "unconfigured"}
+
+    mod.http_json = fake_http_json  # type: ignore[assignment]
+    status, data = mod.inspect_meta("https://wecare.digital/api", "tok")
+    assert status == 409
+    assert data["reason"] == "unconfigured"
+    assert captured["method"] == "GET"
+
+
+def test_plan_not_loaded_reasons_match_the_handler_inspect_failures():
+    """These are exactly the ok:False reasons the meta-catalog-sync GET/inspect path can return;
+    treating them as 'plan not loaded' (success) rather than a release failure is the fix for the
+    HTTP 409 on the bulk catalog release."""
+    mod = load_module()
+    assert "unconfigured" in mod.META_PLAN_NOT_LOADED_REASONS
+    assert "read_failed" in mod.META_PLAN_NOT_LOADED_REASONS
+    assert "approval_store_unavailable" in mod.META_PLAN_NOT_LOADED_REASONS
+    # A genuine plan state (blocked) must NOT be silently treated as not-loaded.
+    assert "blocked" not in mod.META_PLAN_NOT_LOADED_REASONS
