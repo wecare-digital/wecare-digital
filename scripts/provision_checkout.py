@@ -593,6 +593,25 @@ def expected_invoice_role_policy(acct: str | None = None) -> dict:
     }
 
 
+
+def legacy_media_write_guard_policy(acct: str | None = None) -> dict:
+    """Explicitly refuse writes/deletes to historical media prefixes while reads migrate."""
+    acct = acct or account_id()
+    return {
+        "Version": "2012-10-17",
+        "Statement": [{
+            "Sid": "DenyLegacyMediaWrites",
+            "Effect": "Deny",
+            "Action": ["s3:PutObject", "s3:DeleteObject"],
+            "Resource": [
+                f"arn:aws:s3:::{MEDIA_BUCKET}/secure/Invoice/customer_invoice/*",
+                f"arn:aws:s3:::{MEDIA_BUCKET}/secure/Invoice/fonts/*",
+                f"arn:aws:s3:::{MEDIA_BUCKET}/o/stack/whatsapp-media/*",
+                f"arn:aws:s3:::{MEDIA_BUCKET}/stack/whatsapp-media/*",
+            ],
+        }],
+    }
+
 def ensure_role(dry_run: bool) -> str:
     """Create OR reconcile the dedicated checkout role.
 
@@ -636,6 +655,11 @@ def ensure_role(dry_run: bool) -> str:
         RoleName=ROLE_NAME,
         PolicyName="CheckoutInvoiceAuthority",
         PolicyDocument=json.dumps(expected_invoice_role_policy()),
+    )
+    iam().put_role_policy(
+        RoleName=ROLE_NAME,
+        PolicyName="LegacyMediaWriteGuard",
+        PolicyDocument=json.dumps(legacy_media_write_guard_policy()),
     )
     return "reconciled" if exists else "created"
 

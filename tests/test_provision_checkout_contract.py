@@ -1373,3 +1373,30 @@ def test_role_reconciliation_writes_invoice_authority(provisioner):
     body = SCRIPT.read_text(encoding="utf-8").split("def ensure_role", 1)[1].split("\ndef ", 1)[0]
     assert 'PolicyName="CheckoutInvoiceAuthority"' in body
     assert "expected_invoice_role_policy()" in body
+
+
+def test_legacy_media_write_guard_is_owned_by_checkout_provisioner(provisioner):
+    guard = provisioner.legacy_media_write_guard_policy("775261844268")
+    statement = guard["Statement"][0]
+    assert statement["Sid"] == "DenyLegacyMediaWrites"
+    assert statement["Effect"] == "Deny"
+    assert sorted(statement["Action"]) == ["s3:DeleteObject", "s3:PutObject"]
+    assert sorted(statement["Resource"]) == sorted([
+        "arn:aws:s3:::wecare-digital-get/secure/Invoice/customer_invoice/*",
+        "arn:aws:s3:::wecare-digital-get/secure/Invoice/fonts/*",
+        "arn:aws:s3:::wecare-digital-get/o/stack/whatsapp-media/*",
+        "arn:aws:s3:::wecare-digital-get/stack/whatsapp-media/*",
+    ])
+    body = SCRIPT.read_text(encoding="utf-8").split("def ensure_role", 1)[1].split("\ndef ", 1)[0]
+    assert 'PolicyName="LegacyMediaWriteGuard"' in body
+    assert "legacy_media_write_guard_policy()" in body
+
+
+def test_checkout_template_carries_the_same_legacy_write_guard():
+    template = json.loads(TEMPLATE.read_text(encoding="utf-8"))
+    policies = template["Resources"]["CheckoutRole"]["Properties"]["Policies"]
+    guard = next(p for p in policies if p["PolicyName"] == "LegacyMediaWriteGuard")
+    statement = guard["PolicyDocument"]["Statement"][0]
+    assert statement["Sid"] == "DenyLegacyMediaWrites"
+    assert statement["Effect"] == "Deny"
+    assert sorted(statement["Action"]) == ["s3:DeleteObject", "s3:PutObject"]

@@ -1212,3 +1212,16 @@ def test_h_a_vault_or_dropdocs_payment_does_not_report_an_amendment_problem():
     body = source.split("def activate", 1)[1].split("\ndef ", 1)[0]
     assert ('"AMENDMENT_TARGET_MISSING" if kind == REQUEST_AMENDMENT else "TARGET_MISSING"'
             in body)
+
+
+def test_secure_files_provisioner_persists_legacy_media_write_guard():
+    source = (ROOT / "scripts" / "provision_secure_files_api.py").read_text(encoding="utf-8")
+    assert "def legacy_media_write_guard_policy()" in source
+    assert 'PolicyName="LegacyMediaWriteGuard"' in source
+    for prefix in (
+        "secure/Invoice/customer_invoice/*",
+        "secure/Invoice/fonts/*",
+        "o/stack/whatsapp-media/*",
+        "stack/whatsapp-media/*",
+    ):
+        assert prefix in source

@@ -245,6 +245,24 @@ def policy_document() -> dict:
     }
 
 
+
+def legacy_media_write_guard_policy() -> dict:
+    """Keep historical prefixes readable where needed, but never writable."""
+    return {
+        "Version": "2012-10-17",
+        "Statement": [{
+            "Sid": "DenyLegacyMediaWrites",
+            "Effect": "Deny",
+            "Action": ["s3:PutObject", "s3:DeleteObject"],
+            "Resource": [
+                f"arn:aws:s3:::{BUCKET}/secure/Invoice/customer_invoice/*",
+                f"arn:aws:s3:::{BUCKET}/secure/Invoice/fonts/*",
+                f"arn:aws:s3:::{BUCKET}/o/stack/whatsapp-media/*",
+                f"arn:aws:s3:::{BUCKET}/stack/whatsapp-media/*",
+            ],
+        }],
+    }
+
 def ensure_role(dry_run: bool) -> str:
     trust = {
         "Version": "2012-10-17",
@@ -279,6 +297,11 @@ def ensure_role(dry_run: bool) -> str:
         RoleName=ROLE_NAME,
         PolicyName="wecare-secure-files",
         PolicyDocument=json.dumps(policy_document()),
+    )
+    iam().put_role_policy(
+        RoleName=ROLE_NAME,
+        PolicyName="LegacyMediaWriteGuard",
+        PolicyDocument=json.dumps(legacy_media_write_guard_policy()),
     )
     return "created" if not exists else "policy refreshed"
 
