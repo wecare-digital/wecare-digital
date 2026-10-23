@@ -163,7 +163,13 @@ def simulate(iam, policy: dict) -> int:
             ResourceArns=resources)
         out = {}
         for r in res["EvaluationResults"]:
-            out[(r["EvalActionName"], r["EvalResourceName"])] = r["EvalDecision"]
+            action = r["EvalActionName"]
+            specific = r.get("ResourceSpecificResults") or []
+            if specific:
+                for item in specific:
+                    out[(action, item["EvalResourceName"])] = item["EvalResourceDecision"]
+            else:
+                out[(action, r["EvalResourceName"])] = r["EvalDecision"]
         return out
 
     failures = []
