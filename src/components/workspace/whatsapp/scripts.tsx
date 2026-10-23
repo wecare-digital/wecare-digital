@@ -103,7 +103,7 @@ const ScriptsPageBody: React.FC<Props> = () => {
       // WD_Leave_Review_v2, PUBLISHED on WABA 1. Guarded by
       // tests/test_leave_review_wiring.py.
       leave_review: { keywords: REVIEW_ENTRY_KEYWORDS, message: { body: '⭐ Share your experience with us and help us improve our service.', flowCta: 'Leave Feedback' }, flowId: REVIEW_FLOW_ID },
-      subscribe: { keywords: ['subscribe', 'register'], message: { body: '🔔 Get updates, offers, and service news. Fill in your details to stay connected.', flowCta: 'Subscribe for Updates' }, flowId: canonicalFlowId('subscribe') ?? '-' },
+      subscribe: { keywords: ['subscribe', 'register'], message: { body: 'Save your details for faster service on WECARE.DIGITAL.', flowCta: 'Subscribe' }, flowId: canonicalFlowId('subscribe') ?? '-' },
     };
 
     // Load overrides from SystemConfig

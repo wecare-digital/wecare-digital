@@ -100,7 +100,7 @@
             "width": 328,
             "height": 8,
             "scale-type": "contain",
-            "alt-text": "WECARE profile colour accent"
+            "alt-text": "WECARE.DIGITAL profile color accent"
           },
           {
             "type": "TextHeading",
@@ -108,7 +108,7 @@
           },
           {
             "type": "TextBody",
-            "text": "Save your details once for faster service on WhatsApp."
+            "text": "Save your details once for faster service on WECARE.DIGITAL."
           },
           {
             "type": "TextCaption",
@@ -128,7 +128,8 @@
                 "name": "full_name",
                 "label": "Full name",
                 "required": true,
-                "label-variant": "large"
+                "label-variant": "large",
+                "max-chars": 200
               },
               {
                 "type": "TextInput",
@@ -136,21 +137,26 @@
                 "label": "WhatsApp username",
                 "required": false,
                 "max-chars": 50,
-                "label-variant": "large"
+                "label-variant": "large",
+                "helper-text": "Optional — for your WECARE.DIGITAL profile"
               },
               {
                 "type": "TextInput",
                 "name": "company_name",
-                "label": "Organisation",
+                "label": "Organization",
                 "required": false,
-                "label-variant": "large"
+                "label-variant": "large",
+                "helper-text": "Optional",
+                "max-chars": 200
               },
               {
                 "type": "TextInput",
                 "name": "designation",
-                "label": "Role / designation",
+                "label": "Job title",
                 "required": false,
-                "label-variant": "large"
+                "label-variant": "large",
+                "helper-text": "Optional",
+                "max-chars": 200
               }
             ],
             "init-values": {
@@ -278,7 +284,7 @@
             "width": 328,
             "height": 8,
             "scale-type": "contain",
-            "alt-text": "WECARE address colour accent"
+            "alt-text": "WECARE.DIGITAL address color accent"
           },
           {
             "type": "TextHeading",
@@ -286,7 +292,7 @@
           },
           {
             "type": "TextBody",
-            "text": "Used for service, delivery and account details."
+            "text": "Used for service, delivery, and account details."
           },
           {
             "type": "Form",
@@ -297,42 +303,50 @@
                 "name": "address_line1",
                 "label": "Street address",
                 "required": true,
-                "label-variant": "large"
+                "label-variant": "large",
+                "max-chars": 200
               },
               {
                 "type": "TextInput",
                 "name": "address_line2",
-                "label": "Flat / floor / unit",
+                "label": "Apartment / suite / unit",
                 "required": false,
-                "label-variant": "large"
+                "label-variant": "large",
+                "helper-text": "Optional",
+                "max-chars": 200
               },
               {
                 "type": "TextInput",
                 "name": "locality",
-                "label": "Landmark / locality",
+                "label": "Landmark / neighborhood",
                 "required": false,
-                "label-variant": "large"
+                "label-variant": "large",
+                "helper-text": "Optional",
+                "max-chars": 100
               },
               {
                 "type": "TextInput",
                 "name": "city",
                 "label": "City",
                 "required": true,
-                "label-variant": "large"
+                "label-variant": "large",
+                "max-chars": 100
               },
               {
                 "type": "TextInput",
                 "name": "state",
                 "label": "State / region",
                 "required": true,
-                "label-variant": "large"
+                "label-variant": "large",
+                "max-chars": 100
               },
               {
                 "type": "TextInput",
                 "name": "postal_code",
-                "label": "PIN / postal code",
+                "label": "Postal code",
                 "required": true,
-                "label-variant": "large"
+                "label-variant": "large",
+                "max-chars": 100
               },
               {
                 "type": "Dropdown",
@@ -1256,7 +1270,7 @@
             "width": 328,
             "height": 8,
             "scale-type": "contain",
-            "alt-text": "WECARE review colour accent"
+            "alt-text": "WECARE.DIGITAL review color accent"
           },
           {
             "type": "TextHeading",
@@ -1317,7 +1331,7 @@
             "then": [
               {
                 "type": "TextCaption",
-                "text": "Organisation"
+                "text": "Organization"
               },
               {
                 "type": "TextBody",
@@ -1331,7 +1345,7 @@
             "then": [
               {
                 "type": "TextCaption",
-                "text": "Role / designation"
+                "text": "Job title"
               },
               {
                 "type": "TextBody",
@@ -1389,7 +1403,7 @@
           },
           {
             "type": "TextCaption",
-            "text": "PIN / postal code"
+            "text": "Postal code"
           },
           {
             "type": "TextBody",
@@ -1464,7 +1478,7 @@
             "width": 328,
             "height": 8,
             "scale-type": "contain",
-            "alt-text": "WECARE success colour accent"
+            "alt-text": "WECARE.DIGITAL success color accent"
           },
           {
             "type": "TextHeading",

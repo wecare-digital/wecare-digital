@@ -12,7 +12,7 @@ import { canonicalFlowId } from '../../../lib/canonicalFlows';
 // ─── Bot Menu & Customer Service Menu Data ───
 const BOT_MENU = [
   { row: 1, section: 'Start Here', icon: '🚀', title: 'Customer Service', description: 'Requests, appointments, documents, and support', action: 'Opens Customer Service list' },
-  { row: 2, section: 'Start Here', icon: '🔔', title: 'Subscribe for Updates', description: 'Get updates, offers, and service news', action: 'Opens subscribe form' },
+  { row: 2, section: 'Start Here', icon: '🔔', title: 'Subscribe', description: 'Save your details for faster service on WECARE.DIGITAL', action: 'Opens subscribe form' },
   { row: 3, section: 'Start Here', icon: '🆔', title: 'Find Profile ID', description: 'Locate your subscription or profile ID', action: 'Opens ID lookup' },
   { row: 4, section: 'Start Here', icon: '💳', title: 'Make a Payment', description: 'Pay an invoice or complete a pending payment', action: 'Opens payment lookup' },
   { row: 5, section: 'Explore WECARE', icon: '🛍️', title: 'Explore Store', description: 'Browse services, brands, and offers', action: 'CTA link → wecare.digital' },

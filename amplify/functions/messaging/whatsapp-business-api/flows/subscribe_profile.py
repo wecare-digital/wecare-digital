@@ -84,13 +84,13 @@ def handle_review(data, flow_token, request_id):
     # A profile username is customer-entered; never overwrite Meta's username,
     # BSUID, ownership or permanent customer identity with it.
     if len(values['profileUsername']) > 50:
-        return _error(data, 'Please keep your username within 50 characters.')
+        return _error(data, 'Please keep your WhatsApp username within 50 characters.')
     now = int(time.time())
     try:
         address = contact_address.normalize_for_storage(raw_address)
     except contact_address.UnusableAddress as exc:
-        labels = {'addressLine1': 'address line 1', 'city': 'city', 'state': 'state',
-                  'postalCode': 'PIN / postal code'}
+        labels = {'addressLine1': 'street address', 'city': 'city', 'state': 'state / region',
+                  'postalCode': 'postal code'}
         return _error(data, 'Please check your ' + labels.get(exc.field, 'address') + '.')
     values.update(contact_address.contact_write_fields(address, now=now))
     contact_id = str(row.get('id') or contact_store.deterministic_id(phone))
