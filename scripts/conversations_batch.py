@@ -47,7 +47,6 @@ import blog_native_contract as native  # noqa: E402
 import blog_quality_v2 as quality  # noqa: E402
 
 CATEGORY = quality.DEFAULT_CATEGORY
-AUTHOR = quality.AUTHOR
 LEDGER_PATH = blog_ledger.DEFAULT_LEDGER
 
 #: The read-back uses the same unauthenticated, published-only route the site build reads,
@@ -130,10 +129,6 @@ def payload_errors(record: Dict[str, Any]) -> List[str]:
     category = str(record.get("category") or "").strip()
     if category and category != CATEGORY:
         errors.append(f"{prefix}: category must be {CATEGORY!r}, got {category!r}")
-    author = quality.text_field(record, "author")
-    if author and author != AUTHOR:
-        errors.append(f"{prefix}: author must be {AUTHOR!r}, got {author!r}")
-
     tags = quality.field(record, "tags") or []
     if not isinstance(tags, list) or not 1 <= len(tags) <= 3:
         errors.append(f"{prefix}: tags must be a list of 1-3 labels")
@@ -290,10 +285,6 @@ def audit_post(public: Dict[str, Any], expected: Dict[str, Any], *,
         fail(f"title is {public.get('title')!r}, expected "
              f"{str(expected.get('title') or '').strip()!r}")
 
-    #: The native store keeps `authorName` on each post and the public view returns that
-    #: stored value, so this field is evidence of the attribution rather than a default.
-    if str(public.get("authorName") or "") != AUTHOR:
-        fail(f"authorName is {public.get('authorName')!r}, expected {AUTHOR!r}")
     if str(public.get("category") or "") != CATEGORY:
         fail(f"category is {public.get('category')!r}, expected {CATEGORY!r}")
 
@@ -344,6 +335,21 @@ def audit_post(public: Dict[str, Any], expected: Dict[str, Any], *,
     #: The native view serves the stored Markdown as `content`, which is exactly what the
     #: post page renders, so the body is judged by the same contract `validate` applies.
     content = str(public.get("content") or public.get("contentText") or "")
+    live_for_public_copy = {
+        "title": str(public.get("title") or ""),
+        "seoTitle": str(public.get("seoTitle") or ""),
+        "metaDescription": str(public.get("metaDescription") or ""),
+        "content": content,
+        "originalSourceTitle": quality.text_field(expected, "originalSourceTitle"),
+        "sourceTitle": str(expected.get("sourceTitle") or ""),
+        "sourceAuthor": str(expected.get("sourceAuthor") or ""),
+        "sourcePublisher": str(expected.get("sourcePublisher") or ""),
+        "sourceInstitution": str(expected.get("sourceInstitution") or ""),
+    }
+    for finding in quality.check_public_source_exposure(live_for_public_copy):
+        if finding.severity == "BLOCK":
+            fail(f"public-copy policy: {finding.code}: {finding.message}")
+
     if not content.strip():
         fail("published body is empty")
     else:
