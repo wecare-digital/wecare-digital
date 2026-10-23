@@ -608,9 +608,6 @@ function environmentFetch() {
     if ( requestIs( input, 'weather.googleapis.com', '/v1/publicAlerts' ) ) {
       return Promise.resolve( { ok: true, json: async () => ( { weatherAlerts: [] } ) } as Response );
     }
-    if ( requestIs( input, 'pollen.googleapis.com', '/v1/forecast' ) ) {
-      return Promise.resolve( { ok: true, json: async () => ( { dailyInfo: [] } ) } as Response );
-    }
     if ( requestIs( input, 'airquality.googleapis.com', '/v1/forecast' ) ) {
       return Promise.resolve( {
         ok: true,
