@@ -52,7 +52,7 @@ def role_arn():
     expected = {
         "Effect": "Allow",
         "Action": ["s3:GetObject"],
-        "Resource": ["arn:aws:s3:::wecare-digital-get/secure/catalog/products/*"],
+        "Resource": ["arn:aws:s3:::wecare-digital-get/secure/d/public/catalog-deploy/catalog/products/*"],
     }
     statements = policy.get("Statement", [])
     if isinstance(statements, dict):
@@ -63,7 +63,7 @@ def role_arn():
         and s.get("Resource") == expected["Resource"]
         for s in statements
     ):
-        raise RuntimeError("catalog-media role is not scoped to secure catalog artwork")
+        raise RuntimeError("catalog-media role is not scoped to approved catalog-deploy artwork")
     return role["Arn"]
 
 
