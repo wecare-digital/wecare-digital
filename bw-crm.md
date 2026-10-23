@@ -589,7 +589,7 @@ Keep two call paths explicit: PSTN through Plivo on +918031830030; WhatsApp Call
 
 Build the full canonical `/communications/calling` hierarchy from the approved design, redirect legacy `[retired public path 2de923b8]/pstn*`, `[retired public path 2de923b8]/voice` and `[retired public path 2de923b8]/voice-in` routes, and use real APIs with honest loading/empty/error/unavailable states. Do not render controls that cannot work.
 
-Fix the Amplify app-level build spec so the live site serves `Permissions-Policy: camera=(), microphone=(self), geolocation=()` and `X-Content-Type-Options: nosniff`. Snapshot the existing app config, validate YAML locally, update app `d22dm4b0jn71jw`, trigger/monitor a build, and verify response headers. Restore or replace the stale `app.wecare.digital` media deployment before depending on it for IVR/template media.
+Fix the Amplify app-level build spec so the live site serves `Permissions-Policy: camera=(), microphone=(self), geolocation=()` and `X-Content-Type-Options: nosniff`. Snapshot the existing app config, validate YAML locally, update app `d22dm4b0jn71jw`, trigger/monitor a build, and verify response headers. IVR/template media no longer depends on `app.wecare.digital`: that host/bucket was **retired 2026-09-28 (NXDOMAIN)** and media now serves from the apex `/get/o/` path over bucket `wecare-digital-get` (see `amplify/functions/shared/lambda_utils/media_paths.py`). No restore of the old media deployment is needed.
 
 ### PSTN full-feature documentation and implementation scope
 
