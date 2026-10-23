@@ -490,11 +490,34 @@ def test_tag_case_is_not_a_tag_difference(mod):
     assert any("tags are" in error for error in errors)
 
 
-def test_audit_checks_the_stored_author(mod):
-    """The native store keeps `authorName` per post, so the public view is evidence."""
+def test_audit_does_not_enforce_fixed_author_identity(mod):
     item = record(1)
-    errors = mod.audit_post(public_post(item, authorName="WECARE.DIGITAL"), item)
-    assert any("authorName is 'WECARE.DIGITAL'" in error for error in errors)
+    assert mod.audit_post(public_post(item, authorName="WECARE.DIGITAL"), item) == []
+
+
+def test_conversations_validate_blocks_public_external_reference(mod, tmp_path):
+    doc = document(1)
+    doc["posts"][0]["contentMarkdown"] += "\n\nSee https://example.com/source for the original."
+    ledger_path = tmp_path / "ledger.json"
+    ledger_for(ledger_path, doc["posts"])
+    report = mod.validate_document(doc, manifest_path=None, ledger_path=ledger_path)
+    assert any("PUBLIC_EXTERNAL_URL" in error for error in report["errors"])
+
+
+def test_conversations_validate_blocks_public_citation_language(mod, tmp_path):
+    doc = document(1)
+    doc["posts"][0]["contentMarkdown"] += "\n\nAccording to Example Author, the distinction begins here."
+    ledger_path = tmp_path / "ledger.json"
+    ledger_for(ledger_path, doc["posts"])
+    report = mod.validate_document(doc, manifest_path=None, ledger_path=ledger_path)
+    assert any("PUBLIC_CITATION_LANGUAGE" in error for error in report["errors"])
+
+
+def test_conversations_audit_blocks_live_reference_leak(mod):
+    item = record(1)
+    leaked = item["contentMarkdown"] + "\n\nSee https://example.com/source for details."
+    errors = mod.audit_post(public_post(item, content=leaked, contentText=leaked), item)
+    assert any("public-copy policy: PUBLIC_EXTERNAL_URL" in error for error in errors)
 
 
 def test_audit_catches_formatting_corruption_in_the_published_body(mod):
