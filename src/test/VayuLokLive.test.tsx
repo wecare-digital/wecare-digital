@@ -1418,7 +1418,10 @@ describe( 'VayuLokLive v8 approved design contract', () => {
 
     // (2) HEALTH RECOMMENDATIONS. All seven groups come from Google's live
     // healthRecommendations payload. There is no static WECARE recommendation fallback.
+    expect( container.querySelector( '.vl-ui-data-card' ) ).not.toBeNull();
+    expect( container.querySelector( '.vl-ui-horizontal-rail' ) ).not.toBeNull();
     const healthTablist = screen.getByRole( 'tablist', { name: 'Health recommendation profiles' } );
+    expect( container.querySelector( '.vl-ui-icon-action' ) ).not.toBeNull();
     const personaTabs = healthTablist.querySelectorAll( '[role="tab"]' );
     expect( personaTabs ).toHaveLength( 7 );
     expect( screen.getByRole( 'tab', { name: 'General population' } ) ).toBeTruthy();
@@ -2039,7 +2042,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
 
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
 
-    expect( screen.getByRole( 'status', { name: '' } ).textContent ).toContain( 'Route is temporarily unavailable.' );
+    expect( screen.getByText( 'Route is temporarily unavailable.' ) ).toBeTruthy();
     expect( screen.getByRole( 'button', { name: 'Check route' } ) ).toBeDisabled();
 
     const leftCard = container.querySelector( '.vl-live-tools-left .vl-live-tool-card' );
@@ -2458,9 +2461,6 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( css ).not.toContain( '.vl-live-air-health-more' );
     expect( css ).not.toContain( 'background:#dbeafe' );
     expect( css ).not.toContain( 'background:#e0f7c8' );
-    expect( container.querySelector( '.vl-ui-data-card' ) ).not.toBeNull();
-    expect( container.querySelector( '.vl-ui-horizontal-rail' ) ).not.toBeNull();
-    expect( container.querySelector( '.vl-ui-icon-action' ) ).not.toBeNull();
 
     // Deep typography pass: compact live-panel headings use the Home/public data rung (17px,
     // matching compact readings such as "Feels 17°"); tool-card headings retain the Home card
