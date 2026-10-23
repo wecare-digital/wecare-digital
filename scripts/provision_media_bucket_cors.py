@@ -237,7 +237,7 @@ def main() -> int:
     print("    -H 'Origin: https://wecare.digital' \\")
     print("    -H 'Access-Control-Request-Method: PUT' \\")
     print("    -H 'Access-Control-Request-Headers: content-type' \\")
-    print(f"    https://{BUCKET}.s3.{REGION}.amazonaws.com/o/stack/whatsapp-media/"
+    print(f"    https://{BUCKET}.s3.{REGION}.amazonaws.com/secure/d/public/whatsapp/"
           "outgoing/preflight-probe.bin")
     print("Rollback: aws s3api delete-bucket-cors --bucket "
           f"{BUCKET}  (prior state was no configuration at all)")
