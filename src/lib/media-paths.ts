@@ -35,6 +35,9 @@ export const PUBLIC_ROOT = 'o/';
 /** Gated root. Denied at the edge; reachable only via a presigned URL. */
 export const SECURE_ROOT = 'secure/';
 
+/** Public-delivery subtree inside secure/d. */
+export const PUBLIC_DELIVERABLE_ROOT = 'secure/d/public/';
+
 /**
  * The media host including its path segment. Deliberately NOT the bucket name —
  * see rule 1 in the module docstring.
@@ -60,7 +63,9 @@ export function canonical ( key?: string | null ): string {
 
 /** True when the key lives under the gated root. */
 export function isGated ( key?: string | null ): boolean {
-    return !!key && canonical( key ).startsWith( SECURE_ROOT );
+    if ( !key ) return false;
+    const k = canonical( key );
+    return k.startsWith( SECURE_ROOT ) && !k.startsWith( PUBLIC_DELIVERABLE_ROOT );
 }
 
 /**
@@ -72,7 +77,7 @@ export function isGated ( key?: string | null ): boolean {
  */
 export function publicUrl ( key?: string | null, cdnDomain: string = CDN_DOMAIN ): string {
     const k = canonical( key );
-    if ( !k || k.startsWith( SECURE_ROOT ) ) return '';
+    if ( !k || ( k.startsWith( SECURE_ROOT ) && !k.startsWith( PUBLIC_DELIVERABLE_ROOT ) ) ) return '';
     if ( k.startsWith( 'http://' ) || k.startsWith( 'https://' ) ) return k;
     return `https://${ cdnDomain.replace( /^\/+|\/+$/g, '' ) }/${ k }`;
 }
