@@ -18,8 +18,8 @@ clean `…/v2.0.0.md`. Pull those to implement accurately:
 | configure | agent-knowledge-business-info, -faqs, -files, -websites, agent-skills, connectors, connector-tools |
 | operate | agent-eval, agent-event, agent-test, thread-control-cloud-api |
 
-The scraped Markdown is in `s3://wecare-digital-get/o/stream/docs/meta-business-agent/`
-(served as `https://wecare.digital/get/o/stream/docs/meta-business-agent/`).
+The scraped Markdown is in `s3://wecare-digital-get/o/stream/media/docs/meta-business-agent/`
+(served as `https://wecare.digital/get/o/stream/media/docs/meta-business-agent/`).
 Recommended: extend the docs-scraper to also fetch each endpoint's
 `v2.0.0.openapi.yaml` so this handler can be generated/validated against the spec.
 
