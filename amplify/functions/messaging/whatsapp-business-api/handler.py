@@ -4427,10 +4427,15 @@ def _upsert_flow_registry(body: Dict) -> Dict:
         if entry_mode not in valid_entry_modes:
             return _resp(400, {'error': f'Invalid entryMode: {entry_mode}. Must be one of {valid_entry_modes}'})
         entry_template = str(body.get('entryTemplateName', '') or '').strip()
+        requires_payment = bool(body.get('requiresPayment', False))
         if entry_mode == 'payment_template' and not entry_template:
             return _resp(400, {'error': 'entryTemplateName is required for payment_template entryMode'})
+        if entry_mode == 'payment_template' and not requires_payment:
+            return _resp(400, {'error': 'payment_template flows must set requiresPayment=true'})
         if entry_mode == 'keyword_interactive' and entry_template:
             return _resp(400, {'error': 'keyword_interactive flows must not declare an entryTemplateName'})
+        if entry_mode == 'keyword_interactive' and requires_payment:
+            return _resp(400, {'error': 'keyword_interactive flows must not be payment-gated; use payment_template or internal_event'})
         
         now = int(time.time())
         table = dynamodb.Table(FLOW_REGISTRY_TABLE)
@@ -4446,7 +4451,7 @@ def _upsert_flow_registry(body: Dict) -> Dict:
             'category': body.get('category', ''),
             'entryMode': entry_mode,
             'entryTemplateName': entry_template,
-            'requiresPayment': body.get('requiresPayment', False),
+            'requiresPayment': requires_payment,
             'paymentAmount': int(body.get('paymentAmount', 0)),
             'paymentDescription': body.get('paymentDescription', ''),
             'screenConfig': body.get('screenConfig', '{}'),
