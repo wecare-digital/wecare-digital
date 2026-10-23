@@ -96,7 +96,7 @@ MEDIA_BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
 MEDIA_CDN_DOMAIN = os.environ.get('MEDIA_CDN_DOMAIN', media_paths.CDN_DOMAIN)
 # Customer uploads are private from their first S3 write. Existing public media
 # remains readable through its persisted key; no migration or public fallback here.
-MEDIA_PREFIX = media_paths.secure('u/whatsapp/incoming/')
+MEDIA_PREFIX = media_paths.WHATSAPP_INCOMING_PREFIX
 SEND_MODE = os.environ.get('SEND_MODE', 'LIVE')
 
 # AI Lambda function names
@@ -2918,9 +2918,7 @@ def _process_message(
             # Paid/post-payment/event-only flows are never allowed to become keyword doors.
             if trigger.get('entryMode', 'keyword_interactive') != 'keyword_interactive':
                 continue
-            # Subscribe additionally requires the canonical Meta lifecycle to be PUBLISHED.
-            # This keeps F001 visible/manageable in Workspace while it is DRAFT without making
-            # it customer-sendable by accident.
+            # F001 stays manageable while DRAFT but cannot be customer-launched until published.
             if flow_key == 'subscribe' and canonical_flow_status('subscribe') != 'PUBLISHED':
                 continue
             keywords = [k.lower() for k in trigger.get('keywords', [])]
@@ -2928,7 +2926,7 @@ def _process_message(
                 flow_id = trigger.get('flowId', '')
                 if not flow_id:
                     continue
-                # All keyword-native flow types use the same generic flow sender.
+                # Keyword-native flows use the native WhatsApp Flow interactive sender.
                 _send_generic_flow(
                     contact_id=contact_id,
                     phone_number_id=aws_phone_number_id,
@@ -7050,7 +7048,7 @@ def _generate_and_send_invoice(contact_id: str, phone_number_id: str, amount: fl
         # A rendered invoice carries the customer's name, address, amount and GST breakdown, and
         # `o/` is served by CloudFront with no authentication. Delivery does not need a public
         # URL: the bytes are read from S3 and uploaded to Meta, so Meta never fetches by URL.
-        s3_key = media_paths.secure(f'Invoice/customer_invoice/wecare-digital-{inv_ref}.png')
+        s3_key = media_paths.deliverable_public(f'Invoice/customer_invoice/wecare-digital-{inv_ref}.png')
         s3.put_object(
             Bucket=MEDIA_BUCKET,
             Key=s3_key,
@@ -7378,7 +7376,7 @@ DEFAULT_FLOW_TRIGGERS = {
 def _link_media_to_service_request(contact_id: str, s3_key: str, media_type: str,
                                    filename: str, mime: str, request_id: str) -> None:
     """If the contact has a recent OPEN service request, copy the media into the
-    request's folder (stack/service-requests/{req}/) under the app bucket and append
+    request's private upload folder under the media bucket and append
     it to the request's attachments list so the team can service it from the dashboard."""
     if not contact_id or not s3_key:
         return
@@ -7389,7 +7387,7 @@ def _link_media_to_service_request(contact_id: str, s3_key: str, media_type: str
         if not req:
             return
         base = s3_key.split('/')[-1]
-        dest_key = media_paths.secure(f"u/service-requests/{req}/{int(time.time())}-{base}")
+        dest_key = media_paths.SERVICE_REQUEST_UPLOAD_PREFIX + f"{req}/{int(time.time())}-{base}"
         try:
             s3.copy_object(Bucket=MEDIA_BUCKET, CopySource={'Bucket': MEDIA_BUCKET, 'Key': s3_key}, Key=dest_key)
         except Exception:
