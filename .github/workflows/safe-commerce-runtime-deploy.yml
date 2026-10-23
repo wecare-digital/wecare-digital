@@ -58,11 +58,11 @@ jobs:
 
       - name: Package validation
         run: |
-          python scripts/deploy_all_lambdas.py --dry-run             wecare-checkout             wecare-invoice-engine             wecare-whatsapp-business-api
+          python scripts/deploy_all_lambdas.py --dry-run             wecare-checkout             wecare-invoice-engine             wecare-razorpay-webhook             wecare-whatsapp-business-api
 
       - name: Deploy safe commerce runtimes
         run: |
-          python scripts/deploy_all_lambdas.py             wecare-checkout             wecare-invoice-engine             wecare-whatsapp-business-api
+          python scripts/deploy_all_lambdas.py             wecare-checkout             wecare-invoice-engine             wecare-razorpay-webhook             wecare-whatsapp-business-api
 
       - name: Verify live aliases
         run: |
