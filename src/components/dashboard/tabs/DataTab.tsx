@@ -24,7 +24,7 @@ import Button from '../../../components/ui/Button';
 import { useToastContext } from '../../../contexts/ToastContext';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 import type { DashboardData } from '../../../types/dashboard';
-import { PUBLIC_ROOT } from '../../../lib/media-paths';
+import { PUBLIC_DELIVERABLE_ROOT } from '../../../lib/media-paths';
 
 interface DataTabProps {
   data: DashboardData;
@@ -37,12 +37,9 @@ const CLEANUP_FALLBACK: api.CleanupResource[] = [
   { id: 'whatsapp_outbox', label: 'WhatsApp Outbox (Outbound)', category: 'Messages', type: 'dynamodb', table: 'WhatsAppOutboundTable', count: -1 },
   { id: 'contacts', label: 'Contacts', category: 'Contacts', type: 'dynamodb', table: 'ContactsTable', count: -1 },
   { id: 'voice_cdr', label: 'Voice CDR Records', category: 'Voice', type: 'dynamodb', table: 'VoiceCDRTable', count: -1 },
-  // Rooted via PUBLIC_ROOT to match what the backend actually deletes: system-cleanup
-  // builds these with media_paths.public(...), which yields `o/stack/...`. These rows
-  // read `stack/...` until 2026-09-29 — one level above the data, and shown precisely
-  // when the live preview is unreachable, so there was nothing to cross-check against.
-  { id: 's3_whatsapp_media', label: 'S3: WhatsApp Media', category: 'S3 Storage', type: 's3', prefix: `${PUBLIC_ROOT}stack/whatsapp-media/`, count: -1 },
-  { id: 's3_voice_recordings', label: 'S3: Voice Recordings', category: 'S3 Storage', type: 's3', prefix: `${PUBLIC_ROOT}stack/voice/`, count: -1 },
+  // Degraded fallback mirrors the canonical public-delivery WhatsApp root. Phantom legacy
+  // voice storage is intentionally omitted because there is no writer for it.
+  { id: 's3_whatsapp_media', label: 'S3: WhatsApp Media', category: 'S3 Storage', type: 's3', prefix: `${PUBLIC_DELIVERABLE_ROOT}whatsapp/`, count: -1 },
 ];
 
 const DataTab: React.FC<DataTabProps> = ( { data, onRefresh } ) => {

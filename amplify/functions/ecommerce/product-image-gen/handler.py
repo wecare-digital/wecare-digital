@@ -57,8 +57,7 @@ S3_BUCKET = os.environ.get('S3_BUCKET', media_paths.BUCKET)
 # bucket was named app.wecare.digital and so doubled as a hostname.
 CDN_DOMAIN = os.environ.get('CDN_DOMAIN', media_paths.CDN_DOMAIN)
 
-PRODUCTS_TABLE = os.environ.get('PRODUCTS_TABLE', 'stack-wecare-digital-ProductsTable')
-S3_PREFIX = media_paths.public('stack/store/products')
+S3_PREFIX = media_paths.CATALOG_GENERATED_MEDIA_PREFIX.rstrip('/')
 
 # Image dimensions (3000x3000, large enough for storefront zoom)
 IMG_SIZE = 3000
@@ -360,8 +359,8 @@ def _generate_and_upload(body: dict, request_id: str) -> Dict[str, Any]:
       tagline: custom tagline (optional)
       countryName: override country name (optional)
       category: S3 subfolder (default: 'bnb-club')
-      productId: optional native ProductsTable id to attach image
-      expectedUpdatedAt: required with productId for optimistic concurrency
+      productId: optional context only; product mutation is refused here
+      expectedUpdatedAt: ignored; use native catalog admin for product edits
     """
     country = body.get('country', '')
     visa_type = body.get('visaType', '')
@@ -405,59 +404,12 @@ def _generate_and_upload(body: dict, request_id: str) -> Dict[str, Any]:
             'requestId': request_id,
         }
 
-        # Optionally attach to the AWS-native product row. This is guarded by
-        # expectedUpdatedAt so image generation can never overwrite a concurrent
-        # staff catalog edit. The S3 object remains valid even if the attach loses
-        # the optimistic-lock race.
-        pid = str(body.get('productId') or '').strip()
-        if pid:
-            expected = str(body.get('expectedUpdatedAt') or '').strip()
-            if not expected:
-                result['productAttached'] = False
-                result['productAttachError'] = 'EXPECTED_UPDATED_AT_REQUIRED'
-            else:
-                try:
-                    table = boto3.resource(
-                        'dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1')
-                    ).Table(PRODUCTS_TABLE)
-                    current = table.get_item(
-                        Key={'id': pid}, ConsistentRead=True
-                    ).get('Item')
-                    if not current:
-                        result['productAttached'] = False
-                        result['productAttachError'] = 'PRODUCT_NOT_FOUND'
-                    elif str(current.get('updatedAt') or '') != expected:
-                        result['productAttached'] = False
-                        result['productAttachError'] = 'PRODUCT_VERSION_CONFLICT'
-                    else:
-                        refs = [str(x) for x in (current.get('imageRefs') or [])
-                                if isinstance(x, str) and x]
-                        if public_url not in refs:
-                            refs.append(public_url)
-                        now = datetime.now(timezone.utc).isoformat(
-                            timespec='milliseconds').replace('+00:00', 'Z')
-                        table.update_item(
-                            Key={'id': pid},
-                            UpdateExpression='SET #images = :images, #updated = :now',
-                            ConditionExpression='#updated = :expected',
-                            ExpressionAttributeNames={
-                                '#images': 'imageRefs', '#updated': 'updatedAt',
-                            },
-                            ExpressionAttributeValues={
-                                ':images': refs, ':now': now, ':expected': expected,
-                            },
-                        )
-                        result['productAttached'] = True
-                        result['productId'] = pid
-                        result['updatedAt'] = now
-                except Exception as e:
-                    code = getattr(e, 'response', {}).get('Error', {}).get('Code')
-                    result['productAttached'] = False
-                    result['productAttachError'] = (
-                        'PRODUCT_VERSION_CONFLICT'
-                        if code == 'ConditionalCheckFailedException'
-                        else 'NATIVE_PRODUCT_ATTACH_FAILED'
-                    )
+        # Product authority belongs to the authenticated native catalog admin. Generated
+        # artwork is a draft artifact only; this Lambda never mutates ProductsTable.
+        if body.get('productId'):
+            result['productAttached'] = False
+            result['productAttachError'] = 'NATIVE_CATALOG_ADMIN_REQUIRED'
+
 
         return _resp(200, result)
     except Exception as e:
@@ -576,7 +528,7 @@ def _convert_flag_to_png(body: dict, request_id: str) -> Dict[str, Any]:
         png_bytes = buf.getvalue()
 
         # Upload to S3
-        s3_key = media_paths.public(f'stream/media/flags/wecare-digital-{cc}.png')
+        s3_key = media_paths.PUBLIC_STREAM_MEDIA_FLAGS_PREFIX + f'wecare-digital-{cc}.png'
         s3_client = boto3.client('s3', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
         s3_client.put_object(
             Bucket=S3_BUCKET,

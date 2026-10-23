@@ -2,8 +2,8 @@
  * Documentation Scraper — [retired public path]/docs
  * Feed external doc URLs (e.g. Meta Business docs), trigger re-fetch ("upgrade"),
  * and view the change log. Backed by the wecare-docs-scraper Lambda; content is
- * stored in s3://wecare-digital-get/o/stream/docs/ (served as
- * https://wecare.digital/get/o/stream/docs/).
+ * stored in s3://wecare-digital-get/o/stream/media/docs/ (served as
+ * https://wecare.digital/get/o/stream/media/docs/).
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import Layout from '../../../components/Layout';
