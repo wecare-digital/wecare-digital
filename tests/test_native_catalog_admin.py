@@ -218,7 +218,7 @@ def test_new_product_starts_with_both_publication_channels_off():
         "title": "Draft Artwork Product",
         "slug": "draft-artwork-product",
         "variants": [{"priceMinor": 9900, "inventory": 0}],
-        "catalogImageKey": "secure/catalog/products/kiosk-4096.png",
+        "catalogImageKey": "secure/d/public/catalog-deploy/catalog/products/kiosk-4096.png",
     }), table)
     assert response["statusCode"] == 201
     product = payload(response)["product"]
@@ -234,8 +234,8 @@ def test_new_product_starts_with_both_publication_channels_off():
 @pytest.mark.parametrize("key", [
     "https://example.com/picture.png",
     "o/catalog/products/kiosk.png",
-    "secure/catalog/products/not-4096.jpg",
-    "secure/catalog/products/../kiosk-4096.png",
+    "secure/d/public/catalog-deploy/catalog/products/not-4096.jpg",
+    "secure/d/public/catalog-deploy/catalog/products/../kiosk-4096.png",
 ])
 def test_catalog_artwork_accepts_only_locked_live_4096_png_keys(key):
     table = Table()
@@ -253,7 +253,7 @@ def test_website_and_meta_publication_require_active_status_and_approved_artwork
     response = mod.handle_request(event(
         "/native-catalog/products/product-123", method="PATCH", body={
             "expectedUpdatedAt": seeded()["updatedAt"],
-            "catalogImageKey": "secure/catalog/products/kiosk-4096.png",
+            "catalogImageKey": "secure/d/public/catalog-deploy/catalog/products/kiosk-4096.png",
             "canonicalPath": "/shop/existing-product/",
             "websiteEnabled": True,
             "metaEnabled": True,
@@ -269,8 +269,8 @@ def test_website_and_meta_publication_require_active_status_and_approved_artwork
 def test_cannot_clear_artwork_while_a_publication_channel_is_enabled():
     table = Table()
     row = table.items["product-123"]
-    row["catalogImageKey"] = "secure/catalog/products/kiosk-4096.png"
-    row["imageRefs"] = ["https://wecare.digital/get/secure/catalog/products/kiosk-4096.png"]
+    row["catalogImageKey"] = "secure/d/public/catalog-deploy/catalog/products/kiosk-4096.png"
+    row["imageRefs"] = ["https://wecare.digital/api/catalog-media/kiosk-4096.png"]
     row["websiteEnabled"] = True
     response = mod.handle_request(event(
         "/native-catalog/products/product-123", method="PATCH", body={
@@ -284,8 +284,8 @@ def test_cannot_clear_artwork_while_a_publication_channel_is_enabled():
 def test_can_clear_artwork_after_both_publication_channels_are_off():
     table = Table()
     row = table.items["product-123"]
-    row["catalogImageKey"] = "secure/catalog/products/kiosk-4096.png"
-    row["imageRefs"] = ["https://wecare.digital/get/secure/catalog/products/kiosk-4096.png"]
+    row["catalogImageKey"] = "secure/d/public/catalog-deploy/catalog/products/kiosk-4096.png"
+    row["imageRefs"] = ["https://wecare.digital/api/catalog-media/kiosk-4096.png"]
     row["websiteEnabled"] = False
     row["metaEnabled"] = False
     response = mod.handle_request(event(
@@ -306,7 +306,7 @@ def test_new_product_cannot_publish_a_channel_before_activation(field):
         "title": "Premature Publish",
         "slug": "premature-publish",
         "variants": [{"priceMinor": 9900, "inventory": 0}],
-        "catalogImageKey": "secure/catalog/products/kiosk-4096.png",
+        "catalogImageKey": "secure/d/public/catalog-deploy/catalog/products/kiosk-4096.png",
         field: True,
     }
     response = mod.handle_request(event(method="POST", body=body), table)
