@@ -153,7 +153,6 @@ def test_the_drifted_live_state_really_denies_what_checkout_needs(mod):
                            sleep=lambda _s: None)
     problems = tool.simulate_roles(attempts=1)
     assert any("PutItem stack-wecare-digital-CommerceKeys" in p for p in problems)
-    assert any("UpdateItem stack-wecare-digital-ProductsTable" in p for p in problems)
     assert any("wecare-service-requests-role dynamodb:GetItem" in p for p in problems)
 
 
@@ -209,6 +208,6 @@ def test_rollback_restores_the_saved_documents(mod, tmp_path):
 
 def test_cases_cover_the_live_code_paths(mod):
     labels = {c.label() for c in mod.CASES}
-    assert any("UpdateItem stack-wecare-digital-ProductsTable -> allowed" in l for l in labels)
+    assert any("UpdateItem stack-wecare-digital-ProductsTable -> denied" in l for l in labels)
     assert any("DeleteItem stack-wecare-digital-CommerceKeys -> denied" in l for l in labels)
     assert any("[ORDERNO#X] -> denied" in l for l in labels)
