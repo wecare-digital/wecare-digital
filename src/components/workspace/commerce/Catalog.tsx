@@ -368,7 +368,7 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
                   </label>
                   <label>Approved artwork S3 key
                     <input style={fieldStyle} value={editCatalogImageKey}
-                      placeholder="o/stream/media/m/wd-catalog-live/product-4096.png"
+                      placeholder="secure/d/public/catalog-deploy/catalog/products/product-4096.png"
                       onChange={e => setEditCatalogImageKey(e.target.value)} />
                   </label>
                   {selected.imageRefs?.[0] && (
@@ -400,7 +400,7 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
                     Include in Meta / WhatsApp catalog plan
                   </label>
                   <p style={muted}>Website or Meta publication requires Active status and an approved
-                    artwork key under secure/catalog/products/. Meta still requires its separate exact-plan approval.</p>
+                    artwork key under secure/d/public/catalog-deploy/catalog/products/. Meta still requires its separate exact-plan approval.</p>
                   <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
                     <button disabled={busy} onClick={updateProduct}>Save product</button>
                     <button disabled={busy} onClick={archive}>Archive</button>
@@ -460,7 +460,7 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
               </label>
               <label>Approved artwork S3 key (optional while draft)
                 <input style={fieldStyle} value={newCatalogImageKey}
-                  placeholder="o/stream/media/m/wd-catalog-live/product-4096.png"
+                  placeholder="secure/d/public/catalog-deploy/catalog/products/product-4096.png"
                   onChange={e => setNewCatalogImageKey(e.target.value)} />
               </label>
               <label>Canonical path (optional)
