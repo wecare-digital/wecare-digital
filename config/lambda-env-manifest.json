@@ -268,7 +268,6 @@
       "META_CATALOG_SYNC_ENABLED": "true",
       "META_CATALOG_SYNC_DRY_RUN": "true",
       "META_CATALOG_SYNC_VARIANT_IDS": "",
-      "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "false",
       "META_TOKEN_FIELD": "access_token",
       "META_TOKEN_SECRET": "wecare/meta-system-user-token",
       "META_CATALOG_APPROVALS_TABLE": "stack-wecare-digital-AgentApprovalsTable",
