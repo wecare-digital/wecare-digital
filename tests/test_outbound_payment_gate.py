@@ -175,14 +175,15 @@ def test_an_order_status_notification_is_never_gated(outbound):
 
     An `order_status` message is a post-payment NOTIFICATION, which requirements statement 10
     still permits. Refusing one on readiness would leave a customer who has ALREADY PAID without
-    a confirmation — the opposite of fail-closed. `isOrderStatus` is therefore absent from the
-    arming keys, even though it is present in the handler's `payment_action` check, which answers
-    a different question (does this need Admin?) and for which order_status does.
+    a confirmation — the opposite of fail-closed. The canonical `orderStatusDetails` contract is
+    therefore absent from the payment arming keys even though it is authenticated as an Admin
+    action at the public handler boundary.
     """
-    refusal, reads = _gate(outbound, {'isOrderStatus': True, 'orderStatus': 'shipped'})
+    refusal, reads = _gate(outbound, {'orderStatusDetails': {
+        'reference_id': 'WD-PAY-GATE0002', 'order_status': 'shipped'}})
     assert refusal is None
     assert reads.fetches == 0
-    assert 'isOrderStatus' not in outbound._PAYMENT_REQUEST_KEYS
+    assert 'orderStatusDetails' not in outbound._PAYMENT_REQUEST_KEYS
 
 
 def test_the_arming_keys_are_only_the_native_checkout_template(outbound):
