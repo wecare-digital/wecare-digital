@@ -57,9 +57,9 @@ Do not carry one source profile forward blindly to the next PDF.
 
 Normal culinary language is **not** a provenance violation by itself. Phrases such as `cooked with`, `learned from`, `volunteer`, `programme`, family, place, or institution terms should only be blocked when they actually expose the current source's private/provenance context.
 
-`required_public_attribution_terms` is an exception list only for material whose attribution is genuinely necessary.
+`required_public_attribution_terms` is deprecated for public-copy use. New audits must not use attribution exceptions to permit source/reference material in public copy.
 
-The final public article should read as independent editorial work by **Anew by WECARE.DIGITAL**, while retaining required attribution and genuine culinary/cultural identity.
+The final public article should read as independent WECARE.DIGITAL editorial work. Public copy must not expose source/reference material, named source authors or people, named works, citation/attribution language, source URLs, or source provenance. Internal provenance stays in backend/source-profile metadata only. Genuine culinary or cultural identity may remain when it is part of the subject itself rather than source provenance.
 
 ## Generic public-language gate
 
@@ -79,7 +79,7 @@ Public title, slug, SEO, meta description and body are rejected when they contai
 - Market connection
 - Unnecessary source institution or programme language
 
-Possessive personal titles such as `Caroline's ...`, `Grandma's ...` or `Aunty ...` require an explicit `public_name_justification`; normally they should be generalized to the culinary identity.
+Possessive personal/source titles such as `Caroline's ...`, `Grandma's ...` or `Aunty ...` are not allowed in public copy when they identify source provenance; generalize the title to the culinary identity.
 
 Health-claim terms in titles/SEO such as `cure`, `detox`, `cleanse`, `heal`, `treat`, `prevent`, or `medicinal` require `health_claim_reviewed: true`.
 
@@ -120,7 +120,7 @@ The audit requires a v2 manifest. It reads each post back through the public rea
 
 ## Governing rule
 
-**Keep culinary identity. Remove source scaffolding. Keep necessary attribution. Remove unnecessary personal provenance. Never invent WECARE.DIGITAL biography. Preserve recipe facts.**
+**Keep culinary identity. Remove all public source/reference/attribution scaffolding and provenance. Keep source metadata internal only. Never invent WECARE.DIGITAL biography. Preserve recipe facts.**
 
 
 ## Future PDF workflow
@@ -133,8 +133,8 @@ For each newly uploaded or linked PDF:
 4. Preserve legitimate culinary geography and established food terminology through `allowed_public_terms`.
 5. Prepare independent WECARE.DIGITAL articles.
 6. Validate a manifest containing **1-150 articles**.
-7. Release for publication in Blog Studio only records that pass the source/privacy, attribution, metadata, structure, and safety gates.
+7. Release for publication in Blog Studio only records that pass the public-source-exclusion, privacy, metadata, structure, factual-risk, and safety gates.
 8. Audit every published record before treating it as verified.
 9. Start a fresh source profile when the next PDF/publisher is supplied.
 
-The quality gate targets source leakage, privacy/provenance, attribution, real content corruption, and relevant safety issues. It does **not** attempt to rewrite ordinary cooking prose simply for stylistic preference.
+The quality gate targets public source/reference leakage, privacy/provenance leakage, real content corruption, and relevant factual/safety issues. It does **not** attempt to rewrite ordinary cooking prose simply for stylistic preference.
