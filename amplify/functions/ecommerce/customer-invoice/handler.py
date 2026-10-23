@@ -6,7 +6,7 @@ WHY THIS IS A SEPARATE FUNCTION AND NOT A ROUTE ON `wecare-customer-orders`
 ---------------------------------------------------------------------------
 This route needs `dynamodb:Query` on `InvoicesTable/index/referenceId-index`,
 `dynamodb:GetItem` on `InvoiceAssetsTable` and `s3:GetObject` under
-`secure/Invoice/customer_invoice/*`. Every one of those is SPECIFICALLY refused by
+`secure/d/public/Invoice/customer_invoice/*`. Every one of those is SPECIFICALLY refused by
 `wecare-customer-orders`' pinned policy and by six equality assertions in
 `tests/test_customer_orders_iam.py` - whose own header states the discipline: "Every
 assertion here is EQUALITY rather than containment". Putting this route there would mean
