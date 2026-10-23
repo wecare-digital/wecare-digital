@@ -95,23 +95,28 @@
             "alt-text": "WECARE.DIGITAL"
           },
           {
+            "type": "Image",
+            "src": "iVBORw0KGgoAAAANSUhEUgAAAUgAAAAMCAIAAACPyLOqAAAATklEQVR42u3TMQ3AIABFQVoBCOiAjfqfSLDCwEDC2FTIv3Pwhnd9u5c867yB1buOwOo2n8DquwDGBowNGBswNmBsMDZgbMDYgLEBY0O4H8/LB9rX4xPCAAAAAElFTkSuQmCC",
+            "width": 328,
+            "height": 12,
+            "scale-type": "contain",
+            "alt-text": "WECARE.DIGITAL colour accents"
+          },
+          {
             "type": "TextHeading",
-            "text": "Your details"
-          },
-          {
-            "type": "TextCaption",
-            "text": "Customer ID"
+            "text": "Your WECARE profile"
           },
           {
             "type": "TextBody",
-            "text": "${data.customer_id}"
+            "text": "Keep your details ready for faster service across WECARE.DIGITAL."
           },
           {
             "type": "TextCaption",
-            "text": "WhatsApp number"
+            "text": "Linked WhatsApp number",
+            "font-weight": "bold"
           },
           {
-            "type": "TextBody",
+            "type": "TextSubheading",
             "text": "${data.phone_number}"
           },
           {
@@ -122,8 +127,7 @@
                 "type": "TextInput",
                 "name": "full_name",
                 "label": "Full name",
-                "required": true,
-                "helper-text": "Enter your full name"
+                "required": true
               },
               {
                 "type": "TextInput",
@@ -137,15 +141,13 @@
                 "type": "TextInput",
                 "name": "company_name",
                 "label": "Organisation",
-                "required": false,
-                "helper-text": "Organisation name"
+                "required": false
               },
               {
                 "type": "TextInput",
                 "name": "designation",
                 "label": "Role / designation",
-                "required": false,
-                "helper-text": "Your role"
+                "required": false
               }
             ],
             "init-values": {
@@ -157,7 +159,7 @@
           },
           {
             "type": "Footer",
-            "label": "Your address",
+            "label": "Continue",
             "on-click-action": {
               "name": "navigate",
               "payload": {
