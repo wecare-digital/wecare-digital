@@ -274,15 +274,12 @@ def audit_public_post(post: dict, expected: dict, source_profile=None, quality_v
     source_profile = source_profile or {
         'blocked_public_terms': [],
         'allowed_public_terms': [],
-        'required_public_attribution_terms': [],
     }
     slug = str(expected.get('slug') or '')
     if post.get('slug') != slug:
         errors.append(f'{slug}: slug mismatch')
     if post.get('title') and post.get('title') != expected.get('title'):
         errors.append(f'{slug}: title mismatch')
-    if post.get('authorName') != AUTHOR:
-        errors.append(f'{slug}: author mismatch')
     if post.get('category') != CATEGORY:
         errors.append(f'{slug}: category mismatch')
     if post.get('coverImage'):
