@@ -96,7 +96,7 @@ MEDIA_BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
 MEDIA_CDN_DOMAIN = os.environ.get('MEDIA_CDN_DOMAIN', media_paths.CDN_DOMAIN)
 # Customer uploads are private from their first S3 write. Existing public media
 # remains readable through its persisted key; no migration or public fallback here.
-MEDIA_PREFIX = media_paths.deliverable_public('whatsapp/incoming/')
+MEDIA_PREFIX = media_paths.WHATSAPP_INCOMING_PREFIX
 SEND_MODE = os.environ.get('SEND_MODE', 'LIVE')
 
 # AI Lambda function names
