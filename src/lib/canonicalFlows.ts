@@ -71,7 +71,8 @@ export const CANONICAL_FLOWS: Record<string, CanonicalFlow> = {
     capability: 'vault', label: 'Vault',
     flowId: null, status: 'NONE', metaName: null,
   },
-  // F001 rebuild. Deliberately DRAFT until the owner explicitly publishes it.
+  // F001 replacement. Keep DRAFT until Meta publication is explicitly approved.
+  // Runtime activation is controlled from FlowRegistry/SystemConfig after publish.
   subscribe: {
     capability: 'subscribe', label: 'Subscribe',
     flowId: '2413873616105042', status: 'DRAFT', metaName: 'WD-F001-SUBSCRIBE-PROFILE',
