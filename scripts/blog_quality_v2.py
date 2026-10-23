@@ -1271,6 +1271,15 @@ def check_public_source_exposure(record: Dict[str, Any]) -> List[Finding]:
          r"adapted from|the source|source recipe|the cookbook|in the cookbook|the book says|"
          r"the author says|the author writes)\\b"),
     )
+    source_terms = []
+    for key in (
+        "originalSourceTitle", "sourceTitle", "source_author", "sourceAuthor",
+        "sourcePublisher", "publisherName", "sourceInstitution", "institutionName",
+    ):
+        value = str(record.get(key) or "").strip()
+        if value:
+            source_terms.append(value)
+
     for surface_name, value in surfaces.items():
         for code, pattern in patterns:
             if re.search(pattern, value, re.IGNORECASE):
@@ -1278,6 +1287,14 @@ def check_public_source_exposure(record: Dict[str, Any]) -> List[Finding]:
                     "19", code,
                     f"{surface_name} contains public source/reference/attribution material; "
                     "keep provenance internal and rewrite public copy without the reference"))
+                break
+        lowered = value.casefold()
+        for term in source_terms:
+            if term.casefold() in lowered:
+                out.append(_block(
+                    "19", "PUBLIC_NAMED_SOURCE_TERM",
+                    f"{surface_name} exposes source/person/work provenance {term!r}; "
+                    "keep it internal and rewrite the public copy"))
                 break
     return out
 
