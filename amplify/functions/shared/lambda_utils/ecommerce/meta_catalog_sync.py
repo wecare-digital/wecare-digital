@@ -28,10 +28,7 @@ RETAILER_ID_MAX_LENGTH = 100
 #: backward-compatible parsing/emission of that original three-segment contract.
 _UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
-#: V2 encodes the exact ProductsTable ids losslessly instead of inventing replacement UUIDs.
-#: Base64url has no ':' separator, so ids such as `native:hunar-kaushal` remain unambiguous.
-_RETAILER_V2 = "v2"
-
+#: V2 encodes both identities. V3 is the compact fallback for a long native product id plus a\n#: separator-safe SKU: it base64url-encodes the product id but keeps the exact SKU verbatim.\n_RETAILER_V2 = "v2"\n_RETAILER_V3 = "v3"\n_SAFE_COMPACT_SKU_RE = re.compile(r"^[A-Za-z0-9._-]+$")\n
 #: Meta's availability vocabulary, which is not ours. Two literals in one place so no caller
 #: spells them by hand.
 IN_STOCK = "in stock"
@@ -139,6 +136,11 @@ def retailer_id(product_id: Any, variant_id: Any) -> str:
             f"{RETAILER_PREFIX}:{_RETAILER_V2}:"
             f"{_b64url_encode(product)}:{_b64url_encode(variant)}"
         )
+        if len(value) > RETAILER_ID_MAX_LENGTH and _SAFE_COMPACT_SKU_RE.fullmatch(variant):
+            value = (
+                f"{RETAILER_PREFIX}:{_RETAILER_V3}:"
+                f"{_b64url_encode(product)}:{variant}"
+            )
 
     if len(value) > RETAILER_ID_MAX_LENGTH:
         raise RetailerIdError(
@@ -149,9 +151,10 @@ def retailer_id(product_id: Any, variant_id: Any) -> str:
 def parse_retailer_id(value: Any) -> Optional[Tuple[str, str]]:
     """Return the exact `(productId, variantId)` for one of our retailer ids.
 
-    Both contracts are accepted:
+    All owned contracts are accepted:
     - legacy `WECARE.DIGITAL:<uuid>:<uuid>`;
-    - v2 `WECARE.DIGITAL:v2:<b64url(productId)>:<b64url(variantId)>`.
+    - v2 `WECARE.DIGITAL:v2:<b64url(productId)>:<b64url(variantId)>`;
+    - v3 `WECARE.DIGITAL:v3:<b64url(productId)>:<exact-safe-sku>`.
 
     Anything else is foreign and therefore never modified by the sync.
     """
@@ -170,13 +173,29 @@ def parse_retailer_id(value: Any) -> Optional[Tuple[str, str]]:
 
     if len(parts) == 4:
         prefix, version, product_encoded, variant_encoded = parts
-        if prefix.lower() != RETAILER_PREFIX.lower() or version.lower() != _RETAILER_V2:
+        if prefix.lower() != RETAILER_PREFIX.lower():
             return None
         product = _b64url_decode(product_encoded)
-        variant = _b64url_decode(variant_encoded)
-        if not product or not variant:
+        if not product:
             return None
-        return product, variant
+        if version.lower() == _RETAILER_V2:
+            variant = _b64url_decode(variant_encoded)
+            if not variant:
+                return None
+            return product, variant
+        if version.lower() == _RETAILER_V3:
+            if not _SAFE_COMPACT_SKU_RE.fullmatch(variant_encoded):
+                return None
+            # V3 is emitted only when V2 would exceed the provider ceiling. This canonicality
+            # rule prevents two owned ids from naming the same ProductsTable identity.
+            v2 = (
+                f"{RETAILER_PREFIX}:{_RETAILER_V2}:"
+                f"{_b64url_encode(product)}:{_b64url_encode(variant_encoded)}"
+            )
+            if len(v2) <= RETAILER_ID_MAX_LENGTH:
+                return None
+            return product, variant_encoded
+        return None
 
     return None
 
