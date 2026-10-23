@@ -1,6 +1,7 @@
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { renderToStaticMarkup } from 'react-dom/server';
 
 /* Return the declaration body ("{...}") of the rule that applies to `selector`, whether that
    selector owns a standalone block or sits ANYWHERE inside a comma-separated group. The component
@@ -659,6 +660,15 @@ function environmentFetch() {
 
 
 describe( 'VayuLokLive v8 approved design contract', () => {
+
+  it( 'keeps static first paint free of Unix-epoch and implementation-state clock copy', async () => {
+    const VayuLokLive = await loadComponent();
+    const markup = renderToStaticMarkup( <VayuLokLive /> );
+    expect( markup ).not.toContain( '1970' );
+    expect( markup ).not.toContain( 'IST default' );
+    expect( markup ).not.toContain( '05:30' );
+    expect( markup ).toContain( 'Local time' );
+  } );
 
   beforeEach( () => {
     vi.stubEnv( 'NEXT_PUBLIC_GOOGLE_BROWSER_KEY', DUMMY_KEY );
@@ -2535,7 +2545,7 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     // Assert the rendered section instead so this remains a visible-DOM contract.
     expect( container.querySelector( '.vl-live-air-pollutants' ) ).toBeNull();
     expect( container.querySelector( '.vl-live-air-empty' )?.textContent )
-      .toContain( 'Live air quality appears here once a place is selected.' );
+      .toContain( 'Air quality is temporarily unavailable.' );
     expect( css ).toContain( '.vl-live{--vl-card-heading-size:var(--public-mobile-card-size);' );
     expect( css ).toContain( '.vl-live-mobile-snapshot-head strong{overflow:hidden;color:var(--heading);font-size:var(--vl-data-size)' );
     expect( css ).toContain( '.vl-live-mobile-snapshot-head small{color:var(--muted);font-size:var(--vl-meta-size)' );
