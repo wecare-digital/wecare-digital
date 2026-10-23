@@ -31,3 +31,15 @@ def test_invoice_order_status_route_is_declared():
     source = ROUTE.read_text(encoding="utf-8")
     assert 'POST /invoices/{invoiceId}/order-status' in source
     assert 'wecare-invoice-engine:live' in source
+
+
+def test_commerce_callers_pin_the_outbound_live_alias():
+    callers = [
+        ROOT / "amplify/functions/payments/invoice-engine/handler.py",
+        ROOT / "amplify/functions/ecommerce/checkout/invoice_engine.py",
+        ROOT / "amplify/functions/payments/razorpay-webhook/handler.py",
+    ]
+    for path in callers:
+        source = path.read_text(encoding="utf-8")
+        assert "os.environ.get('OUTBOUND_FUNCTION', 'wecare-outbound-whatsapp:live')" in source
+        assert "os.environ.get('OUTBOUND_FUNCTION', 'wecare-outbound-whatsapp')" not in source
