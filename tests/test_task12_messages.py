@@ -36,7 +36,7 @@ def test_get_message_reads_canonical_table_only(messages_handler):
 
 
 def test_private_customer_media_returns_short_lived_signed_url(messages_handler):
-    key = 'secure/u/whatsapp/incoming/customer-document.pdf'
+    key = 'secure/d/public/whatsapp/incoming/customer-document.pdf'
     messages_handler.s3_client.generate_presigned_url.return_value = 'https://signed.example/document'
     with patch.object(messages_handler, '_find_actual_s3_key', return_value=key):
         result = messages_handler._convert_from_dynamodb({'id': 'message-private', 's3Key': key, 'messageType': 'document'})
