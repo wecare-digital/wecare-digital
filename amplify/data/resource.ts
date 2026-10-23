@@ -993,6 +993,11 @@ const schema = a.schema( {
       wabaId: a.string(), // Which WABA
       status: a.string().default( 'DRAFT' ), // DRAFT, PUBLISHED, DEPRECATED
       category: a.string(), // service_request, order, interactive, data_collection, payment, booking, feedback
+      // How a customer reaches the Flow. This is control-plane metadata, not a second router.
+      // keyword_interactive | payment_template | internal_event | manual | none
+      entryMode: a.string(),
+      // Approved Meta template name when entryMode=payment_template. Empty for native keyword Flows.
+      entryTemplateName: a.string(),
       // Payment config
       requiresPayment: a.boolean().default( false ),
       paymentAmount: a.integer(), // paise (4900 = ₹49)
