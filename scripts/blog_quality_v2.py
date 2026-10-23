@@ -1343,6 +1343,12 @@ def check_seo_and_metadata(record: Dict[str, Any]) -> List[Finding]:
     elif len({str(t).strip().lower() for t in tags}) != len(tags):
         out.append(_block("24", "TAG_DUPLICATE", "tags contain a duplicate"))
 
+    author = text_field(record, "author") or AUTHOR
+    if author != AUTHOR:
+        out.append(_block(
+            "25", "AUTHOR_WRONG",
+            f"public author must be {AUTHOR!r}, got {author!r}"))
+
     category = str(record.get("category") or "").strip()
     if category not in CATEGORIES:
         out.append(_block("25", "CATEGORY_INVALID",
