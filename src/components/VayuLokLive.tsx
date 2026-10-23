@@ -3639,7 +3639,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                                     <path d={ MATERIAL_SYMBOL_PATHS[ persona.icon ] } />
                                   </svg>
                                 </span>
-                                <span className="vl-live-air-health-tooltip" role="tooltip">{ persona.label }</span>
+                                <span className="vl-live-air-health-tooltip" aria-hidden="true">{ persona.label }</span>
                               </VayuLokIconAction>
                             ) ) }
                           </VayuLokHorizontalRail>
