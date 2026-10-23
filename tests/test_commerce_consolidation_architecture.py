@@ -34,7 +34,8 @@ def test_verified_payment_sequence_is_order_status_then_invoice():
 def test_fulfilment_status_is_separate_from_invoice_delivery():
     invoice = source("amplify/functions/payments/invoice-engine/handler.py")
     body = invoice.split("def send_order_status", 1)[1].split("\ndef ", 1)[0]
-    assert "isOrderStatus" in body
+    assert "orderStatusDetails" in body
+    assert "isOrderStatus" not in body
     assert "send_invoice_whatsapp(" not in body
 
 
