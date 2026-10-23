@@ -31,7 +31,7 @@ CUSTOMER = "CUS_01J0000000000000000000000"
 OTHER = "CUS_01J9999999999999999999999"
 NOW = 1_700_000_000
 
-SIGNED = ("https://wecare-digital-get.s3.amazonaws.com/secure/stack/receipts/x.pdf"
+SIGNED = ("https://wecare-digital-get.s3.amazonaws.com/secure/d/public/receipts/x.pdf"
           "?X-Amz-Signature=deadbeef&X-Amz-Expires=86400")
 
 
@@ -163,7 +163,7 @@ def test_the_receipt_key_is_under_the_gated_root():
 
 def test_a_public_key_is_refused():
     with pytest.raises(cr.ReceiptError):
-        cr.assert_private_key(media_paths.public("stack/receipts/x.pdf"))
+        cr.assert_private_key(media_paths.public("d/public/receipts/x.pdf"))
 
 
 def test_the_bag_icon_media_prefix_is_refused():
