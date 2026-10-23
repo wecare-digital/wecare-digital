@@ -11,8 +11,9 @@ const SHOP_LISTING = read( 'src/components/ShopListingView.tsx' );
 const SHOP_PRODUCTS = read( 'src/content/shopProducts.ts' );
 
 describe( 'catalog artwork placement', () => {
-  it( 'keeps the clean-slate Shop free of retired Anew artwork wiring', () => {
-    expect( SHOP_PRODUCTS ).not.toContain( 'anew-4096.png' );
+  it( 'keeps catalog artwork on the Shop listing and off detail pages', () => {
+    expect( SHOP_PRODUCTS ).toContain( 'anew-4096.png' );
+    expect( SHOP_PRODUCTS ).toContain( 'https://wecare.digital/api/catalog-media/anew-4096.png' );
     expect( SHOP_LISTING ).toContain( 'className="shop-card-image"' );
 
     expect( PRODUCT_PAGE ).not.toContain( 'wd-catalog-live' );

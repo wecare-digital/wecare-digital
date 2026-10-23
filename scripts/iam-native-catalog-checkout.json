@@ -41,16 +41,6 @@
         "arn:aws:dynamodb:us-east-1:775261844268:table/stack-wecare-digital-ProductsTable",
         "arn:aws:dynamodb:us-east-1:775261844268:table/stack-wecare-digital-ProductsTable/index/*"
       ]
-    },
-    {
-      "Sid": "ReserveNativeInventory",
-      "Effect": "Allow",
-      "Action": [
-        "dynamodb:UpdateItem"
-      ],
-      "Resource": [
-        "arn:aws:dynamodb:us-east-1:775261844268:table/stack-wecare-digital-ProductsTable"
-      ]
     }
   ]
 }
