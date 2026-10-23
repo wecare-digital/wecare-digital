@@ -1,4 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  VayuLokCompactPill,
+  VayuLokFreshnessStamp,
+  VayuLokSectionHeading,
+  VayuLokUiStyles,
+} from './VayuLokUiPrimitives';
 
 type Range = '30d' | '1y' | '5y';
 
@@ -168,16 +174,16 @@ const VayuLokWeatherInsights: React.FC<Props> = ( {
 
   return (
     <section className="vl-wi" aria-label="Weather history">
+      <VayuLokUiStyles />
       <div className="vl-wi-head">
         <div>
-          <h4>Weather history</h4>
+          <VayuLokSectionHeading>Weather history</VayuLokSectionHeading>
           <p>Past weather for { placeName || 'this place' }</p>
         </div>
         <div className="vl-wi-range" role="group" aria-label="Weather history range">
           { ( Object.keys( RANGE_LABELS ) as Range[] ).map( item => (
-            <button
+            <VayuLokCompactPill
               key={ item }
-              type="button"
               className={ range === item ? 'is-active' : '' }
               aria-pressed={ range === item }
               onClick={ () => {
@@ -186,7 +192,7 @@ const VayuLokWeatherInsights: React.FC<Props> = ( {
               } }
             >
               { RANGE_LABELS[ item ] }
-            </button>
+            </VayuLokCompactPill>
           ) ) }
         </div>
       </div>
@@ -242,12 +248,14 @@ const VayuLokWeatherInsights: React.FC<Props> = ( {
           ) }
 
           { fetchedAt && (
-            <div className="vl-wi-stamp" aria-label="Weather history updated time">
-              <svg className="vl-wi-stamp-icon" viewBox="0 -960 960 960" aria-hidden="true">
-                <path d="m612-292 56-56-148-148v-184h-80v216l172 172ZM480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q133 0 226.5-93.5T800-480q0-133-93.5-226.5T480-800q-133 0-226.5 93.5T160-480q0 133 93.5 226.5T480-160Z" />
-              </svg>
-              <span data-wc-no-translate="true">{ formatWeatherHistoryStamp( fetchedAt, timeZoneId, zoneLabel ) }</span>
-            </div>
+            <VayuLokFreshnessStamp
+              className="vl-wi-stamp"
+              aria-label="Weather history updated time"
+              iconPath="m612-292 56-56-148-148v-184h-80v216l172 172ZM480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54 54 127 85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q133 0 226.5-93.5T800-480q0-133-93.5-226.5T480-800q-133 0-226.5 93.5T160-480q0 133 93.5 226.5T480-160Z"
+              iconClassName="vl-wi-stamp-icon"
+              text={ formatWeatherHistoryStamp( fetchedAt, timeZoneId, zoneLabel ) }
+              data-wc-no-translate="true"
+            />
           ) }
         </>
       ) }
@@ -257,11 +265,8 @@ const VayuLokWeatherInsights: React.FC<Props> = ( {
         .vl-wi-head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--space-4)}
         .vl-wi-head h4{margin:0;color:var(--public-heading);font-size:var(--vl-panel-heading-size,var(--public-data-size));font-weight:var(--vl-panel-heading-weight,700);line-height:var(--vl-panel-heading-lh,1.35);letter-spacing:var(--vl-panel-heading-track,-.18px)}
         .vl-wi-head p{margin:6px 0 0;color:var(--public-muted);font-size:var(--vl-subtext-size,var(--public-supporting-size));font-weight:600;line-height:1.4;letter-spacing:0}
-        .vl-wi-range{display:flex;flex:0 0 auto;border:1px solid var(--hair);border-radius:var(--radius-full);overflow:hidden;background:#fff}
-        .vl-wi-range button{min-width:var(--tap-min);min-height:var(--tap-min);padding:8px 12px;border:0;border-inline-start:1px solid var(--hair);background:#fff;color:var(--public-muted);font:inherit;font-size:var(--vl-meta-size,var(--public-meta-size));font-weight:700;cursor:pointer}
-        .vl-wi-range button:first-child{border-inline-start:0}
-        .vl-wi-range button:hover{background:var(--public-lime-tint);color:var(--public-brand-green)}
-        .vl-wi-range button.is-active{background:var(--public-brand-lime);color:var(--public-brand-green)}
+        .vl-wi-range{display:flex;flex:0 0 auto;gap:6px;overflow-x:auto;padding:0;background:transparent;scrollbar-width:thin}
+        .vl-wi-range::-webkit-scrollbar{height:6px}
         .vl-wi-note{margin-top:var(--space-3);padding:var(--space-3) var(--space-4);border:1px solid var(--hair);border-radius:var(--radius-lg);background:#fff;color:var(--public-muted);font-size:var(--vl-subtext-size,var(--public-supporting-size));font-weight:600;line-height:1.4;letter-spacing:0}
         .vl-wi-sr{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
         .vl-wi-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;margin-top:var(--space-3);border:1px solid var(--hair);border-radius:var(--radius-lg);overflow:hidden;background:var(--hair)}
@@ -285,7 +290,7 @@ const VayuLokWeatherInsights: React.FC<Props> = ( {
           .vl-wi-head{flex-direction:column;gap:var(--space-3)}
           .vl-wi-head p{font-size:var(--vl-subtext-size,var(--public-supporting-size));font-weight:600;line-height:1.4}
           .vl-wi-range{width:100%}
-          .vl-wi-range button{flex:1;min-height:var(--tap-min);font-size:var(--vl-subtext-size,var(--public-supporting-size))}
+          .vl-wi-range :global(.vl-ui-compact-pill){flex:0 0 auto}
           .vl-wi-note{font-size:var(--vl-subtext-size,var(--public-supporting-size))}
           .vl-wi-grid{grid-template-columns:1fr}
           .vl-wi-grid>div{padding:var(--space-4)}
