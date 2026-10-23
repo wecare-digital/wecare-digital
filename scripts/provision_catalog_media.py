@@ -118,20 +118,39 @@ def apply():
         )
 
     lam.get_waiter("function_updated").wait(FunctionName=FUNCTION)
-    version = lam.get_function_configuration(FunctionName=FUNCTION)["Version"]
+    published = lam.publish_version(
+        FunctionName=FUNCTION,
+        Description="Canonical secure/d/public catalog media path",
+    )
+    version = published["Version"]
+    alias = existing(lam.get_alias, FunctionName=FUNCTION, Name="live")
+    if alias:
+        lam.update_alias(FunctionName=FUNCTION, Name="live", FunctionVersion=version)
+    else:
+        lam.create_alias(FunctionName=FUNCTION, Name="live", FunctionVersion=version)
 
-    arn = f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:{FUNCTION}"
+    base_arn = f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:{FUNCTION}"
+    arn = base_arn + ":live"
     integrations = all_items(apigw.get_integrations, ApiId=API_ID)
     integration = next((i for i in integrations if i.get("IntegrationUri") == arn), None)
     if integration:
         integration_id = integration["IntegrationId"]
     else:
-        integration_id = apigw.create_integration(
-            ApiId=API_ID,
-            IntegrationType="AWS_PROXY",
-            IntegrationUri=arn,
-            PayloadFormatVersion="2.0",
-        )["IntegrationId"]
+        legacy = next((i for i in integrations if i.get("IntegrationUri") == base_arn), None)
+        if legacy:
+            integration_id = legacy["IntegrationId"]
+            apigw.update_integration(
+                ApiId=API_ID,
+                IntegrationId=integration_id,
+                IntegrationUri=arn,
+            )
+        else:
+            integration_id = apigw.create_integration(
+                ApiId=API_ID,
+                IntegrationType="AWS_PROXY",
+                IntegrationUri=arn,
+                PayloadFormatVersion="2.0",
+            )["IntegrationId"]
 
     routes = {r["RouteKey"]: r for r in all_items(apigw.get_routes, ApiId=API_ID)}
     target = "integrations/" + integration_id
@@ -149,6 +168,7 @@ def apply():
     try:
         lam.add_permission(
             FunctionName=FUNCTION,
+            Qualifier="live",
             StatementId="ApiGatewayCatalogMedia",
             Action="lambda:InvokeFunction",
             Principal="apigateway.amazonaws.com",
@@ -164,12 +184,15 @@ def apply():
 def verify():
     lam = client("lambda")
     apigw = client("apigatewayv2")
-    cfg = lam.get_function_configuration(FunctionName=FUNCTION)
+    cfg = lam.get_function_configuration(FunctionName=FUNCTION, Qualifier="live")
+    alias = lam.get_alias(FunctionName=FUNCTION, Name="live")
+    if alias.get("FunctionVersion") != cfg.get("Version"):
+        raise RuntimeError("catalog-media live alias version mismatch")
     routes = {r["RouteKey"]: r for r in all_items(apigw.get_routes, ApiId=API_ID)}
     if ROUTE not in routes:
         raise RuntimeError("catalog-media route missing")
     integrations = all_items(apigw.get_integrations, ApiId=API_ID)
-    expected_arn = f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:{FUNCTION}"
+    expected_arn = f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:{FUNCTION}:live"
     matches = [i for i in integrations if i.get("IntegrationUri") == expected_arn]
     if len(matches) != 1:
         raise RuntimeError("catalog-media integration missing or ambiguous")

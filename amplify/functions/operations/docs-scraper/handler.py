@@ -4,7 +4,7 @@ Documentation Scraper — WECARE.DIGITAL
 Fetches external documentation (e.g. Meta Business/WhatsApp docs), renders it
 with headless Chromium (Playwright), cleans it to Markdown (BeautifulSoup),
 detects changes via content hashing, keeps an append-only changelog, and stores
-everything in the single media bucket under o/stream/docs/.
+everything in the single media bucket under o/stream/media/docs/.
 
 Runs as a container Lambda (see Dockerfile). Invoked by:
   - EventBridge daily cron        -> {}  or  {"action": "scrape"}   (scrape all sources)
@@ -16,10 +16,10 @@ Runs as a container Lambda (see Dockerfile). Invoked by:
 
 S3 layout (bucket: wecare-digital-get; was app.wecare.digital until 2026-09-28).
 The `o/` root below is part of the key, matching PREFIX = media_paths.public(...):
-  o/stream/docs/_sources.json                 list of sources (frontend-editable)
-  o/stream/docs/_index.json                   {url: {hash, key, source, lastSeen}}
-  o/stream/docs/_changelog.jsonl              append-only change log (one JSON per line)
-  o/stream/docs/<source-slug>/<page-slug>.md  cleaned page content
+  o/stream/media/docs/_sources.json                 list of sources (frontend-editable)
+  o/stream/media/docs/_index.json                   {url: {hash, key, source, lastSeen}}
+  o/stream/media/docs/_changelog.jsonl              append-only change log (one JSON per line)
+  o/stream/media/docs/<source-slug>/<page-slug>.md  cleaned page content
 """
 
 import os
@@ -36,7 +36,7 @@ from lambda_utils.response import cors_headers, options_response, extract_origin
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
 
 BUCKET = os.environ.get('DOCS_BUCKET', media_paths.BUCKET)
-PREFIX = os.environ.get('DOCS_PREFIX', media_paths.public('stream/docs'))
+PREFIX = os.environ.get('DOCS_PREFIX', media_paths.PUBLIC_STREAM_MEDIA_DOCS_PREFIX).rstrip('/')
 SOURCES_KEY = f'{PREFIX}/_sources.json'
 INDEX_KEY = f'{PREFIX}/_index.json'
 CHANGELOG_KEY = f'{PREFIX}/_changelog.jsonl'

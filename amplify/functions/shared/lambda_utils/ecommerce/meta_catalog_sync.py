@@ -28,7 +28,12 @@ RETAILER_ID_MAX_LENGTH = 100
 #: backward-compatible parsing/emission of that original three-segment contract.
 _UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
-#: V2 encodes both identities. V3 is the compact fallback for a long native product id plus a\n#: separator-safe SKU: it base64url-encodes the product id but keeps the exact SKU verbatim.\n_RETAILER_V2 = "v2"\n_RETAILER_V3 = "v3"\n_SAFE_COMPACT_SKU_RE = re.compile(r"^[A-Za-z0-9._-]+$")\n
+#: V2 encodes both identities. V3 is the compact fallback for a long native product id plus a
+#: separator-safe SKU: it base64url-encodes the product id but keeps the exact SKU verbatim.
+_RETAILER_V2 = "v2"
+_RETAILER_V3 = "v3"
+_SAFE_COMPACT_SKU_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+
 #: Meta's availability vocabulary, which is not ours. Two literals in one place so no caller
 #: spells them by hand.
 IN_STOCK = "in stock"

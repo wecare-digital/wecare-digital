@@ -224,19 +224,13 @@ CLEANUP_RESOURCES = {
         # This entry has to move with it or cleanup silently sweeps an empty prefix and the real
         # objects accumulate forever — a counter reading zero looks like success.
         'type': 's3',
-        'prefix': media_paths.secure('Invoice/customer_invoice/'),
+        'prefix': media_paths.INVOICE_CUSTOMER_IMAGE_PREFIX,
     },
     's3_whatsapp_media': {
         'label': 'S3: WhatsApp Media',
         'category': 'S3 Storage',
         'type': 's3',
         'prefix': media_paths.deliverable_public('whatsapp/'),
-    },
-    's3_voice_recordings': {
-        'label': 'S3: Voice Recordings',
-        'category': 'S3 Storage',
-        'type': 's3',
-        'prefix': media_paths.public('stack/voice/'),
     },
     's3_whatsapp_voice': {
         'label': 'S3: WhatsApp Voice (TTS)',
@@ -320,13 +314,13 @@ CLEANUP_RESOURCES = {
         'label': 'S3: Product Images',
         'category': 'S3 Storage',
         'type': 's3',
-        'prefix': media_paths.public('stack/store/products/'),
+        'prefix': media_paths.CATALOG_GENERATED_MEDIA_PREFIX,
     },
     's3_reports': {
         'label': 'S3: Reports & Exports',
         'category': 'S3 Storage',
         'type': 's3',
-        'prefix': media_paths.public('stack/reports/'),
+        'prefix': media_paths.PUBLIC_STREAM_MEDIA_REPORTS_PREFIX,
     },
     's3_whatsapp_calling_ai': {
         'label': 'S3: WhatsApp Calling AI Audio',

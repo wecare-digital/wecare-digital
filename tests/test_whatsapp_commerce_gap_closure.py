@@ -32,16 +32,19 @@ def test_order_status_is_template_only():
     assert "body.get('isOrderStatus'" not in source
 
 
-def test_commerce_callers_use_canonical_order_status_contract():
+def test_fulfilment_senders_use_canonical_order_status_contract():
     callers = [
         ROOT / "amplify/functions/payments/invoice-engine/handler.py",
         ROOT / "amplify/functions/ecommerce/checkout/invoice_engine.py",
-        ROOT / "amplify/functions/payments/razorpay-webhook/handler.py",
     ]
     for path in callers:
         source = path.read_text(encoding="utf-8")
         assert "'orderStatusDetails':" in source
         assert "'isOrderStatus': True" not in source
+
+    webhook = (ROOT / "amplify/functions/payments/razorpay-webhook/handler.py").read_text(
+        encoding="utf-8")
+    assert "'orderStatusDetails':" not in webhook
 
 
 def test_invoice_order_status_route_is_declared():
@@ -50,16 +53,19 @@ def test_invoice_order_status_route_is_declared():
     assert 'wecare-invoice-engine:live' in source
 
 
-def test_commerce_callers_pin_the_outbound_live_alias():
+def test_fulfilment_senders_pin_the_outbound_live_alias():
     callers = [
         ROOT / "amplify/functions/payments/invoice-engine/handler.py",
         ROOT / "amplify/functions/ecommerce/checkout/invoice_engine.py",
-        ROOT / "amplify/functions/payments/razorpay-webhook/handler.py",
     ]
     for path in callers:
         source = path.read_text(encoding="utf-8")
         assert "os.environ.get('OUTBOUND_FUNCTION', 'wecare-outbound-whatsapp:live')" in source
         assert "os.environ.get('OUTBOUND_FUNCTION', 'wecare-outbound-whatsapp')" not in source
+
+    webhook = (ROOT / "amplify/functions/payments/razorpay-webhook/handler.py").read_text(
+        encoding="utf-8")
+    assert "os.environ.get('OUTBOUND_FUNCTION', 'wecare-outbound-whatsapp:live')" not in webhook
 
 
 def test_canonical_s3_path_catalogue_and_runtime_defaults():

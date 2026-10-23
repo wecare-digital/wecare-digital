@@ -3,7 +3,7 @@
 Fetches external docs (Meta / WhatsApp Business, etc.), renders JS with headless
 Chromium, cleans to Markdown, detects changes by content hash, keeps an
 append-only changelog, and stores everything in the `wecare-digital-get` bucket
-under `o/stream/docs/` (served as `https://wecare.digital/get/o/stream/docs/`).
+under `o/stream/media/docs/` (served as `https://wecare.digital/get/o/stream/media/docs/`).
 
 ## Why a container Lambda
 Playwright + Chromium exceeds the 250 MB zip limit, so this function ships as a
@@ -11,13 +11,13 @@ Playwright + Chromium exceeds the 250 MB zip limit, so this function ships as a
 
 ## S3 layout (bucket: `wecare-digital-get`)
 ```
-o/stream/docs/_sources.json               # sources list (frontend-editable)
-o/stream/docs/_index.json                 # {url: {hash, key, source, lastSeen}} for change detection
-o/stream/docs/_changelog.jsonl            # append-only change log (1 JSON/line)
-o/stream/docs/<source>/<page>.md          # cleaned page content
+o/stream/media/docs/_sources.json               # sources list (frontend-editable)
+o/stream/media/docs/_index.json                 # {url: {hash, key, source, lastSeen}} for change detection
+o/stream/media/docs/_changelog.jsonl            # append-only change log (1 JSON/line)
+o/stream/media/docs/<source>/<page>.md          # cleaned page content
 ```
 The `o/` root is part of the key, not decoration — `DOCS_PREFIX` defaults to
-`media_paths.public('stream/docs')`, which resolves to `o/stream/docs`. Keys written
+`media_paths.public('stream/docs')`, which resolves to `o/stream/media/docs`. Keys written
 one level up (at the bucket root) used to return HTTP 200 from the old apex host, so
 getting this wrong fails silently rather than loudly.
 
@@ -63,7 +63,7 @@ aws lambda create-function --function-name wecare-docs-scraper `
 ```
 IAM: the existing `wecare-digital-lambda-role` already has S3 access to
 `wecare-digital-get`; confirm it allows `s3:PutObject`/`GetObject` on
-`o/stream/docs/*`.
+`o/stream/media/docs/*`.
 
 ## Daily trigger (EventBridge)
 ```powershell

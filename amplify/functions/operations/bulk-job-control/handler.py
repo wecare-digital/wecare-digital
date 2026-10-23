@@ -33,7 +33,7 @@ BULK_JOBS_TABLE = os.environ.get('BULK_JOBS_TABLE', 'stack-wecare-digital-BulkJo
 BULK_RECIPIENTS_TABLE = os.environ.get('BULK_RECIPIENTS_TABLE', 'stack-wecare-digital-BulkRecipientsTable')
 BULK_QUEUE_URL = os.environ.get('BULK_QUEUE_URL', '')
 REPORT_BUCKET = os.environ.get('REPORT_BUCKET', media_paths.BUCKET)
-REPORT_PREFIX = os.environ.get('REPORT_PREFIX', media_paths.public('stack/reports/'))
+REPORT_PREFIX = os.environ.get('REPORT_PREFIX', media_paths.PUBLIC_STREAM_MEDIA_REPORTS_PREFIX)
 
 
 # Module-level origin for CORS (set per-invocation in handler)

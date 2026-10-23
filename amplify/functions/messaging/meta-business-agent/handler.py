@@ -2,7 +2,7 @@
 Meta Business Agent — WECARE.DIGITAL
 
 Backend for onboarding/configuring Meta's Business AI Agent on WhatsApp.
-Docs (scraped to s3://wecare-digital-get/o/stream/docs/meta-business-agent/):
+Docs (scraped to s3://wecare-digital-get/o/stream/media/docs/meta-business-agent/):
   Onboarding: POST https://api.facebook.com/{entity_id}/agent_onboarding/?channel=whatsapp
     headers: Authorization: Bearer <token>, X-API-Version: 2.0.0
     entity_id = WhatsApp Business Phone Number ID (or FB Page ID)

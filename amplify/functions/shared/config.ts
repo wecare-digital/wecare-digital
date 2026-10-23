@@ -49,7 +49,7 @@ export const S3_BUCKETS = {
 export const S3_PREFIXES = {
   MEDIA_INBOUND: 'secure/d/public/whatsapp/incoming/',
   MEDIA_OUTBOUND: 'secure/d/public/whatsapp/outgoing/',
-  REPORTS: 'o/stack/reports/',
+  REPORTS: 'o/stream/media/reports/',
 };
 
 // WhatsApp Configuration
