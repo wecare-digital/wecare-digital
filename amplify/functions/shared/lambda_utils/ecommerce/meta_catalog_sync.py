@@ -240,8 +240,8 @@ def paise_from_major(value: Any) -> int:
     if paise != paise.to_integral_value():
         raise ValueError(f"amount {value!r} is not a whole number of paise")
     whole = int(paise)
-    if whole <= 0:
-        raise ValueError(f"amount {value!r} is not positive")
+    if whole < 0:
+        raise ValueError(f"amount {value!r} is negative")
     return whole
 
 
@@ -257,8 +257,8 @@ def price_text(paise: Any) -> str:
     becomes `"005"` and slices to `"0.05"`.
     """
     whole = int(paise)
-    if whole <= 0:
-        raise ValueError("a catalogue price must be positive")
+    if whole < 0:
+        raise ValueError("a catalogue price cannot be negative")
     digits = str(whole).rjust(3, "0")
     return f"{digits[:-2]}.{digits[-2:]}"
 
