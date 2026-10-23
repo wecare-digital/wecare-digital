@@ -9,6 +9,7 @@ from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 HANDLER = ROOT / "amplify/functions/ecommerce/catalog-media/handler.py"
+PROVISIONER = ROOT / "scripts/provision_catalog_media.py"
 
 
 class CatalogMediaDeliveryTest(unittest.TestCase):
@@ -65,6 +66,17 @@ class CatalogMediaDeliveryTest(unittest.TestCase):
             {"rawPath": "/api/catalog-media/anew-4096.png", "httpMethod": "POST"}, None)
         self.assertEqual(result["statusCode"], 405)
         self.s3.get_object.assert_not_called()
+
+    def test_provisioner_publishes_and_routes_live_alias(self):
+        source = PROVISIONER.read_text(encoding="utf-8")
+        self.assertIn("lam.publish_version(", source)
+        self.assertIn('lam.get_alias, FunctionName=FUNCTION, Name="live"', source)
+        self.assertIn('lam.update_alias(FunctionName=FUNCTION, Name="live", FunctionVersion=version)', source)
+        self.assertIn('lam.create_alias(FunctionName=FUNCTION, Name="live", FunctionVersion=version)', source)
+        self.assertIn('arn = base_arn + ":live"', source)
+        self.assertIn("apigw.update_integration(", source)
+        self.assertIn('Qualifier="live"', source)
+        self.assertIn('get_function_configuration(FunctionName=FUNCTION, Qualifier="live")', source)
 
 
 if __name__ == "__main__":
