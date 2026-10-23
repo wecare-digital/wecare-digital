@@ -61,15 +61,19 @@ describe( 'VayuLok Weather history public typography', () => {
     const css = Array.from( container.querySelectorAll( 'style' ) )
       .map( style => style.textContent || '' )
       .join( '\n' );
-    expect( css ).toContain( '.vl-wi-head p{margin:6px 0 0;color:var(--public-muted);font-size:var(--vl-subtext-size,var(--text-base));font-weight:600' );
-    expect( css ).toContain( '.vl-wi-head p{font-size:var(--vl-subtext-size,var(--public-mobile-form-font-size));font-weight:600' );
+    expect( css ).toContain( '.vl-wi-head p{margin:6px 0 0;color:var(--public-muted);font-size:var(--vl-subtext-size,var(--public-supporting-size));font-weight:600' );
+    expect( css ).toContain( '.vl-wi-head p{font-size:var(--vl-subtext-size,var(--public-supporting-size));font-weight:600' );
     expect( css ).toContain( '.vl-wi-range button:hover{background:var(--public-lime-tint);color:var(--public-brand-green)}' );
     expect( css ).toContain( '.vl-wi-range button.is-active{background:var(--public-brand-lime);color:var(--public-brand-green)}' );
     expect( css ).not.toContain( 'background:rgba(17,21,18,.07)' );
     expect( css ).not.toContain( '.vl-wi-source{' );
     expect( css ).toContain( '.vl-wi-stamp{display:flex;width:fit-content;align-items:center;gap:6px' );
-    expect( css ).toContain( 'font-size:var(--vl-meta-size,var(--text-md))' );
+    expect( css ).toContain( 'font-size:var(--vl-meta-size,var(--public-meta-size))' );
     expect( css ).toContain( '.vl-wi-grid strong{color:var(--public-heading);font-size:var(--vl-data-size,var(--public-cta-font-size))' );
+    expect( css ).toContain( '.vl-wi-head h4{margin:0;color:var(--public-heading);font-size:var(--vl-panel-heading-size,var(--public-data-size))' );
+    expect( css ).toContain( '.vl-wi-bar-slot strong{font-size:var(--vl-meta-size,var(--public-meta-size))' );
+    expect( css ).not.toContain( 'font-size:var(--text-' );
+    expect( css ).not.toMatch( /font-size:\s*(?:\d|\.\d)/ );
     expect( container.textContent ).not.toContain( 'Loading history…' );
     expect( css ).toContain( '.vl-wi-sr{position:absolute!important;width:1px!important;height:1px!important' );
   } );
