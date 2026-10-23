@@ -73,6 +73,44 @@ jobs:
         run: |
           python scripts/deploy_all_lambdas.py             wecare-inbound-whatsapp             wecare-waba-management             wecare-whatsapp-voice             wecare-whatsapp-calling             wecare-whatsapp-template-management             wecare-secure-files             wecare-system-cleanup
 
+      # Pre-flight: the next step runs provision_catalog_media.py, whose first act is
+      # iam:GetRole on wecare-catalog-media-role. That grant lives on the assumed deploy
+      # role (GitHubActions-wecare-runtime-deploy) and is written by
+      # scripts/provision_ci_runtime_deploy_role.py --apply, which an IAM admin must run
+      # out of band (a CI deploy role may not rewrite its own permissions - that boundary
+      # is deliberate). If the grant is missing, fail HERE with the exact remediation
+      # instead of letting the deploy step die on a raw botocore AccessDenied traceback.
+      - name: Preflight catalog-media IAM grant
+        run: |
+          python - <<'PY'
+          import sys
+          import boto3
+          from botocore.exceptions import ClientError
+
+          role = "wecare-catalog-media-role"
+          try:
+              boto3.client("iam", region_name="us-east-1").get_role(RoleName=role)
+          except ClientError as exc:
+              code = exc.response["Error"]["Code"]
+              if code == "AccessDenied":
+                  sys.stderr.write(
+                      "\n".join([
+                          "",
+                          "Deploy role lacks iam:GetRole on " + role + ".",
+                          "The committed grant is in scripts/provision_ci_runtime_deploy_role.py",
+                          "(Sid ReadOnlyCatalogMediaExecutionRole) but has not been reconciled live.",
+                          "An IAM admin must run, once:",
+                          "    python scripts/provision_ci_runtime_deploy_role.py --apply",
+                          "    python scripts/provision_ci_runtime_deploy_role.py --verify",
+                          "Then re-run this workflow.",
+                          "",
+                      ])
+                  )
+                  sys.exit(1)
+              # NoSuchEntity etc. means the exec role itself is absent - a different problem,
+              # surfaced by the deploy step. Do not mask it here.
+              print("preflight: get_role returned " + code + "; leaving to the deploy step")
+
       - name: Deploy catalog media on canonical storage
         run: |
           python scripts/provision_catalog_media.py --apply
