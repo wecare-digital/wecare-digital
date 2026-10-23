@@ -5,7 +5,7 @@ Why this file exists at all
 `inbound-whatsapp-handler` writes an inbound attachment to the canonical
 ``secure/d/public/whatsapp/incoming/`` public-deliverable subtree. That subtree is readable
 by Meta and by anyone holding its URL, so "we will remember to copy it" is not a control.
-Historical ``secure/d/public/whatsapp/incoming/`` objects remain readable only as migration
+Historical ``o/stack/whatsapp-media/incoming/`` objects remain readable only as migration
 compatibility inputs; new writes never target that prefix.
 
 The control is the ORDER of two writes. `dropdocs_storage.promote_to_secure` copies the
