@@ -54,10 +54,10 @@ UNIFIED_MESSAGES_TABLE = os.environ.get('UNIFIED_MESSAGES_TABLE', 'stack-wecare-
 SYSTEM_CONFIG_TABLE = os.environ.get('SYSTEM_CONFIG_TABLE', 'stack-wecare-digital-SystemConfigTable')
 MEDIA_BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
 MEDIA_PREFIX = os.environ.get('MEDIA_PREFIX',
-                              media_paths.public('stack/whatsapp-media/voice/'))
+                              media_paths.deliverable_public('whatsapp/voice/'))
 # Amazon Transcribe writes its result straight into the bucket, so the OutputKey
 # needs the same root as everything else or the job lands outside the served tree.
-TRANSCRIPTION_PREFIX = media_paths.public('stack/whatsapp-media/transcriptions/')
+TRANSCRIPTION_PREFIX = media_paths.deliverable_public('whatsapp/transcriptions/')
 
 # WhatsApp Phone Number IDs
 PHONE_NUMBER_ID_1 = os.environ.get('WHATSAPP_PHONE_NUMBER_ID_1',
