@@ -493,6 +493,7 @@ interface WeatherHour {
   windSpeed?: number;
   windUnit?: string;
   windDir?: string;
+  windDeg?: number;
   condition?: string;
   icon?: string;
   // Added for the hourly detail panel: the richer dimensions Google already returns per hour.
@@ -703,7 +704,10 @@ function weatherHourFromApi( row: Record<string, any> ): WeatherHour | null {
   if ( Number.isFinite( uv ) ) out.uv = Math.round( uv );
   if ( Number.isFinite( windSpeed ) ) out.windSpeed = Math.round( windSpeed );
   if ( Number.isFinite( windSpeed ) ) out.windUnit = windUnitLabel( row?.wind?.speed?.unit );
-  if ( Number.isFinite( windDeg ) ) out.windDir = windDirection( windDeg );
+  if ( Number.isFinite( windDeg ) ) {
+    out.windDir = windDirection( windDeg );
+    out.windDeg = ( ( windDeg % 360 ) + 360 ) % 360;
+  }
   if ( typeof row?.weatherCondition?.description?.text === 'string' ) out.condition = row.weatherCondition.description.text;
   if ( typeof row?.weatherCondition?.iconBaseUri === 'string' ) out.icon = row.weatherCondition.iconBaseUri;
   // Richer per-hour dimensions Google already returns - surfaced in the hourly detail panel.
@@ -1047,7 +1051,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   const [ airForecastHours, setAirForecastHours ] = useState<24 | 48 | 96>( 24 );
   const [ airForecastInspectIdx, setAirForecastInspectIdx ] = useState( 0 );
   // Weather tab UI state: hourly range + inspected hour, inspected day, and the history metric.
-  const [ weatherHours, setWeatherHours ] = useState<24 | 48>( 24 );
+  const [ weatherHours, setWeatherHours ] = useState<24 | 48 | 96>( 24 );
   const [ weatherHourInspectIdx, setWeatherHourInspectIdx ] = useState<number | null>( null );
   const [ weatherDayInspectIdx, setWeatherDayInspectIdx ] = useState<number | null>( null );
   const [ weatherDayPeriod, setWeatherDayPeriod ] = useState<'day' | 'night'>( 'day' );
@@ -1178,6 +1182,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   // inventing unsupported map types. The retired deck.gl and NOAA/Zarr paths are no longer part
   // of this component or its dependency tree.
   const airForecastStripRef = useRef<HTMLDivElement | null>( null );
+  const healthRailRef = useRef<HTMLDivElement | null>( null );
   const heatmapOverlayRef = useRef<unknown>( null );
   const weatherOverlayRef = useRef<unknown>( null );
   const alertBoundaryFeaturesRef = useRef<unknown[]>( [] );
@@ -1255,6 +1260,10 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   useEffect( () => {
     setAirForecastInspectIdx( 0 );
   }, [ airForecast, airForecastHours ] );
+
+  useEffect( () => {
+    setWeatherHourInspectIdx( null );
+  }, [ place.lat, place.lng, weatherHours, weatherHourly.length ] );
 
   useEffect( () => {
     if ( !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) {
@@ -1979,10 +1988,10 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     const loadHourly = async () => {
       const rows: WeatherHour[] = [];
       let pageToken = '';
-      for ( let page = 0; page < 2 && !ac.signal.aborted; page++ ) {
+      for ( let page = 0; page < 4 && !ac.signal.aborted; page++ ) {
         let url = 'https://weather.googleapis.com/v1/forecast/hours:lookup?key=' + encodeURIComponent( MAPS_KEY )
           + '&location.latitude=' + lat + '&location.longitude=' + lng
-          + '&hours=48&pageSize=24&unitsSystem=METRIC&languageCode=en';
+          + '&hours=96&pageSize=24&unitsSystem=METRIC&languageCode=en';
         if ( pageToken ) url += '&pageToken=' + encodeURIComponent( pageToken );
         const data = await getJson( url );
         if ( !data || ac.signal.aborted ) break;
@@ -1992,8 +2001,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         pageToken = typeof data.nextPageToken === 'string' ? data.nextPageToken : '';
         if ( !pageToken ) break;
       }
-      forecastStore.hourly = rows.slice( 0, 48 );
-      setWeatherHourly( rows.slice( 0, 48 ) );
+      forecastStore.hourly = rows.slice( 0, 96 );
+      setWeatherHourly( rows.slice( 0, 96 ) );
     };
 
     const loadDaily = async () => {
@@ -3603,7 +3612,16 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                           <div className="vl-live-air-health-head">
                             <h4 className="vl-live-air-health-title">Health Recommendations</h4>
                           </div>
-                          <VayuLokHorizontalRail className="vl-live-air-health-tabs" role="tablist" aria-label="Health recommendation profiles">
+                          <div className="vl-live-air-health-rail-shell">
+                            <button
+                              type="button"
+                              className="vl-live-air-health-page"
+                              aria-label="Previous health profile"
+                              onClick={ () => healthRailRef.current?.scrollBy( { left: -180, behavior: 'smooth' } ) }
+                            >
+                              <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.chevronLeft } /></svg>
+                            </button>
+                            <VayuLokHorizontalRail ref={ healthRailRef } className="vl-live-air-health-tabs" role="tablist" aria-label="Health recommendation profiles">
                             { liveHealthPersonas.map( ( persona, idx ) => (
                               <VayuLokIconAction
                                 key={ persona.id }
@@ -3625,7 +3643,16 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                                 <span className="vl-live-air-health-tooltip" aria-hidden="true">{ persona.label }</span>
                               </VayuLokIconAction>
                             ) ) }
-                          </VayuLokHorizontalRail>
+                            </VayuLokHorizontalRail>
+                            <button
+                              type="button"
+                              className="vl-live-air-health-page"
+                              aria-label="Next health profile"
+                              onClick={ () => healthRailRef.current?.scrollBy( { left: 180, behavior: 'smooth' } ) }
+                            >
+                              <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.chevronRight } /></svg>
+                            </button>
+                          </div>
                           <div
                             className="vl-live-air-health-panel"
                             role="tabpanel"
@@ -3851,7 +3878,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                             Number.isFinite( weather.dayMin ) && Number.isFinite( weather.dayMax ) ? { k: 'Day range', v: `${weather.dayMin}° — ${weather.dayMax}°` } : null,
                             Number.isFinite( weather.humidity ) ? { k: 'Humidity', v: `${weather.humidity}%` } : null,
                             Number.isFinite( weather.rainProb ) ? { k: 'Rain', v: `${weather.rainProb}%${Number.isFinite( weather.rainMm ) ? ` · ${weather.rainMm} mm` : ''}` } : null,
-                            Number.isFinite( weather.windSpeed ) ? { k: 'Wind', v: `${weather.windSpeed} ${weather.windUnit || 'km/h'}${weather.windDir ? ` ${weather.windDir}` : ''}` } : null,
+                            Number.isFinite( weather.windSpeed ) ? { k: 'Wind', v: `${weather.windSpeed} ${weather.windUnit || 'km/h'}${weather.windDir ? ` ${weather.windDir}` : ''}${Number.isFinite( weather.windDeg ) ? ` · ${Math.round( weather.windDeg as number )}°` : ''}` } : null,
                             Number.isFinite( weather.windGust ) ? { k: 'Gust', v: `${weather.windGust} ${weather.windUnit || 'km/h'}` } : null,
                             Number.isFinite( weather.uv ) ? { k: 'UV', v: `${weather.uv}` } : null,
                             Number.isFinite( weather.visibilityKm ) ? { k: 'Visibility', v: `${weather.visibilityKm} km` } : null,
@@ -3932,7 +3959,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                             <div className="vl-live-air-forecast-head">
                               <h4 className="vl-live-air-forecast-title">Hourly Forecast</h4>
                               <div className="vl-live-air-range" role="group" aria-label="Weather forecast range">
-                                { ( [ 24, 48 ] as const ).map( hours => (
+                                { ( [ 24, 48, 96 ] as const ).map( hours => (
                                   <VayuLokCompactPill key={ hours } className={ weatherHours === hours ? 'is-active' : '' } aria-pressed={ weatherHours === hours } onClick={ () => setWeatherHours( hours ) }>
                                     { hours }h
                                   </VayuLokCompactPill>
@@ -3943,9 +3970,12 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                               { weatherHourly.slice( 0, weatherHours ).map( ( hour, idx ) => (
                                 <VayuLokDataCard key={ hour.time } className={ `vl-live-air-forecast-card ${weatherHourInspectIdx === idx ? 'is-active' : ''}`.trim() } aria-pressed={ weatherHourInspectIdx === idx } onFocus={ e => e.currentTarget.scrollIntoView?.( { block: 'nearest', inline: 'nearest' } ) } onClick={ e => { setWeatherHourInspectIdx( idx ); e.currentTarget.scrollIntoView?.( { block: 'nearest', inline: 'nearest' } ); } }>
                                   <span>{ idx === 0 ? 'Now' : formatHistoryPointLabel( hour.time, displayTimeZoneId, locationZoneLabel ) }</span>
+                                  { hour.icon && <img className="vl-live-wx-hour-icon" src={ `${hour.icon}.svg` } alt="" aria-hidden="true" /> }
                                   { Number.isFinite( hour.temp ) && <strong data-wc-no-translate="true">{ hour.temp }°</strong> }
                                   { hour.condition && <small>{ hour.condition }</small> }
+                                  { Number.isFinite( hour.feelsLike ) && <small data-wc-no-translate="true">Feels { hour.feelsLike }°</small> }
                                   { Number.isFinite( hour.rainProb ) && <small data-wc-no-translate="true">Rain { hour.rainProb }%</small> }
+                                  { Number.isFinite( hour.windSpeed ) && <small data-wc-no-translate="true">Wind { hour.windSpeed } { hour.windUnit || 'km/h' }{ hour.windDir ? ` ${hour.windDir}` : '' }</small> }
                                 </VayuLokDataCard>
                               ) ) }
                             </VayuLokHorizontalRail>
@@ -3958,7 +3988,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                                   if ( Number.isFinite( h.humidity ) ) bits.push( { k: 'Humidity', v: `${h.humidity}%` } );
                                   if ( Number.isFinite( h.rainMm ) ) bits.push( { k: 'Rain', v: `${h.rainMm} mm` } );
                                   if ( Number.isFinite( h.stormProb ) && ( h.stormProb as number ) > 0 ) bits.push( { k: 'Storm', v: `${h.stormProb}%` } );
-                                  if ( Number.isFinite( h.windSpeed ) ) bits.push( { k: 'Wind', v: `${h.windSpeed} ${h.windUnit || 'km/h'}${h.windDir ? ` ${h.windDir}` : ''}` } );
+                                  if ( Number.isFinite( h.windSpeed ) ) bits.push( { k: 'Wind', v: `${h.windSpeed} ${h.windUnit || 'km/h'}${h.windDir ? ` ${h.windDir}` : ''}${Number.isFinite( h.windDeg ) ? ` · ${Math.round( h.windDeg as number )}°` : ''}` } );
                                   if ( Number.isFinite( h.windGust ) ) bits.push( { k: 'Gust', v: `${h.windGust} ${h.windUnit || 'km/h'}` } );
                                   if ( Number.isFinite( h.uv ) ) bits.push( { k: 'UV', v: `${h.uv}` } );
                                   if ( Number.isFinite( h.visibilityKm ) ) bits.push( { k: 'Visibility', v: `${h.visibilityKm} km` } );
@@ -4906,6 +4936,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-wx-period-toggle{width:max-content;margin:0 0 10px}
         .vl-live-wx-period-summary{display:flex;align-items:center;gap:8px;margin-bottom:8px}
         .vl-live-wx-period-summary img{width:34px;height:34px;object-fit:contain}
+        .vl-live-wx-hour-icon{width:28px;height:28px;object-fit:contain}
         .vl-live-wx-period-summary strong{font-size:var(--vl-data-size);font-weight:700;line-height:1.35}
         .vl-live-wx-freshness{margin-top:8px;color:var(--muted);font-size:var(--vl-subtext-size);font-weight:600;line-height:1.35}
 
@@ -4914,13 +4945,17 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
            VayuLok's other selectors. Advisory copy stays regular and muted so it does not compete with live data. */
         .vl-live-air-history-pollutant{display:inline-flex;align-items:center;gap:4px}
         .vl-live-air-health-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:var(--vl-heading-gap)}
-        .vl-live-air-health-tabs{display:flex;align-items:center;gap:7px;overflow-x:auto;padding:0 0 8px;scroll-snap-type:x proximity;scrollbar-width:thin;white-space:nowrap;overscroll-behavior-x:contain;touch-action:pan-x}
+        .vl-live-air-health-rail-shell{display:grid;grid-template-columns:32px minmax(0,1fr) 32px;align-items:center;gap:6px}
+        .vl-live-air-health-page{display:inline-flex;width:32px;height:32px;align-items:center;justify-content:center;padding:0;border:1px solid var(--hair);border-radius:50%;background:var(--lime-tint);color:var(--green)}
+        .vl-live-air-health-page:hover{border-color:var(--lime);background:var(--lime)}
+        .vl-live-air-health-page svg{width:18px;height:18px;fill:currentColor}
+        .vl-live-air-health-tabs{display:flex;align-items:center;gap:8px;overflow-x:auto;padding:0 0 8px;scroll-snap-type:x proximity;scrollbar-width:thin;white-space:nowrap;overscroll-behavior-x:contain;touch-action:pan-x}
         .vl-live-air-health-tabs::-webkit-scrollbar{height:6px}
-        .vl-live-air-health-tab{display:inline-flex;flex:0 0 var(--tap-min);width:var(--tap-min);height:var(--tap-min);min-height:var(--tap-min);align-items:center;justify-content:center;padding:0;border:1px solid var(--hair);border-radius:50%;background:#fff;color:var(--green);line-height:1;scroll-snap-align:start;transition:background-color .2s,border-color .2s}
-        .vl-live-air-health-tab:hover{border-color:var(--lime);background:var(--lime-tint);color:var(--green)}
+        .vl-live-air-health-tab{display:inline-flex;flex:0 0 48px;width:48px;height:48px;min-height:48px;align-items:center;justify-content:center;padding:0;border:1px solid var(--hair);border-radius:50%;background:var(--lime-tint);color:var(--green);line-height:1;scroll-snap-align:start;transition:background-color .2s,border-color .2s}
+        .vl-live-air-health-tab:hover{border-color:var(--lime);background:var(--lime-hover);color:var(--green)}
         .vl-live-air-health-tab.is-active{border-color:var(--lime);background:var(--lime);color:var(--green)}
-        .vl-live-air-health-icon-wrap{display:flex;align-items:center;justify-content:center;flex:0 0 18px;width:18px;height:18px;border:0;border-radius:inherit;background:transparent;color:inherit}
-        .vl-live-air-health-icon{width:19px;height:19px;fill:currentColor}
+        .vl-live-air-health-icon-wrap{display:flex;align-items:center;justify-content:center;flex:0 0 24px;width:24px;height:24px;border:0;border-radius:inherit;background:transparent;color:inherit}
+        .vl-live-air-health-icon{width:24px;height:24px;fill:currentColor}
         .vl-live-air-health-tooltip{position:absolute;z-index:4;inset-inline-start:50%;bottom:calc(100% + 7px);max-width:180px;transform:translateX(-50%) translateY(3px);padding:5px 8px;border:1px solid var(--lime);border-radius:var(--radius-md,10px);background:var(--vl-surface);color:var(--green);font-size:var(--vl-meta-size);font-weight:600;line-height:1.3;white-space:normal;opacity:0;pointer-events:none;transition:opacity .14s ease,transform .14s ease}
         .vl-live-air-health-tab{position:relative}
         :global(.vl-ui-icon-action:hover) .vl-live-air-health-tooltip,:global(.vl-ui-icon-action:focus-visible) .vl-live-air-health-tooltip{opacity:1;transform:translateX(-50%) translateY(0)}
