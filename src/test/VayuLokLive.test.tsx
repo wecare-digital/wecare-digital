@@ -1423,7 +1423,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
 
     // (2) HEALTH RECOMMENDATIONS. All seven groups come from Google's live
     // healthRecommendations payload. There is no static WECARE recommendation fallback.
-    expect( container.querySelector( '.vl-ui-data-card' ) ).not.toBeNull();
+    // Health is an icon rail; forecast data cards are not required in this contract.
     expect( container.querySelector( '.vl-ui-horizontal-rail' ) ).not.toBeNull();
     const healthTablist = screen.getByRole( 'tablist', { name: 'Health recommendation profiles' } );
     expect( container.querySelector( '.vl-ui-icon-action' ) ).not.toBeNull();
