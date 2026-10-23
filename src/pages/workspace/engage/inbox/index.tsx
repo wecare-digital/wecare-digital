@@ -240,7 +240,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
     const toast = useToastContext();
     const [ messages, setMessages ] = useState<api.Message[]>( [] );
     const [ contactNames, setContactNames ] = useState<Record<string, string>>( {} );
-    const [ contactDir, setContactDir ] = useState<Record<string, { username?: string; bsuid?: string; book?: string; customerDisplayId?: string }>>( {} );
+    const [ contactDir, setContactDir ] = useState<Record<string, api.Contact>>( {} );
     const [ selected, setSelected ] = useState<string | null>( null );
     // Seeded from the `channel` prop, else `?channel=`. Lowercased because the
     // comparisons below lowercase each message's own channel, and 'ALL' is the
@@ -346,11 +346,10 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
             ] ) );
             setLoadFailure( failures[ 0 ] ?? null );
             const names: Record<string, string> = {};
-            const dir: Record<string, { username?: string; bsuid?: string; book?: string; customerDisplayId?: string }> = {};
+            const dir: Record<string, api.Contact> = {};
             contacts.forEach( c => {
                 names[ c.contactId ] = c.name || c.phone || c.email || c.contactId;
-                if ( c.username || c.bsuid || c.contactBookName || c.customerDisplayId )
-                    dir[ c.contactId ] = { username: c.username || undefined, bsuid: c.bsuid || undefined, book: c.contactBookName || undefined, customerDisplayId: c.customerDisplayId || undefined };
+                dir[ c.contactId ] = c;
             } );
             setContactNames( names );
             setContactDir( dir );
@@ -533,6 +532,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
     }, [ messages, selected, channelFilter ] );
 
     const selectedConv = conversations.find( c => c.contactId === selected );
+    const selectedContact = selected ? contactDir[ selected ] : undefined;
     const replyChannel = thread.length ? ( thread[ thread.length - 1 ].channel || 'whatsapp' ).toLowerCase() : 'whatsapp';
 
     // Derive the reply target (recipient phone, WABA, contactId) from the thread.
@@ -1109,14 +1109,15 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                         <span className="ui-thread-sub">
                                             { [
                                                 // Prefer the WhatsApp username in the profile; fall back to the phone number only when no username exists.
-                                                selected && contactDir[ selected ]?.username
-                                                    ? `@${contactDir[ selected ]!.username!.replace( /^@/, '' )}`
+                                                selectedContact?.username
+                                                    ? `@${selectedContact.username.replace( /^@/, '' )}`
                                                     : replyTarget.phone,
-                                                selected ? contactDir[ selected ]?.customerDisplayId : '',
+                                                selectedContact?.profileUsername ? `WECARE.DIGITAL profile: ${selectedContact.profileUsername}` : '',
+                                                selectedContact?.customerDisplayId || '',
                                                 `${thread.length} message${thread.length === 1 ? '' : 's'}`,
                                             ].filter( Boolean ).join( ' · ' ) }
-                                            { selected && contactDir[ selected ]?.bsuid && (
-                                                <span className="ui-id-chip" title={ `WhatsApp BSUID: ${contactDir[ selected ]!.bsuid}` }>WhatsApp ID { contactDir[ selected ]!.bsuid!.slice( 0, 8 ) }…</span>
+                                            { selectedContact?.bsuid && (
+                                                <span className="ui-id-chip" title={ `WhatsApp BSUID: ${selectedContact!.bsuid}` }>WhatsApp ID { selectedContact!.bsuid!.slice( 0, 8 ) }…</span>
                                             ) }
                                         </span>
                                     </div>
@@ -1137,6 +1138,36 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                     <div className="ui-summary">
                                         <span className="ui-summary-text">{ summary }</span>
                                         <button className="ui-summary-x" onClick={ () => setSummary( '' ) }>✕</button>
+                                    </div>
+                                ) }
+                                { selectedContact && (
+                                    <div aria-label="Customer profile" style={ { margin: '10px 12px', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', background: 'var(--bg-secondary)' } }>
+                                        <div style={ { padding: '8px 10px', fontWeight: 700, borderBottom: '1px solid var(--border)' } }>WECARE.DIGITAL customer profile</div>
+                                        <div style={ { overflowX: 'auto' } }>
+                                            <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 12 } }>
+                                                <tbody>
+                                                    { [
+                                                        [ 'Customer ID', selectedContact.customerDisplayId || selectedContact.customerUuid || '—' ],
+                                                        [ 'Name', selectedContact.name || '—' ],
+                                                        [ 'WECARE.DIGITAL profile name', selectedContact.profileUsername || '—' ],
+                                                        [ 'Meta WhatsApp username', selectedContact.username ? `@${selectedContact.username.replace( /^@/, '' )}` : '—' ],
+                                                        [ 'Phone', selectedContact.phone || replyTarget.phone || '—' ],
+                                                        [ 'Organization', selectedContact.companyName || '—' ],
+                                                        [ 'Job title', selectedContact.designation || '—' ],
+                                                        [ 'Street address', selectedContact.checkoutDeliveryAddress?.addressLine1 || '—' ],
+                                                        [ 'Apartment / suite / unit', selectedContact.checkoutDeliveryAddress?.addressLine2 || '—' ],
+                                                        [ 'Landmark / neighborhood', selectedContact.checkoutDeliveryAddress?.locality || '—' ],
+                                                        [ 'City', selectedContact.checkoutDeliveryAddress?.city || '—' ],
+                                                        [ 'State / region', selectedContact.checkoutDeliveryAddress?.state || '—' ],
+                                                        [ 'Postal code', selectedContact.checkoutDeliveryAddress?.postalCode || '—' ],
+                                                        [ 'Country', selectedContact.checkoutDeliveryAddress?.country || '—' ],
+                                                    ].map( ( [ label, value ] ) => <tr key={ label }>
+                                                        <th style={ { textAlign: 'left', padding: '6px 10px', width: '34%', borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', fontWeight: 600 } }>{ label }</th>
+                                                        <td style={ { padding: '6px 10px', borderBottom: '1px solid var(--border)' } }>{ value }</td>
+                                                    </tr> ) }
+                                                </tbody>
+                                            </table>
+                                        </div>
                                     </div>
                                 ) }
                                 <div className="ui-thread-body" ref={ threadBodyRef }>
