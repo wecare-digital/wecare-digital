@@ -116,8 +116,9 @@ def test_blocking_finding_overrides_a_full_human_gate():
 
 def test_every_human_gate_name_is_in_the_standards_table():
     assert set(q.MACHINE_GATES).isdisjoint(q.HUMAN_GATES)
-    #: Section 29 lists thirteen rows; between them the two tuples must cover it.
-    assert len(q.MACHINE_GATES) + len(q.HUMAN_GATES) == 14  # 13 rows + section 30's read
+    assert "AUTHOR_IDENTITY" in q.MACHINE_GATES
+    assert "PUBLIC_SOURCE_EXPOSURE" in q.MACHINE_GATES
+    assert "ATTRIBUTION" not in q.HUMAN_GATES
 
 
 # ── Section 1, 2, 3 ─────────────────────────────────────────────────────────────
@@ -327,20 +328,20 @@ def test_generic_source_materials_phrase_is_not_wrapper_without_source_determine
     assert "SOURCE_WRAPPER" not in codes(findings)
 
 
-def test_unattributed_long_quotation_routes_to_attribution_review():
+def test_long_quotation_like_passage_routes_to_editorial_rewrite_not_attribution_review():
     body = GOOD_BODY + ('\n\n"Integrity is the condition of being whole and undivided in '
                         'the matters that concern one most."')
     record = good_record(contentMarkdown=body)
     findings = q.check_record(record)
-    assert "UNATTRIBUTED_QUOTATION" in codes(findings)
-    assert q.decide_status(record, findings) == "ATTRIBUTION_REVIEW"
+    assert "QUOTATION_PROVENANCE_UNCLEAR" in codes(findings)
+    assert q.decide_status(record, findings) == "EDITORIAL_REWRITE"
 
 
-def test_attributed_quotation_is_accepted():
-    body = GOOD_BODY + ('\n\nAs Erhard writes, "integrity is a matter of a person being '
+def test_named_public_attribution_is_a_hard_block():
+    body = GOOD_BODY + ('\n\nAs Example Author writes, "integrity is a matter of a person being '
                         'whole and complete in the matters that concern them."')
-    assert "UNATTRIBUTED_QUOTATION" not in codes(
-        q.check_privacy_and_attribution(good_record(contentMarkdown=body)))
+    findings = q.check_record(good_record(contentMarkdown=body))
+    assert "PUBLIC_CITATION_LANGUAGE" in codes(findings, "BLOCK")
 
 
 def test_statistic_without_a_recorded_review_routes_to_fact_check():
@@ -455,9 +456,14 @@ def test_tag_rules(tags):
         "TAG_COUNT", "TAG_DUPLICATE"}
 
 
-def test_author_identity_is_not_enforced_by_public_copy_gate():
-    assert "AUTHOR_WRONG" not in codes(
+def test_author_identity_is_a_hard_block():
+    assert "AUTHOR_WRONG" in codes(
         q.check_seo_and_metadata(good_record(author="Someone Else")), "BLOCK")
+
+
+def test_missing_author_identity_is_a_hard_block():
+    assert "AUTHOR_WRONG" in codes(
+        q.check_seo_and_metadata(good_record(author="")), "BLOCK")
 
 
 def test_only_two_categories_are_accepted():
