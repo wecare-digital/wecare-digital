@@ -77,6 +77,14 @@ class CatalogMediaDeliveryTest(unittest.TestCase):
         self.assertIn("apigw.update_integration(", source)
         self.assertIn('Qualifier="live"', source)
         self.assertIn('get_function_configuration(FunctionName=FUNCTION, Qualifier="live")', source)
+        # The deploy must CONVERGE an existing route onto the resolved (live-alias) integration
+        # rather than refuse, when the route still points at an integration proxying this same
+        # function - that is the legacy->alias migration, not a takeover. Refusal is kept only
+        # for a route pointing at an unrelated integration.
+        self.assertIn("apigw.update_route(", source)
+        self.assertIn("own_integration_ids", source)
+        self.assertIn('raise RuntimeError("refusing to replace existing catalog-media route")',
+                      source)
 
 
 if __name__ == "__main__":
