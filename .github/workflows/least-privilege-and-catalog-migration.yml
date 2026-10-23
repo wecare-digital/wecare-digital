@@ -1,0 +1,128 @@
+name: Least-privilege S3 scope and catalog image-key migration
+
+# Automates the two items that previously required manual activity:
+#   A. Shared-role S3 least-privilege: on every change to the scoper or the S3 contract, run
+#      the generator + iam:simulate (read-only) so a regression is caught in CI. A gated,
+#      dispatch-only apply path performs the real put_role_policy.
+#   B. Catalog image-key migration: a dispatch-only job that runs the migrator against the
+#      authenticated native-catalog-admin API, consuming a staff Admin token from the
+#      WECARE_STAFF_TOKEN secret. The STAFF-Admin + MFA gate is NOT bypassed - the token is
+#      injected, the auth path is unchanged. There is no machine credential by design
+#      (see amplify/functions/shared/lambda_utils/middleware.py), so a human/SSO sign-in
+#      mints the token into the secret; everything after that is unattended.
+
+on:
+  push:
+    branches: [stack]
+    paths:
+      - '.github/workflows/least-privilege-and-catalog-migration.yml'
+      - 'scripts/scope_shared_lambda_s3.py'
+      - 'scripts/migrate_catalog_image_keys.py'
+      - 'amplify/functions/shared/lambda_utils/media_paths.py'
+      - 'tests/test_scope_shared_lambda_s3.py'
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'What to run'
+        required: true
+        default: 'scope-simulate'
+        type: choice
+        options:
+          - scope-simulate        # read-only: generate + simulate the tightened S3 policy
+          - scope-apply           # privileged: put the tightened S3 policy (admin role)
+          - catalog-migrate-dry   # list the legacy catalogImageKey rows (needs staff token)
+          - catalog-migrate-apply # PATCH the rows via the authenticated admin API
+
+permissions:
+  contents: read
+
+concurrency:
+  group: least-privilege-and-catalog-migration
+  cancel-in-progress: false
+
+jobs:
+  scope-simulate:
+    # Runs on push and on the scope-simulate dispatch. Read-only against AWS.
+    if: github.event_name == 'push' || github.event.inputs.action == 'scope-simulate'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: python -m pip install --disable-pip-version-check boto3==1.43.98 pytest
+      - name: Unit-test the policy generator (offline)
+        run: python -m pytest tests/test_scope_shared_lambda_s3.py -q
+      - name: Assume read-only inspection role
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::775261844268:role/GitHubActions-wecare-digital-public-surface-read
+          role-session-name: shared-s3-scope-simulate
+          aws-region: us-east-1
+      - name: Require production account
+        run: test "$(aws sts get-caller-identity --query Account --output text)" = "775261844268"
+      - name: Generate + simulate the tightened shared-role S3 policy
+        run: python scripts/scope_shared_lambda_s3.py --simulate
+
+  scope-apply:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'scope-apply'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    environment: production-iam   # require an environment approval before a privileged apply
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: python -m pip install --disable-pip-version-check boto3==1.43.98
+      - name: Assume IAM-admin apply role
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          # A dedicated role allowed to iam:PutRolePolicy on wecare-digital-lambda-role only.
+          # Provisioned out of band by an IAM admin (the shared role may not edit itself).
+          role-to-assume: arn:aws:iam::775261844268:role/GitHubActions-wecare-shared-role-scoper
+          role-session-name: shared-s3-scope-apply
+          aws-region: us-east-1
+      - name: Require production account
+        run: test "$(aws sts get-caller-identity --query Account --output text)" = "775261844268"
+      - name: Apply the tightened policy (simulation must pass first)
+        run: python scripts/scope_shared_lambda_s3.py --apply
+
+  catalog-migrate:
+    if: >
+      github.event_name == 'workflow_dispatch' &&
+      (github.event.inputs.action == 'catalog-migrate-dry' ||
+       github.event.inputs.action == 'catalog-migrate-apply')
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    environment: production-catalog   # approval gate; also where WECARE_STAFF_TOKEN is scoped
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Require a staff token
+        env:
+          WECARE_STAFF_TOKEN: ${{ secrets.WECARE_STAFF_TOKEN }}
+        run: |
+          test -n "$WECARE_STAFF_TOKEN" || { echo "WECARE_STAFF_TOKEN secret is not set"; exit 1; }
+      - name: Migrate catalog image keys
+        env:
+          WECARE_STAFF_TOKEN: ${{ secrets.WECARE_STAFF_TOKEN }}
+        run: |
+          if [ "${{ github.event.inputs.action }}" = "catalog-migrate-apply" ]; then
+            python scripts/migrate_catalog_image_keys.py --apply
+          else
+            python scripts/migrate_catalog_image_keys.py
+          fi

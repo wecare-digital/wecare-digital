@@ -1,0 +1,70 @@
+name: Amplify dependency integrity
+
+on:
+  push:
+    branches: [stack]
+    paths:
+      - '.github/workflows/amplify-dependency-integrity.yml'
+      - 'amplify/package.json'
+      - 'amplify/package-lock.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: amplify-dependency-integrity
+  cancel-in-progress: true
+
+jobs:
+  lock-integrity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: amplify/package-lock.json
+
+      - name: Use npm version pinned by root packageManager
+        run: |
+          PINNED_NPM="$(node -e "const p=require('./package.json').packageManager;process.stdout.write(p.slice(p.lastIndexOf('@')+1))")"
+          npm install --global "npm@${PINNED_NPM}"
+          test "$(npm --version)" = "$PINNED_NPM"
+
+      - name: Regenerate Amplify lockfile
+        working-directory: amplify
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
+      - name: Upload regenerated lockfile
+        uses: actions/upload-artifact@v7
+        with:
+          name: amplify-regenerated-lock
+          path: amplify/package-lock.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Require patched GraphQL tools security pin
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const pkg = JSON.parse(fs.readFileSync('amplify/package.json', 'utf8'));
+          const lock = JSON.parse(fs.readFileSync('amplify/package-lock.json', 'utf8'));
+          const expected = '12.0.3';
+          if (pkg.overrides?.['@graphql-tools/utils'] !== expected) {
+            throw new Error(`amplify/package.json must globally override @graphql-tools/utils to ${expected}`);
+          }
+          const copies = Object.entries(lock.packages || {})
+            .filter(([path]) => path.includes('@graphql-tools/utils'))
+            .map(([path, meta]) => ({ path, version: meta.version }));
+          if (copies.length !== 1 || copies[0].version !== expected) {
+            throw new Error(`expected exactly one @graphql-tools/utils@${expected}; got ${JSON.stringify(copies)}`);
+          }
+          console.log('GraphQL tools security pin verified:', copies);
+          NODE
+
+      - name: Require committed lockfile to match npm resolution
+        run: git diff --exit-code -- amplify/package-lock.json
