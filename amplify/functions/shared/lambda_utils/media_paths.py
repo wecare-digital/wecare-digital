@@ -119,8 +119,13 @@ def public(*parts: str) -> str:
 
 
 def secure(*parts: str) -> str:
-    """Join ``parts`` into a key under the gated root."""
+    """Join ``parts`` into a key under the secure root."""
     return SECURE_ROOT + _join(parts)
+
+
+def deliverable_public(*parts: str) -> str:
+    """Join ``parts`` under the public-delivery subtree."""
+    return PUBLIC_DELIVERABLE_ROOT + _join(parts)
 
 
 def _join(parts: tuple[str, ...]) -> str:
@@ -159,7 +164,7 @@ def public_url(key: Optional[str], cdn_domain: Optional[str] = None) -> str:
     string surfaces it at the call site instead of shipping a dead link to a recipient.
     """
     k = canonical(key)
-    if not k or k.startswith(SECURE_ROOT):
+    if not k or (k.startswith(SECURE_ROOT) and not k.startswith(PUBLIC_DELIVERABLE_ROOT)):
         return ""
     if k.startswith(("http://", "https://")):
         return k
