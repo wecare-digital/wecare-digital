@@ -2470,14 +2470,16 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( mapMain ).not.toBeNull();
 
     // Pollutant info control follows the SupportWidget WhatsApp skin exactly:
-    // lime surface, deep-green icon, lighter-lime hover, circular shape.
+    // lime surface, deep-green icon, unified lime hover lift, circular shape.
     const infoRule = cssRuleFor( css, '.vl-live-air-pollutant-info' );
     expect( infoRule ).toContain( 'background:var(--lime)' );
     expect( infoRule ).toContain( 'color:var(--green)' );
     expect( infoRule ).toContain( 'border-radius:50%' );
+    // One shared hover language (#1462): solid lime + the shared hover shadow token, no --lime-hover.
     const infoHoverRule = cssRuleFor( css, '.vl-live-air-pollutant-info:hover' );
-    expect( infoHoverRule ).toContain( 'background:var(--lime-hover)' );
+    expect( infoHoverRule ).toContain( 'background:var(--lime)' );
     expect( infoHoverRule ).toContain( 'color:var(--green)' );
+    expect( infoHoverRule ).toContain( 'box-shadow:var(--vl-hover-shadow)' );
     expect( css ).toContain( '.vl-live-air-health-tabs{scroll-snap-type:x mandatory' );
     expect( css ).toContain( '.vl-live-air-health-tab{scroll-snap-align:start}' );
     expect( css ).toContain( 'scrollbar-width:thin' );
