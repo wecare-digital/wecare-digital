@@ -51,13 +51,10 @@ Each newly supplied PDF, website, cookbook, publisher archive, or source collect
 - `provenance_phrases`
 - additional `blocked_public_terms`
 - `allowed_public_terms` for legitimate public culinary terms
-- `required_public_attribution_terms` when attribution genuinely must remain
 
 Do not carry one source profile forward blindly to the next PDF.
 
 Normal culinary language is **not** a provenance violation by itself. Phrases such as `cooked with`, `learned from`, `volunteer`, `programme`, family, place, or institution terms should only be blocked when they actually expose the current source's private/provenance context.
-
-`required_public_attribution_terms` is deprecated for public-copy use. New audits must not use attribution exceptions to permit source/reference material in public copy.
 
 The final public article should read as independent WECARE.DIGITAL editorial work. Public copy must not expose source/reference material, named source authors or people, named works, citation/attribution language, source URLs, or source provenance. Internal provenance stays in backend/source-profile metadata only. Genuine culinary or cultural identity may remain when it is part of the subject itself rather than source provenance.
 
