@@ -490,9 +490,10 @@ def test_tag_case_is_not_a_tag_difference(mod):
     assert any("tags are" in error for error in errors)
 
 
-def test_audit_does_not_enforce_fixed_author_identity(mod):
+def test_audit_blocks_wrong_author_identity(mod):
     item = record(1)
-    assert mod.audit_post(public_post(item, authorName="WECARE.DIGITAL"), item) == []
+    errors = mod.audit_post(public_post(item, authorName="WECARE.DIGITAL"), item)
+    assert any("authorName is 'WECARE.DIGITAL'" in error for error in errors)
 
 
 def test_conversations_validate_blocks_public_external_reference(mod, tmp_path):
