@@ -6,11 +6,8 @@ What is wrong (measured read-only with iam:SimulatePrincipalPolicy, 2026-10-14):
 * `wecare-checkout-role` / `CheckoutLeastPrivilege` / `PaymentAttemptAndCommerceKeys` grants
   Get/Put/Update on the DELETED previous commerce-key table. `wecare-checkout:live`
   reads `COMMERCE_KEYS_TABLE=stack-wecare-digital-CommerceKeys`: PutItem there = implicitDeny.
-* `wecare-checkout-role` / `CheckoutNativeCatalogAuthority` / `ReserveNativeInventory` grants the
-  pseudo-action `dynamodb:TransactWriteItems`. DynamoDB authorizes each transactional item with its
-  underlying action, so the stock decrement (an `Update` on ProductsTable inside
-  `native_inventory_txn.reserve_basket`, live because NATIVE_STOCK_RESERVATION_ENABLED=true)
-  = implicitDeny.
+* Native inventory reservation has since been retired. Checkout's ProductsTable access is now
+  read-only; `dynamodb:UpdateItem` on ProductsTable must remain denied.
 * `wecare-service-requests-role` / `service-requests-rw` / `ReadPaidOrderClaims` grants GetItem on
   the deleted table; paid-service activation reads `PAYREF#`/`PAYMENTATTEMPT#` rows on CommerceKeys.
 
@@ -95,13 +92,13 @@ class Case:
 
 #: What the live code needs (allowed) and what must stay withheld (denied).
 CASES: tuple[Case, ...] = (
-    # checkout: payment references, attempt pointers, idempotency rows and stock claims.
+    # checkout: payment references, attempt pointers and idempotency rows.
     Case(CHECKOUT_ROLE, "dynamodb:GetItem", KEYS, "allowed"),
     Case(CHECKOUT_ROLE, "dynamodb:PutItem", KEYS, "allowed"),
     Case(CHECKOUT_ROLE, "dynamodb:UpdateItem", KEYS, "allowed"),
     Case(CHECKOUT_ROLE, "dynamodb:PutItem", ATTEMPTS, "allowed"),
-    # checkout: the transactional stock decrement/increment on ProductsTable.
-    Case(CHECKOUT_ROLE, "dynamodb:UpdateItem", PRODUCTS, "allowed"),
+    # checkout: ProductsTable is price/product authority, read-only from checkout.
+    Case(CHECKOUT_ROLE, "dynamodb:UpdateItem", PRODUCTS, "denied"),
     Case(CHECKOUT_ROLE, "dynamodb:GetItem", PRODUCTS, "allowed"),
     # checkout: evidence is never deletable, and the new grant does not widen to other tables.
     Case(CHECKOUT_ROLE, "dynamodb:DeleteItem", KEYS, "denied"),

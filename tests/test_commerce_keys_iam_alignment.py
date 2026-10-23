@@ -9,13 +9,12 @@ provisioners (`provision_checkout.py`, `provision_service_requests.py`) and the 
 deleted table. Measured with the IAM policy simulator the same day: `wecare-checkout-role` PutItem
 on CommerceKeys = implicitDeny.
 
-Separately, `ReserveNativeInventory` granted the pseudo-action `dynamodb:TransactWriteItems`.
-DynamoDB authorizes each transactional Put/Update/Delete/ConditionCheck with the underlying item
-action, so that grant authorized nothing and the stock decrement (an `Update` on ProductsTable
-inside `native_inventory_txn.reserve_basket`) was implicitly denied.
+Stock reservation is retired. Checkout may read ProductsTable for server-owned prices and product
+validation, but it must not mutate ProductsTable. The dormant inventory transaction helper remains
+for historical compatibility only and has no checkout call site or IAM write grant.
 
 These tests pin the shape, not a third copy of today's string: every IaC home must resolve to the
-resolver's default, and the grants must cover the item actions the reservation code performs.
+resolver's default, and checkout catalog access must remain read-only.
 """
 from __future__ import annotations
 
@@ -164,24 +163,21 @@ ITEM_ACTION = {"Put": "dynamodb:PutItem", "Update": "dynamodb:UpdateItem",
                "Delete": "dynamodb:DeleteItem", "ConditionCheck": "dynamodb:ConditionCheckItem"}
 
 
-def test_reservation_transaction_shape_is_what_the_grants_assume():
+def test_dormant_reservation_helper_has_no_product_write_authority():
     assert _transaction_tables() == {"keys_table": {"Put", "Update"},
                                      "products_table": {"Update"}}
 
 
 @pytest.mark.parametrize("source", ["provisioner+json", "infra"])
-def test_checkout_role_covers_every_reservation_item_action(checkout_prov, resolver_default,
-                                                            source):
+def test_checkout_catalog_access_is_read_only(checkout_prov, source):
     if source == "infra":
         statements = _infra_role_statements()
     else:
         statements = (checkout_prov.expected_role_policy(ACCT)["Statement"]
                       + json.loads(NATIVE_POLICY.read_text(encoding="utf-8"))["Statement"])
-    tables = {"keys_table": TABLE_ARN + resolver_default,
-              "products_table": TABLE_ARN + checkout_prov.PRODUCTS_TABLE}
-    for arg, ops in _transaction_tables().items():
-        for op in ops:
-            assert _allows(statements, ITEM_ACTION[op], tables[arg]), (source, op, arg)
+    products = TABLE_ARN + checkout_prov.PRODUCTS_TABLE
+    assert _allows(statements, "dynamodb:GetItem", products)
+    assert not _allows(statements, "dynamodb:UpdateItem", products)
 
 
 @pytest.mark.parametrize("source", ["provisioner+json", "infra"])
@@ -196,7 +192,7 @@ def test_checkout_role_still_cannot_delete_evidence_or_touch_other_tables(checko
     for table in (resolver_default, checkout_prov.PRODUCTS_TABLE,
                   checkout_prov.PAYMENT_ATTEMPTS_TABLE, checkout_prov.ORDERS_TABLE):
         assert not _allows(statements, "dynamodb:DeleteItem", TABLE_ARN + table), table
-    # The new UpdateItem grant is ProductsTable only - not its indexes, not the fleet.
+    # Checkout has no product mutation grant, and no unrelated table write grant.
     assert not _allows(statements, "dynamodb:UpdateItem",
                        TABLE_ARN + "stack-wecare-digital-CouponsTable")
     assert not _allows(statements, "dynamodb:UpdateItem",
