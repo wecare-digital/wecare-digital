@@ -99,7 +99,7 @@ MEDIA_PREFIX = os.environ.get('MEDIA_OUTBOUND_PREFIX',
 # re-sent across many template messages without re-uploading to Meta each time.
 #
 # The `o/` root is LOAD-BEARING here, not cosmetic. The 61 objects already in
-# `o/public/wa-tpl/` are referenced by WhatsApp templates Meta has APPROVED, and those
+# `secure/d/public/whatsapp/wa-tpl/` are referenced by WhatsApp templates Meta has APPROVED, and those
 # URLs are on the app.wecare.digital host, which serves this bucket through origin path
 # `/o`. An attachment written to `public/wa-tpl/` is invisible to that host, so it would
 # 200 on the apex URL and 404 for Meta. See lambda_utils/media_paths.
@@ -1986,7 +1986,7 @@ def _handle_checkout_template_send(
         # the same WECARE.DIGITAL logo on every payment message, never varied per order.
         # The per-call header_image_url override is deliberately ignored for the checkout
         # template so no caller can substitute a different image.
-        FIXED_CHECKOUT_HEADER = 'https://wecare.digital/get/o/public/wa-tpl/img/wecarepay-header.png'
+        FIXED_CHECKOUT_HEADER = 'https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/img/wecarepay-header.png'
         checkout_header = FIXED_CHECKOUT_HEADER
         if checkout_order_details.get('header_image_id'):
             components.append({
