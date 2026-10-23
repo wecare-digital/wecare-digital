@@ -15,6 +15,7 @@ from botocore.exceptions import ClientError
 REGION = os.environ.get("AWS_REGION", "us-east-1")
 BUCKET = os.environ.get("CATALOG_BUCKET", "wecare-digital-get")
 PREFIX = "secure/d/public/catalog-deploy/catalog/products/"
+# Canonical catalog masters live under secure/d/public; do not fall back to retired paths.
 NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*-4096[.]png$")
 S3 = boto3.client("s3", region_name=REGION)
 
