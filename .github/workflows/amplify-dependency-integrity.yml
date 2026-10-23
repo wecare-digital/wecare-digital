@@ -47,5 +47,24 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Require patched GraphQL tools security pin
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const pkg = JSON.parse(fs.readFileSync('amplify/package.json', 'utf8'));
+          const lock = JSON.parse(fs.readFileSync('amplify/package-lock.json', 'utf8'));
+          const expected = '12.0.3';
+          if (pkg.overrides?.['@graphql-tools/utils'] !== expected) {
+            throw new Error(`amplify/package.json must globally override @graphql-tools/utils to ${expected}`);
+          }
+          const copies = Object.entries(lock.packages || {})
+            .filter(([path]) => path.includes('@graphql-tools/utils'))
+            .map(([path, meta]) => ({ path, version: meta.version }));
+          if (copies.length !== 1 || copies[0].version !== expected) {
+            throw new Error(`expected exactly one @graphql-tools/utils@${expected}; got ${JSON.stringify(copies)}`);
+          }
+          console.log('GraphQL tools security pin verified:', copies);
+          NODE
+
       - name: Require committed lockfile to match npm resolution
         run: git diff --exit-code -- amplify/package-lock.json
