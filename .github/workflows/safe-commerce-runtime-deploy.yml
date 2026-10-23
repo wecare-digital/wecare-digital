@@ -11,6 +11,8 @@ on:
       - 'amplify/functions/shared/lambda_utils/**'
       - 'scripts/deploy_all_lambdas.py'
       - 'scripts/snapstart_publish.py'
+      - 'tests/test_payments.py'
+      - 'tests/test_whatsapp_commerce_gap_closure.py'
   workflow_dispatch:
 
 permissions:

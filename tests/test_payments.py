@@ -14,101 +14,47 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'amplify', 'fun
 PHONE_1 = 'phone-number-id-waba1-direct-1016149501586345'
 
 
-class TestInteractivePaymentPayload:
-    """Test interactive payment (order_details) message building."""
+class TestRetiredPaymentPayloads:
+    """Legacy WhatsApp payment envelopes must not construct payment messages."""
 
     @pytest.fixture(autouse=True)
     def setup(self):
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'amplify', 'functions', 'messaging', 'outbound-whatsapp'))
         with patch.dict(os.environ, {'AWS_REGION': 'us-east-1', 'SEND_MODE': 'DRY_RUN'}):
             with patch('boto3.resource'), patch('boto3.client'):
-                from handler import _build_message_payload
-                self.build = _build_message_payload
+                import handler as h
+                self.h = h
+                self.build = h._build_message_payload
 
-    def test_interactive_payment_basic(self):
-        order = {
-            'reference_id': 'WD-TEST-001',
-            'type': 'digital-goods',
-            'currency': 'INR',
-            'order': {
-                'items': [{'name': 'Service Fee', 'amount': {'value': 4900}, 'quantity': 1, 'retailer_id': 'SVC1'}],
-                'subtotal': {'value': 4900},
-                'discount': {'value': 0},
-                'shipping': {'value': 0},
-                'tax': {'value': 0},
-            },
-        }
-        # A sender is now REQUIRED. _build_payment_settings used to fall back to
-        # DEFAULT_PAYMENT_CONFIG when it could not resolve one, which meant a payment request
-        # went out naming a configuration nobody had verified. It now refuses, so these tests
-        # pass the phone id a real send always carries.
-        payload = self.build('+919330994400', '', None, None, False, None, [],
-                             is_interactive_payment=True, order_details=order,
-                             phone_number_id=PHONE_1)
-        assert payload['type'] == 'interactive'
-        assert payload['interactive']['type'] == 'order_details'
-        assert payload['interactive']['action']['name'] == 'review_and_pay'
-        # reference_id is sanitized by _sanitize_reference_id
-        ref_id = payload['interactive']['action']['parameters']['reference_id']
-        assert ref_id  # non-empty
-        assert 'TEST' in ref_id  # contains original identifier
+    def test_interactive_payment_flag_has_no_payment_composer(self):
+        payload = self.build(
+            '+919330994400', '', None, None, False, None, [],
+            is_interactive_payment=True,
+            order_details={'reference_id': 'WD-RETIRED-1'},
+            phone_number_id=PHONE_1,
+        )
+        assert payload.get('type') != 'interactive'
+        assert 'interactive' not in payload
 
-    def test_interactive_payment_with_gst(self):
-        order = {
-            'reference_id': 'WD-GST-001',
-            'order': {
-                'items': [{'name': 'Ticket', 'amount': {'value': 10000}, 'quantity': 2, 'gstRate': 18}],
-                'discount': {'value': 0},
-                'shipping': {'value': 500},
-                'tax': {'value': 0},
-            },
-        }
-        payload = self.build('+919330994400', '', None, None, False, None, [],
-                             is_interactive_payment=True, order_details=order,
-                             phone_number_id=PHONE_1)
-        params = payload['interactive']['action']['parameters']
-        # Items: 10000 * 2 = 20000, GST 18% = 3600, Conv fee on 23600
-        assert params['total_amount']['value'] > 20000
-
-    def test_an_unresolvable_payment_configuration_refuses_to_build(self):
-        """The fallback that was removed. It logged a warning and then sent
-        DEFAULT_PAYMENT_CONFIG anyway, so an unverified configuration name reached the
-        customer and failed when they tapped Pay — the most expensive place to find out."""
-        import handler
-        order = {'reference_id': 'WD-TEST-002', 'order': {
-            'items': [{'name': 'X', 'amount': {'value': 100}, 'quantity': 1}],
-            'subtotal': {'value': 100}, 'discount': {'value': 0},
-            'shipping': {'value': 0}, 'tax': {'value': 0}}}
-
-        # No sender resolves to no configuration.
-        with pytest.raises(handler.PaymentConfigurationUnresolved):
-            self.build('+919330994400', '', None, None, False, None, [],
-                       is_interactive_payment=True, order_details=order)
-
-    def test_an_unrecognised_configuration_name_refuses_to_build(self):
-        import handler
-        order = {'reference_id': 'WD-TEST-003',
-                 'payment_configuration': 'WECARE-RAZOR-PAY',  # retired 2026-08-23
-                 'order': {
-                     'items': [{'name': 'X', 'amount': {'value': 100}, 'quantity': 1}],
-                     'subtotal': {'value': 100}, 'discount': {'value': 0},
-                     'shipping': {'value': 0}, 'tax': {'value': 0}}}
-
-        with pytest.raises(handler.PaymentConfigurationUnresolved):
-            self.build('+919330994400', '', None, None, False, None, [],
-                       is_interactive_payment=True, order_details=order,
-                       phone_number_id=PHONE_1)
-
-    def test_payment_template_payload(self):
-        order = {'reference_id': 'WD-PAY-001', 'total_amount': {'value': 4900, 'offset': 100}, 'currency': 'INR'}
-        payload = self.build('+919330994400', '', None, None, True, 'payment_reminder', ['en'],
-                             is_payment_template=True, order_details=order)
+    def test_payment_template_flag_has_no_order_details_button(self):
+        payload = self.build(
+            '+919330994400', '', None, None, True, 'retired_payment_template', ['en'],
+            is_payment_template=True,
+            order_details={'reference_id': 'WD-RETIRED-2'},
+            phone_number_id=PHONE_1,
+        )
         assert payload['type'] == 'template'
-        assert payload['template']['name'] == 'payment_reminder'
-        # Should have button component with order_details
-        button_comp = [c for c in payload['template']['components'] if c.get('type') == 'button']
-        assert len(button_comp) == 1
-        assert button_comp[0]['sub_type'] == 'order_details'
+        buttons = [
+            component for component in payload['template'].get('components', [])
+            if component.get('type') == 'button'
+        ]
+        assert not any(button.get('sub_type') == 'order_details' for button in buttons)
+
+    def test_only_checkout_template_is_a_payment_request_envelope(self):
+        assert self.h._PAYMENT_REQUEST_KEYS == ('isCheckoutTemplate',)
+        assert set(self.h._REMOVED_PAYMENT_REQUEST_KEYS) == {
+            'isPaymentTemplate', 'isInteractivePayment'
+        }
 
 
 class TestOTPTemplatePayload:
@@ -252,7 +198,7 @@ def test_verified_payment_words_project_to_processing_order_status(payment_state
         response = handler._handle_order_status_send(
             'message', 'contact', '+919999999999', 'sender',
             {'reference_id': 'OFFLINE', 'order_status': payment_state, 'amountPaise': 10000},
-            'request')
+            'request', template_name='wecare_order_status_v2')
     assert response['statusCode'] == 200
     body = json.loads(response['body'])
     assert body['orderStatus'] == 'processing'
