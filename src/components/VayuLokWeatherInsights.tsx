@@ -58,20 +58,16 @@ function fmt( value: number | null | undefined, suffix = '', digits = 1 ) {
 
 function formatWeatherHistoryStamp( value: number, timeZoneId: string, zoneLabel: string ) {
   try {
-    const parts = new Intl.DateTimeFormat( 'en-IN', {
+    const label = new Intl.DateTimeFormat( 'en-IN', {
       timeZone: timeZoneId,
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
       hour12: true,
-    } ).formatToParts( new Date( value ) );
-    const pick = ( type: Intl.DateTimeFormatPartTypes ) => parts.find( part => part.type === type )?.value || '';
+    } ).format( new Date( value ) );
     const zoneSuffix = zoneLabel.trim();
-    return `${pick( 'day' )} ${pick( 'month' )} ${pick( 'year' )} · ${pick( 'hour' )}:${pick( 'minute' )} ${pick( 'dayPeriod' )}${zoneSuffix ? ` ${zoneSuffix}` : ''}`;
+    return `${label}${zoneSuffix ? ` ${zoneSuffix}` : ''}`;
   } catch {
-    return `${new Date( value ).toISOString().slice( 0, 16 ).replace( 'T', ' ' )} UTC`;
+    return `${new Date( value ).toISOString().slice( 11, 16 )} UTC`;
   }
 }
 

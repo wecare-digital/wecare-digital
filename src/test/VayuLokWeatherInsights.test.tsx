@@ -56,7 +56,10 @@ describe( 'VayuLok Weather history public typography', () => {
     expect( container.textContent ).not.toContain( 'Grid 5.46 km' );
     expect( container.textContent ).not.toContain( 'Sep 2026–Oct 2026' );
     expect( container.textContent ).not.toContain( 'Shillong · past conditions' );
-    expect( screen.getByLabelText( 'Weather history updated time' ).textContent ).toContain( 'IST' );
+    const historyStampText = screen.getByLabelText( 'Weather history updated time' ).textContent || '';
+    expect( historyStampText ).toContain( 'IST' );
+    expect( historyStampText ).not.toMatch( /\b\d{4}\b/ );
+    expect( historyStampText ).not.toMatch( /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/ );
 
     const css = Array.from( container.querySelectorAll( 'style' ) )
       .map( style => style.textContent || '' )
