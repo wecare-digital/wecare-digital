@@ -71,11 +71,11 @@ export const CANONICAL_FLOWS: Record<string, CanonicalFlow> = {
     capability: 'vault', label: 'Vault',
     flowId: null, status: 'NONE', metaName: null,
   },
-  // F001 replacement. Keep DRAFT until Meta publication is explicitly approved.
-  // Runtime activation is controlled from FlowRegistry/SystemConfig after publish.
+  // F001 replacement. Published in Meta; runtime activation remains controlled from
+  // FlowRegistry/SystemConfig so publication does not by itself enable customer sends.
   subscribe: {
     capability: 'subscribe', label: 'Subscribe',
-    flowId: '2413873616105042', status: 'DRAFT', metaName: 'WD-F001-SUBSCRIBE-PROFILE',
+    flowId: '2413873616105042', status: 'PUBLISHED', metaName: 'WD-F001-SUBSCRIBE-PROFILE',
   },
   // Track Request has no retained canonical Flow (not in keepIds). The former ids
   // 1486454129852338 (DRAFT) and 973888792200167 (DEPRECATED) are not canonical. Tracking is
