@@ -1052,7 +1052,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   const [ airForecastInspectIdx, setAirForecastInspectIdx ] = useState( 0 );
   // Weather tab UI state: hourly range + inspected hour, inspected day, and the history metric.
   const [ weatherHours, setWeatherHours ] = useState<24 | 48 | 96>( 24 );
-  const [ weatherHourInspectIdx, setWeatherHourInspectIdx ] = useState<number | null>( null );
+  const [ weatherHourInspectIdx, setWeatherHourInspectIdx ] = useState<number | null>( 0 );
   const [ weatherDayInspectIdx, setWeatherDayInspectIdx ] = useState<number | null>( null );
   const [ weatherDayPeriod, setWeatherDayPeriod ] = useState<'day' | 'night'>( 'day' );
   const [ weatherHistMetric, setWeatherHistMetric ] = useState<'temp' | 'rain' | 'humidity' | 'pressure' | 'wind' | 'cloud'>( 'temp' );
@@ -1262,7 +1262,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   }, [ airForecast, airForecastHours ] );
 
   useEffect( () => {
-    setWeatherHourInspectIdx( null );
+    setWeatherHourInspectIdx( weatherHourly.length ? 0 : null );
   }, [ place.lat, place.lng, weatherHours, weatherHourly.length ] );
 
   useEffect( () => {
@@ -3572,7 +3572,9 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                                 <VayuLokDataCard key={ point.time } className={ `vl-live-air-forecast-card ${airForecastInspectIdx === idx ? 'is-active' : ''}`.trim() } aria-pressed={ airForecastInspectIdx === idx } onFocus={ e => e.currentTarget.scrollIntoView?.( { block: 'nearest', inline: 'nearest' } ) } onClick={ e => { setAirForecastInspectIdx( idx ); e.currentTarget.scrollIntoView?.( { block: 'nearest', inline: 'nearest' } ); } }>
                                   <span>{ formatHistoryPointLabel( point.time, displayTimeZoneId, locationZoneLabel ) }</span>
                                   <strong>AQI <span data-wc-no-translate="true">{ point.aqi }</span></strong>
+                                  { point.word && <small>{ point.word }</small> }
                                   { Number.isFinite( point.pm25 ) && <small>PM2.5 <span data-wc-no-translate="true">{ Math.round( point.pm25 as number ) } µg/m³</span></small> }
+                                  { point.pollutants?.find( p => p.code === 'pm10' ) && <small>PM10 <span data-wc-no-translate="true">{ formatPollutantValue( point.pollutants.find( p => p.code === 'pm10' )!.value ) } { point.pollutants.find( p => p.code === 'pm10' )!.unit }</span></small> }
                                 </VayuLokDataCard>
                               ) ) }
                             </VayuLokHorizontalRail>
@@ -3590,12 +3592,17 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                                     <span data-wc-no-translate="true">{ formatPollutantValue( p.value ) } { p.unit }</span>
                                   </span>
                                 ) ) }
-                                {/* The per-hour general-population health advisory paragraph was
-                                    removed from the forecast detail: it duplicated the dedicated
-                                    Health Recommendations section below and broke the forecast
-                                    panel's compact type scale. The forecast detail now shows only
-                                    the compact forecast metrics (dominant, local/universal, and the
-                                    dominant pollutant's sources/effects). */}
+                                { ( () => {
+                                  const point = airForecast[ airForecastInspectIdx ];
+                                  const dominant = point.pollutants?.find( p => p.code === point.dominant );
+                                  if ( !dominant ) return null;
+                                  return (
+                                    <>
+                                      { dominant.sources && <span><strong>Sources</strong> { shortAirInfo( dominant.sources ) }</span> }
+                                      { dominant.effects && <span><strong>Effects</strong> { shortAirInfo( dominant.effects ) }</span> }
+                                    </>
+                                  );
+                                } )() }
                               </div>
                             ) }
                           </>
@@ -4812,19 +4819,19 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         /* Fixed sibling OUTSIDE the scrollable Air card: white home-page surface, compact copy,
            viewport-clamped position and an explicit close affordance. Lime is an accent only,
            never the popup background. The directional notch is shape-only reference language. */
-        .vl-live-air-pollutant-tip{position:fixed;z-index:2200;width:min(248px,calc(100vw - 16px));max-height:min(176px,calc(100dvh - 16px));overflow:auto;overscroll-behavior:contain;padding:10px;border:1px solid var(--lime);border-top:3px solid var(--lime);border-radius:var(--radius-lg,12px);background:var(--vl-surface);color:var(--body);box-shadow:none;font-size:var(--vl-meta-size);line-height:1.4;text-align:start;scrollbar-width:thin}
+        .vl-live-air-pollutant-tip{position:fixed;z-index:2200;width:min(360px,calc(100vw - 20px));max-height:min(320px,calc(100dvh - 20px));overflow:auto;overscroll-behavior:contain;padding:16px;border:1px solid var(--lime);border-top:3px solid var(--lime);border-radius:var(--radius-xl,14px);background:var(--vl-surface);color:var(--body);box-shadow:0 18px 42px rgba(16,24,20,.16);font-size:var(--vl-meta-size);line-height:1.5;text-align:start;scrollbar-width:thin}
         .vl-live-air-pollutant-tip::before{content:"";position:absolute;width:10px;height:10px;background:#fff}
         .vl-live-air-pollutant-tip.is-right::before{left:-6px;top:24px;transform:rotate(45deg);border-left:1px solid var(--hair);border-bottom:1px solid var(--hair)}
         .vl-live-air-pollutant-tip.is-left::before{right:-6px;top:24px;transform:rotate(45deg);border-top:1px solid var(--hair);border-right:1px solid var(--hair)}
         .vl-live-air-pollutant-tip.is-bottom::before{top:-6px;left:50%;transform:translateX(-50%) rotate(45deg);border-left:1px solid var(--hair);border-top:1px solid var(--hair)}
         .vl-live-air-pollutant-tip.is-top::before{bottom:-6px;left:50%;transform:translateX(-50%) rotate(45deg);border-right:1px solid var(--hair);border-bottom:1px solid var(--hair)}
-        .vl-live-air-pollutant-pop{display:flex;flex-direction:column;gap:8px}
-        .vl-live-air-pollutant-pop-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
-        .vl-live-air-pollutant-pop-title{display:inline-flex;min-height:28px;align-items:center;padding:0 9px;border:1px solid var(--lime);border-radius:var(--pill-r);background:var(--lime);color:var(--green);font-size:var(--vl-meta-size);font-weight:700;letter-spacing:0}
-        .vl-live-air-pollutant-pop-fullname{display:block;margin-top:4px;color:var(--muted);font-size:var(--vl-meta-size);font-weight:600;line-height:1.4}
-        .vl-live-air-pollutant-pop-line{display:grid;grid-template-columns:58px minmax(0,1fr);gap:8px;align-items:start}
+        .vl-live-air-pollutant-pop{display:flex;flex-direction:column;gap:14px}
+        .vl-live-air-pollutant-pop-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+        .vl-live-air-pollutant-pop-title{display:inline-flex;min-height:32px;align-items:center;padding:0 12px;border:1px solid var(--lime);border-radius:var(--pill-r);background:var(--lime);color:var(--green);font-size:var(--vl-data-size);font-weight:800;letter-spacing:0}
+        .vl-live-air-pollutant-pop-fullname{display:block;max-width:260px;margin-top:8px;color:var(--body);font-size:var(--vl-data-size);font-weight:700;line-height:1.35;overflow-wrap:anywhere}
+        .vl-live-air-pollutant-pop-line{display:grid;grid-template-columns:78px minmax(0,1fr);gap:12px;align-items:start;padding-top:2px}
         .vl-live-air-pollutant-pop-line strong{font-size:var(--vl-meta-size);font-weight:700;letter-spacing:0}
-        .vl-live-air-pollutant-pop-line span{min-width:0;color:var(--status);font-size:var(--vl-meta-size);font-weight:400;line-height:1.4;overflow-wrap:anywhere}
+        .vl-live-air-pollutant-pop-line span{min-width:0;color:var(--status);font-size:var(--vl-subtext-size);font-weight:400;line-height:1.55;overflow-wrap:anywhere}
         .vl-live-air-pollutant-pop-line.is-source strong{color:var(--green)}
         .vl-live-air-pollutant-pop-line.is-effect strong{color:#9849e8}
         .vl-live-air-pollutant-pop-text{color:var(--status);font-size:var(--vl-meta-size);line-height:1.4}
