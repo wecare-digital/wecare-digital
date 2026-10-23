@@ -117,11 +117,24 @@ def meta_candidate(product: dict[str, Any]) -> bool:
     )
 
 
-def inspect_meta(api_base: str, token: str) -> dict[str, Any]:
+# Owner-gated / not-yet-provisioned states the Meta inspect legitimately returns as HTTP 409
+# (ok:False). These are NOT release failures: the product migration + meta-enablement have
+# already succeeded; only the advisory read-only Meta plan could not be computed because the
+# Meta channel is not configured/reachable yet. Meta is a projected sales channel, not the
+# product database, and this tool never approves/applies the provider plan anyway - so a plan
+# that cannot load is reported, not treated as a hard error.
+META_PLAN_NOT_LOADED_REASONS = frozenset({
+    "unconfigured",            # Meta system-user token field is empty
+    "read_failed",             # ProductsTable or Meta Graph read failed
+    "approval_store_unavailable",
+})
+
+
+def inspect_meta(api_base: str, token: str) -> tuple[int, dict[str, Any]]:
+    """Return (status, data) from the read-only Meta inspect. Does not raise on 409: the caller
+    distinguishes an owner-gated 'plan not loaded' from an unexpected transport error."""
     status, data = http_json("GET", api_base.rstrip("/") + META_PATH, token)
-    if status != 200:
-        raise RuntimeError(f"Meta inspect failed: HTTP {status} {data}")
-    return data
+    return status, data
 
 
 def summarize_plan(plan: dict[str, Any]) -> dict[str, Any]:
@@ -222,7 +235,23 @@ def main() -> int:
             "refusing Meta inspect: enabled products include draft/imageless/noncanonical rows"
         )
 
-    plan = inspect_meta(args.api_base, args.token)
+    status, plan = inspect_meta(args.api_base, args.token)
+
+    if status == 409 and isinstance(plan, dict) and plan.get("reason") in META_PLAN_NOT_LOADED_REASONS:
+        # The release work (image-key migration + meta-enablement) is DONE and verified above.
+        # Only the advisory Meta plan could not be computed because the Meta channel is
+        # owner-gated / not provisioned. Report it clearly and succeed - there is nothing to
+        # approve, and this tool never applies a provider plan.
+        print("\nMETA READ-ONLY PLAN")
+        print(f"Meta plan not loaded (reason={plan.get('reason')}). "
+              "The catalog release to AWS ProductsTable is complete; the Meta projection is "
+              "owner-gated and will reconcile once the Meta channel is configured.")
+        print("\nCATALOG RELEASE COMPLETE (AWS authoritative). META SYNC PENDING OWNER SETUP.")
+        return 0
+
+    if status != 200:
+        raise RuntimeError(f"Meta inspect failed: HTTP {status} {plan}")
+
     summary = summarize_plan(plan)
     print("\nMETA READ-ONLY PLAN")
     print(json.dumps(summary, indent=2))
