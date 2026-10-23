@@ -82,6 +82,14 @@ export function VayuLokUiStyles() {
       }
       .vl-ui-icon-action:hover{border-color:var(--lime,var(--public-brand-lime));background:var(--lime-tint,var(--public-lime-tint))}
       .vl-ui-icon-action.is-active{border-color:var(--lime,var(--public-brand-lime));background:var(--lime,var(--public-brand-lime))}
+      .vl-ui-icon-action .vl-live-air-health-tooltip{
+        position:absolute;z-index:4;inset-inline-start:50%;bottom:calc(100% + 7px);max-width:180px;
+        transform:translateX(-50%) translateY(3px);padding:5px 8px;border:1px solid var(--lime,var(--public-brand-lime));
+        border-radius:var(--radius-md,10px);background:#fff;color:var(--green,var(--public-brand-green));
+        font-size:var(--vl-meta-size,var(--public-meta-size));font-weight:600;line-height:1.3;white-space:normal;
+        opacity:0;pointer-events:none;transition:opacity .14s ease,transform .14s ease
+      }
+      .vl-ui-icon-action:hover .vl-live-air-health-tooltip,.vl-ui-icon-action:focus-visible .vl-live-air-health-tooltip{opacity:1;transform:translateX(-50%) translateY(0)}
       .vl-ui-section-heading{
         display:block;margin:0;color:#000;font-size:var(--vl-panel-heading-size,var(--public-data-size));font-weight:var(--vl-panel-heading-weight,700);
         line-height:var(--vl-panel-heading-lh,1.35);letter-spacing:var(--vl-panel-heading-track,-.18px);
@@ -91,6 +99,7 @@ export function VayuLokUiStyles() {
         display:inline-flex;align-items:center;gap:5px;width:fit-content;color:var(--muted,var(--public-muted));
         font-size:var(--vl-meta-size,var(--public-meta-size));font-weight:600;line-height:1.35;white-space:nowrap
       }
+      .vl-ui-freshness-stamp.is-stale{padding:4px 8px;border-radius:var(--pill-r,var(--radius-full));background:var(--lime-tint,var(--public-lime-tint));color:var(--green,var(--public-brand-green))}
       .vl-ui-freshness-icon{flex:0 0 15px;width:15px;height:15px;fill:currentColor}
     `}</style>
   );
