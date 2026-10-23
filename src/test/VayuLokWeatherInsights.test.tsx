@@ -63,8 +63,11 @@ describe( 'VayuLok Weather history public typography', () => {
       .join( '\n' );
     expect( css ).toContain( '.vl-wi-head p{margin:6px 0 0;color:var(--public-muted);font-size:var(--vl-subtext-size,var(--public-supporting-size));font-weight:600' );
     expect( css ).toContain( '.vl-wi-head p{font-size:var(--vl-subtext-size,var(--public-supporting-size));font-weight:600' );
-    expect( css ).toContain( '.vl-wi-range button:hover{background:var(--public-lime-tint);color:var(--public-brand-green)}' );
-    expect( css ).toContain( '.vl-wi-range button.is-active{background:var(--public-brand-lime);color:var(--public-brand-green)}' );
+    expect( css ).toContain( '.vl-ui-compact-pill:hover{border-color:var(--lime,var(--public-brand-lime));background:var(--lime-tint,var(--public-lime-tint))}' );
+    expect( css ).toContain( '.vl-ui-compact-pill.is-active{border-color:var(--lime,var(--public-brand-lime));background:var(--lime,var(--public-brand-lime));color:var(--green,var(--public-brand-green))}' );
+    expect( container.querySelector( '.vl-ui-section-heading' ) ).not.toBeNull();
+    expect( container.querySelector( '.vl-ui-compact-pill' ) ).not.toBeNull();
+    expect( container.querySelector( '.vl-ui-freshness-stamp' ) ).not.toBeNull();
     expect( css ).not.toContain( 'background:rgba(17,21,18,.07)' );
     expect( css ).not.toContain( '.vl-wi-source{' );
     expect( css ).toContain( '.vl-wi-stamp{display:flex;width:fit-content;align-items:center;gap:6px' );
