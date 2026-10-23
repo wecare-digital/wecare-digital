@@ -4009,7 +4009,7 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
     order's real lifecycle, so this validates the requested transition against the status this
     invoice last recorded (`wa_order_status.can_transition`) and refuses locally what Meta would
     refuse with 2046/2047 — keeping a bad request off the wire and giving staff a named reason —
-    then invokes `outbound-whatsapp` with the `isOrderStatus` envelope.
+    then invokes `outbound-whatsapp` with the canonical `orderStatusDetails` contract.
 
     Guards, in order:
       * the invoice must exist and be PAID. A fulfilment update on an unpaid order is meaningless,
@@ -4091,7 +4091,6 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
             'contactId': contact_id,
             'recipientPhone': customer_phone,
             'phoneNumberId': phone_number_id,
-            'isOrderStatus': True,
             'orderStatusDetails': {
                 'reference_id': reference_id,
                 # The wire spelling Meta expects; `status_action.order.status` carries it through.
