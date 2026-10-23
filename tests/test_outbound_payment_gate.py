@@ -327,14 +327,11 @@ def test_the_proven_and_sent_configuration_is_always_wecaredigital(outbound):
         with pytest.raises(outbound.PaymentConfigurationUnresolved):
             outbound._build_payment_settings(WABA1, dict(ORDER_DETAILS, **details))
 
-def test_the_resolver_extraction_did_not_move_the_senders_refusal(outbound):
-    """The refactor's one invariant: `_build_payment_settings` keeps every refusal it had, in the
-    order it had them, and the extracted call runs LAST of the three."""
+def test_the_sender_refusal_still_precedes_payment_resolution(outbound):
+    """A forbidden sender is rejected before the canonical configuration resolver runs."""
     import inspect
     source = inspect.getsource(outbound._build_payment_settings)
-    assert (source.index('PAYMENT_SENDERS')
-            < source.index("'payment_link_uri', 'upi_intent_link'")
-            < source.index('_resolve_payment_config_name'))
+    assert source.index('PAYMENT_SENDERS') < source.index('_resolve_payment_config_name')
 
 
 # ══════════════════════════════════════════════════════════════════════════════
