@@ -6,11 +6,11 @@ A Drop Docs document can arrive two ways, and only one of them is already privat
 
 * **Browser upload** -- the locker's presigned PUT targets ``secure/u/``, which the
   ``wecare-get-miss-redirect`` Lambda@Edge denies wholesale. Nothing to do.
-* **WhatsApp** -- ``inbound-whatsapp-handler`` writes to
-  ``media_paths.public('stack/whatsapp-media/incoming/')``, i.e.
-  ``secure/d/public/whatsapp/incoming/``, and CloudFront ``E2GP22R4BIFGQ3`` serves the
-  whole ``o/`` root **unauthenticated**. ``o/`` is a location, not a permission
-  (``media_paths`` says so explicitly); only ``secure/`` is gated.
+* **WhatsApp** -- ``inbound-whatsapp-handler`` writes to the canonical
+  ``media_paths.WHATSAPP_INCOMING_PREFIX``
+  (``secure/d/public/whatsapp/incoming/``). That public-deliverable subtree is
+  intentionally fetchable by Meta, so an arrival must be promoted before it becomes
+  a private Drop Docs document.
 
 So an object that arrived over WhatsApp is readable by anyone holding its URL. This
 module promotes it into ``secure/`` and returns the gated key. The enforcement itself is
@@ -50,8 +50,10 @@ check, a customer could name **another customer's** locker upload and have it re
 their own document -- and for a source under ``o/``, have it copied into the gated tree
 under their own ownership, which inverts the exact leak this module exists to close.
 
-So exactly one source prefix is accepted: `WHATSAPP_INCOMING_PREFIX`. Everything else is
-`DocumentRejected`, including an already-gated key. That last one is deliberate rather than
+The canonical `WHATSAPP_INCOMING_PREFIX` is accepted, plus the historical
+`LEGACY_WHATSAPP_INCOMING_PREFIX` for read-only migration compatibility. Everything else
+is `DocumentRejected`, including an already-gated key. Neither prefix is ever written by
+this module; legacy writes are separately denied by IAM. That last one is deliberate rather than
 incidental: a browser upload reached ``secure/u/`` through the locker's own presigned PUT
 and already has a locker row, so it never needed this route. Accepting it bought nothing and
 made this an existence oracle for the private tree -- the 201 body carries the key, its
@@ -115,6 +117,7 @@ DROPDOCS_SUBPREFIX = "u/dropdocs"
 #: out so it cannot drift from the key `inbound-whatsapp-handler` actually writes and from
 #: the single ``s3:GetObject`` resource the role is granted.
 WHATSAPP_INCOMING_PREFIX = media_paths.WHATSAPP_INCOMING_PREFIX
+LEGACY_WHATSAPP_INCOMING_PREFIX = media_paths.LEGACY_WHATSAPP_INCOMING_PREFIX
 
 #: The locker's own ceiling for a customer upload (``secure-files.MAX_DOCUMENT_BYTES``),
 #: applied here too. Pinned equal by a test, because two numbers that must agree and live in
@@ -131,6 +134,7 @@ __all__ = [
     "DROPDOCS_SUBPREFIX",
     "MAX_DOCUMENT_BYTES",
     "WHATSAPP_INCOMING_PREFIX",
+    "LEGACY_WHATSAPP_INCOMING_PREFIX",
     "DocumentNotPrivate",
     "DocumentPromotionFailed",
     "DocumentRejected",
@@ -207,7 +211,9 @@ def promote_to_secure(s3: Any, *, bucket: str, source_key: Optional[str],
         raise DocumentRejected("a source must be an object key, not a URL")
     from .document_source import PRIVATE_INCOMING_PREFIX
     private_arrival = source.startswith(PRIVATE_INCOMING_PREFIX)
-    if not source.startswith(WHATSAPP_INCOMING_PREFIX) and not (private_arrival and verified_private_source):
+    allowed_arrival = source.startswith(
+        (WHATSAPP_INCOMING_PREFIX, LEGACY_WHATSAPP_INCOMING_PREFIX))
+    if not allowed_arrival and not (private_arrival and verified_private_source):
         # THE ownership bound on the one input the caller controls. An already-gated key
         # lands here too, deliberately: it is somebody's private upload, this route cannot
         # tell whose, and a browser upload never needed promoting. See the module docstring.

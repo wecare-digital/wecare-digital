@@ -189,8 +189,8 @@ class TestPairRateLimit:
 
 
 @pytest.mark.parametrize('payment_state', ['captured', 'paid', 'success'])
-def test_verified_payment_words_project_to_processing_order_status(payment_state):
-    """Verified payment vocabulary is translated to Meta fulfilment vocabulary before send."""
+def test_order_status_sender_rejects_payment_vocabulary(payment_state):
+    """Money-state words must not leak into Meta's separate fulfilment namespace."""
     import handler
     with patch.object(handler, '_send_message', return_value={'messageId': 'wamid.test'}), \
             patch.object(handler, '_store_message_record'), \
@@ -198,6 +198,19 @@ def test_verified_payment_words_project_to_processing_order_status(payment_state
         response = handler._handle_order_status_send(
             'message', 'contact', '+919999999999', 'sender',
             {'reference_id': 'OFFLINE', 'order_status': payment_state, 'amountPaise': 10000},
+            'request', template_name='wecare_order_status_v2')
+    assert response['statusCode'] == 500
+    assert 'invalid order status' in json.loads(response['body'])['error']
+
+
+def test_processing_fulfilment_status_sends_successfully():
+    import handler
+    with patch.object(handler, '_send_message', return_value={'messageId': 'wamid.test'}), \
+            patch.object(handler, '_store_message_record'), \
+            patch.object(handler, '_emit_delivery_metric'):
+        response = handler._handle_order_status_send(
+            'message', 'contact', '+919999999999', 'sender',
+            {'reference_id': 'OFFLINE', 'order_status': 'processing'},
             'request', template_name='wecare_order_status_v2')
     assert response['statusCode'] == 200
     body = json.loads(response['body'])
