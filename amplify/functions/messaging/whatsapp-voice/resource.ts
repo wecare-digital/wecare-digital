@@ -31,7 +31,7 @@
  *   - polly:SynthesizeSpeech
  *   - transcribe:StartTranscriptionJob, transcribe:GetTranscriptionJob
  *   - translate:TranslateText
- *   - s3:PutObject, s3:GetObject, s3:DeleteObject on wecare-digital-get/o/stack/whatsapp-media/*
+ *   - s3:PutObject, s3:GetObject, s3:DeleteObject on wecare-digital-get/secure/d/public/whatsapp/*
  *   - dynamodb:PutItem, Scan, DeleteItem, GetItem, BatchWriteItem, UpdateItem
  */
 
