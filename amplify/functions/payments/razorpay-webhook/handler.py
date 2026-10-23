@@ -1722,15 +1722,12 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
     # (returns 400, just logged) for non-ad conversations. Fire-and-forget.
     _log_ctwa_purchase(contact, amount_paise, currency, order_id, notes, request_id)
 
-    # Post-payment: trigger the service-details Flow for the paid order.
+    # Post-payment service activation remains an internal business step.
     #
-    # The customer CONFIRMATION is NOT sent here. It is the `wecare_default_invoice_image_template`
-    # delivered in `_post_payment_handler` above - one approved, window-independent template for
-    # every paid capture, website or WhatsApp. The free-form `isOrderStatus` message that used to
-    # live in this block is removed: it was a second confirmation, and Meta blocked it outside the
-    # 24-hour service window, which is why captured payments reached customers with no message.
-    # What remains here is only the post-payment Flow (service details), which is a different
-    # feature with its own idempotent one-per-payment guard.
+    # Customer-facing completion is handled earlier as the approved ORDER_STATUS processing
+    # template followed by the one invoice-image template. The paid-submit-request handler this
+    # invokes no longer pushes a separate interactive Flow invitation; it only activates the
+    # service relationship and preserves the details-collection model for its normal entry points.
     if contact and reference_id:
         try:
             clean_phone = (contact or '').replace('+', '').replace(' ', '').replace('-', '')
