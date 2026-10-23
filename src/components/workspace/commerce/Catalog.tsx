@@ -325,7 +325,7 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
             label: vayulokVariant.label || 'Standard',
           });
           const savedVariant = (vayulok.variants || []).find(v => v.sku === vayulokVariant.sku);
-          if (!savedVariant || savedVariant.priceMinor !== 9900) {
+          if (!savedVariant || Number(savedVariant.priceMinor) !== 9900) {
             throw new Error('VayuLok ₹99.00 variant price readback failed');
           }
           current = current.map(product => product.id === vayulok!.id ? vayulok! : product);
@@ -363,8 +363,8 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
         }
         const verifiedVayuLok = current.find(product => product.id === 'native:vayulok');
         const verifiedVayuLokVariant = verifiedVayuLok?.variants?.[0];
-        if (!verifiedVayuLok || verifiedVayuLok.priceMinor !== 9900 ||
-            verifiedVayuLokVariant?.priceMinor !== 9900) {
+        if (!verifiedVayuLok || Number(verifiedVayuLok.priceMinor) !== 9900 ||
+            Number(verifiedVayuLokVariant?.priceMinor) !== 9900) {
           throw new Error('VayuLok must read back at ₹99.00 before Meta planning.');
         }
 
