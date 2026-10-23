@@ -534,7 +534,7 @@ flowchart TD
 ```
 
 A permanent unrestricted document URL is never exposed. The asset is a private S3 object in
-`wecare-digital-get` under `secure/Invoice/customer_invoice/`, served through an authenticated API or a
+`wecare-digital-get` under `secure/d/public/Invoice/customer_invoice/`, served through an authenticated API or a
 short-lived signed URL.
 
 One practical lesson already learned here and worth keeping: a link delivered over WhatsApp is
