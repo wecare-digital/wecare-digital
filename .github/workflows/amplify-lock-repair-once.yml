@@ -48,4 +48,13 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add amplify/package-lock.json
           git commit -m "Repair Amplify lockfile from npm resolver"
-          git push origin HEAD:stack
+          for attempt in 1 2 3; do
+            git fetch origin stack
+            git rebase origin/stack
+            if git push origin HEAD:stack; then
+              exit 0
+            fi
+            sleep $((attempt * 2))
+          done
+          echo "Unable to fast-forward stack after three attempts." >&2
+          exit 1
