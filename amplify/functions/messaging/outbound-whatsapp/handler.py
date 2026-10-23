@@ -497,8 +497,7 @@ PAYMENT_SENDERS = frozenset({PHONE_NUMBER_ID_1})
 EXPECTED_CONFIGURATION_NAME = os.environ.get('EXPECTED_CONFIGURATION_NAME', '')
 EXPECTED_PROVIDER_MID = os.environ.get('EXPECTED_PROVIDER_MID', '')
 
-#: The three payload shapes that REQUEST a payment. `isOrderStatus` is deliberately absent because it is not a payment request. The envelope itself
-#: is refused later: customer-facing fulfilment updates use the approved invoice-image template. `payment_action` in `handler` stays as it is - it answers a
+#: The three payload shapes that REQUEST a payment. `orderStatusDetails` is deliberately absent because fulfilment is not a payment request. `payment_action` in `handler` stays as it is - it answers a
 #: different question (does this need Admin?) and order_status does.
 _PAYMENT_REQUEST_KEYS = ('isCheckoutTemplate',)
 _REMOVED_PAYMENT_REQUEST_KEYS = ('isPaymentTemplate', 'isInteractivePayment')
@@ -879,7 +878,7 @@ def _refuse_unless_payment_ready(body: Dict[str, Any], phone_number_id: str,
     first; steps 1-6 make NO provider call. Never raises - and the call site wraps it anyway, so
     the promise is enforced rather than asserted.
     """
-    # 1. Arming. `isOrderStatus` is absent from the keys, so a post-payment notification is
+    # 1. Arming. `orderStatusDetails` is absent from the payment keys, so a post-payment notification is
     #    never gated: refusing one would leave a paid customer without a confirmation.
     if not any(body.get(key) for key in _PAYMENT_REQUEST_KEYS):
         return None
@@ -1050,7 +1049,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             400, WA_PAY_ENVELOPE_NOT_PERMITTED,
             'Raw order_details payments have been removed. Use checkoutOrderDetails with the approved template.')
 
-    payment_action = any((body.get('isCheckoutTemplate'), body.get('isOrderStatus')))
+    payment_action = bool(body.get('isCheckoutTemplate')) or isinstance(body.get('orderStatusDetails'), dict)
     auth_result = require_auth(event, required_role='Admin' if payment_action else None)
     if auth_result is not None:
         return auth_result
@@ -1169,8 +1168,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         
         # Meta order_status is a post-payment fulfilment notification. It is NOT a payment
         # request and therefore is not blocked by the payment-readiness gate.
-        is_order_status = body.get('isOrderStatus', False)
         order_status_details = body.get('orderStatusDetails')
+        is_order_status = isinstance(order_status_details, dict) and bool(order_status_details)
         
         # Direct phone number (fallback when contactId not available)
         recipient_phone_direct = body.get('recipientPhone')
@@ -1748,13 +1747,9 @@ def _handle_order_status_send(message_id: str, contact_id: str, recipient_phone:
             return _error_response(
                 409, 'ORDER_STATUS_TEMPLATE_NOT_READY',
                 'The approved order status template is not ready. Nothing was sent.')
-        status_action = {
-            'reference_id': reference_id,
-            'order': {
-                'status': order_status,
-                'description': description,
-            },
-        }
+        from lambda_utils.ecommerce import wa_order_status as _wa_os
+        order_status_component = _wa_os.build_template_component(
+            reference_id, order_status, description)
         order_status_payload = {
             'messaging_product': 'whatsapp',
             'recipient_type': 'individual',
@@ -1766,13 +1761,7 @@ def _handle_order_status_send(message_id: str, contact_id: str, recipient_phone:
                     'policy': 'deterministic',
                     'code': WA_ORDER_STATUS_TEMPLATE_LANGUAGE,
                 },
-                'components': [{
-                    'type': 'order_status',
-                    'parameters': [{
-                        'type': 'order_status',
-                        'order_status': status_action,
-                    }],
-                }],
+                'components': [order_status_component],
             },
         }
         # Add BSUID recipient if available (per Meta BSUID docs)
