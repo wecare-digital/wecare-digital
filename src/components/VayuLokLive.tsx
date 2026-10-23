@@ -889,14 +889,13 @@ function formatHistoryPointLabel( value: number, timeZoneId: string, zoneLabel: 
   try {
     const label = new Intl.DateTimeFormat( 'en-IN', {
       timeZone: timeZoneId,
-      weekday: 'short',
       hour: '2-digit',
       minute: '2-digit',
       hour12: true,
     } ).format( new Date( value ) );
     return `${label} ${zoneLabel}`;
   } catch {
-    return `${new Date( value ).toISOString().slice( 5, 16 ).replace( 'T', ' ' )} UTC`;
+    return `${new Date( value ).toISOString().slice( 11, 16 )} UTC`;
   }
 }
 
@@ -3799,7 +3798,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                                   { ticks.map( ( t, i ) => (
                                     <g key={ `${t.label}-${i}` }>
                                       <line className="vl-live-air-history-grid" x1={ t.x } y1={ padTop } x2={ t.x } y2={ H - padBottom } />
-                                      <text className="vl-live-air-history-day" x={ t.x + 2 } y={ H - 5 }>{ t.label }</text>
                                     </g>
                                   ) ) }
                                   <polygon className="vl-live-air-history-area" points={ areaPts } />
@@ -4923,10 +4921,12 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-wx-history .vl-live-air-range button.is-active{border-color:var(--lime);background:var(--lime);color:var(--green)}
         .vl-live-wx-hist-strip{display:flex;gap:8px;margin:8px 0 0;padding:0 0 8px;overflow-x:auto;list-style:none;scrollbar-width:thin;overscroll-behavior-x:contain;touch-action:pan-x}
         .vl-live-wx-hist-strip::-webkit-scrollbar{height:6px}
-        .vl-live-wx-hist-slot{flex:0 0 86px}
-        .vl-live-wx-hist-item{display:flex;width:100%;min-height:86px;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:10px;border:1px solid var(--hair);border-radius:var(--radius-lg,12px);background:#fff}
-        .vl-live-wx-hist-item:hover,.vl-live-wx-hist-item.is-active{border-color:var(--lime);background:var(--lime-tint)}
-        .vl-live-wx-hist-t{color:var(--muted);font-size:var(--vl-meta-size);font-weight:600;line-height:1.4}
+        .vl-live-wx-hist-slot{flex:0 0 clamp(142px,42vw,168px)}
+        .vl-live-wx-hist-item{display:flex;width:100%;min-height:86px;flex-direction:column;align-items:flex-start;justify-content:center;gap:4px;padding:10px 12px;border:1px solid var(--hair);border-radius:var(--radius-lg,12px);background:#fff;text-align:start}
+        .vl-live-wx-hist-item:hover{border-color:var(--lime);background:var(--lime-tint)}
+        .vl-live-wx-hist-item.is-active{border-color:var(--lime);background:var(--lime);color:var(--green)}
+        .vl-live-wx-hist-item.is-active .vl-live-wx-hist-t,.vl-live-wx-hist-item.is-active .vl-live-wx-hist-v{color:var(--green)}
+        .vl-live-wx-hist-t{color:var(--muted);font-size:var(--vl-meta-size);font-weight:600;line-height:1.4;white-space:nowrap}
         .vl-live-wx-hist-v{color:#000;font-size:var(--vl-data-size);font-weight:700;line-height:1.35;letter-spacing:-.2px;font-variant-numeric:tabular-nums}
         .vl-live-wx-alerts{margin-top:var(--vl-section-gap)}
         .vl-live-wx-alert{display:flex;flex-direction:column;gap:3px;margin-top:var(--vl-heading-gap);padding:12px 14px;border:1px solid var(--hair);border-inline-start:3px solid var(--lime);border-radius:var(--radius-lg,12px);background:#fff}
