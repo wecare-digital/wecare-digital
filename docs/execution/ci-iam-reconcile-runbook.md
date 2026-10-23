@@ -122,3 +122,31 @@ Both terminal steps cross a control that exists on purpose:
     machine credential by design.
 So the automation does everything that can be done without weakening a security control, and
 stops precisely at the injected-credential boundary rather than drilling through it.
+
+Go-live: opening the Meta catalog release gate
+-----------------------------------------------
+Once a Meta catalog plan is APPROVED (exact hash) and `META_CATALOG_SYNC_ENABLED=true`, the
+only thing keeping "Apply to Meta" locked is `META_CATALOG_SYNC_DRY_RUN=true` on the live
+`wecare-meta-catalog-sync` function. This is a deliberate, owner-only, out-of-band switch:
+  * nothing in the repo sets it to `false` (and `meta-catalog-runtime-deploy.yml` FAILS the
+    deploy if it is not `true`, so the gate cannot be opened by committing config), and
+  * it is the final "write to the customer-visible Meta catalogue" control.
+
+Use `scripts/open_meta_release_gate.py` rather than a raw `aws lambda
+update-function-configuration`, because the raw call REPLACES the whole env map and would wipe
+the function's other variables. The tool MERGES - it reads live env, changes only
+`META_CATALOG_SYNC_DRY_RUN`, writes the full map back, waits, and verifies no variable was lost.
+
+    # preview (no write):
+    python scripts/open_meta_release_gate.py
+    # open the gate (requires AWS creds + the explicit confirmation flag):
+    python scripts/open_meta_release_gate.py --apply \
+        --i-understand-this-enables-production-catalog-writes
+    # re-close afterwards (restore the safe default):
+    python scripts/open_meta_release_gate.py --close --apply
+
+BEFORE OPENING, confirm the plan composition is intended - an APPROVED plan with
+`retire: N` will REMOVE N live Meta items on Apply (e.g. the 2026-10-23 plan
+c2379ec6... is create 28 / retire 21 / foreign 22). The tool only opens the gate; the
+exact-plan approval and the Apply click remain separate owner actions, and the whole thing is
+reversible until Apply is pressed.
