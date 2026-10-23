@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_BROWSER_KEY || '';
+const GLOBE_ASSET_VERSION = '20261023-unified-v1';
 
 export interface VayuLokGlobeCity {
   id: string;
@@ -24,10 +25,10 @@ const VayuLokApprovedGlobe: React.FC<VayuLokApprovedGlobeProps> = ( {
   // The standalone globe reads the browser-restricted Maps key from location.hash.
   // Supplying it here restores live Air/Weather data inside the iframe without putting
   // the key in page copy; browser keys are public-by-design and restricted by referrer.
-  const src = useMemo(
-    () => MAPS_KEY ? `/vayulok-globe.html#key=${encodeURIComponent( MAPS_KEY )}` : '/vayulok-globe.html',
-    [],
-  );
+  const src = useMemo( () => {
+    const base = `/vayulok-globe.html?v=${encodeURIComponent( GLOBE_ASSET_VERSION )}`;
+    return MAPS_KEY ? `${base}#key=${encodeURIComponent( MAPS_KEY )}` : base;
+  }, [] );
 
   useEffect( () => {
     const onMessage = ( event: MessageEvent ) => {
