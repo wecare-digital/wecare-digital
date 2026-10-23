@@ -23,6 +23,18 @@ describe( 'Meta catalog owner approval workspace controls', () => {
     expect( page ).toContain( 'Apply is intentionally locked' );
   } );
 
+  it( 'adds an authenticated bulk release action that stops before provider apply', () => {
+    expect( page ).toContain( 'Bulk catalog release' );
+    expect( page ).toContain( 'Migrate catalog + prepare Meta plan' );
+    expect( page ).toContain( "LEGACY_CATALOG_IMAGE_PREFIX = 'secure/public/catalog-deploy/catalog/products/'" );
+    expect( page ).toContain( "CANONICAL_CATALOG_IMAGE_PREFIX = 'secure/d/public/catalog-deploy/catalog/products/'" );
+    expect( page ).toContain( 'patchNativeProductWithRetry' );
+    expect( page ).toContain( 'Legacy keys remaining: 0' );
+    expect( page ).toContain( 'Provider writes: none' );
+    expect( page ).toContain( 'getMetaCatalogSyncPlan' );
+    expect( page ).not.toContain( "runBulkCatalogMigration('apply')" );
+  } );
+
   it( 'does not let the browser supply an approver identity', () => {
     const controlFn = client.slice( client.indexOf( 'export async function controlMetaCatalogSync' ),
       client.indexOf( '// ============================================================================\n// WABA MANAGEMENT API' ) );
