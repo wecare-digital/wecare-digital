@@ -68,9 +68,11 @@ describe( 'public mobile foundation', () => {
     expect( insights ).toContain( 'Past weather for' );
     expect( insights ).not.toContain( 'Google Weather historical aggregates for' );
     expect( insights ).not.toContain( 'Google Weather Insights' );
-    expect( insights ).toContain( 'font-size:var(--vl-card-heading-size,var(--public-card-size))' );
-    expect( insights ).toContain( '.vl-wi-head p{margin:6px 0 0;color:var(--public-muted);font-size:var(--vl-subtext-size,var(--text-base))' );
-    expect( insights ).toContain( '.vl-wi-head p{font-size:var(--vl-subtext-size,var(--public-mobile-form-font-size))' );
+    expect( insights ).toContain( 'font-size:var(--vl-panel-heading-size,var(--public-data-size))' );
+    expect( insights ).toContain( '.vl-wi-head p{margin:6px 0 0;color:var(--public-muted);font-size:var(--vl-subtext-size,var(--public-supporting-size))' );
+    expect( insights ).toContain( '.vl-wi-head p{font-size:var(--vl-subtext-size,var(--public-supporting-size))' );
+    expect( insights ).not.toContain( 'font-size:var(--vl-card-heading-size,var(--public-card-size))' );
+    expect( insights ).not.toContain( 'font-size:var(--text-' );
     expect( insights ).toContain( '.vl-wi-range button:hover{background:var(--public-lime-tint);color:var(--public-brand-green)}' );
     expect( insights ).toContain( '.vl-wi-range button.is-active{background:var(--public-brand-lime);color:var(--public-brand-green)}' );
     expect( insights ).not.toContain( 'background:rgba(17,21,18,.07)' );
