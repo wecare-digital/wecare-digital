@@ -1916,7 +1916,7 @@ def _handle_checkout_template_send(
         # the same WECARE.DIGITAL logo on every payment message, never varied per order.
         # The per-call header_image_url override is deliberately ignored for the checkout
         # template so no caller can substitute a different image.
-        FIXED_CHECKOUT_HEADER = 'https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/img/wecarepay-header.png'
+        FIXED_CHECKOUT_HEADER = media_paths.public_url(media_paths.WHATSAPP_TEMPLATE_IMAGE_PREFIX + 'wecarepay-header.png')
         checkout_header = FIXED_CHECKOUT_HEADER
         if checkout_order_details.get('header_image_id'):
             components.append({
