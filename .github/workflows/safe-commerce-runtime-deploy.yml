@@ -59,15 +59,11 @@ jobs:
       - name: Compile and regression test
         run: |
           python -m py_compile             amplify/functions/ecommerce/checkout/handler.py             amplify/functions/ecommerce/checkout/invoice_engine.py             amplify/functions/payments/invoice-engine/handler.py             amplify/functions/messaging/whatsapp-business-api/handler.py             amplify/functions/messaging/whatsapp-business-api/flows/paid_submit_request.py
-          python -m pytest             tests/test_whatsapp_commerce_gap_closure.py             tests/test_payments.py             tests/test_provision_checkout_contract.py -q
+          python -m pytest             tests/test_whatsapp_commerce_gap_closure.py             tests/test_payments.py             tests/test_provision_checkout_contract.py             tests/test_reconcile_whatsapp_catalog_payment_gate.py -q
 
       - name: Reconcile catalog payment rollout gate
         run: |
           python scripts/reconcile_whatsapp_catalog_payment_gate.py
-
-      - name: Reconcile checkout production environment
-        run: |
-          python scripts/provision_checkout.py
 
       - name: Package validation
         run: |
