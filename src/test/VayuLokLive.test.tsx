@@ -1483,7 +1483,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( forecastCardRule ).toContain( 'border-radius:var(--pill-r)' );
     expect( css ).not.toContain( '.vl-live-air-forecast-strip::-webkit-scrollbar{display:none}' );
 
-    const hourlyScroll = screen.getByRole( 'group', { name: 'Scroll hourly forecast' } );
+    const hourlyScroll = await screen.findByRole( 'group', { name: 'Scroll hourly forecast' } );
     expect( within( hourlyScroll ).getByRole( 'button', { name: 'Previous forecast hours' } ) ).toBeTruthy();
     expect( within( hourlyScroll ).getByRole( 'button', { name: 'Next forecast hours' } ) ).toBeTruthy();
     expect( css ).toContain( '--vl-card-heading-size:var(--public-card-size)' );
@@ -2349,7 +2349,7 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     const inputRule = css.match( /\.vl-live-search-field input\{[^}]*\}/ )?.[ 0 ] || '';
     expect( inputRule ).toContain( 'border-bottom:1px solid #e5e7eb' );
     expect( inputRule ).toContain( 'border:0' );
-    expect( inputRule ).toContain( 'font-size:17px' );
+    expect( inputRule ).toContain( 'font-size:var(--vl-data-size)' );
     expect( inputRule ).toContain( 'font-weight:400' );
     expect( inputRule ).toContain( 'background:transparent' );
     expect( inputRule ).toContain( 'padding-block:0' );
@@ -2387,7 +2387,7 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
 
     const utilityInputRule = css.match( /\.vl-live-utility-search>input\{[^}]*\}/ )?.[ 0 ] || '';
     expect( utilityInputRule ).toContain( 'height:52px' );
-    expect( utilityInputRule ).toContain( 'font-size:17px' );
+    expect( utilityInputRule ).toContain( 'font-size:var(--vl-data-size)' );
     expect( utilityInputRule ).toContain( 'padding-block:0' );
     expect( utilityInputRule ).toContain( 'padding-inline:2px 44px' );
     expect( utilityInputRule ).toContain( 'border-bottom:1px solid #e5e7eb' );
@@ -2421,16 +2421,19 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( css ).toContain( 'scrollbar-width:thin' );
     expect( css ).not.toContain( 'scrollbar' + '-color:' );
     expect( css ).not.toContain( '::-webkit-scrollbar-thumb' );
+    expect( css ).toContain( '.vl-live-air-forecast-strip::-webkit-scrollbar{height:6px}' );
+    expect( css ).toContain( '.vl-live-air-history-detail::-webkit-scrollbar{height:6px}' );
     expect( css ).not.toContain( '.vl-live-air-health-more' );
 
-    // One UI-system pass: section headings share the homepage card-heading token and one
-    // lime accent; pollutant names are real content (17px), not metadata-sized copy.
+    // Deep typography pass: compact live-panel headings use the Home/public data rung (17px,
+    // matching compact readings such as "Feels 17°"); tool-card headings retain the Home card
+    // rung and metadata stays on the public 14px rung.
     // These section headings and section wrappers share one grouped rule each. The group gained
     // .vl-live-air-forecast(-title) when the Air Forecast section landed, so a hardcoded
     // selector-list regex no longer matches; look the rule up by membership of one representative
     // selector instead, which stays correct as the group grows.
     const sectionTitleRule = cssRuleFor( css, '.vl-live-air-pollutants-title' );
-    expect( sectionTitleRule ).toContain( 'font-size:var(--vl-card-heading-size)' );
+    expect( sectionTitleRule ).toContain( 'font-size:var(--vl-panel-heading-size)' );
     expect( sectionTitleRule ).toContain( 'border-inline-start:3px solid var(--lime)' );
     expect( sectionTitleRule ).toContain( 'padding-inline-start:10px' );
     const sectionRule = cssRuleFor( css, '.vl-live-air-pollutants' );
@@ -2453,13 +2456,15 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     const forecastValueRule = css.match( /\.vl-live-air-forecast-card strong\{[^}]*\}/ )?.[ 0 ] || '';
     const forecastMetaRule = css.match( /\.vl-live-air-forecast-card small\{[^}]*\}/ )?.[ 0 ] || '';
     expect( forecastTimeRule ).toContain( 'font-size:var(--vl-meta-size)' );
-    expect( forecastValueRule ).toContain( 'font-size:var(--vl-data-size)' );
+    expect( forecastValueRule ).toContain( 'font-size:var(--vl-meta-size)' );
     expect( forecastMetaRule ).toContain( 'font-size:var(--vl-meta-size)' );
     const forecastCardRule = css.match( /\.vl-live-air-forecast-card\{[^}]*\}/ )?.[ 0 ] || '';
     const forecastActiveRule = css.match( /\.vl-live-air-forecast-card\.is-active\{[^}]*\}/ )?.[ 0 ] || '';
     const detailPillRule = css.match( /\.vl-live-air-forecast-detail>span\{[^}]*\}/ )?.[ 0 ] || '';
     expect( forecastCardRule ).toContain( 'border-radius:var(--pill-r)' );
-    expect( forecastCardRule ).toContain( 'min-width:118px' );
+    expect( forecastCardRule ).toContain( 'min-width:max-content' );
+    expect( forecastCardRule ).toContain( 'min-height:34px' );
+    expect( forecastCardRule ).toContain( 'flex-direction:row' );
     expect( forecastActiveRule ).toContain( 'background:var(--lime)' );
     expect( detailPillRule ).toContain( 'background:var(--lime-tint)' );
     expect( detailPillRule ).toContain( 'border-radius:var(--pill-r)' );
@@ -2496,24 +2501,29 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( container.querySelector( '.vl-live-air-empty' )?.textContent )
       .toContain( 'Live air quality appears here once a place is selected.' );
     expect( css ).toContain( '.vl-live{--vl-card-heading-size:var(--public-mobile-card-size);' );
-    expect( css ).toContain( '.vl-live-mobile-snapshot-head strong{overflow:hidden;color:var(--heading);font-size:16px' );
-    expect( css ).toContain( '.vl-live-mobile-snapshot-head small{color:var(--muted);font-size:14px' );
-    expect( css ).toContain( '.vl-live-mobile-copy{display:flex;min-width:0;flex-direction:column;gap:3px;color:var(--body);font-size:15px' );
-    expect( css ).toContain( '.vl-live-mobile-copy>strong{color:#000;font-size:16px}' );
-    expect( css ).toContain( '.vl-live-mobile-copy small{margin-top:2px;color:var(--muted);font-size:14px}' );
-    expect( css ).toContain( '.vl-live-air-context-item small{color:var(--muted);font-size:var(--text-md)' );
+    expect( css ).toContain( '.vl-live-mobile-snapshot-head strong{overflow:hidden;color:var(--heading);font-size:var(--vl-data-size)' );
+    expect( css ).toContain( '.vl-live-mobile-snapshot-head small{color:var(--muted);font-size:var(--vl-meta-size)' );
+    expect( css ).toContain( '.vl-live-mobile-copy{display:flex;min-width:0;flex-direction:column;gap:3px;color:var(--body);font-size:var(--vl-subtext-size)' );
+    expect( css ).toContain( '.vl-live-mobile-copy>strong{color:#000;font-size:var(--vl-data-size)}' );
+    expect( css ).toContain( '.vl-live-mobile-copy small{margin-top:2px;color:var(--muted);font-size:var(--vl-meta-size)}' );
+    expect( css ).toContain( '.vl-live-air-context-item small{color:var(--muted);font-size:var(--vl-meta-size)' );
     expect( css ).toContain( '--vl-subtext-size:var(--public-supporting-size)' );
     expect( css ).toContain( '--vl-meta-size:var(--public-meta-size)' );
     expect( css ).toContain( '--vl-compact-copy-size:var(--vl-subtext-size)' );
     expect( css ).toContain( '.vl-live-air-summary-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:8px;color:var(--muted);font-size:var(--vl-subtext-size)' );
     expect( css ).toContain( '.vl-live-wx-now-sub{display:flex;flex-wrap:wrap;gap:4px 12px;color:var(--muted);font-size:var(--vl-subtext-size)' );
     expect( css ).toContain( '.vl-live-wx-freshness{margin-top:8px;color:var(--muted);font-size:var(--vl-subtext-size)' );
-    expect( css ).toContain( '.vl-live-air-gauge-word{display:block;color:#000;font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight)' );
+    expect( css ).toContain( '.vl-live-air-gauge-word{display:block;color:#000;font-size:var(--vl-panel-heading-size);font-weight:var(--vl-panel-heading-weight)' );
     expect( css ).toContain( '.vl-live-wx-grid-k{min-width:0;color:var(--body);font-size:var(--vl-data-size);font-weight:700;line-height:1.35' );
     expect( css ).toContain( '.vl-live-wx-grid-v{color:var(--muted);font-size:var(--vl-data-size);font-weight:600;line-height:1.35' );
     expect( css ).toContain( '.vl-live-wx-daily-cond{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:var(--vl-compact-copy-size)' );
     expect( css ).toContain( '.vl-live-wx-alert p{margin:2px 0 0;color:var(--body);font-size:var(--vl-compact-copy-size)' );
-    expect( css ).toContain( '.vl-live{--vl-card-heading-size:var(--public-mobile-card-size);--vl-meta-size:var(--text-md);--vl-compact-copy-size:var(--vl-subtext-size)}' );
+    expect( css ).toContain( '.vl-live{--vl-card-heading-size:var(--public-mobile-card-size);--vl-metric-size:var(--public-mobile-section-size);--vl-meta-size:var(--public-meta-size);--vl-compact-copy-size:var(--vl-subtext-size)}' );
+    expect( css ).toContain( '--vl-panel-heading-size:var(--public-data-size)' );
+    expect( css ).toContain( '--vl-control-size:var(--public-cta-font-size)' );
+    expect( css ).toContain( '--vl-metric-size:var(--public-section-size)' );
+    expect( css ).not.toMatch( /font-size:\s*(?:\d|\.\d)/ );
+    expect( css ).not.toContain( 'font-size:var(--text-' );
 
   } );
 } );
