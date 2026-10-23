@@ -16,7 +16,7 @@ def result(source):
 
 
 def test_receipt_suffix_is_rooted_before_addressing():
-    assert result("PREFIX = 'stack/receipts/'\nkey = media_paths.secure(f'{PREFIX}receipt.pdf')")
+    assert result("PREFIX = 'd/public/receipts/'\nkey = media_paths.secure(f'{PREFIX}receipt.pdf')")
 
 
 @pytest.mark.parametrize("use", [
@@ -30,8 +30,8 @@ def test_receipt_suffix_is_rooted_before_addressing():
     "alias = PREFIX\nkey = media_paths.secure(alias)",
 ])
 def test_unrooted_or_unproven_use_still_fails(use):
-    assert not result("PREFIX = 'stack/receipts/'\n" + use)
+    assert not result("PREFIX = 'd/public/receipts/'\n" + use)
 
 
 def test_unused_prefix_is_not_assumed_safe():
-    assert not result("PREFIX = 'stack/receipts/'")
+    assert not result("PREFIX = 'd/public/receipts/'")
