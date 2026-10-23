@@ -36,11 +36,11 @@ class CatalogMediaDeliveryTest(unittest.TestCase):
                 self.assertTrue(result["isBase64Encoded"])
                 self.assertEqual(result["body"], "cG5n")
                 self.s3.get_object.assert_called_once_with(
-                    Bucket="wecare-digital-get", Key="secure/catalog/products/anew-4096.png")
+                    Bucket="wecare-digital-get", Key="secure/d/public/catalog-deploy/catalog/products/anew-4096.png")
 
     def test_rejects_unrelated_and_traversal_paths_without_s3_read(self):
         paths = (
-            "/secure/catalog/catalog-v3-final-manifest.json",
+            "/secure/d/public/catalog-deploy/catalog/catalog-v3-final-manifest.json",
             "/prod/catalog-media/../catalog-v3-final-manifest.json",
             "/api/catalog-media/%2e%2e%2fsecret-4096.png",
             "/catalog-media/a/b-4096.png",
