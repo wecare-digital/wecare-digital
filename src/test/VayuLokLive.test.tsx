@@ -1463,11 +1463,29 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( personaRule ).toContain( 'font-weight:600' );
     const healthTextRule = css.match( /\.vl-live-air-health-text\{[^}]*\}/ )?.[ 0 ] || '';
     expect( healthTextRule ).toContain( 'font-size:var(--vl-subtext-size)' );
-    expect( healthTextRule ).toContain( 'font-weight:400' );
+    expect( healthTextRule ).toContain( 'font-weight:700' );
     expect( healthTextRule ).toContain( 'color:var(--muted)' );
     expect( healthTextRule ).toContain( 'line-height:1.5' );
     expect( healthTextRule ).toContain( 'letter-spacing:0' );
     expect( css ).not.toContain( '.vl-live-air-health-text.is-clamped' );
+
+    // Air time ranges and each hourly forecast item use the compact lime-pill language rather
+    // than the old full tap-height segmented control / stacked mini-card treatment.
+    const airRangeRule = css.match( /\.vl-live-air-range\{[^}]*\}/ )?.[ 0 ] || '';
+    const airRangeButtonRule = css.match( /\.vl-live-air-range button\{[^}]*\}/ )?.[ 0 ] || '';
+    const forecastCardRule = css.match( /\.vl-live-air-forecast-card\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( airRangeRule ).toContain( 'background:transparent' );
+    expect( airRangeButtonRule ).toContain( 'min-height:32px' );
+    expect( airRangeButtonRule ).toContain( 'border:1px solid var(--hair)' );
+    expect( forecastCardRule ).toContain( 'min-width:max-content' );
+    expect( forecastCardRule ).toContain( 'min-height:34px' );
+    expect( forecastCardRule ).toContain( 'flex-direction:row' );
+    expect( forecastCardRule ).toContain( 'border-radius:var(--pill-r)' );
+    expect( css ).not.toContain( '.vl-live-air-forecast-strip::-webkit-scrollbar{display:none}' );
+
+    const hourlyScroll = screen.getByRole( 'group', { name: 'Scroll hourly forecast' } );
+    expect( within( hourlyScroll ).getByRole( 'button', { name: 'Previous forecast hours' } ) ).toBeTruthy();
+    expect( within( hourlyScroll ).getByRole( 'button', { name: 'Next forecast hours' } ) ).toBeTruthy();
     expect( css ).toContain( '--vl-card-heading-size:var(--public-card-size)' );
     expect( css ).toContain( '--vl-body-size:var(--public-body-size)' );
 
