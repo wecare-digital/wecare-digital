@@ -35,11 +35,11 @@ def _canon():
     return ns['CANONICAL_FLOWS']
 
 
-def test_canonical_vault_has_no_flow_and_subscribe_is_published():
+def test_canonical_vault_has_no_flow_and_subscribe_is_f001_draft():
     canon = _canon()
     assert canon['vault'][0] is None and canon['vault'][1] == 'NONE'
-    assert canon['subscribe'][0] == '1386523953464380'
-    assert canon['subscribe'][1] == 'PUBLISHED'
+    assert canon['subscribe'][0] == '2413873616105042'
+    assert canon['subscribe'][1] == 'DRAFT'
 
 
 def test_retired_vault_id_is_not_an_active_inbound_trigger():
