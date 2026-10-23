@@ -3151,7 +3151,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     || ( locationTime.source === 'default' && ( place.regionCode || 'IN' ).toUpperCase() === 'IN' );
   const locationTimeReady = clockNow != null && locationZoneReady;
   const locationClock = locationTimeReady && clockNow != null ? formatLocationClock( clockNow, locationTime.timeZoneId ) : '';
-  const locationDate = locationTimeReady && clockNow != null ? formatLocationDate( clockNow, locationTime.timeZoneId ) : '';
   const locationZoneLabel = locationZoneReady ? locationTime.shortLabel : '';
   const displayTimeZoneId = locationZoneReady ? locationTime.timeZoneId : 'UTC';
   const airAge = air?.updatedAt ? relativeAgeLabel( air.updatedAt ) : null;
@@ -3377,10 +3376,9 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                       { clockNow == null ? (
                         <small className="vl-live-local-time-status">Local time</small>
                       ) : locationTimeReady ? (
-                        <>
-                          <time dateTime={ new Date( clockNow ).toISOString() } suppressHydrationWarning>{ locationClock }</time>
-                          <small suppressHydrationWarning>{ locationDate } · { locationZoneLabel }</small>
-                        </>
+                        <time dateTime={ new Date( clockNow ).toISOString() } suppressHydrationWarning>
+                          { locationClock } · { locationZoneLabel }
+                        </time>
                       ) : (
                         <small className="vl-live-local-time-status">{ locationTime.source === 'pending' ? 'Resolving local time…' : 'Local time unavailable' }</small>
                       ) }
