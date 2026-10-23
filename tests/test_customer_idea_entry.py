@@ -94,7 +94,6 @@ def test_f001_subscribe_opens_with_data_exchange_for_prefill():
     assert trigger['flowId'] == '2413873616105042'
     assert trigger['entryMode'] == 'keyword_interactive'
     assert trigger['enabled'] is False
-    # Directly exercise the sender: publish-time activation changes enabled/status only.
     ns['_send_generic_flow']('fixture-contact', 'phone1', 'fixture-phone', 'fixture-request',
                              flow_config=trigger, flow_key='subscribe')
     assert len(calls) == 1
