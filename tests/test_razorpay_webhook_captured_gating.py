@@ -304,8 +304,8 @@ def test_verified_paid_commerce_capture_fires_each_effect_exactly_once(webhook, 
         assert spies.mark_by_ref.call_count == 1
         assert spies.post_payment.call_count == 1
         assert spies.ctwa.call_count == 1
-        # Verified commerce: processing order_status first, then invoice delivery.
-        assert spies.order_status_sends == 1
+        # Payment completion sends the invoice only; fulfilment status is a separate workflow.
+        assert spies.order_status_sends == 0
 
 
 # ══════════════════════════════════════════════════════════════════════════════
