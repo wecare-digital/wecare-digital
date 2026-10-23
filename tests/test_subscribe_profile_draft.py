@@ -295,6 +295,23 @@ def test_username_limit_does_not_write_profile(setup):
     assert not table.updates
 
 
+def test_validation_errors_tell_customer_which_screen_to_fix(setup):
+    mod,table,_=setup
+    data=form(mod)
+    data['username']='x'*51
+    result=mod.handle_review(data,TOKEN,'r-profile-guidance')
+    assert result['screen']=='REVIEW'
+    assert 'Go back to Subscribe' in result['data']['error_message']
+    assert not table.updates
+
+    data=form(mod)
+    data['postal_code']=''
+    result=mod.handle_review(data,TOKEN,'r-address-guidance')
+    assert result['screen']=='REVIEW'
+    assert 'Go back to Address' in result['data']['error_message']
+    assert not table.updates
+
+
 def test_returning_confirmation_stays_the_same_on_retry(setup):
     mod,table,_=setup; data=form(mod)
     first=mod.handle_review(data,TOKEN,'r')
