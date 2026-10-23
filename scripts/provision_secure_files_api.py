@@ -15,7 +15,7 @@ Two policy choices worth stating, because a wildcard here would be invisible and
 wrong:
 
 * S3 writes are scoped to ``secure/*`` on the one bucket. The function may now also
-  **read** exactly one public prefix, ``o/stack/whatsapp-media/incoming/*``, because a
+  **read** exactly one public prefix, ``secure/d/public/whatsapp/incoming/*``, because a
   Drop Docs document arriving over WhatsApp lands there and ``CopyObject`` needs
   ``GetObject`` on its source. That grant is read-only and single-prefix: the function
   still cannot write anywhere under ``o/``, and nothing in this policy can delete an
@@ -74,7 +74,7 @@ SECURE_PREFIX = "secure/"
 # unauthenticated, so a Drop Docs document has to be copied into secure/ before anything
 # treats it as a customer document. CopyObject needs GetObject on the source; PutObject and
 # HeadObject on secure/* already exist above.
-PUBLIC_WHATSAPP_INCOMING_PREFIX = "o/stack/whatsapp-media/incoming/"
+PUBLIC_WHATSAPP_INCOMING_PREFIX = "secure/d/public/whatsapp/incoming/"
 FILES_TABLE = "stack-wecare-digital-SecureFilesTable"
 GRANTS_TABLE = "stack-wecare-digital-DownloadGrantsTable"
 REQUESTS_TABLE = "stack-wecare-digital-ServiceRequestsTable"
