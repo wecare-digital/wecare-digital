@@ -94,7 +94,13 @@ STATUSES: Tuple[str, ...] = (
 PUBLISHABLE_STATUS = "READY_TO_PUBLISH"
 
 #: Section 29, split by who can actually decide it.
-MACHINE_GATES: Tuple[str, ...] = ("NON_DUPLICATION", "TIGHTNESS", "METADATA")
+MACHINE_GATES: Tuple[str, ...] = (
+    "NON_DUPLICATION",
+    "TIGHTNESS",
+    "METADATA",
+    "AUTHOR_IDENTITY",
+    "PUBLIC_SOURCE_EXPOSURE",
+)
 HUMAN_GATES: Tuple[str, ...] = (
     "DISTINCTION",
     "SOURCE_FIDELITY",
@@ -104,7 +110,6 @@ HUMAN_GATES: Tuple[str, ...] = (
     "SUBSTANCE",
     "VOICE",
     "FACTUAL_INTEGRITY",
-    "ATTRIBUTION",
     "PRIVACY",
     #: Section 30, asked as one question.
     "HUMAN_QUALITY_TEST",
@@ -1055,8 +1060,7 @@ def check_privacy_and_attribution(record: Dict[str, Any]) -> List[Finding]:
             out.append(_block("18", "FALSE_ANEW_BIOGRAPHY",
                               "a source biography has been converted into Anew's own "
                               f"({match.group(0)!r}); choose REMOVE, ANONYMIZE, GENERALIZE, "
-                              "ATTRIBUTE, KEEP_BECAUSE_ESSENTIAL or "
-                              "RESTRUCTURE_AROUND_DISTINCTION instead"))
+                              "KEEP_INTERNAL_ONLY or RESTRUCTURE_AROUND_DISTINCTION instead"))
             break
 
     #: ARCHIVE_DERIVED is reconstructed fresh, so a surviving first-person wrapper means
@@ -1067,10 +1071,8 @@ def check_privacy_and_attribution(record: Dict[str, Any]) -> List[Finding]:
                            "personal wrapper is removed and the distinction reconstructed",
                            "PERSONAL_REFERENCE_REWORK"))
 
-    #: The same reconstruction rule also forbids leaving the public article narrated from
-    #: outside itself: "the source says", "the chapter presents", "Topline Summaries", etc.
-    #: Attribution that is genuinely necessary can still name an author or work directly;
-    #: these patterns target the wrapper, not attribution itself.
+    #: Public copy may not retain source-facing narration or attribution. Source identity and
+    #: provenance stay internal; the public article states the distinction directly.
     if article_class == "ARCHIVE_DERIVED":
         found_wrapper = False
         for surface_name, surface_text in public_surfaces:
@@ -1081,8 +1083,7 @@ def check_privacy_and_attribution(record: Dict[str, Any]) -> List[Finding]:
                         "18", "SOURCE_WRAPPER",
                         "source-facing wrapper survives in public copy "
                         f"{surface_name} ({match.group(0)!r}); state the distinction directly "
-                        "and keep provenance in source metadata unless attribution is materially "
-                        "required"))
+                        "and keep provenance in non-public source metadata"))
                     found_wrapper = True
                     break
             if found_wrapper:
@@ -1109,18 +1110,16 @@ def check_privacy_and_attribution(record: Dict[str, Any]) -> List[Finding]:
     if record.get("falseAnewBiography") and not _is_no(record.get("falseAnewBiography")):
         out.append(_block("18", "BIOGRAPHY_DECLARED", "falseAnewBiography must be NO"))
 
-    #: Section 17 and 19: a long quotation with nobody attached to it is either invented
-    #: or appropriated, and both are refusals.
+    #: A long quotation-like passage needs ownership/provenance adjudication. The remedy is
+    #: never to add public attribution: either establish it as article-owned/rhetorical copy,
+    #: rewrite it independently, or omit it.
     for quote in re.findall(r"[\"\u201c]([^\"\u201d]{40,})[\"\u201d]", prose):
-        window_start = max(0, prose.find(quote) - 160)
-        window = prose[window_start:prose.find(quote) + len(quote) + 160].lower()
-        if not re.search(r"\b(?:said|writes|wrote|according to|observed|notes|per|quoted|"
-                         r"attributed|argues|puts it)\b", window):
-            out.append(_review("19", "UNATTRIBUTED_QUOTATION",
-                               f"a {len(quote.split())}-word quotation carries no attribution "
-                               "in its surrounding text",
-                               "ATTRIBUTION_REVIEW"))
-            break
+        out.append(_review(
+            "19", "QUOTATION_PROVENANCE_UNCLEAR",
+            f"a {len(quote.split())}-word quotation-like passage needs provenance review; "
+            "do not add public attribution",
+            "EDITORIAL_REWRITE"))
+        break
 
     if re.search(r"\b\d{1,3}(?:\.\d+)?\s?%", prose) or re.search(
             r"\b(?:studies show|research shows|scientists (?:say|found)|a study found|"
@@ -1132,10 +1131,6 @@ def check_privacy_and_attribution(record: Dict[str, Any]) -> List[Finding]:
                                "factual review must be recorded, not left blank",
                                "FACT_CHECK_REQUIRED"))
 
-    if record.get("requiredAttributionChecked") is not None and not _is_yes(
-            record.get("requiredAttributionChecked")):
-        out.append(_review("19", "ATTRIBUTION_UNCHECKED",
-                           "requiredAttributionChecked must be YES", "ATTRIBUTION_REVIEW"))
     return out
 
 
@@ -1611,11 +1606,18 @@ def machine_gate_table(findings: Sequence[Finding]) -> Dict[str, str]:
         "AI_RHYTHM", "AI_RHYTHM_EMERGING", "UNIFORM_CADENCE", "REPEATED_OPENER",
         "ABOVE_BAND", "PADDING_NOT_REMOVED", "RHETORICAL_QUESTION_HEAVY",
     }]
+    author_identity = [f for f in findings if f.code == "AUTHOR_WRONG" and f.severity == "BLOCK"]
+    public_source = [f for f in findings if (
+        f.code.startswith("PUBLIC_")
+        or f.code in {"SOURCE_WRAPPER", "SOURCE_REFERENCE_LEAK"}
+    ) and f.severity == "BLOCK"]
     return {
         "NON_DUPLICATION": "FAIL" if dedupe else "PASS",
         "METADATA": "FAIL" if metadata else "PASS",
         #: The standard asks "Can anything unnecessary still be removed?" and requires NO.
         "TIGHTNESS": "NO" if not tightness else "YES",
+        "AUTHOR_IDENTITY": "FAIL" if author_identity else "PASS",
+        "PUBLIC_SOURCE_EXPOSURE": "FAIL" if public_source else "PASS",
         "_BLOCKING": str(len(blocking)),
     }
 
@@ -1640,7 +1642,6 @@ def decide_status(record: Dict[str, Any], findings: Sequence[Finding]) -> str:
         "SOURCE_REVIEW",
         "DEDUPE_REWORK",
         "PERSONAL_REFERENCE_REWORK",
-        "ATTRIBUTION_REVIEW",
         "FACT_CHECK_REQUIRED",
         "EDITORIAL_REWRITE",
     )
