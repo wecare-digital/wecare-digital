@@ -117,8 +117,37 @@ def default_body(status: str) -> str:
     return DEFAULT_BODY_TEXT.get(normalise(status), "Your order status has been updated.")
 
 
+def build_template_component(reference_id: str, status: str, description: str = "") -> dict:
+    """Build the canonical Meta ORDER_STATUS template component.
+
+    Business semantics live here; the outbound Lambda owns only transport/persistence.
+    reference_id is already the canonical commerce reference owned by the payment/order
+    core and is never rewritten here. Invalid or blank values fail closed.
+    """
+    ref = str(reference_id or "").strip()
+    wire_status = normalise(status)
+    if not ref:
+        raise ValueError("reference_id is required")
+    if wire_status not in ALL_STATUSES:
+        raise ValueError("invalid order status")
+    text = str(description or "").strip() or default_body(wire_status)
+    return {
+        "type": "order_status",
+        "parameters": [{
+            "type": "order_status",
+            "order_status": {
+                "reference_id": ref,
+                "order": {
+                    "status": wire_status,
+                    "description": text,
+                },
+            },
+        }],
+    }
+
+
 __all__ = [
     "PENDING", "PROCESSING", "PARTIALLY_SHIPPED", "SHIPPED", "COMPLETED", "CANCELED",
     "ALL_STATUSES", "STAFF_FULFILMENT_TARGETS", "DEFAULT_BODY_TEXT",
-    "normalise", "is_valid", "can_transition", "default_body",
+    "normalise", "is_valid", "can_transition", "default_body", "build_template_component",
 ]
