@@ -16,6 +16,9 @@ on:
       - 'amplify/functions/core/secure-files/**'
       - 'amplify/functions/operations/system-cleanup/**'
       - 'amplify/functions/edge/get-miss-redirect/**'
+      - 'amplify/functions/ecommerce/catalog-media/**'
+      - 'scripts/provision_catalog_media.py'
+      - 'tests/test_catalog_media_delivery.py'
       - 'scripts/deploy_all_lambdas.py'
       - 'scripts/snapstart_publish.py'
   workflow_dispatch:
@@ -56,11 +59,11 @@ jobs:
 
       - name: Compile storage migration sources
         run: |
-          python -m py_compile             amplify/functions/shared/lambda_utils/media_paths.py             amplify/functions/shared/lambda_utils/template_media.py             amplify/functions/shared/lambda_utils/ecommerce/dropdocs_storage.py             amplify/functions/messaging/inbound-whatsapp-handler/handler.py             amplify/functions/messaging/waba-management/handler.py             amplify/functions/messaging/whatsapp-voice/handler.py             amplify/functions/messaging/whatsapp-calling/handler.py             amplify/functions/messaging/whatsapp-template-management/handler.py             amplify/functions/core/secure-files/handler.py             amplify/functions/operations/system-cleanup/handler.py             amplify/functions/edge/get-miss-redirect/handler.py
+          python -m py_compile             amplify/functions/shared/lambda_utils/media_paths.py             amplify/functions/shared/lambda_utils/template_media.py             amplify/functions/shared/lambda_utils/ecommerce/dropdocs_storage.py             amplify/functions/messaging/inbound-whatsapp-handler/handler.py             amplify/functions/messaging/waba-management/handler.py             amplify/functions/messaging/whatsapp-voice/handler.py             amplify/functions/messaging/whatsapp-calling/handler.py             amplify/functions/messaging/whatsapp-template-management/handler.py             amplify/functions/core/secure-files/handler.py             amplify/functions/operations/system-cleanup/handler.py             amplify/functions/edge/get-miss-redirect/handler.py             amplify/functions/ecommerce/catalog-media/handler.py             scripts/provision_catalog_media.py
 
       - name: Focused storage regression tests
         run: |
-          python -m pytest             tests/test_dropdocs_document_privacy.py             tests/test_customer_receipt.py             tests/test_media_prefix_constant_flow.py             tests/test_create_s3_prefix.py -q
+          python -m pytest             tests/test_dropdocs_document_privacy.py             tests/test_customer_receipt.py             tests/test_media_prefix_constant_flow.py             tests/test_create_s3_prefix.py             tests/test_catalog_media_delivery.py -q
 
       - name: Package validation
         run: |
@@ -69,6 +72,11 @@ jobs:
       - name: Deploy affected runtimes
         run: |
           python scripts/deploy_all_lambdas.py             wecare-inbound-whatsapp             wecare-waba-management             wecare-whatsapp-voice             wecare-whatsapp-calling             wecare-whatsapp-template-management             wecare-secure-files             wecare-system-cleanup
+
+      - name: Deploy catalog media on canonical storage
+        run: |
+          python scripts/provision_catalog_media.py --apply
+          python scripts/provision_catalog_media.py --verify
 
       - name: Publish and associate Lambda Edge version
         run: |
