@@ -1491,7 +1491,6 @@ def _send_processing_order_status(contact: str, reference_id: str, amount_paise:
             'recipientPhone': '+' + clean_phone,
             # Owner decision: every payment/fulfilment message uses WABA1.
             'phoneNumberId': WABA1_PHONE_ID,
-            'isOrderStatus': True,
             'orderStatusDetails': {
                 'reference_id': reference_id,
                 'order_status': 'processing',
