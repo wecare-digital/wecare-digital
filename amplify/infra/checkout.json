@@ -474,7 +474,8 @@
             "ADMIN_MFA_REQUIRED": "true",
             "LOG_LEVEL": "INFO",
             "REFUND_INITIATION_ENABLED": "false",
-            "OUTBOUND_FUNCTION": "wecare-outbound-whatsapp:live"
+            "OUTBOUND_FUNCTION": "wecare-outbound-whatsapp:live",
+            "WA_CATALOG_ORDERS_ENABLED": "true"
           }
         },
         "Tags": [
