@@ -62,10 +62,10 @@ Under `o/`:
   - `media/ivr/` - IVR audio files
   - `media/reports/` - Report assets
   - `blog/`, `code/`, `docs/` - Scraped and generated content
-- `o/public/wa-tpl/` - **Do not move or rename.** 61 objects whose URLs are
+- `secure/d/public/whatsapp/wa-tpl/` - **Do not move or rename.** 61 objects whose URLs are
   embedded in WhatsApp templates Meta has already approved, and Meta refetches
   media from the approved URL at send time.
-- `o/whatsapp-media/whatsapp-calling/`, `o/app-review/`, `o/meta-app-review/`
+- `secure/d/public/whatsapp/whatsapp-calling/`, `o/app-review/`, `o/meta-app-review/`
 
 Served as `https://wecare.digital/get/<key>` via CloudFront `E2GP22R4BIFGQ3`
 (origin path `""`, so the `o/` segment is part of the URL).
