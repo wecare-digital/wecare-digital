@@ -152,6 +152,37 @@ async function patchNativeProductWithRetry(
   throw new Error('Catalog update did not complete');
 }
 
+async function patchNativeVariantWithRetry(
+  product: NativeProduct,
+  sku: string,
+  changes: Record<string, unknown>,
+): Promise<NativeProduct> {
+  let current = product;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const data = await nativeCall(
+        '/' + encodeURIComponent(current.id) + '/variants/' + encodeURIComponent(sku),
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            expectedUpdatedAt: current.updatedAt,
+            ...changes,
+          }),
+        },
+      );
+      if (!data?.product) throw new Error('Invalid native variant PATCH response');
+      return data.product as NativeProduct;
+    } catch (cause) {
+      if (cause instanceof NativeCatalogHttpError && cause.status === 409 && attempt === 0) {
+        current = await getNativeProduct(current.id);
+        continue;
+      }
+      throw cause;
+    }
+  }
+  throw new Error('Catalog variant update did not complete');
+}
+
 const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
   const [tab, setTab] = useState<Tab>('products');
   const [products, setProducts] = useState<NativeProduct[]>([]);
@@ -271,15 +302,35 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
         title: 'Publish the 3 approved catalog products?',
         message:
           'This explicitly promotes Activities, Ritva and VayuLok to Active, enables website ' +
-          'publication and includes them in the Meta / WhatsApp catalog plan. No other draft is ' +
-          'touched. Meta provider writes remain locked; the action only regenerates the read-only ' +
-          '28-item plan.',
+          'publication and includes them in the Meta / WhatsApp catalog plan. It also sets ' +
+          'VayuLok Standard to the approved ₹99.00 price. No other draft or price is touched. ' +
+          'Meta provider writes remain locked; the action only regenerates the read-only 28-item plan.',
         confirmText: 'Promote 3 + prepare 28 plan',
       });
       if (!ok) return;
 
       await run(async () => {
         let promoted = 0;
+
+        let vayulok = current.find(product => product.id === 'native:vayulok');
+        if (!vayulok) throw new Error('VayuLok catalog row is missing');
+        if ((vayulok.variants || []).length !== 1) {
+          throw new Error('VayuLok must have exactly one Standard variant before price publication');
+        }
+        const vayulokVariant = vayulok.variants[0];
+        if (vayulokVariant.priceMinor !== 9900) {
+          setBulkMigrationProgress('Setting VayuLok Standard price to ₹99.00…');
+          vayulok = await patchNativeVariantWithRetry(vayulok, vayulokVariant.sku, {
+            priceMinor: 9900,
+            label: vayulokVariant.label || 'Standard',
+          });
+          const savedVariant = (vayulok.variants || []).find(v => v.sku === vayulokVariant.sku);
+          if (!savedVariant || savedVariant.priceMinor !== 9900 || vayulok.priceMinor !== 9900) {
+            throw new Error('VayuLok ₹99.00 price readback failed');
+          }
+          current = current.map(product => product.id === vayulok!.id ? vayulok! : product);
+        }
+
         for (const product of pending) {
           const saved = await patchNativeProductWithRetry(product, {
             status: 'active',
@@ -310,6 +361,12 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
         if (failed.length > 0) {
           throw new Error('The 3-product publication readback is incomplete.');
         }
+        const verifiedVayuLok = current.find(product => product.id === 'native:vayulok');
+        const verifiedVayuLokVariant = verifiedVayuLok?.variants?.[0];
+        if (!verifiedVayuLok || verifiedVayuLok.priceMinor !== 9900 ||
+            verifiedVayuLokVariant?.priceMinor !== 9900) {
+          throw new Error('VayuLok must read back at ₹99.00 before Meta planning.');
+        }
 
         setBulkMigrationProgress('Refreshing 28-item read-only Meta plan…');
         const planResult = await api.getMetaCatalogSyncPlan();
@@ -331,6 +388,7 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
 
         setBulkMigrationSummary(
           'Approved drafts promoted now: ' + promoted +
+          ' · VayuLok price: ₹99.00' +
           ' · Desired Meta items: ' + desiredCount +
           ' · Plan create/update/retire/foreign: ' +
           Number(plan.counts?.create || 0) + '/' +
