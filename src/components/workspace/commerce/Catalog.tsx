@@ -866,9 +866,14 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
                 Meta plan. No unrelated draft is touched and it never approves or applies the
                 provider plan.
               </p>
-              <button type="button" onClick={promoteApprovedCatalogThree}
+              <button type="button" onClick={runBulkCatalogMigration}
                 disabled={busy || metaCatalogBusy}>
-                Prepare 28-item catalog release
+                Migrate catalog + prepare Meta plan
+              </button>
+              <button type="button" onClick={promoteApprovedCatalogThree}
+                disabled={busy || metaCatalogBusy}
+                style={{ marginInlineStart: 8 }}>
+                Promote Activities + Ritva + VayuLok → 28-item plan
               </button>
               {bulkMigrationProgress && (
                 <p role="status" style={{ marginTop: 10, fontSize: 'var(--text-xs)' }}>
