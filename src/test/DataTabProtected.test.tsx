@@ -41,7 +41,7 @@ const RESOURCES: api.CleanupResource[] = [
   { id: 'template_analytics', label: 'Template Analytics', category: 'System', type: 'dynamodb', table: 'TemplateAnalyticsTable', count: 4, selectable: true, protected: false, protectedReason: '' },
   { id: 'contacts', label: 'Contacts', category: 'Contacts', type: 'dynamodb', table: 'ContactsTable', count: 940, selectable: false, protected: true, protectedReason: 'Protected: customer, financial or message history (matched "contact")' },
   { id: 'invoices', label: 'Invoices', category: 'Contacts', type: 'dynamodb', table: 'InvoicesTable', count: 57, selectable: false, protected: true, protectedReason: 'Protected: customer, financial or message history (matched "invoice")' },
-  { id: 's3_media', label: 'S3: WhatsApp Media', category: 'S3 Storage', type: 's3', prefix: 'o/stack/whatsapp-media/', count: 1200, selectable: false, protected: true, protectedReason: 'S3 is never cleared here' },
+  { id: 's3_media', label: 'S3: WhatsApp Media', category: 'S3 Storage', type: 's3', prefix: 'secure/d/public/whatsapp/', count: 1200, selectable: false, protected: true, protectedReason: 'S3 is never cleared here' },
 ];
 
 const SELECTABLE_IDS = [ 'rate_limit', 'template_analytics' ];
