@@ -803,20 +803,15 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
             <div style={{ ...boxStyle, background: '#f8faf8', marginTop: 12 }}>
               <h3 style={{ marginTop: 0, fontSize: 'var(--text-base)' }}>Bulk catalog release</h3>
               <p style={muted}>
-                Admin-only. Runs the same guarded release path as scripts/migrate_catalog_release.py:
-                canonical artwork keys → eligible Meta enablement → verification → read-only Meta plan.
-                It never approves or applies the provider plan.
+                Admin-only 28-item release. Promotes only Activities, Ritva and VayuLok,
+                verifies all canonical artwork and publication flags, then prepares the read-only
+                Meta plan. No unrelated draft is touched and it never approves or applies the
+                provider plan.
               </p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                <button type="button" onClick={runBulkCatalogMigration}
-                  disabled={busy || metaCatalogBusy}>
-                  Migrate catalog + prepare Meta plan
-                </button>
-                <button type="button" onClick={promoteApprovedCatalogThree}
-                  disabled={busy || metaCatalogBusy}>
-                  Promote Activities + Ritva + VayuLok → 28-item plan
-                </button>
-              </div>
+              <button type="button" onClick={promoteApprovedCatalogThree}
+                disabled={busy || metaCatalogBusy}>
+                Prepare 28-item catalog release
+              </button>
               {bulkMigrationProgress && (
                 <p role="status" style={{ marginTop: 10, fontSize: 'var(--text-xs)' }}>
                   {bulkMigrationProgress}
