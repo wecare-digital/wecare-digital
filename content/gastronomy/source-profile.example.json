@@ -35,9 +35,9 @@
   "notes": [
     "Replace placeholders separately for every new PDF, website, publisher archive, or source collection.",
     "The gate is publisher-agnostic. Never hard-code one publisher such as Isha into permanent policy.",
-    "Publisher, author, book title, institution, private person, private place, and source-biography phrases stay internal unless required for public attribution.",
+    "Publisher, author, book title, institution, private person, private place, source-biography phrases, citations, source URLs, and named source works stay internal and must not appear in public blog copy.",
     "Use allowed_public_terms for legitimate culinary geography, established dish names, or other terms that should remain public even if they also appear in source metadata.",
-    "Use required_public_attribution_terms only when attribution is genuinely necessary for a distinctive quotation, named framework, or other attribution-sensitive material.",
+    "required_public_attribution_terms is retained only for backward-compatible source metadata; new public-copy audits must not use it as an exception.",
     "Ordinary culinary phrases such as cooked with, learned from, volunteer, or programme are not blocked globally; block them only when they identify source provenance for the current source."
   ]
 }
