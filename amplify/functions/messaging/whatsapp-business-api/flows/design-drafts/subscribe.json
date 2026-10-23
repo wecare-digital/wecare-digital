@@ -95,8 +95,16 @@
             "alt-text": "WECARE.DIGITAL"
           },
           {
-            "type": "TextSubheading",
-            "text": "Your profile"
+            "type": "Image",
+            "src": "iVBORw0KGgoAAAANSUhEUgAAAUgAAAAICAIAAAAUWfG8AAAAtUlEQVR42u2TMRKDQAwDlbw4X81f0osCcMyhY9KkSXZpwCd0smd8e74elmxZsm1J27uG+vreTu2glHLd+2mvB6WmztHhkK2d5mz7853uwuh8+n0M3E2UAp+GM3VQrrvfvn1LrR+9Z1rtVdBRuXrNlGXSlTWdqKwwXbnmVnnl2AdlhYnKMunK1OD5ulmDnypTsKHBi8kPDV5M/tjgXQDwc7DYACw2ALDYAMBiAwCLDQAsNsD/sADMw7edeU5bDwAAAABJRU5ErkJggg==",
+            "width": 328,
+            "height": 8,
+            "scale-type": "contain",
+            "alt-text": "WECARE profile colour accent"
+          },
+          {
+            "type": "TextHeading",
+            "text": "Subscribe"
           },
           {
             "type": "TextBody",
@@ -119,7 +127,8 @@
                 "type": "TextInput",
                 "name": "full_name",
                 "label": "Full name",
-                "required": true
+                "required": true,
+                "label-variant": "large"
               },
               {
                 "type": "TextInput",
@@ -127,19 +136,22 @@
                 "label": "Profile username",
                 "required": false,
                 "max-chars": 50,
-                "helper-text": "WhatsApp username"
+                "helper-text": "WhatsApp username",
+                "label-variant": "large"
               },
               {
                 "type": "TextInput",
                 "name": "company_name",
                 "label": "Organisation",
-                "required": false
+                "required": false,
+                "label-variant": "large"
               },
               {
                 "type": "TextInput",
                 "name": "designation",
                 "label": "Role / designation",
-                "required": false
+                "required": false,
+                "label-variant": "large"
               }
             ],
             "init-values": {
@@ -262,6 +274,14 @@
             "alt-text": "WECARE.DIGITAL"
           },
           {
+            "type": "Image",
+            "src": "iVBORw0KGgoAAAANSUhEUgAAAUgAAAAICAIAAAAUWfG8AAAAwUlEQVR42u2TwQ3DMAwDSY3RETpC95/L6sNxHUlOa/TZ8pBHcHFMQoB4e9xJkCRBo73eT5KEJUnSQPbzWfaTtpLjlyznJytBhK3kaBvlcfMp/SRnepSlWEw/4nKQrWQ/aSuZ03v5MN4gQ3qUc/JWgvovVoJIEO4cT3zHhXc62Jbe6fjgW70TOx3ojrZdL/m2XS/5tlsvn2m46Pamw8j6dkRxPmUOBiHEz6HFFkKLLYTQYgshtNhCCC22EEKLLcT/8ASN7DWSA3rqxAAAAABJRU5ErkJggg==",
+            "width": 328,
+            "height": 8,
+            "scale-type": "contain",
+            "alt-text": "WECARE address colour accent"
+          },
+          {
             "type": "TextHeading",
             "text": "Your address"
           },
@@ -276,38 +296,44 @@
               {
                 "type": "TextInput",
                 "name": "address_line1",
-                "label": "Address line 1",
-                "required": true
+                "label": "Street address",
+                "required": true,
+                "label-variant": "large"
               },
               {
                 "type": "TextInput",
                 "name": "address_line2",
-                "label": "Address line 2",
-                "required": true
+                "label": "Flat / floor / unit",
+                "required": false,
+                "label-variant": "large"
               },
               {
                 "type": "TextInput",
                 "name": "locality",
                 "label": "Landmark / locality",
-                "required": true
+                "required": false,
+                "label-variant": "large"
               },
               {
                 "type": "TextInput",
                 "name": "city",
                 "label": "City",
-                "required": true
+                "required": true,
+                "label-variant": "large"
               },
               {
                 "type": "TextInput",
                 "name": "state",
                 "label": "State / region",
-                "required": true
+                "required": true,
+                "label-variant": "large"
               },
               {
                 "type": "TextInput",
                 "name": "postal_code",
-                "label": "Postal code",
-                "required": true
+                "label": "PIN / postal code",
+                "required": true,
+                "label-variant": "large"
               },
               {
                 "type": "Dropdown",
@@ -1226,6 +1252,14 @@
             "alt-text": "WECARE.DIGITAL"
           },
           {
+            "type": "Image",
+            "src": "iVBORw0KGgoAAAANSUhEUgAAAUgAAAAICAIAAAAUWfG8AAAA2ElEQVR42u2T0W3AIAxE/W6MjtARuv9cuB9NiA2kA7T3FKFzsA+wZD6+PiUgJCRQCKRALEICIRYREuJdPOYBXKJ67uK6Qxdn8+J5CwHazZcH/nJKIJqonk20B+Ygcq669CBzW+duWUuoZauX6zbhZHJwLuUqd9jLdfRczz2X6/SQ0o1zH3qvkhzAgBEMYsCAvML5RQ9nQjw/e372/Hs3ZpjVfC3/SXg17+WbefM/mw8i382fN26dqfm5dEZhjPlzeLCN8WAbYzzYxhgPtjHGg22M8WAb83/4BpN/FM8lYMS7AAAAAElFTkSuQmCC",
+            "width": 328,
+            "height": 8,
+            "scale-type": "contain",
+            "alt-text": "WECARE review colour accent"
+          },
+          {
             "type": "TextHeading",
             "text": "Review your details"
           },
@@ -1234,9 +1268,19 @@
             "text": "Check everything before saving."
           },
           {
-            "type": "TextCaption",
-            "text": "PROFILE",
-            "font-weight": "bold"
+            "type": "If",
+            "condition": "${data.error_message} != ''",
+            "then": [
+              {
+                "type": "TextBody",
+                "text": "${data.error_message}",
+                "font-weight": "bold"
+              }
+            ]
+          },
+          {
+            "type": "TextSubheading",
+            "text": "PROFILE"
           },
           {
             "type": "TextCaption",
@@ -1255,65 +1299,110 @@
             "text": "${data.phone_number}"
           },
           {
+            "type": "If",
+            "condition": "${data.username} != ''",
+            "then": [
+              {
+                "type": "TextCaption",
+                "text": "Profile username"
+              },
+              {
+                "type": "TextBody",
+                "text": "${data.username}"
+              }
+            ]
+          },
+          {
+            "type": "If",
+            "condition": "${data.company_name} != ''",
+            "then": [
+              {
+                "type": "TextCaption",
+                "text": "Organisation"
+              },
+              {
+                "type": "TextBody",
+                "text": "${data.company_name}"
+              }
+            ]
+          },
+          {
+            "type": "If",
+            "condition": "${data.designation} != ''",
+            "then": [
+              {
+                "type": "TextCaption",
+                "text": "Role / designation"
+              },
+              {
+                "type": "TextBody",
+                "text": "${data.designation}"
+              }
+            ]
+          },
+          {
+            "type": "TextSubheading",
+            "text": "ADDRESS"
+          },
+          {
             "type": "TextCaption",
-            "text": "Profile username"
-          },
-          {
-            "type": "TextBody",
-            "text": "${data.username}"
-          },
-          {
-            "type": "TextCaption",
-            "text": "Organisation"
-          },
-          {
-            "type": "TextBody",
-            "text": "${data.company_name}"
-          },
-          {
-            "type": "TextCaption",
-            "text": "Role / designation"
-          },
-          {
-            "type": "TextBody",
-            "text": "${data.designation}"
-          },
-          {
-            "type": "TextCaption",
-            "text": "ADDRESS",
-            "font-weight": "bold"
+            "text": "Street address"
           },
           {
             "type": "TextBody",
             "text": "${data.address_line1}"
           },
           {
-            "type": "TextBody",
-            "text": "${data.address_line2}"
+            "type": "If",
+            "condition": "${data.address_line2} != ''",
+            "then": [
+              {
+                "type": "TextBody",
+                "text": "${data.address_line2}"
+              }
+            ]
           },
           {
-            "type": "TextBody",
-            "text": "${data.locality}"
+            "type": "If",
+            "condition": "${data.locality} != ''",
+            "then": [
+              {
+                "type": "TextBody",
+                "text": "${data.locality}"
+              }
+            ]
+          },
+          {
+            "type": "TextCaption",
+            "text": "City"
           },
           {
             "type": "TextBody",
             "text": "${data.city}"
           },
           {
+            "type": "TextCaption",
+            "text": "State / region"
+          },
+          {
             "type": "TextBody",
             "text": "${data.state}"
+          },
+          {
+            "type": "TextCaption",
+            "text": "PIN / postal code"
           },
           {
             "type": "TextBody",
             "text": "${data.postal_code}"
           },
           {
-            "type": "TextBody",
-            "text": "${data.country}"
+            "type": "TextCaption",
+            "text": "Country"
           },
           {
             "type": "TextBody",
-            "text": "${data.error_message}"
+            "text": "${data.country}"
           },
           {
             "type": "Footer",
@@ -1371,6 +1460,14 @@
             "alt-text": "WECARE.DIGITAL"
           },
           {
+            "type": "Image",
+            "src": "iVBORw0KGgoAAAANSUhEUgAAAUgAAAAICAIAAAAUWfG8AAAAw0lEQVR42u2TMRbDIAxDpd6rF+n1ek8rQ0Ix2Bm7tPpZiAyW4D3z+X4RIEGAJAFca2z6uU5VstkJ9DpHNevNTtx2bjss2VK1zza+79yueTqW43vg3ARd4PI4tx3Q67ODBElSXkiBqKKgkIToROlzZBHP3+hESTHsNqPoxBGsEXf3yy5ZrOLivoopbTE67x7FSIhOVBT3GTiXppgusojTvYjleefxLe0Dxpifw4NtjAfbGOPBNsZ4sI0xHmxjjAfbmP/hAKqWjp1NW+i8AAAAAElFTkSuQmCC",
+            "width": 328,
+            "height": 8,
+            "scale-type": "contain",
+            "alt-text": "WECARE success colour accent"
+          },
+          {
             "type": "TextHeading",
             "text": "Subscribed"
           },
@@ -1379,8 +1476,13 @@
             "text": "${data.message}"
           },
           {
+            "type": "TextBody",
+            "text": "You can now use your saved details across WECARE services."
+          },
+          {
             "type": "TextCaption",
-            "text": "Customer ID"
+            "text": "Customer ID",
+            "font-weight": "bold"
           },
           {
             "type": "TextSubheading",
