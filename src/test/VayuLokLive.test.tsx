@@ -1084,7 +1084,12 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( panel.textContent ).toContain( 'Day range' );
     // Hourly forecast + 10-day forecast are intentionally lazy after the Weather tab opens.
     await waitFor( () => expect( panel.querySelector( '.vl-live-air-forecast-strip' ) ).not.toBeNull() );
-    expect( within( panel ).getByRole( 'group', { name: 'Weather forecast range' } ) ).toBeTruthy();
+    const weatherRange = within( panel ).getByRole( 'group', { name: 'Weather forecast range' } );
+    expect( weatherRange ).toBeTruthy();
+    expect( within( weatherRange ).getByRole( 'button', { name: '96h' } ) ).toBeTruthy();
+    const weatherForecastRail = panel.querySelector( '[aria-label^="Next 24 hours weather forecast"]' ) as HTMLElement | null;
+    expect( weatherForecastRail ).not.toBeNull();
+    expect( within( weatherForecastRail as HTMLElement ).getAllByRole( 'button' ).every( button => button.getAttribute( 'aria-pressed' ) === 'false' ) ).toBe( true );
     await waitFor( () => expect( panel.querySelectorAll( '.vl-live-wx-daily-row' ).length ).toBe( 10 ) );
     const dailyCall = await waitFor( () => {
       const call = fetchSpy.mock.calls.find( item => requestIs( item[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/forecast/days' ) );
@@ -1439,6 +1444,8 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( healthTablist.querySelectorAll( '.vl-live-air-health-tooltip' ) ).toHaveLength( 7 );
     expect( screen.queryByRole( 'button', { name: 'Previous health recommendation' } ) ).toBeNull();
     expect( screen.queryByRole( 'button', { name: 'Next health recommendation' } ) ).toBeNull();
+    expect( screen.getByRole( 'button', { name: 'Previous health profile' } ) ).toBeTruthy();
+    expect( screen.getByRole( 'button', { name: 'Next health profile' } ) ).toBeTruthy();
     expect( container.querySelector( '.vl-live-air-health-more' ) ).toBeNull();
     expect( container.querySelector( '.vl-live-air-health-page-count' ) ).toBeNull();
 
@@ -1468,9 +1475,10 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( css ).toContain( '@media(horizontal-viewport-segments:2)' );
     expect( css ).toContain( 'width:env(viewport-segment-width 0 0)' );
     expect( css ).toContain( " :global([dir='rtl']) .vl-live-shell".trim() );
-    expect( healthTabRule ).toContain( 'flex:0 0 var(--tap-min)' );
-    expect( healthTabRule ).toContain( 'width:var(--tap-min)' );
-    expect( healthTabRule ).toContain( 'min-height:var(--tap-min)' );
+    expect( healthTabRule ).toContain( 'flex:0 0 48px' );
+    expect( healthTabRule ).toContain( 'width:48px' );
+    expect( healthTabRule ).toContain( 'min-height:48px' );
+    expect( healthTabRule ).toContain( 'background:var(--lime-tint)' );
     expect( healthTabRule ).toContain( 'border-radius:50%' );
     expect( healthTabRule ).toContain( 'scroll-snap-align:start' );
     expect( css ).not.toContain( '.vl-live-air-history-nav' );
@@ -1703,6 +1711,10 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await waitFor( () => expect(
       fetchSpy.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/forecast/days' ) ),
     ).toBe( true ) );
+    const hourlyUrls = fetchSpy.mock.calls
+      .map( call => requestUrl( call[ 0 ] as RequestInfo | URL ) )
+      .filter( ( url ): url is URL => Boolean( url && url.hostname === 'weather.googleapis.com' && url.pathname === '/v1/forecast/hours:lookup' ) );
+    expect( hourlyUrls.some( url => url.searchParams.get( 'hours' ) === '96' ) ).toBe( true );
   } );
 
   it( 'requests the India CPCB local AQI (customLocalAqis ind_cpcb) on the currentConditions:lookup air call', async () => {
