@@ -226,7 +226,7 @@ _PAYMENT_READ_FUNCTION = 'wecare-whatsapp-business-api:live'
 # Delivery is unaffected: `send_invoice_whatsapp` passes `mediaFile: s3_key` to
 # outbound-whatsapp, which reads the object and uploads the bytes to Meta. Meta never fetches
 # an invoice by URL, so the gated prefix costs nothing on the path that matters.
-INVOICE_PREFIX = media_paths.secure('Invoice/customer_invoice/')
+INVOICE_PREFIX = media_paths.INVOICE_CUSTOMER_IMAGE_PREFIX
 CDN_DOMAIN = os.environ.get('CDN_DOMAIN', media_paths.CDN_DOMAIN)
 
 

@@ -38,6 +38,23 @@ export const IAM_POLICIES = {
         ],
       },
       {
+        // Historical S3 locations remain readable during migration, but no runtime may
+        // create, overwrite, or delete objects there. Broad legacy role grants are
+        // intentionally overridden by this explicit deny.
+        Sid: 'DenyLegacyMediaWrites',
+        Effect: 'Deny',
+        Action: [
+          's3:PutObject',
+          's3:DeleteObject',
+        ],
+        Resource: [
+          'arn:aws:s3:::wecare-digital-get/secure/Invoice/customer_invoice/*',
+          'arn:aws:s3:::wecare-digital-get/secure/Invoice/fonts/*',
+          'arn:aws:s3:::wecare-digital-get/o/stack/whatsapp-media/*',
+          'arn:aws:s3:::wecare-digital-get/stack/whatsapp-media/*',
+        ],
+      },
+      {
         // Account-level action (not resource-scoped) — needed for factory-reset discovery
         Effect: 'Allow',
         Action: [

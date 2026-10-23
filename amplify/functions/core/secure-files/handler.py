@@ -94,7 +94,7 @@ DELIVER_PREFIX = SECURE_PREFIX + "d/"
 # written by a module that has no business knowing how the locker spells "secure/". The
 # three constants above are left hand-built on purpose: rewriting them would change keys
 # that are already persisted in SecureFilesTable.
-DROPDOCS_PREFIX = media_paths.secure("u/dropdocs/")
+DROPDOCS_PREFIX = media_paths.DROP_DOCS_UPLOAD_PREFIX
 
 # Types WhatsApp recipients can open inline. Documents may be up to 100MB, images
 # 5MB, which is why the two are distinguished rather than lumped together.
