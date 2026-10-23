@@ -1,24 +1,22 @@
 # VayuLok Weather Insights Cloud Run service
 
 This service is the server-side adapter between the public VayuLok page and the Google
-Weather Insights linked dataset in BigQuery.
-
-It does **not** replace VayuLok's browser-side Google Weather API, Air Quality API, Maps,
-Places, Geocoding or Time Zone calls. It serves only long-term historical aggregates.
+Weather Insights linked dataset in BigQuery. It serves only long-term historical aggregates;
+VayuLok's current Air, Weather, Maps, Places, Geocoding and Time Zone calls remain browser-side.
 
 ## Runtime contract
 
-- `GET /healthz` - process health only.
-- `GET /v1/weather-insights/status` - verifies whether the linked dataset/table/schema is ready.
+- `GET /healthz` — process health.
+- `GET /v1/weather-insights/status` — linked dataset/table/schema readiness.
 - `GET /v1/weather-insights?lat=25.5788&lng=91.8933&range=5y`
-  - range is `30d`, `1y` or `5y`.
-  - returns aggregate temperature, precipitation, humidity and month-of-year trends.
-  - never returns year-by-year public rows.
+  - range: `30d`, `1y`, or `5y`
+  - returns aggregate temperature, precipitation, humidity, and month-of-year trends
+  - never returns a public year-by-year row set.
 
-The service uses the Cloud Run service account through the metadata server. No service-account
-JSON key or Google API key is accepted.
+The service uses its Cloud Run service account through the metadata server. It accepts no
+service-account JSON key and no Google API key.
 
-## Required environment
+## Required runtime environment
 
 ```
 GOOGLE_CLOUD_PROJECT=wecaredigitalbw
@@ -30,107 +28,40 @@ BQ_MAX_BYTES_BILLED_5Y=40000000000
 ALLOWED_ORIGINS=https://wecare.digital,https://www.wecare.digital
 ```
 
-The subscribed India listing currently exposes one linked view:
+The subscribed India listing currently exposes:
+`wecaredigitalbw.weather_insights.weather_history_in`.
 
-```
-wecaredigitalbw.weather_insights.weather_history_in
-```
-
-The adapter auto-detects Google's current schema: `forecast_time`, `geography`,
-`temperature_c`, `qpf_mm`, and `relative_humidity_percent`. If the experimental schema
-changes later, the corresponding `WEATHER_INSIGHTS_*_COLUMN` environment overrides remain
-available. Nested field paths are accepted.
+The adapter auto-detects the current linked-view schema. The existing
+`WEATHER_INSIGHTS_*_COLUMN` overrides remain available if the publisher changes field names.
 
 ## Cost guards
 
 - BigQuery query cache is enabled.
-- Each range has its own hard `maximumBytesBilled` cap. Current defaults are 1.2 GB for
-  30D, 15 GB for 1Y, and 40 GB for 5Y. The 1Y cap includes headroom above the current
-  linked-view dry-run estimate (~13.03 GB on 2026-10-22); 5Y remains below its 40 GB guard.
-- Requests are cached in-process for 24 hours by location and range.
-- The UI defaults to 30D; 1Y and 5Y are explicit user choices, so the most expensive query is
-  never fired merely by opening the Weather tab.
-- BigQuery query cache remains enabled for repeated identical requests.
-- Per-instance request rate is limited.
-- Deploy Cloud Run with `--max-instances=1` initially while validating actual bytes scanned.
+- 30D / 1Y / 5Y each have a hard `maximumBytesBilled` cap.
+- Results are cached in-process for 24 hours by location and range.
+- The UI defaults to 30D; 1Y and 5Y require an explicit visitor choice.
+- Keep `--max-instances=1` while validating real query cost.
 
-If the query exceeds the byte cap, the service returns HTTP 422 instead of allowing an
-unexpected large query.
+A query that exceeds its byte cap returns HTTP 422 rather than scanning beyond the guard.
 
-## Existing Cloud Run service
+## Production deploy
 
-The production service is `wecare-digital` in `asia-south1`.
+The production Cloud Run service is `wecare-digital` in `asia-south1`.
+`gcp/vayulok-weather-insights/cloudbuild.yaml` syntax-checks `server.mjs`, then builds,
+pushes and updates that existing service. It deliberately does not change the service account,
+IAM policy or runtime environment.
 
-For automated deploys, the Cloud Build trigger must:
+**Trigger configuration is external to this repository.** The Cloud Build trigger should:
 
-- watch the production branch `^stack# VayuLok Weather Insights Cloud Run service
+- watch only the production branch `^stack$`
+- use `gcp/vayulok-weather-insights/cloudbuild.yaml`
+- include only changes under `gcp/vayulok-weather-insights/**`
 
-This service is the server-side adapter between the public VayuLok page and the Google
-Weather Insights linked dataset in BigQuery.
+The last item prevents an unrelated frontend/test-only commit from redeploying the Cloud Run
+adapter. Editing this README or `cloudbuild.yaml` cannot change the trigger's include-files
+filter; update that setting in Cloud Build trigger configuration.
 
-It does **not** replace VayuLok's browser-side Google Weather API, Air Quality API, Maps,
-Places, Geocoding or Time Zone calls. It serves only long-term historical aggregates.
-
-## Runtime contract
-
-- `GET /healthz` - process health only.
-- `GET /v1/weather-insights/status` - verifies whether the linked dataset/table/schema is ready.
-- `GET /v1/weather-insights?lat=25.5788&lng=91.8933&range=5y`
-  - range is `30d`, `1y` or `5y`.
-  - returns aggregate temperature, precipitation, humidity and month-of-year trends.
-  - never returns year-by-year public rows.
-
-The service uses the Cloud Run service account through the metadata server. No service-account
-JSON key or Google API key is accepted.
-
-## Required environment
-
-```
-GOOGLE_CLOUD_PROJECT=wecaredigitalbw
-WEATHER_INSIGHTS_DATASET=weather_insights
-BQ_LOCATION=US
-BQ_MAX_BYTES_BILLED_30D=1200000000
-BQ_MAX_BYTES_BILLED_1Y=15000000000
-BQ_MAX_BYTES_BILLED_5Y=40000000000
-ALLOWED_ORIGINS=https://wecare.digital,https://www.wecare.digital
-```
-
-The subscribed India listing currently exposes one linked view:
-
-```
-wecaredigitalbw.weather_insights.weather_history_in
-```
-
-The adapter auto-detects Google's current schema: `forecast_time`, `geography`,
-`temperature_c`, `qpf_mm`, and `relative_humidity_percent`. If the experimental schema
-changes later, the corresponding `WEATHER_INSIGHTS_*_COLUMN` environment overrides remain
-available. Nested field paths are accepted.
-
-## Cost guards
-
-- BigQuery query cache is enabled.
-- Each range has its own hard `maximumBytesBilled` cap. Current defaults are 1.2 GB for
-  30D, 9.5 GB for 1Y, and 40 GB for 5Y, based on dry runs against the linked India view.
-- Requests are cached in-process for 24 hours by location and range.
-- The UI defaults to 30D; 1Y and 5Y are explicit user choices, so the most expensive query is
-  never fired merely by opening the Weather tab.
-- BigQuery query cache remains enabled for repeated identical requests.
-- Per-instance request rate is limited.
-- Deploy Cloud Run with `--max-instances=1` initially while validating actual bytes scanned.
-
-If the query exceeds the byte cap, the service returns HTTP 422 instead of allowing an
-unexpected large query.
-
-
-- use `gcp/vayulok-weather-insights/cloudbuild.yaml` as the build configuration
-- deploy the resulting image to the existing `wecare-digital` Cloud Run service
-
-The repository-specific Cloud Build configuration builds only
-`gcp/vayulok-weather-insights`; it does not build the repository root. It updates the
-existing Cloud Run service image and deliberately leaves the service account, IAM policy and
-runtime environment untouched.
-
-For a one-off manual deploy from a checked-out repository root:
+For a manual deploy:
 
 ```bash
 gcloud run deploy wecare-digital \
@@ -141,9 +72,6 @@ gcloud run deploy wecare-digital \
   --set-env-vars GOOGLE_CLOUD_PROJECT=wecaredigitalbw,WEATHER_INSIGHTS_DATASET=weather_insights,BQ_LOCATION=US,ALLOWED_ORIGINS=https://wecare.digital
 ```
 
-Before public traffic, grant the Cloud Run runtime service account the minimum BigQuery job
-permission on `wecaredigitalbw` and read access to the linked dataset. Do not grant Owner.
-
 After deploy:
 
 ```bash
@@ -152,18 +80,18 @@ curl -sS "$SERVICE_URL/healthz"
 curl -sS "$SERVICE_URL/v1/weather-insights/status" | python3 -m json.tool
 ```
 
-The frontend uses the stable Cloud Run service origin directly:
-`https://wecare-digital-hrkl3sncxq-el.a.run.app`.
-No additional `NEXT_PUBLIC_*` variable is required for Weather Insights.
+## Frontend endpoint configuration
 
+The frontend reads `NEXT_PUBLIC_VAYULOK_WEATHER_INSIGHTS_URL`; the component does not embed
+a generated Cloud Run hostname. Production's Amplify build supplies the current service origin.
+Local development can set the same variable in `.env.local`.
 
-## Verified India listing
+The endpoint is public configuration, not a credential.
 
-The Analytics Hub subscription is active in `US`, the linked dataset type is `LINKED`,
-and the published view is `weather_history_in`. The linked dataset carries
-`RESTRICTED_DATA_EGRESS`, so this service queries it in place and returns only aggregate JSON;
-it does not copy or export the publisher dataset.
+## Dataset note
 
-The listing documentation states historical availability starts in 2024. The public UI therefore
-shows the actual returned coverage dates instead of claiming a full five calendar years when the
-provider does not currently supply them.
+The Analytics Hub subscription is active in `US`; the linked dataset is `LINKED`, and the
+published view carries `RESTRICTED_DATA_EGRESS`. The adapter queries it in place and returns
+only aggregate JSON. Provider history currently starts in 2024, so the UI reports actual
+coverage and describes the 5Y view as a month-of-year aggregate rather than promising five
+complete calendar years.
