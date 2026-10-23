@@ -112,7 +112,7 @@ def test_staff_attachment_signing_rejects_unrelated_or_unsafe_private_keys(key):
 
 
 def test_staff_signing_failure_does_not_leak_error_contents_or_restore_public_link():
-    record = {'createdAt': 1, 'attachments': [{'key': 'secure/u/whatsapp/incoming/fixture.pdf'}]}
+    record = {'createdAt': 1, 'attachments': [{'key': 'secure/d/public/whatsapp/incoming/fixture.pdf'}]}
     def signer(*args, **kwargs):
         raise RuntimeError('private-payload-secret')
     response, logs = staff_response(record, signer)
