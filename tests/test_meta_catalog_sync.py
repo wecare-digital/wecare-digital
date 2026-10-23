@@ -45,6 +45,29 @@ def product(*, product_id=PRODUCT, variant_id=VARIANT, slug="example", name="Exa
     }
 
 
+
+def test_zero_price_is_representable_for_catalog_planning():
+    row = {
+        "id": "native:vayulok",
+        "name": "VayuLok",
+        "slug": "vayulok",
+        "visible": True,
+        "price": "0.00",
+        "currency": "INR",
+        "descriptionHtml": "Bharat air and weather insights.",
+        "image": "https://wecare.digital/api/catalog-media/vayulok-4096.png",
+        "canonicalPath": "/vayulok/",
+        "variants": [{
+            "id": "e458f22c-bf73-42fe-8b00-9415e3561f59",
+            "label": "Standard",
+            "inStock": True,
+            "pricePaise": 0,
+        }],
+    }
+    item = sync.desired_items([row], require_variant_price=True)[0]
+    assert item["price"] == "0.00"
+    assert item["availability"] == sync.IN_STOCK
+
 def test_retailer_id_round_trip_uses_wecare_namespace():
     value = sync.retailer_id(PRODUCT, VARIANT)
     assert value == f"WECARE.DIGITAL:{PRODUCT}:{VARIANT}"
