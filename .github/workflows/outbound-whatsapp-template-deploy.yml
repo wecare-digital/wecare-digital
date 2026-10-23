@@ -1,0 +1,76 @@
+name: Outbound WhatsApp template-only deploy
+
+on:
+  push:
+    branches: [stack]
+    paths:
+      - '.github/workflows/outbound-whatsapp-template-deploy.yml'
+      - 'amplify/functions/messaging/outbound-whatsapp/**'
+      - 'amplify/functions/shared/lambda_utils/**'
+      - 'tests/test_payments.py'
+      - 'tests/test_outbound_payment_gate.py'
+      - 'tests/test_whatsapp_payments_are_template_only.py'
+      - 'tests/test_whatsapp_commerce_gap_closure.py'
+      - 'scripts/deploy_all_lambdas.py'
+      - 'scripts/snapstart_publish.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: outbound-whatsapp-template-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install deploy/test dependencies
+        run: python -m pip install --disable-pip-version-check boto3==1.43.98 pytest
+
+      - name: Assume exact-scope deployment role
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::775261844268:role/GitHubActions-wecare-runtime-deploy
+          role-session-name: outbound-whatsapp-template-deploy
+          aws-region: us-east-1
+
+      - name: Require production account
+        run: test "$(aws sts get-caller-identity --query Account --output text)" = "775261844268"
+
+      - name: Compile and regression test
+        run: |
+          python -m py_compile amplify/functions/messaging/outbound-whatsapp/handler.py
+          python -m pytest             tests/test_whatsapp_commerce_gap_closure.py             tests/test_payments.py             tests/test_outbound_payment_gate.py             tests/test_whatsapp_payments_are_template_only.py -q
+
+      - name: Package validation
+        run: python scripts/deploy_all_lambdas.py --dry-run wecare-outbound-whatsapp
+
+      - name: Deploy outbound WhatsApp
+        run: python scripts/deploy_all_lambdas.py wecare-outbound-whatsapp
+
+      - name: Verify live alias
+        run: |
+          python - <<'PY'
+          import boto3
+          lam = boto3.client("lambda", region_name="us-east-1")
+          name = "wecare-outbound-whatsapp"
+          latest = lam.get_function_configuration(FunctionName=name)["CodeSha256"]
+          alias = lam.get_alias(FunctionName=name, Name="live")["FunctionVersion"]
+          served = lam.get_function_configuration(
+              FunctionName=f"{name}:{alias}")["CodeSha256"]
+          print(f"{name}: live=v{alias} current={served == latest}")
+          if served != latest:
+              raise SystemExit("live alias mismatch")
+          PY
