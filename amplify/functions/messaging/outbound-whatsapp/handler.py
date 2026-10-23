@@ -900,7 +900,7 @@ def _refuse_unless_payment_ready(body: Dict[str, Any], phone_number_id: str,
 
     # 4. Shape. An EMPTY dict is refused too: it would fall through to the phone map and let the
     #    gate prove a configuration for a payment request that names no order at all.
-    order_details = (body.get('checkoutOrderDetails') or body.get('orderDetails') or {})
+    order_details = body.get('checkoutOrderDetails') or {}
     if not isinstance(order_details, dict) or not order_details:
         logger.error(json.dumps({'event': 'wa_payment_order_details_invalid',
                                  'requestId': request_id}))
