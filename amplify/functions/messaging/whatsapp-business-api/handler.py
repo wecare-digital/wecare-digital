@@ -4297,7 +4297,7 @@ def _project_submission_attachments(attachments):
         if isinstance(key, str) and media_paths.is_gated(key):
             entry.pop('url', None)
             entry.pop('link', None)
-            allowed = key.startswith(('secure/u/service-requests/', media_paths.WHATSAPP_INCOMING_PREFIX))
+            allowed = key.startswith((media_paths.SERVICE_REQUEST_UPLOAD_PREFIX, media_paths.WHATSAPP_INCOMING_PREFIX))
             if allowed and not any(part in ('', '.', '..') for part in key.split('/')) and '\\' not in key:
                 try:
                     entry['url'] = s3_client.generate_presigned_url(

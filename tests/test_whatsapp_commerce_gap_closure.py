@@ -65,11 +65,15 @@ def test_commerce_callers_pin_the_outbound_live_alias():
 def test_canonical_s3_path_catalogue_and_runtime_defaults():
     paths = (ROOT / "amplify/functions/shared/lambda_utils/media_paths.py").read_text(encoding="utf-8")
     assert 'DROP_DOCS_UPLOAD_PREFIX = SECURE_UPLOAD_ROOT + "dropdocs/"' in paths
+    assert 'SERVICE_REQUEST_UPLOAD_PREFIX = SECURE_UPLOAD_ROOT + "service-requests/"' in paths
+    assert 'SERVICE_REQUEST_UPLOAD_PREFIX = SECURE_UPLOAD_ROOT + "service-requests/"' in paths
     assert 'INVOICE_CUSTOMER_IMAGE_PREFIX = PUBLIC_DELIVERABLE_ROOT + "Invoice/customer_invoice/"' in paths
     assert 'INVOICE_FONT_PREFIX = PUBLIC_DELIVERABLE_ROOT + "Invoice/fonts/"' in paths
     assert 'WHATSAPP_ROOT = PUBLIC_DELIVERABLE_ROOT + "whatsapp/"' in paths
     assert 'BLOG_ROOT = PUBLIC_DELIVERABLE_ROOT + "blog/"' in paths
     assert 'CATALOG_DEPLOY_ROOT = PUBLIC_DELIVERABLE_ROOT + "catalog-deploy/"' in paths
+    assert 'CATALOG_PRODUCTS_PREFIX = CATALOG_PREFIX + "products/"' in paths
+    assert 'CATALOG_PRODUCTS_PREFIX = CATALOG_PREFIX + "products/"' in paths
     assert 'PUBLIC_STREAM_MEDIA_ROOT = PUBLIC_ROOT + "stream/media/"' in paths
 
     runtime_files = [

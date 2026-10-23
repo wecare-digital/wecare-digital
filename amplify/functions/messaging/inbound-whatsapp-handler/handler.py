@@ -7369,7 +7369,7 @@ DEFAULT_FLOW_TRIGGERS = {
 def _link_media_to_service_request(contact_id: str, s3_key: str, media_type: str,
                                    filename: str, mime: str, request_id: str) -> None:
     """If the contact has a recent OPEN service request, copy the media into the
-    request's folder (stack/service-requests/{req}/) under the app bucket and append
+    request's private upload folder under the media bucket and append
     it to the request's attachments list so the team can service it from the dashboard."""
     if not contact_id or not s3_key:
         return
@@ -7380,7 +7380,7 @@ def _link_media_to_service_request(contact_id: str, s3_key: str, media_type: str
         if not req:
             return
         base = s3_key.split('/')[-1]
-        dest_key = media_paths.secure(f"u/service-requests/{req}/{int(time.time())}-{base}")
+        dest_key = media_paths.SERVICE_REQUEST_UPLOAD_PREFIX + f"{req}/{int(time.time())}-{base}"
         try:
             s3.copy_object(Bucket=MEDIA_BUCKET, CopySource={'Bucket': MEDIA_BUCKET, 'Key': s3_key}, Key=dest_key)
         except Exception:

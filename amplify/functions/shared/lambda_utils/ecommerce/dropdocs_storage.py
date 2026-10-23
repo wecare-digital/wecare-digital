@@ -72,7 +72,7 @@ explicit limit, so a HEAD that disagrees with the object cannot still exhaust a 
 function. An unbounded ``Body.read()`` here fails as an OOM or a timeout surfacing as a
 502, which is a refusal nobody can read.
 
-The public original is NOT deleted, deliberately
+The public-delivery original is NOT deleted, deliberately
 ------------------------------------------------
 Neither ``wecare-secure-files-role`` nor ``wecare-digital-lambda-role`` holds
 ``s3:DeleteObject``, by design, and this module must never ask for it. The public copy
@@ -91,7 +91,7 @@ never reachable for a legitimate caller and it was reachable for an illegitimate
 The brief also did not mention a size ceiling. One is applied anyway, because the function
 is 512 MB / 30 s and the object is hashed in memory.
 
-Logging carries keys and ids only; a key under ``o/`` appears in exactly one place (the
+Logging carries keys and ids only; a public-delivery source key appears in exactly one place (the
 retention alert) and nowhere else. Exceptions are logged by ``type(exc).__name__``.
 """
 

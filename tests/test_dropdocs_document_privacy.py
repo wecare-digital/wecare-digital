@@ -5,7 +5,7 @@ Why this file exists at all
 `inbound-whatsapp-handler` writes an inbound attachment to the canonical
 ``secure/d/public/whatsapp/incoming/`` public-deliverable subtree. That subtree is readable
 by Meta and by anyone holding its URL, so "we will remember to copy it" is not a control.
-Historical ``o/stack/whatsapp-media/incoming/`` objects remain readable only as migration
+Historical ``secure/d/public/whatsapp/incoming/`` objects remain readable only as migration
 compatibility inputs; new writes never target that prefix.
 
 The control is the ORDER of two writes. `dropdocs_storage.promote_to_secure` copies the
@@ -293,7 +293,7 @@ def test_b_a_non_gated_storage_key_writes_no_doc_row():
     assert [name for name, _ in table.applied] == []
 
 
-@pytest.mark.parametrize("key", ["o/stack/whatsapp-media/incoming/x.pdf",
+@pytest.mark.parametrize("key", ["secure/d/public/whatsapp/incoming/x.pdf",
                                  "stack/whatsapp-media/incoming/x.pdf",
                                  "secure-ish/u/x.pdf", "", None,
                                  "https://wecare.digital/get/o/x.pdf"])
@@ -435,7 +435,7 @@ def test_c_a_missing_source_writes_no_row(handler, monkeypatch):
     table = _seeded_table()
     _wire(handler, monkeypatch, s3, table)
 
-    response = handler.handler(_attach_event(sourceKey="o/stack/whatsapp-media/incoming/no.pdf"),
+    response = handler.handler(_attach_event(sourceKey="secure/d/public/whatsapp/incoming/no.pdf"),
                                None)
 
     assert response["statusCode"] == 503
@@ -535,7 +535,7 @@ def test_d_a_different_document_is_a_second_row(handler, monkeypatch):
     _wire(handler, monkeypatch, s3, table)
     assert handler.handler(_attach_event(), None)["statusCode"] == 201
 
-    other = "o/stack/whatsapp-media/incoming/wecare-digital-cd34.pdf"
+    other = "secure/d/public/whatsapp/incoming/wecare-digital-cd34.pdf"
     s3.objects[other] = {"body": b"a different licence entirely",
                          "contentType": "application/pdf"}
     assert handler.handler(_attach_event(sourceKey=other), None)["statusCode"] == 201
@@ -548,7 +548,7 @@ def test_d_a_rename_is_not_a_new_document(handler, monkeypatch):
     """Re-exporting from a phone with different filenames is the common case."""
     table = _seeded_table()
     s3 = FakeS3()
-    renamed = "o/stack/whatsapp-media/incoming/wecare-digital-zz99.pdf"
+    renamed = "secure/d/public/whatsapp/incoming/wecare-digital-zz99.pdf"
     s3.objects[renamed] = {"body": DOCUMENT_BYTES, "contentType": "application/pdf"}
     _wire(handler, monkeypatch, s3, table)
 
@@ -681,9 +681,9 @@ OTHER_CUSTOMERS_UPLOAD = "secure/u/0199abcd-somebody-else/passport.pdf"
     "o/public/wa-tpl/approved-template.png",        # a public object outside the one prefix
     "o/blog-production/sources/pdf/abcd.pdf",
     "stack/whatsapp-media/x.pdf",                   # legacy-rooted, and still outside it
-    "o/stack/whatsapp-media/x.pdf",                 # one level ABOVE the allowed prefix
-    "o/stack/whatsapp-media/incoming-other/x.pdf",  # a sibling whose name shares the stem
-    "https://wecare.digital/get/o/stack/whatsapp-media/incoming/x.pdf",
+    "secure/d/public/whatsapp/x.pdf",                 # one level ABOVE the allowed prefix
+    "secure/d/public/whatsapp/incoming-other/x.pdf",  # a sibling whose name shares the stem
+    "https://wecare.digital/get/secure/d/public/whatsapp/incoming/x.pdf",
     "", None,
 ])
 def test_g_only_a_whatsapp_arrival_may_be_promoted(key):
@@ -723,7 +723,7 @@ def test_g_the_allowed_prefix_is_composed_not_written_out():
     assert dropdocs_storage.WHATSAPP_INCOMING_PREFIX == media_paths.WHATSAPP_INCOMING_PREFIX
     assert dropdocs_storage.WHATSAPP_INCOMING_PREFIX == "secure/d/public/whatsapp/incoming/"
     assert dropdocs_storage.LEGACY_WHATSAPP_INCOMING_PREFIX == (
-        "o/stack/whatsapp-media/incoming/")
+        "secure/d/public/whatsapp/incoming/")
     assert not media_paths.is_gated(dropdocs_storage.WHATSAPP_INCOMING_PREFIX)
     assert not media_paths.is_gated(dropdocs_storage.LEGACY_WHATSAPP_INCOMING_PREFIX)
 
