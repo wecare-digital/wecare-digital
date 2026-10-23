@@ -869,6 +869,10 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( summaryFreshness?.textContent ).toMatch( /(?:just now|\d+ min ago|\d+ hrs? ago)/ );
     expect( summaryFreshness?.textContent ).not.toMatch( /Updated|Latest available|Current|Forecast|History/i );
     expect( summaryFreshness?.querySelector( '.vl-live-freshness-icon' ) ).not.toBeNull();
+    const freshnessRule = css.match( /\.vl-live-freshness\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( freshnessRule ).toContain( 'background:var(--lime-tint)' );
+    expect( freshnessRule ).toContain( 'color:var(--green)' );
+    expect( freshnessRule ).toContain( 'border:1px solid var(--lime)' );
     // The AQI and Dominant chips now each carry a leading icon.
     expect( summaryMeta?.querySelectorAll( '.vl-live-air-summary-chip svg' ).length ).toBe( 2 );
     expect( panel.querySelector( '.vl-live-air-dominant' ) ).toBeNull();
@@ -1581,6 +1585,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( popupRule ).toContain( 'width:min(360px,calc(100vw - 20px))' );
     expect( popupRule ).toContain( 'max-height:min(320px,calc(100dvh - 20px))' );
     expect( popupRule ).toContain( 'font-size:var(--vl-meta-size)' );
+    expect( popupRule ).toContain( 'position:absolute' );
     const popupTitleRule = css.match( /\.vl-live-air-pollutant-pop-title\{[^}]*\}/ )?.[ 0 ] || '';
     expect( popupTitleRule ).toContain( 'background:var(--lime)' );
     const stampRule = css.match( /\.vl-live-air-history-stamp\{[^}]*\}/ )?.[ 0 ] || '';
