@@ -44,6 +44,9 @@ describe( 'Meta catalog owner approval workspace controls', () => {
     expect( page ).toContain( 'websiteEnabled: true' );
     expect( page ).toContain( 'metaEnabled: true' );
     expect( page ).toContain( 'Expected 28 desired Meta items after promotion' );
+    expect( page ).toContain( 'VayuLok Standard price to ₹99.00' );
+    expect( page ).toContain( 'priceMinor: 9900' );
+    expect( page ).toContain( 'VayuLok must read back at ₹99.00 before Meta planning.' );
     expect( page ).toContain( 'previous 25-item approval is stale' );
   } );
 
