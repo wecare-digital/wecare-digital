@@ -3618,16 +3618,26 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                         <div className="vl-live-air-health">
                           <div className="vl-live-air-health-head">
                             <h4 className="vl-live-air-health-title">Health Recommendations</h4>
+                            <div className="vl-live-air-health-head-nav" role="group" aria-label="Health recommendations pagination">
+                              <button
+                                type="button"
+                                className="vl-live-air-health-page"
+                                aria-label="Previous health profile"
+                                onClick={ () => healthRailRef.current?.scrollBy( { left: -180, behavior: 'smooth' } ) }
+                              >
+                                <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.chevronLeft } /></svg>
+                              </button>
+                              <button
+                                type="button"
+                                className="vl-live-air-health-page"
+                                aria-label="Next health profile"
+                                onClick={ () => healthRailRef.current?.scrollBy( { left: 180, behavior: 'smooth' } ) }
+                              >
+                                <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.chevronRight } /></svg>
+                              </button>
+                            </div>
                           </div>
                           <div className="vl-live-air-health-rail-shell">
-                            <button
-                              type="button"
-                              className="vl-live-air-health-page"
-                              aria-label="Previous health profile"
-                              onClick={ () => healthRailRef.current?.scrollBy( { left: -180, behavior: 'smooth' } ) }
-                            >
-                              <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.chevronLeft } /></svg>
-                            </button>
                             <VayuLokHorizontalRail ref={ healthRailRef } className="vl-live-air-health-tabs" role="tablist" aria-label="Health recommendation profiles">
                             { liveHealthPersonas.map( ( persona, idx ) => (
                               <VayuLokIconAction
@@ -3651,14 +3661,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                               </VayuLokIconAction>
                             ) ) }
                             </VayuLokHorizontalRail>
-                            <button
-                              type="button"
-                              className="vl-live-air-health-page"
-                              aria-label="Next health profile"
-                              onClick={ () => healthRailRef.current?.scrollBy( { left: 180, behavior: 'smooth' } ) }
-                            >
-                              <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.chevronRight } /></svg>
-                            </button>
                           </div>
                           <div
                             className="vl-live-air-health-panel"
@@ -4952,7 +4954,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
            VayuLok's other selectors. Advisory copy stays regular and muted so it does not compete with live data. */
         .vl-live-air-history-pollutant{display:inline-flex;align-items:center;gap:4px}
         .vl-live-air-health-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:var(--vl-heading-gap)}
-        .vl-live-air-health-rail-shell{display:grid;grid-template-columns:32px minmax(0,1fr) 32px;align-items:center;gap:6px}
+        .vl-live-air-health-head-nav{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto}
+        .vl-live-air-health-rail-shell{display:block}
         .vl-live-air-health-page{display:inline-flex;width:32px;height:32px;align-items:center;justify-content:center;padding:0;border:1px solid var(--hair);border-radius:50%;background:var(--lime-tint);color:var(--green)}
         .vl-live-air-health-page:hover{border-color:var(--lime);background:var(--lime)}
         .vl-live-air-health-page svg{width:18px;height:18px;fill:currentColor}
