@@ -13,12 +13,12 @@ FLOW_ID = str(_SUBSCRIBE_FLOW.get('flowId') or '')
 FLOW_NAME = str(_SUBSCRIBE_FLOW.get('metaName') or '')
 DEFAULTS = {
     'newCustomer': {
-        'body': 'Welcome to WECARE.DIGITAL. Add your name, username and address to complete your customer profile.',
+        'body': 'Welcome to WECARE.DIGITAL. Add your name, WhatsApp username, and address to complete your customer profile.',
         'flowCta': 'Subscribe',
         'confirmation': 'Your details have been saved.',
     },
     'returningCustomer': {
-        'body': 'Welcome back to WECARE.DIGITAL. Review your saved details and update your username or address whenever needed.',
+        'body': 'Welcome back to WECARE.DIGITAL. Review your saved details and update your WhatsApp username or address whenever needed.',
         'flowCta': 'Update details',
         'confirmation': 'Your details have been updated.',
     },
