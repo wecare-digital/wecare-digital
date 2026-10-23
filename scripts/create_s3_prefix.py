@@ -17,7 +17,7 @@ first object arrives. Two reasons that can be true here:
 1. **It survives a cleanup wipe.** `operations/system-cleanup._wipe_s3_prefix` deletes content
    and explicitly skips keys ending in `/`, so a marked folder still exists after a purge while
    an unmarked one silently vanishes from the console.
-2. **It documents intent.** `secure/Invoice/customer_invoice/` is where `invoice-engine` and
+2. **It documents intent.** `secure/d/public/Invoice/customer_invoice/` is where `invoice-engine` and
    `inbound-whatsapp-handler` now write, and it held no objects, so nothing in the console
    showed that the gated invoice location had moved there.
 
@@ -35,8 +35,8 @@ because guessing the root is how something private ends up public.
 
 Usage:
     python scripts/create_s3_prefix.py --list
-    python scripts/create_s3_prefix.py secure/Invoice/customer_invoice/ --dry-run
-    python scripts/create_s3_prefix.py secure/Invoice/customer_invoice/
+    python scripts/create_s3_prefix.py secure/d/public/Invoice/customer_invoice/ --dry-run
+    python scripts/create_s3_prefix.py secure/d/public/Invoice/customer_invoice/
 """
 
 from __future__ import annotations
@@ -150,7 +150,7 @@ def create(prefix: str, dry_run: bool) -> str:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("prefix", nargs="?", help="rooted prefix, e.g. secure/Invoice/customer_invoice/")
+    parser.add_argument("prefix", nargs="?", help="rooted prefix, e.g. secure/d/public/Invoice/customer_invoice/")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--list", action="store_true",
                         help="show the known prefixes and whether each is marked")
