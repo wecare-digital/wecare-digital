@@ -81,6 +81,32 @@ describe( 'VayuLok Weather history public typography', () => {
     expect( css ).toContain( '.vl-wi-sr{position:absolute!important;width:1px!important;height:1px!important' );
   } );
 
+  it( 'formats the history freshness stamp cleanly when a timezone label is not yet available', async () => {
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue(
+      new Response( JSON.stringify( {
+        ok: true,
+        range: '30d',
+        sampleHours: 24,
+        monthly: [],
+      } ), { status: 200, headers: { 'Content-Type': 'application/json' } } ),
+    ) );
+
+    const VayuLokWeatherInsights = await loadComponent();
+    render(
+      <VayuLokWeatherInsights
+        lat={ 25.5788 }
+        lng={ 91.8933 }
+        placeName="Shillong"
+        timeZoneId="Asia/Kolkata"
+        zoneLabel=""
+      />,
+    );
+
+    const stamp = await screen.findByLabelText( 'Weather history updated time' );
+    expect( stamp.textContent ).not.toMatch( /\s$/ );
+    expect( stamp.textContent ).not.toContain( 'undefined' );
+  } );
+
   it( 'labels the five-year chart as a month-of-year aggregate rather than a 60-month timeline', async () => {
     const fetchSpy = vi.fn().mockImplementation( ( input: RequestInfo | URL ) => {
       const url = new URL( String( input ) );
