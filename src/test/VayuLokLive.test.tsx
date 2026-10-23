@@ -1089,7 +1089,13 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( within( weatherRange ).getByRole( 'button', { name: '96h' } ) ).toBeTruthy();
     const weatherForecastRail = panel.querySelector( '[aria-label^="Next 24 hours weather forecast"]' ) as HTMLElement | null;
     expect( weatherForecastRail ).not.toBeNull();
-    expect( within( weatherForecastRail as HTMLElement ).getAllByRole( 'button' )[ 0 ] ).toHaveAttribute( 'aria-pressed', 'true' );
+    // The hourly cards mount lazily after the weather fetch resolves, and the default
+    // selection (weatherHourInspectIdx = 0) is re-applied by an effect once weatherHourly
+    // populates (component line ~1264). Wait for the first card to settle pressed rather
+    // than asserting synchronously against a mid-load rail.
+    await waitFor( () => expect(
+      within( weatherForecastRail as HTMLElement ).getAllByRole( 'button' )[ 0 ]
+    ).toHaveAttribute( 'aria-pressed', 'true' ) );
     await waitFor( () => expect( panel.querySelectorAll( '.vl-live-wx-daily-row' ).length ).toBe( 10 ) );
     const dailyCall = await waitFor( () => {
       const call = fetchSpy.mock.calls.find( item => requestIs( item[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/forecast/days' ) );
