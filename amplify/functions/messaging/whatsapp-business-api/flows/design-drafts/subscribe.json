@@ -133,10 +133,9 @@
               {
                 "type": "TextInput",
                 "name": "username",
-                "label": "Profile username",
+                "label": "WhatsApp username",
                 "required": false,
                 "max-chars": 50,
-                "helper-text": "WhatsApp username",
                 "label-variant": "large"
               },
               {
@@ -1304,7 +1303,7 @@
             "then": [
               {
                 "type": "TextCaption",
-                "text": "Profile username"
+                "text": "WhatsApp username"
               },
               {
                 "type": "TextBody",
