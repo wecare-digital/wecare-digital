@@ -158,7 +158,7 @@ def enclosing_statements(tree):
 def constant_is_always_rooted(tree: ast.AST, statement: ast.AST) -> bool:
     """Accept a named suffix only when every local load is inside a root helper.
 
-    A declaration such as RECEIPT_PREFIX = 'stack/receipts/' is not itself an S3
+    A declaration such as RECEIPT_PREFIX = 'd/public/receipts/' is not itself an S3
     address when its only use is media_paths.secure(f'{RECEIPT_PREFIX}...'). Any
     bare load, return, alias, or direct S3 use keeps the original check failing.
     """
