@@ -24,7 +24,7 @@ secrets_client = boto3.client('secretsmanager', region_name=os.environ.get('AWS_
 MEDIA_BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
 TEMPLATE_MEDIA_PREFIX = os.environ.get(
     'TEMPLATE_MEDIA_PREFIX',
-    media_paths.public('stack/whatsapp-media/template-headers/'))
+    media_paths.WHATSAPP_TEMPLATE_HEADER_PREFIX)
 # The `o/` root is load-bearing: the 61 objects already in secure/d/public/whatsapp/wa-tpl/ are
 # referenced by Meta-APPROVED templates whose URLs are on the app.wecare.digital
 # host, and that host serves this bucket through origin path `/o`.
