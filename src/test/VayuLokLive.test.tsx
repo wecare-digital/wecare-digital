@@ -2476,7 +2476,8 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( infoRule ).toContain( 'color:var(--green)' );
     expect( infoRule ).toContain( 'border-radius:50%' );
     const infoHoverRule = cssRuleFor( css, '.vl-live-air-pollutant-info:hover' );
-    expect( infoHoverRule ).toContain( 'background:var(--lime-hover)' );
+    expect( infoHoverRule ).toContain( 'background:var(--lime)' );
+    expect( infoHoverRule ).toContain( 'box-shadow:var(--vl-hover-shadow)' );
     expect( infoHoverRule ).toContain( 'color:var(--green)' );
     expect( css ).toContain( '.vl-live-air-health-tabs{scroll-snap-type:x mandatory' );
     expect( css ).toContain( '.vl-live-air-health-tab{scroll-snap-align:start}' );
