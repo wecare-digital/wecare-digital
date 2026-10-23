@@ -53,15 +53,14 @@ projection move together rather than drifting six hours apart. The ProductsTable
 makes it prompt; the schedule is what makes it eventually correct if the mapping is disabled, a
 batch exhausted its retries, or an event was simply missed.
 
-OWNER-APPROVED CATALOG MIGRATION, 2026-10-09
+OWNER-APPROVED PRODUCT-SCOPED PUBLICATION
 -----------------------------------------
-The owner requested the fresh catalog and approval before new product publication.
-ENVIRONMENT stages all five paid service variants against the fresh catalog, disabled and
-dry-run, held out of stock pending approval and native purchase QA. Inspect remains read-only.
+ProductsTable owns publication scope through metaEnabled. Active published products are always
+projected as available; retired stock flags and quantities do not control Meta availability.
+Dry-run and exact-plan approval remain the release gates. Inspect remains read-only.
 The exact live plan is persisted in the existing AgentApprovals table under a catalog-specific
-namespaced key. An authenticated admin approval is bound to that exact hash; any catalogue or Meta
-drift changes the hash and invalidates it. Background stream/schedule invocations cannot spend an
-approval: apply is an explicit admin action and still requires both release gates to be opened.
+namespaced key. An authenticated admin approval is bound to that exact hash; any ProductsTable or
+Meta drift changes the hash and invalidates it.
 
 Usage:
     python scripts/provision_meta_catalog_sync.py              # dry run, the default
@@ -109,7 +108,7 @@ PRODUCTS_STREAM_LABEL = "2026-10-14T06:15:10.307"
 #: single sync target covers both business numbers. Another catalog stays reachable by changing
 #: this one variable; `META_TOKEN_FIELD` remains the per-WABA knob, because the token is not shared.
 #:
-# Owner-authorized rollout; scope and availability hold must remain explicit.
+# Owner-authorized product-scoped rollout. Stock controls are retired.
 ENVIRONMENT = {
     "META_TOKEN_SECRET": META_TOKEN_SECRET,
     "META_TOKEN_FIELD": "access_token",
@@ -125,7 +124,6 @@ ENVIRONMENT = {
     # The live rollout scope (set 2026-10-15 11:54 IST with the gates). Clear it deliberately,
     # with the manifest and the test, to hand scope to the product-level flag.
     "META_CATALOG_SYNC_VARIANT_IDS": "",
-    "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "false",
     "CATALOG_SOURCE": "aws",
     "PRODUCTS_TABLE": "stack-wecare-digital-ProductsTable",
     "LOG_LEVEL": "INFO",
@@ -322,7 +320,7 @@ def ensure_function(apply: bool) -> str:
         if exc.response.get("Error", {}).get("Code") != "ResourceNotFoundException":
             raise
     if not apply:
-        return "would create (owner scoped rollout; two variants held out of stock)"
+        return "would create (owner product-scoped rollout; dry-run protected)"
     lam().create_function(
         FunctionName=FUNCTION,
         Runtime="python3.12",
@@ -486,8 +484,8 @@ def verify() -> int:
         for key, value in ENVIRONMENT.items():
             if env.get(key) != value:
                 problems.append(f"{FUNCTION} env {key} is {env.get(key)!r}, expected {value!r}")
-        # Owner authorized the scoped two-variant rollout on 2026-10-08.
-        # Exact environment comparison above preserves the scope and out-of-stock hold.
+        # Product-level metaEnabled owns publication scope. Dry-run and exact-plan approval
+        # remain the write safety gates.
         try:
             lam().get_alias(FunctionName=FUNCTION, Name=LIVE_ALIAS)
         except ClientError:
@@ -533,7 +531,7 @@ def verify() -> int:
     if not problems:
         print("  in step")
         print(f"  no public surface: no HTTP API route, no function URL")
-        print("  owner rollout: five paid service variants; held out of stock")
+        print("  owner rollout: product-scoped publication; stock controls retired")
     return 1 if problems else 0
 
 
@@ -560,7 +558,7 @@ def main(argv=None) -> int:
     print()
     print("  no HTTP API route and no function URL are created: this function has no public")
     print("  surface. Its callers are the ProductsTable stream and the schedule above.")
-    print("  Owner rollout: five paid service variants; all remain out of stock for QA.")
+    print("  Owner rollout: product-scoped publication; stock controls retired.")
     if not apply:
         print()
         print("  dry run: nothing above was changed. Re-run with --apply to act.")
