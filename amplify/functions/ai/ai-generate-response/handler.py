@@ -5093,7 +5093,7 @@ def _media_keys_for_contact(contact_id: str) -> List[str]:
 
     There is no per-contact S3 prefix and there never was. Both callers below used to list
     `media/<contactId>/`, a layout NOTHING writes: inbound-whatsapp stores media flat under
-    `o/stack/whatsapp-media/incoming/` named by message id, and records the key on the
+    `secure/d/public/whatsapp/incoming/` named by message id, and records the key on the
     message row as `s3Key`. So the listing was always empty and the two tools silently
     reported zero files and deleted nothing.
 
