@@ -394,3 +394,28 @@ def test_audit_reports_a_post_that_is_not_live_and_keeps_going(monkeypatch):
         f"{second['slug']}: read-back failed "
         f"(public-blog HTTP 404 for /seo-tools/blog-public/{second['slug']})"
     ]
+
+
+
+def test_missing_author_identity_is_rejected():
+    m = load_module()
+    doc = make_doc(size=1)
+    doc['posts'][0].pop('author')
+    errors = m.validate_batch_document(doc, require_v2=True)
+    assert any('author' in e.lower() for e in errors)
+
+
+def test_wrong_author_identity_is_rejected():
+    m = load_module()
+    doc = make_doc(size=1)
+    doc['posts'][0]['author'] = 'WECARE.DIGITAL'
+    errors = m.validate_batch_document(doc, require_v2=True)
+    assert any('Anew by WECARE.DIGITAL' in e for e in errors)
+
+
+def test_live_audit_blocks_wrong_author_identity():
+    m = load_module()
+    doc = make_doc(size=1)
+    post = doc['posts'][0]
+    errors = m.audit_public_post(native_post(post, authorName='WECARE.DIGITAL'), post)
+    assert any('author mismatch' in e for e in errors)

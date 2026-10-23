@@ -25,14 +25,13 @@ def test_strong_overlap_wins():
     bucket, *_ = triage.classify(base(title_similarity="0.70"), "Example Ordinary text")
     assert bucket == "LIKELY_EXISTING_COVERAGE"
 
-def test_program_dependency_routes_to_attribution():
+def test_program_dependency_routes_to_source_rework():
     bucket, *_ = triage.classify(base(program_dependency="YES"), "Example Ordinary text")
-    assert bucket == "ATTRIBUTION_REVIEW"
+    assert bucket == "SOURCE_REWORK"
 
-def test_public_name_dependency_routes_to_attribution():
+def test_public_name_dependency_routes_to_source_rework():
     bucket, *_ = triage.classify(base(public_name_dependency="YES"), "Example Ordinary text")
-    assert bucket == "ATTRIBUTION_REVIEW"
-
+    assert bucket == "SOURCE_REWORK"
 
 def test_research_routes_to_fact_check():
     bucket, *_ = triage.classify(base(research_requirement="health"), "Example Ordinary text")
@@ -46,7 +45,7 @@ def test_clean_distinct_candidate():
     bucket, *_ = triage.classify(base(), "Example Ordinary text")
     assert bucket == "CANDIDATE_NEW_ARTICLE"
 
-def test_common_archive_header_is_not_attribution_signal():
+def test_common_archive_header_is_not_source_exposure_signal():
     text = (
         "Conversations For Transformation Essays By X "
         "Inspired By The Ideas Of Werner Erhard And More "
@@ -54,7 +53,6 @@ def test_common_archive_header_is_not_attribution_signal():
     )
     bucket, *_ = triage.classify(base(), text)
     assert bucket == "CANDIDATE_NEW_ARTICLE"
-
 
 def test_private_first_person_routes_to_personal_rework_even_without_inventory_name_flag():
     bucket, *_ = triage.classify(base(), "Example My daughter and I talked about school and our relationship.")
@@ -64,21 +62,21 @@ def test_private_life_routes_to_personal_rework():
     bucket, *_ = triage.classify(base(), "Example In my private life I had a relationship that changed over time.")
     assert bucket == "PERSONAL_REFERENCE_REWORK"
 
-def test_werner_first_name_in_article_routes_to_attribution():
+def test_werner_first_name_routes_to_source_rework():
     bucket, *_ = triage.classify(base(), "Example Werner described this as a distinction worth practicing.")
-    assert bucket == "ATTRIBUTION_REVIEW"
+    assert bucket == "SOURCE_REWORK"
 
-def test_spaced_werner_name_routes_to_attribution():
+def test_spaced_werner_name_routes_to_source_rework():
     bucket, *_ = triage.classify(base(), "Example W erner E rhard described this as a distinction worth practicing.")
-    assert bucket == "ATTRIBUTION_REVIEW"
+    assert bucket == "SOURCE_REWORK"
 
-def test_work_of_transformation_phrase_routes_to_attribution():
+def test_work_of_transformation_phrase_routes_to_source_rework():
     bucket, *_ = triage.classify(base(), "Example The work of transformation begins from this premise.")
-    assert bucket == "ATTRIBUTION_REVIEW"
+    assert bucket == "SOURCE_REWORK"
 
-def test_indebted_to_routes_to_attribution():
+def test_indebted_to_routes_to_source_rework():
     bucket, *_ = triage.classify(base(), "Example I am indebted to Jane Smith who inspired this conversation.")
-    assert bucket == "ATTRIBUTION_REVIEW"
+    assert bucket == "SOURCE_REWORK"
 
 def test_placeholder_routes_to_no_distinct_article():
     bucket, *_ = triage.classify(base(original_title="New One"), "Example Work in progress. Coming soon.")
