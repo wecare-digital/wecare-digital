@@ -1502,7 +1502,7 @@ def _send_processing_order_status(contact: str, reference_id: str, amount_paise:
     }
     try:
         response = lambda_client.invoke(
-            FunctionName=os.environ.get('OUTBOUND_FUNCTION', 'wecare-outbound-whatsapp'),
+            FunctionName=os.environ.get('OUTBOUND_FUNCTION', 'wecare-outbound-whatsapp:live'),
             InvocationType='RequestResponse',
             Payload=json.dumps(payload),
         )
