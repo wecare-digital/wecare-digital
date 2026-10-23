@@ -1089,7 +1089,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( within( weatherRange ).getByRole( 'button', { name: '96h' } ) ).toBeTruthy();
     const weatherForecastRail = panel.querySelector( '[aria-label^="Next 24 hours weather forecast"]' ) as HTMLElement | null;
     expect( weatherForecastRail ).not.toBeNull();
-    expect( within( weatherForecastRail as HTMLElement ).getAllByRole( 'button' ).every( button => button.getAttribute( 'aria-pressed' ) === 'false' ) ).toBe( true );
+    expect( within( weatherForecastRail as HTMLElement ).getAllByRole( 'button' )[ 0 ] ).toHaveAttribute( 'aria-pressed', 'true' );
     await waitFor( () => expect( panel.querySelectorAll( '.vl-live-wx-daily-row' ).length ).toBe( 10 ) );
     const dailyCall = await waitFor( () => {
       const call = fetchSpy.mock.calls.find( item => requestIs( item[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/forecast/days' ) );
@@ -1572,8 +1572,8 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( metricPillRule ).toContain( 'background:var(--lime-tint)' );
     expect( metricPillRule ).toContain( 'border-radius:var(--pill-r)' );
     const popupRule = css.match( /\.vl-live-air-pollutant-tip\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( popupRule ).toContain( 'width:min(248px,calc(100vw - 16px))' );
-    expect( popupRule ).toContain( 'max-height:min(176px,calc(100dvh - 16px))' );
+    expect( popupRule ).toContain( 'width:min(360px,calc(100vw - 20px))' );
+    expect( popupRule ).toContain( 'max-height:min(320px,calc(100dvh - 20px))' );
     expect( popupRule ).toContain( 'font-size:var(--vl-meta-size)' );
     const popupTitleRule = css.match( /\.vl-live-air-pollutant-pop-title\{[^}]*\}/ )?.[ 0 ] || '';
     expect( popupTitleRule ).toContain( 'background:var(--lime)' );
@@ -1798,9 +1798,9 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     // The general-population health advisory paragraph was removed from the forecast detail (it
     // duplicated the dedicated Health Recommendations section and broke the compact type scale).
     expect( forecastDetail?.textContent ).not.toContain( 'Forecast health recommendation.' );
-    // Sources/Effects were removed from the Air Forecast detail panel; they must no longer render.
-    expect( forecastDetail?.textContent ).not.toContain( 'Sources' );
-    expect( forecastDetail?.textContent ).not.toContain( 'Effects' );
+    // Dominant-pollutant provider context is intentionally shown in the Air Forecast detail.
+    expect( forecastDetail?.textContent ).toContain( 'Sources' );
+    expect( forecastDetail?.textContent ).toContain( 'Effects' );
 
     // History offers only 24h and 7d now - the 30d option was removed from the UI.
     const historyRange = await screen.findByRole( 'group', { name: 'Air history range' } );
