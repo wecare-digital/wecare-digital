@@ -160,6 +160,18 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
     {
       toast.error( 'Flow ID, Code, and Name are required' ); return;
     }
+    if ( regForm.entryMode === 'payment_template' && !regForm.entryTemplateName?.trim() )
+    {
+      toast.error( 'Payment-template Flows require an approved Meta template name.' ); return;
+    }
+    if ( regForm.entryMode === 'payment_template' && !regForm.requiresPayment )
+    {
+      toast.error( 'Payment-template Flows must be marked Requires Payment.' ); return;
+    }
+    if ( regForm.entryMode === 'keyword_interactive' && regForm.requiresPayment )
+    {
+      toast.error( 'Keyword-native Flows cannot be payment-gated. Use Payment → approved template or Internal event.' ); return;
+    }
     const ok = await api.upsertFlowRegistry( regForm );
     if ( ok ) { toast.success( 'Flow registered' ); setShowRegForm( false ); loadRegistry(); }
     else toast.error( 'Failed to register flow' );
