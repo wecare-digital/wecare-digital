@@ -65,7 +65,7 @@ const HANDLERS: HandlerInfo[] = [
             'Parse message type (text, image, audio, video, document, interactive, reaction)',
             'Lookup/create contact by phone → ContactsTable',
             'Store message → WhatsAppInboundTable',
-            'Download media → S3 (wecare-digital-get, o/stack/whatsapp-media/incoming/)',
+            'Download media → S3 (wecare-digital-get, secure/d/public/whatsapp/incoming/)',
             'Auto-reaction (thumbs up) on new messages',
             'AI auto-reply if enabled (Bedrock → Polly TTS)',
             'Handle button replies (IVR menu, payments, flows)',
