@@ -66,7 +66,7 @@ ALLOWED_FORMATS = ("pdf", "png", "html")
 _SECURE_ROOT = media_paths.SECURE_ROOT
 
 #: Where receipts live inside the gated root. NOT the public bag-icon prefix `o/stream/media/...`.
-RECEIPT_PREFIX = "stack/receipts/"
+RECEIPT_PREFIX = "d/public/receipts/"
 
 
 class ReceiptError(RuntimeError):
