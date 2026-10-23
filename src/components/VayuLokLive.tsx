@@ -869,19 +869,16 @@ function formatCurrencyValue( value: number, currency: string ): string {
 
 function formatHistoryStamp( value: number, timeZoneId: string, zoneLabel: string ): string {
   try {
-    const parts = new Intl.DateTimeFormat( 'en-CA', {
+    const label = new Intl.DateTimeFormat( 'en-IN', {
       timeZone: timeZoneId,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
       hour: '2-digit',
       minute: '2-digit',
-      hourCycle: 'h23',
-    } ).formatToParts( new Date( value ) );
-    const pick = ( type: Intl.DateTimeFormatPartTypes ) => parts.find( part => part.type === type )?.value || '';
-    return `${pick( 'year' )}-${pick( 'month' )}-${pick( 'day' )} ${pick( 'hour' )}:${pick( 'minute' )} ${zoneLabel}`;
+      hour12: true,
+    } ).format( new Date( value ) );
+    const zoneSuffix = zoneLabel.trim();
+    return `${label}${zoneSuffix ? ` ${zoneSuffix}` : ''}`;
   } catch {
-    return `${new Date( value ).toISOString().slice( 0, 16 ).replace( 'T', ' ' )} UTC`;
+    return `${new Date( value ).toISOString().slice( 11, 16 )} UTC`;
   }
 }
 
@@ -4757,6 +4754,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-air-toggle{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff;box-shadow:0 6px 18px rgba(26,58,42,.08)}
         .vl-live-air-toggle-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:var(--tap-min);border:0;border-radius:var(--pill-r);background:transparent;color:var(--green);font-size:var(--vl-subtext-size);font-weight:700;line-height:1;letter-spacing:0}
         .vl-live-air-toggle-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:rgba(26,58,42,.3)}
+        .vl-live-air-toggle-btn:hover:not(.is-active){background:var(--vl-hover-bg);color:var(--green);box-shadow:var(--vl-hover-shadow)}
         .vl-live-air-toggle-btn.is-active{background:var(--lime);color:var(--green)}
         .vl-live-air-toggle-btn.is-active .vl-live-air-toggle-dot{background:var(--green)}
 
@@ -4767,7 +4765,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         /* HOME-PAGE HUE SPINE, not an AQI severity encoding. These are the exact three
            accent bars used by .home-flow-list: green / blue / purple. The AQI number +
            category text carry the meaning, so the decorative hue never has to be decoded. */
-        .vl-live-air-aqi-spine{display:block;width:4px;height:64px;border-radius:999px;background:linear-gradient(180deg,#3da35a 0 33.333%,#2563eb 33.333% 66.666%,#9849e8 66.666% 100%)}
+        .vl-live-air-aqi-spine{display:block;width:4px;height:64px;border-radius:999px;background:var(--lime)}
         .vl-live-air-aqi-score{display:flex;min-width:56px;flex-direction:column;align-items:flex-start;justify-content:center}
         .vl-live-air-aqi-number{display:block;color:var(--heading);font-size:var(--vl-metric-size);font-weight:var(--public-section-weight);line-height:1;letter-spacing:var(--public-section-tracking)}
         .vl-live-air-aqi-unit{display:block;margin-top:4px;color:var(--muted);font-size:var(--vl-meta-size);font-weight:700;line-height:1;letter-spacing:.08em;text-transform:uppercase}
@@ -4866,7 +4864,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-air-forecast-strip{display:flex;gap:8px;overflow-x:auto;padding:0 0 8px;scroll-snap-type:x proximity;scrollbar-width:thin;overscroll-behavior-x:contain;touch-action:pan-x;-webkit-overflow-scrolling:touch}
         .vl-live-air-forecast-strip::-webkit-scrollbar{height:6px}
         .vl-live-air-forecast-card{display:flex;flex:0 0 clamp(142px,42vw,168px);width:clamp(142px,42vw,168px);min-width:142px;scroll-snap-align:start;flex-direction:column;align-items:flex-start;gap:4px;padding:10px 12px;border:1px solid var(--hair);border-radius:var(--radius-lg,12px);background:#fff;color:var(--body);text-align:start;touch-action:manipulation}
-        .vl-live-air-forecast-card:hover{border-color:var(--lime);background:var(--lime-tint)}
+        .vl-live-air-forecast-card:hover{border-color:var(--lime);background:var(--vl-hover-bg)}
         .vl-live-air-forecast-card.is-active{border-color:var(--lime);background:var(--lime);color:var(--green)}
         .vl-live-air-forecast-card.is-active span,.vl-live-air-forecast-card.is-active strong,.vl-live-air-forecast-card.is-active small{color:var(--green)}
         .vl-live-air-forecast-card.is-skeleton{min-height:62px;background:linear-gradient(90deg,rgba(209,244,112,.12) 25%,rgba(209,244,112,.32) 37%,rgba(209,244,112,.12) 63%);background-size:400% 100%;border-color:var(--hair);animation:vl-live-shimmer 1.4s ease infinite}
@@ -4885,12 +4883,12 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
            Reuses the Air panel's section headings, range pills and forecast strip/detail; these
            rules add only the pieces specific to Weather (the current hero, the metric grid, the
            10-day rows, the history strip, the alerts block). Same tokens, no red. */
-        .vl-live-wx-now{display:flex;flex-direction:column;gap:6px;margin-bottom:var(--vl-section-gap);padding-inline-start:14px;border-inline-start:3px solid var(--lime)}
-        .vl-live-wx-now-head{display:flex;align-items:center;gap:12px}
-        .vl-live-wx-now-icon{width:52px;height:52px;flex:0 0 52px;object-fit:contain}
+        .vl-live-wx-now{display:grid;grid-template-columns:4px auto minmax(0,1fr);align-items:center;gap:14px;margin-bottom:var(--vl-section-gap)}
+        .vl-live-wx-now-head{display:contents}
+        .vl-live-wx-now-icon{grid-column:2;width:52px;height:52px;object-fit:contain}
         .vl-live-wx-now-temp{display:block;color:var(--heading);font-size:var(--vl-metric-size);font-weight:var(--public-section-weight);line-height:1;letter-spacing:var(--public-section-tracking)}
         .vl-live-wx-now-cond{display:block;margin-top:2px;color:var(--heading);font-size:var(--vl-panel-heading-size);font-weight:var(--vl-panel-heading-weight);line-height:var(--vl-panel-heading-lh);letter-spacing:var(--vl-panel-heading-track)}
-        .vl-live-wx-now-sub{display:flex;flex-wrap:wrap;gap:4px 12px;color:var(--muted);font-size:var(--vl-subtext-size);font-weight:600;line-height:1.35}
+        .vl-live-wx-now-sub{grid-column:3;display:flex;flex-wrap:wrap;gap:6px 10px;color:var(--muted);font-size:var(--vl-subtext-size);font-weight:600;line-height:1.35}
         .vl-live-wx-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;margin:0 0 var(--vl-section-gap);padding:0;list-style:none;border:1px solid var(--hair);border-radius:var(--radius-lg,12px);overflow:hidden;background:var(--hair)}
         .vl-live-wx-grid-item{display:flex;align-items:baseline;justify-content:space-between;gap:var(--vl-content-gap);padding:14px;background:#fff;transition:background-color .14s ease}
         .vl-live-wx-grid-k{min-width:0;color:var(--body);font-size:var(--vl-data-size);font-weight:700;line-height:1.35;letter-spacing:-.18px}
@@ -4900,7 +4898,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-wx-daily-list{max-height:430px;margin:var(--vl-heading-gap) 0 0;padding:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;list-style:none}
         .vl-live-wx-daily-row{display:grid;grid-template-columns:68px 30px minmax(0,1fr) auto auto;align-items:center;gap:10px;width:100%;min-height:48px;padding:12px 14px;border:0;border-top:1px solid var(--hair);border-inline-start:2px solid transparent;border-radius:0;background:#fff;color:var(--body);text-align:start;cursor:pointer;transition:background-color .14s ease,border-color .14s ease}
         .vl-live-wx-daily-list li:first-child .vl-live-wx-daily-row{border-top:0}
-        .vl-live-wx-daily-row:hover,.vl-live-wx-daily-row.is-active{background:var(--lime-tint);border-inline-start-color:var(--lime)}
+        .vl-live-wx-daily-row:hover{background:var(--vl-hover-bg);border-inline-start-color:var(--lime)}
+        .vl-live-wx-daily-row.is-active{background:var(--vl-active-bg);border-inline-start-color:var(--lime);color:var(--green)}
         .vl-live-wx-daily-day{color:var(--body);font-size:var(--vl-data-size);font-weight:700;line-height:1.35;letter-spacing:-.18px}
         .vl-live-wx-daily-icon,.vl-live-wx-daily-icon-spacer{display:block;width:28px;height:28px;object-fit:contain}
         .vl-live-wx-daily-cond{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:var(--vl-compact-copy-size);font-weight:600;line-height:1.4}
@@ -4927,7 +4926,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-wx-hist-strip::-webkit-scrollbar{height:6px}
         .vl-live-wx-hist-slot{flex:0 0 clamp(142px,42vw,168px)}
         .vl-live-wx-hist-item{display:flex;width:100%;min-height:86px;flex-direction:column;align-items:flex-start;justify-content:center;gap:4px;padding:10px 12px;border:1px solid var(--hair);border-radius:var(--radius-lg,12px);background:#fff;text-align:start}
-        .vl-live-wx-hist-item:hover{border-color:var(--lime);background:var(--lime-tint)}
+        .vl-live-wx-hist-item:hover{border-color:var(--lime);background:var(--vl-hover-bg)}
         .vl-live-wx-hist-item.is-active{border-color:var(--lime);background:var(--lime);color:var(--green)}
         .vl-live-wx-hist-item.is-active .vl-live-wx-hist-t,.vl-live-wx-hist-item.is-active .vl-live-wx-hist-v{color:var(--green)}
         .vl-live-wx-hist-t{color:var(--muted);font-size:var(--vl-meta-size);font-weight:600;line-height:1.4;white-space:nowrap}
@@ -4951,7 +4950,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-wx-period-summary img{width:34px;height:34px;object-fit:contain}
         .vl-live-wx-hour-icon{width:28px;height:28px;object-fit:contain}
         .vl-live-wx-period-summary strong{font-size:var(--vl-data-size);font-weight:700;line-height:1.35}
-        .vl-live-wx-freshness{margin-top:8px;color:var(--muted);font-size:var(--vl-subtext-size);font-weight:600;line-height:1.35}
+        .vl-live-wx-freshness{margin-top:8px}
 
         /* ── HEALTH RECOMMENDATIONS ──────────────────────────────────────────────
            Profiles are one touch/keyboard scroll rail using the same small pill language as
