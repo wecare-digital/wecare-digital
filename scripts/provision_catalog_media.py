@@ -154,9 +154,24 @@ def apply():
 
     routes = {r["RouteKey"]: r for r in all_items(apigw.get_routes, ApiId=API_ID)}
     target = "integrations/" + integration_id
+    # Integration IDs that proxy THIS function under any qualifier (unqualified or :live).
+    # Re-pointing the route among these is the legacy-to-alias migration converging, not a
+    # hostile takeover - so it is safe to do. The publish-through-live change (commit
+    # 75d03388) moved the integration URI from the bare function ARN to :live; a route still
+    # targeting the pre-migration integration must be moved, not refused, or the deploy can
+    # never converge to the state verify() demands.
+    own_integration_ids = {
+        "integrations/" + i["IntegrationId"]
+        for i in integrations
+        if i.get("IntegrationUri") in (base_arn, arn)
+    }
     if ROUTE in routes:
-        if routes[ROUTE].get("Target") != target:
-            raise RuntimeError("refusing to replace existing catalog-media route")
+        current = routes[ROUTE].get("Target")
+        if current != target:
+            if current not in own_integration_ids:
+                # Points at an integration that is not this function at all - refuse.
+                raise RuntimeError("refusing to replace existing catalog-media route")
+            apigw.update_route(ApiId=API_ID, RouteId=routes[ROUTE]["RouteId"], Target=target)
     else:
         apigw.create_route(
             ApiId=API_ID,
