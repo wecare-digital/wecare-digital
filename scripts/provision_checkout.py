@@ -604,10 +604,10 @@ def legacy_media_write_guard_policy(acct: str | None = None) -> dict:
             "Effect": "Deny",
             "Action": ["s3:PutObject", "s3:DeleteObject"],
             "Resource": [
-                f"arn:aws:s3:::{MEDIA_BUCKET{'}'}/secure/Invoice/customer_invoice/*",
-                f"arn:aws:s3:::{MEDIA_BUCKET{'}'}/secure/Invoice/fonts/*",
-                f"arn:aws:s3:::{MEDIA_BUCKET{'}'}/o/stack/whatsapp-media/*",
-                f"arn:aws:s3:::{MEDIA_BUCKET{'}'}/stack/whatsapp-media/*",
+                f"arn:aws:s3:::{MEDIA_BUCKET}/secure/Invoice/customer_invoice/*",
+                f"arn:aws:s3:::{MEDIA_BUCKET}/secure/Invoice/fonts/*",
+                f"arn:aws:s3:::{MEDIA_BUCKET}/o/stack/whatsapp-media/*",
+                f"arn:aws:s3:::{MEDIA_BUCKET}/stack/whatsapp-media/*",
             ],
         }],
     }
