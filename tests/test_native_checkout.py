@@ -12,7 +12,6 @@ sys.path.insert(0, str(ROOT / "amplify/functions/shared"))
 from lambda_utils.ecommerce import native_cart as nc  # noqa: E402
 from lambda_utils.ecommerce import native_checkout as ncheck  # noqa: E402
 from lambda_utils.ecommerce import native_shipping as sh  # noqa: E402
-from lambda_utils.ecommerce import native_inventory as inv  # noqa: E402
 
 
 PRODUCTS = {
@@ -75,17 +74,34 @@ def test_quote_applies_delight_and_shipping():
     assert snap.quote.collection_before_convenience_paise == 109400
 
 
-def test_quote_fails_closed_on_insufficient_stock():
-    cart = _cart(qty=2)
-    PRODUCTS["prod-1"]["variants"][0]["inventory"] = 1  # less than requested
+def test_quote_ignores_legacy_stock_counters():
+    cart = _cart(qty=20)
+    variant = PRODUCTS["prod-1"]["variants"][0]
+    variant["inventory"] = 0
     try:
-        with pytest.raises(inv.OutOfStock):
-            ncheck.quote_native_cart(
-                cart, product_reader=reader, customer_id="cust-1",
-                created_at=1000, ttl_seconds=900,
-                shipping_policy=sh.ShippingPolicy(flat_rate_paise=0))
+        snap = ncheck.quote_native_cart(
+            cart, product_reader=reader, customer_id="cust-1",
+            created_at=1000, ttl_seconds=900,
+            shipping_policy=sh.ShippingPolicy(flat_rate_paise=0))
+        assert snap.quote.collection_before_convenience_paise == 1000000
+        assert variant["inventory"] == 0
     finally:
-        PRODUCTS["prod-1"]["variants"][0]["inventory"] = 5  # restore
+        variant["inventory"] = 5
+
+
+@pytest.mark.parametrize("invalid", ["missing", "archived", "variant"])
+def test_quote_still_rejects_invalid_catalog_identity(invalid):
+    cart = _cart()
+    product = dict(PRODUCTS["prod-1"])
+    if invalid == "archived":
+        product["status"] = "archived"
+    elif invalid == "variant":
+        product["variants"] = []
+    with pytest.raises(ncheck.catalog_pricing.CatalogPricingError):
+        ncheck.quote_native_cart(
+            cart, product_reader=lambda _: None if invalid == "missing" else product,
+            customer_id="cust-1", created_at=1000, ttl_seconds=900,
+            shipping_policy=sh.ShippingPolicy())
 
 
 def test_empty_cart_rejected():

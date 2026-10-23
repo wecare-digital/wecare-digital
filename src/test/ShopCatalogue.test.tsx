@@ -514,9 +514,9 @@ describe( 'the product page', () => {
     expect( screen.queryByText( /confirmed at checkout/i ) ).toBeNull();
   } );
 
-  it( 'marks a product that is out of stock', () => {
+  it( 'does not show a stock warning for a legacy unavailable flag', () => {
     render( <ShopProductPage product={ SYNTHETIC } /> );
-    expect( screen.getByText( 'Not available right now.' ) ).toBeTruthy();
+    expect( screen.queryByText( 'Not available right now.' ) ).toBeNull();
   } );
 
   it( 'gates the Product node on the image: emits it (complete) with one, omits it without', () => {
@@ -574,10 +574,10 @@ describe( 'the product page', () => {
     expect( ld( ld( item ).mainEntity )[ '@id' ] ).toBe( ld( productLd )[ '@id' ] );
   } );
 
-  it( 'marks the offer out of stock when the product is', () => {
+  it( 'publishes an in-stock offer regardless of a legacy flag', () => {
     const graph = shopProductSchema( { ...SYNTHETIC, image: 'https://wecare.digital/x.png' } )[ '@graph' ];
     const productLd = graph.find( n => ld( n )[ '@type' ] === 'Product' );
-    expect( ld( ld( productLd ).offers ).availability ).toBe( 'https://schema.org/OutOfStock' );
+    expect( ld( ld( productLd ).offers ).availability ).toBe( 'https://schema.org/InStock' );
   } );
 
   it( 'names the canonical URL in the graph, never the route pattern', () => {

@@ -502,7 +502,7 @@ function AuditDetail({ audit, audits, onSelect, onAction }: { audit: PageAudit |
   if (audit.pageType === 'product') {
     metaTags.push(['product:price:amount', ai.price || '']);
     metaTags.push(['product:price:currency', 'INR']);
-    metaTags.push(['product:availability', ai.inStock ? 'in stock' : 'out of stock']);
+    metaTags.push(['product:availability', 'in stock']);
   }
 
   return (<div>

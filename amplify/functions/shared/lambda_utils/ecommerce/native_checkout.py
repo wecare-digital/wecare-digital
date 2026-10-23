@@ -7,7 +7,7 @@ payment path.
 
 The chain:
     native_cart.to_catalog_lines(cart)                       # lines (server prices)
-    native_inventory.validate_lines(...)                     # fail-closed stock check
+    product/variant identity validation                     # active catalog products
     native_shipping.resolve_delivery_paise(...)              # delivery charge
     catalog_pricing.coupon_discount_paise(...)               # discount (AWS coupon def)
     catalog_pricing.supply_tax_paise(...)                    # supply GST (0 for inclusive)
@@ -20,9 +20,8 @@ The payment amount is the native quote's total. Prices are server-authoritative;
 client value never enters. The snapshot's `site` is tagged `aws-native` so a
 persisted amount is traceable to the native pricing policy.
 
-Stock reservation is performed by the CALLER around payment initiation (reserve
-before creating the gateway order, release on failure), not here — this function
-only PRICES and VALIDATES, so it is side-effect-free and safe to call repeatedly.
+Products are always available. Quotes validate product identity, publication and prices,
+without checking or reserving stock.
 """
 from __future__ import annotations
 
@@ -32,7 +31,6 @@ from lambda_utils.ecommerce import (
     catalog_pricing,
     checkout_pricing,
     native_cart,
-    native_inventory,
     native_shipping,
 )
 
@@ -51,7 +49,6 @@ def quote_native_cart(
     gst_bps: int = 0,
     intra_state: bool = True,
     delivery_option_id: Optional[str] = None,
-    validate_stock: bool = True,
 ) -> checkout_pricing.QuoteSnapshot:
     """Price a native cart into a QuoteSnapshot. Side-effect-free (no reservation).
 
@@ -63,12 +60,14 @@ def quote_native_cart(
     if not lines:
         raise catalog_pricing.CatalogPricingError("cannot quote an empty cart")
 
-    if validate_stock:
-        native_inventory.validate_lines(
-            product_reader,
-            [{"product_id": ln.product_id, "variant_id": ln.variant_id,
-              "quantity": ln.quantity} for ln in lines],
-        )
+    for line in lines:
+        product = product_reader(line.product_id)
+        if not isinstance(product, Mapping) or product.get("status", "active") != "active":
+            raise catalog_pricing.CatalogPricingError("product is not active")
+        variants = [v for v in product.get("variants", []) or []
+                    if str(v.get("sku") or v.get("id") or "") == line.variant_id]
+        if len(variants) != 1:
+            raise catalog_pricing.CatalogPricingError("variant is missing or ambiguous")
 
     subtotal = sum(ln.total_paise for ln in lines)
     delivery = native_shipping.resolve_delivery_paise(

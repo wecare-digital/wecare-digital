@@ -4834,10 +4834,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-air-forecast-card small{color:var(--status);font-size:var(--vl-meta-size);font-weight:600;line-height:1.4}
         .vl-live-air-forecast-detail{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:10px;color:var(--muted);font-size:var(--vl-meta-size);font-weight:600;line-height:1.4}
         .vl-live-air-forecast-detail strong{color:var(--status);font-weight:700}
-        .vl-live-air-history-detail{flex-wrap:nowrap;overflow-x:auto;gap:8px;padding:2px 0 8px;scroll-snap-type:x proximity;scrollbar-width:thin;scrollbar-color:var(--lime) transparent;overscroll-behavior-x:contain}
+        .vl-live-air-history-detail{flex-wrap:nowrap;overflow-x:auto;gap:8px;padding:2px 0 8px;scroll-snap-type:x proximity;scrollbar-width:thin;overscroll-behavior-x:contain}
         .vl-live-air-history-detail::-webkit-scrollbar{height:6px}
-        .vl-live-air-history-detail::-webkit-scrollbar-track{background:transparent}
-        .vl-live-air-history-detail::-webkit-scrollbar-thumb{border-radius:999px;background:var(--lime)}
         .vl-live-air-history-detail>span{display:inline-flex;flex:0 0 auto;min-height:var(--tap-min);align-items:center;gap:4px;padding:0 10px;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff;white-space:nowrap;scroll-snap-align:start}
         .vl-live-air-history-detail>.vl-live-air-history-pollutant{display:inline-flex}
         /* Any paragraph inside the forecast detail shares the SAME compact type as the detail
@@ -4932,10 +4930,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-air-history-info[open] span{display:none}
         .vl-live-air-health-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:var(--vl-heading-gap)}
         .vl-live-air-health-pager{display:flex;align-items:center;gap:6px}
-        .vl-live-air-health-tabs{display:flex;align-items:stretch;gap:8px;overflow-x:auto;padding:0 0 8px;scroll-snap-type:x proximity;scrollbar-width:thin;scrollbar-color:var(--lime) transparent;white-space:nowrap;overscroll-behavior-x:contain}
+        .vl-live-air-health-tabs{display:flex;align-items:stretch;gap:8px;overflow-x:auto;padding:0 0 8px;scroll-snap-type:x proximity;scrollbar-width:thin;white-space:nowrap;overscroll-behavior-x:contain}
         .vl-live-air-health-tabs::-webkit-scrollbar{height:6px}
-        .vl-live-air-health-tabs::-webkit-scrollbar-track{background:transparent}
-        .vl-live-air-health-tabs::-webkit-scrollbar-thumb{border-radius:999px;background:var(--lime)}
         .vl-live-air-health-tab{display:inline-flex;flex:0 0 auto;min-height:var(--vl-action-size);align-items:center;justify-content:center;gap:7px;padding:0 12px;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff;color:var(--green);font-size:var(--vl-meta-size);font-weight:700;line-height:1;scroll-snap-align:start;transition:background-color .2s,border-color .2s,transform .16s ease,box-shadow .16s ease}
         .vl-live-air-health-tab:hover{border-color:var(--lime);background:var(--lime-hover);color:var(--green);box-shadow:0 6px 14px rgba(26,58,42,.12);transform:translateY(-1px)}
         .vl-live-air-health-tab.is-active{border-color:var(--lime);background:var(--lime);color:var(--green);box-shadow:none;transform:none}

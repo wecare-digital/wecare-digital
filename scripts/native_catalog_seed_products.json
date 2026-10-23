@@ -11,7 +11,7 @@
     "priceMinor rules (from amplify/functions/ecommerce/native-catalog-admin/handler.py _minor):",
     "  - integer paise only, 0 .. 100000000. ₹899.00 -> 89900, ₹599.00 -> 59900.",
     "A product is created as status:draft with channels OFF. To make it buyable + visible you then",
-    "PATCH status:active + an approved catalogImageKey (a *-4096.png under wd-catalog-live/) +",
+    "PATCH status:active + an approved catalogImageKey (a *-4096.png under secure/catalog/products/) +",
     "websiteEnabled:true. The seed script can do create-only, or create+activate when --activate is",
     "passed AND catalogImageKey is set for the product."
   ],
@@ -64,6 +64,33 @@
       "canonicalPath": "/niji-setu/",
       "priceMinor": null,
       "catalogImageKey": "",
+      "variantLabel": "Standard"
+    },
+    {
+      "slug": "elsewhere-activities",
+      "title": "Activities",
+      "canonicalPath": "/elsewhere/activities/",
+      "priceMinor": 9900,
+      "sku": "467728ca-5e3e-47c2-b6ba-14e76f9b4cd6",
+      "catalogImageKey": "secure/catalog/products/activities-4096.png",
+      "variantLabel": "Standard"
+    },
+    {
+      "slug": "ritual-guru-ritva",
+      "title": "Ritva",
+      "canonicalPath": "/ritual-guru/ritva/",
+      "priceMinor": 9900,
+      "sku": "2b1655cf-198a-438d-93b6-c57612b819b6",
+      "catalogImageKey": "secure/catalog/products/ritva-4096.png",
+      "variantLabel": "Standard"
+    },
+    {
+      "slug": "vayulok",
+      "title": "VayuLok",
+      "canonicalPath": "/vayulok/",
+      "priceMinor": 0,
+      "sku": "e458f22c-bf73-42fe-8b00-9415e3561f59",
+      "catalogImageKey": "secure/catalog/products/vayulok-4096.png",
       "variantLabel": "Standard"
     }
   ]

@@ -166,26 +166,26 @@ def test_stale_product_update_fails_without_losing_data():
     assert table.items["product-123"]["status"] == "active"
 
 
-def test_variant_price_and_stock_adjustment_leave_other_variant_untouched():
+def test_variant_price_edit_preserves_other_variant_and_legacy_metadata():
     table = Table()
     response = mod.handle_request(
         event("/native-catalog/products/product-123/variants/sku-a", method="PATCH",
               body={"expectedUpdatedAt": seeded()["updatedAt"],
-                    "priceMinor": 10500, "stockDelta": -1}), table)
+                    "priceMinor": 10500}), table)
     assert response["statusCode"] == 200
     assert table.items["product-123"]["variants"][0]["priceMinor"] == 10500
-    assert table.items["product-123"]["variants"][0]["inventory"] == 1
+    assert table.items["product-123"]["variants"][0]["inventory"] == 2
     assert table.items["product-123"]["variants"][1]["inventory"] == 3
     assert table.items["product-123"]["priceMinor"] == 10500
 
 
-def test_stock_adjustment_cannot_oversell():
+def test_removed_stock_mutation_is_rejected():
     table = Table()
     response = mod.handle_request(
         event("/native-catalog/products/product-123/variants/sku-a", method="PATCH",
               body={"expectedUpdatedAt": seeded()["updatedAt"],
                     "stockDelta": -5}), table)
-    assert response["statusCode"] == 409
+    assert response["statusCode"] == 400
     assert table.items["product-123"]["variants"][0]["inventory"] == 2
 
 
@@ -313,3 +313,18 @@ def test_new_product_cannot_publish_a_channel_before_activation(field):
     assert response["statusCode"] == 400
     assert set(table.items) == {"product-123"}
     assert table.items["product-123"] == seeded()
+
+
+def test_new_variant_has_no_stock_fields():
+    variant = mod._validate_variant({"sku": "SKU1", "priceMinor": 9900,
+                                    "inventory": 0, "trackInventory": True})
+    assert variant == {"sku": "SKU1", "label": "Standard", "priceMinor": 9900}
+
+
+def test_catalog_response_omits_legacy_stock_metadata():
+    row = seeded()
+    row["variants"][0]["trackInventory"] = True
+    public = mod._public_row(row)
+    assert "inventory" not in public
+    assert "inventory" not in public["variants"][0]
+    assert "trackInventory" not in public["variants"][0]

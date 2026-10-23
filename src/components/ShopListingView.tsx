@@ -269,13 +269,10 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings, page, t
                   <span className="shop-card-sku" data-wc-no-translate="true">SKU: { listing.sku }</span>
                 ) }
                 <span className="shop-card-tag">{ listing.blurb }</span>
-                { ( listing.formattedPrice || listing.inStock === false ) && (
+                { listing.formattedPrice && (
                   <span className="shop-card-foot">
                     { listing.formattedPrice && (
                       <span className="shop-card-price" data-wc-no-translate="true">{ listing.formattedPrice }</span>
-                    ) }
-                    { listing.inStock === false && (
-                      <span className="shop-card-oos">Not available right now</span>
                     ) }
                   </span>
                 ) }

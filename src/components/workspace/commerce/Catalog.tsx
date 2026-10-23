@@ -21,7 +21,6 @@ interface NativeVariant {
   sku: string;
   label: string;
   priceMinor: number;
-  inventory: number;
 }
 interface NativeProduct {
   id: string;
@@ -29,7 +28,7 @@ interface NativeProduct {
   slug: string;
   status: 'draft' | 'active' | 'archived';
   currency: string;
-  priceMinor: number;
+  priceMinor?: number;
   updatedAt: string;
   tagline?: string;
   descriptionHtml?: string;
@@ -42,7 +41,7 @@ interface NativeProduct {
   categories?: string[];
 }
 type Tab = 'products' | 'meta';
-type VariantDraft = { price: string; stockDelta: string; label: string };
+type VariantDraft = { price: string; label: string };
 
 const API_ROOT = (process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api')
   .replace(/\/$/, '') + '/native-catalog/products';
@@ -157,7 +156,6 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
     setDrafts(Object.fromEntries((p.variants || []).map(v => [v.sku, {
       label: v.label || 'Standard',
       price: (v.priceMinor / 100).toFixed(2),
-      stockDelta: '0',
     }])));
   }, []);
 
@@ -233,10 +231,6 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
     const draft = drafts[v.sku];
     if (!draft) return;
     void run(async () => {
-      const delta = Number(draft.stockDelta);
-      if (!Number.isSafeInteger(delta) || Math.abs(delta) > 1_000_000) {
-        throw new Error('Stock change must be a whole number (maximum 1,000,000).');
-      }
       const data = await nativeCall(
         '/' + encodeURIComponent(selected.id) + '/variants/' + encodeURIComponent(v.sku), {
           method: 'PATCH',
@@ -244,13 +238,12 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
             expectedUpdatedAt: selected.updatedAt,
             priceMinor: parsePaise(draft.price),
             label: draft.label,
-            stockDelta: delta,
           }),
         },
       );
       showProduct(data.product);
       await reloadProducts();
-      setMessage('Variant price and stock adjustment saved. Checkout reads AWS prices directly.');
+      setMessage('Variant price and label saved. Checkout reads AWS prices directly.');
     });
   };
 
@@ -266,7 +259,7 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
           websiteEnabled: false,
           metaEnabled: false,
           variants: [{
-            label: 'Standard', priceMinor: parsePaise(newPrice), inventory: 0,
+            label: 'Standard', priceMinor: parsePaise(newPrice),
           }],
         }),
       });
@@ -349,7 +342,7 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
                       <strong style={{ display: 'block' }}>{p.title}</strong>
                       <span style={muted}>/shop/{p.slug}/ · {p.status} · {(p.variants || []).length} variant(s)</span>
                     </span>
-                    <strong>{formatINR(p.priceMinor)}</strong>
+                    <strong>{formatINR(p.priceMinor ?? Math.min(...p.variants.map(v => v.priceMinor)))}</strong>
                   </button>
                 ))}
                 {filtered.length === 0 && <p>No matching AWS products.</p>}
@@ -407,14 +400,14 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
                     Include in Meta / WhatsApp catalog plan
                   </label>
                   <p style={muted}>Website or Meta publication requires Active status and an approved
-                    artwork key under the locked wd-catalog-live prefix. Meta still requires its separate exact-plan approval.</p>
+                    artwork key under secure/catalog/products/. Meta still requires its separate exact-plan approval.</p>
                   <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
                     <button disabled={busy} onClick={updateProduct}>Save product</button>
                     <button disabled={busy} onClick={archive}>Archive</button>
                   </div>
                   <h3 style={{ marginTop: 25 }}>Variants ({selected.variants.length})</h3>
                   <p style={muted}>SKU/variant ID stays immutable to protect carts and historical orders.
-                    Stock is adjusted by delta rather than overwritten while payments may reserve units.</p>
+                    Products are always available; quantities are not tracked.</p>
                   {selected.variants.map(v => {
                     const draft = drafts[v.sku];
                     if (!draft) return null;
@@ -433,13 +426,6 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
                               ...prev, [v.sku]: { ...prev[v.sku], price: e.target.value },
                             }))} />
                         </label>
-                        <p style={muted}>Currently {v.inventory} units available</p>
-                        <label>Stock adjustment (+ to add, - to remove)
-                          <input style={fieldStyle} value={draft.stockDelta} inputMode="numeric"
-                            onChange={e => setDrafts(prev => ({
-                              ...prev, [v.sku]: { ...prev[v.sku], stockDelta: e.target.value },
-                            }))} />
-                        </label>
                         <button onClick={() => updateVariant(v)} disabled={busy}
                           style={{ marginTop: 12 }}>Save variant</button>
                       </div>
@@ -455,7 +441,7 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
 
             <section style={boxStyle} aria-label="Create draft product">
               <h2 style={{ fontSize: 'var(--text-xl)', marginTop: 0 }}>Create draft</h2>
-              <p style={muted}>New products start unpublished with zero available stock.</p>
+              <p style={muted}>New products start unpublished. Published products are always available.</p>
               <label>Product name
                 <input style={fieldStyle} value={newTitle}
                   onChange={e => setNewTitle(e.target.value)} />

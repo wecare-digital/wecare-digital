@@ -2,7 +2,7 @@
   "_comment": "Recorded state of live Lambda environment variables. Not deployed by anything - this is the source of truth to diff against. Regenerate with scripts/env_manifest.py --export; verify with no arguments.",
   "_region": "us-east-1",
   "_functions": 65,
-  "_variables": 420,
+  "_variables": 419,
   "_fingerprinted": 7,
   "functions": {
     "stack-wecare-url-shortener": {
@@ -106,7 +106,7 @@
       "CHECKOUT_MODE": "AWS_NATIVE",
       "CATALOG_SOURCE": "aws",
       "PRODUCTS_TABLE": "stack-wecare-digital-ProductsTable",
-      "NATIVE_STOCK_RESERVATION_ENABLED": "true",
+
       "WHATSAPP_CATALOG_SERVICES_ENABLED": "true",
       "CONTACTS_TABLE": "stack-wecare-digital-ContactsTable",
       "ORDERS_TABLE": "stack-wecare-digital-OrderTable",

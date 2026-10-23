@@ -441,7 +441,7 @@
             "PRODUCTS_TABLE": "stack-wecare-digital-ProductsTable",
             "CHECKOUT_MODE": "AWS_NATIVE",
             "CATALOG_SOURCE": "aws",
-            "NATIVE_STOCK_RESERVATION_ENABLED": "true",
+
             "INVOICES_TABLE": "stack-wecare-digital-InvoicesTable",
             "INVOICE_ITEMS_TABLE": "stack-wecare-digital-InvoiceItemsTable",
             "INVOICE_SEQ_TABLE": "stack-wecare-digital-InvoiceSequenceTable",

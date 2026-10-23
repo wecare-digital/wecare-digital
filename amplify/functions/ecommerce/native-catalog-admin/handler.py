@@ -85,11 +85,6 @@ def _minor(value: Any) -> int:
     return value
 
 
-def _stock(value: Any) -> int:
-    if type(value) is not int or not 0 <= value <= 10_000_000:
-        raise ValueError("inventory must be a nonnegative integer")
-    return value
-
 
 def _catalog_image_key(value: Any) -> str:
     if not isinstance(value, str):
@@ -132,21 +127,22 @@ def _validate_variant(variant: Any) -> dict[str, Any]:
         "sku": sku,
         "label": _text(variant.get("label") or "Standard", "variant label", 100),
         "priceMinor": _minor(variant.get("priceMinor")),
-        "inventory": _stock(variant.get("inventory", 0)),
-        "trackInventory": variant.get("trackInventory") is True,
-        "inventoryVerified": variant.get("inventoryVerified") is True,
     }
 
 
 def _public_row(row: Mapping[str, Any]) -> dict[str, Any]:
     # No IAM, provider credentials or raw Cognito attributes appear in responses.
-    return {k: row.get(k) for k in (
+    public = {k: row.get(k) for k in (
         "id", "title", "slug", "status", "currency", "priceMinor",
-        "inventory", "variants", "descriptionHtml", "tagline",
+        "variants", "descriptionHtml", "tagline",
         "categories", "imageRefs", "catalogImageKey", "canonicalPath",
         "websiteEnabled", "metaEnabled", "createdAt", "updatedAt",
         "seoTitle", "seoDescription",
     ) if k in row}
+    if "variants" in public:
+        public["variants"] = [{k: v[k] for k in ("sku", "id", "label", "priceMinor") if k in v}
+                              for v in row.get("variants", [])]
+    return public
 
 
 def _scan(table) -> list[dict[str, Any]]:
@@ -198,7 +194,6 @@ def _create(table, body: dict[str, Any], who: str) -> tuple[int, dict[str, Any]]
         "status": "draft",  # never publish new merchandise automatically
         "currency": "INR",
         "priceMinor": min(v["priceMinor"] for v in rows),
-        "inventory": sum(v["inventory"] for v in rows),
         "variants": rows,
         "descriptionHtml": str(body.get("descriptionHtml") or "")[:10000],
         "tagline": str(body.get("tagline") or "")[:600],
@@ -314,8 +309,7 @@ def _update_variant(table, product_id: str, sku: str,
     """Update only one existing variant via a conditioned atomic DynamoDB update.
 
     The SKU and product ID never change, preserving all historical retailer IDs.
-    Inventory is adjusted by a *delta* against current stock (never overwritten),
-    with a nonnegative guard so a stock reservation cannot be wiped out.
+    Products are always available; stock counters are not editable.
     """
     old = _get(table, product_id)
     if not old:
@@ -329,18 +323,16 @@ def _update_variant(table, product_id: str, sku: str,
     if len(matches) != 1:
         return 404, {"error": "VARIANT_NOT_FOUND"}
     index, prior = matches[0]
-    if any(x not in {"expectedUpdatedAt", "priceMinor", "label", "stockDelta", "stockCount"}
+    if any(x not in {"expectedUpdatedAt", "priceMinor", "label"}
            for x in body):
         return 400, {"error": "IMMUTABLE_VARIANT_FIELD"}
-    if not any(k in body for k in ("priceMinor", "label", "stockDelta", "stockCount")):
+    if not any(k in body for k in ("priceMinor", "label")):
         return 400, {"error": "NO_EDITABLE_FIELDS"}
-    if "stockDelta" in body and "stockCount" in body:
-        return 400, {"error": "AMBIGUOUS_STOCK_UPDATE"}
 
     vals: dict[str, Any] = {":expected": expected, ":sku": sku}
     names = {"#id": "id", "#updated": "updatedAt",
              "#vs": "variants", "#sku": "sku",
-             "#status": "status", "#editor": "lastEditedBy"}
+             "#editor": "lastEditedBy"}
     setters = ["#updated = :now", "#editor = :editor"]
     vals[":now"] = _now()
     vals[":editor"] = who
@@ -363,33 +355,6 @@ def _update_variant(table, product_id: str, sku: str,
         vals[":label"] = _text(body["label"], "label", 100)
         names["#label"] = "label"
         setters.append(f"#vs[{index}].#label = :label")
-    if "stockCount" in body:
-        count = _stock(body["stockCount"])
-        names["#inventory"] = "inventory"
-        names["#track"] = "trackInventory"
-        names["#verified"] = "inventoryVerified"
-        vals[":stockCount"] = count
-        vals[":tracked"] = True
-        vals[":verified"] = True
-        setters.append(f"#vs[{index}].#inventory = :stockCount")
-        setters.append(f"#vs[{index}].#track = :tracked")
-        setters.append(f"#vs[{index}].#verified = :verified")
-    delta = body.get("stockDelta", 0)
-    if "stockDelta" in body:
-        if type(delta) is not int or not -1_000_000 <= delta <= 1_000_000:
-            raise ValueError("stockDelta must be an integer between -1000000 and 1000000")
-        if delta:
-            names["#inventory"] = "inventory"
-            names["#track"] = "trackInventory"
-            names["#verified"] = "inventoryVerified"
-            vals[":delta"] = delta
-            vals[":tracked"] = True
-            vals[":verified"] = True
-            condition += f" AND #vs[{index}].#track = :tracked AND #vs[{index}].#verified = :verified"
-            setters.append(f"#vs[{index}].#inventory = #vs[{index}].#inventory + :delta")
-            if delta < 0:
-                vals[":min"] = -delta
-                condition += f" AND #vs[{index}].#inventory >= :min"
     try:
         table.update_item(
             Key={"id": product_id},

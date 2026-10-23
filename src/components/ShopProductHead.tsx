@@ -95,9 +95,7 @@ export const shopProductSchema = (
       url,
       price: product.price,
       priceCurrency: product.currency,
-      availability: product.inStock
-        ? 'https://schema.org/InStock'
-        : 'https://schema.org/OutOfStock',
+      availability: 'https://schema.org/InStock',
       seller: { '@id': ORG_ID },
     },
   } ] : [];
