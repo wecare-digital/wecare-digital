@@ -1457,6 +1457,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( healthTabRule ).toContain( 'flex:0 0 40px' );
     expect( healthTabRule ).toContain( 'border-radius:50%' );
     expect( healthTabRule ).toContain( 'scroll-snap-align:start' );
+    expect( healthTabRule ).toContain( 'width:40px' );
     expect( css ).not.toContain( '.vl-live-air-history-nav' );
     expect( css ).not.toContain( 'scrollbar' + '-color:' );
 
