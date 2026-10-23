@@ -5,7 +5,7 @@ from lambda_utils import media_paths
 FIXED_IMAGE_HEADERS = {
     'wecare_leave_review': (
         f'https://{media_paths.CDN_DOMAIN}/'
-        'o/public/wa-tpl/img/wecare-digital-cebc83f1_img.png'
+        'secure/d/public/whatsapp/wa-tpl/img/wecare-digital-cebc83f1_img.png'
     ),
 }
 
