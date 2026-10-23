@@ -46,14 +46,26 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
-def _json_default(value: Any):
+def _normalize_numbers(value: Any) -> Any:
+    """Convert DynamoDB Decimals to JSON numbers (integral -> int, fractional -> float).
+
+    cors_response serializes with json.dumps(..., default=str), which would turn a Decimal
+    priceMinor into the STRING "9900" - and the workspace reads priceMinor back with a strict
+    `!== 9900`, so a stringified price fails the readback ("VayuLok ₹99.00 price readback
+    failed") and every variant price reaches the UI as a string. Normalize here so prices are
+    real numbers before the response is built.
+    """
     if isinstance(value, Decimal):
-        return int(value) if value == value.to_integral_value() else str(value)
-    raise TypeError("unsupported product data")
+        return int(value) if value == value.to_integral_value() else float(value)
+    if isinstance(value, Mapping):
+        return {k: _normalize_numbers(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_normalize_numbers(v) for v in value]
+    return value
 
 
 def _resp(status: int, body: Mapping[str, Any], origin: str):
-    return cors_response(status, dict(body), origin)
+    return cors_response(status, _normalize_numbers(dict(body)), origin)
 
 
 def _parse_body(event: Mapping[str, Any]) -> dict[str, Any]:
