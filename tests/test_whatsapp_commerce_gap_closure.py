@@ -60,3 +60,43 @@ def test_commerce_callers_pin_the_outbound_live_alias():
         source = path.read_text(encoding="utf-8")
         assert "os.environ.get('OUTBOUND_FUNCTION', 'wecare-outbound-whatsapp:live')" in source
         assert "os.environ.get('OUTBOUND_FUNCTION', 'wecare-outbound-whatsapp')" not in source
+
+
+def test_canonical_s3_path_catalogue_and_runtime_defaults():
+    paths = (ROOT / "amplify/functions/shared/lambda_utils/media_paths.py").read_text(encoding="utf-8")
+    assert 'DROP_DOCS_UPLOAD_PREFIX = SECURE_UPLOAD_ROOT + "dropdocs/"' in paths
+    assert 'INVOICE_CUSTOMER_IMAGE_PREFIX = PUBLIC_DELIVERABLE_ROOT + "Invoice/customer_invoice/"' in paths
+    assert 'INVOICE_FONT_PREFIX = PUBLIC_DELIVERABLE_ROOT + "Invoice/fonts/"' in paths
+    assert 'WHATSAPP_ROOT = PUBLIC_DELIVERABLE_ROOT + "whatsapp/"' in paths
+    assert 'BLOG_ROOT = PUBLIC_DELIVERABLE_ROOT + "blog/"' in paths
+    assert 'CATALOG_DEPLOY_ROOT = PUBLIC_DELIVERABLE_ROOT + "catalog-deploy/"' in paths
+    assert 'PUBLIC_STREAM_MEDIA_ROOT = PUBLIC_ROOT + "stream/media/"' in paths
+
+    runtime_files = [
+        ROOT / "amplify/functions/payments/invoice-engine/handler.py",
+        ROOT / "amplify/functions/ecommerce/checkout/invoice_engine.py",
+        ROOT / "amplify/functions/messaging/outbound-whatsapp/handler.py",
+        ROOT / "amplify/functions/messaging/whatsapp-business-api/handler.py",
+        ROOT / "amplify/functions/messaging/whatsapp-template-management/handler.py",
+        ROOT / "amplify/functions/messaging/inbound-whatsapp-handler/handler.py",
+        ROOT / "amplify/functions/core/secure-files/handler.py",
+        ROOT / "amplify/functions/shared/lambda_utils/ecommerce/dropdocs_storage.py",
+    ]
+    joined = "\n".join(path.read_text(encoding="utf-8") for path in runtime_files)
+    assert "media_paths.secure('Invoice/customer_invoice/')" not in joined
+    assert "media_paths.public('stack/whatsapp-media" not in joined
+    assert 'media_paths.public("stack/whatsapp-media' not in joined
+
+
+def test_legacy_s3_prefixes_are_read_compatible_but_write_denied_in_iam_source():
+    source = (ROOT / "amplify/iam-policies.ts").read_text(encoding="utf-8")
+    assert "Sid: 'DenyLegacyMediaWrites'" in source
+    for prefix in (
+        "secure/Invoice/customer_invoice/*",
+        "secure/Invoice/fonts/*",
+        "o/stack/whatsapp-media/*",
+        "stack/whatsapp-media/*",
+    ):
+        assert prefix in source
+    assert "'s3:PutObject'" in source
+    assert "'s3:DeleteObject'" in source
