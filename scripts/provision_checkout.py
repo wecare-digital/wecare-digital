@@ -180,7 +180,7 @@ FLOW_SUBMISSIONS_TABLE = "stack-wecare-digital-FlowSubmissionTable"
 RAZORPAY_WEBHOOK_LOG_TABLE = "stack-wecare-digital-RazorpayWebhookLogTable"
 AUDIT_LOG_TABLE = "stack-wecare-digital-AuditLogsTable"
 MEDIA_BUCKET = "wecare-digital-get"
-INVOICE_PREFIX = "secure/Invoice/customer_invoice/"
+INVOICE_PREFIX = "secure/d/public/Invoice/customer_invoice/"
 PILLOW_LAYER_ARN = "arn:aws:lambda:us-east-1:775261844268:layer:pillow-python312:2"
 
 #: The business-API Lambda. Holds the Meta token; answers the readiness readback.
