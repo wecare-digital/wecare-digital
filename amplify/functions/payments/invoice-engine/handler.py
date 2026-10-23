@@ -4103,7 +4103,7 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
 
     try:
         wa_response = lambda_client.invoke(
-            FunctionName=os.environ.get('OUTBOUND_FUNCTION', 'wecare-outbound-whatsapp'),
+            FunctionName=os.environ.get('OUTBOUND_FUNCTION', 'wecare-outbound-whatsapp:live'),
             InvocationType='RequestResponse',
             Payload=json.dumps(wa_payload),
         )
