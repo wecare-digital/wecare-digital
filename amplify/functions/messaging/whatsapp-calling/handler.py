@@ -2073,8 +2073,8 @@ def _generate_ivr_tts_audio(phone_number_id: str, call_id: str) -> Optional[str]
             return None
 
         # Upload to S3 with public-read ACL
-        s3_key = media_paths.public(
-            f'whatsapp-media/whatsapp-calling/ivr-greeting-{call_id[:8]}.mp3')
+        s3_key = media_paths.deliverable_public(
+            f'whatsapp/whatsapp-calling/ivr-greeting-{call_id[:8]}.mp3')
         s3.put_object(
             Bucket=MEDIA_BUCKET,
             Key=s3_key,
