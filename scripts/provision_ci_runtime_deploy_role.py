@@ -31,8 +31,11 @@ WHAT THE ROLE DOES, and therefore what it may do. It deploys the FUNCTIONS list 
 
 No secretsmanager, no DynamoDB. Function-level actions are scoped to the listed
 function ARNs and their `:*` qualifiers; GetLayerVersion is scoped to the Pillow layer.
-The role may not CreateFunction or DeleteFunction — every target already exists and its
-lifecycle is owned elsewhere. `wecare-checkout:live` is readable (for the payment-config
+For the FUNCTIONS list the role may not CreateFunction or DeleteFunction — every target
+already exists and its lifecycle is owned elsewhere. The two exceptions are the pinned
+provisioning blocks below, which MAY CreateFunction on exactly one function each
+(wecare-vayulok-environment and wecare-catalog-media) and never DeleteFunction anywhere.
+`wecare-checkout:live` is readable (for the payment-config
 sync) but checkout itself is deployed by the dedicated
 `scripts/provision_ci_checkout_deploy_role.py`; it is in this list too because
 runtime-deploy.yml publishes it first for the /invoices strangler ordering, so the ARN
@@ -143,6 +146,17 @@ TRUST = {
 _FN = f"arn:aws:lambda:{REGION}:{ACCOUNT}:function"
 _VAYULOK_FN = f"{_FN}:wecare-vayulok-environment"
 _VAYULOK_ROLE = f"arn:aws:iam::{ACCOUNT}:role/wecare-vayulok-environment-role"
+
+# The catalog-media provisioning surface. `.github/workflows/storage-layout-runtime-deploy.yml`
+# runs `scripts/provision_catalog_media.py --apply/--verify` under THIS role, and that script's
+# first act is iam.get_role(RoleName="wecare-catalog-media-role") + get_role_policy to confirm
+# the exec role is scoped to the approved catalog-deploy artwork before it will create/update
+# the function. This role previously granted iam:GetRole only on the VayuLok role, so the step
+# failed with AccessDenied on GetRole for wecare-catalog-media-role. Grant exactly what that
+# script needs, pinned to the one function, its one execution role and the one HTTP API - a
+# mirror of the VayuLok block above, same least-privilege shape.
+_CATALOG_MEDIA_FN = f"{_FN}:wecare-catalog-media"
+_CATALOG_MEDIA_ROLE = f"arn:aws:iam::{ACCOUNT}:role/wecare-catalog-media-role"
 
 POLICIES = {
     "ReadConsolidatedFunctionConfig": {
@@ -269,6 +283,36 @@ POLICIES = {
                     "logs:DescribeLogGroups",
                 ],
                 "Resource": "*",
+            },
+            {
+                "Sid": "ProvisionCatalogMediaFunctionOnly",
+                "Effect": "Allow",
+                "Action": [
+                    "lambda:CreateFunction",
+                    "lambda:GetFunction",
+                    "lambda:GetFunctionConfiguration",
+                    "lambda:UpdateFunctionCode",
+                    "lambda:UpdateFunctionConfiguration",
+                    "lambda:AddPermission",
+                    "lambda:GetPolicy",
+                ],
+                "Resource": [_CATALOG_MEDIA_FN, f"{_CATALOG_MEDIA_FN}:*"],
+            },
+            {
+                "Sid": "PassOnlyCatalogMediaExecutionRole",
+                "Effect": "Allow",
+                "Action": "iam:PassRole",
+                "Resource": _CATALOG_MEDIA_ROLE,
+                "Condition": {"StringEquals": {"iam:PassedToService": "lambda.amazonaws.com"}},
+            },
+            {
+                "Sid": "ReadOnlyCatalogMediaExecutionRole",
+                "Effect": "Allow",
+                # provision_catalog_media.role_arn() reads the role and its inline policy to
+                # confirm it is scoped to the approved catalog-deploy artwork before use. Read
+                # only - this role may not mutate wecare-catalog-media-role.
+                "Action": ["iam:GetRole", "iam:GetRolePolicy"],
+                "Resource": _CATALOG_MEDIA_ROLE,
             },
         ],
     },
