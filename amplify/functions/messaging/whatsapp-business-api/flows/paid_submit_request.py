@@ -1,13 +1,11 @@
 """Native form for one already-paid Submit Request service purchase."""
 import os
 import json
-import time
 import logging
-from datetime import datetime
 import boto3
 from lambda_utils.ecommerce import paid_submit_request as paid
 from lambda_utils.ecommerce import service_request_store as store, order_keys
-from lambda_utils import customer_auth, shared_tables
+from lambda_utils import flow_completion, shared_tables
 
 logger = logging.getLogger(__name__)
 
@@ -47,24 +45,43 @@ def route(action, screen, data, token):
 
 
 def mirror(row):
-    """Repairable workspace projection. The paid REQ row remains authoritative."""
-    table = boto3.resource('dynamodb').Table(shared_tables.flow_submissions_table_name())
-    item = {
-        'submissionId': row['publicRequestId'], 'flowId': paid.FLOW_ID,
-        'flowCode': '01.WD_PAID_SR', 'flowName': 'Paid Submit Request',
-        'flowType': 'form_submit', 'status': 'submitted', 'paymentStatus': 'paid',
-        'customerId': row['customerId'], 'createdAt': row['detailsSubmittedAt'],
-        'orderId': row['parentOrderId'], 'serviceOrderId': row['orderId'],
-        'requestId': row['publicRequestId'], 'referenceId': row['referenceId'],
-        'subject': row['subject'], 'description': row['description'],
-        # The details arrive through the WhatsApp paid-request Flow, whichever surface paid.
-        'channel': 'whatsapp'}
-    # Empty strings are not valid keys on a sparse DynamoDB index.
-    if row.get('flowContactId'):
-        item['contactId'] = row['flowContactId']
-    if row.get('flowPhone'):
-        item['phone'] = row['flowPhone']
-    table.put_item(Item=item)
+    """Repairable workspace projection through the one Flow completion writer."""
+    form = {
+        'order_id': row.get('parentOrderId', ''),
+        'subject': row.get('subject', ''),
+        'description': row.get('description', ''),
+        'serviceOrderId': row.get('orderId', ''),
+        'referenceId': row.get('referenceId', ''),
+    }
+    result = flow_completion.claim_completion(
+        flow_token=row['publicRequestId'],
+        screen='REVIEW',
+        flow_code='01.WD_PAID_SR',
+        flow_type='form_submit',
+        phone=row.get('flowPhone', ''),
+        contact_id=row.get('flowContactId', ''),
+        form_data=form,
+        submission_id=row['publicRequestId'],
+        status='submitted',
+        channel=flow_completion.CHANNEL_WHATSAPP,
+        extra={
+            'flowId': paid.FLOW_ID,
+            'flowName': 'Paid Submit Request',
+            'paymentStatus': 'paid',
+            'customerId': row.get('customerId', ''),
+            'createdAt': row.get('detailsSubmittedAt'),
+            'orderId': row.get('parentOrderId', ''),
+            'serviceOrderId': row.get('orderId', ''),
+            'requestId': row['publicRequestId'],
+            'referenceId': row.get('referenceId', ''),
+            'subject': row.get('subject', ''),
+            'description': row.get('description', ''),
+        },
+        ttl_seconds=0,
+    )
+    return result
+
+
 def send_review(event, lambda_client):
     """Legacy internal action retained as a no-op.
 
@@ -75,91 +92,60 @@ def send_review(event, lambda_client):
 
 
 def prepare_and_send(event, lambda_client, get_flow):
-    """Internal ids-only hint; independently re-check every paid ownership link."""
+    """Activate the paid service without sending any post-payment interactive Flow.
+
+    The invoice template is the only post-payment customer message. Service details remain
+    available through the normal Submit Request Flow entry points; payment finalization does not
+    push a second Flow invitation.
+    """
     requests, keys, _ = tables()
     payref = order_keys.resolve_payment_reference(keys, str(event.get('referenceId') or '')) or {}
     if payref.get('nativeCatalogService'):
-        result = lambda_client.invoke(FunctionName='wecare-checkout:live', InvocationType='RequestResponse',
-            Payload=json.dumps({'internalAction': 'finalizeNativeCatalogService',
-                'paymentAttemptId': str(event.get('paymentAttemptId') or '')}).encode())
+        result = lambda_client.invoke(
+            FunctionName='wecare-checkout:live',
+            InvocationType='RequestResponse',
+            Payload=json.dumps({
+                'internalAction': 'finalizeNativeCatalogService',
+                'paymentAttemptId': str(event.get('paymentAttemptId') or ''),
+            }).encode(),
+        )
         answer = json.loads(result['Payload'].read())
         if result.get('FunctionError') or answer.get('outcome') != 'NATIVE_SERVICE_FINALIZED':
             return {'outcome': 'NATIVE_SERVICE_FINALIZATION_PENDING'}
-    outcome = store.activate(requests, keys,
-                            reference_id=str(event.get('referenceId') or ''),
-                            payment_attempt_id=str(event.get('paymentAttemptId') or ''))
+
+    outcome = store.activate(
+        requests,
+        keys,
+        reference_id=str(event.get('referenceId') or ''),
+        payment_attempt_id=str(event.get('paymentAttemptId') or ''),
+    )
     if outcome.outcome not in (store.ACTIVATED, store.ALREADY_ACTIVE):
         return {'outcome': outcome.outcome}
-    claim = order_keys.resolve_order_for_payment(keys, str(event.get('paymentAttemptId') or '')) or {}
+
+    claim = order_keys.resolve_order_for_payment(
+        keys, str(event.get('paymentAttemptId') or '')) or {}
     oid = claim.get('orderIdRef')
     if not oid or oid != event.get('orderId'):
         return {'outcome': 'ORDER_MISMATCH'}
-    pointer = requests.get_item(Key={'requestId': 'ORDER#' + oid}, ConsistentRead=True).get('Item') or {}
+
+    pointer = requests.get_item(
+        Key={'requestId': 'ORDER#' + oid}, ConsistentRead=True).get('Item') or {}
     target = pointer.get('targetRequestId', '')
-    candidate = requests.get_item(Key={'requestId': target}, ConsistentRead=True).get('Item') or {}
+    candidate = requests.get_item(
+        Key={'requestId': target}, ConsistentRead=True).get('Item') or {}
+
     if candidate.get('kind') == 'VAULT':
         from .paid_vault import prepare_and_send as vault_send
         return vault_send(event, lambda_client)
     if candidate.get('kind') != 'SUBMIT_REQUEST':
         return {'outcome': 'NOT_SUBMIT_REQUEST'}
-    row, token = paid.prepare(requests, keys, target)
+
+    row, _token = paid.prepare(requests, keys, target)
     if row.get('detailsSubmittedAt'):
         mirror(row)
         return {'outcome': 'ALREADY_COMPLETED'}
-    meta = get_flow(paid.FLOW_ID)
-    info = json.loads(meta.get('body') or '{}').get('flow') or {}
-    if info.get('status') != 'PUBLISHED':
-        return {'outcome': 'FLOW_DRAFT', 'requestId': row['publicRequestId']}
-    # Cognito sub is canonical UUID. Refuse malformed filter inputs before ListUsers.
-    if not customer_auth.is_cognito_subject(row['customerId']):
-        return {'outcome': 'VERIFIED_RECIPIENT_UNAVAILABLE'}
-    users = boto3.client('cognito-idp').list_users(
-        UserPoolId=customer_auth.CUSTOMER_POOL_ID,
-        Filter='sub = "' + row['customerId'] + '"', Limit=2).get('Users') or []
-    if len(users) != 1 or not users[0].get('Enabled', True):
-        return {'outcome': 'VERIFIED_RECIPIENT_UNAVAILABLE'}
-    attrs = {a['Name']: a['Value'] for a in users[0].get('Attributes', [])}
-    phone = attrs.get('phone_number', '')
-    if attrs.get('phone_number_verified') != 'true' or not phone.startswith('+'):
-        return {'outcome': 'VERIFIED_RECIPIENT_UNAVAILABLE'}
-    contacts = boto3.resource('dynamodb').Table(shared_tables.contacts_table_name())
-    matches = contacts.query(IndexName='phone-index', KeyConditionExpression='phone=:p',
-                             ExpressionAttributeValues={':p': phone}).get('Items') or []
-    valid = []
-    for projection in matches:
-        contact = contacts.get_item(Key={'id': projection['id']}, ConsistentRead=True).get('Item') or {}
-        if (contact.get('checkoutCustomerId') == row['customerId']
-                and not contact.get('isDeleted') and contact.get('deletedAt') is None):
-            valid.append(contact)
-    if len(valid) != 1:
-        return {'outcome': 'CONTACT_LINK_UNAVAILABLE'}
-    contact = valid[0]
-    last = contact.get('lastInboundMessageAt', 0)
-    if isinstance(last, str):
-        last = datetime.fromisoformat(last.replace('Z', '+00:00')).timestamp()
-    if not 0 <= time.time() - float(last or 0) < 86400:
-        return {'outcome': 'AWAITING_CUSTOMER_MESSAGE'}
-    # A claimed send is not automatically repeated after an ambiguous network result.
-    try:
-        requests.update_item(Key={'requestId': target},
-            UpdateExpression='SET flowInviteStatus=:s, flowContactId=:c, flowPhone=:p',
-            ConditionExpression='attribute_not_exists(flowInviteStatus)',
-            ExpressionAttributeValues={':s': 'SENDING', ':c': contact['id'], ':p': phone})
-    except Exception as error:
-        if getattr(error, 'response', {}).get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
-            return {'outcome': 'INVITATION_ALREADY_CLAIMED'}
-        raise
-    response = lambda_client.invoke(FunctionName='wecare-outbound-whatsapp:live',
-        InvocationType='RequestResponse', Payload=json.dumps({'body': json.dumps({
-            'contactId': contact['id'], 'recipientPhone': phone, 'isInteractive': True,
-            'interactiveType': 'flow', 'interactiveData': {
-                'body': 'Payment received. Complete the details for your Submit Request.',
-                'footer': 'WECARE.DIGITAL', 'flowId': paid.FLOW_ID,
-                'flowCta': 'Complete Request', 'flowAction': 'data_exchange', 'flowToken': token}})}).encode())
-    answer = json.loads(response['Payload'].read())
-    accepted = not response.get('FunctionError') and 200 <= int(answer.get('statusCode', 500)) < 300
-    requests.update_item(Key={'requestId': target},
-        UpdateExpression='SET flowInviteStatus=:s',
-        ExpressionAttributeValues={':s': 'ACCEPTED' if accepted else 'SEND_FAILED'})
-    return {'outcome': 'INVITATION_ACCEPTED' if accepted else 'SEND_FAILED',
-            'requestId': row['publicRequestId']}
+
+    return {
+        'outcome': 'SERVICE_ACTIVATED_NO_POSTPAY_FLOW',
+        'requestId': row['publicRequestId'],
+    }
