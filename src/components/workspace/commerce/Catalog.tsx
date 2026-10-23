@@ -48,6 +48,11 @@ const API_ROOT = (process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/ap
 const LEGACY_CATALOG_IMAGE_PREFIX = 'secure/public/catalog-deploy/catalog/products/';
 const CANONICAL_CATALOG_IMAGE_PREFIX = 'secure/d/public/catalog-deploy/catalog/products/';
 const CATALOG_MEDIA_BASE = 'https://wecare.digital/api/catalog-media/';
+const APPROVED_28_CATALOG_PROMOTIONS = [
+  { id: 'native:elsewhere-activities', title: 'Activities' },
+  { id: 'native:ritual-guru-ritva', title: 'Ritva' },
+  { id: 'native:vayulok', title: 'VayuLok' },
+] as const;
 
 class NativeCatalogHttpError extends Error {
   status: number;
@@ -223,6 +228,125 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
       });
     }
   }, [tab, run]);
+
+  const promoteApprovedCatalogThree = () => {
+    void (async () => {
+      setError('');
+      setMessage('');
+      setBulkMigrationProgress('');
+      setBulkMigrationSummary('');
+
+      let current: NativeProduct[];
+      try {
+        current = await reloadProducts();
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : 'Catalog refresh failed');
+        return;
+      }
+
+      const byId = new Map(current.map(product => [product.id, product]));
+      const missing = APPROVED_28_CATALOG_PROMOTIONS.filter(target => !byId.has(target.id));
+      if (missing.length > 0) {
+        setError('Approved catalog rows missing: ' + missing.map(target => target.title).join(', '));
+        return;
+      }
+
+      const targets = APPROVED_28_CATALOG_PROMOTIONS.map(target => byId.get(target.id)!);
+      const badArtwork = targets.filter(product =>
+        !(product.catalogImageKey || '').startsWith(CANONICAL_CATALOG_IMAGE_PREFIX));
+      if (badArtwork.length > 0) {
+        setError(
+          'Promotion blocked until canonical artwork exists for: ' +
+          badArtwork.map(product => product.title).join(', '),
+        );
+        return;
+      }
+
+      const pending = targets.filter(product =>
+        product.status !== 'active' ||
+        product.websiteEnabled !== true ||
+        product.metaEnabled !== true);
+
+      const ok = await confirm({
+        title: 'Publish the 3 approved catalog products?',
+        message:
+          'This explicitly promotes Activities, Ritva and VayuLok to Active, enables website ' +
+          'publication and includes them in the Meta / WhatsApp catalog plan. No other draft is ' +
+          'touched. Meta provider writes remain locked; the action only regenerates the read-only ' +
+          '28-item plan.',
+        confirmText: 'Promote 3 + prepare 28 plan',
+      });
+      if (!ok) return;
+
+      await run(async () => {
+        let promoted = 0;
+        for (const product of pending) {
+          const saved = await patchNativeProductWithRetry(product, {
+            status: 'active',
+            websiteEnabled: true,
+            metaEnabled: true,
+          });
+          if (saved.status !== 'active' ||
+              saved.websiteEnabled !== true ||
+              saved.metaEnabled !== true ||
+              !(saved.catalogImageKey || '').startsWith(CANONICAL_CATALOG_IMAGE_PREFIX)) {
+            throw new Error(product.title + ': publication readback failed');
+          }
+          promoted += 1;
+          setBulkMigrationProgress(
+            'Approved promotion ' + promoted + '/' + pending.length + ': ' + saved.title,
+          );
+        }
+
+        current = await reloadProducts();
+        const failed = APPROVED_28_CATALOG_PROMOTIONS
+          .map(target => current.find(product => product.id === target.id))
+          .filter(product =>
+            !product ||
+            product.status !== 'active' ||
+            product.websiteEnabled !== true ||
+            product.metaEnabled !== true ||
+            !(product.catalogImageKey || '').startsWith(CANONICAL_CATALOG_IMAGE_PREFIX));
+        if (failed.length > 0) {
+          throw new Error('The 3-product publication readback is incomplete.');
+        }
+
+        setBulkMigrationProgress('Refreshing 28-item read-only Meta plan…');
+        const planResult = await api.getMetaCatalogSyncPlan();
+        if (!planResult.ok) throw new Error(planResult.failure.message);
+        const plan = planResult.data;
+        setMetaCatalog(plan);
+
+        const planHash = plan.planHash || plan.currentPlanHash || '';
+        const desiredCount = Array.isArray(plan.desiredItems) ? plan.desiredItems.length : 0;
+        if (!planHash) throw new Error('Meta inspect returned no exact plan hash');
+        if (desiredCount !== 28) {
+          throw new Error(
+            'Expected 28 desired Meta items after promotion, got ' + desiredCount + '.',
+          );
+        }
+        if ((plan.blocked || []).length > 0) {
+          throw new Error('Meta plan has blocked item(s): ' + plan.blocked?.join(', '));
+        }
+
+        setBulkMigrationSummary(
+          'Approved drafts promoted now: ' + promoted +
+          ' · Desired Meta items: ' + desiredCount +
+          ' · Plan create/update/retire/foreign: ' +
+          Number(plan.counts?.create || 0) + '/' +
+          Number(plan.counts?.update || 0) + '/' +
+          Number(plan.counts?.retire || 0) + '/' +
+          Number(plan.counts?.foreign || 0) +
+          ' · PLAN_HASH=' + planHash +
+          ' · Provider writes: none',
+        );
+        setMessage(
+          '28-item catalog plan prepared. The previous 25-item approval is stale; approve only this new exact plan.',
+        );
+        setBulkMigrationProgress('');
+      });
+    })();
+  };
 
   const runBulkCatalogMigration = () => {
     void (async () => {
@@ -683,10 +807,16 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
                 canonical artwork keys → eligible Meta enablement → verification → read-only Meta plan.
                 It never approves or applies the provider plan.
               </p>
-              <button type="button" onClick={runBulkCatalogMigration}
-                disabled={busy || metaCatalogBusy}>
-                Migrate catalog + prepare Meta plan
-              </button>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                <button type="button" onClick={runBulkCatalogMigration}
+                  disabled={busy || metaCatalogBusy}>
+                  Migrate catalog + prepare Meta plan
+                </button>
+                <button type="button" onClick={promoteApprovedCatalogThree}
+                  disabled={busy || metaCatalogBusy}>
+                  Promote Activities + Ritva + VayuLok → 28-item plan
+                </button>
+              </div>
               {bulkMigrationProgress && (
                 <p role="status" style={{ marginTop: 10, fontSize: 'var(--text-xs)' }}>
                   {bulkMigrationProgress}
