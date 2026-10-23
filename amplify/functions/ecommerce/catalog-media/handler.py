@@ -50,8 +50,12 @@ def handler(event, context):
     if method != "GET":
         return _response(405, "METHOD_NOT_ALLOWED")
 
-    marker = "/catalog-media/"
-    if not path.startswith(marker):
+    # Amplify rewrites /api/* to the named API Gateway /prod/* stage.
+    # HTTP API v2 rawPath can retain that stage prefix. Accept only the
+    # known delivery paths; never turn an arbitrary path into an S3 key.
+    markers = ("/catalog-media/", "/prod/catalog-media/", "/api/catalog-media/")
+    marker = next((prefix for prefix in markers if path.startswith(prefix)), None)
+    if marker is None:
         return _response(404, "NOT_FOUND")
     name = path[len(marker):].strip("/")
     if "/" in name or "\\" in name or not NAME.fullmatch(name):
