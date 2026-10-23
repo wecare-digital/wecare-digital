@@ -93,6 +93,10 @@ PUBLIC_ROOT = "o/"
 #: Gated root. Denied at the edge; reachable only via a presigned URL.
 SECURE_ROOT = "secure/"
 
+#: Public-delivery subtree inside the deliverable root. CloudFront serves this
+#: subtree directly; every other secure/ key remains gated.
+PUBLIC_DELIVERABLE_ROOT = "secure/d/public/"
+
 #: The single media bucket. Everything below lives here.
 BUCKET = "wecare-digital-get"
 
@@ -164,4 +168,4 @@ def public_url(key: Optional[str], cdn_domain: Optional[str] = None) -> str:
 
 def is_gated(key: Optional[str]) -> bool:
     """True when the key lives under the gated root."""
-    return bool(key) and canonical(key).startswith(SECURE_ROOT)
+    if not key:\n        return False\n    k = canonical(key)\n    return k.startswith(SECURE_ROOT) and not k.startswith(PUBLIC_DELIVERABLE_ROOT)
