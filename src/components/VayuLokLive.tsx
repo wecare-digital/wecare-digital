@@ -7,7 +7,6 @@ import {
   VayuLokFreshnessStamp,
   VayuLokHorizontalRail,
   VayuLokIconAction,
-  VayuLokSectionHeading,
   VayuLokUiStyles,
 } from './VayuLokUiPrimitives';
 import { API_BASE } from '../config/constants';
@@ -3338,10 +3337,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                           </span>
                         ) ) }
                         { airAge && (
-                          <small className={ airAge.stale ? 'vl-live-freshness is-stale' : 'vl-live-freshness' } aria-label={ airAge.label }>
-                            <svg className="vl-live-freshness-icon" viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.schedule } /></svg>
-                            <span>{ freshnessTimeLabel( airAge.label ) }</span>
-                          </small>
+                          <VayuLokFreshnessStamp className={ airAge.stale ? 'vl-live-freshness is-stale' : 'vl-live-freshness' } aria-label={ airAge.label } iconPath={ MATERIAL_SYMBOL_PATHS.schedule } iconClassName="vl-live-freshness-icon" text={ freshnessTimeLabel( airAge.label ) } />
                         ) }
                       </div>
                     </div>
@@ -3451,10 +3447,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                               </span>
                             ) }
                             { airAge && (
-                              <span className={ airAge.stale ? 'vl-live-data-age vl-live-freshness is-stale' : 'vl-live-data-age vl-live-freshness' } aria-label={ airAge.label }>
-                                <svg className="vl-live-freshness-icon" viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.schedule } /></svg>
-                                <span>{ freshnessTimeLabel( airAge.label ) }</span>
-                              </span>
+                              <VayuLokFreshnessStamp className={ airAge.stale ? 'vl-live-data-age vl-live-freshness is-stale' : 'vl-live-data-age vl-live-freshness' } aria-label={ airAge.label } iconPath={ MATERIAL_SYMBOL_PATHS.schedule } iconClassName="vl-live-freshness-icon" text={ freshnessTimeLabel( airAge.label ) } />
                             ) }
                           </div>
                         </div>
@@ -3540,9 +3533,9 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                           <div className="vl-live-air-forecast-head-actions">
                             <div className="vl-live-air-range" role="group" aria-label="Air forecast range">
                               { ( [ 24, 48, 96 ] as const ).map( hours => (
-                                <button key={ hours } type="button" className={ airForecastHours === hours ? 'is-active' : '' } aria-pressed={ airForecastHours === hours } onClick={ () => setAirForecastHours( hours ) }>
+                                <VayuLokCompactPill key={ hours } className={ airForecastHours === hours ? 'is-active' : '' } aria-pressed={ airForecastHours === hours } onClick={ () => setAirForecastHours( hours ) }>
                                   { hours }h
-                                </button>
+                                </VayuLokCompactPill>
                               ) ) }
                             </div>
                             { airForecast.length > 0 && (
@@ -3582,15 +3575,15 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                           <p className="vl-live-air-history-empty" role="status">Forecast unavailable for this location.</p>
                         ) : airForecast.length ? (
                           <>
-                            <div ref={ airForecastStripRef } className="vl-live-air-forecast-strip" aria-label={ `Next ${airForecastHours} hours air forecast` }>
+                            <VayuLokHorizontalRail ref={ airForecastStripRef } className="vl-live-air-forecast-strip" aria-label={ `Next ${airForecastHours} hours air forecast` }>
                               { airForecast.slice( 0, airForecastHours ).map( ( point, idx ) => (
-                                <button key={ point.time } type="button" className={ `vl-live-air-forecast-card ${airForecastInspectIdx === idx ? 'is-active' : ''}`.trim() } aria-pressed={ airForecastInspectIdx === idx } onFocus={ e => e.currentTarget.scrollIntoView?.( { block: 'nearest', inline: 'nearest' } ) } onClick={ e => { setAirForecastInspectIdx( idx ); e.currentTarget.scrollIntoView?.( { block: 'nearest', inline: 'nearest' } ); } }>
+                                <VayuLokDataCard key={ point.time } className={ `vl-live-air-forecast-card ${airForecastInspectIdx === idx ? 'is-active' : ''}`.trim() } aria-pressed={ airForecastInspectIdx === idx } onFocus={ e => e.currentTarget.scrollIntoView?.( { block: 'nearest', inline: 'nearest' } ) } onClick={ e => { setAirForecastInspectIdx( idx ); e.currentTarget.scrollIntoView?.( { block: 'nearest', inline: 'nearest' } ); } }>
                                   <span>{ formatHistoryPointLabel( point.time, displayTimeZoneId, locationZoneLabel ) }</span>
                                   <strong>AQI <span data-wc-no-translate="true">{ point.aqi }</span></strong>
                                   { Number.isFinite( point.pm25 ) && <small>PM2.5 <span data-wc-no-translate="true">{ Math.round( point.pm25 as number ) } µg/m³</span></small> }
-                                </button>
+                                </VayuLokDataCard>
                               ) ) }
-                            </div>
+                            </VayuLokHorizontalRail>
                             { airForecast[ airForecastInspectIdx ] && (
                               <div className="vl-live-air-forecast-detail">
                                 { airForecast[ airForecastInspectIdx ].dominant && (
@@ -3627,11 +3620,10 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                           <div className="vl-live-air-health-head">
                             <h4 className="vl-live-air-health-title">Health Recommendations</h4>
                           </div>
-                          <div className="vl-live-air-health-tabs" role="tablist" aria-label="Health recommendation profiles">
+                          <VayuLokHorizontalRail className="vl-live-air-health-tabs" role="tablist" aria-label="Health recommendation profiles">
                             { liveHealthPersonas.map( ( persona, idx ) => (
-                              <button
+                              <VayuLokIconAction
                                 key={ persona.id }
-                                type="button"
                                 role="tab"
                                 id={ `vl-live-air-health-tab-${persona.id}` }
                                 aria-controls="vl-live-air-health-panel"
@@ -3647,9 +3639,10 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                                     <path d={ MATERIAL_SYMBOL_PATHS[ persona.icon ] } />
                                   </svg>
                                 </span>
-                              </button>
+                                <span className="vl-live-air-health-tooltip" role="tooltip">{ persona.label }</span>
+                              </VayuLokIconAction>
                             ) ) }
-                          </div>
+                          </VayuLokHorizontalRail>
                           <div
                             className="vl-live-air-health-panel"
                             role="tabpanel"
@@ -3677,9 +3670,9 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                                   <h4 className="vl-live-air-history-title">Hourly History</h4>
                                   <div className="vl-live-air-range" role="group" aria-label="Air history range">
                                     { ( [ 24, 168 ] as const ).map( hours => (
-                                      <button key={ hours } type="button" className={ historyRange === hours ? 'is-active' : '' } aria-pressed={ historyRange === hours } onClick={ () => setHistoryRange( hours ) }>
+                                      <VayuLokCompactPill key={ hours } className={ historyRange === hours ? 'is-active' : '' } aria-pressed={ historyRange === hours } onClick={ () => setHistoryRange( hours ) }>
                                         { hours === 24 ? '24h' : '7d' }
-                                      </button>
+                                      </VayuLokCompactPill>
                                     ) ) }
                                   </div>
                                 </div>
@@ -3739,9 +3732,9 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                                 <div className="vl-live-air-history-head-meta">
                                   <div className="vl-live-air-range" role="group" aria-label="Air history range">
                                     { ( [ 24, 168 ] as const ).map( hours => (
-                                      <button key={ hours } type="button" className={ historyRange === hours ? 'is-active' : '' } aria-pressed={ historyRange === hours } onClick={ () => setHistoryRange( hours ) }>
+                                      <VayuLokCompactPill key={ hours } className={ historyRange === hours ? 'is-active' : '' } aria-pressed={ historyRange === hours } onClick={ () => setHistoryRange( hours ) }>
                                         { hours === 24 ? '24h' : '7d' }
-                                      </button>
+                                      </VayuLokCompactPill>
                                     ) ) }
                                   </div>
 
@@ -3957,22 +3950,22 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                               <h4 className="vl-live-air-forecast-title">Hourly Forecast</h4>
                               <div className="vl-live-air-range" role="group" aria-label="Weather forecast range">
                                 { ( [ 24, 48 ] as const ).map( hours => (
-                                  <button key={ hours } type="button" className={ weatherHours === hours ? 'is-active' : '' } aria-pressed={ weatherHours === hours } onClick={ () => setWeatherHours( hours ) }>
+                                  <VayuLokCompactPill key={ hours } className={ weatherHours === hours ? 'is-active' : '' } aria-pressed={ weatherHours === hours } onClick={ () => setWeatherHours( hours ) }>
                                     { hours }h
-                                  </button>
+                                  </VayuLokCompactPill>
                                 ) ) }
                               </div>
                             </div>
-                            <div className="vl-live-air-forecast-strip" aria-label={ `Next ${weatherHours} hours weather forecast` }>
+                            <VayuLokHorizontalRail className="vl-live-air-forecast-strip" aria-label={ `Next ${weatherHours} hours weather forecast` }>
                               { weatherHourly.slice( 0, weatherHours ).map( ( hour, idx ) => (
-                                <button key={ hour.time } type="button" className={ `vl-live-air-forecast-card ${weatherHourInspectIdx === idx ? 'is-active' : ''}`.trim() } aria-pressed={ weatherHourInspectIdx === idx } onFocus={ e => e.currentTarget.scrollIntoView?.( { block: 'nearest', inline: 'nearest' } ) } onClick={ e => { setWeatherHourInspectIdx( idx ); e.currentTarget.scrollIntoView?.( { block: 'nearest', inline: 'nearest' } ); } }>
+                                <VayuLokDataCard key={ hour.time } className={ `vl-live-air-forecast-card ${weatherHourInspectIdx === idx ? 'is-active' : ''}`.trim() } aria-pressed={ weatherHourInspectIdx === idx } onFocus={ e => e.currentTarget.scrollIntoView?.( { block: 'nearest', inline: 'nearest' } ) } onClick={ e => { setWeatherHourInspectIdx( idx ); e.currentTarget.scrollIntoView?.( { block: 'nearest', inline: 'nearest' } ); } }>
                                   <span>{ idx === 0 ? 'Now' : formatHistoryPointLabel( hour.time, displayTimeZoneId, locationZoneLabel ) }</span>
                                   { Number.isFinite( hour.temp ) && <strong data-wc-no-translate="true">{ hour.temp }°</strong> }
                                   { hour.condition && <small>{ hour.condition }</small> }
                                   { Number.isFinite( hour.rainProb ) && <small data-wc-no-translate="true">Rain { hour.rainProb }%</small> }
-                                </button>
+                                </VayuLokDataCard>
                               ) ) }
-                            </div>
+                            </VayuLokHorizontalRail>
                             { weatherHourInspectIdx != null && weatherHourly[ weatherHourInspectIdx ] && (
                               <div className="vl-live-air-forecast-detail">
                                 { ( () => {
@@ -4084,9 +4077,9 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                               <h4 className="vl-live-air-forecast-title">Last 24 Hours</h4>
                               <div className="vl-live-air-range" role="group" aria-label="Weather history metric">
                                 { ( [ [ 'temp', 'Temp' ], [ 'rain', 'Rain' ], [ 'humidity', 'Humidity' ], [ 'pressure', 'Pressure' ], [ 'wind', 'Wind' ], [ 'cloud', 'Cloud' ] ] as const ).map( ( [ metric, label ] ) => (
-                                  <button key={ metric } type="button" className={ weatherHistMetric === metric ? 'is-active' : '' } aria-pressed={ weatherHistMetric === metric } onClick={ () => setWeatherHistMetric( metric ) }>
+                                  <VayuLokCompactPill key={ metric } className={ weatherHistMetric === metric ? 'is-active' : '' } aria-pressed={ weatherHistMetric === metric } onClick={ () => setWeatherHistMetric( metric ) }>
                                     { label }
-                                  </button>
+                                  </VayuLokCompactPill>
                                 ) ) }
                               </div>
                             </div>
@@ -4946,7 +4939,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-air-health-icon{width:19px;height:19px;fill:currentColor}
         .vl-live-air-health-tooltip{position:absolute;z-index:4;inset-inline-start:50%;bottom:calc(100% + 7px);max-width:180px;transform:translateX(-50%) translateY(3px);padding:5px 8px;border:1px solid var(--lime);border-radius:var(--radius-md,10px);background:var(--vl-surface);color:var(--green);font-size:var(--vl-meta-size);font-weight:600;line-height:1.3;white-space:normal;opacity:0;pointer-events:none;transition:opacity .14s ease,transform .14s ease}
         .vl-live-air-health-tab{position:relative}
-        .vl-live-air-health-tab:hover .vl-live-air-health-tooltip,.vl-live-air-health-tab:focus-visible .vl-live-air-health-tooltip{opacity:1;transform:translateX(-50%) translateY(0)}
+        :global(.vl-ui-icon-action:hover) .vl-live-air-health-tooltip,:global(.vl-ui-icon-action:focus-visible) .vl-live-air-health-tooltip{opacity:1;transform:translateX(-50%) translateY(0)}
         .vl-live-air-health-panel{margin-top:var(--vl-content-gap);padding-top:var(--vl-content-gap);border-top:1px solid var(--hair)}
         .vl-live-air-health-persona{display:block;margin:0 0 6px;color:var(--heading);font-size:var(--vl-data-size);font-weight:600;line-height:1.35;letter-spacing:-.1px}
         .vl-live-air-health-text{margin:0;color:var(--muted);font-size:var(--vl-subtext-size);font-weight:400;line-height:1.5;letter-spacing:0}
