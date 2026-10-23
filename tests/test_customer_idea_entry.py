@@ -85,3 +85,22 @@ def test_general_review_aliases_take_precedence_over_legacy_order_review():
                       if text in trigger['keywords'] and trigger.get('enabled', True)), None)
         assert match == 'customer_idea'
     assert 'review wd-ord-1234abcd' not in ns['CUSTOMER_IDEA_KEYWORDS']
+
+
+
+def test_f001_subscribe_opens_with_data_exchange_for_prefill():
+    ns, calls = load_entry()
+    trigger = ns['DEFAULT_FLOW_TRIGGERS']['subscribe']
+    assert trigger['flowId'] == '2413873616105042'
+    assert trigger['entryMode'] == 'keyword_interactive'
+    assert trigger['enabled'] is False
+    ns['_send_generic_flow']('fixture-contact', 'phone1', 'fixture-phone', 'fixture-request',
+                             flow_config=trigger, flow_key='subscribe')
+    assert len(calls) == 1
+    body = json.loads(calls[0]['body'])
+    data = body['interactiveData']
+    assert data['flowId'] == '2413873616105042'
+    assert data['flowAction'] == 'data_exchange'
+    assert 'screenId' not in data
+    assert data['flowCta'] == 'Subscribe'
+    assert data['body'] == 'Save your details for faster service on WECARE.DIGITAL.'

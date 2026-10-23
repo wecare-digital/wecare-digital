@@ -67,6 +67,7 @@ STALE_IDS = {
     '1262971692700761': '02.WD_Profile DEPRECATED (subscribe)',
     '951987930811295': '02.WD_Profile DEPRECATED (subscribe, WABA2)',
     '1557815099200456': 'old Subscribe literal',
+    '1386523953464380': 'retired Subscribe flow replaced by F001',
     '1486454129852338': '02.WD_TR draft (track)',
     '973888792200167': 'WD Track Request DEPRECATED',
 }
@@ -80,7 +81,7 @@ EXPECTED = {
     'shipments': ('849713848195607', 'DRAFT'),
     'leave_review': ('940049388908144', 'PUBLISHED'),
     'vault': (None, 'NONE'),
-    'subscribe': ('1386523953464380', 'PUBLISHED'),
+    'subscribe': ('2413873616105042', 'DRAFT'),
     'track_request': (None, 'NONE'),
 }
 
@@ -150,7 +151,9 @@ def test_inbound_handler_uses_canonical_ids():
     }
     for cap, fid in checks.items():
         assert triggers[cap]['flowId'] == fid, f"{cap} trigger flowId != canonical {fid}"
-    assert triggers['subscribe'].get('flowId') == '1386523953464380'
+    assert triggers['subscribe'].get('flowId') == '2413873616105042'
+    assert triggers['subscribe'].get('entryMode') == 'keyword_interactive'
+    assert triggers['subscribe'].get('enabled') is False
     assert 'flowId2' not in triggers['subscribe'], 'deprecated subscribe flowId2 must be gone'
     assert not triggers['track_request'].get('flowId'), 'track_request must have no canonical flow'
 
@@ -170,12 +173,7 @@ def test_published_flow_lookup_only_returns_live_customer_flows():
     exec(PY_CANON.read_text(encoding='utf-8'), ns)
     subscribe = ns['published_flow']('subscribe')
     review = ns['published_flow_by_id']('940049388908144')
-    assert subscribe == {
-        'capability': 'subscribe',
-        'flowId': '1386523953464380',
-        'status': 'PUBLISHED',
-        'metaName': 'WD_Subscribe_Design_v1',
-    }
+    assert subscribe is None
     assert review and review['capability'] == 'leave_review'
     assert ns['published_flow']('orders') is None
     assert ns['published_flow_by_id']('') is None

@@ -4422,6 +4422,15 @@ def _upsert_flow_registry(body: Dict) -> Dict:
         valid_statuses = ('DRAFT', 'PUBLISHED', 'DEPRECATED')
         if status not in valid_statuses:
             return _resp(400, {'error': f'Invalid status: {status}. Must be one of {valid_statuses}'})
+        entry_mode = body.get('entryMode', 'none')
+        valid_entry_modes = ('keyword_interactive', 'payment_template', 'internal_event', 'manual', 'none')
+        if entry_mode not in valid_entry_modes:
+            return _resp(400, {'error': f'Invalid entryMode: {entry_mode}. Must be one of {valid_entry_modes}'})
+        entry_template = str(body.get('entryTemplateName', '') or '').strip()
+        if entry_mode == 'payment_template' and not entry_template:
+            return _resp(400, {'error': 'entryTemplateName is required for payment_template entryMode'})
+        if entry_mode == 'keyword_interactive' and entry_template:
+            return _resp(400, {'error': 'keyword_interactive flows must not declare an entryTemplateName'})
         
         now = int(time.time())
         table = dynamodb.Table(FLOW_REGISTRY_TABLE)
@@ -4435,6 +4444,8 @@ def _upsert_flow_registry(body: Dict) -> Dict:
             'wabaId': body.get('wabaId', ''),
             'status': status,
             'category': body.get('category', ''),
+            'entryMode': entry_mode,
+            'entryTemplateName': entry_template,
             'requiresPayment': body.get('requiresPayment', False),
             'paymentAmount': int(body.get('paymentAmount', 0)),
             'paymentDescription': body.get('paymentDescription', ''),
@@ -4640,9 +4651,9 @@ def _sync_flows(params: Dict, body: Dict) -> Dict:
             update['previewUrl'] = preview['preview_url']
             update['previewExpiresAt'] = Decimal(str(now + 600))
         # Preserve config-only fields already present.
-        for keep in ('flowCode', 'flowType', 'flowVersion', 'requiresPayment', 'paymentAmount',
-                     'screenConfig', 'contactMapping', 'dataFetchers',
-                     'submissionPrefix', 'endpointUri', 'createdAt'):
+        for keep in ('flowCode', 'flowType', 'flowVersion', 'entryMode', 'entryTemplateName',
+                     'requiresPayment', 'paymentAmount', 'screenConfig', 'contactMapping',
+                     'dataFetchers', 'submissionPrefix', 'endpointUri', 'createdAt'):
             if keep in existing and keep not in update:
                 update[keep] = existing[keep]
         update.setdefault('createdAt', Decimal(str(now)))
