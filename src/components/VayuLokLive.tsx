@@ -869,19 +869,16 @@ function formatCurrencyValue( value: number, currency: string ): string {
 
 function formatHistoryStamp( value: number, timeZoneId: string, zoneLabel: string ): string {
   try {
-    const parts = new Intl.DateTimeFormat( 'en-CA', {
+    const label = new Intl.DateTimeFormat( 'en-IN', {
       timeZone: timeZoneId,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
       hour: '2-digit',
       minute: '2-digit',
-      hourCycle: 'h23',
-    } ).formatToParts( new Date( value ) );
-    const pick = ( type: Intl.DateTimeFormatPartTypes ) => parts.find( part => part.type === type )?.value || '';
-    return `${pick( 'year' )}-${pick( 'month' )}-${pick( 'day' )} ${pick( 'hour' )}:${pick( 'minute' )} ${zoneLabel}`;
+      hour12: true,
+    } ).format( new Date( value ) );
+    const zoneSuffix = zoneLabel.trim();
+    return `${label}${zoneSuffix ? ` ${zoneSuffix}` : ''}`;
   } catch {
-    return `${new Date( value ).toISOString().slice( 0, 16 ).replace( 'T', ' ' )} UTC`;
+    return `${new Date( value ).toISOString().slice( 11, 16 )} UTC`;
   }
 }
 
