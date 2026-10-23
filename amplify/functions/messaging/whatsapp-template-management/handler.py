@@ -25,7 +25,7 @@ MEDIA_BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
 TEMPLATE_MEDIA_PREFIX = os.environ.get(
     'TEMPLATE_MEDIA_PREFIX',
     media_paths.public('stack/whatsapp-media/template-headers/'))
-# The `o/` root is load-bearing: the 61 objects already in o/public/wa-tpl/ are
+# The `o/` root is load-bearing: the 61 objects already in secure/d/public/whatsapp/wa-tpl/ are
 # referenced by Meta-APPROVED templates whose URLs are on the app.wecare.digital
 # host, and that host serves this bucket through origin path `/o`.
 PUBLIC_MEDIA_PREFIX = os.environ.get('PUBLIC_MEDIA_PREFIX',
@@ -955,7 +955,7 @@ def _upload_send_media(body):
                   i.e. https://wecare.digital/get/public/wa-tpl/... by default.
 
         NOTE the 61 objects backing already-approved templates live at
-        o/public/wa-tpl/ and are served on app.wecare.digital, because that host is
+        secure/d/public/whatsapp/wa-tpl/ and are served on app.wecare.digital, because that host is
         rebuilt with OriginPath=/o. New uploads land at the bucket root instead, so
         they are reachable on wecare.digital/get but NOT on app.wecare.digital. Both
         work; they are simply different locations. Do not "fix" one to match the
