@@ -1423,6 +1423,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     // each persona. Separate previous/next arrows and the old More/Less disclosure stay gone.
     expect( healthTablist.querySelectorAll( '.vl-live-air-health-tab-label' ) ).toHaveLength( 0 );
     expect( healthTablist.querySelectorAll( '.vl-live-air-health-icon' ) ).toHaveLength( 7 );
+    expect( healthTablist.querySelectorAll( '.vl-live-air-health-tooltip' ) ).toHaveLength( 7 );
     expect( screen.queryByRole( 'button', { name: 'Previous health recommendation' } ) ).toBeNull();
     expect( screen.queryByRole( 'button', { name: 'Next health recommendation' } ) ).toBeNull();
     expect( container.querySelector( '.vl-live-air-health-more' ) ).toBeNull();
@@ -1454,10 +1455,11 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( css ).toContain( '@media(horizontal-viewport-segments:2)' );
     expect( css ).toContain( 'width:env(viewport-segment-width 0 0)' );
     expect( css ).toContain( " :global([dir='rtl']) .vl-live-shell".trim() );
-    expect( healthTabRule ).toContain( 'flex:0 0 auto' );
-    expect( healthTabRule ).toContain( 'border-radius:var(--pill-r)' );
+    expect( healthTabRule ).toContain( 'flex:0 0 var(--tap-min)' );
+    expect( healthTabRule ).toContain( 'width:var(--tap-min)' );
+    expect( healthTabRule ).toContain( 'min-height:var(--tap-min)' );
+    expect( healthTabRule ).toContain( 'border-radius:50%' );
     expect( healthTabRule ).toContain( 'scroll-snap-align:start' );
-    expect( healthTabRule ).toContain( 'font-weight:600' );
     expect( css ).not.toContain( '.vl-live-air-history-nav' );
     expect( css ).not.toContain( 'scrollbar' + '-color:' );
 
@@ -1488,10 +1490,10 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( airRangeRule ).toContain( 'background:transparent' );
     expect( airRangeButtonRule ).toContain( 'min-height:32px' );
     expect( airRangeButtonRule ).toContain( 'border:1px solid var(--hair)' );
-    expect( forecastCardRule ).toContain( 'width:154px' );
+    expect( forecastCardRule ).toContain( 'width:clamp(142px,42vw,168px)' );
     expect( forecastCardRule ).toContain( 'flex-direction:column' );
     expect( forecastCardRule ).toContain( 'align-items:flex-start' );
-    expect( forecastCardRule ).toContain( 'padding:9px 12px' );
+    expect( forecastCardRule ).toContain( 'padding:10px 12px' );
     expect( forecastCardRule ).toContain( 'border-radius:var(--radius-lg,12px)' );
     expect( css ).not.toContain( '.vl-live-air-forecast-strip::-webkit-scrollbar{display:none}' );
 
@@ -1549,8 +1551,8 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( metricPillRule ).toContain( 'background:var(--lime-tint)' );
     expect( metricPillRule ).toContain( 'border-radius:var(--pill-r)' );
     const popupRule = css.match( /\.vl-live-air-pollutant-tip\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( popupRule ).toContain( 'width:min(248px,calc(100vw - 20px))' );
-    expect( popupRule ).toContain( 'max-height:min(176px,calc(100dvh - 20px))' );
+    expect( popupRule ).toContain( 'width:min(248px,calc(100vw - 16px))' );
+    expect( popupRule ).toContain( 'max-height:min(176px,calc(100dvh - 16px))' );
     expect( popupRule ).toContain( 'font-size:var(--vl-meta-size)' );
     const popupTitleRule = css.match( /\.vl-live-air-pollutant-pop-title\{[^}]*\}/ )?.[ 0 ] || '';
     expect( popupTitleRule ).toContain( 'background:var(--lime)' );
@@ -2357,7 +2359,7 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( shellRule ).toContain( 'height:auto' );
     const cardWrapRule = css.match( /\.vl-live-air-card-wrap\{[^}]*\}/ )?.[ 0 ] || '';
     expect( cardWrapRule ).toContain( 'width:min(416px,calc(100% - 32px))' );
-    expect( cardWrapRule ).toContain( 'drop-shadow(0 8px 18px rgba(26,58,42,.10))' );
+    expect( cardWrapRule ).toContain( 'filter:none' );
     expect( css ).not.toContain( '.vl-live-air-card-wrap::after{' );
 
     // GLOBAL SEARCH FIELD: the outer wrapper is visually absent. The input itself reuses
@@ -2439,8 +2441,16 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( css ).not.toContain( 'scrollbar' + '-color:' );
     expect( css ).not.toContain( '::-webkit-scrollbar-thumb' );
     expect( css ).toContain( '.vl-live-air-forecast-strip::-webkit-scrollbar{height:6px}' );
+    expect( css ).toContain( '.vl-live-air-health-tabs::-webkit-scrollbar{height:6px}' );
+    expect( css ).toContain( '.vl-live-wx-history .vl-live-air-range::-webkit-scrollbar{height:6px}' );
+    expect( css ).toContain( '.vl-live-wx-hist-strip::-webkit-scrollbar{height:6px}' );
     expect( css ).toContain( '.vl-live-air-history-detail::-webkit-scrollbar{height:6px}' );
     expect( css ).not.toContain( '.vl-live-air-health-more' );
+    expect( css ).not.toContain( 'background:#dbeafe' );
+    expect( css ).not.toContain( 'background:#e0f7c8' );
+    expect( container.querySelector( '.vl-ui-data-card' ) ).not.toBeNull();
+    expect( container.querySelector( '.vl-ui-horizontal-rail' ) ).not.toBeNull();
+    expect( container.querySelector( '.vl-ui-icon-action' ) ).not.toBeNull();
 
     // Deep typography pass: compact live-panel headings use the Home/public data rung (17px,
     // matching compact readings such as "Feels 17°"); tool-card headings retain the Home card
@@ -2479,10 +2489,10 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     const forecastActiveRule = css.match( /\.vl-live-air-forecast-card\.is-active\{[^}]*\}/ )?.[ 0 ] || '';
     const detailPillRule = css.match( /\.vl-live-air-forecast-detail>span\{[^}]*\}/ )?.[ 0 ] || '';
     expect( forecastCardRule ).toContain( 'border-radius:var(--radius-lg,12px)' );
-    expect( forecastCardRule ).toContain( 'width:154px' );
+    expect( forecastCardRule ).toContain( 'width:clamp(142px,42vw,168px)' );
     expect( forecastCardRule ).toContain( 'flex-direction:column' );
     expect( forecastCardRule ).toContain( 'align-items:flex-start' );
-    expect( forecastCardRule ).toContain( 'padding:9px 12px' );
+    expect( forecastCardRule ).toContain( 'padding:10px 12px' );
     expect( forecastActiveRule ).toContain( 'background:var(--lime)' );
     expect( detailPillRule ).toContain( 'background:var(--lime-tint)' );
     expect( detailPillRule ).toContain( 'border-radius:var(--pill-r)' );
