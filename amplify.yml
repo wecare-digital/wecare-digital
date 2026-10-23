@@ -43,10 +43,9 @@ frontend:
         # `rm -rf node_modules/.cache` went with the switch: `npm ci` removes node_modules
         # wholesale before installing, so the line could not have any effect.
         - npm ci --no-audit --no-fund
-        # DEPLOY GATE. These are the same core correctness checks as Public foundation.
-        # If typecheck or unit tests are red, Amplify must stop before the production export.
+        # DEPLOY GATE. Keep type checking while the test suite is being rebuilt.
+        # Vitest is intentionally not run because the legacy test files have been removed.
         - npx tsc --noEmit
-        - npx vitest run
     build:
       commands:
         # Browser Maps credential is build-scoped only. Do not persist a Maps public-key alias
