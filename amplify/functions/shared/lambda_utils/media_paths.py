@@ -142,6 +142,7 @@ PUBLIC_STREAM_MEDIA_M_PREFIX = PUBLIC_STREAM_MEDIA_ROOT + "m/"
 PUBLIC_STREAM_MEDIA_IVR_PREFIX = PUBLIC_STREAM_MEDIA_ROOT + "ivr/"
 PUBLIC_STREAM_MEDIA_REPORTS_PREFIX = PUBLIC_STREAM_MEDIA_ROOT + "reports/"
 
+# Deployment marker: retrigger production runtime workflows after PR #1362 merge.
 #: The single media bucket. Everything below lives here.
 BUCKET = "wecare-digital-get"
 
