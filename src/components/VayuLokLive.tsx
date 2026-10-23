@@ -4962,14 +4962,14 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-air-health-head-nav{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto}
         .vl-live-air-health-rail-shell{display:block}
         .vl-live-air-health-page{display:inline-flex;width:32px;height:32px;align-items:center;justify-content:center;padding:0;border:1px solid var(--lime);border-radius:50%;background:var(--lime-tint);color:var(--green)}
-        .vl-live-air-health-page:hover:not(:disabled){background:var(--lime)}
+        .vl-live-air-health-page:hover:not(:disabled){border-color:var(--lime);background:var(--lime-tint);box-shadow:0 4px 12px rgba(26,58,42,.10)}
         .vl-live-air-health-page:disabled{opacity:.42;cursor:default}
         .vl-live-air-health-page svg{width:18px;height:18px;fill:currentColor}
         .vl-live-air-health-tabs{display:flex;align-items:center;gap:8px;overflow-x:auto;padding:0 0 8px;scroll-snap-type:x proximity;scrollbar-width:thin;white-space:nowrap;overscroll-behavior-x:contain;touch-action:pan-x}
         .vl-live-air-health-tabs::-webkit-scrollbar{height:6px}
         .vl-live-air-health-tab{display:inline-flex;flex:0 0 48px;width:48px;height:48px;min-height:48px;align-items:center;justify-content:center;padding:0;border:1px solid var(--lime);border-radius:50%;background:var(--lime-tint);color:var(--green);line-height:1;scroll-snap-align:start;transition:background-color .2s,border-color .2s}
-        .vl-live-air-health-tab:hover{border-color:var(--lime);background:var(--lime-hover);color:var(--green)}
-        .vl-live-air-health-tab.is-active{border-color:var(--lime);background:var(--lime);color:var(--green)}
+        .vl-live-air-health-tab:hover{border-color:var(--lime);background:var(--lime-tint);color:var(--green);box-shadow:0 4px 12px rgba(26,58,42,.10)}
+        .vl-live-air-health-tab.is-active{border-color:var(--lime);background:var(--lime);color:var(--green);box-shadow:none}
         .vl-live-air-health-icon-wrap{display:flex;align-items:center;justify-content:center;flex:0 0 24px;width:24px;height:24px;border:0;border-radius:inherit;background:transparent;color:inherit}
         .vl-live-air-health-icon{width:24px;height:24px;fill:currentColor}
         .vl-live-air-health-tooltip{position:absolute;z-index:4;inset-inline-start:50%;bottom:calc(100% + 7px);max-width:180px;transform:translateX(-50%) translateY(3px);padding:5px 8px;border:1px solid var(--lime);border-radius:var(--radius-md,10px);background:var(--vl-surface);color:var(--green);font-size:var(--vl-meta-size);font-weight:600;line-height:1.3;white-space:normal;opacity:0;pointer-events:none;transition:opacity .14s ease,transform .14s ease}
