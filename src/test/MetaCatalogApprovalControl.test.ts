@@ -35,6 +35,18 @@ describe( 'Meta catalog owner approval workspace controls', () => {
     expect( page ).not.toContain( "runBulkCatalogMigration('apply')" );
   } );
 
+  it( 'promotes only the three explicitly approved catalog drafts for the 28-item release', () => {
+    expect( page ).toContain( "native:elsewhere-activities" );
+    expect( page ).toContain( "native:ritual-guru-ritva" );
+    expect( page ).toContain( "native:vayulok" );
+    expect( page ).toContain( 'Promote Activities + Ritva + VayuLok → 28-item plan' );
+    expect( page ).toContain( "status: 'active'" );
+    expect( page ).toContain( 'websiteEnabled: true' );
+    expect( page ).toContain( 'metaEnabled: true' );
+    expect( page ).toContain( 'Expected 28 desired Meta items after promotion' );
+    expect( page ).toContain( 'previous 25-item approval is stale' );
+  } );
+
   it( 'does not let the browser supply an approver identity', () => {
     const controlFn = client.slice( client.indexOf( 'export async function controlMetaCatalogSync' ),
       client.indexOf( '// ============================================================================\n// WABA MANAGEMENT API' ) );
