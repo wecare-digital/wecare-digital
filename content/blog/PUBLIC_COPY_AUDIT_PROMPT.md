@@ -17,6 +17,14 @@ Internal provenance may remain in backend/source-profile metadata. It must not a
 
 Legitimate culinary/cultural identity may remain when it is genuinely part of the subject itself rather than source provenance.
 
+## Author identity hard block
+
+Every public blog record must have the author identity explicitly present and exactly:
+
+`Anew by WECARE.DIGITAL`
+
+Missing, blank, alternate, abbreviated, or different author identity is a hard publication BLOCK in both Conversations and Gastronomy. Live read-back audit must also fail if the stored public author differs.
+
 ## Audit behavior
 
 - Do not delete posts to satisfy this rule.
