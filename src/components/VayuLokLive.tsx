@@ -62,26 +62,7 @@ const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_BROWSER_KEY || '';
  // as the site's icon system. This replaces the oversized bespoke teardrop marker.
 const LOCATION_MARKER_ICON = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent( `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="17" fill="#d1f470"/><svg x="6" y="6" width="24" height="24" viewBox="0 -960 960 960"><path fill="#1a3a2a" d="M480-480q33 0 56.5-23.5T560-560q0-33-23.5-56.5T480-640q-33 0-56.5 23.5T400-560q0 33 23.5 56.5T480-480Zm0 294q122-112 181-203.5T720-552q0-109-69.5-178.5T480-800q-101 0-170.5 69.5T240-552q0 71 59 162.5T480-186Zm0 106Q319-217 239.5-334.5T160-552q0-150 96.5-239T480-880q127 0 223.5 89T800-552q0 100-79.5 217.5T480-80Zm0-480Z"/></svg></svg>` )}`;
 
-// AQI / PM2.5 spatial dots follow the approved VayuLok no-red palette.
-// Real values still determine the band; only the presentation ramp is brand-scoped.
-const DOT_FILL_RGBA: Record<Sev, [ number, number, number, number ]> = {
-  good: [ 61, 163, 90, 210 ],     // #3da35a
-  sat: [ 209, 244, 112, 210 ],    // #d1f470
-  mod: [ 232, 197, 71, 210 ],     // #e8c547
-  poor: [ 201, 138, 46, 210 ],    // #c98a2e
-  worst: [ 201, 138, 46, 210 ],   // warm cap; intentionally no red
-};
 const DOT_LINE_RGBA: [ number, number, number, number ] = [ 255, 255, 255, 230 ];
-
-// PM2.5 (µg/m³) -> severity band, mirroring the AQI ramp's no-red bands so a PM2.5 dot
-// shares the same five-step palette as the AQI dot. Real values only; callers drop NaN.
-function pm25Severity( pm25: number ): Sev {
-  if ( pm25 <= 30 ) return 'good';
-  if ( pm25 <= 60 ) return 'sat';
-  if ( pm25 <= 90 ) return 'mod';
-  if ( pm25 <= 120 ) return 'poor';
-  return 'worst';
-}
 
 // Global map: do not re-introduce a lat/lng restriction here because destination search
 // is worldwide. Manual pan/zoom gestures are disabled; only an explicit place selection
@@ -3152,16 +3133,14 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   }, [ healthPersona, liveHealthPersonas.length ] );
 
   const activeHealthPersona = liveHealthPersonas[ healthPersona ] || liveHealthPersonas[ 0 ] || null;
-  const hydratedClockReady = clockNow != null;
-  const locationTimeReady = hydratedClockReady && (
-    locationTime.source === 'google'
+  const locationZoneReady = locationTime.source === 'google'
     || locationTime.source === 'fixed'
-    || ( locationTime.source === 'default' && ( place.regionCode || 'IN' ).toUpperCase() === 'IN' )
-  );
+    || ( locationTime.source === 'default' && ( place.regionCode || 'IN' ).toUpperCase() === 'IN' );
+  const locationTimeReady = clockNow != null && locationZoneReady;
   const locationClock = locationTimeReady && clockNow != null ? formatLocationClock( clockNow, locationTime.timeZoneId ) : '';
   const locationDate = locationTimeReady && clockNow != null ? formatLocationDate( clockNow, locationTime.timeZoneId ) : '';
-  const locationZoneLabel = locationTimeReady ? locationTime.shortLabel : '';
-  const displayTimeZoneId = locationTimeReady ? locationTime.timeZoneId : 'UTC';
+  const locationZoneLabel = locationZoneReady ? locationTime.shortLabel : '';
+  const displayTimeZoneId = locationZoneReady ? locationTime.timeZoneId : 'UTC';
   const airAge = air?.updatedAt ? relativeAgeLabel( air.updatedAt ) : null;
   const weatherAge = weather?.currentTime || coreFetchedAt
     ? relativeAgeLabel( weather?.currentTime || coreFetchedAt || undefined )
@@ -3341,6 +3320,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                         ) }
                       </div>
                     </div>
+                  ) : dataLoading ? (
+                    <p className="vl-live-mobile-empty" role="status" aria-live="polite">Loading air quality…</p>
                   ) : null
                 ) : weather ? (
                   <div className="vl-live-mobile-snapshot-body is-weather">
@@ -3354,6 +3335,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                       { Number.isFinite( weather.windSpeed ) && <span><b>Wind</b> <span data-wc-no-translate="true">{ weather.windSpeed } { weather.windUnit || 'km/h' }</span></span> }
                     </div>
                   </div>
+                ) : dataLoading ? (
+                  <p className="vl-live-mobile-empty" role="status" aria-live="polite">Loading weather…</p>
                 ) : null }
               </div>
 
@@ -4154,6 +4137,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                           placeName={ place.name }
                           timeZoneId={ locationTime.timeZoneId }
                           zoneLabel={ locationZoneLabel }
+                          includeUiStyles={ false }
                         />
 
                         { weather.currentTime && <span className="vl-live-sr-only">Weather updated for the selected place.</span> }
