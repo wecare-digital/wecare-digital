@@ -157,9 +157,8 @@ const DEFAULT_PLACE: PlaceState = {
   regionCode: 'IN',
 };
 
-// OWNER OVERRIDE (reference screenshot, 2026-10-06): the selected place now uses the STANDARD
-// RED Google marker (default google.maps.Marker pin). The prior no-red brand SVG pin is retired
-// per decisions.md Decision 2; the recenter/marker effect creates a default-icon Marker.
+// Selected-place marker uses the current lime/green LOCATION_MARKER_ICON above. Keep this
+// comment aligned with the actual marker options so future UI work does not "restore" a retired pin.
 
 // GEOMETRY ON THE REPO PALETTE, ported verbatim from the mock's map styles.
 const MAP_STYLES = [
@@ -328,16 +327,6 @@ function compactAirInfo( value?: string, maxChars = 92 ): string | undefined {
   const cut = clean.slice( 0, maxChars + 1 );
   const wordBoundary = cut.lastIndexOf( ' ' );
   return `${cut.slice( 0, wordBoundary > 72 ? wordBoundary : maxChars ).replace( /[,:;\s]+$/, '' )}…`;
-}
-
-// Pollen category 0-5 UPI -> word (Google's universal pollen index).
-function pollenCategory( idx: number ): string {
-  if ( idx <= 0 ) return 'None';
-  if ( idx === 1 ) return 'Very Low';
-  if ( idx === 2 ) return 'Low';
-  if ( idx === 3 ) return 'Moderate';
-  if ( idx === 4 ) return 'High';
-  return 'Very High';
 }
 
 /* ---- live data shapes ---------------------------------------------------------------
@@ -614,7 +603,6 @@ interface WeatherAlertRow {
   sourcePublisher?: string;
   sourceUrl?: string;
 }
-interface PollenRow { label: string; index: number; word: string; day: string; }
 
 // Google Weather publicAlerts coverage (Google Weather coverage page, checked 2026-10-12).
 // Do not bill unsupported regions (including India); supported regions query live alerts.
@@ -995,36 +983,6 @@ function relativeAgeLabel( value?: string | number ): { label: string; stale: bo
   return { label: `Updated ${hours} hr${hours === 1 ? '' : 's'} ago`, stale: true };
 }
 
-function bestOutsideWindow( weatherHours: WeatherHour[], airHours: AirPoint[] ): { label: string; note: string } | null {
-  if ( weatherHours.length < 2 ) return null;
-  const scored = weatherHours.slice( 0, 24 ).map( ( w, i ) => {
-    const a = airHours.find( p => Math.abs( p.time - w.time ) < 45 * 60 * 1000 ) || airHours[ i ];
-    let score = 100;
-    if ( Number.isFinite( w.rainProb ) ) score -= ( w.rainProb as number ) * .45;
-    if ( Number.isFinite( w.stormProb ) ) score -= ( w.stormProb as number ) * .65;
-    if ( Number.isFinite( w.uv ) && ( w.uv as number ) > 5 ) score -= ( ( w.uv as number ) - 5 ) * 5;
-    if ( Number.isFinite( w.temp ) ) {
-      if ( ( w.temp as number ) > 34 ) score -= ( ( w.temp as number ) - 34 ) * 5;
-      if ( ( w.temp as number ) < 15 ) score -= ( 15 - ( w.temp as number ) ) * 2;
-    }
-    if ( a && Number.isFinite( a.aqi ) && a.aqi > 50 ) score -= ( a.aqi - 50 ) * .22;
-    return { w, a, score };
-  } );
-  let best: { start: typeof scored[number]; end: typeof scored[number]; score: number } | null = null;
-  for ( let i = 0; i < scored.length - 1; i++ ) {
-    const pairScore = ( scored[ i ].score + scored[ i + 1 ].score ) / 2;
-    if ( !best || pairScore > best.score ) best = { start: scored[ i ], end: scored[ i + 1 ], score: pairScore };
-  }
-  if ( !best ) return null;
-  const end = new Date( best.end.w.time + 60 * 60 * 1000 ).getTime();
-  const notes: string[] = [];
-  if ( Number.isFinite( best.start.w.temp ) ) notes.push( String( best.start.w.temp ) + '°C' );
-  if ( Number.isFinite( best.start.w.rainProb ) ) notes.push( String( best.start.w.rainProb ) + '% rain' );
-  if ( best.start.a ) notes.push( 'AQI ' + String( best.start.a.aqi ) );
-  if ( Number.isFinite( best.start.w.uv ) ) notes.push( 'UV ' + String( best.start.w.uv ) );
-  return { label: hourLabel( best.start.w.time ) + '–' + hourLabel( end ), note: notes.join( ' · ' ) || 'Best upcoming outdoor window' };
-}
-
 const RECENT_PLACES_KEY = 'vayulok_recent_places_v2';
 
 function recentPlaces(): PlaceState[] {
@@ -1074,7 +1032,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
 
   const [ air, setAir ] = useState<AirState | null>( null );
   const [ weather, setWeather ] = useState<WeatherState | null>( null );
-  const [ pollen, setPollen ] = useState<PollenRow[] | null>( null );
   const [ weatherHourly, setWeatherHourly ] = useState<WeatherHour[]>( [] );
   const [ weatherHistory, setWeatherHistory ] = useState<WeatherHour[]>( [] );
   const [ weatherDaily, setWeatherDaily ] = useState<WeatherDay[]>( [] );
@@ -1191,7 +1148,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   const autocompleteTokenRef = useRef<unknown>( null );
   const geocoder = useRef<unknown>( null );
   // Cache the last fetched values per "lat,lng" so re-selecting a place bills nothing.
-  const cache = useRef<Record<string, { ts: number; air: AirState | null; weather: WeatherState | null; pollen: PollenRow[] | null }>>( {} );
+  const cache = useRef<Record<string, { ts: number; air: AirState | null; weather: WeatherState | null }>>( {} );
   const forecastCache = useRef<Record<string, {
     airTs?: number;
     airHours?: 24 | 48 | 96;
@@ -1818,7 +1775,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
       requestAnimationFrame( () => {
         setAir( cached.air );
         setWeather( cached.weather );
-        setPollen( cached.pollen );
         setCoreFetchedAt( cached.ts );
         setCoreError( false );
         setDataLoading( false );
@@ -1830,10 +1786,9 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
     setCoreError( false );
     setAir( null );
     setWeather( null );
-    setPollen( null );
     const ac = new AbortController();
-    const store: { air: AirState | null; weather: WeatherState | null; pollen: PollenRow[] | null } = {
-      air: null, weather: null, pollen: null,
+    const store: { air: AirState | null; weather: WeatherState | null } = {
+      air: null, weather: null,
     };
 
     // AIR QUALITY - India SKU currentConditions:lookup, India local AQI preferred.
@@ -1944,11 +1899,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
       } catch { /* silent degradation */ }
     };
 
-    // Google Pollen has no India coverage. Keep the slot empty without issuing a request.
-    const fetchPollen = async () => undefined;
-
     ( async () => {
-      await Promise.all( [ fetchAir(), fetchWeather(), fetchPollen() ] );
+      await Promise.all( [ fetchAir(), fetchWeather() ] );
       if ( ac.signal.aborted ) return;
       const fetchedAt = Date.now();
       cache.current[ cacheKey ] = { ts: fetchedAt, ...store };
@@ -1957,7 +1909,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         if ( ac.signal.aborted ) return;
         setAir( store.air );
         setWeather( store.weather );
-        setPollen( store.pollen );
         setCoreFetchedAt( fetchedAt );
         setCoreError( !store.air && !store.weather );
         setDataLoading( false );
