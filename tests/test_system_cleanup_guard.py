@@ -732,3 +732,14 @@ def test_options_is_still_a_preflight(mod, monkeypatch):
 def test_an_unsupported_method_is_405(mod, monkeypatch):
     token = as_staff(monkeypatch)
     assert mod.handler(event("PUT", token, {}), None)["statusCode"] == 405
+
+
+def test_cleanup_registry_uses_only_canonical_media_prefixes():
+    source = HANDLER.read_text(encoding="utf-8")
+    assert "media_paths.INVOICE_CUSTOMER_IMAGE_PREFIX" in source
+    assert "media_paths.CATALOG_GENERATED_MEDIA_PREFIX" in source
+    assert "media_paths.PUBLIC_STREAM_MEDIA_REPORTS_PREFIX" in source
+    assert "stack/store/products" not in source
+    assert "stack/reports" not in source
+    assert "stack/voice" not in source
+    assert "secure('Invoice/customer_invoice/')" not in source

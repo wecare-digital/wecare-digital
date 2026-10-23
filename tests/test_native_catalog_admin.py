@@ -40,7 +40,7 @@ def seeded():
             {"sku": "sku-a", "label": "Small", "priceMinor": 9900, "inventory": 2},
             {"sku": "sku-b", "label": "Large", "priceMinor": 12900, "inventory": 3},
         ],
-        "imageRefs": ["https://wecare.digital/get/o/stack/store/products/existing.png"],
+        "imageRefs": ["https://wecare.digital/api/catalog-media/existing-4096.png"],
     }
 
 
@@ -328,3 +328,11 @@ def test_catalog_response_omits_legacy_stock_metadata():
     assert "inventory" not in public
     assert "inventory" not in public["variants"][0]
     assert "trackInventory" not in public["variants"][0]
+
+
+def test_product_image_generator_cannot_mutate_product_rows():
+    source = (ROOT / "amplify/functions/ecommerce/product-image-gen/handler.py").read_text(encoding="utf-8")
+    assert "CATALOG_GENERATED_MEDIA_PREFIX" in source
+    assert "NATIVE_CATALOG_ADMIN_REQUIRED" in source
+    assert ".Table(PRODUCTS_TABLE)" not in source
+    assert "stack/store/products" not in source
