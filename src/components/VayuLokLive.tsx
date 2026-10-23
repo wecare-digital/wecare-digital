@@ -3622,7 +3622,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                                 type="button"
                                 className="vl-live-air-health-page"
                                 aria-label="Previous health profile"
-                                onClick={ () => healthRailRef.current?.scrollBy( { left: -180, behavior: 'smooth' } ) }
+                                disabled={ healthPersona <= 0 }
+                                onClick={ () => setHealthPersona( current => Math.max( 0, current - 1 ) ) }
                               >
                                 <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.chevronLeft } /></svg>
                               </button>
@@ -3630,7 +3631,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                                 type="button"
                                 className="vl-live-air-health-page"
                                 aria-label="Next health profile"
-                                onClick={ () => healthRailRef.current?.scrollBy( { left: 180, behavior: 'smooth' } ) }
+                                disabled={ healthPersona >= liveHealthPersonas.length - 1 }
+                                onClick={ () => setHealthPersona( current => Math.min( liveHealthPersonas.length - 1, current + 1 ) ) }
                               >
                                 <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.chevronRight } /></svg>
                               </button>
@@ -4956,12 +4958,13 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-air-health-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:var(--vl-heading-gap)}
         .vl-live-air-health-head-nav{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto}
         .vl-live-air-health-rail-shell{display:block}
-        .vl-live-air-health-page{display:inline-flex;width:32px;height:32px;align-items:center;justify-content:center;padding:0;border:1px solid var(--hair);border-radius:50%;background:var(--lime-tint);color:var(--green)}
-        .vl-live-air-health-page:hover{border-color:var(--lime);background:var(--lime)}
+        .vl-live-air-health-page{display:inline-flex;width:32px;height:32px;align-items:center;justify-content:center;padding:0;border:1px solid var(--lime);border-radius:50%;background:var(--lime-tint);color:var(--green)}
+        .vl-live-air-health-page:hover:not(:disabled){background:var(--lime)}
+        .vl-live-air-health-page:disabled{opacity:.42;cursor:default}
         .vl-live-air-health-page svg{width:18px;height:18px;fill:currentColor}
         .vl-live-air-health-tabs{display:flex;align-items:center;gap:8px;overflow-x:auto;padding:0 0 8px;scroll-snap-type:x proximity;scrollbar-width:thin;white-space:nowrap;overscroll-behavior-x:contain;touch-action:pan-x}
         .vl-live-air-health-tabs::-webkit-scrollbar{height:6px}
-        .vl-live-air-health-tab{display:inline-flex;flex:0 0 48px;width:48px;height:48px;min-height:48px;align-items:center;justify-content:center;padding:0;border:1px solid var(--hair);border-radius:50%;background:var(--lime-tint);color:var(--green);line-height:1;scroll-snap-align:start;transition:background-color .2s,border-color .2s}
+        .vl-live-air-health-tab{display:inline-flex;flex:0 0 48px;width:48px;height:48px;min-height:48px;align-items:center;justify-content:center;padding:0;border:1px solid var(--lime);border-radius:50%;background:var(--lime-tint);color:var(--green);line-height:1;scroll-snap-align:start;transition:background-color .2s,border-color .2s}
         .vl-live-air-health-tab:hover{border-color:var(--lime);background:var(--lime-hover);color:var(--green)}
         .vl-live-air-health-tab.is-active{border-color:var(--lime);background:var(--lime);color:var(--green)}
         .vl-live-air-health-icon-wrap{display:flex;align-items:center;justify-content:center;flex:0 0 24px;width:24px;height:24px;border:0;border-radius:inherit;background:transparent;color:inherit}
