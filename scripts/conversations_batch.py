@@ -47,6 +47,7 @@ import blog_native_contract as native  # noqa: E402
 import blog_quality_v2 as quality  # noqa: E402
 
 CATEGORY = quality.DEFAULT_CATEGORY
+AUTHOR = quality.AUTHOR
 LEDGER_PATH = blog_ledger.DEFAULT_LEDGER
 
 #: The read-back uses the same unauthenticated, published-only route the site build reads,
@@ -129,6 +130,9 @@ def payload_errors(record: Dict[str, Any]) -> List[str]:
     category = str(record.get("category") or "").strip()
     if category and category != CATEGORY:
         errors.append(f"{prefix}: category must be {CATEGORY!r}, got {category!r}")
+    author = quality.text_field(record, "author") or AUTHOR
+    if author != AUTHOR:
+        errors.append(f"{prefix}: author must be {AUTHOR!r}, got {author!r}")
     tags = quality.field(record, "tags") or []
     if not isinstance(tags, list) or not 1 <= len(tags) <= 3:
         errors.append(f"{prefix}: tags must be a list of 1-3 labels")
@@ -284,6 +288,8 @@ def audit_post(public: Dict[str, Any], expected: Dict[str, Any], *,
     if str(public.get("title") or "") != str(expected.get("title") or "").strip():
         fail(f"title is {public.get('title')!r}, expected "
              f"{str(expected.get('title') or '').strip()!r}")
+    if str(public.get("authorName") or "") != AUTHOR:
+        fail(f"authorName is {public.get('authorName')!r}, expected {AUTHOR!r}")
 
     if str(public.get("category") or "") != CATEGORY:
         fail(f"category is {public.get('category')!r}, expected {CATEGORY!r}")
