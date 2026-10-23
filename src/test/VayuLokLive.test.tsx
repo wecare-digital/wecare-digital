@@ -1463,23 +1463,24 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( personaRule ).toContain( 'font-weight:600' );
     const healthTextRule = css.match( /\.vl-live-air-health-text\{[^}]*\}/ )?.[ 0 ] || '';
     expect( healthTextRule ).toContain( 'font-size:var(--vl-subtext-size)' );
-    expect( healthTextRule ).toContain( 'font-weight:700' );
+    expect( healthTextRule ).toContain( 'font-weight:400' );
     expect( healthTextRule ).toContain( 'color:var(--muted)' );
     expect( healthTextRule ).toContain( 'line-height:1.5' );
     expect( healthTextRule ).toContain( 'letter-spacing:0' );
     expect( css ).not.toContain( '.vl-live-air-health-text.is-clamped' );
 
-    // Air time ranges and each hourly forecast item use the compact lime-pill language rather
-    // than the old full tap-height segmented control / stacked mini-card treatment.
+    // Air time ranges stay compact lime pills, while Air Forecast and Weather Hourly Forecast
+    // use the restored stacked rail-card treatment from before #1354.
     const airRangeRule = css.match( /\.vl-live-air-range\{[^}]*\}/ )?.[ 0 ] || '';
     const airRangeButtonRule = css.match( /\.vl-live-air-range button\{[^}]*\}/ )?.[ 0 ] || '';
     const forecastCardRule = css.match( /\.vl-live-air-forecast-card\{[^}]*\}/ )?.[ 0 ] || '';
     expect( airRangeRule ).toContain( 'background:transparent' );
     expect( airRangeButtonRule ).toContain( 'min-height:32px' );
     expect( airRangeButtonRule ).toContain( 'border:1px solid var(--hair)' );
-    expect( forecastCardRule ).toContain( 'min-width:max-content' );
-    expect( forecastCardRule ).toContain( 'min-height:34px' );
-    expect( forecastCardRule ).toContain( 'flex-direction:row' );
+    expect( forecastCardRule ).toContain( 'min-width:118px' );
+    expect( forecastCardRule ).toContain( 'flex-direction:column' );
+    expect( forecastCardRule ).toContain( 'align-items:flex-start' );
+    expect( forecastCardRule ).toContain( 'padding:9px 12px' );
     expect( forecastCardRule ).toContain( 'border-radius:var(--pill-r)' );
     expect( css ).not.toContain( '.vl-live-air-forecast-strip::-webkit-scrollbar{display:none}' );
 
@@ -2451,20 +2452,21 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( pollutantValueRule ).toContain( 'min-width:118px' );
     expect( pollutantValueRule ).toContain( 'text-align:end' );
     expect( pollutantValueRule ).toContain( 'font-variant-numeric:tabular-nums' );
-    // Shared Air + Weather forecast cards are deliberately readable, not metadata-sized.
+    // Shared Air + Weather forecast cards use the restored readable stacked rail treatment.
     const forecastTimeRule = css.match( /\.vl-live-air-forecast-card span\{[^}]*\}/ )?.[ 0 ] || '';
     const forecastValueRule = css.match( /\.vl-live-air-forecast-card strong\{[^}]*\}/ )?.[ 0 ] || '';
     const forecastMetaRule = css.match( /\.vl-live-air-forecast-card small\{[^}]*\}/ )?.[ 0 ] || '';
     expect( forecastTimeRule ).toContain( 'font-size:var(--vl-meta-size)' );
-    expect( forecastValueRule ).toContain( 'font-size:var(--vl-meta-size)' );
+    expect( forecastValueRule ).toContain( 'font-size:var(--vl-data-size)' );
     expect( forecastMetaRule ).toContain( 'font-size:var(--vl-meta-size)' );
     const forecastCardRule = css.match( /\.vl-live-air-forecast-card\{[^}]*\}/ )?.[ 0 ] || '';
     const forecastActiveRule = css.match( /\.vl-live-air-forecast-card\.is-active\{[^}]*\}/ )?.[ 0 ] || '';
     const detailPillRule = css.match( /\.vl-live-air-forecast-detail>span\{[^}]*\}/ )?.[ 0 ] || '';
     expect( forecastCardRule ).toContain( 'border-radius:var(--pill-r)' );
-    expect( forecastCardRule ).toContain( 'min-width:max-content' );
-    expect( forecastCardRule ).toContain( 'min-height:34px' );
-    expect( forecastCardRule ).toContain( 'flex-direction:row' );
+    expect( forecastCardRule ).toContain( 'min-width:118px' );
+    expect( forecastCardRule ).toContain( 'flex-direction:column' );
+    expect( forecastCardRule ).toContain( 'align-items:flex-start' );
+    expect( forecastCardRule ).toContain( 'padding:9px 12px' );
     expect( forecastActiveRule ).toContain( 'background:var(--lime)' );
     expect( detailPillRule ).toContain( 'background:var(--lime-tint)' );
     expect( detailPillRule ).toContain( 'border-radius:var(--pill-r)' );
