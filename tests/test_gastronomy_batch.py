@@ -47,7 +47,6 @@ def make_doc(start=455, size=25):
         'source_profile': {
             'label': 'Example source',
             'blocked_public_terms': ['Example Publisher', 'Example Author', 'Example Institute'],
-            'required_public_attribution_terms': [],
         },
         'posts': [make_post(i) for i in range(start, start + size)],
     }
@@ -87,16 +86,6 @@ def test_source_terms_are_dynamic_not_isha_specific():
     errors = m.validate_batch_document(doc, require_v2=True)
     assert any('Example Publisher' in e for e in errors)
     assert not any('Isha' in e for e in errors)
-
-
-def test_required_attribution_is_not_a_public_copy_exception():
-    m = load_module()
-    doc = make_doc(size=1)
-    doc['source_profile']['blocked_public_terms'] = ['Named Theory']
-    doc['source_profile']['required_public_attribution_terms'] = ['Named Theory']
-    doc['posts'][0]['body_markdown'] += '\n\nNamed Theory is discussed here because attribution is required.'
-    errors = m.validate_batch_document(doc, require_v2=True)
-    assert any('Named Theory' in e for e in errors)
 
 
 def test_generic_source_scaffolding_is_rejected():
@@ -262,7 +251,6 @@ def test_pdf_profile_blocks_publisher_author_title_and_private_place():
         'private_place_names': ['Private Kitchen'],
         'provenance_phrases': ['family kitchen in Example Town'],
         'allowed_public_terms': [],
-        'required_public_attribution_terms': [],
     }
     doc['posts'][0]['body_markdown'] += '\n\nExample Cookbook was prepared by Example Author for Example Publisher.'
     errors = m.validate_batch_document(doc, require_v2=True)
