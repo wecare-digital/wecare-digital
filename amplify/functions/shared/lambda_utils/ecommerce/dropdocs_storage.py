@@ -114,7 +114,7 @@ DROPDOCS_SUBPREFIX = "u/dropdocs"
 #: The ONE prefix a Drop Docs document may be promoted FROM, composed rather than written
 #: out so it cannot drift from the key `inbound-whatsapp-handler` actually writes and from
 #: the single ``s3:GetObject`` resource the role is granted.
-WHATSAPP_INCOMING_PREFIX = media_paths.public("stack/whatsapp-media", "incoming/")
+WHATSAPP_INCOMING_PREFIX = media_paths.WHATSAPP_INCOMING_PREFIX
 
 #: The locker's own ceiling for a customer upload (``secure-files.MAX_DOCUMENT_BYTES``),
 #: applied here too. Pinned equal by a test, because two numbers that must agree and live in
