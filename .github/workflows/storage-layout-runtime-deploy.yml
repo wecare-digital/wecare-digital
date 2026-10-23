@@ -16,6 +16,9 @@ on:
       - 'amplify/functions/core/secure-files/**'
       - 'amplify/functions/operations/system-cleanup/**'
       - 'amplify/functions/edge/get-miss-redirect/**'
+      - 'amplify/functions/ecommerce/catalog-media/**'
+      - 'scripts/provision_catalog_media.py'
+      - 'tests/test_catalog_media_delivery.py'
       - 'scripts/deploy_all_lambdas.py'
       - 'scripts/snapstart_publish.py'
   workflow_dispatch:
