@@ -57,6 +57,16 @@ def test_the_initiation_flag_is_absent_not_false(provisioner):
     assert "CHECKOUT_INITIATION_ENABLED" not in env
 
 
+def test_catalog_orders_rollout_is_part_of_checkout_environment(provisioner):
+    env = provisioner.expected_environment()
+    assert env["WA_CATALOG_ORDERS_ENABLED"] == "true"
+
+    manifest = json.loads(
+        (ROOT / "config" / "lambda-env-manifest.json").read_text(encoding="utf-8")
+    )["functions"]["wecare-checkout"]
+    assert manifest["WA_CATALOG_ORDERS_ENABLED"] == "true"
+
+
 def test_readiness_inputs_match_the_live_contract(provisioner):
     """Provisioning must not blank the non-secret expectations used by payment_readiness."""
     env = provisioner.expected_environment()
