@@ -43,7 +43,7 @@ from lambda_utils import contact_store  # one contact row per person, whichever 
 from lambda_utils import shared_tables  # one name per shared store (contacts, orders, flows)
 from lambda_utils.identity import subscriber_id
 from lambda_utils import customer_ideas
-from lambda_utils.canonical_flows import canonical_flow_id  # one source of truth for WABA 1 flow ids
+from lambda_utils.canonical_flows import canonical_flow_id, canonical_flow_status  # one source of truth for WABA 1 flow ids
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
 from lambda_utils.ecommerce import order_keys  # reference_id contract; never truncate a join key
 # The catalogue-order hand-off: lines and quantities, no money. Pure, so every rule it holds is
@@ -2809,7 +2809,7 @@ def _process_message(
 
         # Non-form service doors reuse secure website experiences. No second payment path.
         if _content_plain in {'vault', 'my vault', 'request amendment', 'drop docs',
-                              'shipments', 'submit request', 'subscribe'}:
+                              'shipments', 'submit request'}:
             service_doors = {
                 'vault': ('Vault', '/vault/', 'Access documents linked to your verified account.'),
                 'my vault': ('Vault', '/vault/', 'Access documents linked to your verified account.'),
@@ -2817,7 +2817,6 @@ def _process_message(
                 'drop docs': ('View orders', '/orders/', 'Sign in to select your existing order and its request before attaching documents. The WhatsApp document checkout is being prepared.'),
                 'shipments': ('Orders', '/orders/', 'View your orders and delivery updates with this verified WhatsApp number.'),
                 'submit request': ('View orders', '/orders/', 'Sign in to select your existing order. Your service purchase and the order you need help with remain linked separately. The WhatsApp service checkout is being prepared.'),
-                'subscribe': ('Subscribe', '/subscribe/', 'Open the subscription page for the latest WECARE.DIGITAL updates and subscription options.'),
             }
             title, path, body = service_doors[_content_plain]
             _send_cta_button(contact_id, aws_phone_number_id, title,
@@ -2916,12 +2915,20 @@ def _process_message(
         for flow_key, trigger in flow_triggers.items():
             if not trigger.get('enabled', True):
                 continue
+            # Paid/post-payment/event-only flows are never allowed to become keyword doors.
+            if trigger.get('entryMode', 'keyword_interactive') != 'keyword_interactive':
+                continue
+            # Subscribe additionally requires the canonical Meta lifecycle to be PUBLISHED.
+            # This keeps F001 visible/manageable in Workspace while it is DRAFT without making
+            # it customer-sendable by accident.
+            if flow_key == 'subscribe' and canonical_flow_status('subscribe') != 'PUBLISHED':
+                continue
             keywords = [k.lower() for k in trigger.get('keywords', [])]
             if content_lower in keywords:
                 flow_id = trigger.get('flowId', '')
                 if not flow_id:
                     continue
-                # All flow types use the same generic flow sender
+                # All keyword-native flow types use the same generic flow sender.
                 _send_generic_flow(
                     contact_id=contact_id,
                     phone_number_id=aws_phone_number_id,
@@ -5454,8 +5461,8 @@ def _send_submit_request_flow(contact_id: str, phone_number_id: str, sender_phon
 def _send_subscribe_flow(contact_id: str, phone_number_id: str, sender_phone: str, request_id: str, flow_config: Dict = None) -> None:
     """
     Send the Subscribe WhatsApp Flow to the user.
-    Collects: name, phone, email, company, billing + shipping address.
-    On completion, updates the contact book via _enrich_contact_from_flow.
+    Collects the F001 customer profile and structured address.
+    On completion, updates the canonical contact and records the Flow submission.
     """
     try:
         flow_id = (flow_config or {}).get('flowId', '')
@@ -5471,10 +5478,10 @@ def _send_subscribe_flow(contact_id: str, phone_number_id: str, sender_phone: st
         _waba_suffix = '1' if phone_number_id == PHONE_NUMBER_ID_1 else '2'
         flow_token = f'subscribe-{uuid.uuid4()}-waba-{_waba_suffix}-ph-{sender_phone}'
         interactive_data = {
-            'body': msg.get('body', '\U0001f4cb Subscribe to WECARE.DIGITAL \u2014 fill in your details to get started with orders, payments, and updates.'),
+            'body': msg.get('body', 'Save your details for faster service on WECARE.DIGITAL.'),
             'footer': msg.get('footer', 'WECARE.DIGITAL'),
             'flowId': flow_id,
-            'flowCta': msg.get('flowCta', 'Subscribe Now'),
+            'flowCta': msg.get('flowCta', 'Subscribe'),
             'flowAction': 'data_exchange',
             'flowToken': flow_token,
         }
@@ -5696,7 +5703,7 @@ def _send_generic_flow(contact_id: str, phone_number_id: str, sender_phone: str,
                     'drop_docs': '\U0001f4c4 Send supporting documents for your request.',
                     'enterprise_assist': '\U0001f3e2 Corporate, B2B, and bulk enquiries. Tell us what you need.',
                     'leave_review': '\u2b50 Share your experience with our service.',
-                    'subscribe': '\U0001f514 Get updates, offers, and service news. Fill in your details to stay connected.',
+                    'subscribe': 'Save your details for faster service on WECARE.DIGITAL.',
                     'order_notes': '\U0001f4dd Add notes to your order with any special instructions.',
                 }
                 short_url = SHORT_URLS.get(flow_key, 'https://wecare.digital/r/sr')
@@ -5725,8 +5732,7 @@ def _send_generic_flow(contact_id: str, phone_number_id: str, sender_phone: str,
         # `leave_review` shares flow 1578178897413815 with `customer_idea`, so it
         # needs the same entry screen: that flow is endpointless and would fail at
         # open under data_exchange.
-        STATIC_ENTRY_SCREENS = {'subscribe': 'PERSONAL_INFO', 'customer_idea': 'FEEDBACK',
-                                'leave_review': 'FEEDBACK'}
+        STATIC_ENTRY_SCREENS = {'customer_idea': 'FEEDBACK', 'leave_review': 'FEEDBACK'}
         _entry_screen = STATIC_ENTRY_SCREENS.get(flow_key, '')
         flow_action = 'navigate' if _entry_screen else 'data_exchange'
 
@@ -7164,6 +7170,7 @@ DEFAULT_FLOW_TRIGGERS = {
         'keywords': sorted(CUSTOMER_IDEA_KEYWORDS),
         # Shares the published review flow with 'leave_review' (one Meta room, two doors).
         'flowId': canonical_flow_id('leave_review'),
+        'entryMode': 'keyword_interactive',
         'message': {
             'body': '\u2b50 We’d value your feedback!',
             'footer': 'WECARE.DIGITAL',
@@ -7184,6 +7191,7 @@ DEFAULT_FLOW_TRIGGERS = {
         # was wrong, so this door opened the wrong flow. Now resolved from canonical_flows.
         # Phone 2 (WABA 2) cannot send WABA 1 flows — it uses CTA URL fallback automatically.
         'flowId': canonical_flow_id('submit_request'),
+        'entryMode': 'keyword_interactive',
         'message': {
             'body': '\U0001f4cb Start a new support request. Share the details and our team will follow up with you.',
             'footer': 'WECARE.DIGITAL',
@@ -7206,6 +7214,7 @@ DEFAULT_FLOW_TRIGGERS = {
         # /orders/ page; canonical_flow_id('track_request') is None, so the keyword falls through
         # to the website CTA rather than opening a non-existent flow.
         'flowId': canonical_flow_id('track_request'),
+        'entryMode': 'keyword_interactive',
         'message': {
             'body': '\U0001f50d Check the status of your request anytime. Enter your reference ID below.',
             'footer': 'WECARE.DIGITAL',
@@ -7224,6 +7233,7 @@ DEFAULT_FLOW_TRIGGERS = {
         ],
         # Canonical: 03.WD_Amend_Request (3678132465672138), DRAFT (retained) on WABA 1.
         'flowId': canonical_flow_id('amend_request'),
+        'entryMode': 'keyword_interactive',
         'message': {
             'body': '\u270f\ufe0f Need to make a change? Edit or correct your submitted request.',
             'footer': 'WECARE.DIGITAL',
@@ -7245,6 +7255,7 @@ DEFAULT_FLOW_TRIGGERS = {
             'book a visit', 'book visit', 'visit', '\U0001f4c5 book a visit',
         ],
         'flowId': '26575380852083467',
+        'entryMode': 'keyword_interactive',
         'message': {
             'body': '\U0001f4c5 Schedule a consultation or service visit at a time that works best for you.',
             'footer': 'WECARE.DIGITAL',
@@ -7261,6 +7272,7 @@ DEFAULT_FLOW_TRIGGERS = {
             'book an rx slot', 'book rx slot', '\U0001fa7a book an rx slot',
         ],
         'flowId': '895208030185211',
+        'entryMode': 'keyword_interactive',
         'message': {
             'body': '\U0001fa7a Schedule a medical tourism or prescription-related visit.',
             'footer': 'WECARE.DIGITAL',
@@ -7279,6 +7291,7 @@ DEFAULT_FLOW_TRIGGERS = {
         # Canonical: WD_Drop_Documents, DRAFT (retained) on WABA 1. The staff menu previously
         # showed WD_Drop_Docs_Design_v1 (an unused design-duplicate draft) — not canonical.
         'flowId': canonical_flow_id('drop_docs'),
+        'entryMode': 'keyword_interactive',
         'message': {
             'body': '\U0001f4c4 Send supporting documents for your request.',
             'footer': 'WECARE.DIGITAL',
@@ -7296,6 +7309,7 @@ DEFAULT_FLOW_TRIGGERS = {
             'business enquiry', 'business enquiries', '\U0001f3e2 business enquiry',
         ],
         'flowId': '1707170524029465',
+        'entryMode': 'keyword_interactive',
         'message': {
             'body': '\U0001f3e2 Corporate, B2B, and bulk enquiries. Tell us what you need.',
             'footer': 'WECARE.DIGITAL',
@@ -7325,6 +7339,7 @@ DEFAULT_FLOW_TRIGGERS = {
         # data_exchange fails at open. The id this replaced pointed at the
         # never-published WD_Feedback_v1 draft, which is why the keyword did nothing.
         'flowId': canonical_flow_id('leave_review'),
+        'entryMode': 'keyword_interactive',
         'message': {
             'body': '\u2b50 Share your experience with our service.',
             'footer': 'WECARE.DIGITAL',
@@ -7333,29 +7348,23 @@ DEFAULT_FLOW_TRIGGERS = {
         'enabled': True,
     },
     'subscribe': {
-        'keywords': [
-            'subscribe', 'signup', 'sign up', 'register', 'join', 'membership',
-            'enroll', 'enrol', 'subscribe for updates', 'updates', '/subscribe',
-            '\U0001f514 subscribe for updates',
-            # Row title in the one menu
-            'get updates', '\U0001f514 get updates',
-        ],
-        # No canonical Subscribe Flow. The former 02.WD_Profile ids are DEPRECATED on both WABAs
-        # and must not be resurrected. The 'subscribe' keyword is already answered by the website
-        # CTA (/subscribe/) in the service-doors block above; canonical_flow_id('subscribe') is
-        # None, so even if a later path reached _send_generic_flow it would no-op rather than
-        # open a dead flow.
+        'keywords': ['subscribe', 'signup', 'sign up', 'register', 'join', '/subscribe'],
+        # F001 is a customer-initiated native Flow inside the 24-hour customer-service window.
+        # It stays disabled while the canonical Flow is DRAFT; publish-time activation flips
+        # canonical status + SystemConfig together.
         'flowId': canonical_flow_id('subscribe'),
+        'entryMode': 'keyword_interactive',
         'message': {
-            'body': '\U0001f514 Get updates, offers, and service news. Fill in your details to stay connected.',
+            'body': 'Save your details for faster service on WECARE.DIGITAL.',
             'footer': 'WECARE.DIGITAL',
-            'flowCta': 'Subscribe for Updates',
+            'flowCta': 'Subscribe',
         },
-        'enabled': True,
+        'enabled': False,
     },
     'order_notes': {
         'keywords': ['order notes', 'order note', 'special instructions', 'delivery notes', 'order instructions'],
         'flowId': '1434731571172691',
+        'entryMode': 'keyword_interactive',
         'message': {
             'body': '\U0001f4dd Add notes to your order \u2014 share any special instructions.',
             'footer': 'WECARE.DIGITAL',
