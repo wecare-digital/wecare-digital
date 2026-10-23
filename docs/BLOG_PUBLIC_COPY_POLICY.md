@@ -16,6 +16,10 @@ The public copy must not contain:
 
 Internal provenance is allowed and encouraged in non-public metadata, ledgers, hashes, source profiles, and audit records. It must not leak into public copy.
 
+## Author identity
+
+Author identity is a separate hard publication block. Every blog record in both Conversations and Gastronomy must explicitly carry exactly `Anew by WECARE.DIGITAL`. Missing, blank, alternate, abbreviated, or mismatched author identity fails validation and live read-back verification.
+
 ## No attribution exception
 
 There is no "required public attribution" exception in the blog pipeline. If material cannot be used without public attribution, do not publish that material in the blog copy. Reconstruct the underlying useful idea independently, omit the attributed passage, or leave the item for human review outside the publish queue.
