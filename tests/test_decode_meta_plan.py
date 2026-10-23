@@ -17,12 +17,23 @@ ROOT = Path(__file__).resolve().parent.parent
 MCS_DIR = ROOT / "amplify" / "functions" / "shared" / "lambda_utils" / "ecommerce"
 
 
-def _mcs():
+def _load_mcs():
     sys.path.insert(0, str(MCS_DIR))
     spec = importlib.util.spec_from_file_location("meta_catalog_sync", MCS_DIR / "meta_catalog_sync.py")
     m = importlib.util.module_from_spec(spec)
+    # Register before exec so @dataclass annotation resolution finds the module's own names;
+    # re-exec'ing per test breaks field resolution (NoneType.__dict__).
+    sys.modules["meta_catalog_sync"] = m
     spec.loader.exec_module(m)
     return m
+
+
+# Load ONCE at import time, not per test, so the dataclass is defined exactly once.
+_MCS = _load_mcs()
+
+
+def _mcs():
+    return _MCS
 
 
 def _v2(mcs, pid: str, vid: str) -> str:
