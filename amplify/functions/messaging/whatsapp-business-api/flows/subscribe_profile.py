@@ -66,15 +66,15 @@ def handle_review(data, flow_token, request_id):
     for key, attr in PROFILE_FIELDS.items():
         raw = data.get(key, '')
         if not isinstance(raw, str) or len(raw.strip()) > 200:
-            return _error(data, 'Please check your profile fields (maximum 200 characters).')
+            return _error(data, 'Please check your profile fields (maximum 200 characters). Go back to Subscribe to correct them.')
         values[attr] = raw.strip()
     if not values['name']:
-        return _error(data, 'Please enter your name.')
+        return _error(data, 'Please enter your name. Go back to Subscribe to correct it.')
     raw_address = {attr: data.get(key, '') for key, attr in ADDRESS_FIELDS.items()}
     country_name, country_code = country_options.canonical_country(
         raw_address.get('country'), raw_address.get('countryCode'))
     if not country_name or not country_code:
-        return _error(data, 'Please select your country.')
+        return _error(data, 'Please select your country. Go back to Address to correct it.')
     raw_address['country'] = country_name
     raw_address['countryCode'] = country_code
     # Any validation error after this point echoes `data` back to the Flow. Keep its visible
@@ -84,14 +84,14 @@ def handle_review(data, flow_token, request_id):
     # A profile username is customer-entered; never overwrite Meta's username,
     # BSUID, ownership or permanent customer identity with it.
     if len(values['profileUsername']) > 50:
-        return _error(data, 'Please keep your WhatsApp username within 50 characters.')
+        return _error(data, 'Please keep your WhatsApp username within 50 characters. Go back to Subscribe to correct it.')
     now = int(time.time())
     try:
         address = contact_address.normalize_for_storage(raw_address)
     except contact_address.UnusableAddress as exc:
         labels = {'addressLine1': 'street address', 'city': 'city', 'state': 'state / region',
                   'postalCode': 'postal code'}
-        return _error(data, 'Please check your ' + labels.get(exc.field, 'address') + '.')
+        return _error(data, 'Please check your ' + labels.get(exc.field, 'address') + '. Go back to Address to correct it.')
     values.update(contact_address.contact_write_fields(address, now=now))
     contact_id = str(row.get('id') or contact_store.deterministic_id(phone))
     is_retry = row.get('subscribeLastFlowToken') == flow_token
