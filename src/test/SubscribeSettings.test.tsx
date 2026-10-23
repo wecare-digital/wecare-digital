@@ -48,7 +48,10 @@ describe('Subscribe workspace',()=>{
     render(<SubscribeSettings/>);
     fireEvent.change(screen.getByLabelText('Find customer'),{target:{value:'QA'}});
     fireEvent.click(screen.getByRole('button',{name:'Search customers'}));
-    expect(await screen.findByRole('status')).toHaveTextContent('Customer search unavailable');
+    // The F001 launch gate also renders a role="status" ("Customer launch is OFF ...")
+    // when the flow is not PUBLISHED, so there are two status regions. Target the search
+    // status by its text rather than the first role=status, which is the launch gate.
+    expect(await screen.findByText('Customer search unavailable')).toBeTruthy();
     expect(screen.queryByText('No matching customers found.')).toBeNull();
   });
   it('shows consent only for an explicitly selected customer and clears it on a new search',async()=>{
