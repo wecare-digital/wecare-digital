@@ -328,3 +328,55 @@ def test_saved_profile_uses_workspace_confirmation(setup,monkeypatch):
     result=mod.handle_review(form(mod),TOKEN,'r')
     assert result['data']['message']=='Your profile update is saved.'
     assert result['data']['customer_id']=='C-ED6BQSW2P7PQ'
+
+
+def test_f001_uses_us_english_customer_copy():
+    doc=json.loads((ROOT/'amplify/functions/messaging/whatsapp-business-api/flows/design-drafts/subscribe.json').read_text())
+    def walk(node):
+        if isinstance(node,dict):
+            yield node
+            for value in node.values():
+                yield from walk(value)
+        elif isinstance(node,list):
+            for value in node:
+                yield from walk(value)
+    nodes=list(walk(doc))
+    fields={n.get('name'):n for n in nodes if n.get('type') in ('TextInput','Dropdown') and n.get('name')}
+    assert fields['username']['label']=='WhatsApp username'
+    assert fields['company_name']['label']=='Organization'
+    assert fields['designation']['label']=='Job title'
+    assert fields['address_line2']['label']=='Apartment / suite / unit'
+    assert fields['locality']['label']=='Landmark / neighborhood'
+    assert fields['postal_code']['label']=='Postal code'
+    assert fields['username']['helper-text']=='Optional — for your WECARE.DIGITAL profile'
+    assert fields['company_name']['helper-text']=='Optional'
+    assert fields['designation']['helper-text']=='Optional'
+    assert fields['address_line2']['helper-text']=='Optional'
+    assert fields['locality']['helper-text']=='Optional'
+    assert fields['full_name']['max-chars']==200
+    assert fields['username']['max-chars']==50
+    assert fields['company_name']['max-chars']==200
+    assert fields['designation']['max-chars']==200
+    assert fields['address_line1']['max-chars']==200
+    assert fields['address_line2']['max-chars']==200
+    assert fields['locality']['max-chars']==100
+    assert fields['city']['max-chars']==100
+    assert fields['state']['max-chars']==100
+    assert fields['postal_code']['max-chars']==100
+    all_copy=json.dumps(doc,ensure_ascii=False)
+    for forbidden in ('Organisation','colour','PIN / postal code','Profile username','WECARE services'):
+        assert forbidden not in all_copy
+    assert 'WECARE.DIGITAL services' in all_copy
+
+
+def test_subscribe_default_copy_uses_us_english_and_whatsapp_username(setup):
+    mod,_table,_calls=setup
+    new=mod.subscribe_messages.DEFAULTS['newCustomer']
+    returning=mod.subscribe_messages.DEFAULTS['returningCustomer']
+    assert 'WECARE.DIGITAL' in new['body'] and 'WECARE.DIGITAL' in returning['body']
+    assert 'WhatsApp username' in new['body'] and 'WhatsApp username' in returning['body']
+
+
+def test_f001_does_not_switch_copy_by_user_locale():
+    source=(ROOT/'amplify/functions/messaging/whatsapp-business-api/flows/subscribe_profile.py').read_text()
+    assert 'user_locale' not in source
