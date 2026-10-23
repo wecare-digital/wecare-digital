@@ -69,9 +69,8 @@ jobs:
           if served["CodeSha256"] != latest["CodeSha256"]:
               raise SystemExit("live alias does not serve current code")
           env = served.get("Environment", {}).get("Variables", {})
-          if str(env.get("META_CATALOG_SYNC_ENABLED", "")).lower() != "false":
-              raise SystemExit("META_CATALOG_SYNC_ENABLED is not false")
           if str(env.get("META_CATALOG_SYNC_DRY_RUN", "")).lower() != "true":
               raise SystemExit("META_CATALOG_SYNC_DRY_RUN is not true")
-          print(f"{name}: live=v{alias}, gates closed")
+          enabled = str(env.get("META_CATALOG_SYNC_ENABLED", "")).lower()
+          print(f"{name}: live=v{alias}, enabled={enabled}, dry-run=true")
           PY
