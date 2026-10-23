@@ -4,7 +4,8 @@
 Why this template exists
 ------------------------
 Staff can drive a paid order forward from the workspace (Pay Flow → "Mark Shipped" /
-"Mark Completed"), and a capture auto-sends ``processing``. All processing/shipped/completed updates use one approved ORDER_STATUS template. There is no
+"Mark Completed"). Payment capture does not send ORDER_STATUS; fulfilment notifications are a
+separate operator-driven workflow. All processing/shipped/completed updates use one approved ORDER_STATUS template. There is no
 service-window fallback. This provisions that one template and verifies Meta approval before the
 runtime is promoted.
 

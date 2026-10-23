@@ -1469,60 +1469,6 @@ def _notification_recipient(reference_id: str, provider_contact: str) -> str:
 
 
 
-def _send_processing_order_status(contact: str, reference_id: str, amount_paise: int,
-                                  request_id: str) -> bool:
-    """Send Meta order_status=processing only after provider-verified commerce payment.
-
-    This is a fulfilment notification, never evidence of payment.  It is deliberately synchronous
-    so the normal successful sequence is Meta order_status first, then the statutory invoice
-    template.  Failure is logged and returned to the caller but MUST NOT suppress invoice delivery:
-    once money moved, withholding the receipt because Meta messaging is unavailable would be worse.
-    """
-    if not contact or not reference_id:
-        return False
-    clean_phone = str(contact).replace('+', '').replace(' ', '').replace('-', '')
-    if not clean_phone.startswith('91') and len(clean_phone) == 10:
-        clean_phone = '91' + clean_phone
-    if not clean_phone:
-        return False
-
-    payload = {
-        'body': json.dumps({
-            'recipientPhone': '+' + clean_phone,
-            # Owner decision: every payment/fulfilment message uses WABA1.
-            'phoneNumberId': WABA1_PHONE_ID,
-            'orderStatusDetails': {
-                'reference_id': reference_id,
-                'order_status': 'processing',
-                'amountPaise': int(amount_paise),
-                'description': 'Payment received. Your order is being processed.',
-            },
-        })
-    }
-    try:
-        response = lambda_client.invoke(
-            FunctionName=os.environ.get('OUTBOUND_FUNCTION', 'wecare-outbound-whatsapp:live'),
-            InvocationType='RequestResponse',
-            Payload=json.dumps(payload),
-        )
-        answer = json.loads(response['Payload'].read())
-        status = int(answer.get('statusCode', response.get('StatusCode', 0)) or 0)
-        sent = status == 200 and not response.get('FunctionError')
-        logger.info(json.dumps({
-            'event': 'razorpay_order_status_processing',
-            'referenceId': reference_id, 'sent': sent, 'statusCode': status,
-            'requestId': request_id,
-        }))
-        return sent
-    except Exception as exc:  # noqa: BLE001
-        logger.warning(json.dumps({
-            'event': 'razorpay_order_status_processing_failed',
-            'referenceId': reference_id, 'error': type(exc).__name__,
-            'requestId': request_id,
-        }))
-        return False
-
-
 def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
     """Handle payment.captured — the main success event. Store payment + mark invoice paid + trigger invoice."""
     payment = event_data.get('payment', {}).get('entity', {})
@@ -1705,10 +1651,9 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
     contact = _notification_recipient(reference_id, contact)
     originating_phone_id = _resolve_originating_phone(reference_id) or WABA1_PHONE_ID
 
-    # Commerce orders get the provider-supported fulfilment update BEFORE the invoice template.
-    # Legacy invoice-only settlements have no Order lifecycle, so they deliberately skip this.
-    if verified_paid:
-        _send_processing_order_status(contact, reference_id, amount_paise, request_id)
+    # Payment completion and fulfilment messaging are separate workflows.
+    # A verified payment triggers the statutory invoice below, but MUST NOT automatically
+    # send a WhatsApp ORDER_STATUS update. Fulfilment updates are driven independently.
 
     _post_payment_handler(payment_id, contact, email, description, notes, request_id,
                           channel=str((outcome or {}).get('channel') or ''),
@@ -1724,8 +1669,8 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
 
     # Post-payment service activation remains an internal business step.
     #
-    # Customer-facing completion is handled earlier as the approved ORDER_STATUS processing
-    # template followed by the one invoice-image template. The paid-submit-request handler this
+    # Customer-facing payment completion is the invoice-image template sent above.
+    # The paid-submit-request handler this
     # invokes no longer pushes a separate interactive Flow invitation; it only activates the
     # service relationship and preserves the details-collection model for its normal entry points.
     if contact and reference_id:
