@@ -1316,35 +1316,40 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   const openPollutantTip = useCallback( ( code: string, el: HTMLElement ) => {
     if ( typeof window === 'undefined' ) return;
     const rect = el.getBoundingClientRect();
-    const gutter = 8;
-    const gap = 8;
-    const width = Math.min( 248, Math.max( 196, window.innerWidth - gutter * 2 ) );
-    const estimatedHeight = Math.min( 176, Math.max( 104, window.innerHeight - gutter * 2 ) );
+    const gutter = 10;
+    const gap = 10;
+    const width = Math.min( 360, Math.max( 240, window.innerWidth - gutter * 2 ) );
+    const estimatedHeight = Math.min( 320, Math.max( 160, window.innerHeight - gutter * 2 ) );
     const maxLeft = Math.max( gutter, window.innerWidth - width - gutter );
     const maxTop = Math.max( gutter, window.innerHeight - estimatedHeight - gutter );
 
-    let left: number;
-    let top: number;
+    let viewportLeft: number;
+    let viewportTop: number;
     let side: 'left' | 'right' | 'top' | 'bottom';
 
     if ( window.innerWidth <= 700 ) {
       const below = rect.bottom + gap;
       const canOpenBelow = below + estimatedHeight <= window.innerHeight - gutter;
       side = canOpenBelow ? 'bottom' : 'top';
-      left = clamp( rect.left + rect.width / 2 - width / 2, gutter, maxLeft );
-      top = canOpenBelow
+      viewportLeft = clamp( rect.left + rect.width / 2 - width / 2, gutter, maxLeft );
+      viewportTop = canOpenBelow
         ? clamp( below, gutter, maxTop )
         : clamp( rect.top - gap - estimatedHeight, gutter, maxTop );
     } else {
       const canOpenRight = rect.right + gap + width <= window.innerWidth - gutter;
       side = canOpenRight ? 'right' : 'left';
-      left = canOpenRight
+      viewportLeft = canOpenRight
         ? clamp( rect.right + gap, gutter, maxLeft )
         : clamp( rect.left - width - gap, gutter, maxLeft );
-      top = clamp( rect.top - 16, gutter, maxTop );
+      viewportTop = clamp( rect.top - 16, gutter, maxTop );
     }
 
-    setPollutantTip( { code, top, left, side } );
+    setPollutantTip( {
+      code,
+      left: viewportLeft + window.scrollX,
+      top: viewportTop + window.scrollY,
+      side,
+    } );
   }, [] );
 
   const clearAlertBoundary = useCallback( () => {
@@ -4678,16 +4683,16 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-tools-layout{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch;gap:48px}
         .vl-live-tools-left,.vl-live-tools-right{display:flex;min-width:0;flex-direction:column}
         .vl-live-tools-head{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-bottom:16px}
-        .vl-live-tools-head h3{margin:0;color:#000;font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight);line-height:var(--vl-card-heading-lh);letter-spacing:var(--vl-card-heading-track)}
+        .vl-live-tools-head h3{margin:0;color:var(--heading);font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight);line-height:var(--vl-card-heading-lh);letter-spacing:var(--vl-card-heading-track)}
         .vl-live-tools-head p{max-width:520px;margin:0;color:var(--body);font-size:var(--vl-body-size);font-weight:var(--vl-body-weight);line-height:var(--vl-body-lh);letter-spacing:var(--vl-body-track)}
         .vl-live-tool-card{position:relative;min-width:0;flex:1;padding:24px;border:1px solid var(--hair);border-radius:var(--panel-r);background:#fff;filter:none}
-        .vl-live-tool-toggle{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:3px;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff}
-        .vl-live-tool-toggle-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:var(--tap-min);border:0;border-radius:var(--pill-r);background:transparent;color:var(--green);font-size:var(--vl-subtext-size);font-weight:700;letter-spacing:-.15px}
+        .vl-live-tool-toggle{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff;box-shadow:0 6px 18px rgba(26,58,42,.08)}
+        .vl-live-tool-toggle-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:var(--tap-min);border:0;border-radius:var(--pill-r);background:transparent;color:var(--green);font-size:var(--vl-subtext-size);font-weight:700;line-height:1;letter-spacing:0}
         .vl-live-tool-toggle-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:rgba(26,58,42,.3)}
         .vl-live-tool-toggle-btn.is-active{background:var(--lime);color:var(--green)}
         .vl-live-tool-toggle-btn.is-active .vl-live-tool-toggle-dot{background:var(--green)}
         .vl-live-tool-panel{margin-top:var(--vl-section-gap)}
-        .vl-live-tool-panel>h4{margin:0;color:#000;font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight);line-height:var(--vl-card-heading-lh);letter-spacing:var(--vl-card-heading-track);padding-inline-start:10px;border-inline-start:3px solid var(--lime)}
+        .vl-live-tool-panel>h4{margin:0;color:var(--heading);font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight);line-height:var(--vl-card-heading-lh);letter-spacing:var(--vl-card-heading-track);padding-inline-start:10px;border-inline-start:3px solid var(--lime)}
 
         .vl-live-world-pair,.vl-live-fx-pair{display:grid;grid-template-columns:minmax(0,1fr) var(--vl-action-size) minmax(0,1fr);align-items:start;gap:12px;margin-top:var(--vl-heading-gap)}
         .vl-live-world-place{display:flex;min-width:0;flex-direction:column;gap:4px}
@@ -4751,8 +4756,8 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-air-context-item small{color:var(--muted);font-size:var(--vl-meta-size);font-weight:600}
 
         /* Air/Weather toggle - same pale tint + saturated same-hue dot as the hero pill. */
-        .vl-live-air-toggle{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:3px;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff}
-        .vl-live-air-toggle-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:var(--tap-min);border:0;border-radius:var(--pill-r);background:transparent;color:var(--green);font-size:var(--vl-subtext-size);font-weight:700;letter-spacing:-.15px}
+        .vl-live-air-toggle{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff;box-shadow:0 6px 18px rgba(26,58,42,.08)}
+        .vl-live-air-toggle-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:var(--tap-min);border:0;border-radius:var(--pill-r);background:transparent;color:var(--green);font-size:var(--vl-subtext-size);font-weight:700;line-height:1;letter-spacing:0}
         .vl-live-air-toggle-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:rgba(26,58,42,.3)}
         .vl-live-air-toggle-btn.is-active{background:var(--lime);color:var(--green)}
         .vl-live-air-toggle-btn.is-active .vl-live-air-toggle-dot{background:var(--green)}
@@ -4766,17 +4771,17 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
            category text carry the meaning, so the decorative hue never has to be decoded. */
         .vl-live-air-aqi-spine{display:block;width:4px;height:64px;border-radius:999px;background:linear-gradient(180deg,#3da35a 0 33.333%,#2563eb 33.333% 66.666%,#9849e8 66.666% 100%)}
         .vl-live-air-aqi-score{display:flex;min-width:56px;flex-direction:column;align-items:flex-start;justify-content:center}
-        .vl-live-air-aqi-number{display:block;color:#000;font-size:var(--vl-metric-size);font-weight:var(--public-section-weight);line-height:1;letter-spacing:var(--public-section-tracking)}
+        .vl-live-air-aqi-number{display:block;color:var(--heading);font-size:var(--vl-metric-size);font-weight:var(--public-section-weight);line-height:1;letter-spacing:var(--public-section-tracking)}
         .vl-live-air-aqi-unit{display:block;margin-top:4px;color:var(--muted);font-size:var(--vl-meta-size);font-weight:700;line-height:1;letter-spacing:.08em;text-transform:uppercase}
         .vl-live-air-gauge-meta{min-width:0}
-        .vl-live-air-gauge-word{display:block;color:#000;font-size:var(--vl-panel-heading-size);font-weight:var(--vl-panel-heading-weight);line-height:var(--vl-panel-heading-lh);letter-spacing:var(--vl-panel-heading-track)}
+        .vl-live-air-gauge-word{display:block;color:var(--heading);font-size:var(--vl-panel-heading-size);font-weight:var(--vl-panel-heading-weight);line-height:var(--vl-panel-heading-lh);letter-spacing:var(--vl-panel-heading-track)}
         .vl-live-air-summary-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:8px;color:var(--muted);font-size:var(--vl-subtext-size);font-weight:600;line-height:1.35}
         .vl-live-air-summary-meta strong{color:var(--status);font-weight:700}
         .vl-live-air-summary-chip{display:inline-flex;align-items:center;gap:5px}
         .vl-live-air-summary-icon{flex:0 0 16px;width:16px;height:16px;padding:2px;border-radius:50%;background:var(--lime);fill:var(--green)}
-        .vl-live-freshness{display:inline-flex;align-items:center;gap:5px;width:fit-content;color:var(--muted);font-size:var(--vl-meta-size);font-weight:600;line-height:1.35;white-space:nowrap}
+        .vl-live-freshness{display:inline-flex;align-items:center;gap:6px;width:fit-content;padding:5px 9px;border:1px solid var(--lime);border-radius:var(--pill-r);background:var(--lime-tint);color:var(--green);font-size:var(--vl-meta-size);font-weight:700;line-height:1.25;white-space:nowrap}
         .vl-live-freshness-icon{flex:0 0 15px;width:15px;height:15px;fill:currentColor}
-        .vl-live-data-age.is-stale,.vl-live-mobile-copy .vl-live-freshness.is-stale,.vl-live-wx-freshness.is-stale{padding:4px 8px;border-radius:var(--pill-r);background:var(--lime-tint);color:var(--green)}
+        .vl-live-data-age.is-stale,.vl-live-mobile-copy .vl-live-freshness.is-stale,.vl-live-wx-freshness.is-stale{background:var(--lime-tint);color:var(--green)}
         .vl-live-local-time-status{color:var(--muted);font-weight:600}
 
         .vl-live-air-pollutants,.vl-live-air-heatmap,.vl-live-air-forecast,.vl-live-air-health,.vl-live-air-history{margin-top:var(--vl-section-gap);padding-top:var(--vl-section-pad);border-top:1px solid var(--hair)}
@@ -4821,7 +4826,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         /* Fixed sibling OUTSIDE the scrollable Air card: white home-page surface, compact copy,
            viewport-clamped position and an explicit close affordance. Lime is an accent only,
            never the popup background. The directional notch is shape-only reference language. */
-        .vl-live-air-pollutant-tip{position:fixed;z-index:2200;width:min(360px,calc(100vw - 20px));max-height:min(320px,calc(100dvh - 20px));overflow:auto;overscroll-behavior:contain;padding:16px;border:1px solid var(--lime);border-top:3px solid var(--lime);border-radius:var(--radius-xl,14px);background:var(--vl-surface);color:var(--body);box-shadow:0 18px 42px rgba(16,24,20,.16);font-size:var(--vl-meta-size);line-height:1.5;text-align:start;scrollbar-width:thin}
+        .vl-live-air-pollutant-tip{position:absolute;z-index:2200;width:min(360px,calc(100vw - 20px));max-height:min(320px,calc(100dvh - 20px));overflow:auto;overscroll-behavior:contain;padding:14px;border:1px solid var(--lime);border-top:3px solid var(--lime);border-radius:var(--panel-r);background:var(--vl-surface);color:var(--body);box-shadow:0 18px 42px rgba(16,24,20,.16);font-family:var(--font-sans);font-size:var(--vl-meta-size);font-weight:400;line-height:1.45;text-align:start;scrollbar-width:thin}
         .vl-live-air-pollutant-tip::before{content:"";position:absolute;width:10px;height:10px;background:#fff}
         .vl-live-air-pollutant-tip.is-right::before{left:-6px;top:24px;transform:rotate(45deg);border-left:1px solid var(--hair);border-bottom:1px solid var(--hair)}
         .vl-live-air-pollutant-tip.is-left::before{right:-6px;top:24px;transform:rotate(45deg);border-top:1px solid var(--hair);border-right:1px solid var(--hair)}
@@ -4829,13 +4834,13 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-air-pollutant-tip.is-top::before{bottom:-6px;left:50%;transform:translateX(-50%) rotate(45deg);border-right:1px solid var(--hair);border-bottom:1px solid var(--hair)}
         .vl-live-air-pollutant-pop{display:flex;flex-direction:column;gap:14px}
         .vl-live-air-pollutant-pop-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
-        .vl-live-air-pollutant-pop-title{display:inline-flex;min-height:32px;align-items:center;padding:0 12px;border:1px solid var(--lime);border-radius:var(--pill-r);background:var(--lime);color:var(--green);font-size:var(--vl-data-size);font-weight:800;letter-spacing:0}
-        .vl-live-air-pollutant-pop-fullname{display:block;max-width:260px;margin-top:8px;color:var(--body);font-size:var(--vl-data-size);font-weight:700;line-height:1.35;overflow-wrap:anywhere}
+        .vl-live-air-pollutant-pop-title{display:inline-flex;min-height:32px;align-items:center;padding:0 12px;border:1px solid var(--lime);border-radius:var(--pill-r);background:var(--lime);color:var(--green);font-size:var(--vl-data-size);font-weight:700;line-height:1.2;letter-spacing:0}
+        .vl-live-air-pollutant-pop-fullname{display:block;max-width:260px;margin-top:7px;color:var(--heading);font-size:var(--vl-subtext-size);font-weight:600;line-height:1.4;overflow-wrap:anywhere}
         .vl-live-air-pollutant-pop-line{display:grid;grid-template-columns:78px minmax(0,1fr);gap:12px;align-items:start;padding-top:2px}
         .vl-live-air-pollutant-pop-line strong{font-size:var(--vl-meta-size);font-weight:700;letter-spacing:0}
-        .vl-live-air-pollutant-pop-line span{min-width:0;color:var(--status);font-size:var(--vl-subtext-size);font-weight:400;line-height:1.55;overflow-wrap:anywhere}
+        .vl-live-air-pollutant-pop-line span{min-width:0;color:var(--muted);font-size:var(--vl-meta-size);font-weight:400;line-height:1.45;overflow-wrap:anywhere}
         .vl-live-air-pollutant-pop-line.is-source strong{color:var(--green)}
-        .vl-live-air-pollutant-pop-line.is-effect strong{color:#9849e8}
+        .vl-live-air-pollutant-pop-line.is-effect strong{color:var(--green)}
         .vl-live-air-pollutant-pop-text{color:var(--status);font-size:var(--vl-meta-size);line-height:1.4}
         .vl-live-air-pollutant-row:focus-within,.vl-live-air-pollutant-row:hover{background:rgba(209,244,112,.18);border-inline-start-color:var(--lime)}
 
