@@ -106,7 +106,6 @@
       "CHECKOUT_MODE": "AWS_NATIVE",
       "CATALOG_SOURCE": "aws",
       "PRODUCTS_TABLE": "stack-wecare-digital-ProductsTable",
-
       "WHATSAPP_CATALOG_SERVICES_ENABLED": "true",
       "CONTACTS_TABLE": "stack-wecare-digital-ContactsTable",
       "ORDERS_TABLE": "stack-wecare-digital-OrderTable",
@@ -521,9 +520,8 @@
       "ADMIN_MFA_REQUIRED": "true",
       "AI_LANGUAGE": "en-IN",
       "AI_VOICE_ID": "Kajal",
-      "AUTO_PICKUP_AUDIO_KEY": "secure/d/public/whatsapp/whatsapp-calling/auto-pickup-greeting.ogg",
       "AUTO_PICKUP_ENABLED": "true",
-      "AUTO_PICKUP_IVR_URL": "https://wecare.digital/get/o/stream/media/ivr/incoming_welcome.sln16",
+      "AUTO_PICKUP_IVR_URL": "https://wecare.digital/get/o/stream/media/ivr/incoming_welcome.ogg",
       "CALL_LOG_TABLE": "stack-wecare-digital-WhatsAppCallingTable",
       "INBOUND_HANDLER_FUNCTION": "wecare-inbound-whatsapp",
       "LOG_LEVEL": "INFO",
