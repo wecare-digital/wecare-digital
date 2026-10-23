@@ -45,7 +45,8 @@ ERROR_THRESHOLD = 400
 
 # Prefixes that must never be served over this public, unauthenticated path.
 #
-# ``o/`` is the open tier and is served here freely. ``secure/`` is the gated tier:
+# ``o/`` is the legacy open tier. ``secure/d/public/`` is the application public-delivery
+# tier and is intentionally exempted below. All other ``secure/`` keys remain gated:
 # it requires a Cognito session (WhatsApp OTP) and a server-verified payment per
 # download, and it is delivered only as a short-lived presigned S3 URL issued by
 # the gated Lambda. It must therefore never be reachable through CloudFront, and
@@ -54,6 +55,7 @@ ERROR_THRESHOLD = 400
 #
 # Matched after normalising away a leading slash, on a segment boundary, so
 # ``secure/x`` is denied but a legitimately public ``secure-notes.pdf`` is not.
+PUBLIC_DELIVERABLE_PREFIX = "secure/d/public/"
 DENIED_PREFIXES = ("secure/",)
 
 
@@ -90,6 +92,8 @@ def _redirect(response: dict) -> dict:
 def _is_denied(uri: str) -> bool:
     """Whether this URI addresses a prefix that must not be served publicly."""
     normalised = (uri or "").lstrip("/")
+    if normalised.startswith(PUBLIC_DELIVERABLE_PREFIX):
+        return False
     return any(normalised.startswith(prefix) for prefix in DENIED_PREFIXES)
 
 
