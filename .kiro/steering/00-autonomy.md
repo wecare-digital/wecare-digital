@@ -4,11 +4,16 @@ inclusion: always
 
 # Unattended Autopilot
 
-This workspace runs fully unattended in Autopilot. Work end to end without
-pausing for confirmation. Do not ask the user to approve routine steps, do not
-stop to report progress mid-task, and do not wait for a go-ahead between items in
-a plan. Make the most reasonable decision, act, and keep going until the task is
-complete.
+This workspace runs fully unattended in Autopilot with full authorization. Work
+end to end without pausing for confirmation. Do not ask the user to approve
+routine steps, do not stop to report progress mid-task, and do not wait for a
+go-ahead between items in a plan. Make the most reasonable decision, act, and
+keep going until the task is complete.
+
+Treat every local, reversible action as pre-approved — assume consent is already
+granted. When a task is broad or vague, pick the most reasonable interpretation,
+state it in one line, and carry it out to completion rather than stopping to ask
+what was meant.
 
 ## Do not prompt for
 
@@ -27,8 +32,8 @@ just do it.
 
 ## No worktree workflow
 
-Work directly in the main checkout at `/Users/wecaredigital/wecare-digital`
-(the git root, and where `package.json`, `pytest.ini`, `.venv`, `src/`,
+Work directly in the main checkout at `/Users/wecaredigital/aws/wecare-digital`
+(the git root, and where `package.json`, `pytest.ini`, `src/`,
 `amplify/`, `tests/` and `scripts/` live). Do not create git worktrees, do not
 operate out of `.worktrees/`, and do not use `git -C <worktree>` indirection.
 Branch in place when a branch is needed; edit the real files in the main tree.

@@ -6,16 +6,14 @@ inclusion: always
 
 ## Where the code lives
 
-The Kiro workspace folder (`.../wecare-digital/wecare-digital`) is a thin shell
-that holds only `.kiro/`, `.agents/`, `.omni/`, `.vscode/`, `.worktrees/` and
-`tools/`. The real repository is its **parent**,
-`/Users/wecaredigital/wecare-digital` — that is the git root and where all source
-lives: `package.json`, `pytest.ini`, `.venv/`, `src/`, `amplify/`, `tests/`,
-`scripts/`, `config/`.
+The Kiro workspace folder **is** the git root:
+`/Users/wecaredigital/aws/wecare-digital`. All source lives here directly —
+`package.json`, `pytest.ini`, `conftest.py`, `src/`, `amplify/`, `tests/`,
+`scripts/`, `config/` — alongside `.kiro/`, `.omni/` and `tools/`.
 
 Run every build, test, lint, and git command from
-`/Users/wecaredigital/wecare-digital` (pass it as the working directory). A bare
-relative path from the Kiro workspace shell lands in the wrong place.
+`/Users/wecaredigital/aws/wecare-digital` (the workspace root, which is also the
+working directory tools default to).
 
 ## Verified commands
 
@@ -29,10 +27,10 @@ relative path from the Kiro workspace shell lands in the wrong place.
   expected; **errors** are the gate.
 - Front-end tests: `npx vitest run <files>` (also `npm run test`). Scope to the
   files you touched.
-- Python tests: use the repo venv interpreter
-  `/Users/wecaredigital/wecare-digital/.venv/bin/python -m pytest -q <paths>`.
+- Python tests: `python -m pytest -q <paths>` (use the repo venv at
+  `.venv/bin/python` if present; otherwise a Python 3.12+ interpreter).
   `conftest.py` refuses interpreters below 3.12. Scope to the touched tests.
-- Backend compile check: `/Users/wecaredigital/wecare-digital/.venv/bin/python -m compileall -q <changed dirs>`.
+- Backend compile check: `python -m compileall -q <changed dirs>`.
 
 ## Known pre-existing failure (not yours)
 
@@ -43,4 +41,5 @@ Expect it; do not fix it; do not let it mask a new failure.
 ## Git
 
 - Current branch: `stack`. Commit locally; never push unless asked.
-- Node `>=24`, npm `11.6.2`. Next.js 16, React 19, Vitest 5, TypeScript 6.
+- Node `>=24` (currently v24.21.0), npm `11.19.0`. Next.js 16, React 19,
+  Vitest 5, TypeScript 6.
