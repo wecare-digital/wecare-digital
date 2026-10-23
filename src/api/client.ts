@@ -490,6 +490,8 @@ export interface Contact {
   // Country
   country?: string;
   pincode?: string;
+  // Customer-entered WECARE.DIGITAL profile name. Separate from Meta's provider username.
+  profileUsername?: string;
   // Business/profile fields
   companyName?: string;
   designation?: string;
@@ -773,6 +775,7 @@ function normalizeContact ( item: any ): Contact {
     blogSubscribedAt: normalizeTimestamp( item.blogSubscribedAt ),
     bsuid: item.bsuid || '',
     username: item.username || '',
+    profileUsername: item.profileUsername || '',
     contactBookName: item.contactBookName || '',
     shippingAddress: item.shippingAddress || '',
     billingAddress: item.billingAddress || '',
@@ -5532,6 +5535,8 @@ export interface FlowRegistryItem {
   wabaId?: string;
   status: string;
   category?: string;
+  entryMode?: 'keyword_interactive' | 'payment_template' | 'internal_event' | 'manual' | 'none' | string;
+  entryTemplateName?: string;
   requiresPayment?: boolean;
   paymentAmount?: number;
   paymentDescription?: string;
