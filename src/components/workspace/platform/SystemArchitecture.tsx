@@ -312,20 +312,20 @@ interface StoragePath { path: string; purpose: string; readBy: string; writtenBy
 // unnoticed for two days in the handlers because a key at the bucket root still returned
 // HTTP 200 from the apex host, so addressing the wrong level errored nowhere.
 const STORAGE_PATHS: StoragePath[] = [
-  { path: 'o/stack/whatsapp-media/incoming/', purpose: 'Inbound WhatsApp media files', readBy: 'messages-read, contacts', writtenBy: 'inbound-whatsapp-handler' },
-  { path: 'o/stack/whatsapp-media/outgoing/', purpose: 'Outbound WhatsApp media files', readBy: 'messages-read', writtenBy: 'outbound-whatsapp' },
-  { path: 'o/stack/whatsapp-media/voice/', purpose: 'WhatsApp voice notes', readBy: 'whatsapp-voice', writtenBy: 'inbound-whatsapp-handler' },
-  { path: 'o/stack/whatsapp-media/calling-ai/', purpose: 'WhatsApp calling recordings', readBy: 'whatsapp-calling', writtenBy: 'whatsapp-calling' },
-  { path: 'o/stack/whatsapp-media/template-headers/', purpose: 'Template header media', readBy: 'whatsapp-templates', writtenBy: 'whatsapp-template-management' },
-  { path: 'o/stack/whatsapp-media/downloads/', purpose: 'User-initiated media downloads', readBy: 'Frontend', writtenBy: 'messages-read' },
-  { path: 'secure/Invoice/customer_invoice/', purpose: 'Invoice PNGs and PDFs — gated: a rendered invoice carries the customer name, address, amount and GST breakdown, so it is served by presigned URL rather than from the unauthenticated o/ tree', readBy: 'invoice-engine (presigned), system-cleanup', writtenBy: 'invoice-engine, inbound-whatsapp-handler' },
+  { path: 'secure/d/public/whatsapp/incoming/', purpose: 'Inbound WhatsApp media files', readBy: 'messages-read, contacts', writtenBy: 'inbound-whatsapp-handler' },
+  { path: 'secure/d/public/whatsapp/outgoing/', purpose: 'Outbound WhatsApp media files', readBy: 'messages-read', writtenBy: 'outbound-whatsapp' },
+  { path: 'secure/d/public/whatsapp/voice/', purpose: 'WhatsApp voice notes', readBy: 'whatsapp-voice', writtenBy: 'inbound-whatsapp-handler' },
+  { path: 'secure/d/public/whatsapp/calling-ai/', purpose: 'WhatsApp calling recordings', readBy: 'whatsapp-calling', writtenBy: 'whatsapp-calling' },
+  { path: 'secure/d/public/whatsapp/template-headers/', purpose: 'Template header media', readBy: 'whatsapp-templates', writtenBy: 'whatsapp-template-management' },
+  { path: 'secure/d/public/whatsapp/downloads/', purpose: 'User-initiated media downloads', readBy: 'Frontend', writtenBy: 'messages-read' },
+  { path: 'secure/d/public/Invoice/customer_invoice/', purpose: 'Invoice PNGs and PDFs — gated: a rendered invoice carries the customer name, address, amount and GST breakdown, so it is served by presigned URL rather than from the unauthenticated o/ tree', readBy: 'invoice-engine (presigned), system-cleanup', writtenBy: 'invoice-engine, inbound-whatsapp-handler' },
   { path: 'o/stack/reports/', purpose: 'Bulk job reports and exports', readBy: 'Frontend', writtenBy: 'bulk-worker' },
   { path: 'o/stack/store/products/', purpose: 'Product images', readBy: 'catalog-management, Frontend', writtenBy: 'product-image-gen' },
   { path: 'o/stream/media/m/', purpose: 'Logos, branding images (static)', readBy: 'Frontend (CDN)', writtenBy: 'Manual upload' },
   { path: 'o/stream/media/fonts/', purpose: 'Invoice PDF fonts', readBy: 'invoice-engine', writtenBy: 'Manual upload' },
   { path: 'o/stream/docs/', purpose: 'Scraped documentation (Markdown)', readBy: 'Frontend, meta-business-agent', writtenBy: 'docs-scraper' },
-  { path: 'o/public/wa-tpl/', purpose: 'Template media named by Meta-APPROVED templates — do not move or rename', readBy: 'Meta (refetch at send time)', writtenBy: 'whatsapp-template-management' },
-  { path: 'o/whatsapp-media/whatsapp-calling/', purpose: 'IVR greeting audio (TTS)', readBy: 'whatsapp-calling', writtenBy: 'whatsapp-calling' },
+  { path: 'secure/d/public/whatsapp/wa-tpl/', purpose: 'Template media named by Meta-APPROVED templates — do not move or rename', readBy: 'Meta (refetch at send time)', writtenBy: 'whatsapp-template-management' },
+  { path: 'secure/d/public/whatsapp/whatsapp-calling/', purpose: 'IVR greeting audio (TTS)', readBy: 'whatsapp-calling', writtenBy: 'whatsapp-calling' },
   { path: 'secure/u/', purpose: 'Gated: upload as received — presigned access only', readBy: 'Presigned URL', writtenBy: 'document upload' },
   { path: 'secure/d/', purpose: 'Gated: deliverable rendition — presigned access only', readBy: 'Presigned URL', writtenBy: 'document pipeline' },
 ];
@@ -1161,7 +1161,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
                   { name: 'o/ (public root)' },
                   { name: 'o/stack/ (user data — factory reset wipes this)' },
                   { name: 'o/stream/ (static assets — never wiped)' },
-                  { name: 'o/public/wa-tpl/ (Meta-approved template media — do not move)' },
+                  { name: 'secure/d/public/whatsapp/wa-tpl/ (Meta-approved template media — do not move)' },
                   { name: 'secure/ (gated at the edge — presigned access only)' },
                 ]
               },
