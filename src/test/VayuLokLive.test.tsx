@@ -893,7 +893,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( tip?.textContent ).toContain( 'Combustion of fuels' );
     expect( tip?.textContent ).toContain( 'Effects' );
     expect( tip?.textContent ).toContain( 'Penetrates deep into lungs' );
-    expect( tip?.textContent ).not.toContain( '…' );
+    expect( tip?.textContent ).toContain( '…' );
 
     // Explicit close button removes the viewport-level popup without relying on hover/blur.
     const closeButton = tip?.querySelector( '[aria-label="Close pollutant details"]' ) as HTMLButtonElement;
@@ -1409,9 +1409,10 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( screen.getByRole( 'tab', { name: 'Pregnant women' } ) ).toBeTruthy();
     expect( screen.getByRole( 'tab', { name: 'Children' } ) ).toBeTruthy();
 
-    // Health profiles are a labeled touch/keyboard rail. Separate previous/next arrows and
-    // the old More/Less disclosure are intentionally gone.
-    expect( healthTablist.querySelectorAll( '.vl-live-air-health-tab-label' ) ).toHaveLength( 7 );
+    // Health profiles are icon-only visually; accessible names and title tooltips still expose
+    // each persona. Separate previous/next arrows and the old More/Less disclosure stay gone.
+    expect( healthTablist.querySelectorAll( '.vl-live-air-health-tab-label' ) ).toHaveLength( 0 );
+    expect( healthTablist.querySelectorAll( '.vl-live-air-health-icon' ) ).toHaveLength( 7 );
     expect( screen.queryByRole( 'button', { name: 'Previous health recommendation' } ) ).toBeNull();
     expect( screen.queryByRole( 'button', { name: 'Next health recommendation' } ) ).toBeNull();
     expect( container.querySelector( '.vl-live-air-health-more' ) ).toBeNull();
@@ -1477,11 +1478,11 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( airRangeRule ).toContain( 'background:transparent' );
     expect( airRangeButtonRule ).toContain( 'min-height:32px' );
     expect( airRangeButtonRule ).toContain( 'border:1px solid var(--hair)' );
-    expect( forecastCardRule ).toContain( 'min-width:118px' );
+    expect( forecastCardRule ).toContain( 'width:154px' );
     expect( forecastCardRule ).toContain( 'flex-direction:column' );
     expect( forecastCardRule ).toContain( 'align-items:flex-start' );
     expect( forecastCardRule ).toContain( 'padding:9px 12px' );
-    expect( forecastCardRule ).toContain( 'border-radius:var(--pill-r)' );
+    expect( forecastCardRule ).toContain( 'border-radius:var(--radius-lg,12px)' );
     expect( css ).not.toContain( '.vl-live-air-forecast-strip::-webkit-scrollbar{display:none}' );
 
     const hourlyScroll = await screen.findByRole( 'group', { name: 'Scroll hourly forecast' } );
@@ -1538,8 +1539,11 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( metricPillRule ).toContain( 'background:var(--lime-tint)' );
     expect( metricPillRule ).toContain( 'border-radius:var(--pill-r)' );
     const popupRule = css.match( /\.vl-live-air-pollutant-tip\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( popupRule ).toContain( 'width:min(280px,calc(100vw - 20px))' );
-    expect( popupRule ).toContain( 'max-height:min(196px,calc(100dvh - 20px))' );
+    expect( popupRule ).toContain( 'width:min(248px,calc(100vw - 20px))' );
+    expect( popupRule ).toContain( 'max-height:min(176px,calc(100dvh - 20px))' );
+    expect( popupRule ).toContain( 'font-size:var(--vl-meta-size)' );
+    const popupTitleRule = css.match( /\.vl-live-air-pollutant-pop-title\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( popupTitleRule ).toContain( 'background:var(--lime)' );
     const stampRule = css.match( /\.vl-live-air-history-stamp\{[^}]*\}/ )?.[ 0 ] || '';
     expect( stampRule ).toContain( 'background:var(--lime-tint)' );
     expect( stampRule ).toContain( 'color:var(--green)' );
@@ -1555,6 +1559,8 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( chart.getAttribute( 'aria-label' ) ).toContain( 'Use arrow keys to inspect an hour.' );
     fireEvent.pointerDown( chart, { clientX: 0, pointerType: 'touch' } );
     await waitFor( () => expect( container.querySelector( '.vl-live-air-history-detail' ) ).not.toBeNull() );
+    fireEvent.pointerLeave( chart, { pointerType: 'mouse' } );
+    expect( container.querySelector( '.vl-live-air-history-detail' ) ).not.toBeNull();
     expect( container.querySelector( '.vl-live-air-history-inspect' ) ).toBeNull();
     expect( container.querySelector( '.vl-live-air-history-bubble' ) ).toBeNull();
     expect( container.querySelector( '.vl-live-air-history-info' ) ).toBeNull();
@@ -2462,8 +2468,8 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     const forecastCardRule = css.match( /\.vl-live-air-forecast-card\{[^}]*\}/ )?.[ 0 ] || '';
     const forecastActiveRule = css.match( /\.vl-live-air-forecast-card\.is-active\{[^}]*\}/ )?.[ 0 ] || '';
     const detailPillRule = css.match( /\.vl-live-air-forecast-detail>span\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( forecastCardRule ).toContain( 'border-radius:var(--pill-r)' );
-    expect( forecastCardRule ).toContain( 'min-width:118px' );
+    expect( forecastCardRule ).toContain( 'border-radius:var(--radius-lg,12px)' );
+    expect( forecastCardRule ).toContain( 'width:154px' );
     expect( forecastCardRule ).toContain( 'flex-direction:column' );
     expect( forecastCardRule ).toContain( 'align-items:flex-start' );
     expect( forecastCardRule ).toContain( 'padding:9px 12px' );
@@ -2476,10 +2482,18 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     const weatherHistoryHeadRule = css.match( /\.vl-live-wx-history \.vl-live-air-forecast-head\{[^}]*\}/ )?.[ 0 ] || '';
     const weatherHistoryTitleRule = css.match( /\.vl-live-wx-history \.vl-live-air-forecast-title\{[^}]*\}/ )?.[ 0 ] || '';
     const weatherHistoryStripRule = css.match( /\.vl-live-wx-hist-strip\{[^}]*\}/ )?.[ 0 ] || '';
+    const weatherHistoryRangeRule = css.match( /\.vl-live-wx-history \.vl-live-air-range\{[^}]*\}/ )?.[ 0 ] || '';
+    const weatherHistoryRangeButtonRule = css.match( /\.vl-live-wx-history \.vl-live-air-range button\{[^}]*\}/ )?.[ 0 ] || '';
     expect( weatherHistoryHeadRule ).toContain( 'display:block' );
     expect( weatherHistoryHeadRule ).toContain( 'margin-bottom:8px' );
     expect( weatherHistoryTitleRule ).toContain( 'white-space:nowrap' );
     expect( weatherHistoryStripRule ).toContain( 'margin:8px 0 0' );
+    expect( weatherHistoryRangeRule ).toContain( 'background:transparent' );
+    expect( weatherHistoryRangeButtonRule ).toContain( 'min-height:32px' );
+    expect( weatherHistoryRangeButtonRule ).toContain( 'border:1px solid var(--hair)' );
+    expect( css ).not.toContain( 'background:#f4f5f1' );
+    expect( css ).not.toContain( 'background:#f7f7f5' );
+    expect( css ).not.toContain( 'background:#eef1ed' );
     // The heatmap On/Off state control lives in the air panel's `air ? (...)` branch, so on the
     // keyless path (no live air data) it is correctly absent. Assert that absence rather than a
     // live On/Off string, which this path can never produce.
