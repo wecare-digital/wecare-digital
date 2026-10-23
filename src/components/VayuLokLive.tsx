@@ -995,6 +995,11 @@ function relativeAgeLabel( value?: string | number ): { label: string; stale: bo
   return { label: `Updated ${hours} hr${hours === 1 ? '' : 's'} ago`, stale: true };
 }
 
+function freshnessTimeLabel( label: string ): string {
+  const clean = label.replace( /^Updated\s+/i, '' ).trim();
+  return /^Current$/i.test( clean ) ? 'just now' : clean;
+}
+
 const RECENT_PLACES_KEY = 'vayulok_recent_places_v2';
 
 function recentPlaces(): PlaceState[] {
@@ -3315,7 +3320,12 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                             <span data-wc-no-translate="true">{ formatPollutantValue( pollutant.value ) } { pollutant.unit }</span>
                           </span>
                         ) ) }
-                        { airAge && <small className={ airAge.stale ? 'is-stale' : '' }>{ airAge.stale ? `Latest available · ${airAge.label}` : airAge.label }</small> }
+                        { airAge && (
+                          <small className={ airAge.stale ? 'vl-live-freshness is-stale' : 'vl-live-freshness' } aria-label={ airAge.label }>
+                            <svg className="vl-live-freshness-icon" viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.schedule } /></svg>
+                            <span>{ freshnessTimeLabel( airAge.label ) }</span>
+                          </small>
+                        ) }
                       </div>
                     </div>
                   ) : <p className="vl-live-mobile-empty" role="status" aria-live="polite">{ dataLoading
@@ -3432,7 +3442,12 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                                 <strong>Dominant</strong> { dominantPollutantLabel( air.dominant, air.pollutants ) }
                               </span>
                             ) }
-                            { airAge && <span className={ airAge.stale ? 'vl-live-data-age is-stale' : 'vl-live-data-age' }>{ airAge.stale ? `Latest available · ${airAge.label}` : airAge.label }</span> }
+                            { airAge && (
+                              <span className={ airAge.stale ? 'vl-live-data-age vl-live-freshness is-stale' : 'vl-live-data-age vl-live-freshness' } aria-label={ airAge.label }>
+                                <svg className="vl-live-freshness-icon" viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.schedule } /></svg>
+                                <span>{ freshnessTimeLabel( airAge.label ) }</span>
+                              </span>
+                            ) }
                           </div>
                         </div>
                       </div>
@@ -3839,7 +3854,12 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                             ) }
                           </div>
                         </div>
-                        { weatherAge && <div className={ `vl-live-wx-freshness ${weatherAge.stale ? 'is-stale' : ''}`.trim() }>{ weatherAge.stale ? 'Latest available · ' : 'Current · ' }{ weatherAge.label.replace( /^Updated\s*/i, 'updated ' ) }</div> }
+                        { weatherAge && (
+                          <div className={ `vl-live-wx-freshness vl-live-freshness ${weatherAge.stale ? 'is-stale' : ''}`.trim() } aria-label={ weatherAge.label }>
+                            <svg className="vl-live-freshness-icon" viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.schedule } /></svg>
+                            <span>{ freshnessTimeLabel( weatherAge.label ) }</span>
+                          </div>
+                        ) }
 
                         {/* CURRENT METRICS - compact grid, only fields Google returned. */}
                         <ul className="vl-live-wx-grid">
@@ -3972,7 +3992,15 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                             ) }
                           </div>
                         ) }
-                        { forecastFetchedAt && <div className="vl-live-wx-freshness">Forecast · { relativeAgeLabel( forecastFetchedAt ).label.replace( /^Updated\s*/i, 'fetched ' ) }</div> }
+                        { forecastFetchedAt && ( () => {
+                          const age = relativeAgeLabel( forecastFetchedAt );
+                          return (
+                            <div className="vl-live-wx-freshness vl-live-freshness" aria-label={ `Forecast ${age.label.toLowerCase()}` }>
+                              <svg className="vl-live-freshness-icon" viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.schedule } /></svg>
+                              <span>{ freshnessTimeLabel( age.label ) }</span>
+                            </div>
+                          );
+                        } )() }
 
                         {/* 10-DAY FORECAST - compact vertical rows, detail on selection. */}
                         { weatherDaily.length > 0 && (
@@ -4109,7 +4137,15 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                             ) }
                           </div>
                         ) }
-                        { weatherHistoryFetchedAt && <div className="vl-live-wx-freshness">History · { relativeAgeLabel( weatherHistoryFetchedAt ).label.replace( /^Updated\s*/i, 'latest ' ) }</div> }
+                        { weatherHistoryFetchedAt && ( () => {
+                          const age = relativeAgeLabel( weatherHistoryFetchedAt );
+                          return (
+                            <div className="vl-live-wx-freshness vl-live-freshness" aria-label={ `History ${age.label.toLowerCase()}` }>
+                              <svg className="vl-live-freshness-icon" viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.schedule } /></svg>
+                              <span>{ freshnessTimeLabel( age.label ) }</span>
+                            </div>
+                          );
+                        } )() }
 
                         <VayuLokWeatherInsights
                           lat={ place.lat }
@@ -4718,7 +4754,9 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-air-summary-meta strong{color:var(--status);font-weight:700}
         .vl-live-air-summary-chip{display:inline-flex;align-items:center;gap:5px}
         .vl-live-air-summary-icon{flex:0 0 16px;width:16px;height:16px;padding:2px;border-radius:50%;background:var(--lime);fill:var(--green)}
-        .vl-live-data-age.is-stale,.vl-live-mobile-copy small.is-stale,.vl-live-wx-freshness.is-stale{width:fit-content;padding:4px 8px;border-radius:var(--pill-r);background:var(--lime-tint);color:var(--green)}
+        .vl-live-freshness{display:inline-flex;align-items:center;gap:5px;width:fit-content;color:var(--muted);font-size:var(--vl-meta-size);font-weight:600;line-height:1.35;white-space:nowrap}
+        .vl-live-freshness-icon{flex:0 0 15px;width:15px;height:15px;fill:currentColor}
+        .vl-live-data-age.is-stale,.vl-live-mobile-copy .vl-live-freshness.is-stale,.vl-live-wx-freshness.is-stale{padding:4px 8px;border-radius:var(--pill-r);background:var(--lime-tint);color:var(--green)}
         .vl-live-local-time-status{color:var(--muted);font-weight:600}
 
         .vl-live-air-pollutants,.vl-live-air-heatmap,.vl-live-air-forecast,.vl-live-air-health,.vl-live-air-history{margin-top:var(--vl-section-gap);padding-top:var(--vl-section-pad);border-top:1px solid var(--hair)}
