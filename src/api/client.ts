@@ -775,6 +775,7 @@ function normalizeContact ( item: any ): Contact {
     blogSubscribedAt: normalizeTimestamp( item.blogSubscribedAt ),
     bsuid: item.bsuid || '',
     username: item.username || '',
+    profileUsername: item.profileUsername || '',
     contactBookName: item.contactBookName || '',
     shippingAddress: item.shippingAddress || '',
     billingAddress: item.billingAddress || '',
