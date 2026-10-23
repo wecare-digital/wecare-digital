@@ -1173,6 +1173,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
   // it does NOT expose PM10/NO2/O3 pollutant heatmap tiles. Keep AQI + PM2.5 only rather than
   // inventing unsupported map types. The retired deck.gl and NOAA/Zarr paths are no longer part
   // of this component or its dependency tree.
+  const airForecastStripRef = useRef<HTMLDivElement | null>( null );
   const heatmapOverlayRef = useRef<unknown>( null );
   const weatherOverlayRef = useRef<unknown>( null );
   const alertBoundaryFeaturesRef = useRef<unknown[]>( [] );
@@ -3503,12 +3504,34 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                       <div className="vl-live-air-forecast">
                         <div className="vl-live-air-forecast-head">
                           <h4 className="vl-live-air-forecast-title">Air Forecast</h4>
-                          <div className="vl-live-air-range" role="group" aria-label="Air forecast range">
-                            { ( [ 24, 48, 96 ] as const ).map( hours => (
-                              <button key={ hours } type="button" className={ airForecastHours === hours ? 'is-active' : '' } aria-pressed={ airForecastHours === hours } onClick={ () => setAirForecastHours( hours ) }>
-                                { hours }h
-                              </button>
-                            ) ) }
+                          <div className="vl-live-air-forecast-head-actions">
+                            <div className="vl-live-air-range" role="group" aria-label="Air forecast range">
+                              { ( [ 24, 48, 96 ] as const ).map( hours => (
+                                <button key={ hours } type="button" className={ airForecastHours === hours ? 'is-active' : '' } aria-pressed={ airForecastHours === hours } onClick={ () => setAirForecastHours( hours ) }>
+                                  { hours }h
+                                </button>
+                              ) ) }
+                            </div>
+                            { airForecast.length > 0 && (
+                              <div className="vl-live-air-scroll-nav" role="group" aria-label="Scroll hourly forecast">
+                                <button
+                                  type="button"
+                                  className="vl-live-air-scroll-btn"
+                                  aria-label="Previous forecast hours"
+                                  onClick={ () => airForecastStripRef.current?.scrollBy( { left: -240, behavior: 'smooth' } ) }
+                                >
+                                  <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.chevronLeft } /></svg>
+                                </button>
+                                <button
+                                  type="button"
+                                  className="vl-live-air-scroll-btn"
+                                  aria-label="Next forecast hours"
+                                  onClick={ () => airForecastStripRef.current?.scrollBy( { left: 240, behavior: 'smooth' } ) }
+                                >
+                                  <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.chevronRight } /></svg>
+                                </button>
+                              </div>
+                            ) }
                           </div>
                         </div>
                         { airForecastStatus === 'loading' && !airForecast.length ? (
@@ -3526,7 +3549,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                           <p className="vl-live-air-history-empty" role="status">Forecast unavailable for this location.</p>
                         ) : airForecast.length ? (
                           <>
-                            <div className="vl-live-air-forecast-strip" aria-label={ `Next ${airForecastHours} hours air forecast` }>
+                            <div ref={ airForecastStripRef } className="vl-live-air-forecast-strip" aria-label={ `Next ${airForecastHours} hours air forecast` }>
                               { airForecast.slice( 0, airForecastHours ).map( ( point, idx ) => (
                                 <button key={ point.time } type="button" className={ `vl-live-air-forecast-card ${airForecastInspectIdx === idx ? 'is-active' : ''}`.trim() } aria-pressed={ airForecastInspectIdx === idx } onFocus={ e => e.currentTarget.scrollIntoView?.( { block: 'nearest', inline: 'nearest' } ) } onClick={ e => { setAirForecastInspectIdx( idx ); e.currentTarget.scrollIntoView?.( { block: 'nearest', inline: 'nearest' } ); } }>
                                   <span>{ formatHistoryPointLabel( point.time, displayTimeZoneId, locationZoneLabel ) }</span>
@@ -4761,22 +4784,29 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-air-heatmap-legend.is-pm25 .vl-live-air-heatmap-ramp{background:linear-gradient(90deg,#9849e8 0%,#2563eb 100%)}
         .vl-live-air-heatmap-ends{display:flex;align-items:center;justify-content:space-between;margin-top:6px}
         .vl-live-air-heatmap-end{color:var(--muted);font-size:11px;font-weight:700;letter-spacing:.02em}
-        .vl-live-air-range{display:inline-flex;align-items:center;gap:4px;padding:2px;border-radius:999px;background:#f4f5f1}
-        .vl-live-air-range button{min-height:var(--tap-min);padding:0 11px;border:0;border-radius:999px;background:transparent;color:var(--muted);font-size:14px;font-weight:700;line-height:1}
-        .vl-live-air-range button.is-active{background:var(--lime);color:var(--green)}
-        .vl-live-air-range button:hover{background:var(--lime-hover);color:var(--green)}
-        .vl-live-air-forecast-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:var(--vl-heading-gap)}
-        .vl-live-air-forecast-strip{display:flex;gap:8px;overflow-x:auto;padding:0 0 8px;scroll-snap-type:x proximity;scrollbar-width:thin;overscroll-behavior-x:contain;touch-action:pan-x}
-        .vl-live-air-forecast-strip::-webkit-scrollbar{display:none}
-        .vl-live-air-forecast-card{display:flex;flex:0 0 auto;min-width:118px;scroll-snap-align:start;flex-direction:column;align-items:flex-start;gap:4px;padding:9px 12px;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff;color:var(--body);text-align:start;touch-action:manipulation}
+        .vl-live-air-range{display:inline-flex;align-items:center;gap:6px;padding:0;border-radius:var(--pill-r);background:transparent}
+        .vl-live-air-range button{min-height:32px;padding:0 10px;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff;color:var(--green);font-size:var(--vl-meta-size);font-weight:700;line-height:1;white-space:nowrap}
+        .vl-live-air-range button.is-active{border-color:var(--lime);background:var(--lime);color:var(--green)}
+        .vl-live-air-range button:hover{border-color:var(--lime);background:var(--lime-hover);color:var(--green)}
+        .vl-live-air-forecast-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:var(--vl-heading-gap);flex-wrap:wrap}
+        .vl-live-air-forecast-head-actions{display:flex;min-width:0;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+        .vl-live-air-scroll-nav{display:inline-flex;align-items:center;gap:4px}
+        .vl-live-air-scroll-btn{display:inline-flex;width:32px;height:32px;align-items:center;justify-content:center;padding:0;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff;color:var(--green)}
+        .vl-live-air-scroll-btn:hover{border-color:var(--lime);background:var(--lime-hover)}
+        .vl-live-air-scroll-btn svg{width:16px;height:16px;fill:currentColor}
+        .vl-live-air-forecast-strip{display:flex;gap:7px;overflow-x:auto;padding:0 0 8px;scroll-snap-type:x proximity;scrollbar-width:thin;overscroll-behavior-x:contain;touch-action:pan-x;-webkit-overflow-scrolling:touch}
+        .vl-live-air-forecast-strip::-webkit-scrollbar{height:6px}
+        .vl-live-air-forecast-strip::-webkit-scrollbar-thumb{border-radius:var(--pill-r);background:rgba(26,58,42,.18)}
+        .vl-live-air-forecast-strip::-webkit-scrollbar-track{background:transparent}
+        .vl-live-air-forecast-card{display:inline-flex;flex:0 0 auto;min-width:max-content;min-height:34px;scroll-snap-align:start;flex-direction:row;align-items:center;gap:6px;padding:7px 10px;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff;color:var(--body);text-align:start;white-space:nowrap;touch-action:manipulation}
         .vl-live-air-forecast-card:hover{border-color:var(--lime);background:var(--lime-tint)}
         .vl-live-air-forecast-card.is-active{border-color:var(--lime);background:var(--lime);color:var(--green)}
         .vl-live-air-forecast-card.is-active span,.vl-live-air-forecast-card.is-active strong,.vl-live-air-forecast-card.is-active small{color:var(--green)}
-        .vl-live-air-forecast-card.is-skeleton{min-height:62px;background:linear-gradient(90deg,#f4f5f1 25%,#ececec 37%,#f4f5f1 63%);background-size:400% 100%;border-color:var(--hair);animation:vl-live-shimmer 1.4s ease infinite}
+        .vl-live-air-forecast-card.is-skeleton{min-width:112px;min-height:34px;background:linear-gradient(90deg,#f4f5f1 25%,#ececec 37%,#f4f5f1 63%);background-size:400% 100%;border-color:var(--hair);animation:vl-live-shimmer 1.4s ease infinite}
         @media(prefers-reduced-motion:reduce){.vl-live-air-forecast-card.is-skeleton{animation:none}}
         @keyframes vl-live-shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
         .vl-live-air-forecast-card span{color:var(--muted);font-size:var(--vl-meta-size);font-weight:600;line-height:1.4}
-        .vl-live-air-forecast-card strong{color:#000;font-size:var(--vl-data-size);font-weight:700;line-height:1.35;letter-spacing:-.18px}
+        .vl-live-air-forecast-card strong{color:#000;font-size:var(--vl-meta-size);font-weight:700;line-height:1.35;letter-spacing:-.08px}
         .vl-live-air-forecast-card small{color:var(--status);font-size:var(--vl-meta-size);font-weight:600;line-height:1.4}
         .vl-live-air-forecast-detail{display:flex;flex-wrap:nowrap;gap:8px;margin-top:10px;padding:2px 0 8px;overflow-x:auto;scroll-snap-type:x proximity;scrollbar-width:thin;overscroll-behavior-x:contain;touch-action:pan-x;color:var(--muted);font-size:var(--vl-meta-size);font-weight:400;line-height:1.4}
         .vl-live-air-forecast-detail>span{display:inline-flex;flex:0 0 auto;min-height:36px;align-items:center;gap:4px;padding:0 11px;border:1px solid rgba(209,244,112,.72);border-radius:var(--pill-r);background:var(--lime-tint);white-space:nowrap;scroll-snap-align:start}
@@ -4855,7 +4885,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
 
         /* ── HEALTH RECOMMENDATIONS ──────────────────────────────────────────────
            Profiles are one touch/keyboard scroll rail using the same small pill language as
-           VayuLok's other selectors. Copy is intentionally lighter than data labels. */
+           VayuLok's other selectors. Advisory copy is deliberately bold for scanability. */
         .vl-live-air-history-pollutant{display:inline-flex;align-items:center;gap:4px}
         .vl-live-air-health-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:var(--vl-heading-gap)}
         .vl-live-air-health-tabs{display:flex;align-items:center;gap:7px;overflow-x:auto;padding:0 0 8px;scroll-snap-type:x proximity;scrollbar-width:thin;white-space:nowrap;overscroll-behavior-x:contain;touch-action:pan-x}
@@ -4868,7 +4898,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-air-health-tab-label{display:block;white-space:nowrap}
         .vl-live-air-health-panel{margin-top:var(--vl-content-gap);padding-top:var(--vl-content-gap);border-top:1px solid var(--hair)}
         .vl-live-air-health-persona{display:block;margin:0 0 6px;color:var(--heading);font-size:var(--vl-data-size);font-weight:600;line-height:1.35;letter-spacing:-.1px}
-        .vl-live-air-health-text{margin:0;color:var(--muted);font-size:var(--vl-subtext-size);font-weight:400;line-height:1.5;letter-spacing:0}
+        .vl-live-air-health-text{margin:0;color:var(--muted);font-size:var(--vl-subtext-size);font-weight:700;line-height:1.5;letter-spacing:0}
 
         /* ── HOURLY HISTORY (inline-SVG AQI chart) ──────────────────────────────────
            Line + area stroked from the no-red ramp via the sev-mapped class; the pinned
