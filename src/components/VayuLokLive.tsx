@@ -3830,7 +3830,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                     </div>
                   ) : (
                     <div className="vl-live-air-panel" role="tabpanel" id="vl-live-air-panel" aria-labelledby="vl-live-air-tab" aria-label="Air details">
-                      <p className="vl-live-air-empty">Live air quality appears here once a place is selected.</p>
+                      <p className="vl-live-air-empty" role="status">{ dataLoading ? 'Loading air quality…' : hasSelection ? 'Air quality is temporarily unavailable.' : 'Select a place to view air quality.' }</p>
                     </div>
                   )
                 ) }
@@ -4159,7 +4159,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                         { weather.currentTime && <span className="vl-live-sr-only">Weather updated for the selected place.</span> }
                       </>
                     ) : (
-                      <p className="vl-live-air-empty">Live weather appears here once a place is selected.</p>
+                      <p className="vl-live-air-empty" role="status">{ dataLoading ? 'Loading weather…' : hasSelection ? 'Weather is temporarily unavailable.' : 'Select a place to view weather.' }</p>
                     ) }
                   </div>
                 ) }
