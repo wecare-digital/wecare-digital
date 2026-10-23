@@ -130,11 +130,7 @@ export default function SubscribeSettings () {
       flowId: F001_FLOW_ID,
       entryMode: 'keyword_interactive',
       keywords: trigger.keywords.map( keyword => keyword.trim().toLowerCase() ).filter( Boolean ),
-      message: {
-        body: trigger.message.body.trim(),
-        footer: 'WECARE.DIGITAL',
-        flowCta: trigger.message.flowCta.trim(),
-      },
+      message: { body: trigger.message.body.trim(), footer: 'WECARE.DIGITAL', flowCta: trigger.message.flowCta.trim() },
     };
     if ( !normalized.keywords.length || !normalized.message.body || !normalized.message.flowCta ) {
       toast.error( 'Keywords, opening message, and button text are required.' ); return;
@@ -195,8 +191,7 @@ export default function SubscribeSettings () {
       <fieldset disabled={ triggerSaving } style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 16 }}>
         <label style={{ display: 'block', marginBottom: 12 }}>
           Keywords
-          <input value={ trigger.keywords.join( ', ' ) }
-            onChange={ event => setTrigger( previous => ({ ...previous, keywords: event.target.value.split( ',' ) }) ) }
+          <input value={ trigger.keywords.join( ', ' ) } onChange={ event => setTrigger( previous => ({ ...previous, keywords: event.target.value.split( ',' ) }) ) }
             style={{ display: 'block', width: '100%', padding: 10, border: '1px solid var(--border)', borderRadius: 8 }} />
         </label>
         <label style={{ display: 'block', marginBottom: 12 }}>
@@ -245,14 +240,8 @@ export default function SubscribeSettings () {
     <h3>Prefill and write policy</h3>
     <div style={{ overflowX: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-        <thead><tr>
-          { [ 'Flow field', 'Contact field', 'Prefill', 'Update policy', 'Limit' ].map( heading => <th key={ heading } style={{ textAlign: 'left', padding: 8, borderBottom: '1px solid var(--border)' }}>{ heading }</th> ) }
-        </tr></thead>
-        <tbody>
-          { FIELD_POLICY.map( row => <tr key={ row[ 0 ] }>
-            { row.map( ( cell, index ) => <td key={ index } style={{ padding: 8, borderBottom: '1px solid var(--border)' }}>{ cell }</td> ) }
-          </tr> ) }
-        </tbody>
+        <thead><tr>{ [ 'Flow field', 'Contact field', 'Prefill', 'Update policy', 'Limit' ].map( heading => <th key={ heading } style={{ textAlign: 'left', padding: 8, borderBottom: '1px solid var(--border)' }}>{ heading }</th> ) }</tr></thead>
+        <tbody>{ FIELD_POLICY.map( row => <tr key={ row[ 0 ] }>{ row.map( ( cell, index ) => <td key={ index } style={{ padding: 8, borderBottom: '1px solid var(--border)' }}>{ cell }</td> ) }</tr> ) }</tbody>
       </table>
     </div>
 
