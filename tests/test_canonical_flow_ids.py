@@ -67,6 +67,7 @@ STALE_IDS = {
     '1262971692700761': '02.WD_Profile DEPRECATED (subscribe)',
     '951987930811295': '02.WD_Profile DEPRECATED (subscribe, WABA2)',
     '1557815099200456': 'old Subscribe literal',
+    '1386523953464380': 'retired Subscribe flow replaced by F001',
     '1486454129852338': '02.WD_TR draft (track)',
     '973888792200167': 'WD Track Request DEPRECATED',
 }
