@@ -167,7 +167,7 @@ const VayuLokPage: React.FC = () => {
           secondLine="Insights"
           words={ cycleWords }
           pillKey={ mode }
-          sub="Live air and weather for your place."
+          sub="Live air and weather for any place."
           visual={ (
           <div className="vl-hero-visual">
             <VayuLokApprovedGlobe

@@ -53,6 +53,8 @@ describe( 'the /vayulok page keeps the live VayuLok section wired in', () => {
     const hero = container.querySelector( '.rh-shell' ) as HTMLElement | null;
     expect( hero ).not.toBeNull();
     expect( hero ).toHaveClass( 'uses-mobile-foundation' );
+    expect( hero?.textContent ).toContain( 'Live air and weather for any place.' );
+    expect( hero?.textContent ).not.toContain( 'Live air and weather for your place.' );
     expect( hero?.contains( live as Node ) ).toBe( false );
     expect(
       ( hero as HTMLElement ).compareDocumentPosition( live as Node )

@@ -1,6 +1,6 @@
 import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 const TEST_INSIGHTS_URL = 'https://weather-insights.test';
 
 async function loadComponent() {
@@ -72,5 +72,46 @@ describe( 'VayuLok Weather history public typography', () => {
     expect( css ).toContain( '.vl-wi-grid strong{color:var(--public-heading);font-size:var(--vl-data-size,var(--public-cta-font-size))' );
     expect( container.textContent ).not.toContain( 'Loading history…' );
     expect( css ).toContain( '.vl-wi-sr{position:absolute!important;width:1px!important;height:1px!important' );
+  } );
+
+  it( 'labels the five-year chart as a month-of-year aggregate rather than a 60-month timeline', async () => {
+    const fetchSpy = vi.fn().mockImplementation( ( input: RequestInfo | URL ) => {
+      const url = new URL( String( input ) );
+      const range = url.searchParams.get( 'range' ) || '30d';
+      return Promise.resolve( new Response( JSON.stringify( {
+        ok: true,
+        range,
+        sampleHours: range === '5y' ? 43800 : 720,
+        meanTemperatureC: 20,
+        minTemperatureC: 12,
+        maxTemperatureC: 29,
+        precipitationMm: 100,
+        meanHumidityPct: 70,
+        monthly: [
+          { month: 1, meanTemperatureC: 16 },
+          { month: 2, meanTemperatureC: 18 },
+          { month: 3, meanTemperatureC: 21 },
+        ],
+      } ), { status: 200, headers: { 'Content-Type': 'application/json' } } ) );
+    } );
+    vi.stubGlobal( 'fetch', fetchSpy );
+
+    const VayuLokWeatherInsights = await loadComponent();
+    render(
+      <VayuLokWeatherInsights
+        lat={ 25.5788 }
+        lng={ 91.8933 }
+        placeName="Shillong"
+        timeZoneId="Asia/Kolkata"
+        zoneLabel="IST"
+      />,
+    );
+
+    fireEvent.click( await screen.findByRole( 'button', { name: '5Y' } ) );
+    await waitFor( () => {
+      expect( screen.getByText( '5-year monthly pattern' ) ).toBeTruthy();
+      expect( screen.getByText( 'Average by calendar month' ) ).toBeTruthy();
+    } );
+    expect( screen.queryByText( 'Monthly temp' ) ).toBeNull();
   } );
 } );

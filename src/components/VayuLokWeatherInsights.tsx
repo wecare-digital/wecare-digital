@@ -219,8 +219,8 @@ const VayuLokWeatherInsights: React.FC<Props> = ( {
           { monthly.length > 1 && (
             <div className="vl-wi-trend">
               <div className="vl-wi-trend-head">
-                <strong>Monthly temp</strong>
-                <span>Monthly avg</span>
+                <strong>{ range === '5y' ? '5-year monthly pattern' : 'Monthly temperature' }</strong>
+                <span>{ range === '5y' ? 'Average by calendar month' : 'Monthly average' }</span>
               </div>
               <div className="vl-wi-bars" aria-label="Monthly temperature">
                 { monthly.map( row => {
