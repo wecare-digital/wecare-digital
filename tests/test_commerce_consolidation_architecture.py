@@ -24,11 +24,12 @@ def test_secure_files_no_longer_owns_a_payment_builder():
     assert "checkoutOrderDetails" not in block
 
 
-def test_verified_payment_sequence_is_order_status_then_invoice():
+def test_verified_payment_sends_invoice_without_order_status_side_effect():
     webhook = source("amplify/functions/payments/razorpay-webhook/handler.py")
-    assert "def _send_processing_order_status" in webhook
-    paid = webhook.split("if verified_paid:", 1)[1]
-    assert paid.index("_send_processing_order_status(") < paid.index("_post_payment_handler(")
+    assert "def _send_processing_order_status" not in webhook
+    assert "_send_processing_order_status(" not in webhook
+    assert "orderStatusDetails" not in webhook
+    assert "_post_payment_handler(" in webhook
 
 
 def test_fulfilment_status_is_separate_from_invoice_delivery():
