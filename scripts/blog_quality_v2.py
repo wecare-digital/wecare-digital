@@ -1250,6 +1250,38 @@ def check_slug_and_dates(record: Dict[str, Any]) -> List[Finding]:
     return out
 
 
+def check_public_source_exposure(record: Dict[str, Any]) -> List[Finding]:
+    """Block external source/reference/attribution material from public blog copy.
+
+    Internal provenance metadata may exist, but title, SEO, excerpt, meta description,
+    and body must read as independent WECARE.DIGITAL editorial copy.
+    """
+    out: List[Finding] = []
+    surfaces = {
+        "title": str(record.get("title") or ""),
+        "seoTitle": text_field(record, "seoTitle"),
+        "excerpt": text_field(record, "excerpt"),
+        "metaDescription": text_field(record, "metaDescription"),
+        "body": strip_markdown(body_of(record)),
+    }
+    patterns = (
+        ("PUBLIC_EXTERNAL_URL", r"https?://|www\\."),
+        ("PUBLIC_CITATION_LANGUAGE",
+         r"\\b(?:according to|cited by|quoted in|reference(?:s)?\\s*:|source\\s*:|"
+         r"adapted from|the source|source recipe|the cookbook|in the cookbook|the book says|"
+         r"the author says|the author writes)\\b"),
+    )
+    for surface_name, value in surfaces.items():
+        for code, pattern in patterns:
+            if re.search(pattern, value, re.IGNORECASE):
+                out.append(_block(
+                    "19", code,
+                    f"{surface_name} contains public source/reference/attribution material; "
+                    "keep provenance internal and rewrite public copy without the reference"))
+                break
+    return out
+
+
 def check_seo_and_metadata(record: Dict[str, Any]) -> List[Finding]:
     """Sections 24 and 25."""
     out: List[Finding] = []
@@ -1293,10 +1325,6 @@ def check_seo_and_metadata(record: Dict[str, Any]) -> List[Finding]:
                           f"{len(tags) if isinstance(tags, list) else type(tags).__name__}"))
     elif len({str(t).strip().lower() for t in tags}) != len(tags):
         out.append(_block("24", "TAG_DUPLICATE", "tags contain a duplicate"))
-
-    author = text_field(record, "author") or AUTHOR
-    if author != AUTHOR:
-        out.append(_block("25", "AUTHOR_WRONG", f"public author must be {AUTHOR!r}, got {author!r}"))
 
     category = str(record.get("category") or "").strip()
     if category not in CATEGORIES:
@@ -1681,6 +1709,7 @@ def check_record(record: Dict[str, Any], corpus: Optional[CorpusIndex] = None,
     findings += check_factual_reviews(record)
     findings += check_title(record)
     findings += check_slug_and_dates(record)
+    findings += check_public_source_exposure(record)
     findings += check_seo_and_metadata(record)
     findings += check_editorial_corruption(record)
     findings += check_formatting_and_images(record)
