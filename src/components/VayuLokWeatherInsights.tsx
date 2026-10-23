@@ -35,6 +35,7 @@ interface Props {
   placeName?: string;
   timeZoneId?: string;
   zoneLabel?: string;
+  includeUiStyles?: boolean;
 }
 
 const INSIGHTS_URL = ( process.env.NEXT_PUBLIC_VAYULOK_WEATHER_INSIGHTS_URL || '' ).replace( /\/$/, '' );
@@ -67,7 +68,8 @@ function formatWeatherHistoryStamp( value: number, timeZoneId: string, zoneLabel
       hour12: true,
     } ).formatToParts( new Date( value ) );
     const pick = ( type: Intl.DateTimeFormatPartTypes ) => parts.find( part => part.type === type )?.value || '';
-    return `${pick( 'day' )} ${pick( 'month' )} ${pick( 'year' )} · ${pick( 'hour' )}:${pick( 'minute' )} ${pick( 'dayPeriod' )} ${zoneLabel}`;
+    const zoneSuffix = zoneLabel.trim();
+    return `${pick( 'day' )} ${pick( 'month' )} ${pick( 'year' )} · ${pick( 'hour' )}:${pick( 'minute' )} ${pick( 'dayPeriod' )}${zoneSuffix ? ` ${zoneSuffix}` : ''}`;
   } catch {
     return `${new Date( value ).toISOString().slice( 0, 16 ).replace( 'T', ' ' )} UTC`;
   }
@@ -87,6 +89,7 @@ const VayuLokWeatherInsights: React.FC<Props> = ( {
   placeName,
   timeZoneId = 'Asia/Kolkata',
   zoneLabel = 'IST',
+  includeUiStyles = true,
 } ) => {
   const [ range, setRange ] = useState<Range>( '30d' );
   const [ data, setData ] = useState<WeatherInsightsSummary | null>( null );
@@ -174,7 +177,7 @@ const VayuLokWeatherInsights: React.FC<Props> = ( {
 
   return (
     <section className="vl-wi" aria-label="Weather history">
-      <VayuLokUiStyles />
+      { includeUiStyles && <VayuLokUiStyles /> }
       <div className="vl-wi-head">
         <div>
           <VayuLokSectionHeading>Weather history</VayuLokSectionHeading>
