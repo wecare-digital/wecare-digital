@@ -8,8 +8,11 @@ on:
       - 'amplify/functions/ecommerce/meta-catalog-sync/**'
       - 'amplify/functions/shared/lambda_utils/ecommerce/meta_catalog_sync.py'
       - 'scripts/deploy_all_lambdas.py'
+      - 'scripts/provision_meta_catalog_sync.py'
+      - 'config/lambda-env-manifest.json'
       - 'tests/test_meta_catalog_sync.py'
       - 'tests/test_meta_catalog_native_source.py'
+      - 'tests/test_meta_catalog_sync_iam.py'
   workflow_dispatch:
 
 permissions:
@@ -49,13 +52,38 @@ jobs:
       - name: Compile and regression test
         run: |
           python -m py_compile             amplify/functions/ecommerce/meta-catalog-sync/handler.py             amplify/functions/shared/lambda_utils/ecommerce/meta_catalog_sync.py
-          python -m pytest             tests/test_meta_catalog_sync.py             tests/test_meta_catalog_native_source.py -q
+          python -m pytest             tests/test_meta_catalog_sync.py             tests/test_meta_catalog_native_source.py             tests/test_meta_catalog_sync_iam.py -q
 
       - name: Package validation
         run: python scripts/deploy_all_lambdas.py --dry-run wecare-meta-catalog-sync
 
       - name: Deploy Meta catalog sync
         run: python scripts/deploy_all_lambdas.py wecare-meta-catalog-sync
+
+      - name: Remove retired Meta stock override from live environment
+        run: |
+          python - <<'PY'
+          import boto3
+
+          lam = boto3.client("lambda", region_name="us-east-1")
+          name = "wecare-meta-catalog-sync"
+          current = lam.get_function_configuration(FunctionName=name)
+          env = dict((current.get("Environment") or {}).get("Variables") or {})
+          retired = "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK"
+          if retired in env:
+              env.pop(retired)
+              lam.update_function_configuration(
+                  FunctionName=name,
+                  RevisionId=current["RevisionId"],
+                  Environment={"Variables": env},
+              )
+              lam.get_waiter("function_updated_v2").wait(FunctionName=name)
+          final = lam.get_function_configuration(FunctionName=name)
+          final_env = dict((final.get("Environment") or {}).get("Variables") or {})
+          if retired in final_env:
+              raise SystemExit(f"{retired} still present after reconcile")
+          print(f"{name}: retired stock override absent")
+          PY
 
       - name: Verify live alias and closed release gates
         run: |
@@ -71,6 +99,8 @@ jobs:
           env = served.get("Environment", {}).get("Variables", {})
           if str(env.get("META_CATALOG_SYNC_DRY_RUN", "")).lower() != "true":
               raise SystemExit("META_CATALOG_SYNC_DRY_RUN is not true")
+          if "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK" in env:
+              raise SystemExit("retired Meta stock override is still configured")
           enabled = str(env.get("META_CATALOG_SYNC_ENABLED", "")).lower()
           print(f"{name}: live=v{alias}, enabled={enabled}, dry-run=true")
           PY

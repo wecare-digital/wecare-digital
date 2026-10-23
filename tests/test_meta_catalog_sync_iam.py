@@ -310,15 +310,17 @@ def test_the_provisioned_environment_matches_the_product_scoped_rollout(provisio
         "META_CATALOG_SYNC_ENABLED": "true",
         "META_CATALOG_SYNC_DRY_RUN": "true",
         "META_CATALOG_SYNC_VARIANT_IDS": provisioner.ENVIRONMENT["META_CATALOG_SYNC_VARIANT_IDS"],
-        "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "false",
         "META_CATALOG_AUTO_APPLY_SAFE": "false",
         "META_CATALOG_AUTO_APPLY_MAX_CHANGES": "50",
     }
     for key, value in expected.items():
         assert provisioner.ENVIRONMENT[key] == value
         assert live[key] == value
+    assert "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK" not in provisioner.ENVIRONMENT
+    assert "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK" not in live
 
     handler = HANDLER.read_text(encoding="utf-8")
+    assert "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK" not in handler
     assert 'trigger.get("source") not in {"ddb-stream", "schedule"}' in handler
     assert 'int(counts.get("retire", 0)) == 0' in handler
     assert 'int(counts.get("foreign", 0)) == 0' in handler

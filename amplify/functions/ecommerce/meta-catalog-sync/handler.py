@@ -5,12 +5,12 @@ PHASE W, FEAT-001. Plan decision D3 in
 shape and the diff all live in `lambda_utils/ecommerce/meta_catalog_sync.py`, which is pure. This
 file is wiring: AWS catalog in, Meta in, a plan out, and two gates in front of the only write.
 
-OWNER-AUTHORIZED SCOPED ROLLOUT, 2026-10-08
-------------------------------------------
-The deployed manifest enables only Submit Request and Vault, held out of stock while native
-purchase QA remains pending. Absent flags still default to disabled/dry-run. The variant scope
-also limits retirement, preserving unrelated and foreign items. Meta items_batch uses feed
-fields; catalog reads use Graph product fields. A response without handles is not success.
+OWNER-AUTHORIZED PRODUCT-SCOPED PUBLICATION
+--------------------------------------------
+ProductsTable is the publication authority. Only rows with metaEnabled=true enter the desired
+catalog, and active rows are always projected as available; stock quantities and retired stock
+flags do not control Meta availability. Dry-run plus exact-plan approval protect every write.
+Foreign retailer ids remain outside the owned reconciliation set.
 
 THE TRIGGER CARRIES NO INFORMATION THIS FUNCTION USES
 -----------------------------------------------------
@@ -715,9 +715,6 @@ def handler(event, context, *, graph_requester=None,
             existing = [item for item in existing
                         if not catalog.parse_retailer_id(item.get("retailer_id"))
                         or _variant_in_scope(item)]
-        if os.environ.get("META_CATALOG_SYNC_FORCE_OUT_OF_STOCK", "").lower() in _TRUE:
-            for item in desired:
-                item["availability"] = catalog.OUT_OF_STOCK
     except Exception as error:  # noqa: BLE001 - a read failure must not become a write attempt
         # The STATUS and the exception class name, and nothing more. `getattr` rather than an
         # isinstance branch because non-Graph read failures carry neither.
