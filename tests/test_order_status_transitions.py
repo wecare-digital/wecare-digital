@@ -86,6 +86,25 @@ class TestTheVocabulary:
         assert not wos.can_transition('canceled', 'processing')
 
 
+    def test_shared_builder_owns_reference_status_and_component_shape(self):
+        component = wos.build_template_component(
+            REFERENCE, 'partially_shipped', 'Part of your order has shipped.')
+        action = component['parameters'][0]['order_status']
+        assert component['type'] == 'order_status'
+        assert action['reference_id'] == REFERENCE
+        assert action['order']['status'] == 'partially-shipped'
+        assert action['order']['description'] == 'Part of your order has shipped.'
+
+    @pytest.mark.parametrize('reference', ['', 'bad ref with spaces', 'x' * 36])
+    def test_shared_builder_rejects_invalid_reference(self, reference):
+        with pytest.raises(ValueError):
+            wos.build_template_component(reference, 'processing')
+
+    def test_shared_builder_rejects_payment_vocabulary(self):
+        with pytest.raises(ValueError):
+            wos.build_template_component(REFERENCE, 'captured')
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # the guarded route
 # ══════════════════════════════════════════════════════════════════════════════
