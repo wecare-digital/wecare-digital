@@ -6,6 +6,7 @@ edit cannot silently re-broaden writes to the bucket root or drop the legacy-wri
 from __future__ import annotations
 
 import importlib.util
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -90,3 +91,9 @@ def test_catalog_image_key_canonicalization_is_safe():
     assert mk.canonicalize("secure/public/catalog-deploy/catalog/products/a/../b-4096.png") is None
     assert mk.canonicalize("secure/public/catalog-deploy/catalog/products/x.jpg") is None
     assert mk.canonicalize("") is None
+
+
+def test_scoper_does_not_put_lambda_utils_on_sys_path():
+    _mod()
+    dangerous = str(ROOT / "amplify" / "functions" / "shared" / "lambda_utils")
+    assert dangerous not in sys.path

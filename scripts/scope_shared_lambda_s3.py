@@ -39,13 +39,22 @@ from __future__ import annotations
 
 import argparse
 import difflib
+import importlib.util
 import json
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "amplify" / "functions" / "shared" / "lambda_utils"))
-import media_paths as mp  # noqa: E402
+MEDIA_PATHS_FILE = ROOT / "amplify" / "functions" / "shared" / "lambda_utils" / "media_paths.py"
+
+# Load the canonical key contract without placing lambda_utils itself on sys.path.
+# That directory contains logging.py; inserting it at sys.path[0] shadows Python's
+# standard-library logging module when boto3 imports it during --simulate/--apply.
+_spec = importlib.util.spec_from_file_location("wecare_media_paths", MEDIA_PATHS_FILE)
+if _spec is None or _spec.loader is None:
+    raise ImportError(f"Unable to load media path contract from {MEDIA_PATHS_FILE}")
+mp = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(mp)
 
 REGION = "us-east-1"
 ROLE = "wecare-digital-lambda-role"
