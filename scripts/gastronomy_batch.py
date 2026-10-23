@@ -22,7 +22,6 @@ if str(SCRIPTS) not in sys.path:
 
 import blog_native_contract as native  # noqa: E402
 
-AUTHOR = 'Anew by WECARE.DIGITAL'
 CATEGORY = 'Gastronomy'
 QUALITY_VERSION = 2
 MAX_MANIFEST_POSTS = 150
@@ -199,14 +198,12 @@ def validate_batch_document(document: dict, require_v2=False):
         slugs.append(post.get('slug'))
         titles.append(post.get('title'))
         required = [
-            'id', 'title', 'slug', 'author', 'category', 'tags', 'seo_title',
+            'id', 'title', 'slug', 'category', 'tags', 'seo_title',
             'meta_description', 'canonical', 'source_ref', 'body_markdown', 'image_status',
         ]
         for key in required:
             if not post.get(key):
                 errors.append(f'{prefix}: missing {key}')
-        if post.get('author') != AUTHOR:
-            errors.append(f'{prefix}: author must be {AUTHOR}')
         if post.get('category') != CATEGORY:
             errors.append(f'{prefix}: category must be {CATEGORY}')
         tags = post.get('tags') or []
