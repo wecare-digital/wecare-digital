@@ -845,7 +845,7 @@ def _get_document_download_url(doc_id: str) -> Dict:
         return _resp(200, {'url': storage_key})
 
     # Rows written before the bucket merge store `stack/whatsapp-media/incoming/<file>`
-    # while the object sits at `o/stack/whatsapp-media/incoming/<file>`. Normalise on
+    # while historical rows may still name a retired WhatsApp media key. Normalise on
     # read so legacy and current rows both resolve; canonical() is idempotent and never
     # moves a key between the public and gated roots.
     storage_key = media_paths.canonical(storage_key)
