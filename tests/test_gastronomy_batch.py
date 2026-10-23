@@ -89,14 +89,14 @@ def test_source_terms_are_dynamic_not_isha_specific():
     assert not any('Isha' in e for e in errors)
 
 
-def test_required_attribution_can_be_explicitly_allowed():
+def test_required_attribution_is_not_a_public_copy_exception():
     m = load_module()
     doc = make_doc(size=1)
     doc['source_profile']['blocked_public_terms'] = ['Named Theory']
     doc['source_profile']['required_public_attribution_terms'] = ['Named Theory']
     doc['posts'][0]['body_markdown'] += '\n\nNamed Theory is discussed here because attribution is required.'
     errors = m.validate_batch_document(doc, require_v2=True)
-    assert not any('Named Theory' in e for e in errors)
+    assert any('Named Theory' in e for e in errors)
 
 
 def test_generic_source_scaffolding_is_rejected():
@@ -105,6 +105,21 @@ def test_generic_source_scaffolding_is_rejected():
     doc['posts'][0]['body_markdown'] += '\n\nThe cookbook says to toast the spice first.'
     errors = m.validate_batch_document(doc, require_v2=True)
     assert any('cookbook-facing language' in e for e in errors)
+
+def test_external_url_is_rejected_from_public_copy():
+    m = load_module()
+    doc = make_doc(size=1)
+    doc['posts'][0]['body_markdown'] += '\n\nSee https://example.com/source for the original.'
+    errors = m.validate_batch_document(doc, require_v2=True)
+    assert any('external URL/reference' in e for e in errors)
+
+
+def test_citation_language_is_rejected_from_public_copy():
+    m = load_module()
+    doc = make_doc(size=1)
+    doc['posts'][0]['body_markdown'] += '\n\nAccording to Example Author, toast the spice first.'
+    errors = m.validate_batch_document(doc, require_v2=True)
+    assert any('citation/attribution language' in e for e in errors)
 
 
 def test_personal_possessive_title_requires_justification():
@@ -117,15 +132,15 @@ def test_personal_possessive_title_requires_justification():
     assert any('personal/kinship name' in e for e in errors)
 
 
-def test_personal_title_can_be_justified_when_identity_is_essential():
+def test_personal_title_cannot_be_justified_as_public_source_provenance():
     m = load_module()
     doc = make_doc(size=1)
     p = doc['posts'][0]
     p['title'] = "Caroline's Carob Almond Cookies"
     p['seo_title'] = "Caroline's Carob Almond Cookies | WECARE.DIGITAL"
-    p['public_name_justification'] = 'Established dish identity with required attribution.'
+    p['public_name_justification'] = 'Legacy field should not bypass the public-copy rule.'
     errors = m.validate_batch_document(doc, require_v2=True)
-    assert not any('personal/kinship name' in e for e in errors)
+    assert any('personal/kinship name' in e for e in errors)
 
 
 def test_health_claim_title_requires_review():
