@@ -158,9 +158,9 @@ describe( 'scrollbar thumb colour is declared in exactly two files', () => {
     const vayulok = stripComments( fs.readFileSync( path.join( SRC, 'components/VayuLokLive.tsx' ), 'utf8' ) );
     expect( vayulok ).toContain( '.vl-live-air-forecast-strip::-webkit-scrollbar{height:6px}' );
     expect( vayulok ).toContain( '.vl-live-air-history-detail::-webkit-scrollbar{height:6px}' );
-    expect( vayulok ).toContain( '.vl-live-air-health-tabs::-webkit-scrollbar{display:none}' );
-    expect( vayulok ).toContain( '.vl-live-wx-history .vl-live-air-range::-webkit-scrollbar{display:none}' );
-    expect( vayulok ).toContain( '.vl-live-wx-hist-strip::-webkit-scrollbar{display:none}' );
+    expect( vayulok ).toContain( '.vl-live-air-health-tabs::-webkit-scrollbar{height:6px}' );
+    expect( vayulok ).toContain( '.vl-live-wx-history .vl-live-air-range::-webkit-scrollbar{height:6px}' );
+    expect( vayulok ).toContain( '.vl-live-wx-hist-strip::-webkit-scrollbar{height:6px}' );
   } );
 
   it( 'finds a planted declaration, and loses a commented one', () => {
