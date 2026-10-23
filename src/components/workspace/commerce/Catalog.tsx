@@ -325,8 +325,8 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
             label: vayulokVariant.label || 'Standard',
           });
           const savedVariant = (vayulok.variants || []).find(v => v.sku === vayulokVariant.sku);
-          if (!savedVariant || savedVariant.priceMinor !== 9900 || vayulok.priceMinor !== 9900) {
-            throw new Error('VayuLok ₹99.00 price readback failed');
+          if (!savedVariant || savedVariant.priceMinor !== 9900) {
+            throw new Error('VayuLok ₹99.00 variant price readback failed');
           }
           current = current.map(product => product.id === vayulok!.id ? vayulok! : product);
         }
