@@ -178,10 +178,10 @@ class TestTheGuardedRoute:
         resp = _send(engine, fake, lam, target='shipped')
         assert _status(resp) == 200, resp
         assert _body(resp)['orderStatus'] == 'shipped'
-        # The outbound Lambda was invoked with the isOrderStatus envelope carrying the wire word.
+        # The outbound Lambda receives the canonical orderStatusDetails transport contract.
         payloads = lam.sent_payloads()
         assert len(payloads) == 1
-        assert payloads[0]['isOrderStatus'] is True
+        assert 'isOrderStatus' not in payloads[0]
         assert payloads[0]['orderStatusDetails']['order_status'] == 'shipped'
         assert payloads[0]['orderStatusDetails']['reference_id'] == REFERENCE
         # The row advanced only after the send succeeded.
