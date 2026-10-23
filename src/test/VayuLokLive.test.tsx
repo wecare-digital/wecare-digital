@@ -865,10 +865,17 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( summaryMeta?.textContent ).toContain( 'Dominant' );
     expect( summaryMeta?.textContent ).toContain( 'PM2.5' );
     expect( summaryMeta?.textContent ).not.toContain( 'pm25' );
-    const summaryFreshness = summaryMeta?.querySelector( '.vl-live-freshness' );
+    // The summary freshness stamp renders through VayuLokFreshnessStamp once the air-age
+    // label settles after the async air load; wait for it rather than querying synchronously.
+    const summaryFreshness = await waitFor( () => {
+      const el = summaryMeta?.querySelector( '.vl-live-freshness' );
+      expect( el ).not.toBeNull();
+      expect( el?.querySelector( '.vl-live-freshness-icon' ) ).not.toBeNull();
+      return el as HTMLElement;
+    } );
     expect( summaryFreshness?.textContent ).toMatch( /(?:just now|\d+ min ago|\d+ hrs? ago)/ );
     expect( summaryFreshness?.textContent ).not.toMatch( /Updated|Latest available|Current|Forecast|History/i );
-    expect( summaryFreshness?.querySelector( '.vl-live-freshness-icon' ) ).not.toBeNull();
+    const css = Array.from( container.querySelectorAll( 'style' ) ).map( s => s.textContent || '' ).join( '\n' );
     const freshnessRule = css.match( /\.vl-live-freshness\{[^}]*\}/ )?.[ 0 ] || '';
     expect( freshnessRule ).toContain( 'background:var(--lime-tint)' );
     expect( freshnessRule ).toContain( 'color:var(--green)' );
@@ -2582,7 +2589,7 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( css ).toContain( '.vl-live-air-summary-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:8px;color:var(--muted);font-size:var(--vl-subtext-size)' );
     expect( css ).toContain( '.vl-live-wx-now-sub{display:flex;flex-wrap:wrap;gap:4px 12px;color:var(--muted);font-size:var(--vl-subtext-size)' );
     expect( css ).toContain( '.vl-live-wx-freshness{margin-top:8px;color:var(--muted);font-size:var(--vl-subtext-size)' );
-    expect( css ).toContain( '.vl-live-air-gauge-word{display:block;color:#000;font-size:var(--vl-panel-heading-size);font-weight:var(--vl-panel-heading-weight)' );
+    expect( css ).toContain( '.vl-live-air-gauge-word{display:block;color:var(--heading);font-size:var(--vl-panel-heading-size);font-weight:var(--vl-panel-heading-weight)' );
     expect( css ).toContain( '.vl-live-wx-grid-k{min-width:0;color:var(--body);font-size:var(--vl-data-size);font-weight:700;line-height:1.35' );
     expect( css ).toContain( '.vl-live-wx-grid-v{color:var(--muted);font-size:var(--vl-data-size);font-weight:600;line-height:1.35' );
     expect( css ).toContain( '.vl-live-wx-daily-cond{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:var(--vl-compact-copy-size)' );

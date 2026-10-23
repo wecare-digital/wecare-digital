@@ -12,7 +12,7 @@ describe( 'VayuLok iframe globe public-app foundation', () => {
     expect( globe ).toContain( 'font-family:var(--font-sans)' );
     expect( globe ).toContain( 'width:var(--tap-min);height:var(--tap-min)' );
     expect( globe ).toContain( 'min-width:var(--tap-min);min-height:var(--tap-min)' );
-    expect( globe ).toContain( 'width:138px;height:var(--tap-min)' );
+    expect( globe ).toContain( 'width:176px;height:var(--tap-min)' );
   } );
 
   it( 'enlarges city hit areas without enlarging the geographic dot', () => {
