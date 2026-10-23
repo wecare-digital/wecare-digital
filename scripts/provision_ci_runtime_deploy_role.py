@@ -184,6 +184,13 @@ POLICIES = {
                     "lambda:GetFunction",
                     "lambda:GetFunctionConfiguration",
                     "lambda:UpdateFunctionCode",
+                    # UpdateFunctionConfiguration is needed by env-reconcile deploy steps:
+                    # the meta-catalog workflow scrubs the retired
+                    # META_CATALOG_SYNC_FORCE_OUT_OF_STOCK override from the live function's
+                    # environment (AccessDenied without this), matching how the payment
+                    # steps reconcile EXPECTED_* env on invoice-engine/outbound. Scoped to
+                    # the FUNCTIONS ARNs below, never a wildcard.
+                    "lambda:UpdateFunctionConfiguration",
                     "lambda:PublishVersion",
                     "lambda:GetAlias",
                     "lambda:UpdateAlias",

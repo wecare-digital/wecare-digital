@@ -1365,7 +1365,7 @@ def test_invoice_authority_is_separate_and_narrow(provisioner):
     assert "lambda:InvokeFunction" not in raw
     assert "s3:PutObject" in statements["InvoiceMediaObjects"]["Action"]
     assert statements["InvoiceMediaObjects"]["Resource"] == [
-        "arn:aws:s3:::wecare-digital-get/secure/Invoice/customer_invoice/*"
+        "arn:aws:s3:::wecare-digital-get/secure/d/public/Invoice/customer_invoice/*"
     ]
     assert statements["InvoiceMediaRead"]["Resource"] == [
         "arn:aws:s3:::wecare-digital-get/o/*"
