@@ -11,8 +11,8 @@
  *   POST /store/generate-product-image
  *
  * Generates branded product cards for the AWS-native catalog.
- * Uploads to S3: s3://wecare-digital-get/o/stack/store/products/{category}/{country}-{visaType}.svg
- * (served as https://wecare.digital/get/o/stack/store/products/...)
+ * Uploads draft artwork to S3: s3://wecare-digital-get/secure/d/public/catalog-deploy/catalog-media/generated/
+ * (served through the canonical public-delivery subtree; publishing to a product still requires native catalog admin)
  */
 export const productImageGenFunction = {
   name: 'wecare-product-image-gen',
