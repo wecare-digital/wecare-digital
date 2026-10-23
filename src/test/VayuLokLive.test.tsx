@@ -839,18 +839,18 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     // AQI summary follows the homepage hue language: a free AQI number + the same
     // green/blue/purple accent spine as home-flow. No circular ring/gauge remains.
     expect( panel.querySelector( '.vl-live-air-aqi-number' )?.textContent ).toBe( '74' );
-    expect( panel.querySelector( '.vl-live-air-aqi-unit' )?.textContent ).toBe( 'AQI' );
+    expect( panel.querySelector( '.vl-live-air-aqi-unit' )?.textContent ).toBe( 'India CPCB AQI' );
     expect( panel.querySelector( '.vl-live-air-gauge-word' )?.textContent ).toBe( 'Satisfactory air quality' );
+    const mobileSnapshot = container.querySelector( '.vl-live-mobile-snapshot' );
+    expect( mobileSnapshot?.textContent ).toContain( 'Satisfactory air quality' );
+    expect( mobileSnapshot?.textContent ).not.toContain( 'air quality air quality' );
     expect( panel.querySelector( '.vl-live-air-aqi-spine' ) ).not.toBeNull();
     expect( panel.querySelector( '.vl-live-air-gauge-svg' ) ).toBeNull();
     expect( panel.querySelector( '.vl-live-air-gauge-arc' ) ).toBeNull();
-    // AQI metadata is one quiet row under the homepage-scale category heading: an "AQI <n>"
-    // chip and a "Dominant <pollutant>" chip, each with a leading Material icon, plus the
-    // update age. The index-name ("India CPCB AQI"/"NAQI") and the Universal AQI line were
-    // intentionally removed so the row reads AQI + Dominant only.
+    // The primary number explicitly names its provider scale, while Universal AQI remains
+    // secondary rather than being confused with the local CPCB value.
     const summaryMeta = panel.querySelector( '.vl-live-air-summary-meta' );
-    expect( summaryMeta?.textContent ).toContain( 'AQI' );
-    expect( summaryMeta?.textContent ).not.toContain( 'India CPCB AQI' );
+    expect( summaryMeta?.textContent ).toContain( 'India CPCB AQI' );
     expect( summaryMeta?.textContent ).not.toContain( 'Universal AQI' );
     expect( summaryMeta?.textContent ).toContain( 'Dominant' );
     expect( summaryMeta?.textContent ).toContain( 'PM2.5' );
@@ -893,6 +893,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( tip?.textContent ).toContain( 'Combustion of fuels' );
     expect( tip?.textContent ).toContain( 'Effects' );
     expect( tip?.textContent ).toContain( 'Penetrates deep into lungs' );
+    expect( tip?.textContent ).not.toContain( '…' );
 
     // Explicit close button removes the viewport-level popup without relying on hover/blur.
     const closeButton = tip?.querySelector( '[aria-label="Close pollutant details"]' ) as HTMLButtonElement;
@@ -992,6 +993,52 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await waitFor( () => {
       const freshness = container.querySelector( '.vl-live-wx-freshness' )?.textContent || '';
       expect( freshness ).toMatch( /Current · updated 1[12] min ago/ );
+    } );
+  } );
+
+  it( 'marks old provider readings as latest available instead of current', async () => {
+    const realNow = Date.now();
+    const staleTime = new Date( realNow - 55 * 60 * 1000 ).toISOString();
+    const baseFetch = environmentFetch();
+    const fetchSpy = vi.fn( async ( input: RequestInfo | URL, init?: RequestInit ) => {
+      if ( requestIs( input, 'airquality.googleapis.com', '/v1/currentConditions' ) ) {
+        return {
+          ok: true,
+          json: async () => ( {
+            dateTime: staleTime,
+            indexes: [ { code: 'ind_cpcb', displayName: 'India CPCB AQI', aqi: 74, category: 'Satisfactory', dominantPollutant: 'pm25' } ],
+            pollutants: [ { code: 'pm25', displayName: 'PM2.5', concentration: { value: 28, units: 'MICROGRAMS_PER_CUBIC_METER' } } ],
+          } ),
+        } as Response;
+      }
+      if ( requestIs( input, 'weather.googleapis.com', '/v1/currentConditions' ) ) {
+        return {
+          ok: true,
+          json: async () => ( {
+            currentTime: staleTime,
+            temperature: { degrees: 26 },
+            feelsLikeTemperature: { degrees: 27 },
+            relativeHumidity: 68,
+            weatherCondition: { description: { text: 'Mostly sunny' } },
+          } ),
+        } as Response;
+      }
+      return baseFetch( input, init );
+    } );
+    vi.stubGlobal( 'fetch', fetchSpy );
+
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await selectMumbai();
+
+    await waitFor( () => {
+      expect( container.querySelector( '.vl-live-data-age.is-stale' )?.textContent ).toMatch( /Latest available · Updated 5[45] min ago/ );
+    } );
+
+    fireEvent.click( await screen.findByRole( 'tab', { name: 'Weather' } ) );
+    await waitFor( () => {
+      expect( container.querySelector( '.vl-live-wx-freshness.is-stale' )?.textContent ).toMatch( /Latest available · updated 5[45] min ago/ );
     } );
   } );
 
@@ -1362,20 +1409,18 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( screen.getByRole( 'tab', { name: 'Pregnant women' } ) ).toBeTruthy();
     expect( screen.getByRole( 'tab', { name: 'Children' } ) ).toBeTruthy();
 
-    // Health profiles are a horizontal labeled rail; pager arrows still cycle the active profile.
+    // Health profiles are a labeled touch/keyboard rail. Separate previous/next arrows and
+    // the old More/Less disclosure are intentionally gone.
     expect( healthTablist.querySelectorAll( '.vl-live-air-health-tab-label' ) ).toHaveLength( 7 );
-    const prevHealth = screen.getByRole( 'button', { name: 'Previous health recommendation' } );
-    const nextHealth = screen.getByRole( 'button', { name: 'Next health recommendation' } );
-    expect( prevHealth ).toBeTruthy();
-    expect( nextHealth ).toBeTruthy();
+    expect( screen.queryByRole( 'button', { name: 'Previous health recommendation' } ) ).toBeNull();
+    expect( screen.queryByRole( 'button', { name: 'Next health recommendation' } ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-air-health-more' ) ).toBeNull();
     expect( container.querySelector( '.vl-live-air-health-page-count' ) ).toBeNull();
 
     const css = Array.from( container.querySelectorAll( 'style' ) ).map( s => s.textContent || '' ).join( '\n' );
-    const healthBtnRule = cssRuleFor( css, '.vl-live-air-health-page-btn' );
     const healthTabRule = cssRuleFor( css, '.vl-live-air-health-tab' );
-    const historyBtnRule = cssRuleFor( css, '.vl-live-air-history-nav button' );
-    expect( healthBtnRule ).toContain( 'width:var(--vl-action-size)' );
-    expect( healthBtnRule ).toContain( 'height:var(--vl-action-size)' );
+    expect( css ).not.toContain( '.vl-live-air-health-page-btn' );
+    expect( css ).not.toContain( '.vl-live-air-health-more' );
     expect( css ).toContain( '--vl-action-size:var(--tap-min)' );
     // This contract exercises the Air panel. Weather history is mounted only after switching
     // to Weather, so its absence here is intentional rather than a missing feature.
@@ -1398,14 +1443,12 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( css ).toContain( '@media(horizontal-viewport-segments:2)' );
     expect( css ).toContain( 'width:env(viewport-segment-width 0 0)' );
     expect( css ).toContain( " :global([dir='rtl']) .vl-live-shell".trim() );
-    expect( healthBtnRule ).toContain( 'border-radius:50%' );
-    expect( healthBtnRule ).toContain( 'background:var(--lime)' );
-    expect( healthBtnRule ).toContain( 'color:var(--green)' );
     expect( healthTabRule ).toContain( 'flex:0 0 auto' );
     expect( healthTabRule ).toContain( 'border-radius:var(--pill-r)' );
     expect( healthTabRule ).toContain( 'scroll-snap-align:start' );
-    expect( historyBtnRule ).toContain( 'width:var(--vl-action-size)' );
-    expect( historyBtnRule ).toContain( 'border-radius:50%' );
+    expect( healthTabRule ).toContain( 'font-weight:600' );
+    expect( css ).not.toContain( '.vl-live-air-history-nav' );
+    expect( css ).not.toContain( 'scrollbar' + '-color:' );
 
     // Pollutant info controls use the same lime-hover lift treatment as the rest of the Air actions.
     const hoverRule = css.match( /\.vl-live-air-pollutant-info:hover,[\s\S]*?\{[^}]*\}/ )?.[ 0 ] || '';
@@ -1417,12 +1460,14 @@ describe( 'VayuLokLive v8 approved design contract', () => {
 
     const personaRule = css.match( /\.vl-live-air-health-persona\{[^}]*\}/ )?.[ 0 ] || '';
     expect( personaRule ).toContain( 'font-size:var(--vl-data-size)' );
-    expect( personaRule ).toContain( 'font-weight:700' );
+    expect( personaRule ).toContain( 'font-weight:600' );
     const healthTextRule = css.match( /\.vl-live-air-health-text\{[^}]*\}/ )?.[ 0 ] || '';
     expect( healthTextRule ).toContain( 'font-size:var(--vl-subtext-size)' );
-    expect( healthTextRule ).toContain( 'font-weight:600' );
-    expect( healthTextRule ).toContain( 'line-height:1.4' );
+    expect( healthTextRule ).toContain( 'font-weight:400' );
+    expect( healthTextRule ).toContain( 'color:var(--muted)' );
+    expect( healthTextRule ).toContain( 'line-height:1.5' );
     expect( healthTextRule ).toContain( 'letter-spacing:0' );
+    expect( css ).not.toContain( '.vl-live-air-health-text.is-clamped' );
     expect( css ).toContain( '--vl-card-heading-size:var(--public-card-size)' );
     expect( css ).toContain( '--vl-body-size:var(--public-body-size)' );
 
@@ -1433,13 +1478,6 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const healthPanel = container.querySelector( '.vl-live-air-health-panel' );
     const firstLiveText = healthPanel?.querySelector( '.vl-live-air-health-text' )?.textContent ?? '';
     expect( firstLiveText ).toMatch( /Google .* guidance/ );
-
-    const selectedBeforePager = Array.from( personaTabs ).findIndex( t => t.getAttribute( 'aria-selected' ) === 'true' );
-    fireEvent.click( nextHealth );
-    await waitFor( () => {
-      const selectedAfterPager = Array.from( personaTabs ).findIndex( t => t.getAttribute( 'aria-selected' ) === 'true' );
-      expect( selectedAfterPager ).toBe( ( selectedBeforePager + 1 ) % 7 );
-    } );
 
     const athleteTab = screen.getByRole( 'tab', { name: 'Athletes' } );
     fireEvent.click( athleteTab );
@@ -1472,10 +1510,14 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( historyStamp?.textContent ).toMatch( /IST/ );
     expect( historyStamp?.querySelector( '.vl-live-air-history-stamp-icon' ) ).not.toBeNull();
     expect( container.querySelector( '.vl-live-air-history-bubble' ) ).toBeNull();
-    const historyDetailRule = css.match( /\.vl-live-air-history-detail\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( historyDetailRule ).toContain( 'flex-wrap:nowrap' );
-    expect( historyDetailRule ).toContain( 'overflow-x:auto' );
-    expect( historyDetailRule ).toContain( 'scroll-snap-type:x proximity' );
+    const metricRailRule = css.match( /\.vl-live-air-forecast-detail\{[^}]*\}/ )?.[ 0 ] || '';
+    const metricPillRule = css.match( /\.vl-live-air-forecast-detail>span\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( metricRailRule ).toContain( 'flex-wrap:nowrap' );
+    expect( metricRailRule ).toContain( 'overflow-x:auto' );
+    expect( metricRailRule ).toContain( 'scroll-snap-type:x proximity' );
+    expect( metricRailRule ).toContain( 'scrollbar-width:thin' );
+    expect( metricPillRule ).toContain( 'background:var(--lime-tint)' );
+    expect( metricPillRule ).toContain( 'border-radius:var(--pill-r)' );
     const popupRule = css.match( /\.vl-live-air-pollutant-tip\{[^}]*\}/ )?.[ 0 ] || '';
     expect( popupRule ).toContain( 'width:min(280px,calc(100vw - 20px))' );
     expect( popupRule ).toContain( 'max-height:min(196px,calc(100dvh - 20px))' );
@@ -1485,12 +1527,9 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( stampRule ).toContain( 'border-radius:var(--pill-r)' );
     // It sits below the chart, not inside the header row.
     expect( container.querySelector( '.vl-live-air-history-head .vl-live-air-history-stamp' ) ).toBeNull();
-    const historyNav = container.querySelector( '.vl-live-air-history-head .vl-live-air-history-nav' );
-    expect( historyNav ).not.toBeNull();
-    expect( historyNav?.querySelectorAll( 'button' ) ).toHaveLength( 2 );
-    historyNav?.querySelectorAll( 'svg' ).forEach( svg => {
-      expect( svg.getAttribute( 'viewBox' ) ).toBe( '0 -960 960 960' );
-    } );
+    expect( container.querySelector( '.vl-live-air-history-head .vl-live-air-history-nav' ) ).toBeNull();
+    expect( screen.queryByRole( 'button', { name: 'Earlier hour' } ) ).toBeNull();
+    expect( screen.queryByRole( 'button', { name: 'Later hour' } ) ).toBeNull();
 
     // Pointer inspection still selects the hour and updates the detail panel, but the small
     // floating time tooltip above the chart is intentionally absent.
@@ -1499,6 +1538,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await waitFor( () => expect( container.querySelector( '.vl-live-air-history-detail' ) ).not.toBeNull() );
     expect( container.querySelector( '.vl-live-air-history-inspect' ) ).toBeNull();
     expect( container.querySelector( '.vl-live-air-history-bubble' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-air-history-info' ) ).toBeNull();
 
     // Keyboard inspection: focusing the chart and pressing Home jumps to the oldest hour and the
     // slider announces an AQI through aria-valuetext.
@@ -1690,6 +1730,9 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( forecastDetail?.textContent ).toContain( 'Local / Universal' );
     expect( forecastDetail?.textContent ).toContain( 'PM2.5' );
     expect( forecastDetail?.textContent ).toMatch( /26\s*µg\/m³/ );
+    const detailPills = forecastDetail?.querySelectorAll( ':scope > span' ) || [];
+    expect( detailPills.length ).toBeGreaterThan( 0 );
+    expect( container.querySelector( '.vl-live-air-forecast-card.is-active' ) ).not.toBeNull();
     // The general-population health advisory paragraph was removed from the forecast detail (it
     // duplicated the dedicated Health Recommendations section and broke the compact type scale).
     expect( forecastDetail?.textContent ).not.toContain( 'Forecast health recommendation.' );
@@ -2357,10 +2400,10 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( infoHoverRule ).toContain( 'color:var(--green)' );
     expect( css ).toContain( '.vl-live-air-health-tabs{scroll-snap-type:x mandatory' );
     expect( css ).toContain( '.vl-live-air-health-tab{scroll-snap-align:start}' );
-    const moreRule = css.match( /\.vl-live-air-health-more\{[^}]*\}/ )?.[ 0 ] || '';
-    const moreHoverRule = css.match( /\.vl-live-air-health-more:hover\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( moreRule ).toContain( 'text-decoration:none' );
-    expect( moreHoverRule ).toContain( 'text-decoration:underline' );
+    expect( css ).toContain( 'scrollbar-width:thin' );
+    expect( css ).not.toContain( 'scrollbar' + '-color:' );
+    expect( css ).not.toContain( '::-webkit-scrollbar-thumb' );
+    expect( css ).not.toContain( '.vl-live-air-health-more' );
 
     // One UI-system pass: section headings share the homepage card-heading token and one
     // lime accent; pollutant names are real content (17px), not metadata-sized copy.
@@ -2394,6 +2437,14 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( forecastTimeRule ).toContain( 'font-size:var(--vl-meta-size)' );
     expect( forecastValueRule ).toContain( 'font-size:var(--vl-data-size)' );
     expect( forecastMetaRule ).toContain( 'font-size:var(--vl-meta-size)' );
+    const forecastCardRule = css.match( /\.vl-live-air-forecast-card\{[^}]*\}/ )?.[ 0 ] || '';
+    const forecastActiveRule = css.match( /\.vl-live-air-forecast-card\.is-active\{[^}]*\}/ )?.[ 0 ] || '';
+    const detailPillRule = css.match( /\.vl-live-air-forecast-detail>span\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( forecastCardRule ).toContain( 'border-radius:var(--pill-r)' );
+    expect( forecastCardRule ).toContain( 'min-width:118px' );
+    expect( forecastActiveRule ).toContain( 'background:var(--lime)' );
+    expect( detailPillRule ).toContain( 'background:var(--lime-tint)' );
+    expect( detailPillRule ).toContain( 'border-radius:var(--pill-r)' );
     const weatherDailyListRule = css.match( /\.vl-live-wx-daily-list\{[^}]*\}/ )?.[ 0 ] || '';
     expect( weatherDailyListRule ).toContain( 'max-height:430px' );
     expect( weatherDailyListRule ).toContain( 'overflow-y:auto' );
