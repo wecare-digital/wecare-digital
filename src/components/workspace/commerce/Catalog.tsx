@@ -45,6 +45,19 @@ type VariantDraft = { price: string; label: string };
 
 const API_ROOT = (process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api')
   .replace(/\/$/, '') + '/native-catalog/products';
+const LEGACY_CATALOG_IMAGE_PREFIX = 'secure/public/catalog-deploy/catalog/products/';
+const CANONICAL_CATALOG_IMAGE_PREFIX = 'secure/d/public/catalog-deploy/catalog/products/';
+const CATALOG_MEDIA_BASE = 'https://wecare.digital/api/catalog-media/';
+
+class NativeCatalogHttpError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'NativeCatalogHttpError';
+    this.status = status;
+  }
+}
 const boxStyle: React.CSSProperties = {
   background: '#fff', border: '1px solid #dfe5e4', borderRadius: 12,
   padding: 18, marginBottom: 16,
@@ -93,9 +106,45 @@ async function nativeCall(
   if (!response.ok || !data) {
     const reason = typeof data?.error === 'string' ? data.error :
       'AWS catalog API unavailable';
-    throw new Error(reason + (response.status === 409 ? ' — Reload and review the current version.' : ''));
+    throw new NativeCatalogHttpError(
+      response.status,
+      reason + (response.status === 409 ? ' — Reload and review the current version.' : ''),
+    );
   }
   return data;
+}
+
+async function getNativeProduct(productId: string): Promise<NativeProduct> {
+  const data = await nativeCall('/' + encodeURIComponent(productId));
+  if (!data?.product) throw new Error('Invalid native product response');
+  return data.product as NativeProduct;
+}
+
+async function patchNativeProductWithRetry(
+  product: NativeProduct,
+  changes: Record<string, unknown>,
+): Promise<NativeProduct> {
+  let current = product;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const data = await nativeCall('/' + encodeURIComponent(current.id), {
+        method: 'PATCH',
+        body: JSON.stringify({
+          expectedUpdatedAt: current.updatedAt,
+          ...changes,
+        }),
+      });
+      if (!data?.product) throw new Error('Invalid native product PATCH response');
+      return data.product as NativeProduct;
+    } catch (cause) {
+      if (cause instanceof NativeCatalogHttpError && cause.status === 409 && attempt === 0) {
+        current = await getNativeProduct(current.id);
+        continue;
+      }
+      throw cause;
+    }
+  }
+  throw new Error('Catalog update did not complete');
 }
 
 const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
@@ -125,6 +174,8 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
   const [metaCatalog, setMetaCatalog] = useState<api.MetaCatalogSyncControl | null>(null);
   const [metaCatalogBusy, setMetaCatalogBusy] = useState(false);
   const [metaCatalogMessage, setMetaCatalogMessage] = useState('');
+  const [bulkMigrationProgress, setBulkMigrationProgress] = useState('');
+  const [bulkMigrationSummary, setBulkMigrationSummary] = useState('');
 
   const reloadProducts = useCallback(async () => {
     const data = await nativeCall('');
@@ -172,6 +223,153 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
       });
     }
   }, [tab, run]);
+
+  const runBulkCatalogMigration = () => {
+    void (async () => {
+      setError('');
+      setMessage('');
+      setBulkMigrationProgress('');
+      setBulkMigrationSummary('');
+
+      let initial: NativeProduct[];
+      try {
+        initial = await reloadProducts();
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : 'Catalog refresh failed');
+        return;
+      }
+
+      const legacy = initial.filter(p =>
+        (p.catalogImageKey || '').startsWith(LEGACY_CATALOG_IMAGE_PREFIX));
+      const eligibleAfterMigration = initial.filter(p =>
+        p.status === 'active' &&
+        p.websiteEnabled === true &&
+        (
+          (p.catalogImageKey || '').startsWith(LEGACY_CATALOG_IMAGE_PREFIX) ||
+          (p.catalogImageKey || '').startsWith(CANONICAL_CATALOG_IMAGE_PREFIX)
+        ));
+      const metaToEnable = eligibleAfterMigration.filter(p => p.metaEnabled !== true);
+
+      const ok = await confirm({
+        title: 'Run bulk catalog release migration?',
+        message:
+          'Admin-only operation. It will migrate ' + legacy.length +
+          ' legacy artwork key(s), enable Meta on up to ' + metaToEnable.length +
+          ' active website product(s) with approved artwork, verify readback, then refresh the ' +
+          'read-only Meta plan. It will NOT approve or apply the Meta provider plan.',
+        confirmText: 'Run bulk migration',
+      });
+      if (!ok) return;
+
+      await run(async () => {
+        try {
+          let current = await reloadProducts();
+          const legacyRows = current.filter(p =>
+            (p.catalogImageKey || '').startsWith(LEGACY_CATALOG_IMAGE_PREFIX));
+
+          let migrated = 0;
+          for (const product of legacyRows) {
+            const oldKey = product.catalogImageKey || '';
+            const filename = oldKey.slice(LEGACY_CATALOG_IMAGE_PREFIX.length);
+            const newKey = CANONICAL_CATALOG_IMAGE_PREFIX + filename;
+            const saved = await patchNativeProductWithRetry(product, { catalogImageKey: newKey });
+            const expectedUrl = CATALOG_MEDIA_BASE + filename;
+            if (saved.catalogImageKey !== newKey || (saved.imageRefs || []).length !== 1 ||
+                saved.imageRefs?.[0] !== expectedUrl) {
+              throw new Error(product.title + ': artwork readback did not match the canonical key');
+            }
+            migrated += 1;
+            setBulkMigrationProgress(
+              'Artwork migration ' + migrated + '/' + legacyRows.length + ': ' + saved.title,
+            );
+          }
+
+          current = await reloadProducts();
+          const legacyLeft = current.filter(p =>
+            (p.catalogImageKey || '').startsWith(LEGACY_CATALOG_IMAGE_PREFIX));
+          if (legacyLeft.length > 0) {
+            throw new Error(
+              'Bulk migration stopped: ' + legacyLeft.length + ' legacy artwork key(s) remain.',
+            );
+          }
+
+          const eligible = current.filter(p =>
+            p.status === 'active' &&
+            p.websiteEnabled === true &&
+            (p.catalogImageKey || '').startsWith(CANONICAL_CATALOG_IMAGE_PREFIX));
+          const metaRows = eligible.filter(p => p.metaEnabled !== true);
+
+          let metaEnabled = 0;
+          for (const product of metaRows) {
+            const saved = await patchNativeProductWithRetry(product, { metaEnabled: true });
+            if (saved.metaEnabled !== true) {
+              throw new Error(product.title + ': metaEnabled readback failed');
+            }
+            metaEnabled += 1;
+            setBulkMigrationProgress(
+              'Meta enablement ' + metaEnabled + '/' + metaRows.length + ': ' + saved.title,
+            );
+          }
+
+          current = await reloadProducts();
+          const invalidPublished = current.filter(p =>
+            p.metaEnabled === true &&
+            (
+              p.status !== 'active' ||
+              !(p.catalogImageKey || '').startsWith(CANONICAL_CATALOG_IMAGE_PREFIX)
+            ));
+          if (invalidPublished.length > 0) {
+            throw new Error(
+              'Bulk migration stopped: Meta-enabled rows include draft or noncanonical products: ' +
+              invalidPublished.map(p => p.title).join(', '),
+            );
+          }
+
+          setBulkMigrationProgress('Refreshing read-only Meta plan…');
+          const planResult = await api.getMetaCatalogSyncPlan();
+          if (!planResult.ok) throw new Error(planResult.failure.message);
+          const plan = planResult.data;
+          setMetaCatalog(plan);
+
+          const planHash = plan.planHash || plan.currentPlanHash || '';
+          if (!planHash) throw new Error('Meta inspect returned no exact plan hash');
+
+          const foreignCount = Number(plan.counts?.foreign || 0);
+          if (Array.isArray(plan.existingItems) && plan.existingItems.length > 0) {
+            const wixForeign = plan.existingItems.filter(item =>
+              String(item?.retailer_id || '').toLowerCase().startsWith('wix:')).length;
+            if (foreignCount !== wixForeign) {
+              throw new Error(
+                'Meta foreign-item readback is not exclusively the preserved wix: namespace.',
+              );
+            }
+          }
+
+          const blocked = plan.blocked || [];
+          setBulkMigrationSummary(
+            'Artwork migrated: ' + migrated +
+            ' · Legacy keys remaining: 0' +
+            ' · Meta enabled now: ' + metaEnabled +
+            ' · Plan create/update/retire/foreign: ' +
+            Number(plan.counts?.create || 0) + '/' +
+            Number(plan.counts?.update || 0) + '/' +
+            Number(plan.counts?.retire || 0) + '/' +
+            foreignCount +
+            ' · PLAN_HASH=' + planHash +
+            ' · Provider writes: none',
+          );
+          if (blocked.length > 0) {
+            throw new Error('Meta plan has blocked item(s): ' + blocked.join(', '));
+          }
+          setMessage(
+            'Bulk catalog migration verified. Review the exact Meta plan below before proposing it.',
+          );
+        } finally {
+          setBulkMigrationProgress('');
+        }
+      });
+    })();
+  };
 
   // THE META CATALOG APPROVAL GATE. Publishing to Meta is owner-gated by an EXACT-PLAN approval:
   // a plan is proposed against its hash, approved against that same hash, and only then can Apply
@@ -478,6 +676,28 @@ const CatalogPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
         {tab === 'meta' && (
           <section style={boxStyle}>
             <h2 style={{ fontSize: 'var(--text-xl)' }}>Meta commerce synchronization</h2>
+            <div style={{ ...boxStyle, background: '#f8faf8', marginTop: 12 }}>
+              <h3 style={{ marginTop: 0, fontSize: 'var(--text-base)' }}>Bulk catalog release</h3>
+              <p style={muted}>
+                Admin-only. Runs the same guarded release path as scripts/migrate_catalog_release.py:
+                canonical artwork keys → eligible Meta enablement → verification → read-only Meta plan.
+                It never approves or applies the provider plan.
+              </p>
+              <button type="button" onClick={runBulkCatalogMigration}
+                disabled={busy || metaCatalogBusy}>
+                Migrate catalog + prepare Meta plan
+              </button>
+              {bulkMigrationProgress && (
+                <p role="status" style={{ marginTop: 10, fontSize: 'var(--text-xs)' }}>
+                  {bulkMigrationProgress}
+                </p>
+              )}
+              {bulkMigrationSummary && (
+                <p role="status" style={{ marginTop: 10, fontSize: 'var(--text-xs)' }}>
+                  {bulkMigrationSummary}
+                </p>
+              )}
+            </div>
             <p>Product prices come from AWS ProductsTable. Meta is a projected sales channel,
               not the product database. Sync application and approvals stay owner-gated.</p>
             {!metaCatalog ? <p>Meta plan not loaded.</p> : (
