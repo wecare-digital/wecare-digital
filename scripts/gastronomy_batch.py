@@ -144,22 +144,23 @@ def _source_privacy_errors(post, source_profile, prefix):
     public = _public_text(post)
     allowed = {
         x.casefold()
-        for x in (
-            source_profile.get('allowed_public_terms', [])
-            + source_profile.get('required_public_attribution_terms', [])
-        )
+        for x in source_profile.get('allowed_public_terms', [])
     }
     for regex, label in GENERIC_SOURCE_PATTERNS:
         if regex.search(public):
             errors.append(f'{prefix}: public copy contains {label}')
+    if re.search(r'https?://|www\.', public, re.I):
+        errors.append(f'{prefix}: public copy contains an external URL/reference')
+    if re.search(r'\b(?:according to|cited by|quoted in|reference(?:s)?\s*:|source\s*:)\b', public, re.I):
+        errors.append(f'{prefix}: public copy contains citation/attribution language')
     for term in source_profile.get('blocked_public_terms', []):
         if term.casefold() in allowed:
             continue
         if term.casefold() in public.casefold():
             errors.append(f'{prefix}: public copy leaks blocked source/private term "{term}"')
     title = str(post.get('title') or '')
-    if PERSONAL_TITLE_PATTERN.search(title) and not post.get('public_name_justification'):
-        errors.append(f'{prefix}: title exposes a personal/kinship name without justification')
+    if PERSONAL_TITLE_PATTERN.search(title):
+        errors.append(f'{prefix}: public title exposes a personal/kinship name')
     title_and_seo = f"{title}\n{post.get('seo_title') or ''}"
     if HEALTH_TITLE_PATTERN.search(title_and_seo) and not post.get('health_claim_reviewed'):
         errors.append(f'{prefix}: title/SEO contains a health-claim term without review')
