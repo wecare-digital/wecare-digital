@@ -108,13 +108,11 @@ def test_simulator_uses_resource_specific_results():
             resources = kwargs["ResourceArns"]
             action = kwargs["ActionNames"][0]
             per_resource = []
+            denied_resources = {
+                f"arn:aws:s3:::{m.BUCKET}/{key}" for key in m.MUST_DENY_WRITE
+            }
             for resource in resources:
-                denied = (
-                    "/secure/Invoice/customer_invoice/" in resource
-                    or "/secure/Invoice/fonts/" in resource
-                    or "/o/stack/whatsapp-media/" in resource
-                    or "/stack/whatsapp-media/" in resource
-                )
+                denied = resource in denied_resources
                 per_resource.append({
                     "EvalResourceName": resource,
                     "EvalResourceDecision": "explicitDeny" if denied else "allowed",
