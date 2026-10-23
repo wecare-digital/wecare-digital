@@ -1414,7 +1414,8 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
                   { label: 'Email', value: detailContact.email },
                   { label: 'Organization', value: detailContact.companyName },
                   { label: 'Job Title', value: detailContact.designation },
-                  { label: 'Username', value: detailContact.username },
+                  { label: 'WECARE.DIGITAL Profile Name', value: detailContact.profileUsername },
+                  { label: 'Meta WhatsApp Username', value: detailContact.username },
                   // One operator-facing delivery address. Canonical checkoutDeliveryAddress wins;
                   // the legacy string is display-only fallback until an edit migrates the row.
                   { label: 'Delivery Address', value: formatCheckoutAddressDetail(detailContact) || detailContact.shippingAddress },
