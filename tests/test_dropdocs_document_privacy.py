@@ -2,12 +2,11 @@
 
 Why this file exists at all
 ---------------------------
-`inbound-whatsapp-handler` writes an inbound attachment to
-``o/stack/whatsapp-media/incoming/``, and CloudFront ``E2GP22R4BIFGQ3`` serves the whole
-``o/`` root **unauthenticated**. ``o/`` is a location, not a permission - only ``secure/``
-is gated, by the ``wecare-get-miss-redirect`` Lambda@Edge. So an object that arrived over
-WhatsApp is readable by anyone holding its URL, and "we will remember to copy it" is not a
-control.
+`inbound-whatsapp-handler` writes an inbound attachment to the canonical
+``secure/d/public/whatsapp/incoming/`` public-deliverable subtree. That subtree is readable
+by Meta and by anyone holding its URL, so "we will remember to copy it" is not a control.
+Historical ``o/stack/whatsapp-media/incoming/`` objects remain readable only as migration
+compatibility inputs; new writes never target that prefix.
 
 The control is the ORDER of two writes. `dropdocs_storage.promote_to_secure` copies the
 object into ``secure/`` and HEADs the destination to prove it landed;
@@ -60,7 +59,8 @@ OWNER = "11111111-2222-3333-4444-555555555555"
 STRANGER = "99999999-8888-7777-6666-555555555555"
 PUBLIC_ID = "WD-REQ-ABCDEFGH"
 REQUEST_INTERNAL = "REQ#01928f3e-7b2a-7c3d-8e4f-0a1b2c3d4e5f"
-SOURCE_KEY = "o/stack/whatsapp-media/incoming/wecare-digital-ab12.pdf"
+SOURCE_KEY = media_paths.WHATSAPP_INCOMING_PREFIX + "wecare-digital-ab12.pdf"
+LEGACY_SOURCE_KEY = media_paths.LEGACY_WHATSAPP_INCOMING_PREFIX + "wecare-digital-ab12.pdf"
 DOCUMENT_BYTES = b"%PDF-1.7 a trade licence, as a customer actually sent it\n"
 BUCKET = "wecare-digital-get"
 
@@ -708,8 +708,10 @@ def test_g_the_check_runs_on_the_canonical_key_not_the_raw_input():
     was written.
     """
     legacy = "stack/whatsapp-media/incoming/wecare-digital-ab12.pdf"
-    assert media_paths.canonical(legacy) == SOURCE_KEY
+    assert media_paths.canonical(legacy) == LEGACY_SOURCE_KEY
     s3 = FakeS3()
+    s3.objects[LEGACY_SOURCE_KEY] = {
+        "body": DOCUMENT_BYTES, "contentType": "application/pdf"}
     result = dropdocs_storage.promote_to_secure(s3, bucket=BUCKET, source_key=legacy)
     assert result["promoted"] is True
     assert media_paths.is_gated(result["storageKey"])
@@ -718,10 +720,12 @@ def test_g_the_check_runs_on_the_canonical_key_not_the_raw_input():
 def test_g_the_allowed_prefix_is_composed_not_written_out():
     """It must stay equal to the key `inbound-whatsapp-handler` writes and to the single
     ``s3:GetObject`` resource the role is granted. Three copies of a literal drift."""
-    assert dropdocs_storage.WHATSAPP_INCOMING_PREFIX == media_paths.public(
-        "stack/whatsapp-media", "incoming/")
-    assert dropdocs_storage.WHATSAPP_INCOMING_PREFIX == "o/stack/whatsapp-media/incoming/"
+    assert dropdocs_storage.WHATSAPP_INCOMING_PREFIX == media_paths.WHATSAPP_INCOMING_PREFIX
+    assert dropdocs_storage.WHATSAPP_INCOMING_PREFIX == "secure/d/public/whatsapp/incoming/"
+    assert dropdocs_storage.LEGACY_WHATSAPP_INCOMING_PREFIX == (
+        "o/stack/whatsapp-media/incoming/")
     assert not media_paths.is_gated(dropdocs_storage.WHATSAPP_INCOMING_PREFIX)
+    assert not media_paths.is_gated(dropdocs_storage.LEGACY_WHATSAPP_INCOMING_PREFIX)
 
 
 def test_g_an_already_gated_source_is_refused_over_http_and_writes_no_row(handler,
@@ -1062,7 +1066,7 @@ def test_f_every_destination_key_is_composed_through_media_paths():
 
 def test_f_the_new_locker_prefix_is_composed_through_media_paths(handler):
     source = (FUNC_DIR / "handler.py").read_text(encoding="utf-8")
-    assert 'DROPDOCS_PREFIX = media_paths.secure("u/dropdocs/")' in source
+    assert "DROPDOCS_PREFIX = media_paths.DROP_DOCS_UPLOAD_PREFIX" in source
     assert handler.DROPDOCS_PREFIX == "secure/u/dropdocs/"
     assert handler.DROPDOCS_PREFIX.startswith(handler.SECURE_PREFIX)
     assert media_paths.is_gated(handler.DROPDOCS_PREFIX)
