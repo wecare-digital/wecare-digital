@@ -230,7 +230,7 @@ CLEANUP_RESOURCES = {
         'label': 'S3: WhatsApp Media',
         'category': 'S3 Storage',
         'type': 's3',
-        'prefix': media_paths.public('stack/whatsapp-media/'),
+        'prefix': media_paths.deliverable_public('whatsapp/'),
     },
     's3_voice_recordings': {
         'label': 'S3: Voice Recordings',
@@ -242,7 +242,7 @@ CLEANUP_RESOURCES = {
         'label': 'S3: WhatsApp Voice (TTS)',
         'category': 'S3 Storage',
         'type': 's3',
-        'prefix': media_paths.public('stack/whatsapp-media/voice/'),
+        'prefix': media_paths.deliverable_public('whatsapp/voice/'),
     },
     # --- Additional resources (full factory reset coverage) ---
     'dlq_messages': {
@@ -302,19 +302,19 @@ CLEANUP_RESOURCES = {
         'label': 'S3: WhatsApp Media (Incoming)',
         'category': 'S3 Storage',
         'type': 's3',
-        'prefix': media_paths.public('stack/whatsapp-media/incoming/'),
+        'prefix': media_paths.deliverable_public('whatsapp/incoming/'),
     },
     's3_whatsapp_media_outgoing': {
         'label': 'S3: WhatsApp Media (Outgoing)',
         'category': 'S3 Storage',
         'type': 's3',
-        'prefix': media_paths.public('stack/whatsapp-media/outgoing/'),
+        'prefix': media_paths.deliverable_public('whatsapp/outgoing/'),
     },
     's3_template_headers': {
         'label': 'S3: Template Headers',
         'category': 'S3 Storage',
         'type': 's3',
-        'prefix': media_paths.public('stack/whatsapp-media/template-headers/'),
+        'prefix': media_paths.deliverable_public('whatsapp/template-headers/'),
     },
     's3_product_images': {
         'label': 'S3: Product Images',
@@ -332,13 +332,13 @@ CLEANUP_RESOURCES = {
         'label': 'S3: WhatsApp Calling AI Audio',
         'category': 'S3 Storage',
         'type': 's3',
-        'prefix': media_paths.public('stack/whatsapp-media/calling-ai/'),
+        'prefix': media_paths.deliverable_public('whatsapp/calling-ai/'),
     },
     's3_whatsapp_downloads': {
         'label': 'S3: WhatsApp Media Downloads',
         'category': 'S3 Storage',
         'type': 's3',
-        'prefix': media_paths.public('stack/whatsapp-media/downloads/'),
+        'prefix': media_paths.deliverable_public('whatsapp/downloads/'),
     },
     # SQS Queues
     'sqs_inbound_dlq': {
