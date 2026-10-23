@@ -497,8 +497,7 @@ PAYMENT_SENDERS = frozenset({PHONE_NUMBER_ID_1})
 EXPECTED_CONFIGURATION_NAME = os.environ.get('EXPECTED_CONFIGURATION_NAME', '')
 EXPECTED_PROVIDER_MID = os.environ.get('EXPECTED_PROVIDER_MID', '')
 
-#: The three payload shapes that REQUEST a payment. `isOrderStatus` is deliberately absent because it is not a payment request. The envelope itself
-#: is refused later: customer-facing fulfilment updates use the approved invoice-image template. `payment_action` in `handler` stays as it is - it answers a
+#: The three payload shapes that REQUEST a payment. `orderStatusDetails` is deliberately absent because fulfilment is not a payment request. `payment_action` in `handler` stays as it is - it answers a
 #: different question (does this need Admin?) and order_status does.
 _PAYMENT_REQUEST_KEYS = ('isCheckoutTemplate',)
 _REMOVED_PAYMENT_REQUEST_KEYS = ('isPaymentTemplate', 'isInteractivePayment')
@@ -879,7 +878,7 @@ def _refuse_unless_payment_ready(body: Dict[str, Any], phone_number_id: str,
     first; steps 1-6 make NO provider call. Never raises - and the call site wraps it anyway, so
     the promise is enforced rather than asserted.
     """
-    # 1. Arming. `isOrderStatus` is absent from the keys, so a post-payment notification is
+    # 1. Arming. `orderStatusDetails` is absent from the payment keys, so a post-payment notification is
     #    never gated: refusing one would leave a paid customer without a confirmation.
     if not any(body.get(key) for key in _PAYMENT_REQUEST_KEYS):
         return None
@@ -1050,7 +1049,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             400, WA_PAY_ENVELOPE_NOT_PERMITTED,
             'Raw order_details payments have been removed. Use checkoutOrderDetails with the approved template.')
 
-    payment_action = any((body.get('isCheckoutTemplate'), body.get('isOrderStatus')))
+    payment_action = bool(body.get('isCheckoutTemplate')) or isinstance(body.get('orderStatusDetails'), dict)
     auth_result = require_auth(event, required_role='Admin' if payment_action else None)
     if auth_result is not None:
         return auth_result
@@ -1169,8 +1168,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         
         # Meta order_status is a post-payment fulfilment notification. It is NOT a payment
         # request and therefore is not blocked by the payment-readiness gate.
-        is_order_status = body.get('isOrderStatus', False)
         order_status_details = body.get('orderStatusDetails')
+        is_order_status = isinstance(order_status_details, dict) and bool(order_status_details)
         
         # Direct phone number (fallback when contactId not available)
         recipient_phone_direct = body.get('recipientPhone')
@@ -1663,82 +1662,24 @@ def _handle_order_status_send(message_id: str, contact_id: str, recipient_phone:
                                request_id: str,
                                recipient_bsuid: Optional[str] = None,
                                template_name: str = '') -> Dict[str, Any]:
-    """
-    Send order_status interactive message to confirm payment status.
-    
-    Messages:
-    - Payment Success (captured): Payment of ₹{amount} received successfully! Thank you ✅
-    - Payment Failed: Payment failed. Please try again ❌
-    """
+    """Send one approved ORDER_STATUS template; business semantics live in wa_order_status."""
     try:
-        raw_reference_id = order_status_details.get('reference_id', '')
-        # Sanitize reference_id to remove duplicate WD prefixes
-        reference_id = _sanitize_reference_id(raw_reference_id)
-        order_status = order_status_details.get('order_status', 'processing')
+        from lambda_utils.ecommerce import wa_order_status as _wa_os
 
-        # ── `orderStatusDetails.amount` has TWO producers, so this read accepts BOTH keys ──
-        #
-        # `razorpay-webhook` now sends `amountPaise` (an integer); `inbound-whatsapp-handler`
-        # sends `amount` in rupees and is deliberately left untouched - the retirement block in
-        # that file is the thing this change most needs not to reach into.
-        #
-        # Reading only the new key would resolve `0` for an inbound-origin confirmation, fall
-        # through to the `description` default, and lose the figure with NO error anywhere - on
-        # the one message that tells a paying customer their money arrived. So: prefer the
-        # integer, accept the legacy rupee key, and convert it EXACTLY rather than coercing it
-        # with `float()`. The legacy KEY is accepted; the legacy ARITHMETIC is not.
-        amount_paise = order_status_details.get('amountPaise')
-        if amount_paise is None:
-            amount_paise = _paise_from_rupees(order_status_details.get('amount'))
-        elif isinstance(amount_paise, bool) or not isinstance(amount_paise, int):
-            # `bool` excluded explicitly: `isinstance(True, int)` is True in Python, so `True`
-            # would otherwise pass as one paise.
-            raise ValueError('amountPaise must be an integer')
-        amount_display = pay_status.rupees_str(amount_paise) if amount_paise else ''
+        reference_id = _wa_os.canonical_reference(
+            order_status_details.get('reference_id', ''))
+        order_status = _wa_os.canonical_status(
+            order_status_details.get('order_status', ''))
+        description = (order_status_details.get('description') or '').strip() \
+            or _wa_os.default_body(order_status)
 
-        # Log the received order_status_details for debugging
         logger.info(json.dumps({
             'event': 'order_status_details_received',
-            'rawReferenceId': raw_reference_id,
-            'sanitizedReferenceId': reference_id,
-            'amountPaise': amount_paise,
-            'requestId': request_id
+            'referenceId': reference_id,
+            'orderStatus': order_status,
+            'requestId': request_id,
         }))
-        
-        # Generate appropriate message based on status.
-        #
-        # Canonical, not a two-spelling `or`. That `or` was already an admission that one state
-        # has several words, and it listed two of the five `payment_status` measured - so a status
-        # of `paid` or `success` fell through to the failure branch and told a customer who had
-        # just paid that their payment did not work. `completed` maps to `captured`, so the
-        # canonical form covers both arms of the original test plus the ones it missed.
-        payment_state = pay_status.canonical(order_status)
-        if payment_state == pay_status.CAPTURED and order_status != 'completed':
-            # Use description from inbound handler if amount is 0 (fallback)
-            if amount_paise > 0:
-                body_text = f"Payment of ₹{amount_display} received successfully! Thank you ✅"
-            else:
-                # Use the description passed from inbound handler which may have the amount
-                body_text = order_status_details.get('description', 'Payment received successfully! Thank you ✅')
-            description = "Payment received. Thank you!"
-            # Meta's own order_status vocabulary, which is not the payment vocabulary - this is the
-            # word that goes back to Meta on the wire, so it stays literal rather than canonical.
-            order_status = 'processing'
-        elif payment_state == pay_status.FAILED:
-            body_text = "Payment failed. Please try again ❌"
-            description = "Payment failed"
-            order_status = 'pending'
-        else:
-            # A FULFILMENT status (shipped/completed/processing/…), not a payment word. The
-            # caller's description wins; otherwise the shared order-status vocabulary supplies a
-            # plain default line per status, so a "shipped" update never falls back to the bare
-            # "Order status updated". `order_status` already carries the wire spelling the caller
-            # sent and is passed through unchanged.
-            from lambda_utils.ecommerce import wa_order_status as _wa_os
-            body_text = (order_status_details.get('description') or '').strip() \
-                or _wa_os.default_body(order_status)
-            description = body_text
-        
+
         # Normalize phone number
         formatted_phone = _normalize_phone_number(recipient_phone)
         whatsapp_phone = f"+{formatted_phone}"
@@ -1748,13 +1689,8 @@ def _handle_order_status_send(message_id: str, contact_id: str, recipient_phone:
             return _error_response(
                 409, 'ORDER_STATUS_TEMPLATE_NOT_READY',
                 'The approved order status template is not ready. Nothing was sent.')
-        status_action = {
-            'reference_id': reference_id,
-            'order': {
-                'status': order_status,
-                'description': description,
-            },
-        }
+        order_status_component = _wa_os.build_template_component(
+            reference_id, order_status, description)
         order_status_payload = {
             'messaging_product': 'whatsapp',
             'recipient_type': 'individual',
@@ -1766,13 +1702,7 @@ def _handle_order_status_send(message_id: str, contact_id: str, recipient_phone:
                     'policy': 'deterministic',
                     'code': WA_ORDER_STATUS_TEMPLATE_LANGUAGE,
                 },
-                'components': [{
-                    'type': 'order_status',
-                    'parameters': [{
-                        'type': 'order_status',
-                        'order_status': status_action,
-                    }],
-                }],
+                'components': [order_status_component],
             },
         }
         # Add BSUID recipient if available (per Meta BSUID docs)
