@@ -1,4 +1,4 @@
-"""Public delivery for approved catalog artwork stored under secure/catalog/products/.
+"""Public delivery for approved catalog artwork stored under secure/d/public/catalog-deploy/catalog/products/.
 
 Only exact lowercase *-4096.png filenames are accepted. The Lambda has read-only
 S3 permission scoped to that one prefix and returns image bytes through API Gateway.
@@ -14,7 +14,7 @@ from botocore.exceptions import ClientError
 
 REGION = os.environ.get("AWS_REGION", "us-east-1")
 BUCKET = os.environ.get("CATALOG_BUCKET", "wecare-digital-get")
-PREFIX = "secure/catalog/products/"
+PREFIX = "secure/d/public/catalog-deploy/catalog/products/"
 NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*-4096[.]png$")
 S3 = boto3.client("s3", region_name=REGION)
 
