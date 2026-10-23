@@ -255,50 +255,49 @@ const VayuLokWeatherInsights: React.FC<Props> = ( {
       <style jsx>{`
         .vl-wi{margin-top:var(--vl-section-gap);padding-top:var(--vl-section-gap);border-top:1px solid var(--hair);font-family:var(--font-sans)}
         .vl-wi-head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--space-4)}
-        .vl-wi-head h4{margin:0;color:var(--public-heading);font-size:var(--vl-card-heading-size,var(--public-card-size));font-weight:var(--vl-card-heading-weight,var(--public-card-weight));line-height:var(--vl-card-heading-lh,var(--public-card-leading));letter-spacing:var(--vl-card-heading-track,var(--public-card-tracking))}
-        .vl-wi-head p{margin:6px 0 0;color:var(--public-muted);font-size:var(--vl-subtext-size,var(--text-base));font-weight:600;line-height:1.4;letter-spacing:0}
+        .vl-wi-head h4{margin:0;color:var(--public-heading);font-size:var(--vl-panel-heading-size,var(--public-data-size));font-weight:var(--vl-panel-heading-weight,700);line-height:var(--vl-panel-heading-lh,1.35);letter-spacing:var(--vl-panel-heading-track,-.18px)}
+        .vl-wi-head p{margin:6px 0 0;color:var(--public-muted);font-size:var(--vl-subtext-size,var(--public-supporting-size));font-weight:600;line-height:1.4;letter-spacing:0}
         .vl-wi-range{display:flex;flex:0 0 auto;border:1px solid var(--hair);border-radius:var(--radius-full);overflow:hidden;background:#fff}
-        .vl-wi-range button{min-width:var(--tap-min);min-height:var(--tap-min);padding:8px 12px;border:0;border-inline-start:1px solid var(--hair);background:#fff;color:var(--public-muted);font:inherit;font-size:var(--vl-meta-size,var(--text-md));font-weight:700;cursor:pointer}
+        .vl-wi-range button{min-width:var(--tap-min);min-height:var(--tap-min);padding:8px 12px;border:0;border-inline-start:1px solid var(--hair);background:#fff;color:var(--public-muted);font:inherit;font-size:var(--vl-meta-size,var(--public-meta-size));font-weight:700;cursor:pointer}
         .vl-wi-range button:first-child{border-inline-start:0}
         .vl-wi-range button:hover{background:var(--public-lime-tint);color:var(--public-brand-green)}
         .vl-wi-range button.is-active{background:var(--public-brand-lime);color:var(--public-brand-green)}
-        .vl-wi-note{margin-top:var(--space-3);padding:var(--space-3) var(--space-4);border:1px solid var(--hair);border-radius:var(--radius-lg);background:#fff;color:var(--public-muted);font-size:var(--vl-subtext-size,var(--text-base));font-weight:600;line-height:1.4;letter-spacing:0}
+        .vl-wi-note{margin-top:var(--space-3);padding:var(--space-3) var(--space-4);border:1px solid var(--hair);border-radius:var(--radius-lg);background:#fff;color:var(--public-muted);font-size:var(--vl-subtext-size,var(--public-supporting-size));font-weight:600;line-height:1.4;letter-spacing:0}
         .vl-wi-sr{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
         .vl-wi-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;margin-top:var(--space-3);border:1px solid var(--hair);border-radius:var(--radius-lg);overflow:hidden;background:var(--hair)}
         .vl-wi-grid>div{display:flex;align-items:baseline;justify-content:space-between;gap:var(--space-3);padding:var(--space-4);background:#fff}
-        .vl-wi-grid span{color:var(--public-muted);font-size:var(--vl-subtext-size,var(--text-base));font-weight:600;line-height:1.4}
+        .vl-wi-grid span{color:var(--public-muted);font-size:var(--vl-subtext-size,var(--public-supporting-size));font-weight:600;line-height:1.4}
         .vl-wi-grid strong{color:var(--public-heading);font-size:var(--vl-data-size,var(--public-cta-font-size));font-weight:700;line-height:1.35;font-variant-numeric:tabular-nums;text-align:end}
         .vl-wi-trend{margin-top:var(--space-4)}
         .vl-wi-trend-head{display:flex;justify-content:space-between;gap:var(--space-3);align-items:baseline}
         .vl-wi-trend-head strong{font-size:var(--vl-data-size,var(--public-cta-font-size));font-weight:700;color:var(--public-body)}
-        .vl-wi-trend-head span{font-size:var(--vl-meta-size,var(--text-md));font-weight:600;color:var(--public-muted)}
+        .vl-wi-trend-head span{font-size:var(--vl-meta-size,var(--public-meta-size));font-weight:600;color:var(--public-muted)}
         .vl-wi-bars{display:grid;grid-template-columns:repeat(12,minmax(18px,1fr));gap:4px;align-items:end;height:138px;margin-top:var(--space-2);padding:10px 8px 6px;border:1px solid var(--hair);border-radius:var(--radius-lg);background:#fff}
         .vl-wi-bar-slot{display:grid;grid-template-rows:1fr auto auto;gap:3px;min-width:0;height:100%;text-align:center}
         .vl-wi-bar-wrap{display:flex;align-items:flex-end;justify-content:center;min-height:0}
         .vl-wi-bar{width:min(16px,80%);min-height:6px;border-radius:5px 5px 2px 2px;background:var(--lime)}
-        .vl-wi-bar-slot strong{font-size:var(--text-xs);color:var(--public-heading);font-variant-numeric:tabular-nums}
-        .vl-wi-bar-slot span{font-size:var(--text-xs);color:var(--public-muted)}
-        .vl-wi-stamp{display:flex;width:fit-content;align-items:center;gap:6px;margin:var(--space-3) auto 0;padding:6px 12px;border-radius:var(--radius-full);background:var(--public-lime-tint);color:var(--public-brand-green);font-size:var(--vl-meta-size,var(--text-md));font-weight:700;line-height:1.4;white-space:nowrap}
+        .vl-wi-bar-slot strong{font-size:var(--vl-meta-size,var(--public-meta-size));color:var(--public-heading);font-variant-numeric:tabular-nums}
+        .vl-wi-bar-slot span{font-size:var(--vl-meta-size,var(--public-meta-size));color:var(--public-muted)}
+        .vl-wi-stamp{display:flex;width:fit-content;align-items:center;gap:6px;margin:var(--space-3) auto 0;padding:6px 12px;border-radius:var(--radius-full);background:var(--public-lime-tint);color:var(--public-brand-green);font-size:var(--vl-meta-size,var(--public-meta-size));font-weight:700;line-height:1.4;white-space:nowrap}
         .vl-wi-stamp-icon{flex:0 0 15px;width:15px;height:15px;fill:var(--public-brand-green)}
         @media(max-width:767px){
           .vl-wi{margin-top:var(--public-mobile-section-gap);padding-top:var(--space-6)}
           .vl-wi-head{flex-direction:column;gap:var(--space-3)}
-          .vl-wi-head h4{font-size:var(--public-mobile-card-size)}
-          .vl-wi-head p{font-size:var(--vl-subtext-size,var(--public-mobile-form-font-size));font-weight:600;line-height:1.4}
+          .vl-wi-head p{font-size:var(--vl-subtext-size,var(--public-supporting-size));font-weight:600;line-height:1.4}
           .vl-wi-range{width:100%}
-          .vl-wi-range button{flex:1;min-height:var(--tap-min);font-size:var(--vl-subtext-size,var(--public-mobile-form-font-size))}
-          .vl-wi-note{font-size:var(--vl-subtext-size,var(--public-mobile-form-font-size))}
+          .vl-wi-range button{flex:1;min-height:var(--tap-min);font-size:var(--vl-subtext-size,var(--public-supporting-size))}
+          .vl-wi-note{font-size:var(--vl-subtext-size,var(--public-supporting-size))}
           .vl-wi-grid{grid-template-columns:1fr}
           .vl-wi-grid>div{padding:var(--space-4)}
-          .vl-wi-grid span{font-size:var(--vl-subtext-size,var(--public-mobile-form-font-size))}
+          .vl-wi-grid span{font-size:var(--vl-subtext-size,var(--public-supporting-size))}
           .vl-wi-grid strong{font-size:var(--vl-data-size,var(--public-cta-font-size))}
           .vl-wi-trend-head{align-items:flex-start;flex-direction:column;gap:2px}
           .vl-wi-trend-head strong{font-size:var(--vl-data-size,var(--public-cta-font-size))}
-          .vl-wi-trend-head span{font-size:var(--vl-meta-size,var(--text-md))}
+          .vl-wi-trend-head span{font-size:var(--vl-meta-size,var(--public-meta-size))}
           .vl-wi-bars{gap:2px;padding-inline:4px}
-          .vl-wi-bar-slot strong{font-size:var(--text-xs)}
-          .vl-wi-bar-slot span{font-size:var(--text-xs)}
-          .vl-wi-stamp{font-size:var(--vl-meta-size,var(--text-md))}
+          .vl-wi-bar-slot strong{font-size:var(--vl-meta-size,var(--public-meta-size))}
+          .vl-wi-bar-slot span{font-size:var(--vl-meta-size,var(--public-meta-size))}
+          .vl-wi-stamp{font-size:var(--vl-meta-size,var(--public-meta-size))}
         }
       `}</style>
     </section>
