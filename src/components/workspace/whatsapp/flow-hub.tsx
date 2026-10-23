@@ -14,9 +14,14 @@ interface FlowHubProps {
 
 const FLOW_TYPES = [ 'form_submit', 'order_management', 'interactive', 'data_collection', 'payment', 'booking', 'feedback' ];
 const PAYMENT_STATUSES = [ 'none', 'pending', 'captured', 'failed', 'refunded' ];
+const ENTRY_MODES = [ 'keyword_interactive', 'payment_template', 'internal_event', 'manual', 'none' ];
 const SUBMISSION_STATUSES = [ 'open', 'in_progress', 'resolved', 'closed', 'cancelled' ];
 
 const FLOW_TYPE_OPTIONS: SelectOption[] = FLOW_TYPES.map( t => ( { value: t, label: t } ) );
+const ENTRY_MODE_OPTIONS: SelectOption[] = ENTRY_MODES.map( value => ( {
+  value,
+  label: value === 'keyword_interactive' ? 'Keyword → native Flow' : value === 'payment_template' ? 'Payment → approved template' : value === 'internal_event' ? 'Internal event' : value === 'manual' ? 'Manual staff send' : 'No customer entry',
+} ) );
 const REGISTRY_STATUS_OPTIONS: SelectOption[] = [
   { value: 'DRAFT', label: 'DRAFT' },
   { value: 'PUBLISHED', label: 'PUBLISHED' },
@@ -83,7 +88,7 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
   const [ showRegForm, setShowRegForm ] = useState( false );
   const [ regForm, setRegForm ] = useState<Partial<api.FlowRegistryItem>>( {
     flowType: 'form_submit', status: 'DRAFT', flowVersion: '7.3', dataApiVersion: '4.0',
-    requiresPayment: false, paymentAmount: 0, submissionPrefix: 'WD',
+    entryMode: 'none', requiresPayment: false, paymentAmount: 0, submissionPrefix: 'WD',
   } );
 
   const loadRegistry = async () => {
@@ -247,6 +252,20 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
                     options={ REGISTRY_STATUS_OPTIONS } />
                 </div>
                 <div>
+                  <label style={ { display: 'block', marginBottom: '0.25rem', fontWeight: 500 } }>Entry mode</label>
+                  <Select ariaLabel="Entry mode" value={ regForm.entryMode || 'none' }
+                    onChange={ v => setRegForm( { ...regForm, entryMode: v } ) }
+                    options={ ENTRY_MODE_OPTIONS } />
+                </div>
+                <div>
+                  <label style={ { display: 'block', marginBottom: '0.25rem', fontWeight: 500 } }>Entry template</label>
+                  <input value={ regForm.entryTemplateName || '' }
+                    onChange={ e => setRegForm( { ...regForm, entryTemplateName: e.target.value } ) }
+                    disabled={ regForm.entryMode !== 'payment_template' }
+                    placeholder={ regForm.entryMode === 'payment_template' ? 'Approved Meta template name' : 'Not used for this entry mode' }
+                    style={ { width: '100%', padding: '0.4rem', border: '1px solid #d1d5db', borderRadius: '0.25rem' } } />
+                </div>
+                <div>
                   <label style={ { display: 'block', marginBottom: '0.25rem', fontWeight: 500 } }>Preferred Gateway</label>
                   <input value={ ( regForm as any ).preferredGateway || '' } onChange={ e => setRegForm( { ...regForm, preferredGateway: e.target.value } as any ) }
                     placeholder="razorpay" style={ { width: '100%', padding: '0.4rem', border: '1px solid #d1d5db', borderRadius: '0.25rem' } } />
@@ -297,6 +316,7 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
                     <th style={ { padding: '8px 12px', textAlign: 'left' } }>Type</th>
                     <th style={ { padding: '8px 12px', textAlign: 'left' } }>Version</th>
                     <th style={ { padding: '8px 12px', textAlign: 'left' } }>Status</th>
+                    <th style={ { padding: '8px 12px', textAlign: 'left' } }>Entry</th>
                     <th style={ { padding: '8px 12px', textAlign: 'left' } }>Payment</th>
                     <th style={ { padding: '8px 12px', textAlign: 'left' } }>Flow ID</th>
                   </tr>
@@ -314,6 +334,10 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
                       <td style={ { padding: '8px 12px', fontFamily: 'monospace' } }>{ f.flowVersion || '—' }</td>
                       <td style={ { padding: '8px 12px' } }>
                         <StatusBadge status={ f.status } />
+                      </td>
+                      <td style={ { padding: '8px 12px' } }>
+                        <div style={ { fontWeight: 600 } }>{ f.entryMode || 'none' }</div>
+                        { f.entryTemplateName && <div style={ { color: 'var(--text-muted)', fontSize: '0.7rem' } }>{ f.entryTemplateName }</div> }
                       </td>
                       <td style={ { padding: '8px 12px' } }>
                         { f.requiresPayment ? formatPaise( f.paymentAmount || 0 ) : '—' }
