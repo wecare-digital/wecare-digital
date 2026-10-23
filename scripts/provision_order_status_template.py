@@ -1,18 +1,12 @@
 #!/usr/bin/env python3
-"""Submit the WhatsApp Order Status template used for out-of-window fulfilment updates.
+"""Submit the WhatsApp Order Status template used for all fulfilment updates.
 
 Why this template exists
 ------------------------
 Staff can drive a paid order forward from the workspace (Pay Flow → "Mark Shipped" /
-"Mark Completed"), and a capture auto-sends ``processing``. INSIDE the 24-hour customer
-service window those updates travel as a free-form interactive ``order_status`` message
-and need NO template. OUTSIDE that window Meta allows an order_status update only through
-an APPROVED template whose ``sub_category`` is ``ORDER_STATUS`` — without it, a shipment
-or completion notice to a customer who last messaged days ago is silently dropped
-(``outbound-whatsapp._approved_order_status_template`` logs
-``order_status_template_not_configured`` and returns '').
-
-This provisions that template so the out-of-window path can send.
+"Mark Completed"), and a capture auto-sends ``processing``. All processing/shipped/completed updates use one approved ORDER_STATUS template. There is no
+service-window fallback. This provisions that one template and verifies Meta approval before the
+runtime is promoted.
 
 Shape Meta requires
 --------------------
@@ -57,7 +51,7 @@ BUSINESS_API_FUNCTION = "wecare-whatsapp-business-api:live"
 
 # MUST equal config/lambda-env-manifest.json → wecare-outbound-whatsapp →
 # WA_ORDER_STATUS_TEMPLATE / WA_ORDER_STATUS_TEMPLATE_LANGUAGE.
-TEMPLATE_NAME = "wecare_order_status"
+TEMPLATE_NAME = "wecare_order_status_v2"
 LANGUAGE = "en"
 
 
@@ -161,7 +155,7 @@ def verify() -> int:
         status = template.get("status", "?")
         if status != "APPROVED":
             print(f"\n{TEMPLATE_NAME} is {status}. Approval is Meta's; re-run --verify later.")
-            print("Until it is APPROVED, out-of-window order_status updates are not sent.")
+            print("Until it is APPROVED, order_status updates are not sent.")
         return 1
 
     print(f"\n{TEMPLATE_NAME} is ready. Ensure the outbound function env matches:")
