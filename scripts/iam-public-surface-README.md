@@ -24,8 +24,9 @@ The split also buys something better than least privilege: `confirm` runs **afte
 apply, on the read role. A deploy that verifies itself with its own write credential is
 checking its work with the same hand that did it; confirming on a principal that could not
 have produced the result makes the evidence worth something.
-`tests/test_github_oidc_trust_policy.py` asserts the read document contains nothing but
-`Get` actions, so "read-only" is a property rather than a filename.
+`tests/test_github_oidc_trust_policy.py` asserts the read document contains only non-mutating
+reads plus the explicitly allow-listed IAM custom-policy simulator, so "read-only" is a
+property rather than a filename.
 
 ## Why a file and not an inline `--policy-document`
 
@@ -223,7 +224,9 @@ it is three statements:
 | `lambda:GetFunction` | **This is the one that is easy to leave out.** The stale-catalogue check downloads the deployed bundle and compares its page list against `config/public-pages.json`. `GetFunctionConfiguration` alone cannot see the code, so without `GetFunction` the check that exists to catch a stale `/orders` entry silently cannot run. |
 | `apigateway:GET` | `get_routes` and `get_stage`, for the `/mcp` route and its throttle. |
 
-No `PassRole`, no `POST`, no `PATCH`, no `Update*`. The retired-URL probes in
+No `PassRole`, no `POST`, no `PATCH`, no `Update*`, and no IAM mutation. The same read role is
+also used by the shared-S3 scope CI check, where it may read the inline policy of only
+`wecare-digital-lambda-role` and call `iam:SimulateCustomPolicy` to evaluate a proposed document. The retired-URL probes in
 `provision_legacy_redirects.py --verify` are plain HTTPS requests and need no AWS grant at
 all.
 

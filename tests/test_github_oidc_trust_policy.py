@@ -242,19 +242,15 @@ def test_all_three_provisioners_and_the_fixer_write_one_document(provisioner, pl
 
 
 def test_read_role_grants_no_write_action():
-    """The safe half must be unable to change anything, asserted rather than intended.
+    """The safe half may inspect/simulate policy but must remain unable to mutate production.
 
-    The verify steps used to run on the write role because one job was simpler than two. The
-    cost of that convenience is that a read-only operation carried amplify:UpdateApp,
-    lambda:UpdateFunctionCode and iam:PassRole for its whole duration - so a mistake in a
-    verify path, or a compromised step between checkout and the verify command, had
-    production write access it never needed.
-
-    This asserts the separation actually holds: every action in the read document is a Get
-    or the single coarse apigateway:GET, no statement grants a wildcard action, and no
-    resource is "*". Without this, "read-only role" is a filename rather than a property.
+    The role is also reused by the shared-S3 scope check. That check needs GetRolePolicy on one
+    named role plus SimulateCustomPolicy, which is non-mutating and does not support useful
+    resource scoping. Keep those two exceptions explicit so "read-only" remains a property,
+    not a filename.
     """
     doc = json.loads((ROOT / "scripts" / "iam-public-surface-read-permissions.json").read_text())
+    auxiliary_reads = {"iam:GetRolePolicy", "iam:SimulateCustomPolicy"}
     for statement in doc["Statement"]:
         assert statement["Effect"] == "Allow"
         actions = statement["Action"]
@@ -262,13 +258,18 @@ def test_read_role_grants_no_write_action():
         for action in actions:
             assert "*" not in action, f"{action} is a wildcard action"
             service, verb = action.split(":", 1)
-            assert verb.startswith("Get") or (service, verb) == ("apigateway", "GET"), (
-                f"{action} is not a read"
-            )
+            assert (
+                verb.startswith("Get")
+                or (service, verb) == ("apigateway", "GET")
+                or action in auxiliary_reads
+            ), f"{action} is not an approved non-mutating read/simulation action"
         resources = statement["Resource"]
         resources = resources if isinstance(resources, list) else [resources]
         for resource in resources:
-            assert resource != "*", f"{statement['Sid']} grants a wildcard resource"
+            if resource == "*":
+                assert actions == ["iam:SimulateCustomPolicy"], (
+                    f"{statement['Sid']} grants wildcard resource outside the IAM custom-policy simulator"
+                )
 
 
 def test_committed_trust_document_matches_the_fixer(fixer):
