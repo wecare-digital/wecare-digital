@@ -718,13 +718,23 @@ def test_g_the_check_runs_on_the_canonical_key_not_the_raw_input():
 
 
 def test_g_the_allowed_prefix_is_composed_not_written_out():
-    """It must stay equal to the key `inbound-whatsapp-handler` writes and to the single
-    ``s3:GetObject`` resource the role is granted. Three copies of a literal drift."""
+    """The CANONICAL prefix must stay equal to the key `inbound-whatsapp-handler` writes and
+    to the single ``s3:GetObject`` resource the role is granted - three copies of a literal
+    drift. The LEGACY prefix is the pre-migration ``o/stack/whatsapp-media/incoming/`` spelling,
+    kept read-only for migration compatibility (see
+    media_paths.LEGACY_WHATSAPP_INCOMING_PREFIX); it is deliberately NOT the canonical value,
+    and is the shape `media_paths.canonical` normalises and that
+    test_g_the_check_runs_on_the_canonical_key depends on."""
     assert dropdocs_storage.WHATSAPP_INCOMING_PREFIX == media_paths.WHATSAPP_INCOMING_PREFIX
     assert dropdocs_storage.WHATSAPP_INCOMING_PREFIX == "secure/d/public/whatsapp/incoming/"
     assert dropdocs_storage.LEGACY_WHATSAPP_INCOMING_PREFIX == (
+        media_paths.LEGACY_WHATSAPP_INCOMING_PREFIX)
+    assert dropdocs_storage.LEGACY_WHATSAPP_INCOMING_PREFIX == (
         "o/stack/whatsapp-media/incoming/")
     assert not media_paths.is_gated(dropdocs_storage.WHATSAPP_INCOMING_PREFIX)
+    # Both the canonical and the legacy spelling live outside the gated root, so neither is
+    # is_gated: the canonical one under secure/d/public/ (public-delivery subtree), the legacy
+    # one under o/.
     assert not media_paths.is_gated(dropdocs_storage.LEGACY_WHATSAPP_INCOMING_PREFIX)
 
 
