@@ -4767,7 +4767,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         /* HOME-PAGE HUE SPINE, not an AQI severity encoding. These are the exact three
            accent bars used by .home-flow-list: green / blue / purple. The AQI number +
            category text carry the meaning, so the decorative hue never has to be decoded. */
-        .vl-live-air-aqi-spine{display:block;width:4px;height:64px;border-radius:999px;background:linear-gradient(180deg,#3da35a 0 33.333%,#2563eb 33.333% 66.666%,#9849e8 66.666% 100%)}
+        .vl-live-air-aqi-spine{display:block;width:4px;height:64px;border-radius:999px;background:var(--lime)}
         .vl-live-air-aqi-score{display:flex;min-width:56px;flex-direction:column;align-items:flex-start;justify-content:center}
         .vl-live-air-aqi-number{display:block;color:var(--heading);font-size:var(--vl-metric-size);font-weight:var(--public-section-weight);line-height:1;letter-spacing:var(--public-section-tracking)}
         .vl-live-air-aqi-unit{display:block;margin-top:4px;color:var(--muted);font-size:var(--vl-meta-size);font-weight:700;line-height:1;letter-spacing:.08em;text-transform:uppercase}
@@ -4885,12 +4885,12 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
            Reuses the Air panel's section headings, range pills and forecast strip/detail; these
            rules add only the pieces specific to Weather (the current hero, the metric grid, the
            10-day rows, the history strip, the alerts block). Same tokens, no red. */
-        .vl-live-wx-now{display:flex;flex-direction:column;gap:6px;margin-bottom:var(--vl-section-gap);padding-inline-start:14px;border-inline-start:3px solid var(--lime)}
-        .vl-live-wx-now-head{display:flex;align-items:center;gap:12px}
-        .vl-live-wx-now-icon{width:52px;height:52px;flex:0 0 52px;object-fit:contain}
+        .vl-live-wx-now{display:grid;grid-template-columns:4px auto minmax(0,1fr);align-items:center;gap:14px;margin-bottom:var(--vl-section-gap)}
+        .vl-live-wx-now-head{display:contents}
+        .vl-live-wx-now-icon{grid-column:2;width:52px;height:52px;object-fit:contain}
         .vl-live-wx-now-temp{display:block;color:var(--heading);font-size:var(--vl-metric-size);font-weight:var(--public-section-weight);line-height:1;letter-spacing:var(--public-section-tracking)}
         .vl-live-wx-now-cond{display:block;margin-top:2px;color:var(--heading);font-size:var(--vl-panel-heading-size);font-weight:var(--vl-panel-heading-weight);line-height:var(--vl-panel-heading-lh);letter-spacing:var(--vl-panel-heading-track)}
-        .vl-live-wx-now-sub{display:flex;flex-wrap:wrap;gap:4px 12px;color:var(--muted);font-size:var(--vl-subtext-size);font-weight:600;line-height:1.35}
+        .vl-live-wx-now-sub{grid-column:3;display:flex;flex-wrap:wrap;gap:6px 10px;color:var(--muted);font-size:var(--vl-subtext-size);font-weight:600;line-height:1.35}
         .vl-live-wx-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;margin:0 0 var(--vl-section-gap);padding:0;list-style:none;border:1px solid var(--hair);border-radius:var(--radius-lg,12px);overflow:hidden;background:var(--hair)}
         .vl-live-wx-grid-item{display:flex;align-items:baseline;justify-content:space-between;gap:var(--vl-content-gap);padding:14px;background:#fff;transition:background-color .14s ease}
         .vl-live-wx-grid-k{min-width:0;color:var(--body);font-size:var(--vl-data-size);font-weight:700;line-height:1.35;letter-spacing:-.18px}
@@ -4951,7 +4951,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-wx-period-summary img{width:34px;height:34px;object-fit:contain}
         .vl-live-wx-hour-icon{width:28px;height:28px;object-fit:contain}
         .vl-live-wx-period-summary strong{font-size:var(--vl-data-size);font-weight:700;line-height:1.35}
-        .vl-live-wx-freshness{margin-top:8px;color:var(--muted);font-size:var(--vl-subtext-size);font-weight:600;line-height:1.35}
+        .vl-live-wx-freshness{margin-top:8px}
 
         /* ── HEALTH RECOMMENDATIONS ──────────────────────────────────────────────
            Profiles are one touch/keyboard scroll rail using the same small pill language as
