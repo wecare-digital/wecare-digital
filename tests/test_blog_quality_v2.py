@@ -364,6 +364,22 @@ def test_domain_claim_with_a_yes_review_is_accepted():
     assert "REVIEW_REQUIRED" not in codes(findings)
 
 
+
+def test_public_external_url_blocks():
+    record = good_record(contentMarkdown=GOOD_BODY + "\n\nSee https://example.com/source for details.")
+    assert "PUBLIC_EXTERNAL_URL" in codes(q.check_public_source_exposure(record), "BLOCK")
+
+
+def test_public_citation_language_blocks():
+    record = good_record(contentMarkdown=GOOD_BODY + "\n\nAccording to Example Author, the distinction begins here.")
+    assert "PUBLIC_CITATION_LANGUAGE" in codes(q.check_public_source_exposure(record), "BLOCK")
+
+
+def test_internal_source_metadata_does_not_trigger_public_copy_gate():
+    record = good_record(sourceFile="private://archive.pdf", sourceHash="abc123")
+    assert codes(q.check_public_source_exposure(record), "BLOCK") == set()
+
+
 # ── Sections 21, 22, 23 ─────────────────────────────────────────────────────────
 
 def test_clickbait_title_blocks():
@@ -424,8 +440,8 @@ def test_tag_rules(tags):
         "TAG_COUNT", "TAG_DUPLICATE"}
 
 
-def test_author_is_fixed():
-    assert "AUTHOR_WRONG" in codes(
+def test_author_identity_is_not_enforced_by_public_copy_gate():
+    assert "AUTHOR_WRONG" not in codes(
         q.check_seo_and_metadata(good_record(author="Someone Else")), "BLOCK")
 
 
