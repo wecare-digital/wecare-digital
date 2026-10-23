@@ -77,16 +77,17 @@
        0 on devices / webviews without a notch, so desktop is unchanged). */
     top:calc(4.2% + var(--safe-top));
     right:calc(4.0% + var(--safe-right));
-    width:clamp(176px,16.5%,224px);height:52px;padding:4px;
-    display:grid;grid-template-columns:1fr 1.25fr;gap:4px;align-items:center;
+    width:clamp(220px,18%,280px);height:52px;padding:4px;
+    display:grid;grid-template-columns:1fr 1fr;gap:4px;align-items:center;
     border:1px solid #e5e7eb;border-radius:999px;
-    background:#fff;box-shadow:0 6px 18px rgba(0,0,0,.08);
+    background:#fff;box-shadow:0 6px 18px rgba(26,58,42,.08);
     cursor:pointer;font:inherit;-webkit-tap-highlight-color:transparent;
   }
   .data-toggle .mode{
     position:relative;display:grid;place-items:center;height:100%;border-radius:999px;
-    font-size:11px;font-weight:850;letter-spacing:.09em;line-height:1;
-    transition:transform .24s cubic-bezier(.16,1,.3,1),color .2s,box-shadow .24s;
+    font-size:16px;font-weight:700;letter-spacing:0;line-height:1;
+    text-transform:none;
+    transition:background-color .2s,color .2s,box-shadow .2s;
   }
   /* The resting segment is dimmed with COLOUR only. Stacking an opacity
      multiplier on top of this composited to ~rgb(178,178,178) on white — about
@@ -95,8 +96,7 @@
   .mode-weather{color:rgba(0,0,0,.62);background:transparent;box-shadow:none}
   .data-toggle[aria-checked='false'] .mode-air,
   .data-toggle[aria-checked='true'] .mode-weather{
-    background:#d1f470;color:#1a3a2a;box-shadow:0 2px 8px rgba(26,58,42,.18);
-    transform:translateY(-1px);
+    background:#d1f470;color:#1a3a2a;box-shadow:none;
   }
   .data-toggle:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
 
@@ -359,9 +359,9 @@
     .data-toggle{
       top:calc(2.5% + var(--safe-top));
       right:calc(2.5% + var(--safe-right));
-      width:138px;height:var(--tap-min);padding:3px;
+      width:176px;height:var(--tap-min);padding:3px;
     }
-    .data-toggle .mode{font-size:13px;letter-spacing:.045em}
+    .data-toggle .mode{font-size:14px;letter-spacing:0;font-weight:700}
     /* On the phone disc the panel drops to the bottom-left corner so it never
        overlaps the globe body, and shrinks to a compact single reading. The
        bottom/left offsets add the safe-area insets so the panel is never
