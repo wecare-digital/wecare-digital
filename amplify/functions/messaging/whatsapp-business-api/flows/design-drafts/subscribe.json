@@ -122,27 +122,30 @@
                 "type": "TextInput",
                 "name": "full_name",
                 "label": "Full name",
-                "required": true
+                "required": true,
+                "helper-text": "Enter your full name"
               },
               {
                 "type": "TextInput",
                 "name": "username",
-                "label": "Username (optional)",
+                "label": "Profile username",
                 "required": false,
                 "max-chars": 50,
-                "helper-text": "Optional profile name. This does not change your WhatsApp username."
+                "helper-text": "WhatsApp username"
               },
               {
                 "type": "TextInput",
                 "name": "company_name",
                 "label": "Organisation",
-                "required": true
+                "required": false,
+                "helper-text": "Organisation name"
               },
               {
                 "type": "TextInput",
                 "name": "designation",
                 "label": "Role / designation",
-                "required": true
+                "required": false,
+                "helper-text": "Your role"
               }
             ],
             "init-values": {
