@@ -96,7 +96,7 @@ def classify(row, text):
         if any(r.search(text) for r in regs): fresh_risks.append(k)
     overlap_strong = hist=='MERGE' or revised.startswith('MERGE') or route=='MERGE' or titleopp=='HIGH OVERLAP' or sim >= 0.62
     overlap_medium = titleopp=='POSSIBLE OVERLAP' or sim >= 0.48
-    attribution_risk = pubname or program or bool(source_terms) or source_scaffold
+    source_exposure_risk = pubname or program or bool(source_terms) or source_scaffold
     personal_risk = personal
     factual_risk = bool(research) or evidence_claim
     if overlap_strong:
@@ -105,8 +105,8 @@ def classify(row, text):
         bucket='NO_DISTINCT_ARTICLE'
     elif personal_risk:
         bucket='PERSONAL_REFERENCE_REWORK'
-    elif attribution_risk:
-        bucket='ATTRIBUTION_REVIEW'
+    elif source_exposure_risk:
+        bucket='SOURCE_REWORK'
     elif factual_risk:
         bucket='FACT_CHECK_REQUIRED'
     elif overlap_medium:
