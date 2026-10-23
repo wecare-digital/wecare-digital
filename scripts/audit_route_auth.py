@@ -189,8 +189,8 @@ EXPECTED_PUBLIC_ROUTES = {
     # Public catalogue artwork is fetched by browsers and Meta before any customer identity
     # exists. The dedicated handler accepts GET only, validates an exact lowercase
     # *-4096.png filename, and its execution role can only GetObject below the one
-    # secure/catalog/products/ prefix.
-    "GET /catalog-media/{filename}": "anonymous approved-catalog-artwork read; GET only, strict *-4096.png filename validation, and read-only S3 permission scoped to secure/catalog/products/",
+    # secure/d/public/catalog-deploy/catalog/products/ prefix.
+    "GET /catalog-media/{filename}": "anonymous approved-catalog-artwork read; GET only, strict *-4096.png filename validation, and read-only S3 permission scoped to secure/d/public/catalog-deploy/catalog/products/",
     # The live price shown on the four public service pages. A visitor reads it BEFORE signing
     # in -- the price is what decides whether they sign in at all -- so there is no identity to
     # authenticate. Narrow by construction: GET only, and the handler arm accepts no path
