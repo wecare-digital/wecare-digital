@@ -641,8 +641,8 @@ def _get_media(media_id: str, phone_number_id: str, query_params: Dict, request_
                                          'error': str(e), 'requestId': request_id}))
                 return _error_response(502, f'Failed to download media binary: {str(e)}')
 
-            s3_key = media_paths.public(
-                f'stack/whatsapp-media/downloads/wecare-digital-{media_id}')
+            s3_key = media_paths.deliverable_public(
+                f'whatsapp/downloads/wecare-digital-{media_id}')
             s3.put_object(
                 Bucket=MEDIA_BUCKET, Key=s3_key, Body=media_bytes,
                 ContentType=media_info.get('mime_type', 'application/octet-stream')
