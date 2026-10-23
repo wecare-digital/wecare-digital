@@ -1,10 +1,17 @@
 import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import VayuLokWeatherInsights from '../components/VayuLokWeatherInsights';
+const TEST_INSIGHTS_URL = 'https://weather-insights.test';
+
+async function loadComponent() {
+  vi.resetModules();
+  vi.stubEnv( 'NEXT_PUBLIC_VAYULOK_WEATHER_INSIGHTS_URL', TEST_INSIGHTS_URL );
+  return ( await import( '../components/VayuLokWeatherInsights' ) ).default;
+}
 
 afterEach( () => {
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
 } );
 
@@ -30,6 +37,7 @@ describe( 'VayuLok Weather history public typography', () => {
       } ),
     ) );
 
+    const VayuLokWeatherInsights = await loadComponent();
     const { container } = render(
       <VayuLokWeatherInsights
         lat={ 25.5788 }
