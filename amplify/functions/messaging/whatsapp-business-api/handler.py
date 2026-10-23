@@ -117,9 +117,9 @@ OUTBOUND_WHATSAPP_FUNCTION = os.environ.get('OUTBOUND_WHATSAPP_FUNCTION', 'wecar
 # Media handling (Part 4 D)
 MEDIA_BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
 MEDIA_RESUMABLE_PREFIX = os.environ.get(
-    'MEDIA_RESUMABLE_PREFIX', media_paths.public('stack/whatsapp-media/resumable/'))
+    'MEDIA_RESUMABLE_PREFIX', media_paths.WHATSAPP_RESUMABLE_PREFIX)
 MEDIA_DOWNLOAD_PREFIX = os.environ.get(
-    'MEDIA_DOWNLOAD_PREFIX', media_paths.public('stack/whatsapp-media/downloads/'))
+    'MEDIA_DOWNLOAD_PREFIX', media_paths.WHATSAPP_DOWNLOADS_PREFIX)
 META_APP_ID = os.environ.get('META_APP_ID', '2238810740192680')
 # Meta media URLs are short-lived; treat as ~5 min for expiry tracking.
 MEDIA_URL_TTL_SECONDS = int(os.environ.get('MEDIA_URL_TTL_SECONDS', '300'))
