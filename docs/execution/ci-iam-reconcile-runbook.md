@@ -72,3 +72,53 @@ Agents have no AWS credentials and must not read Secrets Manager values. So an a
 
 An agent CANNOT run `--apply`/`--verify` (needs IAM admin) — that step is always a human
 action, recorded here so it is not rediscovered from first principles each time.
+
+Automated: shared-role S3 least-privilege + catalog image-key migration
+-----------------------------------------------------------------------
+Two previously-manual items are now automated by
+`.github/workflows/least-privilege-and-catalog-migration.yml`, backed by
+`scripts/scope_shared_lambda_s3.py` and `scripts/migrate_catalog_image_keys.py`.
+
+A. Shared-role S3 least-privilege (`scope_shared_lambda_s3.py`)
+   Narrows the shared `wecare-digital-lambda-role` S3 WRITE surface from the whole bucket
+   down to the three roots the fleet actually writes under (`secure/d/public/*`, `o/*`,
+   `secure/u/*`), keeps READ broad, and preserves `DenyLegacyMediaWrites` verbatim. The
+   prefix set is derived from `lambda_utils.media_paths`, so it cannot drift from the code.
+   - CI (push): `--simulate` runs `iam:simulate-custom-policy` for a must-allow / must-deny
+     matrix (real WhatsApp/receipts/invoices/cleanup/voice/upload keys) under a read-only
+     role; a regression fails the build. Offline unit tests pin the policy shape.
+   - Apply (dispatch `scope-apply`, environment `production-iam`): puts the policy with
+     `--apply`, which refuses unless the simulation is clean.
+   - Requires a dedicated admin role `GitHubActions-wecare-shared-role-scoper` allowed to
+     `iam:PutRolePolicy` on `wecare-digital-lambda-role` only. The shared role may not edit
+     its own policy, so this role is provisioned out of band by an IAM admin (same boundary
+     as every other deploy role here).
+
+B. Catalog image-key migration (`migrate_catalog_image_keys.py`)
+   Rewrites legacy `catalogImageKey` values (`secure/public/...`, missing the `d/`) on
+   ProductsTable to the canonical `secure/d/public/catalog-deploy/catalog/products/<n>-4096.png`
+   by calling the AUTHENTICATED `PATCH /native-catalog/products/{id}` admin API. It does NOT
+   write DynamoDB directly and does NOT weaken the auth gate: the STAFF-Admin + MFA control in
+   `lambda_utils.middleware.require_auth` is unchanged. There is deliberately NO machine/
+   client-credentials path on the staff pool (the middleware pins the one browser app client
+   and names an M2M client as a vulnerability), so the one input the automation cannot self-
+   mint is the token.
+   - Dispatch `catalog-migrate-dry` / `catalog-migrate-apply` (environment
+     `production-catalog`). The job reads a staff Admin ACCESS token from the
+     `WECARE_STAFF_TOKEN` secret and runs the migrator (dry-run lists the rows + payloads;
+     apply performs the PATCHes with optimistic-concurrency retry on 409).
+   - The ONLY human step: a staff Admin signs in through the staff app client (MFA satisfied)
+     and stores the short-lived access token in the `WECARE_STAFF_TOKEN` environment secret.
+     Everything after that is unattended. This is automation OF the operator workflow, not a
+     bypass of it.
+
+Why these two apply-paths are not fully unattended
+--------------------------------------------------
+Both terminal steps cross a control that exists on purpose:
+  * `scope-apply` needs `iam:PutRolePolicy` on the shared role - a self-escalation boundary;
+    a CI role editing its own (or the fleet's) permissions is exactly what the dedicated,
+    admin-provisioned roles prevent.
+  * `catalog-migrate-apply` needs a live STAFF Admin + MFA Cognito user token - there is no
+    machine credential by design.
+So the automation does everything that can be done without weakening a security control, and
+stops precisely at the injected-credential boundary rather than drilling through it.
