@@ -47,8 +47,8 @@ export const S3_BUCKETS = {
 // bucket was the public root, so these prefixes carried no root segment and the fleet
 // addressed one level above its own data.
 export const S3_PREFIXES = {
-  MEDIA_INBOUND: 'o/stack/whatsapp-media/incoming/',
-  MEDIA_OUTBOUND: 'o/stack/whatsapp-media/outgoing/',
+  MEDIA_INBOUND: 'secure/d/public/whatsapp/incoming/',
+  MEDIA_OUTBOUND: 'secure/d/public/whatsapp/outgoing/',
   REPORTS: 'o/stack/reports/',
 };
 
