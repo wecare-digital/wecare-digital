@@ -1455,7 +1455,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( css ).toContain( 'width:env(viewport-segment-width 0 0)' );
     expect( css ).toContain( " :global([dir='rtl']) .vl-live-shell".trim() );
     expect( healthTabRule ).toContain( 'flex:0 0 40px' );
-    expect( healthTabRule ).toContain( 'border-radius:var(--pill-r)' );
+    expect( healthTabRule ).toContain( 'border-radius:50%' );
     expect( healthTabRule ).toContain( 'scroll-snap-align:start' );
     expect( healthTabRule ).toContain( 'font-weight:600' );
     expect( css ).not.toContain( '.vl-live-air-history-nav' );
@@ -2482,7 +2482,7 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( forecastCardRule ).toContain( 'width:154px' );
     expect( forecastCardRule ).toContain( 'flex-direction:column' );
     expect( forecastCardRule ).toContain( 'align-items:flex-start' );
-    expect( forecastCardRule ).toContain( 'padding:9px 12px' );
+    expect( forecastCardRule ).toContain( 'padding:10px 12px' );
     expect( forecastActiveRule ).toContain( 'background:var(--lime)' );
     expect( detailPillRule ).toContain( 'background:var(--lime-tint)' );
     expect( detailPillRule ).toContain( 'border-radius:var(--pill-r)' );
