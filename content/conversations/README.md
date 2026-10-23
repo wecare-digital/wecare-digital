@@ -79,6 +79,20 @@ over the blog index.
 Gastronomy records additionally carry the recipe structure its own gate enforces
 (Ingredients heading, Method heading, an ingredient list, 450+ characters).
 
+
+## Public-copy source/reference policy
+
+Conversations follows the same public-copy rule as Gastronomy:
+
+- public title, SEO title, meta description, excerpt, and body must not expose source/reference material;
+- named source authors or people, named source works, source publishers/institutions, citations, attribution language, source URLs, and provenance scaffolding must stay out of public copy;
+- internal provenance may remain in the ledger/source metadata;
+- there is no public attribution exception that can bypass this rule;
+- factual-risk, privacy, duplicate, SEO, formatting, structural, and preservation checks remain active;
+- satisfying this rule must never delete a blog record.
+
+The shared executable rule lives in `scripts/blog_quality_v2.py`, and `scripts/conversations_batch.py` applies the same check during both validation and live read-back audit.
+
 ## What the pipeline will not do
 
 It does not write the article, and it cannot mark one `READY_TO_PUBLISH`.
@@ -110,9 +124,9 @@ The batch gates check records against the native blog contract in
   (`#`/`##`/`###` headings, paragraphs, `- ` lines, `**bold**`, `*italic*`). It needs no AWS
   access.
 - **audit** — reads every published post back through the public read route
-  (`/seo-tools/blog-public`) and checks title, slug, author, category, tags, SEO, URL, cover
-  image, publication freshness, the body against the record, duplicates and formatting
-  corruption, then checkpoints `VERIFIED` into `ledger.json`. A record that is not live yet
+  (`/seo-tools/blog-public`) and checks title, slug, category, tags, SEO, URL, cover image,
+  publication freshness, public source/reference leakage, the body against the record,
+  duplicates and formatting corruption, then checkpoints `VERIFIED` into `ledger.json`. A record that is not live yet
   is reported as not published rather than failed.
 
 ```bash
