@@ -100,7 +100,7 @@
             "width": 328,
             "height": 8,
             "scale-type": "contain",
-            "alt-text": "WECARE profile color accent"
+            "alt-text": "WECARE.DIGITAL profile color accent"
           },
           {
             "type": "TextHeading",
@@ -284,7 +284,7 @@
             "width": 328,
             "height": 8,
             "scale-type": "contain",
-            "alt-text": "WECARE address color accent"
+            "alt-text": "WECARE.DIGITAL address color accent"
           },
           {
             "type": "TextHeading",
@@ -1270,7 +1270,7 @@
             "width": 328,
             "height": 8,
             "scale-type": "contain",
-            "alt-text": "WECARE review color accent"
+            "alt-text": "WECARE.DIGITAL review color accent"
           },
           {
             "type": "TextHeading",
@@ -1478,7 +1478,7 @@
             "width": 328,
             "height": 8,
             "scale-type": "contain",
-            "alt-text": "WECARE success color accent"
+            "alt-text": "WECARE.DIGITAL success color accent"
           },
           {
             "type": "TextHeading",
