@@ -47,30 +47,45 @@ def test_an_ordinary_function_claims_no_provisioner(deploy_module):
     assert spec.provisioned_by == ""
 
 
-def test_the_one_known_unprovisioned_function_declares_its_script(deploy_module):
-    specs = {s.name: s for s in deploy_module.SPECS}
-    auth = specs["wecare-customer-whatsapp-auth"]
-    assert auth.provisioned_by
-    # The named script has to exist, or the message sends someone nowhere.
-    referenced = auth.provisioned_by.split()[-1]
-    assert (ROOT / referenced).exists(), f"{referenced} does not exist"
+def test_every_awaiting_function_declares_a_script_that_exists(deploy_module):
+    """Each `provisioned_by` must name a real file, or the message sends someone nowhere.
+
+    Asserted for every awaiting function rather than one pinned example, so the check
+    does not rot the next time a specific function goes live and its marker is dropped.
+    """
+    awaiting = [s for s in deploy_module.SPECS if s.provisioned_by]
+    assert awaiting, "expected at least one function awaiting first provisioning"
+    for s in awaiting:
+        referenced = s.provisioned_by.split()[-1]
+        assert (ROOT / referenced).exists(), (
+            f"{s.name}: provisioned_by names {referenced}, which does not exist"
+        )
 
 
 def test_exactly_one_spec_is_awaiting_provisioning(deploy_module):
-    """Pinned as a count so a second one has to be a deliberate decision.
+    """The awaiting-provisioning set is pinned exactly, so every change is deliberate.
 
-    Marking a function `provisioned_by` is how a real failure could be made to
-    look expected, so the set is small and explicit on purpose.
+    (The name is historical - the set started at one. It is now the explicit list
+    below.) Marking a function `provisioned_by` is how a real deploy failure could be
+    made to look expected, so the set stays small and explicit on purpose. When a
+    function goes live and is captured in config/lambda-env-manifest.json, its marker
+    must be dropped here in the same change - enforced by
+    test_awaiting_provisioning_functions_are_absent_from_the_live_manifest.
     """
     waiting = [s.name for s in deploy_module.SPECS if s.provisioned_by]
+    # NOW LIVE - markers dropped 2026-10-23 after confirming each is recorded in
+    # config/lambda-env-manifest.json with real captured env (concrete table names,
+    # KMS key ids, Meta/Razorpay ids): wecare-customer-session, wecare-checkout,
+    # wecare-customer-whatsapp-auth and wecare-meta-catalog-sync. A function that is
+    # recorded live cannot also be awaiting its first provisioning; the invariant is
+    # pinned by test_awaiting_provisioning_functions_are_absent_from_the_live_manifest.
+    # The entries below are the functions still genuinely awaiting first provisioning.
+    #
     # wecare-email-verification added 2026-09-30: a genuinely new function that does not yet
     # exist in AWS, so it is legitimately awaiting its first provisioning deploy. A deliberate
     # addition to this list, which is exactly the "conscious decision" this count guards.
     # wecare-customer-registration added 2026-09-30: the registration front door (the WhatsApp-OTP
     # HTTP door that provisions the Cognito login), also genuinely new and awaiting first provision.
-    # wecare-checkout added 2026-10-01: the headless checkout front door (authoritative
-    # ProductsTable total, readiness gate, PaymentAttempt, in-chat handoff), also new and awaiting
-    # first provision.
     # wecare-customer-orders added 2026-10-03: the customer's own order history and profile
     # summary. Never created in AWS - its sparse customerId-createdAt-index on OrderTable, its
     # own least-privilege role and its one route are all first-provisioned by
@@ -102,19 +117,10 @@ def test_exactly_one_spec_is_awaiting_provisioning(deploy_module):
     # intents, the customer's own request list, and activation from the razorpay-webhook hint.
     # Never created in AWS - its table + two GSIs, its own least-privilege role, its two routes
     # and its alarm are first-provisioned by scripts/provision_service_requests.py.
-    # wecare-meta-catalog-sync added 2026-10-06 (PHASE W, FEAT-001): the ProductsTable -> Meta
-    # catalogue projection. Its own least-privilege role, its ProductsTable stream mapping and its
-    # six-hourly EventBridge backstop are all first-provisioned by
-    # scripts/provision_meta_catalog_sync.py; a code update can create neither trigger. It has NO
-    # HTTP API route and no function URL, so there is no route for a deploy to leave
-    # unauthenticated.
-    # Session infrastructure is owned by its CloudFormation template; an account
-    # without that stack must provision it rather than report a code-update failure.
-    assert waiting == ["wecare-customer-session", "wecare-vayulok-environment", "wecare-customer-whatsapp-auth", "wecare-email-verification",
-                       "wecare-customer-profile", "wecare-blog-subscribe", "wecare-customer-registration", "wecare-checkout",
-                       "wecare-customer-orders", "wecare-service-requests",
-                       "wecare-customer-invoice",
-                       "wecare-meta-catalog-sync"]
+    assert waiting == ["wecare-vayulok-environment", "wecare-email-verification",
+                       "wecare-customer-profile", "wecare-blog-subscribe",
+                       "wecare-customer-registration", "wecare-customer-orders",
+                       "wecare-service-requests", "wecare-customer-invoice"]
 
 
 def test_the_summary_line_reports_the_new_state(deploy_module):
@@ -191,3 +197,74 @@ def test_payment_sync_refuses_an_unconfigured_source(deploy_module):
         deploy_module.prepare_payment_environment(lam,'wecare-invoice-engine',{},
             sync_from_checkout=True,dry_run=False)
     lam.update_function_configuration.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Manifest <-> awaiting-provisioning consistency
+# ---------------------------------------------------------------------------
+# A function marked `provisioned_by` is asserting "I do not exist in AWS yet; my
+# first creation is owned by a provision_*.py script." `config/lambda-env-manifest.json`
+# asserts the opposite for any function it lists: "this is the recorded LIVE
+# environment." Both cannot be true at once. When a provisioned function finally
+# goes live and its env is captured by `scripts/env_manifest.py --export`, the
+# `provisioned_by` marker in deploy_all_lambdas.py has become stale and must be
+# dropped - otherwise the awaiting-provisioning count in
+# test_exactly_one_spec_is_awaiting_provisioning carries a false entry, and that
+# count is the signal a real missing function is supposed to trip. Nothing checked
+# this, so five markers (checkout, customer-session, customer-whatsapp-auth,
+# meta-catalog-sync, secure-files) sat stale while those functions were already
+# live and fully recorded in the manifest. This pins the invariant so the drift
+# cannot recur silently.
+
+import json
+
+MANIFEST = ROOT / "config" / "lambda-env-manifest.json"
+
+
+def _manifest_functions() -> dict:
+    return json.loads(MANIFEST.read_text(encoding="utf-8"))["functions"]
+
+
+def test_awaiting_provisioning_functions_are_absent_from_the_live_manifest(deploy_module):
+    """A function cannot be awaiting its first deploy AND recorded as live.
+
+    If it is in the manifest, `env_manifest.py --export` read its live environment
+    from AWS, so it exists and the `provisioned_by` marker is stale. Drop the marker
+    (and the matching entry in test_exactly_one_spec_is_awaiting_provisioning) in the
+    same change that records the function live.
+    """
+    manifest = _manifest_functions()
+    waiting = {s.name for s in deploy_module.SPECS if s.provisioned_by}
+    both = sorted(name for name in waiting if name in manifest)
+    assert not both, (
+        "These functions are marked `provisioned_by` (awaiting first provisioning) "
+        "yet appear in config/lambda-env-manifest.json as live. One assertion is "
+        "stale - drop the provisioned_by marker now that the function is recorded "
+        f"live: {both}"
+    )
+
+
+def test_every_manifest_function_is_a_known_deploy_target(deploy_module):
+    """Nothing should be recorded live that no deploy path owns.
+
+    The manifest is regenerated from live AWS, so a name here that is in neither the
+    generic SPECS list nor the known named/standalone deploys is an orphan: a live
+    function the repo no longer describes, or a rename that left the old name behind.
+    Either way it is drift worth surfacing rather than a value to enshrine.
+    """
+    manifest = set(_manifest_functions())
+    spec_names = {s.name for s in deploy_module.SPECS}
+    # The script's own records of functions deployed OUTSIDE the generic SPECS list:
+    # DELEGATED (owned by a dedicated deploy_*.py), SKIPPED (container image via CI).
+    delegated = set(getattr(deploy_module, "DELEGATED", {}))
+    skipped = set(getattr(deploy_module, "SKIPPED", {}))
+    # wecare-get-miss-redirect is a Lambda@Edge function. It is not a SPECS/DELEGATED/
+    # SKIPPED target because edge functions cannot carry environment variables at all,
+    # so env_manifest.py records it with an empty env rather than as a deploy target.
+    EDGE = {"wecare-get-miss-redirect"}
+    known = spec_names | delegated | skipped | EDGE
+    orphans = sorted(manifest - known)
+    assert not orphans, (
+        "Functions recorded live in the manifest but owned by no deploy path "
+        f"(not in SPECS, not a known named/standalone deploy): {orphans}"
+    )

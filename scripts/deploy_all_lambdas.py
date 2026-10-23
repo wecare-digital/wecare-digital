@@ -146,8 +146,12 @@ class Spec:
 #   wecare-docs-scraper — PackageType=Image, ships via
 #                         .github/workflows/docs-scraper-deploy.yml.
 SPECS: List[Spec] = [
-    Spec("wecare-customer-session", "ecommerce/customer-session",
-         provisioned_by="CloudFormation amplify/infra/customer-sessions.json"),
+    # Now LIVE and recorded in config/lambda-env-manifest.json, so the awaiting-
+    # provisioning marker was dropped (see
+    # tests/test_deploy_map_provisioning.py::
+    # test_awaiting_provisioning_functions_are_absent_from_the_live_manifest).
+    # First creation was owned by CloudFormation amplify/infra/customer-sessions.json.
+    Spec("wecare-customer-session", "ecommerce/customer-session"),
     # --- core ---
     Spec("wecare-auth-middleware", "core/auth-middleware"),
     Spec("wecare-automation-rules", "core/automation-rules"),
@@ -188,11 +192,13 @@ SPECS: List[Spec] = [
     # --- auth / customer ---
     # First creation is owned by scripts/provision_customer_whatsapp_auth.py.
     # After that, normal code updates use this deploy map.
+    # Now LIVE and recorded in the env manifest, so the awaiting-provisioning marker
+    # was dropped. First creation was owned by
+    # scripts/provision_customer_whatsapp_auth.py.
     Spec(
         "wecare-customer-whatsapp-auth",
         "auth/customer-whatsapp-auth",
         standalone=True,
-        provisioned_by="python scripts/provision_customer_whatsapp_auth.py",
     ),
     # Email verification for checkout. Wires otp_challenge + otp_throttle +
     # comms.verification_email into request/verify endpoints. First creation is owned
@@ -244,7 +250,8 @@ SPECS: List[Spec] = [
         required_layers=[PILLOW_LAYER_ARN],
         required_memory=512,
         required_timeout=60,
-        provisioned_by="python scripts/provision_checkout.py",
+        # Now LIVE and recorded in the env manifest, so the awaiting-provisioning
+        # marker was dropped. First creation was owned by scripts/provision_checkout.py.
     ),
     # The customer's own order history and profile summary, read-only. One Query on the sparse
     # customerId-createdAt-index, scoped by the Cognito sub from the token rather than by any
@@ -304,10 +311,12 @@ SPECS: List[Spec] = [
     # Its own least-privilege role: two statements, one GetSecretValue naming two secrets and
     # CloudWatch Logs. wecare-digital-lambda-role is NOT involved, and
     # tests/test_meta_catalog_sync_iam.py pins both halves by equality.
+    # Now LIVE and recorded in the env manifest, so the awaiting-provisioning marker
+    # was dropped. First creation was owned by
+    # scripts/provision_meta_catalog_sync.py --apply.
     Spec(
         "wecare-meta-catalog-sync",
         "ecommerce/meta-catalog-sync",
-        provisioned_by="python scripts/provision_meta_catalog_sync.py --apply",
     ),
     # Cognito CustomMessage trigger: branded HTML for MFA, verification and
     # recovery email. First creation is owned by
