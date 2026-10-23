@@ -94,32 +94,13 @@ def test_upi_intent_link_is_refused_by_the_resolver(outbound):
                     'payment_configuration': 'WECAREUPI'})
 
 
-def test_the_refusal_precedes_both_link_branches(outbound):
-    """T-P5. AST ordering, so the placement cannot regress.
-
-    The ordering IS the control: both link modes `return` before Mode 3, so a refusal placed
-    after them would never run.
-    """
-    source = inspect.getsource(outbound._build_payment_settings)
-    tree = ast.parse(source.lstrip())
-    func = tree.body[0]
-
-    def line_of_first(predicate):
-        for node in ast.walk(func):
-            if predicate(node):
-                return node.lineno
-        return None
-
-    guard_line = line_of_first(
-        lambda n: isinstance(n, ast.Constant) and n.value == 'payment_link_uri')
-    link_read_line = line_of_first(
-        lambda n: isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
-        and n.func.attr == 'get'
-        and n.args and isinstance(n.args[0], ast.Constant)
-        and n.args[0].value == 'payment_link_uri')
-    assert guard_line is not None and link_read_line is not None
-    assert guard_line < link_read_line, (
-        'the template-only refusal must precede the Mode 1 link read, or it never runs')
+def test_removed_link_keys_are_refused_in_the_single_resolver(outbound):
+    """Deleted payment-link modes are rejected by the canonical configuration resolver."""
+    source = inspect.getsource(outbound._resolve_payment_config_name)
+    for key in ('payment_link_uri', 'upi_intent_link', 'payment_link',
+                'payment_settings', 'preferred_upi_app', 'enabled_payment_options'):
+        assert repr(key) in source
+    assert 'unsupported WhatsApp payment option' in source
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -156,10 +137,9 @@ def test_the_two_sender_allow_sets_are_equal(outbound):
 
 
 def test_the_sender_guard_precedes_the_explicit_override(outbound):
-    """The same ordering discipline as the link refusal. An explicit `payment_configuration` is a
-    CHOICE OF CONFIGURATION, not a grant of permission."""
-    source = inspect.getsource(outbound._build_payment_settings)
-    assert source.index('PAYMENT_SENDERS') < source.index("get('payment_link_uri'")
+    """A caller-selected configuration can never grant payment permission to another sender."""
+    source = inspect.getsource(outbound._resolve_payment_config_name)
+    assert source.index('PAYMENT_SENDERS') < source.index("payment_configuration")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
