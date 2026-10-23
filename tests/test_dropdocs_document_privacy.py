@@ -5,7 +5,7 @@ Why this file exists at all
 `inbound-whatsapp-handler` writes an inbound attachment to the canonical
 ``secure/d/public/whatsapp/incoming/`` public-deliverable subtree. That subtree is readable
 by Meta and by anyone holding its URL, so "we will remember to copy it" is not a control.
-Historical ``secure/d/public/whatsapp/incoming/`` objects remain readable only as migration
+Historical ``o/stack/whatsapp-media/incoming/`` objects remain readable only as migration
 compatibility inputs; new writes never target that prefix.
 
 The control is the ORDER of two writes. `dropdocs_storage.promote_to_secure` copies the
@@ -723,7 +723,7 @@ def test_g_the_allowed_prefix_is_composed_not_written_out():
     assert dropdocs_storage.WHATSAPP_INCOMING_PREFIX == media_paths.WHATSAPP_INCOMING_PREFIX
     assert dropdocs_storage.WHATSAPP_INCOMING_PREFIX == "secure/d/public/whatsapp/incoming/"
     assert dropdocs_storage.LEGACY_WHATSAPP_INCOMING_PREFIX == (
-        "secure/d/public/whatsapp/incoming/")
+        "o/stack/whatsapp-media/incoming/")
     assert not media_paths.is_gated(dropdocs_storage.WHATSAPP_INCOMING_PREFIX)
     assert not media_paths.is_gated(dropdocs_storage.LEGACY_WHATSAPP_INCOMING_PREFIX)
 
