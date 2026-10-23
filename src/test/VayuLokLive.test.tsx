@@ -1454,7 +1454,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( css ).toContain( '@media(horizontal-viewport-segments:2)' );
     expect( css ).toContain( 'width:env(viewport-segment-width 0 0)' );
     expect( css ).toContain( " :global([dir='rtl']) .vl-live-shell".trim() );
-    expect( healthTabRule ).toContain( 'flex:0 0 auto' );
+    expect( healthTabRule ).toContain( 'flex:0 0 40px' );
     expect( healthTabRule ).toContain( 'border-radius:var(--pill-r)' );
     expect( healthTabRule ).toContain( 'scroll-snap-align:start' );
     expect( healthTabRule ).toContain( 'font-weight:600' );
@@ -1491,7 +1491,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( forecastCardRule ).toContain( 'width:154px' );
     expect( forecastCardRule ).toContain( 'flex-direction:column' );
     expect( forecastCardRule ).toContain( 'align-items:flex-start' );
-    expect( forecastCardRule ).toContain( 'padding:9px 12px' );
+    expect( forecastCardRule ).toContain( 'padding:10px 12px' );
     expect( forecastCardRule ).toContain( 'border-radius:var(--radius-lg,12px)' );
     expect( css ).not.toContain( '.vl-live-air-forecast-strip::-webkit-scrollbar{display:none}' );
 
