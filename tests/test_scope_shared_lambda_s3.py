@@ -97,3 +97,36 @@ def test_scoper_does_not_put_lambda_utils_on_sys_path():
     _mod()
     dangerous = str(ROOT / "amplify" / "functions" / "shared" / "lambda_utils")
     assert dangerous not in sys.path
+
+
+def test_simulator_uses_resource_specific_results():
+    """S3 simulation returns a template resource at top level and concrete keys nested."""
+    m = _mod()
+
+    class FakeIam:
+        def simulate_custom_policy(self, **kwargs):
+            resources = kwargs["ResourceArns"]
+            action = kwargs["ActionNames"][0]
+            per_resource = []
+            for resource in resources:
+                denied = (
+                    "/secure/Invoice/customer_invoice/" in resource
+                    or "/secure/Invoice/fonts/" in resource
+                    or "/o/stack/whatsapp-media/" in resource
+                    or "/stack/whatsapp-media/" in resource
+                )
+                per_resource.append({
+                    "EvalResourceName": resource,
+                    "EvalResourceDecision": "explicitDeny" if denied else "allowed",
+                    "MatchedStatements": [],
+                })
+            return {
+                "EvaluationResults": [{
+                    "EvalActionName": action,
+                    "EvalResourceName": "arn:aws:s3:::${BucketName}/${KeyName}",
+                    "EvalDecision": "allowed",
+                    "ResourceSpecificResults": per_resource,
+                }]
+            }
+
+    assert m.simulate(FakeIam(), {"Version": "2012-10-17", "Statement": []}) == 0
