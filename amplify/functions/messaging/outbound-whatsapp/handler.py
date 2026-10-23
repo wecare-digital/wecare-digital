@@ -93,7 +93,7 @@ MEDIA_FILES_TABLE = os.environ.get('MEDIA_FILES_TABLE', 'stack-wecare-digital-Me
 RATE_LIMIT_TABLE = os.environ.get('RATE_LIMIT_TABLE', 'stack-wecare-digital-RateLimitTable')
 MEDIA_BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
 MEDIA_PREFIX = os.environ.get('MEDIA_OUTBOUND_PREFIX',
-                              media_paths.public('stack/whatsapp-media/outgoing/'))
+                              media_paths.WHATSAPP_OUTGOING_PREFIX)
 # Public, reusable template-attachment folder (same bucket). Files here are served
 # via CloudFront so WhatsApp can fetch them by URL and the same attachment can be
 # re-sent across many template messages without re-uploading to Meta each time.
