@@ -76,6 +76,15 @@ def test_retailer_id_v2_round_trips_current_native_identifiers():
         assert sync.parse_retailer_id(value) == (product_id, variant_id)
 
 
+def test_long_activities_identity_uses_compact_v3_without_changing_identity():
+    product_id = "native:elsewhere-activities"
+    variant_id = "467728ca-5e3e-47c2-b6ba-14e76f9b4cd6"
+    value = sync.retailer_id(product_id, variant_id)
+    assert value.startswith("WECARE.DIGITAL:v3:")
+    assert len(value) <= sync.RETAILER_ID_MAX_LENGTH
+    assert sync.parse_retailer_id(value) == (product_id, variant_id)
+
+
 def test_retailer_id_refuses_missing_or_oversized_identity():
     with pytest.raises(ValueError):
         sync.retailer_id("", "SKU1")
@@ -85,9 +94,11 @@ def test_retailer_id_refuses_missing_or_oversized_identity():
         sync.retailer_id("x" * 100, "y" * 100)
 
 
-def test_v2_parser_refuses_noncanonical_or_broken_encoding():
+def test_versioned_parser_refuses_noncanonical_or_broken_encoding():
     assert sync.parse_retailer_id("WECARE.DIGITAL:v2:not*base64:also*bad") is None
+    # V3 is only canonical when V2 would exceed the provider ceiling.
     assert sync.parse_retailer_id("WECARE.DIGITAL:v3:bmF0aXZlOmE:U0tVMQ") is None
+    assert sync.parse_retailer_id("WECARE.DIGITAL:v3:bmF0aXZlOmE:bad:sku") is None
     assert sync.parse_retailer_id("WECARE.DIGITAL:v2::U0tVMQ") is None
 
 
