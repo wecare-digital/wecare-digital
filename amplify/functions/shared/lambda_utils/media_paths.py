@@ -168,4 +168,7 @@ def public_url(key: Optional[str], cdn_domain: Optional[str] = None) -> str:
 
 def is_gated(key: Optional[str]) -> bool:
     """True when the key lives under the gated root."""
-    if not key:\n        return False\n    k = canonical(key)\n    return k.startswith(SECURE_ROOT) and not k.startswith(PUBLIC_DELIVERABLE_ROOT)
+    if not key:
+        return False
+    k = canonical(key)
+    return k.startswith(SECURE_ROOT) and not k.startswith(PUBLIC_DELIVERABLE_ROOT)
