@@ -22,6 +22,7 @@ a bad request off the wire and gives staff an immediate, named reason.
 """
 from __future__ import annotations
 
+import re
 from typing import Dict, FrozenSet
 
 # ── The Meta order_status fulfilment vocabulary (v25.0). ──────────────────────────────────────
@@ -117,6 +118,25 @@ def default_body(status: str) -> str:
     return DEFAULT_BODY_TEXT.get(normalise(status), "Your order status has been updated.")
 
 
+
+_REFERENCE_RE = re.compile(r"^[A-Za-z0-9_.-]{1,35}$")
+
+
+def canonical_reference(reference_id: str) -> str:
+    """Return an exact Meta-safe order reference without rewriting the commerce identity."""
+    ref = str(reference_id or "").strip()
+    if not _REFERENCE_RE.fullmatch(ref):
+        raise ValueError("invalid Meta order-status reference_id")
+    return ref
+
+
+def canonical_status(status: str) -> str:
+    """Return the exact Meta fulfilment status, failing closed on payment/unknown vocabulary."""
+    wire = normalise(status)
+    if wire not in ALL_STATUSES:
+        raise ValueError("invalid order status")
+    return wire
+
 def build_template_component(reference_id: str, status: str, description: str = "") -> dict:
     """Build the canonical Meta ORDER_STATUS template component.
 
@@ -124,12 +144,8 @@ def build_template_component(reference_id: str, status: str, description: str = 
     reference_id is already the canonical commerce reference owned by the payment/order
     core and is never rewritten here. Invalid or blank values fail closed.
     """
-    ref = str(reference_id or "").strip()
-    wire_status = normalise(status)
-    if not ref:
-        raise ValueError("reference_id is required")
-    if wire_status not in ALL_STATUSES:
-        raise ValueError("invalid order status")
+    ref = canonical_reference(reference_id)
+    wire_status = canonical_status(status)
     text = str(description or "").strip() or default_body(wire_status)
     return {
         "type": "order_status",
@@ -149,5 +165,6 @@ def build_template_component(reference_id: str, status: str, description: str = 
 __all__ = [
     "PENDING", "PROCESSING", "PARTIALLY_SHIPPED", "SHIPPED", "COMPLETED", "CANCELED",
     "ALL_STATUSES", "STAFF_FULFILMENT_TARGETS", "DEFAULT_BODY_TEXT",
-    "normalise", "is_valid", "can_transition", "default_body", "build_template_component",
+    "normalise", "is_valid", "can_transition", "default_body", "canonical_reference",
+    "canonical_status", "build_template_component",
 ]
