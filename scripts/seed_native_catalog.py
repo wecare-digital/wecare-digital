@@ -17,7 +17,7 @@ SAFETY
     Dry-run by default: prints the exact create payloads and does nothing. Pass --apply to POST.
     New rows are created status:draft with channels OFF (the admin API enforces this). To make a
     product buyable AND visible, set its catalogImageKey in the seed JSON (an approved
-    *-4096.png under wd-catalog-live/) and pass --activate; the script then PATCHes
+    *-4096.png under secure/d/public/catalog-deploy/catalog/products/) and pass --activate; the script then PATCHes
     status:active + websiteEnabled:true. Without --activate the row stays draft (still priceable
     for checkout, just not on /shop/).
 
