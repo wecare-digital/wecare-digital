@@ -697,6 +697,10 @@ def expected_environment() -> dict:
         "PRODUCTS_TABLE": PRODUCTS_TABLE,
         "CHECKOUT_MODE": "AWS_NATIVE",
         "CATALOG_SOURCE": "aws",
+        # General WhatsApp catalog carts are a production entry point. Both the inbound
+        # receiver and checkout must carry this exact non-secret flag; if either side
+        # omits it, the flow silently stops before the canonical ORDER_DETAILS payment.
+        "WA_CATALOG_ORDERS_ENABLED": "true",
 
         "SENDER_FUNCTION": f"{SENDER_FUNCTION}:{LIVE_ALIAS}",
         "PAYMENT_WABA_ID": PAYMENT_WABA_ID,
