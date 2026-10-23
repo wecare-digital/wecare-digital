@@ -69,6 +69,8 @@ customHeaders:
   # match surface does not change along with the header set.
   - pattern: "**/*"
     headers:
+      - key: Cache-Control
+        value: "no-store, max-age=0, must-revalidate"
       # ── Carried over verbatim from the app-level config, byte for byte ────────
       # Snapshot: docs/execution/snapshots/amplify-d22dm4b0jn71jw-customheaders-before-20260929.json
       - key: X-Frame-Options
@@ -274,7 +276,7 @@ customHeaders:
       # tells the browser not to spend a conditional request finding that out. See the
       # long note at the top of this file for why HTML is deliberately NOT given one.
       - key: Cache-Control
-        value: "public, max-age=31536000, immutable"
+        value: "no-store, max-age=0, must-revalidate"
       - key: X-Frame-Options
         value: SAMEORIGIN
       - key: X-Content-Type-Options
