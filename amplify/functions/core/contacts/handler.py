@@ -137,7 +137,7 @@ ALLOWED_UPDATE_FIELDS = {
     'shippingAddressJson', 'billingAddressJson', 'gstin',
     'optInWhatsApp', 'optInSms', 'optInEmail',
     'allowlistWhatsApp', 'allowlistSms', 'allowlistEmail',
-    'tags', 'bsuid', 'parentBsuid', 'username', 'contactBookName',
+    'tags', 'bsuid', 'parentBsuid', 'username', 'profileUsername', 'contactBookName',
     'addressLine1', 'addressLine2', 'city', 'state', 'postalCode', 'pincode',
     'houseNumber', 'buildingName', 'towerNumber', 'floorNumber',
     'landmark', 'country', 'companyName', 'designation', 'preferredLanguage',
