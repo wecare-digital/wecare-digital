@@ -151,7 +151,7 @@ class _Spies:
         n = 0
         for call in self.lambda_client.invoke.call_args_list:
             payload = call.kwargs.get('Payload') or (call.args[0] if call.args else '')
-            if 'isOrderStatus' in str(payload):
+            if 'orderStatusDetails' in str(payload):
                 n += 1
         return n
 
