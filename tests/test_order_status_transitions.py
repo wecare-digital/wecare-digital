@@ -33,6 +33,8 @@ DELIVERY = 'stack-wecare-digital-InvoiceDeliveryLogTable'
 CONTACTS = 'stack-wecare-digital-ContactsTable'
 KEYS = 'stack-wecare-digital-CommerceKeys'
 ATTEMPTS = 'stack-wecare-digital-PaymentAttemptsTable'
+ORDERS = 'stack-wecare-digital-OrderTable'
+ORDER_ID = 'order-orderstatus-0001'
 
 INVOICE_ID = 'inv-orderstatus-0001'
 REFERENCE = 'WD-PAY-OST12345'
@@ -103,7 +105,8 @@ def engine():
 def fake():
     return FakeDynamo(
         keys={INVOICES: 'invoiceId', ITEMS: 'invoiceId', DELIVERY: 'invoiceId',
-              CONTACTS: 'contactId', KEYS: 'orderId', ATTEMPTS: 'paymentAttemptId'},
+              CONTACTS: 'contactId', KEYS: 'orderId', ATTEMPTS: 'paymentAttemptId',
+              ORDERS: 'orderId'},
         base_query_tables={ITEMS, DELIVERY})
 
 
@@ -135,13 +138,20 @@ class _RecordingLambda:
 
 
 def _seed(fake, *, paid=True, order_status=None, phone=PHONE, reference=REFERENCE):
-    inv = {'invoiceId': INVOICE_ID, 'customerPhone': phone, 'referenceId': reference,
+    inv = {'invoiceId': INVOICE_ID, 'orderId': ORDER_ID,
+           'customerPhone': phone, 'referenceId': reference,
            'status': 'paid' if paid else 'pending_payment',
            'paymentStatus': 'captured' if paid else 'pending',
            'customerName': 'QA Recipient', 'createdAt': 1770000000}
     if order_status is not None:
         inv['orderStatus'] = order_status
     fake.Table(INVOICES).put_item(Item=inv)
+    fake.Table(ORDERS).put_item(Item={
+        'orderId': ORDER_ID,
+        'status': order_status or 'processing',
+        'orderStatus': order_status or 'processing',
+        'referenceId': reference,
+    })
     return inv
 
 
@@ -177,6 +187,9 @@ class TestTheGuardedRoute:
         # The row advanced only after the send succeeded.
         row = fake.Table(INVOICES).get_item(Key={'invoiceId': INVOICE_ID})['Item']
         assert row['orderStatus'] == 'shipped'
+        order = fake.Table(ORDERS).get_item(Key={'orderId': ORDER_ID})['Item']
+        assert order['status'] == 'shipped'
+        assert order['orderStatus'] == 'shipped'
 
     def test_a_row_with_no_recorded_status_defaults_to_processing(self, engine, fake):
         # Capture set processing even if the attribute was never written; shipped is legal.
@@ -235,6 +248,8 @@ class TestTheGuardedRoute:
         # The row still reads `processing`: the wire is the authority.
         row = fake.Table(INVOICES).get_item(Key={'invoiceId': INVOICE_ID})['Item']
         assert row['orderStatus'] == 'processing'
+        order = fake.Table(ORDERS).get_item(Key={'orderId': ORDER_ID})['Item']
+        assert order['orderStatus'] == 'processing'
 
     def test_a_custom_description_rides_through_to_the_customer(self, engine, fake):
         _seed(fake, order_status='processing')

@@ -4146,6 +4146,35 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
             'targetStatus': target, 'error': type(e).__name__, 'requestId': request_id,
         }))
 
+    # OrderTable is the customer-facing canonical order projection. Advance it only AFTER Meta
+    # accepted the same transition, alongside the invoice projection, so /orders/ and Pay Flow
+    # cannot disagree about fulfilment state.
+    order_id = str(invoice.get('orderId') or '').strip()
+    if order_id:
+        try:
+            dynamodb.Table(shared_tables.orders_table_name()).update_item(
+                Key={'orderId': order_id},
+                UpdateExpression='SET #st = :os, orderStatus = :os, updatedAt = :now',
+                ExpressionAttributeNames={'#st': 'status'},
+                ExpressionAttributeValues={':os': target, ':now': now},
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.error(json.dumps({
+                'event': 'order_status_order_projection_failed',
+                'invoiceId': invoice_id,
+                'orderId': order_id,
+                'targetStatus': target,
+                'error': type(e).__name__,
+                'requestId': request_id,
+            }))
+    else:
+        logger.error(json.dumps({
+            'event': 'order_status_order_projection_missing',
+            'invoiceId': invoice_id,
+            'targetStatus': target,
+            'requestId': request_id,
+        }))
+
     try:
         dynamodb.Table(INVOICE_DELIVERY_TABLE).put_item(Item={
             'invoiceId': invoice_id,
