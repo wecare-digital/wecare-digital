@@ -95,20 +95,12 @@
             "alt-text": "WECARE.DIGITAL"
           },
           {
-            "type": "Image",
-            "src": "iVBORw0KGgoAAAANSUhEUgAAAUgAAAAMCAIAAACPyLOqAAAATklEQVR42u3TMQ3AIABFQVoBCOiAjfqfSLDCwEDC2FTIv3Pwhnd9u5c867yB1buOwOo2n8DquwDGBowNGBswNmBsMDZgbMDYgLEBY0O4H8/LB9rX4xPCAAAAAElFTkSuQmCC",
-            "width": 328,
-            "height": 12,
-            "scale-type": "contain",
-            "alt-text": "WECARE.DIGITAL colour accents"
-          },
-          {
-            "type": "TextHeading",
-            "text": "Your WECARE profile"
+            "type": "TextSubheading",
+            "text": "Your profile"
           },
           {
             "type": "TextBody",
-            "text": "Keep your details ready for faster service across WECARE.DIGITAL."
+            "text": "Save your details once for faster service on WhatsApp."
           },
           {
             "type": "TextCaption",
@@ -191,7 +183,7 @@
     },
     {
       "id": "ADDRESS",
-      "title": "Your address",
+      "title": "Address",
       "data": {
         "phone_number": {
           "type": "string",
@@ -270,8 +262,12 @@
             "alt-text": "WECARE.DIGITAL"
           },
           {
+            "type": "TextHeading",
+            "text": "Your address"
+          },
+          {
             "type": "TextBody",
-            "text": "Enter your address."
+            "text": "Used for service, delivery and account details."
           },
           {
             "type": "Form",
@@ -1114,7 +1110,7 @@
           },
           {
             "type": "Footer",
-            "label": "Review details",
+            "label": "Review",
             "on-click-action": {
               "name": "navigate",
               "payload": {
@@ -1147,7 +1143,7 @@
     },
     {
       "id": "REVIEW",
-      "title": "Review details",
+      "title": "Review",
       "data": {
         "phone_number": {
           "type": "string",
@@ -1231,35 +1227,52 @@
           },
           {
             "type": "TextHeading",
-            "text": "Review and save"
+            "text": "Review your details"
+          },
+          {
+            "type": "TextBody",
+            "text": "Check everything before saving."
           },
           {
             "type": "TextCaption",
-            "text": "Customer ID"
+            "text": "PROFILE",
+            "font-weight": "bold"
           },
           {
-            "type": "TextBody",
-            "text": "${data.customer_id}"
+            "type": "TextCaption",
+            "text": "Full name"
           },
           {
-            "type": "TextBody",
+            "type": "TextSubheading",
             "text": "${data.full_name}"
           },
           {
             "type": "TextCaption",
-            "text": "Username"
-          },
-          {
-            "type": "TextBody",
-            "text": "${data.username}"
+            "text": "WhatsApp number"
           },
           {
             "type": "TextBody",
             "text": "${data.phone_number}"
           },
           {
+            "type": "TextCaption",
+            "text": "Profile username"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.username}"
+          },
+          {
+            "type": "TextCaption",
+            "text": "Organisation"
+          },
+          {
             "type": "TextBody",
             "text": "${data.company_name}"
+          },
+          {
+            "type": "TextCaption",
+            "text": "Role / designation"
           },
           {
             "type": "TextBody",
@@ -1267,7 +1280,8 @@
           },
           {
             "type": "TextCaption",
-            "text": "Address"
+            "text": "ADDRESS",
+            "font-weight": "bold"
           },
           {
             "type": "TextBody",
@@ -1358,7 +1372,7 @@
           },
           {
             "type": "TextHeading",
-            "text": "Details saved"
+            "text": "Subscribed"
           },
           {
             "type": "TextBody",
@@ -1369,7 +1383,7 @@
             "text": "Customer ID"
           },
           {
-            "type": "TextBody",
+            "type": "TextSubheading",
             "text": "${data.customer_id}"
           },
           {
