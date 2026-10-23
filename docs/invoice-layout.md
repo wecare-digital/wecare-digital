@@ -201,7 +201,7 @@ Delivery constraints that apply to the WhatsApp version:
 - It is a free-form media message, so it only sends inside the 24-hour service window. Outside it
   an owner-approved UTILITY template with an IMAGE or DOCUMENT header is needed; none exists today
   (only `wecare_otp` is approved, per Phase P findings).
-- The image is uploaded to Meta as a media id from the secure `secure/Invoice/customer_invoice/...` key, so no
+- The image is uploaded to Meta as a media id from the secure `secure/d/public/Invoice/customer_invoice/...` key, so no
   public URL is created.
 - No live send is enabled by this document. QA sends go only to the owner-nominated QA recipient.
 
@@ -212,8 +212,8 @@ as torn paper on a **transparent** background. It is promoted to a stable public
 
 | | |
 |---|---|
-| URL | `https://wecare.digital/get/o/public/wa-tpl/img/invoice-receipt.png` |
-| S3 | `s3://wecare-digital-get/o/public/wa-tpl/img/invoice-receipt.png` |
+| URL | `https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/img/invoice-receipt.png` |
+| S3 | `s3://wecare-digital-get/secure/d/public/whatsapp/wa-tpl/img/invoice-receipt.png` |
 | Verified | 2026-10-08: HTTP 200, `image/png`, 510158 bytes, `ssl_verify_result=0` |
 | Measured | corner alpha **0**; paper **RGBA (252, 252, 250, 255)** |
 
