@@ -855,7 +855,10 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( summaryMeta?.textContent ).toContain( 'Dominant' );
     expect( summaryMeta?.textContent ).toContain( 'PM2.5' );
     expect( summaryMeta?.textContent ).not.toContain( 'pm25' );
-    expect( summaryMeta?.textContent ).toMatch( /Updated/ );
+    const summaryFreshness = summaryMeta?.querySelector( '.vl-live-freshness' );
+    expect( summaryFreshness?.textContent ).toMatch( /(?:just now|\d+ min ago|\d+ hrs? ago)/ );
+    expect( summaryFreshness?.textContent ).not.toMatch( /Updated|Latest available|Current|Forecast|History/i );
+    expect( summaryFreshness?.querySelector( '.vl-live-freshness-icon' ) ).not.toBeNull();
     // The AQI and Dominant chips now each carry a leading icon.
     expect( summaryMeta?.querySelectorAll( '.vl-live-air-summary-chip svg' ).length ).toBe( 2 );
     expect( panel.querySelector( '.vl-live-air-dominant' ) ).toBeNull();
@@ -992,11 +995,12 @@ describe( 'VayuLokLive v8 approved design contract', () => {
 
     await waitFor( () => {
       const freshness = container.querySelector( '.vl-live-wx-freshness' )?.textContent || '';
-      expect( freshness ).toMatch( /Current · updated 1[12] min ago/ );
+      expect( freshness ).toMatch( /1[12] min ago/ );
+    expect( freshness ).not.toMatch( /Current|Updated|Latest available/i );
     } );
   } );
 
-  it( 'marks old provider readings as latest available instead of current', async () => {
+  it( 'marks old provider readings stale without adding visible freshness words', async () => {
     const realNow = Date.now();
     const staleTime = new Date( realNow - 55 * 60 * 1000 ).toISOString();
     const baseFetch = environmentFetch();
@@ -1033,12 +1037,18 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await selectMumbai();
 
     await waitFor( () => {
-      expect( container.querySelector( '.vl-live-data-age.is-stale' )?.textContent ).toMatch( /Latest available · Updated 5[45] min ago/ );
+      const staleAirAge = container.querySelector( '.vl-live-data-age.is-stale' );
+    expect( staleAirAge?.textContent ).toMatch( /5[45] min ago/ );
+    expect( staleAirAge?.textContent ).not.toMatch( /Latest available|Updated|Current/i );
+    expect( staleAirAge?.getAttribute( 'aria-label' ) ).toMatch( /Updated 5[45] min ago/ );
     } );
 
     fireEvent.click( await screen.findByRole( 'tab', { name: 'Weather' } ) );
     await waitFor( () => {
-      expect( container.querySelector( '.vl-live-wx-freshness.is-stale' )?.textContent ).toMatch( /Latest available · updated 5[45] min ago/ );
+      const staleWeatherAge = container.querySelector( '.vl-live-wx-freshness.is-stale' );
+    expect( staleWeatherAge?.textContent ).toMatch( /5[45] min ago/ );
+    expect( staleWeatherAge?.textContent ).not.toMatch( /Latest available|Updated|Current/i );
+    expect( staleWeatherAge?.getAttribute( 'aria-label' ) ).toMatch( /Updated 5[45] min ago/ );
     } );
   } );
 
