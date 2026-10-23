@@ -34,8 +34,7 @@ Each newly supplied PDF, website, cookbook, publisher archive, or source collect
       "Book Title",
       "Institution Name",
       "Private Person Name"
-    ],
-    "required_public_attribution_terms": []
+    ]
   }
 }
 ```
