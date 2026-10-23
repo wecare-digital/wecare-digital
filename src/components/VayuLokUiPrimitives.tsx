@@ -91,7 +91,7 @@ export function VayuLokUiStyles() {
       }
       .vl-ui-icon-action:hover .vl-live-air-health-tooltip,.vl-ui-icon-action:focus-visible .vl-live-air-health-tooltip{opacity:1;transform:translateX(-50%) translateY(0)}
       .vl-ui-section-heading{
-        display:block;margin:0;color:#000;font-size:var(--vl-panel-heading-size,var(--public-data-size));font-weight:var(--vl-panel-heading-weight,700);
+        display:block;margin:0;color:var(--heading,var(--public-heading));font-size:var(--vl-panel-heading-size,var(--public-data-size));font-weight:var(--vl-panel-heading-weight,700);
         line-height:var(--vl-panel-heading-lh,1.35);letter-spacing:var(--vl-panel-heading-track,-.18px);
         padding-inline-start:10px;border-inline-start:3px solid var(--lime,var(--public-brand-lime))
       }
