@@ -380,6 +380,21 @@ def test_internal_source_metadata_does_not_trigger_public_copy_gate():
     assert codes(q.check_public_source_exposure(record), "BLOCK") == set()
 
 
+def test_named_source_title_blocks_when_exposed_publicly():
+    record = good_record(
+        originalSourceTitle="Example Book",
+        contentMarkdown=GOOD_BODY + "\n\nExample Book frames the distinction this way.",
+    )
+    assert "PUBLIC_NAMED_SOURCE_TERM" in codes(
+        q.check_public_source_exposure(record), "BLOCK")
+
+
+def test_named_source_title_is_allowed_in_internal_metadata_only():
+    record = good_record(originalSourceTitle="Example Book")
+    assert "PUBLIC_NAMED_SOURCE_TERM" not in codes(
+        q.check_public_source_exposure(record), "BLOCK")
+
+
 # ── Sections 21, 22, 23 ─────────────────────────────────────────────────────────
 
 def test_clickbait_title_blocks():
