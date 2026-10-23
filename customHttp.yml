@@ -196,6 +196,21 @@ customHeaders:
   #
   # Restate the security headers because Amplify does not document whether matching
   # customHttp.yml patterns merge or replace.
+  - pattern: "/vayulok"
+    headers:
+      - key: Cache-Control
+        value: "no-store, max-age=0, must-revalidate"
+
+  - pattern: "/vayulok/"
+    headers:
+      - key: Cache-Control
+        value: "no-store, max-age=0, must-revalidate"
+
+  - pattern: "/vayulok/index.html"
+    headers:
+      - key: Cache-Control
+        value: "no-store, max-age=0, must-revalidate"
+
   - pattern: "/vayulok*"
     headers:
       - key: Cache-Control

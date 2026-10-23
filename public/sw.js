@@ -8,8 +8,8 @@
 // key it does not recognise, so renaming these is what evicts the stale v2
 // entries — including the cache-first .js/.css copies that were pinning browsers
 // to an old bundle until a hard reload.
-const CACHE_NAME = 'stack-crm-v3';
-const STATIC_CACHE = 'stack-static-v3';
+const CACHE_NAME = 'stack-crm-v4';
+const STATIC_CACHE = 'stack-static-v4';
 
 // Static assets to pre-cache on install
 const PRECACHE_URLS = [
@@ -63,6 +63,16 @@ self.addEventListener( 'fetch', ( event ) =>
   // no longer registers outside production, but this makes the worker safe even
   // where one is still installed.
   if ( url.hostname === 'localhost' || url.hostname === '127.0.0.1' ) return;
+
+  // VayuLok is intentionally never stored in Service Worker Cache Storage.
+  // These routes change frequently and production has repeatedly shown stale HTML/globe
+  // after successful Amplify deploys. Cache-Control headers govern HTTP/CDN caches, but
+  // manual cache.put() calls below are a separate cache layer, so bypass it explicitly.
+  if ( url.pathname === '/vayulok' || url.pathname === '/vayulok/' || url.pathname === '/vayulok/index.html' || url.pathname === '/vayulok-globe.html' )
+  {
+    event.respondWith( fetch( request, { cache: 'no-store' } ) );
+    return;
+  }
 
   // API calls: network-first with cache fallback.
   //
