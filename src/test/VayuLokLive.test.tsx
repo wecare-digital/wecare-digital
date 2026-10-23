@@ -1,6 +1,7 @@
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { renderToStaticMarkup } from 'react-dom/server';
 
 /* Return the declaration body ("{...}") of the rule that applies to `selector`, whether that
    selector owns a standalone block or sits ANYWHERE inside a comma-separated group. The component
@@ -659,6 +660,15 @@ function environmentFetch() {
 
 
 describe( 'VayuLokLive v8 approved design contract', () => {
+
+  it( 'keeps static first paint free of Unix-epoch and implementation-state clock copy', async () => {
+    const VayuLokLive = await loadComponent();
+    const markup = renderToStaticMarkup( <VayuLokLive /> );
+    expect( markup ).not.toContain( '1970' );
+    expect( markup ).not.toContain( 'IST default' );
+    expect( markup ).not.toContain( '05:30' );
+    expect( markup ).toContain( 'Local time' );
+  } );
 
   beforeEach( () => {
     vi.stubEnv( 'NEXT_PUBLIC_GOOGLE_BROWSER_KEY', DUMMY_KEY );
@@ -1408,7 +1418,10 @@ describe( 'VayuLokLive v8 approved design contract', () => {
 
     // (2) HEALTH RECOMMENDATIONS. All seven groups come from Google's live
     // healthRecommendations payload. There is no static WECARE recommendation fallback.
+    expect( container.querySelector( '.vl-ui-data-card' ) ).not.toBeNull();
+    expect( container.querySelector( '.vl-ui-horizontal-rail' ) ).not.toBeNull();
     const healthTablist = screen.getByRole( 'tablist', { name: 'Health recommendation profiles' } );
+    expect( container.querySelector( '.vl-ui-icon-action' ) ).not.toBeNull();
     const personaTabs = healthTablist.querySelectorAll( '[role="tab"]' );
     expect( personaTabs ).toHaveLength( 7 );
     expect( screen.getByRole( 'tab', { name: 'General population' } ) ).toBeTruthy();
@@ -1423,6 +1436,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     // each persona. Separate previous/next arrows and the old More/Less disclosure stay gone.
     expect( healthTablist.querySelectorAll( '.vl-live-air-health-tab-label' ) ).toHaveLength( 0 );
     expect( healthTablist.querySelectorAll( '.vl-live-air-health-icon' ) ).toHaveLength( 7 );
+    expect( healthTablist.querySelectorAll( '.vl-live-air-health-tooltip' ) ).toHaveLength( 7 );
     expect( screen.queryByRole( 'button', { name: 'Previous health recommendation' } ) ).toBeNull();
     expect( screen.queryByRole( 'button', { name: 'Next health recommendation' } ) ).toBeNull();
     expect( container.querySelector( '.vl-live-air-health-more' ) ).toBeNull();
@@ -1454,10 +1468,11 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( css ).toContain( '@media(horizontal-viewport-segments:2)' );
     expect( css ).toContain( 'width:env(viewport-segment-width 0 0)' );
     expect( css ).toContain( " :global([dir='rtl']) .vl-live-shell".trim() );
-    expect( healthTabRule ).toContain( 'flex:0 0 40px' );
+    expect( healthTabRule ).toContain( 'flex:0 0 var(--tap-min)' );
+    expect( healthTabRule ).toContain( 'width:var(--tap-min)' );
+    expect( healthTabRule ).toContain( 'min-height:var(--tap-min)' );
     expect( healthTabRule ).toContain( 'border-radius:50%' );
     expect( healthTabRule ).toContain( 'scroll-snap-align:start' );
-    expect( healthTabRule ).toContain( 'width:40px' );
     expect( css ).not.toContain( '.vl-live-air-history-nav' );
     expect( css ).not.toContain( 'scrollbar' + '-color:' );
 
@@ -1488,7 +1503,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( airRangeRule ).toContain( 'background:transparent' );
     expect( airRangeButtonRule ).toContain( 'min-height:32px' );
     expect( airRangeButtonRule ).toContain( 'border:1px solid var(--hair)' );
-    expect( forecastCardRule ).toContain( 'width:154px' );
+    expect( forecastCardRule ).toContain( 'width:clamp(142px,42vw,168px)' );
     expect( forecastCardRule ).toContain( 'flex-direction:column' );
     expect( forecastCardRule ).toContain( 'align-items:flex-start' );
     expect( forecastCardRule ).toContain( 'padding:10px 12px' );
@@ -1549,8 +1564,8 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( metricPillRule ).toContain( 'background:var(--lime-tint)' );
     expect( metricPillRule ).toContain( 'border-radius:var(--pill-r)' );
     const popupRule = css.match( /\.vl-live-air-pollutant-tip\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( popupRule ).toContain( 'width:min(248px,calc(100vw - 20px))' );
-    expect( popupRule ).toContain( 'max-height:min(176px,calc(100dvh - 20px))' );
+    expect( popupRule ).toContain( 'width:min(248px,calc(100vw - 16px))' );
+    expect( popupRule ).toContain( 'max-height:min(176px,calc(100dvh - 16px))' );
     expect( popupRule ).toContain( 'font-size:var(--vl-meta-size)' );
     const popupTitleRule = css.match( /\.vl-live-air-pollutant-pop-title\{[^}]*\}/ )?.[ 0 ] || '';
     expect( popupTitleRule ).toContain( 'background:var(--lime)' );
@@ -2027,7 +2042,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
 
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
 
-    expect( screen.getByRole( 'status', { name: '' } ).textContent ).toContain( 'Route is temporarily unavailable.' );
+    expect( screen.getByText( 'Route is temporarily unavailable.' ) ).toBeTruthy();
     expect( screen.getByRole( 'button', { name: 'Check route' } ) ).toBeDisabled();
 
     const leftCard = container.querySelector( '.vl-live-tools-left .vl-live-tool-card' );
@@ -2357,7 +2372,7 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( shellRule ).toContain( 'height:auto' );
     const cardWrapRule = css.match( /\.vl-live-air-card-wrap\{[^}]*\}/ )?.[ 0 ] || '';
     expect( cardWrapRule ).toContain( 'width:min(416px,calc(100% - 32px))' );
-    expect( cardWrapRule ).toContain( 'drop-shadow(0 8px 18px rgba(26,58,42,.10))' );
+    expect( cardWrapRule ).toContain( 'filter:none' );
     expect( css ).not.toContain( '.vl-live-air-card-wrap::after{' );
 
     // GLOBAL SEARCH FIELD: the outer wrapper is visually absent. The input itself reuses
@@ -2439,8 +2454,13 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( css ).not.toContain( 'scrollbar' + '-color:' );
     expect( css ).not.toContain( '::-webkit-scrollbar-thumb' );
     expect( css ).toContain( '.vl-live-air-forecast-strip::-webkit-scrollbar{height:6px}' );
+    expect( css ).toContain( '.vl-live-air-health-tabs::-webkit-scrollbar{height:6px}' );
+    expect( css ).toContain( '.vl-live-wx-history .vl-live-air-range::-webkit-scrollbar{height:6px}' );
+    expect( css ).toContain( '.vl-live-wx-hist-strip::-webkit-scrollbar{height:6px}' );
     expect( css ).toContain( '.vl-live-air-history-detail::-webkit-scrollbar{height:6px}' );
     expect( css ).not.toContain( '.vl-live-air-health-more' );
+    expect( css ).not.toContain( 'background:#dbeafe' );
+    expect( css ).not.toContain( 'background:#e0f7c8' );
 
     // Deep typography pass: compact live-panel headings use the Home/public data rung (17px,
     // matching compact readings such as "Feels 17°"); tool-card headings retain the Home card
@@ -2479,7 +2499,7 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     const forecastActiveRule = css.match( /\.vl-live-air-forecast-card\.is-active\{[^}]*\}/ )?.[ 0 ] || '';
     const detailPillRule = css.match( /\.vl-live-air-forecast-detail>span\{[^}]*\}/ )?.[ 0 ] || '';
     expect( forecastCardRule ).toContain( 'border-radius:var(--radius-lg,12px)' );
-    expect( forecastCardRule ).toContain( 'width:154px' );
+    expect( forecastCardRule ).toContain( 'width:clamp(142px,42vw,168px)' );
     expect( forecastCardRule ).toContain( 'flex-direction:column' );
     expect( forecastCardRule ).toContain( 'align-items:flex-start' );
     expect( forecastCardRule ).toContain( 'padding:10px 12px' );
@@ -2525,7 +2545,7 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     // Assert the rendered section instead so this remains a visible-DOM contract.
     expect( container.querySelector( '.vl-live-air-pollutants' ) ).toBeNull();
     expect( container.querySelector( '.vl-live-air-empty' )?.textContent )
-      .toContain( 'Live air quality appears here once a place is selected.' );
+      .toContain( 'Air quality is temporarily unavailable.' );
     expect( css ).toContain( '.vl-live{--vl-card-heading-size:var(--public-mobile-card-size);' );
     expect( css ).toContain( '.vl-live-mobile-snapshot-head strong{overflow:hidden;color:var(--heading);font-size:var(--vl-data-size)' );
     expect( css ).toContain( '.vl-live-mobile-snapshot-head small{color:var(--muted);font-size:var(--vl-meta-size)' );

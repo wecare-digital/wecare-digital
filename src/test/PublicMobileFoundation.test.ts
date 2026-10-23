@@ -63,8 +63,9 @@ describe( 'public mobile foundation', () => {
 
   it( 'keeps VayuLok Weather history on the public typography and touch contract', () => {
     const insights = read( 'src/components/VayuLokWeatherInsights.tsx' );
+    const primitives = read( 'src/components/VayuLokUiPrimitives.tsx' );
 
-    expect( insights ).toContain( '<h4>Weather history</h4>' );
+    expect( insights ).toContain( '<VayuLokSectionHeading>Weather history</VayuLokSectionHeading>' );
     expect( insights ).toContain( 'Past weather for' );
     expect( insights ).not.toContain( 'Google Weather historical aggregates for' );
     expect( insights ).not.toContain( 'Google Weather Insights' );
@@ -73,11 +74,13 @@ describe( 'public mobile foundation', () => {
     expect( insights ).toContain( '.vl-wi-head p{font-size:var(--vl-subtext-size,var(--public-supporting-size))' );
     expect( insights ).not.toContain( 'font-size:var(--vl-card-heading-size,var(--public-card-size))' );
     expect( insights ).not.toContain( 'font-size:var(--text-' );
-    expect( insights ).toContain( '.vl-wi-range button:hover{background:var(--public-lime-tint);color:var(--public-brand-green)}' );
-    expect( insights ).toContain( '.vl-wi-range button.is-active{background:var(--public-brand-lime);color:var(--public-brand-green)}' );
+    expect( insights ).toContain( '<VayuLokCompactPill' );
+    expect( primitives ).toContain( '.vl-ui-compact-pill:hover{' );
+    expect( primitives ).toContain( '.vl-ui-compact-pill.is-active{' );
     expect( insights ).not.toContain( 'background:rgba(17,21,18,.07)' );
-    expect( insights ).toContain( 'min-height:var(--tap-min)' );
-    expect( insights ).toContain( 'className="vl-wi-stamp"' );
+    expect( primitives ).toContain( '.vl-ui-icon-action{' );
+    expect( primitives ).toContain( 'min-height:var(--tap-min,44px)' );
+    expect( insights ).toContain( '<VayuLokFreshnessStamp' );
     expect( insights ).not.toContain( 'Loading history…' );
     expect( insights ).toContain( 'className="vl-wi-sr"' );
     expect( insights ).not.toContain( 'className="vl-wi-source"' );

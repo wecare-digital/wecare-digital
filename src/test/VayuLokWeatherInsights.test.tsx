@@ -63,8 +63,11 @@ describe( 'VayuLok Weather history public typography', () => {
       .join( '\n' );
     expect( css ).toContain( '.vl-wi-head p{margin:6px 0 0;color:var(--public-muted);font-size:var(--vl-subtext-size,var(--public-supporting-size));font-weight:600' );
     expect( css ).toContain( '.vl-wi-head p{font-size:var(--vl-subtext-size,var(--public-supporting-size));font-weight:600' );
-    expect( css ).toContain( '.vl-wi-range button:hover{background:var(--public-lime-tint);color:var(--public-brand-green)}' );
-    expect( css ).toContain( '.vl-wi-range button.is-active{background:var(--public-brand-lime);color:var(--public-brand-green)}' );
+    expect( css ).toContain( '.vl-ui-compact-pill:hover{border-color:var(--lime,var(--public-brand-lime));background:var(--lime-tint,var(--public-lime-tint))}' );
+    expect( css ).toContain( '.vl-ui-compact-pill.is-active{border-color:var(--lime,var(--public-brand-lime));background:var(--lime,var(--public-brand-lime));color:var(--green,var(--public-brand-green))}' );
+    expect( container.querySelector( '.vl-ui-section-heading' ) ).not.toBeNull();
+    expect( container.querySelector( '.vl-ui-compact-pill' ) ).not.toBeNull();
+    expect( container.querySelector( '.vl-ui-freshness-stamp' ) ).not.toBeNull();
     expect( css ).not.toContain( 'background:rgba(17,21,18,.07)' );
     expect( css ).not.toContain( '.vl-wi-source{' );
     expect( css ).toContain( '.vl-wi-stamp{display:flex;width:fit-content;align-items:center;gap:6px' );
@@ -76,6 +79,32 @@ describe( 'VayuLok Weather history public typography', () => {
     expect( css ).not.toMatch( /font-size:\s*(?:\d|\.\d)/ );
     expect( container.textContent ).not.toContain( 'Loading history…' );
     expect( css ).toContain( '.vl-wi-sr{position:absolute!important;width:1px!important;height:1px!important' );
+  } );
+
+  it( 'formats the history freshness stamp cleanly when a timezone label is not yet available', async () => {
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue(
+      new Response( JSON.stringify( {
+        ok: true,
+        range: '30d',
+        sampleHours: 24,
+        monthly: [],
+      } ), { status: 200, headers: { 'Content-Type': 'application/json' } } ),
+    ) );
+
+    const VayuLokWeatherInsights = await loadComponent();
+    render(
+      <VayuLokWeatherInsights
+        lat={ 25.5788 }
+        lng={ 91.8933 }
+        placeName="Shillong"
+        timeZoneId="Asia/Kolkata"
+        zoneLabel=""
+      />,
+    );
+
+    const stamp = await screen.findByLabelText( 'Weather history updated time' );
+    expect( stamp.textContent ).not.toMatch( /\s$/ );
+    expect( stamp.textContent ).not.toContain( 'undefined' );
   } );
 
   it( 'labels the five-year chart as a month-of-year aggregate rather than a 60-month timeline', async () => {
