@@ -86,9 +86,6 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
               is the h1 in the band above it. section.pdp names itself the same way on the fourteen
               pages ProductPage renders. */}
           <section className="shopd-about" aria-label={ `About ${product.name}` }>
-            { !product.inStock && (
-              <p className="shopd-oos" role="status">Not available right now.</p>
-            ) }
 
             {/* The product's own words, as TEXT and never as HTML. toParagraphs in
                 src/content/shop.ts strips the tags rather than trusting them: this is
@@ -127,7 +124,7 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
                 onChange={ value => { setVariantId( value ); } }
                 options={ [
                   { value: '', label: 'Choose your fit and size' },
-                  ...product.variants.filter( variant => variant.inStock )
+                  ...product.variants
                     .map( variant => ( { value: variant.id, label: variant.label } ) ),
                 ] }
               />

@@ -102,7 +102,7 @@ from lambda_utils.ecommerce import (
 # snapshot they produce. Imported at module load (cheap, pure) so a missing module fails the
 # deploy rather than a request.
 from lambda_utils.ecommerce import (
-    catalog_pricing, native_checkout, native_inventory, native_shipping)
+    catalog_pricing, native_checkout, native_shipping)
 # The committed recognition set and the three allowed contributions live in `blog_contribution`
 # and are IMPORTED rather than re-declared, so they are stated once and the TS<->Python drift test
 # that pins them stays meaningful. Its own payment surface (`prepare_contribution` and friends) is
@@ -116,9 +116,7 @@ from lambda_utils.ecommerce.blog_contribution import (
 from lambda_utils.ecommerce import service_requests
 from lambda_utils.ecommerce.service_requests import ServiceNotPayable, ServicePriceChanged
 # Public service prices use the authoritative AWS product catalog (service_pricing_native).
-# native_inventory_txn backs fail-closed native stock reservation (stack's inventory work).
 from lambda_utils.ecommerce import service_pricing_native
-from lambda_utils.ecommerce import native_inventory_txn
 from lambda_utils.integrations import razorpay_orders, razorpay_verify
 # Aliased `customer_identity`, NEVER `identity`: `identity` is a parameter name in nearly every
 # function in this file (`_checkout_profile(identity)`, `_website_snapshot(identity, ...)`,
@@ -890,38 +888,6 @@ def _reserve_website_attempt(attempt: Dict[str, Any]) -> None:
     )
 
 
-def _website_order_creator(snapshot):
-    """Reserve frozen native stock before the existing gateway create call.
-
-    Activation requires reconciled stock and the approved product-write IAM grant.
-    An ambiguous provider result keeps the reservation: an unpaid or timed-out
-    order can still accept a later payment, so it is not a safe release signal.
-    """
-    if str(os.environ.get("NATIVE_STOCK_RESERVATION_ENABLED", "false")).lower() != "true":
-        return razorpay_orders.create_order
-    items = snapshot.frozen_data.get("items")
-    if not isinstance(items, list) or not items:
-        raise ValueError("native stock reservation requires a frozen basket")
-
-    def create(*, amount_paise, receipt, notes):
-        attempt_id = notes.get("paymentAttemptId")
-        if not isinstance(attempt_id, str) or not attempt_id:
-            raise ValueError("stock reservation requires a payment attempt")
-        keys = _keys_table()
-        native_inventory_txn.reserve_basket(
-            boto3.client("dynamodb", region_name=REGION),
-            _native_product_reader(),
-            lambda key: keys.get_item(
-                Key={"orderId": key}, ConsistentRead=True).get("Item"),
-            products_table=PRODUCTS_TABLE,
-            keys_table=COMMERCE_KEYS_TABLE or order_keys.commerce_keys_table_name(),
-            attempt_id=attempt_id, items=items,
-        )
-        return razorpay_orders.create_order(
-            amount_paise=amount_paise, receipt=receipt, notes=notes)
-
-    return create
-
 
 def _claimed_handoff(identity: customer_auth.CustomerIdentity,
                      body: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -1310,7 +1276,7 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
             request_key=request_key,
             now=now,
             keys_table=keys,
-            create_order=_website_order_creator(snapshot),
+            create_order=razorpay_orders.create_order,
             find_order_by_receipt=razorpay_orders.find_order_by_receipt,
             account_mode_of=razorpay_orders.account_mode,
             initiation_enabled=INITIATION_ENABLED,
@@ -1449,15 +1415,6 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
         # answered this way by accident; this makes it intentional and testable.
         logger.error(json.dumps({"event": "website_checkout_identity_unavailable"}))
         return cors_response(503, {"error": "TEMPORARILY_UNAVAILABLE"}, origin)
-    except native_inventory.OutOfStock as error:
-        # A cart line's variant is short on stock in ProductsTable. A PERMANENT, caller-fixable
-        # condition (remove or reduce the item), not a transient outage, so answer 409
-        # CART_ITEM_UNAVAILABLE rather than a 502 the customer reads as "we failed". The variant id
-        # is a resource id, not PII, so it is safe to log at the level an alarm reads. Caught
-        # before the broad PricingError arm because OutOfStock is itself a ValueError subclass.
-        logger.error(json.dumps({"event": "website_checkout_catalogue_unavailable",
-                                 "error": type(error).__name__, "variantId": error.variant_id}))
-        return cors_response(409, {"error": "CART_ITEM_UNAVAILABLE"}, origin)
     except (checkout_pricing.PricingError, catalog_pricing.CatalogPricingError):
         # The native quote could not settle an amount (empty cart, unreadable price). 409 so the
         # customer reviews rather than a 502 they read as our failure.
@@ -1964,16 +1921,6 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
     except catalog_pricing.CatalogPricingError:
         return cors_response(502, {"error": "CATALOGUE_UNAVAILABLE",
                                    "message": "The store is temporarily unavailable."}, origin)
-    except native_inventory.OutOfStock as unavailable:
-        # A variant priced from ProductsTable but short on stock. Named so the customer can act;
-        # the variant id is opaque and carries no personal data.
-        logger.info(json.dumps({"event": "checkout_item_unavailable",
-                                "variantId": unavailable.variant_id}))
-        return cors_response(409, {
-            "error": "ITEMS_UNAVAILABLE",
-            "items": [{"variantId": unavailable.variant_id, "available": unavailable.available}],
-            "message": "Some items are no longer available. Please review your cart.",
-        }, origin)
     except ValueError:
         return cors_response(409, {"error": "AMOUNT_NOT_SETTLED",
                                    "message": "We could not price this cart. Please try "

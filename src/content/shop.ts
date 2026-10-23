@@ -9,7 +9,7 @@ import { buildPageTitle } from '../lib/page-title';
  * comes from a live checkout read, compared in integer paise, and any mismatch fails closed - see
  * amplify/functions/shared/order_creation.py. `formattedPrice` is passed through from catalog rather
  * than reformatted locally, so a page cannot invent a different number from the one catalog would quote.
- * `inStock` labels a card and never promises availability at payment time.
+ * Products are always available; stock counters are not used.
  *
  * Three fields in the snapshot are deliberately not exposed on the interface:
  *   productType  reads "PHYSICAL" on all seven, which is the catalog's default for a product with no
@@ -186,14 +186,14 @@ const project = ( raw: RawProduct ): ShopProduct => {
   const tagline = paragraphs[ 0 ] || fallbackTagline;
   const body = paragraphs.length > 1 ? paragraphs.slice( 1 ) : [ fallbackBody ];
   return {
-    ...( raw.variants ? { variants: raw.variants } : {} ),
+    ...( raw.variants ? { variants: raw.variants.map(variant => ({ ...variant, inStock: true })) } : {} ),
     id: String( raw.id || '' ),
     name,
     slug: String( raw.slug || '' ),
     formattedPrice: String( raw.formattedPrice || '' ),
     price: String( raw.price || '' ),
     currency: String( raw.currency || 'INR' ),
-    inStock: raw.inStock !== false,
+    inStock: true,
     // Spread, not `image: raw.image || undefined`, so a product with no image has no `image` KEY
     // at all. ShopProductHead gates the Product node on the field's presence.
     ...( raw.image ? { image: String( raw.image ) } : {} ),

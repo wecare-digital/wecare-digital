@@ -95,7 +95,7 @@ def test_untracked_zero_inventory_is_sellable_like_native_checkout():
     assert desired[0]["availability"] == sync.IN_STOCK
 
 
-def test_tracked_inventory_controls_meta_availability():
+def test_legacy_stock_flags_do_not_control_meta_availability():
     items = [{
         "metaEnabled": True, "id": "prod-tracked", "title": "Physical", "slug": "physical",
         "status": "active", "priceMinor": 9900, "currency": "INR",
@@ -108,7 +108,7 @@ def test_tracked_inventory_controls_meta_availability():
     }]
     rows = receiver._native_products(scanner=lambda: items)
     projected = {v["id"]: v["inStock"] for v in rows[0]["variants"]}
-    assert projected == {"ZERO1": False, "ONE1": True}
+    assert projected == {"ZERO1": True, "ONE1": True}
 
 
 def test_native_products_excludes_archived():

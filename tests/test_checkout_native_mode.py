@@ -249,10 +249,9 @@ def test_unpublished_products_are_unpurchaseable(monkeypatch, status):
         h._website_snapshot(_Identity(), [_line()], now=1000)
 
 
-def test_aggregate_quantity_cannot_evade_stock_validation(monkeypatch):
+def test_aggregate_quantity_is_available_without_stock_tracking(monkeypatch):
     row = _product_row()
-    row["variants"][0]["inventory"] = 1
+    row["variants"][0]["inventory"] = 0
     h = _native_env(monkeypatch, row)
-    from lambda_utils.ecommerce.native_inventory import OutOfStock
-    with pytest.raises(OutOfStock):
-        h._website_snapshot(_Identity(), [_line(qty=1), _line(qty=1)], now=1000)
+    snap = h._website_snapshot(_Identity(), [_line(qty=1), _line(qty=1)], now=1000)
+    assert sum(item["quantity"] for item in snap.frozen_data["items"]) == 2

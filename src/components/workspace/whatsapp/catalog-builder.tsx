@@ -28,10 +28,6 @@ const FLOW_CATEGORIES = [ 'SIGN_UP', 'SIGN_IN', 'APPOINTMENT_BOOKING', 'LEAD_GEN
 
 /** The index is the state, so the value is the index as a string. */
 const ACCOUNT_OPTIONS: SelectOption[] = ACCOUNTS.map( ( a, i ) => ( { value: String( i ), label: a.label } ) );
-const AVAILABILITY_OPTIONS: SelectOption[] = [
-    { value: 'in stock', label: 'in stock' },
-    { value: 'out of stock', label: 'out of stock' },
-];
 const FLOW_CATEGORY_OPTIONS: SelectOption[] = FLOW_CATEGORIES.map( c => ( { value: c, label: c } ) );
 /* Layout only, and `inline-block` is not cosmetics: the native control was inline-level, and
    the "catalog … · waba …" caption sits BESIDE it. .ui-field is display:block, so without this
@@ -142,7 +138,7 @@ function ProductTab ( { acct, toast, confirm }: { acct: typeof ACCOUNTS[ number 
                 imageUrl: form.imageUrl || undefined,
                 url: form.url || undefined,
                 brand: form.brand || undefined,
-                availability: form.availability || undefined,
+                availability: 'in stock',
             } );
             if ( r.success )
             {
@@ -192,7 +188,7 @@ function ProductTab ( { acct, toast, confirm }: { acct: typeof ACCOUNTS[ number 
             description,
             imageUrl: p.imageUrl || '',
             url: p.url || '',
-            availability: p.availability || 'in stock',
+            availability: 'in stock',
         } );
     };
 
@@ -224,7 +220,7 @@ function ProductTab ( { acct, toast, confirm }: { acct: typeof ACCOUNTS[ number 
                 name: form.name.trim(),
                 price: priceChanged ? Number( form.price ) : undefined,
                 currency: priceChanged ? 'INR' : undefined,
-                availability: form.availability || undefined,
+                availability: 'in stock',
                 description: form.description !== editBase.description ? ( form.description || undefined ) : undefined,
                 imageUrl: form.imageUrl || undefined,
                 url: form.url || undefined,
@@ -271,11 +267,6 @@ function ProductTab ( { acct, toast, confirm }: { acct: typeof ACCOUNTS[ number 
                          either, so they are hidden while editing rather than reading as editable */ }
                     { !editId && <div><label style={ S.label }>Sale price (₹)</label><input style={ S.input } type="number" value={ form.salePrice } onChange={ e => set( 'salePrice', e.target.value ) } placeholder="4599" /></div> }
                     { !editId && <div><label style={ S.label }>Brand</label><input style={ S.input } value={ form.brand } onChange={ e => set( 'brand', e.target.value ) } /></div> }
-                    <div><label style={ S.label }>Availability</label>
-                        <Select ariaLabel="Availability" value={ form.availability }
-                            onChange={ v => set( 'availability', v ) }
-                            options={ AVAILABILITY_OPTIONS } style={ FIELD_SELECT_STYLE } />
-                    </div>
                     <div style={ { gridColumn: '1 / -1' } }><label style={ S.label }>Image URL (public https)</label><input style={ S.input } value={ form.imageUrl } onChange={ e => set( 'imageUrl', e.target.value ) } placeholder="https://wecare.digital/get/o/stream/media/m/wecare-digital.png" /></div>
                     <div style={ { gridColumn: '1 / -1' } }><label style={ S.label }>Product link</label><input style={ S.input } value={ form.url } onChange={ e => set( 'url', e.target.value ) } placeholder="https://wecare.digital/shop/merchandise/" /></div>
                     <div style={ { gridColumn: '1 / -1' } }><label style={ S.label }>Description</label><input style={ S.input } value={ form.description } onChange={ e => set( 'description', e.target.value ) } placeholder="Short description" /></div>
