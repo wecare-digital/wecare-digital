@@ -15,7 +15,7 @@ DynamoDB Tables:
 - stack-wecare-digital-InvoiceDeliveryLogTable
 
 S3 Bucket: wecare-digital-get  (was app.wecare.digital until it was deleted 2026-09-28)
-Prefix: secure/Invoice/customer_invoice/  (GATED - moved off the public `o/` root 2026-09-30, because a
+Prefix: secure/d/public/Invoice/customer_invoice/  (GATED - moved off the public `o/` root 2026-09-30, because a
         rendered invoice carries the customer's name, address, amount and GST breakdown.
         Rendered invoices are handed out as short-lived presigned URLs; WhatsApp delivery does
         not use a URL at all, it uploads the bytes to Meta.)
@@ -2917,7 +2917,7 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
     if transparent:
         # ── Owner-approved appearance: irregular torn paper on a TRANSPARENT canvas ──
         # Reference specimen (approved 2026-10-08):
-        #   https://wecare.digital/get/o/public/wa-tpl/img/invoice-receipt.png
+        #   https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/img/invoice-receipt.png
         # Measured on it, and pinned by tests/test_receipt_transparent_background.py:
         # corner alpha 0, paper (252, 252, 250, 255). The grey (200, 200, 200) backdrop
         # in the branch below is the grey the owner asked to remove.
@@ -3752,7 +3752,7 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
             'templateParams': [],  # native-pay template has no body variables
             'checkoutOrderDetails': order_details_obj,
             # FIXED company-logo header on EVERY payment. Do not vary per order.
-            'headerImageUrl': 'https://wecare.digital/get/o/public/wa-tpl/img/wecarepay-header.png',
+            'headerImageUrl': 'https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/img/wecarepay-header.png',
         })
     }
 
