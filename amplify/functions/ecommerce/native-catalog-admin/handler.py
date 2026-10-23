@@ -33,7 +33,7 @@ SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 SKU = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$")
 STAFF_ROLES = {"Viewer", "Operator", "Admin"}
 STATUS = {"draft", "active", "archived"}
-CATALOG_IMAGE_PREFIX = "secure/catalog/products/"  # protected source, served via catalog-media
+CATALOG_IMAGE_PREFIX = "secure/d/public/catalog-deploy/catalog/products/"  # approved masters, served via catalog-media
 CATALOG_IMAGE_NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*-4096[.]png$")
 CATALOG_MEDIA_BASE = "https://wecare.digital/api/catalog-media/"
 
@@ -91,7 +91,7 @@ def _catalog_image_key(value: Any) -> str:
         raise ValueError("catalogImageKey must be a string")
     key = value.strip().lstrip("/")
     if not key.startswith(CATALOG_IMAGE_PREFIX):
-        raise ValueError("catalogImageKey must use the approved secure catalog prefix")
+        raise ValueError("catalogImageKey must use the approved catalog-deploy products prefix")
     name = key[len(CATALOG_IMAGE_PREFIX):]
     if "/" in name or not CATALOG_IMAGE_NAME.fullmatch(name):
         raise ValueError("catalogImageKey must name an approved *-4096.png artwork")
