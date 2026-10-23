@@ -58,6 +58,7 @@
     cursor:grab;
   }
   .sorcerer-stage.is-dragging{cursor:grabbing}
+  .sorcerer-stage{--vl-lime:#d1f470;--vl-lime-tint:#f2f9db;--vl-green:#1a3a2a;--vl-hair:#e5e7eb;--vl-hover-shadow:0 4px 12px rgba(26,58,42,.10)}
   .sorcerer-stage[data-layer='air']{--mode-accent:#3da35a;--mode-soft:rgba(61,163,90,.20)}
   .sorcerer-stage[data-layer='weather']{--mode-accent:#f0a818;--mode-soft:rgba(240,168,24,.20)}
   #globe {
@@ -79,7 +80,7 @@
     right:calc(4.0% + var(--safe-right));
     width:clamp(220px,18%,280px);height:52px;padding:4px;
     display:grid;grid-template-columns:1fr 1fr;gap:4px;align-items:center;
-    border:1px solid #e5e7eb;border-radius:999px;
+    border:1px solid var(--vl-hair);border-radius:999px;
     background:#fff;box-shadow:0 6px 18px rgba(26,58,42,.08);
     cursor:pointer;font:inherit;-webkit-tap-highlight-color:transparent;
   }
@@ -93,12 +94,13 @@
      multiplier on top of this composited to ~rgb(178,178,178) on white — about
      2.1:1, below every WCAG threshold. rgba(0,0,0,.62) measures ~6.2:1. */
   .mode-air,
-  .mode-weather{color:rgba(0,0,0,.62);background:transparent;box-shadow:none}
+  .mode-weather{color:rgba(26,58,42,.68);background:transparent;box-shadow:none}
   .data-toggle[aria-checked='false'] .mode-air,
   .data-toggle[aria-checked='true'] .mode-weather{
-    background:#d1f470;color:#1a3a2a;box-shadow:none;
+    background:var(--vl-lime);color:var(--vl-green);box-shadow:none;
   }
-  .data-toggle:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
+  .data-toggle:hover{border-color:var(--vl-lime);box-shadow:var(--vl-hover-shadow)}
+  .data-toggle:focus-visible{outline:3px solid var(--vl-green);outline-offset:3px}
 
   /* THE SINGLE CITY INFO PANEL. It sits in the gap on the LEFT of the globe
      disc, toward the headline, and is the only place a city's reading appears.
@@ -112,10 +114,10 @@
     display:flex;align-items:stretch;gap:14px;
     width:clamp(340px,32%,440px);
     padding:22px 26px;
-    border:1px solid #e5e7eb;border-radius:18px;
+    border:1px solid var(--vl-hair);border-radius:14px;
     background:#fff;
     box-shadow:0 10px 30px rgba(16,24,20,.10),0 2px 8px rgba(16,24,20,.06);
-    color:#1a3a2a;text-align:left;
+    color:var(--vl-green);text-align:left;
     pointer-events:none;
     transition:opacity .22s ease,transform .22s cubic-bezier(.16,1,.3,1);
   }
@@ -126,7 +128,7 @@
   .city-panel-body{min-width:0;display:flex;flex-direction:column}
   .city-panel-name{
     display:flex;align-items:center;gap:7px;
-    font-size:clamp(30px,3vw,40px);font-weight:800;line-height:1.08;color:#1a3a2a;
+    font-size:clamp(30px,3vw,40px);font-weight:800;line-height:1.08;color:var(--vl-green);
   }
   .city-panel-name::before{
     content:'';flex:0 0 auto;width:8px;height:8px;border-radius:50%;
@@ -139,7 +141,7 @@
   }
   .city-panel-reading{
     margin-top:10px;font-size:clamp(24px,2.3vw,30px);font-weight:800;line-height:1.25;
-    color:#1a3a2a;white-space:normal;
+    color:var(--vl-green);white-space:normal;
   }
   .city-panel-reading[data-state='idle'],
   .city-panel-reading[data-state='loading'],
