@@ -1540,7 +1540,7 @@ def _redeem(file_id: str, event: Dict[str, Any], identity: Dict[str, Any], origi
 # ── Drop Docs: make a document private BEFORE it is a document ────────────────
 #
 # A Drop Docs document can arrive over WhatsApp, where `inbound-whatsapp-handler` writes it
-# to `o/stack/whatsapp-media/incoming/` - a prefix CloudFront E2GP22R4BIFGQ3 serves
+# to `secure/d/public/whatsapp/incoming/` - a prefix CloudFront E2GP22R4BIFGQ3 serves
 # UNAUTHENTICATED. The locker is reused here for storage and privacy only: it promotes the
 # object into `secure/` and the request store refuses to register a document whose key is
 # not gated. Nothing in this arm touches the locker's own (disabled) Razorpay path, and
