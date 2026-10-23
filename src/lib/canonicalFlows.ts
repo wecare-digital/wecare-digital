@@ -71,10 +71,10 @@ export const CANONICAL_FLOWS: Record<string, CanonicalFlow> = {
     capability: 'vault', label: 'Vault',
     flowId: null, status: 'NONE', metaName: null,
   },
-  // Published 2026-10-21 on WABA 1. This is the retained Subscribe/Profile Flow.
+  // F001 rebuild. Deliberately DRAFT until the owner explicitly publishes it.
   subscribe: {
     capability: 'subscribe', label: 'Subscribe',
-    flowId: '1386523953464380', status: 'PUBLISHED', metaName: 'WD_Subscribe_Design_v1',
+    flowId: '2413873616105042', status: 'DRAFT', metaName: 'WD-F001-SUBSCRIBE-PROFILE',
   },
   // Track Request has no retained canonical Flow (not in keepIds). The former ids
   // 1486454129852338 (DRAFT) and 973888792200167 (DEPRECATED) are not canonical. Tracking is
