@@ -89,8 +89,10 @@ const schema = a.schema( {
       bsuid: a.string(),
       // Parent BSUID — for linked accounts (e.g. parent business account)
       parentBsuid: a.string(),
-      // WhatsApp username (optional, user-set, e.g. "@pablomorales")
+      // WhatsApp username (provider-owned Meta identity, e.g. "@pablomorales")
       username: a.string(),
+      // Customer-entered WECARE.DIGITAL profile name from F001. Never replaces Meta username.
+      profileUsername: a.string(),
       // Contact book name — auto-populated by Meta's contact book feature
       contactBookName: a.string(),
       // Opt-in fields (Requirement 3.2: defaults to false)
@@ -993,6 +995,10 @@ const schema = a.schema( {
       wabaId: a.string(), // Which WABA
       status: a.string().default( 'DRAFT' ), // DRAFT, PUBLISHED, DEPRECATED
       category: a.string(), // service_request, order, interactive, data_collection, payment, booking, feedback
+      // Customer entry policy: keyword_interactive | payment_template | internal_event | manual | none
+      entryMode: a.string(),
+      // Approved Meta template name for payment_template entries; empty for native keyword flows.
+      entryTemplateName: a.string(),
       // Payment config
       requiresPayment: a.boolean().default( false ),
       paymentAmount: a.integer(), // paise (4900 = ₹49)
