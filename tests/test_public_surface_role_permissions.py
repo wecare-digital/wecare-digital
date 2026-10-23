@@ -80,6 +80,10 @@ CALL_TO_ACTION = {
 #: a boto3 method of its own, which is precisely why it is easy to forget.
 PASS_ROLE_CALLS = {("lambda", "create_function"), ("lambda", "update_function_configuration")}
 
+# Additional non-mutating permissions used by least-privilege-and-catalog-migration.yml,
+# which deliberately reuses the public-surface read role rather than a write-capable role.
+AUXILIARY_READ_ACTIONS = {"iam:GetRolePolicy", "iam:SimulateCustomPolicy"}
+
 def _is_read(action: str) -> bool:
     """`Get*`, plus API Gateway's single coarse read verb.
 
@@ -230,7 +234,7 @@ def test_read_document_is_exactly_the_read_half_of_the_write_document(policy):
     """
     read_doc = json.loads(READ_POLICY_FILE.read_text(encoding="utf-8"))
     write_actions = _granted(policy)
-    expected = {action for action in write_actions if _is_read(action)}
+    expected = {action for action in write_actions if _is_read(action)} | AUXILIARY_READ_ACTIONS
     assert _granted(read_doc) == expected, (
         "the read document is not the read half of the write document. Expected "
         f"{sorted(expected)}"
