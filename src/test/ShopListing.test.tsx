@@ -9,13 +9,24 @@ describe( 'the fresh 25-item Shop shelf + purchasable Contribute', () => {
   it( 'keeps all 26 catalog entries while Contribute stays live but hidden from the shelf', () => {
     expect( SHOP_LISTINGS ).toHaveLength( 26 );
     expect( new Set( SHOP_LISTINGS.map( item => item.sku ) ).size ).toBe( 26 );
-    expect( SHOP_LISTINGS.some( item => item.slug === 'contribute' && item.sku === 'CNT5Q2M8' && item.formattedPrice === '₹250.00' && item.inStock === true && item.showOnShopShelf === false ) ).toBe( true );
+    expect( SHOP_LISTINGS.some( item => item.slug === 'contribute' && item.sku === 'CNT5Q2M8' && item.formattedPrice === '₹250.00' && item.showOnShopShelf === false ) ).toBe( true );
     const contribution = shopProductBySlug( 'contribute' );
     expect( contribution ).not.toBeNull();
     expect( contribution?.inStock ).toBe( true );
     expect( contribution?.variants?.some( variant => variant.label === '₹250' && variant.inStock ) ).toBe( true );
     expect( SHOP_LISTINGS.some( item => item.slug === 'hunar-kaushal' && item.sku === 'KSL9M2Q4' && item.formattedPrice === '₹99.00' ) ).toBe( true );
     expect( SHOP_LISTINGS.some( item => item.slug === 'hunar-prastuti' && item.sku === 'PST7K4N2' && item.formattedPrice === '₹299.00' ) ).toBe( true );
+    expect( SHOP_LISTINGS.every( item => !( 'inStock' in item ) ) ).toBe( true );
+    expect( SHOP_LISTINGS.find( item => item.slug === 'anew' ) ).toMatchObject( {
+      name: 'Anew',
+      blurb: 'Share a decision you’re weighing and receive a written reflection — what matters most, what’s driving it, what deserves another look. No calls; read in your own time.',
+      href: '/anew/',
+      formattedPrice: '₹599.00',
+      image: 'https://wecare.digital/api/catalog-media/anew-4096.png',
+    } );
+    expect( SHOP_LISTINGS.find( item => item.slug === 'submit-request' )?.blurb ).toBe(
+      'Raise a tracked request for an existing WECARE.DIGITAL order, with the information needed to confirm scope and next steps. Submission does not guarantee acceptance, timing or outcome.',
+    );
     expect( SHOP_LISTINGS.some( item => item.slug === 'hunar' ) ).toBe( false );
     expect( shopListingPageCount( SHOP_LISTINGS.length ) ).toBe( 5 );
   } );
