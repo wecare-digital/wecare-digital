@@ -4,12 +4,12 @@ Bucket: `wecare-digital-get`. Use the existing keys and shared `media_paths` hel
 
 | Purpose | Location | Reuse |
 | --- | --- | --- |
-| Public reusable template assets | `o/public/wa-tpl/{img,docs,vid,aud,stk}/` | Upload once, select from the media library for later sends |
-| Fixed Leave Review image | `o/public/wa-tpl/img/wecare-digital-cebc83f1_img.png` | Automatically enforced by `lambda_utils.template_media`; deletion through the library is blocked |
-| Customer WhatsApp uploads | `secure/u/whatsapp/incoming/` | Private customer records; resolve signed links on read |
-| Generated invoices | `secure/Invoice/customer_invoice/` | Individual transaction outputs; never replace with the brand image |
-| Historical public WhatsApp media | `o/stack/whatsapp-media/` | Retain referenced files at their existing URLs |
-| Calling audio | `o/whatsapp-media/whatsapp-calling/` | Separate operational assets; retain configured greeting files |
+| Public reusable template assets | `secure/d/public/whatsapp/wa-tpl/{img,docs,vid,aud,stk}/` | Upload once, select from the media library for later sends |
+| Fixed Leave Review image | `secure/d/public/whatsapp/wa-tpl/img/wecare-digital-cebc83f1_img.png` | Automatically enforced by `lambda_utils.template_media`; deletion through the library is blocked |
+| Customer WhatsApp uploads | `secure/d/public/whatsapp/incoming/` | Private customer records; resolve signed links on read |
+| Generated invoices | `secure/d/public/Invoice/customer_invoice/` | Individual transaction outputs; never replace with the brand image |
+| Historical public WhatsApp media | `secure/d/public/whatsapp/` | Retain referenced files at their existing URLs |
+| Calling audio | `secure/d/public/whatsapp/whatsapp-calling/` | Separate operational assets; retain configured greeting files |
 | Storage audits and rollback manifests | `secure/stack/storage-audits/` | Operational records |
 
 The Leave Review header is supplied at send time. It does not require editing the Meta-approved template or uploading another S3 copy per message. The template listing exposes `fixedHeaderMedia`, the sender displays that saved image, and outbound sends enforce the same asset.
