@@ -24,6 +24,18 @@
       "Effect": "Allow",
       "Action": "apigateway:GET",
       "Resource": "arn:aws:apigateway:us-east-1::/apis/zllr9lrg7j*"
+    },
+    {
+      "Sid": "ReadSharedLambdaRolePolicyForScopeSimulation",
+      "Effect": "Allow",
+      "Action": "iam:GetRolePolicy",
+      "Resource": "arn:aws:iam::775261844268:role/wecare-digital-lambda-role"
+    },
+    {
+      "Sid": "SimulateProposedSharedLambdaPolicy",
+      "Effect": "Allow",
+      "Action": "iam:SimulateCustomPolicy",
+      "Resource": "*"
     }
   ]
 }
