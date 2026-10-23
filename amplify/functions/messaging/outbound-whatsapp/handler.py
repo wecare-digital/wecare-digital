@@ -1368,7 +1368,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 elif direct_send.enabled_for_waba(direct_send_waba):
                     direct_send_category = 'utility'
 
-        if not within_window and not is_template:
+        if not within_window and not is_template and not is_order_status:
             if direct_send_category:
                 # A WABA id is not a secret and already appears in committed source.
                 logger.info(json.dumps({
@@ -1390,18 +1390,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     409, 'ORDER_STATUS_TEMPLATE_NOT_READY',
                     'The approved order status template is not ready. Nothing was sent.')
 
-        if not within_window and not is_template and not is_order_status:
-            if direct_send_category:
-                logger.info(json.dumps({
-                    'event': 'direct_send_attempt',
-                    'category': direct_send_category,
-                    'wabaId': direct_send_waba,
-                    'contactId': mask_contact_id(contact_id),
-                    'requestId': request_id,
-                }))
-            else:
-                return _outside_window_refusal(contact_id, bool(contact), request_id)
-        
         # Requirement 5.4: Validate text length (skip for reactions)
         if not is_reaction and content and len(content) > MAX_TEXT_LENGTH:
             return _error_response(400, f'Content exceeds {MAX_TEXT_LENGTH} characters')
