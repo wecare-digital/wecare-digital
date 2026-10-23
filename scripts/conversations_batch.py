@@ -130,9 +130,9 @@ def payload_errors(record: Dict[str, Any]) -> List[str]:
     category = str(record.get("category") or "").strip()
     if category and category != CATEGORY:
         errors.append(f"{prefix}: category must be {CATEGORY!r}, got {category!r}")
-    author = quality.text_field(record, "author") or AUTHOR
+    author = quality.text_field(record, "author")
     if author != AUTHOR:
-        errors.append(f"{prefix}: author must be {AUTHOR!r}, got {author!r}")
+        errors.append(f"{prefix}: author must be explicitly present and exactly {AUTHOR!r}, got {author or '<missing>'!r}")
     tags = quality.field(record, "tags") or []
     if not isinstance(tags, list) or not 1 <= len(tags) <= 3:
         errors.append(f"{prefix}: tags must be a list of 1-3 labels")
