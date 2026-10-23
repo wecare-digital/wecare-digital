@@ -130,7 +130,7 @@ Deletion gate per route: source owner, navigation/import references, API calls, 
 
 ## Default WhatsApp video-template send
 
-Current behavior uses template `wd_menu`, language `en`, VIDEO header, and public link `https://app.wecare.digital/stream/media/m/customerservice.mp4`. The link returned HTTP 200 with `content-type: video/mp4` and approximately 1.3 MB during this audit. The verified WABA1 template object ID from the preceding Meta audit is `998210796499191`; re-read approval/components for every sending WABA before live use.
+Current behavior uses template `wd_menu`, language `en`, VIDEO header, and public link `https://wecare.digital/get/o/stream/media/m/customerservice.mp4` (the live value in `amplify/functions/messaging/whatsapp-calling/handler.py` `WA_TEMPLATE_VIDEO_URL`). During this audit the asset was measured at the then-current host `https://app.wecare.digital/stream/media/m/customerservice.mp4` and returned HTTP 200 with `content-type: video/mp4` and approximately 1.3 MB; that host was **retired 2026-09-28 (NXDOMAIN)** and the object now serves from the apex `/get/o/` path over bucket `wecare-digital-get`. The verified WABA1 template object ID from the preceding Meta audit is `998210796499191`; re-read approval/components for every sending WABA before live use.
 
 The handler currently has at least three direct template dispatch locations: incoming-call notification, IVR-menu send and SIP post-call send. It can also fall back through `_send_via_aws`, writes old `WhatsAppOutboundTable` rows and records `CallNotificationsTable`. Replace these with one event policy:
 
