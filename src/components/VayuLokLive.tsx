@@ -4796,17 +4796,17 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-air-scroll-btn{display:inline-flex;width:32px;height:32px;align-items:center;justify-content:center;padding:0;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff;color:var(--green)}
         .vl-live-air-scroll-btn:hover{border-color:var(--lime);background:var(--lime-hover)}
         .vl-live-air-scroll-btn svg{width:16px;height:16px;fill:currentColor}
-        .vl-live-air-forecast-strip{display:flex;gap:7px;overflow-x:auto;padding:0 0 8px;scroll-snap-type:x proximity;scrollbar-width:thin;overscroll-behavior-x:contain;touch-action:pan-x;-webkit-overflow-scrolling:touch}
+        .vl-live-air-forecast-strip{display:flex;gap:8px;overflow-x:auto;padding:0 0 8px;scroll-snap-type:x proximity;scrollbar-width:thin;overscroll-behavior-x:contain;touch-action:pan-x;-webkit-overflow-scrolling:touch}
         .vl-live-air-forecast-strip::-webkit-scrollbar{height:6px}
-        .vl-live-air-forecast-card{display:inline-flex;flex:0 0 auto;min-width:max-content;min-height:34px;scroll-snap-align:start;flex-direction:row;align-items:center;gap:6px;padding:7px 10px;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff;color:var(--body);text-align:start;white-space:nowrap;touch-action:manipulation}
+        .vl-live-air-forecast-card{display:flex;flex:0 0 auto;min-width:118px;scroll-snap-align:start;flex-direction:column;align-items:flex-start;gap:4px;padding:9px 12px;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff;color:var(--body);text-align:start;touch-action:manipulation}
         .vl-live-air-forecast-card:hover{border-color:var(--lime);background:var(--lime-tint)}
         .vl-live-air-forecast-card.is-active{border-color:var(--lime);background:var(--lime);color:var(--green)}
         .vl-live-air-forecast-card.is-active span,.vl-live-air-forecast-card.is-active strong,.vl-live-air-forecast-card.is-active small{color:var(--green)}
-        .vl-live-air-forecast-card.is-skeleton{min-width:112px;min-height:34px;background:linear-gradient(90deg,#f4f5f1 25%,#ececec 37%,#f4f5f1 63%);background-size:400% 100%;border-color:var(--hair);animation:vl-live-shimmer 1.4s ease infinite}
+        .vl-live-air-forecast-card.is-skeleton{min-height:62px;background:linear-gradient(90deg,#f4f5f1 25%,#ececec 37%,#f4f5f1 63%);background-size:400% 100%;border-color:var(--hair);animation:vl-live-shimmer 1.4s ease infinite}
         @media(prefers-reduced-motion:reduce){.vl-live-air-forecast-card.is-skeleton{animation:none}}
         @keyframes vl-live-shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
         .vl-live-air-forecast-card span{color:var(--muted);font-size:var(--vl-meta-size);font-weight:600;line-height:1.4}
-        .vl-live-air-forecast-card strong{color:#000;font-size:var(--vl-meta-size);font-weight:700;line-height:1.35;letter-spacing:-.08px}
+        .vl-live-air-forecast-card strong{color:#000;font-size:var(--vl-data-size);font-weight:700;line-height:1.35;letter-spacing:-.18px}
         .vl-live-air-forecast-card small{color:var(--status);font-size:var(--vl-meta-size);font-weight:600;line-height:1.4}
         .vl-live-air-forecast-detail{display:flex;flex-wrap:nowrap;gap:8px;margin-top:10px;padding:2px 0 8px;overflow-x:auto;scroll-snap-type:x proximity;scrollbar-width:thin;overscroll-behavior-x:contain;touch-action:pan-x;color:var(--muted);font-size:var(--vl-meta-size);font-weight:400;line-height:1.4}
         .vl-live-air-forecast-detail>span{display:inline-flex;flex:0 0 auto;min-height:36px;align-items:center;gap:4px;padding:0 11px;border:1px solid rgba(209,244,112,.72);border-radius:var(--pill-r);background:var(--lime-tint);white-space:nowrap;scroll-snap-align:start}
@@ -4886,7 +4886,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
 
         /* ── HEALTH RECOMMENDATIONS ──────────────────────────────────────────────
            Profiles are one touch/keyboard scroll rail using the same small pill language as
-           VayuLok's other selectors. Advisory copy is deliberately bold for scanability. */
+           VayuLok's other selectors. Advisory copy stays regular and muted so it does not compete with live data. */
         .vl-live-air-history-pollutant{display:inline-flex;align-items:center;gap:4px}
         .vl-live-air-health-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:var(--vl-heading-gap)}
         .vl-live-air-health-tabs{display:flex;align-items:center;gap:7px;overflow-x:auto;padding:0 0 8px;scroll-snap-type:x proximity;scrollbar-width:thin;white-space:nowrap;overscroll-behavior-x:contain;touch-action:pan-x}
@@ -4899,7 +4899,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-air-health-tab-label{display:block;white-space:nowrap}
         .vl-live-air-health-panel{margin-top:var(--vl-content-gap);padding-top:var(--vl-content-gap);border-top:1px solid var(--hair)}
         .vl-live-air-health-persona{display:block;margin:0 0 6px;color:var(--heading);font-size:var(--vl-data-size);font-weight:600;line-height:1.35;letter-spacing:-.1px}
-        .vl-live-air-health-text{margin:0;color:var(--muted);font-size:var(--vl-subtext-size);font-weight:700;line-height:1.5;letter-spacing:0}
+        .vl-live-air-health-text{margin:0;color:var(--muted);font-size:var(--vl-subtext-size);font-weight:400;line-height:1.5;letter-spacing:0}
 
         /* ── HOURLY HISTORY (inline-SVG AQI chart) ──────────────────────────────────
            Line + area stroked from the no-red ramp via the sev-mapped class; the pinned
