@@ -8,7 +8,7 @@ A Drop Docs document can arrive two ways, and only one of them is already privat
   ``wecare-get-miss-redirect`` Lambda@Edge denies wholesale. Nothing to do.
 * **WhatsApp** -- ``inbound-whatsapp-handler`` writes to
   ``media_paths.public('stack/whatsapp-media/incoming/')``, i.e.
-  ``o/stack/whatsapp-media/incoming/``, and CloudFront ``E2GP22R4BIFGQ3`` serves the
+  ``secure/d/public/whatsapp/incoming/``, and CloudFront ``E2GP22R4BIFGQ3`` serves the
   whole ``o/`` root **unauthenticated**. ``o/`` is a location, not a permission
   (``media_paths`` says so explicitly); only ``secure/`` is gated.
 
