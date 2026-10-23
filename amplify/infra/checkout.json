@@ -293,7 +293,7 @@
                   ],
                   "Resource": [
                     {
-                      "Fn::Sub": "arn:aws:s3:::wecare-digital-get/secure/Invoice/customer_invoice/*"
+                      "Fn::Sub": "arn:aws:s3:::wecare-digital-get/secure/d/public/Invoice/customer_invoice/*"
                     }
                   ]
                 },
@@ -311,8 +311,8 @@
                   "Condition": {
                     "StringLike": {
                       "s3:prefix": [
-                        "secure/Invoice/customer_invoice/",
-                        "secure/Invoice/customer_invoice/*"
+                        "secure/d/public/Invoice/customer_invoice/",
+                        "secure/d/public/Invoice/customer_invoice/*"
                       ]
                     }
                   }
