@@ -1,4 +1,12 @@
 steps:
+  - id: Check VayuLok Weather Insights
+    name: node:24-alpine
+    dir: gcp/vayulok-weather-insights
+    entrypoint: node
+    args:
+      - --check
+      - server.mjs
+
   - id: Build VayuLok Weather Insights
     name: gcr.io/cloud-builders/docker
     dir: gcp/vayulok-weather-insights
