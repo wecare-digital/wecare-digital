@@ -160,7 +160,7 @@ const AWS_RESOURCES = [
   { service: 'DynamoDB', resource: 'WhatsAppCallingTable', purpose: 'Call event logs (connect, terminate, permission)', status: 'active' },
   { service: 'DynamoDB', resource: 'WhatsAppVoiceTable', purpose: 'TTS logs, voice note logs', status: 'active' },
   { service: 'Amazon Polly', resource: 'SynthesizeSpeech', purpose: 'Neural TTS for IVR prompts and voice notes (OPUS)', status: 'active' },
-  { service: 'S3', resource: 'wecare-digital-get/o/whatsapp-media/whatsapp-calling/', purpose: 'TTS audio files, call recordings', status: 'active' },
+  { service: 'S3', resource: 'wecare-digital-get/secure/d/public/whatsapp/whatsapp-calling/', purpose: 'TTS audio files, call recordings', status: 'active' },
   { service: 'Secrets Manager', resource: 'wecare/meta-app-secret', purpose: 'Meta App Secret for webhook verification', status: 'active' },
 ];
 
