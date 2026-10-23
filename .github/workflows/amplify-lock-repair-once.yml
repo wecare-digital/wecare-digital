@@ -5,6 +5,7 @@ on:
     branches: [stack]
     paths:
       - '.github/workflows/amplify-lock-repair-once.yml'
+      - 'amplify/package.json'
 
 permissions:
   contents: write
