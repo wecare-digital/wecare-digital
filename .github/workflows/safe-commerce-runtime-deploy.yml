@@ -11,6 +11,11 @@ on:
       - 'amplify/functions/messaging/whatsapp-business-api/**'
       - 'amplify/functions/shared/lambda_utils/**'
       - 'scripts/deploy_all_lambdas.py'
+      - 'scripts/provision_checkout.py'
+      - 'scripts/reconcile_whatsapp_catalog_payment_gate.py'
+      - 'config/lambda-env-manifest.json'
+      - 'amplify/infra/checkout.json'
+      - 'tests/test_provision_checkout_contract.py'
       - 'scripts/snapstart_publish.py'
       - 'tests/test_payments.py'
       - 'tests/test_whatsapp_commerce_gap_closure.py'
@@ -54,15 +59,19 @@ jobs:
       - name: Compile and regression test
         run: |
           python -m py_compile             amplify/functions/ecommerce/checkout/handler.py             amplify/functions/ecommerce/checkout/invoice_engine.py             amplify/functions/payments/invoice-engine/handler.py             amplify/functions/messaging/whatsapp-business-api/handler.py             amplify/functions/messaging/whatsapp-business-api/flows/paid_submit_request.py
-          python -m pytest             tests/test_whatsapp_commerce_gap_closure.py             tests/test_payments.py -q
+          python -m pytest             tests/test_whatsapp_commerce_gap_closure.py             tests/test_payments.py             tests/test_provision_checkout_contract.py             tests/test_reconcile_whatsapp_catalog_payment_gate.py -q
+
+      - name: Reconcile catalog payment rollout gate
+        run: |
+          python scripts/reconcile_whatsapp_catalog_payment_gate.py
 
       - name: Package validation
         run: |
-          python scripts/deploy_all_lambdas.py --dry-run             wecare-checkout             wecare-invoice-engine             wecare-razorpay-webhook             wecare-whatsapp-business-api
+          python scripts/deploy_all_lambdas.py --dry-run             wecare-inbound-whatsapp             wecare-checkout             wecare-invoice-engine             wecare-razorpay-webhook             wecare-whatsapp-business-api
 
       - name: Deploy safe commerce runtimes
         run: |
-          python scripts/deploy_all_lambdas.py             wecare-checkout             wecare-invoice-engine             wecare-razorpay-webhook             wecare-whatsapp-business-api
+          python scripts/deploy_all_lambdas.py             wecare-inbound-whatsapp             wecare-checkout             wecare-invoice-engine             wecare-razorpay-webhook             wecare-whatsapp-business-api
 
       - name: Verify live aliases
         run: |
@@ -70,6 +79,7 @@ jobs:
           import boto3
           lam = boto3.client("lambda", region_name="us-east-1")
           names = [
+              "wecare-inbound-whatsapp",
               "wecare-checkout",
               "wecare-invoice-engine",
               "wecare-razorpay-webhook",
@@ -81,9 +91,16 @@ jobs:
               alias = lam.get_alias(FunctionName=name, Name="live")["FunctionVersion"]
               served = lam.get_function_configuration(
                   FunctionName=f"{name}:{alias}")["CodeSha256"]
+              served_cfg = lam.get_function_configuration(FunctionName=f"{name}:{alias}")
               print(f"{name}: live=v{alias} current={served == latest}")
               if served != latest:
                   bad.append(name)
+              if name in {"wecare-inbound-whatsapp", "wecare-checkout"}:
+                  env = (served_cfg.get("Environment") or {}).get("Variables") or {}
+                  flag = env.get("WA_CATALOG_ORDERS_ENABLED")
+                  print(f"{name}: WA_CATALOG_ORDERS_ENABLED={flag}")
+                  if flag != "true":
+                      bad.append(name + ":catalog-gate")
           if bad:
               raise SystemExit("live alias mismatch: " + ", ".join(bad))
           PY
