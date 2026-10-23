@@ -1501,13 +1501,13 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( css ).not.toContain( '.vl-live-air-history-nav' );
     expect( css ).not.toContain( 'scrollbar' + '-color:' );
 
-    // Pollutant info controls use the same lime-hover lift treatment as the rest of the Air actions.
+    // VayuLok uses one shared interaction language: tint for hover, solid lime for active/action.
     const hoverRule = css.match( /\.vl-live-air-pollutant-info:hover,[\s\S]*?\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( hoverRule ).toContain( 'background:var(--lime-hover)' );
+    expect( hoverRule ).toContain( 'background:var(--lime)' );
     expect( hoverRule ).toContain( 'border:0' );
-    expect( hoverRule ).toContain( 'box-shadow:0 6px 14px rgba(26,58,42,.16)' );
-    expect( hoverRule ).toContain( 'transform:translateY(-2px) scale(1.04)' );
-    expect( hoverRule ).not.toContain( 'background:var(--green)' );
+    expect( hoverRule ).toContain( 'box-shadow:var(--vl-hover-shadow)' );
+    expect( hoverRule ).toContain( 'transform:translateY(-1px)' );
+    expect( css ).not.toContain( '--lime-hover' );
 
     const personaRule = css.match( /\.vl-live-air-health-persona\{[^}]*\}/ )?.[ 0 ] || '';
     expect( personaRule ).toContain( 'font-size:var(--vl-data-size)' );
@@ -2580,7 +2580,7 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( css ).toContain( '.vl-live-mobile-snapshot-head strong{overflow:hidden;color:var(--heading);font-size:var(--vl-data-size)' );
     expect( css ).toContain( '.vl-live-mobile-snapshot-head small{color:var(--muted);font-size:var(--vl-meta-size)' );
     expect( css ).toContain( '.vl-live-mobile-copy{display:flex;min-width:0;flex-direction:column;gap:3px;color:var(--body);font-size:var(--vl-subtext-size)' );
-    expect( css ).toContain( '.vl-live-mobile-copy>strong{color:#000;font-size:var(--vl-data-size)}' );
+    expect( css ).toContain( '.vl-live-mobile-copy>strong{color:var(--heading);font-size:var(--vl-data-size)}' );
     expect( css ).toContain( '.vl-live-mobile-copy small{margin-top:2px;color:var(--muted);font-size:var(--vl-meta-size)}' );
     expect( css ).toContain( '.vl-live-air-context-item small{color:var(--muted);font-size:var(--vl-meta-size)' );
     expect( css ).toContain( '--vl-subtext-size:var(--public-supporting-size)' );
@@ -2592,6 +2592,10 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( css ).toContain( '.vl-live-air-gauge-word{display:block;color:var(--heading);font-size:var(--vl-panel-heading-size);font-weight:var(--vl-panel-heading-weight)' );
     expect( css ).toContain( '.vl-live-wx-grid-k{min-width:0;color:var(--body);font-size:var(--vl-data-size);font-weight:700;line-height:1.35' );
     expect( css ).toContain( '.vl-live-wx-grid-v{color:var(--muted);font-size:var(--vl-data-size);font-weight:600;line-height:1.35' );
+    expect( css ).not.toContain( '.vl-live-wx-grid-item:hover' );
+    expect( css ).not.toContain( 'color:#000' );
+    expect( css ).toContain( '--vl-hover-bg:var(--lime-tint)' );
+    expect( css ).toContain( '--vl-active-bg:var(--lime)' );
     expect( css ).toContain( '.vl-live-wx-daily-cond{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:var(--vl-compact-copy-size)' );
     expect( css ).toContain( '.vl-live-wx-alert p{margin:2px 0 0;color:var(--body);font-size:var(--vl-compact-copy-size)' );
     expect( css ).toContain( '.vl-live{--vl-card-heading-size:var(--public-mobile-card-size);--vl-metric-size:var(--public-mobile-section-size);--vl-meta-size:var(--public-meta-size);--vl-compact-copy-size:var(--vl-subtext-size)}' );

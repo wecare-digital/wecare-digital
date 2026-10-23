@@ -73,7 +73,7 @@ export function VayuLokUiStyles() {
       .vl-ui-data-card:hover,.vl-ui-data-card.is-active{border-color:var(--lime,var(--public-brand-lime));background:var(--lime-tint,var(--public-lime-tint))}
       .vl-ui-data-card.is-active{background:var(--lime,var(--public-brand-lime));color:var(--green,var(--public-brand-green))}
       .vl-ui-data-card>span{color:var(--muted,var(--public-muted));font-size:var(--vl-meta-size,var(--public-meta-size));font-weight:600;line-height:1.4;white-space:normal}
-      .vl-ui-data-card>strong{color:#000;font-size:var(--vl-data-size,var(--public-data-size));font-weight:700;line-height:1.35;letter-spacing:-.18px}
+      .vl-ui-data-card>strong{color:var(--heading,var(--public-heading));font-size:var(--vl-data-size,var(--public-data-size));font-weight:700;line-height:1.35;letter-spacing:-.18px}
       .vl-ui-data-card>small{color:var(--muted,var(--public-muted));font-size:var(--vl-meta-size,var(--public-meta-size));font-weight:600;line-height:1.4}
       .vl-ui-icon-action{
         position:relative;display:inline-flex;flex:0 0 var(--tap-min,44px);width:var(--tap-min,44px);height:var(--tap-min,44px);
