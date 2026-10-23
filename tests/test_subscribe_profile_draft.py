@@ -92,22 +92,16 @@ def test_newer_profile_edit_is_not_overwritten(setup):
     assert mod.handle_review(data,TOKEN,'r')['screen']=='REVIEW'
     assert not table.updates
 
-def test_required_business_and_address_fields_reject_blank_values(setup):
+def test_optional_business_and_secondary_address_fields_allow_blank_values(setup):
     mod,table,_=setup
-    cases=[
-        ('company_name','organisation'),
-        ('designation','role / designation'),
-        ('address_line2','address line 2'),
-        ('locality','landmark / locality'),
-    ]
-    for field,label in cases:
-        data=form(mod)
-        data[field]=''
-        before_updates=len(table.updates)
-        result=mod.handle_review(data,TOKEN,'r-'+field)
-        assert result['screen']=='REVIEW'
-        assert label in result['data']['error_message'].lower()
-        assert len(table.updates)==before_updates
+    data=form(mod)
+    data.update(company_name='', designation='', address_line2='', locality='')
+    result=mod.handle_review(data,TOKEN,'r-optional')
+    assert result['screen']=='COMPLETE'
+    assert table.row['companyName']==''
+    assert table.row['designation']==''
+    assert table.row[contact_address.ATTRIBUTE]['addressLine2']==''
+    assert table.row[contact_address.ATTRIBUTE]['locality']==''
 
 
 def test_partial_address_does_not_save_or_show_success(setup):
@@ -185,7 +179,8 @@ def test_customer_copy_hides_country_code_and_has_short_labels():
     assert all(len(n['label'])<=20 for n in inputs)
     dropdowns=[n for n in walk(doc) if n.get('type')=='Dropdown']
     required={n['name'] for n in inputs + dropdowns if n.get('required')}
-    assert {'full_name','company_name','designation','address_line1','address_line2','locality','city','state','postal_code','country'}<=required
+    assert {'full_name','address_line1','city','state','postal_code','country'}<=required
+    assert not {'company_name','designation','address_line2','locality'} & required
     country=next(n for n in dropdowns if n.get('name')=='country')
     assert country['data-source']
     assert country['data-source'][0]['id']=='India'
