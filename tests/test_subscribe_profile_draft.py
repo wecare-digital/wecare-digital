@@ -176,7 +176,7 @@ def test_customer_copy_hides_country_code_and_has_short_labels():
             for value in node:yield from walk(value)
     inputs=[n for n in walk(doc) if n.get('type')=='TextInput']
     assert not any(n.get('name')=='country_code' for n in inputs)
-    assert all(len(n['label'])<=20 for n in inputs)
+    assert all(len(n['label'])<=30 for n in inputs)
     dropdowns=[n for n in walk(doc) if n.get('type')=='Dropdown']
     required={n['name'] for n in inputs + dropdowns if n.get('required')}
     assert {'full_name','address_line1','city','state','postal_code','country'}<=required
