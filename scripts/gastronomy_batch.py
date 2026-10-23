@@ -125,7 +125,6 @@ def _source_profile(document):
         'source_ref': str(profile.get('source_ref') or '').strip(),
         'blocked_public_terms': blocked,
         'allowed_public_terms': _clean_term_list(profile.get('allowed_public_terms')),
-        'required_public_attribution_terms': _clean_term_list(profile.get('required_public_attribution_terms')),
     }
 
 
