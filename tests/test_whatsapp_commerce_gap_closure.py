@@ -3,6 +3,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PAID = ROOT / "amplify/functions/messaging/whatsapp-business-api/flows/paid_submit_request.py"
 OUTBOUND = ROOT / "amplify/functions/messaging/outbound-whatsapp/handler.py"
+WA_ORDER_STATUS = ROOT / "amplify/functions/shared/lambda_utils/ecommerce/wa_order_status.py"
 ROUTE = ROOT / "scripts/provision_invoice_order_status_route.py"
 
 
@@ -22,9 +23,25 @@ def test_paid_submit_request_sends_no_post_payment_interactive_flow():
 
 def test_order_status_is_template_only():
     source = OUTBOUND.read_text(encoding="utf-8")
+    shared = WA_ORDER_STATUS.read_text(encoding="utf-8")
     assert "wecare_order_status_v2" in source
     assert "'type': 'interactive',\n                'interactive': {\n                    'type': 'order_status'" not in source
     assert "ORDER_STATUS_TEMPLATE_NOT_READY" in source
+    assert "build_template_component(" in shared
+    assert "_wa_os.build_template_component(" in source
+    assert "body.get('isOrderStatus'" not in source
+
+
+def test_commerce_callers_use_canonical_order_status_contract():
+    callers = [
+        ROOT / "amplify/functions/payments/invoice-engine/handler.py",
+        ROOT / "amplify/functions/ecommerce/checkout/invoice_engine.py",
+        ROOT / "amplify/functions/payments/razorpay-webhook/handler.py",
+    ]
+    for path in callers:
+        source = path.read_text(encoding="utf-8")
+        assert "'orderStatusDetails':" in source
+        assert "'isOrderStatus': True" not in source
 
 
 def test_invoice_order_status_route_is_declared():
