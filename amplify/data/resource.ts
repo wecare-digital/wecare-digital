@@ -89,7 +89,7 @@ const schema = a.schema( {
       bsuid: a.string(),
       // Parent BSUID — for linked accounts (e.g. parent business account)
       parentBsuid: a.string(),
-      // WhatsApp username (optional, provider-owned Meta identity, e.g. "@pablomorales")
+      // WhatsApp username (provider-owned Meta identity, e.g. "@pablomorales")
       username: a.string(),
       // Customer-entered WECARE.DIGITAL profile name from F001. Never replaces Meta username.
       profileUsername: a.string(),
@@ -995,10 +995,9 @@ const schema = a.schema( {
       wabaId: a.string(), // Which WABA
       status: a.string().default( 'DRAFT' ), // DRAFT, PUBLISHED, DEPRECATED
       category: a.string(), // service_request, order, interactive, data_collection, payment, booking, feedback
-      // How a customer reaches the Flow. This is control-plane metadata, not a second router.
-      // keyword_interactive | payment_template | internal_event | manual | none
+      // Customer entry policy: keyword_interactive | payment_template | internal_event | manual | none
       entryMode: a.string(),
-      // Approved Meta template name when entryMode=payment_template. Empty for native keyword Flows.
+      // Approved Meta template name for payment_template entries; empty for native keyword flows.
       entryTemplateName: a.string(),
       // Payment config
       requiresPayment: a.boolean().default( false ),
