@@ -27,9 +27,9 @@ CANONICAL_FLOWS = {
     'leave_review':   ('940049388908144',  'PUBLISHED', '01. WECARE REVIEW FLOW'),
     # Vault: website CTA + ₹49 catalog delivery, no Flow.
     'vault':          (None, 'NONE', None),
-    # F001 replacement. Keep DRAFT here until Meta publication is explicitly approved.
-    # Runtime activation is controlled from FlowRegistry/SystemConfig after publish.
-    'subscribe':      ('2413873616105042', 'DRAFT',     'WD-F001-SUBSCRIBE-PROFILE'),
+    # F001 replacement. Published in Meta; runtime activation remains controlled from
+    # FlowRegistry/SystemConfig so publication does not by itself enable customer sends.
+    'subscribe':      ('2413873616105042', 'PUBLISHED', 'WD-F001-SUBSCRIBE-PROFILE'),
     # Track Request: not in keepIds. Former ids 1486454129852338 (DRAFT) / 973888792200167
     # (DEPRECATED) are not canonical. Tracking is served by
     # GET /wa-business/service/track/{orderId} + the /orders/ page, not a Flow.
