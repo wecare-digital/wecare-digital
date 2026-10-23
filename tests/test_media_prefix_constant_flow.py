@@ -35,3 +35,17 @@ def test_unrooted_or_unproven_use_still_fails(use):
 
 def test_unused_prefix_is_not_assumed_safe():
     assert not result("PREFIX = 'd/public/receipts/'")
+
+
+def test_canonical_static_and_generated_prefixes_are_declared():
+    source = (ROOT / "amplify/functions/shared/lambda_utils/media_paths.py").read_text(encoding="utf-8")
+    assert 'PUBLIC_STREAM_MEDIA_DOCS_PREFIX = PUBLIC_STREAM_MEDIA_ROOT + "docs/"' in source
+    assert 'PUBLIC_STREAM_MEDIA_FLAGS_PREFIX = PUBLIC_STREAM_MEDIA_M_PREFIX + "flags/"' in source
+    assert 'CATALOG_GENERATED_MEDIA_PREFIX = CATALOG_MEDIA_PREFIX + "generated/"' in source
+
+    docs = (ROOT / "amplify/functions/operations/docs-scraper/handler.py").read_text(encoding="utf-8")
+    reports = (ROOT / "amplify/functions/operations/bulk-job-control/handler.py").read_text(encoding="utf-8")
+    assert "PUBLIC_STREAM_MEDIA_DOCS_PREFIX" in docs
+    assert "PUBLIC_STREAM_MEDIA_REPORTS_PREFIX" in reports
+    assert "o/stream/docs" not in docs
+    assert "o/stack/reports" not in reports
