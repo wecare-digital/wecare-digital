@@ -5532,6 +5532,8 @@ export interface FlowRegistryItem {
   wabaId?: string;
   status: string;
   category?: string;
+  entryMode?: 'keyword_interactive' | 'payment_template' | 'internal_event' | 'manual' | 'none' | string;
+  entryTemplateName?: string;
   requiresPayment?: boolean;
   paymentAmount?: number;
   paymentDescription?: string;
