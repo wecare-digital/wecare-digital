@@ -490,6 +490,8 @@ export interface Contact {
   // Country
   country?: string;
   pincode?: string;
+  // Customer-entered WECARE.DIGITAL profile name. Separate from Meta's provider username.
+  profileUsername?: string;
   // Business/profile fields
   companyName?: string;
   designation?: string;
