@@ -4435,6 +4435,8 @@ def _upsert_flow_registry(body: Dict) -> Dict:
             'wabaId': body.get('wabaId', ''),
             'status': status,
             'category': body.get('category', ''),
+            'entryMode': body.get('entryMode', 'none'),
+            'entryTemplateName': body.get('entryTemplateName', ''),
             'requiresPayment': body.get('requiresPayment', False),
             'paymentAmount': int(body.get('paymentAmount', 0)),
             'paymentDescription': body.get('paymentDescription', ''),
@@ -4640,9 +4642,9 @@ def _sync_flows(params: Dict, body: Dict) -> Dict:
             update['previewUrl'] = preview['preview_url']
             update['previewExpiresAt'] = Decimal(str(now + 600))
         # Preserve config-only fields already present.
-        for keep in ('flowCode', 'flowType', 'flowVersion', 'requiresPayment', 'paymentAmount',
-                     'screenConfig', 'contactMapping', 'dataFetchers',
-                     'submissionPrefix', 'endpointUri', 'createdAt'):
+        for keep in ('flowCode', 'flowType', 'flowVersion', 'entryMode', 'entryTemplateName',
+                     'requiresPayment', 'paymentAmount', 'screenConfig', 'contactMapping',
+                     'dataFetchers', 'submissionPrefix', 'endpointUri', 'createdAt'):
             if keep in existing and keep not in update:
                 update[keep] = existing[keep]
         update.setdefault('createdAt', Decimal(str(now)))
