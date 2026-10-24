@@ -12,7 +12,7 @@ import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import * as cloudwatch_actions from 'aws-cdk-lib/aws-cloudwatch-actions';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as events from 'aws-cdk-lib/aws-events';
-import * as targets from 'aws-cdk-lib/aws-events-targets';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import { Duration } from 'aws-cdk-lib';
 
 const AWS_ACCOUNT_ID = process.env.AWS_ACCOUNT_ID || '';
@@ -252,17 +252,65 @@ export function addBackendResources ( stack: Stack ) {
   // fail on "already exists". If you later fully adopt IaC, import them first.
 
   // ─── Amplify build-failure notification ────────────────────────────
-  // Notify the SNS/email topic when an Amplify Hosting deploy FAILS.
+  // The shared legacy topic delivers to the WhatsApp worker, not email.
+  // Keep other alarm declarations separate from this verified email route.
+  const buildFailureTopic = sns.Topic.fromTopicArn(
+    stack,
+    'BuildFailureTopic',
+    stack.formatArn( { service: 'sns', resource: 'wecare-alarm-notifications' } )
+  );
   const amplifyBuildFailedRule = new events.Rule( stack, 'AmplifyBuildFailedRule', {
     ruleName: 'wecare-amplify-build-failed',
     description: 'Notify on failed Amplify Hosting deployments',
     eventPattern: {
       source: [ 'aws.amplify' ],
       detailType: [ 'Amplify Deployment Status Change' ],
-      detail: { jobStatus: [ 'FAILED' ] },
+      detail: { appId: [ 'd22dm4b0jn71jw' ], jobStatus: [ 'FAILED' ] },
     },
-    targets: [ new targets.SnsTopic( alarmTopic ) ],
   } );
+  // Preserve the live target ID and message transformer when adopting the rule.
+  const buildFailedResource = amplifyBuildFailedRule.node.defaultChild as events.CfnRule;
+  buildFailedResource.targets = [ {
+    id: 'sns-email',
+    arn: buildFailureTopic.topicArn,
+    inputTransformer: {
+      inputPathsMap: {
+        app: '$.detail.appId', branch: '$.detail.branchName',
+        job: '$.detail.jobId', status: '$.detail.jobStatus',
+      },
+      inputTemplate: '"Amplify build FAILED - app <app> branch <branch> job <job> status <status>"',
+    },
+  } ];
+
+  // Imported topics do not synthesize resource grants. Adopt the two verified
+  // live statements together; compare the live policy before any deployment so
+  // a later provider grant is not lost when CloudFormation writes this document.
+  const buildFailurePolicy = new sns.TopicPolicy( stack, 'BuildFailureTopicPolicy', {
+    topics: [ buildFailureTopic ],
+  } );
+  buildFailurePolicy.document.addStatements(
+    new iam.PolicyStatement( {
+      sid: '__default_statement_ID',
+      principals: [ new iam.AnyPrincipal() ],
+      actions: [
+        'sns:GetTopicAttributes', 'sns:SetTopicAttributes', 'sns:AddPermission',
+        'sns:RemovePermission', 'sns:DeleteTopic', 'sns:Subscribe',
+        'sns:ListSubscriptionsByTopic', 'sns:Publish',
+      ],
+      resources: [ buildFailureTopic.topicArn ],
+      conditions: { StringEquals: { 'AWS:SourceOwner': stack.account } },
+    } ),
+    new iam.PolicyStatement( {
+      sid: 'AllowEventBridgeAmplifyBuildPublish',
+      principals: [ new iam.ServicePrincipal( 'events.amazonaws.com' ) ],
+      actions: [ 'sns:Publish' ],
+      resources: [ buildFailureTopic.topicArn ],
+      conditions: {
+        ArnEquals: { 'aws:SourceArn': amplifyBuildFailedRule.ruleArn },
+        StringEquals: { 'aws:SourceAccount': stack.account },
+      },
+    } )
+  );
 
   // ─── WAF ────────────────────────────────────────────────────────────
   // Removed 2026-09-28 by owner instruction, as a cost decision. There is no
