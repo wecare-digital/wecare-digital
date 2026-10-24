@@ -3311,7 +3311,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                         <path d="M4 12h14a2 2 0 1 1-1.7 3.05" />
                         <path d="M4 16h7.5a2 2 0 1 1-1.7 3.05" />
                       </svg>
-                      <span className="vl-live-mode-label">Air</span>
                     </button>
                     <button
                       type="button"
@@ -3326,7 +3325,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                         <path d="M8 2V1M8 15v-1M2 8H1M15 8h-1M3.8 3.8 3 3M13 13l-.8-.8M12.2 3.8 13 3" />
                         <path d="M9.5 19h8a3.5 3.5 0 0 0 .3-6.99A5 5 0 0 0 8.6 13.5 2.75 2.75 0 0 0 9.5 19Z" />
                       </svg>
-                      <span className="vl-live-mode-label">Weather</span>
                     </button>
                   </div>
                 </div>
@@ -5141,7 +5139,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
              to the selected segment only. */
           .vl-live-mobile-mode{
             position:relative;display:grid;flex:0 0 auto;grid-template-columns:1fr 1fr;gap:3px;
-            width:172px;padding:3px;border:1px solid var(--hair);border-radius:var(--pill-r);
+            width:116px;padding:3px;border:1px solid var(--hair);border-radius:var(--pill-r);
             background:rgba(255,255,255,.96);box-shadow:0 1px 3px rgba(26,58,42,.08)
           }
           .vl-live-mobile-mode-indicator{
@@ -5155,24 +5153,22 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
             transform:translateX(calc(100% + 4px));background:#e8f5ff;border-color:#b9d9e8
           }
           .vl-live-mobile-mode button{
-            position:relative;z-index:1;display:flex;align-items:center;justify-content:center;gap:6px;
-            min-width:0;min-height:var(--tap-min);padding:0 10px;border:0;border-radius:var(--pill-r);
-            background:transparent;color:#66736d;cursor:pointer;font:inherit;font-size:13px;font-weight:700;
-            line-height:1;letter-spacing:-.01em;white-space:nowrap
+            position:relative;z-index:1;display:grid;place-items:center;
+            min-width:var(--tap-min);min-height:var(--tap-min);padding:0;border:0;border-radius:var(--pill-r);
+            background:transparent;color:#728079;cursor:pointer
           }
           .vl-live-mobile-mode button:hover{background:rgba(26,58,42,.035)}
           .vl-live-mobile-mode .is-air[aria-pressed='true']{color:var(--green)}
           .vl-live-mobile-mode .is-weather[aria-pressed='true']{color:#416f84}
           .vl-live-mobile-mode button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
           .vl-live-mode-icon{
-            width:18px;height:18px;flex:0 0 18px;fill:none;stroke:currentColor;stroke-width:1.9;
-            stroke-linecap:round;stroke-linejoin:round;pointer-events:none
+            width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;
+            stroke-linecap:round;stroke-linejoin:round;pointer-events:none;
+            transition:transform .18s ease
           }
-          .vl-live-mode-label{display:block}
+          .vl-live-mobile-mode button[aria-pressed='true'] .vl-live-mode-icon{transform:scale(1.06)}
           @media(max-width:380px){
-            .vl-live-mobile-snapshot-head{flex-wrap:wrap}
-            .vl-live-mobile-snapshot-head>span{flex:1 1 100%}
-            .vl-live-mobile-mode{width:100%}
+            .vl-live-mobile-mode{width:112px}
           }
           .vl-live-mobile-snapshot-body{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:14px;margin-top:12px;padding-top:12px;border-top:1px solid var(--hair)}
           .vl-live-mobile-primary{display:flex;min-width:74px;flex-direction:column}
