@@ -23,7 +23,7 @@ frontend:
         - python3 --version
         # REPRODUCIBLE INSTALL for the production Amplify build.
         # `npm ci` installs exactly the committed lockfile and never writes to it, so the
-        # tree that deploys is the tree CI proved. `npm install` was free to resolve a newer
+        # tree that deploys is exactly the committed dependency graph. `npm install` was free to resolve a newer
         # satisfying version at deploy time, which meant the production build could differ
         # from the one that passed CI minutes earlier, with nothing recording the difference.
         #
@@ -54,10 +54,8 @@ frontend:
         - python3 scripts/sync_faq.py --check
         # THE REAL CREDENTIAL GATE. It must run in the production build.
         # output:'export' inlines every NEXT_PUBLIC_* value into a JS chunk that is
-        # then served to every visitor. This production build has the branch-scoped values,
-        # environment variables, so the copy of this check in build-test.yml scans an
-        # export that never contained a key and passes for free. THIS build is the one
-        # that has them, so this is the only place the check can actually catch a
+        # then served to every visitor. This production build has the branch-scoped
+        # environment variables, so this is the place that can catch a
         # server-side credential being published.
         #
         # Specifically it refuses the unified Google key - one value shared by
