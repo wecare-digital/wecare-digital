@@ -44,7 +44,7 @@ POLICY: dict[str, tuple[str, str, str]] = {
     "wecare/plivo/api": ("communications", "KEEP_ISOLATED", "voice provider API credentials"),
     "wecare/plivo-answer": ("communications", "NEEDS_OWNER_REVIEW", "same provider as plivo/api; group only if every reader needs both and rotation matches"),
     "wecare/sinch/rcs": ("communications", "KEEP_ISOLATED", "RCS provider credentials"),
-    "wecare/truecaller": ("communications", "KEEP_ISOLATED", "identity callback credentials"),
+    "wecare/truecaller": ("communications", "RETIRE_SCHEDULED", "unprovisioned future integration; no live route or runtime consumer, stored credential scheduled for deletion"),
     "wecare/agent-connector-token": ("integrations", "NEEDS_OWNER_REVIEW", "identify the consumer before any action"),
     "wecare/seo/google-oauth": ("seo", "KEEP_ISOLATED", "Google OAuth client"),
     "wecare/google/ads": ("integrations", "KEEP_ISOLATED", "Google Ads credentials"),
