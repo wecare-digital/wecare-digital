@@ -96,10 +96,10 @@ const LIVE_PRODUCTS: CatalogSnapshotProduct[] = [
     variants:[{ id:'GOS7K4M2', label:'Standard', inStock:true }],
   },
   {
-    id:'032039ce-c4ec-5d44-8fdb-d4d9ffb91f02', name:'Bharat Rx', slug:'bharat-rx',
+    id:'032039ce-c4ec-5d44-8fdb-d4d9ffb91f02', name:'Sehat', slug:'sehat',
     formattedPrice:'₹850.00', price:'850.00', currency:'INR',
-    inStock:true, visible:true, websiteEnabled:true, metaEnabled:false, canonicalPath:'/bharat-rx/',
-    descriptionHtml:'<p>Bharat Rx from WECARE.DIGITAL.</p>',
+    inStock:true, visible:true, websiteEnabled:true, metaEnabled:false, canonicalPath:'/sehat/',
+    descriptionHtml:'<p>Appointments with qualified professionals.</p>',
     variants:[{ id:'BRX5N8Q3', label:'Standard', inStock:true }],
   },
   {
