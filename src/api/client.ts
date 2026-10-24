@@ -3089,9 +3089,9 @@ export async function getBedrockAIConfig (): Promise<BedrockAIConfig> {
     responseDelay: 0,
     supportedLanguages: [ 'en', 'hi', 'hi-Latn', 'bn', 'ta', 'te', 'gu', 'mr' ],
     defaultLanguage: 'en',
-    agentId: '4UUQYFWX64',
-    agentAlias: 'TSTALIASID',
-    knowledgeBaseId: 'static-faq',
+    agentId: '',
+    agentAlias: '',
+    knowledgeBaseId: '',
     modelId: 'amazon.nova-pro-v1:0',
   };
 }
