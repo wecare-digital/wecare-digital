@@ -22,7 +22,7 @@ def build(dependencies, output):
     expected = dict(line.split("==") for line in (SOURCE / "requirements.txt").read_text().splitlines() if line)
     if installed != expected:
         raise ValueError("Dependency directory does not match the pinned adapter requirements")
-    sources = {"handler.py": SOURCE / "handler.py", "patch_policy.py": SOURCE / "patch_policy.py", "provider_adapters.py": SOURCE / "provider_adapters.py",
+    sources = {"handler.py": SOURCE / "handler.py", "provider_adapters.py": SOURCE / "provider_adapters.py",
         "workspace-mcp.json": ROOT / "config/workspace-mcp.json"}
     for file in dependencies.rglob("*"):
         if file.is_file() and "__pycache__" not in file.parts and file.suffix not in {".pyc", ".pyo"}:
