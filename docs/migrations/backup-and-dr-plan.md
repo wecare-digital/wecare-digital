@@ -23,7 +23,7 @@ truth and its own restore path.
 
 | # | Layer | Where it lives | Source of truth | Lost if deleted? |
 |---|-------|----------------|-----------------|------------------|
-| 1 | Application code | this git repo (`src/`, `amplify/`, `scripts/`, `tests/`) | git | No — git has full history |
+| 1 | Application code | this git repo (`src/`, `amplify/`, `scripts/`) | git | No — git has full history |
 | 2 | Infrastructure definition | `amplify/*.ts` (CDK) + `scripts/provision_*.py` (boto3) | git | No — re-runnable |
 | 3 | Runtime data | DynamoDB (~76 live tables), S3 (`wecare-digital-get`) | **AWS only** | **Yes — unrecoverable without a backup** |
 | 4 | Secrets | AWS Secrets Manager (~28 secrets) | AWS, mirrored to GCP + encrypted file | Partially protected |
@@ -344,7 +344,7 @@ Mirror the Lightsail migration discipline that is already proven in this repo:
 - [x] **Cognito user export** — `scripts/export_cognito_users.py` writes attributes
   + group membership (never passwords) SSE-KMS to the credential-backup bucket.
 - [x] **Scheduled backup refresh** — `scripts/refresh_all_backups.py` run weekly by
-  `.github/workflows/backup-refresh.yml`; SKIPPED until repo var
+  Run the backup refresh script directly from the operational environment; no GitHub workflow owns this task.
   `BACKUP_REFRESH_ROLE_ARN` is set (same OIDC gating as the Plivo drift job).
 - [x] **First restore drill** — real DynamoDB PITR restore of `SiteLanguageCache`,
   counts matched (253=253), test table deleted. See
@@ -379,7 +379,7 @@ Mirror the Lightsail migration discipline that is already proven in this repo:
   agent-approvals, thread-ownership) now call `table_backup_defaults.apply(TABLE)`
   so a new table joins PITR + the AWS Backup plan at creation. 134 table tests pass.
 - [x] **Quarterly restore drills automated** — `scripts/restore_drill.py` (S3
-  version-recovery + secrets restore check) + `.github/workflows/restore-drill.yml`
+  version-recovery + secrets restore check); run the restore drill explicitly from the operational environment
   (quarterly, OIDC-gated). The S3 drill was RUN LIVE and passed (wrote, overwrote,
   recovered the original from its prior version, cleaned up); logged in
   `docs/execution/restore-drill-log.md`.
