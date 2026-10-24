@@ -8,7 +8,7 @@ import { DynamoEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
  * (spec .kiro/specs/aws-native-consolidation).
  *
  * WHY A NEW TABLE, PROVISIONED THIS WAY. The live DynamoDB fleet is created by
- * CDK (seo-resources.ts, backend-resources.ts, link-resources.ts) and
+ * CDK (seo-resources.ts, backend-resources.ts) and
  * scripts/provision_*.py under the `stack-wecare-digital-*` scheme, and the
  * Python Lambdas address those names directly through os.environ. The declared
  * models in amplify/data/resource.ts are inert (0 AppSync APIs). So the native
