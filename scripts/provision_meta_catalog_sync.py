@@ -30,7 +30,7 @@ A DEDICATED ROLE, AND THE SHARED FLEET ROLE IS NOT TOUCHED
 there hands it to all of them. This function gets its own role with five statements and nothing
 else: CloudWatch Logs, one `secretsmanager:GetSecretValue`, three item actions on the
 AgentApprovals table, and read-only access to ProductsTable and its one change stream. No S3, no
-KMS, no `lambda:InvokeFunction`, no `iam:*`. `tests/test_meta_catalog_sync_iam.py` asserts the
+KMS, no `lambda:InvokeFunction`, no `iam:*`. The policy is intentionally limited to the
 document by EQUALITY, so a sixth statement is a test failure rather than an unnoticed addition,
 and asserts this file never names the shared role.
 
@@ -48,7 +48,7 @@ way to name it without reading it first. It matches one secret, not a family.
 THE SCHEDULE IS THE BACKSTOP, NOT THE TRIGGER
 ---------------------------------------------
 Six-hourly, at `cron(25 */6 * * ? *)` - the same cadence and the same minute as
-`.github/workflows/aws-native-catalog-publish.yml`, so the website snapshot refresh and the Meta
+the production deployment path, so the website snapshot refresh and the Meta
 projection move together rather than drifting six hours apart. The ProductsTable stream is what
 makes it prompt; the schedule is what makes it eventually correct if the mapping is disabled, a
 batch exhausted its retries, or an event was simply missed.
@@ -91,7 +91,7 @@ LOG_GROUP = f"/aws/lambda/{FUNCTION}"
 LOG_RETENTION_DAYS = 30
 
 SCHEDULE_RULE = f"{FUNCTION}-schedule"
-#: Six-hourly at minute 25, matching `.github/workflows/aws-native-catalog-publish.yml`'s
+#: Six-hourly at minute 25, matching the production catalogue refresh
 #: `25 */6 * * *`.
 SCHEDULE_EXPRESSION = "cron(25 */6 * * ? *)"
 
@@ -177,7 +177,7 @@ def trust_policy() -> dict:
 def expected_role_policy(account: str = ACCOUNT_ID) -> dict:
     """Four exact statements: logs, Meta token, approval table, and ProductsTable read.
 
-    Pinned by EQUALITY in `tests/test_meta_catalog_sync_iam.py`. The DynamoDB grant is deliberately
+    The DynamoDB grant is deliberately
     limited to the existing AgentApprovals table and only GetItem/PutItem/UpdateItem: proposal,
     exact approval, apply claim and readback status. No Scan/Query/Delete and no other table.
 
