@@ -12,7 +12,7 @@
   "_safe_to_record": "Every value here is NEXT_PUBLIC_* (inlined into the client bundle by output:'export', so already public) plus NODE_OPTIONS. No credential is present, and none may ever be added to this file.",
   "_rollback": "UpdateBranch on appId d22dm4b0jn71jw branch stack with environmentVariables set to environmentVariables_before below, then trigger a build - the value is read at build time, so a redeploy is required for it to take effect.",
   "environmentVariables_before": {
-    "NEXT_PUBLIC_API_BASE": "https://api.wecare.digital",
+    "NEXT_PUBLIC_API_BASE": "https://wecare.digital/api",
     "NEXT_PUBLIC_APP_URL": "https://retired-legacy-host.invalid/",
     "NEXT_PUBLIC_AWS_ACCOUNT_ID": "775261844268",
     "NEXT_PUBLIC_AWS_REGION": "us-east-1",
