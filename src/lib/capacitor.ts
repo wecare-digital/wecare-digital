@@ -111,9 +111,9 @@ export function initDeepLinks(navigate: (path: string) => void) {
     //
     // TWO forms. Only the first is live as a URL:
     //   wecare.digital/r/<code>   canonical since 2026-09-26, what we mint now
-    //   r.wecare.digital/<code>   every link issued before that — host now NXDOMAIN
+    //   wecare.digital/r/<code>   every link issued before that — host now NXDOMAIN
     //
-    // r.wecare.digital was RETIRED on 2026-09-28 (Route 53 record deleted under
+    // wecare.digital/r was RETIRED on 2026-09-28 (Route 53 record deleted under
     // confirmation YES R53-DELETE-001; API Gateway custom domain deleted in 396b87ad),
     // so that form no longer resolves in a browser at all. The branch below is kept
     // anyway, and deliberately: a native OS matches an incoming link against the host
@@ -131,7 +131,7 @@ export function initDeepLinks(navigate: (path: string) => void) {
       url.hostname === 'wecare.digital'
       && /^\/r\/.+/.test(url.pathname);
 
-    if (url.hostname === 'r.wecare.digital' || isApexShortLink) {
+    if (url.hostname === 'wecare.digital/r' || isApexShortLink) {
       const code = isApexShortLink
         ? url.pathname.replace(/^\/r\//, '')
         : url.pathname.replace(/^\//, '');
