@@ -1,5 +1,5 @@
 {
-  "_generated": "2026-10-17T00:23:49.531333+00:00",
+  "_generated": "2026-10-24T05:53:41.401211+00:00",
   "_account": "775261844268",
   "_region": "us-east-1",
   "lambdas": {
@@ -44,8 +44,6 @@
       "package_type": "Zip"
     },
     "wecare-docs-scraper": {
-      "runtime": null,
-      "handler": null,
       "memory": 2048,
       "timeout": 300,
       "role": "arn:aws:iam::775261844268:role/wecare-digital-lambda-role",
@@ -55,7 +53,8 @@
       "layers": [],
       "env_var_names": [
         "ADMIN_MFA_REQUIRED",
-        "DOCS_BUCKET"
+        "DOCS_BUCKET",
+        "DOCS_PREFIX"
       ],
       "package_type": "Image"
     },
@@ -112,24 +111,6 @@
       ],
       "package_type": "Zip"
     },
-    "wecare-whatsapp-templates": {
-      "runtime": "python3.12",
-      "handler": "handler.handler",
-      "memory": 256,
-      "timeout": 30,
-      "role": "arn:aws:iam::775261844268:role/wecare-digital-lambda-role",
-      "architectures": [
-        "x86_64"
-      ],
-      "layers": [],
-      "env_var_names": [
-        "AWS_ACCOUNT_ID",
-        "MEDIA_BUCKET",
-        "REGION",
-        "S3_BUCKET"
-      ],
-      "package_type": "Zip"
-    },
     "wecare-ai-generate-response": {
       "runtime": "python3.12",
       "handler": "handler.handler",
@@ -177,6 +158,21 @@
       ],
       "package_type": "Zip"
     },
+    "wecare-catalog-media": {
+      "runtime": "python3.12",
+      "handler": "handler.handler",
+      "memory": 512,
+      "timeout": 15,
+      "role": "arn:aws:iam::775261844268:role/wecare-catalog-media-role",
+      "architectures": [
+        "x86_64"
+      ],
+      "layers": [],
+      "env_var_names": [
+        "CATALOG_BUCKET"
+      ],
+      "package_type": "Zip"
+    },
     "wecare-crm": {
       "runtime": "python3.12",
       "handler": "handler.handler",
@@ -215,6 +211,8 @@
         "CDN_DOMAIN",
         "CONTACTS_TABLE",
         "DIRECT_SEND_ENABLED_WABAS",
+        "EXPECTED_CONFIGURATION_NAME",
+        "EXPECTED_PROVIDER_MID",
         "LOG_LEVEL",
         "MEDIA_BUCKET",
         "MEDIA_FILES_TABLE",
@@ -224,6 +222,7 @@
         "S3_BUCKET",
         "SEND_MODE",
         "WA_LIVE_SMOKE_TEST",
+        "WA_PAY_TEMPLATE",
         "WA_QA_RECIPIENT",
         "WHATSAPP_PHONE_NUMBER_ID_1",
         "WHATSAPP_PHONE_NUMBER_ID_2"
@@ -307,38 +306,6 @@
       ],
       "package_type": "Zip"
     },
-    "wecare-meta-analytics": {
-      "runtime": "python3.12",
-      "handler": "handler.handler",
-      "memory": 256,
-      "timeout": 60,
-      "role": "arn:aws:iam::775261844268:role/wecare-digital-lambda-role",
-      "architectures": [
-        "x86_64"
-      ],
-      "layers": [],
-      "env_var_names": [],
-      "package_type": "Zip"
-    },
-    "wecare-sla-engine": {
-      "runtime": "python3.12",
-      "handler": "handler.handler",
-      "memory": 256,
-      "timeout": 60,
-      "role": "arn:aws:iam::775261844268:role/wecare-digital-lambda-role",
-      "architectures": [
-        "x86_64"
-      ],
-      "layers": [],
-      "env_var_names": [
-        "DEFAULT_ASSIGNEE",
-        "SLA_APPOINTMENT_MINUTES",
-        "SLA_ASSIGN_MINUTES",
-        "SLA_ESCALATE_MINUTES",
-        "TABLE_PREFIX"
-      ],
-      "package_type": "Zip"
-    },
     "wecare-conversation-meta": {
       "runtime": "python3.12",
       "handler": "handler.handler",
@@ -388,15 +355,19 @@
     "wecare-checkout": {
       "runtime": "python3.12",
       "handler": "handler.handler",
-      "memory": 256,
-      "timeout": 20,
+      "memory": 512,
+      "timeout": 60,
       "role": "arn:aws:iam::775261844268:role/wecare-checkout-role",
       "architectures": [
         "x86_64"
       ],
-      "layers": [],
+      "layers": [
+        "arn:aws:lambda:us-east-1:775261844268:layer:pillow-python312:2"
+      ],
       "env_var_names": [
+        "ADMIN_MFA_REQUIRED",
         "CATALOG_SOURCE",
+        "CDN_DOMAIN",
         "CHECKOUT_INITIATION_ENABLED",
         "CHECKOUT_MODE",
         "COMMERCE_KEYS_TABLE",
@@ -404,14 +375,27 @@
         "CONTRIBUTION_PRODUCT_ID",
         "EXPECTED_CONFIGURATION_NAME",
         "EXPECTED_PROVIDER_MID",
+        "INVOICES_TABLE",
+        "INVOICE_ASSETS_TABLE",
+        "INVOICE_DELIVERY_TABLE",
+        "INVOICE_ITEMS_TABLE",
+        "INVOICE_SEQ_TABLE",
+        "LOG_LEVEL",
+        "MEDIA_BUCKET",
         "NATIVE_STOCK_RESERVATION_ENABLED",
         "ORDERS_TABLE",
+        "OUTBOUND_FUNCTION",
+        "PAYMENTS_TABLE",
         "PAYMENT_ATTEMPTS_TABLE",
         "PAYMENT_WABA_ID",
         "PRODUCTS_TABLE",
         "RAZORPAY_SECRET_ID",
+        "REFUND_INITIATION_ENABLED",
         "SECRETS_REFRESHED_AT",
-        "SENDER_FUNCTION"
+        "SENDER_FUNCTION",
+        "WA_CATALOG_ORDERS_ENABLED",
+        "WA_INVOICE_TEMPLATE",
+        "WA_PAY_TEMPLATE"
       ],
       "package_type": "Zip"
     },
@@ -450,10 +434,8 @@
         "INVOICES_TABLE",
         "LOG_LEVEL",
         "MESSAGES_TABLE",
+        "META_API_VERSION",
         "PAYMENTS_TABLE",
-        "POST_PAYMENT_FLOW_WABA1",
-        "POST_PAYMENT_FLOW_WABA2",
-        "POST_PAYMENT_REQUEST_TEMPLATE",
         "REGION",
         "S3_BUCKET",
         "SECRETS_REFRESHED_AT",
@@ -480,7 +462,6 @@
         "META_CATALOG_ID",
         "META_CATALOG_SYNC_DRY_RUN",
         "META_CATALOG_SYNC_ENABLED",
-        "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK",
         "META_CATALOG_SYNC_VARIANT_IDS",
         "META_TOKEN_FIELD",
         "META_TOKEN_SECRET",
@@ -518,6 +499,8 @@
         "CDN_DOMAIN",
         "COMMERCE_KEYS_TABLE",
         "CONTACTS_TABLE",
+        "EXPECTED_CONFIGURATION_NAME",
+        "EXPECTED_PROVIDER_MID",
         "INVOICES_TABLE",
         "INVOICE_ASSETS_TABLE",
         "INVOICE_DELIVERY_TABLE",
@@ -525,7 +508,9 @@
         "INVOICE_SEQ_TABLE",
         "LOG_LEVEL",
         "MEDIA_BUCKET",
-        "PAYMENTS_TABLE"
+        "PAYMENTS_TABLE",
+        "WA_INVOICE_TEMPLATE",
+        "WA_PAY_TEMPLATE"
       ],
       "package_type": "Zip"
     },
@@ -710,18 +695,10 @@
         "AWS_AMPLIFY_APP_ID",
         "AWS_AMPLIFY_BRANCH",
         "BEDROCK_MODEL_ID",
-        "BLOG_INGEST_QUEUE_NAME",
-        "BLOG_INGEST_QUEUE_URL",
-        "BLOG_SITE_BUILD_DELAY_SECONDS",
-        "BLOG_SITE_CHECK_DELAY_SECONDS",
-        "BLOG_SITE_PUBLIC_URL",
-        "BLOG_SITE_VERIFY_RETRY_DELAY_SECONDS",
         "BLOG_SOURCE",
-        "BLOG_SOURCE_BUCKET",
         "COGNITO_USER_POOL_ID",
         "COST_MODE",
         "CREDENTIAL_PURGE_EPOCH",
-        "ENABLE_BEDROCK_ASSIST",
         "FAQ_AI_GENERATION",
         "LOG_LEVEL",
         "SEO_TOOLS_TABLE",
@@ -865,19 +842,6 @@
         "RATE_LIMIT_TABLE",
         "SERVICE_REQUESTS_TABLE"
       ],
-      "package_type": "Zip"
-    },
-    "wecare-url-shortener": {
-      "runtime": "python3.12",
-      "handler": "handler.handler",
-      "memory": 256,
-      "timeout": 10,
-      "role": "arn:aws:iam::775261844268:role/wecare-digital-lambda-role",
-      "architectures": [
-        "x86_64"
-      ],
-      "layers": [],
-      "env_var_names": [],
       "package_type": "Zip"
     },
     "stack-wecare-url-shortener": {
@@ -1217,6 +1181,7 @@
         "MEDIA_BUCKET",
         "OUTBOUND_TABLE",
         "STANDBY_REPLY_ENABLED",
+        "WA_CATALOG_ORDERS_ENABLED",
         "WHATSAPP_PHONE_NUMBER_ID_1",
         "WHATSAPP_PHONE_NUMBER_ID_2"
       ],
@@ -1240,6 +1205,7 @@
         "LOG_LEVEL",
         "REGION",
         "REPORT_BUCKET",
+        "REPORT_PREFIX",
         "S3_BUCKET"
       ],
       "package_type": "Zip"
@@ -1305,14 +1271,12 @@
         "PARTNER_GROUP",
         "RAZORPAY_SECRET_ID",
         "SECURE_FILES_BUCKET",
-        "SECURE_FILES_PAYMENT_ENABLED",
         "SECURE_FILES_TABLE",
         "SECURE_FILE_PRICE_PAISE",
         "SERVICE_REQUESTS_TABLE",
         "UPLOAD_URL_TTL_SECONDS",
         "WA_DOC_TEMPLATE",
         "WA_MEDIA_FUNCTION",
-        "WA_PAY_TEMPLATE",
         "WA_SENDER_FUNCTION",
         "WHATSAPP_LINK_TTL_SECONDS"
       ],
@@ -1332,7 +1296,6 @@
         "ADMIN_MFA_REQUIRED",
         "AI_LANGUAGE",
         "AI_VOICE_ID",
-        "AUTO_PICKUP_AUDIO_KEY",
         "AUTO_PICKUP_ENABLED",
         "AUTO_PICKUP_IVR_URL",
         "CALL_LOG_TABLE",
@@ -1494,19 +1457,6 @@
         "S3_BUCKET"
       ],
       "package_type": "Zip"
-    },
-    "wecare-ad-attribution": {
-      "runtime": "python3.12",
-      "handler": "handler.handler",
-      "memory": 256,
-      "timeout": 60,
-      "role": "arn:aws:iam::775261844268:role/wecare-digital-lambda-role",
-      "architectures": [
-        "x86_64"
-      ],
-      "layers": [],
-      "env_var_names": [],
-      "package_type": "Zip"
     }
   },
   "apis": {
@@ -1531,7 +1481,7 @@
         },
         {
           "routeKey": "GET /wa-business/documents/{documentId}/download",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -1546,7 +1496,7 @@
         },
         {
           "routeKey": "GET /wa-business/orders",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -1631,7 +1581,7 @@
         },
         {
           "routeKey": "POST /wa-business/documents",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -1646,7 +1596,7 @@
         },
         {
           "routeKey": "DELETE /whatsapp/templates",
-          "target": "integrations/lr1yfgh",
+          "target": "integrations/9dlq9vl",
           "authorizationType": "NONE"
         },
         {
@@ -1676,7 +1626,12 @@
         },
         {
           "routeKey": "POST /wa-business/rx-slots",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
+          "authorizationType": "NONE"
+        },
+        {
+          "routeKey": "POST /invoices/{invoiceId}/generate-pdf",
+          "target": "integrations/fduftck",
           "authorizationType": "NONE"
         },
         {
@@ -1701,7 +1656,7 @@
         },
         {
           "routeKey": "GET /wa-business/documents",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -1791,7 +1746,7 @@
         },
         {
           "routeKey": "PUT /wa-business/enterprise-assist/{caseId}",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -1846,7 +1801,7 @@
         },
         {
           "routeKey": "GET /whatsapp/templates/{templateId}",
-          "target": "integrations/lr1yfgh",
+          "target": "integrations/9dlq9vl",
           "authorizationType": "NONE"
         },
         {
@@ -1936,7 +1891,7 @@
         },
         {
           "routeKey": "GET /wa-business/faq",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -1986,7 +1941,7 @@
         },
         {
           "routeKey": "PATCH /wa-business/orders/{orderId}",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -2021,7 +1976,7 @@
         },
         {
           "routeKey": "GET /wa-business/service/drafts/{flowCode}",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -2046,7 +2001,7 @@
         },
         {
           "routeKey": "PUT /whatsapp/templates/{templateId}",
-          "target": "integrations/lr1yfgh",
+          "target": "integrations/9dlq9vl",
           "authorizationType": "NONE"
         },
         {
@@ -2126,7 +2081,7 @@
         },
         {
           "routeKey": "DELETE /wa-business/faq/{faqId}",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -2136,7 +2091,7 @@
         },
         {
           "routeKey": "PUT /wa-business/documents/{documentId}",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -2231,7 +2186,7 @@
         },
         {
           "routeKey": "PUT /wa-business/reviews/{reviewId}",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -2271,7 +2226,7 @@
         },
         {
           "routeKey": "POST /wa-business/orders",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -2281,7 +2236,7 @@
         },
         {
           "routeKey": "GET /wa-business/appointments",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -2311,7 +2266,7 @@
         },
         {
           "routeKey": "GET /wa-business/rx-slots",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -2321,7 +2276,7 @@
         },
         {
           "routeKey": "POST /wa-business/service/submit",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -2446,7 +2401,7 @@
         },
         {
           "routeKey": "POST /wa-business/appointments",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -2486,7 +2441,7 @@
         },
         {
           "routeKey": "PUT /wa-business/appointments/{appointmentId}",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -2521,7 +2476,7 @@
         },
         {
           "routeKey": "GET /wa-business/orders/{orderId}",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -2561,7 +2516,7 @@
         },
         {
           "routeKey": "DELETE /wa-business/service/drafts/{flowCode}",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -2621,7 +2576,7 @@
         },
         {
           "routeKey": "POST /whatsapp/templates/media",
-          "target": "integrations/lr1yfgh",
+          "target": "integrations/9dlq9vl",
           "authorizationType": "NONE"
         },
         {
@@ -2650,13 +2605,18 @@
           "authorizationType": "NONE"
         },
         {
+          "routeKey": "GET /catalog-media/{filename}",
+          "target": "integrations/um3l3lb",
+          "authorizationType": "NONE"
+        },
+        {
           "routeKey": "GET /wa-business/schedules",
           "target": "integrations/md9yz9g",
           "authorizationType": "NONE"
         },
         {
           "routeKey": "GET /whatsapp/templates",
-          "target": "integrations/lr1yfgh",
+          "target": "integrations/9dlq9vl",
           "authorizationType": "NONE"
         },
         {
@@ -2671,7 +2631,7 @@
         },
         {
           "routeKey": "GET /wa-business/orders/{orderId}/submissions",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -2691,7 +2651,7 @@
         },
         {
           "routeKey": "POST /whatsapp/templates/carousel-media",
-          "target": "integrations/lr1yfgh",
+          "target": "integrations/9dlq9vl",
           "authorizationType": "NONE"
         },
         {
@@ -2701,7 +2661,7 @@
         },
         {
           "routeKey": "POST /whatsapp/templates/carousel",
-          "target": "integrations/lr1yfgh",
+          "target": "integrations/9dlq9vl",
           "authorizationType": "NONE"
         },
         {
@@ -2716,7 +2676,7 @@
         },
         {
           "routeKey": "POST /wa-business/service/amend",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -2746,7 +2706,7 @@
         },
         {
           "routeKey": "POST /wa-business/service/drafts",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -2771,7 +2731,7 @@
         },
         {
           "routeKey": "POST /whatsapp/templates",
-          "target": "integrations/lr1yfgh",
+          "target": "integrations/9dlq9vl",
           "authorizationType": "NONE"
         },
         {
@@ -2820,6 +2780,11 @@
           "authorizationType": "NONE"
         },
         {
+          "routeKey": "POST /invoices/{invoiceId}/order-status",
+          "target": "integrations/fduftck",
+          "authorizationType": "NONE"
+        },
+        {
           "routeKey": "OPTIONS /partners/billing/topup-order",
           "target": "integrations/31wj4x4",
           "authorizationType": "NONE"
@@ -2836,7 +2801,7 @@
         },
         {
           "routeKey": "DELETE /whatsapp/templates/send-media",
-          "target": "integrations/lr1yfgh",
+          "target": "integrations/9dlq9vl",
           "authorizationType": "NONE"
         },
         {
@@ -2916,7 +2881,7 @@
         },
         {
           "routeKey": "PUT /wa-business/faq/{faqId}",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -2936,17 +2901,12 @@
         },
         {
           "routeKey": "GET /wa-business/reviews",
-          "target": "integrations/md9yz9g",
-          "authorizationType": "NONE"
-        },
-        {
-          "routeKey": "POST /invoices/{invoiceId}/generate-pdf",
-          "target": "integrations/fduftck",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
           "routeKey": "POST /whatsapp/templates/send-media",
-          "target": "integrations/lr1yfgh",
+          "target": "integrations/9dlq9vl",
           "authorizationType": "NONE"
         },
         {
@@ -2971,7 +2931,7 @@
         },
         {
           "routeKey": "POST /wa-business/reviews",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -3076,7 +3036,7 @@
         },
         {
           "routeKey": "GET /whatsapp/templates/send-media",
-          "target": "integrations/lr1yfgh",
+          "target": "integrations/9dlq9vl",
           "authorizationType": "NONE"
         },
         {
@@ -3146,22 +3106,17 @@
         },
         {
           "routeKey": "GET /wa-business/enterprise-assist",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
           "routeKey": "POST /wa-business/enterprise-assist",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
           "routeKey": "GET /crm/opportunities/{opportunityId}",
           "target": "integrations/ytzsvxm",
-          "authorizationType": "NONE"
-        },
-        {
-          "routeKey": "POST /secure-files/{fileId}/order",
-          "target": "integrations/zllj673",
           "authorizationType": "NONE"
         },
         {
@@ -3186,12 +3141,12 @@
         },
         {
           "routeKey": "GET /wa-business/service/track/{orderId}",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
           "routeKey": "DELETE /whatsapp/templates/{templateName}",
-          "target": "integrations/lr1yfgh",
+          "target": "integrations/9dlq9vl",
           "authorizationType": "NONE"
         },
         {
@@ -3212,11 +3167,6 @@
         {
           "routeKey": "POST /push/send",
           "target": "integrations/8unwxg7",
-          "authorizationType": "NONE"
-        },
-        {
-          "routeKey": "POST /secure-files/{fileId}/whatsapp-pay",
-          "target": "integrations/zllj673",
           "authorizationType": "NONE"
         },
         {
@@ -3256,12 +3206,12 @@
         },
         {
           "routeKey": "POST /wa-business/faq",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
           "routeKey": "GET /wa-business/service/history",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -3301,7 +3251,7 @@
         },
         {
           "routeKey": "PUT /wa-business/rx-slots/{slotId}",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -3346,7 +3296,7 @@
         },
         {
           "routeKey": "GET /wa-business/documents/{documentId}",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -3376,7 +3326,7 @@
         },
         {
           "routeKey": "POST /wa-business/orders/sync",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -3451,11 +3401,6 @@
           "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-auth-middleware:live",
           "method": "POST"
         },
-        "5fj7vp7": {
-          "type": "AWS_PROXY",
-          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-secure-files:live",
-          "method": "POST"
-        },
         "5s4z6s1": {
           "type": "AWS_PROXY",
           "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-bulk-job-control:live",
@@ -3525,6 +3470,261 @@
           "type": "AWS_PROXY",
           "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-faq-handler:live",
           "method": "POST"
+        },
+        "cldl62u": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-whatsapp-template-management:live",
+          "method": "POST"
+        },
+        "cw5x5dl": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-billing:live",
+          "method": "POST"
+        },
+        "dg17ioi": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-razorpay-webhook:live",
+          "method": "POST"
+        },
+        "do0swe9": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-customer-profile:live",
+          "method": "POST"
+        },
+        "dx56fjq": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-pstn-softphone:live",
+          "method": "POST"
+        },
+        "dx7l2df": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-template-analytics:live",
+          "method": "POST"
+        },
+        "dyeztfv": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-mcp:live",
+          "method": "POST"
+        },
+        "fduftck": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-invoice-engine:live",
+          "method": "POST"
+        },
+        "fl7xy5m": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-sms-aws:live",
+          "method": "POST"
+        },
+        "fryr558": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-customer-session:live",
+          "method": "POST"
+        },
+        "g6jq4o3": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-messages-delete:live",
+          "method": "POST"
+        },
+        "hellyk4": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-ai-query-kb:live",
+          "method": "POST"
+        },
+        "hwmhkzc": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-media-cleanup:live",
+          "method": "POST"
+        },
+        "iicga6b": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-whatsapp-template-management:live",
+          "method": "POST"
+        },
+        "iu734wd": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-whatsapp-template-management:live",
+          "method": "POST"
+        },
+        "jkhxmog": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-ai-generate-response:live",
+          "method": "POST"
+        },
+        "jsjq5ju": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-dlq-replay:live",
+          "method": "POST"
+        },
+        "k52gvfk": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-ai-config-management:live",
+          "method": "POST"
+        },
+        "kxh7jye": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-marketing-ads:live",
+          "method": "POST"
+        },
+        "m1mre7s": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-service-requests:live",
+          "method": "POST"
+        },
+        "md9yz9g": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-whatsapp-business-api:live",
+          "method": "POST"
+        },
+        "mgkmhgs": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-bulk-job-create:live",
+          "method": "POST"
+        },
+        "mhs8lsk": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-contacts:live",
+          "method": "POST"
+        },
+        "mk92rna": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-plivo-answer:live",
+          "method": "POST"
+        },
+        "mlcqpzl": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-whatsapp-voice:live",
+          "method": "POST"
+        },
+        "myyl9h0": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-conversation-meta:live",
+          "method": "POST"
+        },
+        "nij3ho9": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-service-api:live",
+          "method": "POST"
+        },
+        "njw4vv9": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-scheduled-messages:live",
+          "method": "POST"
+        },
+        "ocq769q": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-agent-action-group:live",
+          "method": "POST"
+        },
+        "ofcmlqa": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-sms-aws:live",
+          "method": "POST"
+        },
+        "ogw2uw0": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-rcs-dlr:live",
+          "method": "POST"
+        },
+        "oz3zmdm": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-automation-rules:live",
+          "method": "POST"
+        },
+        "q7ru4k4": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-bulk-job-control:live",
+          "method": "POST"
+        },
+        "qnn9p37": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-template-analytics:live",
+          "method": "POST"
+        },
+        "smpr53n": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-messages-read:live",
+          "method": "POST"
+        },
+        "tipkpon": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-site-language:live",
+          "method": "POST"
+        },
+        "u8df9do": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-docs-scraper",
+          "method": "POST"
+        },
+        "um3l3lb": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-catalog-media:live",
+          "method": "POST"
+        },
+        "vlz7fmp": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-outbound-whatsapp:live",
+          "method": "POST"
+        },
+        "vvyxbal": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-customer-orders:live",
+          "method": "POST"
+        },
+        "w98vghk": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-system-cleanup:live",
+          "method": "POST"
+        },
+        "wt7876c": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-rcs-send:live",
+          "method": "POST"
+        },
+        "x5phi04": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-payments-read:live",
+          "method": "POST"
+        },
+        "xk20h38": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-outbound-sms:live",
+          "method": "POST"
+        },
+        "y4fvvye": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-inbound-whatsapp:live",
+          "method": "POST"
+        },
+        "y8rnsk4": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-whatsapp-calling:live",
+          "method": "POST"
+        },
+        "ysw4ov8": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-product-image-gen:live",
+          "method": "POST"
+        },
+        "ytzsvxm": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-crm:live",
+          "method": "POST"
+        },
+        "zd8egr3": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-email-verification:live",
+          "method": "POST"
+        },
+        "zkb6lxe": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-checkout:live",
+          "method": "POST"
+        },
+        "zllj673": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-secure-files:live",
+          "method": "POST"
         }
       },
       "stages": [
@@ -3549,8 +3749,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -3570,8 +3769,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -3687,8 +3885,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -3708,8 +3905,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -3729,8 +3925,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -3750,8 +3945,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -3838,8 +4032,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -3908,8 +4101,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -3950,8 +4142,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -3996,8 +4187,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -4082,8 +4272,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -4164,8 +4353,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -4230,8 +4418,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -4268,8 +4455,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -4314,8 +4500,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -4377,8 +4562,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -4398,8 +4582,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -4484,8 +4667,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -4560,8 +4742,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -4737,8 +4918,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -4887,8 +5067,27 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
+      },
+      "pitr": "ENABLED"
+    },
+    "stack-wecare-digital-IdentityClaimsTable": {
+      "keySchema": [
+        {
+          "AttributeName": "claimKey",
+          "KeyType": "HASH"
+        }
+      ],
+      "attributeDefinitions": [
+        {
+          "AttributeName": "claimKey",
+          "AttributeType": "S"
+        }
+      ],
+      "billingMode": "PAY_PER_REQUEST",
+      "gsis": [],
+      "ttl": {
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -4916,8 +5115,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -4945,8 +5143,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -4974,8 +5171,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -4995,8 +5191,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -5049,8 +5244,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -5078,8 +5272,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -5099,8 +5292,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -5474,6 +5666,31 @@
           }
         },
         {
+          "IndexName": "customerId-createdAt-v2-index",
+          "KeySchema": [
+            {
+              "AttributeName": "customerId",
+              "KeyType": "HASH"
+            },
+            {
+              "AttributeName": "createdAt",
+              "KeyType": "RANGE"
+            }
+          ],
+          "Projection": {
+            "ProjectionType": "INCLUDE",
+            "NonKeyAttributes": [
+              "currency",
+              "orderNumber",
+              "paymentStatus",
+              "customerUuid",
+              "amountPaise",
+              "channel",
+              "referenceId"
+            ]
+          }
+        },
+        {
           "IndexName": "orderStatus",
           "KeySchema": [
             {
@@ -5522,8 +5739,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -5572,8 +5788,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -5654,8 +5869,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -5708,8 +5922,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -5794,8 +6007,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -5836,8 +6048,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -5965,8 +6176,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -6011,8 +6221,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -6057,8 +6266,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -6070,10 +6278,6 @@
         }
       ],
       "attributeDefinitions": [
-        {
-          "AttributeName": "batchId",
-          "AttributeType": "S"
-        },
         {
           "AttributeName": "createdAt",
           "AttributeType": "S"
@@ -6124,48 +6328,10 @@
           "Projection": {
             "ProjectionType": "ALL"
           }
-        },
-        {
-          "IndexName": "batchId-createdAt-index",
-          "KeySchema": [
-            {
-              "AttributeName": "batchId",
-              "KeyType": "HASH"
-            },
-            {
-              "AttributeName": "createdAt",
-              "KeyType": "RANGE"
-            }
-          ],
-          "Projection": {
-            "ProjectionType": "INCLUDE",
-            "NonKeyAttributes": [
-              "version",
-              "extractedWords",
-              "status",
-              "gateBlocking",
-              "slug",
-              "sourceType",
-              "gateReview",
-              "pipeline",
-              "aiDraftStatus",
-              "updatedAt",
-              "articleClass",
-              "category",
-              "sourceTitle",
-              "articleStatus",
-              "sourceRef",
-              "recordType",
-              "error",
-              "title",
-              "s3Key"
-            ]
-          }
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -6235,8 +6401,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -6256,8 +6421,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -6298,8 +6462,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -6319,8 +6482,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -6411,8 +6573,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -6595,8 +6756,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -6745,8 +6905,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -6796,8 +6955,7 @@
   "queues": {
     "stack-wecare-digital-bulk-dlq": {
       "VisibilityTimeout": "300",
-      "MessageRetentionPeriod": "604800",
-      "RedrivePolicy": null
+      "MessageRetentionPeriod": "604800"
     },
     "stack-wecare-digital-bulk-queue": {
       "VisibilityTimeout": "300",
@@ -6806,13 +6964,11 @@
     },
     "stack-wecare-digital-inbound-dlq": {
       "VisibilityTimeout": "300",
-      "MessageRetentionPeriod": "604800",
-      "RedrivePolicy": null
+      "MessageRetentionPeriod": "604800"
     },
     "stack-wecare-digital-notification-dlq": {
       "VisibilityTimeout": "300",
-      "MessageRetentionPeriod": "604800",
-      "RedrivePolicy": null
+      "MessageRetentionPeriod": "604800"
     },
     "stack-wecare-digital-notification-queue": {
       "VisibilityTimeout": "300",
@@ -6821,40 +6977,30 @@
     },
     "stack-wecare-digital-outbound-dlq": {
       "VisibilityTimeout": "300",
-      "MessageRetentionPeriod": "604800",
-      "RedrivePolicy": null
-    },
-    "wecare-blog-ingest": {
-      "VisibilityTimeout": "720",
-      "MessageRetentionPeriod": "345600",
-      "RedrivePolicy": "{\"deadLetterTargetArn\":\"arn:aws:sqs:us-east-1:775261844268:wecare-blog-ingest-dlq\",\"maxReceiveCount\":3}"
-    },
-    "wecare-blog-ingest-dlq": {
-      "VisibilityTimeout": "30",
-      "MessageRetentionPeriod": "1209600",
-      "RedrivePolicy": null
+      "MessageRetentionPeriod": "604800"
     },
     "wecare-eventbridge-dlq": {
       "VisibilityTimeout": "30",
-      "MessageRetentionPeriod": "1209600",
-      "RedrivePolicy": null
+      "MessageRetentionPeriod": "1209600"
     },
     "wecare-lambda-async-dlq": {
       "VisibilityTimeout": "30",
-      "MessageRetentionPeriod": "1209600",
-      "RedrivePolicy": null
+      "MessageRetentionPeriod": "1209600"
     }
   },
   "schedules": {
     "AWSUserNotificationsManagedRule-adi3lsr": {
-      "schedule": null,
       "state": "ENABLED",
       "eventPattern": true
     },
     "wecare-amplify-build-failed": {
-      "schedule": null,
       "state": "ENABLED",
       "eventPattern": true
+    },
+    "wecare-commerce-customer-links": {
+      "schedule": "rate(5 minutes)",
+      "state": "ENABLED",
+      "eventPattern": false
     },
     "wecare-docs-scraper-daily": {
       "schedule": "rate(1 day)",
@@ -6924,6 +7070,25 @@
         "NativeBlogReadOnly"
       ]
     },
+    "wecare-catalog-media-role": {
+      "arn": "arn:aws:iam::775261844268:role/wecare-catalog-media-role",
+      "assumeRolePolicy": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Principal": {
+              "Service": "lambda.amazonaws.com"
+            },
+            "Action": "sts:AssumeRole"
+          }
+        ]
+      },
+      "attachedPolicies": [],
+      "inlinePolicyNames": [
+        "CatalogMediaReadOnly"
+      ]
+    },
     "wecare-checkout-role": {
       "arn": "arn:aws:iam::775261844268:role/wecare-checkout-role",
       "assumeRolePolicy": {
@@ -6942,8 +7107,10 @@
         "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
       ],
       "inlinePolicyNames": [
+        "CheckoutInvoiceAuthority",
         "CheckoutLeastPrivilege",
-        "CheckoutNativeCatalogAuthority"
+        "CheckoutNativeCatalogAuthority",
+        "LegacyMediaWriteGuard"
       ]
     },
     "wecare-cognito-custom-message-role": {
@@ -7025,9 +7192,11 @@
         ]
       },
       "attachedPolicies": [
+        "arn:aws:iam::775261844268:policy/wecare-customer-identity-claims",
         "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
       ],
       "inlinePolicyNames": [
+        "CustomerIdentityClaimsRegistry",
         "CustomerProfileLeastPrivilege"
       ]
     },
@@ -7140,8 +7309,8 @@
       },
       "attachedPolicies": [
         "arn:aws:iam::775261844268:policy/WECARESecretsReadOnly-20260917",
-        "arn:aws:iam::775261844268:policy/wecare-blog-site-bridge-amplify",
         "arn:aws:iam::775261844268:policy/wecare-shared-role-secret-guard",
+        "arn:aws:iam::775261844268:policy/wecare-customer-identity-claims",
         "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole",
         "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
       ],
@@ -7150,12 +7319,11 @@
         "ExtraPermissions",
         "factory-reset-discovery",
         "LambdaInvokePolicy",
+        "LegacyMediaWriteGuard",
         "paid-submit-request-recipient",
         "pinpoint-india-templates",
         "ReadPaymentWebhookSecrets",
         "seo-bedrock-inference-profiles",
-        "seo-blog-ingest-queue",
-        "seo-blog-source-intake",
         "wecare-async-dlq-send",
         "wecare-cognito-auth-read",
         "wecare-digital-lambda-permissions",
@@ -7289,6 +7457,7 @@
       },
       "attachedPolicies": [],
       "inlinePolicyNames": [
+        "LegacyMediaWriteGuard",
         "wecare-secure-files"
       ]
     },
