@@ -17,7 +17,7 @@ const RATE_LIMIT_PER_MINUTE = Number(process.env.INSIGHTS_RATE_LIMIT_PER_MINUTE 
 const ALLOW_ORIGINLESS = process.env.ALLOW_ORIGINLESS === '1';
 const DEBUG_SCHEMA = process.env.DEBUG_SCHEMA === '1';
 const ALLOWED_ORIGINS = new Set(
-  (process.env.ALLOWED_ORIGINS || 'https://wecare.digital,https://www.wecare.digital')
+  (process.env.ALLOWED_ORIGINS || 'https://wecare.digital')
     .split(',')
     .map((value) => value.trim())
     .filter(Boolean),
