@@ -406,7 +406,7 @@ owner-nominated QA number `+918100640044`:
 | `wd_card_front_wide` | `01M3GD28QXFKH13MAQ80JZA5BB` |
 
 Template count 12 → 14. Both new templates carry **zero** references to
-`app.wecare.digital` or `r.wecare.digital`.
+`app.wecare.digital` or `wecare.digital/r`.
 
 ### 10.4 Still to decide, on the handset
 
