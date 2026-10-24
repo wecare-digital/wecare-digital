@@ -558,7 +558,7 @@ WhatsApp status update is marked sent so a retry does not duplicate it.
 flowchart TB
     subgraph Edge
         AMP[Amplify Hosting d22dm4b0jn71jw<br/>23 custom rules, 404-200 catch-all]
-        CF[CloudFront: app.wecare.digital, mta-sts, /get origin]
+        CF[CloudFront: wecare-digital-get, mta-sts, /get origin]
     end
     subgraph API
         GW[HTTP API zllr9lrg7j<br/>361 routes, 0 authorizers, stage prod]
