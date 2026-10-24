@@ -155,6 +155,35 @@ const PROBE = () => {
       };
     } )()
     : null;
+  const vayuGlobeFoundation = location.pathname.startsWith( '/vayulok' )
+    ? ( () => {
+      const frame = document.querySelector( '.vag-frame' );
+      const doc = frame?.contentDocument;
+      if ( !doc ) return { loaded: false };
+      const panel = doc.querySelector( '.city-panel' );
+      const city = doc.querySelector( '.city-panel-name' );
+      const reading = doc.querySelector( '.city-panel-reading' );
+      const toggle = doc.querySelector( '.data-toggle' );
+      const air = doc.getElementById( 'modeAir' );
+      const weather = doc.getElementById( 'modeWeather' );
+      if ( !panel || !city || !reading || !toggle || !air || !weather ) return { loaded: false };
+      const pb = r( panel ), tb = r( toggle ), ab = r( air ), wb = r( weather );
+      return {
+        loaded: true,
+        panelInside: pb.left >= -1 && pb.right <= frame.clientWidth + 1,
+        panelWidth: Math.round( pb.width ),
+        citySize: getComputedStyle( city ).fontSize,
+        cityWeight: getComputedStyle( city ).fontWeight,
+        readingSize: getComputedStyle( reading ).fontSize,
+        toggleInside: tb.left >= -1 && tb.right <= frame.clientWidth + 1,
+        toggleButtons: [ Math.round( ab.height ), Math.round( wb.height ) ],
+        iconCount: doc.querySelectorAll( '.data-toggle .mode-icon' ).length,
+        mode: toggle.getAttribute( 'data-mode' ),
+        airPressed: air.getAttribute( 'aria-pressed' ),
+        weatherPressed: weather.getAttribute( 'aria-pressed' ),
+      };
+    } )()
+    : null;
   const vayuSmallTargets = location.pathname.startsWith( '/vayulok' )
     ? Array.from( document.querySelectorAll( '.vl-live button, .vl-live input, .vl-live summary' ) )
       .map( el => ( { el, b: r( el ) } ) )
@@ -188,6 +217,7 @@ const PROBE = () => {
     smallTargets: small,
     legalFoundation,
     productFoundation,
+    vayuGlobeFoundation,
     vayuSmallTargets,
   };
 };
@@ -214,6 +244,26 @@ const PROBE = () => {
           await page.click( '.nav-trigger', { timeout: 1200 } ).catch( () => {} );
           await page.waitForTimeout( 160 );
           const x = await page.evaluate( PROBE );
+          const vayuGlobeSwitch = route.startsWith( '/vayulok' ) && x.vayuGlobeFoundation?.loaded
+            ? await page.evaluate( async () => {
+              const doc = document.querySelector( '.vag-frame' )?.contentDocument;
+              const toggle = doc?.querySelector( '.data-toggle' );
+              const air = doc?.getElementById( 'modeAir' );
+              const weather = doc?.getElementById( 'modeWeather' );
+              if ( !toggle || !air || !weather ) return { ok: false, detail: 'controls missing' };
+              weather.click();
+              await new Promise( resolve => setTimeout( resolve, 20 ) );
+              const weatherOk = toggle.getAttribute( 'data-mode' ) === 'weather'
+                && weather.getAttribute( 'aria-pressed' ) === 'true'
+                && air.getAttribute( 'aria-pressed' ) === 'false';
+              air.click();
+              await new Promise( resolve => setTimeout( resolve, 20 ) );
+              const airOk = toggle.getAttribute( 'data-mode' ) === 'air'
+                && air.getAttribute( 'aria-pressed' ) === 'true'
+                && weather.getAttribute( 'aria-pressed' ) === 'false';
+              return { ok: weatherOk && airOk, detail: `weather=${weatherOk} air=${airOk}` };
+            } )
+            : null;
           checks++;
           const problems = [];
 
@@ -280,6 +330,20 @@ const PROBE = () => {
             if ( x.productFoundation.ctaHeight !== null && x.productFoundation.ctaHeight < 44 ) problems.push( `product cta tap<44: ${x.productFoundation.ctaHeight}px` );
             if ( x.productFoundation.body && x.productFoundation.body !== '20px' ) problems.push( `product body ${x.productFoundation.body}` );
           }
+          if ( x.vayuGlobeFoundation ) {
+            if ( !x.vayuGlobeFoundation.loaded ) problems.push( 'VayuLok globe iframe not ready' );
+            else {
+              if ( !x.vayuGlobeFoundation.panelInside ) problems.push( `VayuLok globe panel outside iframe: ${x.vayuGlobeFoundation.panelWidth}px` );
+              if ( !x.vayuGlobeFoundation.toggleInside ) problems.push( 'VayuLok globe toggle outside iframe' );
+              if ( x.vayuGlobeFoundation.toggleButtons.some( height => height < 44 ) ) problems.push( `VayuLok globe toggle tap<44: ${x.vayuGlobeFoundation.toggleButtons.join( ',' )}` );
+              if ( x.vayuGlobeFoundation.iconCount !== 2 ) problems.push( `VayuLok globe icons ${x.vayuGlobeFoundation.iconCount}/2` );
+              if ( x.vayuGlobeFoundation.cityWeight !== '700' ) problems.push( `VayuLok globe city weight ${x.vayuGlobeFoundation.cityWeight}` );
+              if ( d.w <= 767 && x.vayuGlobeFoundation.citySize !== '24px' ) problems.push( `VayuLok globe mobile city ${x.vayuGlobeFoundation.citySize}` );
+              if ( d.w > 767 && x.vayuGlobeFoundation.citySize !== '22px' ) problems.push( `VayuLok globe desktop city ${x.vayuGlobeFoundation.citySize}` );
+              if ( x.vayuGlobeFoundation.readingSize !== '17px' ) problems.push( `VayuLok globe reading ${x.vayuGlobeFoundation.readingSize}` );
+            }
+          }
+          if ( vayuGlobeSwitch && !vayuGlobeSwitch.ok ) problems.push( `VayuLok globe switch: ${vayuGlobeSwitch.detail}` );
           if ( x.vayuSmallTargets.length ) problems.push( `VayuLok tap<44: ${x.vayuSmallTargets.join( ',' )}` );
           if ( problems.length ) { bad.push( `${route} — ${problems.join( ' · ' )}` ); fail++; }
         } catch ( e ) {
