@@ -63,7 +63,7 @@ SENSITIVE_HINT = re.compile(r"SECRET|TOKEN|KEY|PASSWORD|CREDENTIAL", re.I)
 EXPECTED = {
     "liveButNotInDeployMap": {
         "wecare-docs-scraper":
-            "PackageType=Image; ships via .github/workflows/docs-scraper-deploy.yml",
+            "PackageType=Image; separate container deployment",
         "wecare-seo-tools":
             "different in-zip layout; scripts/deploy_seo_tools.py owns it with its "
             "table and IAM policy",
@@ -88,7 +88,7 @@ EXPECTED = {
             "deploy_seo_tools.py has no alias handling, so an alias would leave the "
             "alias pinned to an old version while every deploy reported success",
         "wecare-docs-scraper":
-            "same shape: its GitHub Actions deploy only calls update-function-code, "
+            "same shape: its deployment path only calls update-function-code, "
             "so an alias would silently stop reaching production",
     },
 }
