@@ -109,8 +109,8 @@ reports this wrong, which has happened before:
 
 ```
 61 functions   60x python3.12 + 1 container image
-58 with a `live` alias
- 3 without: wecare-docs-scraper, wecare-get-miss-redirect,
+57 with a `live` alias
+ 4 without: wecare-docs-scraper, wecare-get-miss-redirect,
             wecare-partner-token-refresh, wecare-seo-tools
 ```
 
