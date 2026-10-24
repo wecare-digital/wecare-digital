@@ -31,7 +31,7 @@ def _provider_read(lam, path, waba):
     return json.loads(payload['body'])
 
 
-def audit_release(lam, hosting, manifest, expected_commit, *, app_id, branch='stack'):
+def audit_release(lam, hosting, manifest, expected_commit, *, app_id, branch='wecare.digital'):
     """Compare published versions and hosted commit; provider approval remains an external read."""
     expected_hashes = {row['name']: row['sha'] for row in manifest}
     configs = {name: lam.get_function_configuration(FunctionName=name, Qualifier='live')
