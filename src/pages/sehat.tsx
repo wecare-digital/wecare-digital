@@ -46,6 +46,8 @@ import { PRODUCT_SKU_BY_SLUG, productPolicyCopy } from '../content/productCommer
 // Tints and dots are reused verbatim from the Grahak OS hero - no new colours.
 const CYCLE_WORDS: CycleWord[] = [
   { word: 'appointments', tint: '#e0f7c8', dot: '#3da35a' },
+  { word: 'bookings', tint: '#dbeafe', dot: '#2563eb' },
+  { word: 'schedules', tint: '#fef3c7', dot: '#f0a818' },
 ];
 
 const SEHAT_POLICY = productPolicyCopy( 'sehat', 'Sehat' );
