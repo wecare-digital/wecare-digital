@@ -188,7 +188,7 @@ export function addBackendResources ( stack: Stack ) {
     'wecare-rcs-send', 'wecare-rcs-dlr',
     // Previously missing from retention (orphaned, never-expiring log groups):
     'wecare-sla-engine', 'wecare-conversation-meta', 'wecare-automation-rules',
-    'wecare-url-shortener', 'wecare-service-api',
+    'wecare-service-api',
     // Live functions found during the 2026-07 drift audit that were absent from
     // this list (their log groups existed with no retention policy).
     'wecare-marketing-ads', 'wecare-meta-business-agent', 'wecare-partner-onboarding',
