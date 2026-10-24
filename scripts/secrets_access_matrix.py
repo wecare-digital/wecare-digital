@@ -50,7 +50,7 @@ POLICY: dict[str, tuple[str, str, str]] = {
     "wecare/google/ads": ("integrations", "KEEP_ISOLATED", "Google Ads credentials"),
     "wecare/google/cloud": ("integrations", "KEEP_ISOLATED", "GCP service-account key"),
     "wecare/bing/api": ("seo", "NEEDS_OWNER_REVIEW", "confirm an active consumer exists"),
-    "wecare/config/webhook-registry": ("integrations", "NEEDS_OWNER_REVIEW", "MOVE_TO_PARAMETER_STORE only if the owner confirms no field is secret"),
+    "wecare/config/webhook-registry": ("integrations", "RETIRE_SCHEDULED", "non-secret registry is authoritative in SSM /wecare/config/webhook-registry; Secrets Manager copy scheduled for deletion"),
 }
 
 
