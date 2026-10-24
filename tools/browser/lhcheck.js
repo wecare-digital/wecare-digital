@@ -58,7 +58,7 @@ const { resolveChrome } = require( './lib/browser' );
 
 /** Public routes plus one blog post, which is a different template from the index. */
 const ALL_ROUTES = [
-  '/', '/grahak-os/', '/vayulok/', '/contact/', '/get/', '/orders/', '/bharat-rx/',
+  '/', '/grahak-os/', '/vayulok/', '/contact/', '/get/', '/orders/', '/sehat/',
   '/anew/', '/elsewhere/visa/', '/elsewhere/trip/', '/elsewhere/activities/',
   '/dastavez/drafting/', '/dastavez/registration/', '/dastavez/legal-reference/',
   '/ritual-guru/ritva/', '/ritual-guru/puja-guidance/', '/ritual-guru/diy-puja-kit/', '/expo-week/', '/niji-setu/',
