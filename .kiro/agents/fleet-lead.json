@@ -31,8 +31,12 @@
   ],
   "toolsSettings": {
     "subagent": {
-      "availableAgents": ["fleet-worker"],
-      "trustedAgents": ["fleet-worker"]
+      "availableAgents": [
+        "fleet-worker"
+      ],
+      "trustedAgents": [
+        "fleet-worker"
+      ]
     }
   },
   "resources": [
@@ -42,16 +46,43 @@
     "file://.kiro/steering/10-project.md",
     "file://.kiro/steering/20-device-compat.md",
     "file://.kiro/steering/30-seo.md",
-    "file://.kiro/steering/40-permissions.md"
+    "file://.kiro/steering/40-permissions.md",
+    "file://.kiro/steering/25-public-mobile-foundation.md",
+    "file://.kiro/steering/50-coding-style.md"
   ],
   "permissions": {
     "rules": [
-      { "capability": "shell", "effect": "allow", "match": ["*"] },
-      { "capability": "fs_read", "effect": "allow" },
-      { "capability": "fs_write", "effect": "allow" },
-      { "capability": "web_search", "effect": "allow" },
-      { "capability": "web_fetch", "effect": "allow" },
-      { "capability": "mcp", "effect": "allow", "match": ["*", "*/*"] }
+      {
+        "capability": "shell",
+        "effect": "allow",
+        "match": [
+          "*"
+        ]
+      },
+      {
+        "capability": "fs_read",
+        "effect": "allow"
+      },
+      {
+        "capability": "fs_write",
+        "effect": "allow"
+      },
+      {
+        "capability": "web_search",
+        "effect": "allow"
+      },
+      {
+        "capability": "web_fetch",
+        "effect": "allow"
+      },
+      {
+        "capability": "mcp",
+        "effect": "allow",
+        "match": [
+          "*",
+          "*/*"
+        ]
+      }
     ]
   },
   "includeMcpJson": true
