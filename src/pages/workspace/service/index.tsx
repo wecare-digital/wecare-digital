@@ -4,7 +4,7 @@
  * Service is organized by operator job, not by every backend table or customer-facing step:
  * Requests | Appointments | Documents.
  *
- * Submit/Track/Amend, RX slots, Secure Files, Enterprise cases, Reviews and FAQ remain real
+ * Submit/Track/Amend, Sehat appointments, Secure Files, Enterprise cases, Reviews and FAQ remain real
  * capabilities, but they open contextually from the relevant mode instead of becoming fourteen
  * permanent tabs. The shared ResponsesQueue is the authoritative submission/request queue across
  * website and WhatsApp Flows.
@@ -27,18 +27,18 @@ const Documents = lazyPanel<PageProps>( () => import( '../../../components/works
 const SubmitRequest = lazyPanel<PageProps>( () => import( '../../../components/workspace/service/SubmitRequest' ) );
 const TrackRequest = lazyPanel<PageProps>( () => import( '../../../components/workspace/service/TrackRequest' ) );
 const AmendRequest = lazyPanel<PageProps>( () => import( '../../../components/workspace/service/AmendRequest' ) );
-const RxSlots = lazyPanel<PageProps>( () => import( '../../../components/workspace/service/RxSlots' ) );
+const SehatAppointments = lazyPanel<PageProps>( () => import( '../../../components/workspace/service/SehatAppointments' ) );
 const SecureFiles = lazyPanel<PageProps>( () => import( '../../../components/workspace/service/SecureFiles' ) );
 const Enterprise = lazyPanel<PageProps>( () => import( '../../../components/workspace/service/Enterprise' ) );
 const Reviews = lazyPanel<PageProps>( () => import( '../../../components/workspace/service/Reviews' ) );
 const Faq = lazyPanel<PageProps>( () => import( '../../../components/workspace/service/Faq' ) );
 
 type View = 'requests' | 'appointments' | 'documents';
-type Action = 'submit' | 'track' | 'amend' | 'rx-slots' | 'secure-files' | 'enterprise' | 'reviews' | 'faq';
+type Action = 'submit' | 'track' | 'amend' | 'sehat-appointments' | 'secure-files' | 'enterprise' | 'reviews' | 'faq';
 
 const VALID_VIEWS = new Set<View>( [ 'requests', 'appointments', 'documents' ] );
 const VALID_ACTIONS = new Set<Action>( [
-  'submit', 'track', 'amend', 'rx-slots', 'secure-files', 'enterprise', 'reviews', 'faq',
+  'submit', 'track', 'amend', 'sehat-appointments', 'secure-files', 'enterprise', 'reviews', 'faq',
 ] );
 
 function one ( raw: string | string[] | undefined ): string {
@@ -59,7 +59,7 @@ const ACTION_LABELS: Record<Action, string> = {
   submit: 'Submit request',
   track: 'Track request',
   amend: 'Amend request',
-  'rx-slots': 'RX slots',
+  'sehat-appointments': 'Sehat appointments',
   'secure-files': 'Secure files',
   enterprise: 'Enterprise cases',
   reviews: 'Reviews',
@@ -84,7 +84,7 @@ const ServicePage: React.FC<PageProps> = ( { signOut, user } ) => {
       case 'submit': return <SubmitRequest signOut={ signOut } user={ user } embedded />;
       case 'track': return <TrackRequest signOut={ signOut } user={ user } embedded />;
       case 'amend': return <AmendRequest signOut={ signOut } user={ user } embedded />;
-      case 'rx-slots': return <RxSlots signOut={ signOut } user={ user } embedded />;
+      case 'sehat-appointments': return <SehatAppointments signOut={ signOut } user={ user } embedded />;
       case 'secure-files': return <SecureFiles signOut={ signOut } user={ user } embedded />;
       case 'enterprise': return <Enterprise signOut={ signOut } user={ user } embedded />;
       case 'reviews': return <Reviews signOut={ signOut } user={ user } embedded />;
@@ -152,7 +152,7 @@ const ServicePage: React.FC<PageProps> = ( { signOut, user } ) => {
               { view === 'appointments' && (
                 <section>
                   <div className="context-actions" aria-label="Appointment actions">
-                    <button type="button" onClick={ () => go( 'appointments', 'rx-slots' ) }>Manage RX slots</button>
+                    <button type="button" onClick={ () => go( 'appointments', 'sehat-appointments' ) }>Manage Sehat appointments</button>
                   </div>
                   <Appointments signOut={ signOut } user={ user } embedded />
                 </section>
