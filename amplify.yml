@@ -54,7 +54,7 @@ frontend:
         - python3 scripts/sync_faq.py --check
         # THE REAL CREDENTIAL GATE. It must run in the production build.
         # output:'export' inlines every NEXT_PUBLIC_* value into a JS chunk that is
-        # then served to every visitor. GitHub Actions does not have the branch
+        # then served to every visitor. This production build has the branch-scoped values,
         # environment variables, so the copy of this check in build-test.yml scans an
         # export that never contained a key and passes for free. THIS build is the one
         # that has them, so this is the only place the check can actually catch a
