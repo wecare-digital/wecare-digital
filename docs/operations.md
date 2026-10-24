@@ -67,7 +67,7 @@ Mandatory, and it is the **`live` alias** that makes it mandatory, not SnapStart
 ```bash
 # 1. Gates first. A command exiting zero is not evidence of correct behaviour, but a
 #    failing gate is conclusive evidence not to deploy.
-npm run lint && npm run typecheck && npm run test && .venv/bin/pytest -q
+npm run lint && npm run typecheck && npm run build
 node scripts/check-versions.ts
 
 # 2. Capture the rollback target BEFORE changing anything.
@@ -177,7 +177,7 @@ replacing only that secret's `api_key` and `unified_google_api_key` fields throu
 read-merge-write so the project metadata siblings survive, and printing the preserved field
 names so the merge is checkable without reading the secret back. The canonical id is the one
 all three consumers (`site-language`, `whatsapp-templates`, `vayulok-environment`) already
-default to, and `tests/test_one_google_key.py` enforces that — which is what makes the
+default to; the production bundle-secret verifier and live secret checks enforce that, which makes the
 owner's single deferred rotation reach every consumer instead of one. The row above and the
 BROKEN callout below remain accurate history for `wecare/google-maps-server`; they are not
 the current target.
