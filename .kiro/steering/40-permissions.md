@@ -47,13 +47,6 @@ until it degrades gracefully when a permission is denied or unavailable.
   (e.g. `onPermissionRequest` on Android, `WKUIDelegate` media capture on iOS)
   so camera/mic/geolocation inside the WebView actually work.
 
-## Data, privacy & consent
-
-- Obtain explicit consent before setting non-essential cookies / tracking /
-  analytics; honor "Do Not Track" and regional consent (GDPR/CCPA) where
-  applicable.
-- Store the minimum personal data needed; never log secrets or PII.
-- Make consent choices persistent and easy to withdraw.
 
 ## Verification before "done"
 
