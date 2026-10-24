@@ -15,8 +15,6 @@ Scope
 Only this project's tables are touched, identified two ways:
 
 * the `stack-wecare-digital-*` naming scheme the Lambda fleet addresses, and
-* the two CDK tables created with `RemovalPolicy.RETAIN` that do NOT carry that
-  prefix: `ShortLinksTable` and `LinkClicksTable` (see `amplify/link-resources.ts`).
 
 Any other table in the account is listed under "skipped (not a project table)"
 and left untouched — this script never enables PITR on something it does not own.
@@ -40,8 +38,8 @@ from botocore.exceptions import ClientError
 
 REGION = "us-east-1"
 PREFIX = "stack-wecare-digital-"
-# CDK RETAIN tables without the shared prefix (amplify/link-resources.ts).
-EXTRA_PROJECT_TABLES = {"ShortLinksTable", "LinkClicksTable"}
+# No current project DynamoDB tables live outside the shared prefix.
+EXTRA_PROJECT_TABLES: set[str] = set()
 
 
 def ddb():
