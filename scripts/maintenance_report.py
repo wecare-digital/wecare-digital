@@ -572,7 +572,7 @@ def render_txt(d: dict) -> str:
     add(f"Worktree clean:  {d['worktree_clean']}")
     add(f"Tracked files:   {d['tracked_files']}")
     add(f"Repo size:       {d['repo_size']}  (.git {d['git_size']}, pack {d['pack_size']})")
-    add("Push:            origin/stack - up to date")
+    add("Push:            origin/wecare.digital - up to date")
     add("Secret scan:     CLEAN (all objects, every ref)")
     add("Force push:      NEVER USED")
     add("History rewrite: NEVER PERFORMED")
