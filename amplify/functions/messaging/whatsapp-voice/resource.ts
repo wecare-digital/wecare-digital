@@ -6,7 +6,7 @@
  * Runtime: Python 3.12
  * Region: us-east-1
  * 
- * API Gateway Routes (api.wecare.digital):
+ * API Gateway routes served through https://wecare.digital/api:
  *   POST   /whatsapp-voice/tts             - Generate TTS and send as WhatsApp audio
  *   POST   /whatsapp-voice/send            - Send existing audio as WhatsApp message
  *   POST   /whatsapp-voice/transcribe      - Transcribe voice note from S3 (returns English text)
