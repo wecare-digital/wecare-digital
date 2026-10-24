@@ -18,9 +18,7 @@ import { useToastContext } from '../../../contexts/ToastContext';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 
 // The link CRUD API. wecare.digital/api is now the ONLY way to reach HTTP API
-// zllr9lrg7j: r.wecare.digital used to be mapped to the same API and return identical
-// results, but that custom domain and its prod mapping were deleted in 396b87ad, so the
-// account has zero API Gateway custom domains and the API is reached solely through the
+// zllr9lrg7j through the canonical apex rewrite; the API is reached through the
 // Amplify /api/<*> rewrite. This constant was already pointed at the apex before the
 // retirement, which is why the dashboard was unaffected by it.
 const API_BASE = process.env.NEXT_PUBLIC_LINK_API_BASE || 'https://wecare.digital/api';
