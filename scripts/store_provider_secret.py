@@ -120,19 +120,9 @@ PROVIDERS: Dict[str, dict] = {
             Field("api_key", prefix=("ksk_",),
                   note="Kiro service API key used by the PR-review GitHub Action"),
         ],
-        # Read this carefully before assuming the secret makes the workflow run.
-        # .github/workflows/kiro-review.yml consumes ${{ secrets.KIRO_API_KEY }},
-        # a GITHUB ACTIONS secret. That job holds no AWS credentials at all - its
-        # permissions are contents:read + pull-requests:write and it never calls
-        # configure-aws-credentials - so it CANNOT read Secrets Manager. Storing
-        # the key here is custody and disaster recovery, not a consumer path.
-        # The GitHub secret must be set separately:
-        #     gh secret set KIRO_API_KEY --repo wecare-digital/wecare-digital
-        # (no --body: gh prompts and reads the value hidden, so it never lands in
-        # argv, shell history, or a Kiro "Always allow" rule).
-        "consumers": "NOTHING IN AWS. The live consumer is the GitHub Actions "
-                     "secret KIRO_API_KEY in wecare-digital/wecare-digital, read "
-                     "by .github/workflows/kiro-review.yml. This entry is the "
+        "consumers": "No active runtime consumer. This legacy secret entry is retained only until the provider credential is separately retired.",
+        "notes": "Workflow consumer removed; do not recreate a GitHub Actions dependency from this record.",
+        "legacy": "
                      "custody copy so the value survives a lost laptop.",
     },
     "plivo-answer": {
