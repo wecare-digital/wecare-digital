@@ -57,10 +57,10 @@ const CODE_ASSETS: CodeAsset[] = [
   { id: 'lambda-plivo-answer', category: 'SMS / Email / Voice', name: 'Plivo Answer', description: 'Plivo PSTN voice webhooks; writes the voice CDR.', path: 'amplify/functions/messaging/plivo-answer/handler.py', type: 'lambda' },
 
   // ── AI Lambdas ──
-  { id: 'lambda-ai-kb', category: 'AI', name: 'AI Query KB', description: 'Query Amazon Bedrock Knowledge Base for RAG-based responses.', path: 'amplify/functions/ai/ai-query-kb/handler.py', type: 'lambda' },
+  { id: 'lambda-ai-kb', category: 'AI', name: 'AI Query KB', description: 'Query the static FAQ knowledge base for contextual responses.', path: 'amplify/functions/ai/ai-query-kb/handler.py', type: 'lambda' },
   { id: 'lambda-ai-gen', category: 'AI', name: 'AI Generate Response', description: 'Generate AI responses using Bedrock Claude — context-aware, multi-turn.', path: 'amplify/functions/ai/ai-generate-response/handler.py', type: 'lambda' },
   { id: 'lambda-ai-config', category: 'AI', name: 'AI Config Management', description: 'AI configuration — system prompts, model settings, knowledge base config.', path: 'amplify/functions/ai/ai-config-management/handler.py', type: 'lambda' },
-  { id: 'lambda-agent', category: 'AI', name: 'Agent Action Group', description: 'Bedrock Agent action group — tool use for order lookup, payment, etc.', path: 'amplify/functions/ai/agent-action-group/handler.py', type: 'lambda' },
+  { id: 'lambda-agent', category: 'AI', name: 'Agent Action Group', description: 'Governed internal agent action handler exposed through the authenticated AI route.', path: 'amplify/functions/ai/agent-action-group/handler.py', type: 'lambda' },
 
   // ── Payments ──
   { id: 'lambda-razorpay', category: 'Payments', name: 'Razorpay Webhook', description: 'Razorpay payment webhook — capture, refund, dispute events.', path: 'amplify/functions/payments/razorpay-webhook/handler.py', type: 'lambda' },
