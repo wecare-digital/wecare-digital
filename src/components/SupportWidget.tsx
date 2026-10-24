@@ -1123,8 +1123,7 @@ const SupportWidget: React.FC = () => {
             "send us a message / voice note on WhatsApp: https://wecare.digital/r/wa" - so a
             caller who hears the link and a visitor who clicks the button now follow one URL
             instead of two that happen to coincide.
-            The canonical base is wecare.digital/r as of 2026-09-26, replacing
-            r.wecare.digital; see amplify/functions/core/url-shortener/handler.py. */}
+            The canonical base is wecare.digital/r as of 2026-09-26, see amplify/functions/core/url-shortener/handler.py. */}
         <a
           className="wc-wa"
           href="https://wecare.digital/r/wa"
