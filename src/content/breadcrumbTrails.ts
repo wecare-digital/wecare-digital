@@ -3,7 +3,7 @@ import type { Crumb } from '../components/Breadcrumbs';
 /**
  * ONE SOURCE FOR THE PRODUCT-FAMILY BREADCRUMB TRAILS.
  *
- * .kiro/steering/30-seo.md: the BreadcrumbList JSON-LD must "mirror the visible breadcrumb trail
+ * .kiro/steering/00-common.md: the BreadcrumbList JSON-LD must "mirror the visible breadcrumb trail
  * exactly". Until 2026-10-16 it did not on any of these fifteen pages. Each page typed its
  * visible trail by hand (Home / Shop / Dastavez / Drafting) while _app.tsx's
  * getPublicPageSchema emitted a fixed two-item list (Home / Drafting) for every route in
