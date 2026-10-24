@@ -495,7 +495,7 @@ Recipient-visible SMS body must be byte-for-byte equal to the approved India DLT
 ```text
 Thanks for contacting WECARE.DIGITAL!
 
-Submit your request here: [retired public path 68ca05fc] or send us a message / voice note on WhatsApp: https://r.wecare.digital/wa.
+Submit your request here: [retired public path 68ca05fc] or send us a message / voice note on WhatsApp: https://wecare.digital/r/wa.
 
 We'll review it and follow up if needed.
 ```
@@ -505,7 +505,7 @@ The current approved `wd_menu` body read from WABA1 on 2026-09-20 is below. It a
 ~~~~text
 Thanks for contacting *WECARE.DIGITAL*!
 
-Submit your request here: [retired public path 68ca05fc] or send us a message / voice note on WhatsApp: https://r.wecare.digital/wa.
+Submit your request here: [retired public path 68ca05fc] or send us a message / voice note on WhatsApp: https://wecare.digital/r/wa.
 
 We'll review it and follow up if needed.
 ``````
