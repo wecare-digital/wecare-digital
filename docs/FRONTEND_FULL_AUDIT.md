@@ -21,7 +21,7 @@ per-page completeness (real vs stub vs mock), reachability, accessibility, and i
 | 2 | No header nav and no footer | **OBSOLETE.** Both mount sitewide — `_app.tsx:579`, `:584`, `:1044`, `:1046` |
 | 3 | **Fake review schema** `aggregateRating 4.8 / ratingCount 150` | **STILL TRUE, WRONG FILE.** Not in `index.tsx` — `_app.tsx:306-312`, shipping on **17** built pages |
 | 4 | **`foundingDate: 2020`** | **STILL TRUE, WRONG FILE.** `_app.tsx:252`, shipping on **123** built pages |
-| 5 | `api.wecare.digital/v1/...` examples | **OBSOLETE.** No such example remains on this page |
+| 5 | `wecare.digital/api/v1/...` examples | **OBSOLETE.** No such example remains on this page |
 | 6 | Vague stat placeholders ("B+ Users reachable") | **OBSOLETE.** None on this page |
 | 7 | Fake interactivity — `<button>` pills with `cursor:default` | **OBSOLETE.** Zero `<button>` elements in `index.tsx` |
 
