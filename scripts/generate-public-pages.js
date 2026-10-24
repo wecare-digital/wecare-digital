@@ -132,10 +132,10 @@ const STRUCTURAL = [
   // well be built on the shared component.
   { path: '/grahak-os', group: 'platform' },
   { path: '/vayulok', group: 'platform' },
-  // Bharat Rx is a service with its own page file rather than a products.ts entry, so it has
+  // Sehat is a service with its own page file rather than a products.ts entry, so it has
   // to be named. Its description is in PUBLIC_PAGE_META and is load-bearing: the owner
-  // corrected it once because it read as a pharmacy, which Bharat Rx is not.
-  { path: '/bharat-rx', group: 'services' },
+  // corrected it once because it read as a pharmacy, which Sehat is not.
+  { path: '/sehat', group: 'services' },
   // Nested family children are public service pages but are intentionally not entries in
   // PRODUCTS: putting them there would turn each child into a top-level Shop catalogue card.
   { path: '/elsewhere/visa', group: 'services' },
