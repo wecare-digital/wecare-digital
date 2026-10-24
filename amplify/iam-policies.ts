@@ -451,13 +451,11 @@ export const FUNCTION_POLICIES: Record<string, string[]> = {
   'wecare-faq-handler': [ 'common' ],
 
   // === Analytics ===
-  'wecare-meta-analytics': [ 'common', 'secrets' ],
 
   // === Ecommerce (additional) ===
   'wecare-catalog-management': [ 'common', 'secrets' ],
 
   // === Ads ===
-  'wecare-ad-attribution': [ 'common' ],
 
   // === RCS ===
   'wecare-rcs-send': [ 'common', 'secrets' ],
