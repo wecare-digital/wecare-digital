@@ -95,7 +95,7 @@ const ScriptsPageBody: React.FC<Props> = () => {
       track_request: { keywords: ['track request', 'track', 'status'], message: { body: '🔍 Check the status of your request anytime. Enter your reference ID below.', flowCta: 'Track Request' }, flowId: canonicalFlowId('track_request') ?? '-' },
       amend_request: { keywords: ['amend request', 'update request'], message: { body: '✏️ Need to make a change? Update your submitted request with the correct details.', flowCta: 'Update Request' }, flowId: canonicalFlowId('amend_request')! },
       schedule_appointment: { keywords: ['appointment', 'book appointment'], message: { body: '📅 Schedule a consultation or service visit at a time that works best for you.', flowCta: 'Book Appointment' }, flowId: '1475722977488573' },
-      rx_slot: { keywords: ['rx slot', 'medical visit'], message: { body: '🩺 Arrange a medical tourism or prescription-related visit quickly and easily.', flowCta: 'Book Medical Visit' }, flowId: '1892784521355352' },
+      sehat_appointment: { keywords: ['sehat', 'appointment', 'book appointment'], message: { body: '🩺 Book an appointment with a qualified professional.', flowCta: 'Book Appointment' }, flowId: '1892784521355352' },
       drop_docs: { keywords: ['drop docs', 'upload documents'], message: { body: '🖇️ Send your supporting documents securely to help us process your request.', flowCta: 'Upload Documents' }, flowId: canonicalFlowId('drop_docs')! },
       enterprise_assist: { keywords: ['enterprise', 'b2b'], message: { body: '💼 Corporate, B2B, and bulk inquiries. Tell us what you need and our team will assist you.', flowCta: 'Enterprise Support' }, flowId: '2132515287534606' },
       // flowId and keywords mirror DEFAULT_FLOW_TRIGGERS['leave_review'] in the inbound
