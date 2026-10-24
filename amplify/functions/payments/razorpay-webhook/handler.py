@@ -2,7 +2,7 @@
 Razorpay Webhook Handler Lambda Function
 
 Purpose: Process ALL Razorpay webhook events
-Webhook URL: https://api.wecare.digital/razorpay-webhook
+Webhook URL: https://wecare.digital/api/razorpay-webhook
 
 Supported Event Categories:
 - payment.* (authorized, pending, failed, captured, dispute.*, downtime.*)
