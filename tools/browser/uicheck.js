@@ -52,7 +52,7 @@
  * identical, and /contact/ additionally carries the header variant most pages use. This
  * runs against /contact/ for continuity with the measurements this file has always taken.
  *
- * THE LANGUAGE API IS STUBBED. SupportWidget fetches api.wecare.digital, which sends no
+ * THE LANGUAGE API IS STUBBED. SupportWidget fetches wecare.digital/api, which sends no
  * Access-Control-Allow-Origin for 127.0.0.1, so against a local origin the fetch fails
  * and the language chip never appears. Note what that does NOT do any more: the widget
  * no longer returns null when the catalogue fails, so the WhatsApp half still renders.
