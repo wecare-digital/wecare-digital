@@ -53,7 +53,62 @@ IAM policy or runtime environment.
 
 **Trigger configuration is external to this repository.** The Cloud Build trigger should:
 
-- watch only the production branch `^wecare\\.digital$`
+- watch only the production branch `^wecare\.digital# VayuLok Weather Insights Cloud Run service
+
+This service is the server-side adapter between the public VayuLok page and the Google
+Weather Insights linked dataset in BigQuery. It serves only long-term historical aggregates;
+VayuLok's current Air, Weather, Maps, Places, Geocoding and Time Zone calls remain browser-side.
+
+## Runtime contract
+
+- `GET /healthz` — process health.
+- `GET /v1/weather-insights/status` — linked dataset/table/schema readiness.
+- `GET /v1/weather-insights?lat=25.5788&lng=91.8933&range=5y`
+  - range: `30d`, `1y`, or `5y`
+  - returns aggregate temperature, precipitation, humidity, and month-of-year trends
+  - never returns a public year-by-year row set.
+
+The service uses its Cloud Run service account through the metadata server. It accepts no
+service-account JSON key and no Google API key.
+
+## Required runtime environment
+
+```
+GOOGLE_CLOUD_PROJECT=wecaredigitalbw
+WEATHER_INSIGHTS_DATASET=weather_insights
+BQ_LOCATION=US
+BQ_MAX_BYTES_BILLED_30D=1200000000
+BQ_MAX_BYTES_BILLED_1Y=15000000000
+BQ_MAX_BYTES_BILLED_5Y=40000000000
+ALLOWED_ORIGINS=https://wecare.digital,https://wecare.digital
+```
+
+The subscribed India listing currently exposes:
+`wecaredigitalbw.weather_insights.weather_history_in`.
+
+The adapter auto-detects the current linked-view schema. The existing
+`WEATHER_INSIGHTS_*_COLUMN` overrides remain available if the publisher changes field names.
+
+## Cost guards
+
+- BigQuery query cache is enabled.
+- 30D / 1Y / 5Y each have a hard `maximumBytesBilled` cap.
+- Results are cached in-process for 24 hours by location and range.
+- The UI defaults to 30D; 1Y and 5Y require an explicit visitor choice.
+- Keep `--max-instances=1` while validating real query cost.
+
+A query that exceeds its byte cap returns HTTP 422 rather than scanning beyond the guard.
+
+## Production deploy
+
+The production Cloud Run service is `wecare-digital` in `asia-south1`.
+`gcp/vayulok-weather-insights/cloudbuild.yaml` syntax-checks `server.mjs`, then builds,
+pushes and updates that existing service. It deliberately does not change the service account,
+IAM policy or runtime environment.
+
+**Trigger configuration is external to this repository.** The Cloud Build trigger should:
+
+- watch only the production branch 
 - use `gcp/vayulok-weather-insights/cloudbuild.yaml`
 - include only changes under `gcp/vayulok-weather-insights/**`
 
