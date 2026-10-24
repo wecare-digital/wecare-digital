@@ -145,9 +145,9 @@ class Spec:
 # Deliberately excluded:
 #   wecare-docs-scraper — PackageType=Image; deploy separately with its container deployment path.
 SPECS: List[Spec] = [
-    # Now LIVE and recorded in config/lambda-env-manifest.json, so the awaiting-
-    # provisioning marker was dropped (see The live manifest is the source of truth for provisioning state.
-    # First creation was owned by CloudFormation amplify/infra/customer-sessions.json.
+    # Function shell/table/role remain owned by CloudFormation
+    # amplify/infra/customer-sessions.json. Code publishing and the live alias are
+    # operational deployment concerns owned by deploy_all_lambdas.py + snapstart_publish.py.
     Spec("wecare-customer-session", "ecommerce/customer-session"),
     # --- core ---
     Spec("wecare-auth-middleware", "core/auth-middleware"),
