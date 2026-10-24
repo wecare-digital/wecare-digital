@@ -1086,7 +1086,7 @@ const WorkflowTerminal: React.FC = () => {
            the aria .wt-sr text, where it belongs: it is a statement for a reader using assistive
            tech, not a visible label competing with the request line. clamp() scales the request
            fluidly between phone and desktop rather than being stepped down on mobile, per
-           .kiro/steering/20-device-compat.md which favours clamp() over fixed sizes. */
+           .kiro/steering/00-common.md which favours clamp() over fixed sizes. */
         .wt-request{margin-bottom:28px;display:flex;gap:10px;color:#fff;font-size:clamp(16px,1.1vw + 14px,18px);line-height:1.7}
         .wt-caret{color:#d1f470}
 
