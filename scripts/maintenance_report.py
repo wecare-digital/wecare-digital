@@ -39,9 +39,9 @@ ROOT = Path(__file__).resolve().parents[1]
 # ~/.local/share/kiro-maintenance-reports/ and the S3 prefix
 # maintenance-reports/<PROJECT>/<timestamp>/ where every historical run already
 # lives. Changing it does not rename that history, it starts a second archive
-# beside it and makes the series look like it began today - and the reporting rules
-# in .kiro/steering/maintenance-reporting.md require historical reports to remain
-# intact and never be overwritten. If it is ever renamed, migrate both the local
+# beside it and makes the series look like it began today. Preserve historical
+# reports in place under the canonical .kiro/steering/00-common.md safety rules.
+# If it is ever renamed, migrate both the local
 # directory and the S3 prefix in the same change and verify checksums after.
 PROJECT = "bharat-stack"
 REPORTS = Path.home() / ".local/share/kiro-maintenance-reports" / PROJECT

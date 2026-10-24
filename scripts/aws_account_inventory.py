@@ -3,9 +3,9 @@
 
 Why this exists
 ---------------
-The steering files carry dated counts (58 Lambdas, 332 routes, 2 HTTP APIs, 0
-authorizers) that are snapshots, not standing truth, and
-`00-current-owner-overrides.md` explicitly forbids trusting them. `generate_
+Historical reports carry dated counts (58 Lambdas, 332 routes, 2 HTTP APIs, 0
+authorizers) that are snapshots, not standing truth. The canonical
+`.kiro/steering/00-common.md` requires live verification. `generate_
 runtime_inventory.py` already joins Lambda -> route -> table -> traffic -> source,
 but it does not look at SQS, EventBridge, Secrets Manager, Cognito, SES, S3,
 CloudFront, WAF, Route 53, CloudWatch or the IaC stacks. This closes that gap so
