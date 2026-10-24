@@ -6,7 +6,7 @@ info:
     Admin platform API for WECARE.DIGITAL — WhatsApp Business, SMS, Voice, Email,
     E-commerce, AI automation, and Payments.
     
-    Base URL: https://api.wecare.digital
+    Base URL: https://wecare.digital/api
     Auth: Cognito Bearer token (Authorization header)
     
     Lambda functions: 39 Python 3.12 handlers on AWS
@@ -15,7 +15,7 @@ info:
     url: https://wecare.digital
 
 servers:
-  - url: https://api.wecare.digital
+  - url: https://wecare.digital/api
     description: Production
 
 security:
