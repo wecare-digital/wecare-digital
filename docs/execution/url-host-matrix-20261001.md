@@ -446,7 +446,7 @@ targets measured 200 today.
 | Fact | Evidence |
 |---|---|
 | Route 53 zone `Z03939753QJGZ6ZD6BXO8` holds 30 record sets, **zero wildcards** | `list-resource-record-sets` |
-| `shop` / `stack` / `app.wecare.digital` have **no address** | authoritative `ns-402.awsdns-50.com` answers NOERROR with no A/AAAA (NODATA) |
+| `shop` / `stack` / `wecare-digital-get` have **no address** | authoritative `ns-402.awsdns-50.com` answers NOERROR with no A/AAAA (NODATA) |
 | The certificate **does** cover one label | `openssl s_client -servername wecare.digital` → `CN=wecare.digital`, SAN `wecare.digital, *.wecare.digital`, `notAfter=Mar 11 23:59:59 2027` |
 | CloudFront **refuses the TLS handshake** for an unregistered host | `--resolve shop.wecare.digital:443:54.192.151.105` → `ssl_verify_result=1`; `openssl -servername shop.wecare.digital` → **TLS alert 40 handshake_failure**, "no peer certificate available". Apex through the same IP: 200 |
 | Amplify registers exactly **two** subdomains | `get-domain-association`: one with no `prefix` key (branch `stack`), one `prefix: "www"`. `enableAutoSubDomain: false`, `autoSubDomainCreationPatterns: null` |
