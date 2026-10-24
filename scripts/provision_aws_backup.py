@@ -63,7 +63,7 @@ BACKUP_TAG_KEY = "backup"
 BACKUP_TAG_VALUE = "daily"
 
 DDB_PREFIX = "stack-wecare-digital-"
-EXTRA_DDB = {"ShortLinksTable", "LinkClicksTable"}
+EXTRA_DDB: set[str] = set()
 MEDIA_BUCKET = "wecare-digital-get"
 
 MANAGED_POLICIES = [
