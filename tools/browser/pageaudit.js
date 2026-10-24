@@ -46,7 +46,7 @@ const OUT_JSON = path.join( REPO, 'docs', 'execution', 'page-audit.json' );
 // public routes while claiming to cover them all. It only matters for the `--public` flag:
 // the default run discovers routes by walking out/, which is how /hunar/kaushal/, /hunar/prastuti/ and /vault/ get
 // audited without being typed anywhere. The flag is the one that lies when it is stale.
-const PUBLIC = [ '/', '/grahak-os/', '/vayulok/', '/bharat-rx/', '/contact/', '/orders/', '/shop/',
+const PUBLIC = [ '/', '/grahak-os/', '/vayulok/', '/sehat/', '/contact/', '/orders/', '/shop/',
   '/terms/', '/privacy/', '/anew/', '/elsewhere/visa/', '/elsewhere/trip/', '/elsewhere/activities/',
   '/dastavez/drafting/', '/dastavez/registration/', '/dastavez/legal-reference/',
   '/ritual-guru/ritva/', '/ritual-guru/puja-guidance/', '/ritual-guru/diy-puja-kit/',
