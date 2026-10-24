@@ -189,7 +189,7 @@ def reconstruct_url(event: Dict[str, Any], *, force_host: str = "",
 
     THE PATH PREFIX, AND THE OUTAGE THAT ADDED IT
     ---------------------------------------------
-    On 2026-09-26 the callbacks moved from `https://api.wecare.digital/plivo/*` to
+    On 2026-09-26 the callbacks moved from `https://wecare.digital/api/plivo/*` to
     `https://wecare.digital/api/plivo/*`, served by an Amplify rewrite
     `/api/<*>` -> `execute-api/prod/<*>`. That rewrite CONSUMES the `/api`
     segment, so Plivo signs `/api/plivo/answer` while the Lambda only ever sees
