@@ -88,7 +88,7 @@ The existing operator-provisioned `/get` flow keeps its current behaviour.
 
 The spec requires `HttpOnly` cookies **or** a documented decision. Constraint 1 makes cookies
 awkward: the frontend cannot set one, so it would have to be issued by a Lambda on a domain
-that shares a cookie scope with the static site, and `api.wecare.digital` is a different host
+that shares a cookie scope with the static site, and `wecare.digital/api` is a different host
 from `wecare.digital`.
 
 **Decision:** keep the bearer token, in `sessionStorage`, with a server-side session registry
