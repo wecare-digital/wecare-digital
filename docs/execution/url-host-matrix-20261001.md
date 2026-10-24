@@ -1367,7 +1367,7 @@ So the single-label gap is **CLOSED** and the remaining gap is exactly one thing
 
 | Host shape | Measured at closure | Verdict |
 |---|---|---|
-| `store.wecare.digital/` | DNS resolves; TLS verifies (`ssl_verify_result=0`); **302 → terminal 200** | covered |
+| `wecare.digital/shop/` | DNS resolves; TLS verifies (`ssl_verify_result=0`); **302 → terminal 200** | covered |
 | `xout.wecare.digital/old/path?old=1` | 302 → 200 | covered (third-party-owned host, informational row) |
 | `release-check-unknown.wecare.digital/old/path?old=1` | 302 → 200 | covered |
 | `www.xout.wecare.digital/old/path?old=1` | 301 → 302 → 200 | covered (terminates through third-party TLS we do not control) |
