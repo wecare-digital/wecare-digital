@@ -12,7 +12,7 @@ paid services are **off by default** and gated behind feature flags read by
 | DynamoDB tables | `amplify/data/resource.ts` | Required | Low | `PAY_PER_REQUEST` (on-demand) |
 | AppSync / Data | `amplify/data/resource.ts` | Required | Low | userPool auth |
 | Cognito | `amplify/auth/resource.ts` | Required | Low | Admin auth |
-| S3 | `amplify/storage/resource.ts` (`app.wecare.digital`) | Required | Low | Media + assets; add lifecycle rules |
+| S3 | `amplify/storage/resource.ts` (`wecare-digital-get`) | Required | Low | Media + assets; add lifecycle rules |
 | SQS / DLQ | `amplify/backend-resources.ts` | Required where present | Low | Inbound/outbound/bulk DLQs |
 | CloudWatch Logs | `backend-resources.ts` | Required | Low | 3-month retention |
 | CloudWatch Alarms (critical) | `backend-resources.ts` | Required | Low | Errors on critical Lambdas |
