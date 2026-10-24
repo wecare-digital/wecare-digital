@@ -29,7 +29,7 @@ Two further reasons it was wrong to keep:
 
 1. **It 301s unconditionally.** The handler ignores `event.request` entirely — every
    request on any path would have been redirected to the same fixed URL. Attaching it
-   to the `app.wecare.digital` distribution would have taken that host's static assets
+   to the `wecare-digital-get` distribution would have taken that host's static assets
    offline.
 2. **The target double-hops.** It points at `https://wecare.digital/selfcare`, and
    `wecare.digital` itself 301s to the apex (Amplify custom rule). So a viewer
