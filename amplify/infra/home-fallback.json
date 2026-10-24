@@ -1,6 +1,6 @@
 {
   "AWSTemplateFormatVersion": "2010-09-09",
-  "Description": "Wildcard home fallback with two retired hostname exclusions; shared certificate and retained logs remain externally managed.",
+  "Description": "Wildcard home fallback; shared certificate and retained logs remain externally managed.",
   "Parameters": {
     "HostedZoneId": {
       "Type": "AWS::Route53::HostedZone::Id",
@@ -26,10 +26,10 @@
         },
         "AutoPublish": true,
         "FunctionConfig": {
-          "Comment": "Excluded hostnames return 404; other wildcard hosts redirect to the canonical home.",
+          "Comment": "Wildcard hosts redirect to the canonical home.",
           "Runtime": "cloudfront-js-2.0"
         },
-        "FunctionCode": "function handler(event) {\n  var request = event.request || {};\n  var headers = request.headers || {};\n  var host = (headers.host && headers.host.value || '').toLowerCase();\n  host = host.replace(/:\\d+$/, '').replace(/\\.$/, '');\n  var responseHeaders = {\n    'cache-control': {value: 'no-store'},\n    'x-content-type-options': {value: 'nosniff'},\n    'referrer-policy': {value: 'no-referrer'},\n    'content-security-policy': {value: \"default-src 'none'; frame-ancestors 'none'\"}\n  };\n  if (host === 'www.wecare.digital' || host === 'www.xout.wecare.digital') {\n    return {statusCode: 404, statusDescription: 'Not Found', headers: responseHeaders};\n  }\n  responseHeaders.location = {value: 'https://wecare.digital/'};\n  return {statusCode: 302, statusDescription: 'Found', headers: responseHeaders};\n}\n"
+        "FunctionCode": "function handler(event) {\n  var responseHeaders = {\n    'cache-control': {value: 'no-store'},\n    'x-content-type-options': {value: 'nosniff'},\n    'referrer-policy': {value: 'no-referrer'},\n    'content-security-policy': {value: \"default-src 'none'; frame-ancestors 'none'\"}\n  };\n  responseHeaders.location = {value: 'https://wecare.digital/'};\n  return {statusCode: 302, statusDescription: 'Found', headers: responseHeaders};\n}\n"
       }
     },
     "Distribution": {
@@ -37,7 +37,7 @@
       "Properties": {
         "DistributionConfig": {
           "Enabled": true,
-          "Comment": "Wildcard home fallback with exact retired-host exclusions",
+          "Comment": "Wildcard home fallback",
           "Aliases": [
             "*.wecare.digital"
           ],
@@ -105,7 +105,7 @@
         "HostedZoneId": {
           "Ref": "HostedZoneId"
         },
-        "Comment": "Wildcard and xout fallback aliases with TXT-only exclusions; one CloudFormation-owned record group.",
+        "Comment": "Wildcard fallback aliases; one CloudFormation-owned record group.",
         "RecordSets": [
           {
             "Name": "*.wecare.digital.",
@@ -134,50 +134,6 @@
               },
               "EvaluateTargetHealth": false
             }
-          },
-          {
-            "Name": "xout.wecare.digital.",
-            "Type": "A",
-            "AliasTarget": {
-              "HostedZoneId": "Z2FDTNDATAQYW2",
-              "DNSName": {
-                "Fn::GetAtt": [
-                  "Distribution",
-                  "DomainName"
-                ]
-              },
-              "EvaluateTargetHealth": false
-            }
-          },
-          {
-            "Name": "xout.wecare.digital.",
-            "Type": "AAAA",
-            "AliasTarget": {
-              "HostedZoneId": "Z2FDTNDATAQYW2",
-              "DNSName": {
-                "Fn::GetAtt": [
-                  "Distribution",
-                  "DomainName"
-                ]
-              },
-              "EvaluateTargetHealth": false
-            }
-          },
-          {
-            "Name": "www.wecare.digital.",
-            "Type": "TXT",
-            "TTL": "300",
-            "ResourceRecords": [
-              "\"retired-host\""
-            ]
-          },
-          {
-            "Name": "www.xout.wecare.digital.",
-            "Type": "TXT",
-            "TTL": "300",
-            "ResourceRecords": [
-              "\"retired-host\""
-            ]
           }
         ]
       }
