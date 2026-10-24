@@ -8,8 +8,7 @@ import { referenceAuth } from '@aws-amplify/backend';
  * Identity Pool: us-east-1:471c2c38-5645-4ccd-aea1-7a008e906db5
  * OAuth Domain: wecare-digital-auth.auth.us-east-1.amazoncognito.com
  *   The Cognito-provided prefix domain, upgraded to managed login v2 on 2026-09-26
- *   so it serves the same sign-in page the retired `signin.wecare.digital` custom
- *   domain did. Using the prefix domain removes the ACM-certificate and Route 53
+ *   so it serves the managed sign-in page without a custom hostname dependency.
  *   dependency that recommendation R28 flagged as a single point of failure for all
  *   authentication.
  *
