@@ -108,7 +108,6 @@ ALWAYS = {
 NEVER = {
     "wecare-get-miss-redirect": "Lambda@Edge - executes in the edge region, so a "
                                 "us-east-1 FunctionName alarm would watch nothing",
-    "wecare-sla-engine": "orphaned - no route, no schedule, nothing can invoke it",
 }
 
 # A function running this close to its EFFECTIVE ceiling gets a duration alarm as well.
