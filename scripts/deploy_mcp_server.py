@@ -527,24 +527,9 @@ def verify() -> int:
 
     # IS THE DEPLOYED CATALOGUE THE ONE IN THE REPO?
     #
-    # This function is the only consumer of config/public-pages.json that carries a COPY
-    # rather than reading it live, so a catalogue change does not reach it until someone
-    # redeploys - and nothing makes them. It happened within hours of the function being
-    # created: another session renamed [retired public path] to /orders, updated the catalogue, the
-    # allowlists and the tests, committed, and CI deployed the frontend. wecare-mcp has no
-    # CI workflow, so it kept serving the old copy, and `search_pages` handed agents
-    # [retired public path]/ - a URL that now 404s. Nothing reported it.
-    #
-    # Caught here by comparing bytes, so a stale catalogue is a loud verify failure rather
-    # than a wrong answer to an agent. scripts/check_deployed_source.py finds the same thing
-    # across the whole fleet; this is the function-specific check for the command an operator
-    # of THIS function actually runs.
-    #
-    # The permanent fix is a CI workflow keyed on config/public-pages.json, like
-    # seo-tools-deploy.yml. That needs a new OIDC IAM role - the existing
-    # GitHubActions-bharat-stack-seo-tools role is scoped to its own function - and creating
-    # one is an owner decision under maintenance-reporting. Until then, this check plus
-    # `--verify` in the release routine is the guard.
+    # This function carries a copy of config/public-pages.json inside its deployment ZIP.
+    # A catalogue change therefore requires an explicit MCP redeploy. This verifier compares
+    # the deployed bytes with the repository so stale catalogue data fails loudly.
     try:
         import hashlib
         local = hashlib.sha256(CATALOG_FILE.read_bytes()).hexdigest()
@@ -643,19 +628,9 @@ def verify_live(timeout: int = 25) -> int:
     """Compare what the LIVE endpoint serves with config/public-pages.json. No credentials.
 
     WHY THIS EXISTS ALONGSIDE --verify, WHICH ALREADY CHECKS THE CATALOGUE.
-    `--verify` downloads the deployed zip and compares public-pages.json byte for byte. That
-    is the stronger check of the two and it stays. But it needs lambda:GetFunction, so it can
-    only run on the OIDC read role in public-surface-deploy.yml - a workflow that is
-    dispatch-only, has no schedule, and whose role variables this repo cannot confirm are even
-    provisioned. The practical consequence was that nothing ran automatically, and the drift
-    it describes went unreported until a human thought to look: measured on 2026-09-30, the
-    live endpoint was serving 21 pages while the repo had 23, missing /hunar and /vault, three
-    hours after the pages merged.
-
-    This check needs no role, no OIDC, and no AWS API at all - only an HTTPS POST to a public
-    URL - so it can be scheduled today and cannot sit red for want of an IAM provisioning
-    decision. It is also closer to the truth that matters: it reads what a client is actually
-    served, rather than what is sitting in a deployment artifact.
+    --verify downloads the deployed ZIP and compares public-pages.json byte for byte, but it
+    requires AWS credentials. This check needs only the public MCP endpoint, so it is useful
+    when AWS credentials are unavailable and it measures what clients actually receive.
 
     It is weaker in one way and the difference is worth stating: it can only see fields a tool
     exposes. `list_pages` returns path, name, description and group, which is every field the
@@ -666,9 +641,7 @@ def verify_live(timeout: int = 25) -> int:
         0  the live catalogue matches the repo
         1  DRIFT - the live catalogue disagrees. A real, actionable finding.
         3  UNREACHABLE - the endpoint could not be read, so NOTHING is known about live
-           state. Distinct from 1 on purpose, for the reason recorded in plivo-drift.yml:
-           that check once reported a false CRITICAL because a failed credential read and a
-           moved invariant shared one exit code. A network blip must not look like drift.
+           state. Distinct from 1 so a network blip is never reported as configuration drift.
     """
     print("=" * 78)
     print(f"live catalogue drift check  ->  {PUBLIC_ENDPOINT}")
@@ -740,8 +713,6 @@ def verify_live(timeout: int = 25) -> int:
             "\n  zip, so a catalogue change does not reach it until the Lambda is redeployed."
             "\n"
             "\n  Converge with:"
-            "\n      gh workflow run public-surface-deploy.yml -f action=apply -f target=mcp"
-            "\n  or, with AWS credentials to hand:"
             "\n      python scripts/deploy_mcp_server.py"
         )
         return 1
