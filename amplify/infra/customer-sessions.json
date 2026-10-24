@@ -178,34 +178,6 @@
         }
       }
     },
-    "Version": {
-      "Type": "AWS::Lambda::Version",
-      "DeletionPolicy": "Retain",
-      "UpdateReplacePolicy": "Retain",
-      "Properties": {
-        "FunctionName": {
-          "Ref": "Function"
-        },
-        "CodeSha256": {
-          "Ref": "CodeSha256"
-        }
-      }
-    },
-    "Live": {
-      "Type": "AWS::Lambda::Alias",
-      "Properties": {
-        "Name": "live",
-        "FunctionName": {
-          "Ref": "Function"
-        },
-        "FunctionVersion": {
-          "Fn::GetAtt": [
-            "Version",
-            "Version"
-          ]
-        }
-      }
-    },
     "Integration": {
       "Type": "AWS::ApiGatewayV2::Integration",
       "Properties": {
@@ -213,7 +185,7 @@
         "IntegrationType": "AWS_PROXY",
         "IntegrationMethod": "POST",
         "IntegrationUri": {
-          "Ref": "Live"
+          "Fn::Sub": "${Function.Arn}:live"
         },
         "PayloadFormatVersion": "2.0",
         "TimeoutInMillis": 30000
@@ -242,7 +214,7 @@
       "Type": "AWS::Lambda::Permission",
       "Properties": {
         "FunctionName": {
-          "Ref": "Live"
+          "Fn::Sub": "${Function.Arn}:live"
         },
         "Action": "lambda:InvokeFunction",
         "Principal": "apigateway.amazonaws.com",
