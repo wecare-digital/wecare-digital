@@ -73,8 +73,7 @@ export const SNS_TOPICS = {
 
 // Cognito
 //
-// SSO_DOMAIN moved off the `signin.wecare.digital` custom domain on 2026-09-26 and
-// onto the Cognito-provided prefix domain. The prefix domain was upgraded from
+// SSO_DOMAIN uses the Cognito-provided prefix domain. The prefix domain was upgraded from
 // hosted UI classic (ManagedLoginVersion 1) to managed login v2 first, so the page
 // served is the same one: verified byte-for-byte equivalent apart from the hostname
 // length (34,433 vs 34,441 bytes, identical <title>, zero classic-widget markers).
