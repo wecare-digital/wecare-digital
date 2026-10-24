@@ -3,7 +3,7 @@
 Why this module exists at all
 ----------------------------
 On this HTTP API the custom domain mapping puts the stage in the path: a request
-to `https://api.wecare.digital/plivo/answer` arrives with
+to the API Gateway stage for `/plivo/answer` arrives with
 `rawPath = "/prod/plivo/answer"`. That single difference has now caused two
 separate production incidents, because it breaks two things at once:
 
