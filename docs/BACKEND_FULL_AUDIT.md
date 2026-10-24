@@ -55,7 +55,7 @@ Per-table risks: single-table GSIs mostly fine; verify **PAY_PER_REQUEST** billi
 - **EventBridge (6):** media-cleanup-daily, scheduled-messages (5-min), docs-scraper-daily, partner-token-refresh-daily, amplify-build-failed, + AWS-managed notifications. `FailedInvocations` alarms now exist for media-cleanup and scheduled-messages; docs-scraper-daily and partner-token-refresh-daily still have **no target DLQ**.
 - **Cognito (2):** `WECARE.DIGITAL` (staff, MFA `OPTIONAL`, deletion protection ACTIVE, groups Admin/Operator/Partner/Viewer) and `WECARE.DIGITAL-CUSTOMERS` (public passwordless WhatsApp OTP, MFA OFF, deletion protection INACTIVE). Both are behind the `wecare-cognito-waf` web ACL. **Gap: Advanced Security is `None` on both; no user-export DR.**
 - **API Gateway:** HTTP APIs for wa-business / service / url-shortener. **Gap: no 5xx/latency alarms.**
-- **S3 (6):** `app.wecare.digital`, CDK assets, `wecare-digital-get`, `wecare-digital-mta-sts`, `wecare-credential-backups-*`, `wecare-maintenance-reports-*`. All encrypted, all with a full public-access block, versioning on 5 of 6.
+- **S3 (6):** `wecare-digital-get`, CDK assets, `wecare-digital-get`, `wecare-digital-mta-sts`, `wecare-credential-backups-*`, `wecare-maintenance-reports-*`. All encrypted, all with a full public-access block, versioning on 5 of 6.
 - **SNS:** `stack-wecare-digital` alarm topic — email `one@wecare.digital` **confirmed**.
 - **KMS:** keys present. (Rotation de-scoped by owner.)
 
