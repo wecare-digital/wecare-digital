@@ -24,8 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # cleaned together.
 CUSTOMER_PAGES = ('/cart/', '/checkout/', '/account/sign-in/', '/orders/',
                   '/checkout/status/', '/checkout/success/')
-RETIRED_HOSTS = {'store.wecare.digital', 'shop.wecare.digital', 'xout.wecare.digital',
-                 'bnbclub.in', 'legalchamp.in', 'nofault.in', 'ritualguru.in', 'swdhya.in'}
+RETIRED_HOSTS = {'bnbclub.in', 'legalchamp.in', 'nofault.in', 'ritualguru.in', 'swdhya.in'}
 
 
 class Page(HTMLParser):
