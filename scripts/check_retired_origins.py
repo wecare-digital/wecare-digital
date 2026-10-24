@@ -22,7 +22,7 @@ surface that kept the dead origin was also the one with the widest reach.
 Since then the retired list has grown, and the media surface named above is itself
 retired. On **2026-09-28** the owner deleted the `app.wecare.digital` bucket, the
 `ERCXSFDL0VM8X` distribution that fronted it (aliases `app.`, `customerservice.` and
-`selfcare.`), and the `r.wecare.digital` record for the URL shortener. All four
+`selfcare.`), and the `wecare.digital/r` record for the URL shortener. All four
 hostnames are NXDOMAIN, measured. Media now serves from the apex path
 `wecare.digital/get` over bucket `wecare-digital-get`, and short links from
 `wecare.digital/r`. Each of those four is in `RETIRED_HOSTS` below, so the same gate
@@ -118,7 +118,7 @@ RETIRED_HOSTS = {
         "retired 2026-09-28 alongside app.wecare.digital; both were aliases on "
         "CloudFront ERCXSFDL0VM8X. NXDOMAIN"
     ),
-    "r.wecare.digital": (
+    "wecare.digital/r": (
         "retired 2026-09-28 under YES R53-DELETE-001; NXDOMAIN. Was the URL "
         "shortener's custom domain. Short links are minted and served on the apex "
         "path wecare.digital/r, and scripts/check_short_link_hosts.py asserts this "
@@ -168,7 +168,7 @@ def strip_comments(text: str, suffix: str) -> str:
 #
 # This narrowing was forced by evidence. Stripping comments was sufficient while
 # the retired legacy frontend host was the only entry, because all 13 of its prose references sat
-# in `#` or `//` comments. When `app.wecare.digital` and `r.wecare.digital` were added on
+# in `#` or `//` comments. When `app.wecare.digital` and `wecare.digital/r` were added on
 # 2026-09-28 the scan produced 44 hits and only ONE was a real allow-list entry. The rest
 # were Python **docstrings** - which are string literals, not comments, so `strip_comments`
 # cannot see them - plus dashboard inventory labels, test names, and the detector
