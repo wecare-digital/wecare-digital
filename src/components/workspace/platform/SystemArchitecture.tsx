@@ -153,9 +153,9 @@ const LAMBDAS: LambdaDef[] = [
   { name: 'ad-attribution', category: 'Messaging', trigger: 'API Gateway', tables: 'AdClickAttribution', description: 'Click-to-WhatsApp ad tracking', apiRoute: '/ad-attribution' },
   { name: 'push-notifications', category: 'Messaging', trigger: 'API Gateway', tables: '-', description: 'Web push notification delivery', apiRoute: '/push' },
   { name: 'ai-generate-response', category: 'AI', trigger: 'API Gateway', tables: 'ConversationHistory, AIInteraction', description: 'Generate AI responses via Bedrock', apiRoute: '/ai/generate' },
-  { name: 'ai-query-kb', category: 'AI', trigger: 'API Gateway', tables: 'AIInteraction', description: 'Query Bedrock Knowledge Base', apiRoute: '/ai/query' },
+  { name: 'ai-query-kb', category: 'AI', trigger: 'API Gateway', tables: 'AIInteraction', description: 'Query the static FAQ knowledge base', apiRoute: '/ai/query' },
   { name: 'ai-config-management', category: 'AI', trigger: 'API Gateway', tables: 'SystemConfig', description: 'Manage AI/bot configuration', apiRoute: '/ai/config' },
-  { name: 'agent-action-group', category: 'AI', trigger: 'Bedrock Agent', tables: '-', description: 'Bedrock Agent action group handler', apiRoute: '-' },
+  { name: 'agent-action-group', category: 'AI', trigger: 'API Gateway', tables: '-', description: 'Governed internal agent action handler', apiRoute: '/ai/agent' },
   { name: 'razorpay-webhook', category: 'Payments', trigger: 'API GW Webhook', tables: 'RazorpayWebhookLog, Payment, InvoicePayment', description: 'Razorpay payment webhook', apiRoute: '/webhook/razorpay' },
   { name: 'payments-read', category: 'Payments', trigger: 'API Gateway', tables: 'Payment', description: 'Read payment records', apiRoute: '/payments' },
   { name: 'invoice-engine', category: 'Payments', trigger: 'API Gateway', tables: 'Invoice, InvoiceItem, InvoiceAsset, InvoicePayment, InvoiceDeliveryLog, InvoiceSequence', description: 'Invoice creation & PDF generation', apiRoute: '/invoices' },
@@ -188,8 +188,6 @@ const AWS_RESOURCES: AWSResource[] = [
   { name: 'Amazon SES', type: 'SES', purpose: 'Outbound email delivery', module: 'Messaging', env: 'Production', status: 'Active', risk: '' },
   { name: 'Amazon Pinpoint', type: 'Pinpoint', purpose: 'SMS delivery (AWS channel)', module: 'Messaging', env: 'Production', status: 'Active', risk: '' },
   { name: 'Amazon Bedrock', type: 'Bedrock', purpose: 'AI response generation (Claude 3 Sonnet)', module: 'AI', env: 'Production', status: 'Active', risk: '' },
-  { name: 'Bedrock Knowledge Base', type: 'Bedrock KB', purpose: 'FAQ and knowledge base queries', module: 'AI', env: 'Production', status: 'Active', risk: '' },
-  { name: 'Bedrock Agent', type: 'Bedrock Agent', purpose: 'Autonomous agent with action groups', module: 'AI', env: 'Production', status: 'Active', risk: '' },
   { name: 'IAM Roles (Lambda)', type: 'IAM', purpose: 'Lambda execution roles with least-privilege', module: 'Security', env: 'Production', status: 'Active', risk: '' },
   { name: 'Secrets Manager', type: 'Secrets Manager', purpose: 'API keys, webhook secrets, payment credentials', module: 'Security', env: 'Production', status: 'Active', risk: '' },
   { name: 'CloudFront E2GP22R4BIFGQ3', type: 'CloudFront', purpose: 'Serves wecare.digital/get/<key> from wecare-digital-get', module: 'Frontend', env: 'Production', status: 'Active', risk: '' },
@@ -505,9 +503,9 @@ const LAMBDA_DETAILED: LambdaDetailed[] = [
   { name: 'wecare-template-analytics', displayName: 'Template Analytics', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Template performance metrics', apiRoute: '/whatsapp/template-analytics', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'wecare-media-cleanup', displayName: 'Media Cleanup', category: 'Messaging', runtime: 'Python 3.12', timeout: 300, memory: 256, description: 'Clean up expired media from S3', apiRoute: '-', envVars: { MEDIA_BUCKET: 'wecare-digital-get' }, triggers: [ 'EventBridge Daily' ], status: 'active' },
   { name: 'wecare-push-notifications', displayName: 'Push Notifications', category: 'Messaging', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Web push notification delivery', apiRoute: '/push', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'wecare-ai-query-kb', displayName: 'AI Query KB', category: 'AI', runtime: 'Python 3.12', timeout: 30, memory: 256, description: 'Query Bedrock Knowledge Base', apiRoute: '/ai/query', envVars: { KB_ID: '(env var)' }, triggers: [ 'API Gateway' ], status: 'active' },
+  { name: 'wecare-ai-query-kb', displayName: 'AI Query KB', category: 'AI', runtime: 'Python 3.12', timeout: 30, memory: 256, description: 'Query the static FAQ knowledge base', apiRoute: '/ai/query', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'wecare-ai-config-management', displayName: 'AI Config Management', category: 'AI', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Manage AI/bot configuration', apiRoute: '/ai/config', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
-  { name: 'wecare-agent-action-group', displayName: 'Agent Action Group', category: 'AI', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'Bedrock Agent action group handler', apiRoute: '-', envVars: {}, triggers: [ 'Bedrock Agent' ], status: 'active' },
+  { name: 'wecare-agent-action-group', displayName: 'Agent Action Group', category: 'AI', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'Governed internal agent action handler', apiRoute: '/ai/agent', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'wecare-payments-read', displayName: 'Payments Read', category: 'Payments', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Read payment records', apiRoute: '/payments', envVars: { PAYMENTS_TABLE: 'stack-wecare-digital-PaymentTable' }, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'wecare-bulk-job-create', displayName: 'Bulk Job Create', category: 'Operations', runtime: 'Python 3.12', timeout: 60, memory: 256, description: 'Create bulk messaging jobs', apiRoute: '/bulk/create', envVars: { BULK_TABLE: 'stack-wecare-digital-BulkJobTable' }, triggers: [ 'API Gateway' ], status: 'active' },
   { name: 'wecare-bulk-job-control', displayName: 'Bulk Job Control', category: 'Operations', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'Pause/resume/cancel bulk jobs', apiRoute: '/bulk/control', envVars: {}, triggers: [ 'API Gateway' ], status: 'active' },
@@ -576,9 +574,9 @@ const CODE_ASSETS: CodeAsset[] = [
   { id: 'l-push', category: 'Messaging Lambdas', name: 'Push Notifications', description: 'Web push notification delivery.', path: 'amplify/functions/messaging/push-notifications/handler.py', type: 'Lambda' },
   // AI
   { id: 'l-ai-gen', category: 'AI', name: 'AI Generate Response', description: 'Generate AI responses using Bedrock Claude — context-aware, multi-turn.', path: 'amplify/functions/ai/ai-generate-response/handler.py', type: 'Lambda' },
-  { id: 'l-ai-kb', category: 'AI', name: 'AI Query KB', description: 'Query Bedrock Knowledge Base for FAQ answers.', path: 'amplify/functions/ai/ai-query-kb/handler.py', type: 'Lambda' },
+  { id: 'l-ai-kb', category: 'AI', name: 'AI Query KB', description: 'Query the static FAQ knowledge base.', path: 'amplify/functions/ai/ai-query-kb/handler.py', type: 'Lambda' },
   { id: 'l-ai-config', category: 'AI', name: 'AI Config Management', description: 'Manage AI/bot configuration and auto-reply settings.', path: 'amplify/functions/ai/ai-config-management/handler.py', type: 'Lambda' },
-  { id: 'l-ai-agent', category: 'AI', name: 'Agent Action Group', description: 'Bedrock Agent action group handler for autonomous tasks.', path: 'amplify/functions/ai/agent-action-group/handler.py', type: 'Lambda' },
+  { id: 'l-ai-agent', category: 'AI', name: 'Agent Action Group', description: 'Governed internal agent action handler for approved operations.', path: 'amplify/functions/ai/agent-action-group/handler.py', type: 'Lambda' },
   // Payments
   { id: 'l-razorpay', category: 'Payments', name: 'Razorpay Webhook', description: 'Razorpay payment webhook — capture, refund, dispute events.', path: 'amplify/functions/payments/razorpay-webhook/handler.py', type: 'Lambda' },
   { id: 'l-payments-read', category: 'Payments', name: 'Payments Read', description: 'Read payment records and transaction history.', path: 'amplify/functions/payments/payments-read/handler.py', type: 'Lambda' },
@@ -1173,8 +1171,6 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
           {
             name: '🤖 AI / ML', children: [
               { name: 'Amazon Bedrock (Claude 3 Sonnet)' },
-              { name: 'Bedrock Knowledge Base' },
-              { name: 'Bedrock Agent + Action Groups' },
             ]
           },
           {
