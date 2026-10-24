@@ -1,6 +1,6 @@
 # WhatsApp Media Configuration
 
-## Single Bucket: `app.wecare.digital`
+## Single Bucket: `wecare-digital-get`
 
 All WhatsApp media uses one bucket with folder-based routing.
 
@@ -30,7 +30,7 @@ Example: `wecare-digital-a1b2c3d4_Invoice.pdf`
 ## CDN URL (what WhatsApp/customer sees)
 
 ```
-https://app.wecare.digital/public/wa-tpl/docs/wecare-digital-a1b2c3d4_Invoice.pdf
+https://wecare.digital/get/o/public/wa-tpl/docs/wecare-digital-a1b2c3d4_Invoice.pdf
 ```
 
 Customer sees the `filename` field in WhatsApp chat (e.g., "Invoice.pdf"), not the URL.
