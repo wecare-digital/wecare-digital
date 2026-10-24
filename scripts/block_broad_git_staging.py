@@ -17,7 +17,7 @@ others had four unrelated files modified:
     M src/components/__tests__/Header.test.tsx
 
 A single ``git add .`` in any session would have swept all four into an unrelated
-commit on ``stack``, attributing half-finished work to the wrong change. The
+commit on ``wecare.digital``, attributing half-finished work to the wrong change. The
 project rule already says to stage by explicit path; this hook is what makes the
 rule hold when an agent reaches for the convenient thing.
 
@@ -365,7 +365,7 @@ SELF_TEST = [
     ("git -C /tmp/repo add .", 2),
     ("git log --oneline -1", 0),
     ("ls -la && git add .", 2),
-    ("git push origin stack", 0),
+    ("git push origin wecare.digital", 0),
     ("git stash push -- scripts/foo.py", 0),
     # Regression: a commit message that DOCUMENTS tree-wide staging must not be
     # mistaken for performing it. This guard refused its own introducing commit.
@@ -384,8 +384,8 @@ ASK_TESTS = [
     "git checkout -- .",
     "git restore .",
     "git clean -fd",
-    "git push --force origin stack",
-    "git push -f origin stack",
+    "git push --force origin wecare.digital",
+    "git push -f origin wecare.digital",
     "git stash pop",
 ]
 
