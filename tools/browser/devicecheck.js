@@ -179,6 +179,7 @@ const PROBE = () => {
         toggleButtons: [ Math.round( ab.height ), Math.round( wb.height ) ],
         iconCount: doc.querySelectorAll( '.data-toggle .mode-icon' ).length,
         mode: toggle.getAttribute( 'data-mode' ),
+        mobile: doc.getElementById( 'stage' )?.getAttribute( 'data-mobile' ),
         airPressed: air.getAttribute( 'aria-pressed' ),
         weatherPressed: weather.getAttribute( 'aria-pressed' ),
       };
@@ -338,7 +339,9 @@ const PROBE = () => {
               if ( x.vayuGlobeFoundation.toggleButtons.some( height => height < 44 ) ) problems.push( `VayuLok globe toggle tap<44: ${x.vayuGlobeFoundation.toggleButtons.join( ',' )}` );
               if ( x.vayuGlobeFoundation.iconCount !== 2 ) problems.push( `VayuLok globe icons ${x.vayuGlobeFoundation.iconCount}/2` );
               if ( x.vayuGlobeFoundation.cityWeight !== '700' ) problems.push( `VayuLok globe city weight ${x.vayuGlobeFoundation.cityWeight}` );
-              if ( d.w <= 767 && x.vayuGlobeFoundation.citySize !== '24px' ) problems.push( `VayuLok globe mobile city ${x.vayuGlobeFoundation.citySize}` );
+              const expectedMobile = d.w <= 767 ? 'true' : 'false';
+              if ( x.vayuGlobeFoundation.mobile !== expectedMobile ) problems.push( `VayuLok globe page-mobile ${x.vayuGlobeFoundation.mobile} expected ${expectedMobile}` );
+              if ( d.w <= 767 && x.vayuGlobeFoundation.citySize !== '20px' ) problems.push( `VayuLok globe mobile city ${x.vayuGlobeFoundation.citySize}` );
               if ( d.w > 767 && x.vayuGlobeFoundation.citySize !== '22px' ) problems.push( `VayuLok globe desktop city ${x.vayuGlobeFoundation.citySize}` );
               if ( x.vayuGlobeFoundation.readingSize !== '17px' ) problems.push( `VayuLok globe reading ${x.vayuGlobeFoundation.readingSize}` );
             }

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_BROWSER_KEY || '';
-const GLOBE_ASSET_VERSION = '20261024-design-v1';
+const GLOBE_ASSET_VERSION = '20261024-design-v3';
 
 export interface VayuLokGlobeCity {
   id: string;
@@ -59,6 +59,22 @@ const VayuLokApprovedGlobe: React.FC<VayuLokApprovedGlobeProps> = ( {
     );
   }, [ mode ] );
 
+  useEffect( () => {
+    const syncViewport = () => {
+      frameRef.current?.contentWindow?.postMessage(
+        {
+          source: 'vayulok-page',
+          type: 'viewport',
+          mobile: window.matchMedia( '(max-width: 767px)' ).matches,
+        },
+        window.location.origin,
+      );
+    };
+    syncViewport();
+    window.addEventListener( 'resize', syncViewport );
+    return () => window.removeEventListener( 'resize', syncViewport );
+  }, [] );
+
   return (
     <div className="vag-shell">
       <iframe
@@ -71,6 +87,14 @@ const VayuLokApprovedGlobe: React.FC<VayuLokApprovedGlobeProps> = ( {
         onLoad={ () => {
           frameRef.current?.contentWindow?.postMessage(
             { source: 'vayulok-page', type: 'mode', mode },
+            window.location.origin,
+          );
+          frameRef.current?.contentWindow?.postMessage(
+            {
+              source: 'vayulok-page',
+              type: 'viewport',
+              mobile: window.matchMedia( '(max-width: 767px)' ).matches,
+            },
             window.location.origin,
           );
         } }

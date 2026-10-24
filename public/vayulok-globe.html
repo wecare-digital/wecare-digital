@@ -52,7 +52,6 @@
     --safe-left:env(safe-area-inset-left,0px);
   }
   * { box-sizing: border-box; }
-  * { box-sizing: border-box; }
   html, body { margin:0; min-height:100%; background:var(--public-bg);color-scheme:light; }
   body {
     /* 100vh is the wrong unit on phones: it measures the viewport WITHOUT the
@@ -97,21 +96,27 @@
      labels are icons, while each real button keeps an explicit accessible name. The lime
      selection surface slides between equal halves; reduced-motion removes only the motion. */
   .data-toggle{
+    --toggle-selected-bg:var(--public-brand-lime);
+    --toggle-selected-ink:var(--public-brand-green);
     position:absolute;z-index:20;
     top:calc(4.2% + var(--safe-top));
     right:calc(4.0% + var(--safe-right));
-    width:132px;height:var(--public-cta-height);padding:4px;
-    display:grid;grid-template-columns:1fr 1fr;gap:4px;align-items:center;
-    border:1px solid var(--public-brand-green);border-radius:9999px;
-    background:var(--public-bg);box-shadow:none;
+    width:116px;height:48px;padding:3px;
+    display:grid;grid-template-columns:1fr 1fr;gap:3px;align-items:center;
+    border:1px solid var(--public-hairline);border-radius:9999px;
+    background:rgba(255,255,255,.96);box-shadow:none;
     font:inherit;-webkit-tap-highlight-color:transparent;
   }
+  .data-toggle[data-mode='weather']{
+    --toggle-selected-bg:#e8f5ff;
+    --toggle-selected-ink:#4f7f95;
+  }
   .data-toggle-indicator{
-    position:absolute;z-index:0;left:4px;top:4px;bottom:4px;
-    width:calc(50% - 6px);border-radius:9999px;
-    background:var(--public-brand-lime);
+    position:absolute;z-index:0;left:3px;top:3px;bottom:3px;
+    width:calc(50% - 5px);border-radius:9999px;
+    background:var(--toggle-selected-bg);
     transform:translateX(0);
-    transition:transform .22s cubic-bezier(.16,1,.3,1);
+    transition:transform .22s cubic-bezier(.16,1,.3,1),background-color .18s ease;
     pointer-events:none;
   }
   .data-toggle[data-mode='weather'] .data-toggle-indicator{
@@ -121,14 +126,14 @@
     position:relative;z-index:1;display:grid;place-items:center;
     width:100%;min-width:var(--tap-min);height:100%;min-height:var(--tap-min);
     padding:0;border:0;border-radius:9999px;background:transparent;
-    color:rgba(26,58,42,.68);cursor:pointer;
+    color:#6f7f78;cursor:pointer;
     -webkit-appearance:none;appearance:none;
     transition:color .16s ease,background-color .16s ease,transform .12s ease;
   }
-  .data-toggle .mode[aria-pressed='true']{color:var(--public-brand-green)}
-  .data-toggle .mode[aria-pressed='false']:hover{background:var(--public-lime-tint);color:var(--public-brand-green)}
-  .data-toggle .mode:active{transform:scale(.94)}
-  .data-toggle:hover{border-color:var(--public-brand-lime)}
+  .data-toggle .mode[aria-pressed='true']{color:var(--toggle-selected-ink)}
+  .data-toggle .mode[aria-pressed='false']:hover{background:#f6f8f7;color:var(--public-brand-green)}
+  .data-toggle .mode:active{transform:scale(.95)}
+  .data-toggle:hover{border-color:#cbd6d0}
   .data-toggle .mode:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:2px}
   .mode-icon{
     display:block;width:24px;height:24px;fill:none;stroke:currentColor;
@@ -142,19 +147,19 @@
      hairline, 14px radius, and NO resting elevation. The three-colour spine is Home's
      green/blue/purple rhythm; status remains readable in text and never depends on hue. */
   .city-panel{
-    position:absolute;left:4.0%;top:50%;z-index:18;
+    position:absolute;left:3.0%;top:53%;z-index:18;
     transform:translateY(-50%);
-    display:flex;align-items:stretch;gap:14px;
-    width:clamp(320px,31%,420px);
-    padding:18px 20px;
-    border:1px solid var(--public-hairline);border-radius:14px;
-    background:var(--public-bg);box-shadow:none;
+    display:flex;align-items:center;gap:10px;
+    width:clamp(230px,25%,288px);
+    padding:12px 14px;
+    border:1px solid var(--public-hairline);border-radius:12px;
+    background:rgba(255,255,255,.97);box-shadow:none;
     color:var(--public-body);text-align:left;
     pointer-events:none;
     transition:opacity .22s ease,transform .22s cubic-bezier(.16,1,.3,1);
   }
   .city-panel-accent{
-    flex:0 0 auto;width:3px;align-self:stretch;border-radius:3px;
+    flex:0 0 auto;width:3px;height:44px;align-self:center;border-radius:3px;
     background:linear-gradient(
       to bottom,
       var(--public-accent-green) 0 33.333%,
@@ -186,14 +191,7 @@
   .city-panel-reading[data-state='idle'],
   .city-panel-reading[data-state='loading'],
   .city-panel-reading[data-state='error']{color:var(--public-muted);font-weight:600}
-  .city-panel-time{
-    margin-top:7px;font-size:var(--public-meta-size);font-weight:500;line-height:1.35;
-    color:var(--public-muted);white-space:normal;
-  }
-  .city-panel-meta{
-    margin-top:5px;font-size:12px;font-weight:700;letter-spacing:.08em;line-height:1.25;
-    text-transform:uppercase;color:var(--public-muted);
-  }
+  .city-panel-time,.city-panel-meta{display:none}
 
   /* The leader line: a thin, in-palette tie from the panel's right edge to the
      selected pin. It uses the SELECTED city's accent (fed in as --leader-accent)
@@ -387,66 +385,50 @@
   .fallback-dot.is-active{border-color:#1a3a2a;box-shadow:0 6px 16px rgba(16,24,20,.2)}
   .fallback-dot:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
 
-  @media (max-width:767px){
-    .city-panel-name{font-size:var(--public-mobile-card-size)}
-    .data-toggle{width:112px;height:var(--tap-min);padding:3px}
-    .data-toggle-indicator{left:3px;top:3px;bottom:3px;width:calc(50% - 5px)}
-    .data-toggle[data-mode='weather'] .data-toggle-indicator{transform:translateX(calc(100% + 4px))}
-    .mode-icon{width:22px;height:22px}
+  /* The iframe's own width is NOT a proxy for page form factor: on desktop the
+     globe sits in a split column that can be narrower than a stacked tablet globe.
+     The parent page owns the 767px public-mobile contract and sends data-mobile. */
+  .sorcerer-stage[data-mobile='true'] .city-panel-name{font-size:var(--public-body-size)}
+  .sorcerer-stage[data-mobile='true'] .data-toggle{width:104px;height:var(--tap-min);padding:3px}
+  .sorcerer-stage[data-mobile='true'] .data-toggle-indicator{left:3px;top:3px;bottom:3px;width:calc(50% - 5px)}
+  .sorcerer-stage[data-mobile='true'] .data-toggle[data-mode='weather'] .data-toggle-indicator{transform:translateX(calc(100% + 4px))}
+  .sorcerer-stage[data-mobile='true'] .mode-icon{width:22px;height:22px}
+  .sorcerer-stage[data-mobile='true']{width:100vw;border-radius:24px}
+  .sorcerer-stage[data-mobile='true'] .fallback-dot .fallback-dot-label{
+    position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);
+    clip-path:inset(50%);white-space:nowrap;
   }
-
-  @media (max-width:680px){
-    .sorcerer-stage{width:100vw;border-radius:24px}
-    /* On the small disc the dot labels would collide; keep just the dot + ring,
-       the selected city's full name lives in the left panel. */
-    .fallback-dot .fallback-dot-label{
-      position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);
-      clip-path:inset(50%);white-space:nowrap;
-    }
-    .fallback-dot{padding:5px}
-    .fallback-dot::before{width:11px;height:11px}
-    /* Keep the toggle clear of a notch / rounded corner on the phone disc. */
-    .data-toggle{
-      top:calc(2.5% + var(--safe-top));
-      right:calc(2.5% + var(--safe-right));
-    }
-    /* Small-disc geometry changes, but typography does NOT collapse into a second
-       miniature scale. The panel reflows within the public 16px gutter and keeps
-       the migrated 24px card heading + 17px compact-data rung. */
-    .city-panel{
-      left:calc(var(--public-mobile-page-gutter) + var(--safe-left));
-      right:calc(var(--public-mobile-page-gutter) + var(--safe-right));
-      top:auto;bottom:calc(12px + var(--safe-bottom));transform:none;
-      width:auto;max-width:320px;padding:12px 14px;gap:10px;border-radius:14px;
-    }
-    .city-panel-name{font-size:var(--public-mobile-card-size)}
-    .city-panel-reading{font-size:var(--public-data-size);margin-top:6px}
-    .city-panel-layer{font-size:12px;margin-top:6px}
-    .city-panel-time{display:none}
-    .city-panel-meta{display:none}
-    /* The phone disc is small, so the name chip is kept compact. */
-    .city-card{display:none}
-    .city-name{font-size:10.5px}
-    .city-stem{width:1px;left:-.5px}.city-pin::before{width:9px;height:9px}
-    /* The phone-sized disc cannot hold several name chips at once, so an
-       unselected capital is just its dot here; the selected one keeps its chip. */
-    .city-marker:not(.is-active) .city-card,
-    .city-marker:not(.is-active) .city-stem{display:none}
-    /* Fewer dots on the small disc: only the curated spread of five capitals is
-       shown so eleven pins do not pepper a ~190px globe. Hidden markers are also
-       removed from hit-testing/tab order in updateCityMarkers() (the `phone &&
-       !city.mobile` branch), so a hidden capital can never be selected here. */
-    .city-marker.city-off-mobile{display:none}
-    /* With fewer, better-spaced dots the phone pin can be a touch larger again,
-       so each tap target reads clearly rather than as a speck. */
-    .city-pin::before{width:11px;height:11px}
+  .sorcerer-stage[data-mobile='true'] .fallback-dot{padding:5px}
+  .sorcerer-stage[data-mobile='true'] .fallback-dot::before{width:11px;height:11px}
+  .sorcerer-stage[data-mobile='true'] .data-toggle{
+    top:calc(2.5% + var(--safe-top));
+    right:calc(2.5% + var(--safe-right));
   }
+  .sorcerer-stage[data-mobile='true'] .city-panel{
+    left:calc(var(--public-mobile-page-gutter) + var(--safe-left));
+    right:auto;
+    top:auto;bottom:calc(10px + var(--safe-bottom));transform:none;
+    width:min(240px,calc(100% - 2 * var(--public-mobile-page-gutter)));
+    max-width:240px;padding:10px 12px;gap:8px;border-radius:12px;
+  }
+  .sorcerer-stage[data-mobile='true'] .city-panel-accent{height:36px}
+  .sorcerer-stage[data-mobile='true'] .city-panel-reading{font-size:var(--public-data-size);margin-top:6px}
+  .sorcerer-stage[data-mobile='true'] .city-panel-layer{font-size:12px;margin-top:6px}
+  .sorcerer-stage[data-mobile='true'] .city-panel-time,
+  .sorcerer-stage[data-mobile='true'] .city-panel-meta{display:none}
+  .sorcerer-stage[data-mobile='true'] .city-card{display:none}
+  .sorcerer-stage[data-mobile='true'] .city-name{font-size:10.5px}
+  .sorcerer-stage[data-mobile='true'] .city-stem{width:1px;left:-.5px}
+  .sorcerer-stage[data-mobile='true'] .city-pin::before{width:11px;height:11px}
+  .sorcerer-stage[data-mobile='true'] .city-marker:not(.is-active) .city-card,
+  .sorcerer-stage[data-mobile='true'] .city-marker:not(.is-active) .city-stem{display:none}
+  .sorcerer-stage[data-mobile='true'] .city-marker.city-off-mobile{display:none}
   @media (prefers-reduced-motion:reduce){.data-toggle-indicator,.data-toggle .mode,.city-marker,.city-card,.city-panel,.city-leader{transition:none}.data-toggle .mode:active{transform:none}.city-marker.is-visible .city-pin::before{animation:none}.city-leader line{animation:none}}
 
 </style>
 </head>
 <body>
-  <main class="sorcerer-stage" id="stage" data-layer="air" aria-label="Interactive WECARE globe with city weather and air markers">
+  <main class="sorcerer-stage" id="stage" data-layer="air" data-mobile="false" aria-label="Interactive WECARE globe with city weather and air markers">
     <canvas id="globe" aria-hidden="true"></canvas>
 
     <!-- Leader line tying the left info panel to the SELECTED capital's on-globe
@@ -572,6 +554,7 @@
   // SAME panel/fetch functions without tripping a temporal-dead-zone error.
   let activeLayer='air';
   let layerMix=0,layerTarget=0;
+  let parentMobile=false;
   const reduceMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // The single left-side info panel. All of a city's data lives HERE now, never
@@ -608,6 +591,11 @@
     if(e.origin!==window.location.origin||e.data?.source!=='vayulok-page')return;
     if(e.data?.type==='mode'&&(e.data.mode==='air'||e.data.mode==='weather')){
       setActiveLayer(e.data.mode,false);
+      return;
+    }
+    if(e.data?.type==='viewport'&&typeof e.data.mobile==='boolean'){
+      parentMobile=e.data.mobile;
+      stage.dataset.mobile=String(parentMobile);
     }
   });
   syncModeControl();
@@ -1482,13 +1470,11 @@
   // updateCityMarkers() and consumed by updateLeaderLine() right after.
   let selectedScreen=null;
 
-  const mobileMql=window.matchMedia('(max-width:680px)');
-
   function updateCityMarkers() {
     const w = stage.clientWidth || 1;
     const h = stage.clientHeight || 1;
     selectedScreen=null;
-    const phone=mobileMql.matches;
+    const phone=parentMobile;
     let centerBest=null;
     let centerScore=Infinity;
     // Pass 1 — writes only: project every capital and place its marker.
@@ -1595,7 +1581,7 @@
     // On the phone layout the panel docks bottom-left and the disc is tiny; a
     // line across the small stage adds clutter rather than clarity, so the
     // accent stripe + matching pin ring carry the connection there instead.
-    if(window.matchMedia('(max-width:680px)').matches){
+    if(parentMobile){
       if(leaderEl.classList.contains('is-visible'))leaderEl.classList.remove('is-visible');
       return;
     }

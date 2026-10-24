@@ -5140,14 +5140,17 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
           .vl-live-mobile-mode-indicator{
             position:absolute;z-index:0;inset-block:3px;inset-inline-start:3px;width:calc(50% - 5px);
             border-radius:var(--pill-r);background:var(--lime);pointer-events:none;
-            transform:translateX(0);transition:transform .22s cubic-bezier(.16,1,.3,1)
+            transform:translateX(0);transition:transform .22s cubic-bezier(.16,1,.3,1),background-color .18s ease
           }
-          .vl-live-mobile-mode.is-weather .vl-live-mobile-mode-indicator{transform:translateX(calc(100% + 4px))}
+          .vl-live-mobile-mode.is-weather .vl-live-mobile-mode-indicator{
+            transform:translateX(calc(100% + 4px));background:#e8f5ff
+          }
           .vl-live-mobile-mode button{
             position:relative;z-index:1;display:grid;place-items:center;min-width:var(--tap-min);min-height:var(--tap-min);
-            padding:0;border:0;border-radius:var(--pill-r);background:transparent;color:rgba(26,58,42,.68);cursor:pointer
+            padding:0;border:0;border-radius:var(--pill-r);background:transparent;color:#6f7f78;cursor:pointer
           }
-          .vl-live-mobile-mode button[aria-pressed='true']{color:var(--green)}
+          .vl-live-mobile-mode .is-air[aria-pressed='true']{color:var(--green)}
+          .vl-live-mobile-mode .is-weather[aria-pressed='true']{color:#4f7f95}
           .vl-live-mobile-mode button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
           .vl-live-mode-icon{
             width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.9;

@@ -162,12 +162,10 @@ const VayuLokPage: React.FC = () => {
           mobileFoundation
           ariaLabel="VayuLok"
           badgeLabel="VayuLok by WECARE.DIGITAL"
-          frame="Bharat"
-          pillAfterFrame
-          secondLine="Insights"
+          frame="Bharat Insights"
           words={ cycleWords }
           pillKey={ mode }
-          sub="Live air and weather for any place."
+          sub={ <>Live air and weather, wherever you look.<br />Current conditions, forecasts and history in one view.</> }
           visual={ (
           <div className="vl-hero-visual">
             <VayuLokApprovedGlobe
@@ -214,21 +212,26 @@ const VayuLokPage: React.FC = () => {
            .rh-split, so the globe keeps its own proportions and stays beside the copy
            down to 861px, where the shared split would stack at 1024px. .vl-page makes
            the selector outrank the component's own .rh-split at every width. */
-        .vl-page :global(.rh-split){display:grid;grid-template-columns:minmax(0,.95fr) minmax(0,1.05fr);gap:56px;align-items:center}
-        .vl-hero-visual{min-width:0;width:100%;display:flex;justify-content:center}
-        .vl-hero-visual :global(.vag-shell){width:100%;max-width:720px}
+        .vl-page :global(.rh-split){display:grid;grid-template-columns:minmax(0,.88fr) minmax(0,1.12fr);gap:44px;align-items:center}
+        .vl-page :global(.rh-hero){align-self:start;padding-top:8px}
+        .vl-page :global(.rh-sub){max-width:600px}
+        .vl-hero-visual{min-width:0;width:100%;display:flex;justify-content:center;align-items:center;transform:translateY(28px)}
+        .vl-hero-visual :global(.vag-shell){width:min(112%,820px);max-width:820px}
 
-        @media(max-width:1024px){
-          .vl-page :global(.rh-split){grid-template-columns:minmax(0,.96fr) minmax(0,1.04fr);gap:36px}
-          .vl-hero-visual :global(.vag-shell){max-width:620px}
+        @media(max-width:1100px){
+          .vl-page :global(.rh-split){grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr);gap:32px}
+          .vl-hero-visual :global(.vag-shell){width:min(108%,720px);max-width:720px}
         }
         @media(max-width:860px){
-          .vl-page :global(.rh-split){grid-template-columns:1fr;gap:36px}
-          .vl-hero-visual{max-width:760px;margin:0 auto}
-          .vl-hero-visual :global(.vag-shell){max-width:760px}
+          .vl-page :global(.rh-split){grid-template-columns:1fr;gap:28px}
+          .vl-hero-visual{max-width:800px;margin:0 auto;transform:translateY(12px)}
+          .vl-hero-visual :global(.vag-shell){width:100%;max-width:800px}
         }
         @media(max-width:767px){
-          .vl-page :global(.rh-split){gap:28px}
+          .vl-page :global(.rh-split){gap:24px}
+          .vl-page :global(.rh-sub){max-width:34ch}
+          .vl-hero-visual{transform:none}
+          .vl-hero-visual :global(.vag-shell){width:min(108%,560px);max-width:560px}
           /* VayuLok's longest live capability word is "Conditions" and the frame sits on its
              own line, so it does not need Grahak/contact's narrow 32/28px safety rungs.
              Keep the canonical 40px app hero through the phone/foldable range; devicecheck
