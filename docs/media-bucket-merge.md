@@ -1,4 +1,4 @@
-# Merging `app.wecare.digital` into `wecare-digital-get` — done, and what cannot follow
+# Merging `wecare-digital-get` into `wecare-digital-get` — done, and what cannot follow
 
 Measured and executed 2026-09-26.
 
@@ -7,7 +7,7 @@ Measured and executed 2026-09-26.
 All 286.6 MB copied into `wecare-digital-get` under the existing `o/` prefix,
 preserving key structure so the mapping is 1:1 and reversible:
 
-    app.wecare.digital/stream/media/m/logo.png
+    wecare-digital-get/stream/media/m/logo.png
       -> wecare-digital-get/o/stream/media/m/logo.png
       -> https://wecare.digital/get/o/stream/media/m/logo.png
 
@@ -51,14 +51,14 @@ templates that Meta has already **approved**. Meta fetches the media from the UR
 stored in the approved template at send time. Repointing `CDN_DOMAIN` changes what
 *new* templates use; it does not rewrite templates already approved.
 
-So retiring `app.wecare.digital` breaks approved templates until every one is
+So retiring `wecare-digital-get` breaks approved templates until every one is
 resubmitted and re-approved — and the standing rules forbid disturbing template
 registration. This is the binding constraint.
 
 ### 2. BIMI is a live email-auth record
 
     default._bimi.wecare.digital
-    "v=BIMI1; l=https://app.wecare.digital/stream/media/m/wecare-digital.svg; a=; avp=brand;"
+    "v=BIMI1; l=https://wecare.digital/get/o/stream/media/m/wecare-digital.svg; a=; avp=brand;"
 
 The domain runs `p=reject` with fail-closed MTA-STS. The logo file now exists at
 both locations, so the `l=` URL *could* move, but it is an email-authentication
@@ -76,8 +76,8 @@ None can be edited after delivery.
 319 occurrences across 116 files. The good news is that the Lambda side is
 **environment-driven, not hardcoded**, so most of it is config rather than code:
 
-    MEDIA_BUCKET        = os.environ.get('MEDIA_BUCKET', 'app.wecare.digital')
-    CDN_DOMAIN          = os.environ.get('CDN_DOMAIN', 'app.wecare.digital')
+    MEDIA_BUCKET        = os.environ.get('MEDIA_BUCKET', 'wecare-digital-get')
+    CDN_DOMAIN          = os.environ.get('CDN_DOMAIN', 'wecare-digital-get')
     PUBLIC_MEDIA_PREFIX = os.environ.get('PUBLIC_MEDIA_PREFIX', 'public/wa-tpl/')
 
 `config/lambda-env-manifest.json` carries 35 of those references, meaning the
@@ -98,7 +98,7 @@ Not safe to repoint by search-and-replace:
 ## Recommended end state
 
 Keep both. `wecare-digital-get/o/` becomes the canonical location that new media is
-written to and served from; `app.wecare.digital` stays mapped indefinitely as a
+written to and served from; `wecare-digital-get` stays mapped indefinitely as a
 read-only alias honouring URLs already committed to approved templates, delivered
 messages and DNS. That is the same conclusion the URL shortener reached: migrate what
 you *mint*, honour what you already *issued*.
@@ -115,14 +115,14 @@ failure worth recording.
 
 ### The old bucket was deleted; the old host was not
 
-`aws s3api list-buckets` now returns six buckets and `app.wecare.digital` is not among
-them. But `https://app.wecare.digital/...` still answers **HTTP 200**, because CloudFront
+`aws s3api list-buckets` now returns six buckets and `wecare-digital-get` is not among
+them. But `https://wecare.digital/get/o/...` still answers **HTTP 200**, because CloudFront
 `E1DP37QIS4G0T4` was repointed at `wecare-digital-get` with **origin path `/o`**:
 
 | Host | Distribution | Origin path | `<X>` resolves to |
 |---|---|---|---|
 | `wecare.digital/get/<X>` | `E2GP22R4BIFGQ3` | `""` | `<X>` |
-| `app.wecare.digital/<X>` | `E1DP37QIS4G0T4` | `/o` | `o/<X>` |
+| `wecare-digital-get/<X>` | `E1DP37QIS4G0T4` | `/o` | `o/<X>` |
 
 So the "keep both" recommendation above was implemented, and the 61 Meta-approved
 template media URLs still resolve. That is the good news, and it is also precisely what
@@ -150,7 +150,7 @@ None of these raised an alarm, and the reason is uncomfortable: a key written to
 bucket root still serves **HTTP 200** on the apex host. Verified by probe — a key at the
 root and the same key under `o/` both returned 200, while a key under `secure/` returned
 302. So a write to the wrong folder looked perfectly healthy from the apex and was simply
-invisible to `app.wecare.digital`.
+invisible to `wecare-digital-get`.
 
 ### What was done
 
@@ -211,7 +211,7 @@ function is invoked.
   `qr-customerservice.png` version is intact behind its marker and recoverable. Not touched
   here, because this is another session's active media-parity work and a blind restore
   would thrash against whatever is re-deleting.
-- **`app.wecare.digital` maps both 403 and 404 to HTTP 200 serving `/error.html`.**
+- **`wecare-digital-get` maps both 403 and 404 to HTTP 200 serving `/error.html`.**
   Confirmed by fetch: a missing object returns `200` with `content-type: text/html`, 596
   bytes, `x-cache: Error from cloudfront`. This is why the deletions above are invisible —
   and it means **Meta fetching an approved template's media gets a 200 and an HTML page
@@ -256,9 +256,9 @@ a decision that was subsequently reversed, not a live constraint. Measured direc
 | Check | Result |
 |---|---|
 | `cloudfront get-distribution-config E1DP37QIS4G0T4` | `NoSuchDistribution` |
-| `app.wecare.digital` in Route 53 (`Z03939753QJGZ6ZD6BXO8`, 31 records) | **no record of any type** |
-| `curl https://app.wecare.digital/...` | fails at DNS resolution, not at TLS or HTTP |
-| `s3api list-buckets` | 6 buckets, `app.wecare.digital` not among them |
+| `wecare-digital-get` in Route 53 (`Z03939753QJGZ6ZD6BXO8`, 31 records) | **no record of any type** |
+| `curl https://wecare.digital/get/o/...` | fails at DNS resolution, not at TLS or HTTP |
+| `s3api list-buckets` | 6 buckets, `wecare-digital-get` not among them |
 
 So the host is gone at every layer: bucket, distribution, DNS. The "keep both / read-only
 alias indefinitely" end state recommended above was **not** what shipped.
@@ -267,12 +267,12 @@ alias indefinitely" end state recommended above was **not** what shipped.
 
 1. **Meta-approved template media — now genuinely broken, and silently.** The 61 objects
    under `o/public/wa-tpl/` are still in the bucket and still reachable on the apex host,
-   but the URLs embedded in already-approved templates name `app.wecare.digital`, which no
+   but the URLs embedded in already-approved templates name `wecare-digital-get`, which no
    longer resolves. Meta refetches media from the stored URL at send time. Previously this
    failure mode was masked — the earlier addendum recorded the host mapping 403 and 404 to
    `200 /error.html`, so a broken template looked healthy. It is no longer masked; it is
    simply a DNS failure. **Unverified here:** whether any approved template still carries an
-   `app.wecare.digital` URL, because confirming it requires a Graph API read against the
+   `wecare-digital-get` URL, because confirming it requires a Graph API read against the
    WABA and template registration is a protected surface. That check is the open item.
 2. **BIMI — already migrated, correctly.** `default._bimi.wecare.digital` now reads
    `l=https://wecare.digital/get/o/stream/media/m/wecare-digital.svg`, and that URL returns
@@ -293,7 +293,7 @@ honestly, and the run is 7/7 rather than 5/1.
 
 The same pass also strengthened the dead-bucket check from equality to substring. The old
 form compared the whole env-var value against each dead name, so it matched a bare
-`app.wecare.digital` but walked straight past `app.wecare.digital/stream/media/m/x.png` —
+`wecare-digital-get` but walked straight past `wecare-digital-get/stream/media/m/x.png` —
 which is precisely the shape `CDN_DOMAIN` used to hold. Re-measured with the stricter test:
 **65 functions, 0 dead-bucket references.**
 
