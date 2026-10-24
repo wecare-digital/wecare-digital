@@ -33,7 +33,7 @@ import * as iam from 'aws-cdk-lib/aws-iam';
  * Additional CDK resources:
  * - SQS Queues (4): inbound-dlq, bulk-queue, bulk-dlq, outbound-dlq
  * - CloudWatch Alarms, Dashboard, Log Retention
- * - URL Shortener (wecare.digital/r, plus the r.wecare.digital alias):
+ * - URL Shortener (wecare.digital/r, plus the wecare.digital/r alias):
  *   API Gateway + Lambda + DynamoDB + Route53
  * - Durable Admin SEO audit/log storage and Lambda
  *
@@ -135,7 +135,7 @@ const dataStack = backend.data.resources.stacks[ 'data' ];
  * URL Shortener Resources
  * DynamoDB tables, the HTTP API and the Lambda integration.
  *
- * No longer creates anything for `r.wecare.digital`: that host was retired on
+ * No longer creates anything for `wecare.digital/r`: that host was retired on
  * 2026-09-28 and short links are served on the apex `/r/<*>` path instead.
  */
 addLinkResources( dataStack );
