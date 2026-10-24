@@ -40,7 +40,7 @@ does is narrower and still worth having:
 
 The second check is not spite. A retired host that quietly comes back - an IaC deploy
 re-creating the alias record is the likely route, which is why those constructs were
-deleted from `amplify/link-resources.ts` - would start serving links again from a
+deleted from the retired link CDK before that file itself was removed - would start serving links again from a
 certificate and mapping nobody is maintaining. Either state is defensible; drifting
 between them silently is not.
 
