@@ -223,7 +223,7 @@ def scan_file(path: Path, rel: str) -> tuple[list[dict], list[dict]]:
 
 
 APP_ID = "d22dm4b0jn71jw"
-BRANCH = "stack"
+BRANCH = "wecare.digital"
 
 
 def check_amplify_env() -> int:
