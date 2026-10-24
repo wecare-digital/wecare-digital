@@ -23,7 +23,7 @@ npm run dev
 ### S3 Bucket
 Single bucket: **`wecare-digital-get`** (versioning **Suspended**).
 
-> The bucket used to be named `app.wecare.digital`, so its name doubled as a
+> The bucket used to be named `wecare-digital-get`, so its name doubled as a
 > hostname. It was deleted on 2026-09-28. **The bucket name is not a hostname any
 > more** — `wecare-digital-get` is not a domain, so interpolating it into a URL
 > produces a link that resolves to nothing. Use the bucket name for S3 API calls
