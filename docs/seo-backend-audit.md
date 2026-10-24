@@ -99,9 +99,9 @@ Source content is read-only **structurally**, not by policy:
 | Check | Result |
 |---|---|
 | `faq.py` write calls | none — it adds a field to an API *response* |
-| `seo_freshness.py` — `put_item`, `update_item`, `now_iso`, `updatedAt`, `publishedAt`, `dateModified` | **none**, asserted by test |
+| `seo_freshness.py` — `put_item`, `update_item`, `now_iso`, `updatedAt`, `publishedAt`, `dateModified` | **none**, verified by source inspection |
 | AI reachable from a public route | **no** — `ai.invoke_seo` has exactly one caller, behind `require_auth` |
-| Anything scheduling AI | **nothing** — grepped `amplify/`, `scripts/`, `.github/workflows/` |
+| Anything scheduling AI | **nothing** — grepped active application and operational source |
 
 One path does write, and it is legitimate: `storage.apply_blog_audit` writes `seoTitle`,
 `metaDescription` and `jsonLd` onto a `blogPost` record in **SeoToolsTable**, and it requires an authenticated `/apply` on an
