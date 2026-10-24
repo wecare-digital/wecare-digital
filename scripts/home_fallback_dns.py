@@ -2,7 +2,7 @@
 
 This pure helper performs no AWS calls and returns no mutation batch. The single
 RecordSetGroup in amplify/infra/home-fallback.json is the only writer for these
-six records. Pass the new distribution domain and a fresh saved Route53 inventory
+two records. Pass the new distribution domain and a fresh saved Route53 inventory
 to detect conflicts before deployment or verify its readback. Matching records
 alone do not establish CloudFormation ownership. Unrelated records are untouched.
 See docs/execution/wildcard-restoration-20261019.md for the ownership boundary.
@@ -13,9 +13,8 @@ import re
 
 CLOUDFRONT_ZONE_ID = "Z2FDTNDATAQYW2"
 RETIRED_DOMAIN = "d27evp2npt2kzr.cloudfront.net"
-ROUTED_NAMES = ("*.wecare.digital.", "xout.wecare.digital.")
-EXCLUDED_NAMES = ("www.wecare.digital.", "www.xout.wecare.digital.")
-MANAGED_NAMES = ROUTED_NAMES + EXCLUDED_NAMES
+ROUTED_NAMES = ("*.wecare.digital.",)
+MANAGED_NAMES = ROUTED_NAMES
 
 
 def _name(value: str) -> str:
@@ -38,12 +37,6 @@ def desired_records(domain: str) -> list[dict]:
         }
         for name in ROUTED_NAMES for kind in ("A", "AAAA")
     ]
-    records.extend({
-        "Name": name,
-        "Type": "TXT",
-        "TTL": 300,
-        "ResourceRecords": [{"Value": '"retired-host"'}],
-    } for name in EXCLUDED_NAMES)
     return records
 
 
