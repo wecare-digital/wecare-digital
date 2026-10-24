@@ -4458,7 +4458,7 @@ def _upsert_flow_registry(body: Dict) -> Dict:
             'contactMapping': body.get('contactMapping', '{}'),
             'dataFetchers': body.get('dataFetchers', '{}'),
             'submissionPrefix': body.get('submissionPrefix', 'WD'),
-            # apex `/api` path since 2026-09-26; `api.wecare.digital` is retired.
+            # canonical apex `/api` path.
             'endpointUri': body.get('endpointUri', 'https://wecare.digital/api/wa-business/flow-data'),
             'createdAt': Decimal(str(body.get('createdAt', now))),
             'updatedAt': Decimal(str(now)),
@@ -6588,7 +6588,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         # Dedicated checkout endpoint (same handler, separate URL for Meta linking)
         # Link this URL with payment configuration via Meta support:
-        # https://api.wecare.digital/wa-business/checkout-data
+        # https://wecare.digital/api/wa-business/checkout-data
         elif '/checkout-data' in path:
             if method == 'POST':
                 return _handle_flow_data(body, request_id, origin)
