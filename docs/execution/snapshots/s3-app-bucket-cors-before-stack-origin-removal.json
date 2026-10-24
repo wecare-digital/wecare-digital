@@ -12,7 +12,7 @@
             ],
             "AllowedOrigins": [
                 "https://retired-legacy-host.invalid",
-                "https://app.wecare.digital",
+                "https://wecare.digital/get/o",
                 "https://wecare.digital",
                 "http://localhost:3000",
                 "capacitor://localhost",
