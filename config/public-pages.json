@@ -117,10 +117,10 @@
       "description": "Bharat air and weather insights."
     },
     {
-      "path": "/bharat-rx",
+      "path": "/sehat",
       "group": "services",
-      "name": "Bharat Rx",
-      "description": "Consults, appointments, reminders and records in one place."
+      "name": "Sehat",
+      "description": "Appointments with qualified professionals."
     },
     {
       "path": "/elsewhere/visa",
