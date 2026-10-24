@@ -1,4 +1,4 @@
-# Local development / test environment for the Python side of this repo.
+# Local development environment for the Python side of this repo.
 #
 # Recreate with:
 #     python3.12 -m venv .venv
@@ -54,7 +54,6 @@ httpcore2==2.13.1
 httpx==0.28.1
 httpx2==2.13.1
 idna==3.20
-iniconfig==2.3.0
 jiter==0.17.0
 jmespath==1.1.0
 lxml==6.1.3
@@ -73,7 +72,6 @@ openai==3.19.2
 opentelemetry-api==1.45.1
 packaging==26.3
 plivo==4.63.0
-pluggy==1.6.0
 propcache==0.5.4
 proto-plus==1.28.4
 protobuf==7.36.2
@@ -83,14 +81,12 @@ pycountry==26.2.16
 pycparser==3.0
 pydantic==2.13.5
 pydantic_core==2.46.5
-Pygments==2.21.0
 PyJWT==2.15.0
-# Receipt rendering tests. Runtime Pillow is supplied by the existing Lambda layer.
+Runtime Pillow is supplied by the existing Lambda layer.
 pillow==13.0.0
 # PDF text extraction for scripts/blog_ingest.py. Pure-python wheel with no required
 # runtime dependencies on 3.12, so it needs no Lambda layer and no native toolchain.
 pypdf==6.21.1
-pytest==9.1.1
 python-dateutil==2.9.0.post0
 PyYAML==6.0.3
 razorpay==2.0.1
