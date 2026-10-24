@@ -32,7 +32,7 @@ const PAYMENT_STATUS_OPTIONS: SelectOption[] = [
 /**
  * The viewable invoice link for a payment row, or '' when there is none.
  *
- * Both call sites below used to interpolate `https://app.wecare.digital/${key}`
+ * Both call sites below used to interpolate `https://wecare.digital/get/o/${key}`
  * inline. That was broken twice over: the host was retired on 2026-09-28, and the key
  * needs the `o/` root that stored `invoiceS3Key` values predate. `publicUrl` handles
  * both, and returns '' for a gated key rather than a link that 302s.
