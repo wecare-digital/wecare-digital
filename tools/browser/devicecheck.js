@@ -341,9 +341,9 @@ const PROBE = () => {
               if ( x.vayuGlobeFoundation.cityWeight !== '700' ) problems.push( `VayuLok globe city weight ${x.vayuGlobeFoundation.cityWeight}` );
               const expectedMobile = d.w <= 767 ? 'true' : 'false';
               if ( x.vayuGlobeFoundation.mobile !== expectedMobile ) problems.push( `VayuLok globe page-mobile ${x.vayuGlobeFoundation.mobile} expected ${expectedMobile}` );
-              if ( d.w <= 767 && x.vayuGlobeFoundation.citySize !== '16px' ) problems.push( `VayuLok globe mobile city ${x.vayuGlobeFoundation.citySize}` );
-              if ( d.w > 767 && x.vayuGlobeFoundation.citySize !== '18px' ) problems.push( `VayuLok globe desktop city ${x.vayuGlobeFoundation.citySize}` );
-              const expectedReading = d.w <= 767 ? '14px' : '15px';
+              if ( d.w <= 767 && x.vayuGlobeFoundation.citySize !== '15px' ) problems.push( `VayuLok globe mobile city ${x.vayuGlobeFoundation.citySize}` );
+              if ( d.w > 767 && x.vayuGlobeFoundation.citySize !== '17px' ) problems.push( `VayuLok globe desktop city ${x.vayuGlobeFoundation.citySize}` );
+              const expectedReading = d.w <= 767 ? '13px' : '14px';
               if ( x.vayuGlobeFoundation.readingSize !== expectedReading ) problems.push( `VayuLok globe reading ${x.vayuGlobeFoundation.readingSize} expected ${expectedReading}` );
             }
           }
