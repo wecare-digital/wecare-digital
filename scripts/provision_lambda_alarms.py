@@ -108,7 +108,6 @@ ALWAYS = {
 NEVER = {
     "wecare-get-miss-redirect": "Lambda@Edge - executes in the edge region, so a "
                                 "us-east-1 FunctionName alarm would watch nothing",
-    "wecare-url-shortener": "dead twin of stack-wecare-url-shortener, 0 invocations, no route",
     "wecare-sla-engine": "orphaned - no route, no schedule, nothing can invoke it",
 }
 
