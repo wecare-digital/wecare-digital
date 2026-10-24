@@ -23,8 +23,8 @@ import * as iam from 'aws-cdk-lib/aws-iam';
  *   Corrected 2026-09-29: this used to add "though the HOST survives as a read-only
  *   alias serving this bucket through CloudFront origin path `/o`". It does not.
  *   Re-measured the same day: `get-distribution ERCXSFDL0VM8X` returns
- *   NoSuchDistribution, no distribution carries an `app.wecare.digital` alias, the
- *   DNS name resolves to no address, and `head-bucket app.wecare.digital` is 404.
+ *   NoSuchDistribution, no distribution carries an `wecare-digital-get` alias, the
+ *   DNS name resolves to no address, and `head-bucket wecare-digital-get` is 404.
  *   There is exactly one distribution on this bucket now, E2GP22R4BIFGQ3, serving
  *   `wecare.digital/get/<key>` with origin path `""`. The `o/` prefix is therefore
  *   part of the URL, and it stays mandatory for the reasons in
