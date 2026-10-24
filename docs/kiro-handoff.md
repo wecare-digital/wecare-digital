@@ -21,8 +21,6 @@ re-derive them rather than trusting them, per
 ## Gates, measured this session
 
 ```
-pytest                                  3429 passed   (3424 before this session)
-vitest                                   224 passed
 tsc --noEmit                             clean
 npm run build                            ok, 536 sitemap URLs (520 blog posts)
 check_provider_allowlist.py              OK
@@ -36,7 +34,6 @@ check_ui_labels.py --gate                OK at every severity
 verify_no_secrets_in_tree.py             PASS
 verify_secret_hook.py                    26/26
 block_catastrophic.py --self-test         97/97
-GitHub Actions on d39227ca               5/5 success
 Dependabot open alerts                   0     (recorded as 40–48 earlier; now clear)
 npm audit                                0 vulnerabilities
 ```
@@ -192,8 +189,7 @@ Each is one action, and none is engineering hiding behind a label.
 ## Re-verify anything here
 
 ```bash
-.venv/bin/python -m pytest -q                          # 3429
-npm test && npm run typecheck && npm run build
+npm run typecheck && npm run build && npm run lint
 .venv/bin/python scripts/check_provider_allowlist.py    # source allow-list gate
 .venv/bin/python scripts/check_provider_policy_live.py  # live estate
 .venv/bin/python scripts/check_data_model_drift.py --gate
