@@ -2,8 +2,6 @@
 URL Shortener Lambda - WECARE.DIGITAL
 
 Canonical base for links: wecare.digital/r  (since 2026-09-26)
-Retired:                  r.wecare.digital  (2026-09-28)
-
 This function is reached on the apex path only. Amplify proxies `/r/<*>` to the
 shared API, and the handler accepts both `/r/{code}` and a bare `/{code}`.
 
@@ -180,7 +178,7 @@ def handler(event, context):
         if method == "OPTIONS":
             return {"statusCode": 200, "headers": HEADERS, "body": ""}
 
-        # Redirect: GET /r/:code or GET /{code} (from r.wecare.digital)
+        # Redirect: GET /r/:code
         if "/r/" in path:
             code = path.split("/r/")[-1].strip("/")
             logger.info(f"Redirect via /r/ path: code={code}")
@@ -191,7 +189,7 @@ def handler(event, context):
         # Authentication is applied here rather than at the top of the handler
         # because this function serves two different audiences on one Lambda:
         # the short-link redirects below are anonymous by definition - a customer
-        # following r.wecare.digital/abc123 has no Cognito token - while link
+        # following wecare.digital/r/abc123 has no Cognito token - while link
         # management is dashboard-only.
         #
         # Until 2026-09-21 none of it was authenticated. Anyone could enumerate
@@ -225,7 +223,7 @@ def handler(event, context):
             if code:
                 return update_link(code, body)
 
-        # Catch-all: GET /{code} — treat as redirect (for r.wecare.digital/abc123)
+        # Catch-all: GET /{code}
         if method == "GET" and path and path != "/":
             code = path.strip("/")
             logger.info(f"Catch-all redirect: code={code}")
