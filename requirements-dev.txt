@@ -40,7 +40,7 @@ cryptography==50.0.1
 curlify==3.0.0
 decorator==5.3.1
 frozenlist==1.8.0
-google-ads==33.0.0
+google-ads==34.0.0
 google-ads-admanager==0.10.5
 google-api-core==2.39.0
 google-auth==2.58.1
