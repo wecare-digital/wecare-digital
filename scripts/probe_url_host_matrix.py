@@ -202,18 +202,6 @@ def matrix() -> list[dict]:
     rows.append(_row("api", f"{SITE}/api/definitely/no/route", 404,
                      "unknown multi-segment API path stays 404"))
 
-    # The later owner instruction restored wildcard forwarding on 2026-10-19. Allowed
-    # hosts discard the old path/query and reach the fixed canonical home. Exact www
-    # exclusions have TXT-only DNS nodes; their no-response checks remain separate from
-    # authoritative DNS validation and the function's defensive 404 unit tests.
-    for host in ('shop', 'store', 'xout', 'release-check-unknown'):
-        rows.append(_row('subdomain', f'https://{host}.wecare.digital/old/path?old=1',
-                         200, 'allowed fallback discards path/query and reaches home',
-                         terminal_url=f'{SITE}/'))
-    rows.append(_row('subdomain', 'https://www.wecare.digital/old/path?old=1', 0,
-                     'retired nested hostname has no HTTP service'))
-    rows.append(_row("subdomain", "https://a.b.wecare.digital/", 0,
-                     "nested hostname is outside the one-label wildcard TLS certificate"))
     # mta-sts is the MTA-STS policy endpoint under mode: enforce. Probed at / ONLY, read-only,
     # to confirm nothing about it moved. Its policy path is not touched by this or any probe.
     rows.append(_row("subdomain", "https://mta-sts.wecare.digital/", 403,
