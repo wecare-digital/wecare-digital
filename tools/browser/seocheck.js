@@ -38,7 +38,7 @@ const SITE = 'https://wecare.digital';
 /** Public marketing routes, in the same order typecheck.js uses. */
 const ROUTES = [
   '/', '/grahak-os/', '/vayulok/', '/contact/', '/terms/', '/privacy/',
-  '/orders/', '/bharat-rx/',
+  '/orders/', '/sehat/',
   '/elsewhere/visa/', '/elsewhere/trip/', '/elsewhere/activities/',
   '/ritual-guru/ritva/', '/ritual-guru/puja-guidance/', '/ritual-guru/diy-puja-kit/', '/expo-week/',
   '/anew/', '/niji-setu/', '/hunar/kaushal/', '/hunar/prastuti/', '/shipments/track/',
