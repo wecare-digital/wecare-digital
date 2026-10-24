@@ -110,7 +110,7 @@ RETIRED_HOSTS = {
         "wecare.digital/get instead, and the bucket for S3 API calls is "
         "wecare-digital-get - see lambda_utils/media_paths.py"
     ),
-    "customerservice.wecare.digital": (
+    "wecare.digital/contact": (
         "retired 2026-09-28 alongside wecare-digital-get; both were aliases on "
         "CloudFront ERCXSFDL0VM8X. NXDOMAIN"
     ),
