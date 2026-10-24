@@ -82,8 +82,6 @@ With streams (2): `stack-wecare-digital-ProductsTable`, `stack-wecare-digital-Vo
 | `stack-wecare-digital-notification-dlq` | 0 | 0 | — | — |
 | `stack-wecare-digital-notification-queue` | 0 | 0 | `stack-wecare-digital-notification-dlq` | 3 |
 | `stack-wecare-digital-outbound-dlq` | 0 | 0 | — | — |
-| `wecare-blog-ingest` | 0 | 0 | `wecare-blog-ingest-dlq` | 3 |
-| `wecare-blog-ingest-dlq` | 0 | 0 | — | — |
 | `wecare-eventbridge-dlq` | 0 | 0 | — | — |
 | `wecare-lambda-async-dlq` | 0 | 0 | — | — |
 

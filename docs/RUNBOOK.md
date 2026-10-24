@@ -119,15 +119,15 @@ families. Names are stable; counts drift.
 |---|---|---|
 | `wecare-*-dlq-depth` (6) | `ApproximateNumberOfMessagesVisible` Maximum > 0 over 300s | see below |
 | `wecare-queue-age-bulk` | `ApproximateAgeOfOldestMessage` > 900s | `stack-wecare-digital` |
-| `wecare-lambda-errors-<fn>` (8) | `Errors` Sum > 3 | `stack-wecare-digital` |
+| `wecare-lambda-errors-*` (26) | `Errors` Sum > 3 (function-specific thresholds may differ) | `stack-wecare-digital` or `wecare-alarm-notifications` |
 | `wecare-inbound-lambda-errors`, `wecare-outbound-lambda-errors` | `Errors` Sum ≥ 5 | `wecare-alarm-notifications` |
 | `wecare-lambda-throttles` | `Throttles` Sum > 5 | `stack-wecare-digital` |
-| `wecare-ddb-throttle-<table>` (14) | `ThrottledRequests` Sum > 1 | `stack-wecare-digital` |
+| `wecare-ddb-throttle-<table>` (12) | `ThrottledRequests` Sum > 1 | `stack-wecare-digital` |
 | `wecare-ddb-user-errors` | `UserErrors` Sum > 25 | `stack-wecare-digital` |
-| `wecare-apigw-5xx-*` (2) | `5xx` Sum > 5 | `stack-wecare-digital` |
-| `wecare-apigw-latency-*` (2) | Latency > 3000ms | `stack-wecare-digital` |
+| `wecare-apigw-5xx-wecare-digital-api` | `5xx` Sum > 5 | `stack-wecare-digital` |
+| `wecare-apigw-latency-wecare-digital-api` | Latency > 3000ms | `stack-wecare-digital` |
 | `wecare-eventbridge-failed-*` (2) | `FailedInvocations` Sum > 0 | `stack-wecare-digital` |
-| `wecare-sns-delivery-failures` | `NumberOfNotificationsFailed` Sum ≥ 1 | `wecare-alarm-notifications` |
+| `wecare-sns-delivery-failures` | `NumberOfNotificationsFailed` Sum ≥ 1 on live topic `stack-wecare-digital` | `wecare-alarm-notifications` |
 | `wecare-webhook-dedup-errors` | custom `WebhookDedupErrors` Sum > 5 | `wecare-alarm-notifications` |
 | `wecare-sip-cert-expiry-*` | `CertDaysToExpiry` Minimum ≤ 10 | `wecare-alarm-notifications` |
 
