@@ -327,8 +327,8 @@ SPECS: List[Spec] = [
         "auth/cognito-custom-message",
         standalone=True,
     ),
-    # Both url-shortener functions build from the same source. The HTTP API's
-    # Short-link routes integrate `stack-wecare-url-shortener:live`.
+    # The HTTP API short-link routes integrate the single live function
+    # `stack-wecare-url-shortener:live`.
     # service and the other is a leftover. Keep both on the same code.
     #
     # No longer standalone as of 2026-09-21. The /links management routes were
