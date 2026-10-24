@@ -1,5 +1,5 @@
 {
-  "_generated": "2026-10-17T00:23:49.531333+00:00",
+  "_generated": "2026-10-24T05:08:54.856281+00:00",
   "lambdas": {
     "wecare-pstn-softphone": {
       "runtime": "python3.12",
@@ -42,8 +42,6 @@
       "package_type": "Zip"
     },
     "wecare-docs-scraper": {
-      "runtime": null,
-      "handler": null,
       "memory": 2048,
       "timeout": 300,
       "role": "arn:aws:iam::775261844268:role/wecare-digital-lambda-role",
@@ -53,7 +51,8 @@
       "layers": [],
       "env_var_names": [
         "ADMIN_MFA_REQUIRED",
-        "DOCS_BUCKET"
+        "DOCS_BUCKET",
+        "DOCS_PREFIX"
       ],
       "package_type": "Image"
     },
@@ -110,24 +109,6 @@
       ],
       "package_type": "Zip"
     },
-    "wecare-whatsapp-templates": {
-      "runtime": "python3.12",
-      "handler": "handler.handler",
-      "memory": 256,
-      "timeout": 30,
-      "role": "arn:aws:iam::775261844268:role/wecare-digital-lambda-role",
-      "architectures": [
-        "x86_64"
-      ],
-      "layers": [],
-      "env_var_names": [
-        "AWS_ACCOUNT_ID",
-        "MEDIA_BUCKET",
-        "REGION",
-        "S3_BUCKET"
-      ],
-      "package_type": "Zip"
-    },
     "wecare-ai-generate-response": {
       "runtime": "python3.12",
       "handler": "handler.handler",
@@ -175,6 +156,21 @@
       ],
       "package_type": "Zip"
     },
+    "wecare-catalog-media": {
+      "runtime": "python3.12",
+      "handler": "handler.handler",
+      "memory": 512,
+      "timeout": 15,
+      "role": "arn:aws:iam::775261844268:role/wecare-catalog-media-role",
+      "architectures": [
+        "x86_64"
+      ],
+      "layers": [],
+      "env_var_names": [
+        "CATALOG_BUCKET"
+      ],
+      "package_type": "Zip"
+    },
     "wecare-crm": {
       "runtime": "python3.12",
       "handler": "handler.handler",
@@ -213,6 +209,8 @@
         "CDN_DOMAIN",
         "CONTACTS_TABLE",
         "DIRECT_SEND_ENABLED_WABAS",
+        "EXPECTED_CONFIGURATION_NAME",
+        "EXPECTED_PROVIDER_MID",
         "LOG_LEVEL",
         "MEDIA_BUCKET",
         "MEDIA_FILES_TABLE",
@@ -222,6 +220,7 @@
         "S3_BUCKET",
         "SEND_MODE",
         "WA_LIVE_SMOKE_TEST",
+        "WA_PAY_TEMPLATE",
         "WA_QA_RECIPIENT",
         "WHATSAPP_PHONE_NUMBER_ID_1",
         "WHATSAPP_PHONE_NUMBER_ID_2"
@@ -305,38 +304,6 @@
       ],
       "package_type": "Zip"
     },
-    "wecare-meta-analytics": {
-      "runtime": "python3.12",
-      "handler": "handler.handler",
-      "memory": 256,
-      "timeout": 60,
-      "role": "arn:aws:iam::775261844268:role/wecare-digital-lambda-role",
-      "architectures": [
-        "x86_64"
-      ],
-      "layers": [],
-      "env_var_names": [],
-      "package_type": "Zip"
-    },
-    "wecare-sla-engine": {
-      "runtime": "python3.12",
-      "handler": "handler.handler",
-      "memory": 256,
-      "timeout": 60,
-      "role": "arn:aws:iam::775261844268:role/wecare-digital-lambda-role",
-      "architectures": [
-        "x86_64"
-      ],
-      "layers": [],
-      "env_var_names": [
-        "DEFAULT_ASSIGNEE",
-        "SLA_APPOINTMENT_MINUTES",
-        "SLA_ASSIGN_MINUTES",
-        "SLA_ESCALATE_MINUTES",
-        "TABLE_PREFIX"
-      ],
-      "package_type": "Zip"
-    },
     "wecare-conversation-meta": {
       "runtime": "python3.12",
       "handler": "handler.handler",
@@ -386,15 +353,19 @@
     "wecare-checkout": {
       "runtime": "python3.12",
       "handler": "handler.handler",
-      "memory": 256,
-      "timeout": 20,
+      "memory": 512,
+      "timeout": 60,
       "role": "arn:aws:iam::775261844268:role/wecare-checkout-role",
       "architectures": [
         "x86_64"
       ],
-      "layers": [],
+      "layers": [
+        "arn:aws:lambda:us-east-1:775261844268:layer:pillow-python312:2"
+      ],
       "env_var_names": [
+        "ADMIN_MFA_REQUIRED",
         "CATALOG_SOURCE",
+        "CDN_DOMAIN",
         "CHECKOUT_INITIATION_ENABLED",
         "CHECKOUT_MODE",
         "COMMERCE_KEYS_TABLE",
@@ -402,14 +373,27 @@
         "CONTRIBUTION_PRODUCT_ID",
         "EXPECTED_CONFIGURATION_NAME",
         "EXPECTED_PROVIDER_MID",
+        "INVOICES_TABLE",
+        "INVOICE_ASSETS_TABLE",
+        "INVOICE_DELIVERY_TABLE",
+        "INVOICE_ITEMS_TABLE",
+        "INVOICE_SEQ_TABLE",
+        "LOG_LEVEL",
+        "MEDIA_BUCKET",
         "NATIVE_STOCK_RESERVATION_ENABLED",
         "ORDERS_TABLE",
+        "OUTBOUND_FUNCTION",
+        "PAYMENTS_TABLE",
         "PAYMENT_ATTEMPTS_TABLE",
         "PAYMENT_WABA_ID",
         "PRODUCTS_TABLE",
         "RAZORPAY_SECRET_ID",
+        "REFUND_INITIATION_ENABLED",
         "SECRETS_REFRESHED_AT",
-        "SENDER_FUNCTION"
+        "SENDER_FUNCTION",
+        "WA_CATALOG_ORDERS_ENABLED",
+        "WA_INVOICE_TEMPLATE",
+        "WA_PAY_TEMPLATE"
       ],
       "package_type": "Zip"
     },
@@ -448,10 +432,8 @@
         "INVOICES_TABLE",
         "LOG_LEVEL",
         "MESSAGES_TABLE",
+        "META_API_VERSION",
         "PAYMENTS_TABLE",
-        "POST_PAYMENT_FLOW_WABA1",
-        "POST_PAYMENT_FLOW_WABA2",
-        "POST_PAYMENT_REQUEST_TEMPLATE",
         "REGION",
         "S3_BUCKET",
         "SECRETS_REFRESHED_AT",
@@ -478,7 +460,6 @@
         "META_CATALOG_ID",
         "META_CATALOG_SYNC_DRY_RUN",
         "META_CATALOG_SYNC_ENABLED",
-        "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK",
         "META_CATALOG_SYNC_VARIANT_IDS",
         "META_TOKEN_FIELD",
         "META_TOKEN_SECRET",
@@ -516,6 +497,8 @@
         "CDN_DOMAIN",
         "COMMERCE_KEYS_TABLE",
         "CONTACTS_TABLE",
+        "EXPECTED_CONFIGURATION_NAME",
+        "EXPECTED_PROVIDER_MID",
         "INVOICES_TABLE",
         "INVOICE_ASSETS_TABLE",
         "INVOICE_DELIVERY_TABLE",
@@ -523,7 +506,9 @@
         "INVOICE_SEQ_TABLE",
         "LOG_LEVEL",
         "MEDIA_BUCKET",
-        "PAYMENTS_TABLE"
+        "PAYMENTS_TABLE",
+        "WA_INVOICE_TEMPLATE",
+        "WA_PAY_TEMPLATE"
       ],
       "package_type": "Zip"
     },
@@ -708,18 +693,10 @@
         "AWS_AMPLIFY_APP_ID",
         "AWS_AMPLIFY_BRANCH",
         "BEDROCK_MODEL_ID",
-        "BLOG_INGEST_QUEUE_NAME",
-        "BLOG_INGEST_QUEUE_URL",
-        "BLOG_SITE_BUILD_DELAY_SECONDS",
-        "BLOG_SITE_CHECK_DELAY_SECONDS",
-        "BLOG_SITE_PUBLIC_URL",
-        "BLOG_SITE_VERIFY_RETRY_DELAY_SECONDS",
         "BLOG_SOURCE",
-        "BLOG_SOURCE_BUCKET",
         "COGNITO_USER_POOL_ID",
         "COST_MODE",
         "CREDENTIAL_PURGE_EPOCH",
-        "ENABLE_BEDROCK_ASSIST",
         "FAQ_AI_GENERATION",
         "LOG_LEVEL",
         "SEO_TOOLS_TABLE",
@@ -863,19 +840,6 @@
         "RATE_LIMIT_TABLE",
         "SERVICE_REQUESTS_TABLE"
       ],
-      "package_type": "Zip"
-    },
-    "wecare-url-shortener": {
-      "runtime": "python3.12",
-      "handler": "handler.handler",
-      "memory": 256,
-      "timeout": 10,
-      "role": "arn:aws:iam::775261844268:role/wecare-digital-lambda-role",
-      "architectures": [
-        "x86_64"
-      ],
-      "layers": [],
-      "env_var_names": [],
       "package_type": "Zip"
     },
     "stack-wecare-url-shortener": {
@@ -1215,6 +1179,7 @@
         "MEDIA_BUCKET",
         "OUTBOUND_TABLE",
         "STANDBY_REPLY_ENABLED",
+        "WA_CATALOG_ORDERS_ENABLED",
         "WHATSAPP_PHONE_NUMBER_ID_1",
         "WHATSAPP_PHONE_NUMBER_ID_2"
       ],
@@ -1238,6 +1203,7 @@
         "LOG_LEVEL",
         "REGION",
         "REPORT_BUCKET",
+        "REPORT_PREFIX",
         "S3_BUCKET"
       ],
       "package_type": "Zip"
@@ -1303,14 +1269,12 @@
         "PARTNER_GROUP",
         "RAZORPAY_SECRET_ID",
         "SECURE_FILES_BUCKET",
-        "SECURE_FILES_PAYMENT_ENABLED",
         "SECURE_FILES_TABLE",
         "SECURE_FILE_PRICE_PAISE",
         "SERVICE_REQUESTS_TABLE",
         "UPLOAD_URL_TTL_SECONDS",
         "WA_DOC_TEMPLATE",
         "WA_MEDIA_FUNCTION",
-        "WA_PAY_TEMPLATE",
         "WA_SENDER_FUNCTION",
         "WHATSAPP_LINK_TTL_SECONDS"
       ],
@@ -1330,7 +1294,6 @@
         "ADMIN_MFA_REQUIRED",
         "AI_LANGUAGE",
         "AI_VOICE_ID",
-        "AUTO_PICKUP_AUDIO_KEY",
         "AUTO_PICKUP_ENABLED",
         "AUTO_PICKUP_IVR_URL",
         "CALL_LOG_TABLE",
@@ -1491,19 +1454,6 @@
         "REGION",
         "S3_BUCKET"
       ],
-      "package_type": "Zip"
-    },
-    "wecare-ad-attribution": {
-      "runtime": "python3.12",
-      "handler": "handler.handler",
-      "memory": 256,
-      "timeout": 60,
-      "role": "arn:aws:iam::775261844268:role/wecare-digital-lambda-role",
-      "architectures": [
-        "x86_64"
-      ],
-      "layers": [],
-      "env_var_names": [],
       "package_type": "Zip"
     }
   }

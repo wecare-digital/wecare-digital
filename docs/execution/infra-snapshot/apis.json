@@ -1,5 +1,5 @@
 {
-  "_generated": "2026-10-17T00:23:49.531333+00:00",
+  "_generated": "2026-10-24T05:08:54.856281+00:00",
   "apis": {
     "zllr9lrg7j": {
       "name": "wecare-digital-api",
@@ -22,7 +22,7 @@
         },
         {
           "routeKey": "GET /wa-business/documents/{documentId}/download",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -37,7 +37,7 @@
         },
         {
           "routeKey": "GET /wa-business/orders",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -122,7 +122,7 @@
         },
         {
           "routeKey": "POST /wa-business/documents",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -137,7 +137,7 @@
         },
         {
           "routeKey": "DELETE /whatsapp/templates",
-          "target": "integrations/lr1yfgh",
+          "target": "integrations/9dlq9vl",
           "authorizationType": "NONE"
         },
         {
@@ -167,7 +167,12 @@
         },
         {
           "routeKey": "POST /wa-business/rx-slots",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
+          "authorizationType": "NONE"
+        },
+        {
+          "routeKey": "POST /invoices/{invoiceId}/generate-pdf",
+          "target": "integrations/fduftck",
           "authorizationType": "NONE"
         },
         {
@@ -192,7 +197,7 @@
         },
         {
           "routeKey": "GET /wa-business/documents",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -282,7 +287,7 @@
         },
         {
           "routeKey": "PUT /wa-business/enterprise-assist/{caseId}",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -337,7 +342,7 @@
         },
         {
           "routeKey": "GET /whatsapp/templates/{templateId}",
-          "target": "integrations/lr1yfgh",
+          "target": "integrations/9dlq9vl",
           "authorizationType": "NONE"
         },
         {
@@ -427,7 +432,7 @@
         },
         {
           "routeKey": "GET /wa-business/faq",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -477,7 +482,7 @@
         },
         {
           "routeKey": "PATCH /wa-business/orders/{orderId}",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -512,7 +517,7 @@
         },
         {
           "routeKey": "GET /wa-business/service/drafts/{flowCode}",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -537,7 +542,7 @@
         },
         {
           "routeKey": "PUT /whatsapp/templates/{templateId}",
-          "target": "integrations/lr1yfgh",
+          "target": "integrations/9dlq9vl",
           "authorizationType": "NONE"
         },
         {
@@ -617,7 +622,7 @@
         },
         {
           "routeKey": "DELETE /wa-business/faq/{faqId}",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -627,7 +632,7 @@
         },
         {
           "routeKey": "PUT /wa-business/documents/{documentId}",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -722,7 +727,7 @@
         },
         {
           "routeKey": "PUT /wa-business/reviews/{reviewId}",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -762,7 +767,7 @@
         },
         {
           "routeKey": "POST /wa-business/orders",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -772,7 +777,7 @@
         },
         {
           "routeKey": "GET /wa-business/appointments",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -802,7 +807,7 @@
         },
         {
           "routeKey": "GET /wa-business/rx-slots",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -812,7 +817,7 @@
         },
         {
           "routeKey": "POST /wa-business/service/submit",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -937,7 +942,7 @@
         },
         {
           "routeKey": "POST /wa-business/appointments",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -977,7 +982,7 @@
         },
         {
           "routeKey": "PUT /wa-business/appointments/{appointmentId}",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -1012,7 +1017,7 @@
         },
         {
           "routeKey": "GET /wa-business/orders/{orderId}",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -1052,7 +1057,7 @@
         },
         {
           "routeKey": "DELETE /wa-business/service/drafts/{flowCode}",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -1112,7 +1117,7 @@
         },
         {
           "routeKey": "POST /whatsapp/templates/media",
-          "target": "integrations/lr1yfgh",
+          "target": "integrations/9dlq9vl",
           "authorizationType": "NONE"
         },
         {
@@ -1141,13 +1146,18 @@
           "authorizationType": "NONE"
         },
         {
+          "routeKey": "GET /catalog-media/{filename}",
+          "target": "integrations/um3l3lb",
+          "authorizationType": "NONE"
+        },
+        {
           "routeKey": "GET /wa-business/schedules",
           "target": "integrations/md9yz9g",
           "authorizationType": "NONE"
         },
         {
           "routeKey": "GET /whatsapp/templates",
-          "target": "integrations/lr1yfgh",
+          "target": "integrations/9dlq9vl",
           "authorizationType": "NONE"
         },
         {
@@ -1162,7 +1172,7 @@
         },
         {
           "routeKey": "GET /wa-business/orders/{orderId}/submissions",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -1182,7 +1192,7 @@
         },
         {
           "routeKey": "POST /whatsapp/templates/carousel-media",
-          "target": "integrations/lr1yfgh",
+          "target": "integrations/9dlq9vl",
           "authorizationType": "NONE"
         },
         {
@@ -1192,7 +1202,7 @@
         },
         {
           "routeKey": "POST /whatsapp/templates/carousel",
-          "target": "integrations/lr1yfgh",
+          "target": "integrations/9dlq9vl",
           "authorizationType": "NONE"
         },
         {
@@ -1207,7 +1217,7 @@
         },
         {
           "routeKey": "POST /wa-business/service/amend",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -1237,7 +1247,7 @@
         },
         {
           "routeKey": "POST /wa-business/service/drafts",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -1262,7 +1272,7 @@
         },
         {
           "routeKey": "POST /whatsapp/templates",
-          "target": "integrations/lr1yfgh",
+          "target": "integrations/9dlq9vl",
           "authorizationType": "NONE"
         },
         {
@@ -1311,6 +1321,11 @@
           "authorizationType": "NONE"
         },
         {
+          "routeKey": "POST /invoices/{invoiceId}/order-status",
+          "target": "integrations/fduftck",
+          "authorizationType": "NONE"
+        },
+        {
           "routeKey": "OPTIONS /partners/billing/topup-order",
           "target": "integrations/31wj4x4",
           "authorizationType": "NONE"
@@ -1327,7 +1342,7 @@
         },
         {
           "routeKey": "DELETE /whatsapp/templates/send-media",
-          "target": "integrations/lr1yfgh",
+          "target": "integrations/9dlq9vl",
           "authorizationType": "NONE"
         },
         {
@@ -1407,7 +1422,7 @@
         },
         {
           "routeKey": "PUT /wa-business/faq/{faqId}",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -1427,17 +1442,12 @@
         },
         {
           "routeKey": "GET /wa-business/reviews",
-          "target": "integrations/md9yz9g",
-          "authorizationType": "NONE"
-        },
-        {
-          "routeKey": "POST /invoices/{invoiceId}/generate-pdf",
-          "target": "integrations/fduftck",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
           "routeKey": "POST /whatsapp/templates/send-media",
-          "target": "integrations/lr1yfgh",
+          "target": "integrations/9dlq9vl",
           "authorizationType": "NONE"
         },
         {
@@ -1462,7 +1472,7 @@
         },
         {
           "routeKey": "POST /wa-business/reviews",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -1567,7 +1577,7 @@
         },
         {
           "routeKey": "GET /whatsapp/templates/send-media",
-          "target": "integrations/lr1yfgh",
+          "target": "integrations/9dlq9vl",
           "authorizationType": "NONE"
         },
         {
@@ -1637,22 +1647,17 @@
         },
         {
           "routeKey": "GET /wa-business/enterprise-assist",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
           "routeKey": "POST /wa-business/enterprise-assist",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
           "routeKey": "GET /crm/opportunities/{opportunityId}",
           "target": "integrations/ytzsvxm",
-          "authorizationType": "NONE"
-        },
-        {
-          "routeKey": "POST /secure-files/{fileId}/order",
-          "target": "integrations/zllj673",
           "authorizationType": "NONE"
         },
         {
@@ -1677,12 +1682,12 @@
         },
         {
           "routeKey": "GET /wa-business/service/track/{orderId}",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
           "routeKey": "DELETE /whatsapp/templates/{templateName}",
-          "target": "integrations/lr1yfgh",
+          "target": "integrations/9dlq9vl",
           "authorizationType": "NONE"
         },
         {
@@ -1703,11 +1708,6 @@
         {
           "routeKey": "POST /push/send",
           "target": "integrations/8unwxg7",
-          "authorizationType": "NONE"
-        },
-        {
-          "routeKey": "POST /secure-files/{fileId}/whatsapp-pay",
-          "target": "integrations/zllj673",
           "authorizationType": "NONE"
         },
         {
@@ -1747,12 +1747,12 @@
         },
         {
           "routeKey": "POST /wa-business/faq",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
           "routeKey": "GET /wa-business/service/history",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -1792,7 +1792,7 @@
         },
         {
           "routeKey": "PUT /wa-business/rx-slots/{slotId}",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -1837,7 +1837,7 @@
         },
         {
           "routeKey": "GET /wa-business/documents/{documentId}",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -1867,7 +1867,7 @@
         },
         {
           "routeKey": "POST /wa-business/orders/sync",
-          "target": "integrations/md9yz9g",
+          "target": "integrations/nij3ho9",
           "authorizationType": "NONE"
         },
         {
@@ -1942,11 +1942,6 @@
           "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-auth-middleware:live",
           "method": "POST"
         },
-        "5fj7vp7": {
-          "type": "AWS_PROXY",
-          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-secure-files:live",
-          "method": "POST"
-        },
         "5s4z6s1": {
           "type": "AWS_PROXY",
           "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-bulk-job-control:live",
@@ -2015,6 +2010,261 @@
         "bmufv90": {
           "type": "AWS_PROXY",
           "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-faq-handler:live",
+          "method": "POST"
+        },
+        "cldl62u": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-whatsapp-template-management:live",
+          "method": "POST"
+        },
+        "cw5x5dl": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-billing:live",
+          "method": "POST"
+        },
+        "dg17ioi": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-razorpay-webhook:live",
+          "method": "POST"
+        },
+        "do0swe9": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-customer-profile:live",
+          "method": "POST"
+        },
+        "dx56fjq": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-pstn-softphone:live",
+          "method": "POST"
+        },
+        "dx7l2df": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-template-analytics:live",
+          "method": "POST"
+        },
+        "dyeztfv": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-mcp:live",
+          "method": "POST"
+        },
+        "fduftck": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-invoice-engine:live",
+          "method": "POST"
+        },
+        "fl7xy5m": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-sms-aws:live",
+          "method": "POST"
+        },
+        "fryr558": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-customer-session:live",
+          "method": "POST"
+        },
+        "g6jq4o3": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-messages-delete:live",
+          "method": "POST"
+        },
+        "hellyk4": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-ai-query-kb:live",
+          "method": "POST"
+        },
+        "hwmhkzc": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-media-cleanup:live",
+          "method": "POST"
+        },
+        "iicga6b": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-whatsapp-template-management:live",
+          "method": "POST"
+        },
+        "iu734wd": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-whatsapp-template-management:live",
+          "method": "POST"
+        },
+        "jkhxmog": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-ai-generate-response:live",
+          "method": "POST"
+        },
+        "jsjq5ju": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-dlq-replay:live",
+          "method": "POST"
+        },
+        "k52gvfk": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-ai-config-management:live",
+          "method": "POST"
+        },
+        "kxh7jye": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-marketing-ads:live",
+          "method": "POST"
+        },
+        "m1mre7s": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-service-requests:live",
+          "method": "POST"
+        },
+        "md9yz9g": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-whatsapp-business-api:live",
+          "method": "POST"
+        },
+        "mgkmhgs": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-bulk-job-create:live",
+          "method": "POST"
+        },
+        "mhs8lsk": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-contacts:live",
+          "method": "POST"
+        },
+        "mk92rna": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-plivo-answer:live",
+          "method": "POST"
+        },
+        "mlcqpzl": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-whatsapp-voice:live",
+          "method": "POST"
+        },
+        "myyl9h0": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-conversation-meta:live",
+          "method": "POST"
+        },
+        "nij3ho9": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-service-api:live",
+          "method": "POST"
+        },
+        "njw4vv9": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-scheduled-messages:live",
+          "method": "POST"
+        },
+        "ocq769q": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-agent-action-group:live",
+          "method": "POST"
+        },
+        "ofcmlqa": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-sms-aws:live",
+          "method": "POST"
+        },
+        "ogw2uw0": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-rcs-dlr:live",
+          "method": "POST"
+        },
+        "oz3zmdm": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-automation-rules:live",
+          "method": "POST"
+        },
+        "q7ru4k4": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-bulk-job-control:live",
+          "method": "POST"
+        },
+        "qnn9p37": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-template-analytics:live",
+          "method": "POST"
+        },
+        "smpr53n": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-messages-read:live",
+          "method": "POST"
+        },
+        "tipkpon": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-site-language:live",
+          "method": "POST"
+        },
+        "u8df9do": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-docs-scraper",
+          "method": "POST"
+        },
+        "um3l3lb": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-catalog-media:live",
+          "method": "POST"
+        },
+        "vlz7fmp": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-outbound-whatsapp:live",
+          "method": "POST"
+        },
+        "vvyxbal": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-customer-orders:live",
+          "method": "POST"
+        },
+        "w98vghk": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-system-cleanup:live",
+          "method": "POST"
+        },
+        "wt7876c": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-rcs-send:live",
+          "method": "POST"
+        },
+        "x5phi04": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-payments-read:live",
+          "method": "POST"
+        },
+        "xk20h38": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-outbound-sms:live",
+          "method": "POST"
+        },
+        "y4fvvye": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-inbound-whatsapp:live",
+          "method": "POST"
+        },
+        "y8rnsk4": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-whatsapp-calling:live",
+          "method": "POST"
+        },
+        "ysw4ov8": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-product-image-gen:live",
+          "method": "POST"
+        },
+        "ytzsvxm": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-crm:live",
+          "method": "POST"
+        },
+        "zd8egr3": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-email-verification:live",
+          "method": "POST"
+        },
+        "zkb6lxe": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-checkout:live",
+          "method": "POST"
+        },
+        "zllj673": {
+          "type": "AWS_PROXY",
+          "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-secure-files:live",
           "method": "POST"
         }
       },
