@@ -48,15 +48,15 @@
       "sortOrder": 3
     },
     {
-      "question": "How do I book or reschedule an RX slot?",
-      "answer": "You can book or reschedule an RX slot for doctor or treatment appointments based on your travel plans and prior prescription needs. This service is designed to help you secure a confirmed slot with minimal waiting.",
+      "question": "How do I book or reschedule a Sehat appointment?",
+      "answer": "You can book or reschedule a Sehat appointment with a qualified professional. Choose your preferred appointment time and provide the details needed to confirm the booking.",
       "requirements": [
         "Name",
         "Contact details",
         "Short summary of your requirement"
       ],
       "ctaLabel": "Start here",
-      "ctaPath": "/bharat-rx/",
+      "ctaPath": "/sehat/",
       "sortOrder": 4
     },
     {
