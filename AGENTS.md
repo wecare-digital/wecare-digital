@@ -8,16 +8,10 @@ ChatGPT/Codex-style agents, Kiro, and VS Code/GitHub Copilot.
 Before changing code, read and follow every always-on steering file below. They are the
 single source of truth; do not maintain a separate, conflicting copy of their rules here.
 
-- `.kiro/steering/00-autonomy.md`
-- `.kiro/steering/10-project.md`
-- `.kiro/steering/20-device-compat.md`
-- `.kiro/steering/25-public-mobile-foundation.md`
-- `.kiro/steering/30-seo.md`
-- `.kiro/steering/40-permissions.md`
-- `.kiro/steering/50-coding-style.md`
+- `.kiro/steering/00-common.md`
 
 If a future nested `AGENTS.md` exists, its more specific instructions apply within that
-subtree. Otherwise the steering files above govern repository work.
+subtree. Otherwise the common steering file above governs repository work.
 
 ## Working rules
 
