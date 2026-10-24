@@ -8,11 +8,11 @@
  * the owner reported "I cannot see the change" each time.
  *
  * THE TRAP IS SQUASH-MERGE PLUS `git log`. A squash merge replays the branch as ONE NEW COMMIT with
- * a new SHA, so the original commits are not ancestors of the default branch. `git log stack..HEAD`
+ * a new SHA, so the original commits are not ancestors of the default branch. `git log wecare.digital..HEAD`
  * therefore lists them as unmerged - truthfully, by SHA - while their content is already in. Every
  * time, the answer looked like "four commits still to land" when the real answer was "one".
  *
- * SO THIS CHECKS CONTENT, NOT COMMITS. `git diff stack...HEAD` is the question that matters: does
+ * SO THIS CHECKS CONTENT, NOT COMMITS. `git diff wecare.digital...HEAD` is the question that matters: does
  * this branch change anything relative to the default branch? If the diff is empty, there is
  * nothing to push no matter what the log says. Reporting both side by side is deliberate - seeing
  * "7 commits ahead, 0 files differing" is what makes the trap obvious.
@@ -48,9 +48,9 @@ if ( !branch ) {
   process.exit( 2 );
 }
 
-/* The default branch, asked for rather than assumed: this repo uses `stack`, not `main`. */
+/* The default branch, asked for rather than assumed: this repo uses `wecare.digital`, not `main`. */
 const base = sh( 'git symbolic-ref --short refs/remotes/origin/HEAD', true ).replace( /^origin\//, '' )
-  || ( sh( 'git rev-parse --verify origin/stack', true ) ? 'stack' : 'main' );
+  || ( sh( 'git rev-parse --verify origin/wecare.digital', true ) ? 'wecare.digital' : 'main' );
 
 note( 'branch', branch );
 note( 'default branch', base );
