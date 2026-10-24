@@ -41,7 +41,6 @@ TARGETS = [
     ("wecare/google-maps-server", "Claims to be a SERVER-restricted Maps key for address capture"),
     ("wecare/openai/api",        "OpenAI key (migrated 2026-09-18)"),
     ("wecare/plivo/api",         "Plivo API credentials (migrated 2026-09-18)"),
-    ("wecare/aws/iam-access-keys", "AWS IAM access keys (developer auth - see note)"),
 ]
 
 

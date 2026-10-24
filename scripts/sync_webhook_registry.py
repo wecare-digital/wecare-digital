@@ -5,12 +5,9 @@
     python scripts/sync_webhook_registry.py
 
 What it does:
-  1. With explicit owner-only --verify-aws-keys, verifies the AWS IAM access key is consistent across ~/.aws/credentials,
-     the TXT ledger and Secrets Manager - by FINGERPRINT only, no value printed.
-     Verifies rather than replaces: no rotation is authorized.
-  2. Writes/refreshes a WEBHOOK REGISTRY block in the TXT ledger, between stable
+  1. Writes/refreshes a WEBHOOK REGISTRY block in the TXT ledger, between stable
      markers so re-running replaces the block instead of appending a second copy.
-  3. Stores the registry in Standard SSM at /wecare/config/webhook-registry.
+  2. Stores the registry in Standard SSM at /wecare/config/webhook-registry.
      URLs are NOT secrets; this is a config record, and webhook SECRETS are not
      copied into it.
 
@@ -20,7 +17,6 @@ mode preserved, no .bak/.swp/.tmp remnant, nothing printed.
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import re
@@ -29,7 +25,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import boto3
-from botocore.exceptions import ClientError
 
 if str(Path(__file__).resolve().parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -63,73 +58,6 @@ def unapproved_rows() -> list[str]:
     on the allow-list is refused rather than published as `route live`."""
     return [f"{method} {path}" for _prov, method, path, _fn, _auth, _status in WEBHOOKS
             if not provider_allowlist.webhook_route_ok(path)]
-
-
-def fp(v: str) -> str:
-    """Identify a value across the three stores without disclosing part of it.
-
-    This used to return `len={n} {v[:4]}…{v[-2:]}`. Only an AWS access key ID is
-    passed to it here, which is an identifier rather than a credential, so the
-    exposure was small - but the rendering is the same one `secrets_backup.py::fp`
-    and `audit_secrets_structure.py::fingerprint` were both corrected away from,
-    and a prefix plus an exact length is the part worth not printing. A sha256
-    prefix compares across stores just as well, which is all this is for.
-    """
-    if len(v) <= 8:
-        return f"len={len(v)}"
-    return f"len={len(v)} sha256:{hashlib.sha256(v.encode('utf-8')).hexdigest()[:12]}"
-
-
-def verify_aws_keys() -> list[str]:
-    """Compare the AWS key id across all three stores. Fingerprints only."""
-    out = []
-    # ~/.aws/credentials - read the id only, never the secret
-    cred = Path.home() / ".aws/credentials"
-    ids: dict[str, str] = {}
-    if cred.exists():
-        prof = None
-        for ln in cred.read_text(errors="replace").splitlines():
-            ln = ln.strip()
-            if ln.startswith("[") and ln.endswith("]"):
-                prof = ln[1:-1]
-            elif prof and ln.lower().startswith("aws_access_key_id"):
-                ids[prof] = ln.split("=", 1)[1].strip()
-    for prof, kid in sorted(ids.items()):
-        out.append(f"  ~/.aws/credentials [{prof}]  access_key_id {fp(kid)}")
-
-    sm = boto3.client("secretsmanager", region_name=REGION)
-    try:
-        d = json.loads(sm.get_secret_value(SecretId="wecare/aws/iam-access-keys")["SecretString"])
-        accts = d.get("accounts", {})
-        found = []
-        def walk(o):
-            if isinstance(o, dict):
-                for k, v in o.items():
-                    if isinstance(v, str) and re.fullmatch(r"(?:AKI|ASI)A[0-9A-Z]{16}", v):
-                        found.append(v)
-                    else:
-                        walk(v)
-            elif isinstance(o, list):
-                for i in o:
-                    walk(i)
-        walk(accts)
-        for kid in sorted(set(found)):
-            out.append(f"  Secrets Manager wecare/aws/iam-access-keys  {fp(kid)}")
-        matched = set(found) & set(ids.values())
-        out.append(f"  MATCH between credentials file and Secrets Manager: "
-                   f"{len(matched)} key id(s)")
-    except ClientError as exc:
-        out.append(f"  Secrets Manager read failed: {exc.response['Error']['Code']}")
-
-    # the TXT ledger
-    if TXT.exists():
-        t = TXT.read_text(errors="replace")
-        n = len(set(re.findall(r"(?:AKI|ASI)A[0-9A-Z]{16}", t)))
-        out.append(f"  TXT ledger contains {n} distinct AWS key id(s)")
-        present = [k for k in ids.values() if k in t]
-        out.append(f"  TXT ledger carries the ACTIVE key id: "
-                   f"{'YES' if present else 'NO'}")
-    return out
 
 
 def registry_block() -> str:
@@ -233,10 +161,6 @@ def main() -> int:
         print("refusing to write: not approved webhook routes: " + ", ".join(refused),
               file=sys.stderr)
         return 1
-    if "--verify-aws-keys" in sys.argv:
-        print("=== Owner-only AWS key consistency check ===")
-        for line in verify_aws_keys():
-            print(line)
     print("\n=== SSM Parameter Store webhook registry ===")
     print("  " + write_parameter(dry))
     print("\n=== TXT ledger webhook block ===")

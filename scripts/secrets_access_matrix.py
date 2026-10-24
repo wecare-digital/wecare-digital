@@ -39,7 +39,7 @@ POLICY: dict[str, tuple[str, str, str]] = {
     "wecare/flow-private-key": ("security", "KEEP_ISOLATED", "WhatsApp Flows RSA private key"),
     "wecare/otp/pepper": ("security", "KEEP_ISOLATED", "OTP hashing pepper"),
     "wecare/backup/recovery-passphrase": ("security", "KEEP_ISOLATED", "disaster-recovery passphrase; denied to the shared role since 2026-10-15"),
-    "wecare/aws/iam-access-keys": ("security", "NEEDS_OWNER_REVIEW", "stored long-lived AWS keys; replace with role-based temporary credentials, then retire; denied to the shared role since 2026-10-15"),
+    "wecare/aws/iam-access-keys": ("security", "RETIRE_SCHEDULED", "tooling secret retired from repo consumers and scheduled for deletion with recovery window; shared-role deny remains until final deletion"),
     "wecare/github-pat": ("security", "ROTATE", "classic near-full-scope PAT, description says EXPOSED 2026-08-25; replace with a fine-grained token or GitHub App; denied to the shared role since 2026-10-15"),
     "wecare/plivo/api": ("communications", "KEEP_ISOLATED", "voice provider API credentials"),
     "wecare/plivo-answer": ("communications", "NEEDS_OWNER_REVIEW", "same provider as plivo/api; group only if every reader needs both and rotation matches"),

@@ -81,8 +81,8 @@ Legend: `[x]` done and verified · `[~]` implemented, not deployed · `[ ]` not 
       shared-role reader in 90 days). The full allow-list rewrite (B-1b) is still open; the role's
       inline policies are at IAM's 10,240-byte limit.
 - [ ] B.5 🔒 B-2 replace and revoke the exposed classic GitHub PAT.
-- [ ] B.6 🔒 B-3 retire `aws/iam-access-keys` (owner: it belongs to the tooling identity);
-      `config/webhook-registry` to SSM only if no secret field (owner-run, reads the value).
+- [~] B.6 🔒 B-3 `aws/iam-access-keys`: repo consumers removed; scheduled for deletion with recovery window;
+      `config/webhook-registry` remains a separate SSM-migration cleanup.
       `meta/payments` stays: `.env.local.example` names it as the config-to-MID mapping
       (deletion was scheduled at 05:58 IST and restored at once). `bing/api` stays (registry reads it).
 - [ ] B.7 🔒 B-5 fresh encrypted backup, then owner retention decision on the two old versions.

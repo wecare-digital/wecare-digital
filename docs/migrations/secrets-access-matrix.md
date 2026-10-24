@@ -11,7 +11,7 @@ IAM readers = roles whose policies allow `secretsmanager:GetSecretValue` on a pa
 | Secret | Domain | Action | IAM reader roles | Lambda consumers | Last access | KMS | Rationale |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `wecare/agent-connector-token` | integrations | NEEDS_OWNER_REVIEW | wecare-digital-lambda-role | 59 functions via wecare-digital-lambda-role (source files in amplify/functions: 1) | 2026-10-06 | aws/secretsmanager | identify the consumer before any action |
-| `wecare/aws/iam-access-keys` | security | NEEDS_OWNER_REVIEW | — | — (source files in amplify/functions: 0) | 2026-10-06 | aws/secretsmanager | stored long-lived AWS keys; replace with role-based temporary credentials, then retire; denied to the shared role since 2026-10-15; no IAM reader measured, candidate RETIRE_AFTER_OWNER_CONFIRMATION |
+| `wecare/aws/iam-access-keys` | security | RETIRE_SCHEDULED | — | no runtime consumer | 2026-10-24 | aws/secretsmanager | repo readers removed; scheduled for deletion with recovery window; shared-role deny remains until final deletion |
 | `wecare/backup/recovery-passphrase` | security | KEEP_ISOLATED | — | — (source files in amplify/functions: 0) | 2026-10-06 | aws/secretsmanager | disaster-recovery passphrase; denied to the shared role since 2026-10-15; no IAM reader measured, candidate RETIRE_AFTER_OWNER_CONFIRMATION |
 | `wecare/bing/api` | seo | NEEDS_OWNER_REVIEW | wecare-digital-lambda-role | 59 functions via wecare-digital-lambda-role (source files in amplify/functions: 1) | 2026-10-06 | CMK 9b5b8734 | confirm an active consumer exists |
 | `wecare/config/webhook-registry` | integrations | NEEDS_OWNER_REVIEW | wecare-digital-lambda-role | 59 functions via wecare-digital-lambda-role (source files in amplify/functions: 0) | 2026-10-06 | aws/secretsmanager | MOVE_TO_PARAMETER_STORE only if the owner confirms no field is secret |
@@ -47,7 +47,6 @@ IAM readers = roles whose policies allow `secretsmanager:GetSecretValue` on a pa
 ## Source references (by-reference names, no values)
 
 - `wecare/agent-connector-token`: `amplify/functions/messaging/meta-business-agent/handler.py`, `scripts/secrets_backup.py`
-- `wecare/aws/iam-access-keys`: `scripts/audit_secrets_structure.py`, `scripts/sync_webhook_registry.py`
 - `wecare/backup/recovery-passphrase`: `scripts/secrets_backup.py`
 - `wecare/bing/api`: `.env.local.example`, `amplify/functions/shared/lambda_utils/integrations/registry.py`, `src/config/analytics.ts`, `src/content/integration-registry.json`
 - `wecare/config/webhook-registry`: `scripts/sync_webhook_registry.py`
