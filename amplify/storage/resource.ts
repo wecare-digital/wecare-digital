@@ -3,7 +3,7 @@ import { defineStorage } from '@aws-amplify/backend';
 /**
  * Storage Configuration
  *
- * Single bucket: `wecare-digital-get`. It was named `app.wecare.digital` until
+ * Single bucket: `wecare-digital-get`. It was named `wecare-digital-get` until
  * 2026-09-28, when that bucket was deleted; the name is not a hostname any more, so
  * never interpolate it into a URL. Browser-facing URLs are `wecare.digital/get/<key>`.
  *
