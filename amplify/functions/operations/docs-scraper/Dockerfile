@@ -4,7 +4,7 @@
 #
 # Build context is the repository root (see docs-scraper-deploy.yml) because
 # handler.py imports amplify/functions/shared/lambda_utils.
-FROM mcr.microsoft.com/playwright/python:v1.63.0-jammy
+FROM mcr.microsoft.com/playwright/python:v1.64.1-jammy
 
 WORKDIR /var/task
 
