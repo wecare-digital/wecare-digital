@@ -31,7 +31,6 @@ python scripts/generate_service_matrix.py
 | Function | Source | Deploy owner | `live` | Routes | Inv 7d | Err 7d | Log ret. | Event sources |
 |---|---|---|:-:|--:|--:|--:|--:|---|
 | `stack-wecare-url-shortener` | `amplify/functions/core/url-shortener` | `deploy_all_lambdas.py` | yes | 6 | 50 | 0 | 30 | — |
-| `wecare-ad-attribution` | `amplify/functions/messaging/ad-attribution` | `deploy_all_lambdas.py` | **no** | 0 | 0 | 0 | 30 | — |
 | `wecare-agent-action-group` | `amplify/functions/ai/agent-action-group` | `deploy_all_lambdas.py` | yes | 1 | 0 | 0 | 30 | — |
 | `wecare-ai-config-management` | `amplify/functions/ai/ai-config-management` | `deploy_all_lambdas.py` | yes | 17 | 0 | 0 | 30 | — |
 | `wecare-ai-generate-response` | `amplify/functions/ai/ai-generate-response` | `deploy_all_lambdas.py` | yes | 3 | 4 | 0 | 30 | — |
@@ -65,7 +64,6 @@ python scripts/generate_service_matrix.py
 | `wecare-media-cleanup` | `amplify/functions/messaging/media-cleanup` | `deploy_all_lambdas.py` | yes | 1 | 7 | 0 | 30 | — |
 | `wecare-messages-delete` | `amplify/functions/core/messages-delete` | `deploy_all_lambdas.py` | yes | 3 | 0 | 0 | 30 | — |
 | `wecare-messages-read` | `amplify/functions/core/messages-read` | `deploy_all_lambdas.py` | yes | 1 | 3517 | 0 | 30 | — |
-| `wecare-meta-analytics` | `amplify/functions/messaging/meta-analytics` | `deploy_all_lambdas.py` | yes | 0 | 0 | 0 | 30 | — |
 | `wecare-meta-business-agent` | `amplify/functions/messaging/meta-business-agent` | `deploy_all_lambdas.py` | yes | 2 | 0 | 0 | 90 | — |
 | `wecare-meta-catalog-sync` | `amplify/functions/ecommerce/meta-catalog-sync` | `deploy_all_lambdas.py` | yes | 0 | 1376 | 0 | 30 | — |
 | `wecare-notification-worker` | `amplify/functions/messaging/notification-worker` | `deploy_all_lambdas.py` | yes | 0 | 0 | 0 | 30 | — |
@@ -88,7 +86,6 @@ python scripts/generate_service_matrix.py
 | `wecare-service-api` | `amplify/functions/core/service-api` | `deploy_all_lambdas.py` | yes | 0 | 0 | 0 | 30 | — |
 | `wecare-service-requests` | `amplify/functions/ecommerce/service-requests` | `deploy_all_lambdas.py` | yes | 2 | 6 | 0 | 30 | — |
 | `wecare-site-language` | `amplify/functions/core/site-language` | `deploy_all_lambdas.py` | yes | 3 | 88190 | 0 | 30 | — |
-| `wecare-sla-engine` | `amplify/functions/operations/sla-engine` | `deploy_all_lambdas.py` | **no** | 0 | 0 | 0 | 30 | — |
 | `wecare-sms-aws` | `amplify/functions/messaging/sms-aws` | `deploy_all_lambdas.py` | yes | 9 | 49 | 0 | 30 | — |
 | `wecare-system-cleanup` | `amplify/functions/operations/system-cleanup` | `deploy_all_lambdas.py` | yes | 3 | 14 | 0 | 30 | — |
 | `wecare-template-analytics` | `amplify/functions/messaging/template-analytics` | `deploy_all_lambdas.py` | yes | 3 | 0 | 0 | 30 | — |
