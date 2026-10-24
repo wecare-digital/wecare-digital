@@ -46,9 +46,8 @@ export GITHUB_PERSONAL_ACCESS_TOKEN
 # Toolsets and exclusions live here rather than in mcp.json so the policy and
 # the reason for it stay together, committed and reviewable.
 #
-# Toolsets: the default set (context, copilot, issues, pull_requests, repos,
-# users) plus the three this repo actually has surface for - actions (16
-# workflows), dependabot, and code_security (CodeQL).
+# Toolsets: the default set plus Dependabot and code-security reads.
+# GitHub Actions tooling is intentionally absent because this repository has no workflow directory.
 #
 # secret_protection is deliberately NOT enabled. A secret scanning alert payload
 # carries the detected value itself, so listing alerts would pull a credential
@@ -66,14 +65,10 @@ export GITHUB_PERSONAL_ACCESS_TOKEN
 #       pushed through the API would route around both.
 #   merge_pull_request, update_pull_request_branch
 #       writes to the production branch outside the one-committer rule.
-#   actions_run_trigger
-#       three of the workflows here deploy to production. Deploys go through
-#       scripts/deploy_all_lambdas.py, which publishes versions and moves the
-#       `live` alias; a workflow fired by hand does not.
-TOOLSETS="default,actions,dependabot,code_security"
+TOOLSETS="default,dependabot,code_security"
 EXCLUDE="delete_repository,create_repository,fork_repository,create_branch"
 EXCLUDE="$EXCLUDE,create_or_update_file,delete_file,push_files"
-EXCLUDE="$EXCLUDE,merge_pull_request,update_pull_request_branch,actions_run_trigger"
+EXCLUDE="$EXCLUDE,merge_pull_request,update_pull_request_branch"
 
 exec "$SERVER" stdio \
 	--toolsets="$TOOLSETS" \
