@@ -18,7 +18,7 @@
     "NEXT_PUBLIC_AWS_REGION": "us-east-1",
     "NEXT_PUBLIC_COGNITO_CLIENT_ID": "1j8kbi48m4v2rped3n224rlevb",
     "NEXT_PUBLIC_COGNITO_IDENTITY_POOL_ID": "us-east-1:471c2c38-5645-4ccd-aea1-7a008e906db5",
-    "NEXT_PUBLIC_COGNITO_OAUTH_DOMAIN": "signin.wecare.digital",
+    "NEXT_PUBLIC_COGNITO_OAUTH_DOMAIN": "wecare-digital-auth.auth.us-east-1.amazoncognito.com",
     "NEXT_PUBLIC_COGNITO_USER_POOL_ID": "us-east-1_cSx0RHCIR",
     "NEXT_PUBLIC_DEFAULT_GSTIN": "19AAFFW7196L1Z8",
     "NEXT_PUBLIC_ENABLE_PARTNER_SIGNUP": "true",
