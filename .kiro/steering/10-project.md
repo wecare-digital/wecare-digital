@@ -40,6 +40,6 @@ Expect it; do not fix it; do not let it mask a new failure.
 
 ## Git
 
-- Current branch: `stack`. Commit locally; never push unless asked.
+- Current branch: `wecare.digital`. Commit locally; never push unless asked.
 - Node `>=24` (currently v24.21.0), npm `11.19.0`. Next.js 16, React 19,
   Vitest 5, TypeScript 6.

@@ -76,7 +76,7 @@ OWNER_ID = "319896805"
 REPO_ID = "1342943014"
 OWNER = "wecare-digital"
 REPO = "wecare-digital"
-BRANCH = "stack"
+BRANCH = "wecare.digital"
 
 # The literal subject GitHub sends today, kept for reporting in --plan/--verify so a
 # reader can see the concrete string. It is NOT what the trust policy matches.
@@ -206,7 +206,7 @@ def verify() -> int:
     # OWN condition keys and wildcard the name segments inside `sub` -- which is strictly
     # tighter, because ids cannot be recycled by a namespace grab whereas names can. An
     # exact-literal assertion called that improvement a failure. What has to hold is the
-    # PROPERTY (this repo, this owner, branch stack), not one spelling of it.
+    # PROPERTY (this repo, this owner, branch wecare.digital), not one spelling of it.
     ids_pinned = (
         equals.get("token.actions.githubusercontent.com:repository_id") == REPO_ID
         and equals.get("token.actions.githubusercontent.com:repository_owner_id") == OWNER_ID
@@ -217,7 +217,7 @@ def verify() -> int:
             statement["Principal"].get("Federated") == OIDC_PROVIDER,
         "audience pinned to sts.amazonaws.com":
             equals.get("token.actions.githubusercontent.com:aud") == "sts.amazonaws.com",
-        "restricted to branch stack":
+        "restricted to branch wecare.digital":
             subject.endswith(f":ref:refs/heads/{BRANCH}"),
         "subject is not a bare wildcard":
             subject not in ("*", ""),

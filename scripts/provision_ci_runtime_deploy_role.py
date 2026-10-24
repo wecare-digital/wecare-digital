@@ -44,7 +44,7 @@ is included.
 TRUST. Identical in shape to the route-auth role and written to agree with
 `scripts/fix_github_oidc_trust.py`: GitHub OIDC provider, audience pinned, both numeric
 ids pinned as their own condition keys, name segments wildcarded inside `sub` so a
-rename cannot silently break it, branch-scoped to `stack`. Keep this file and
+rename cannot silently break it, branch-scoped to `wecare.digital`. Keep this file and
 `fix_github_oidc_trust.py` writing the SAME trust document.
 
     python scripts/provision_ci_runtime_deploy_role.py --plan
@@ -70,7 +70,7 @@ OWNER_ID = "319896805"
 REPO_ID = "1342943014"
 OWNER = "wecare-digital"
 REPO = "wecare-digital"
-BRANCH = "stack"
+BRANCH = "wecare.digital"
 
 # The exact function set runtime-deploy.yml passes to deploy_all_lambdas.py. Keep this in
 # step with that workflow: a function added there but not here fails validation on its
@@ -425,7 +425,7 @@ def verify() -> int:
             statement["Principal"].get("Federated") == OIDC_PROVIDER,
         "audience pinned to sts.amazonaws.com":
             equals.get("token.actions.githubusercontent.com:aud") == "sts.amazonaws.com",
-        "restricted to branch stack":
+        "restricted to branch wecare.digital":
             subject.endswith(f":ref:refs/heads/{BRANCH}"),
         "subject is not a bare wildcard":
             subject not in ("*", ""),

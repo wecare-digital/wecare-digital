@@ -32,10 +32,11 @@ again as their own condition keys:
     StringEquals  aud                  = sts.amazonaws.com
     StringEquals  repository_owner_id  = 319896805
     StringEquals  repository_id        = 1342943014
-    StringLike    sub                  = repo:*@319896805/*@1342943014:ref:refs/heads/stack
+    StringLike    sub                  = repo:*@319896805/*@1342943014:ref:refs/heads/wecare.digital
 
-The effective grant is unchanged: branch `stack` of repository 1342943014 owned
-by 319896805, and nothing else. It is strictly tighter than the previous policy,
+That 2026-09-27 repair kept the then-production branch `stack` unchanged. The current
+policy now targets branch `wecare.digital` after the 2026-10-24 branch rename, while
+continuing to pin repository 1342943014 and owner 319896805. It is strictly tighter than the previous policy,
 because ids cannot be recycled by a namespace grab whereas names can, and AWS
 still sees a `sub` condition that is not solely a wildcard (IAM rejects the
 policy outright if it is).
@@ -89,7 +90,7 @@ PROVIDER = "token.actions.githubusercontent.com"
 # on rename or transfer, which is why the policy keys on them.
 OWNER_ID = "319896805"
 REPO_ID = "1342943014"
-BRANCH = "stack"
+BRANCH = "wecare.digital"
 
 # The first two keep "bharat-stack" in their names on purpose: an IAM role name is
 # not a repository reference and renaming it would invalidate every
