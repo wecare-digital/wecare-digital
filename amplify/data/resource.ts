@@ -14,8 +14,8 @@ import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
  *     DynamoDB tables live       77
  *
  * Not one model below has ever been materialised. Every table the platform
- * actually uses was created by CDK (`amplify/link-resources.ts`,
- * `backend-resources.ts`, `seo-resources.ts`) or by a `scripts/provision_*.py`
+ * actually uses was created by CDK (`backend-resources.ts`, `seo-resources.ts`)
+ * or by a `scripts/provision_*.py`
  * script, under the `stack-wecare-digital-*` naming scheme, and the Python Lambda
  * fleet addresses those names directly through `os.environ` defaults. Nothing at
  * runtime reads this schema.
