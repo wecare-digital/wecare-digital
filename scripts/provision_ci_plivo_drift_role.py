@@ -23,8 +23,8 @@ WHAT KEEPS IT NARROW. Three things, all asserted by `--verify`:
    cannot even discover what other secrets exist. The decrypt is conditioned on
    `kms:ViaService` so it cannot be used against KMS directly, and a second `Deny` holds it
    to that single key.
-3. **Branch `stack` of this repository, by numeric ID.** `repo:*@319896805/*@1342943014:
-   ref:refs/heads/stack` plus `repository_id` / `repository_owner_id` as their own
+3. **Branch `wecare.digital` of this repository, by numeric ID.** `repo:*@319896805/*@1342943014:
+   ref:refs/heads/wecare.digital` plus `repository_id` / `repository_owner_id` as their own
    condition keys. Names are excluded deliberately: the rename on 2026-09-27 broke every
    policy that pinned a name, and ids cannot be recycled by a namespace grab.
 
@@ -62,7 +62,7 @@ OIDC_PROVIDER = f"arn:aws:iam::{ACCOUNT}:oidc-provider/token.actions.githubuserc
 
 OWNER_ID = "319896805"
 REPO_ID = "1342943014"
-BRANCH = "stack"
+BRANCH = "wecare.digital"
 
 #: The exact secret `scripts/plivo_control_plane.py` reads (`SECRET_ID`). The trailing
 #: `-??????` matches Secrets Manager's 6-character suffix without widening to a prefix
@@ -262,7 +262,7 @@ def verify() -> int:
             equals.get("token.actions.githubusercontent.com:repository_id") == REPO_ID,
         "repository_owner_id pinned":
             equals.get("token.actions.githubusercontent.com:repository_owner_id") == OWNER_ID,
-        "subject restricted to refs/heads/stack":
+        "subject restricted to refs/heads/wecare.digital":
             like.get("token.actions.githubusercontent.com:sub", "").endswith(
                 f":ref:refs/heads/{BRANCH}"),
         "subject is not a bare wildcard":
