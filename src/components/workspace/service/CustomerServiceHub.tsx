@@ -216,7 +216,7 @@ function getKeywords(flowKey: string): string[] {
     subscribe: ['subscribe', 'signup', 'register', 'join'],
     amend_request: ['amend request', 'amend', 'change request'],
     track_request: ['track request', 'track', 'status'],
-    rx_slot: ['rx slot', 'rx', 'prescription'],
+    sehat_appointment: ['sehat', 'appointment', 'book appointment'],
     drop_docs: ['drop docs', 'documents', 'upload docs'],
     enterprise_assist: ['enterprise assist', 'enterprise', 'b2b'],
     schedule_appointment: ['schedule appointment', 'appointment', 'meeting'],
