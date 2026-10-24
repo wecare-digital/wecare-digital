@@ -6081,10 +6081,10 @@ export async function updateAppointment ( appointmentId: string, updates: Partia
 }
 
 // ============================================================================
-// RX SLOTS API
+// SEHAT APPOINTMENTS API
 // ============================================================================
 
-export interface RxSlot {
+export interface SehatAppointment {
   slotId: string;
   date: string; // YYYY-MM-DD
   time: string; // HH:mm
@@ -6100,32 +6100,32 @@ export interface RxSlot {
   updatedAt?: number;
 }
 
-const RX_SLOTS_BASE = `${WA_BIZ_BASE}/rx-slots`;
+const SEHAT_APPOINTMENTS_BASE = `${WA_BIZ_BASE}/sehat-appointments`;
 
-export async function listRxSlots ( params?: {
+export async function listSehatAppointments ( params?: {
   status?: string;
   date?: string;
   provider?: string;
-} ): Promise<{ slots: RxSlot[]; count: number }> {
+} ): Promise<{ slots: SehatAppointment[]; count: number }> {
   const qs = new URLSearchParams();
   if ( params?.status ) qs.set( 'status', params.status );
   if ( params?.date ) qs.set( 'date', params.date );
   if ( params?.provider ) qs.set( 'provider', params.provider );
   const query = qs.toString();
-  const data = await apiCall<any>( `${RX_SLOTS_BASE}${query ? '?' + query : ''}` );
+  const data = await apiCall<any>( `${SEHAT_APPOINTMENTS_BASE}${query ? '?' + query : ''}` );
   return data || { slots: [], count: 0 };
 }
 
-export async function updateRxSlot ( slotId: string, updates: Partial<RxSlot> ): Promise<boolean> {
-  const data = await apiCall<any>( `${RX_SLOTS_BASE}/${slotId}`, {
+export async function updateSehatAppointment ( slotId: string, updates: Partial<SehatAppointment> ): Promise<boolean> {
+  const data = await apiCall<any>( `${SEHAT_APPOINTMENTS_BASE}/${slotId}`, {
     method: 'PUT',
     body: JSON.stringify( updates ),
   } );
   return !!data;
 }
 
-export async function createRxSlot ( slot: Partial<RxSlot> ): Promise<RxSlot | null> {
-  return apiCall<RxSlot>( RX_SLOTS_BASE, {
+export async function createSehatAppointment ( slot: Partial<SehatAppointment> ): Promise<SehatAppointment | null> {
+  return apiCall<SehatAppointment>( SEHAT_APPOINTMENTS_BASE, {
     method: 'POST',
     body: JSON.stringify( slot ),
   } );

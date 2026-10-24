@@ -156,10 +156,10 @@ export const PAGE_SEO = {
     description: 'Manage customer appointments. Track scheduling, confirmations, and completions.',
     keywords: 'appointment management, scheduling, calendar, booking'
   },
-  rxSlots: {
-    title: 'RX Slots - Slot Management',
-    description: 'Manage prescription and consultation time slots. Book, block, and track availability.',
-    keywords: 'slot management, prescription slots, booking, availability'
+  sehatAppointments: {
+    title: 'Sehat Appointments - Booking Management',
+    description: 'Manage Sehat appointment availability and bookings with qualified professionals.',
+    keywords: 'Sehat appointments, appointment booking, scheduling, availability'
   },
   enterprise: {
     title: 'Enterprise Assist - Case Management',

@@ -6,7 +6,7 @@ import json
 import logging
 from typing import Dict, Callable
 
-from flows import subscribe, submit_request, track_request, amend_request, appointment, rx_slot, drop_docs, enterprise_assist, leave_review, order_notes, generic, postpay
+from flows import subscribe, submit_request, track_request, amend_request, appointment, sehat_appointment, drop_docs, enterprise_assist, leave_review, order_notes, generic, postpay
 from flows.common import get_phone_from_token, log_flow_event
 from flows.orders import fetch_orders_for_flow as _orders_fetch
 
@@ -145,14 +145,14 @@ def route_flow(action: str, screen: str, data: Dict, flow_token: str,
         if screen in ('CONFIRM', 'SUCCESS'):
             return _terminal_response(flow_token)
 
-    # ── RX SLOT FLOW ──
-    if flow_key in ('rx_slot',) or flow_key.startswith('rx'):
+    # ── SEHAT APPOINTMENT FLOW ──
+    if flow_key in ('sehat_appointment', 'rx_slot') or flow_key.startswith('sehat') or flow_key.startswith('rx'):
         if action == 'INIT':
-            return rx_slot.handle_init(data, flow_token, request_id)
+            return sehat_appointment.handle_init(data, flow_token, request_id)
         if screen == 'SLOT_FORM':
-            return rx_slot.handle_slot_form(data, flow_token, request_id)
+            return sehat_appointment.handle_slot_form(data, flow_token, request_id)
         if screen == 'REVIEW':
-            return rx_slot.handle_review(data, flow_token, request_id)
+            return sehat_appointment.handle_review(data, flow_token, request_id)
         if screen in ('CONFIRM', 'SUCCESS'):
             return _terminal_response(flow_token)
 

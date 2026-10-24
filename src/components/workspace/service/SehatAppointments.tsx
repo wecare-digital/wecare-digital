@@ -1,5 +1,5 @@
 /**
- * RX Slots Admin Page — [retired public path]/rx-slots
+ * Sehat Appointments Admin Page — [retired public path]/sehat-appointments
  * Slot management: list, filter, create, status updates
  */
 import React, { useState, useEffect, useCallback } from 'react';
@@ -48,14 +48,14 @@ function statusBadge ( status: string ) {
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
-const RxSlotsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => {
+const SehatAppointmentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => {
   const toast = useToastContext();
-  const [ slots, setSlots ] = useState<api.RxSlot[]>( [] );
+  const [ slots, setSlots ] = useState<api.SehatAppointment[]>( [] );
   const [ loading, setLoading ] = useState( true );
   const [ statusFilter, setStatusFilter ] = useState( '' );
   const [ dateFilter, setDateFilter ] = useState( '' );
   const [ page, setPage ] = useState( 1 );
-  const [ selected, setSelected ] = useState<api.RxSlot | null>( null );
+  const [ selected, setSelected ] = useState<api.SehatAppointment | null>( null );
   const [ showCreate, setShowCreate ] = useState( false );
   const [ creating, setCreating ] = useState( false );
   const [ form, setForm ] = useState( { date: '', time: '', duration: 30, provider: '', notes: '' } );
@@ -64,7 +64,7 @@ const RxSlotsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
     setLoading( true );
     try
     {
-      const data = await api.listRxSlots( { status: statusFilter || undefined, date: dateFilter || undefined } );
+      const data = await api.listSehatAppointments( { status: statusFilter || undefined, date: dateFilter || undefined } );
       setSlots( data.slots || [] );
     } catch { toast.error( 'Failed to load slots' ); }
     setLoading( false );
@@ -73,7 +73,7 @@ const RxSlotsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
   useEffect( () => { loadData(); }, [ loadData ] );
 
   const handleStatusUpdate = async ( id: string, status: string ) => {
-    const ok = await api.updateRxSlot( id, { status } );
+    const ok = await api.updateSehatAppointment( id, { status } );
     if ( ok ) { toast.success( `Slot updated to ${status}` ); loadData(); }
     else toast.error( 'Update failed' );
   };
@@ -81,9 +81,9 @@ const RxSlotsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
   const handleCreate = async () => {
     if ( !form.date || !form.time ) { toast.error( 'Date and time are required' ); return; }
     setCreating( true );
-    const slot = await api.createRxSlot( { date: form.date, time: form.time, duration: form.duration, provider: form.provider, notes: form.notes, status: 'available' } );
-    if ( slot ) { toast.success( 'Slot created' ); setShowCreate( false ); setForm( { date: '', time: '', duration: 30, provider: '', notes: '' } ); loadData(); }
-    else toast.error( 'Failed to create slot' );
+    const slot = await api.createSehatAppointment( { date: form.date, time: form.time, duration: form.duration, provider: form.provider, notes: form.notes, status: 'available' } );
+    if ( slot ) { toast.success( 'Appointment availability created' ); setShowCreate( false ); setForm( { date: '', time: '', duration: 30, provider: '', notes: '' } ); loadData(); }
+    else toast.error( 'Failed to create appointment availability' );
     setCreating( false );
   };
 
@@ -92,7 +92,7 @@ const RxSlotsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
 
   const columns = [
     {
-      key: 'slotId', header: 'ID', width: '90px', render: ( s: api.RxSlot ) => (
+      key: 'slotId', header: 'ID', width: '90px', render: ( s: api.SehatAppointment ) => (
         <button onClick={ () => setSelected( s ) } style={ { background: 'none', border: 'none', color: 'var(--accent)', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', padding: 0, fontSize: 'var(--text-sm)' } }>
           { s.slotId.slice( 0, 8 ) }
         </button>
@@ -100,16 +100,16 @@ const RxSlotsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
     },
     { key: 'date', header: 'Date', width: '110px' },
     { key: 'time', header: 'Time', width: '80px' },
-    { key: 'duration', header: 'Duration', width: '80px', render: ( s: api.RxSlot ) => s.duration ? `${s.duration}m` : '—' },
-    { key: 'provider', header: 'Provider', width: '120px', render: ( s: api.RxSlot ) => s.provider || '—' },
+    { key: 'duration', header: 'Duration', width: '80px', render: ( s: api.SehatAppointment ) => s.duration ? `${s.duration}m` : '—' },
+    { key: 'provider', header: 'Provider', width: '120px', render: ( s: api.SehatAppointment ) => s.provider || '—' },
     {
-      key: 'patientName', header: 'Patient', render: ( s: api.RxSlot ) => (
+      key: 'patientName', header: 'Patient', render: ( s: api.SehatAppointment ) => (
         <div><div style={ { fontWeight: 500 } }>{ s.patientName || '—' }</div><div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>{ s.patientPhone }</div></div>
       )
     },
     {
-      key: 'status', header: 'Status', width: '120px', render: ( s: api.RxSlot ) => (
-        <Select ariaLabel="Slot status" value={ s.status }
+      key: 'status', header: 'Status', width: '120px', render: ( s: api.SehatAppointment ) => (
+        <Select ariaLabel="Appointment status" value={ s.status }
           onChange={ v => handleStatusUpdate( s.slotId, v ) }
           options={ STATUS_SELECT_OPTIONS } style={ CELL_SELECT_STYLE } />
       )
@@ -118,16 +118,16 @@ const RxSlotsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
 
   return (
     <MaybeLayout embedded={ embedded } user={ user } onSignOut={ signOut }>
-      <SEO { ...PAGE_SEO.rxSlots } />
+      <SEO { ...PAGE_SEO.sehatAppointments } />
       <div style={ { padding: '24px 32px', maxWidth: 1400 } }>
         <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } }>
           <div>
-            <h1 style={ { fontSize: 'var(--text-3xl)', fontWeight: 700, color: 'var(--accent)', margin: 0 } }>RX Slots</h1>
+            <h1 style={ { fontSize: 'var(--text-3xl)', fontWeight: 700, color: 'var(--accent)', margin: 0 } }>Sehat Appointments</h1>
             <p style={ { fontSize: 'var(--text-md)', color: 'var(--text-muted)', margin: '4px 0 0' } }>{ slots.length } slots</p>
           </div>
           <div style={ { display: 'flex', gap: 8 } }>
             <Button variant="secondary" icon="refresh" onClick={ loadData }>Refresh</Button>
-            <Button variant="primary" icon="create" onClick={ () => setShowCreate( true ) }>Add Slot</Button>
+            <Button variant="primary" icon="create" onClick={ () => setShowCreate( true ) }>Add Appointment</Button>
           </div>
         </div>
 
@@ -138,13 +138,13 @@ const RxSlotsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
           { /* The date filter. `selectStyle` is gone with it - it only ever skinned the native
                control, and DateField draws itself from form-controls.css. ISO in, ISO out, so
                `dateFilter` still holds exactly what `e.target.value` put there. */ }
-          <DateField ariaLabel="Slot date" value={ dateFilter }
+          <DateField ariaLabel="Appointment date" value={ dateFilter }
             onChange={ v => { setDateFilter( v ); setPage( 1 ); } }
             style={ FILTER_STYLE } />
         </div>
 
         { slots.length === 0 && !loading ? (
-          <EmptyState icon="default" title="No slots" description="Create slots for scheduling" action={ { label: 'Add Slot', onClick: () => setShowCreate( true ) } } />
+          <EmptyState icon="default" title="No slots" description="Create appointment availability" action={ { label: 'Add Slot', onClick: () => setShowCreate( true ) } } />
         ) : (
           <>
             <Table columns={ columns } data={ paged } keyField="slotId" loading={ loading } />
@@ -154,7 +154,7 @@ const RxSlotsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
       </div>
 
       {/* Detail */ }
-      <Modal isOpen={ !!selected } onClose={ () => setSelected( null ) } title={ `Slot ${selected?.slotId?.slice( 0, 8 ) || ''}` } size="md">
+      <Modal isOpen={ !!selected } onClose={ () => setSelected( null ) } title={ `Appointment ${selected?.slotId?.slice( 0, 8 ) || ''}` } size="md">
         { selected && (
           <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } }>
             <div><span style={ labelStyle }>Date</span><div>{ selected.date }</div></div>
@@ -169,7 +169,7 @@ const RxSlotsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
       </Modal>
 
       {/* Create */ }
-      <Modal isOpen={ showCreate } onClose={ () => setShowCreate( false ) } title="Add Slot" size="md" footer={
+      <Modal isOpen={ showCreate } onClose={ () => setShowCreate( false ) } title="Add Appointment" size="md" footer={
         <><Button variant="secondary" onClick={ () => setShowCreate( false ) }>Cancel</Button><Button variant="primary" loading={ creating } onClick={ handleCreate }>Create</Button></>
       }>
         <div style={ { display: 'flex', flexDirection: 'column', gap: 14 } }>
@@ -202,4 +202,4 @@ const RxSlotsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
 const labelStyle: React.CSSProperties = { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', display: 'block', marginBottom: 2 };
 const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 'var(--text-md)', marginTop: 4 };
 
-export default RxSlotsPage;
+export default SehatAppointmentsPage;

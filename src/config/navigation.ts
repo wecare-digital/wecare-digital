@@ -141,7 +141,7 @@ export const navigationConfig: NavItem[] = [
       { path: '/workspace/service?view=requests&action=track', label: 'Track Request' },
       { path: '/workspace/service?view=requests&action=amend', label: 'Amend Request' },
       { path: '/workspace/service?view=appointments', label: 'Appointments' },
-      { path: '/workspace/service?view=appointments&action=rx-slots', label: 'RX Slots' },
+      { path: '/workspace/service?view=appointments&action=sehat-appointments', label: 'Sehat Appointments' },
       { path: '/workspace/service?view=documents', label: 'Documents' },
       { path: '/workspace/service?view=documents&action=secure-files', label: 'Secure Files' },
       { path: '/workspace/service?view=requests&action=enterprise', label: 'Enterprise Cases' },

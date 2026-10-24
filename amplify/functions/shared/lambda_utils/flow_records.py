@@ -1,7 +1,7 @@
-"""Reviews, appointments, Rx slots, enterprise cases and amendments are flow responses.
+"""Reviews, appointments, Sehat appointments, enterprise cases and amendments are flow responses.
 
 Each used to be stored twice. The WhatsApp Flow that collected it wrote a row to its own
-table (ReviewTable, AppointmentTable, RxSlotTable, EnterpriseAssistTable) and a second row to
+table (ReviewTable, AppointmentTable, SehatAppointment legacy rows, EnterpriseAssistTable) and a second row to
 FlowSubmissionTable, while the workspace's staff forms wrote only the domain table (and the
 staff amend form only AmendmentHistoryTable). That meant two copies of one answer, two status
 vocabularies, and staff-entered records that no flow-response view could see.
@@ -12,7 +12,7 @@ They are now ONE row in FlowSubmissionTable, told apart by `flowCode`:
     ----------------  -----------------  --------------  -------------
     review            WD_REV, WD_IDEA    reviewId        WD-REV-
     appointment       WD_APPT            appointmentId   WD-APT-
-    rx slot           WD_RX              rxSlotId        WD-RX-
+    Sehat appointment WD_SEHAT, WD_RX     sehatAppointmentId WD-SEHAT-
     enterprise case   WD_ENT             caseId          WD-ENT-
     amendment         WD_AMEND           amendmentId     WD-AMD-
 
@@ -69,13 +69,13 @@ class Kind:
 REVIEW = Kind('review', ('WD_REV', 'WD_IDEA'), 'reviewId', 'WD-REV-', 'feedback', 'submitted')
 APPOINTMENT = Kind('appointment', ('WD_APPT',), 'appointmentId', 'WD-APT-', 'booking',
                    'scheduled')
-RX_SLOT = Kind('rx_slot', ('WD_RX',), 'rxSlotId', 'WD-RX-', 'rx_booking', 'available')
+SEHAT_APPOINTMENT = Kind('sehat_appointment', ('WD_SEHAT', 'WD_RX'), 'sehatAppointmentId', 'WD-SEHAT-', 'sehat_appointment', 'available')
 ENTERPRISE_CASE = Kind('enterprise_case', ('WD_ENT',), 'caseId', 'WD-ENT-', 'enterprise',
                        'open')
 AMENDMENT = Kind('amendment', ('WD_AMEND',), 'amendmentId', 'WD-AMD-', 'amendment',
                  'submitted')
 
-KINDS: Tuple[Kind, ...] = (REVIEW, APPOINTMENT, RX_SLOT, ENTERPRISE_CASE, AMENDMENT)
+KINDS: Tuple[Kind, ...] = (REVIEW, APPOINTMENT, SEHAT_APPOINTMENT, ENTERPRISE_CASE, AMENDMENT)
 
 #: Appointment statuses that are still waiting for the slot to happen. WhatsApp bookings
 #: write `booked` and staff bookings `scheduled`; both mean the same state.
@@ -338,9 +338,9 @@ APPOINTMENT_UPDATE_FIELDS = ('status', 'notes', 'adminNotes', 'assignedTo', 'loc
                              'slotDate', 'slotTime')
 
 
-def rx_slot_view(row: Mapping[str, Any]) -> Dict[str, Any]:
-    item = with_id(RX_SLOT, row)
-    item['slotId'] = item.get('rxSlotId') or item.get('slotId', '')
+def sehat_appointment_view(row: Mapping[str, Any]) -> Dict[str, Any]:
+    item = with_id(SEHAT_APPOINTMENT, row)
+    item['slotId'] = item.get('sehatAppointmentId') or item.get('rxSlotId') or item.get('slotId', '')
     item['date'] = item.get('slotDate', '')
     item['time'] = item.get('slotTime', '')
     item['provider'] = item.get('doctorName', item.get('facilityName', ''))
@@ -349,31 +349,31 @@ def rx_slot_view(row: Mapping[str, Any]) -> Dict[str, Any]:
     return item
 
 
-def list_rx_slots(table: Any, params: Mapping[str, Any]) -> List[Dict[str, Any]]:
-    rows = list_rows(table, RX_SLOT)
+def list_sehat_appointments(table: Any, params: Mapping[str, Any]) -> List[Dict[str, Any]]:
+    rows = list_rows(table, SEHAT_APPOINTMENT)
     status = params.get('status')
     if status:
         rows = [r for r in rows if r.get('status') == status]
     date = params.get('date')
     if date:
         rows = [r for r in rows if r.get('slotDate') == date]
-    return [rx_slot_view(r) for r in rows]
+    return [sehat_appointment_view(r) for r in rows]
 
 
-def rx_slot_fields(body: Mapping[str, Any]) -> Dict[str, Any]:
+def sehat_appointment_fields(body: Mapping[str, Any]) -> Dict[str, Any]:
     return {
         'customerPhone': body.get('patientPhone', body.get('customerPhone', '')),
         'customerName': body.get('patientName', body.get('customerName', '')),
         'orderId': body.get('orderId'),
-        'slotType': body.get('slotType', 'prescription'),
+        'slotType': body.get('slotType', 'consultation'),
         'slotDate': body.get('date', body.get('slotDate', '')),
         'slotTime': body.get('time', body.get('slotTime', '')),
         'facilityName': body.get('provider', body.get('facilityName', '')),
-        'prescriptionNotes': body.get('notes', ''),
+        'appointmentNotes': body.get('notes', ''),
     }
 
 
-RX_SLOT_UPDATE_FIELDS = ('status', 'prescriptionNotes', 'adminNotes', 'customerName',
+SEHAT_APPOINTMENT_UPDATE_FIELDS = ('status', 'appointmentNotes', 'adminNotes', 'customerName',
                          'customerPhone')
 
 

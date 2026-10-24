@@ -17,8 +17,8 @@ Routes:
   /faq/{id}                PUT, DELETE
   /appointments            GET (list), POST (create)
   /appointments/{id}       PUT
-  /rx-slots                GET (list), POST (create)
-  /rx-slots/{id}           PUT
+  /sehat-appointments                GET (list), POST (create)
+  /sehat-appointments/{id}           PUT
   /enterprise-assist       GET (list), POST (create)
   /enterprise-assist/{id}  PUT
   /reviews                 GET (list), POST (create)
@@ -1017,20 +1017,20 @@ def _update_appointment(apt_id: str, body: Dict) -> Dict:
     return _update_record(flow_records.APPOINTMENT, apt_id, updates)
 
 
-def _list_rx_slots(params: Dict) -> Dict:
-    items = flow_records.list_rx_slots(_flow_table(), params)
+def _list_sehat_appointments(params: Dict) -> Dict:
+    items = flow_records.list_sehat_appointments(_flow_table(), params)
     return _resp(200, {'slots': items, 'count': len(items)})
 
 
-def _create_rx_slot(body: Dict) -> Dict:
-    fields = flow_records.rx_slot_fields(body)
-    return _create_record(flow_records.RX_SLOT, body, fields, fields['customerPhone'],
-                          flow_records.rx_slot_view, status=body.get('status') or 'available')
+def _create_sehat_appointment(body: Dict) -> Dict:
+    fields = flow_records.sehat_appointment_fields(body)
+    return _create_record(flow_records.SEHAT_APPOINTMENT, body, fields, fields['customerPhone'],
+                          flow_records.sehat_appointment_view, status=body.get('status') or 'available')
 
 
-def _update_rx_slot(slot_id: str, body: Dict) -> Dict:
-    updates = {f: body[f] for f in flow_records.RX_SLOT_UPDATE_FIELDS if f in body}
-    return _update_record(flow_records.RX_SLOT, slot_id, updates)
+def _update_sehat_appointment(slot_id: str, body: Dict) -> Dict:
+    updates = {f: body[f] for f in flow_records.SEHAT_APPOINTMENT_UPDATE_FIELDS if f in body}
+    return _update_record(flow_records.SEHAT_APPOINTMENT, slot_id, updates)
 
 
 def _list_enterprise_cases(params: Dict) -> Dict:
@@ -1179,15 +1179,15 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return _create_appointment(body)
 
         # ── RX SLOTS ──
-        elif '/rx-slots/' in path:
-            slot_id = _extract_path_param(path, 'rx-slots')
+        elif '/sehat-appointments/' in path:
+            slot_id = _extract_path_param(path, 'sehat-appointments')
             if method in ('PUT', 'PATCH'):
-                return _update_rx_slot(slot_id, body)
-        elif '/rx-slots' in path:
+                return _update_sehat_appointment(slot_id, body)
+        elif '/sehat-appointments' in path:
             if method == 'GET':
-                return _list_rx_slots(params)
+                return _list_sehat_appointments(params)
             elif method == 'POST':
-                return _create_rx_slot(body)
+                return _create_sehat_appointment(body)
 
         # ── ENTERPRISE ASSIST ──
         elif '/enterprise-assist/' in path:
