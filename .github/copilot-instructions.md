@@ -15,4 +15,4 @@ Important defaults:
 - Never paste or commit secrets, API keys, OAuth client secrets, tokens, or credential values.
   Use existing environment/secret-store references only.
 - Do not assume a branch name or overwrite concurrent work.
-- Run the verification commands required by `.kiro/steering/10-project.md` before declaring done.
+- Run the verification commands required by `.kiro/steering/00-common.md` before declaring done.
