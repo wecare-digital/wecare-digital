@@ -5,7 +5,7 @@
  *
  * WHAT CHANGED, AND WHY THIS FILE WAS REWRITTEN. This harness used to measure TWO
  * floating widgets: `.wc-langbar` from this repo, and `#wecarewa-widget`, injected by
- * wecare-wa-widget.js from app.wecare.digital at `z-index: 2147483647` - the maximum
+ * wecare-wa-widget.js from wecare-digital-get at `z-index: 2147483647` - the maximum
  * 32-bit integer, so nothing could ever be stacked above it. Every assertion here was
  * shaped by that constraint: it stubbed the external button when the script did not
  * load, checked the two circles were the same size and shared a centre line, measured
