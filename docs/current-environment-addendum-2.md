@@ -71,19 +71,15 @@ not a config change. Also present outside the fleet: `src/pages/_app.tsx:1022` a
 
 `DOC` + `LIVE`.
 
-## 3. Four alarms that can never fire
+## 3. Stale monitoring references — RESOLVED
 
-**Severity: LOW.** 42 metric alarms exist, all `OK`. Four of them watch resources that do not
-exist, so they read as coverage that is not there:
+**Resolved 2026-10-24.** Live remeasurement shows 67 WECARE metric alarms and no alarm
+dimension referencing a missing HTTP API, SQS queue, or SNS topic. The obsolete alarms for
+retired API `79g3bbufdh` and the removed blog-ingest queues were deleted. The SNS delivery
+failure alarm now watches the live `stack-wecare-digital` topic, whose Lambda subscriber is
+`wecare-inbound-whatsapp`.
 
-| Alarm | Problem |
-|---|---|
-| `wecare-lambda-errors-wecare-payu-webhook` | `wecare-payu-webhook` is **not among the 65 live functions** — PayU is a retired, prohibited provider |
-| `wecare-url-hit-wecare-payu-webhook` | same |
-| `wecare-apigw-5xx-wecare-api` | names an API `wecare-api`; the only HTTP API is `wecare-digital-api` (`zllr9lrg7j`) |
-| `wecare-apigw-latency-wecare-api` | same |
-
-`LIVE` `DescribeAlarms` + `ListFunctions` + `GetApis`.
+`LIVE` `DescribeAlarms` + `ListQueues` + `GetApis` + `ListTopics`.
 
 ## 4. SES engagement tracking is on for an account that sends OTP mail
 
