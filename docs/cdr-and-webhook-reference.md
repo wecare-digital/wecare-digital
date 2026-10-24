@@ -427,12 +427,12 @@ one item here that needs a credential write, and therefore you.
 
 | Name | Type | Stale host refs |
 |---|---|---|
-| `rcsmenu` | rich_card | `app.wecare.digital`, `r.wecare.digital` |
-| `rcsorder` | rich_card | `app.wecare.digital`, `r.wecare.digital` |
-| `wecaremenu` | rich_card | `app.wecare.digital`, `r.wecare.digital` |
-| `wdorder` | rich_card | `app.wecare.digital`, `r.wecare.digital` |
-| `waalert` | rich_card | `app.wecare.digital`, `r.wecare.digital` |
-| `get_started` | rich_card | `app.wecare.digital`, `r.wecare.digital` — **dead thumbnail** |
+| `rcsmenu` | rich_card | `app.wecare.digital`, `wecare.digital/r` |
+| `rcsorder` | rich_card | `app.wecare.digital`, `wecare.digital/r` |
+| `wecaremenu` | rich_card | `app.wecare.digital`, `wecare.digital/r` |
+| `wdorder` | rich_card | `app.wecare.digital`, `wecare.digital/r` |
+| `waalert` | rich_card | `app.wecare.digital`, `wecare.digital/r` |
+| `get_started` | rich_card | `app.wecare.digital`, `wecare.digital/r` — **dead thumbnail** |
 | `rcsmenu_apex` | rich_card | none — created 2026-09-27 on the migrated URLs |
 | `test16` | text_message | none |
 | `test17` | text_message | none |
