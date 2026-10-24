@@ -232,8 +232,8 @@ const VayuLokPage: React.FC = () => {
         @media(max-width:767px){
           .vl-page :global(.rh-split){gap:24px}
           .vl-page :global(.rh-sub){max-width:34ch}
-          .vl-hero-visual{transform:none}
-          .vl-hero-visual :global(.vag-shell){width:min(108%,560px);max-width:560px}
+          .vl-hero-visual{width:100%;max-width:100%;overflow:hidden;transform:none}
+          .vl-hero-visual :global(.vag-shell){width:100%;max-width:560px}
           /* VayuLok's longest live capability word is "Conditions" and the frame sits on its
              own line, so it does not need Grahak/contact's narrow 32/28px safety rungs.
              Keep the canonical 40px app hero through the phone/foldable range; devicecheck
