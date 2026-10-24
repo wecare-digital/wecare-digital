@@ -1,7 +1,7 @@
 {
   "_comment": "Recorded state of live Lambda environment variables. Not deployed by anything - this is the source of truth to diff against. Regenerate with scripts/env_manifest.py --export; verify with no arguments.",
   "_region": "us-east-1",
-  "_functions": 64,
+  "_functions": 61,
   "_variables": 418,
   "_fingerprinted": 7,
   "functions": {
@@ -10,7 +10,6 @@
       "SHORT_LINKS_TABLE": "stack-wecare-digital-ShortLinksTable",
       "SHORT_LINK_BASE": "wecare.digital/r"
     },
-    "wecare-ad-attribution": {},
     "wecare-agent-action-group": {
       "AWS_ACCOUNT_ID": "775261844268",
       "CONTACTS_TABLE": "stack-wecare-digital-ContactsTable",
@@ -260,7 +259,6 @@
       "REGION": "us-east-1",
       "S3_BUCKET": "wecare-digital-get"
     },
-    "wecare-meta-analytics": {},
     "wecare-meta-business-agent": {},
     "wecare-meta-catalog-sync": {
       "LOG_LEVEL": "INFO",
@@ -448,13 +446,6 @@
       "SITE_LANGUAGE_MAX_TOTAL_BYTES": "30000",
       "SITE_LANGUAGE_MAX_TTS_CHARS": "2800",
       "SITE_LANGUAGE_TRANSLATE_PROVIDER": "auto"
-    },
-    "wecare-sla-engine": {
-      "DEFAULT_ASSIGNEE": "admin",
-      "SLA_APPOINTMENT_MINUTES": "60",
-      "SLA_ASSIGN_MINUTES": "30",
-      "SLA_ESCALATE_MINUTES": "240",
-      "TABLE_PREFIX": "stack-wecare-digital"
     },
     "wecare-sms-aws": {
       "AWS_ACCOUNT_ID": "775261844268",

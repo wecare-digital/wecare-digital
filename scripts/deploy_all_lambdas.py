@@ -401,8 +401,6 @@ SPECS: List[Spec] = [
     Spec("wecare-push-notifications", "messaging/push-notifications"),
     Spec("wecare-scheduled-messages", "messaging/scheduled-messages"),
     # --- messaging / ads + analytics ---
-    Spec("wecare-meta-analytics", "messaging/meta-analytics"),
-    Spec("wecare-ad-attribution", "messaging/ad-attribution"),
     Spec("wecare-marketing-ads", "messaging/marketing-ads"),
     Spec("wecare-meta-business-agent", "messaging/meta-business-agent"),
     # --- ai ---
@@ -416,7 +414,6 @@ SPECS: List[Spec] = [
     Spec("wecare-bulk-job-control", "operations/bulk-job-control"),
     Spec("wecare-bulk-worker", "operations/bulk-worker"),
     Spec("wecare-dlq-replay", "operations/dlq-replay"),
-    Spec("wecare-sla-engine", "operations/sla-engine"),
     Spec("wecare-system-cleanup", "operations/system-cleanup"),
     # --- payments ---
     Spec("wecare-razorpay-webhook", "payments/razorpay-webhook"),

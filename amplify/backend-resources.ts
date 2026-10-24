@@ -178,8 +178,8 @@ export function addBackendResources ( stack: Stack ) {
     'wecare-bulk-worker', 'wecare-bulk-job-control', 'wecare-ai-query-kb',
     'wecare-ai-generate-response', 'wecare-ai-config-management', 'wecare-agent-action-group',
     'wecare-razorpay-webhook', 'wecare-payments-read', 'wecare-invoice-engine',
-    'wecare-dlq-replay', 'wecare-contacts', 'wecare-meta-analytics', 'wecare-catalog-management',
-    'wecare-ad-attribution', 'wecare-outbound-sms', 'wecare-outbound-email',
+    'wecare-dlq-replay', 'wecare-contacts', 'wecare-catalog-management',
+    'wecare-outbound-sms', 'wecare-outbound-email',
     'wecare-sms-aws', 'wecare-voice-aws',
     'wecare-voice-cdr-read', 'wecare-billing',
     'wecare-system-cleanup', 'wecare-product-image-gen', 'wecare-auth-middleware',
@@ -187,7 +187,7 @@ export function addBackendResources ( stack: Stack ) {
     'wecare-push-notifications', 'wecare-media-cleanup', 'wecare-template-analytics',
     'wecare-rcs-send', 'wecare-rcs-dlr',
     // Previously missing from retention (orphaned, never-expiring log groups):
-    'wecare-sla-engine', 'wecare-conversation-meta', 'wecare-automation-rules',
+    'wecare-conversation-meta', 'wecare-automation-rules',
     'wecare-service-api',
     // Live functions found during the 2026-07 drift audit that were absent from
     // this list (their log groups existed with no retention policy).
@@ -211,7 +211,6 @@ export function addBackendResources ( stack: Stack ) {
     'wecare-invoice-engine', 'wecare-scheduled-messages', 'wecare-bulk-worker',
     'wecare-contacts', 'wecare-ai-generate-response', 'wecare-service-api',
     'wecare-waba-management', 'wecare-sms-aws', 'wecare-voice-aws',
-    'wecare-sla-engine',
   ];
 
   const perLambdaAlarms: cloudwatch.Alarm[] = [];

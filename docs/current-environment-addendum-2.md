@@ -108,11 +108,10 @@ exists. Measured sequentially with **0 call errors** — a concurrent count that
 reports this wrong, which has happened before:
 
 ```
-65 functions   64x python3.12 + 1 container image
-58 with a `live` alias
- 7 without: wecare-ad-attribution, wecare-docs-scraper, wecare-get-miss-redirect,
-            wecare-partner-token-refresh, wecare-seo-tools, wecare-sla-engine,
-            wecare-url-shortener
+61 functions   60x python3.12 + 1 container image
+57 with a `live` alias
+ 4 without: wecare-docs-scraper, wecare-get-miss-redirect,
+            wecare-partner-token-refresh, wecare-seo-tools
 ```
 
 For those 7, `update-function-code` takes effect immediately. The steering's dated snapshot said
