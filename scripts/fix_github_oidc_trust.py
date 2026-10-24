@@ -17,8 +17,8 @@ but the *name* segments do not, and they are still present in `sub`. So the
 trust policies, which pinned the whole string with `StringEquals`, went stale at
 the name and nowhere else:
 
-    before  repo:wecare-digital@319896805/bharat-stack@1342943014:ref:refs/heads/stack
-    after   repo:wecare-digital@319896805/wecare-digital@1342943014:ref:refs/heads/stack
+    before  repo:wecare-digital@319896805/bharat-stack@1342943014:ref:refs/heads/wecare.digital
+    after   repo:wecare-digital@319896805/wecare-digital@1342943014:ref:refs/heads/wecare.digital
 
 Evidence this is the cause and not a coincidence: `seo-tools-deploy` succeeded at
 2026-09-27T03:58Z and failed at 06:46Z with no change to the role, the workflow
@@ -32,9 +32,9 @@ again as their own condition keys:
     StringEquals  aud                  = sts.amazonaws.com
     StringEquals  repository_owner_id  = 319896805
     StringEquals  repository_id        = 1342943014
-    StringLike    sub                  = repo:*@319896805/*@1342943014:ref:refs/heads/stack
+    StringLike    sub                  = repo:*@319896805/*@1342943014:ref:refs/heads/wecare.digital
 
-The effective grant is unchanged: branch `stack` of repository 1342943014 owned
+The effective grant is unchanged: branch `wecare.digital` of repository 1342943014 owned
 by 319896805, and nothing else. It is strictly tighter than the previous policy,
 because ids cannot be recycled by a namespace grab whereas names can, and AWS
 still sees a `sub` condition that is not solely a wildcard (IAM rejects the
@@ -89,7 +89,7 @@ PROVIDER = "token.actions.githubusercontent.com"
 # on rename or transfer, which is why the policy keys on them.
 OWNER_ID = "319896805"
 REPO_ID = "1342943014"
-BRANCH = "stack"
+BRANCH = "wecare.digital"
 
 # The first two keep "bharat-stack" in their names on purpose: an IAM role name is
 # not a repository reference and renaming it would invalidate every
