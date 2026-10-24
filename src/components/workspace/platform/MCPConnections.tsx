@@ -25,7 +25,7 @@ const statusNames: Record<string, string> = {
   refresh_or_consent_required: 'Check renewal', refresh_pending: 'Automatic renewal available', sdk: 'Ready to check',
   'pending-adapter': 'Adapter pending', 'documentation-only': 'Documentation only',
   documentation_verified: 'Documentation verified',
-  mcp_client_required: 'MCP client required',
+  mcp_client_required: 'Setup needed',
   authenticated: 'MCP authenticated · account read pending',
 };
 interface Authorization { url: string; expires: number; }
@@ -43,9 +43,12 @@ export default function MCPConnections({ user, signOut, embedded }: { user?: any
   const [checks, setChecks] = useState<Record<string, string>>({});
   const [activity, setActivity] = useState<string[]>([]);
   const [now, setNow] = useState(Date.now());
-  const load = useCallback(async () => {
+  const load = useCallback(async (resetChecks = false) => {
     setBusy(true); setError('');
-    try { setConnections((await workspaceMCP<{ connections: MCPConnection[] }>('connections_list')).connections); }
+    try {
+      setConnections((await workspaceMCP<{ connections: MCPConnection[] }>('connections_list')).connections);
+      if (resetChecks) { setChecks({}); setFailures({}); }
+    }
     catch (e) { setError(e instanceof Error ? e.message : 'Unable to load connections.'); }
     finally { setBusy(false); }
   }, []);
@@ -82,10 +85,11 @@ export default function MCPConnections({ user, signOut, embedded }: { user?: any
       const url = metaAuthorizationURL(result.authorizationUrl);
       setAuthorizations(old => ({ ...old, [provider]: { url, expires: Date.now() + Math.min(result.expiresIn, 600) * 1000 } }));
       setChecks(old => { const next = { ...old }; delete next[provider]; return next; });
+      setFailures(old => { const next = { ...old }; delete next[provider]; return next; });
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unable to start sign-in.';
       setFailures(old => ({ ...old, [provider]: message }));
-      setChecks(old => ({ ...old, [provider]: 'Authorization blocked' }));
+      setChecks(old => ({ ...old, [provider]: 'Sign-in could not start' }));
       setAuthorizations(old => { const next = { ...old }; delete next[provider]; return next; });
     }
     finally { setBusy(false); }
@@ -94,7 +98,7 @@ export default function MCPConnections({ user, signOut, embedded }: { user?: any
       <header className={styles.header}>
         <div><Link href="/workspace/engage/inbox/">Messages</Link><h1>MCP Connections</h1>
           <p>Connect accounts and check your workspace integrations in one place.</p></div>
-        {admin && <Button icon="refresh" disabled={busy} onClick={() => void load()}>Refresh</Button>}
+        {admin && <Button icon="refresh" disabled={busy} onClick={() => void load(true)}>Refresh</Button>}
       </header>
       {role.loading ? <p role="status">Checking your access…</p> : !admin ?
         <p className={styles.notice}>A staff Admin account is required to manage MCP connections.</p> : <>
@@ -112,12 +116,16 @@ export default function MCPConnections({ user, signOut, embedded }: { user?: any
             const supported = remote || connection.kind === 'sdk' || connection.kind === 'documentation-only';
             const authorization = authorizations[provider];
             const validLink = authorization && authorization.expires > now;
+            const needsMetaSetup = connection.status === 'mcp_client_required'
+              && (provider === 'meta-social' || provider === 'whatsapp');
             return <section className={styles.card} key={provider} aria-label={names[provider] || provider}>
               <div className={styles.cardHeader}><h2>{names[provider] || provider}</h2>
                 {supported && <input type="checkbox" aria-label={`Select ${names[provider] || provider}`} checked={selected.includes(provider)} disabled={busy}
                   onChange={e => setSelected(old => e.target.checked ? [...old, provider] : old.filter(item => item !== provider))} />}</div>
               <span className={styles.badge}>{checks[provider] || statusNames[connection.status] || connection.status}</span>
-              <p>{descriptions[connection.kind] || 'Connection status unavailable.'}</p>
+              <p>{needsMetaSetup
+                ? 'Meta must enable sign-in for this workspace before you can connect this account here. Retry Connect after Meta enables access.'
+                : descriptions[connection.kind] || 'Connection status unavailable.'}</p>
               {remote && <p>{connection.automaticRefresh === true ? 'Saved authorization supports automatic renewal.' : 'Saved authorization persists; renewal depends on the provider.'}</p>}
               {failures[provider] && <p className={styles.notice} role="alert">{failures[provider]}</p>}
               {connection.lastVerifiedAt && <p>Last verified: {new Date(connection.lastVerifiedAt * 1000).toLocaleString()}</p>}
@@ -135,6 +143,7 @@ export default function MCPConnections({ user, signOut, embedded }: { user?: any
         <MCPPlayground key={readProvider} connections={connections} names={names} selectedProvider={readProvider} onProviderChange={setReadProvider} onVerified={(provider, status) => {
           setConnections(old => old.map(item => item.provider === provider ? { ...item, status, lastVerifiedAt: Math.floor(Date.now() / 1000) } : item));
           setChecks(old => ({ ...old, [provider]: statusNames[status] || status }));
+          setFailures(old => { const next = { ...old }; delete next[provider]; return next; });
         }} />
         <section className={styles.activity} aria-label="Connection activity"><h2>Connection activity</h2>
           <div aria-live="polite">{activity.length ? <ul>{activity.map((entry, i) => <li key={`${i}-${entry}`}>{entry}</li>)}</ul> : <p>Your checks will appear here.</p>}</div>
