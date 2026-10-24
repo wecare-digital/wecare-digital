@@ -20,20 +20,10 @@ import * as iam from 'aws-cdk-lib/aws-iam';
  * - Storage: S3 (existing bucket: wecare-digital-get, public objects under `o/`,
  *   gated objects under `secure/`)
  *
- *   Corrected 2026-09-29: this used to add "though the HOST survives as a read-only
- *   alias serving this bucket through CloudFront origin path `/o`". It does not.
- *   Re-measured the same day: `get-distribution ERCXSFDL0VM8X` returns
- *   NoSuchDistribution, no distribution carries an `wecare-digital-get` alias, the
- *   DNS name resolves to no address, and `head-bucket wecare-digital-get` is 404.
- *   There is exactly one distribution on this bucket now, E2GP22R4BIFGQ3, serving
- *   `wecare.digital/get/<key>` with origin path `""`. The `o/` prefix is therefore
- *   part of the URL, and it stays mandatory for the reasons in
- *   lambda_utils/media_paths.py — not because a second host still reads it.
- *
  * Additional CDK resources:
  * - SQS Queues (4): inbound-dlq, bulk-queue, bulk-dlq, outbound-dlq
  * - CloudWatch Alarms, Dashboard, Log Retention
- * - URL Shortener (wecare.digital/r, plus the wecare.digital/r alias):
+ * - URL Shortener on the canonical wecare.digital/r path:
  *   API Gateway + Lambda + DynamoDB + Route53
  * - Durable Admin SEO audit/log storage and Lambda
  *
@@ -135,8 +125,7 @@ const dataStack = backend.data.resources.stacks[ 'data' ];
  * URL Shortener Resources
  * DynamoDB tables, the HTTP API and the Lambda integration.
  *
- * No longer creates anything for `wecare.digital/r`: that host was retired on
- * 2026-09-28 and short links are served on the apex `/r/<*>` path instead.
+ * Short links are served only on the apex `/r/<*>` path.
  */
 addLinkResources( dataStack );
 
