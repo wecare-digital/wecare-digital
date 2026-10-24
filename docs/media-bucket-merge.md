@@ -42,7 +42,7 @@ SHA-256, including the PNG, the SVG, the RCS video and `error.html`. All identic
 
 ## What must NOT follow: the old host cannot be switched off
 
-Same shape as the `r.wecare.digital` decision, and for a harder reason.
+Same shape as the `wecare.digital/r` decision, and for a harder reason.
 
 ### 1. Meta-approved template media
 
