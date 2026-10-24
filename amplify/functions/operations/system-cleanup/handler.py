@@ -373,9 +373,8 @@ TABLE_PREFIX = 'stack-wecare-digital-'
 # only be removed manually via the URL-shortener DELETE.
 #
 # The same reasoning applies to the HOSTS they were issued under, not just the rows.
-# New links are minted under wecare.digital/r since 2026-09-26, but r.wecare.digital
-# keeps resolving every code ever issued, for exactly the reason stated above: a link
-# printed on a physical card cannot be edited or recalled. Retiring that host would
+# New links are minted and resolved through wecare.digital/r. Legacy hostnames are not
+# part of the active cleanup contract; durable codes remain in the canonical table.
 # break links this comment already promises never to break.
 PROTECTED_TABLES = {
     'stack-wecare-digital-SystemConfigTable',
