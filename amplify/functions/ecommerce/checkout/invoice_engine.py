@@ -14,7 +14,7 @@ DynamoDB Tables:
 - stack-wecare-digital-InvoiceAssetsTable
 - stack-wecare-digital-InvoiceDeliveryLogTable
 
-S3 Bucket: wecare-digital-get  (was app.wecare.digital until it was deleted 2026-09-28)
+S3 Bucket: wecare-digital-get
 Prefix: secure/d/public/Invoice/customer_invoice/  (GATED - moved off the public `o/` root 2026-09-30, because a
         rendered invoice carries the customer's name, address, amount and GST breakdown.
         Rendered invoices are handed out as short-lived presigned URLs; WhatsApp delivery does
