@@ -10,7 +10,7 @@ Auth: Bearer + `appsecret_proof` from `wecare/meta-system-user-token`. Verified 
 | 6. App subscribed to WABA | ✅ done | WECARE.DIGITAL (app 2238810740192680) on both WABAs (2094615664435155, 2513394156072604) — confirmed via `GET /{waba}/subscribed_apps` |
 | 2–5. System user token | ✅ works | `wecare/meta-system-user-token` authenticates (appsecret_proof required); reaches agent API (403 ToS, not auth error) |
 | 7. `messages` webhook field | ✅ | existing integration receives messages |
-| 7. `standby` + `messaging_handovers` | ✅ done | Confirmed subscribed on the `whatsapp_business_account` object (callback `https://api.wecare.digital/whatsapp`, active) via `GET /{app_id}/subscriptions` (app access token). No action needed. |
+| 7. `standby` + `messaging_handovers` | ✅ done | Confirmed subscribed on the `whatsapp_business_account` object (callback `https://wecare.digital/api/whatsapp`, active) via `GET /{app_id}/subscriptions` (app access token). No action needed. |
 | API route `ANY /meta-agent` | ✅ wired | present in deployed API (`_routes.json`) |
 | 1. Meta Business AI ToS | ❌ BLOCKER | WhatsApp Manager → Meta Business Agent tab, per number. `agent_eligibility` + `agent_config/settings` return **403** for BOTH numbers until accepted: _"The Meta Business AI Terms of Service must be accepted…"_ (https://www.facebook.com/legal/meta-business-ai-terms). **No API to accept — UI only.** |
 
