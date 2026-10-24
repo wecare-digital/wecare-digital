@@ -3,7 +3,7 @@
         "taken": "2026-09-25",
         "distributionId": "ERCXSFDL0VM8X",
         "ETag_at_snapshot": "E1PA6795UKMFR9",
-        "why": "Pre-change state before removing the customerservice.wecare.digital and selfcare.wecare.digital aliases. Both were claimed on this distribution but had NO DNS record, so neither was reachable; only app.wecare.digital resolves.",
+        "why": "Pre-change state before removing the customerservice.wecare.digital and selfcare.wecare.digital aliases. Both were claimed on this distribution but had NO DNS record, so neither was reachable; only wecare-digital-get resolves.",
         "rollback": "aws cloudfront update-distribution --id ERCXSFDL0VM8X --if-match <current ETag> --distribution-config file://<the DistributionConfig object below>",
         "note": "Aliases.Items below is the 3-entry pre-change list. The ACM certificate f75d0db0-d476-443a-b787-96c4931862d2 is NOT modified by the alias removal, so restoring an alias needs no certificate work."
     },
@@ -12,7 +12,7 @@
         "Aliases": {
             "Quantity": 3,
             "Items": [
-                "app.wecare.digital",
+                "wecare-digital-get",
                 "customerservice.wecare.digital",
                 "selfcare.wecare.digital"
             ]
@@ -23,7 +23,7 @@
             "Items": [
                 {
                     "Id": "S3-app-wecare-digital",
-                    "DomainName": "app.wecare.digital.s3.us-east-1.amazonaws.com",
+                    "DomainName": "wecare-digital-get.s3.us-east-1.amazonaws.com",
                     "OriginPath": "",
                     "CustomHeaders": {
                         "Quantity": 0
@@ -117,7 +117,7 @@
                 }
             ]
         },
-        "Comment": "app.wecare.digital - static assets CDN",
+        "Comment": "wecare-digital-get - static assets CDN",
         "Logging": {
             "Enabled": false,
             "IncludeCookies": false,
