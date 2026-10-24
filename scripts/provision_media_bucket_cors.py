@@ -22,7 +22,7 @@ before Meta was ever called - 26 presigned URLs issued that day, 0 objects writt
 server-side, where no preflight exists. This is why "is S3 connected?" read as
 PARTIAL: Lambda to S3 worked, browser to S3 did not.
 
-The retired bucket `app.wecare.digital` *did* have CORS (`PutBucketCors`
+The retired bucket `wecare-digital-get` *did* have CORS (`PutBucketCors`
 2026-09-26, snapshot at
 `docs/execution/snapshots/s3-app-bucket-cors-before-stack-origin-removal.json`).
 CloudTrail shows `PutBucketCors` was never called on `wecare-digital-get`, so the
