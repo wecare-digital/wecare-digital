@@ -32,7 +32,7 @@ SERVICE_TERMS = (
     "/documents",
     "/faq",
     "/appointments",
-    "/rx-slots",
+    "/sehat-appointments",
     "/enterprise-assist",
     "/reviews",
 )
