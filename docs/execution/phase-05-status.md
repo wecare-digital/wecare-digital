@@ -137,7 +137,7 @@ allowlist to `/translate`. The API Gateway routes were never removed, and the
 integration points at `:live`. Measured before the fix:
 
 ```
-GET https://api.wecare.digital/site-language/voices   -> 200, 19,835 bytes
+GET https://wecare.digital/api/site-language/voices   -> 200, 19,835 bytes
                                                           (full Polly voice catalogue)
 POST .../site-language/translate  (no Origin)         -> reached the handler,
                                                           which had no Origin check
@@ -270,7 +270,7 @@ positive confirmation that AWS Social is not the WhatsApp transport.
 
 **Plivo** — one application `WECARE-WHATSAPP-IVR` (`12775976954213184`), number
 `+918031830030` bound to it unchanged, SIP endpoint bound to the same app, answer
-/ fallback / hangup callbacks all on `api.wecare.digital` carrying the same token
+/ fallback / hangup callbacks all on `wecare.digital/api` carrying the same token
 fingerprint. Every assertion PASS. Voice only; no SMS surface.
 
 **Razorpay** — `wecare/razorpay/api` resolves with both fields populated; the old
