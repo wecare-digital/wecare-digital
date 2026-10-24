@@ -20,7 +20,7 @@ webhooks.
 The actual path:
 
 ```text
-Meta  →  POST https://api.wecare.digital/whatsapp
+Meta  →  POST https://wecare.digital/api/whatsapp
       →  API Gateway zllr9lrg7j (stage `prod`; the stage appears in the path and
          is normalized by lambda_utils/http_path.normalize_path)
       →  wecare-whatsapp-calling:live          the canonical public ingress
