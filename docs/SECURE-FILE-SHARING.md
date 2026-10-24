@@ -49,7 +49,7 @@ issued after ownership and payment are both checked.
         status >= 400       -> 302 apex
       OAC EWEJQDZIBHRZU -> S3 wecare-digital-get (private, BPA on, AES256, versioned)
 
-    api.wecare.digital (HTTP API zllr9lrg7j) -> wecare-secure-files:live
+    wecare.digital/api (HTTP API zllr9lrg7j) -> wecare-secure-files:live
 
 The prefix deny is checked before the response status deliberately: a gated object
 that exists returns 200 from S3, so keying only off errors would serve it.
