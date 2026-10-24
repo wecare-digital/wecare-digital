@@ -100,8 +100,8 @@ MEDIA_PREFIX = os.environ.get('MEDIA_OUTBOUND_PREFIX',
 #
 # The `o/` root is LOAD-BEARING here, not cosmetic. The 61 objects already in
 # `secure/d/public/whatsapp/wa-tpl/` are referenced by WhatsApp templates Meta has APPROVED, and those
-# URLs are on the app.wecare.digital host, which serves this bucket through origin path
-# `/o`. An attachment written to `public/wa-tpl/` is invisible to that host, so it would
+# Approved media uses the canonical wecare.digital/get path backed by the `o/` prefix.
+# An attachment written to `public/wa-tpl/` is outside that canonical prefix, so it would
 # 200 on the apex URL and 404 for Meta. See lambda_utils/media_paths.
 PUBLIC_MEDIA_PREFIX = os.environ.get('PUBLIC_MEDIA_PREFIX',
                                      media_paths.public('public/wa-tpl/'))
