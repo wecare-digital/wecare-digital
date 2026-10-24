@@ -23,11 +23,8 @@ npm run dev
 ### S3 Bucket
 Single bucket: **`wecare-digital-get`** (versioning **Suspended**).
 
-> The bucket used to be named `wecare-digital-get`, so its name doubled as a
-> hostname. It was deleted on 2026-09-28. **The bucket name is not a hostname any
-> more** — `wecare-digital-get` is not a domain, so interpolating it into a URL
-> produces a link that resolves to nothing. Use the bucket name for S3 API calls
-> and `wecare.digital/get` for anything a browser fetches. Compose keys through
+> `wecare-digital-get` is an S3 bucket name, not a hostname. Use it for S3 API calls
+> and use `wecare.digital/get` for browser-facing media URLs. Compose keys through
 > `lambda_utils/media_paths.py` (Python) or `src/lib/media-paths.ts` (browser)
 > rather than hand-building them.
 
