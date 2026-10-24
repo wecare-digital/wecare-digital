@@ -19,7 +19,7 @@ def main():
     args = parser.parse_args()
     import subprocess
     branch = subprocess.check_output(["git", "branch", "--show-current"], text=True).strip()
-    if branch != "stack": raise SystemExit("Deploy after merging to stack; this feature branch is build-only")
+    if branch != "wecare.digital": raise SystemExit("Deploy after merging to wecare.digital; this feature branch is build-only")
     manifest = json.loads(args.manifest.read_text())
     session = boto3.Session(profile_name="wecare-prod", region_name="us-east-1")
     if session.client("sts").get_caller_identity()["Account"] != "775261844268": raise SystemExit("Wrong AWS account")
