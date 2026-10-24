@@ -65,7 +65,7 @@ The Nano's firewall was never opened. Both firewalls were re-read afterwards and
   key (…L4WC) stays active only because the Micro still uses it.
 - **Certbot.** `certbot renew --dry-run` passed on the Nano (standalone on port 80, no pre/post
   hooks; the deploy hook copies the cert and reloads `res_pjsip`).
-- **IVR S3 target moved to `wecare-digital-get`.** The old target, the `app.wecare.digital`
+- **IVR S3 target moved to `wecare-digital-get`.** The old target, the `wecare-digital-get`
   bucket, was deleted on 2026-09-28, so every upload had failed silently. Now, under the gated
   root: TTS cache `secure/stack/ivr-cache/`, call recordings `secure/u/whatsapp/calls/`.
   `IVR_S3_BUCKET` in `/etc/asterisk/ivr.env` (loaded by `asterisk.service`, so Asterisk was
