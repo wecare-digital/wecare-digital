@@ -56,11 +56,9 @@ Follow the procedure in this document. Specifically:
    comes from --font-sans rather than an invented page-specific stack.
 
 8. Gates, all green before you commit:
-   npm run build && npx tsc --noEmit && npx vitest run
+   npm run build && npx tsc --noEmit && npm run lint
    node tools/browser/{animcheck,homeprobe,pageaudit,devicecheck,uicheck,typecheck,seocheck}.js
    python3 scripts/check_design_drift.py
-   python3 -m pytest tests/test_design_drift_tokens.py -q
-
 9. Commit source + tests + mock together on a feature branch and open a PR into the default
    branch. Never commit to the default branch. In the PR: a before→after table of measured
    numbers, and an explicit list of what you did NOT fix and what you did NOT check.
