@@ -111,12 +111,12 @@
     },
     {
         "source": "/r/<*>",
-        "target": "https://api.wecare.digital/r/<*>",
+        "target": "https://wecare.digital/api/r/<*>",
         "status": "200"
     },
     {
         "source": "/api/<*>",
-        "target": "https://api.wecare.digital/<*>",
+        "target": "https://wecare.digital/api/<*>",
         "status": "200"
     },
     {
