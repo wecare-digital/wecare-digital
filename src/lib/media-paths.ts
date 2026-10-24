@@ -3,18 +3,12 @@
  *
  * This is the TypeScript counterpart of
  * `amplify/functions/shared/lambda_utils/media_paths.py`, which stays the canonical
- * definition. It exists because the frontend had no equivalent, so components
- * hand-built media URLs from a hostname — and when the `wecare-digital-get` bucket and
- * host were retired on 2026-09-28 every one of those hand-built URLs died silently. A
- * broken `<img>` renders as empty space, not as an error.
+ * definition. It keeps S3 bucket naming separate from browser-facing URLs.
  *
- * Two rules carry all the weight, and both are easy to get backwards:
+ * Two rules carry all the weight:
  *
- * 1. **The bucket name is not a hostname.** The old bucket was literally named
- *    `wecare-digital-get`, so its name doubled as a domain and interpolating it into a
- *    URL happened to work. `wecare-digital-get` is not a domain, so that same pattern
- *    now produces a URL that resolves to nothing. Keep the two apart: the bucket name
- *    is for S3 API calls, {@link CDN_DOMAIN} is for anything a browser will fetch.
+ * 1. **The bucket name is not a hostname.** `wecare-digital-get` is for S3 API calls;
+ *    `wecare.digital/get` is the browser-facing media surface. Keep them separate.
  *
  * 2. **`o/` does not mean public, and `secure/` is the real boundary.** Everything
  *    outside `secure/` is public. `o/` is just the root that real objects live under.

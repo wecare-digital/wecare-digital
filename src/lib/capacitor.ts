@@ -107,34 +107,13 @@ export function initDeepLinks(navigate: (path: string) => void) {
     } catch {
       return;
     }
-    // Short links — let the redirect Lambda resolve the code.
-    //
-    // TWO forms. Only the first is live as a URL:
-    //   wecare.digital/r/<code>   canonical since 2026-09-26, what we mint now
-    //   wecare.digital/r/<code>   every link issued before that — host now NXDOMAIN
-    //
-    // wecare.digital/r was RETIRED on 2026-09-28 (Route 53 record deleted under
-    // confirmation YES R53-DELETE-001; API Gateway custom domain deleted in 396b87ad),
-    // so that form no longer resolves in a browser at all. The branch below is kept
-    // anyway, and deliberately: a native OS matches an incoming link against the host
-    // list in the app manifest WITHOUT a DNS lookup, so an old link printed on physical
-    // material or sitting in an already-delivered message can still be handed to the app
-    // even though a browser would fail on it. When that happens this branch is the only
-    // thing that resolves the code — and it does so via the apex, never by fetching the
-    // dead host. Removing it would turn a link that still works into one that does not,
-    // for installed users only, which is the worst failure shape.
-    //
-    // Do NOT read this branch as evidence the subdomain is alive. It is tolerance for
-    // links already in the wild, not a live route. See PROTECTED_TABLES in
-    // operations/system-cleanup for why those codes must keep resolving.
+    // Short links use the canonical apex path only.
     const isApexShortLink =
       url.hostname === 'wecare.digital'
       && /^\/r\/.+/.test(url.pathname);
 
-    if (url.hostname === 'wecare.digital/r' || isApexShortLink) {
-      const code = isApexShortLink
-        ? url.pathname.replace(/^\/r\//, '')
-        : url.pathname.replace(/^\//, '');
+    if (isApexShortLink) {
+      const code = url.pathname.replace(/^\/r\//, '');
       if (code) navigate(`/workspace/link?opened=${code}`);
       return;
     }
