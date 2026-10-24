@@ -59,7 +59,7 @@ export GITHUB_PERSONAL_ACCESS_TOKEN
 #   delete_repository, create_repository, fork_repository
 #       irreversible or repo sprawl; neither is a task for an agent here.
 #   create_branch
-#       git-workflow.md is single-branch: `stack` only.
+#       git-workflow.md is single-branch: `wecare.digital` only.
 #   create_or_update_file, delete_file, push_files
 #       remote writes that bypass every local git guard. block-broad-git-staging
 #       and the stage-and-commit-in-one-step rule only see shell git, so a commit
