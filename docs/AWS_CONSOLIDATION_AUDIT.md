@@ -12,7 +12,7 @@ tables and resources **first**, then move everything into IaC. Data deletion is 
 | Cognito user pools | 1 | `WECARE.DIGITAL` — fine, keep |
 | EventBridge rules | 3 | 1 AWS-managed + media-cleanup-daily + scheduled-messages-trigger — fine |
 | Secrets Manager | 11 | well-namespaced (`wecare/...`) — fine, keep |
-| S3 buckets | 2 | `app.wecare.digital` + CDK assets — fine |
+| S3 buckets | 2 | `wecare-digital-get` + CDK assets — fine |
 | API Gateway | (see note) | HTTP APIs for wa-business / service / url-shortener |
 
 The only service with real bloat is **DynamoDB**. Everything else is already lean.
