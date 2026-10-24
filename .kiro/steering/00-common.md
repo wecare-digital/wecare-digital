@@ -22,6 +22,34 @@ Do not recreate retired reviewer-agent ceremonies or retired test-suite automati
 with the production build, TypeScript checks, targeted compile checks, and purpose-built
 verification scripts that still exist.
 
+## Non-negotiable safety boundaries
+
+These rules apply regardless of tool surface (Kiro, ChatGPT/Codex, GitHub connector, VS Code/Copilot,
+shell, AWS MCP, or another agent):
+
+- Never weaken, disable, delete, bypass, or work around a safety hook, policy gate, permission check,
+  authentication check, secret scanner, branch protection, or verification step merely to make a task
+  pass. If a gate blocks the intended operation, use the safer path it identifies or report the blocker.
+- Never use broad destructive Git operations in a shared checkout: no `git reset --hard`, force checkout,
+  tree-wide restore, `git clean -f`, bare `git stash`, force-push, or history rewrite unless the owner
+  explicitly requested that exact destructive action and concurrent work is proven safe.
+- Never use broad staging such as `git add .`, `git add -A`, `git add -u`, or `git commit -a`.
+  Stage explicit paths only.
+- Agent/tooling sessions must not retrieve secret plaintext merely to inspect or verify it. Do not run
+  `aws secretsmanager get-secret-value`, `batch-get-secret-value`, or equivalent ad-hoc secret reads.
+  Verify secret presence/metadata by name and let approved server-side runtime code consume values.
+- Never put credential values in shell arguments, environment assignments shown in logs, MCP/tool payloads,
+  source, comments, fixtures, screenshots, prompts, issue/PR text, generated artifacts, or chat replies.
+- A credential that appears in chat, a ticket, an issue, a PR, a log, or another non-secret surface must
+  be treated as exposed. Do not copy or reuse the literal value; reference its secret-store location and
+  record rotation/replacement as owner action where applicable.
+- Production deploys, provider-account writes, IAM/access changes, billing changes, destructive cloud
+  operations, database/table deletion, and external data deletion require explicit owner authorization.
+  A broad feature request is not implicit permission for an unrelated irreversible operation.
+- Never create a new S3 bucket, provider account, OAuth client, API key, service-account key, webhook
+  credential, or parallel credential family "just in case". Reuse the established resource/secret path
+  or stop and document the missing prerequisite.
+
 ## Project layout and verification
 
 The repository root contains `package.json`, `src/`, `amplify/`, `scripts/`, `config/`,
@@ -41,6 +69,21 @@ Node must satisfy `package.json` engines.
 When a unit of work is complete and validation passes, commit locally by explicit path with a
 concise conventional-style message. Never use broad staging that can capture another session's
 work. Never push unless explicitly asked.
+
+### Concurrent-work and branch discipline
+
+- At the start of local work, inspect `git status --short` and, when available, run
+  `python scripts/session_map.py`. Treat a file another active session is editing as owned by that
+  session until proven otherwise.
+- Immediately before writing a file, re-read its current contents. Preserve unrelated changes and
+  never replace a file from an earlier snapshot after another session has modified it.
+- For local Kiro sessions, work in the shared checkout as configured by this repository. For remote
+  GitHub/ChatGPT-style edits, use a task branch and pull request unless the owner explicitly requested
+  a direct base-branch change.
+- Before merge or push, refresh the base ref and resolve divergence without discarding unrelated work.
+  Use fast-forward/safe merge strategies; do not solve drift with force.
+- Do not infer that a successful commit, PR creation, or zero exit code means the requested behavior is
+  correct. Inspect the resulting artifact/state.
 
 ## Coding style
 
@@ -75,6 +118,20 @@ gate, but surrounding-file consistency wins for conventions they do not catch.
 - Match the file's existing formatting; do not reformat unrelated lines.
 - Never put secrets or PII in code, logs, comments, examples, commits, PRs, or error output.
   Reference secrets only by environment variable or secret-store key name.
+- Keep authorization server-side. Never trust a client-supplied role, user/customer id, account id,
+  order id, phone number, redirect target, price, entitlement, or ownership claim without binding it
+  to the authenticated principal on the server.
+- Default to deny for privileged capabilities. Adding a new action requires an explicit authorization
+  path; absence of an error is not authorization.
+- Validate untrusted input at trust boundaries and encode/escape output for its destination.
+- Verify third-party webhook/callback signatures and replay protections before mutating state.
+- Do not log access tokens, authorization headers, cookies, signed URLs, raw webhook bodies containing
+  personal data, or full provider error payloads when they can contain credentials/PII.
+- Prefer idempotent writes and explicit request/idempotency keys for payments, messaging, commerce,
+  provisioning, and other retryable external actions.
+- Do not add a new dependency when the existing stack can solve the task cleanly. When a dependency is
+  necessary, use the repository package manager/lockfile, avoid unpinned remote installers or
+  `curl | sh` patterns, and keep lockfile changes scoped to the intended package update.
 
 ## Permissions, privacy, and consent
 
@@ -97,6 +154,30 @@ Verification for permission-sensitive work:
 - Test granted, denied, and unsupported states.
 - Confirm no permission prompt occurs on page load without a user action.
 - Confirm WebView/in-app-browser fallback behavior.
+
+## Cloud, IAM, data, and external-provider safety
+
+- Use least privilege for IAM policies, OAuth scopes, API scopes, resource policies, Lambda permissions,
+  CORS, bucket access, and provider roles. Avoid wildcard actions/resources unless the platform genuinely
+  requires them and the reason is documented beside the policy.
+- Prefer workload identity, role credentials, or service-account impersonation over long-lived key files.
+  Do not create/download a service-account JSON key when an existing identity flow can perform the task.
+- Read-only provider access is the default. Google Ads, Meta Ads, Merchant Center, Business Profile,
+  Tag Manager, Search Console/Bing, and similar mutations require the owner's explicit instruction for
+  that mutation.
+- Before any provider write, verify the exact target account/resource id, environment, authenticated
+  principal, required scope, and current linkage. Manager/account labels are not proof of relationship.
+- Where an API supports preview, validation-only, dry-run, draft, paused, or plan/apply semantics, use it
+  before the live write.
+- Never broaden a provider write from one named account/resource to all accounts visible to a manager.
+- Do not use production customer data as test fixtures or copy production PII into local files.
+- For data migrations or cleanup, define the selection predicate, upper bound, rollback/recovery path,
+  and verification query before mutation. Avoid unbounded scans and mass deletes.
+- If provider/API access is missing, restricted, quota-limited, unverified, or ambiguous, fail closed and
+  report the exact missing prerequisite instead of silently switching identities/accounts or creating
+  replacement credentials.
+- Distinguish repository configuration, deployed configuration, provider-side state, and proven end-to-end
+  behavior. A value present in source does not prove it is deployed; an account id does not prove access.
 
 ## Universal device and browser compatibility
 
@@ -160,6 +241,9 @@ SEO is a hard requirement for indexable public pages, but follow current Google 
 rather than obsolete markup or ranking folklore.
 
 ### Discovery and indexing
+- The canonical public origin is `https://wecare.digital` (apex). Do not reintroduce `www` into
+  canonical tags, sitemap URLs, Open Graph URLs, JSON-LD entity ids, or internal canonical links.
+  A provider property recorded with `www` does not change the site's canonical origin.
 - Keep public pages crawlable, internally linked, and indexable unless there is an intentional
   reason to use `noindex`.
 - Maintain a valid `robots.txt` and a current canonical-only `sitemap.xml`.
@@ -212,13 +296,35 @@ SEO verification before done:
 - Sitemap contains only canonical public URLs and truthful/omitted `lastmod`.
 - No accidental `noindex` or robots block exists on pages intended to rank.
 - Structured data matches the rendered page and passes the relevant validators.
+- Do not request recrawling/indexing until the changed URL is actually deployed, publicly fetchable,
+  canonical to itself, and returns the intended content. Do not repeatedly resubmit the same URL.
+- Preserve redirect equity: use direct permanent redirects for genuinely moved public URLs, avoid
+  redirect chains/loops, and never advertise a redirected/non-canonical URL in the sitemap.
+
+## Verification and evidence standard
+
+A task is not "done" merely because code was edited.
+
+- Run the narrowest relevant checks plus the repository's required build/type/lint/compile gates for the
+  touched surface.
+- Report what was actually verified and what was not. Never claim a browser, physical device, WebView,
+  production deployment, provider account, permission state, or end-to-end flow was tested unless it was.
+- For security-sensitive or provider-facing changes, verify both the success path and at least one denied,
+  missing, malformed, or failure path.
+- For mutations, verify the intended postcondition from an independent read when feasible.
+- When a check cannot run because credentials, hardware, provider approval, or environment access is
+  unavailable, leave the feature fail-safe and state the exact release gate instead of guessing.
+- Treat comments, old audit documents, screenshots, and prior chat as clues, not live-state proof. Refresh
+  evidence before making irreversible or externally visible changes.
 
 ## Account registry, identifiers, and secrets
 
-The following SEO/advertising/analytics accounts are owner-confirmed and have been accessed or
-provisioned previously. Treat this as an identity registry, **not** proof that every API permission,
-scope, quota tier, account linkage, or provider approval is currently active. Re-verify live access
-before a credential-dependent operation.
+These identifiers are owner-confirmed references for the WECARE.DIGITAL SEO/advertising/analytics
+estate. They identify intended resources; they do **not** prove current API scope, quota, linkage,
+verification, billing state, or authorization. Re-verify live state before a credential-dependent
+operation. If a canonical runtime config disagrees with this registry, investigate the drift rather
+than silently choosing one; update the registry and canonical config together once provider-side truth
+is proven.
 
 ### Google
 - Google Ads advertiser: **WECARE.DIGITAL** — customer ID `836-758-9699`.
@@ -264,10 +370,13 @@ commits, pull requests, or generated artifacts. Use the existing secret referenc
 - Google OAuth client secret: AWS Secrets Manager `wecare/seo/google-oauth`.
 - Unified Google API key: AWS Secrets Manager `wecare/google-api-key` (or the existing
   service-specific Google secret already used by the target integration; do not duplicate it).
-- Google Cloud service-account key material: AWS Secrets Manager `wecare/google/cloud`.
+- Google Cloud service-account key material, only where a key is still required:
+  AWS Secrets Manager `wecare/google/cloud`. Prefer impersonation/workload identity.
 - Bing Webmaster API credential: AWS Secrets Manager `wecare/bing/api`.
 
 API keys, OAuth client secrets, developer tokens, service-account key material, refresh tokens,
-passwords, signing secrets, and similar credential values remain secret even when already supplied
-or previously accessed. Read them only through approved secret-store or workload-identity flows.
+passwords, signing secrets, private keys, session cookies, and bearer/access tokens remain secret
+even if previously supplied or accessed. Agents must not echo, display, paste, or fetch those
+plaintext values for convenience. Runtime code may read an approved secret inside its authorized
+server-side execution context; callers receive only the minimum derived result, never the secret.
 Never infer that an account ID or a stored credential proves current provider authorization.
