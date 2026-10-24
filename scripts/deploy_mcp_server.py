@@ -71,7 +71,7 @@ Exit status is 1 when a step fails, or when --verify finds the live state wrong.
 
 `--verify-live` is the one command here that needs no AWS credentials: it POSTs to
 https://wecare.digital/mcp and compares the pages it serves with config/public-pages.json.
-That is what makes it schedulable - see .github/workflows/mcp-catalogue-drift.yml and the
+That makes it suitable for explicit scheduled execution outside this repository; see the
 long note on verify_live() for why a second catalogue check earns its place. It exits 1 on
 drift and 3 when the endpoint cannot be read, because a network blip must not look like drift.
 """
