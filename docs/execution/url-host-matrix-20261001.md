@@ -181,8 +181,8 @@ rather than two individually-correct status codes.
 | 80 | `GET /get/o/stream/media/m/wecare-digital.png` | 200 | 200 | unchanged |
 | 81 | `GET /r/zzznotacode` | 302 → `/contact/` | 302 → `/contact/` → 200, one hop | unchanged |
 | 82 | `GET /api/definitely-no-route` | 302 → `/contact/` | same | unchanged — **open finding, §5** |
-| 83 | `https://shop.wecare.digital/` | no address; TLS alert 40 at the CF IP | **302 → `https://wecare.digital/`, terminal 200** — re-measured 13:15Z | **gap CLOSED, by the home-fallback workstream, not by this task — §4.1** |
-| 83a | `https://shop.wecare.digital/shop/` | not measured before | **302 → `https://wecare.digital/`, terminal 200 — path DROPPED** | new row; the fallback deliberately discards the path, unlike row 3 — §4.1 |
+| 83 | `https://wecare.digital/shop/` | no address; TLS alert 40 at the CF IP | **302 → `https://wecare.digital/`, terminal 200** — re-measured 13:15Z | **gap CLOSED, by the home-fallback workstream, not by this task — §4.1** |
+| 83a | `https://wecare.digital/shop/shop/` | not measured before | **302 → `https://wecare.digital/`, terminal 200 — path DROPPED** | new row; the fallback deliberately discards the path, unlike row 3 — §4.1 |
 | 83b | `https://a.b.wecare.digital/` | not measured before (reported only as "not covered") | **resolves to `3.175.86.x`, TLS refused: no SAN matches — status 0** | **the residual gap, still open — §4.1** |
 | 84 | `https://xout.wecare.digital/` | 404 (third-party storefront host) | **302 → `https://wecare.digital/`, terminal 200** — changed later the same day | **INFORMATIONAL** — third-party-hosted at the time, out of scope, §4 and §9.3 |
 | 85 | `https://mta-sts.wecare.digital/` | 403 at `/` | 403 | **must not change** — email auth is fail-closed |
@@ -319,7 +319,7 @@ carries the reasoning at the point of definition.
 **All three routes home now agree**, which was the asymmetry worth closing rather than
 documenting: `src/pages/404.tsx` calls `router.replace` with a literal `'/'`, and the home-fallback
 viewer-request function discards path *and* query — measured as
-`https://shop.wecare.digital/some/path?q=1` → `302` → bare `https://wecare.digital/`.
+`https://wecare.digital/shop/some/path?q=1` → `302` → bare `https://wecare.digital/`.
 
 **Pinned so it cannot regress silently.** Rows 93–95 assert the **exact terminal URL**, so a
 return to forwarding fails the harness with the caller's parameter visible in the failure. Three
@@ -448,7 +448,7 @@ targets measured 200 today.
 | Route 53 zone `Z03939753QJGZ6ZD6BXO8` holds 30 record sets, **zero wildcards** | `list-resource-record-sets` |
 | `shop` / `stack` / `wecare-digital-get` have **no address** | authoritative `ns-402.awsdns-50.com` answers NOERROR with no A/AAAA (NODATA) |
 | The certificate **does** cover one label | `openssl s_client -servername wecare.digital` → `CN=wecare.digital`, SAN `wecare.digital, *.wecare.digital`, `notAfter=Mar 11 23:59:59 2027` |
-| CloudFront **refuses the TLS handshake** for an unregistered host | `--resolve shop.wecare.digital:443:54.192.151.105` → `ssl_verify_result=1`; `openssl -servername shop.wecare.digital` → **TLS alert 40 handshake_failure**, "no peer certificate available". Apex through the same IP: 200 |
+| CloudFront **refuses the TLS handshake** for an unregistered host | `--resolve wecare.digital/shop:443:54.192.151.105` → `ssl_verify_result=1`; `openssl -servername wecare.digital/shop` → **TLS alert 40 handshake_failure**, "no peer certificate available". Apex through the same IP: 200 |
 | Amplify registers exactly **two** subdomains | `get-domain-association`: one with no `prefix` key (branch `stack`), one `prefix: "www"`. `enableAutoSubDomain: false`, `autoSubDomainCreationPatterns: null` |
 
 **So the gap is not a certificate gap. It is an alias/association + DNS gap**, and this task
@@ -473,10 +473,10 @@ separated rather than reported as one item.**
 |---|---|
 | `list-resource-record-sets Z03939753QJGZ6ZD6BXO8` | **33** record sets, including `\052.wecare.digital` **A** and **AAAA**, both ALIAS → `d27evp2npt2kzr.cloudfront.net` |
 | That distribution | CloudFront **`E1ZZ786I3YH65O`**, alias `*.wecare.digital`, `Status: Deployed`, comment: redirect unused WECARE subdomains and retired hosts to home |
-| `dig +short A shop.wecare.digital` | `3.175.86.69 .46 .32 .99` |
+| `dig +short A wecare.digital/shop` | `3.175.86.69 .46 .32 .99` |
 | `dig +short A zzz-not-a-host.wecare.digital` | same four addresses — any unused single-label name, not just `shop` |
-| `curl -I https://shop.wecare.digital/` | **302**, `location: https://wecare.digital/`, terminal **200** |
-| `curl -I https://shop.wecare.digital/shop/` | **302** → `https://wecare.digital/` — the **path is dropped**, by design |
+| `curl -I https://wecare.digital/shop/` | **302**, `location: https://wecare.digital/`, terminal **200** |
+| `curl -I https://wecare.digital/shop/shop/` | **302** → `https://wecare.digital/` — the **path is dropped**, by design |
 | Certificate presented for `shop` | `CN=wecare.digital`, SAN `wecare.digital, *.wecare.digital` — the existing shared cert `f75d0db0-d476-443a-b787-96c4931862d2`, validating normally |
 | `amplify get-domain-association` | still **two** subdomains: one with no `prefix` (branch `stack`) and one `prefix: "www"` |
 
@@ -1014,7 +1014,7 @@ The new answer is also the benign direction. It lands on the canonical apex rath
 our content under a host the certificate cannot cover — `*.wecare.digital` matches **one label
 only** (§4), so `xout.wecare.digital` is outside it either way.
 
-**Deliberately NOT downgraded:** `shop.wecare.digital` (status 0, our own documented coverage
+**Deliberately NOT downgraded:** `wecare.digital/shop` (status 0, our own documented coverage
 gap — §4 OWNER-DECISION ITEM 2) and `mta-sts.wecare.digital` (403, the MTA-STS policy endpoint
 under `mode: enforce`, where email is fail-closed). Both remain hard assertions, and
 `_row`'s docstring says in terms that `informational` is not for silencing a surface we control.
@@ -1050,7 +1050,7 @@ matched live measurement. Every claim below was re-measured, not carried forward
 
 | # | Finding | Resolution |
 |---:|---|---|
-| 1 | `scripts/probe_url_host_matrix.py` **exited 1**: `shop.wecare.digital` was pinned at status 0 (the documented no-address gap) but now 302s to the apex. A gate that goes red for a reason nobody acts on stops being read | Expectation **moved to the measured truth** and kept a HARD row, asserted on the terminal URL as well as the status. Two rows added: the path-dropping behaviour, and `a.b.wecare.digital` pinning the residual gap. `mta-sts` stays a hard 403 |
+| 1 | `scripts/probe_url_host_matrix.py` **exited 1**: `wecare.digital/shop` was pinned at status 0 (the documented no-address gap) but now 302s to the apex. A gate that goes red for a reason nobody acts on stops being read | Expectation **moved to the measured truth** and kept a HARD row, asserted on the terminal URL as well as the status. Two rows added: the path-dropping behaviour, and `a.b.wecare.digital` pinning the residual gap. `mta-sts` stays a hard 403 |
 | 2 | §4 and OWNER-DECISION ITEM 2 **overstated** the subdomain gap — they said the wildcard work was not done | **§4.1** added: the single-label case is closed, with measured evidence and the owning workstream named; the second-label case is still open, with its cause corrected from "no address" to "no certificate covers it" |
 | 3 | §0's "9 rules" table was **stale** and contradicted by §5.5's 12 | §0 table re-titled as the 08:59:52Z post-apply state; **§0.1** holds the live 12-rule array with its own read timestamp |
 | 4 | `src/lib/safeReturnPath.ts` still has **no production caller** | **CLOSED.** Raised to the owner because every fix changed customer-visible behaviour and the file was outside this task's paths; the owner cleared the boundary and chose to narrow the allowlist. Wired, allowlist narrowed to five, KNOWN GAP test inverted — **§7.1** |
