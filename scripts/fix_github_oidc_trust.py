@@ -17,8 +17,8 @@ but the *name* segments do not, and they are still present in `sub`. So the
 trust policies, which pinned the whole string with `StringEquals`, went stale at
 the name and nowhere else:
 
-    before  repo:wecare-digital@319896805/bharat-stack@1342943014:ref:refs/heads/wecare.digital
-    after   repo:wecare-digital@319896805/wecare-digital@1342943014:ref:refs/heads/wecare.digital
+    before  repo:wecare-digital@319896805/bharat-stack@1342943014:ref:refs/heads/stack
+    after   repo:wecare-digital@319896805/wecare-digital@1342943014:ref:refs/heads/stack
 
 Evidence this is the cause and not a coincidence: `seo-tools-deploy` succeeded at
 2026-09-27T03:58Z and failed at 06:46Z with no change to the role, the workflow
@@ -34,8 +34,9 @@ again as their own condition keys:
     StringEquals  repository_id        = 1342943014
     StringLike    sub                  = repo:*@319896805/*@1342943014:ref:refs/heads/wecare.digital
 
-The effective grant is unchanged: branch `wecare.digital` of repository 1342943014 owned
-by 319896805, and nothing else. It is strictly tighter than the previous policy,
+That 2026-09-27 repair kept the then-production branch `stack` unchanged. The current
+policy now targets branch `wecare.digital` after the 2026-10-24 branch rename, while
+continuing to pin repository 1342943014 and owner 319896805. It is strictly tighter than the previous policy,
 because ids cannot be recycled by a namespace grab whereas names can, and AWS
 still sees a `sub` condition that is not solely a wildcard (IAM rejects the
 policy outright if it is).
