@@ -33,8 +33,7 @@ Lambdas behind one shared HTTP API.
 
 ## API / compute layer
 
-- **One HTTP API `zllr9lrg7j`** ("wecare-digital-api"), stage `prod`. Despite what
-  `link-resources.ts` declares, there is exactly one HTTP API; the shortener's
+- **One HTTP API `zllr9lrg7j`** ("wecare-digital-api"), stage `prod`. The retired `amplify/link-resources.ts` never owned production; there is exactly one HTTP API; the shortener's
   routes live on this shared API against the `stack-wecare-url-shortener:live`
   alias. Routes invoke Lambda `live` aliases (SnapStart), not `$LATEST`.
 - **~78 Python 3.12 Lambdas** across 8 domains (`ai`, `auth`, `core`, `ecommerce`,

@@ -41,14 +41,14 @@ REGION = os.environ.get("AWS_REGION", "us-east-1")
 # canonical since 2026-09-26.
 #
 # This is deliberately NOT called SHORT_DOMAIN, because that one name was doing three
-# incompatible jobs in link-resources.ts: the ACM certificate subject, the API Gateway
+# incompatible jobs in the retired link CDK: the ACM certificate subject, the API Gateway
 # custom domain, and this public link base. The first two had to be a bare DNS label —
 # `wecare.digital/r` is not a hostname and cannot be either — while this one must carry
 # the path. Reusing one constant for both is what made "move the shortener to a path"
 # look like it required giving up the subdomain.
 #
 # The subdomain was given up anyway, separately, on 2026-09-28, and those two constructs
-# have since been removed from link-resources.ts. SHORT_DOMAIN is still read as a
+# were removed before that undeployed CDK file was retired. SHORT_DOMAIN is still read as a
 # fallback so an environment that has not been updated yet keeps working rather than
 # silently minting on a bare default — but note that a stale SHORT_DOMAIN would now mint
 # links on a host that does not resolve, so the ordering below matters: SHORT_LINK_BASE

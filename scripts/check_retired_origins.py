@@ -47,7 +47,7 @@ removing it is zero. It is also dead weight in every preflight decision.
 Comments are stripped before matching
 -------------------------------------
 Thirteen source files name the retired legacy frontend host in a comment that explains why
-it was retired — `lambda_utils/response.py`, `link-resources.ts`,
+it was retired — `lambda_utils/response.py`,
 `waba-management/handler.py`, `_app.tsx`, `sw.js`, `capacitor.ts`, the Android
 manifest, the iOS plist, both native templates, `deploy_site_language.py`,
 `google-language-relay.sh` and `.env.local.example`. That is the documentation

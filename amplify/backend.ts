@@ -2,7 +2,6 @@ import { defineBackend } from '@aws-amplify/backend';
 import { auth } from './auth/resource';
 import { data } from './data/resource';
 import { storage } from './storage/resource';
-import { addLinkResources } from './link-resources';
 import { addBackendResources } from './backend-resources';
 import { addSeoResources } from './seo-resources';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
@@ -23,8 +22,6 @@ import * as iam from 'aws-cdk-lib/aws-iam';
  * Additional CDK resources:
  * - SQS Queues (4): inbound-dlq, bulk-queue, bulk-dlq, outbound-dlq
  * - CloudWatch Alarms, Dashboard, Log Retention
- * - URL Shortener on the canonical wecare.digital/r path:
- *   API Gateway + Lambda + DynamoDB + Route53
  * - Durable Admin SEO audit/log storage and Lambda
  *
  * Lambda functions (42+ Python functions) are deployed separately
@@ -120,14 +117,6 @@ try
 // All additional infrastructure is attached to the data stack so it
 // deploys as part of the Amplify backend.
 const dataStack = backend.data.resources.stacks[ 'data' ];
-
-/**
- * URL Shortener Resources
- * DynamoDB tables, the HTTP API and the Lambda integration.
- *
- * Short links are served only on the apex `/r/<*>` path.
- */
-addLinkResources( dataStack );
 
 /**
  * Backend Infrastructure Resources
