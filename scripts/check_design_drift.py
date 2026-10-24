@@ -171,7 +171,7 @@ PUBLIC_TOKEN_CONSUMERS = {
         "--public-mobile-section-size", "--public-mobile-card-size",
         "--public-mobile-page-gutter", "--public-mobile-section-gap",
     ),
-    SRC / "pages/bharat-rx.tsx": ("--public-section-size", "--public-body-size", "--public-card-size"),
+    SRC / "pages/sehat.tsx": ("--public-section-size", "--public-body-size", "--public-card-size"),
     SRC / "pages/post/[slug].tsx": ("--public-hero-size", "--public-body-size", "--public-card-size", "--public-cta-height"),
     SRC / "components/ContactLocation.tsx": ("--public-section-size", "--public-cta-height"),
     SRC / "components/get/GetPage.tsx": ("--public-section-size", "--public-body-size"),
