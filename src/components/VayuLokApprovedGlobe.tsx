@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_BROWSER_KEY || '';
-const GLOBE_ASSET_VERSION = '20261024-design-v4';
+const GLOBE_ASSET_VERSION = '20261024-design-v5';
 
 export interface VayuLokGlobeCity {
   id: string;
@@ -115,7 +115,7 @@ const VayuLokApprovedGlobe: React.FC<VayuLokApprovedGlobeProps> = ( {
           background:transparent;
         }
         @media(max-width:767px){
-          .vag-shell{border-radius:24px}
+          .vag-shell{width:100%;max-width:100%;border-radius:24px}
         }
       `}</style>
     </div>
