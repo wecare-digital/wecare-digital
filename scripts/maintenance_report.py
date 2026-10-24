@@ -373,8 +373,6 @@ def collect_live() -> dict:
             "TypeScript": sh("node -e \"console.log(require('./node_modules/typescript/package.json').version)\""),
             "ESLint": sh("node -e \"console.log(require('./node_modules/eslint/package.json').version)\""),
             "Next.js": sh("node -e \"console.log(require('./node_modules/next/package.json').version)\""),
-            "vitest": sh("node -e \"console.log(require('./node_modules/vitest/package.json').version)\""),
-            "vite": sh("node -e \"console.log(require('./node_modules/vite/package.json').version)\""),
             "Python (venv)": ver(".venv/bin/python --version"),
             "Python (system)": ver("python3 --version"),
             "uv": ver("uv --version"),
@@ -396,7 +394,6 @@ def collect_live() -> dict:
         },
         "validation": {
             "typecheck": "PASS" if sh("npm run typecheck >/dev/null 2>&1; echo $?") == "0" else "FAIL",
-            "vitest": sh("npm run test 2>&1 | grep -oE 'Tests +[0-9]+ passed[^)]*\\)' | head -1") or "not measured",
             "lint": lint,
             "secret_hook": sh(".venv/bin/python scripts/verify_secret_hook.py 2>&1 | tail -1"),
         },
