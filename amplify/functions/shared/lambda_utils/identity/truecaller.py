@@ -44,7 +44,7 @@ for it - so the flow cannot verify a third party's number either, only the perso
 handset.
 
 There is deliberately no function here that takes a phone number and asks Truecaller who owns
-it. That API exists; we do not call it, and `tests/test_identity.py` asserts the absence.
+it. That API exists; we do not call it, and this module exposes no arbitrary-number lookup function.
 
 Nonce rules
 -----------
