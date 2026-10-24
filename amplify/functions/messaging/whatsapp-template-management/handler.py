@@ -26,8 +26,7 @@ TEMPLATE_MEDIA_PREFIX = os.environ.get(
     'TEMPLATE_MEDIA_PREFIX',
     media_paths.WHATSAPP_TEMPLATE_HEADER_PREFIX)
 # The `o/` root is load-bearing: the 61 objects already in secure/d/public/whatsapp/wa-tpl/ are
-# referenced by Meta-APPROVED templates whose URLs are on the app.wecare.digital
-# host, and that host serves this bucket through origin path `/o`.
+# referenced by Meta-APPROVED templates and must remain under the canonical `o/` media root.
 PUBLIC_MEDIA_PREFIX = os.environ.get('PUBLIC_MEDIA_PREFIX',
                                      media_paths.public('public/wa-tpl/'))
 CDN_DOMAIN = os.environ.get('CDN_DOMAIN', 'wecare.digital/get')
@@ -955,10 +954,8 @@ def _upload_send_media(body):
                   i.e. https://wecare.digital/get/public/wa-tpl/... by default.
 
         NOTE the 61 objects backing already-approved templates live at
-        secure/d/public/whatsapp/wa-tpl/ and are served on app.wecare.digital, because that host is
-        rebuilt with OriginPath=/o. New uploads land at the bucket root instead, so
-        they are reachable on wecare.digital/get but NOT on app.wecare.digital. Both
-        work; they are simply different locations. Do not "fix" one to match the
+        secure/d/public/whatsapp/wa-tpl/ and must remain addressable through the canonical apex media path.
+        New uploads use the current bucket layout. Do not move approved-template objects between roots.
         other without resubmitting the approved templates that name the old URLs.
         s3Key: full S3 key
         folder: short folder name (docs/img/vid/aud/stk)
