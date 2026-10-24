@@ -61,16 +61,12 @@ this MCP update because automatic approval review rejected the combined request.
 All 74 Lambda environment maps and repository application sources have no reference
 to wecare/config/webhook-registry; the maintenance writer is the sole repository
 consumer. External/manual consumers cannot be disproved by a repository search.
-The required asm-exec resolver failed to resolve the source. Do not bypass by calling
-GetSecretValue directly. AWS-native dynamic references offer a payload-preserving
-alternative, recorded in amplify/infra/webhook-registry-migration.json.
+The temporary SSM migration approach was never executed. On 2026-10-24 the zero-resource
+`wecare-registry-migration-20261007` stack and its temporary template were retired; the active
+source remains `wecare/config/webhook-registry` in Secrets Manager. No staging SSM parameter
+was created.
 
-Validated and created a change set copy-noncredential-registry in
-wecare-registry-migration-20261007. DescribeChangeSet is CREATE_COMPLETE/AVAILABLE
-and contains exactly one Add of AWS::SSM::Parameter. It has NOT executed. No new
-SSM parameter exists yet, and no additional secret deletion was scheduled.
-
-After explicit approval: execute the reviewed change set; read the resulting
+If a future migration is needed, create a fresh reviewed change set and read the resulting
 noncredential staging parameter within the AWS script (return no payload); validate
 allowed config fields; compact JSON; require <=4096 UTF-8 bytes; put and read back
 /wecare/config/webhook-registry as Standard String; compare parsed payload/checksum.
