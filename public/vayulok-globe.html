@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="color-scheme" content="light" />
 <!-- An iframe asset of /vayulok/ (VayuLokApprovedGlobe.tsx), not a page: kept out of the index. -->
 <meta name="robots" content="noindex" />
 <title>WECARE India Globe</title>
@@ -18,9 +19,32 @@
     --ink:#1a3a2a;
   }
   :root{
-    /* The globe is an isolated iframe and cannot inherit parent custom properties. Mirror the
-       public foundation names locally so typography/touch/safe-area ownership stays explicit. */
-    --font-sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+    /* This iframe cannot inherit the parent document's custom properties. Mirror the
+       canonical public foundation names from src/styles/tokens.css so VayuLok stays an
+       explicit adopter of Home's typography, colour, touch and safe-area contract. */
+    --font-sans:'Inter',ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    --public-bg:#ffffff;
+    --public-text:#1a1a1a;
+    --public-heading:rgba(0,0,0,.95);
+    --public-body:rgba(0,0,0,.898);
+    --public-muted:rgba(0,0,0,.54);
+    --public-brand-green:#1a3a2a;
+    --public-brand-lime:#d1f470;
+    --public-hairline:#e5e7eb;
+    --public-lime-tint:rgba(209,244,112,.22);
+    --public-card-size:22px;
+    --public-card-weight:700;
+    --public-card-leading:1.27;
+    --public-card-tracking:-.25px;
+    --public-supporting-size:16px;
+    --public-data-size:17px;
+    --public-meta-size:14px;
+    --public-mobile-card-size:24px;
+    --public-mobile-page-gutter:16px;
+    --public-cta-height:52px;
+    --public-accent-green:#3da35a;
+    --public-accent-blue:#2563eb;
+    --public-accent-purple:#9849e8;
     --tap-min:44px;
     --safe-top:env(safe-area-inset-top,0px);
     --safe-right:env(safe-area-inset-right,0px);
@@ -28,7 +52,8 @@
     --safe-left:env(safe-area-inset-left,0px);
   }
   * { box-sizing: border-box; }
-  html, body { margin:0; min-height:100%; background:#fff; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; min-height:100%; background:var(--public-bg);color-scheme:light; }
   body {
     /* 100vh is the wrong unit on phones: it measures the viewport WITHOUT the
        browser chrome, so the stage can be pushed under the address bar / home
@@ -58,7 +83,7 @@
     cursor:grab;
   }
   .sorcerer-stage.is-dragging{cursor:grabbing}
-  .sorcerer-stage{--vl-lime:#d1f470;--vl-lime-tint:#f2f9db;--vl-green:#1a3a2a;--vl-hair:#e5e7eb;--vl-hover-shadow:0 4px 12px rgba(26,58,42,.10)}
+  .sorcerer-stage{--vl-lime:var(--public-brand-lime);--vl-lime-tint:var(--public-lime-tint);--vl-green:var(--public-brand-green);--vl-hair:var(--public-hairline)}
   .sorcerer-stage[data-layer='air']{--mode-accent:#3da35a;--mode-soft:rgba(61,163,90,.20)}
   .sorcerer-stage[data-layer='weather']{--mode-accent:#f0a818;--mode-soft:rgba(240,168,24,.20)}
   #globe {
@@ -68,91 +93,106 @@
     width: 100%;
     height: 100%;
   }
-  /* One lime scheme for both segments: whichever side is active takes the
-     #d1f470 / #1a3a2a brand pair, the other rests quiet on the white hero. */
+  /* AIR / WEATHER is a two-option selector, not a binary on/off switch. The visible
+     labels are icons, while each real button keeps an explicit accessible name. The lime
+     selection surface slides between equal halves; reduced-motion removes only the motion. */
   .data-toggle{
     position:absolute;z-index:20;
-    /* Pinned toward the top-right corner. With viewport-fit=cover the stage can
-       sit under a notch / rounded corner on iOS & Android, so the offsets add
-       env(safe-area-inset-*) on top of the design inset (the env() resolves to
-       0 on devices / webviews without a notch, so desktop is unchanged). */
     top:calc(4.2% + var(--safe-top));
     right:calc(4.0% + var(--safe-right));
-    width:clamp(220px,18%,280px);height:52px;padding:4px;
+    width:132px;height:var(--public-cta-height);padding:4px;
     display:grid;grid-template-columns:1fr 1fr;gap:4px;align-items:center;
-    border:1px solid var(--vl-hair);border-radius:999px;
-    background:#fff;box-shadow:0 6px 18px rgba(26,58,42,.08);
-    cursor:pointer;font:inherit;-webkit-tap-highlight-color:transparent;
+    border:1px solid var(--public-brand-green);border-radius:9999px;
+    background:var(--public-bg);box-shadow:none;
+    font:inherit;-webkit-tap-highlight-color:transparent;
+  }
+  .data-toggle-indicator{
+    position:absolute;z-index:0;left:4px;top:4px;bottom:4px;
+    width:calc(50% - 6px);border-radius:9999px;
+    background:var(--public-brand-lime);
+    transform:translateX(0);
+    transition:transform .22s cubic-bezier(.16,1,.3,1);
+    pointer-events:none;
+  }
+  .data-toggle[data-mode='weather'] .data-toggle-indicator{
+    transform:translateX(calc(100% + 4px));
   }
   .data-toggle .mode{
-    position:relative;display:grid;place-items:center;height:100%;border-radius:999px;
-    font-size:16px;font-weight:700;letter-spacing:0;line-height:1;
-    text-transform:none;
-    transition:background-color .2s,color .2s,box-shadow .2s;
+    position:relative;z-index:1;display:grid;place-items:center;
+    width:100%;min-width:var(--tap-min);height:100%;min-height:var(--tap-min);
+    padding:0;border:0;border-radius:9999px;background:transparent;
+    color:rgba(26,58,42,.68);cursor:pointer;
+    -webkit-appearance:none;appearance:none;
+    transition:color .16s ease,background-color .16s ease,transform .12s ease;
   }
-  /* The resting segment is dimmed with COLOUR only. Stacking an opacity
-     multiplier on top of this composited to ~rgb(178,178,178) on white — about
-     2.1:1, below every WCAG threshold. rgba(0,0,0,.62) measures ~6.2:1. */
-  .mode-air,
-  .mode-weather{color:rgba(26,58,42,.68);background:transparent;box-shadow:none}
-  .data-toggle[aria-checked='false'] .mode-air,
-  .data-toggle[aria-checked='true'] .mode-weather{
-    background:var(--vl-lime);color:var(--vl-green);box-shadow:none;
+  .data-toggle .mode[aria-pressed='true']{color:var(--public-brand-green)}
+  .data-toggle .mode[aria-pressed='false']:hover{background:var(--public-lime-tint);color:var(--public-brand-green)}
+  .data-toggle .mode:active{transform:scale(.94)}
+  .data-toggle:hover{border-color:var(--public-brand-lime)}
+  .data-toggle .mode:focus-visible{outline:3px solid var(--public-brand-green);outline-offset:2px}
+  .mode-icon{
+    display:block;width:24px;height:24px;fill:none;stroke:currentColor;
+    stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;
+    pointer-events:none;
   }
-  .data-toggle:hover{border-color:var(--vl-lime);box-shadow:var(--vl-hover-shadow)}
-  .data-toggle:focus-visible{outline:3px solid var(--vl-green);outline-offset:3px}
 
-  /* THE SINGLE CITY INFO PANEL. It sits in the gap on the LEFT of the globe
-     disc, toward the headline, and is the only place a city's reading appears.
-     The stage is transparent over the white hero, so a dark glass pill would be
-     unreadable here: this is a LIGHT card with DARK text and a hairline border,
-     matching the site's quiet-card treatment. The active city's identity colour
-     shows only as a thin accent stripe + dot, never as the whole surface. */
+  /* THE SINGLE CITY INFO PANEL. Home is the locked public reference: the city uses the
+     public card-heading rung, the reading uses compact public data type, and the label uses
+     the site's 12px/700 eyebrow treatment. The card is a quiet static surface: white,
+     hairline, 14px radius, and NO resting elevation. The three-colour spine is Home's
+     green/blue/purple rhythm; status remains readable in text and never depends on hue. */
   .city-panel{
     position:absolute;left:4.0%;top:50%;z-index:18;
     transform:translateY(-50%);
     display:flex;align-items:stretch;gap:14px;
-    width:clamp(340px,32%,440px);
-    padding:22px 26px;
-    border:1px solid var(--vl-hair);border-radius:14px;
-    background:#fff;
-    box-shadow:0 10px 30px rgba(16,24,20,.10),0 2px 8px rgba(16,24,20,.06);
-    color:var(--vl-green);text-align:left;
+    width:clamp(320px,31%,420px);
+    padding:18px 20px;
+    border:1px solid var(--public-hairline);border-radius:14px;
+    background:var(--public-bg);box-shadow:none;
+    color:var(--public-body);text-align:left;
     pointer-events:none;
     transition:opacity .22s ease,transform .22s cubic-bezier(.16,1,.3,1);
   }
   .city-panel-accent{
     flex:0 0 auto;width:3px;align-self:stretch;border-radius:3px;
-    background:var(--panel-accent,#3da35a);
+    background:linear-gradient(
+      to bottom,
+      var(--public-accent-green) 0 33.333%,
+      var(--public-accent-blue) 33.333% 66.666%,
+      var(--public-accent-purple) 66.666% 100%
+    );
   }
   .city-panel-body{min-width:0;display:flex;flex-direction:column}
   .city-panel-name{
-    display:flex;align-items:center;gap:7px;
-    font-size:clamp(30px,3vw,40px);font-weight:800;line-height:1.08;color:var(--vl-green);
+    display:flex;align-items:center;gap:8px;
+    font-size:var(--public-card-size);font-weight:var(--public-card-weight);
+    line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);
+    color:var(--public-heading);
   }
   .city-panel-name::before{
     content:'';flex:0 0 auto;width:8px;height:8px;border-radius:50%;
-    background:var(--panel-accent,#3da35a);
+    background:var(--panel-accent,var(--public-accent-green));
     box-shadow:0 0 0 3px var(--panel-accent-soft,rgba(61,163,90,.22));
   }
   .city-panel-layer{
-    margin-top:10px;font-size:17px;font-weight:800;letter-spacing:.1em;line-height:1;
-    text-transform:uppercase;color:rgba(26,58,42,.55);
+    margin-top:7px;font-size:12px;font-weight:700;letter-spacing:.08em;line-height:1.25;
+    text-transform:uppercase;color:var(--public-muted);
   }
   .city-panel-reading{
-    margin-top:10px;font-size:clamp(24px,2.3vw,30px);font-weight:800;line-height:1.25;
-    color:var(--vl-green);white-space:normal;
+    margin-top:7px;font-size:var(--public-data-size);font-weight:700;line-height:1.35;
+    letter-spacing:-.18px;color:var(--public-body);white-space:normal;
+    font-variant-numeric:tabular-nums;
   }
   .city-panel-reading[data-state='idle'],
   .city-panel-reading[data-state='loading'],
-  .city-panel-reading[data-state='error']{color:rgba(26,58,42,.6);font-weight:700}
+  .city-panel-reading[data-state='error']{color:var(--public-muted);font-weight:600}
   .city-panel-time{
-    margin-top:7px;font-size:11px;font-weight:700;line-height:1.2;
-    color:rgba(26,58,42,.64);white-space:nowrap;
+    margin-top:7px;font-size:var(--public-meta-size);font-weight:500;line-height:1.35;
+    color:var(--public-muted);white-space:normal;
   }
   .city-panel-meta{
-    margin-top:6px;font-size:10px;font-weight:750;letter-spacing:.08em;line-height:1.1;
-    text-transform:uppercase;color:rgba(26,58,42,.45);
+    margin-top:5px;font-size:12px;font-weight:700;letter-spacing:.08em;line-height:1.25;
+    text-transform:uppercase;color:var(--public-muted);
   }
 
   /* The leader line: a thin, in-palette tie from the panel's right edge to the
@@ -347,6 +387,14 @@
   .fallback-dot.is-active{border-color:#1a3a2a;box-shadow:0 6px 16px rgba(16,24,20,.2)}
   .fallback-dot:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
 
+  @media (max-width:767px){
+    .city-panel-name{font-size:var(--public-mobile-card-size)}
+    .data-toggle{width:112px;height:var(--tap-min);padding:3px}
+    .data-toggle-indicator{left:3px;top:3px;bottom:3px;width:calc(50% - 5px)}
+    .data-toggle[data-mode='weather'] .data-toggle-indicator{transform:translateX(calc(100% + 4px))}
+    .mode-icon{width:22px;height:22px}
+  }
+
   @media (max-width:680px){
     .sorcerer-stage{width:100vw;border-radius:24px}
     /* On the small disc the dot labels would collide; keep just the dot + ring,
@@ -361,21 +409,19 @@
     .data-toggle{
       top:calc(2.5% + var(--safe-top));
       right:calc(2.5% + var(--safe-right));
-      width:176px;height:var(--tap-min);padding:3px;
     }
-    .data-toggle .mode{font-size:14px;letter-spacing:0;font-weight:700}
-    /* On the phone disc the panel drops to the bottom-left corner so it never
-       overlaps the globe body, and shrinks to a compact single reading. The
-       bottom/left offsets add the safe-area insets so the panel is never
-       clipped by the home indicator / rounded corner on iOS & Android. */
+    /* Small-disc geometry changes, but typography does NOT collapse into a second
+       miniature scale. The panel reflows within the public 16px gutter and keeps
+       the migrated 24px card heading + 17px compact-data rung. */
     .city-panel{
-      left:calc(2.5% + var(--safe-left));
-      top:auto;bottom:calc(2.5% + var(--safe-bottom));transform:none;
-      width:min(46%,176px);padding:9px 10px;gap:7px;border-radius:12px;
+      left:calc(var(--public-mobile-page-gutter) + var(--safe-left));
+      right:calc(var(--public-mobile-page-gutter) + var(--safe-right));
+      top:auto;bottom:calc(12px + var(--safe-bottom));transform:none;
+      width:auto;max-width:320px;padding:12px 14px;gap:10px;border-radius:14px;
     }
-    .city-panel-name{font-size:12.5px}
-    .city-panel-reading{font-size:10.5px;margin-top:3px}
-    .city-panel-layer{font-size:8.5px;margin-top:3px}
+    .city-panel-name{font-size:var(--public-mobile-card-size)}
+    .city-panel-reading{font-size:var(--public-data-size);margin-top:6px}
+    .city-panel-layer{font-size:12px;margin-top:6px}
     .city-panel-time{display:none}
     .city-panel-meta{display:none}
     /* The phone disc is small, so the name chip is kept compact. */
@@ -395,7 +441,7 @@
        so each tap target reads clearly rather than as a speck. */
     .city-pin::before{width:11px;height:11px}
   }
-  @media (prefers-reduced-motion:reduce){.data-toggle .mode,.city-marker,.city-card,.city-panel,.city-leader{transition:none}.city-marker.is-visible .city-pin::before{animation:none}.city-leader line{animation:none}}
+  @media (prefers-reduced-motion:reduce){.data-toggle-indicator,.data-toggle .mode,.city-marker,.city-card,.city-panel,.city-leader{transition:none}.data-toggle .mode:active{transform:none}.city-marker.is-visible .city-pin::before{animation:none}.city-leader line{animation:none}}
 
 </style>
 </head>
@@ -412,18 +458,43 @@
       <line id="cityLeaderLine" x1="0" y1="0" x2="0" y2="0" />
     </svg>
 
-    <button
+    <div
       class="data-toggle"
       id="dataToggle"
-      type="button"
-      role="switch"
-      aria-label="Switch between air and weather markers"
-      aria-checked="false"
-      title="Air / Weather"
+      role="group"
+      aria-label="Air quality or weather layer"
+      data-mode="air"
     >
-      <span class="mode mode-air">AIR</span>
-      <span class="mode mode-weather">WEATHER</span>
-    </button>
+      <span class="data-toggle-indicator" aria-hidden="true"></span>
+      <button
+        class="mode mode-air"
+        id="modeAir"
+        type="button"
+        aria-label="Air quality"
+        aria-pressed="true"
+        title="Air quality"
+      >
+        <svg class="mode-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M4 8h10.5a2.5 2.5 0 1 0-2.1-3.85" />
+          <path d="M4 12h14a2 2 0 1 1-1.7 3.05" />
+          <path d="M4 16h7.5a2 2 0 1 1-1.7 3.05" />
+        </svg>
+      </button>
+      <button
+        class="mode mode-weather"
+        id="modeWeather"
+        type="button"
+        aria-label="Weather"
+        aria-pressed="false"
+        title="Weather"
+      >
+        <svg class="mode-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <circle cx="8" cy="8" r="3" />
+          <path d="M8 2V1M8 15v-1M2 8H1M15 8h-1M3.8 3.8 3 3M13 13l-.8-.8M12.2 3.8 13 3" />
+          <path d="M9.5 19h8a3.5 3.5 0 0 0 .3-6.99A5 5 0 0 0 8.6 13.5 2.75 2.75 0 0 0 9.5 19Z" />
+        </svg>
+      </button>
+    </div>
 
     <!-- Single info panel, pinned to the LEFT of the globe disc (toward the
          headline). It is the one place a city's reading is shown; the on-globe
@@ -450,6 +521,8 @@
   const canvas = document.getElementById('globe');
   const stage = document.getElementById('stage');
   const toggle = document.getElementById('dataToggle');
+  const modeAirButton = document.getElementById('modeAir');
+  const modeWeatherButton = document.getElementById('modeWeather');
 
   // Single source of truth for every clickable capital. Each identity colour is
   // one of the globe's own palette tokens — never a red.
@@ -512,6 +585,32 @@
   // The leader-line overlay that visually ties the panel to the selected pin.
   const leaderEl=document.getElementById('cityLeader');
   const leaderLineEl=document.getElementById('cityLeaderLine');
+
+  function syncModeControl(){
+    if(!toggle||!modeAirButton||!modeWeatherButton)return;
+    toggle.dataset.mode=activeLayer;
+    modeAirButton.setAttribute('aria-pressed',String(activeLayer==='air'));
+    modeWeatherButton.setAttribute('aria-pressed',String(activeLayer==='weather'));
+  }
+  function setActiveLayer(nextLayer,notify=true){
+    if(nextLayer!=='air'&&nextLayer!=='weather')return;
+    const changed=nextLayer!==activeLayer;
+    activeLayer=nextLayer;
+    syncModeControl();
+    stage.dataset.layer=activeLayer;
+    layerTarget=activeLayer==='weather'?1:0;
+    renderCityData();
+    if(notify&&changed)notifyParent('mode',{mode:activeLayer});
+  }
+  modeAirButton?.addEventListener('click',()=>setActiveLayer('air'));
+  modeWeatherButton?.addEventListener('click',()=>setActiveLayer('weather'));
+  window.addEventListener('message',e=>{
+    if(e.origin!==window.location.origin||e.data?.source!=='vayulok-page')return;
+    if(e.data?.type==='mode'&&(e.data.mode==='air'||e.data.mode==='weather')){
+      setActiveLayer(e.data.mode,false);
+    }
+  });
+  syncModeControl();
 
   function buildMarkers(){
     const frag=document.createDocumentFragment();
@@ -650,17 +749,6 @@
       layer.appendChild(dot);
     }
     stage.insertBefore(layer,document.getElementById('cityLeader'));
-
-    // The AIR/WEATHER toggle keeps working: flip the layer and re-render the
-    // panel reading. (The GPU-only layerMix animation is irrelevant here.)
-    toggle.addEventListener('click',()=>{
-      activeLayer=activeLayer==='weather'?'air':'weather';
-      const weatherOn=activeLayer==='weather';
-      toggle.setAttribute('aria-checked',String(weatherOn));
-      stage.dataset.layer=activeLayer;
-      renderCityData();
-      notifyParent('mode',{mode:activeLayer});
-    });
 
     // Default selection + live refresh, exactly like the GPU path. selectCity
     // handles the panel, accent and the (keyless-safe) first fetch.
@@ -1313,28 +1401,6 @@
     const meta=CITY_BY_ID.get(cityId);
     if(notifySelection&&meta)notifyParent('select-location',{city:{id:meta.id,name:meta.name,lat:meta.lat,lng:meta.lon},mode:activeLayer});
   }
-  toggle.addEventListener('click', () => {
-    activeLayer = activeLayer === 'weather' ? 'air' : 'weather';
-    const weatherOn = activeLayer === 'weather';
-    toggle.setAttribute('aria-checked', String(weatherOn));
-    stage.dataset.layer = activeLayer;
-    layerTarget=weatherOn?1:0;
-    renderCityData();
-    notifyParent('mode',{mode:activeLayer});
-  });
-
-  window.addEventListener('message',e=>{
-    if(e.origin!==window.location.origin||e.data?.source!=='vayulok-page')return;
-    if(e.data?.type==='mode'&&(e.data.mode==='air'||e.data.mode==='weather')&&e.data.mode!==activeLayer){
-      activeLayer=e.data.mode;
-      const weatherOn=activeLayer==='weather';
-      toggle.setAttribute('aria-checked',String(weatherOn));
-      stage.dataset.layer=activeLayer;
-      layerTarget=weatherOn?1:0;
-      renderCityData();
-    }
-  });
-
   // The globe's home rotation faces India, so Delhi is the sensible default
   // selection. selectCity also performs its first (and only) fetch.
   buildMarkers();
