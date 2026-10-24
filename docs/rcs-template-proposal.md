@@ -174,7 +174,7 @@ aws s3 cp .scratch/rcsimg/wdb-rcs-7x3.png \
   --content-type image/png --cache-control 'public, max-age=31536000'
 ```
 
-Upload to **`wecare-digital-get/o/`**, not `app.wecare.digital`. New assets should
+Upload to **`wecare-digital-get/o/`**, not `wecare-digital-get`. New assets should
 not add to the 6 approved templates already pinning the host we are trying to
 retire.
 
@@ -389,7 +389,7 @@ follows the handset theme.
 
 ### 10.3 Verification
 
-Assets uploaded to `wecare-digital-get/o/`, **not** `app.wecare.digital`, so these
+Assets uploaded to `wecare-digital-get/o/`, **not** `wecare-digital-get`, so these
 add nothing to the host being retired:
 
 ```
@@ -406,7 +406,7 @@ owner-nominated QA number `+918100640044`:
 | `wd_card_front_wide` | `01M3GD28QXFKH13MAQ80JZA5BB` |
 
 Template count 12 → 14. Both new templates carry **zero** references to
-`app.wecare.digital` or `wecare.digital/r`.
+`wecare-digital-get` or `wecare.digital/r`.
 
 ### 10.4 Still to decide, on the handset
 
