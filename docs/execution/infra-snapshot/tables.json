@@ -1,5 +1,5 @@
 {
-  "_generated": "2026-10-17T00:23:49.531333+00:00",
+  "_generated": "2026-10-24T05:53:41.401211+00:00",
   "tables": {
     "stack-wecare-digital-AIInteractionsTable": {
       "keySchema": [
@@ -17,8 +17,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -38,8 +37,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -155,8 +153,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -176,8 +173,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -197,8 +193,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -218,8 +213,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -306,8 +300,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -376,8 +369,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -418,8 +410,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -464,8 +455,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -550,8 +540,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -632,8 +621,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -698,8 +686,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -736,8 +723,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -782,8 +768,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -845,8 +830,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -866,8 +850,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -952,8 +935,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -1028,8 +1010,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -1205,8 +1186,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -1355,8 +1335,27 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
+      },
+      "pitr": "ENABLED"
+    },
+    "stack-wecare-digital-IdentityClaimsTable": {
+      "keySchema": [
+        {
+          "AttributeName": "claimKey",
+          "KeyType": "HASH"
+        }
+      ],
+      "attributeDefinitions": [
+        {
+          "AttributeName": "claimKey",
+          "AttributeType": "S"
+        }
+      ],
+      "billingMode": "PAY_PER_REQUEST",
+      "gsis": [],
+      "ttl": {
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -1384,8 +1383,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -1413,8 +1411,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -1442,8 +1439,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -1463,8 +1459,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -1517,8 +1512,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -1546,8 +1540,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -1567,8 +1560,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -1942,6 +1934,31 @@
           }
         },
         {
+          "IndexName": "customerId-createdAt-v2-index",
+          "KeySchema": [
+            {
+              "AttributeName": "customerId",
+              "KeyType": "HASH"
+            },
+            {
+              "AttributeName": "createdAt",
+              "KeyType": "RANGE"
+            }
+          ],
+          "Projection": {
+            "ProjectionType": "INCLUDE",
+            "NonKeyAttributes": [
+              "currency",
+              "orderNumber",
+              "paymentStatus",
+              "customerUuid",
+              "amountPaise",
+              "channel",
+              "referenceId"
+            ]
+          }
+        },
+        {
           "IndexName": "orderStatus",
           "KeySchema": [
             {
@@ -1990,8 +2007,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -2040,8 +2056,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -2122,8 +2137,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -2176,8 +2190,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -2262,8 +2275,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -2304,8 +2316,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -2433,8 +2444,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -2479,8 +2489,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -2525,8 +2534,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -2538,10 +2546,6 @@
         }
       ],
       "attributeDefinitions": [
-        {
-          "AttributeName": "batchId",
-          "AttributeType": "S"
-        },
         {
           "AttributeName": "createdAt",
           "AttributeType": "S"
@@ -2592,48 +2596,10 @@
           "Projection": {
             "ProjectionType": "ALL"
           }
-        },
-        {
-          "IndexName": "batchId-createdAt-index",
-          "KeySchema": [
-            {
-              "AttributeName": "batchId",
-              "KeyType": "HASH"
-            },
-            {
-              "AttributeName": "createdAt",
-              "KeyType": "RANGE"
-            }
-          ],
-          "Projection": {
-            "ProjectionType": "INCLUDE",
-            "NonKeyAttributes": [
-              "version",
-              "extractedWords",
-              "status",
-              "gateBlocking",
-              "slug",
-              "sourceType",
-              "gateReview",
-              "pipeline",
-              "aiDraftStatus",
-              "updatedAt",
-              "articleClass",
-              "category",
-              "sourceTitle",
-              "articleStatus",
-              "sourceRef",
-              "recordType",
-              "error",
-              "title",
-              "s3Key"
-            ]
-          }
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -2703,8 +2669,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -2724,8 +2689,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -2766,8 +2730,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -2787,8 +2750,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -2879,8 +2841,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -3063,8 +3024,7 @@
         }
       ],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },
@@ -3213,8 +3173,7 @@
       "billingMode": "PAY_PER_REQUEST",
       "gsis": [],
       "ttl": {
-        "status": "DISABLED",
-        "attribute": null
+        "status": "DISABLED"
       },
       "pitr": "ENABLED"
     },

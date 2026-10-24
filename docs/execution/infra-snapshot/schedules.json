@@ -1,15 +1,18 @@
 {
-  "_generated": "2026-10-17T00:23:49.531333+00:00",
+  "_generated": "2026-10-24T05:53:41.401211+00:00",
   "schedules": {
     "AWSUserNotificationsManagedRule-adi3lsr": {
-      "schedule": null,
       "state": "ENABLED",
       "eventPattern": true
     },
     "wecare-amplify-build-failed": {
-      "schedule": null,
       "state": "ENABLED",
       "eventPattern": true
+    },
+    "wecare-commerce-customer-links": {
+      "schedule": "rate(5 minutes)",
+      "state": "ENABLED",
+      "eventPattern": false
     },
     "wecare-docs-scraper-daily": {
       "schedule": "rate(1 day)",
