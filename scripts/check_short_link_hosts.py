@@ -18,7 +18,7 @@ working page rather than an error.
 
 What changed on 2026-09-28, and why this script was inverted
 -----------------------------------------------------------
-There used to be a fourth piece: the `r.wecare.digital` API Gateway custom domain.
+There used to be a fourth piece: the `wecare.digital/r` API Gateway custom domain.
 This script asserted that host still resolved, and said in as many words "do not
 'fix' this by retiring the old host; it is the links already sent that cannot be
 changed". That was the right call on the evidence available, and the owner
@@ -30,13 +30,13 @@ So the old assertion now fails on a deliberate decision rather than on a defect,
 and a guard that fails for a reason nobody intends to act on stops being read.
 
 The consequence is real and is NOT what this script is for: every short link already
-delivered on `r.wecare.digital` - printed material, sent SMS, RCS cards already on
+delivered on `wecare.digital/r` - printed material, sent SMS, RCS cards already on
 handsets - is dead, and no configuration change here can recall them. That is recorded
 in `docs/media-bucket-merge.md` and the change-authority matrix. What this script now
 does is narrower and still worth having:
 
   wecare.digital/r/<code>    MUST resolve - this is what we mint, and all we serve
-  r.wecare.digital/<code>    MUST NOT resolve - retirement must stay complete
+  wecare.digital/r/<code>    MUST NOT resolve - retirement must stay complete
 
 The second check is not spite. A retired host that quietly comes back - an IaC deploy
 re-creating the alias record is the likely route, which is why those constructs were
@@ -64,7 +64,7 @@ import urllib.error
 import urllib.request
 
 APEX = "wecare.digital"
-LEGACY_HOST = "r.wecare.digital"
+LEGACY_HOST = "wecare.digital/r"
 
 # A code that must exist. `wa` is the WhatsApp entry point embedded in the SMS and
 # voice auto-replies, so if any single code matters it is this one.
