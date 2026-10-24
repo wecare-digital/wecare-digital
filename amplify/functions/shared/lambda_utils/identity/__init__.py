@@ -2,16 +2,11 @@
 
 Measured before building, 2026-09-23
 ------------------------------------
-Both credentials already exist in Secrets Manager and **nothing reads either of them**:
-
-    wecare/seo/google-oauth   client_id, client_secret     created 2026-04-18
-    wecare/truecaller         app_key, app_name,
-                              app_domain, callback_url     created 2026-09-19
-
-`scripts/store_provider_secret.py` records the intent for both. For Google it says
-outright: "Reuse this client for People API contact sync rather than minting a second
-one." For Truecaller it says the consumer is "POST /auth/truecaller/callback - NOT BUILT
-YET, so nothing reads this until that Lambda and route exist".
+Google OAuth credentials exist for future People API use. Truecaller remains intentionally
+unprovisioned: there is no live callback route or runtime consumer, and the previously stored
+`wecare/truecaller` credential is being retired. `scripts/store_provider_secret.py` remains
+only as a future provisioning recipe if owner entitlement and callback registration are later
+completed.
 
 A grep for `people.googleapis`, `truecaller`, `pkce` and `code_verifier` across
 `amplify/`, `src/` and `scripts/` finds no OAuth flow of any kind. So this is greenfield,
@@ -68,12 +63,12 @@ Neither provider can be exercised end to end from here:
 * Google: the OAuth client needs `https://wecare.digital/api/auth/google/callback`
   registered as an authorised redirect URI, and `contacts.readonly` added to the consent
   screen. Both are Google Cloud console actions.
-* Truecaller: `callback_url` in the secret must match a callback registered on
-  developer.truecaller.com, and the deep link only resolves on a device with the Truecaller
-  app installed.
+* Truecaller: no live credential or callback route exists. A future rollout must first
+  register the callback on developer.truecaller.com, provision a fresh credential, and then
+  enable the route; the deep link only resolves on a device with the Truecaller app installed.
 
-So the contracts, the state machines and the guards are built and tested here against
-fixtures, and the live grant is recorded as `WAITING_FOR_OWNER` with the exact action.
+So the contracts, state machines and guards remain as dormant scaffolding. The live feature is
+`WAITING_FOR_OWNER`; no production route or stored credential should be inferred from this package.
 """
 
 # Re-exported here and ONLY this one, deliberately. Every other module in this package pulls in
