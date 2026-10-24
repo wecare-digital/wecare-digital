@@ -17,10 +17,10 @@ the bucket::
 Why ``o/`` is load-bearing
 --------------------------
 It was originally the thing that made an object *dual-homed*. A second host,
-``app.wecare.digital``, served this same bucket through origin path ``/o`` on
+``wecare-digital-get``, served this same bucket through origin path ``/o`` on
 distribution ``ERCXSFDL0VM8X`` (which also carried ``customerservice.wecare.digital`` and
 ``selfcare.wecare.digital`` - all three names went with it), so
-``app.wecare.digital/<X>`` resolved to key
+``wecare-digital-get/<X>`` resolved to key
 ``o/<X>`` and an object was reachable on both hosts only if its key carried ``o/``.
 
 **That host was retired on 2026-09-28** — distribution deleted, DNS record removed, and
@@ -50,7 +50,7 @@ The defect this module closes
 -----------------------------
 Every handler prefix was written against the old bucket, where the key had no ``o/``
 segment because the whole bucket was the public root. The merge mapped
-``app.wecare.digital/<X>`` to ``wecare-digital-get/o/<X>`` and the prefixes were never
+``wecare-digital-get/<X>`` to ``wecare-digital-get/o/<X>`` and the prefixes were never
 updated, so the fleet read and wrote one level above its own data. Two consequences
 were live:
 
@@ -153,7 +153,7 @@ PUBLIC_STREAM_MEDIA_FLAGS_PREFIX = PUBLIC_STREAM_MEDIA_M_PREFIX + "flags/"
 BUCKET = "wecare-digital-get"
 
 #: The apex media host, including its path segment. Deliberately NOT the bucket name:
-#: the old bucket was named ``app.wecare.digital`` and so doubled as a hostname, which
+#: the old bucket was named ``wecare-digital-get`` and so doubled as a hostname, which
 #: is why several handlers used to interpolate the bucket into a URL. ``wecare-digital-get``
 #: is not a domain, so that pattern now produces a URL resolving to nothing.
 CDN_DOMAIN = "wecare.digital/get"
