@@ -3,7 +3,7 @@
 
 Why this exists
 ---------------
-The merge into `wecare-digital-get` mapped `app.wecare.digital/<X>` to `o/<X>`, but the
+The merge into `wecare-digital-get` mapped `wecare-digital-get/<X>` to `o/<X>`, but the
 handler prefixes kept the pre-merge shape, so the fleet read and wrote one level above its
 own data. Nothing failed loudly: the apex host serves the whole bucket, so a key written to
 the root returned HTTP 200. The breakage only showed up as a missing invoice logo, an
@@ -11,7 +11,7 @@ empty cleanup sweep, and a document download pointing at a bucket that does not 
 
 Four things are checked, and each one corresponds to a defect that actually shipped:
 
-1. **No dead bucket names.** `app.wecare.digital` (deleted), `wecare-digital-media` and
+1. **No dead bucket names.** `wecare-digital-get` (deleted), `wecare-digital-media` and
    `wecare-digital-documents` (never existed) must not appear in handler source or in live
    Lambda configuration.
 2. **Keys are rooted.** Every S3 key prefix must sit under `o/` or `secure/`.
@@ -19,7 +19,7 @@ Four things are checked, and each one corresponds to a defect that actually ship
    NameError that byte-compiles cleanly and only fails at runtime. Three handlers shipped
    that way for one deploy cycle; this is the check that catches it statically.
 4. **The host topology matches whichever state we are actually in.** This check used to
-   assert that `app.wecare.digital` still served this bucket through origin path `/o`,
+   assert that `wecare-digital-get` still served this bucket through origin path `/o`,
    on the reasoning that the dual-homing was the only thing making `o/` load-bearing.
    That host was retired on 2026-09-28 — distribution `ERCXSFDL0VM8X` deleted, DNS
    record removed — so the old assertion could never pass again, and a check that can
@@ -51,7 +51,7 @@ FUNCTIONS = ROOT / "amplify" / "functions"
 MEDIA_PATHS = FUNCTIONS / "shared" / "lambda_utils" / "media_paths.py"
 
 BUCKET = "wecare-digital-get"
-DEAD_BUCKETS = ["app.wecare.digital", "wecare-digital-media", "wecare-digital-documents"]
+DEAD_BUCKETS = ["wecare-digital-get", "wecare-digital-media", "wecare-digital-documents"]
 PUBLIC_ROOT = "o/"
 SECURE_ROOT = "secure/"
 
@@ -62,12 +62,12 @@ SECURE_ROOT = "secure/"
 #
 # The distribution id is `ERCXSFDL0VM8X`, settled from
 # docs/execution/snapshots/cloudfront-ERCXSFDL0VM8X-before-alias-removal.json, whose
-# captured `Aliases` are exactly ["app.wecare.digital", "customerservice.wecare.digital",
+# captured `Aliases` are exactly ["wecare-digital-get", "wecare.digital/contact",
 # "selfcare.wecare.digital"]. Two places in the repo said `E1DP37QIS4G0T4` instead - that
 # id resolves to nothing and never appears in any snapshot, so it was a transcription
 # error. It happened to be harmless here only because BOTH ids return NoSuchDistribution,
 # which is precisely the kind of coincidence that keeps a wrong constant alive.
-LEGACY_HOST = "app.wecare.digital"
+LEGACY_HOST = "wecare-digital-get"
 LEGACY_HOST_DISTRIBUTION = "ERCXSFDL0VM8X"
 LEGACY_HOST_ORIGIN_PATH = "/o"
 
@@ -271,7 +271,7 @@ def check_live(r: Result) -> None:
                     continue
                 # Substring, not equality. A dead name is just as broken embedded in a
                 # URL or a prefix as it is standing alone, and `CDN_DOMAIN` used to hold
-                # `app.wecare.digital/<something>` rather than the bare host - equality
+                # `wecare-digital-get/<something>` rather than the bare host - equality
                 # would have walked straight past it.
                 for dead in DEAD_BUCKETS:
                     if dead in v:

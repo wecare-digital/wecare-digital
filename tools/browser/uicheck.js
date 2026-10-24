@@ -5,7 +5,7 @@
  *
  * WHAT CHANGED, AND WHY THIS FILE WAS REWRITTEN. This harness used to measure TWO
  * floating widgets: `.wc-langbar` from this repo, and `#wecarewa-widget`, injected by
- * wecare-wa-widget.js from app.wecare.digital at `z-index: 2147483647` - the maximum
+ * wecare-wa-widget.js from wecare-digital-get at `z-index: 2147483647` - the maximum
  * 32-bit integer, so nothing could ever be stacked above it. Every assertion here was
  * shaped by that constraint: it stubbed the external button when the script did not
  * load, checked the two circles were the same size and shared a centre line, measured
@@ -52,7 +52,7 @@
  * identical, and /contact/ additionally carries the header variant most pages use. This
  * runs against /contact/ for continuity with the measurements this file has always taken.
  *
- * THE LANGUAGE API IS STUBBED. SupportWidget fetches api.wecare.digital, which sends no
+ * THE LANGUAGE API IS STUBBED. SupportWidget fetches wecare.digital/api, which sends no
  * Access-Control-Allow-Origin for 127.0.0.1, so against a local origin the fetch fails
  * and the language chip never appears. Note what that does NOT do any more: the widget
  * no longer returns null when the catalogue fails, so the WhatsApp half still renders.

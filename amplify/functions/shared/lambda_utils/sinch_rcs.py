@@ -364,9 +364,7 @@ def send_rcs_card(phone: str, title: str, description: str,
 #: so it was the half that mattered.
 #:
 #: WHY IT MATTERS NOW. `rcsmenu`'s approved body and its Get Started button point at
-#: `https://r.wecare.digital/...`, and that hostname's Route 53 record was deleted on
-#: 2026-09-28 06:07Z under confirmation `YES R53-DELETE-001`. The API Gateway custom
-#: domain still exists, so only DNS went — which means the button now fails to RESOLVE
+#: `https://wecare.digital/r/...`; short links use the canonical apex path
 #: rather than returning a 404. An approved RCS body cannot be edited in place, so the
 #: repair is to send a different, already-approved template whose links are on the apex
 #: (`rcsmenu_apex` is approved and every one of its URLs measured 200). Reading the env

@@ -213,9 +213,9 @@ These values are the last observed identifiers. Put the refreshed value, source,
 | Sinch RCS India | Template | name `rcsmenu`; provider template ID **UNVERIFIED** | Retrieve current ID/version/status from the India RCS account; Sinch is allowed only for India RCS |
 | Plivo | Voice number | `+918031830030`; Bangalore, India; local | Linked to application `12775976954213184`; voice enabled and SMS disabled in the last verified inventory. Preserve binding until approved cutover |
 | Plivo | Application | ID `12775976954213184`; name `WECARE-WHATSAPP-IVR`; SIP `sip:12775976954213184@app.plivo.com` | Default Number Application for Voice. Preserve protected fields and callback methods; do not infer Messaging enablement from adjacent console headings |
-| Plivo | Answer callback | `POST https://api.wecare.digital/plivo/answer?token=<REDACTED>` | Query token is a credential, not configuration evidence. Resolve it by secret reference at runtime and redact it from code, shell history, logs, docs, screenshots and reports |
-| Plivo | Hangup callback | `POST https://api.wecare.digital/plivo/hangup?token=<REDACTED>` | Same protected callback-token family; validate the exact public URL/method/signature behavior without printing its value |
-| Plivo | Fallback callback | `POST https://api.wecare.digital/plivo/fallback?token=<REDACTED>` | Same protected callback-token family; preserve the fallback binding and test safe failure behavior |
+| Plivo | Answer callback | `POST https://wecare.digital/api/plivo/answer?token=<REDACTED>` | Query token is a credential, not configuration evidence. Resolve it by secret reference at runtime and redact it from code, shell history, logs, docs, screenshots and reports |
+| Plivo | Hangup callback | `POST https://wecare.digital/api/plivo/hangup?token=<REDACTED>` | Same protected callback-token family; validate the exact public URL/method/signature behavior without printing its value |
+| Plivo | Fallback callback | `POST https://wecare.digital/api/plivo/fallback?token=<REDACTED>` | Same protected callback-token family; preserve the fallback binding and test safe failure behavior |
 | Plivo | Public URI | Not populated in the owner-supplied console snapshot | Re-read through Plivo before relying on absence; never invent or enable a public URI |
 | Plivo | Endpoint | ID `543585900967411` from earlier readback; alias `WECARE-WhatsApp-IVR-SIP`; username `wecarewaivr203331794466262`; SIP `sip:wecarewaivr203331794466262@phone.plivo.com` | Listed as a linked endpoint. Application SIP and endpoint SIP are distinct resources; never expose endpoint credentials |
 
@@ -264,7 +264,7 @@ This is a measured snapshot collected between approximately 08:25 and 08:55 IST,
 | PSTN/Browser SDK | Plivo drift passed and the number remains voice-only. Browser SDK 2.2.21/token minting/flagged Dial User XML exist, but no live browser-token route or `/plivo/dial-events`; browser routing is absent/default false | Build the protected token API, complete session UI/lifecycle and canonical dial events behind registered flags. Do not expose a half-working softphone |
 | Provider retirement | No retired PayU/Sinch-SMS Lambda, route or table was found. The retired secrets are scheduled for deletion/recovery windows, while stale IaC/models/scripts/comments remain | Runtime retirement is substantially deployed but repository/cloud metadata cleanup is incomplete. Monitor permanent secret deletion and prevent recreation; preserve Sinch RCS and the Razorpay VPA |
 | Frontend | 117 Pages Router TSX files; `[retired public path 89347bb2]` is about 3,472 lines with 16 state tabs; 123 static routes; no canonical `/communications`, `/customers`, `[retired public path 862cdc9c]`, `/growth`, `/platform` route families; isolated App Router `[retired public path 2c56bef4]/internal-agent` | Redesign/consolidation is `NOT_STARTED`. Inventory every route/capability, then migrate without losing working functions; remove duplicates only after redirects/parity tests |
-| Frontend deployment | Amplify app `d22dm4b0jn71jw` job 703 succeeded for `30aa8dcb` from 08:46–08:51 IST. `retired legacy frontend host` returned 200 with last-modified 03:21:16 UTC, consistent with that release. Expected `Permissions-Policy` and `X-Content-Type-Options` were absent. `app.wecare.digital` still served content dated 2026-03-05. **Host superseded 2026-09-25:** that 200 was a real measurement at the time, left as recorded rather than rewritten, but the host it names no longer exists — `retired legacy frontend host` is NXDOMAIN and the app serves the **apex**. Re-measure against `wecare.digital`; `Permissions-Policy` and `X-Content-Type-Options` are now both present in `customHeaders` | The CDR-clear frontend repair is `DEPLOYED`, subject to live authenticated UI QA. Amplify build settings override repository assumptions. Fix effective headers through an approved production change and never use stale `app.wecare.digital` for media/CORS without explicit migration — note `app.wecare.digital` is stale only in its *root* content; it remains the live media CDN (CloudFront `ERCXSFDL0VM8X`) actively referenced for logos, RCS video and WhatsApp template media |
+| Frontend deployment | Amplify app `d22dm4b0jn71jw` job 703 succeeded for `30aa8dcb` from 08:46–08:51 IST. `retired legacy frontend host` returned 200 with last-modified 03:21:16 UTC, consistent with that release. Expected `Permissions-Policy` and `X-Content-Type-Options` were absent. `wecare-digital-get` still served content dated 2026-03-05. **Host superseded 2026-09-25:** that 200 was a real measurement at the time, left as recorded rather than rewritten, but the host it names no longer exists — `retired legacy frontend host` is NXDOMAIN and the app serves the **apex**. Re-measure against `wecare.digital`; `Permissions-Policy` and `X-Content-Type-Options` are now both present in `customHeaders` | The CDR-clear frontend repair is `DEPLOYED`, subject to live authenticated UI QA. Amplify build settings override repository assumptions. Fix effective headers through an approved production change and never use stale `wecare-digital-get` for media/CORS without explicit migration — note `wecare-digital-get` is stale only in its *root* content; it remains the live media CDN (CloudFront `ERCXSFDL0VM8X`) actively referenced for logos, RCS video and WhatsApp template media |
 | Branch/release governance | No open PR, branch protection or required status checks were observed | Add a reviewable PR/release path and required quality/security checks before production completion; do not force push or rewrite shared history |
 
 The detailed operational rows above predate several pushed source commits and must not be read as the final source state. Reconcile this successor overlay before opening new work:
@@ -393,7 +393,7 @@ Use only this live flow:
 
 ```text
 Meta WABA webhook
-  -> POST https://api.wecare.digital/whatsapp
+  -> POST https://wecare.digital/api/whatsapp
   -> exact raw-body X-Hub-Signature-256 verification
   -> idempotent field dispatcher
        calls              -> WhatsApp Calling service
@@ -495,7 +495,7 @@ Recipient-visible SMS body must be byte-for-byte equal to the approved India DLT
 ```text
 Thanks for contacting WECARE.DIGITAL!
 
-Submit your request here: [retired public path 68ca05fc] or send us a message / voice note on WhatsApp: https://r.wecare.digital/wa.
+Submit your request here: [retired public path 68ca05fc] or send us a message / voice note on WhatsApp: https://wecare.digital/r/wa.
 
 We'll review it and follow up if needed.
 ```
@@ -505,7 +505,7 @@ The current approved `wd_menu` body read from WABA1 on 2026-09-20 is below. It a
 ~~~~text
 Thanks for contacting *WECARE.DIGITAL*!
 
-Submit your request here: [retired public path 68ca05fc] or send us a message / voice note on WhatsApp: https://r.wecare.digital/wa.
+Submit your request here: [retired public path 68ca05fc] or send us a message / voice note on WhatsApp: https://wecare.digital/r/wa.
 
 We'll review it and follow up if needed.
 ``````
@@ -589,7 +589,7 @@ Keep two call paths explicit: PSTN through Plivo on +918031830030; WhatsApp Call
 
 Build the full canonical `/communications/calling` hierarchy from the approved design, redirect legacy `[retired public path 2de923b8]/pstn*`, `[retired public path 2de923b8]/voice` and `[retired public path 2de923b8]/voice-in` routes, and use real APIs with honest loading/empty/error/unavailable states. Do not render controls that cannot work.
 
-Fix the Amplify app-level build spec so the live site serves `Permissions-Policy: camera=(), microphone=(self), geolocation=()` and `X-Content-Type-Options: nosniff`. Snapshot the existing app config, validate YAML locally, update app `d22dm4b0jn71jw`, trigger/monitor a build, and verify response headers. IVR/template media no longer depends on `app.wecare.digital`: that host/bucket was **retired 2026-09-28 (NXDOMAIN)** and media now serves from the apex `/get/o/` path over bucket `wecare-digital-get` (see `amplify/functions/shared/lambda_utils/media_paths.py`). No restore of the old media deployment is needed.
+Fix the Amplify app-level build spec so the live site serves `Permissions-Policy: camera=(), microphone=(self), geolocation=()` and `X-Content-Type-Options: nosniff`. Snapshot the existing app config, validate YAML locally, update app `d22dm4b0jn71jw`, trigger/monitor a build, and verify response headers. IVR/template media no longer depends on `wecare-digital-get`: that host/bucket was **retired 2026-09-28 (NXDOMAIN)** and media now serves from the apex `/get/o/` path over bucket `wecare-digital-get` (see `amplify/functions/shared/lambda_utils/media_paths.py`). No restore of the old media deployment is needed.
 
 ### PSTN full-feature documentation and implementation scope
 
@@ -677,9 +677,9 @@ Protected Plivo baseline (refresh through read-only API inspection):
 | Application SIP URI | sip:12775976954213184@app.plivo.com |
 | Default Number Application | Voice; do not infer Messaging enablement from the console layout |
 | Number | +918031830030; Bangalore, India; local; linked to that application |
-| Answer URL | POST `https://api.wecare.digital/plivo/answer?token=<REDACTED>` |
-| Hangup URL | POST `https://api.wecare.digital/plivo/hangup?token=<REDACTED>` |
-| Fallback Answer URL | POST `https://api.wecare.digital/plivo/fallback?token=<REDACTED>` |
+| Answer URL | POST `https://wecare.digital/api/plivo/answer?token=<REDACTED>` |
+| Hangup URL | POST `https://wecare.digital/api/plivo/hangup?token=<REDACTED>` |
+| Fallback Answer URL | POST `https://wecare.digital/api/plivo/fallback?token=<REDACTED>` |
 | Public URI | Not populated in the owner-supplied snapshot; refresh before relying on absence |
 | Endpoint | Prior readback ID 543585900967411; linked alias WECARE-WhatsApp-IVR-SIP |
 | Endpoint username | wecarewaivr203331794466262 |
@@ -962,7 +962,7 @@ Target backend text diagram with known IDs:
 META WHATSAPP MESSAGING
 Meta app 2238810740192680
   -> WABA 2094615664435155 / phone ID 1016149501586345 / +919330994400
-  -> GET/POST https://api.wecare.digital/whatsapp
+  -> GET/POST https://wecare.digital/api/whatsapp
   -> API Gateway zllr9lrg7j (stage observed prod; normalize exactly one stage prefix)
   -> whatsapp-calling ingress Lambda live alias (refresh physical version/hash)
        -> raw-body X-Hub-Signature-256 verification + replay/dedup ledger
@@ -975,7 +975,7 @@ PLIVO PSTN INCOMING
 External PSTN caller
   -> +918031830030
   -> Plivo application 12775976954213184 (WECARE-WHATSAPP-IVR)
-  -> POST https://api.wecare.digital/plivo/answer?token=<REDACTED>
+  -> POST https://wecare.digital/api/plivo/answer?token=<REDACTED>
   -> plivo-answer Lambda live alias (refresh version/hash)
   -> XML Dial/User -> endpoint ID 543585900967411
   -> authenticated Browser SDK agent

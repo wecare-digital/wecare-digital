@@ -4,7 +4,7 @@
     "DomainDescription": {
         "UserPoolId": "us-east-1_cSx0RHCIR",
         "AWSAccountId": "775261844268",
-        "Domain": "signin.wecare.digital",
+        "Domain": "wecare-digital-auth.auth.us-east-1.amazoncognito.com",
         "S3Bucket": "aws-cognito-prod-iad-assets",
         "CloudFrontDistribution": "d2cjxje0em4hm6.cloudfront.net",
         "Version": "20260211044136",
@@ -32,7 +32,7 @@
   ,"route53_signin":
 [
     {
-        "Name": "signin.wecare.digital.",
+        "Name": "wecare-digital-auth.auth.us-east-1.amazoncognito.com.",
         "Type": "A",
         "AliasTarget": {
             "HostedZoneId": "Z2FDTNDATAQYW2",

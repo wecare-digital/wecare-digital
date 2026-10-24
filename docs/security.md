@@ -130,7 +130,7 @@ data.
 
 **Accepted design and its cost.** Per design ADR-6 the bearer token is retained in
 `sessionStorage`, because `output: 'export'` means the frontend cannot set a cookie and
-`api.wecare.digital` is a different host from `wecare.digital`.
+`wecare.digital/api` is a different host from `wecare.digital`.
 
 **Blast radius, stated rather than implied.** An XSS on any public page can read the token and
 exfiltrate a customer session.
@@ -309,7 +309,7 @@ when the configuration reads as intended.
     supplement to WAF.
   - **Reserved concurrency** on the OTP function, so a burst cannot consume account capacity.
   - **CloudFront in front of the API** would be the only way to obtain real WAF coverage for
-    the API, since a distribution *can* carry a WebACL. `api.wecare.digital` is not behind
+    the API, since a distribution *can* carry a WebACL. `wecare.digital/api` is not behind
     CloudFront. Recorded as a decision to take rather than a task to tick — and note it is
     now moot while the owner's standing decision is that WAF costs more than it is worth
     here, since there would be no ACL to attach.

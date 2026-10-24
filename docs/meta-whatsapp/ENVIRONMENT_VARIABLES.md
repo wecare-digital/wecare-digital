@@ -20,7 +20,7 @@ Authoritative list also mirrored in `.env.local.example`. Secret values are NOT 
 | `WA_MARKETING_MESSAGES_ENABLED` | flag | default `false` |
 | `WA_CALLING_ENABLED` | flag | default `false` (Meta-gated) |
 | `WA_GROUPS_ENABLED` | flag | default `false` (Meta-gated) |
-| `WA_MEDIA_BUCKET` | env | `app.wecare.digital` |
+| `WA_MEDIA_BUCKET` | env | `wecare-digital-get` |
 | `WA_WEBHOOK_QUEUE_URL` | env | SQS inbound (if used) |
 | `WA_WEBHOOK_DLQ_URL` | env | `stack-wecare-digital-inbound-dlq` |
 

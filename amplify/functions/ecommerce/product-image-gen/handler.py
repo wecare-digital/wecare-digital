@@ -47,14 +47,14 @@ logger = get_logger(__name__)
 
 # Read from the environment, and default to the bucket that actually exists.
 #
-# This was the literal 'app.wecare.digital' until 2026-09-28. That bucket has been
-# deleted, so both put_object calls below would raise NoSuchBucket and the
+# The current bucket is wecare-digital-get; uploads must not depend on hostname-shaped bucket names.
+# Both put_object calls below use the configured bucket and the
 # publicUrl built from it would 404. Written as an env lookup rather than a new
 # literal so the next bucket move is a configuration change, not a code deploy.
 S3_BUCKET = os.environ.get('S3_BUCKET', media_paths.BUCKET)
 # The PUBLIC host, deliberately separate from the bucket name. Both publicUrl sites
 # below built the URL from S3_BUCKET, which was only ever valid because the old
-# bucket was named app.wecare.digital and so doubled as a hostname.
+# legacy implementation coupled bucket naming to URL generation.
 CDN_DOMAIN = os.environ.get('CDN_DOMAIN', media_paths.CDN_DOMAIN)
 
 S3_PREFIX = media_paths.CATALOG_GENERATED_MEDIA_PREFIX.rstrip('/')

@@ -193,7 +193,7 @@ const AWS_RESOURCES: AWSResource[] = [
   { name: 'IAM Roles (Lambda)', type: 'IAM', purpose: 'Lambda execution roles with least-privilege', module: 'Security', env: 'Production', status: 'Active', risk: '' },
   { name: 'Secrets Manager', type: 'Secrets Manager', purpose: 'API keys, webhook secrets, payment credentials', module: 'Security', env: 'Production', status: 'Active', risk: '' },
   { name: 'CloudFront E2GP22R4BIFGQ3', type: 'CloudFront', purpose: 'Serves wecare.digital/get/<key> from wecare-digital-get', module: 'Frontend', env: 'Production', status: 'Active', risk: '' },
-  { name: 'Route 53', type: 'Route 53', purpose: 'DNS for wecare.digital, wecare.digital/api, r.wecare.digital', module: 'Networking', env: 'Production', status: 'Active', risk: '' },
+  { name: 'Route 53', type: 'Route 53', purpose: 'DNS for wecare.digital, mta-sts.wecare.digital and sip.wecare.digital', module: 'Networking', env: 'Production', status: 'Active', risk: '' },
   { name: 'ACM Certificates', type: 'ACM', purpose: 'SSL/TLS certificates for all domains', module: 'Security', env: 'Production', status: 'Active', risk: '' },
   { name: 'SNS Topics', type: 'SNS', purpose: 'SMS delivery notifications, alerts', module: 'Messaging', env: 'Production', status: 'Active', risk: '' },
   { name: 'Amazon Polly', type: 'Polly', purpose: 'Text-to-speech for WhatsApp voice messages', module: 'Messaging', env: 'Production', status: 'Active', risk: '' },
@@ -230,7 +230,7 @@ const RISKS: RiskItem[] = [
   { id: 'R25', title: 'react-router-dom potentially unused', description: 'react-router-dom ^7.13.0 is installed but Next.js has built-in routing. This adds ~45KB to the bundle. Verify if it is actually used or can be removed.', priority: 'Important', category: 'Dependencies' },
   { id: 'R26', title: '✅ FIXED — @capacitor/cli moved out of production dependencies', description: 'Recorded here as cosmetic install weight, it turned out to have a security consequence: @capacitor/cli was the only path by which xcode@3.0.1 → uuid@7.0.3 entered the production tree, and a Dependabot security update for uuid then failed because no update path could reach the patched 14.0.0 (aws-amplify pins uuid ^11.1.1, xcode pins ^7.0.3). The CLI is now a devDependency, so the production tree resolves only uuid@11.1.1. The same move was applied to the --save list in deps-upgrade.yml, without which the next full-latest run would have reverted it. The advisory itself (GHSA-w5hq-g745-h8pq) is not reachable here: it affects only the v3/v5/v6 APIs with a caller-supplied buffer, and every consumer in this tree imports only v4.', priority: 'Important', category: 'Dependencies' },
   { id: 'R27', title: 'No input validation on frontend forms', description: 'Contact forms, payment forms, and GSTIN inputs have maxLength but no regex validation. Invalid data can reach the backend.', priority: 'Important', category: 'Frontend' },
-  { id: 'R28', title: '✅ FIXED — Cognito OAuth domain no longer depends on our own DNS or certificate', description: 'Moved from the signin.wecare.digital custom domain to the Cognito-provided prefix domain, which AWS operates. The prefix domain was upgraded to managed login v2 first so the sign-in page is unchanged. This removes the ACM-certificate and Route 53 single point of failure for all authentication.', priority: 'Important', category: 'Auth' },
+  { id: 'R28', title: '✅ FIXED — Cognito OAuth domain no longer depends on our own DNS or certificate', description: 'Moved from a retired custom sign-in hostname to the Cognito-provided prefix domain, which AWS operates. The prefix domain was upgraded to managed login v2 first so the sign-in page is unchanged. This removes the ACM-certificate and Route 53 single point of failure for all authentication.', priority: 'Important', category: 'Auth' },
   { id: 'R29', title: 'GA and FB tracking IDs empty', description: 'NEXT_PUBLIC_GA_MEASUREMENT_ID and NEXT_PUBLIC_FB_APP_ID are empty. Analytics scripts still load (googletagmanager, connect.facebook.net) but send no data — wasted bandwidth and privacy concern.', priority: 'Important', category: 'Configuration' },
   { id: 'R30', title: '✅ FIXED — Client password comparison removed', description: 'Edit and payment gates use Cognito Admin verification; no shared unlock password is evaluated in browser code.', priority: 'Important', category: 'Security' },
 
@@ -564,7 +564,7 @@ const CODE_ASSETS: CodeAsset[] = [
   { id: 'l-msg-read', category: 'Core Lambdas', name: 'Messages Read', description: 'Read messages from all channels with media pre-signed URLs.', path: 'amplify/functions/core/messages-read/handler.py', type: 'Lambda' },
   { id: 'l-msg-del', category: 'Core Lambdas', name: 'Messages Delete', description: 'Delete messages by ID from inbound/outbound tables.', path: 'amplify/functions/core/messages-delete/handler.py', type: 'Lambda' },
   { id: 'l-faq', category: 'Core Lambdas', name: 'FAQ Handler', description: 'FAQ auto-response engine from SystemConfig.', path: 'amplify/functions/core/faq-handler/handler.py', type: 'Lambda' },
-  { id: 'l-url', category: 'Core Lambdas', name: 'URL Shortener', description: 'Short link creation and redirect (wecare.digital/r; r.wecare.digital retained for links already issued).', path: 'amplify/functions/core/url-shortener/handler.py', type: 'Lambda' },
+  { id: 'l-url', category: 'Core Lambdas', name: 'URL Shortener', description: 'Short link creation and redirect through wecare.digital/r.', path: 'amplify/functions/core/url-shortener/handler.py', type: 'Lambda' },
   // WhatsApp Lambdas
   { id: 'l-inbound', category: 'WhatsApp Lambdas', name: 'Inbound WhatsApp', description: 'Main webhook handler — messages, keyword triggers, flow routing, AI, media.', path: 'amplify/functions/messaging/inbound-whatsapp-handler/handler.py', type: 'Lambda' },
   { id: 'l-outbound', category: 'WhatsApp Lambdas', name: 'Outbound WhatsApp', description: 'Send WhatsApp messages — text, media, interactive, templates, flows.', path: 'amplify/functions/messaging/outbound-whatsapp/handler.py', type: 'Lambda' },
@@ -743,7 +743,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
           </div>
           <div>
             <div style={ label }>Domain</div>
-            <div style={ { marginTop: 4 } }>wecare.digital / wecare.digital/api / r.wecare.digital</div>
+            <div style={ { marginTop: 4 } }>wecare.digital / wecare.digital/api</div>
           </div>
           <div>
             <div style={ label }>Authentication</div>
@@ -1125,8 +1125,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
             name: '🌐 Networking', children: [
               {
                 name: 'Route 53 (DNS)', children: [
-                  // app.wecare.digital dropped 2026-09-28: record removed, host NXDOMAIN.
-                  { name: 'wecare.digital' }, { name: 'wecare.digital/api' }, { name: 'r.wecare.digital' }, { name: 'mta-sts.wecare.digital' },
+                  { name: 'wecare.digital' }, { name: 'mta-sts.wecare.digital' }, { name: 'sip.wecare.digital' },
                 ]
               },
               { name: 'CloudFront E2GP22R4BIFGQ3 (wecare.digital/get → wecare-digital-get)' },

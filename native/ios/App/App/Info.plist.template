@@ -21,14 +21,13 @@
     </dict>
   </array>
 
-  <!-- Universal Links: wecare.digital + r.wecare.digital.
+  <!-- Universal Links: wecare.digital.
        The apex, not the retired retired-legacy-host.invalid: Apple fetches
        /.well-known/apple-app-site-association directly and does NOT follow a
        redirect, so an associated domain that 301s can never verify. -->
   <key>com.apple.developer.associated-domains</key>
   <array>
     <string>applinks:wecare.digital</string>
-    <string>applinks:r.wecare.digital</string>
     <string>webcredentials:wecare.digital</string>
   </array>
 

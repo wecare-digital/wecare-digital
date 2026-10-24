@@ -162,7 +162,7 @@ so there is nothing to roll back.
 **1. Google — two console actions on the existing OAuth client** (`wecare/seo/google-oauth`;
 do not mint a second client):
 
-- Add the authorised redirect URI `https://api.wecare.digital/auth/google/callback`
+- Add the authorised redirect URI `https://wecare.digital/api/auth/google/callback`
 - Add the scope `https://www.googleapis.com/auth/contacts.readonly` to the consent screen
 
 `contacts.readonly` is a sensitive scope. Internal use within the Workspace org needs no
@@ -171,7 +171,7 @@ Google verification; exposing it to external users does.
 **2. Truecaller — one portal action** on developer.truecaller.com:
 
 - Register the callback URL that matches `callback_url` in `wecare/truecaller`, pointing at
-  `https://api.wecare.digital/auth/truecaller/callback`
+  `https://wecare.digital/api/auth/truecaller/callback`
 
 The deep link only resolves on a device with the Truecaller app installed, so handset QA
 needs a real Android device. The owner-nominated QA recipient `+918100640044` is available

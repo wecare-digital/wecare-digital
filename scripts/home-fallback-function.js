@@ -9,9 +9,6 @@ function handler(event) {
     'referrer-policy': {value: 'no-referrer'},
     'content-security-policy': {value: "default-src 'none'; frame-ancestors 'none'"}
   };
-  if (host === 'www.wecare.digital' || host === 'www.xout.wecare.digital') {
-    return {statusCode: 404, statusDescription: 'Not Found', headers: responseHeaders};
-  }
   responseHeaders.location = {value: 'https://wecare.digital/'};
   return {statusCode: 302, statusDescription: 'Found', headers: responseHeaders};
 }

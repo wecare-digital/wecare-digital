@@ -115,7 +115,7 @@ with a single route. Measuring it rather than assuming:
 
 | Evidence | Value |
 |---|---|
-| Custom domains mapped to it | **none** — `api.wecare.digital` and `r.wecare.digital` both map to `zllr9lrg7j` |
+| Custom domains mapped to it | **none** — `wecare.digital/api` and `wecare.digital/r` both map to `zllr9lrg7j` |
 | Requests, 30 days to 2026-09-21 | **zero** (no `Count` datapoint at all); `zllr9lrg7j` served **84,301** |
 | Remaining route | `POST /ai/generate` → `wecare-ai-generate-response`, **unqualified `$LATEST`** |
 | Same path on the live API | `POST /ai/generate` → `wecare-ai-generate-response:live` — already correct |

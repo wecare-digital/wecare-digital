@@ -175,7 +175,7 @@ Amplify.configure( {
 /**
  * BRAND ASSETS, all from s3://wecare-digital-get/o/stream/media/m/ — served as
  * https://wecare.digital/get/o/stream/media/m/ via CloudFront E2GP22R4BIFGQ3. That is the
- * canonical media location since the app.wecare.digital merge (docs/media-bucket-merge.md).
+ * canonical media location since the wecare-digital-get merge (docs/media-bucket-merge.md).
  *
  * THERE ARE THREE ASSETS HERE, NOT ONE, AND THE SPLIT IS THE POINT.
  *

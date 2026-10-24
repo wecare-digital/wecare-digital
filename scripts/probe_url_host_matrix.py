@@ -49,7 +49,7 @@ import urllib.parse
 import urllib.request
 
 SITE = "https://wecare.digital"
-WWW = "https://www.wecare.digital"
+WWW = "https://wecare.digital"
 UA = "wecare-url-host-matrix-probe/1"
 MAX_HOPS = 5
 
@@ -210,7 +210,7 @@ def matrix() -> list[dict]:
         rows.append(_row('subdomain', f'https://{host}.wecare.digital/old/path?old=1',
                          200, 'allowed fallback discards path/query and reaches home',
                          terminal_url=f'{SITE}/'))
-    rows.append(_row('subdomain', 'https://www.xout.wecare.digital/old/path?old=1', 0,
+    rows.append(_row('subdomain', 'https://www.wecare.digital/old/path?old=1', 0,
                      'retired nested hostname has no HTTP service'))
     rows.append(_row("subdomain", "https://a.b.wecare.digital/", 0,
                      "nested hostname is outside the one-label wildcard TLS certificate"))

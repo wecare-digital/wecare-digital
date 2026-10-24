@@ -202,7 +202,7 @@ npm run build
 
 **Example:**
 ```bash
-curl "https://api.wecare.digital/faq?query=payment&maxResults=3"
+curl "https://wecare.digital/api/faq?query=payment&maxResults=3"
 ```
 
 **Response:**

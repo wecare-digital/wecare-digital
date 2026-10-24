@@ -115,7 +115,7 @@ an authenticated session, and nothing here should be read as if they were.
 
 `devtools_webhook_manage` can change the app's callback URL or field
 subscriptions. The app currently has 32 WABA fields plus 2 catalog fields on
-`https://api.wecare.digital/whatsapp`, and that configuration is **correct** — the
+`https://wecare.digital/api/whatsapp`, and that configuration is **correct** — the
 401s were our routing bug, not Meta's config. An unreviewed `webhook_manage` call
 could turn a one-line code fix into a subscription outage. Do not run it without
 a reviewed plan.

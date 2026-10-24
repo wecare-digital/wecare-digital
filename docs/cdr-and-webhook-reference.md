@@ -427,12 +427,12 @@ one item here that needs a credential write, and therefore you.
 
 | Name | Type | Stale host refs |
 |---|---|---|
-| `rcsmenu` | rich_card | `app.wecare.digital`, `r.wecare.digital` |
-| `rcsorder` | rich_card | `app.wecare.digital`, `r.wecare.digital` |
-| `wecaremenu` | rich_card | `app.wecare.digital`, `r.wecare.digital` |
-| `wdorder` | rich_card | `app.wecare.digital`, `r.wecare.digital` |
-| `waalert` | rich_card | `app.wecare.digital`, `r.wecare.digital` |
-| `get_started` | rich_card | `app.wecare.digital`, `r.wecare.digital` — **dead thumbnail** |
+| `rcsmenu` | rich_card | `wecare-digital-get`, `wecare.digital/r` |
+| `rcsorder` | rich_card | `wecare-digital-get`, `wecare.digital/r` |
+| `wecaremenu` | rich_card | `wecare-digital-get`, `wecare.digital/r` |
+| `wdorder` | rich_card | `wecare-digital-get`, `wecare.digital/r` |
+| `waalert` | rich_card | `wecare-digital-get`, `wecare.digital/r` |
+| `get_started` | rich_card | `wecare-digital-get`, `wecare.digital/r` — **dead thumbnail** |
 | `rcsmenu_apex` | rich_card | none — created 2026-09-27 on the migrated URLs |
 | `test16` | text_message | none |
 | `test17` | text_message | none |
@@ -445,13 +445,13 @@ spelling — the `+` never decoded to a space. Silently broken, pre-existing.
 
 The three media URLs the rich cards reference, and their state on both hosts:
 
-| Key under `stream/media/m/` | old `app.wecare.digital` | new `wecare.digital/get/o` |
+| Key under `stream/media/m/` | old `wecare-digital-get` | new `wecare.digital/get/o` |
 |---|---|---|
 | `customerservice.mp4` | 200 `video/mp4` 1302443 b | 200 identical |
 | `wecare-digital-rcs-h.png` | 200 `image/png` 89548 b | 200 identical |
 | `WECARE+SC.png` | 200 but 596 b of **HTML** | 302 — **key does not exist** |
 
-Because 6 of 12 templates are **approved** against `app.wecare.digital`, that host
+Because 6 of 12 templates are **approved** against `wecare-digital-get`, that host
 cannot be retired until the templates are re-pointed and re-approved. This is one
 of three independent blockers on deleting the old S3 folder; the others are 35
 `S3_BUCKET`/`MEDIA_BUCKET` env vars naming it as a bucket across 30+ live

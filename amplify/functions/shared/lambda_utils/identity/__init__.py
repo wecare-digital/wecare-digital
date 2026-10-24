@@ -65,7 +65,7 @@ What is owner-gated
 -------------------
 Neither provider can be exercised end to end from here:
 
-* Google: the OAuth client needs `https://api.wecare.digital/auth/google/callback`
+* Google: the OAuth client needs `https://wecare.digital/api/auth/google/callback`
   registered as an authorised redirect URI, and `contacts.readonly` added to the consent
   screen. Both are Google Cloud console actions.
 * Truecaller: `callback_url` in the secret must match a callback registered on

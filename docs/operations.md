@@ -15,7 +15,7 @@ does not restate them.
 |---|---|
 | Account / region | `775261844268` / `us-east-1` |
 | Profile | `AWS_PROFILE=wecare-prod`, long-term key from `~/.aws/credentials` |
-| API | `zllr9lrg7j`, stage `prod`, `AutoDeploy=true`, access logging on, base `https://api.wecare.digital` |
+| API | `zllr9lrg7j`, stage `prod`, `AutoDeploy=true`, access logging on, base `https://wecare.digital/api` |
 | Hosting | Amplify `d22dm4b0jn71jw`, repo `wecare-digital/wecare-digital`, 23 custom rules |
 | Branch | `stack` — the only long-lived branch; there is no `main` |
 | Customer pool | `us-east-1_46ULYuukt` |

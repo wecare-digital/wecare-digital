@@ -21,7 +21,6 @@
 	<key>com.apple.developer.associated-domains</key>
 	<array>
 		<string>applinks:wecare.digital</string>
-		<string>applinks:r.wecare.digital</string>
 		<string>webcredentials:wecare.digital</string>
 	</array>
 </dict>

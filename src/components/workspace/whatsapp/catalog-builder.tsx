@@ -146,7 +146,7 @@ function ProductTab ( { acct, toast, confirm }: { acct: typeof ACCOUNTS[ number 
                 {
                     // Meta fetches the image itself, so the URL has to be publicly
                     // reachable. The example is built from CDN_DOMAIN rather than written
-                    // out: this line used to name `app.wecare.digital`, a bucket-shaped
+                    // out: this line used to name `wecare-digital-get`, a bucket-shaped
                     // host that was retired on 2026-09-28, so the advice could only fail.
                     toast.error( `Product created but the image failed to fetch — use an approved public catalog image URL (for example https://${ CDN_DOMAIN }/secure/d/public/catalog-deploy/catalog/products/...)` );
                 } else

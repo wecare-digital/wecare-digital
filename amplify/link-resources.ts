@@ -2,7 +2,7 @@
  * URL Shortener AWS Resources - WECARE.DIGITAL
  *
  * Canonical base for new links: wecare.digital/r  (since 2026-09-26)
- * Retired:                      r.wecare.digital  (2026-09-28)
+ * Retired:                      wecare.digital/r  (2026-09-28)
  *
  * The subdomain is GONE, not deprecated. Its Route 53 record was deleted by the owner
  * on 2026-09-28 under `YES R53-DELETE-001` (before-state in
@@ -51,7 +51,7 @@ import { Stack, RemovalPolicy, Duration, CfnOutput } from 'aws-cdk-lib';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as iam from 'aws-cdk-lib/aws-iam';
 // `aws-certificatemanager` and `aws-route53-targets` are no longer imported: both were
-// used only by the retired r.wecare.digital certificate and alias record.
+// used only by the retired wecare.digital/r certificate and alias record.
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import * as apigatewayv2 from 'aws-cdk-lib/aws-apigatewayv2';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
@@ -61,7 +61,7 @@ const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
 const ROOT_DOMAIN = 'wecare.digital';
 
 // The base that short links are published under. Carries a path, so it was never
-// interchangeable with the bare `r.wecare.digital` hostname this file used to also
+// interchangeable with the bare `wecare.digital/r` hostname this file used to also
 // declare — one constant served both purposes at one point, which is what made moving
 // the shortener onto a path look like it required giving up the subdomain.
 //
@@ -100,7 +100,7 @@ export function addLinkResources(stack: Stack) {
   });
 
   // No ACM certificate and no API Gateway custom domain here any more. Both existed
-  // solely to serve `r.wecare.digital`, which was retired on 2026-09-28 — see the
+  // solely to serve `wecare.digital/r`, which was retired on 2026-09-28 — see the
   // header. The apex `/r/<*>` proxy runs on the Amplify domain's own certificate, so
   // the shortener needs neither.
 
@@ -235,7 +235,7 @@ export function addLinkResources(stack: Stack) {
   // ═══════════════════════════════════════════
 
   // `ShortLinkDomainOutput` and `ShortLinkCertArn` are gone with the retired subdomain.
-  // The first published `https://r.wecare.digital` as the shortener's address, which is
+  // The first published `https://wecare.digital/r` as the shortener's address, which is
   // now a URL that does not resolve — a stack output naming a dead host is worse than
   // no output, because it reads as the authoritative answer to "where do short links
   // live?". They live under SHORT_LINK_BASE, below.

@@ -24,10 +24,7 @@ import os as _os
 #
 # retired legacy frontend host was removed when the hostname was retired: Amplify serves
 # the apex directly, and the subdomain was a 301 to it.
-# app.wecare.digital was removed on 2026-09-28 when that host was retired: the bucket,
-# the CloudFront distribution (ERCXSFDL0VM8X) and the DNS record were all deleted, so the
-# origin is NXDOMAIN. An allow-list entry for a hostname nobody resolves is a standing
-# offer to whoever can next claim the name - the same reasoning that removed
+# Legacy frontend host aliases are not allowed. Keep CORS scoped to canonical active origins.
 # retired legacy frontend host above.
 _PROD_ORIGINS = [
     'https://wecare.digital',

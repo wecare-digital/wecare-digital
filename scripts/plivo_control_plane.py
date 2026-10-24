@@ -110,7 +110,7 @@ CAPTURED_FIELDS = (
 )
 
 # §6 target webhook state.
-# Moved off the `api.wecare.digital` custom domain on 2026-09-26. The apex path is
+# Moved off the `wecare.digital/api` custom domain on 2026-09-26. The apex path is
 # served by an Amplify rewrite straight to the API Gateway execute-api endpoint, so
 # it no longer depends on that custom domain existing — which is the whole point,
 # since the domain is being retired.

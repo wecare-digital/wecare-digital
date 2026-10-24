@@ -2,7 +2,7 @@
 WhatsApp Unified Webhook + Call Control Handler (IVR Auto-Pickup Only)
 
 Purpose: Handle WhatsApp Business Calling API webhooks + IVR auto-pickup + message forwarding
-UNIFIED ENDPOINT: https://api.wecare.digital/whatsapp
+UNIFIED ENDPOINT: https://wecare.digital/api/whatsapp
 
 Routes (all under /whatsapp):
 - GET  /whatsapp                   → Webhook verification (hub.challenge)
@@ -250,7 +250,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     # Strip the API Gateway stage prefix BEFORE routing.
     #
-    # Measured in production: Meta posts to https://api.wecare.digital/whatsapp
+    # Measured in production: Meta posts to https://wecare.digital/api/whatsapp
     # and the event arrives with path "/prod/whatsapp", because the custom domain
     # mapping puts the stage in the path. "/prod/whatsapp" != "/whatsapp", so the
     # public webhook branch below was skipped and execution fell through to
@@ -1489,8 +1489,7 @@ def _outbound_call(event: Dict, request_id: str) -> Dict[str, Any]:
 SYSTEM_CONFIG_TABLE = os.environ.get('SYSTEM_CONFIG_TABLE', 'stack-wecare-digital-SystemConfigTable')
 MEDIA_BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
 # The PUBLIC host for media this function uploads, kept separate from the bucket.
-# The IVR greeting URL below was a HARDCODED 'https://app.wecare.digital/{key}',
-# which broke twice over on 2026-09-28: that host was deleted, and once it was
+# The IVR greeting URL uses the canonical apex media path; legacy media hostnames are not supported.
 # rebuilt it served with OriginPath=/o while this function writes to the bucket
 # root, so the old literal would have resolved to o/{key} and 404ed.
 CDN_DOMAIN = os.environ.get('CDN_DOMAIN', media_paths.CDN_DOMAIN)

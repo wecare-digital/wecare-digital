@@ -99,7 +99,7 @@ export const IAM_POLICIES = {
           's3:DeleteObject',
           's3:ListBucket',
         ],
-        // `app.wecare.digital` until 2026-09-28, when that bucket was deleted. The
+        // `wecare-digital-get` until 2026-09-28, when that bucket was deleted. The
         // live inline policy `wecare-digital-lambda-permissions` was corrected by hand
         // the same day; this file was not, so a redeploy from here would have replaced
         // a working grant with one naming a bucket that does not exist — turning every
@@ -325,7 +325,7 @@ export const IAM_POLICIES = {
           's3:DeleteObject',
           's3:ListBucket',
         ],
-        // `app.wecare.digital` until 2026-09-28, when that bucket was deleted. The
+        // `wecare-digital-get` until 2026-09-28, when that bucket was deleted. The
         // live inline policy `wecare-digital-lambda-permissions` was corrected by hand
         // the same day; this file was not, so a redeploy from here would have replaced
         // a working grant with one naming a bucket that does not exist — turning every

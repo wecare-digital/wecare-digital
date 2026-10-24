@@ -75,7 +75,7 @@ sections with no home in the target. They must be assigned before starting, beca
    rules for both slash forms, internal link updates, and a parity test asserting
    the redirect's *target*.
 5. **Keep the old route live** behind a redirect. Do not delete until traffic on it
-   is measured at zero — the same discipline applied to `r.wecare.digital`.
+   is measured at zero — the same discipline applied to `wecare.digital/r`.
 6. **A gate** that fails when a `[retired public path 2de923b8]/*` route exists with no redirect, so the
    migration cannot half-finish silently.
 

@@ -133,7 +133,7 @@ guessing:
 | `testNumberStates[]` | **UNKNOWN** |
 | Device capabilities | **UNKNOWN** |
 | `conversationApiAppDetails.channelStatus` | **UNKNOWN** — cannot confirm `ACTIVE`/`PENDING`/`FAILING` |
-| RCS webhooks registered at Sinch | **UNKNOWN** from the Sinch side; our receiving endpoint is `POST https://api.wecare.digital/webhook/sinch-rcs` |
+| RCS webhooks registered at Sinch | **UNKNOWN** from the Sinch side; our receiving endpoint is `POST https://wecare.digital/api/webhook/sinch-rcs` |
 
 The one operator signal we do have is a code comment, not a readback: the three
 templates are documented in both handlers as *"approved, Jio, MEDIUM height"*. If

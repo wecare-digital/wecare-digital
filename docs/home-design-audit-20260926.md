@@ -566,7 +566,7 @@ above) is filed against the wrong file. Checked against current source:
 | A.2 | No header nav, no footer | **obsolete** — `_app.tsx:579`, `:584`, `:1044`, `:1046` |
 | A.3 | Fake review schema | **still true, wrong file** — moved to `_app.tsx`, now on 17 pages (H1) |
 | A.4 | `foundingDate: 2020` | **still true, wrong file** — `_app.tsx:252`, on 123 pages (H1) |
-| A.5 | `api.wecare.digital/v1/...` examples | **obsolete** — no such example remains on this page |
+| A.5 | `wecare.digital/api/v1/...` examples | **obsolete** — no such example remains on this page |
 | A.6 | Vague stat placeholders | **obsolete** — none on this page |
 | A.7 | Fake `<button>` pills, `cursor:default` | **obsolete** — zero `<button>` in `index.tsx` |
 

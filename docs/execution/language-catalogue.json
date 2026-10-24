@@ -1,5 +1,5 @@
 {
-  "_note": "Response from GET https://api.wecare.digital/site-language/languages, captured live. Evidence behind RTL_BASE_LANGS in src/components/SupportWidget.tsx and the assertions in src/components/__tests__/rtlLanguage.test.tsx. Re-capture with: curl -s https://api.wecare.digital/site-language/languages",
+  "_note": "Response from GET https://wecare.digital/api/site-language/languages, captured live. Evidence behind RTL_BASE_LANGS in src/components/SupportWidget.tsx and the assertions in src/components/__tests__/rtlLanguage.test.tsx. Re-capture with: curl -s https://wecare.digital/api/site-language/languages",
   "_captured": "2026-09-26",
   "_entries": 76,
   "_rtlOffered": [

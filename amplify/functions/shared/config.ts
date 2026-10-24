@@ -73,7 +73,7 @@ export const SNS_TOPICS = {
 
 // Cognito
 //
-// SSO_DOMAIN moved off the `signin.wecare.digital` custom domain on 2026-09-26 and
+// SSO_DOMAIN moved off the `wecare-digital-auth.auth.us-east-1.amazoncognito.com` custom domain on 2026-09-26 and
 // onto the Cognito-provided prefix domain. The prefix domain was upgraded from
 // hosted UI classic (ManagedLoginVersion 1) to managed login v2 first, so the page
 // served is the same one: verified byte-for-byte equivalent apart from the hostname

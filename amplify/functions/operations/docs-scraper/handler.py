@@ -14,7 +14,7 @@ Runs as a container Lambda (see Dockerfile). Invoked by:
   - Frontend "list sources"       -> {"action": "list_sources"}
   - Frontend "changelog"          -> {"action": "changelog", "limit": 50}
 
-S3 layout (bucket: wecare-digital-get; was app.wecare.digital until 2026-09-28).
+S3 layout (bucket: wecare-digital-get; was wecare-digital-get until 2026-09-28).
 The `o/` root below is part of the key, matching PREFIX = media_paths.public(...):
   o/stream/media/docs/_sources.json                 list of sources (frontend-editable)
   o/stream/media/docs/_index.json                   {url: {hash, key, source, lastSeen}}

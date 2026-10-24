@@ -28,7 +28,7 @@ Send API:
 - POST https://convapi.aclwhatsapp.com/v1/projects/{projectId}/messages:send
 - Authorization: Bearer <token>
 
-DLR Webhook: POST https://api.wecare.digital/webhook/sinch-rcs
+DLR Webhook: POST https://wecare.digital/api/webhook/sinch-rcs
 DLR Events: MESSAGE_DELIVERY, EVENT_DELIVERY, MESSAGE_INBOUND, etc.
 
 Templates:

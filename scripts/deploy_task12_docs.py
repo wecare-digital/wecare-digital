@@ -9,7 +9,7 @@ import boto3
 
 REGION = "us-east-1"
 ACCOUNT = "775261844268"
-# CodeBuild source-artifact bucket. Was `app.wecare.digital`, which was deleted on
+# CodeBuild source-artifact bucket. Was `wecare-digital-get`, which was deleted on
 # 2026-09-28 — this was the last hard-coded S3 bucket literal in the tree naming it,
 # and the next run would have failed with NoSuchBucket.
 BUCKET = "wecare-digital-get"

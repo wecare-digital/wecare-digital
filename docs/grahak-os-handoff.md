@@ -632,7 +632,7 @@ page and reports a false failure. The old `rundev.sh` that did this was lost wit
 under dev and are dev-server infrastructure, not regressions: `_clientMiddlewareManifest.js`
 is served with a MIME type Chromium refuses, and the `_next/hmr` websocket cannot complete
 a handshake through this sandbox's networking. The third applies in **both** modes and is
-a local-origin artifact: `LanguageBar` fetches `api.wecare.digital/site-language`, which
+a local-origin artifact: `LanguageBar` fetches `wecare.digital/api/site-language`, which
 sends no `Access-Control-Allow-Origin` for `127.0.0.1`, so the request is refused by CORS.
 On the deployed site the page origin *is* `wecare.digital` and it succeeds. That entry is
 scoped to the one host, and the generic `Failed to load resource` line it also produces is

@@ -115,7 +115,7 @@ specific route, so the exact `POST /whatsapp/inbound` wins. Nothing to fix.
 
 Point **both** apps at one URL:
 
-    https://api.wecare.digital/whatsapp
+    https://wecare.digital/api/whatsapp
 
 That endpoint already does `hub.challenge` verification and dual-secret signature
 checking, so it is the one with fewer unknowns. `/whatsapp/inbound` would then need

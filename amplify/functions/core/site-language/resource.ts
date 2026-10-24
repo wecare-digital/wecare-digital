@@ -8,7 +8,7 @@
  * Runtime: Python 3.12
  * Region: us-east-1
  *
- * API Gateway routes on api.wecare.digital:
+ * API routes served through https://wecare.digital/api:
  *   GET  /site-language/languages  - dynamic Amazon Translate language list
  *   POST /site-language/translate  - cached translation; source defaults to auto
  *   GET  /site-language/voices     - dynamic Amazon Polly voice list

@@ -69,8 +69,7 @@ logger = get_logger(__name__)
 REGION = os.environ.get('AWS_REGION', 'us-east-1')
 
 # The greeting Plivo fetches for <Play>. Moved onto the apex `/get/o/` path on
-# 2026-09-26, when app.wecare.digital's objects were consolidated into
-# wecare-digital-get under the `o/` prefix.
+# Media is served from the canonical apex `/get/o/` path backed by wecare-digital-get.
 #
 # Verified equivalent before switching, because <Play> is what a real caller hears
 # and a 404 here is silence: same ETag (2479657262de…), same 738160 bytes, same
@@ -129,8 +128,7 @@ PSTN_DIAL_TIMEOUT = int(os.environ.get('PSTN_DIAL_TIMEOUT', '25'))
 # Where Plivo reports the dial outcome. This is the AUTHORITATIVE connected
 # signal; see lambda_utils/pstn/notifications.py.
 #
-# The default moved off `api.wecare.digital` on 2026-09-26 when that custom domain
-# was retired. It was unreachable rather than merely stale: this URL is handed to
+# The default uses the canonical apex `/api` path. This URL is handed to
 # Plivo inside `<Dial callbackUrl=...>`, so a dial would have reported its outcome
 # to a host that no longer resolves, silently losing the connected signal. It has
 # never fired in production only because PSTN_BROWSER_ROUTING_ENABLED is off - so
@@ -916,7 +914,7 @@ def handler(event, context):
     request_id = getattr(context, 'aws_request_id', 'local') if context else 'local'
 
     # Strip the API Gateway stage prefix. Measured: a request to
-    # https://api.wecare.digital/plivo/hangup arrives with
+    # a Plivo hangup request arrives with
     # rawPath="/prod/plivo/hangup", so matching rawPath directly sends every
     # callback to the default route - and if that default is the answer handler,
     # a hangup callback gets the IVR back, which re-answers a terminated call.

@@ -92,7 +92,7 @@ same-named template object from another WABA.
 | Voice number | `+918031830030` | Voice enabled, SMS disabled. Preserve binding. |
 | Application | `12775976954213184` / `WECARE-WHATSAPP-IVR`, SIP `sip:12775976954213184@app.plivo.com` | `default_endpoint_app=true` is protected. |
 | Endpoint | `543585900967411` / `WECARE-WhatsApp-IVR-SIP`, `sip:wecarewaivr203331794466262@phone.plivo.com` | Application SIP and endpoint SIP are different resources. |
-| Answer / hangup / fallback callbacks | `POST https://api.wecare.digital/plivo/{answer,hangup,fallback}?token=<REDACTED>` | The query token is a credential. `<REDACTED>` everywhere; resolve only by secret reference. |
+| Answer / hangup / fallback callbacks | `POST https://wecare.digital/api/plivo/{answer,hangup,fallback}?token=<REDACTED>` | The query token is a credential. `<REDACTED>` everywhere; resolve only by secret reference. |
 | Public URI | Not populated in the owner snapshot | Re-read before relying on absence. |
 
 ## Other provider identifiers — CARRIED FORWARD

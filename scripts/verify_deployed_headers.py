@@ -18,9 +18,9 @@ of bug, because the config was already correct.
 
 WHICH HOST, AND WHY IT IS NOT `app.`
 ------------------------------------
-Corrected 2026-09-25. This defaulted to `https://app.wecare.digital/`, which was a
+Corrected 2026-09-25. This defaulted to `https://wecare.digital/get/o/`, which was a
 **different distribution**: CloudFront `ERCXSFDL0VM8X` in front of the S3 bucket
-`app.wecare.digital`, serving media. Amplify's `customHeaders` are applied by
+`wecare-digital-get`, serving media. Amplify's `customHeaders` are applied by
 Amplify Hosting and never reached it, so the script reported
 
     live Permissions-Policy: (absent)
@@ -40,13 +40,13 @@ THE ASSETS GAP IS CLOSED, and the target moved (2026-09-29)
 -----------------------------------------------------------
 Two things changed underneath this script and both had left it reporting noise.
 
-1. `ASSETS_URL` still pointed at the retired `app.wecare.digital` host (written bare
+1. `ASSETS_URL` still pointed at the retired `wecare-digital-get` host (written bare
    here on purpose - `check_retired_origins.py` escalates a scheme-qualified retired
    host near the word "origin" to a violation, and it is right to: prose cannot be
    distinguished from an allow-list entry by inspection). That host and its
    distribution are **gone**: `get-distribution ERCXSFDL0VM8X` returns
    NoSuchDistribution, no distribution carries the alias, the name resolves to no
-   address, and `head-bucket app.wecare.digital` is 404. So the "report" printed
+   address, and `head-bucket wecare-digital-get` is 404. So the "report" printed
    only `request failed` - the exact learned-noise failure the section above warns
    about, reintroduced by a dead constant.
 
@@ -118,7 +118,7 @@ import urllib.request
 from pathlib import Path
 
 # The Amplify-hosted app, which is what `amplify.yml` customHeaders apply to.
-# NOT app.wecare.digital - see "WHICH HOST" above before changing this.
+# NOT wecare-digital-get - see "WHICH HOST" above before changing this.
 DEFAULT_URL = "https://wecare.digital/"
 
 # Reported, never gated. The media edge: CloudFront E2GP22R4BIFGQ3 over the S3 bucket
