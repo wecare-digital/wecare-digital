@@ -185,10 +185,10 @@ slot is left free.
 | WhatsApp | **0** |
 | RCS | **0** |
 
-Nothing in the two new templates uses `r.wecare.digital`, `wecare.digital/r/*`, or
+Nothing in the two new templates uses `wecare.digital/r`, `wecare.digital/r/*`, or
 `wa.me`. The live approved `wd_menu` and `rcsmenu` still carry the old
-`r.wecare.digital/wa` host; approved bodies are frozen, so they were left rather
-than pushed back into review — and that is why `r.wecare.digital` cannot be retired.
+`wecare.digital/r/wa` host; approved bodies are frozen, so they were left rather
+than pushed back into review — and that is why `wecare.digital/r` cannot be retired.
 
 ---
 
