@@ -14,7 +14,7 @@
           "token.actions.githubusercontent.com:repository_id": "1342943014"
         },
         "StringLike": {
-          "token.actions.githubusercontent.com:sub": "repo:*@319896805/*@1342943014:ref:refs/heads/stack"
+          "token.actions.githubusercontent.com:sub": "repo:*@319896805/*@1342943014:ref:refs/heads/wecare.digital"
         }
       }
     }
