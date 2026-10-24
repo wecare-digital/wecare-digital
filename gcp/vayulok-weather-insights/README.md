@@ -53,7 +53,7 @@ IAM policy or runtime environment.
 
 **Trigger configuration is external to this repository.** The Cloud Build trigger should:
 
-- watch only the production branch `^stack$`
+- watch only the production branch `^wecare\\.digital$`
 - use `gcp/vayulok-weather-insights/cloudbuild.yaml`
 - include only changes under `gcp/vayulok-weather-insights/**`
 
