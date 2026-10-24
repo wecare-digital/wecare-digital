@@ -9,7 +9,7 @@
 | `appsecret_proof` on Graph calls | ✅ | Computed HMAC-SHA256(token, app_secret) in outbound/inbound handlers |
 | Secrets in Secrets Manager (not code) | ✅ | `wecare/meta-system-user-token`, `wecare/meta-app-secret`, `wecare/flow-private-key` |
 | Secret values never logged | ✅ | Handlers log message ids/types, not tokens |
-| Admin API auth | ✅ (app-layer) | `require_auth` (Cognito JWT + role) enforced in handlers; `api.wecare.digital` returns 401 without token |
+| Admin API auth | ✅ (app-layer) | `require_auth` (Cognito JWT + role) enforced in handlers; `wecare.digital/api` returns 401 without token |
 | API Gateway authorizer | ⚠️ REVIEW | All 326 routes are `AuthorizationType=NONE` at the gateway; auth is enforced in-handler via `require_auth`. That single layer is why two separate in-handler gaps became directly internet-reachable (32 open routes, then `AUTH_SKIP_PATHS`). A gateway JWT authorizer would have contained both |
 | CORS | ⚠️ REVIEW | Gateway `AllowOrigins: *`; handlers echo specific origin. Tighten gateway to known origins |
 | Idempotency / dup webhooks | ⚠️ PARTIAL | dedup + DLQ + timeout-guard present; add explicit message-id dedup table if duplicates observed |
