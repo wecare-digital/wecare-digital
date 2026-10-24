@@ -201,7 +201,7 @@ tests enforce that. Do not add TTS to it.
 
 | Item | Disposition |
 |---|---|
-| `scripts/provider_allowlist.py` + `scripts/check_provider_allowlist.py`, run by `.github/workflows/provider-allowlist.yml` | **KEEP** (§44) — positive allow-list: any external provider not declared fails CI |
+| `scripts/provider_allowlist.py` + `scripts/check_provider_allowlist.py` | **KEEP** (§44) — positive allow-list; run explicitly before provider-related releases |
 | `.env.example` | **NEW** (§45) — only `.env.local.example` exists |
 | `scripts/test-aws-sms.sh`, `test-india-aws-sms.sh` | NEW (§46) |
 | `scripts/sync-sinch-rcs-templates` | NEW (§12) |
@@ -273,7 +273,7 @@ migration; removal is a separate, later step once nothing reads it.
 
 ## 13. Counts to drive §49 acceptance
 
-Enforced by `scripts/check_provider_allowlist.py` (CI: `.github/workflows/provider-allowlist.yml`),
+Enforced by `scripts/check_provider_allowlist.py` as an explicit operational gate,
 which passes on the current tree:
 
 ```
