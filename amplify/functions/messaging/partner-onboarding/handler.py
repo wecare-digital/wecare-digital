@@ -6,7 +6,7 @@ connects (onboards a new number) OR migrates an existing number to
 WECARE.DIGITAL through Facebook Login for Business on /partners/ or the in-app
 Connect WABA page.
 
-Routes (HTTP API zllr9lrg7j, base api.wecare.digital):
+Routes (HTTP API zllr9lrg7j, served through https://wecare.digital/api):
   POST   /partners/embedded-signup   public  — complete onboarding/migration
   GET    /partners/tenants           admin   — list connected accounts (+ live status)
   DELETE /partners/tenants           admin   — disconnect a tenant
