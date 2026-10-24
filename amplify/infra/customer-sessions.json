@@ -65,7 +65,13 @@
         },
         "PointInTimeRecoverySpecification": {
           "PointInTimeRecoveryEnabled": true
-        }
+        },
+        "Tags": [
+          {
+            "Key": "backup",
+            "Value": "daily"
+          }
+        ]
       }
     },
     "Role": {
