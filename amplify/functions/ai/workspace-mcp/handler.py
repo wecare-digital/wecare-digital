@@ -522,7 +522,7 @@ def code_submit(owner, args):
         table().put_item(Item={"pk": "job:" + owner + ":" + job_id, "owner": owner,
             "status": "dispatch_pending", "expectedBase": args["expectedBase"], "patchKey": key,
             "expiresAt": int(time.time()) + 2592000, "ttl": int(time.time()) + 2592000}, ConditionExpression="attribute_not_exists(pk)")
-    # Workflow exists only after this feature is merged into stack. Remain inert beforehand.
+    # Workflow is intentionally absent while code jobs are disabled. Remain inert until a reviewed workflow is restored.
     if os.environ.get("CODE_JOBS_ENABLED") != "true":
         return {"jobId": job_id, "status": "dispatch_pending", "reason": "Enable only after workflow is merged and its OIDC read role is configured"}
     try:
@@ -533,7 +533,7 @@ def code_submit(owner, args):
         raise Refusal("Job dispatch is already claimed") from None
     try:
         http("https://api.github.com/repos/wecare-digital/wecare-digital/actions/workflows/workspace-mcp-codechange.yml/dispatches",
-            {"ref": "stack", "inputs": {"expected_base": args["expectedBase"], "patch_key": key, "job_id": job_id}}, github_headers())
+            {"ref": "wecare.digital", "inputs": {"expected_base": args["expectedBase"], "patch_key": key, "job_id": job_id}}, github_headers())
     except Refusal:
         return {"jobId": job_id, "status": "dispatch_unknown", "reason": "Check job status before any retry; authorization or delivery was not confirmed"}
     table().update_item(Key={"pk": "job:" + owner + ":" + job_id},
@@ -550,7 +550,7 @@ def code_status(owner, args):
         raise Refusal("Job not found")
     result = {"jobId": job_id, "status": item["status"], "expectedBase": item["expectedBase"]}
     if item["status"] in {"dispatched", "dispatch_unknown"}:
-        runs, _ = http("https://api.github.com/repos/wecare-digital/wecare-digital/actions/workflows/workspace-mcp-codechange.yml/runs?branch=stack&event=workflow_dispatch&per_page=100", headers=github_headers())
+        runs, _ = http("https://api.github.com/repos/wecare-digital/wecare-digital/actions/workflows/workspace-mcp-codechange.yml/runs?branch=wecare.digital&event=workflow_dispatch&per_page=100", headers=github_headers())
         matches = [run for run in runs.get("workflow_runs", []) if run.get("display_title") == "Workspace MCP " + job_id]
         if matches:
             run = max(matches, key=lambda x: x["id"])
