@@ -213,9 +213,9 @@ These values are the last observed identifiers. Put the refreshed value, source,
 | Sinch RCS India | Template | name `rcsmenu`; provider template ID **UNVERIFIED** | Retrieve current ID/version/status from the India RCS account; Sinch is allowed only for India RCS |
 | Plivo | Voice number | `+918031830030`; Bangalore, India; local | Linked to application `12775976954213184`; voice enabled and SMS disabled in the last verified inventory. Preserve binding until approved cutover |
 | Plivo | Application | ID `12775976954213184`; name `WECARE-WHATSAPP-IVR`; SIP `sip:12775976954213184@app.plivo.com` | Default Number Application for Voice. Preserve protected fields and callback methods; do not infer Messaging enablement from adjacent console headings |
-| Plivo | Answer callback | `POST https://api.wecare.digital/plivo/answer?token=<REDACTED>` | Query token is a credential, not configuration evidence. Resolve it by secret reference at runtime and redact it from code, shell history, logs, docs, screenshots and reports |
-| Plivo | Hangup callback | `POST https://api.wecare.digital/plivo/hangup?token=<REDACTED>` | Same protected callback-token family; validate the exact public URL/method/signature behavior without printing its value |
-| Plivo | Fallback callback | `POST https://api.wecare.digital/plivo/fallback?token=<REDACTED>` | Same protected callback-token family; preserve the fallback binding and test safe failure behavior |
+| Plivo | Answer callback | `POST https://wecare.digital/api/plivo/answer?token=<REDACTED>` | Query token is a credential, not configuration evidence. Resolve it by secret reference at runtime and redact it from code, shell history, logs, docs, screenshots and reports |
+| Plivo | Hangup callback | `POST https://wecare.digital/api/plivo/hangup?token=<REDACTED>` | Same protected callback-token family; validate the exact public URL/method/signature behavior without printing its value |
+| Plivo | Fallback callback | `POST https://wecare.digital/api/plivo/fallback?token=<REDACTED>` | Same protected callback-token family; preserve the fallback binding and test safe failure behavior |
 | Plivo | Public URI | Not populated in the owner-supplied console snapshot | Re-read through Plivo before relying on absence; never invent or enable a public URI |
 | Plivo | Endpoint | ID `543585900967411` from earlier readback; alias `WECARE-WhatsApp-IVR-SIP`; username `wecarewaivr203331794466262`; SIP `sip:wecarewaivr203331794466262@phone.plivo.com` | Listed as a linked endpoint. Application SIP and endpoint SIP are distinct resources; never expose endpoint credentials |
 
@@ -393,7 +393,7 @@ Use only this live flow:
 
 ```text
 Meta WABA webhook
-  -> POST https://api.wecare.digital/whatsapp
+  -> POST https://wecare.digital/api/whatsapp
   -> exact raw-body X-Hub-Signature-256 verification
   -> idempotent field dispatcher
        calls              -> WhatsApp Calling service
@@ -677,9 +677,9 @@ Protected Plivo baseline (refresh through read-only API inspection):
 | Application SIP URI | sip:12775976954213184@app.plivo.com |
 | Default Number Application | Voice; do not infer Messaging enablement from the console layout |
 | Number | +918031830030; Bangalore, India; local; linked to that application |
-| Answer URL | POST `https://api.wecare.digital/plivo/answer?token=<REDACTED>` |
-| Hangup URL | POST `https://api.wecare.digital/plivo/hangup?token=<REDACTED>` |
-| Fallback Answer URL | POST `https://api.wecare.digital/plivo/fallback?token=<REDACTED>` |
+| Answer URL | POST `https://wecare.digital/api/plivo/answer?token=<REDACTED>` |
+| Hangup URL | POST `https://wecare.digital/api/plivo/hangup?token=<REDACTED>` |
+| Fallback Answer URL | POST `https://wecare.digital/api/plivo/fallback?token=<REDACTED>` |
 | Public URI | Not populated in the owner-supplied snapshot; refresh before relying on absence |
 | Endpoint | Prior readback ID 543585900967411; linked alias WECARE-WhatsApp-IVR-SIP |
 | Endpoint username | wecarewaivr203331794466262 |
@@ -962,7 +962,7 @@ Target backend text diagram with known IDs:
 META WHATSAPP MESSAGING
 Meta app 2238810740192680
   -> WABA 2094615664435155 / phone ID 1016149501586345 / +919330994400
-  -> GET/POST https://api.wecare.digital/whatsapp
+  -> GET/POST https://wecare.digital/api/whatsapp
   -> API Gateway zllr9lrg7j (stage observed prod; normalize exactly one stage prefix)
   -> whatsapp-calling ingress Lambda live alias (refresh physical version/hash)
        -> raw-body X-Hub-Signature-256 verification + replay/dedup ledger
@@ -975,7 +975,7 @@ PLIVO PSTN INCOMING
 External PSTN caller
   -> +918031830030
   -> Plivo application 12775976954213184 (WECARE-WHATSAPP-IVR)
-  -> POST https://api.wecare.digital/plivo/answer?token=<REDACTED>
+  -> POST https://wecare.digital/api/plivo/answer?token=<REDACTED>
   -> plivo-answer Lambda live alias (refresh version/hash)
   -> XML Dial/User -> endpoint ID 543585900967411
   -> authenticated Browser SDK agent
