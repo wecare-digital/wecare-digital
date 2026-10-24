@@ -20,7 +20,7 @@ WhatsApp Flows system-rendered UI text (e.g., "(optional)" field markers and "Ma
 - **Flow JSON Version:** 7.3
 - **Data API Version:** 4.0
 - **Flow Status:** PUBLISHED
-- **Data Endpoint:** `https://api.wecare.digital/wa-business/flow-data`
+- **Data Endpoint:** `https://wecare.digital/api/wa-business/flow-data`
 
 ## Environment
 
@@ -63,7 +63,7 @@ The Flow JSON does NOT contain any Portuguese text. All text is hardcoded in Eng
 
 1. **Flow trigger message (outbound webhook):** The flow is sent via `POST /messages` with `interactive.type=flow`. The payload contains `flow_id`, `flow_cta`, `flow_action`, `flow_token`, `body.text`, and `footer.text`. There is NO `language` or `locale` parameter in the WhatsApp Flows interactive message spec (unlike message templates which have `language.code`). The footer text sent is "WECARE.DIGITAL" (English). **No Portuguese text is sent.**
 
-2. **Data endpoint INIT response:** When the user opens the flow, Meta sends an encrypted INIT request to `https://api.wecare.digital/wa-business/flow-data`. The handler decrypts it and calls `subscribe.handle_init()` which returns:
+2. **Data endpoint INIT response:** When the user opens the flow, Meta sends an encrypted INIT request to `https://wecare.digital/api/wa-business/flow-data`. The handler decrypts it and calls `subscribe.handle_init()` which returns:
    ```json
    {"screen": "PERSONAL_INFO", "data": {}}
    ```
