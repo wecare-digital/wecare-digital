@@ -36,7 +36,7 @@ and its lifecycle is not a deploy-role concern.
 TRUST. Identical in shape to the route-auth role and written to agree with
 `scripts/fix_github_oidc_trust.py`: GitHub OIDC provider, audience pinned, the two
 numeric ids pinned as their own condition keys, name segments wildcarded inside `sub`
-so a repo/owner rename cannot silently break it, branch-scoped to `stack`. Keep this
+so a repo/owner rename cannot silently break it, branch-scoped to `wecare.digital`. Keep this
 file and `fix_github_oidc_trust.py` writing the SAME trust document, or whichever runs
 last wins and the rename drift returns.
 
@@ -63,7 +63,7 @@ OWNER_ID = "319896805"
 REPO_ID = "1342943014"
 OWNER = "wecare-digital"
 REPO = "wecare-digital"
-BRANCH = "stack"
+BRANCH = "wecare.digital"
 
 # The one function this role deploys, and the shared layer the validation step reads.
 FUNCTION = "wecare-checkout"
@@ -221,7 +221,7 @@ def verify() -> int:
             statement["Principal"].get("Federated") == OIDC_PROVIDER,
         "audience pinned to sts.amazonaws.com":
             equals.get("token.actions.githubusercontent.com:aud") == "sts.amazonaws.com",
-        "restricted to branch stack":
+        "restricted to branch wecare.digital":
             subject.endswith(f":ref:refs/heads/{BRANCH}"),
         "subject is not a bare wildcard":
             subject not in ("*", ""),
