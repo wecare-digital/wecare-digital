@@ -17,7 +17,7 @@ subtree. Otherwise the common steering file above governs repository work.
 
 - Match the surrounding file and existing architecture before introducing a new pattern.
 - Do not assume a branch name. Inspect the current/default branch and preserve concurrent work.
-- Run the verification gates required by `.kiro/steering/10-project.md` for the files changed.
+- Run the verification gates required by `.kiro/steering/00-common.md` for the files changed.
 - Treat public SEO, permission handling, device compatibility, and the public mobile foundation
   as acceptance criteria, not optional cleanup.
 
