@@ -105,7 +105,7 @@ const LIVE_SAMPLE_VIEWPORT = 1280;
  * through this sandbox's networking. Neither can occur against the static export.
  *
  * One is a LOCAL-ORIGIN artifact and applies to both modes: LanguageBar fetches
- * api.wecare.digital, which sends no Access-Control-Allow-Origin for 127.0.0.1 or
+ * wecare.digital/api, which sends no Access-Control-Allow-Origin for 127.0.0.1 or
  * localhost, so the request is refused by CORS. On the deployed site the page origin IS
  * wecare.digital and the call succeeds. It is scoped to that one host, and the generic
  * "Failed to load resource" line it also produces is matched by the REQUEST URL rather
