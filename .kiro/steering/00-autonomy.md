@@ -48,7 +48,7 @@ coder→reviewer→owner-decision ceremony entirely.
 ## No retired test-suite assumptions
 
 The repository intentionally has no workflow directory and no unit/integration test suite.
-Do not recreate or invoke pytest/Vitest/workflow gates. Validate changes with the production
+Do not recreate retired automation or test-suite gates. Validate changes with the production
 build, TypeScript checks, targeted compile checks, and purpose-built operational verification
 scripts that still exist.
 
