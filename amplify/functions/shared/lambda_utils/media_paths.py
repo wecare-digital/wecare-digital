@@ -148,7 +148,7 @@ PUBLIC_STREAM_MEDIA_REPORTS_PREFIX = PUBLIC_STREAM_MEDIA_ROOT + "reports/"
 PUBLIC_STREAM_MEDIA_DOCS_PREFIX = PUBLIC_STREAM_MEDIA_ROOT + "docs/"
 PUBLIC_STREAM_MEDIA_FLAGS_PREFIX = PUBLIC_STREAM_MEDIA_M_PREFIX + "flags/"
 
-# Deployment marker: retrigger production runtime workflows after PR #1362 merge.
+# Deployment marker retained from the media-prefix migration; runtime deployment is explicit.
 #: The single media bucket. Everything below lives here.
 BUCKET = "wecare-digital-get"
 
