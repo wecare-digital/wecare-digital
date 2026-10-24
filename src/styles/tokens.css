@@ -342,7 +342,7 @@
    * ======================================== */
   --max-width-wide: 1400px;
 
-  /* TAP TARGET - the minimum hit area the device-compat contract (.kiro/steering/20-device-compat.md)
+  /* TAP TARGET - the minimum hit area the device-compat contract (.kiro/steering/00-common.md)
    * requires: 44x44px. --tap-min is the canonical NAME the unified-mobile pass standardises on;
    * --tap-target is kept as an alias so existing consumers (form-controls.css, DesignReference.tsx)
    * and the pinning tests (FormControlsCss.test.ts, OrdersPage.test.tsx) keep resolving to 44px and

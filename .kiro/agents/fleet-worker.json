@@ -26,20 +26,41 @@
   "resources": [
     "file://README.md",
     "file://tools/browser/README.md",
-    "file://.kiro/steering/00-autonomy.md",
-    "file://.kiro/steering/10-project.md",
-    "file://.kiro/steering/20-device-compat.md",
-    "file://.kiro/steering/30-seo.md",
-    "file://.kiro/steering/40-permissions.md"
+    "file://.kiro/steering/00-common.md"
   ],
   "permissions": {
     "rules": [
-      { "capability": "shell", "effect": "allow", "match": ["*"] },
-      { "capability": "fs_read", "effect": "allow" },
-      { "capability": "fs_write", "effect": "allow" },
-      { "capability": "web_search", "effect": "allow" },
-      { "capability": "web_fetch", "effect": "allow" },
-      { "capability": "mcp", "effect": "allow", "match": ["*", "*/*"] }
+      {
+        "capability": "shell",
+        "effect": "allow",
+        "match": [
+          "*"
+        ]
+      },
+      {
+        "capability": "fs_read",
+        "effect": "allow"
+      },
+      {
+        "capability": "fs_write",
+        "effect": "allow"
+      },
+      {
+        "capability": "web_search",
+        "effect": "allow"
+      },
+      {
+        "capability": "web_fetch",
+        "effect": "allow"
+      },
+      {
+        "capability": "mcp",
+        "effect": "allow",
+        "match": [
+          "*",
+          "*/*"
+        ]
+      }
     ]
   },
   "includeMcpJson": true
