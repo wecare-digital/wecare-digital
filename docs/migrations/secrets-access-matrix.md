@@ -50,7 +50,7 @@ IAM readers = roles whose policies allow `secretsmanager:GetSecretValue` on a pa
 - `wecare/aws/iam-access-keys`: `scripts/audit_secrets_structure.py`, `scripts/sync_webhook_registry.py`
 - `wecare/backup/recovery-passphrase`: `scripts/secrets_backup.py`
 - `wecare/bing/api`: `.env.local.example`, `amplify/functions/shared/lambda_utils/integrations/registry.py`, `src/config/analytics.ts`, `src/content/integration-registry.json`
-- `wecare/config/webhook-registry`: `amplify/infra/webhook-registry-migration.json`, `scripts/sync_webhook_registry.py`
+- `wecare/config/webhook-registry`: `scripts/sync_webhook_registry.py`
 - `wecare/flow-private-key`: `wecare-whatsapp-business-api.FLOW_PRIVATE_KEY_SECRET`, `.env.local.example`, `amplify/functions/messaging/whatsapp-business-api/handler.py`, `config/lambda-env-manifest.json`, `scripts/secrets_backup.py`, `src/pages/workspace/dashboard/system-architecture.tsx`
 - `wecare/github-pat`: `amplify/functions/ai/workspace-mcp/handler.py`, `amplify/infra/workspace-mcp.json`, `scripts/google-cloud-setup.sh`
 - `wecare/google-maps`: `.github/workflows/build-test.yml`, `amplify/functions/messaging/whatsapp-templates/handler.py`, `scripts/audit_secrets_structure.py`, `scripts/block_catastrophic.py`, `scripts/check_secrets_live.py`, `scripts/maintenance_report.py`, `scripts/provision_vayulok_environment.py`, `scripts/secrets_backup.py`, `scripts/store_provider_secret.py`, `scripts/verify_public_bundle_secrets.py`, `scripts/verify_secret_hook.py`
