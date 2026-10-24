@@ -165,7 +165,7 @@ const VayuLokPage: React.FC = () => {
           frame="Nano Climates"
           words={ cycleWords }
           pillKey={ mode }
-          sub="Ultra-precise air and weather intelligence to understand conditions, change, and emerging patterns."
+          sub={ <>Ultra-precise air and weather intelligence<br />to understand conditions, change,<br />and emerging patterns.</> }
           visual={ (
           <div className="vl-hero-visual">
             <VayuLokApprovedGlobe
@@ -215,7 +215,7 @@ const VayuLokPage: React.FC = () => {
         .vl-page :global(.rh-layout){gap:48px;padding-bottom:32px}
         .vl-page :global(.rh-split){display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:24px;align-items:center}
         .vl-page :global(.rh-hero){align-self:start;padding-top:8px}
-        .vl-page :global(.rh-sub){max-width:560px}
+        .vl-page :global(.rh-sub){max-width:470px}
         .vl-hero-visual{min-width:0;width:100%;display:flex;justify-content:flex-start;align-items:center;transform:translate(-28px,20px)}
         .vl-hero-visual :global(.vag-shell){width:min(116%,840px);max-width:840px}
 
