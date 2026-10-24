@@ -132,7 +132,7 @@ site, not `out/`.**
 | No CSP on the public site | `MEDIUM` | `wecare.digital` returns HSTS, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` — and no `Content-Security-Policy` |
 | 6 retired-provider CloudFormation stacks | `LOW` | `wecare-elevenlabs-{init,mcp,mcp-enable,call-hooks,postcall-sms}` and `wecare-temp-code-inspector`, all 2026-09-19. Retirement candidates; deletion needs pointwise confirmation |
 | 8 stale `chatgpt/*` Amplify branches | `LOW` | Auto-build disabled on all 8; `stack` is the only PRODUCTION branch |
-| No CodePipeline or CodeBuild | `INFORMATIONAL` | Both empty. CI/CD is GitHub Actions plus Amplify — so "existing deployment pipelines" means those two, not CodePipeline |
+| No CodePipeline or CodeBuild | `INFORMATIONAL` | Both empty. Production deployment is Amplify Hosting on `wecare.digital`; GitHub Actions workflows are retired. |
 | EventBridge is the only scheduler | `INFORMATIONAL` | 6 rules on `default`; EventBridge Scheduler has 0 schedules |
 
 ---
@@ -141,7 +141,6 @@ site, not `out/`.**
 
 ```bash
 python scripts/provision_waf.py --verify      # WAF association, per resource
-python -m pytest tests/test_waf_coverage.py
 python scripts/generate_runtime_inventory.py  # Lambda, routes, tables, traffic
 python scripts/session_map.py                 # who else is writing to this tree
 aws sts get-caller-identity                   # must report 775261844268

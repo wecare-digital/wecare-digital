@@ -31,7 +31,7 @@ owns identity, verification, session, address, and the public web.
 
 `AuthorizationType=NONE` must not be read as "unauthenticated". It means the gateway is not
 deciding. Whether a route is protected has to be asserted **per handler** — and the reverse
-error is just as real: the `route-auth` workflow exists because a substring match once let
+error is just as real: the route-auth verification exists because a substring match once let
 `/wa-business/webhooks-anything` through an exemption intended for `/wa-business/webhooks`.
 
 ---
@@ -257,7 +257,7 @@ when the configuration reads as intended.
   the key into a URL query string, which matters specifically because the server key carries
   no application restriction: a URL-borne key reaches provider access logs, request tracing,
   and — through the handler's own failure paths — a 502 body and a CloudWatch line.
-  `tests/test_places_new_server_transport.py` pins both the header and the absence of any
+  the server-transport verification pins both the header and the absence of any
   `key=` parameter.
 - **It deliberately carries no application restriction**, and that is a considered trade, not
   an oversight. Lambda has no stable egress IP, so `--allowed-ips` is unavailable. A key with

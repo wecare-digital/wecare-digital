@@ -7,8 +7,8 @@ The web application installs from root package.json/package-lock.json with npm c
 | src/, public/, content/, config/ | Web UI, assets, catalogue and routing | Preserve deep links and shared component contracts; verify typecheck, export and browser checks. |
 | amplify/functions/ | Python Lambda handlers and shared runtime | Scope release archives to intended behavior; capture live versions and move aliases only after exact-package checks. |
 | amplify/infra/, amplify/*.ts | Infrastructure and separate backend npm root | Preserve resource identity and customer history; review changes before apply. |
-| scripts/ | Manual operational entry points and build/verification tooling | Absence of a source import is not proof a script is unused; check runbooks and workflows. |
-| tests/, src/test/, tools/browser/ | Offline and browser verification | Keep runtime/provider boundary tests; never delete tests simply to clear failures. |
+| scripts/ | Manual operational entry points and build/verification tooling | Absence of a source import is not proof a script is unused; check runbooks and operational callers. |
+| tools/browser/ | Browser and visual verification utilities | Keep only utilities with an active operational or review use. |
 | docs/execution/, docs/whatsapp/, seo/output/ | Dated decisions, rollout evidence and retained legacy contracts | Historical counts are snapshots; link to current evidence rather than overwriting history. |
 | .kiro/work/, .scratch/ | Ignored per-task planning and scratch | Check active sessions before deleting their working data. |
 | android/, ios/, native/ | Retained post-project packaging | Web project closure does not require store releases; preserve resources. |
@@ -37,10 +37,8 @@ wecare-digital/
 │   ├── functions/        Domain Lambda handlers
 │   │   └── shared/       Shared runtime contracts and helpers
 │   └── infra/            Resource ownership and deployment definitions
-├── tests/                Offline Python handler/contract tests
 ├── scripts/              Build, operational and verification entry points
 ├── tools/                Browser, export, schema and navigation audits
-├── .github/workflows/    Build, policy and release automation
 ├── .kiro/                Current agents/hooks/settings/specs and task state
 ├── config/, content/     Shared generated/build and operational inputs
 ├── migration/            Retained migration batches with active glob consumers

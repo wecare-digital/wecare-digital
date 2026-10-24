@@ -3,7 +3,7 @@
   "account": "775261844268",
   "region": "us-east-1",
   "repository": "wecare-digital/wecare-digital",
-  "deploymentBranch": "stack",
+  "deploymentBranch": "wecare.digital",
   "metaOAuthVersion": "v26.0",
   "connections": {
     "meta-social": {
@@ -59,9 +59,7 @@
     "github": {
       "kind": "sdk",
       "tools": [
-        "github_status",
-        "code_job_submit",
-        "code_job_status"
+        "github_status"
       ]
     },
     "razorpay": {

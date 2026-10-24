@@ -11,13 +11,10 @@ Kiro or Codex runs `scripts/workspace_mcp_proxy.py` as its stdio MCP client. The
 bridge uses the existing `wecare-prod` profile to sign requests to the API Gateway
 IAM route. The Lambda calls remote MCP servers only with independently authorized
 credentials. Its fixed SDK adapters read AWS, GitHub and Razorpay; Google
-Cloud and Ads use separate cloud OAuth grants. GitHub Actions owns supplied-patch
-testing and committing.
+Cloud and Ads use separate cloud OAuth grants. GitHub access is read-only status inspection; there is no workflow-backed code-job path.
 
 The reasoning model stays in the client. There is no new Bedrock/OpenAI model,
-arbitrary shell tool or unrestricted AWS script runner. Backend infrastructure is
-activated separately after merge. An enabled patch job pushes to stack, so the
-existing Amplify stack pipeline may then publish the tested frontend changes.
+arbitrary shell tool or unrestricted AWS script runner. Backend infrastructure is activated separately after merge. Production frontend deployment is owned only by Amplify on `wecare.digital`.
 
 ```mermaid
 flowchart LR
@@ -30,9 +27,7 @@ flowchart LR
   Router --> KMS[KMS encrypted OAuth custody]
   Router --> Meta[Meta remote MCP servers]
   Router --> AWS[Scoped AWS SDK reads]
-  Router --> GH[GitHub status / fixed workflow dispatch]
-  GH --> Test[Read patch / test without write credentials]
-  Test --> Commit[Fresh runner / revalidate exact base / commit]
+  Router --> GH[GitHub repository status read]
 ```
 
 ## Authentication
@@ -70,8 +65,6 @@ Amplify rewrite rules or provider credentials are modified by this stack.
 | `provider_read` | Allows selected Meta app reads for app 2238810740192680, or WhatsApp business-list only |
 | `aws_status` | Reads account identity and the two MCP live aliases |
 | `github_status` | Checks this repository using `wecare/github-pat`, field `token`, resolved inside Lambda |
-| `code_job_submit` | Persists a bounded supplied patch and returns a deterministic job ID; workflow dispatch starts disabled |
-| `code_job_status` | Reports the caller's job; queries matching workflow runs after dispatch |
 
 Meta Social includes app-list, selected app settings and API usage/deprecation reads.
 WhatsApp deliberately stops at business-list: business selection and existing-number
@@ -108,99 +101,39 @@ authenticated initialize/tools-list only, recorded as authenticated, not
 verified account data. Ad-tool execution remains disabled. Ordinary WhatsApp Graph
 authorization saved by the callback is not proof that its MCP is connected.
 
-## Build and review
+## Build and deployment
 
-Use Python 3.12 and the existing repository virtual environment. Install the dedicated
-requirements into a fresh scratch directory, never into an unrelated session's venv:
-
-```sh
-.venv/bin/python -m pip install --target .scratch/workspace-mcp/dependencies \
-  --no-compile -r amplify/functions/ai/workspace-mcp/requirements.txt
-.venv/bin/python -m pytest tests/test_workspace_mcp.py tests/test_mcp_server.py
-.venv/bin/python scripts/build_workspace_mcp.py \
-  --dependencies .scratch/workspace-mcp/dependencies
-```
+Use Python 3.12 and the existing repository environment. Build the deterministic
+Lambda package with `scripts/build_workspace_mcp.py`; no pytest/Vitest or GitHub
+workflow is part of this path. Validate with targeted compile/build checks and the
+deployer's live verification modes.
 
 The builder verifies all dependency pins, bundles the SDK rather than relying on
 the Lambda runtime's unknown SDK version, and produces a deterministic ZIP plus
 SHA-256 deployment manifest. All dependencies are portable pure Python. Native
 wheels, unexpected distributions and mismatched pins are refused.
 
-## Activate after the later merge
+## Deployment
 
-1. Merge the reviewed feature into `stack`, rerun checks on the exact merged tree,
-   rebuild the package and rediscover the current AWS routes/resources. No merge is
-   performed as part of this build.
-2. Confirm account 775261844268, us-east-1, the existing artifact bucket, alarm topic,
-   GitHub OIDC provider and secret ARN. Snapshot current routes, stages, authorizers,
-   public MCP live alias and any prior administrative stack outputs. Capture prior
-   administrative live version before any later update.
-3. With AWS MCP, obtain an upload URL for the manifest's S3 key and upload the exact
-   ZIP. Call `ValidateTemplate`, then `CreateChangeSet` for `wecare-workspace-mcp`,
-   with the manifest's parameters and `CAPABILITY_NAMED_IAM`. Review the change set:
-   additions only for this first release; no unrelated resource replacements.
-4. Execute the reviewed change set and wait for `CREATE_COMPLETE`. The standalone
-   SDK deployment script produces the same change set when MCP is unavailable. It
-   refuses activation from a feature branch. Existing `/api/*` forwarding carries
-   the staff endpoint and callback; the SigV4 bridge uses execute-api directly to
-   avoid proxy transformations of its signed request.
-5. Confirm unauthenticated IAM/staff requests fail, invalid origins fail, valid
-   owner bridge `initialize`/`tools/list`/`aws_status` work, and public `/mcp` retains
-   its original read-only tools. IAM-level direct Lambda invocation can exercise
-   fixture events, but is not evidence of a real staff sign-in.
-6. Add the example `wecare-workspace` server to Kiro/Codex alongside existing entries,
-   set `disabled` false only after deployment, and run the bridge. The example paths
-   point to the primary checkout after merge, not this temporary checkout.
-7. Register the exact HTTPS callback above in Meta app 2238810740192680 for
-   Meta Ads, enable its Ads MCP use case, and run connection_authorize for
-   meta-ads. Complete owner consent and check authenticated tool discovery.
-   Meta Social and WhatsApp still need supported MCP client registration;
-   until their authorized reads succeed, report them as unverified.
-   No system-user Graph token is
-   substituted for this MCP OAuth flow. The provider OAuth version in config is
-   v26.0, as advertised by Meta's server metadata on 2026-10-01; this does not bump
-   the rest of the application's Graph API calls.
-8. Verify `github_status`. The runtime secret's field names were checked through
-   an asm-exec dynamic reference without printing values. Its actual repository
-   and workflow permissions still require the runtime verification.
+Deploy only from the production branch using the reviewed workspace-MCP deployment
+script/CloudFormation path. Confirm account 775261844268 and us-east-1, review the
+change set, preserve the existing API routes and aliases, and verify `initialize`,
+`tools/list`, `aws_status`, `github_status`, and provider reads after deployment.
+The workspace MCP does not create, dispatch, or monitor GitHub workflows.
 
-## Supplied patch jobs
+## Retired supplied patch path
 
-The first-release patch allowlist is eight existing public presentation components
-in `patch_policy.py`. It excludes backend handlers, checkout/payment logic,
-authentication, tests, workflows, policies and secrets. No deletes, new files,
-renames, binary patches or mode changes are permitted. Git diff headers and
-`---`/`+++` headers must both match. Input is capped at 32 KiB and bound to an exact
-40-character base commit; the artifact identity is a caller/base/content checksum.
+The former supplied-patch code-job feature and its GitHub Actions/OIDC path are retired.
+`code_job_submit`, `code_job_status`, patch-policy/gate files, patch S3 permissions,
+the OIDC read role, and workflow dispatch/status logic must not be recreated.
 
-The workflow separates AWS-authenticated artifact fetch, tests without write/AWS
-credentials, and a fresh commit runner. It reruns the immutable path/checksum/base
-validation before committing only those explicit files and pushing non-force to
-stack. A moved branch fails; it must be resubmitted and retested against the new
-base. The workflow runs typecheck, frontend tests, build, public manifest and export
-secret gates. It does not directly deploy backend resources. Ordinary stack CI and
-the existing Amplify frontend pipeline follow its push.
+## Live activation history
 
-The final commit runner uses checkout's managed GitHub authentication. The patch
-test runner has no write authentication. Supplied patch paths must resolve inside
-the checkout and meet the size bound before reading.
-
-After merge, set repository variable `WORKSPACE_MCP_PATCH_READ_ROLE_ARN` to the stack
-output. The role only reads the patch prefix. Confirm workflow dispatch permission
-on the runtime GitHub credential, then deliberately enable `CODE_JOBS_ENABLED` in
-the IaC and redeploy. Leaving the flag off stores jobs as `dispatch_pending`.
-Dispatch ambiguity stays `dispatch_unknown`; it is never reported as success or
-blindly retried. Status queries inspect only the latest 100 matching workflow runs;
-older runs require an explicit GitHub audit.
-
-## Live activation on 2026-10-01
-
-PR #179 is merged into stack. The CloudFormation stack is deployed successfully,
+PR #179 was merged into the then-production branch. The CloudFormation stack is deployed successfully,
 and the administrative MCP live alias points to version 1. IAM-signed initialization,
-eight-tool discovery, registry reads and AWS/GitHub SDK reads passed live checks.
+the original tool discovery, registry reads and AWS/GitHub SDK reads passed live checks.
 The new server is enabled in local Kiro and Codex configuration; reload each client.
-Meta Social and WhatsApp still require separate cloud browser consent. Code-job
-dispatch remains disabled. See `execution/workspace-mcp-live-20261001.md` for exact
+Meta Social and WhatsApp still require separate cloud browser consent. The later code-job/workflow feature has since been retired. See `execution/workspace-mcp-live-20261001.md` for exact
 evidence, remaining verification and the retained proxy path used by local clients.
 
 ## Cost, audit and rollback
@@ -215,8 +148,7 @@ throttling. KMS, storage, backup, requests and provider usage can incur charges;
 the architecture is not guaranteed free. A dedicated KMS key has a recurring cost.
 No WAF or Security Hub is introduced.
 
-For an initial rollout failure, disable the new Kiro/Codex server and keep code jobs
-off. Remove only this stack's newly added integrations/routes/authorizer through
+For an initial rollout failure, disable the new Kiro/Codex server. Remove only this stack's newly added integrations/routes/authorizer through
 its reviewed IaC rollback, subject to destructive-operation rules. Registry/KMS
 resources have retain policies. For later code releases, restore the captured prior
 live alias version and matching IaC. Never roll back checkout, public `/mcp`, other

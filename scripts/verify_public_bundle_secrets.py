@@ -39,23 +39,17 @@ read - which is prohibited anyway (``.kiro/steering/aws-agent-rules.md``).
 Values are never printed. Findings are reported as file + fingerprint + length,
 the metadata set sanctioned by ``.kiro/steering/plaintext-source-policy.md``.
 
-WHERE THIS HAS TO RUN, AND WHY CI IS NOT ENOUGH
+WHERE THIS HAS TO RUN
 -----------------------------------------------
 Scanning ``out/`` only catches the key if the build that produced ``out/`` had the
-variable set. GitHub Actions does **not** set ``NEXT_PUBLIC_GOOGLE_BROWSER_KEY``, so
-the CI copy of this check scans an export that never contained a key and passes
-trivially. The build that matters is **Amplify's**, because that is where the
-branch environment variables exist.
+variable set. The production Amplify build is authoritative because that is where
+the branch environment variables exist.
 
-So this check is wired in three places, deliberately:
+This check is wired into the production build deliberately:
 
   1. ``amplify.yml`` build phase - the real gate. Runs inside the Amplify build,
      after ``npm run build``, where the variable is present. Fails the build
      before anything is deployed.
-  2. ``.github/workflows/build-test.yml`` - a weak backstop. It cannot see Amplify
-     variables, so it only catches a credential committed into the source tree.
-  3. ``--amplify-env`` - reads the Amplify branch variables over the API and
-     fingerprints them, so the answer is available without waiting for a build.
 
 Usage
 -----

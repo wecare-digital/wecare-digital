@@ -194,7 +194,7 @@ function is invoked.
   Manager read that `--export` requires. Every key added was cleared by env_manifest's own
   `SECRET_FIELD`/`CONFIG_FIELD`/`SHAPES` classifiers rather than by eye. A full `--export`
   is still the only thing that can detect a changed **value** on a key present in both.
-- **`.github/workflows/media-prefixes.yml` makes the guard blocking.** A credential-free
+- **`scripts/verify_media_prefixes.py` is the explicit guard.** A credential-free
   `source-gate` runs on every push and PR; a `live-gate` skips until
   `MEDIA_PREFIX_ROLE_ARN` is set. The checks are AST-based, after text scanning produced
   false positives in both directions — per-line missed rooting on a continuation line, and
@@ -223,7 +223,7 @@ function is invoked.
 - A deleted object can still serve from the edge cache: `wecare-digital-rcs-h.png` has a
   live delete marker yet returned `200 image/png 89548 bytes`. "It works now" is not
   evidence the object exists.
-- The docs-scraper image deploys from a workflow whose path filter covers
+- The docs-scraper image uses a separate explicit container deployment path covering
   `amplify/functions/operations/docs-scraper/**` but **not**
   `amplify/functions/shared/lambda_utils/**`, so a change confined to the shared module
   would not rebuild that image.

@@ -64,14 +64,13 @@ REGION = "us-east-1"
 # Documented in .kiro/steering/lambda-snapstart-deploy.md.
 EXTERNALLY_DEPLOYED = {
     "wecare-seo-tools",      # scripts/deploy_seo_tools.py owns it
-    "wecare-docs-scraper",   # PackageType=Image, GitHub Actions
+    "wecare-docs-scraper",   # PackageType=Image; separate container deployment
     # Lambda@Edge, source at amplify/functions/edge/get-miss-redirect. CloudFront associates
     # Lambda@Edge by published VERSION, and the deploy map's contract is
     # publish-then-move-the-`live`-alias; an alias is not a valid Lambda@Edge association
     # target. Owned by its own deployer; see docs/SECURE-FILE-SHARING.md.
     "wecare-get-miss-redirect",
     # scripts/provision_native_catalog_api.py packages and updates it, run by
-    # .github/workflows/native-catalog-admin-deploy.yml under the catalog deploy role.
     "wecare-native-catalog-admin",
 }
 

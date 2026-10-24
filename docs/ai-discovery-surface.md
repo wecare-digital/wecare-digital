@@ -66,7 +66,7 @@ absence rather than by a permission — the handler imports no `boto3` at all, w
 `test_the_handler_imports_no_aws_client` asserts — and by
 `READ_ONLY_TOOLS`, a frozen allowlist that `tools/list` and `tools/call` both resolve
 through and that is compared for **exact equality** in
-`tests/test_mcp_server.py`. A test that only checked the current tools still work would
+the MCP surface verifier. A check that only confirms the current tools still work would
 pass just as happily after someone added `send_whatsapp`; that one fails on the addition.
 
 ### The threat model is cost, not disclosure
@@ -235,8 +235,6 @@ an unchanged `CodeSha256` when nothing moved.
 
 ```
 python scripts/deploy_mcp_server.py --verify      # Lambda, route, hosting rules, rule order
-.venv/bin/python -m pytest tests/test_mcp_server.py -q
-npx vitest run src/test/PublicAiSurface.test.ts
 python scripts/audit_route_auth.py --gate         # /mcp must appear as expected-public
 
 # a real handshake

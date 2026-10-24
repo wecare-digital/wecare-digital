@@ -59,8 +59,7 @@ These come from how the system actually fails, not from preference.
 ## Stage 1 — CI provider gate
 
 **Built:** `scripts/provider_allowlist.py` (the single allow-list of approved
-providers) and `scripts/check_provider_allowlist.py` (the gate), run by
-`.github/workflows/provider-allowlist.yml` (§44). It is a **positive** gate: any
+providers) and `scripts/check_provider_allowlist.py` (the explicit operational gate) (§44). It is a **positive** gate: any
 external host, SDK, secret prefix, provider id, env namespace or channel Lambda
 that the allow-list does not declare fails CI.
 
@@ -76,7 +75,7 @@ comments and docstrings are skipped, so historical prose cannot fail it.
 
 **Verify:** `python scripts/check_provider_allowlist.py` exits `0`.
 
-**Rollback:** remove the workflow step. No runtime impact.
+**Rollback:** remove the explicit gate invocation. No runtime impact.
 
 ---
 
@@ -127,7 +126,7 @@ hard-fails without one. Deleting it removes a broken dependency.
 (`stack-wecare-digital-DLTTemplates`) and its content. It is provider-independent
 regulatory data and is needed by AWS sending. Only the *transport* changes.
 
-**Verify:** full test suite; `check_provider_allowlist.py` passes in CI; real
+**Verify:** production build and targeted operational checks; `check_provider_allowlist.py` passes; real
 India send via AWS `ap-south-1`; real international send via `us-east-1`;
 delivery receipts arriving.
 
@@ -326,7 +325,7 @@ international SMS                 AWS us-east-1 (or explicit override)
 RCS India                         Sinch -> fallback AWS SMS ap-south-1
 RCS international                 AWS us-east-1 -> fallback AWS SMS
 check_provider_allowlist.py       exit 0
-full test suite                   pass
+production build + targeted checks pass
 ```
 
 Then the §55 per-subsystem report using the required status vocabulary.

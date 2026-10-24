@@ -1,6 +1,6 @@
 {
   "AWSTemplateFormatVersion": "2010-09-09",
-  "Description": "WECARE scoped administrative MCP control plane; additive routes, encrypted OAuth, inert code jobs.",
+  "Description": "WECARE scoped administrative MCP control plane; additive routes and encrypted OAuth.",
   "Parameters": {
     "CodeBucket": {
       "Type": "String"
@@ -190,15 +190,6 @@
                 {
                   "Effect": "Allow",
                   "Action": [
-                    "s3:PutObject"
-                  ],
-                  "Resource": {
-                    "Fn::Sub": "arn:aws:s3:::${CodeBucket}/workspace-mcp/patches/*"
-                  }
-                },
-                {
-                  "Effect": "Allow",
-                  "Action": [
                     "cognito-idp:AdminListGroupsForUser"
                   ],
                   "Resource": "arn:aws:cognito-idp:us-east-1:775261844268:userpool/us-east-1_cSx0RHCIR"
@@ -249,10 +240,6 @@
                 "Arn"
               ]
             },
-            "PATCH_BUCKET": {
-              "Ref": "CodeBucket"
-            },
-            "CODE_JOBS_ENABLED": "false",
             "GITHUB_TOKEN_FIELD": {
               "Ref": "GithubTokenField"
             }
@@ -420,47 +407,6 @@
         }
       }
     },
-    "PatchReadRole": {
-      "Type": "AWS::IAM::Role",
-      "Properties": {
-        "RoleName": "wecare-workspace-mcp-patch-read",
-        "AssumeRolePolicyDocument": {
-          "Version": "2012-10-17",
-          "Statement": [
-            {
-              "Effect": "Allow",
-              "Principal": {
-                "Federated": "arn:aws:iam::775261844268:oidc-provider/token.actions.githubusercontent.com"
-              },
-              "Action": "sts:AssumeRoleWithWebIdentity",
-              "Condition": {
-                "StringEquals": {
-                  "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-                  "token.actions.githubusercontent.com:sub": "repo:wecare-digital/wecare-digital:ref:refs/heads/wecare.digital"
-                }
-              }
-            }
-          ]
-        },
-        "Policies": [
-          {
-            "PolicyName": "patch-read-only",
-            "PolicyDocument": {
-              "Version": "2012-10-17",
-              "Statement": [
-                {
-                  "Effect": "Allow",
-                  "Action": "s3:GetObject",
-                  "Resource": {
-                    "Fn::Sub": "arn:aws:s3:::${CodeBucket}/workspace-mcp/patches/*"
-                  }
-                }
-              ]
-            }
-          }
-        ]
-      }
-    },
     "Errors": {
       "Type": "AWS::CloudWatch::Alarm",
       "Properties": {
@@ -504,14 +450,6 @@
       "Value": {
         "Fn::GetAtt": [
           "TokenKey",
-          "Arn"
-        ]
-      }
-    },
-    "PatchReadRoleArn": {
-      "Value": {
-        "Fn::GetAtt": [
-          "PatchReadRole",
           "Arn"
         ]
       }

@@ -1,6 +1,6 @@
 # Internal workspace agent: phased autonomous operation
 
-Requested by the owner on 7 October 2026. Status: researched implementation plan; no autonomous production actions enabled. Build on `codex/workspace-audit-redesign-20261007`, keeping production `stack` separate. This extends the workspace audit and redesign in draft PR244.
+Requested by the owner on 7 October 2026. Status: researched implementation plan; no autonomous production actions enabled. This is a dated design plan; current production is `wecare.digital`. This extends the workspace audit and redesign in draft PR244.
 
 ## Intended outcome
 
@@ -18,9 +18,8 @@ The existing internal agent becomes the workspace's operational worker. An owner
 | Tool governance | `shared/lambda_utils/agent/governance.py` | READ/PLAN/APPLY classification, per-tool refusal and subtractive kill switches. All APPLY entries remain disabled. Preserve the enforcement boundary when adding a policy-aware executor. |
 | Plans and approvals | `shared/lambda_utils/agent/{plans,drafts,approvals}.py`, chat pending plans, `/ai/approvals` | Server-held plan hashes and approval records already exist. Approval currently does not enable execution. Exact plans must remain bound to their arguments, actor and catalog version. |
 | Receipts | `shared/lambda_utils/agent/receipts.py` | Existing audit receipts are useful for refusals but fail open. The module explicitly says real side effects need a durable claim before execution and confirmation afterwards. |
-| Workspace MCP | `ai/workspace-mcp/handler.py`, `src/lib/workspace-mcp.ts`, `docs/workspace-mcp.md` | Eight source tools: connection list/authorize/verify, provider read, AWS/GitHub status, bounded code-job submit/status. This is not yet an MCP catalog for every workspace operation. |
+| Workspace MCP | `ai/workspace-mcp/handler.py`, `src/lib/workspace-mcp.ts`, `docs/workspace-mcp.md` | Current tools cover connection list/authorize/verify, provider read, and AWS/GitHub status. The former workflow-backed code-job tools are retired. |
 | MCP authentication | `owner_identity` in the MCP handler | Accepts the exact `wecare-admin` IAM user or validated staff Admin access tokens. No general worker-role identity/delegation path. Provider grants are keyed by this owner identity. A worker must not impersonate staff or fabricate JWT gateway claims. |
-| Code jobs | `code_job_submit`, `code_job_status` | Narrow public-component patch workflow, gated dispatch; no production deployment. Do not extend it into unrestricted shell, repository, or cloud control. |
 
 Live metadata in account **775261844268 / us-east-1**, captured **2026-10-07T03:46:49Z**: `wecare-ai-generate-response:live` is version **38**, `wecare-workspace-mcp:live` **10**, and `wecare-agent-action-group:live` **28**. The separate Bedrock agent `4UUQYFWX64` is **NOT_PREPARED**. There are **zero Step Functions state machines** and **10 SQS queues** in this region; names correspond to current messaging/blog/dead-letter pipelines, not a dedicated agent-run queue. Queue configuration/triggers were not audited here. Lambda list metadata reports the AI response function's unqualified timeout as 120 seconds; this is not a measurement of alias-version configuration. No models were invoked and no customer/provider data or secret values were read.
 
@@ -53,7 +52,7 @@ The agent should call narrow domain tools through MCP, not manipulate the websit
 
 Replace displayed-but-disabled controls and misleading all-enabled defaults with effective policy state. Check the approval UI's second-factor wording against actual handler behavior and the owner's staff password-only testing decision; do not silently re-enable MFA or change customer WhatsApp OTP.
 
-**Exit gate:** every visible tool maps to a real, authenticated backend operation or an explicit unavailable reason; settings and model tools agree with execution. Existing READ/refusal/plan tests remain green. Nothing is enabled merely by editing a settings checkbox.
+**Exit gate:** every visible tool maps to a real, authenticated backend operation or an explicit unavailable reason; settings and model tools agree with execution. Existing READ/refusal/plan validation remains green. Nothing is enabled merely by editing a settings checkbox.
 
 ## Phase 1 — connect the internal agent to MCP
 

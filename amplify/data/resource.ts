@@ -1373,7 +1373,7 @@ const schema = a.schema( {
   // complete in source.
 
   // ProviderDriftSnapshot REMOVED 2026-09-24. No table, and no writer: the Plivo
-  // drift check in .github/workflows/plivo-drift.yml compares state and reports,
+  // Plivo drift verification compares state and reports,
   // it does not persist snapshots. backend.ts carried a TTL entry for it, which
   // the `if ( table )` guard silently turned into a no-op, so it was removed with
   // the other declarations for stores that do not exist.

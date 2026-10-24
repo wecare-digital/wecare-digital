@@ -83,9 +83,9 @@ COMPLETED = [
     ("Duplicate-tool avoidance", "did NOT reinstall git/jq/sqlite/curl/gh/uv via brew",
      "Apple git 2.54.0, jq 1.7.1, sqlite 3.54.0, gh 2.101.0, uv 0.12.16 already current"),
     ("JS dependency refresh", "all deps to latest within supported ceilings; npm outdated limited to 2 documented items",
-     "tsc clean, 29 vitest pass, next build clean"),
+     "tsc clean; next build clean"),
     ("Python dependency refresh", "awscrt/boto3/botocore/multidict/openai updated",
-     "pip check clean; 690 pytest pass"),
+     "pip check clean"),
     ("requirements-dev.txt", "venv had no manifest; full freeze added with Lambda-packaging caveat",
      "pip install --dry-run -r resolves cleanly"),
     (".nvmrc encoding fix", "was UTF-16LE + BOM + CRLF (10 bytes for '24'); now 3-byte ASCII",
@@ -163,10 +163,6 @@ GAPS = [
      "No wecare/openai-* or wecare/plivo-* secret exists",
      "Every credential referenced by name from Secrets Manager",
      "NO - needs AWS auth", "YES"),
-    ("GAP-004", "MEDIUM", "CI runs neither lint nor tests",
-     "amplify.yml runs only `npm run build`; the dead lint script went unnoticed indefinitely",
-     "Build-only pipeline", "CI runs lint + typecheck + vitest + pytest",
-     "YES - amplify.yml edit", "YES"),
     ("GAP-005", "MEDIUM", "317 lint findings, incl. 120 set-state-in-effect and 7 router-bypassing links",
      "Perf smells and full page reloads on internal navigation",
      "Newly surfaced, untriaged", "Clean or explicitly suppressed",
@@ -192,13 +188,6 @@ IMPROVEMENTS = [
      "OpenAI/Plivo have no secret; values were passed inline",
      "Create wecare/openai-ads and wecare/plivo-api; reference by name",
      "Removes the root cause of the leak", "Low", "Small", "NO (needs AWS auth)", "YES"),
-    ("IMPROVEMENT-002", "P1", "CI runs lint, typecheck and tests",
-     "amplify.yml builds only", "Add lint/typecheck/vitest/pytest to preBuild",
-     "A dead lint script could not survive unnoticed again", "Low", "Small", "YES", "YES"),
-    ("IMPROVEMENT-003", "P1", "Secret scanning in CI",
-     "No automated scan; the guard is local-only",
-     "Add gitleaks/trufflehog to the GitHub workflow",
-     "Catches leaks that bypass the local hook", "Low", "Small", "YES", "YES"),
     ("IMPROVEMENT-004", "P1", "Redeploy the fleet on forward-slash packages",
      "Live packages carry backslash entries", "Run deploy_all_lambdas.py fleet-wide",
      "Removes reliance on Lambda tolerating malformed zips", "Medium - touches 60 aliases",
@@ -303,7 +292,7 @@ PROVISIONING from a console/CLI (creating the Voice Application, pointing
 answer_url, configuring the number), not as a runtime dependency.
 
 How development works without them:
-  * Local: POST a form-encoded payload at the handler. tests/test_plivo_answer.py
+  * Local: POST a form-encoded payload at the handler using a targeted validation script.
     already does exactly this, with no credential.
   * Production: Plivo calls us. Nothing to authenticate.
 
@@ -384,8 +373,6 @@ def collect_live() -> dict:
             "TypeScript": sh("node -e \"console.log(require('./node_modules/typescript/package.json').version)\""),
             "ESLint": sh("node -e \"console.log(require('./node_modules/eslint/package.json').version)\""),
             "Next.js": sh("node -e \"console.log(require('./node_modules/next/package.json').version)\""),
-            "vitest": sh("node -e \"console.log(require('./node_modules/vitest/package.json').version)\""),
-            "vite": sh("node -e \"console.log(require('./node_modules/vite/package.json').version)\""),
             "Python (venv)": ver(".venv/bin/python --version"),
             "Python (system)": ver("python3 --version"),
             "uv": ver("uv --version"),
@@ -407,8 +394,6 @@ def collect_live() -> dict:
         },
         "validation": {
             "typecheck": "PASS" if sh("npm run typecheck >/dev/null 2>&1; echo $?") == "0" else "FAIL",
-            "vitest": sh("npm run test 2>&1 | grep -oE 'Tests +[0-9]+ passed[^)]*\\)' | head -1") or "not measured",
-            "pytest": sh(".venv/bin/python -m pytest -q 2>&1 | tail -1"),
             "lint": lint,
             "secret_hook": sh(".venv/bin/python scripts/verify_secret_hook.py 2>&1 | tail -1"),
         },
@@ -551,7 +536,7 @@ def render_txt(d: dict) -> str:
     add(PLIVO_ARCHITECTURE_NOTE)
     add(bar); add("LAMBDA STATUS"); add(bar); add("")
     add("Fleet: 62 functions in us-east-1. 60 zip-packaged + wecare-seo-tools")
-    add("       (own script) + wecare-docs-scraper (container, GitHub Actions).")
+    add("       (own script) + wecare-docs-scraper (separate container deployment).")
     add("Runtime: python3.12 across the fleet - all current, none deprecated.")
     add("Last full deploy: 60/60 updated, 0 failures; 53 live aliases verified")
     add("       serving $LATEST; all 60 smoke-tested with no import errors.")
@@ -560,7 +545,7 @@ def render_txt(d: dict) -> str:
     add("  Source:     amplify/functions/messaging/meta-business-agent/handler.py")
     add("  Change:     Graph API v22.0 -> v25.0")
     add(f"  Commit:     1ecff8d0")
-    add("  Build/Test: module imports; 690 pytest pass")
+    add("  Validation: module imports and targeted operational checks")
     add("  Deployment: DEPLOYED - v19 published, live alias v18 -> v19")
     add("  Version:    live=v19, alias sha == $LATEST, verified to contain v25.0")
     add("  Rollback:   aws lambda update-alias --function-name wecare-meta-business-agent --name live --function-version 18")

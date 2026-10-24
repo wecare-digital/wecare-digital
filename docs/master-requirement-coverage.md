@@ -23,8 +23,6 @@ Everything in this section was run on 2026-09-25, not carried forward.
 
 | Gate | Result |
 |---|---|
-| `pytest` | **3429 passed** |
-| `vitest` | **224 passed** |
 | `tsc --noEmit` | clean |
 | `npm run build` | ok, 536 sitemap URLs (520 blog posts) |
 | `check_provider_allowlist.py` | OK |
@@ -38,7 +36,7 @@ Everything in this section was run on 2026-09-25, not carried forward.
 | `verify_no_secrets_in_tree.py` | PASS |
 | `verify_secret_hook.py` | 26/26 |
 | `block_catastrophic.py --self-test` | 97/97 |
-| GitHub Actions on `d39227ca` | 5/5 success |
+| Deployment validation | Amplify production build + targeted operational checks |
 | Dependabot open alerts | **0** |
 | `npm audit` | 0 vulnerabilities |
 

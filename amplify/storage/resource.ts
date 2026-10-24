@@ -9,7 +9,7 @@ import { defineStorage } from '@aws-amplify/backend';
  *
  * TWO ROOTS, and every prefix below is rooted. These rules previously read `stack/*`,
  * `public/*` and `stream/*` — one level ABOVE where the data actually lives, the same
- * off-by-one-prefix defect that `.github/workflows/media-prefixes.yml` exists to catch.
+ * off-by-one-prefix defect that the media-prefix verification script exists to catch.
  *
  * - o/                   : public root. `o/` is a LOCATION, not a permission —
  *                          everything outside `secure/` is public.

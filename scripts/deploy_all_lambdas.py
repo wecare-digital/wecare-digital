@@ -143,13 +143,10 @@ class Spec:
 # Every zip-packaged function in us-east-1, mapped to its source.
 #
 # Deliberately excluded:
-#   wecare-docs-scraper — PackageType=Image, ships via
-#                         .github/workflows/docs-scraper-deploy.yml.
+#   wecare-docs-scraper — PackageType=Image; deploy separately with its container deployment path.
 SPECS: List[Spec] = [
     # Now LIVE and recorded in config/lambda-env-manifest.json, so the awaiting-
-    # provisioning marker was dropped (see
-    # tests/test_deploy_map_provisioning.py::
-    # test_awaiting_provisioning_functions_are_absent_from_the_live_manifest).
+    # provisioning marker was dropped (see The live manifest is the source of truth for provisioning state.
     # First creation was owned by CloudFormation amplify/infra/customer-sessions.json.
     Spec("wecare-customer-session", "ecommerce/customer-session"),
     # --- core ---
@@ -167,16 +164,11 @@ SPECS: List[Spec] = [
         extra_files=["razorpay_orders.py", "whatsapp_delivery.py"],
         # provisioned_by is deliberately NOT set. The function exists and deploys
         # normally, so marking it would turn a genuine future failure - the function
-        # having been deleted - into "awaiting provisioning", which reads as expected.
-        # That is exactly what test_exactly_one_spec_is_awaiting_provisioning guards,
-        # and it caught this. Its provisioning script is recorded in
+        # having been deleted - into "awaiting provisioning", which reads as expected. A deleted live function must remain a deployment failure, not be reported as expected provisioning drift. Its provisioning script is recorded in
         # docs/SECURE-FILE-SHARING.md instead.
     ),
     # Absent until now, which meant provision_crm_api.py could stand wecare-crm up
-    # once and nothing could ever redeploy it - the exact failure
-    # tests/test_crm_api.py::test_the_function_is_in_the_deploy_map describes as "the
-    # first provisioning deploy is also the last one". That test has been failing on
-    # stack, and it was right. provision_crm_api.py:115 already documents that deploys
+    # once and nothing could ever redeploy it - the exact failure Without this entry the first provisioning deploy would also be the last one. provision_crm_api.py:115 already documents that deploys
     # "should go through scripts/deploy_all_lambdas.py wecare-crm".
     # No standalone flag: core/crm/handler.py imports lambda_utils.logging, .response,
     # .middleware, .crm.keys and contact_key/payment_status, so it needs the default
@@ -279,11 +271,7 @@ SPECS: List[Spec] = [
         provisioned_by="python scripts/provision_service_requests.py",
     ),
     # A customer's own invoice, as a 300-second presigned download. A SEPARATE function from
-    # wecare-customer-orders deliberately: this route needs dynamodb:GetItem, s3:GetObject
-    # and a second dynamodb:Query, and all three are specifically refused by that function's
-    # pinned policy and by six EQUALITY assertions in tests/test_customer_orders_iam.py.
-    # Putting the route there would mean editing those tests so they assert less, on the one
-    # function whose documented security property is its emptiness. Its own least-privilege
+    # wecare-customer-orders deliberately: this route needs dynamodb:GetItem, s3:GetObject and a second dynamodb:Query; the customer-orders function's pinned policy deliberately refuses those permissions. Its own least-privilege
     # role holds four reads plus the rate-limit counter increment, and no write verb of any
     # kind - it cannot generate an invoice, which matters because generation advances the GST
     # sequence. First creation is owned by scripts/provision_customer_invoice.py, which
@@ -307,8 +295,7 @@ SPECS: List[Spec] = [
     # workflow refuses to leave dry-run and also removes the retired forced-out-of-stock control.
     #
     # Its own least-privilege role: two statements, one GetSecretValue naming two secrets and
-    # CloudWatch Logs. wecare-digital-lambda-role is NOT involved, and
-    # tests/test_meta_catalog_sync_iam.py pins both halves by equality.
+    # CloudWatch Logs. wecare-digital-lambda-role is NOT involved.
     # Now LIVE and recorded in the env manifest, so the awaiting-provisioning marker
     # was dropped. First creation was owned by
     # scripts/provision_meta_catalog_sync.py --apply.
@@ -430,37 +417,18 @@ SPECS: List[Spec] = [
 # owns it, along with its table and IAM policy, so it is delegated rather than
 # reimplemented here.
 #
-# wecare-mcp ships `config/public-pages.json` beside its handler, and `extra_files`
-# cannot express that: it resolves relative to the function directory, and it is skipped
-# entirely for a standalone spec. The alternatives were a second checked-in copy of the
-# catalogue (the drift src/test/PublicAiSurface.test.ts exists to prevent) or a symlink
-# (breaks on a Windows checkout). Its script also owns the Amplify Hosting rewrite that
-# makes /mcp reachable on the apex at all, which has no equivalent here.
-# CAUTION ON wecare-seo-tools: THE SCRIPT IS NOT THE ONLY OWNER.
-# `.github/workflows/seo-tools-deploy.yml` also deploys it, on every push to `wecare.digital`
-# touching `amplify/functions/operations/seo-tools/**`, `seo_tools_handler.py`,
-# `amplify/functions/shared/lambda_utils/**`, `static_knowledge_base.py`,
-# `tests/test_task12_seo.py` or `scripts/deploy_seo_tools.py`.
-#
-# That `lambda_utils/**` trigger is the wide one, and it means ANY commit touching shared
-# code redeploys seo-tools from the COMMITTED tree. Proved on 2026-09-28: a local
-# `deploy_seo_tools.py` run at 15:35 was verified working live, then overwritten at 15:40
-# and again at 15:44 by the workflow, because another session pushed commits while the
-# local changes were still uncommitted. CloudTrail shows all three UpdateFunctionCode calls
-# - one from `user/wecare-admin` via Boto3, two from the `bharat-stack-seo-tools` CI role.
-#
-# So for this function CI is the authority and a local deploy from a dirty tree is
-# TRANSIENT. Commit first, then push, and let the workflow deploy. Running the script
-# locally is still correct for a fast iteration loop - just do not treat the result as
-# durable until it is committed.
+# wecare-mcp ships config/public-pages.json beside its handler, so its dedicated
+# scripts/deploy_mcp_server.py owns that package and the Amplify Hosting rewrite.
+# wecare-seo-tools likewise remains owned by scripts/deploy_seo_tools.py. These
+# delegated deployment paths are explicit; no GitHub workflow is an owner.
 DELEGATED = {
     "wecare-blog-public": "scripts/build_blog_public.py (dedicated three-file read-only package; code-only deployment with revision/hash preconditions)",
-    "wecare-seo-tools": "scripts/deploy_seo_tools.py  (also .github/workflows/seo-tools-deploy.yml on push)",
+    "wecare-seo-tools": "scripts/deploy_seo_tools.py",
     "wecare-mcp": "scripts/deploy_mcp_server.py",
     # Bundles its own pinned SDK and policy; generic packaging would omit both.
     "wecare-workspace-mcp": "scripts/build_workspace_mcp.py + scripts/deploy_workspace_mcp.py (CloudFormation, after merge)",
 }
-SKIPPED = {"wecare-docs-scraper": "PackageType=Image, deploys via GitHub Actions"}
+SKIPPED = {"wecare-docs-scraper": "PackageType=Image; deploy separately from the zip Lambda fleet"}
 
 
 # --------------------------------------------------------------------------- #

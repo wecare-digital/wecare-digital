@@ -47,13 +47,13 @@ logger = logging.getLogger()
 #: Default ON, and the reasoning is worth stating because "off by default" is the rule elsewhere
 #: in this architecture. That rule exists for two things: AI calls, which cost money, and
 #: expensive infrastructure. This module does NEITHER - it makes no model call, adds no resource,
-#: and serves only content a human has already approved through the existing review workflow.
+#: and serves only content a human has already approved through the existing human review process.
 #: What it costs is one DynamoDB query on an existing on-demand table, on an index that eleven
 #: other call sites already use.
 #:
 #: Generation is the part that is off by default, and it is off structurally rather than by flag:
 #: ai.invoke_seo is reachable from exactly one authenticated admin route and nothing schedules
-#: it. Verified with grep across amplify/, scripts/ and .github/workflows/.
+#: it. Verified with grep across active application and operational source.
 #:
 #: Set SEO_FAQ_PUBLISH=0 to stop serving FAQ immediately.
 PUBLISH_ENABLED = os.environ.get('SEO_FAQ_PUBLISH', '1').strip().lower() not in ('0', 'false', 'no')

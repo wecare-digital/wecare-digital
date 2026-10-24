@@ -14,23 +14,12 @@ is an instruction that survives a sandbox reset.
 
 ## Position
 
-- Repo `wecare-digital/wecare-digital`. Default branch is **`stack`**, not `main`.
+- Repo `wecare-digital/wecare-digital`. Default branch is **`wecare.digital`**, not `main`.
   (Renamed from `bharat-stack` on 2026-09-27. GitHub still redirects the old path, so
   a stale URL appears to work — which is why three IAM trust policies and the Amplify
   app broke silently while `git` did not. Use the current name everywhere.)
 - All work is on the single long-lived branch **`feat/grahak-os-trust-a-i`**.
-- **THE BRANCH AUTO-DELETES ON MERGE.** It is squash-merged into `stack` and the remote
-  branch is then removed, so at the start of a session it usually **does not exist** —
-  `git ls-remote --heads origin` showed only `stack`. Recreate it from the default
-  branch:
-  ```bash
-  git fetch origin --prune
-  git checkout stack && git reset --hard origin/stack
-  git checkout -b feat/grahak-os-trust-a-i
-  ```
-  **Never trust a local copy of this branch after a merge.** A squash merge leaves the
-  old local branch looking "ahead" of `stack` by commits whose content is already
-  merged, so `git log` reads like unshipped work that is in fact live.
+- The historical feature-branch workflow described by earlier revisions is retired. Work from the current `wecare.digital` production branch state and re-read GitHub before making branch assumptions.
 - **Do not trust any commit hash, PR number or count written in this file.** Every
   previous revision named something stale by the time it was read — the revision before
   this one opened by describing PR **#5** as the latest merge when PRs up to **#35** had
@@ -88,8 +77,7 @@ misled every reader so far. Re-verify with the harness, not with this table.
    Safe because it is dev-only and unused: both are reached solely through the `ampx`
    CLI's SQL schema generator, and this project never invokes it — there is no
    `schema-from-database` call anywhere and `amplify/data/resource.ts` is a
-   DynamoDB-backed `defineData`/`a.model` schema with no SQL data source. Verified after
-   the change: build 0, tsc 0, vitest 99/99, provider policy 8/8.
+   DynamoDB-backed `defineData`/`a.model` schema with no SQL data source. Verified after the change with the production build, TypeScript check and provider-policy verification.
 
    Applied **incrementally**, not by regenerating the lockfile: a from-scratch regen
    touched ~19,700 lines, while `npm install` over the existing lock touched **35
@@ -251,35 +239,7 @@ misled every reader so far. Re-verify with the harness, not with this table.
    `docs/npm-ci-backend-isolation.md`.
 5. **Real-device pass.** Everything has been verified in headless Chromium only. iOS
    Safari and the Android WebView shells have not been checked.
-5b. **`KIRO_API_KEY` secret, to switch on automated PR review.**
-   `.github/workflows/kiro-review.yml` is merged and wired but **gated on that secret**,
-   so it currently reports a notice and skips. Add it under Settings → Secrets and
-   variables → Actions and it starts working with no further edit. Two things to decide
-   with it: `konippi/kiro-cli-review-action` is a third-party **personal** action whose
-   `v1.0.1` tag is mutable, and this repo holds AWS deploy credentials in four other
-   workflows — pinning to a full commit SHA is the stronger choice. And leave its `debug`
-   input off; the action's own description warns it prints tool output that may contain
-   sensitive data into build logs.
 
-   **Actions evaluated and deliberately NOT added**, so nobody re-litigates it:
-   - `microsoft/setup-msbuild` — there is **nothing here for MSBuild to build**. No
-     `.sln`, `.csproj`, `.vcxproj` or `.vbproj` anywhere in the tree; this is 269
-     TS/TSX files and 309 Python files. It would also force `runs-on: windows-latest`,
-     billed at 2x Linux minutes, to configure a toolchain with no inputs.
-   - `redhat-actions/try-in-web-ide` — clones a PR into a Che-based IDE on the Red Hat
-     Developer Sandbox. It **requires a devfile**, and this repo has none. It would add
-     a PR comment pointing at an IDE nobody here uses.
-   - `aws-actions/configure-aws-credentials@v6.3.0` — **already in use**, at `@v6`, in
-     `docs-scraper-deploy.yml`, `plivo-drift.yml`, `route-auth.yml` and
-     `seo-tools-deploy.yml`. `@v6` is a floating major tag that already resolves to the
-     newest 6.x, so it is on 6.3.0 today and picks up future patches automatically.
-     Re-pinning to `@v6.3.0` would *freeze* it and stop security patches arriving. If
-     hardening is the goal, SHA-pin instead — that is a different change, and it should
-     be done to all four call sites at once.
-   - Minor drift worth a one-line cleanup while in there: `ui-labels.yml` is on
-     `actions/checkout@v5` and `actions/setup-python@v5` while the rest of the repo is on
-     `v7`, and `blog-migration-validate.yml` / `seo-tools-deploy.yml` are on
-     `setup-python@v6`.
 6. **The contact map's three Google controls are LIVE, not inert — pick a fix.** The
    code claimed the interaction overlay made them inert. Measured, it does not: all three
    sit in the 26px bottom strip the overlay deliberately leaves uncovered for attribution,
@@ -529,8 +489,7 @@ these pages personally and rejected several agent drafts on substance:
 
 ## Verification gate
 
-**The first four of these now run in CI** on every pull request, via
-`.github/workflows/build-test.yml`. Until that workflow existed, **no CI job compiled
+The repository no longer uses GitHub Actions CI. Use the production Amplify build plus explicit operational validation; no deleted workflow should be recreated to satisfy this historical note.
 the app or ran its tests** — the ten other workflows cover CodeQL, route auth, provider
 policy, UI labels, plivo and the deploys, none of which would notice a repo that does
 not build. A pull request could go green while broken, and it only stayed honest because

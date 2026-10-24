@@ -136,8 +136,8 @@ Absent, confirmed by grep returning zero and by the 79-table list:
 | Public routes | n/a | 9 of 127 pages public, via exact-match allowlist in `src/pages/_app.tsx` | public site | YES | a public page missing from `PUBLIC_PAGE_META` renders an **empty body with HTTP 200** |
 | Admin | n/a | `[retired public path 2de923b8]/*` (71), `[retired public path 89347bb2]/*`, `[retired public path 9463c8d8]/*`, … behind Amplify Authenticator | staff console | YES | `[retired public path 84a04c24]` is a 10-line redirect stub, not an app |
 | Blog | n/a | `/blog` + `/post/[slug]`, `getStaticPaths` + `fallback:false` | publishing | YES | path is `/post/[slug]`, **not** `/blog/[slug]` |
-| Tests | n/a | `vitest 5.0.1` (19 specs) + `pytest` (~103 modules) | unit | YES | `@playwright/test` is **not** installed; the only Playwright is an out-of-band measurement harness in `tools/browser/` |
-| CI | n/a | 12 GitHub Actions workflows incl. `build-test`, `codeql`, `route-auth` | gates | YES | no cross-browser or E2E job exists |
+| Test suite | n/a | intentionally removed | n/a | NO | Validate with build, typecheck, lint and targeted operational verification scripts |
+| Deployment | n/a | Amplify Hosting on `wecare.digital` | production auto-build | YES | No `.github/workflows` automation or GitHub Actions OIDC path remains |
 
 Two structural constraints that shape every customer-facing requirement in the brief:
 
@@ -337,7 +337,6 @@ turned out to be already satisfied, and they are recorded as such.
 | G13 | No structured address entity | `MEDIUM` | flat strings | `CustomerAddress` with `googlePlaceId` + lat/lng + confirmation | YES |
 | G14 | No page-composition system | `MEDIUM` | hard-coded components | typed page sections | YES |
 | G15 | Frontend is desktop-first (`max-width` queries), no breakpoint tokens | `MEDIUM` | ad-hoc queries | mobile-first scale per brief §30-31 | YES |
-| G16 | No E2E or cross-browser tests; `@playwright/test` not installed | `MEDIUM` | vitest + pytest only | Playwright across Chromium/WebKit/Firefox | YES |
 | G17 | Customer pool deletion protection `INACTIVE`; staff password min 8 | `LOW` | as measured | protection on; stronger policy | YES |
 | G18 | `codeVerificationStatus: EXPIRED` on the sender | `INFORMATIONAL` | not blocking; sending enabled, GREEN | re-verify only if re-registration is needed | NO — owner-only |
 | G19 | Places proxy calls `get_secret_value` directly and logs `str(e)` | `LOW` | pre-existing | by-reference resolution; log exception type | YES |
@@ -359,7 +358,7 @@ utility-class retrofit.
 
 Latest published versions checked this session, for the compatibility matrix the brief §60
 asks for: `next 16.3.6` (repo `^16.2.9`), `typescript 7.0.2` (repo `^6.0.3`, a **major**
-behind), `vitest 5.0.2`, `aws-cdk-lib 2.271.0` (repo pinned `2.270.0`),
+behind), `aws-cdk-lib 2.271.0` (repo pinned `2.270.0`),
 `@playwright/test 1.63.0`. Local toolchain: Node `v24.21.0` (`.nvmrc` `24`), npm `11.19.0`.
 
 ---

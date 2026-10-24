@@ -25,7 +25,7 @@ in [`docs/security.md`](security.md#retired-provider-credentials).
 
 ## Enforcement
 
-`scripts/check_provider_allowlist.py`, run by `.github/workflows/provider-allowlist.yml`, fails
+`scripts/check_provider_allowlist.py`, run explicitly as an operational gate, fails
 CI on any host, SDK, secret prefix, provider id, env namespace or channel Lambda that
 `scripts/provider_allowlist.py` does not declare. Its `sms-transport`, `rcs-transport` and
 `channel-lambdas` rules keep the table above true.

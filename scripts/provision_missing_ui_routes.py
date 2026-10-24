@@ -41,10 +41,10 @@ Qualified where safe, unqualified where an alias would break the deploy
   creating one here immediately makes its deploys publish-and-move, and its routes get
   `:live`.
 - `wecare-docs-scraper` gets an **unqualified** integration, deliberately. It is
-  `PackageType=Image` and ships via `.github/workflows/docs-scraper-deploy.yml`, which
+  `PackageType=Image` and uses its separate container deployment path, which
   runs `update-function-code` and nothing else. Give it an alias and every future
   deploy would report success and never reach production - the "it looked shipped"
-  failure. The alias comes after the workflow learns to move one.
+  failure. The alias must be moved by that explicit container deployment path.
 
 No OPTIONS routes are created: the API carries an API-level `CorsConfiguration`, so
 preflight is answered by API Gateway before any route lookup.

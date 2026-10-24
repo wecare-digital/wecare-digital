@@ -10,35 +10,17 @@
 # Dependabot already targets the right place, and naming a target-branch
 # explicitly would turn OFF Dependabot security updates for that ecosystem.
 #
-# Cadence is intentionally conservative. `.github/workflows/deps-upgrade.yml` is
-# a manual bulk upgrade that regenerates the lockfile and pushes straight to
-# `wecare.digital`, so per-package npm PRs arriving daily would fight it. Minor and patch
-# updates are therefore grouped into a single monthly PR per manifest, and only
-# majors - the ones that warrant a human read - arrive on their own.
+# Cadence is intentionally conservative. Minor and patch updates are grouped into a
+# single monthly PR per manifest, while majors arrive on their own.
 #
 # Manifests covered (verified present, each with its own lockfile where npm):
 #   /                                              package.json + package-lock.json
 #   /requirements-dev.txt                          pip
 #   /amplify/functions/operations/docs-scraper     requirements.txt + Dockerfile
-#   /.github/workflows                             github-actions
 
 version: 2
 
 updates:
-  # GitHub Actions pins rot quietly and a bad bump fails loudly in CI rather than
-  # in production, so this one runs weekly and is the least risky of the set.
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 3
-    commit-message:
-      prefix: "chore(actions)"
-    groups:
-      github-actions:
-        patterns:
-          - "*"
-
   # The site itself. Majors here mean Next / React / Amplify, all of which need a
   # real build-and-look, so they are deliberately left ungrouped.
   - package-ecosystem: "npm"

@@ -380,7 +380,7 @@ flowchart LR
 Products are edited by staff through `wecare-native-catalog-admin` and live in
 `ProductsTable` (prices as integer `priceMinor` paise). The storefront is generated from
 `src/content/catalog-snapshot.json`, which `scripts/build-catalog-snapshot.py --live` writes
-from `ProductsTable` in `.github/workflows/aws-native-catalog-publish.yml`.
+from `ProductsTable` through the explicit catalogue snapshot build path.
 `wecare-meta-catalog-sync` projects the same table one way to the Meta catalog, behind
 `META_CATALOG_SYNC_ENABLED` and `META_CATALOG_SYNC_DRY_RUN`.
 
