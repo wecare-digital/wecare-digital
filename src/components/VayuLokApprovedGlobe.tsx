@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_BROWSER_KEY || '';
-const GLOBE_ASSET_VERSION = '20261024-design-v3';
+const GLOBE_ASSET_VERSION = '20261024-design-v4';
 
 export interface VayuLokGlobeCity {
   id: string;

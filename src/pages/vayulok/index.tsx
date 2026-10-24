@@ -162,10 +162,10 @@ const VayuLokPage: React.FC = () => {
           mobileFoundation
           ariaLabel="VayuLok"
           badgeLabel="VayuLok by WECARE.DIGITAL"
-          frame="Bharat Insights"
+          frame="Nano Climates"
           words={ cycleWords }
           pillKey={ mode }
-          sub={ <>Live air and weather, wherever you look.<br />Current conditions, forecasts and history in one view.</> }
+          sub="Ultra-precise air and weather intelligence to understand conditions, change, and emerging patterns."
           visual={ (
           <div className="vl-hero-visual">
             <VayuLokApprovedGlobe
@@ -212,19 +212,21 @@ const VayuLokPage: React.FC = () => {
            .rh-split, so the globe keeps its own proportions and stays beside the copy
            down to 861px, where the shared split would stack at 1024px. .vl-page makes
            the selector outrank the component's own .rh-split at every width. */
-        .vl-page :global(.rh-split){display:grid;grid-template-columns:minmax(0,.88fr) minmax(0,1.12fr);gap:44px;align-items:center}
+        .vl-page :global(.rh-layout){gap:48px;padding-bottom:32px}
+        .vl-page :global(.rh-split){display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:24px;align-items:center}
         .vl-page :global(.rh-hero){align-self:start;padding-top:8px}
-        .vl-page :global(.rh-sub){max-width:600px}
-        .vl-hero-visual{min-width:0;width:100%;display:flex;justify-content:center;align-items:center;transform:translateY(28px)}
-        .vl-hero-visual :global(.vag-shell){width:min(112%,820px);max-width:820px}
+        .vl-page :global(.rh-sub){max-width:560px}
+        .vl-hero-visual{min-width:0;width:100%;display:flex;justify-content:flex-start;align-items:center;transform:translate(-28px,20px)}
+        .vl-hero-visual :global(.vag-shell){width:min(116%,840px);max-width:840px}
 
         @media(max-width:1100px){
-          .vl-page :global(.rh-split){grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr);gap:32px}
-          .vl-hero-visual :global(.vag-shell){width:min(108%,720px);max-width:720px}
+          .vl-page :global(.rh-split){grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr);gap:24px}
+          .vl-hero-visual{transform:translate(-14px,16px)}
+          .vl-hero-visual :global(.vag-shell){width:min(112%,760px);max-width:760px}
         }
         @media(max-width:860px){
           .vl-page :global(.rh-split){grid-template-columns:1fr;gap:28px}
-          .vl-hero-visual{max-width:800px;margin:0 auto;transform:translateY(12px)}
+          .vl-hero-visual{max-width:800px;margin:0 auto;justify-content:center;transform:translateY(12px)}
           .vl-hero-visual :global(.vag-shell){width:100%;max-width:800px}
         }
         @media(max-width:767px){
