@@ -55,7 +55,7 @@ const launchEngine = async () => {
 // viewport on the folded Fold posture. rtlcheck caught it only incidentally, while checking
 // something else. One representative slug is enough - the template is shared - and it must be a
 // LONG-titled one, because a short title fits and would prove nothing.
-const ROUTES = [ '/', '/grahak-os/', '/vayulok/', '/bharat-rx/', '/contact/', '/orders/',
+const ROUTES = [ '/', '/grahak-os/', '/vayulok/', '/sehat/', '/contact/', '/orders/',
   '/terms/', '/privacy/', '/anew/', '/elsewhere/visa/', '/elsewhere/trip/', '/elsewhere/activities/',
   '/dastavez/drafting/', '/dastavez/registration/', '/dastavez/legal-reference/',
   '/ritual-guru/ritva/', '/ritual-guru/puja-guidance/', '/ritual-guru/diy-puja-kit/',
