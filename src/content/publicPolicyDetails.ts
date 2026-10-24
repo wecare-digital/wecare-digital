@@ -11,7 +11,7 @@ export interface PublicPolicyCopy {
  */
 export const EMBEDDED_POLICY_ROUTES = new Set<string>( [
   '/grahak-os',
-  '/bharat-rx',
+  '/sehat',
   '/elsewhere/visa',
   '/elsewhere/trip',
   '/expo-week',
