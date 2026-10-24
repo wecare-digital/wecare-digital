@@ -54,7 +54,7 @@ CASES = [
 
     ("plain build",            {"command": "npm run build"}, 0),
     ("pytest",                 {"command": ".venv/bin/python -m pytest -q"}, 0),
-    ("git push",               {"command": "git push origin stack"}, 0),
+    ("git push",               {"command": "git push origin wecare.digital"}, 0),
     ("listening port",         {"command": "lsof -nP -iTCP:5476 -sTCP:LISTEN"}, 0),
     ("NODE_ENV",               {"command": "NODE_ENV=production npm run build"}, 0),
     ("secret by NAME boto3",   {"command": "py -c \"c.get_secret_value(SecretId='wecare/razorpay-webhook')\""}, 0),

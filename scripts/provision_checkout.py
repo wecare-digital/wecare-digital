@@ -149,7 +149,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FUNCTION_DIR = ROOT / "amplify/functions/ecommerce/checkout"
 SHARED_DIR = ROOT / "amplify/functions/shared"
 
-#: Where the deployed artifact was exported from (`git archive origin/stack | tar -x`). `--verify`
+#: Where the deployed artifact was exported from (`git archive origin/wecare.digital | tar -x`). `--verify`
 #: prefers it over the working tree, because a verdict about a package nobody deployed is a verdict
 #: about nothing — and in this repo the working tree routinely carries three other sessions'
 #: uncommitted edits, all of which `build_zip` would package.

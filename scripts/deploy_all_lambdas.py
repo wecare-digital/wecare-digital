@@ -437,7 +437,7 @@ SPECS: List[Spec] = [
 # (breaks on a Windows checkout). Its script also owns the Amplify Hosting rewrite that
 # makes /mcp reachable on the apex at all, which has no equivalent here.
 # CAUTION ON wecare-seo-tools: THE SCRIPT IS NOT THE ONLY OWNER.
-# `.github/workflows/seo-tools-deploy.yml` also deploys it, on every push to `stack`
+# `.github/workflows/seo-tools-deploy.yml` also deploys it, on every push to `wecare.digital`
 # touching `amplify/functions/operations/seo-tools/**`, `seo_tools_handler.py`,
 # `amplify/functions/shared/lambda_utils/**`, `static_knowledge_base.py`,
 # `tests/test_task12_seo.py` or `scripts/deploy_seo_tools.py`.

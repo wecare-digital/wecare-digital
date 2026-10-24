@@ -6,13 +6,13 @@
 # unaffected - those come from Dependabot alerts and need no config file - which
 # is why alerts were arriving while version updates were silent.
 #
-# Deliberately NOT set: `target-branch`. The default branch here is `stack`, so
+# Deliberately NOT set: `target-branch`. The default branch here is `wecare.digital`, so
 # Dependabot already targets the right place, and naming a target-branch
 # explicitly would turn OFF Dependabot security updates for that ecosystem.
 #
 # Cadence is intentionally conservative. `.github/workflows/deps-upgrade.yml` is
 # a manual bulk upgrade that regenerates the lockfile and pushes straight to
-# `stack`, so per-package npm PRs arriving daily would fight it. Minor and patch
+# `wecare.digital`, so per-package npm PRs arriving daily would fight it. Minor and patch
 # updates are therefore grouped into a single monthly PR per manifest, and only
 # majors - the ones that warrant a human read - arrive on their own.
 #

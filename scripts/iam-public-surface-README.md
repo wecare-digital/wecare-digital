@@ -78,7 +78,7 @@ aws iam get-open-id-connect-provider \
 aws iam create-role \
   --role-name GitHubActions-wecare-digital-public-surface \
   --assume-role-policy-document file://scripts/iam-public-surface-trust.json \
-  --description "Write role for public-surface-deploy.yml: Amplify customRules and the wecare-mcp Lambda. Branch stack only."
+  --description "Write role for public-surface-deploy.yml: Amplify customRules and the wecare-mcp Lambda. Branch wecare.digital only."
 
 aws iam put-role-policy \
   --role-name GitHubActions-wecare-digital-public-surface \
