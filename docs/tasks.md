@@ -178,7 +178,7 @@ Products and posts are read from AWS: the catalog from `ProductsTable` through t
 | 7.2 | Profile and address management | ACC-1.2 | ⏳ PENDING | add, edit, remove, set default |
 | 7.3 | Order list and detail | ACC-1.3 | ⏳ PENDING | reachable independently of any tracking token |
 | 7.4 | Invoice and receipt access | ACC-1.2 | ⏳ PENDING | no permanent unrestricted URL; proxied or short-lived signed |
-| 7.5 | Authorise every read on `session.customerId` | ACC-1.4 | ⏳ PENDING | IDOR test suite; identifier in the request is never the authority |
+| 7.5 | Authorise every read on `session.customerId` | ACC-1.4 | ⏳ PENDING | targeted IDOR verification; identifier in the request is never the authority |
 | 7.6 | Indistinguishable refusals | ACC-1.5 | ⏳ PENDING | follows the `_not_registered` precedent — one byte-identical 403 for wrong-owner and nonexistent |
 | 7.7 | Session management UI | ACC-1.2 | ⏳ PENDING | list and revoke |
 
@@ -244,7 +244,7 @@ so nothing below is `✅ COMPLETE` yet.
 
 | # | Task | Status | Gate |
 |---|---|---|---|
-| 11.1 | All gates green on the exact tree | ⏳ PENDING | lint, typecheck, vitest, pytest, `check-versions` |
+| 11.1 | All gates green on the exact tree | ⏳ PENDING | lint, typecheck, production build, targeted operational checks, `check-versions` |
 | 11.2 | Deploy per the alias model | ⏳ PENDING | `update-function-code` → publish → move `live`; `$LATEST` alone is not a deployment |
 | 11.3 | Live verification of each new route | ⏳ PENDING | including an unauthenticated probe expecting rejection |
 | 11.4 | QA round trip to the nominated recipient | ⏳ PENDING | `+918100640044` only. `WA_LIVE_SMOKE_TEST` is a lockdown, not a permission — it halts customer messaging and must not be left on |
