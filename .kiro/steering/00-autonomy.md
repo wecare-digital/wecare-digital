@@ -17,10 +17,10 @@ what was meant.
 
 ## Do not prompt for
 
-- Running shell commands (git, python, pytest, npm, npx, node, aws, gh, and the
+- Running shell commands (git, python, npm, npx, node, aws, gh, and the
   project scripts). All of these are trusted. Run them directly.
 - Editing, creating, moving, or deleting files inside this workspace.
-- Installing dependencies the task needs, running builds, or running tests.
+- Installing dependencies the task needs or running builds and validation scripts.
 - Committing finished work (see "Auto commit" below).
 - Updating settings, steering, hooks, or other `.kiro/` configuration when the
   task calls for it. Treat `.kiro/` edits as always allowed — never ask first.
@@ -33,8 +33,7 @@ just do it.
 ## No worktree workflow
 
 Work directly in the main checkout at `/Users/wecaredigital/aws/wecare-digital`
-(the git root, and where `package.json`, `pytest.ini`, `src/`,
-`amplify/`, `tests/` and `scripts/` live). Do not create git worktrees, do not
+(the git root, and where `package.json`, `src/`, `amplify/` and `scripts/` live). Do not create git worktrees, do not
 operate out of `.worktrees/`, and do not use `git -C <worktree>` indirection.
 Branch in place when a branch is needed; edit the real files in the main tree.
 
@@ -46,23 +45,16 @@ artifacts as a precondition for doing the work. One agent plans briefly in its
 head (or in a short chat outline for larger tasks) and implements. Skip the
 coder→reviewer→owner-decision ceremony entirely.
 
-## No full-suite gate
+## No retired test-suite assumptions
 
-Do not run the heavy "full verification gate" (whole `python -m pytest -q`
-suite, full `npx vitest run`, full build matrix, header/secret/census scripts)
-as a blanket end-of-task gate. Instead verify narrowly and fast:
-
-- Run only the tests that cover the files you touched.
-- Type-check or lint only the changed area when it is quick to scope.
-- Rely on the build-status check below for the broad signal.
-
-If a change is genuinely broad (touches shared libs, routing, or config that
-many modules read), widen the test selection to the affected area — but still
-scope to what the change can reach rather than running everything.
+The repository intentionally has no workflow directory and no unit/integration test suite.
+Do not recreate or invoke pytest/Vitest/workflow gates. Validate changes with the production
+build, TypeScript checks, targeted compile checks, and purpose-built operational verification
+scripts that still exist.
 
 ## Auto commit and check build status
 
-When a unit of work is complete and its narrow verification passes, commit it
+When a unit of work is complete and its targeted validation passes, commit it
 automatically — do not ask. Then check build status rather than running the full
 suite.
 
