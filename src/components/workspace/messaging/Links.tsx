@@ -2,7 +2,7 @@
  * Link Page - URL Shortener & Deep Links
  *
  * New links are minted under wecare.digital/r (canonical since 2026-09-26).
- * r.wecare.digital is RETIRED: its Route 53 record went on 2026-09-28 under confirmation
+ * wecare.digital/r is RETIRED: its Route 53 record went on 2026-09-28 under confirmation
  * YES R53-DELETE-001 and its API Gateway custom domain was deleted in 396b87ad, so the
  * host is NXDOMAIN and a link on it fails to RESOLVE rather than 404ing. Every code ever
  * issued is still honoured, but only on the apex form wecare.digital/r/<code>.
