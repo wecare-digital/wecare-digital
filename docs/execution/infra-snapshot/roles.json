@@ -1,5 +1,5 @@
 {
-  "_generated": "2026-10-17T00:23:49.531333+00:00",
+  "_generated": "2026-10-24T05:53:41.401211+00:00",
   "roles": {
     "wecare-backup-role": {
       "arn": "arn:aws:iam::775261844268:role/wecare-backup-role",
@@ -42,6 +42,25 @@
         "NativeBlogReadOnly"
       ]
     },
+    "wecare-catalog-media-role": {
+      "arn": "arn:aws:iam::775261844268:role/wecare-catalog-media-role",
+      "assumeRolePolicy": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Principal": {
+              "Service": "lambda.amazonaws.com"
+            },
+            "Action": "sts:AssumeRole"
+          }
+        ]
+      },
+      "attachedPolicies": [],
+      "inlinePolicyNames": [
+        "CatalogMediaReadOnly"
+      ]
+    },
     "wecare-checkout-role": {
       "arn": "arn:aws:iam::775261844268:role/wecare-checkout-role",
       "assumeRolePolicy": {
@@ -60,8 +79,10 @@
         "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
       ],
       "inlinePolicyNames": [
+        "CheckoutInvoiceAuthority",
         "CheckoutLeastPrivilege",
-        "CheckoutNativeCatalogAuthority"
+        "CheckoutNativeCatalogAuthority",
+        "LegacyMediaWriteGuard"
       ]
     },
     "wecare-cognito-custom-message-role": {
@@ -143,9 +164,11 @@
         ]
       },
       "attachedPolicies": [
+        "arn:aws:iam::775261844268:policy/wecare-customer-identity-claims",
         "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
       ],
       "inlinePolicyNames": [
+        "CustomerIdentityClaimsRegistry",
         "CustomerProfileLeastPrivilege"
       ]
     },
@@ -258,8 +281,8 @@
       },
       "attachedPolicies": [
         "arn:aws:iam::775261844268:policy/WECARESecretsReadOnly-20260917",
-        "arn:aws:iam::775261844268:policy/wecare-blog-site-bridge-amplify",
         "arn:aws:iam::775261844268:policy/wecare-shared-role-secret-guard",
+        "arn:aws:iam::775261844268:policy/wecare-customer-identity-claims",
         "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole",
         "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
       ],
@@ -268,12 +291,11 @@
         "ExtraPermissions",
         "factory-reset-discovery",
         "LambdaInvokePolicy",
+        "LegacyMediaWriteGuard",
         "paid-submit-request-recipient",
         "pinpoint-india-templates",
         "ReadPaymentWebhookSecrets",
         "seo-bedrock-inference-profiles",
-        "seo-blog-ingest-queue",
-        "seo-blog-source-intake",
         "wecare-async-dlq-send",
         "wecare-cognito-auth-read",
         "wecare-digital-lambda-permissions",
@@ -407,6 +429,7 @@
       },
       "attachedPolicies": [],
       "inlinePolicyNames": [
+        "LegacyMediaWriteGuard",
         "wecare-secure-files"
       ]
     },
