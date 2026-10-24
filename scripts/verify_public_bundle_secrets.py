@@ -52,10 +52,6 @@ So this check is wired in three places, deliberately:
   1. ``amplify.yml`` build phase - the real gate. Runs inside the Amplify build,
      after ``npm run build``, where the variable is present. Fails the build
      before anything is deployed.
-  2. ``.github/workflows/build-test.yml`` - a weak backstop. It cannot see Amplify
-     variables, so it only catches a credential committed into the source tree.
-  3. ``--amplify-env`` - reads the Amplify branch variables over the API and
-     fingerprints them, so the answer is available without waiting for a build.
 
 Usage
 -----
