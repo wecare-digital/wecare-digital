@@ -171,9 +171,9 @@ def _origin_allowed(event: Dict[str, Any]) -> bool:
     key. The throttle caps the RATE but not the bill.
 
     A REQUEST WITH NO Origin HEADER IS REFUSED, and that is safe for the real client because
-    the site and the API are different hosts - wecare.digital calling api.wecare.digital is
-    cross-origin, so every browser attaches Origin to the POST. A same-origin request could
-    legitimately omit it; there is no same-origin caller here.
+    the deployed site calls the API through the canonical wecare.digital/api path. Browser
+    callers still send Origin when required by the frontend request mode; requests without an
+    allowed Origin are refused.
 
     WHAT THIS DOES NOT DO. It is not authentication and it is not a defence against a
     determined attacker, who can set any header they like. It removes the accidental and the
