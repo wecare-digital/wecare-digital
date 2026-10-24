@@ -436,7 +436,7 @@
               "Condition": {
                 "StringEquals": {
                   "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-                  "token.actions.githubusercontent.com:sub": "repo:wecare-digital/wecare-digital:ref:refs/heads/stack"
+                  "token.actions.githubusercontent.com:sub": "repo:wecare-digital/wecare-digital:ref:refs/heads/wecare.digital"
                 }
               }
             }
