@@ -6,7 +6,7 @@
  * and reverting one site to the native input is a two-line edit.
  *
  * IT IS NOT A FREE-TEXT FIELD, AND THE TRADEOFF IS REAL. All three live native time inputs
- * are SLOT times - engage/appointments, engage/rx-slots and TemplateSender - where a bounded
+ * are SLOT times - engage/appointments, service/sehat-appointments and TemplateSender - where a bounded
  * list reads better than arbitrary minutes. A 5-minute `step` cannot EXPRESS 09:07, so any
  * future site needing arbitrary minutes simply is not migrated and keeps the Layer-1-skinned
  * native input.
