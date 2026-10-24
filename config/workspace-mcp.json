@@ -1,5 +1,5 @@
 {
-  "version": 7,
+  "version": 8,
   "account": "775261844268",
   "region": "us-east-1",
   "repository": "wecare-digital/wecare-digital",
@@ -91,14 +91,14 @@
       "endpoint": "https://mcp.facebook.com/ads",
       "clientId": "2238810740192680",
       "clientMode": "existing-meta-app",
-      "loginConfigId": "1718783392517600",
+      "loginConfigId": "2007033440253686",
       "scopes": [
         "ads_read",
         "business_management",
         "ads_mcp_management"
       ],
       "tools": {},
-      "_note": "Existing-app Ads OAuth is supported by Meta documentation, but the current cloud grant returns MCP HTTP 401. App Review reports ads_read and ads_mcp_management rejected with another submission pending; review access before reconnecting. Advertising execution remains disabled."
+      "_note": "WECARE Ads MCP uses the verified user-access-token Login for Business configuration with exactly ads_read, business_management and ads_mcp_management. The prior shared configuration selected a non-expiring system-user token and 32 permissions, and opened Messenger Marketing Messages onboarding. A fresh consent and authenticated MCP verification are required after deployment. Meta still reports ads_read and ads_mcp_management rejected with another submission pending; this configuration change does not establish provider approval or successful MCP access. Advertising execution remains disabled."
     },
     "plivo": {
       "kind": "documentation-only",
