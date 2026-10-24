@@ -492,10 +492,8 @@ const PUBLIC_PAGE_META: Record<string, {
   '/terms': { name: 'Terms', type: 'WebPage', description: 'Terms of service.' },
   '/privacy': { name: 'Privacy', type: 'WebPage', description: 'How WECARE.DIGITAL handles your data.' },
   '/orders': { name: 'Orders', type: 'WebPage', description: 'Check the status of an order, delivery, request or booking.' },
-  // Bharat Rx does NOT do medicine retail - the owner confirmed that, and the description
-  // said "Medicines, consults, reminders and records" until then. Structured data that
-  // promises a product the page does not offer is worse than none.
-  '/bharat-rx': { name: 'Bharat Rx', type: 'WebPage', description: 'Consults, appointments, reminders and records in one place.', serviceType: 'Health consultations, appointments and records' },
+  // Sehat is an appointment-booking service. Keep structured data limited to that scope.
+  '/sehat': { name: 'Sehat', type: 'WebPage', description: 'Appointments with qualified professionals.', serviceType: 'Appointment booking' },
   // Product pages. Elsewhere is a category-only menu family, so there is deliberately no
   // Elsewhere is a non-clickable family label; its three child pages are registered directly.
   // Descriptions are shorter than the pages' own meta descriptions on purpose: this feeds

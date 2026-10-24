@@ -37,7 +37,7 @@ const OUTPUT_FILE = path.join( OUT_DIR, 'sitemap.xml' );
 // published documents now and are indexable, so they belong here.
 const PUBLIC_EXACT = new Set( [
   '/',
-  '/bharat-rx',
+  '/sehat',
   '/blog',
   '/contact',
   '/grahak-os',

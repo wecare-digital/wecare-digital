@@ -1,6 +1,6 @@
 export const PRODUCT_SKU_BY_SLUG: Readonly<Record<string, string>> = {
   'grahak-os': 'GOS7K4M2',
-  'bharat-rx': 'BRX5N8Q3',
+  'sehat': 'BRX5N8Q3',
   'elsewhere-visa': 'EVS9P4L7',
   'elsewhere-trip': 'ETR6M3K8',
   'expo-week': 'EXP4Q7N5',
@@ -49,10 +49,10 @@ const POLICY_OVERRIDES: Readonly<Record<string, Partial<ProductPolicyCopy>>> = {
     returns: 'The consultation is digital and cannot be physically returned. Separate physical items follow their own return or replacement terms.',
     disclaimer: 'Your purchase covers one Grahak OS consultation. Deployment, implementation, integrations and third-party platform or messaging charges are separate unless included in writing. Channel availability and approvals may depend on third parties.',
   },
-  'bharat-rx': {
-    shipping: 'Bharat Rx is fulfilled as a service; physical delivery applies only if an item is included.',
+  'sehat': {
+    shipping: 'Sehat is fulfilled as an appointment-booking service; no physical delivery applies.',
     returns: 'Service work and digital records are not returnable; physical items follow their disclosed terms.',
-    disclaimer: 'Bharat Rx coordinates requests and records; it is not medical advice, diagnosis or treatment. In an emergency, contact local emergency services.',
+    disclaimer: 'Sehat books appointments with qualified professionals. It does not provide medical advice, diagnosis or treatment. In an emergency, contact local emergency services.',
   },
   'elsewhere-visa': {
     disclaimer: 'We can prepare and track the application; approval and timing remain with the relevant authority.',

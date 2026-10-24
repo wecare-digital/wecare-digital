@@ -79,7 +79,7 @@ const COLUMNS: NavColumn[] = [
         links: [
           { label: 'Grahak OS', href: '/grahak-os/', match: '/grahak-os' },
           { label: 'VayuLok', href: '/vayulok/', match: '/vayulok' },
-          { label: 'Bharat Rx', href: '/bharat-rx/', match: '/bharat-rx' },
+          { label: 'Sehat', href: '/sehat/', match: '/sehat', searchTerms: [ 'health', 'appointment', 'booking' ] },
           {
             label: 'Elsewhere',
             searchTerms: [ 'travel' ],
