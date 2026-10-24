@@ -25,7 +25,7 @@ BQ_LOCATION=US
 BQ_MAX_BYTES_BILLED_30D=1200000000
 BQ_MAX_BYTES_BILLED_1Y=15000000000
 BQ_MAX_BYTES_BILLED_5Y=40000000000
-ALLOWED_ORIGINS=https://wecare.digital,https://www.wecare.digital
+ALLOWED_ORIGINS=https://wecare.digital,https://wecare.digital
 ```
 
 The subscribed India listing currently exposes:
