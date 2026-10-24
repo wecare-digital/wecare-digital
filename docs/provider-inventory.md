@@ -176,9 +176,9 @@ verified live against PageSpeed/Places/Geocoding), `wecare/seo/google-oauth`
 | Verification flow | **NEW** (§34) — reuse existing app, do not create another |
 | Truecaller for Business caller branding | **NEW** (§36) — stays `false` until KYC approval |
 
-Only the secret definition exists (`scripts/store_provider_secret.py:107-116`).
-`wecare/truecaller` now holds `app_key`, `app_name`, `app_domain`,
-`callback_url`. Nothing reads it.
+Only future provisioning scaffolding exists. There is no live callback route or runtime
+consumer. The old `wecare/truecaller` credential is retired; provision a fresh credential
+only after owner entitlement and callback registration are complete.
 
 ---
 
@@ -207,7 +207,7 @@ tests enforce that. Do not add TTS to it.
 | `scripts/sync-sinch-rcs-templates` | NEW (§12) |
 | `scripts/test-aws-rcs`, `test-rcs-{ios,android,fallback}` | NEW (§46) |
 | `scripts/test-plivo-{webhook,application-sip}`, `test-whatsapp-sip`, `check-sip-tls` | NEW (§46) |
-| `scripts/test-google-{oauth,contacts,ads}`, `test-truecaller-callback` | NEW (§46) |
+| Provider validation tooling | FUTURE — use targeted operational validation when the owner enables these integrations |
 | `scripts/test_call_paths.py` | **KEEP** — already the authoritative call-leg verifier |
 
 ---
@@ -263,7 +263,7 @@ unblock for all three is one action:
 
 **Do not re-add the developer token as a required credential.** A future reader finding this
 row should not go hunting for a value that the provider stopped honouring.
-| `wecare/truecaller` | Truecaller | KEEP — no consumer yet |
+| `wecare/truecaller` | Truecaller | UNPROVISIONED — no live route/consumer; stored credential retired |
 
 Deleting a secret requires pointwise confirmation
 (`.kiro/steering/maintenance-reporting.md`). No secret is deleted during the code

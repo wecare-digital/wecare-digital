@@ -104,7 +104,7 @@ class Field:
 PROVIDERS: Dict[str, dict] = {
     # ---- new ids -----------------------------------------------------------
     "truecaller": {
-        "secret_id": "wecare/truecaller",                          # NEW
+        "secret_id": "wecare/truecaller",                          # FUTURE / unprovisioned
         "fields": [
             Field("app_key", note="partner/app key from developer.truecaller.com"),
             Field("app_name", secret=False),

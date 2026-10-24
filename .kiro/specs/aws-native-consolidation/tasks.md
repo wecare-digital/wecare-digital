@@ -82,7 +82,7 @@ Legend: `[x]` done and verified · `[~]` implemented, not deployed · `[ ]` not 
       inline policies are at IAM's 10,240-byte limit.
 - [ ] B.5 🔒 B-2 replace and revoke the exposed classic GitHub PAT.
 - [~] B.6 🔒 B-3 `aws/iam-access-keys`: repo consumers removed; scheduled for deletion with recovery window;
-      `config/webhook-registry` remains a separate SSM-migration cleanup.
+      `config/webhook-registry` moved to Standard SSM `/wecare/config/webhook-registry`; Secrets Manager copy scheduled for deletion.
       `meta/payments` stays: `.env.local.example` names it as the config-to-MID mapping
       (deletion was scheduled at 05:58 IST and restored at once). `bing/api` stays (registry reads it).
 - [ ] B.7 🔒 B-5 fresh encrypted backup, then owner retention decision on the two old versions.
