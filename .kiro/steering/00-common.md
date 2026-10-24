@@ -213,12 +213,61 @@ SEO verification before done:
 - No accidental `noindex` or robots block exists on pages intended to rank.
 - Structured data matches the rendered page and passes the relevant validators.
 
-## Account identifiers and secrets
+## Account registry, identifiers, and secrets
 
-Account IDs, property IDs, measurement IDs, container IDs, project IDs, merchant IDs, location
-resource names, and similar public/non-secret identifiers may be kept only in the repository's
-existing canonical configuration locations when verified.
+The following SEO/advertising/analytics accounts are owner-confirmed and have been accessed or
+provisioned previously. Treat this as an identity registry, **not** proof that every API permission,
+scope, quota tier, account linkage, or provider approval is currently active. Re-verify live access
+before a credential-dependent operation.
 
-Credentials are different: API keys, OAuth client secrets, developer tokens, service-account key
-material, signing secrets, refresh tokens, passwords, and similar values must never be committed or
-copied into examples. Fetch them only through already-approved secret references/identity flows.
+### Google
+- Google Ads advertiser: **WECARE.DIGITAL** — customer ID `836-758-9699`.
+- Google Ads manager: **WECARE.DIGITAL** — manager/login customer ID `427-041-2231`.
+- Google Cloud project: **WECARE-DIGITAL** — project ID `wecaredigitalbw`, project number
+  `756034744787`.
+- Google automation service account:
+  `automation@wecaredigitalbw.iam.gserviceaccount.com`.
+- Google OAuth web client identifier:
+  `756034744787-occ06h9v22rh0kbm83mmedpfqqqfni44.apps.googleusercontent.com`.
+- Google Analytics 4 property: `550346663`.
+- GA4 web stream: **WECARE.DIGITAL** — stream ID `16126298947`, measurement ID
+  `G-6GW8JXKKT7`, stream URL `https://wecare.digital`.
+- Google Business Profile location: `locations/11367616731342236672`.
+- Google Merchant Center: display account `wecare.digital`, merchant ID `5841142064`.
+- Google Play developer page:
+  `https://play.google.com/store/apps/dev?id=5505420420345648842`.
+- Google Tag Manager account ID: `6372080304`.
+  - Web container: `GTM-TXZ8JT78`.
+  - Server container: `GTM-NPR6TB98`.
+
+### Meta / Facebook / WhatsApp commerce
+- Meta Ads account IDs recorded by the owner:
+  `2477665435963445`, `1685177122467383`, `757566744073180`,
+  `2107046253414284`, `1574832283724191`, `4437435039910843`,
+  `3770879209885614`.
+- WECARE dataset / CAPI dataset ID: `4554612361454941`.
+- WhatsApp / Meta catalog: **wecare_shop** — catalog ID `1457045652952851`.
+
+### Bing Webmaster
+- Verified/owner-supplied Bing Webmaster site reference: `https://www.wecare.digital/`.
+  This provider property does not override the website's canonical apex URL
+  `https://wecare.digital/`.
+
+### Credential references — never copy values into source
+
+The owner has supplied live credentials for several of these accounts. Their literal values are
+**not repository settings** and must never be copied into this file, source code, examples, logs,
+commits, pull requests, or generated artifacts. Use the existing secret references instead:
+
+- Google Ads credential family / developer-token field: AWS Secrets Manager
+  `wecare/google/ads`.
+- Google OAuth client secret: AWS Secrets Manager `wecare/seo/google-oauth`.
+- Unified Google API key: AWS Secrets Manager `wecare/google-api-key` (or the existing
+  service-specific Google secret already used by the target integration; do not duplicate it).
+- Google Cloud service-account key material: AWS Secrets Manager `wecare/google/cloud`.
+- Bing Webmaster API credential: AWS Secrets Manager `wecare/bing/api`.
+
+API keys, OAuth client secrets, developer tokens, service-account key material, refresh tokens,
+passwords, signing secrets, and similar credential values remain secret even when already supplied
+or previously accessed. Read them only through approved secret-store or workload-identity flows.
+Never infer that an account ID or a stored credential proves current provider authorization.
