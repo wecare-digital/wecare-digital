@@ -16,7 +16,7 @@ const LEGACY: Record<string, string> = {
   track: '/workspace/service?view=requests&action=track',
   amend: '/workspace/service?view=requests&action=amend',
   appointments: '/workspace/service?view=appointments',
-  'rx-slots': '/workspace/service?view=appointments&action=rx-slots',
+  'sehat-appointments': '/workspace/service?view=appointments&action=sehat-appointments',
   documents: '/workspace/service?view=documents',
   'secure-files': '/workspace/service?view=documents&action=secure-files',
   enterprise: '/workspace/service?view=requests&action=enterprise',
