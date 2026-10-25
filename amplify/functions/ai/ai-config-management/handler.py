@@ -13,6 +13,10 @@ Keys:
 - ai_config: Main AI configuration
 - ai_prompts_{lang}: Language-specific prompts
 - ai_fallbacks_{lang}: Language-specific fallback messages
+- any other key through PUT /ai/config with body.key (Workspace settings)
+
+Authority: a staff token (Viewer or above) for every route. Writing a key in
+OPERATOR_WRITE_KEYS (keyword-to-Flow triggers and F001 Subscribe copy) needs Operator.
 """
 
 import os
@@ -78,6 +82,13 @@ SUPPORTED_LANGUAGES = {
     'gu': 'Gujarati',
     'mr': 'Marathi',
 }
+
+
+#: SystemConfig keys that decide what customers are sent: which keyword opens which WhatsApp
+#: Flow (`flow_triggers_config`, including the F001 Subscribe keyword switch) and the F001
+#: Subscribe customer copy (`subscribe_messages_config`). Writing them is an Operator action.
+#: Every other route here keeps the staff (Viewer) floor, and reading these keys stays there.
+OPERATOR_WRITE_KEYS = frozenset({'flow_triggers_config', 'subscribe_messages_config'})
 
 
 # Module-level origin for CORS (set per-invocation in handler)
@@ -177,6 +188,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             # External AI config — supports body.key for arbitrary config
             elif '/ai/config' in path:
                 cfg_key = body.pop('key', 'ai_config') if isinstance(body, dict) else 'ai_config'
+                if isinstance(cfg_key, str) and cfg_key in OPERATOR_WRITE_KEYS:
+                    operator_denied = require_auth(event, required_role='Operator')
+                    if operator_denied is not None:
+                        return operator_denied
                 return _update_config(body, request_id, config_key=cfg_key)
             elif '/ai/prompts' in path:
                 lang = path_params.get('lang') or body.get('language')

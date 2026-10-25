@@ -4797,6 +4797,25 @@ def _upload_flow_asset(flow_id: str, body: Dict) -> Dict:
     })
 
 
+def _get_flow_assets(flow_id: str, waba_id: str = None) -> Dict:
+    """GET /{FLOW-ID}/assets: what Meta stores for a Flow. Read-only.
+
+    The readback for comparing a published FLOW_JSON with its repository definition
+    (`flows/design-drafts/*.json`). `downloadUrl` is Meta's short-lived link to the asset
+    file. The id must be numeric, so it can only ever name a Flow, never another Graph path.
+    """
+    flow_id = str(flow_id or '').strip()
+    if not (flow_id.isascii() and flow_id.isdigit()):
+        return _resp(400, {'error': 'numeric flowId required'})
+    result = _graph_api(f'{flow_id}/assets', waba_id=waba_id)
+    if 'error' in result:
+        return _resp(400, result)
+    assets = [{'name': a.get('name', ''), 'assetType': a.get('asset_type', ''),
+               'downloadUrl': a.get('download_url', '')}
+              for a in (result.get('data') or []) if isinstance(a, dict)]
+    return _resp(200, {'flowId': flow_id, 'assets': assets})
+
+
 def _migrate_flows(body: Dict) -> Dict:
     """POST /{DEST-WABA-ID}/migrate_flows — migrate flows between WABAs."""
     dest_waba_id = body.get('destWabaId') or body.get('wabaId')
@@ -4844,6 +4863,7 @@ def _sync_flows(params: Dict, body: Dict) -> Dict:
     table = dynamodb.Table(FLOW_REGISTRY_TABLE)
     synced = 0
     skipped = 0
+    not_registered = 0
     for f in flows:
         flow_id = f.get('id')
         if not flow_id:
@@ -4852,6 +4872,12 @@ def _sync_flows(params: Dict, body: Dict) -> Dict:
             existing = table.get_item(Key={'flowId': flow_id}).get('Item', {})
         except Exception:
             existing = {}
+        if not existing and str(f.get('status') or '').upper() == 'DEPRECATED':
+            # A deprecated Flow can never be sent or published again, so a first sighting is
+            # not registered (a WABA keeps every retired Flow forever). A row that already
+            # exists still records the deprecation in `metaStatus` below.
+            not_registered += 1
+            continue
         categories = f.get('categories', [])
         validation_errors = f.get('validation_errors', [])
         health = f.get('health_status', {})
@@ -4928,7 +4954,7 @@ def _sync_flows(params: Dict, body: Dict) -> Dict:
     _flow_registry_cache = {}
     _flow_registry_cache_ts = 0
     return _resp(200, {'success': True, 'synced': synced, 'skipped': skipped,
-                       'total': len(flows), 'wabaId': waba_id})
+                       'notRegistered': not_registered, 'total': len(flows), 'wabaId': waba_id})
 
 
 def _get_flow_submission_stats(params: Dict) -> Dict:
@@ -6205,6 +6231,28 @@ def _verify_webhook_signature(event: Dict[str, Any], request_id: str) -> bool:
     return ok
 
 
+def _observe_flow_endpoint_signature(event: Dict[str, Any], request_id: str) -> None:
+    """Log whether Meta's `X-Hub-Signature-256` verifies on a `/flow-data` request.
+
+    OBSERVE ONLY: the outcome never changes the response. Meta signs Flow data-exchange
+    requests with the app secret, as it does webhooks, but this endpoint has never checked
+    it, and refusing on a check that has not yet been seen to pass on real traffic would risk
+    breaking every live Flow at once. Enforcement (HTTP 432, Meta's code for a failed
+    signature) is a separate change, made once these lines show every genuine request as
+    `verified`. Until then a request is bound to a customer by its server-issued session.
+    """
+    try:
+        primary = _get_app_secret()  # loads both WABA app secrets into _token_cache
+        verified, reason = meta_signature.verify(
+            event, [primary, _token_cache.get('app_secret_waba2', '')])
+    except Exception as e:  # noqa: BLE001 - an observation must never fail the Flow
+        verified, reason = False, f'verify_error:{type(e).__name__}'
+    logger.info(json.dumps({
+        'event': 'flow_endpoint_signature', 'verified': verified, 'reason': reason,
+        'requestId': request_id,
+    }))
+
+
 # Shared path extractor used by non-service WhatsApp admin routes.
 # Service-domain HTTP routes are owned by wecare-service-api directly at API Gateway.
 def _svc_path_param(path: str, resource: str) -> str:
@@ -6368,11 +6416,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     except (json.JSONDecodeError, TypeError, ValueError):
         body = {}
 
-    # Enforce auth for every route except the one genuinely self-authenticating
-    # endpoint: `/wa-business/flow-data`, the Meta Flows data-exchange callback,
-    # which proves authenticity by RSA+AES-GCM decryption (only the holder of our
-    # private key can produce a payload we can decrypt). That single path is the
-    # entire contents of AUTH_SKIP_PATHS. Internal Lambda invokes are auto-exempt.
+    # Enforce auth for every route except `/wa-business/flow-data`, the Meta Flows
+    # data-exchange callback, which carries no staff token. Decryption alone does not
+    # authenticate it (anyone holding the public key can encrypt to it): a request is bound
+    # to a customer by the server-issued session in `lambda_utils.flow_sessions`, and Meta's
+    # `X-Hub-Signature-256` is checked and logged on every request (observe only, see
+    # `_observe_flow_endpoint_signature`). That single path is the entire contents of
+    # AUTH_SKIP_PATHS. Internal Lambda invokes are auto-exempt.
     #
     # `/wa-business/webhooks` used to be exempt too, on the stated grounds that it
     # "authenticates via verify token". It does not. It is not a Meta callback at
@@ -6407,10 +6457,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     if operator_denied is not None:
         return operator_denied
 
-    # Note: WhatsApp Flows data_exchange uses E2E encryption (RSA + AES-GCM)
-    # for authentication — NOT x-hub-signature-256. The encrypted payload itself
-    # proves authenticity because only the holder of the private key can decrypt it.
-    # Signature verification is only for regular webhooks, not flow-data.
+    # Note: WhatsApp Flows data_exchange is encrypted (RSA + AES-GCM) for confidentiality
+    # and also signed by Meta with `X-Hub-Signature-256`, like webhooks. `/flow-data`
+    # records that signature's outcome without enforcing it yet; see
+    # `_observe_flow_endpoint_signature`.
 
     logger.info(f'[{request_id}] {method} {path}')
 
@@ -6487,7 +6537,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         elif '/flows/assets' in path:
             if method == 'POST':
                 return _upload_flow_asset(params.get('flowId') or body.get('flowId') or '', body)
-            return _resp(405, {'error': 'POST only'})
+            if method == 'GET':
+                return _get_flow_assets(params.get('flowId') or '', params.get('wabaId'))
+            return _resp(405, {'error': 'GET or POST only'})
         elif '/flows/migrate' in path:
             if method == 'POST':
                 return _migrate_flows(body)
@@ -6508,6 +6560,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             elif method == 'POST':
                 return _create_flow(waba_id or '', body)
             elif method == 'PUT':
+                # A metadata update can repoint a Flow's data endpoint, which decides where
+                # customer submissions go, so it is Admin-only, like publish and deprecate.
+                admin_denied = require_auth(event, required_role='Admin')
+                if admin_denied is not None:
+                    return admin_denied
                 return _update_flow(flow_id or '', body)
             elif method == 'DELETE':
                 return _delete_flow(flow_id or '')
@@ -6882,6 +6939,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         elif '/flow-data' in path:
             if method == 'POST':
+                _observe_flow_endpoint_signature(event, request_id)
                 return _handle_flow_data(body, request_id, origin)
             return _resp(405, {'error': 'POST only'})
 
