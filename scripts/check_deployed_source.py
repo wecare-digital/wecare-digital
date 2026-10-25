@@ -25,7 +25,9 @@ What it reports per function
 ----------------------------
     alias version, the version's CodeSha256, LastModified
     DIFFERS  : file exists in both, contents differ  (deployed code is stale)
-    MISSING  : file exists locally, absent from the artifact
+    MISSING  : a file the function's own packager ships, absent from the artifact. The
+               list comes from that packager (`deploy_all_lambdas.build_zip`, or the
+               delegated script's builder), so the two cannot disagree.
     EXTRA    : file in the artifact with no local counterpart (deleted since)
     $LATEST vs alias: whether unpublished code is sitting in front of the alias
 
@@ -44,6 +46,11 @@ Usage
     .venv/bin/python scripts/check_deployed_source.py --file lambda_utils/wa_internal_event.py
     .venv/bin/python scripts/check_deployed_source.py --json out.json
 
+A full-fleet run also lists every function in the account that nothing here maps to
+source (UNTRACKED), so "checked=N" cannot pass for complete coverage while a function is
+skipped. A spec whose function is not created yet is reported as awaiting its
+provisioner, the way `deploy_all_lambdas.py` reports it, rather than as an error.
+
 Exit status is 1 when any compared file differs, so it can gate a release.
 """
 
@@ -51,6 +58,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib
 import io
 import json
 import pathlib
@@ -94,7 +102,8 @@ class DelegatedSpec:
     longest-prefix-first by `local_bytes`.
     """
 
-    def __init__(self, name: str, source, arcname_map, owner: str):
+    def __init__(self, name: str, source, arcname_map, owner: str, *,
+                 expected=None, only=(), edge: bool = False):
         self.name = name
         self.source = source
         self.arcname_map = arcname_map
@@ -103,6 +112,15 @@ class DelegatedSpec:
         self.extra_dirs: list[str] = []
         self.extra_files: list[str] = []
         self.provisioned_by = ""
+        # What the owning script's packager ships: a zero-argument callable returning the
+        # archive names, or the names themselves. A shipped file absent from the artifact is
+        # drift as much as a stale copy is.
+        self.expected = expected
+        # Archive paths that come from this repository. Empty means every file does; a
+        # package that vendors its own SDK names its few source files instead.
+        self.only = set(only)
+        # Lambda@Edge: CloudFront runs a numbered version, never `live` or $LATEST.
+        self.edge = edge
 
 
 def delegated_specs(dal) -> dict:
@@ -120,6 +138,7 @@ def delegated_specs(dal) -> dict:
                 ("seo_tools_handler.py", functions),
             ],
             "scripts/deploy_seo_tools.py",
+            expected=packaged_by("deploy_seo_tools", "package"),
         ),
         # handler.py plus config/public-pages.json copied in beside it. The catalogue is
         # the reason this cannot be a normal Spec: extra_files resolves relative to the
@@ -132,8 +151,113 @@ def delegated_specs(dal) -> dict:
                 ("handler.py", functions / "ai" / "mcp"),
             ],
             "scripts/deploy_mcp_server.py",
+            expected=packaged_by("deploy_mcp_server", "package"),
+        ),
+        # The same blind spot again, measured 2026-10-25: "checked=68" against 74 functions,
+        # while wecare-native-catalog-admin ran 25 shared modules from 2026-10-23 (its auth
+        # middleware among them) and nothing reported it. These are the rest of
+        # dal.DELEGATED plus the functions owned by their own provisioners.
+        "wecare-blog-public": DelegatedSpec(
+            "wecare-blog-public",
+            functions / "operations" / "blog-public",
+            [],
+            "scripts/build_blog_public.py",
+            expected=packaged_by("build_blog_public", "package"),
+        ),
+        # Its pinned SDK is bundled beside three source files and one config file; only
+        # those four come from this repository. Its builder needs the installed SDK, so the
+        # four are named here rather than read from it.
+        "wecare-workspace-mcp": DelegatedSpec(
+            "wecare-workspace-mcp",
+            functions / "ai" / "workspace-mcp",
+            [("workspace-mcp.json", ROOT / "config")],
+            "scripts/build_workspace_mcp.py",
+            expected=WORKSPACE_MCP_SOURCES,
+            only=WORKSPACE_MCP_SOURCES,
+        ),
+        "wecare-native-catalog-admin": DelegatedSpec(
+            "wecare-native-catalog-admin",
+            functions / "ecommerce" / "native-catalog-admin",
+            [],
+            "scripts/provision_native_catalog_api.py",
+            expected=packaged_by("provision_native_catalog_api", "zip_code"),
+        ),
+        "wecare-catalog-media": DelegatedSpec(
+            "wecare-catalog-media",
+            functions / "ecommerce" / "catalog-media",
+            [],
+            "scripts/provision_catalog_media.py",
+            expected=packaged_by("provision_catalog_media", "zip_code"),
+        ),
+        # A CloudFront origin-response trigger with no packaging script: one handler file.
+        # Compared at the version the cache behaviour names, which is what production executes.
+        "wecare-get-miss-redirect": DelegatedSpec(
+            "wecare-get-miss-redirect",
+            functions / "edge" / "get-miss-redirect",
+            [],
+            "CloudFront Lambda@Edge association",
+            expected=("handler.py",),
+            edge=True,
         ),
     }
+
+
+WORKSPACE_MCP_SOURCES = ("handler.py", "provider_adapters.py", "chat_oauth.py",
+                         "workspace-mcp.json")
+
+
+def packaged_by(module: str, builder: str):
+    """The archive names a packaging script in scripts/ builds, read from its own builder.
+
+    Lazy: the script is imported only when its function is checked. Each named builder is a
+    pure function returning zip bytes; none makes an AWS call.
+    """
+    def names() -> set[str]:
+        zip_bytes = getattr(importlib.import_module(module), builder)()
+        with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+            return {info.filename for info in zf.infolist() if not info.is_dir()}
+    return names
+
+
+def comparable(arcname: str) -> bool:
+    """The archive paths this script compares: source and config, not bytecode or wheels."""
+    parts = set(pathlib.PurePosixPath(arcname).parts)
+    if parts & SKIP_PARTS or any(p.endswith(tuple(SKIP_PARTS)) for p in parts):
+        return False
+    return arcname.endswith(COMPARE_SUFFIXES)
+
+
+def expected_names(dal, spec) -> set[str] | None:
+    """What the function's own packager ships, or None when that is not known here."""
+    if isinstance(spec, DelegatedSpec):
+        if spec.expected is None:
+            return None
+        names = set(spec.expected() if callable(spec.expected) else spec.expected)
+    else:
+        names = set(dal.build_zip(spec)[1])
+    return {n for n in names if comparable(n)}
+
+
+def edge_versions(function_name: str) -> list[str]:
+    """The versions of a Lambda@Edge function that CloudFront cache behaviours name."""
+    cloudfront = boto3.client("cloudfront", config=CFG)
+    found = set()
+    for page in cloudfront.get_paginator("list_distributions").paginate():
+        for dist in (page.get("DistributionList") or {}).get("Items") or []:
+            behaviours = [dist.get("DefaultCacheBehavior") or {}]
+            behaviours += (dist.get("CacheBehaviors") or {}).get("Items") or []
+            for behaviour in behaviours:
+                for assoc in (behaviour.get("LambdaFunctionAssociations") or {}).get("Items") or []:
+                    base, _, version = assoc.get("LambdaFunctionARN", "").rpartition(":")
+                    if base.endswith(f":function:{function_name}"):
+                        found.add(version)
+    return sorted(found)
+
+
+def account_functions(lam) -> list[str]:
+    return [fn["FunctionName"]
+            for page in lam.get_paginator("list_functions").paginate()
+            for fn in page.get("Functions", [])]
 
 
 def load_specs():
@@ -160,12 +284,7 @@ def artifact_entries(zip_bytes: bytes) -> dict[str, bytes]:
     out: dict[str, bytes] = {}
     with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
         for info in zf.infolist():
-            if info.is_dir():
-                continue
-            parts = set(pathlib.PurePosixPath(info.filename).parts)
-            if parts & SKIP_PARTS or any(p.endswith(tuple(SKIP_PARTS)) for p in parts):
-                continue
-            if not info.filename.endswith(COMPARE_SUFFIXES):
+            if info.is_dir() or not comparable(info.filename):
                 continue
             out[info.filename] = zf.read(info)
     return out
@@ -216,23 +335,40 @@ def local_bytes(dal, spec, arcname: str) -> bytes | None:
 def check_function(lam, dal, spec, only_file: str | None):
     name = spec.name
     row: dict = {"function": name}
-    try:
-        alias = lam.get_alias(FunctionName=name, Name="live")
-        row["alias_version"] = alias["FunctionVersion"]
-    except ClientError as exc:
-        code = exc.response["Error"]["Code"]
-        if code == "ResourceNotFoundException":
-            row["alias_version"] = None
-            row["note"] = "no `live` alias — $LATEST reaches production directly"
-        else:
-            row["error"] = code
+    if getattr(spec, "edge", False):
+        versions = edge_versions(name)
+        if len(versions) != 1:
+            row["error"] = (f"CloudFront names {len(versions)} versions: {versions}"
+                            if versions else "no CloudFront association")
             return row
+        row["alias_version"] = versions[0]
+        row["note"] = "Lambda@Edge — compared at the version CloudFront runs"
+    else:
+        try:
+            alias = lam.get_alias(FunctionName=name, Name="live")
+            row["alias_version"] = alias["FunctionVersion"]
+        except ClientError as exc:
+            code = exc.response["Error"]["Code"]
+            if code == "ResourceNotFoundException":
+                row["alias_version"] = None
+                row["note"] = "no `live` alias — $LATEST reaches production directly"
+            else:
+                row["error"] = code
+                return row
 
     qualifier = row.get("alias_version") or "$LATEST"
     try:
         got = lam.get_function(FunctionName=name, Qualifier=qualifier)
     except ClientError as exc:
-        row["error"] = exc.response["Error"]["Code"]
+        code = exc.response["Error"]["Code"]
+        if code == "ResourceNotFoundException" and getattr(spec, "provisioned_by", ""):
+            # Not created yet. deploy_all_lambdas reports the same state as "awaiting
+            # provisioning" rather than a failure; reporting it as an ERROR here taught readers
+            # to skip ERROR lines.
+            row["note"] = f"not created yet — awaiting `{spec.provisioned_by}`"
+            row["awaiting_provisioning"] = True
+            return row
+        row["error"] = code
         return row
 
     cfgv = got["Configuration"]
@@ -254,6 +390,13 @@ def check_function(lam, dal, spec, only_file: str | None):
     except ClientError:
         pass
 
+    try:
+        expected = expected_names(dal, spec)
+    except (OSError, RuntimeError, ImportError, AttributeError, zipfile.BadZipFile) as exc:
+        # The repository cannot build this package, so a deploy from it would fail too.
+        row["error"] = f"cannot build the package locally: {type(exc).__name__}: {exc}"
+        return row
+
     url = got.get("Code", {}).get("Location")
     if not url:
         row["error"] = "no code location returned"
@@ -265,8 +408,13 @@ def check_function(lam, dal, spec, only_file: str | None):
     missing: list[str] = []
     extra: list[str] = []
     compared = 0
+    only = getattr(spec, "only", set())
+    vendored = 0
     for arcname, blob in sorted(entries.items()):
         if only_file and not arcname.endswith(only_file):
+            continue
+        if only and arcname not in only:
+            vendored += 1  # a bundled third-party file, not source from this repository
             continue
         local = local_bytes(dal, spec, arcname)
         if local is None:
@@ -281,10 +429,17 @@ def check_function(lam, dal, spec, only_file: str | None):
                 "deployed_bytes": len(blob),
                 "local_bytes": len(local),
             })
+    # A file the packager ships that the artifact lacks: a stale artifact can miss a new module
+    # as easily as hold an old copy of one.
+    if expected is not None:
+        missing = sorted(n for n in expected - set(entries)
+                         if not only_file or n.endswith(only_file))
     row["compared"] = compared
     row["differs"] = differs
     row["extra_in_artifact"] = extra
     row["missing_from_artifact"] = missing
+    if vendored:
+        row["vendored_not_compared"] = vendored
     return row
 
 
@@ -314,7 +469,7 @@ def main() -> int:
     for t in targets:
         row = check_function(lam, dal, specs[t], args.file)
         rows.append(row)
-        has_diff = bool(row.get("differs"))
+        has_diff = bool(row.get("differs") or row.get("missing_from_artifact"))
         if has_diff:
             drifted += 1
         if args.quiet_clean and not has_diff and not row.get("error"):
@@ -331,16 +486,29 @@ def main() -> int:
         if row.get("latest_differs_from_alias"):
             print("      $LATEST differs from the alias — unpublished code is not live")
         if has_diff:
-            for d in row["differs"]:
+            for d in row.get("differs", []):
                 print(f"      DIFFERS  {d['path']}  "
                       f"deployed {d['deployed_bytes']}B/{d['deployed_sha256']} "
                       f"vs local {d['local_bytes']}B/{d['local_sha256']}")
         elif row.get("compared"):
             print(f"      OK — {row['compared']} file(s) byte-identical to the local tree")
+        for x in row.get("missing_from_artifact", []):
+            print(f"      MISSING  {x}  (in the tree, not in the artifact)")
         for x in row.get("extra_in_artifact", [])[:5]:
             print(f"      EXTRA    {x}  (in artifact, not in the tree)")
 
-    print(f"\nfunctions checked={len(rows)}  with stale file(s)={drifted}")
+    awaiting = sum(1 for r in rows if r.get("awaiting_provisioning"))
+    untracked: list[str] = []
+    if not args.functions:
+        # Only a full-fleet run can say what it did NOT cover.
+        accounted = set(specs) | set(getattr(dal, "SKIPPED", {}))
+        untracked = sorted(set(account_functions(lam)) - accounted)
+        for name in untracked:
+            print(f"  UNTRACKED {name}  in the account, but nothing in this repository maps it "
+                  "to source")
+    print(f"\nfunctions checked={len(rows)}  with stale file(s)={drifted}  "
+          f"awaiting provisioning={awaiting}  untracked={len(untracked)}")
+    rows.extend({"function": name, "untracked": True} for name in untracked)
     if args.json_out:
         pathlib.Path(args.json_out).write_text(json.dumps(rows, indent=2) + "\n")
         print(f"wrote {args.json_out}")
