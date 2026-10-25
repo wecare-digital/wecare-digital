@@ -463,11 +463,11 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
         // No discount is sent: the invoice engine auto-applies the standalone Delight policy
         // (0.5% up to Rs50) server-side. There is no coupon code and no manual adjustment to pass.
       };
-      // The server applies Delight and never refuses on a discount, so the plain wrapper is
-      // enough; the response carries the applied Delight figure for the preview below.
-      const r = await api.createInvoiceEngine( req );
-      if ( r )
+      req.entryPoint = 'pay_flow';
+      const created = await api.createInvoiceEngineResult( req );
+      if ( created.ok )
       {
+        const r = created.invoice;
         showMsg( `Review invoice ${r.invoiceNumber} and send the payment request below.` );
         // Every figure here is the SERVER's. Nothing on this page recomputes a discount.
         setRedemption( r );
@@ -509,7 +509,14 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
       else
       {
         setRedemption( null );
-        showMsg( 'Create failed', 'error' );
+        const messages: Record<string, string> = {
+          DELIVERY_REQUIRED: 'Add a complete structured delivery address before creating this physical invoice.',
+          INVALID_PIN: 'The saved postal code is not payable for WhatsApp payment. Update the customer address.',
+          INVALID_AMOUNT: 'Check item amount, quantity, GST and delivery values.',
+          REQUEST_FAILED: 'Invoice service could not be reached. Try again once.',
+          CREATE_FAILED: 'Invoice creation was refused. Check the invoice ledger before retrying.',
+        };
+        showMsg( messages[ created.errorCode ] || `Invoice create failed: ${created.errorCode}`, 'error' );
       }
     } catch ( e ) { showMsg( 'Creation was not confirmed. Check Invoices before creating another.', 'error' ); }
     finally { invoiceCreateInFlight.current = false; setCreating( false ); }
