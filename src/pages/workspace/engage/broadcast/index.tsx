@@ -58,6 +58,30 @@ const eligible = (
     return !!c.phone; // rcs — phone-based
 };
 
+const SPECIALIZED_WHATSAPP_TEMPLATES = new Set( [
+    'wecare_order_status_v3',
+    'wecare_default_invoice_image_template',
+    'wecare_leave_review',
+    'wecare_whatapp_native_pay_template',
+    'wecare_default_download',
+    'wecare_location_share_pin',
+    'wecare_otp',
+] );
+
+const broadcastSafeTemplate = ( t: api.WhatsAppTemplate ): boolean => {
+    if ( SPECIALIZED_WHATSAPP_TEMPLATES.has( String( t.name || '' ).toLowerCase() ) ) return false;
+    const components = Array.isArray( t.components ) ? t.components : [];
+    return !components.some( ( comp: any ) => {
+        const type = String( comp?.type || '' ).toUpperCase();
+        const format = String( comp?.format || '' ).toUpperCase();
+        if ( type === 'HEADER' && [ 'IMAGE', 'VIDEO', 'DOCUMENT', 'LOCATION' ].includes( format ) ) return true;
+        if ( type === 'BUTTONS' ) return ( comp?.buttons || [] ).some( ( b: any ) =>
+            [ 'FLOW', 'URL', 'ORDER_DETAILS', 'COPY_CODE' ].includes( String( b?.type || '' ).toUpperCase() )
+        );
+        return false;
+    } );
+};
+
 const BroadcastPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
     const toast = useToastContext();
     const [ channel, setChannel ] = useState<Channel>( 'sms' );
@@ -78,7 +102,7 @@ const BroadcastPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
 
     useEffect( () => {
         api.listContacts().then( setContacts ).catch( () => toast.error( 'Failed to load contacts' ) );
-        api.listTemplates().then( t => setTemplates( ( t || [] ).filter( ( x: any ) => x.status === 'APPROVED' ) ) ).catch( () => { } );
+        api.listTemplates().then( t => setTemplates( ( t || [] ).filter( ( x: any ) => x.status === 'APPROVED' && broadcastSafeTemplate( x ) ) ) ).catch( () => { } );
     }, [ toast ] );
 
     // Reset selection whenever eligibility can change. Switching a Utility audience to a
