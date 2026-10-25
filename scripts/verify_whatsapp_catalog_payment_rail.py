@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Hermetic end-to-end verification of the ONE WhatsApp payment rail.
 
-    WhatsApp Catalog order -> wecare-inbound-whatsapp -> wecare-checkout `prepareNativeCart`
+    WhatsApp Catalog order -> wecare-inbound-whatsapp -> wecare-commerce `prepareNativeCart`
     -> ProductsTable pricing -> ONE PaymentAttempt + PAYREF# -> wecare-outbound-whatsapp
     -> `wecare_whatapp_native_pay_template` (button sub_type order_details, payment_gateway /
     Razorpay / WECAREDIGITAL) -> Razorpay `payment.captured` -> wecare-razorpay-webhook
@@ -453,8 +453,12 @@ def _pay_sends(sends: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return [s for s in sends if (s["payload"].get("template") or {}).get("name") == PAY_TEMPLATE]
 
 
+#: The two function names that run the one checkout + invoice-engine package.
+COMMERCE_FUNCTIONS = ("wecare-checkout", "wecare-commerce")
+
+
 def _checkout_invokes(calls: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    return [c for c in calls if c["function"] == "wecare-checkout"
+    return [c for c in calls if c["function"] in COMMERCE_FUNCTIONS
             and c["event"].get("internalAction") == "prepareNativeCart"]
 
 
@@ -509,8 +513,15 @@ def run(root: Path) -> int:
     invoice_engine = _load("invoice_engine",
                            functions / "payments" / "invoice-engine" / "handler.py")
 
-    W.handlers.update({"wecare-checkout": checkout.handler, "wecare-outbound-whatsapp": outbound.handler,
+    # wecare-commerce and wecare-checkout are two functions running ONE package (the checkout
+    # handler + its packaged invoice engine). Production callers address them by name: inbound's
+    # cart leg and the webhook's post-capture work go to wecare-commerce, the catalog-service leg
+    # to wecare-checkout. Both names route to the same handler here, exactly as deployed.
+    W.handlers.update({name: checkout.handler for name in COMMERCE_FUNCTIONS})
+    W.handlers.update({"wecare-outbound-whatsapp": outbound.handler,
                        "wecare-inbound-whatsapp": inbound.handler})
+    # The function inbound's cart leg invokes, so faults land where production would see them.
+    cart_function = str(inbound.CHECKOUT_FUNCTION).split(":")[0]
 
     # Provider seams.
     def fake_send_direct_api(phone_number_id: str, message_json: Any) -> Dict[str, str]:
@@ -732,7 +743,7 @@ def run(root: Path) -> int:
     print("\n== 5. checkout unavailable -> safe retry")
     cara = shop.customer(3)
     mark = W.mark()
-    W.faults["wecare-checkout"] = ["refused_before_run"]
+    W.faults[cart_function] = ["refused_before_run"]
     deliver(order_event(build, cara["digits"], "wamid.HERMETIC.CARA.1", [{"product_retailer_id": kit, "quantity": 2}]))
     check("R8", "a refused checkout invoke reserved nothing", len(_attempts_for(cara["sub"])) == 0
           and not _pay_sends(W.since(mark, "meta_sends")))
@@ -743,7 +754,7 @@ def run(root: Path) -> int:
           len(_attempts_for(cara["sub"])) == 1 and len(_pay_sends(W.since(mark, "meta_sends"))) == 1)
     dan = shop.customer(4)
     mark = W.mark()
-    W.faults["wecare-checkout"] = ["timeout_after_run"]
+    W.faults[cart_function] = ["timeout_after_run"]
     deliver(order_event(build, dan["digits"], None, [{"product_retailer_id": kit, "quantity": 1}]))
     deliver(order_event(build, dan["digits"], None, [{"product_retailer_id": kit, "quantity": 1}]))
     check("R8", "an ambiguous (timed-out) prepare keeps the dedupe key: still ONE attempt, ONE template",
@@ -808,7 +819,7 @@ def run(root: Path) -> int:
           and all(b.get("interactiveType") == "address_message" for b in asks),
           [b.get("interactiveType") or b.get("templateName") for b in asks])
     order_at = [i for i, c in enumerate(W.since(mark, "invocations"))
-                if c["function"] == "wecare-checkout" and c["event"].get("internalAction") == "prepareNativeCart"]
+                if c["function"] in COMMERCE_FUNCTIONS and c["event"].get("internalAction") == "prepareNativeCart"]
     ask_at = [i for i, c in enumerate(W.since(mark, "invocations"))
               if c["function"] == "wecare-outbound-whatsapp" and _outbound_body(c).get("interactiveType") == "address_message"]
     check("UX", "the address is requested only AFTER checkout answered DELIVERY_DETAILS_REQUIRED",
@@ -1221,7 +1232,7 @@ def run(root: Path) -> int:
         check("ISO", "...no order_status reached Meta",
               not [s for s in lea_sends if (s["payload"].get("interactive") or {}).get("type") == "order_status"])
         routes = [str(c["event"].get("rawPath") or "") for c in W.since(mark, "invocations")
-                  if c["function"] == "wecare-checkout"]
+                  if c["function"] in COMMERCE_FUNCTIONS]
         send_at = [i for i, r in enumerate(routes) if r.endswith("/send-whatsapp")]
         status_at = [i for i, r in enumerate(routes) if r.endswith("/order-status")]
         check("ISO", "...the order_status step ran once, as its own call AFTER the invoice send",
