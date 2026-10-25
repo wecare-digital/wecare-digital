@@ -55,8 +55,10 @@ def handle(event, client):
     contacts = db.Table(shared_tables.contacts_table_name())
     contact = contacts.get_item(Key={'id': event.get('contactId', '')}, ConsistentRead=True).get('Item') or {}
     owner = contact.get('checkoutCustomerId')
+    # Outbound resolves only our Direct-API sender ids; the bare Meta phone id is refused.
     sender = {'contactId': contact.get('id', ''), 'phone': event.get('senderPhone', ''),
-              'phoneNumberId': event.get('phoneNumberId', '1016149501586345')}
+              'phoneNumberId': event.get('phoneNumberId') or os.environ.get(
+                  'WHATSAPP_PHONE_NUMBER_ID_1', 'phone-number-id-waba1-direct-1016149501586345')}
     # Cognito sub is canonical UUID. Refuse malformed filter inputs before ListUsers.
     if not customer_auth.is_cognito_subject(owner):
         _send(client, sender, content=SIGN_IN_REQUIRED)

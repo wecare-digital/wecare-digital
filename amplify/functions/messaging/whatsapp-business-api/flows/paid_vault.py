@@ -8,6 +8,11 @@ from lambda_utils import customer_auth, shared_tables
 from lambda_utils.ecommerce import vault_access
 from lambda_utils.logging import get_logger, log_event
 
+#: The WABA1 sender as outbound knows it. Outbound resolves only our Direct-API sender ids
+#: (`_resolve_meta_phone_id` fails closed), so the bare Meta phone id this module used to send
+#: with was refused and a paid Vault file was never delivered. Same value as `flows.common`.
+WABA1_SENDER = os.environ.get('WHATSAPP_PHONE_NUMBER_ID_1', 'phone-number-id-waba1-direct-1016149501586345')
+
 logger = get_logger(__name__)
 
 HEADER_IMAGE = 'https://wecare.digital/get/o/stream/media/m/wecare-digital.png'
@@ -92,7 +97,7 @@ def prepare_and_send(event, lambda_client):
         return {'outcome': 'CONTACT_LINK_UNAVAILABLE'}
     contact = valid[0]
     base = {'contactId': contact['id'], 'recipientPhone': phone,
-            'phoneNumberId': '1016149501586345', 'isTemplate': True,
+            'phoneNumberId': WABA1_SENDER, 'isTemplate': True,
             'templateParams': [], 'headerImageUrl': HEADER_IMAGE}
     ready = dict(base, templateName='wecare_share_pdf')
     # The share template has an IMAGE header and carries no URL button, so it delivers no
@@ -113,7 +118,7 @@ def prepare_and_send(event, lambda_client):
     delivered = False
     if file.get('deliverable') == 'pdf' and file.get('deliveryKey') and 0 <= time.time() - float(last or 0) < 86400:
         document = {'contactId': contact['id'], 'recipientPhone': phone,
-                    'phoneNumberId': '1016149501586345', 'mediaType': 'document',
+                    'phoneNumberId': WABA1_SENDER, 'mediaType': 'document',
                     'mediaFile': file['deliveryKey'], 'mediaFileName': file.get('originalFilename') or 'document.pdf',
                     'content': 'Your Vault document'}
         if not _send_once(requests, row, 'vaultDocumentStatus', lambda_client, document):

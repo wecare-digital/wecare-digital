@@ -264,7 +264,7 @@
       "LOG_LEVEL": "INFO",
       "META_CATALOG_ID": "1457045652952851",
       "META_CATALOG_SYNC_ENABLED": "true",
-      "META_CATALOG_SYNC_DRY_RUN": "true",
+      "META_CATALOG_SYNC_DRY_RUN": "false",
       "META_CATALOG_SYNC_VARIANT_IDS": "",
       "META_TOKEN_FIELD": "access_token",
       "META_TOKEN_SECRET": "wecare/meta-system-user-token",
@@ -505,7 +505,8 @@
       "RAZORPAY_MID": "acc_TTFSyolquKEZEy",
       "RAZORPAY_UPI_ID": "wecaredigitalbh511413.rzp@rxairtel",
       "COMMERCE_KEYS_TABLE": "stack-wecare-digital-CommerceKeys",
-      "WHATSAPP_CATALOG_SERVICES_ENABLED": "true"
+      "WHATSAPP_CATALOG_SERVICES_ENABLED": "true",
+      "VAULT_DYNAMIC_DOWNLOAD_TEMPLATE_ENABLED": "true"
     },
     "wecare-whatsapp-calling": {
       "ADMIN_MFA_REQUIRED": "true",

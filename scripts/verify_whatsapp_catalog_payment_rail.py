@@ -1463,6 +1463,19 @@ def run(root: Path) -> int:
     catalog_services.store.request_intent = real_request_intent
     W.handlers["wecare-checkout"] = checkout.handler
     W.handlers.pop("wecare-whatsapp-business-api", None)
+    # Paid Vault delivery and the invoice copy reach the customer through outbound, which resolves
+    # only our Direct-API sender ids and refuses the bare Meta phone id they used to send with.
+    flows_dir = functions / "messaging" / "whatsapp-business-api" / "flows"
+    paid_vault = _load("h_paid_vault", flows_dir / "paid_vault.py")
+    try:
+        resolved = outbound._resolve_meta_phone_id(paid_vault.WABA1_SENDER)
+    except Exception as error:  # noqa: BLE001 - a refusal is the failure being checked
+        resolved = type(error).__name__
+    bare = [f"{p.name}:{n}" for p in sorted(flows_dir.glob("*.py"))
+            for n, line in enumerate(p.read_text().splitlines(), 1)
+            if re.search(r"'phoneNumberId':\s*'\d+'", line)]
+    check("SVC", "paid Vault delivery sends from a sender outbound resolves; no flow sends from a bare Meta id",
+          resolved == META_PHONE_1 and not bare, {"resolved": resolved, "bare": bare})
     os.environ.pop("WHATSAPP_CATALOG_SERVICES_ENABLED", None)
 
     # ── summary ────────────────────────────────────────────────────────────────────────────────

@@ -94,7 +94,7 @@ def handle(event, get_template, lambda_client, s3_client):
         return {'reference': reference, 'message': 'Your invoice copy request is saved. Delivery is pending preparation. You can also check invoices on the website Orders page.'}
     link = receipt_links.signed_url(s3_client, bucket='wecare-digital-get', key=asset['s3Key'], ttl_seconds=300)
     body = {'contactId': session['contactId'], 'recipientPhone': identity.phone,
-        'phoneNumberId': '1016149501586345', 'isTemplate': True, 'templateName': TEMPLATE,
+        'phoneNumberId': paid_vault.WABA1_SENDER, 'isTemplate': True, 'templateName': TEMPLATE,
         'templateParams': [], 'headerImageUrl': link}
     accepted = paid_vault._send_once(table, {}, 'invoiceDeliveryStatus', lambda_client, body, record_key=key)
     if accepted:
