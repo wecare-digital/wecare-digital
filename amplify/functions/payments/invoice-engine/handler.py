@@ -36,7 +36,7 @@ from lambda_utils.response import cors_response, cors_headers, options_response,
 from lambda_utils.audit import record_audit
 from lambda_utils.logging import get_logger
 from lambda_utils.privacy import mask_phone  # a full number must never reach CloudWatch
-from lambda_utils import media_paths, shared_tables
+from lambda_utils import media_paths, shared_tables, template_media
 # Aliased: `payment_status` is a local parameter in the invoice renderers below, holding the raw
 # stored word. `pay_status` is the module that says what the word means.
 from lambda_utils import payment_status as pay_status
@@ -3849,7 +3849,7 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
             'templateParams': [],  # native-pay template has no body variables
             'checkoutOrderDetails': order_details_obj,
             # FIXED company-logo header on EVERY payment. Do not vary per order.
-            'headerImageUrl': 'https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/img/wecarepay-header.png',
+            'headerImageUrl': template_media.ORDER_CATALOG_HEADER_IMAGE,
         })
     }
 
