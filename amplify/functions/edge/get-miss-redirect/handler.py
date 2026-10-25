@@ -71,6 +71,22 @@ DENIED_PREFIXES = ("secure/",)
 CATALOG_DEPLOY_PREFIX = "secure/d/public/catalog-deploy/"
 CATALOG_GENERATED_MEDIA_PREFIX = CATALOG_DEPLOY_PREFIX + "catalog-media/generated/"
 
+# Customer data inside the public-delivery tier, denied like the rest of ``secure/``.
+# Must equal ``lambda_utils.media_paths.PRIVATE_DELIVERABLE_PREFIXES`` (this package cannot
+# import it); ``scripts/verify_media_prefixes.py`` fails if the two drift. Code reaches these
+# objects through the S3 API or presigned URLs only.
+PRIVATE_DELIVERABLE_PREFIXES = tuple(PUBLIC_DELIVERABLE_PREFIX + p for p in (
+    "Invoice/customer_invoice/",
+    "receipts/",
+    "whatsapp/incoming/",
+    "whatsapp/outgoing/",
+    "whatsapp/voice/",
+    "whatsapp/transcriptions/",
+    "whatsapp/downloads/",
+    "whatsapp/calling-ai/",
+    "whatsapp/resumable/",
+))
+
 # Response headers that describe the refused object. Dropped on a deny so the 302 reveals
 # nothing about it - not even an ETag, which for a small file is a content fingerprint.
 # x-amz-cf-* belong to CloudFront and are never exposed to the function, so they are skipped.
@@ -147,6 +163,8 @@ def _is_denied(uri: str) -> bool:
         return True
     if (normalised.startswith(CATALOG_DEPLOY_PREFIX)
             and not normalised.startswith(CATALOG_GENERATED_MEDIA_PREFIX)):
+        return True
+    if normalised.startswith(PRIVATE_DELIVERABLE_PREFIXES):
         return True
     if normalised.startswith(PUBLIC_DELIVERABLE_PREFIX):
         return False
