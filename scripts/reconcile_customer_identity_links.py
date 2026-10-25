@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reconcile missing canonical contactId links on MessagesTable and FlowSubmissionTable.
+"""Reconcile missing canonical contactId links on Messages, FlowSubmission, Invoices and Attempts.
 
 Dry-run is the default. This never guesses identity: it only relinks a row when its stored phone
 resolves to exactly one live ContactsTable record across canonical/bare phone spellings. Ambiguous,
@@ -7,6 +7,12 @@ missing, deleted, or merged identities are skipped and counted.
 
 --apply performs conditional updates only when contactId is still absent/empty, so concurrent
 writers win safely. No phone, email, customer id, message content, or form content is printed.
+Apply mode also prints the primary keys it updated (opaque row ids, no personal data): that list
+is the rollback set, since undoing a link is `REMOVE contactId` on exactly those rows.
+
+Invoices and payment attempts are linked by `customerPhone`, the verified buyer the row was
+billed to (never the Razorpay payer contact). The link is attribution only: no money field, no
+status and no owner (`customerId`) is touched.
 """
 from __future__ import annotations
 
@@ -22,6 +28,8 @@ REGION = "us-east-1"
 CONTACTS = "stack-wecare-digital-ContactsTable"
 MESSAGES = "stack-wecare-digital-MessagesTable"
 FLOWS = "stack-wecare-digital-FlowSubmissionTable"
+INVOICES = "stack-wecare-digital-InvoicesTable"
+ATTEMPTS = "stack-wecare-digital-PaymentAttemptsTable"
 
 
 def digits(value):
@@ -74,19 +82,42 @@ def pages(table, **kwargs):
             return
 
 
-def repair_table(table, contacts, *, phone_field, apply):
+def invoice_phone_for_reference(invoices):
+    """The billed phone of the ONE invoice carrying this row's referenceId, else ''.
+
+    An invoice-native payment attempt (`WHATSAPP_NATIVE_PG`) is minted by `send_payment_link` for
+    exactly one invoice and shares its referenceId, so that invoice's `customerPhone` is the
+    attempt's buyer. Zero or two invoices for the reference answer '' (never a guess).
+    """
+    def lookup(row):
+        reference = str(row.get("referenceId") or "").strip()
+        if not reference:
+            return ""
+        items = invoices.query(
+            IndexName="referenceId-index",
+            KeyConditionExpression=Key("referenceId").eq(reference),
+            ProjectionExpression="customerPhone",
+            Limit=2,
+        ).get("Items") or []
+        return str(items[0].get("customerPhone") or "") if len(items) == 1 else ""
+    return lookup
+
+
+def repair_table(table, contacts, *, phone_field, apply, phone_from=None):
     counts = {"candidates": 0, "resolved": 0, "updated": 0, "missing": 0, "ambiguous": 0,
               "raced": 0}
+    updated_keys = []
+    projection = "#pk," + phone_field + ",contactId" + (",referenceId" if phone_from else "")
     for rows in pages(
         table,
         FilterExpression="attribute_not_exists(contactId) OR contactId = :empty",
         ExpressionAttributeValues={":empty": ""},
-        ProjectionExpression="#pk," + phone_field + ",contactId",
+        ProjectionExpression=projection,
         ExpressionAttributeNames={"#pk": table.key_schema[0]["AttributeName"]},
     ):
         for row in rows:
             counts["candidates"] += 1
-            phone = row.get(phone_field)
+            phone = row.get(phone_field) or (phone_from(row) if phone_from else "")
             cid, outcome = resolve_contact(contacts, phone)
             if not cid:
                 counts[outcome] += 1
@@ -103,11 +134,14 @@ def repair_table(table, contacts, *, phone_field, apply):
                     ExpressionAttributeValues={":cid": cid, ":empty": ""},
                 )
                 counts["updated"] += 1
+                updated_keys.append(str(row[pk]))
             except ClientError as exc:
                 if exc.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
                     counts["raced"] += 1
                 else:
                     raise
+    if apply:
+        counts["updatedKeys"] = updated_keys
     return counts
 
 
@@ -126,6 +160,13 @@ def main(argv=None):
             ),
             "flows": repair_table(
                 ddb.Table(FLOWS), contacts, phone_field="phone", apply=args.apply
+            ),
+            "invoices": repair_table(
+                ddb.Table(INVOICES), contacts, phone_field="customerPhone", apply=args.apply
+            ),
+            "attempts": repair_table(
+                ddb.Table(ATTEMPTS), contacts, phone_field="customerPhone", apply=args.apply,
+                phone_from=invoice_phone_for_reference(ddb.Table(INVOICES)),
             ),
         }
         report["clean"] = all(
