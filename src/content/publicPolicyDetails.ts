@@ -50,10 +50,13 @@ const PAGE_POLICY: Readonly<Record<string, PublicPolicyCopy>> = {
     refunds: 'Refunds and cancellations follow the underlying transaction.',
     disclaimer: 'The latest confirmed order record controls status.',
   },
+  // VayuLok Standard is listed at ₹99.00 in the catalog (owner-approved in #1449), so this copy
+  // must not call VayuLok itself free. What stays true is page-scoped: the live data here is free
+  // to use and the page takes no payment; a catalog order is governed by that order.
   '/vayulok': {
-    shipping: 'No fulfilment applies; VayuLok is free information.',
+    shipping: 'No fulfilment starts by using the live air and weather information on this page.',
     returns: 'Nothing on this page is returnable.',
-    refunds: 'No payment is taken here, so nothing is refundable.',
+    refunds: 'No payment is taken on this page; a paid VayuLok catalog order follows its confirmed order terms.',
     disclaimer: 'Air-quality and weather data may be delayed, estimated or third-party supplied. Use official sources for safety-critical decisions.',
   },
   '/elsewhere/activities': {

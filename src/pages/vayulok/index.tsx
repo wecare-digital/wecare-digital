@@ -56,6 +56,10 @@ import MetaCatalogView from '../../components/MetaCatalogView';
  * There is deliberately NO FAQPage here: the visible "About VayuLok" FAQ was removed from the
  * page, and FAQ structured data must only mark up content that is actually present (the sitewide
  * FAQ schema was removed earlier for exactly that reason).
+ *
+ * The Offer stays at price 0 although the catalog lists VayuLok Standard at ₹99.00 (#1449): it
+ * describes the web app on this page, which is free to use and takes no payment. Putting ₹99
+ * here would mark up a price this page neither shows nor charges.
  */
 function vayulokJsonLd(): Record<string, unknown>[] {
   return [
