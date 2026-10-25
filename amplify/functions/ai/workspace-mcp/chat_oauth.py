@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import logging
 import os
 import re
 import time
@@ -141,8 +142,14 @@ def token_exchange(event: dict, headers: dict, client_id: str, callback: str,
     try:
         data, _ = exchange(LOGIN + '/oauth2/token', form, form=True)
         bound_claims(data.get('access_token', ''), client_id, resource)
-    except Exception:
+    except Exception as exc:
         # The upstream body can echo codes, verifiers and refresh tokens.
+        detail = getattr(exc, 'detail', None)
+        allowed = {'invalid_request', 'invalid_client', 'invalid_grant', 'unauthorized_client',
+            'unsupported_grant_type', 'invalid_scope', 'server_error', 'temporarily_unavailable'}
+        reason = detail.get('oauthError') if isinstance(detail, dict) else None
+        logging.getLogger('workspace_mcp').info(json.dumps({'event': 'chat_oauth_token_refused',
+            'reason': reason if reason in allowed else 'unclassified'}))
         return reply(400, {'error': 'invalid_grant',
             'error_description': 'Cognito did not issue a valid resource-bound access token.'})
     # This is the OAuth response to the host, never a model-visible MCP result.
