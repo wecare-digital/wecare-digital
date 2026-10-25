@@ -101,6 +101,16 @@ const STATUS_COLORS: Record<string, string> = {
   REJECTED: 'var(--accent)',
 };
 
+const TEMPLATE_OPERATION_PATHS: Record<string, string> = {
+  wecare_order_status_v3: 'Payments · Order status',
+  wecare_default_invoice_image_template: 'Payments · Send invoice',
+  wecare_leave_review: 'Inbox · Send template',
+  wecare_whatapp_native_pay_template: 'Payments · Request payment',
+  wecare_default_download: 'Inbox · Send template · Vault file ID',
+  wecare_location_share_pin: 'Inbox · Send template · Location',
+  wecare_otp: 'Customer verification · Automatic',
+};
+
 const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => {
   const router = useRouter();
   const toast = useToastContext();
@@ -669,6 +679,11 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
                   <div className="template-body">
                     { template.components?.find( c => c.type === 'BODY' )?.text || 'No body text' }
                   </div>
+                  { TEMPLATE_OPERATION_PATHS[ template.name.toLowerCase() ] && (
+                    <div className="template-operation-path">
+                      <strong>Use in Workspace:</strong> { TEMPLATE_OPERATION_PATHS[ template.name.toLowerCase() ] }
+                    </div>
+                  ) }
                   <div className="template-actions">
                     <Button
                       variant="ghost"
@@ -835,6 +850,12 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
                   <span className="label">Language:</span>
                   <span>{ selectedTemplate.language }</span>
                 </div>
+                { TEMPLATE_OPERATION_PATHS[ selectedTemplate.name.toLowerCase() ] && (
+                  <div className="detail-row">
+                    <span className="label">Workspace path:</span>
+                    <span>{ TEMPLATE_OPERATION_PATHS[ selectedTemplate.name.toLowerCase() ] }</span>
+                  </div>
+                ) }
                 <h3>Components</h3>
                 { selectedTemplate.components?.map( ( comp, idx ) => (
                   <div key={ idx } className="component-preview">

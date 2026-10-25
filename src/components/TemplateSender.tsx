@@ -30,6 +30,17 @@ const CATEGORY_FILTER_STYLE: React.CSSProperties = { flex: '0 0 180px' };
  * Its ORDER_DETAILS button needs authoritative items/amount/payment settings from commerce.
  */
 const PAYMENT_ORDER_DETAILS_TEMPLATE = 'wecare_whatapp_native_pay_template';
+const INVOICE_TEMPLATE = 'wecare_default_invoice_image_template';
+const ORDER_STATUS_TEMPLATE = 'wecare_order_status_v3';
+const OTP_TEMPLATE = 'wecare_otp';
+const DOWNLOAD_TEMPLATE = 'wecare_default_download';
+
+const GENERIC_SEND_BLOCKED_TEMPLATES = new Set( [
+  PAYMENT_ORDER_DETAILS_TEMPLATE,
+  INVOICE_TEMPLATE,
+  ORDER_STATUS_TEMPLATE,
+  OTP_TEMPLATE,
+] );
 
 interface TemplateSenderProps {
   contactId?: string;
@@ -100,6 +111,10 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
   // 'flow') at send time, else Meta rejects (error 131008/131009). We detect the
   // flow button's index from the template definition and pass it through.
   const [ flowButtonIndex, setFlowButtonIndex ] = useState<number | null>( null );
+  // Dynamic URL button support. For wecare_default_download Meta owns
+  // https://wecare.digital/vault/?file={{1}}; staff enter only the file id/suffix.
+  const [ urlButtonIndex, setUrlButtonIndex ] = useState<number | null>( null );
+  const [ urlButtonSuffix, setUrlButtonSuffix ] = useState( '' );
   // Media library (reusable wa-tpl/ files) — search, pick, permanently delete.
   const [ showLibrary, setShowLibrary ] = useState( false );
   const [ libraryItems, setLibraryItems ] = useState<any[]>( [] );
@@ -131,7 +146,7 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
       // freezes items/amounts and builds the required ORDER_DETAILS action.
       const approved = data.filter( t =>
         t.status === 'APPROVED'
-        && t.name.toLowerCase() !== PAYMENT_ORDER_DETAILS_TEMPLATE
+        && !GENERIC_SEND_BLOCKED_TEMPLATES.has( t.name.toLowerCase() )
       );
       setTemplates( approved );
       setSelectedTemplate( current => approved.find( t => t.id === current?.id && t.language === current?.language ) || null );
@@ -164,6 +179,8 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
       setHeaderMedia( '' );
       setHeaderFilename( '' );
       setFlowButtonIndex( null );
+      setUrlButtonIndex( null );
+      setUrlButtonSuffix( '' );
       return;
     }
 
@@ -187,6 +204,12 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
       ( b: any ) => ( b?.type || '' ).toUpperCase() === 'FLOW'
     );
     setFlowButtonIndex( typeof flowIdx === 'number' && flowIdx >= 0 ? flowIdx : null );
+    const urlIdx = ( buttonsComp as any )?.buttons?.findIndex(
+      ( b: any ) => ( b?.type || '' ).toUpperCase() === 'URL'
+        && typeof b?.url === 'string' && b.url.includes( '{{1}}' )
+    );
+    setUrlButtonIndex( typeof urlIdx === 'number' && urlIdx >= 0 ? urlIdx : null );
+    setUrlButtonSuffix( '' );
 
     setHeaderMedia( selectedTemplate.fixedHeaderMedia || '' );
     setHeaderFilename( '' );
@@ -547,6 +570,7 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
           headerFilename: headerType === 'document' ? ( headerFilename || undefined ) : undefined,
           headerLocation: headerType === 'location' ? { latitude: locLat.trim(), longitude: locLng.trim(), name: locName.trim() || undefined, address: locAddress.trim() || undefined } : undefined,
           flowButton: flowButtonIndex !== null ? { index: flowButtonIndex } : undefined,
+          templateUrlButton: urlButtonIndex !== null ? { index: urlButtonIndex, suffix: urlButtonSuffix.trim() } : undefined,
           content: getPreviewText() || undefined,
         } );
         if ( result ) sent++; else
@@ -582,9 +606,17 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
 
     // Defensive boundary: never let the native payment template fall through the
     // generic sender even if stale component state retained it across a refresh.
-    if ( selectedTemplate.name.toLowerCase() === PAYMENT_ORDER_DETAILS_TEMPLATE )
+    if ( GENERIC_SEND_BLOCKED_TEMPLATES.has( selectedTemplate.name.toLowerCase() ) )
     {
-      onError( 'Use Commerce / Request payment to add items, amount, GST and send Review and Pay.' );
+      const name = selectedTemplate.name.toLowerCase();
+      const message = name === PAYMENT_ORDER_DETAILS_TEMPLATE
+        ? 'Use Payments / Request payment to add items, amount and GST, then send Review and Pay.'
+        : name === INVOICE_TEMPLATE
+          ? 'Send invoices from Payments / Invoices so the generated invoice image and review token are attached.'
+          : name === ORDER_STATUS_TEMPLATE
+            ? 'Send order status from Payments / the paid invoice so the authoritative order state is included.'
+            : 'OTP is sent only by the customer verification/sign-in flow; staff cannot generate authentication codes here.';
+      onError( message );
       return;
     }
 
@@ -606,6 +638,14 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
     if ( headerType === 'location' && ( !locLat.trim() || !locLng.trim() ) )
     {
       onError( 'This template has a location header — enter latitude and longitude.' );
+      return;
+    }
+
+    if ( urlButtonIndex !== null && !urlButtonSuffix.trim() )
+    {
+      onError( selectedTemplate.name.toLowerCase() === DOWNLOAD_TEMPLATE
+        ? 'Enter the Vault file ID for the Access Vault button.'
+        : 'Enter the dynamic URL value for this template.' );
       return;
     }
 
@@ -659,6 +699,7 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
             ? { latitude: locLat.trim(), longitude: locLng.trim(), name: locName.trim() || undefined, address: locAddress.trim() || undefined }
             : undefined,
           flowButton: flowButtonIndex !== null ? { index: flowButtonIndex } : undefined,
+          templateUrlButton: urlButtonIndex !== null ? { index: urlButtonIndex, suffix: urlButtonSuffix.trim() } : undefined,
           scheduledAt,
         } );
 
@@ -702,6 +743,7 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
             headerFilename: headerType === 'document' ? ( headerFilename || undefined ) : undefined,
             headerLocation: headerType === 'location' ? { latitude: locLat.trim(), longitude: locLng.trim(), name: locName.trim() || undefined, address: locAddress.trim() || undefined } : undefined,
             flowButton: flowButtonIndex !== null ? { index: flowButtonIndex } : undefined,
+            templateUrlButton: urlButtonIndex !== null ? { index: urlButtonIndex, suffix: urlButtonSuffix.trim() } : undefined,
             content: getPreviewText() || undefined,
           } );
         }
@@ -1001,6 +1043,27 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
                     { !selectedTemplate.fixedHeaderMedia && <button className="clear-header" onClick={ () => { setHeaderMedia( '' ); setHeaderFilename( '' ); } }>×</button> }
                   </div>
                 ) }
+              </div>
+            ) }
+
+            { urlButtonIndex !== null && (
+              <div className="header-media-section">
+                <label>
+                  { selectedTemplate.name.toLowerCase() === DOWNLOAD_TEMPLATE ? 'Vault file ID' : 'Dynamic URL value' }
+                  <span className="required-tag">required</span>
+                </label>
+                <input
+                  type="text"
+                  className="header-url-input"
+                  value={ urlButtonSuffix }
+                  onChange={ ( e ) => setUrlButtonSuffix( e.target.value ) }
+                  placeholder={ selectedTemplate.name.toLowerCase() === DOWNLOAD_TEMPLATE ? 'e.g. doc.pdf or canonical file ID' : 'Dynamic URL suffix' }
+                />
+                <span className="manual-hint">
+                  { selectedTemplate.name.toLowerCase() === DOWNLOAD_TEMPLATE
+                    ? 'The approved template already contains https://wecare.digital/vault/?file={{1}}. Enter only the file ID, not a full URL.'
+                    : 'Enter only the value that replaces {{1}} in the approved button URL.' }
+                </span>
               </div>
             ) }
 
