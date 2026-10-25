@@ -651,6 +651,14 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
           templateName: selectedTemplate.name,
           templateParams: variables.map( v => v.value ),
           phoneNumberId,
+          recipientBsuid,
+          headerMedia: headerType ? headerMedia : undefined,
+          headerType: headerType || undefined,
+          headerFilename: headerType === 'document' ? ( headerFilename || undefined ) : undefined,
+          headerLocation: headerType === 'location'
+            ? { latitude: locLat.trim(), longitude: locLng.trim(), name: locName.trim() || undefined, address: locAddress.trim() || undefined }
+            : undefined,
+          flowButton: flowButtonIndex !== null ? { index: flowButtonIndex } : undefined,
           scheduledAt,
         } );
 
