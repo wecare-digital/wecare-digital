@@ -1156,10 +1156,14 @@ def _() -> None:
     expect(row['entryMode'] == 'keyword_interactive' and row['submissionPrefix'] == 'WD-SUB', 'seeded from contract')
     row['status'] = 'DRAFT'
     biz._graph_api = lambda *a, **k: {'data': [{'id': F001_ID(), 'name': 'WD-F001-SUBSCRIBE-PROFILE',
+                                                 'status': 'DEPRECATED'},
+                                                {'id': '1557815099200456', 'name': 'WD_Flow_Subscribe_01',
                                                  'status': 'DEPRECATED'}]}
-    biz._sync_flows({'wabaId': '2094615664435155'}, {})
+    status, body = _resp(biz._sync_flows({'wabaId': '2094615664435155'}, {}))
     row = registry().items[F001_ID()]
     expect(row['status'] == 'DRAFT' and row['metaStatus'] == 'DEPRECATED', 'sync overwrote registry status')
+    expect('1557815099200456' not in registry().items and body['notRegistered'] == 1 and body['synced'] == 1,
+           f'a first-seen deprecated Flow was registered: {body}')
 
 
 @check('E3 launch status explains every control from the server decision')

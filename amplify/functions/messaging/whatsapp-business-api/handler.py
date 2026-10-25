@@ -4846,6 +4846,7 @@ def _sync_flows(params: Dict, body: Dict) -> Dict:
     table = dynamodb.Table(FLOW_REGISTRY_TABLE)
     synced = 0
     skipped = 0
+    not_registered = 0
     for f in flows:
         flow_id = f.get('id')
         if not flow_id:
@@ -4854,6 +4855,12 @@ def _sync_flows(params: Dict, body: Dict) -> Dict:
             existing = table.get_item(Key={'flowId': flow_id}).get('Item', {})
         except Exception:
             existing = {}
+        if not existing and str(f.get('status') or '').upper() == 'DEPRECATED':
+            # A deprecated Flow can never be sent or published again, so a first sighting is
+            # not registered (a WABA keeps every retired Flow forever). A row that already
+            # exists still records the deprecation in `metaStatus` below.
+            not_registered += 1
+            continue
         categories = f.get('categories', [])
         validation_errors = f.get('validation_errors', [])
         health = f.get('health_status', {})
@@ -4930,7 +4937,7 @@ def _sync_flows(params: Dict, body: Dict) -> Dict:
     _flow_registry_cache = {}
     _flow_registry_cache_ts = 0
     return _resp(200, {'success': True, 'synced': synced, 'skipped': skipped,
-                       'total': len(flows), 'wabaId': waba_id})
+                       'notRegistered': not_registered, 'total': len(flows), 'wabaId': waba_id})
 
 
 def _get_flow_submission_stats(params: Dict) -> Dict:

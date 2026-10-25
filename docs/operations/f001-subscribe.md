@@ -128,7 +128,8 @@ request as `verified: true`.
    returns Meta's short-lived download link) and Meta validation errors = 0 (`GET /wa-business/flows?flowId=…`).
 3. Deploy `wecare-whatsapp-business-api` and `wecare-inbound-whatsapp` with `scripts/deploy_all_lambdas.py`
    (publishes versions and moves `live`), then `scripts/check_deployed_source.py` for both functions.
-4. Run "Sync from Meta" so the registry row records `metaStatus`.
+4. Run "Sync from Meta" so the registry row records `metaStatus` (existing rows are updated;
+   a Flow first seen as DEPRECATED is not registered).
 5. In the Subscribe panel: Register F001 in FlowRegistry (DRAFT), check the contract shows "Consistent", then Mark registry PUBLISHED (Admin).
 6. Controlled QA with "Send to a customer" on a test number: open, prefill, a validation error, a save, a retry, and a reopen (expect the expired-link message).
 7. Turn customer keyword launch ON and test one keyword from a handset.
