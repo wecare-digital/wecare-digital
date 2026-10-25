@@ -1,27 +1,28 @@
-"""Deliver an already-paid secure file over WhatsApp with the approved download template.
+"""Deliver already-authorized secure files over WhatsApp using the approved Vault template.
 
 Payment initiation deliberately does not live here.  Secure-file purchases use the canonical
-commerce/checkout PaymentAttempt path; this module owns only the post-payment delivery message.
+commerce/checkout PaymentAttempt path; this module owns only the post-payment file delivery
+transport.
 
-One approved template, one send shape
--------------------------------------
-A paid file is announced the way paid Vault delivery announces it: the approved WABA1 template
-`wecare_default_download` (IMAGE header, "Access Vault" URL button
-`https://wecare.digital/vault/?file={{1}}`), built by `whatsapp_templates.download_send_fields`
-with the file id as the button suffix. The customer opens the Vault deep link and collects the
-file through the paid entitlement `confirm_and_deliver` has just established.
+Why a Vault link and not the file itself
+----------------------------------------
+Every paid file is announced with `wecare_default_download`, the one approved WABA1 template
+for this: a fixed IMAGE header and URL button 0 `https://wecare.digital/vault/?file={{1}}`,
+of which only the file id travels. The customer signs in on that page and downloads through
+the durable paid entitlement.
 
-This replaced a send of `wd_file_delivery`, a template that was never approved on WABA1, so Meta
-refuses every send of it. That send also passed its document header in a `components` key
-outbound never reads, and the link fallback put its text in a `message` key outbound never reads
-either. A template send also works outside the 24-hour customer-service window, which a free-form
-link does not, and puts no short-lived bearer URL in the chat.
+This replaced two transports that could not work reliably. The document-header template the
+PDF/image path named (`wd_file_delivery`) is not on WABA1 (live template readback, 2026-10-25),
+so Meta refused every such send; and the fallback put a presigned S3 URL, a bearer capability,
+into a free-form text that Meta only accepts inside the 24-hour customer-service window. The
+template carries no bearer link and is deliverable at any time.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import re
 from typing import Any, Dict, Tuple
 
 import boto3
@@ -33,17 +34,20 @@ REGION = os.environ.get("AWS_REGION", "us-east-1")
 # The `live` alias: the unqualified name runs $LATEST, which an upload reaches before it is
 # published and verified.
 SENDER_FUNCTION = os.environ.get("WA_SENDER_FUNCTION", "wecare-outbound-whatsapp:live")
-
-#: Meta's OWN phone-number id for WABA1. The handler stamps it on delivery records; it is WRONG
-#: as the `phoneNumberId` passed to `wecare-outbound-whatsapp`, which is why `WA_SEND_PHONE_ID`
-#: exists beside it.
+#: Meta's OWN phone-number id. `handler.py` derives the customer's WABA stamp from it; it is
+#: WRONG for every `phoneNumberId` passed to `wecare-outbound-whatsapp`, which is why
+#: `WA_SEND_PHONE_ID` exists beside it.
 META_PHONE_NUMBER_ID = os.environ.get("META_PHONE_NUMBER_ID", "1016149501586345")
 
 #: The AWS-style sender id `outbound-whatsapp` requires. `_resolve_meta_phone_id` accepts only
-#: an AWS-style id (its map, or a `-direct-<digits>` suffix) and refuses a bare Meta id rather
-#: than fall back to another WABA.
+#: an AWS-style id (its map, or a `-direct-<digits>` suffix) and otherwise raises rather than
+#: falling back to another WABA, so the bare Meta id above would be refused.
 WA_SEND_PHONE_ID = os.environ.get(
     "WA_SEND_PHONE_ID", "phone-number-id-waba1-direct-1016149501586345")
+
+#: The rule outbound's `url_button_component` enforces on the button suffix. Checked here too
+#: so a file id that could never be sent is reported as such, not as a sender HTTP error.
+_FILE_ID = re.compile(r"[A-Za-z0-9_-]{1,120}")
 
 _lambda = None
 
@@ -79,10 +83,15 @@ def _invoke(function_name: str, payload: Dict[str, Any]) -> Tuple[int, Dict[str,
 
 
 def send_vault_link(*, phone: str, file_row: Dict[str, Any]) -> Tuple[bool, str]:
-    """Send the approved download template for one paid file. Returns (sent, detail)."""
+    """Announce a paid file with the approved Vault download template. Returns (sent, detail).
+
+    The header and button come from `whatsapp_templates.download_send_fields`, the same
+    builder paid Vault delivery and the paid-file refresh use, so the three cannot drift.
+    """
     file_id = str(file_row.get("fileId") or "")
-    if not file_id:
-        return False, "file has no id"
+    if not _FILE_ID.fullmatch(file_id):
+        return False, "file id cannot be sent as a Vault link"
+
     status, body = _invoke(
         SENDER_FUNCTION,
         {
@@ -97,4 +106,8 @@ def send_vault_link(*, phone: str, file_row: Dict[str, Any]) -> Tuple[bool, str]
     )
     if status >= 300:
         return False, f"sender returned HTTP {status}"
+    # A dry run answers 200 without sending; recording it as delivered would hide a customer
+    # who is still owed the file from scripts/reconcile_file_deliveries.py.
+    if body.get("status") == "dry_run" or body.get("mode") == "DRY_RUN":
+        return False, "sender is in dry-run mode; nothing was sent"
     return True, str(body.get("whatsappMessageId") or body.get("messageId") or "sent")

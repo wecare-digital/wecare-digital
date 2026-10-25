@@ -50,19 +50,20 @@ from typing import Any, Dict, List
 SOURCE_META_DIRECT = "meta-direct"
 CONTRACT_VERSION = 1
 
-#: The inbound worker's dead-letter queue, the one durable place a work item lands when it cannot
-#: be processed (the worker) or handed over (the ingress). `wecare-dlq-replay` reads it and
-#: invokes the worker with the stored `originalRecord`, which is this module's typed event.
+#: The inbound worker's dead-letter queue: the one durable place a work item lands when the
+#: worker cannot process it or the ingress cannot hand it over. `wecare-dlq-replay` reads it and
+#: invokes the worker with each stored `originalRecord`, which must be this module's typed event.
 INBOUND_DLQ_DEFAULT_URL = (
     "https://sqs.us-east-1.amazonaws.com/775261844268/stack-wecare-digital-inbound-dlq")
 
 
 def inbound_dlq_url() -> str:
-    """The inbound DLQ URL: `INBOUND_DLQ_URL`, else the manifest's `DLQ_URL`, else the queue.
+    """The inbound DLQ URL: `INBOUND_DLQ_URL`, else `DLQ_URL`, else the queue itself.
 
-    The default is deliberate. With neither variable set (the live state of the worker), the
-    worker's `_send_to_dlq` returned without sending and every failed work item was dropped, and
-    replay read `INBOUND_DLQ_URL` while its own configuration names the queue `DLQ_URL`.
+    The default is deliberate. The worker's live configuration sets neither variable, so its
+    `_send_to_dlq` returned without sending and every failed work item was dropped; and replay
+    read only `INBOUND_DLQ_URL` while its own configuration names the queue `DLQ_URL`, so
+    `POST /dlq/replay` answered "Queue URL not configured" for the inbound queue.
     """
     return (os.environ.get("INBOUND_DLQ_URL") or os.environ.get("DLQ_URL")
             or INBOUND_DLQ_DEFAULT_URL)

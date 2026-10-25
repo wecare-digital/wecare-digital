@@ -106,12 +106,10 @@ WABA2_IDS = set()  # No longer need separate token routing for WABA2
 
 # Inbound handler Lambda for forwarding non-call webhook events (messages, statuses)
 # The `live` alias, never the unqualified name: $LATEST is what an upload reaches before it is
-# published and verified, and every Meta webhook is processed by whatever this names. A configured
-# name without a qualifier gets `:live` appended, because the live environment still carries the
-# bare `wecare-inbound-whatsapp`, which overrode the alias default and kept forwarding to $LATEST.
-_INBOUND_FN = os.environ.get('INBOUND_HANDLER_FUNCTION', '') or 'wecare-inbound-whatsapp'
-INBOUND_HANDLER_FUNCTION = _INBOUND_FN if ':' in _INBOUND_FN else _INBOUND_FN + ':live'
+# published and verified, and every Meta webhook is processed by whatever this names.
+INBOUND_HANDLER_FUNCTION = os.environ.get('INBOUND_HANDLER_FUNCTION', 'wecare-inbound-whatsapp:live')
 lambda_client = boto3.client('lambda', region_name=REGION)
+# The inbound DLQ holds the durable copy of a hand-off that did not reach the worker.
 sqs_client = boto3.client('sqs', region_name=REGION)
 
 # Cache Meta tokens (dual)
@@ -604,16 +602,23 @@ def _handle_webhook_event(body: Dict, request_id: str) -> Dict[str, Any]:
     if obj != 'whatsapp_business_account':
         return _response(200, {'status': 'ignored', 'object': obj})
 
-    # The worker processes every change in the entry it is given, so one forward per entry is
-    # enough. Forwarding once per change sent an N-change entry N times: messages and statuses
-    # were deduplicated downstream, but system events were stored N times.
+    # Outcomes of the async hand-offs to inbound, so a failed one is not answered 200. Meta
+    # never redelivers an acknowledged event, so acking a failed forward loses it for good.
+    forwards = {'ok': 0, 'retry': 0, 'permanent': 0}
+    calls_handled = 0
+    # Inbound processes every change of the entry it is handed, so an entry goes over once.
+    # Forwarding once per change handed an N-change entry over N times.
     forwarded_entries = set()
+    failed_forwards = []
 
-    def _forward_to_inbound_handler(entry, waba_id, request_id):
-        if id(entry) in forwarded_entries:
+    def _forward(fwd_entry: Dict, fwd_waba_id: str) -> None:
+        if id(fwd_entry) in forwarded_entries:
             return
-        forwarded_entries.add(id(entry))
-        _forward_entry_to_inbound_handler(entry, waba_id, request_id)
+        forwarded_entries.add(id(fwd_entry))
+        outcome = _forward_to_inbound_handler(fwd_entry, fwd_waba_id, request_id)
+        forwards[outcome] += 1
+        if outcome != 'ok':
+            failed_forwards.append((fwd_entry, fwd_waba_id))
 
     for entry in entries:
         waba_id = entry.get('id', '')
@@ -632,9 +637,10 @@ def _handle_webhook_event(body: Dict, request_id: str) -> Dict[str, Any]:
                             f"display_phone={mask_phone(metadata.get('display_phone_number') or '')}")
                 for call in calls:
                     _handle_call_event(waba_id, call, metadata, contacts, request_id)
+                    calls_handled += 1
             elif field == 'messages':
                 # Forward message events to inbound handler (Direct API)
-                _forward_to_inbound_handler(entry, waba_id, request_id)
+                _forward(entry, waba_id)
             elif field == 'account_settings_update':
                 # Calling settings update webhook (status, call_icon_visibility, sip.status, etc.)
                 logger.info(json.dumps({
@@ -666,7 +672,7 @@ def _handle_webhook_event(body: Dict, request_id: str) -> Dict[str, Any]:
                            'partner_solutions'):
                 # Forward all non-call webhook fields to inbound handler for processing
                 # The inbound handler has full logic for template status, account updates, etc.
-                _forward_to_inbound_handler(entry, waba_id, request_id)
+                _forward(entry, waba_id)
             elif field in ('standby', 'messaging_handovers'):
                 # ── Conversation Routing ──
                 # These two forwarded identically to the tuple above via the catch-all
@@ -684,51 +690,52 @@ def _handle_webhook_event(body: Dict, request_id: str) -> Dict[str, Any]:
                     'wabaId': waba_id,
                     'requestId': request_id,
                 }))
-                _forward_to_inbound_handler(entry, waba_id, request_id)
+                _forward(entry, waba_id)
             else:
                 logger.info(f"Unhandled webhook field: {field} — forwarding to inbound handler")
-                _forward_to_inbound_handler(entry, waba_id, request_id)
+                _forward(entry, waba_id)
 
-    return _response(200, {'status': 'processed', 'entries': len(entries)})
+    meta_retries = bool(forwards['retry']) and not calls_handled
+    # Every hand-off that did not queue is also parked in the inbound DLQ, whatever Meta is
+    # answered. The 503 below only helps while the outage is shorter than
+    # WEBHOOK_MAX_AGE_SECONDS, because a later redelivery is rejected as a replay; a longer one
+    # (a permission or alias gap) is recovered from the DLQ through `POST /dlq/replay` or not at
+    # all. When the answer is 200 (call events in the same payload, or a permanent error) the
+    # DLQ copy is the only one. Replaying a copy a redelivery already delivered is safe for the
+    # same reason the redelivery is.
+    for fwd_entry, fwd_waba_id in failed_forwards:
+        _park_failed_forward(fwd_entry, fwd_waba_id, request_id, meta_retries=meta_retries)
+
+    if meta_retries:
+        # Not 200, so Meta redelivers. Safe to repeat: inbound claims every message id and
+        # payment status once (webhook_dedup.claim_event) and the remaining updates are
+        # idempotent writes. Withheld when this payload also carried call events, which were
+        # acted on above and must not be acted on twice; that rare mix keeps the 200 and
+        # relies on the DLQ copy above.
+        return _response(503, {'status': 'retry', 'forwardFailures': forwards['retry']})
+    return _response(200, {'status': 'processed', 'entries': len(entries),
+                           'forwardFailures': forwards['retry'] + forwards['permanent']})
 
 
-def _forward_entry_to_inbound_handler(entry: Dict, waba_id: str, request_id: str) -> None:
+#: Invoke errors no redelivery can cure: the same payload would fail the same way for the seven
+#: days Meta keeps retrying. Every other failure (throttling, a service fault, a permission or
+#: alias gap fixed later) is worth a redelivery.
+_PERMANENT_FORWARD_ERRORS = frozenset({
+    'RequestEntityTooLargeException', 'InvalidRequestContentException',
+})
+
+
+def _forward_to_inbound_handler(entry: Dict, waba_id: str, request_id: str) -> str:
     """
     Forward non-call webhook events (messages, statuses) to the inbound handler.
-    Meta delivers every webhook here (the app-level callback). We wrap the entry in the
-    typed event the inbound handler expects and invoke it asynchronously.
+    Direct API uses override_callback_uri, so messages arrive here
+    instead of via the standard webhook. We wrap them in the expected format the
+    inbound handler expects and invoke it asynchronously.
 
-    A failed hand-off is parked in the inbound DLQ rather than dropped. Meta has already
-    been answered 200 by then and never redelivers, so the DLQ is the only copy left;
-    `/dlq/replay` (wecare-dlq-replay) invokes the worker with it.
+    Returns 'ok', 'retry' (a redelivery may succeed) or 'permanent' (it cannot).
     """
-    inbound_event = None
     try:
-        # Extract metadata for context
-        changes = entry.get('changes', [])
-        meta_phone_ids = []
-        for change in changes:
-            value = change.get('value', {})
-            metadata = value.get('metadata', {})
-            pid = metadata.get('phone_number_id', '')
-            if pid and pid not in meta_phone_ids:
-                meta_phone_ids.append(pid)
-
-        # A flat, typed, self-describing event — see lambda_utils/wa_internal_event.
-        #
-        # This used to be a synthetic SNS envelope,
-        # {"Records":[{"Sns":{"Message": "<json string containing another json
-        # string>"}}]}, left over from an architecture where Meta delivered through
-        # AWS End User Messaging Social into a topic. No such subscription exists
-        # anywhere in IaC or in the live event-source mappings, and the AWS account
-        # has no linked WABA, so the shape described nothing while costing a double
-        # JSON encode and sending every reader looking for a topic.
-        inbound_event = wa_internal_event.build(
-            entry=entry,
-            waba_id=waba_id,
-            meta_phone_number_ids=meta_phone_ids,
-            request_id=request_id,
-        )
+        inbound_event = _inbound_event(entry, waba_id, request_id)
 
         result = lambda_client.invoke(
             FunctionName=INBOUND_HANDLER_FUNCTION,
@@ -739,46 +746,84 @@ def _forward_entry_to_inbound_handler(entry: Dict, waba_id: str, request_id: str
         logger.info(json.dumps({
             'event': 'forwarded_to_inbound_handler',
             'wabaId': waba_id,
-            'phoneNumberIds': meta_phone_ids,
+            'phoneNumberIds': inbound_event['metaPhoneNumberIds'],
             'contractVersion': wa_internal_event.CONTRACT_VERSION,
             'statusCode': result.get('StatusCode'),
             'requestId': request_id,
         }))
+        # An accepted async invoke answers 202; anything else did not queue the event.
+        return 'ok' if result.get('StatusCode') == 202 else 'retry'
     except Exception as e:
+        code = (getattr(e, 'response', None) or {}).get('Error', {}).get('Code', '')
+        outcome = 'permanent' if code in _PERMANENT_FORWARD_ERRORS else 'retry'
+        # The class and code only: an invoke error can echo the payload, which carries
+        # customer phone numbers and message text.
         logger.error(json.dumps({
             'event': 'forward_to_inbound_handler_failed',
             'wabaId': waba_id,
-            'error': type(e).__name__,
+            'errorType': type(e).__name__,
+            'errorCode': code,
+            'outcome': outcome,
             'requestId': request_id,
         }))
-        _park_failed_forward(inbound_event, waba_id, type(e).__name__, request_id)
+        return outcome
 
 
-def _park_failed_forward(inbound_event: Optional[Dict], waba_id: str, error: str,
-                         request_id: str) -> None:
-    """Put a webhook entry the worker never received into the inbound DLQ. Never raises.
+def _inbound_event(entry: Dict, waba_id: str, request_id: str) -> Dict:
+    """The typed event the inbound worker is handed for one webhook entry.
 
-    Same message shape as the worker's own `_send_to_dlq`, so `wecare-dlq-replay` replays both.
+    A flat, self-describing event — see lambda_utils/wa_internal_event. This used to be a
+    synthetic SNS envelope, {"Records":[{"Sns":{"Message": "<json string containing another
+    json string>"}}]}, left over from an architecture where Meta delivered through AWS End User
+    Messaging Social into a topic. No such subscription exists anywhere in IaC or in the live
+    event-source mappings, and the AWS account has no linked WABA, so the shape described
+    nothing while costing a double JSON encode and sending every reader looking for a topic.
     """
-    if not inbound_event:
-        return
+    meta_phone_ids = []
+    for change in entry.get('changes', []):
+        pid = change.get('value', {}).get('metadata', {}).get('phone_number_id', '')
+        if pid and pid not in meta_phone_ids:
+            meta_phone_ids.append(pid)
+    return wa_internal_event.build(
+        entry=entry,
+        waba_id=waba_id,
+        meta_phone_number_ids=meta_phone_ids,
+        request_id=request_id,
+    )
+
+
+def _park_failed_forward(entry: Dict, waba_id: str, request_id: str, *,
+                         meta_retries: bool) -> None:
+    """Put a webhook entry the inbound worker never received into the inbound DLQ. Never raises.
+
+    The record has the shape the worker's own `_send_to_dlq` writes: `originalRecord` is the
+    typed event, which `wecare-dlq-replay` invokes the worker with. `meta_retries` says whether
+    Meta was answered 503 and so still holds a copy.
+    """
     try:
         sqs_client.send_message(
             QueueUrl=wa_internal_event.inbound_dlq_url(),
             MessageBody=json.dumps({
-                'originalRecord': inbound_event,
-                'error': f'forward_failed: {error}',
+                'originalRecord': _inbound_event(entry, waba_id, request_id),
+                'error': 'forward_to_inbound_handler_failed',
                 'timestamp': int(time.time()),
                 'requestId': request_id,
             }, default=str),
         )
-        logger.warning(json.dumps({'event': 'forward_parked_in_dlq', 'wabaId': waba_id,
-                                   'requestId': request_id}))
+        logger.warning(json.dumps({
+            'event': 'forward_parked_in_dlq', 'wabaId': waba_id,
+            'metaRetries': meta_retries, 'requestId': request_id,
+        }))
     except Exception as dlq_error:  # noqa: BLE001 - the last resort must not raise
-        # Alarm-worthy: this webhook entry now exists nowhere.
-        logger.error(json.dumps({'event': 'forward_dlq_failed', 'alert': 'WEBHOOK_EVENT_LOST',
-                                 'wabaId': waba_id, 'error': type(dlq_error).__name__,
-                                 'requestId': request_id}))
+        logger.error(json.dumps({
+            'event': 'forward_dlq_failed',
+            # Answered 200, so nothing else holds this entry any more.
+            **({} if meta_retries else {'alert': 'WEBHOOK_EVENT_LOST'}),
+            'wabaId': waba_id,
+            'errorType': type(dlq_error).__name__,
+            'metaRetries': meta_retries,
+            'requestId': request_id,
+        }))
 
 
 def _handle_call_event(waba_id: str, call: Dict, metadata: Dict, contacts: list, request_id: str) -> None:

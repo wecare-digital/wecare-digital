@@ -100,8 +100,11 @@ PROBES = [
      "authenticates by Meta's X-Hub-Signature-256 (432 unsigned) and RSA decryption, not by token"),
     ("short-link redirect stays public", "GET", "/r/verify-probe-no-such-code",
      None, 302, "a customer following a short link has no Cognito token"),
-    ("catch-all redirect stays public", "GET", "/verify-probe-no-such-code",
-     None, 302, "same, for the bare /{code} form"),
+    # The bare /{code} catch-all was retired on 2026-10-02 (3b8f6b06c, link-resources.ts):
+    # short links live only at /r/{code}, so an unknown API path must stay API Gateway's
+    # JSON 404 and must never be redirected. A 302 here would mean the catch-all came back.
+    ("unknown API path stays a JSON 404", "GET", "/verify-probe-no-such-code",
+     None, 404, "short links are /r/{code} only; no bare /{code} catch-all"),
 ]
 
 # Deliberately not probed live: POST /media/cleanup. It is the only guarded route

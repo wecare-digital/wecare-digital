@@ -1504,7 +1504,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 _inbound_messages = [] if _coexistence_change else value.get('messages', [])
 
                 # Process incoming messages
-                for message in _inbound_messages:
+                for _message_index, message in enumerate(_inbound_messages):
                     try:
                         # Timeout guard: skip remaining messages if <15s left
                         if context and context.get_remaining_time_in_millis() < 15000:
@@ -1514,7 +1514,23 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                                 'processedCount': processed_count,
                                 'requestId': request_id
                             }))
-                            _send_to_dlq({'messages': value.get('messages', [])[processed_count:]}, 'timeout_guard', request_id)
+                            # Park the unprocessed rest as the typed event dlq-replay hands back
+                            # to this worker. The old `{'messages': [...]}` record matched no
+                            # shape wa_internal_event.parse accepts, so a replay reproduced
+                            # nothing; and slicing by the request-wide processed_count dropped
+                            # messages once an earlier change had any. Statuses stay out: this
+                            # run still processes them below.
+                            _remaining_value = {k: v for k, v in value.items() if k != 'statuses'}
+                            _remaining_value['messages'] = _inbound_messages[_message_index:]
+                            _send_to_dlq(
+                                wa_internal_event.build(
+                                    entry={**webhook_entry,
+                                           'changes': [{**change, 'value': _remaining_value}]},
+                                    waba_id=_item.get('waba_id') or '',
+                                    meta_phone_number_ids=meta_phone_number_ids,
+                                    request_id=request_id,
+                                ),
+                                'timeout_guard', request_id)
                             break
                         
                         # Get sender info from contacts array (BSUID-aware)
