@@ -360,6 +360,15 @@ Mirror the Lightsail migration discipline that is already proven in this repo:
   `provision_cross_account_backup.py` + `provision_backup_account_side.py` +
   `provision_s3_replication_xacct.py`. This is the protection against losing the
   production account itself.
+  **Corrected 2026-10-25:** the DynamoDB half of this did not work until 2026-10-25.
+  Every cross-account copy job from 2026-10-17 to 2026-10-24 failed (600 of 600,
+  "Feature is not supported for provided resource type") because AWS Backup advanced
+  DynamoDB management was off in us-east-1, so each recovery point was a native
+  DynamoDB backup that cannot be copied across accounts. The old `--verify` checked
+  only that the copy rule existed. Advanced management was enabled on 2026-10-25, a
+  test copy of `wecare-workspace-mcp` completed, and
+  `provision_cross_account_backup.py --verify` now fails unless the latest copy job
+  of every copied resource has completed.
 
 **Open:**
 

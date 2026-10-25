@@ -26,9 +26,18 @@ PREREQUISITES (must be true before --apply does anything useful)
 3. A destination vault exists IN THE BACKUP ACCOUNT. Create it there with the
    backup account's own credentials — see `provision_backup_account_side.py`
    (that script runs in 991322955408, not here).
+4. AWS Backup ADVANCED DynamoDB management is enabled in this Region
+   (`aws backup update-region-settings --resource-type-management-preference
+   DynamoDB=true,EFS=true`). Without it a DynamoDB recovery point is a native
+   DynamoDB backup, and every cross-account copy fails with "Feature is not
+   supported for provided resource type". That is exactly what happened from
+   2026-10-17 to 2026-10-24: 600 copy jobs, 600 failures, and a `--verify` that
+   only checked the plan still passed. Enabled 2026-10-25.
 
 This script FAILS LOUDLY if (1) or (3) are not yet true, rather than creating a
-copy rule that silently never lands.
+copy rule that silently never lands. `--verify` checks the copies themselves,
+not just the plan: the region setting in (4), and the latest copy job of every
+resource copied in the last `--days` days.
 
 Usage
 -----
@@ -39,6 +48,8 @@ Usage
 from __future__ import annotations
 
 import argparse
+import collections
+import datetime as dt
 import sys
 
 import boto3
@@ -98,12 +109,42 @@ def has_cross_account_copy(plan_doc) -> bool:
     return False
 
 
+def dynamodb_fully_managed() -> bool:
+    """Prerequisite (4): copies of DynamoDB recovery points need advanced management."""
+    prefs = backup().describe_region_settings().get("ResourceTypeManagementPreference", {})
+    return bool(prefs.get("DynamoDB"))
+
+
+def latest_copy_states(days: int) -> tuple[dict[str, str], collections.Counter]:
+    """State of the most recent copy job into DEST_VAULT_ARN, per source resource.
+
+    Judged per resource rather than over the whole window, so a fix shows as healthy on
+    the next run instead of only once the old failures have aged out. Failure messages are
+    counted (they name a cause, never a credential) so a failing run says why.
+    """
+    since = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days)
+    latest: dict[str, tuple[dt.datetime, str]] = {}
+    reasons: collections.Counter = collections.Counter()
+    pages = backup().get_paginator("list_copy_jobs").paginate(
+        ByDestinationVaultArn=DEST_VAULT_ARN, ByCreatedAfter=since)
+    for page in pages:
+        for job in page.get("CopyJobs", []):
+            resource, created = job.get("ResourceArn", ""), job["CreationDate"]
+            if resource not in latest or created > latest[resource][0]:
+                latest[resource] = (created, job["State"])
+            if job["State"] == "FAILED":
+                reasons[(job.get("StatusMessage") or "no status message")[:160]] += 1
+    return {resource: state for resource, (_, state) in latest.items()}, reasons
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument("--plan", action="store_true")
     g.add_argument("--apply", action="store_true")
     g.add_argument("--verify", action="store_true")
+    ap.add_argument("--days", type=int, default=3,
+                    help="--verify: copy-job lookback window in days (default 3)")
     args = ap.parse_args()
 
     member = backup_account_is_member()
@@ -120,7 +161,20 @@ def main() -> int:
     if args.verify:
         print(f"cross-account copy action present : {already}")
         print(f"destination vault : {DEST_VAULT_ARN}")
-        return 0 if already else 2
+        managed = dynamodb_fully_managed()
+        print(f"advanced DynamoDB backup management : {managed}")
+        states, reasons = latest_copy_states(args.days)
+        tally = collections.Counter(states.values())
+        print(f"latest copy job per resource (last {args.days}d) : {len(states)} resource(s) "
+              + (", ".join(f"{state}={n}" for state, n in sorted(tally.items())) or "none"))
+        for reason, n in reasons.most_common(3):
+            print(f"   {n} failed copy job(s): {reason}")
+        # A copy rule that never lands is the failure this check exists for, so the plan
+        # alone is not a pass: the latest copy of every resource must have completed.
+        healthy = (already and managed and tally.get("COMPLETED", 0) > 0
+                   and not tally.get("FAILED") and not tally.get("PARTIAL"))
+        print("RESULT:", "PASS" if healthy else "FAIL")
+        return 0 if healthy else 2
 
     if already:
         print("cross-account copy action already present — nothing to do")
