@@ -512,7 +512,7 @@
       "AUTO_PICKUP_ENABLED": "true",
       "AUTO_PICKUP_IVR_URL": "https://wecare.digital/get/o/stream/media/ivr/incoming_welcome.ogg",
       "CALL_LOG_TABLE": "stack-wecare-digital-WhatsAppCallingTable",
-      "INBOUND_HANDLER_FUNCTION": "wecare-inbound-whatsapp",
+      "INBOUND_HANDLER_FUNCTION": "wecare-inbound-whatsapp:live",
       "LOG_LEVEL": "INFO",
       "MEDIA_BUCKET": "wecare-digital-get",
       "META_API_VERSION": "v25.0",
