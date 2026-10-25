@@ -1959,6 +1959,11 @@ def _handle_order_details_template_send(
                 order_obj['discount']['description'] = default_coupon.DISPLAY_LABEL
             elif not order_obj['discount'].get('description'):
                 order_obj['discount']['description'] = 'Discount'
+        # `couponCode` is our internal DELIGHT marker, read just above. Meta's `order` object
+        # documents no such key and its order_details schema refuses unexpected keys (error 100,
+        # as with the item keys sanitised below), so it never travels to Meta. The catalog cart
+        # checkout writes it into `order` on every Delight-discounted cart.
+        order_obj.pop('couponCode', None)
 
         # Calculate total_amount if not provided
         total_amount = checkout_order_details.get('total_amount', {})
