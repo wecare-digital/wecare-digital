@@ -974,8 +974,8 @@ def _delete_faq(faq_id: str) -> Dict:
 # All four are flow responses and live in the one flow-response table, next to the WhatsApp
 # Flow submissions that create most of them, marked `channel=staff` when entered here. Routes,
 # request bodies and response shapes are unchanged. `lambda_utils.flow_records` owns the row
-# shape and the list filters, so this file and whatsapp-business-api/service_api.py cannot
-# drift on it.
+# shape and the list filters. This is the only implementation of these routes: the copy that
+# lived in whatsapp-business-api/service_api.py was retired on 2026-10-22 (d8e197d2).
 
 def _flow_table():
     return dynamodb.Table(FLOW_SUBMISSIONS_TABLE)
@@ -1050,7 +1050,7 @@ def _update_enterprise_case(case_id: str, body: Dict) -> Dict:
 
 
 def _list_reviews(params: Dict) -> Dict:
-    """Ratings (WD_REV) and private ideas (WD_IDEA), every channel, every page."""
+    """F002 Leave Review rows plus historical WD_IDEA/WD_REV rows, every channel, every page."""
     items = flow_records.list_reviews(_flow_table(), params)
     return _resp(200, {'reviews': items, 'count': len(items)})
 
@@ -1061,8 +1061,54 @@ def _create_review(body: Dict) -> Dict:
 
 
 def _update_review(review_id: str, body: Dict) -> Dict:
-    return _update_record(flow_records.REVIEW, review_id,
-                          flow_records.review_updates(body, _now()))
+    response = _update_record(flow_records.REVIEW, review_id,
+                              flow_records.review_updates(body, _now()))
+    if int(response.get('statusCode') or 0) < 300 and 'status' in body:
+        _sync_review_inbox_status(review_id, str(body.get('status') or ''))
+    return response
+
+
+def _sync_review_inbox_status(review_id: str, status: str) -> None:
+    """Mirror a staff review decision onto the review's Inbox item. Best-effort, never fatal.
+
+    The FlowSubmission row is the record and the Inbox shows a projection of it, so without this
+    the Inbox kept showing "Feedback status: pending" after staff moderated a review. The retired
+    whatsapp-business-api copy of this API did the mirror; the consolidated one had lost it.
+
+    Two projection shapes exist. Historical endpoint reviews were projected as the MessagesTable
+    row `flow:<reviewId>`. F002 reviews are projected onto the inbound message itself, found via
+    the `whatsappMessageId` the submission row stores. Every write is conditional on the message
+    existing AND naming this review, so the mirror can never create or relabel another message.
+    """
+    from lambda_utils import message_store
+
+    messages = dynamodb.Table(message_store.MESSAGES_TABLE)
+    candidates = [f'flow:{review_id}']
+    try:
+        row = _flow_table().get_item(Key={'submissionId': review_id}).get('Item') or {}
+        wamid = str(row.get('whatsappMessageId') or '').strip()
+        if wamid:
+            page = messages.query(IndexName='whatsappMessageId-index',
+                                  KeyConditionExpression=Key('whatsappMessageId').eq(wamid),
+                                  Limit=5)
+            candidates.extend(str(item.get('id') or '') for item in page.get('Items') or [])
+    except Exception as exc:  # noqa: BLE001 - the review decision is already saved
+        logger.warning(json.dumps({'event': 'review_inbox_lookup_failed', 'reviewId': review_id,
+                                   'errorType': type(exc).__name__}))
+    for message_id in dict.fromkeys(c for c in candidates if c):
+        try:
+            messages.update_item(
+                Key={'id': message_id}, UpdateExpression='SET reviewStatus = :s',
+                ConditionExpression='attribute_exists(id) AND reviewId = :rid',
+                ExpressionAttributeValues={':s': status, ':rid': review_id})
+        except ClientError as exc:
+            if exc.response.get('Error', {}).get('Code') != 'ConditionalCheckFailedException':
+                logger.warning(json.dumps({'event': 'review_inbox_status_sync_failed',
+                                           'reviewId': review_id,
+                                           'errorType': type(exc).__name__}))
+        except Exception as exc:  # noqa: BLE001 - best-effort projection
+            logger.warning(json.dumps({'event': 'review_inbox_status_sync_failed',
+                                       'reviewId': review_id, 'errorType': type(exc).__name__}))
 
 
 # ============================================================================
@@ -1101,9 +1147,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     try:
         # ── ORDERS ──
-        if '/orders/sync' in path and method == 'POST':
-            return _sync_orders()
-        elif '/orders/' in path and '/submissions' in path:
+        # POST /orders/sync is gone with the Wix store sync it served (4ee023cc deleted
+        # `_sync_orders` and left this call behind, so the live route answered a NameError 500).
+        # It now falls through to the 404 below; the API Gateway route itself can be removed.
+        if '/orders/' in path and '/submissions' in path:
             order_id = _extract_path_param(path, 'orders')
             return _get_order_submissions(order_id)
         elif '/orders/' in path:
