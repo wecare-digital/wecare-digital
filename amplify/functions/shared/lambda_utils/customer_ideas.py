@@ -74,25 +74,27 @@ def save_idea(data, *, contact_id, phone, sender_name, message_id, dynamodb=None
     topic = data.get('topic', '')
     if not isinstance(topic, str) or topic not in TOPICS:
         topic = 'other'
+    schema_version = str(data.get('schema_version') or '4')
+    f002_profile = schema_version == '5'
     profile = {
-        'full_name': _text(data, 'full_name', required=True, limit=120),
+        'full_name': _text(data, 'full_name', required=f002_profile, limit=120),
         'username': _text(data, 'username', limit=120),
         'company_name': _text(data, 'company_name', limit=160),
         'designation': _text(data, 'designation', limit=120),
     }
     address = {
-        'address_line1': _text(data, 'address_line1', required=True, limit=250),
+        'address_line1': _text(data, 'address_line1', required=f002_profile, limit=250),
         'address_line2': _text(data, 'address_line2', limit=250),
         'locality': _text(data, 'locality', limit=160),
-        'city': _text(data, 'city', required=True, limit=120),
-        'state': _text(data, 'state', required=True, limit=120),
-        'postal_code': _text(data, 'postal_code', required=True, limit=32),
-        'country': _text(data, 'country', required=True, limit=120),
+        'city': _text(data, 'city', required=f002_profile, limit=120),
+        'state': _text(data, 'state', required=f002_profile, limit=120),
+        'postal_code': _text(data, 'postal_code', required=f002_profile, limit=32),
+        'country': _text(data, 'country', required=f002_profile, limit=120),
     }
     digest = hashlib.sha256(f'{contact_id}\x1f{message_id}'.encode()).hexdigest()
     review_id = 'WD-IDEA-' + digest[:16].upper()
     text = idea
-    form = {**profile, **address, 'topic': topic, 'idea': text, 'schema_version': '5'}
+    form = {**profile, **address, 'topic': topic, 'idea': text, 'schema_version': schema_version}
     result = flow_completion.claim_completion(
         flow_token=message_id, screen='REVIEW', submission_id=review_id,
         reference_prefix='WD-IDEA', flow_code=FLOW_CODE, flow_type='customer_idea',
@@ -109,7 +111,7 @@ def save_idea(data, *, contact_id, phone, sender_name, message_id, dynamodb=None
                'profileSnapshot': profile, 'addressSnapshot': address,
                'reviewText': text, 'category': topic,
                'reviewType': 'customer_idea', 'visibility': 'private',
-               'source': 'whatsapp', 'schemaVersion': '5',
+               'source': 'whatsapp', 'schemaVersion': schema_version,
                'whatsappMessageId': message_id,
                **({'customerUuid': customer_uuid_value} if customer_uuid_value else {})},
         # A customer's idea is a business record, not a transport log.
