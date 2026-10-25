@@ -1267,31 +1267,40 @@ def _staff_event(method: str, path: str, role: str, body: Optional[Dict[str, Any
             'body': json.dumps(body or {}), 'queryStringParameters': params or {}}
 
 
-@check('E6 /flow-data logs whether the Meta signature verifies and never changes the answer')
+@check('E6 /flow-data answers only a request Meta signed; anything else is 432 before decryption')
 def _() -> None:
     FAKE_DB.reset()
     biz, signature = M['bizapi'], M['meta_signature']
     token = new_session()
     payload = {'version': '3.0', 'action': 'INIT', 'screen': '', 'data': {}, 'flow_token': token}
-    biz._decrypt_flow_request = lambda *_: (copy.deepcopy(payload), b'k', b'i')
+    decrypts: List[int] = []
+
+    def fake_decrypt(*_: Any) -> Tuple[Dict[str, Any], bytes, bytes]:
+        decrypts.append(1)
+        return copy.deepcopy(payload), b'k', b'i'
+    biz._decrypt_flow_request = fake_decrypt
     biz._encrypt_flow_response = lambda response, *_: json.dumps(response)
     raw = json.dumps({'encrypted_flow_data': 'x', 'encrypted_aes_key': 'y', 'initial_vector': 'z'})
     saved_secret = biz._get_app_secret
 
-    def post(headers: Dict[str, str]) -> Tuple[int, List[str]]:
-        start = len(LOGS.lines)
-        # No API Gateway context: the same auth path Meta's callback takes via AUTH_SKIP_PATHS.
+    def post(headers: Dict[str, str]) -> Tuple[int, List[str], int]:
+        start, before = len(LOGS.lines), len(decrypts)
+        # An HTTP request with no staff token: the path Meta's callback takes via AUTH_SKIP_PATHS.
         out = biz.handler({'requestContext': {'http': {'method': 'POST', 'path': '/wa-business/flow-data'}},
                            'headers': headers, 'body': raw}, None)
-        return out['statusCode'], [line for line in LOGS.lines[start:] if 'flow_endpoint_signature' in line]
+        return (out['statusCode'], [line for line in LOGS.lines[start:] if 'flow_endpoint_signature' in line],
+                len(decrypts) - before)
     try:
         biz._get_app_secret = lambda *a, **k: 'test-app-secret'
         good = signature.expected_signature('test-app-secret', raw)
-        for headers, verified, reason in (({'X-Hub-Signature-256': good}, True, 'ok'),
-                                          ({}, False, 'missing_signature'),
-                                          ({'x-hub-signature-256': 'sha256=' + '0' * 64}, False, 'signature_mismatch')):
-            status, lines = post(headers)
-            expect(status == 200, f'{reason}: the answer changed (HTTP {status})')
+        for headers, verified, reason, wanted in (
+                ({'X-Hub-Signature-256': good}, True, 'ok', 200),
+                ({}, False, 'missing_signature', 432),
+                ({'x-hub-signature-256': 'sha256=' + '0' * 64}, False, 'signature_mismatch', 432)):
+            status, lines, decrypted = post(headers)
+            expect(status == wanted, f'{reason}: expected HTTP {wanted}, got {status}')
+            expect(decrypted == (1 if verified else 0),
+                   f'{reason}: decrypted {decrypted} time(s); a refused request must not be read')
             expect(len(lines) == 1 and json.loads(lines[0]) == {
                 'event': 'flow_endpoint_signature', 'verified': verified, 'reason': reason,
                 'requestId': json.loads(lines[0]).get('requestId')}, f'{reason}: logged {lines}')
@@ -1299,9 +1308,9 @@ def _() -> None:
         def unavailable(*_: Any, **__: Any) -> str:
             raise RuntimeError('secrets unavailable')
         biz._get_app_secret = unavailable
-        status, lines = post({'X-Hub-Signature-256': good})
-        expect(status == 200 and lines and '"verify_error:RuntimeError"' in lines[0],
-               f'a failed observation broke the Flow: HTTP {status} {lines}')
+        status, lines, decrypted = post({'X-Hub-Signature-256': good})
+        expect(status == 432 and not decrypted and lines and '"verify_error:RuntimeError"' in lines[0],
+               f'an unverifiable signature must fail closed: HTTP {status} {lines}')
     finally:
         biz._get_app_secret = saved_secret
 

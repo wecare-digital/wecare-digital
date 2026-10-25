@@ -6277,26 +6277,32 @@ def _verify_webhook_signature(event: Dict[str, Any], request_id: str) -> bool:
     return ok
 
 
-def _observe_flow_endpoint_signature(event: Dict[str, Any], request_id: str) -> None:
-    """Log whether Meta's `X-Hub-Signature-256` verifies on a `/flow-data` request.
+def _flow_endpoint_signature_ok(event: Dict[str, Any], request_id: str) -> bool:
+    """True when Meta's `X-Hub-Signature-256` verifies on a `/flow-data` HTTP request.
 
-    OBSERVE ONLY: the outcome never changes the response. Meta signs Flow data-exchange
-    requests with the app secret, as it does webhooks, but this endpoint has never checked
-    it, and refusing on a check that has not yet been seen to pass on real traffic would risk
-    breaking every live Flow at once. Enforcement (HTTP 432, Meta's code for a failed
-    signature) is a separate change, made once these lines show every genuine request as
-    `verified`. Until then a request is bound to a customer by its server-issued session.
+    ENFORCED since 2026-10-25. The request body is encrypted with this business's PUBLIC key,
+    so anyone can build one; the signature (HMAC with the app secret) is the only proof Meta
+    sent it. Unsigned, the router answers whatever a token names - an unrecognised token's INIT
+    returns the orders of the phone number written into it. The observation period this
+    function used to run showed every live-alias request verified (7 of 7 over the week before
+    enforcement); the one unsigned request was a direct `$LATEST` invoke, not API traffic.
+
+    Only API Gateway requests are checked. A direct invoke already required IAM and carries no
+    Meta header. A verification error (e.g. the app secret could not load) fails closed.
     """
+    if not meta_signature.is_http_request(event):
+        return True
     try:
         primary = _get_app_secret()  # loads both WABA app secrets into _token_cache
         verified, reason = meta_signature.verify(
             event, [primary, _token_cache.get('app_secret_waba2', '')])
-    except Exception as e:  # noqa: BLE001 - an observation must never fail the Flow
+    except Exception as e:  # noqa: BLE001 - classified as a refusal below
         verified, reason = False, f'verify_error:{type(e).__name__}'
     logger.info(json.dumps({
         'event': 'flow_endpoint_signature', 'verified': verified, 'reason': reason,
         'requestId': request_id,
     }))
+    return verified
 
 
 # Shared path extractor used by non-service WhatsApp admin routes.
@@ -6466,8 +6472,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # data-exchange callback, which carries no staff token. Decryption alone does not
     # authenticate it (anyone holding the public key can encrypt to it): a request is bound
     # to a customer by the server-issued session in `lambda_utils.flow_sessions`, and Meta's
-    # `X-Hub-Signature-256` is checked and logged on every request (observe only, see
-    # `_observe_flow_endpoint_signature`). That single path is the entire contents of
+    # `X-Hub-Signature-256` must verify on every HTTP request (HTTP 432 otherwise, see
+    # `_flow_endpoint_signature_ok`). That single path is the entire contents of
     # AUTH_SKIP_PATHS. Internal Lambda invokes are auto-exempt.
     #
     # `/wa-business/webhooks` used to be exempt too, on the stated grounds that it
@@ -6505,8 +6511,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     # Note: WhatsApp Flows data_exchange is encrypted (RSA + AES-GCM) for confidentiality
     # and also signed by Meta with `X-Hub-Signature-256`, like webhooks. `/flow-data`
-    # records that signature's outcome without enforcing it yet; see
-    # `_observe_flow_endpoint_signature`.
+    # refuses a request whose signature does not verify; see `_flow_endpoint_signature_ok`.
 
     logger.info(f'[{request_id}] {method} {path}')
 
@@ -6991,7 +6996,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         elif '/flow-data' in path:
             if method == 'POST':
-                _observe_flow_endpoint_signature(event, request_id)
+                if not _flow_endpoint_signature_ok(event, request_id):
+                    # 432 is Meta's documented status for a request whose signature fails.
+                    # Nothing is decrypted, routed or written for it.
+                    return {'statusCode': 432, 'headers': cors_headers(origin), 'body': ''}
                 return _handle_flow_data(body, request_id, origin)
             return _resp(405, {'error': 'POST only'})
 

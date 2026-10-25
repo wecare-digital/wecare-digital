@@ -89,15 +89,15 @@ PROBES = [
 
     # --- and the anonymous paths that must KEEP working ---
     # The Flows data-exchange endpoint is the ONE legitimate exemption on that
-    # function: the payload is RSA+AES-GCM encrypted, so only a caller holding our
-    # public key can produce something we can decrypt. 421 is Meta's specified
-    # response to a decryption failure and tells Meta to refresh the key, so this
-    # junk payload is inert. A 401 here would mean the exemption was lost along
-    # with the webhooks one.
+    # function: it carries no staff token. Since 2026-10-25 it requires Meta's
+    # X-Hub-Signature-256 (an RSA-encrypted body proves nothing, because our key
+    # is public), so this unsigned probe is refused with 432, Meta's specified
+    # status for a failed signature, before anything is decrypted. A 401 here
+    # would mean the exemption was lost along with the webhooks one.
     ("flows data-exchange stays public", "POST", "/wa-business/flow-data",
      {"encrypted_flow_data": "bm90LXJlYWw=", "encrypted_aes_key": "bm90LXJlYWw=",
-      "initial_vector": "bm90LXJlYWw="}, 421,
-     "authenticates by RSA decryption, not by token"),
+      "initial_vector": "bm90LXJlYWw="}, 432,
+     "authenticates by Meta's X-Hub-Signature-256 (432 unsigned) and RSA decryption, not by token"),
     ("short-link redirect stays public", "GET", "/r/verify-probe-no-such-code",
      None, 302, "a customer following a short link has no Cognito token"),
     ("catch-all redirect stays public", "GET", "/verify-probe-no-such-code",

@@ -443,8 +443,11 @@ def handler(event, context):
     if http_method == 'OPTIONS':
         return options_response(origin)
 
-    # Enforce auth
-    auth_result = require_auth(event)
+    # Enforce auth. A test send is a real WhatsApp message sent straight to Meta, outside
+    # outbound-whatsapp's consent ledger and message log, to a number the caller types, so it
+    # is Admin-only; every other template route keeps the staff floor.
+    is_send_test = http_method == 'POST' and path.rstrip('/').endswith('/send-test')
+    auth_result = require_auth(event, required_role='Admin' if is_send_test else None)
     if auth_result is not None:
         return auth_result
 
@@ -734,7 +737,11 @@ def _send_test_template(waba_id, template_id, body):
             'type': 'template',
             'template': template_payload,
         }
-        phone_id = body.get('phoneId') or _resolve_phone_id(waba_id)
+        # Only one of our own business numbers may send. The system-user token can reach other
+        # phone numbers, and a caller-chosen id must not turn this into a send-as-anyone door.
+        phone_id = str(body.get('phoneId') or '').strip() or _resolve_phone_id(waba_id)
+        if phone_id not in META_WABA_TO_PHONE.values():
+            return _error_response(400, 'phoneId must be one of this business\'s WhatsApp numbers')
         url = f'{META_GRAPH_URL}/{phone_id}/messages'
         data = _meta_request(url, method='POST', data=json.dumps(message).encode())
         msg_id = ''
