@@ -149,10 +149,9 @@ def _zip_package() -> bytes:
 
 
 def ensure_role(dry_run: bool) -> str:
-    if role_exists():
-        return "exists"
+    exists = role_exists()
     if dry_run:
-        return "would create"
+        return "would reconcile existing role" if exists else "would create and reconcile role"
 
     assume = {
         "Version": "2012-10-17",
@@ -162,13 +161,14 @@ def ensure_role(dry_run: bool) -> str:
             "Action": "sts:AssumeRole",
         }],
     }
-    iam().create_role(
-        RoleName=ROLE_NAME,
-        AssumeRolePolicyDocument=json.dumps(assume),
-        Description="Customer registration front door execution role",
-        Tags=[{"Key": "Project", "Value": "WECARE.DIGITAL"},
-              {"Key": "Purpose", "Value": "CustomerRegistration"}],
-    )
+    if not exists:
+        iam().create_role(
+            RoleName=ROLE_NAME,
+            AssumeRolePolicyDocument=json.dumps(assume),
+            Description="Customer registration front door execution role",
+            Tags=[{"Key": "Project", "Value": "WECARE.DIGITAL"},
+                  {"Key": "Purpose", "Value": "CustomerRegistration"}],
+        )
     iam().attach_role_policy(
         RoleName=ROLE_NAME,
         PolicyArn="arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
@@ -215,12 +215,14 @@ def ensure_role(dry_run: bool) -> str:
             {
                 "Sid": "AdminProvisionCustomerLogin",
                 "Effect": "Allow",
-                # Exactly the three admin actions the front door uses to provision a login. No
-                # SignUp: the customer pool is AllowAdminCreateUserOnly and self-signup stays off.
+                # Provisioning plus exact phone/sub lookup for the internal WhatsApp identity
+                # bridge. No SignUp: the customer pool is AllowAdminCreateUserOnly and self-signup
+                # stays off.
                 "Action": [
                     "cognito-idp:AdminCreateUser",
                     "cognito-idp:AdminSetUserPassword",
                     "cognito-idp:AdminUpdateUserAttributes",
+                    "cognito-idp:ListUsers",
                 ],
                 "Resource": [
                     f"arn:aws:cognito-idp:{REGION}:{acct}:userpool/{CUSTOMER_POOL_ID}"],
@@ -232,7 +234,7 @@ def ensure_role(dry_run: bool) -> str:
         PolicyName="CustomerRegistrationLeastPrivilege",
         PolicyDocument=json.dumps(least_privilege),
     )
-    return "created"
+    return "reconciled" if exists else "created"
 
 
 def ensure_log_group(dry_run: bool) -> str:
