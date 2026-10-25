@@ -25,7 +25,9 @@ What it reports per function
 ----------------------------
     alias version, the version's CodeSha256, LastModified
     DIFFERS  : file exists in both, contents differ  (deployed code is stale)
-    MISSING  : file exists locally, absent from the artifact
+    MISSING  : a file the function's own packager ships, absent from the artifact. The
+               list comes from that packager (`deploy_all_lambdas.build_zip`, or the
+               delegated script's builder), so the two cannot disagree.
     EXTRA    : file in the artifact with no local counterpart (deleted since)
     $LATEST vs alias: whether unpublished code is sitting in front of the alias
 
@@ -56,6 +58,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib
 import io
 import json
 import pathlib
@@ -100,7 +103,7 @@ class DelegatedSpec:
     """
 
     def __init__(self, name: str, source, arcname_map, owner: str, *,
-                 only=(), edge: bool = False):
+                 expected=None, only=(), edge: bool = False):
         self.name = name
         self.source = source
         self.arcname_map = arcname_map
@@ -109,6 +112,10 @@ class DelegatedSpec:
         self.extra_dirs: list[str] = []
         self.extra_files: list[str] = []
         self.provisioned_by = ""
+        # What the owning script's packager ships: a zero-argument callable returning the
+        # archive names, or the names themselves. A shipped file absent from the artifact is
+        # drift as much as a stale copy is.
+        self.expected = expected
         # Archive paths that come from this repository. Empty means every file does; a
         # package that vendors its own SDK names its few source files instead.
         self.only = set(only)
@@ -131,6 +138,7 @@ def delegated_specs(dal) -> dict:
                 ("seo_tools_handler.py", functions),
             ],
             "scripts/deploy_seo_tools.py",
+            expected=packaged_by("deploy_seo_tools", "package"),
         ),
         # handler.py plus config/public-pages.json copied in beside it. The catalogue is
         # the reason this cannot be a normal Spec: extra_files resolves relative to the
@@ -143,6 +151,7 @@ def delegated_specs(dal) -> dict:
                 ("handler.py", functions / "ai" / "mcp"),
             ],
             "scripts/deploy_mcp_server.py",
+            expected=packaged_by("deploy_mcp_server", "package"),
         ),
         # The same blind spot again, measured 2026-10-25: "checked=68" against 74 functions,
         # while wecare-native-catalog-admin ran 25 shared modules from 2026-10-23 (its auth
@@ -153,38 +162,80 @@ def delegated_specs(dal) -> dict:
             functions / "operations" / "blog-public",
             [],
             "scripts/build_blog_public.py",
+            expected=packaged_by("build_blog_public", "package"),
         ),
         # Its pinned SDK is bundled beside three source files and one config file; only
-        # those four come from this repository.
+        # those four come from this repository. Its builder needs the installed SDK, so the
+        # four are named here rather than read from it.
         "wecare-workspace-mcp": DelegatedSpec(
             "wecare-workspace-mcp",
             functions / "ai" / "workspace-mcp",
             [("workspace-mcp.json", ROOT / "config")],
             "scripts/build_workspace_mcp.py",
-            only=("handler.py", "provider_adapters.py", "chat_oauth.py", "workspace-mcp.json"),
+            expected=WORKSPACE_MCP_SOURCES,
+            only=WORKSPACE_MCP_SOURCES,
         ),
         "wecare-native-catalog-admin": DelegatedSpec(
             "wecare-native-catalog-admin",
             functions / "ecommerce" / "native-catalog-admin",
             [],
             "scripts/provision_native_catalog_api.py",
+            expected=packaged_by("provision_native_catalog_api", "zip_code"),
         ),
         "wecare-catalog-media": DelegatedSpec(
             "wecare-catalog-media",
             functions / "ecommerce" / "catalog-media",
             [],
             "scripts/provision_catalog_media.py",
+            expected=packaged_by("provision_catalog_media", "zip_code"),
         ),
-        # A CloudFront origin-response trigger. Compared at the version the cache behaviour
-        # names, which is what production executes.
+        # A CloudFront origin-response trigger with no packaging script: one handler file.
+        # Compared at the version the cache behaviour names, which is what production executes.
         "wecare-get-miss-redirect": DelegatedSpec(
             "wecare-get-miss-redirect",
             functions / "edge" / "get-miss-redirect",
             [],
             "CloudFront Lambda@Edge association",
+            expected=("handler.py",),
             edge=True,
         ),
     }
+
+
+WORKSPACE_MCP_SOURCES = ("handler.py", "provider_adapters.py", "chat_oauth.py",
+                         "workspace-mcp.json")
+
+
+def packaged_by(module: str, builder: str):
+    """The archive names a packaging script in scripts/ builds, read from its own builder.
+
+    Lazy: the script is imported only when its function is checked. Each named builder is a
+    pure function returning zip bytes; none makes an AWS call.
+    """
+    def names() -> set[str]:
+        zip_bytes = getattr(importlib.import_module(module), builder)()
+        with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+            return {info.filename for info in zf.infolist() if not info.is_dir()}
+    return names
+
+
+def comparable(arcname: str) -> bool:
+    """The archive paths this script compares: source and config, not bytecode or wheels."""
+    parts = set(pathlib.PurePosixPath(arcname).parts)
+    if parts & SKIP_PARTS or any(p.endswith(tuple(SKIP_PARTS)) for p in parts):
+        return False
+    return arcname.endswith(COMPARE_SUFFIXES)
+
+
+def expected_names(dal, spec) -> set[str] | None:
+    """What the function's own packager ships, or None when that is not known here."""
+    if isinstance(spec, DelegatedSpec):
+        if spec.expected is None:
+            return None
+        names = set(spec.expected() if callable(spec.expected) else spec.expected)
+    else:
+        names = set(dal.build_zip(spec)[1])
+    return {n for n in names if comparable(n)}
 
 
 def edge_versions(function_name: str) -> list[str]:
@@ -233,12 +284,7 @@ def artifact_entries(zip_bytes: bytes) -> dict[str, bytes]:
     out: dict[str, bytes] = {}
     with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
         for info in zf.infolist():
-            if info.is_dir():
-                continue
-            parts = set(pathlib.PurePosixPath(info.filename).parts)
-            if parts & SKIP_PARTS or any(p.endswith(tuple(SKIP_PARTS)) for p in parts):
-                continue
-            if not info.filename.endswith(COMPARE_SUFFIXES):
+            if info.is_dir() or not comparable(info.filename):
                 continue
             out[info.filename] = zf.read(info)
     return out
@@ -344,6 +390,13 @@ def check_function(lam, dal, spec, only_file: str | None):
     except ClientError:
         pass
 
+    try:
+        expected = expected_names(dal, spec)
+    except (OSError, RuntimeError, ImportError, AttributeError, zipfile.BadZipFile) as exc:
+        # The repository cannot build this package, so a deploy from it would fail too.
+        row["error"] = f"cannot build the package locally: {type(exc).__name__}: {exc}"
+        return row
+
     url = got.get("Code", {}).get("Location")
     if not url:
         row["error"] = "no code location returned"
@@ -376,10 +429,11 @@ def check_function(lam, dal, spec, only_file: str | None):
                 "deployed_bytes": len(blob),
                 "local_bytes": len(local),
             })
-    # A source file the package should carry but does not: a stale artifact can lack a file as
-    # easily as hold an old copy of one.
-    missing = sorted(n for n in only
-                     if n not in entries and (not only_file or n.endswith(only_file)))
+    # A file the packager ships that the artifact lacks: a stale artifact can miss a new module
+    # as easily as hold an old copy of one.
+    if expected is not None:
+        missing = sorted(n for n in expected - set(entries)
+                         if not only_file or n.endswith(only_file))
     row["compared"] = compared
     row["differs"] = differs
     row["extra_in_artifact"] = extra
