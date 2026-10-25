@@ -297,7 +297,10 @@ export const IAM_POLICIES = {
     ],
   },
 
-  // Secrets Manager permissions for server-side integrations
+  // Secrets Manager permissions for server-side integrations. The live shared role carries this
+  // allowlist as the managed policy `wecare-shared-role-scoped-access`
+  // (scripts/scope_shared_lambda_role.py, 2026-10-25); `wecare/otp/pepper` is read only by
+  // functions on their own roles.
   secrets: {
     Version: '2012-10-17',
     Statement: [
@@ -308,14 +311,17 @@ export const IAM_POLICIES = {
         ],
         Resource: [
           `arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:wecare/agent-connector-token-*`,
+          `arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:wecare/bing/api-*`,
           `arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:wecare/flow-private-key-*`,
+          `arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:wecare/google/ads-*`,
+          `arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:wecare/google/cloud-*`,
           `arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:wecare/meta-system-user-token-*`,
-          `arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:wecare/otp/pepper-*`,
           `arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:wecare/partners/*`,
           `arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:wecare/plivo-answer-*`,
           `arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:wecare/plivo/api-*`,
           `arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:wecare/razorpay/api-*`,
           `arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:wecare/razorpay-webhook-*`,
+          `arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:wecare/seo/google-oauth-*`,
           `arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:wecare/sinch/rcs-*`,
         ],
       },
@@ -363,7 +369,9 @@ export const IAM_POLICIES = {
     ],
   },
 
-  // Lambda invoke permissions (for scheduled-messages invoking outbound lambdas)
+  // Lambda invoke permissions: the functions the fleet invokes, never `function:wecare-*`. Each
+  // is granted bare and qualified (the `live` alias). Live as `wecare-shared-role-scoped-access`
+  // (scripts/scope_shared_lambda_role.py `INVOKE_TARGETS`, 2026-10-25).
   lambdaInvoke: {
     Version: '2012-10-17',
     Statement: [
@@ -372,7 +380,16 @@ export const IAM_POLICIES = {
         Action: [
           'lambda:InvokeFunction',
         ],
-        Resource: `arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:wecare-*`,
+        Resource: [
+          'ai-generate-response', 'ai-query-kb', 'billing', 'bulk-worker', 'checkout', 'commerce',
+          'inbound-whatsapp', 'meta-catalog-sync', 'outbound-email', 'outbound-sms',
+          'outbound-whatsapp', 'razorpay-webhook', 'rcs-send', 'scheduled-messages', 'secure-files',
+          'service-requests', 'sms-aws', 'voice-aws', 'voice-cdr-read', 'whatsapp-business-api',
+          'whatsapp-voice',
+        ].flatMap((name) => [
+          `arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:wecare-${name}`,
+          `arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:wecare-${name}:*`,
+        ]),
       },
     ],
   },

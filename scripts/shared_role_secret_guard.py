@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Approval-gated explicit Deny that keeps three unneeded secrets away from the shared role.
 
-`wecare-digital-lambda-role` (61 functions) allows `secretsmanager:GetSecretValue` on
-`secret:wecare/*`. CloudTrail (90 days, 2026-10-15) shows no role under it ever read these:
+`wecare-digital-lambda-role` (61 functions) allowed `secretsmanager:GetSecretValue` on
+`secret:wecare/*` until 2026-10-25, when scripts/scope_shared_lambda_role.py replaced that with an
+allowlist; this Deny stays as a second line. CloudTrail (90 days, 2026-10-15) shows no role
+under it ever read these:
 
     wecare/github-pat                 readers: wecare-workspace-mcp-runtime (own role), a since-
                                       deleted webhook receiver role, root, iamuser wecare-admin
@@ -39,10 +41,13 @@ APPLY_TOKEN = "I-APPROVE-SHARED-ROLE-SECRET-GUARD"
 ROLLBACK_TOKEN = "I-APPROVE-SHARED-ROLE-SECRET-GUARD-ROLLBACK"
 SECRET_ARN = f"arn:aws:secretsmanager:{REGION}:{ACCOUNT}:secret:"
 DENIED = ("wecare/github-pat", "wecare/backup/recovery-passphrase", "wecare/aws/iam-access-keys")
-#: Secrets functions under the shared role do read; they must stay readable.
+#: Secrets functions under the shared role do read; they must stay readable. The same list
+#: scripts/scope_shared_lambda_role.py grants. `wecare/otp/pepper` left it on 2026-10-25: its
+#: readers (customer-registration, customer-profile, email-verification) run on their own roles.
 STILL_ALLOWED = ("wecare/razorpay/api", "wecare/razorpay-webhook", "wecare/meta-system-user-token",
-                 "wecare/otp/pepper", "wecare/flow-private-key", "wecare/sinch/rcs",
-                 "wecare/google/cloud", "wecare/plivo/api")
+                 "wecare/flow-private-key", "wecare/sinch/rcs", "wecare/agent-connector-token",
+                 "wecare/seo/google-oauth", "wecare/google/cloud", "wecare/google/ads",
+                 "wecare/bing/api", "wecare/plivo/api", "wecare/plivo-answer")
 
 
 def guard_document() -> dict:
