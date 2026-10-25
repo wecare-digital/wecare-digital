@@ -7,6 +7,7 @@ ORDER_CATALOG_HEADER_IMAGE = "https://wecare.digital/get/secure/d/public/whatsap
 
 FIXED_IMAGE_HEADERS = {
     'wecare_leave_review': DEFAULT_HEADER_IMAGE,
+    'wecare_default_download': DEFAULT_HEADER_IMAGE,
 }
 
 #: Template media that code sends by URL. They sit in the same wa-tpl/img/ folder as library
@@ -14,8 +15,8 @@ FIXED_IMAGE_HEADERS = {
 #: every payment request (outbound-whatsapp FIXED_CHECKOUT_HEADER and invoice-engine
 #: headerImageUrl both name it).
 RETAINED_MEDIA_KEYS = frozenset({
-    media_paths.WHATSAPP_TEMPLATE_IMAGE_PREFIX + 'wecare-digital-cebc83f1_img.png',
-    media_paths.WHATSAPP_TEMPLATE_IMAGE_PREFIX + 'wecarepay-header.png',
+    media_paths.WHATSAPP_TEMPLATE_ASSET_ROOT + 'whatsapp-header.png',
+    media_paths.WHATSAPP_TEMPLATE_ASSET_ROOT + 'wecare-catalog-icon.png',
 })
 
 
