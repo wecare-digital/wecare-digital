@@ -39,6 +39,14 @@ used. They cover no-UI behavior, exact schemas, deny-by-default product approval
 integrity, account connection challenges, identity injection, downstream refusal, provider-error
 redaction, native payment gating and optional WhatsApp request idempotency payloads.
 
+## Payment fallback messages
+
+When native ChatGPT payment is unavailable and the WhatsApp route is activated, purchase review
+returns a Pay on WhatsApp choice. The customer must choose it before the payment template is sent.
+Only PAYMENT_REQUEST_SENT produces the message that the request was sent and the customer should
+complete the transaction in WhatsApp, then return to check status. A prepared or disabled initiation
+never claims a message was sent. Sending a payment request never claims that money was collected.
+
 ## Existing source of truth
 
 Products/prices remain in ProductsTable. Customer identity/profile/address remain in the existing
@@ -88,7 +96,7 @@ WECARE plugin's staff connections. The customer connector is a separate public p
 
 ## Latest verification
 
-23 focused offline checks pass. Python compilation passes. The repository production website build
+25 focused offline checks pass. Python compilation passes. The repository production website build
 passed with network access; the first sandboxed attempt could not fetch public blog data. No website
 source changes remain in this task. Repository-wide lint has one existing unrelated error in
 src/components/ElsewhereTravelAssistant.tsx:462 (an internal /cart anchor), plus existing warnings.

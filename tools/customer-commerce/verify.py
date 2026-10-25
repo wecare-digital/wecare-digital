@@ -131,6 +131,14 @@ class ConversationContract(unittest.TestCase):
             self.assertFalse(result['finalPayableTotalAvailable'])
             self.assertFalse(result['paymentCollected'])
             self.assertFalse(result['inChatPaymentEnabled'])
+            self.assertEqual(result['paymentOptions'], [])
+
+    def test_whatsapp_fallback_is_offered_only_when_enabled(self):
+        with patch.dict(os.environ, {'WHATSAPP_PAYMENT_REQUESTS_ENABLED': 'true'}), patch.object(app, 'catalog', return_value=[PRODUCT]):
+            result = call('review_purchase', {'items': ITEMS})['structuredContent']
+            self.assertEqual(result['paymentOptions'][0]['label'], 'Pay on WhatsApp')
+            self.assertTrue(result['paymentOptions'][0]['requiresCustomerConfirmation'])
+            self.assertFalse(result['paymentCollected'])
 
     def test_client_price_and_unapproved_items_refused(self):
         hostile = [{**ITEMS[0], 'unitAmountPaise': 1}]
@@ -145,12 +153,21 @@ class ConversationContract(unittest.TestCase):
         with patch.dict(os.environ, {'WHATSAPP_PAYMENT_REQUESTS_ENABLED': 'true'}), patch.object(app, 'catalog', return_value=[PRODUCT]), patch.object(app, 'delegate', return_value=app.reply(200, {'status': 'PAYMENT_REQUEST_SENT'})) as delegate:
             result = call('request_whatsapp_payment', {'items': ITEMS, 'idempotencyKey': 'example-request-001'}, 'Bearer test')
             self.assertFalse(result['isError'])
+            self.assertTrue(result['structuredContent']['messageSent'])
+            self.assertFalse(result['structuredContent']['paymentCollected'])
+            self.assertIn('complete the transaction there', result['structuredContent']['customerMessage'])
             body = delegate.call_args.args[1]
             self.assertEqual(body['requestKey'], 'example-request-001')
             self.assertEqual(body['action'], 'create')
             self.assertEqual(body['lineItems'][0]['quantity'], 2)
             self.assertNotIn('amount', json.dumps(body).lower())
             self.assertNotIn('phone', json.dumps(body).lower())
+
+    def test_prepared_but_unsent_is_not_reported_as_sent(self):
+        with patch.dict(os.environ, {'WHATSAPP_PAYMENT_REQUESTS_ENABLED': 'true'}), patch.object(app, 'catalog', return_value=[PRODUCT]), patch.object(app, 'delegate', return_value=app.reply(200, {'status': 'PAYMENT_INITIATION_DISABLED'})):
+            result = call('request_whatsapp_payment', {'items': ITEMS, 'idempotencyKey': 'example-request-001'}, 'Bearer test')
+            self.assertTrue(result['isError'])
+            self.assertFalse(result['structuredContent']['messageSent'])
 
     def test_whatsapp_handoff_sends_nothing(self):
         result = call('continue_in_whatsapp', {'purpose': 'orders'})['structuredContent']
