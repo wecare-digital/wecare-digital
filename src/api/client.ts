@@ -4751,8 +4751,9 @@ export async function updateCallingSettings ( phoneId: string, settings: {
 }
 
 // ============================================================================
-// INVOICE ENGINE API (Unified Invoice System)
-// Lambda: wecare-invoice-engine
+// INVOICE API (Unified Invoice System)
+// Canonical route: /api/invoices -> wecare-commerce:live.
+// The legacy standalone wecare-invoice-engine remains only as a rollback target.
 // ============================================================================
 
 const INVOICE_BASE = `${API_BASE}/invoices`;
