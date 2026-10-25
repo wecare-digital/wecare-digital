@@ -483,6 +483,7 @@ export interface Contact {
   state?: string;
   postalCode?: string;
   landmark?: string;
+  countryCode?: string;
   houseNumber?: string;
   buildingName?: string;
   towerNumber?: string;
