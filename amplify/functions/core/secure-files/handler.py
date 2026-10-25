@@ -237,11 +237,9 @@ def _sender_waba() -> str:
 
 PRICE_PAISE = int(os.environ.get("SECURE_FILE_PRICE_PAISE", "4900"))  # Rs. 49
 UPLOAD_URL_TTL = int(os.environ.get("UPLOAD_URL_TTL_SECONDS", "900"))
-# Web redeem: the browser follows this immediately, so it can be very short.
+# Web redeem: the browser follows this immediately, so it can be very short. It is the only
+# presigned link this function issues; WhatsApp delivery sends a Vault page link instead.
 DOWNLOAD_URL_TTL = int(os.environ.get("DOWNLOAD_URL_TTL_SECONDS", "60"))
-# Direct links are bearer capabilities. Keep the read window bounded; a customer
-# can use authenticated Vault access after the delivery link expires.
-WHATSAPP_LINK_TTL = max(60, min(900, int(os.environ.get("WHATSAPP_LINK_TTL_SECONDS", "900"))))
 GRANT_TTL = int(os.environ.get("GRANT_TTL_SECONDS", "1800"))
 MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_BYTES", str(200 * 1024 * 1024)))
 
@@ -1279,7 +1277,19 @@ def confirm_and_deliver(order_id: str) -> Tuple[bool, str]:
     entitlement = _ensure_entitlement(refreshed)
     if not entitlement:
         return False, "paid entitlement could not be established"
-    # Make future customer-list reads direct and independent of the expiring legacy grant.
+    _point_file_at_entitlement(grant, entitlement)
+    if grant.get("channel") != "whatsapp":
+        return True, "confirmed; web channel collects by renewable entitlement"
+    return deliver_over_whatsapp(str(grant["grantId"]))
+
+
+def _point_file_at_entitlement(grant: Dict[str, Any], entitlement: Dict[str, Any]) -> bool:
+    """Record the paid entitlement on the file row, which the Vault page's list reads.
+
+    Makes customer-list reads direct and independent of the expiring legacy grant, and is what
+    gives a WhatsApp Vault link a Download button. Never raises: payment and entitlement stay
+    durable even if this derived pointer needs reconciliation.
+    """
     try:
         _table(FILES_TABLE).update_item(
             Key={"fileId": grant["fileId"]},
@@ -1291,13 +1301,11 @@ def confirm_and_deliver(order_id: str) -> Tuple[bool, str]:
                 ":owner": grant["customerId"], ":active": "active",
             },
         )
+        return True
     except ClientError:
-        # Payment/entitlement stay durable even if this derived pointer needs reconciliation.
         logger.warning(json.dumps({"event": "vault_entitlement_pointer_write_failed",
                                    "fileId": grant.get("fileId", "")}))
-    if grant.get("channel") != "whatsapp":
-        return True, "confirmed; web channel collects by renewable entitlement"
-    return deliver_over_whatsapp(str(grant["grantId"]))
+        return False
 
 
 def _reconcile_grant(grant_id: str, file_id: str, identity: Dict[str, Any]) -> bool:
@@ -1379,9 +1387,7 @@ def _redeem_after_reconcile(
 def _download_url(item: Dict[str, Any], ttl: Optional[int] = None) -> str:
     """A presigned GET that downloads under the readable filename.
 
-    ``ttl`` defaults to the short web value. Pass ``WHATSAPP_LINK_TTL`` when the URL is
-    going into a message a human will read later rather than a redirect a browser
-    follows now.
+    ``ttl`` defaults to the short web value: the browser follows the redeem redirect at once.
     """
     return _s3_client().generate_presigned_url(
         "get_object",
@@ -1415,21 +1421,20 @@ def deliver_over_whatsapp(grant_id: str) -> Tuple[bool, str]:
     if not grant.get('customerId') or item.get('ownerCustomerId') != grant['customerId']:
         return False, "grant and file disagree on permanent owner"
 
-    from whatsapp_delivery import send_document, send_download_link
+    # The message only links to the Vault page, so the entitlement and the file's pointer to
+    # it must exist BEFORE it is sent: that page shows a Download button only for a file whose
+    # row names an active entitlement. confirm_and_deliver writes both already; this path is
+    # also reached directly (internalAction deliverOverWhatsApp, the delivery reconciler).
+    entitlement = _ensure_entitlement(grant)
+    if not entitlement:
+        return False, "paid entitlement could not be established"
+    if item.get("vaultEntitlementId") != entitlement["grantId"]:
+        _point_file_at_entitlement(grant, entitlement)
 
-    phone = str(grant["ownerPhone"])
-    if item.get("deliverable") in ("pdf", "image"):
-        ok, detail = send_document(phone=phone, file_row=item)
-    else:
-        # Not openable inline on WhatsApp, so send a link instead, on the longer TTL - a
-        # person taps when they read the message, not within the web redeem's 60
-        # seconds. Generated here rather than reusing the redeem route so delivery does
-        # not consume the grant the customer may still redeem on the web.
-        ok, detail = send_download_link(
-            phone=phone,
-            file_row=item,
-            url=_download_url(item, ttl=WHATSAPP_LINK_TTL),
-        )
+    from whatsapp_delivery import send_vault_link
+
+    # One approved template for every deliverable type; see whatsapp_delivery's docstring.
+    ok, detail = send_vault_link(phone=str(grant["ownerPhone"]), file_row=item)
 
     # Record the outcome ON THE GRANT. Until this existed a failed send was only a log
     # line, while the customer had already paid - so nothing could find the people owed
@@ -1458,16 +1463,7 @@ def deliver_over_whatsapp(grant_id: str) -> Tuple[bool, str]:
     # so a duplicate webhook / resend does not re-open or double-count. A failed send leaves the
     # window closed, which is correct: nothing was delivered, so the clock has not started.
     if ok:
-        entitlement = _ensure_entitlement(grant)
-        if entitlement:
-            _open_access_window(entitlement)
-        else:
-            # Payment is durable; a missing entitlement here is a reconcilable pointer problem,
-            # not a reason to fail a delivery that already left.
-            logger.warning(json.dumps({
-                "event": "vault_window_not_opened_on_delivery",
-                "grantId": grant_id, "fileId": grant.get("fileId", ""),
-            }))
+        _open_access_window(entitlement)
 
     return ok, detail
 

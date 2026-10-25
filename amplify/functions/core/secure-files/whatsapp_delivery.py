@@ -1,69 +1,54 @@
-"""Deliver already-authorized secure files over WhatsApp using approved templates.
+"""Deliver already-authorized secure files over WhatsApp using the approved Vault template.
 
 Payment initiation deliberately does not live here.  Secure-file purchases use the canonical
 commerce/checkout PaymentAttempt path; this module owns only the post-payment file delivery
 transport.
 
-Why the document goes via a media id
-------------------------------------
-Meta must be able to fetch what it attaches. The gated objects are private and the
-whole ``secure/`` prefix is refused at the edge, so there is no URL to give Meta. The
-bytes are therefore uploaded to Meta first, through
-``wecare-whatsapp-business-api``'s ``/wa-business/media`` route with ``s3Key`` +
-``s3Bucket``, and the resulting media id is what the template header carries.
+Why a Vault link and not the file itself
+----------------------------------------
+Every paid file is announced with `wecare_default_download`, the one approved WABA1 template
+for this: a fixed IMAGE header and URL button 0 `https://wecare.digital/vault/?file={{1}}`,
+of which only the file id travels. The customer signs in on that page and downloads through
+the durable paid entitlement.
 
-Passing the bytes inline as base64 would have been simpler and is wrong: a synchronous
-Lambda invoke payload is capped at 6MB and base64 adds about a third, so anything over
-roughly 4.4MB would fail - well under the 100MB documents Meta accepts.
+This replaced two transports that could not work reliably. The document-header template the
+PDF/image path named (`wd_file_delivery`) is not on WABA1 (live template readback, 2026-10-25),
+so Meta refused every such send; and the fallback put a presigned S3 URL, a bearer capability,
+into a free-form text that Meta only accepts inside the 24-hour customer-service window. The
+template carries no bearer link and is deliverable at any time.
 """
 
 from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict, Optional, Tuple
+import re
+from typing import Any, Dict, Tuple
 
 import boto3
 
+from lambda_utils import whatsapp_templates
+
 REGION = os.environ.get("AWS_REGION", "us-east-1")
 
-# The `live` alias, like MEDIA_FUNCTION: the unqualified name runs $LATEST, which an upload
-# reaches before it is published and verified.
+# The `live` alias: the unqualified name runs $LATEST, which an upload reaches before it is
+# published and verified.
 SENDER_FUNCTION = os.environ.get("WA_SENDER_FUNCTION", "wecare-outbound-whatsapp:live")
-MEDIA_FUNCTION = os.environ.get(
-    "WA_MEDIA_FUNCTION", "wecare-whatsapp-business-api:live"
-)
-# Defaults to the older approved template so delivery never depends on an approval
-# that has not landed. `wd_file_delivery` was submitted to replace it - it has BODY
-# variables for the customer and file name, and no stray "Subscribe" button - and
-# takes over the moment this env var is pointed at it. Nothing else needs changing:
-# the body-parameter shape below is chosen from the template name.
-DOC_TEMPLATE = os.environ.get("WA_DOC_TEMPLATE", "wd_file_delivery")
-# Templates whose BODY carries {{1}} customer name and {{2}} file name. Keyed by name
-# rather than by a flag, so pointing WA_DOC_TEMPLATE at one cannot desynchronise from
-# the parameters it is sent.
-TEMPLATES_WITH_BODY_VARS = {"wd_file_delivery"}
-#: Meta's OWN phone-number id. Correct for the business-API `/wa-business/media` route below,
-#: which is addressed in Meta's vocabulary — and WRONG for every `phoneNumberId` passed to
-#: `wecare-outbound-whatsapp`, which is why `WA_SEND_PHONE_ID` exists beside it.
+#: Meta's OWN phone-number id. `handler.py` derives the customer's WABA stamp from it; it is
+#: WRONG for every `phoneNumberId` passed to `wecare-outbound-whatsapp`, which is why
+#: `WA_SEND_PHONE_ID` exists beside it.
 META_PHONE_NUMBER_ID = os.environ.get("META_PHONE_NUMBER_ID", "1016149501586345")
 
-#: The AWS-style sender id `outbound-whatsapp` requires, for the three sends that go there.
-#:
-#: Every WhatsApp send from this function was STRUCTURALLY BROKEN before this constant existed:
-#: all three passed the bare Meta id above as `phoneNumberId`, and
-#: `outbound-whatsapp._resolve_meta_phone_id` accepts only an AWS-style id (its map, or a
-#: `-direct-<digits>` suffix) and otherwise raises rather than falling back to another WABA. A
-#: bare Meta id matches neither. Independently, the payment one was refused a second time by
-#: `PAYMENT_SENDERS`. It went unnoticed because this function records zero invocations and the
-#: secure-files payment flag was off.
-#:
-#: The payment send and its flag are gone (8f5617a6, 27099fc3): secure-file purchases go through
-#: the commerce checkout PaymentAttempt, and this module only delivers files.
+#: The AWS-style sender id `outbound-whatsapp` requires. `_resolve_meta_phone_id` accepts only
+#: an AWS-style id (its map, or a `-direct-<digits>` suffix) and otherwise raises rather than
+#: falling back to another WABA, so the bare Meta id above would be refused.
 WA_SEND_PHONE_ID = os.environ.get(
     "WA_SEND_PHONE_ID", "phone-number-id-waba1-direct-1016149501586345")
 
-BUCKET = os.environ.get("SECURE_FILES_BUCKET", "wecare-digital-get")
+#: The rule outbound's `url_button_component` enforces on the button suffix. Checked here too
+#: so a file id that could never be sent is reported as such, not as a sender HTTP error.
+_FILE_ID = re.compile(r"[A-Za-z0-9_-]{1,120}")
+
 _lambda = None
 
 
@@ -97,58 +82,15 @@ def _invoke(function_name: str, payload: Dict[str, Any]) -> Tuple[int, Dict[str,
     return status, (body if isinstance(body, dict) else {})
 
 
-def upload_to_meta(file_row: Dict[str, Any]) -> Tuple[Optional[str], str]:
-    """Put the deliverable rendition on Meta's media endpoint. Returns (mediaId, detail).
+def send_vault_link(*, phone: str, file_row: Dict[str, Any]) -> Tuple[bool, str]:
+    """Announce a paid file with the approved Vault download template. Returns (sent, detail).
 
-    Reads ``deliveryKey`` (the ``secure/d/`` object), never ``s3Key``. The two differ:
-    ``s3Key`` is the original of any type, ``deliveryKey`` is the PDF or image that can
-    actually be opened on a handset.
+    The header and button come from `whatsapp_templates.download_send_fields`, the same
+    builder paid Vault delivery and the paid-file refresh use, so the three cannot drift.
     """
-    delivery_key = file_row.get("deliveryKey") or ""
-    if not delivery_key:
-        return None, "file has no deliverable rendition"
-
-    status, body = _invoke(
-        MEDIA_FUNCTION,
-        {
-            "httpMethod": "POST",
-            "path": "/wa-business/media",
-            "body": json.dumps(
-                {
-                    "phoneId": META_PHONE_NUMBER_ID,
-                    # By reference, not inline: base64 through an invoke payload caps
-                    # near 4.4MB and would break large documents.
-                    "s3Bucket": BUCKET,
-                    "s3Key": delivery_key,
-                    "contentType": file_row.get("contentType") or "application/pdf",
-                    "filename": str(file_row.get("originalFilename") or "document.pdf"),
-                }
-            ),
-        },
-    )
-    if status >= 300:
-        return None, f"media upload returned HTTP {status}"
-    media_id = str(body.get("mediaId") or "")
-    return (media_id, "uploaded") if media_id else (None, "no mediaId returned")
-
-
-def send_document(*, phone: str, file_row: Dict[str, Any]) -> Tuple[bool, str]:
-    """Deliver the file as a WhatsApp document via the approved template."""
-    media_id, detail = upload_to_meta(file_row)
-    if not media_id:
-        return False, detail
-
-    # Only the purpose-built template can say who the customer is and what the file is
-    # called. Sending these to a template without the placeholders is rejected by Meta
-    # as a parameter mismatch, so the two must move together - hence keying off the
-    # template name rather than a separate switch.
-    if DOC_TEMPLATE in TEMPLATES_WITH_BODY_VARS:
-        template_params = [
-            str(file_row.get("ownerName") or "there")[:60],
-            str(file_row.get("displayName") or "your file")[:60],
-        ]
-    else:
-        template_params = []
+    file_id = str(file_row.get("fileId") or "")
+    if not _FILE_ID.fullmatch(file_id):
+        return False, "file id cannot be sent as a Vault link"
 
     status, body = _invoke(
         SENDER_FUNCTION,
@@ -157,58 +99,15 @@ def send_document(*, phone: str, file_row: Dict[str, Any]) -> Tuple[bool, str]:
                 {
                     "recipientPhone": phone,
                     "phoneNumberId": WA_SEND_PHONE_ID,
-                    "isTemplate": True,
-                    "templateName": DOC_TEMPLATE,
-                    "templateParams": template_params,
-                    "components": [
-                        {
-                            "type": "header",
-                            "parameters": [
-                                {
-                                    "type": "document",
-                                    "document": {
-                                        "id": media_id,
-                                        "filename": str(
-                                            file_row.get("originalFilename")
-                                            or "document.pdf"
-                                        ),
-                                    },
-                                }
-                            ],
-                        }
-                    ],
+                    **whatsapp_templates.download_send_fields(file_id),
                 }
             )
         },
     )
     if status >= 300:
         return False, f"sender returned HTTP {status}"
-    return True, str(body.get("messageId") or body.get("id") or "sent")
-
-
-def send_download_link(*, phone: str, file_row: Dict[str, Any], url: str) -> Tuple[bool, str]:
-    """Fallback for files WhatsApp cannot show inline.
-
-    A plain text message, which needs an open 24-hour customer service window. Paying
-    is a customer interaction, so the window is open immediately after payment - which
-    is the only moment this is called.
-    """
-    name = str(file_row.get("displayName") or "your file")
-    status, body = _invoke(
-        SENDER_FUNCTION,
-        {
-            "body": json.dumps(
-                {
-                    "recipientPhone": phone,
-                    "phoneNumberId": WA_SEND_PHONE_ID,
-                    "message": (
-                        f"Thank you. Your file {name} is ready.\n\n{url}\n\n"
-                        "This link is valid for a short time and can be used once."
-                    ),
-                }
-            )
-        },
-    )
-    if status >= 300:
-        return False, f"sender returned HTTP {status}"
-    return True, str(body.get("messageId") or "sent")
+    # A dry run answers 200 without sending; recording it as delivered would hide a customer
+    # who is still owed the file from scripts/reconcile_file_deliveries.py.
+    if body.get("status") == "dry_run" or body.get("mode") == "DRY_RUN":
+        return False, "sender is in dry-run mode; nothing was sent"
+    return True, str(body.get("whatsappMessageId") or body.get("messageId") or "sent")

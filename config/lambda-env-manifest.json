@@ -418,11 +418,8 @@
       "UPLOAD_URL_TTL_SECONDS": "900",
       "VAULT_ACCESS_WINDOW_HOURS": "24",
       "VAULT_ACCESS_WINDOW_GRACE_SECONDS": "300",
-      "WA_DOC_TEMPLATE": "wd_file_delivery",
-      "WA_MEDIA_FUNCTION": "wecare-whatsapp-business-api:live",
       "WA_SEND_PHONE_ID": "phone-number-id-waba1-direct-1016149501586345",
-      "WA_SENDER_FUNCTION": "wecare-outbound-whatsapp",
-      "WHATSAPP_LINK_TTL_SECONDS": "21600"
+      "WA_SENDER_FUNCTION": "wecare-outbound-whatsapp:live"
     },
     "wecare-seo-tools": {
       "ADMIN_MFA_REQUIRED": "true",

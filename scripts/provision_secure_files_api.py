@@ -105,9 +105,8 @@ ROUTES = [
     ("GET", "/secure-files/dropdocs/{requestId}/documents"),
 ]
 
-# Lambdas secure-files invokes for WhatsApp delivery.
+# The one Lambda secure-files invokes for WhatsApp delivery.
 WA_SENDER = "wecare-outbound-whatsapp"
-WA_MEDIA = "wecare-whatsapp-business-api"
 
 EXCLUDE_DIRS = {"__pycache__", "tests", ".pytest_cache"}
 
@@ -226,13 +225,12 @@ def policy_document() -> dict:
                 "Sid": "WhatsAppDelivery",
                 "Effect": "Allow",
                 "Action": ["lambda:InvokeFunction"],
-                # Named individually rather than a wildcard: this role should be able
-                # to send WhatsApp messages and upload media, not invoke the fleet.
+                # Named individually rather than a wildcard: this role should be able to send
+                # WhatsApp messages, not invoke the fleet. Delivery sends a Vault link, so it
+                # no longer uploads media through the business API.
                 "Resource": [
                     f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:{WA_SENDER}",
                     f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:{WA_SENDER}:*",
-                    f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:{WA_MEDIA}",
-                    f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:{WA_MEDIA}:*",
                 ],
             },
             {
@@ -335,28 +333,22 @@ def environment() -> dict:
         "CUSTOMER_USER_POOL_ID": CUSTOMER_POOL_ID,
         "COGNITO_USER_POOL_ID": ADMIN_POOL_ID,  # require_auth resolves admins here
         "META_WABA_ID": META_WABA_ID,
-        # Meta's OWN phone-number id, which is what the business-API `/wa-business/media` route
-        # wants. It is NOT a valid `phoneNumberId` for `wecare-outbound-whatsapp`.
+        # Meta's OWN phone-number id; the handler derives the customer's WABA stamp from it.
+        # It is NOT a valid `phoneNumberId` for `wecare-outbound-whatsapp`.
         "META_PHONE_NUMBER_ID": "1016149501586345",
         # The AWS-style sender id `outbound-whatsapp` requires for secure-file delivery.
         # Payment initiation no longer exists in this Lambda; commerce/checkout owns it.
         "WA_SEND_PHONE_ID": "phone-number-id-waba1-direct-1016149501586345",
         "PARTNER_GROUP": "Partner",
         # Secure-files owns document delivery only; payment templates belong to commerce.
-        # wd_file_delivery: APPROVED 2026-09-25. DOCUMENT header, BODY variables for
-        # customer and file name, and no buttons. Replaced 01_wecare_doc, which could
-        # name neither and carried a stray FLOW button labelled "Subscribe".
-        # Reverting to "01_wecare_doc" is a safe rollback; the body-parameter shape
-        # follows the template NAME so the two cannot desynchronise.
-        "WA_DOC_TEMPLATE": "wd_file_delivery",
-        "WA_SENDER_FUNCTION": WA_SENDER,
-        "WA_MEDIA_FUNCTION": f"{WA_MEDIA}:live",
+        # Every paid file is announced with the approved `wecare_default_download` template
+        # (lambda_utils.whatsapp_templates), so no template name, media uploader or WhatsApp
+        # link TTL is configured here. `wd_file_delivery` is not on WABA1 (readback 2026-10-25).
+        # The `live` alias, never $LATEST's unpublished code.
+        "WA_SENDER_FUNCTION": f"{WA_SENDER}:live",
         "SECURE_FILE_PRICE_PAISE": "4900",
-        # Web redeem: a browser follows it instantly.
+        # Web redeem: a browser follows it instantly. The only presigned link issued.
         "DOWNLOAD_URL_TTL_SECONDS": "60",
-        # WhatsApp link delivery: a person taps when they read the message. 60s
-        # would usually be expired on arrival, and they have already paid.
-        "WHATSAPP_LINK_TTL_SECONDS": "21600",
         # OTP_PROBE_* deliberately absent. The enumeration budget is enforced in
         # wecare-customer-whatsapp-auth, which is the only function that reads those
         # keys; they are provisioned there by provision_customer_whatsapp_auth.py.
