@@ -76,7 +76,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return auth_result
 
     try:
-        body = json.loads(event.get('body', '{}')) if event.get('body') else {}
+        # Floats arrive as Decimal because DynamoDB refuses a Python float; every response and
+        # the dispatch replay convert back through `_json_safe`.
+        body = json.loads(event.get('body', '{}'), parse_float=Decimal) if event.get('body') else {}
     except (json.JSONDecodeError, TypeError, ValueError):
         return _error_response(400, 'Invalid JSON request body')
     if not isinstance(body, dict):
@@ -459,7 +461,10 @@ def _process_due_messages(request_id: str) -> Dict[str, Any]:
             if not item.get('contactId') or not item.get('templateName'):
                 outcome, reason = 'FAILED', 'MISSING_RECIPIENT_OR_TEMPLATE'
             else:
-                payload = {'body': json.dumps({
+                # The stored envelope is nested (button indexes, coordinates), so its numbers come
+                # back from DynamoDB as Decimal at any depth. Unconverted, json.dumps raises after
+                # the row is claimed and the whole batch stops with this row left DISPATCHING.
+                payload = {'body': json.dumps(_json_safe({
                     'contactId': item['contactId'], 'isTemplate': True,
                     'templateName': item['templateName'],
                     'templateParams': item.get('templateParams', []),
@@ -471,7 +476,7 @@ def _process_due_messages(request_id: str) -> Dict[str, Any]:
                     'templateHeaderLocation': item.get('templateHeaderLocation') or None,
                     'templateFlowButton': item.get('templateFlowButton') or None,
                     'templateUrlButton': item.get('templateUrlButton') or None,
-                })}
+                }))}
                 try:
                     response = lambda_client.invoke(FunctionName=OUTBOUND_LAMBDA,
                         InvocationType='RequestResponse', Payload=json.dumps(payload))
@@ -509,14 +514,24 @@ def _process_due_messages(request_id: str) -> Dict[str, Any]:
         return _error_response(503, 'Scheduled dispatch unavailable; review any claimed dispatch before retry')
 
 
+def _json_safe(value: Any) -> Any:
+    """Recursively turn DynamoDB Decimals into int/float so json.dumps accepts the value.
+
+    Rows carry nested maps (header location, Flow and URL buttons). A top-level-only conversion
+    left their numbers as Decimal, which made one such row fail every list response.
+    """
+    if isinstance(value, Decimal):
+        return int(value) if value % 1 == 0 else float(value)
+    if isinstance(value, dict):
+        return {key: _json_safe(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(item) for item in value]
+    return value
+
+
 def _normalize_item(item: Dict[str, Any]) -> Dict[str, Any]:
     """Convert DynamoDB item to JSON-serializable format."""
-    result = {}
-    for key, value in item.items():
-        if isinstance(value, Decimal):
-            result[key] = int(value) if value % 1 == 0 else float(value)
-        else:
-            result[key] = value
+    result = _json_safe(dict(item))
     
     # Ensure id field exists for frontend compatibility
     if 'scheduledId' in result and 'id' not in result:
