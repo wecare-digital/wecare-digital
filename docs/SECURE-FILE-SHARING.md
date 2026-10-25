@@ -217,8 +217,12 @@ Payment request and file both go out as approved templates.
 | Template | Components | Role |
 |---|---|---|
 | `wecare_whatapp_native_pay_template` | IMAGE, BODY, FOOTER, BUTTONS(`ORDER_DETAILS`) | ₹49 request |
-| `wd_file_delivery` | DOCUMENT, BODY({{1}} name, {{2}} file), FOOTER, no buttons | delivery, **current default, APPROVED** |
-| `01_wecare_doc` | DOCUMENT, BODY, FOOTER, BUTTONS(`FLOW`) | delivery, rollback only |
+| `wd_file_delivery` | DOCUMENT, BODY({{1}} name, {{2}} file), FOOTER, no buttons | delivery, `WA_DOC_TEMPLATE` value, **not on Meta (2026-10-25 readback)** |
+| `01_wecare_doc` | DOCUMENT, BODY, FOOTER, BUTTONS(`FLOW`) | former rollback, **not on Meta (2026-10-25 readback)** |
+
+As of 2026-10-25 neither document template exists on WABA 1, so `send_document` cannot deliver
+until one is approved again (`scripts/provision_file_delivery_template.py` resubmits
+`wd_file_delivery`). Nothing reaches it today: `SECURE_FILES_PAYMENT_ENABLED` is false.
 
 `wecare_whatapp_native_pay_template`'s button is `ORDER_DETAILS`, i.e. WhatsApp Pay's native checkout, not a URL
 button — which is why a Razorpay payment link was never an option for it. The amount
@@ -227,12 +231,11 @@ has no variables.
 
 `wd_file_delivery` was submitted to replace the reuse of `01_wecare_doc`, which cannot
 name the file or the customer and carries a leftover `FLOW` button labelled "Subscribe" —
-an upsell attached to something already paid for. `WA_DOC_TEMPLATE` still defaults to the
-older template so delivery never depends on an approval that has not landed. Flip it once
-Meta approves:
+an upsell attached to something already paid for. `WA_DOC_TEMPLATE` was pointed at it once
+Meta approved it. Both templates were gone from Meta by 2026-10-25; to resubmit and check:
 
+    python scripts/provision_file_delivery_template.py            # resubmit wd_file_delivery
     python scripts/provision_file_delivery_template.py --verify   # check approval
-    # then set WA_DOC_TEMPLATE=wd_file_delivery
 
 Body parameters are keyed on the template **name** (`TEMPLATES_WITH_BODY_VARS`), not a
 separate flag, because sending parameters to a template without placeholders is a Meta
