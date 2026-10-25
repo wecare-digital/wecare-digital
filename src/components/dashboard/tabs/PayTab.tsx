@@ -32,15 +32,15 @@ const PAYMENT_STATUS_OPTIONS: SelectOption[] = [
 /**
  * The viewable invoice link for a payment row, or '' when there is none.
  *
- * Both call sites below used to interpolate `https://wecare.digital/get/o/${key}`
- * inline. That was broken twice over: the host was retired on 2026-09-28, and the key
- * needs the `o/` root that stored `invoiceS3Key` values predate. `publicUrl` handles
- * both, and returns '' for a gated key rather than a link that 302s.
+ * Only a stored `invoiceS3Key` is linked. `publicUrl` adds the `o/` root that legacy
+ * stored keys predate, and returns '' for a gated key rather than a link that 302s.
+ * There is no guessed fallback: the old one built `o/invoices/<reference>.png`, a prefix
+ * the bucket has never held, and issued invoices under
+ * `secure/d/public/Invoice/customer_invoice/` are named by invoice number as well as
+ * reference, so a key cannot be derived from the reference alone.
  */
-function invoiceLinkFor ( pa: { invoiceS3Key?: string; paymentReferenceId?: string } ): string {
-  if ( pa.invoiceS3Key ) return publicUrl( pa.invoiceS3Key );
-  if ( pa.paymentReferenceId ) return publicUrl( `invoices/${ pa.paymentReferenceId }.png` );
-  return '';
+function invoiceLinkFor ( pa: { invoiceS3Key?: string } ): string {
+  return pa.invoiceS3Key ? publicUrl( pa.invoiceS3Key ) : '';
 }
 
 interface PayTabProps {

@@ -25,10 +25,13 @@ MEDIA_BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
 TEMPLATE_MEDIA_PREFIX = os.environ.get(
     'TEMPLATE_MEDIA_PREFIX',
     media_paths.WHATSAPP_TEMPLATE_HEADER_PREFIX)
-# The `o/` root is load-bearing: the 61 objects already in secure/d/public/whatsapp/wa-tpl/ are
-# referenced by Meta-APPROVED templates and must remain under the canonical `o/` media root.
+# Reusable send-time media library: secure/d/public/whatsapp/wa-tpl/{docs,img,vid,aud,stk}/,
+# served publicly at https://wecare.digital/get/<key>. Upload, list and the delete guard all
+# read this one prefix, so they cannot drift apart. The old default composed the retired
+# `o/public/wa-tpl/` tree, which holds no current objects. Keep this equal to
+# outbound-whatsapp's PUBLIC_MEDIA_PREFIX.
 PUBLIC_MEDIA_PREFIX = os.environ.get('PUBLIC_MEDIA_PREFIX',
-                                     media_paths.public('public/wa-tpl/'))
+                                     media_paths.WHATSAPP_TEMPLATE_ASSET_ROOT)
 CDN_DOMAIN = os.environ.get('CDN_DOMAIN', 'wecare.digital/get')
 DEFAULT_WABA_ID = 'waba-e47d916f3c7a47e1a34a19653893dd4b'
 
@@ -941,8 +944,8 @@ def _upload_send_media(body):
     """Upload media that will be sent in a template message.
     
     WhatsApp fetches the URL to deliver media to the recipient.
-    Files go to the public/wa-tpl/ prefix in wecare-digital-get so they're
-    publicly accessible via CloudFront.
+    Files go under PUBLIC_MEDIA_PREFIX (secure/d/public/whatsapp/wa-tpl/) in
+    wecare-digital-get, which CloudFront serves publicly.
     
     Request body:
         fileData: base64-encoded file content (required)
@@ -950,13 +953,11 @@ def _upload_send_media(body):
         filename: original filename (required)
     
     Returns:
-        mediaUrl: https://{CDN_DOMAIN}/public/wa-tpl/{folder}/wecare-digital-{id}_{file}
-                  i.e. https://wecare.digital/get/public/wa-tpl/... by default.
+        mediaUrl: https://{CDN_DOMAIN}/{PUBLIC_MEDIA_PREFIX}{folder}/wecare-digital-{id}_{file}
+                  i.e. https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/... by default.
 
-        NOTE the 61 objects backing already-approved templates live at
-        secure/d/public/whatsapp/wa-tpl/ and must remain addressable through the canonical apex media path.
-        New uploads use the current bucket layout. Do not move approved-template objects between roots.
-        other without resubmitting the approved templates that name the old URLs.
+        NOTE a Meta-approved template keeps fetching the exact URL it was approved with, so
+        never move or rename an object here that an approved template names.
         s3Key: full S3 key
         folder: short folder name (docs/img/vid/aud/stk)
         category: WhatsApp media category
@@ -1081,6 +1082,10 @@ def _list_send_media(query_params):
                     parts = key.split('/')
                     relative = key[len(PUBLIC_MEDIA_PREFIX):]
                     fld = relative.split('/', 1)[0]
+                    # The library only writes inside the type folders. Files at the wa-tpl
+                    # root are shared brand headers, not library items (and not deletable).
+                    if fld not in folder_to_cat:
+                        continue
                     raw_name = parts[-1]
                     # Strip the wecare-digital-{8hex}_ prefix for display
                     display = raw_name
@@ -1140,6 +1145,10 @@ def _delete_send_media(query_params, body=None):
         # Safety guard: only allow deleting within the public template-media folder
         if not s3_key.startswith(PUBLIC_MEDIA_PREFIX):
             return _error_response(403, f'Refusing to delete outside {PUBLIC_MEDIA_PREFIX}')
+        # ...and only inside a type folder the library writes to. A file at the wa-tpl root
+        # (a shared brand header) was not created here, so it is not deletable here either.
+        if s3_key[len(PUBLIC_MEDIA_PREFIX):].split('/', 1)[0] not in WA_MEDIA_MAX_SIZES:
+            return _error_response(403, 'Refusing to delete outside a template media folder')
 
         if f'https://{CDN_DOMAIN}/{s3_key}' in FIXED_IMAGE_HEADERS.values():
             return _error_response(409, 'This image is a fixed template header and must be retained')

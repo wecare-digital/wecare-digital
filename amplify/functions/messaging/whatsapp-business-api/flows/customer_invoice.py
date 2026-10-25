@@ -11,6 +11,32 @@ from flows import customer_orders, paid_vault
 TEMPLATE = 'wecare_share_pdf'
 
 
+def _key_token(value):
+    """Mirror of invoice-engine `_s3_invoice_token`, which composes the stored asset key."""
+    token = ''.join(ch if (ch.isalnum() or ch in '-_.') else '-' for ch in str(value or '').strip())
+    while '--' in token:
+        token = token.replace('--', '-')
+    return token.strip('-_.') or 'unknown'
+
+
+def expected_invoice_keys(invoice, reference):
+    """The base `image` keys invoice-engine can have written for this invoice.
+
+    Its stem is `wecare-digital-{reference}` for a draft and
+    `wecare-digital-{invoiceNumber}__{reference}` once a number is issued, under
+    INVOICE_CUSTOMER_IMAGE_PREFIX. A row first rendered as a draft keeps the draft key on its
+    base row after issue, so both stay acceptable. Both embed this order's own reference,
+    which is what binds the stored row to the order being served.
+    """
+    stem = media_paths.INVOICE_CUSTOMER_IMAGE_PREFIX + 'wecare-digital-'
+    ref = _key_token(reference)
+    keys = {f'{stem}{ref}.png'}
+    number = str(invoice.get('invoiceNumber') or '').strip()
+    if number:
+        keys.add(f'{stem}{_key_token(number)}__{ref}.png')
+    return keys
+
+
 def resolve(db, identity, order_id):
     order = db.Table(shared_tables.orders_table_name()).get_item(
         Key={'orderId': str(order_id)}, ConsistentRead=True).get('Item') or {}
@@ -31,10 +57,10 @@ def resolve(db, identity, order_id):
         raise customer_auth.CustomerNotAuthorized('invoice unavailable')
     asset = db.Table('stack-wecare-digital-InvoiceAssetsTable').get_item(
         Key={'invoiceId': invoice_id, 'assetType': 'image'}, ConsistentRead=True).get('Item') or {}
-    expected_key = media_paths.secure('Invoice/customer_invoice/wecare-digital-' + reference + '.png')
-    if asset.get('s3Key') != expected_key:
+    s3_key = asset.get('s3Key')
+    if not isinstance(s3_key, str) or s3_key not in expected_invoice_keys(invoice, reference):
         return order, None
-    return order, {'invoiceId': invoice_id, 's3Key': expected_key}
+    return order, {'invoiceId': invoice_id, 's3Key': s3_key}
 
 
 def template_ready(response):

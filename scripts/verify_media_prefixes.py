@@ -11,9 +11,8 @@ empty cleanup sweep, and a document download pointing at a bucket that does not 
 
 Four things are checked, and each one corresponds to a defect that actually shipped:
 
-1. **No dead bucket names.** `wecare-digital-get` (deleted), `wecare-digital-media` and
-   `wecare-digital-documents` (never existed) must not appear in handler source or in live
-   Lambda configuration.
+1. **No dead bucket names.** `wecare-digital-media` and `wecare-digital-documents` (never
+   existed) must not appear in handler source or in live Lambda configuration.
 2. **Keys are rooted.** Every S3 key prefix must sit under `o/` or `secure/`.
 3. **Import precedes use.** `media_paths` imported BELOW its first use is a module-scope
    NameError that byte-compiles cleanly and only fails at runtime. Three handlers shipped
@@ -51,7 +50,10 @@ FUNCTIONS = ROOT / "amplify" / "functions"
 MEDIA_PATHS = FUNCTIONS / "shared" / "lambda_utils" / "media_paths.py"
 
 BUCKET = "wecare-digital-get"
-DEAD_BUCKETS = ["wecare-digital-get", "wecare-digital-media", "wecare-digital-documents"]
+# The live bucket must never be listed here. The 2026-10-24 retired-subdomain cleanup rewrote
+# the deleted pre-merge bucket's name in this list to `wecare-digital-get`, which turned
+# check 1 against every correct use of the live bucket.
+DEAD_BUCKETS = ["wecare-digital-media", "wecare-digital-documents"]
 PUBLIC_ROOT = "o/"
 SECURE_ROOT = "secure/"
 

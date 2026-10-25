@@ -212,8 +212,9 @@ _PAYMENT_READ_FUNCTION = 'wecare-whatsapp-business-api:live'
 
 # Keys in this handler are rooted, never bare. See lambda_utils/media_paths: the merge moved
 # `<X>` to `o/<X>`, so an un-rooted key read one level above the data and returned NoSuchKey —
-# which is exactly what happened to the logo and the font. Those shared assets stay PUBLIC and
-# are still composed with `media_paths.public` at their call sites.
+# which is exactly what happened to the logo and the font. The logo stays under
+# `o/stream/media/m/`; the receipt fonts live beside the invoices, under
+# `media_paths.INVOICE_FONT_PREFIX`.
 #
 # The invoice output does not. A rendered invoice carries the customer's name, address, the
 # amount and the GST breakdown, and `o/` is served by CloudFront with no authentication — so a
@@ -222,6 +223,12 @@ _PAYMENT_READ_FUNCTION = 'wecare-whatsapp-business-api:live'
 # the time of the change, `o/stack/invoices/` held **0 objects** and `InvoicesTable` held **0
 # rows**, so there was nothing to migrate. Once an invoice URL has been sent, it cannot be
 # retracted — the same argument media_paths records for the 61 approved WhatsApp template URLs.
+#
+# CURRENT STATE (2026-10-25): that gating no longer holds. INVOICE_CUSTOMER_IMAGE_PREFIX is
+# `secure/d/public/Invoice/customer_invoice/`, and the edge serves `secure/d/public/**` with NO
+# authentication, so a rendered invoice is unlisted-but-public again. Presigned links still
+# work. Moving invoices out of the public subtree is an owner decision and a data migration;
+# until it happens, treat every invoice key as public to anyone holding its URL.
 #
 # Delivery is unaffected: `send_invoice_whatsapp` passes `mediaFile: s3_key` to
 # outbound-whatsapp, which reads the object and uploads the bytes to Meta. Meta never fetches
@@ -2258,7 +2265,8 @@ def _asset_target(invoice: Dict, *, invoice_id: str, asset_type: str, stem: str,
 
     An UNISSUED draft keeps the current behaviour exactly: the base key, overwritten in place.
     There is no document of record yet, so a version history of a draft is noise - and the
-    `.png` key of a draft is what the WhatsApp flow expects to find.
+    WhatsApp invoice-copy flow recomputes exactly these base keys (draft or issued stem) to
+    bind the `image` row to its order.
 
     An ISSUED invoice gets a NEW key, so the previous object stays in S3 and the previous
     `InvoiceAssets` row stays untouched. A re-render after issue happens for honest reasons (a
@@ -2419,8 +2427,10 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
     def _get_font_bytes(bold=False):
         key = 'bold' if bold else 'regular'
         if key not in _font_cache:
-            s3_key = media_paths.public(
-                f"stream/media/fonts/DejaVuSansMono{'-Bold' if bold else ''}.ttf")
+            # Invoice/fonts/ is the fonts' home in the layout. The old o/stream/media/fonts/
+            # key holds no current object, so reading it fell back to a system font.
+            s3_key = (media_paths.INVOICE_FONT_PREFIX
+                      + f"DejaVuSansMono{'-Bold' if bold else ''}.ttf")
             try:
                 obj = s3.get_object(Bucket=MEDIA_BUCKET, Key=s3_key)
                 _font_cache[key] = obj['Body'].read()
@@ -2877,8 +2887,9 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
     #     it per render was work to reproduce a fixed asset.
     #
     # Adding the dependency would have been the wrong repair for the same reason:
-    # the right artifact for a constant is a file. `stream/media/m/qr-customerservice.png`
-    # is present (459 bytes, image/png, verified 2026-09-24).
+    # the right artifact for a constant is a file. `o/stream/media/m/qr-customerservice.png`
+    # was present on 2026-09-24 (459 bytes) but holds no object as of 2026-10-25, so the text
+    # fallback below is what renders until the image is restored to that key.
     qr_rendered = False
     try:
         qr_s3_img = _load_s3_image(media_paths.public('stream/media/m/qr-customerservice.png'))

@@ -1,106 +1,85 @@
 """The S3 key contract for `wecare-digital-get`. One bucket, two roots.
 
-Measured, not assumed
----------------------
-Read live on 2026-09-28, account 775261844268, `us-east-1`.
+Live layout
+-----------
+Read on 2026-10-25 (account 775261844268, `us-east-1`, 199 objects). Every constant below
+names one of these prefixes, and nothing else holds a current object::
 
-There is exactly **one** media bucket, and it has exactly **two** top-level prefixes::
+    secure/
+      u/                         INPUT: the upload as received (edge-gated)
+        dropdocs/
+        service-requests/
+      d/                         DELIVERABLES: generated output
+        public/                  served WITHOUT authentication, see below
+          Invoice/customer_invoice/   Invoice/fonts/
+          receipts/
+          whatsapp/  incoming/ outgoing/ voice/ transcriptions/ downloads/ calling-ai/
+                     whatsapp-calling/ resumable/ template-headers/
+                     wa-tpl/{img,docs,vid,aud,stk}/
+          blog/{audits,categories,editorial,remediation}/
+          catalog-deploy/  catalog/products/ (+ final manifest, contact sheet, QA reports)
+                           catalog-media/ catalog-relocation/ catalog-always-available/
+    o/                           STATIC/CDN assets
+      stream/media/  m/ (branding; flags/)  ivr/  reports/  docs/
+      error.html  healthcheck.txt
 
-    s3://wecare-digital-get/o/        249 objects   public
-    s3://wecare-digital-get/secure/     2 objects   gated
+Compose keys from these constants rather than hand-building path strings.
 
-Nothing else exists at the root, and exactly **one** CloudFront distribution now reads
-the bucket::
+What is public
+--------------
+CloudFront ``E2GP22R4BIFGQ3`` serves the bucket as ``https://wecare.digital/get/<key>``
+(origin path ``""``, so the root segment is part of the URL), and the
+``wecare-get-miss-redirect`` Lambda@Edge decides exposure by prefix:
 
-    ``wecare.digital/get/<X>``   ``E2GP22R4BIFGQ3``  origin path ``""``  ->  key ``<X>``
+* ``secure/d/public/**`` is served with **no authentication**. It is the one public
+  subtree of ``secure/`` (probed 2026-10-25: a font and the ``whatsapp/incoming/``
+  marker under it both returned 200).
+* Every other ``secure/**`` key - ``secure/u/**`` and any ``secure/d/`` key outside
+  ``public/`` - is redirected at the edge and reachable only through a presigned URL.
+* Everything else, including ``o/**`` and the bucket root, is public.
 
-Why ``o/`` is load-bearing
---------------------------
-It was originally the thing that made an object *dual-homed*. A second host,
-``wecare-digital-get``, served this same bucket through origin path ``/o`` on
-distribution ``ERCXSFDL0VM8X`` (which also carried ``wecare.digital/contact`` and
-``selfcare.wecare.digital`` - all three names went with it), so
-``wecare-digital-get/<X>`` resolved to key
-``o/<X>`` and an object was reachable on both hosts only if its key carried ``o/``.
+So ``o/`` is a location, not a permission, and the ``secure/`` name does not make a
+``secure/d/public/`` object private. Customer invoices, receipts and WhatsApp media live
+in that public subtree today: unlisted, not access-controlled, so a leaked URL is a
+disclosure. Ask `is_gated` whether a key is really gated, and never move a key between
+subtrees to "make it work" - that is a disclosure one way and a broken link the other.
 
-**That host was retired on 2026-09-28** — distribution deleted, DNS record removed, and
-the bucket that once shared its name deleted before that. Re-measured the same day:
-``get_distribution_config`` returns ``NoSuchDistribution`` and the hostname does not
-resolve. So there is no second home any more.
-
-``o/`` remains mandatory regardless, for reasons that never depended on that host:
-
-* Every key this module composes, and every ``storageKey`` already persisted in
-  ``stack-wecare-digital-DocumentTable``, is written against it.
-* The BIMI ``l=`` record and every apex ``/get/o/...`` URL already issued name it.
-* ``o/public/wa-tpl/`` holds **61 objects** whose URLs are embedded in WhatsApp
-  templates Meta has already **approved**, and Meta refetches media from the approved
-  URL at send time. An approved template body cannot be edited in place.
-
-Dropping the prefix is therefore a data migration, not a rename. Keep composing keys
-through `public` and `secure` rather than hand-building them.
-
-One historical trap worth keeping, because it explains why this went unnoticed for two
-days: a key written to the bucket **root** still returned **HTTP 200** on the apex host,
-so addressing one level above the data errored nowhere, logged nothing and alarmed
-nothing. Verified by probe at the time — a key at the root and the same key under
-``o/`` both served 200, while a key under ``secure/`` served 302.
-
-The defect this module closes
------------------------------
-Every handler prefix was written against the old bucket, where the key had no ``o/``
-segment because the whole bucket was the public root. The merge mapped
-``wecare-digital-get/<X>`` to ``wecare-digital-get/o/<X>`` and the prefixes were never
-updated, so the fleet read and wrote one level above its own data. Two consequences
-were live:
-
-* **Reads of migrated assets returned NoSuchKey.** ``stream/media/m/wecare-digital.png``
-  and ``stream/media/fonts/DejaVuSansMono.ttf`` are absent at the root and present
-  under ``o/`` — so the invoice logo and the PDF font both resolved to nothing.
-* **`system-cleanup` deleted nothing.** Eleven TTL prefixes all targeted ``stack/``
-  at the root, which is empty, so expiry silently no-opped.
-
-``secure/`` is the security boundary, ``o/`` is not
---------------------------------------------------
-Worth stating plainly, because the naming invites the opposite reading: ``o/`` does
-not make an object public. *Everything* outside ``secure/`` is public, including the
-bucket root. ``o/`` is a location, not a permission. Only ``secure/`` is gated, by the
-``wecare-get-miss-redirect``
-Lambda@Edge on origin-response, and its sub-prefixes are ``secure/u/`` (the upload as
-received) and ``secure/d/`` (the deliverable rendition).
-
-So a key must never be moved between the two roots to "make it work" — that is a
-disclosure in one direction and a broken link in the other.
+Why ``o/`` stays
+----------------
+Brand assets, IVR audio, the BIMI ``l=`` record and every apex ``/get/o/...`` URL
+already issued name it, as do keys persisted before the bucket merge. Dropping it is a
+data migration, not a rename.
 
 Legacy keys
 -----------
-Keys already persisted in DynamoDB predate this fix and lack the ``o/`` segment —
-``stack-wecare-digital-DocumentTable`` holds rows whose ``storageKey`` is
-``stack/whatsapp-media/incoming/<file>`` while the object is at
-``o/stack/whatsapp-media/incoming/<file>``. Rewriting stored rows is a data migration;
-normalising on read is not. `canonical` does the latter, so legacy and current rows
-both resolve, and it is idempotent so a corrected row stays corrected.
+Rows written before the merge store keys with no root (for example
+``stack/whatsapp-media/incoming/<file>``), and older rows name the retired ``o/stack/``
+and ``o/public/`` trees, which hold no current objects - only noncurrent versions, which
+the bucket lifecycle expires 90 days after they became noncurrent. `canonical` roots a
+bare key on read without moving it between roots and is idempotent; it cannot bring back
+an object that is gone.
 """
 
 from __future__ import annotations
 
 from typing import Optional
 
-#: Public root. Where real objects live; see the module docstring for why it is still
-#: mandatory now that the second host it once served is retired.
+#: Public root for static/CDN assets; see the module docstring for why it stays.
 PUBLIC_ROOT = "o/"
 
-#: Gated root. Denied at the edge; reachable only via a presigned URL.
+#: Gated root. Denied at the edge and reachable only via a presigned URL, EXCEPT the
+#: `PUBLIC_DELIVERABLE_ROOT` subtree below.
 SECURE_ROOT = "secure/"
 
 #: Public-delivery subtree inside the deliverable root. CloudFront serves this
-#: subtree directly; every other secure/ key remains gated.
+#: subtree directly with no authentication; every other secure/ key remains gated.
 PUBLIC_DELIVERABLE_ROOT = "secure/d/public/"
 
 # Canonical application-owned prefixes. New writes must use these names rather than
 # recomposing path strings at call sites. Historical reads may still use canonical().
+# There is deliberately no "secure deliverable" alias: the only deliverable subtree in the
+# layout is public, and a name that reads as gated would invite a disclosure.
 SECURE_UPLOAD_ROOT = "secure/u/"
-SECURE_DELIVERABLE_ROOT = PUBLIC_DELIVERABLE_ROOT
 
 DROP_DOCS_UPLOAD_PREFIX = SECURE_UPLOAD_ROOT + "dropdocs/"
 SERVICE_REQUEST_UPLOAD_PREFIX = SECURE_UPLOAD_ROOT + "service-requests/"
@@ -153,16 +132,16 @@ PUBLIC_STREAM_MEDIA_FLAGS_PREFIX = PUBLIC_STREAM_MEDIA_M_PREFIX + "flags/"
 BUCKET = "wecare-digital-get"
 
 #: The apex media host, including its path segment. Deliberately NOT the bucket name:
-#: the old bucket was named ``wecare-digital-get`` and so doubled as a hostname, which
-#: is why several handlers used to interpolate the bucket into a URL. ``wecare-digital-get``
-#: is not a domain, so that pattern now produces a URL resolving to nothing.
+#: the pre-merge bucket was named like a hostname, which is why several handlers used to
+#: interpolate the bucket into a URL. ``wecare-digital-get`` is not a domain, so that
+#: pattern produces a URL resolving to nothing.
 CDN_DOMAIN = "wecare.digital/get"
 
 
 def public(*parts: str) -> str:
     """Join ``parts`` into a key under the public root.
 
-        public("stack/whatsapp-media", "incoming/")  -> "o/stack/whatsapp-media/incoming/"
+        public("stream/media", "ivr/")  -> "o/stream/media/ivr/"
 
     A trailing slash on the last part is preserved, so the result is usable directly
     as a ``Prefix=`` argument as well as a key stem.

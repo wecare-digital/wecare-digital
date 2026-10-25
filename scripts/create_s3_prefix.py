@@ -3,7 +3,7 @@
 
 Read this before using it, because S3 folders are not what they look like
 ----------------------------------------------------------------------------
-S3 has no directories. `o/stack/invoices/x.png` is one flat key; the "folders" the console
+S3 has no directories. `secure/d/public/receipts/x.png` is one flat key; the "folders" the console
 shows are inferred from the `/` characters in keys that exist. So writing an object to a new
 prefix needs no folder, and a prefix with no objects does not appear at all.
 
@@ -19,7 +19,7 @@ first object arrives. Two reasons that can be true here:
    an unmarked one silently vanishes from the console.
 2. **It documents intent.** `secure/d/public/Invoice/customer_invoice/` is where `invoice-engine` and
    `inbound-whatsapp-handler` now write, and it held no objects, so nothing in the console
-   showed that the gated invoice location had moved there.
+   showed that the invoice location had moved there.
 
 The bucket is fixed and the guard is deliberate
 ----------------------------------------------
@@ -58,10 +58,11 @@ BUCKET = media_paths.BUCKET
 #: Prefixes this repository's code writes to and which are worth marking. Each names the writer,
 #: so a reader can tell a deliberate reservation from a stray folder.
 KNOWN_PREFIXES = {
-    media_paths.secure("stack/invoices/"): (
-        "invoice-engine (PNG + PDF) and inbound-whatsapp-handler. GATED since 2026-09-30: a "
-        "rendered invoice carries the customer's name, address, amount and GST breakdown, so "
-        "it is served by presigned URL and never from the public root."
+    media_paths.INVOICE_CUSTOMER_IMAGE_PREFIX: (
+        "invoice-engine (PNG) and inbound-whatsapp-handler. NOTE: under secure/d/public/, which "
+        "the edge serves WITHOUT authentication, so a rendered invoice (name, address, amount, "
+        "GST breakdown) is unlisted-but-public by URL. Presigned links are still what the "
+        "code hands out."
     ),
 }
 
@@ -109,7 +110,8 @@ def validate(prefix: str) -> str:
     if not (prefix.startswith("o/") or prefix.startswith("secure/")):
         raise ValueError(
             f"{prefix!r} is not rooted. Use `o/...` for the PUBLIC tree (CloudFront serves it "
-            f"with no authentication) or `secure/...` for the gated tree. Composing through "
+            f"with no authentication) or `secure/...` for the gated tree - except "
+            f"`secure/d/public/`, which CloudFront also serves publicly. Composing through "
             f"lambda_utils.media_paths.public()/.secure() is how the code does it. Refusing "
             f"rather than assuming a root, because guessing wrong makes private data public.\n"
             f"       Also note: a key at the bucket ROOT still returned HTTP 200 on the apex "

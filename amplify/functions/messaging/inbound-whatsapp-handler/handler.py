@@ -3787,7 +3787,7 @@ def _download_media(whatsapp_media_id: str, message_id: str, media_type: str,
       key = "audio/"             → final = "audio/{mediaId}.ogg"
     
     Strategy: Use MEDIA_PREFIX directly (ending with "/") so files land flat
-    under stack/whatsapp-media/incoming/{mediaId}.{ext}, then rename to
+    under secure/d/public/whatsapp/incoming/{mediaId}.{ext}, then rename to
     wecare-digital-{uuid}.{ext} format.
     
     Returns the actual S3 key of the downloaded file.
@@ -3803,7 +3803,7 @@ def _download_media(whatsapp_media_id: str, message_id: str, media_type: str,
     
     try:
         # Use MEDIA_PREFIX directly  -  files land flat, no subfolders
-        s3_key_prefix = MEDIA_PREFIX  # e.g. "stack/whatsapp-media/incoming/"
+        s3_key_prefix = MEDIA_PREFIX  # media_paths.WHATSAPP_INCOMING_PREFIX
         
         logger.info(json.dumps({
             'event': 'media_download_start',

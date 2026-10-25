@@ -98,13 +98,12 @@ MEDIA_PREFIX = os.environ.get('MEDIA_OUTBOUND_PREFIX',
 # via CloudFront so WhatsApp can fetch them by URL and the same attachment can be
 # re-sent across many template messages without re-uploading to Meta each time.
 #
-# The `o/` root is LOAD-BEARING here, not cosmetic. The 61 objects already in
-# `secure/d/public/whatsapp/wa-tpl/` are referenced by WhatsApp templates Meta has APPROVED, and those
-# Approved media uses the canonical wecare.digital/get path backed by the `o/` prefix.
-# An attachment written to `public/wa-tpl/` is outside that canonical prefix, so it would
-# 200 on the apex URL and 404 for Meta. See lambda_utils/media_paths.
+# Canonical home: `secure/d/public/whatsapp/wa-tpl/{img,docs,vid,aud,stk}/`, the subtree
+# the edge serves publicly. The old default composed `o/public/wa-tpl/`, a retired tree with
+# no current objects, so reusable uploads landed outside the layout and outside the library
+# whatsapp-template-management lists. Keep this equal to that handler's PUBLIC_MEDIA_PREFIX.
 PUBLIC_MEDIA_PREFIX = os.environ.get('PUBLIC_MEDIA_PREFIX',
-                                     media_paths.public('public/wa-tpl/'))
+                                     media_paths.WHATSAPP_TEMPLATE_ASSET_ROOT)
 CDN_DOMAIN = os.environ.get('CDN_DOMAIN', media_paths.CDN_DOMAIN)
 
 # WhatsApp Phone Number IDs (Allowlist) - Requirement 3.2
