@@ -102,6 +102,11 @@ const STATUS_FILTERS = [
 const DETAIL_SELECT_STYLE: React.CSSProperties = { flex: 1 };
 const DUES_PHONE_SELECT_STYLE: React.CSSProperties = { flex: '0 0 180px' };
 const badgeClass = ( inv: Invoice ) => inv.status === 'paid' || inv.paymentStatus === 'captured' ? 'success' : inv.status === 'cancelled' ? 'danger' : 'muted';
+const hasPayableDeliveryAddress = ( contact: Contact ): boolean => {
+  const a = addressFieldsFromContact( contact );
+  return [ a.addressLine1, a.city, a.state, a.postalCode ].every( v => String( v || '' ).trim().length > 0 );
+};
+
 const fmtDate = ( ts: number ) => {
   if ( !ts ) return '\u2014';
   const ms = ts > 1e12 ? ts : ts * 1000;
@@ -422,6 +427,11 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
   const submitInvoice = async ( sendAfterCreate = false ) => {
     if ( invoiceCreateInFlight.current ) return;
     if ( !selCustomer ) { showMsg( 'Select a customer first', 'error' ); return; }
+    if ( !hasPayableDeliveryAddress( selCustomer ) ) {
+      showMsg( 'Add a complete structured delivery address (address line 1, city, state and postal code) before creating the invoice.', 'error' );
+      openEditCust( selCustomer );
+      return;
+    }
     if ( !invForm.items.some( it => parseFloat( it.unitPrice ) > 0 ) ) { showMsg( 'Add at least one item', 'error' ); return; }
     invoiceCreateInFlight.current = true;
     setCreating( true );
@@ -811,13 +821,16 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                     <Button variant="ghost" size="sm" onClick={ () => setSelCustomer( null ) }>Change</Button>
                   </div>
                   {/* Address display */ }
-                  { contactDeliveryAddress( selCustomer ) ? (
+                  { hasPayableDeliveryAddress( selCustomer ) ? (
                     <div className="inner-card" style={ { marginBottom: 16, maxWidth: 600, padding: '10px 14px', fontSize: 'var(--text-xs)', color: '#555', background: '#f8faf9', border: '1px solid #e0e8e3', borderRadius: 8 } }>
-                      <div><strong>Delivery Address:</strong> { contactDeliveryAddress( selCustomer ) }</div>
+                      <div><strong>Delivery Address:</strong> { formatAddress( addressFieldsFromContact( selCustomer ) ) }</div>
                     </div>
                   ) : (
                     <div className="info-banner" style={ { marginBottom: 16 } }>
-                      No complete delivery address is saved. Edit the contact before creating a physical-goods payment.
+                      This contact only has a legacy/free-text address. Add address line 1, city, state and postal code before creating a physical-goods payment.
+                      <div style={ { marginTop: 8 } }>
+                        <Button variant="secondary" size="sm" onClick={ () => openEditCust( selCustomer ) }>Edit delivery address</Button>
+                      </div>
                     </div>
                   ) }
                   <h3 style={ { margin: '0 0 12px', fontSize: 'var(--text-xl)' } }>Step 2 { '\u2014' } Invoice Details</h3>

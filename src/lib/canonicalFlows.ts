@@ -20,7 +20,7 @@
  * Review stays in `reviewEntry.ts` (its keyword list is load-bearing elsewhere); this module
  * re-exports REVIEW_FLOW_ID so a reader has one complete table.
  */
-import { REVIEW_FLOW_ID } from './reviewEntry';
+import { REVIEW_ENTRY_KEYWORDS, REVIEW_FLOW_ID } from './reviewEntry';
 
 export type FlowStatus = 'PUBLISHED' | 'DRAFT' | 'NONE';
 
@@ -145,6 +145,20 @@ export const CANONICAL_CONTRACTS: Record<string, CanonicalContract> = {
     tokenPrefix: 'subscribe',
     defaultKeywords: [ 'subscribe', 'signup', 'sign up', 'register', 'join', '/subscribe' ],
     legacyFlowCodes: [ 'WD_SUBSCRIBE' ],
+  },
+  leave_review: {
+    flowNumber: 'F002',
+    flowCode: 'WD-F002-LEAVE-REVIEW',
+    label: 'Leave Review',
+    flowType: 'customer_idea',
+    entryMode: 'keyword_interactive',
+    entryTemplateName: '',
+    requiresPayment: false,
+    submissionPrefix: 'WD-IDEA',
+    wabaId: '2094615664435155',
+    tokenPrefix: 'leave_review',
+    defaultKeywords: REVIEW_ENTRY_KEYWORDS,
+    legacyFlowCodes: [ 'WD_IDEA', 'WD_REV' ],
   },
 };
 

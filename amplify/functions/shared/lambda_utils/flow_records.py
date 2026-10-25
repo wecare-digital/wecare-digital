@@ -10,7 +10,7 @@ They are now ONE row in FlowSubmissionTable, told apart by `flowCode`:
 
     kind              flowCode(s)        id field        new-id prefix
     ----------------  -----------------  --------------  -------------
-    review            WD_REV, WD_IDEA    reviewId        WD-REV-
+    review            F002, WD_REV, WD_IDEA reviewId        WD-REV-
     appointment       WD_APPT            appointmentId   WD-APT-
     Sehat appointment WD_SEHAT, WD_RX     sehatAppointmentId WD-SEHAT-
     enterprise case   WD_ENT             caseId          WD-ENT-
@@ -66,7 +66,7 @@ class Kind:
         return self.flow_codes[0]
 
 
-REVIEW = Kind('review', ('WD_REV', 'WD_IDEA'), 'reviewId', 'WD-REV-', 'feedback', 'submitted')
+REVIEW = Kind('review', ('WD-F002-LEAVE-REVIEW', 'WD_IDEA', 'WD_REV'), 'reviewId', 'WD-REV-', 'feedback', 'submitted')
 APPOINTMENT = Kind('appointment', ('WD_APPT',), 'appointmentId', 'WD-APT-', 'booking',
                    'scheduled')
 SEHAT_APPOINTMENT = Kind('sehat_appointment', ('WD_SEHAT', 'WD_RX'), 'sehatAppointmentId', 'WD-SEHAT-', 'sehat_appointment', 'available')

@@ -1,6 +1,6 @@
 """Private endpointless WhatsApp ideas, linked to the authenticated sender.
 
-One row in FlowSubmissionTable (flowCode WD_IDEA) is the idea: the flow-response table is the
+One row in FlowSubmissionTable (flowCode WD-F002-LEAVE-REVIEW) is the idea: the flow-response table is the
 single store for every submitted form, and ReviewTable was folded into it (see
 `lambda_utils.flow_records`). The row carries the review fields the staff reviews page and
 the contact timeline read (`reviewId`, `reviewText`, `category`, `reviewType`,
@@ -13,17 +13,65 @@ public review or sales lead.
 """
 import hashlib
 
-from lambda_utils import flow_completion
+from lambda_utils import canonical_flows, flow_completion
 
 FLOW_KEY = 'wd_leave_review_v2'
-FLOW_ID = '940049388908144'
-FLOW_CODE = 'WD_IDEA'
+FLOW_ID = canonical_flows.canonical_flow_id('leave_review') or '940049388908144'
+FLOW_CODE = canonical_flows.canonical_contract('leave_review')['flowCode']
 TOPICS = {
-    'feature_request': 'A feature I would love',
+    'feature_request': "A feature I'd love",
     'improvement': 'Something to improve',
     'worked_well': 'Something I liked',
     'other': 'Another thought',
 }
+
+_RESPONSE_FIELDS = (
+    ('full_name', 'Full name'),
+    ('username', 'WhatsApp username'),
+    ('company_name', 'Organization'),
+    ('designation', 'Job title'),
+    ('address_line1', 'Street address'),
+    ('address_line2', 'Apartment / suite / unit'),
+    ('locality', 'Landmark / neighborhood'),
+    ('city', 'City'),
+    ('state', 'State / region'),
+    ('postal_code', 'Postal code'),
+    ('country', 'Country'),
+)
+
+
+def response_answers(data):
+    """Readable Inbox/Workspace answers in the same order as the F002 Flow.
+
+    Schema 4 is the existing two-question published review. Schema 5 adds the F001-style
+    profile/address context ahead of those same review questions. Empty optional fields are
+    omitted rather than shown as fake answers.
+    """
+    schema_version = str(data.get('schema_version') or '4')
+    rows = []
+    if schema_version == '5':
+        for key, label in _RESPONSE_FIELDS:
+            value = data.get(key)
+            if isinstance(value, str) and value.strip():
+                rows.append({'question': label, 'answer': value.strip()})
+    raw_topic = data.get('topic')
+    if isinstance(raw_topic, str) and raw_topic in TOPICS:
+        rows.append({'question': "What's on your mind?", 'answer': TOPICS[raw_topic]})
+    idea = data.get('idea')
+    if isinstance(idea, str) and idea.strip():
+        rows.append({'question': 'Your thought', 'answer': idea.strip()})
+    return rows
+
+def _text(data, key, *, required=False, limit=500):
+    value = data.get(key, '')
+    if not isinstance(value, str):
+        value = ''
+    value = value.strip() if key == 'idea' else ' '.join(value.split())
+    if required and not value:
+        raise ValueError(f'{key} is required')
+    if len(value) > limit:
+        raise ValueError(f'{key} is too long')
+    return value
 
 
 def idea_payload(message):
@@ -51,30 +99,48 @@ def save_idea(data, *, contact_id, phone, sender_name, message_id, dynamodb=None
     one flow-response writer, which owns its table handle.
     """
     del dynamodb
-    idea = data.get('idea')
-    if not isinstance(idea, str) or not idea.strip():
-        raise ValueError('A customer idea is required')
+    idea = _text(data, 'idea', required=True, limit=2000)
     if not contact_id or not phone or not message_id:
         raise ValueError('Customer idea requires a sender and message id')
     topic = data.get('topic', '')
     if not isinstance(topic, str) or topic not in TOPICS:
         topic = 'other'
+    schema_version = str(data.get('schema_version') or '4')
+    f002_profile = schema_version == '5'
+    profile = {
+        'full_name': _text(data, 'full_name', required=f002_profile, limit=120),
+        'username': _text(data, 'username', limit=120),
+        'company_name': _text(data, 'company_name', limit=160),
+        'designation': _text(data, 'designation', limit=120),
+    }
+    address = {
+        'address_line1': _text(data, 'address_line1', required=f002_profile, limit=250),
+        'address_line2': _text(data, 'address_line2', limit=250),
+        'locality': _text(data, 'locality', limit=160),
+        'city': _text(data, 'city', required=f002_profile, limit=120),
+        'state': _text(data, 'state', required=f002_profile, limit=120),
+        'postal_code': _text(data, 'postal_code', required=f002_profile, limit=32),
+        'country': _text(data, 'country', required=f002_profile, limit=120),
+    }
     digest = hashlib.sha256(f'{contact_id}\x1f{message_id}'.encode()).hexdigest()
     review_id = 'WD-IDEA-' + digest[:16].upper()
-    text = idea.strip()
-    form = {'topic': topic, 'idea': text, 'schema_version': '4'}
+    text = idea
+    form = {**profile, **address, 'topic': topic, 'idea': text, 'schema_version': schema_version}
     result = flow_completion.claim_completion(
-        flow_token=message_id, screen='REVIEW', submission_id=review_id,
+        flow_token=message_id, screen=('COMPLETE' if schema_version == '5' else 'REVIEW'), submission_id=review_id,
         reference_prefix='WD-IDEA', flow_code=FLOW_CODE, flow_type='customer_idea',
         phone=phone, contact_id=contact_id, sender_name=sender_name, form_data=form,
         # The review vocabulary: the staff reviews page shows `submitted` as `pending`.
         status='submitted',
         extra={'flowId': FLOW_ID, 'reviewId': review_id,
                'subject': TOPICS.get(topic, TOPICS['other']), 'description': text,
-               'customerPhone': phone, 'customerName': sender_name,
+               'customerPhone': phone,
+               'customerName': profile['full_name'] or sender_name,
+               'whatsappDisplayName': sender_name,
+               'profileSnapshot': profile, 'addressSnapshot': address,
                'reviewText': text, 'category': topic,
                'reviewType': 'customer_idea', 'visibility': 'private',
-               'source': 'whatsapp', 'schemaVersion': '4',
+               'source': 'whatsapp', 'schemaVersion': schema_version,
                'whatsappMessageId': message_id,
                **({'customerUuid': customer_uuid_value} if customer_uuid_value else {})},
         # A customer's idea is a business record, not a transport log.

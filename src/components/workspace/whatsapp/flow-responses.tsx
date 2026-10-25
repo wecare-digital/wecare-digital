@@ -41,6 +41,61 @@ const REQUEST_STATUS_FILTER_OPTIONS: SelectOption[] = [
 /** Layout only: the filter rows are flex, and the trigger shows the SELECTED label. */
 const FILTER_SELECT_STYLE: React.CSSProperties = { flex: '0 1 220px', minWidth: 0 };
 
+const parseFormData = ( raw?: string ): Record<string, any> => {
+  if ( !raw ) return {};
+  try {
+    const parsed = JSON.parse( raw );
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+const F002_RESPONSE_FIELDS: Array<[ string, string ]> = [
+  [ 'full_name', 'Full name' ],
+  [ 'username', 'WhatsApp username' ],
+  [ 'company_name', 'Organization' ],
+  [ 'designation', 'Job title' ],
+  [ 'address_line1', 'Street address' ],
+  [ 'address_line2', 'Apartment / suite / unit' ],
+  [ 'locality', 'Landmark / neighborhood' ],
+  [ 'city', 'City' ],
+  [ 'state', 'State / region' ],
+  [ 'postal_code', 'Postal code' ],
+  [ 'country', 'Country' ],
+];
+
+const F002_TOPIC_LABELS: Record<string, string> = {
+  feature_request: "A feature I'd love",
+  improvement: 'Something to improve',
+  worked_well: 'Something I liked',
+  other: 'Another thought',
+};
+
+const F002SubmissionDetails: React.FC<{ submission: api.FlowSubmissionItem }> = ( { submission } ) => {
+  const data = parseFormData( submission.formData );
+  const rows = [
+    ...F002_RESPONSE_FIELDS
+      .map( ( [ key, label ] ) => [ label, String( data[ key ] || '' ).trim() ] as const )
+      .filter( ( [ , value ] ) => Boolean( value ) ),
+    ...( data.topic && F002_TOPIC_LABELS[ data.topic ]
+      ? [ [ "What's on your mind?", F002_TOPIC_LABELS[ data.topic ] ] as const ] : [] ),
+    ...( data.idea ? [ [ 'Your thought', String( data.idea ) ] as const ] : [] ),
+  ];
+  return <details>
+    <summary style={ { cursor: 'pointer' } }>{ submission.subject || 'Leave Review' }</summary>
+    { rows.length > 0 && <dl style={ { margin: '8px 0 0', display: 'grid', gridTemplateColumns: 'minmax(120px, 0.7fr) minmax(180px, 1.3fr)', gap: '4px 10px' } }>
+      { rows.map( ( [ label, value ] ) => <React.Fragment key={ label }>
+        <dt style={ { fontWeight: 600 } }>{ label }</dt>
+        <dd style={ { margin: 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' } }>{ value }</dd>
+      </React.Fragment> ) }
+    </dl> }
+    { rows.length === 0 && <p style={ { whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' } }>{ submission.description }</p> }
+    <p style={ { fontSize: 'var(--text-xs)' } }>{ submission.contactId ? "Linked to this sender's contact record." : 'Contact link unavailable' }</p>
+    <p style={ { fontSize: 'var(--text-xs)' } }>Saved as a private Flow response.</p>
+  </details>;
+};
+
 /** The per-row Update control. `cancelled` is in this list and in no filter list. */
 const SUBMISSION_STATUS_UPDATE_OPTIONS: SelectOption[] = [
   { value: 'awaiting_order_verification', label: 'Awaiting order verification' },
@@ -272,12 +327,7 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
                         <td style={ { padding: '8px 10px', fontFamily: 'monospace', fontSize: 'var(--text-xs)' } }>{ s.submissionNumber || '-' }</td>
                         <td style={ { padding: '8px 10px', maxWidth: 280 } }>
                           {s.flowType === 'customer_idea' ? (
-                            <details>
-                              <summary style={{ cursor: 'pointer' }}>{s.subject || 'Customer idea'}</summary>
-                              <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{s.description}</p>
-                              <p style={{ fontSize: 'var(--text-xs)' }}>{s.contactId ? "Linked to this sender's contact record." : 'Contact link unavailable'}</p>
-                              <p style={{ fontSize: 'var(--text-xs)' }}>Saved in customer reviews.</p>
-                            </details>
+                            <F002SubmissionDetails submission={ s } />
                           ) : s.flowType === 'invoice_copy' ? (
                             <details>
                               <summary style={{ cursor: 'pointer' }}>Invoice copy</summary>

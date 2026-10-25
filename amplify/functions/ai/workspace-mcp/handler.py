@@ -73,6 +73,10 @@ def provider_error_detail(exc):
         raw = reader(8192) if callable(reader) else b""
         document = json.loads(raw.decode("utf-8", "replace")) if raw else {}
         error = document.get("error") if isinstance(document, dict) else None
+        if isinstance(error, str) and error in {
+                "invalid_request", "invalid_client", "invalid_grant", "unauthorized_client",
+                "unsupported_grant_type", "invalid_scope", "server_error", "temporarily_unavailable"}:
+            detail["oauthError"] = error
         if isinstance(error, dict):
             if isinstance(error.get("code"), int): detail["code"] = error["code"]
             if isinstance(error.get("type"), str) and error["type"]: detail["type"] = error["type"][:300]

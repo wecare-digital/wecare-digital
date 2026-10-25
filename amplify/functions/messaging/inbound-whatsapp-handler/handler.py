@@ -2166,18 +2166,14 @@ def _process_message(
     _idea_inbox = None
     if _idea_data is not None and _idea_result is not None:
         _topic = str(_idea_data.get('topic') or 'other')
-        _idea_text = str(_idea_data.get('idea') or '').strip()
+        _schema_version = str(_idea_data.get('schema_version') or '4')
         _idea_inbox = {
             'flowCode': customer_ideas.FLOW_CODE,
             'flowType': 'customer_idea',
-            'flowScreen': 'REVIEW',
+            'flowScreen': 'COMPLETE' if _schema_version == '5' else 'REVIEW',
             'flowSubmissionId': _idea_result.submission_id,
             'flowReference': _idea_result.reference,
-            'flowAnswers': [
-                {'question': "What's on your mind?",
-                 'answer': customer_ideas.TOPICS.get(_topic, customer_ideas.TOPICS['other'])},
-                {'question': 'Your thought', 'answer': _idea_text},
-            ],
+            'flowAnswers': customer_ideas.response_answers(_idea_data),
             'flowAttachments': [],
             'reviewId': _idea_result.submission_id,
             'reviewStatus': 'pending',
@@ -2978,7 +2974,24 @@ def _process_message(
                                           request_id, trigger):
                     return  # Skip AI automation  -  flow handles the rest
                 continue
-            if not trigger.get('enabled', True):
+            if flow_key == 'leave_review':
+                # F002 is the second canonical keyword door. Unlike legacy generic flows it
+                # defaults OFF and needs canonical + FlowRegistry + Meta + runtime agreement.
+                try:
+                    registry_row = flow_launch.read_registry_row(
+                        dynamodb.Table(flow_launch.registry_table_name()),
+                        canonical_flow_id('leave_review'))
+                except Exception:  # unreadable registry is a refusal, never a launch
+                    continue
+                decision = flow_launch.keyword_launch_decision(
+                    capability='leave_review', registry_row=registry_row, trigger=trigger)
+                if not decision.allowed:
+                    logger.info(json.dumps({'event': 'keyword_flow_refused',
+                                            'flowKey': flow_key,
+                                            'reason': decision.reason,
+                                            'requestId': request_id}))
+                    continue
+            elif not trigger.get('enabled', True):
                 continue
             # Paid/post-payment/event-only flows are never allowed to become keyword doors.
             if trigger.get('entryMode', 'keyword_interactive') != 'keyword_interactive':
@@ -3035,7 +3048,16 @@ def _process_message(
             review_reference = _extract_review_reference(content_lower)
             if review_reference:
                 review_trigger = (flow_triggers.get('leave_review') or {})
-                if review_trigger.get('enabled', True) and review_trigger.get('flowId') \
+                try:
+                    review_registry = flow_launch.read_registry_row(
+                        dynamodb.Table(flow_launch.registry_table_name()),
+                        canonical_flow_id('leave_review'))
+                    review_allowed = flow_launch.keyword_launch_decision(
+                        capability='leave_review', registry_row=review_registry,
+                        trigger=review_trigger).allowed
+                except Exception:
+                    review_allowed = False
+                if review_allowed and review_trigger.get('flowId') \
                         and _may_send('leave_review_attributed'):
                     # The park result is CARRIED INTO THE LOG, not discarded. A park
                     # failure degrades to an unattributed review, which is the right
@@ -5896,7 +5918,7 @@ def _send_generic_flow(contact_id: str, phone_number_id: str, sender_phone: str,
         # still called later on data_exchange screens (e.g. REVIEW), so no data is
         # lost. Only order-fetching flows (submit_request, etc.) need data_exchange
         # at open to populate their first screen.
-        # `leave_review` shares flow 1578178897413815 with `customer_idea`, so it
+        # `leave_review` is the canonical F002 door; the historical `customer_idea` alias points at the same Flow, so it
         # needs the same entry screen: that flow is endpointless and would fail at
         # open under data_exchange.
         STATIC_ENTRY_SCREENS = {'customer_idea': 'FEEDBACK', 'leave_review': 'FEEDBACK'}
@@ -7582,7 +7604,9 @@ DEFAULT_FLOW_TRIGGERS = {
             'footer': 'WECARE.DIGITAL',
             'flowCta': 'Leave Review',
         },
-        'enabled': True,
+        # Historical alias only. The canonical F002 contract belongs to leave_review and
+        # flow_launch.generic_keyword_refusal rejects this alias as a second launch door.
+        'enabled': False,
     },
     'submit_request': {
         'keywords': [
@@ -7737,9 +7761,9 @@ DEFAULT_FLOW_TRIGGERS = {
             'give a review', 'share your experience', 'how was it',
             '\u2b50 leave review',
         ],
-        # 1578178897413815 = WD_Leave_Review_v2, PUBLISHED on WABA 1. Shared with
-        # `customer_idea` above: one Meta flow, two inbound doors, because Meta has
-        # no per-door flow identity. It is ENDPOINTLESS (no data_api_version, first
+        # F002 resolves from canonical_flows to the currently published review Flow on WABA 1.
+        # The historical `customer_idea` alias points at the same Meta asset but is not a second
+        # launch authority. It is ENDPOINTLESS (no data_api_version, first
         # screen FEEDBACK carries no `data` block), so it MUST open with NAVIGATE —
         # see STATIC_ENTRY_SCREENS in _send_generic_flow. Opening it with
         # data_exchange fails at open. The id this replaced pointed at the
@@ -7751,7 +7775,9 @@ DEFAULT_FLOW_TRIGGERS = {
             'footer': 'WECARE.DIGITAL',
             'flowCta': 'Leave Review',
         },
-        'enabled': True,
+        # F002 activation is separate from Meta publication. Workspace writes an explicit
+        # SystemConfig override only after the canonical registry row is valid and deployed.
+        'enabled': False,
     },
     'subscribe': {
         # F001 Subscribe: a customer-initiated native Flow inside the customer-service window.
