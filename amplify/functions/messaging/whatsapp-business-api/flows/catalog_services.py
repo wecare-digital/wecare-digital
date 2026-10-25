@@ -142,8 +142,6 @@ def handle(event, client):
             return {'outcome': 'VAULT_FILE_SELECTION_UNAVAILABLE'}
         state = (row.get('fileChoiceStates') or [])[index] if index < len(row.get('fileChoiceStates') or []) else 'UNPAID'
         if state == 'PAID' or file.get('vaultEntitlementId') or file.get('vaultAccessGrantId') or file.get('vaultPaymentStatus') == 'PAID':
-            if os.environ.get('VAULT_DYNAMIC_DOWNLOAD_TEMPLATE_ENABLED', 'false').lower() != 'true':
-                return {'outcome': 'VAULT_REFRESH_NOT_RELEASED'}
             response = _send(client, row, **whatsapp_templates.download_send_fields(file['fileId']))
             code = int(response.get('statusCode', 500)) if isinstance(response, dict) else 500
             return {'outcome': 'VAULT_ACCESS_REFRESH_SENT' if 200 <= code < 300 else 'VAULT_ACCESS_REFRESH_PENDING',
