@@ -98,7 +98,7 @@
     },
     {
       "id": "REVIEW",
-      "title": "Review",
+      "title": "Ready to share?",
       "data": {
         "topic": {
           "type": "string",
@@ -130,20 +130,24 @@
           },
           {
             "type": "TextHeading",
-            "text": "Review your idea"
+            "text": "Let's shape what's next"
           },
           {
             "type": "TextBody",
-            "text": "Check your idea before continuing."
+            "text": "Your idea is ready to share. Thank you for helping us imagine a more useful WECARE.DIGITAL."
           },
           {
             "type": "TextCaption",
-            "text": "Idea",
+            "text": "Your idea",
             "font-weight": "bold"
           },
           {
             "type": "TextBody",
             "text": "${data.idea}"
+          },
+          {
+            "type": "TextCaption",
+            "text": "When you're ready, tap Send idea to share it with our team."
           },
           {
             "type": "Footer",
