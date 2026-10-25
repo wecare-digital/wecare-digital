@@ -5547,6 +5547,84 @@ export interface FlowRegistryItem {
   publishedAt?: number;
   createdAt?: number;
   updatedAt?: number;
+  /** Staff identity of the last Workspace registry write. */
+  updatedBy?: string;
+  /** Meta's own lifecycle status from the last sync. Separate from the registry `status`. */
+  metaStatus?: string;
+  metaName?: string;
+  jsonVersion?: string;
+  lastSyncedAt?: number;
+  validationErrorsJson?: string;
+  healthStatusJson?: string;
+}
+
+/** One launch decision computed server-side by lambda_utils.flow_launch. */
+export interface FlowLaunchDecision {
+  allowed: boolean;
+  reason: string;
+  explanation: string;
+}
+
+/** GET /wa-business/flow-launch-status: every control that decides whether a Flow can open. */
+export interface FlowLaunchStatus {
+  capability: string;
+  contract: {
+    flowNumber: string; flowCode: string; label: string; flowType: string; entryMode: string;
+    entryTemplateName: string; requiresPayment: boolean; submissionPrefix: string; wabaId: string;
+    tokenPrefix: string; defaultKeywords: string[]; legacyFlowCodes: string[];
+  };
+  canonical: { flowId: string; status: string; metaName: string };
+  registry: FlowRegistryItem | null;
+  registryError: string;
+  registryProblems: string[];
+  runtime: { enabled: boolean; keywords: string[]; entryMode: string; flowId: string; configured: boolean; readError: string };
+  keywordLaunch: FlowLaunchDecision;
+  manualLaunch: FlowLaunchDecision & { minimumRole: string };
+  session: { ttlSeconds: number };
+  endpoint: string;
+}
+
+/** GET /wa-business/flow-funnel: per-day counters, newest day first. No customer data. */
+export interface FlowFunnelReport {
+  flowCode: string;
+  stages: string[];
+  days: { day: string; counts: Record<string, number> }[];
+  totals: Record<string, number>;
+}
+
+export interface FlowRegistrySaveResult {
+  success: boolean;
+  flowId: string;
+  flow: FlowRegistryItem;
+}
+
+export interface CanonicalFlowSendResult {
+  success: boolean;
+  messageId: string;
+  flowCode: string;
+  launchChannel: string;
+  sessionExpiresAt: number;
+}
+
+export async function getFlowLaunchStatus ( capability: string ): Promise<ApiResult<FlowLaunchStatus>> {
+  return apiCallResult<FlowLaunchStatus>( `${WA_BIZ_BASE}/flow-launch-status?capability=${encodeURIComponent( capability )}` );
+}
+
+export async function getFlowFunnel ( flowCode: string, days = 7 ): Promise<ApiResult<FlowFunnelReport>> {
+  const qs = new URLSearchParams( { flowCode, days: String( days ) } );
+  return apiCallResult<FlowFunnelReport>( `${WA_BIZ_BASE}/flow-funnel?${qs.toString()}` );
+}
+
+/**
+ * Staff send of a canonical contract Flow (F001) to one customer. The server requires the
+ * Operator role, mints the session and records who sent it. Not retried automatically: a
+ * timed-out send may still have been delivered, so a retry would send a second message.
+ */
+export async function sendCanonicalFlow ( flowKey: string, to: string ): Promise<ApiResult<CanonicalFlowSendResult>> {
+  return apiCallResult<CanonicalFlowSendResult>( `${WA_BIZ_BASE}/messages/send/flow`, {
+    method: 'POST',
+    body: JSON.stringify( { flowKey, to } ),
+  }, RETRY_CONFIG.maxRetries );
 }
 
 export interface FlowSubmissionItem {
@@ -5623,12 +5701,16 @@ export async function listFlowRegistry (): Promise<FlowRegistryItem[]> {
   return data?.flows || [];
 }
 
-export async function upsertFlowRegistry ( item: Partial<FlowRegistryItem> ): Promise<boolean> {
-  const data = await apiCall<any>( `${WA_BIZ_BASE}/flow-registry`, {
+/**
+ * Create or update one FlowRegistry row (Admin). The server merges the fields sent into the
+ * stored row and validates the result, so a partial update is safe; a refusal carries the
+ * server's reason in `failure.message`.
+ */
+export async function upsertFlowRegistry ( item: Partial<FlowRegistryItem> ): Promise<ApiResult<FlowRegistrySaveResult>> {
+  return apiCallResult<FlowRegistrySaveResult>( `${WA_BIZ_BASE}/flow-registry`, {
     method: 'POST',
     body: JSON.stringify( item ),
   } );
-  return !!data?.success;
 }
 
 export async function listFlowSubmissions ( params?: {
@@ -5643,6 +5725,11 @@ export async function listFlowSubmissions ( params?: {
   const query = qs.toString();
   const data = await apiCall<any>( `${WA_BIZ_BASE}/flow-submissions${query ? '?' + query : ''}` );
   return data?.submissions || [];
+}
+
+/** Stats for one flow code, keeping a refused or failed read distinguishable from zero rows. */
+export async function getFlowSubmissionStatsResult ( flowCode: string ): Promise<ApiResult<FlowSubmissionStats>> {
+  return apiCallResult<FlowSubmissionStats>( `${WA_BIZ_BASE}/flow-submissions/stats?flowCode=${encodeURIComponent( flowCode )}` );
 }
 
 export async function getFlowSubmissionStats ( flowCode?: string ): Promise<FlowSubmissionStats | null> {

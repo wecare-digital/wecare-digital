@@ -96,3 +96,47 @@ def published_flow_by_name(meta_name: str):
 def published_flow_token_prefix(capability: str) -> str:
     """Routing prefix for phone-backed Flow tokens."""
     return _TOKEN_PREFIX_OVERRIDES.get(capability, capability)
+
+
+# Launch contract for canonical Flows that are production capabilities with a fixed entry
+# model. A FlowRegistry row for one of these Flow ids must agree with its contract
+# (lambda_utils.flow_launch enforces this on every registry write and every launch), so a
+# Workspace edit cannot turn the profile Flow into a payment door or a template journey.
+# Twin of CANONICAL_CONTRACTS in src/lib/canonicalFlows.ts; scripts/check_f001_subscribe.py
+# asserts the two agree field for field.
+CANONICAL_CONTRACTS = {
+    'subscribe': {
+        'flowNumber': 'F001',
+        'flowCode': 'WD-F001-SUBSCRIBE-PROFILE',
+        'label': 'Subscribe',
+        'flowType': 'data_collection',
+        'entryMode': 'keyword_interactive',
+        'entryTemplateName': '',
+        'requiresPayment': False,
+        'submissionPrefix': 'WD-SUB',
+        'wabaId': '2094615664435155',
+        'tokenPrefix': 'subscribe',
+        # Exact-match keywords used until Workspace saves its own list. '/subscribe' reaches
+        # the same door through the inbound slash-command aliases.
+        'defaultKeywords': ('subscribe', 'signup', 'sign up', 'register', 'join', '/subscribe'),
+        # FlowSubmission flowCode used by F001 rows written before the canonical code.
+        'legacyFlowCodes': ('WD_SUBSCRIBE',),
+    },
+}
+
+
+def canonical_contract(capability: str):
+    """The launch contract for a canonical capability, or None when it has none."""
+    contract = CANONICAL_CONTRACTS.get(capability)
+    return {**contract, 'capability': capability} if contract else None
+
+
+def contract_for_flow_id(flow_id: str):
+    """(capability, contract) for a canonical Flow id that carries a contract, else None."""
+    target = str(flow_id or '').strip()
+    if not target:
+        return None
+    for capability in CANONICAL_CONTRACTS:
+        if canonical_flow_id(capability) == target:
+            return capability, canonical_contract(capability)
+    return None

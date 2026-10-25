@@ -14,6 +14,7 @@ from typing import Any, Dict, Mapping, Optional
 
 from lambda_utils import contact_store, shared_tables, message_store
 from lambda_utils.identity import customer_uuid
+from lambda_utils.privacy import mask_flow_token, redact_string
 
 logger = logging.getLogger(__name__)
 
@@ -109,13 +110,17 @@ def record_completion(flow_code: str, flow_type: str, phone: str,
                       reference_prefix: str = '',
                       extra: Optional[Mapping[str, Any]] = None,
                       ttl_seconds: Optional[int] = None,
-                      channel: str = 'whatsapp'):
+                      channel: str = 'whatsapp',
+                      answers: Optional[list] = None):
     """Claim this completion once, and say whether THIS caller won.
 
     `extra` carries a record kind's own fields (a review's rating, an appointment's slot) on
     the same row, which is how reviews, appointments, Rx slots and enterprise cases live in
     the one flow-response table instead of a table each. Pass `ttl_seconds=0` for such a
     business record so it never expires; `None` keeps the transport-record default.
+
+    `answers` replaces the Inbox projection's key-derived labels with explicit
+    `{question, answer}` rows, for a Flow whose field names would read ambiguously to staff.
 
     The single writer, shared with the inbound Lambda:
     `lambda_utils.flow_completion.claim_completion`. Callers must branch on
@@ -143,11 +148,13 @@ def record_completion(flow_code: str, flow_type: str, phone: str,
             submission_number=submission_number, requires_payment=requires_payment,
             payment_amount=payment_amount, payment_ref_id=payment_ref_id,
             status=status, reference_prefix=reference_prefix, extra=extra,
-            ttl_seconds=ttl_seconds, channel=channel)
+            ttl_seconds=ttl_seconds, channel=channel, answers=answers)
     except Exception as e:  # noqa: BLE001 - a claim failure must not become a NameError
+        # Type plus redacted text: an exception message can carry a phone number.
         logger.error(json.dumps({
             'event': 'flow_completion_unexpected_error',
-            'flowCode': flow_code, 'error': str(e)[:200], 'requestId': request_id,
+            'flowCode': flow_code, 'errorType': type(e).__name__,
+            'error': redact_string(str(e))[:200], 'requestId': request_id,
         }))
         return flow_completion.CompletionResult(
             status='error', submission_id='', reference='', key='', error=str(e)[:200])
@@ -157,7 +164,7 @@ def _record_completion(flow_completion, *, flow_code, flow_type, phone, contact_
                        sender_name, form_data, flow_token, request_id, screen,
                        submission_number, requires_payment, payment_amount,
                        payment_ref_id, status, reference_prefix, extra=None,
-                       ttl_seconds=None, channel='whatsapp'):
+                       ttl_seconds=None, channel='whatsapp', answers=None):
     """The body of `record_completion`. Split out so the wrapper above stays total."""
     # Resolve identity again at the shared boundary. Individual Flow handlers may have
     # looked the contact up earlier, but the completion row / Inbox projection / CRM lead must
@@ -207,7 +214,9 @@ def _record_completion(flow_completion, *, flow_code, flow_type, phone, contact_
         fd = form_data if isinstance(form_data, dict) else {}
         from lambda_utils.flow_inbox import project
         projection = project(fd)
-        answers = projection.get('flowAnswers', [])
+        explicit = [item for item in (answers or [])
+                    if isinstance(item, dict) and item.get('question')]
+        answers = explicit or projection.get('flowAnswers', [])
         attachments = projection.get('flowAttachments', [])
         extra_map = extra_map
         extras = project({'attachments': extra_map.get('attachments', [])})
@@ -458,6 +467,21 @@ def send_simple_confirmation(phone: str, flow_token: str, flow_name: str,
 
 # ── Flow log ──
 
+def _value_free_shape(data: Any, depth: int = 0) -> Any:
+    """The structure of a Flow payload with every value replaced by its shape."""
+    if depth > 4:
+        return '<nested>'
+    if isinstance(data, dict):
+        return {str(key)[:80]: _value_free_shape(value, depth + 1)
+                for key, value in list(data.items())[:100]}
+    if isinstance(data, list):
+        return [f'<list:{len(data)}>']
+    if isinstance(data, bool) or data is None:
+        return data
+    text = str(data)
+    return f'<{len(text)} chars>' if text else ''
+
+
 def log_flow_event(flow_token: str, phone: str, action: str, screen: str,
                    data: dict, request_id: str):
     """Log a flow interaction to FlowLogTable, the one flow-log store.
@@ -466,6 +490,10 @@ def log_flow_event(flow_token: str, phone: str, action: str, screen: str,
     full form payload, while the customer-journey view read FlowLogTable and so always showed
     no logs. One table now: the journey view and the flow-log list read what this writes,
     and the table's TTL reaps the rows after `FLOW_LOG_TTL_SECONDS`.
+
+    A log row is a breadcrumb, not a second copy of the customer's answers. The snapshot keeps
+    each field's shape (filled or empty, and its length) without the value, and the token is
+    stored masked. `phone` stays because the journey view finds a customer's rows by it.
     """
     try:
         now = int(time.time())
@@ -473,7 +501,7 @@ def log_flow_event(flow_token: str, phone: str, action: str, screen: str,
         item = {
             'logId': f'flog-{uuid.uuid4().hex[:12]}',
             'type': 'flow_log',
-            'flowToken': flow_token,
+            'flowToken': mask_flow_token(flow_token),
             'phone': phone,
             'action': action,
             'screen': screen,
@@ -484,7 +512,7 @@ def log_flow_event(flow_token: str, phone: str, action: str, screen: str,
         }
         if data:
             try:
-                item['dataSnapshot'] = json.dumps(data, default=str)[:FLOW_LOG_SNAPSHOT_CHARS]
+                item['dataSnapshot'] = json.dumps(_value_free_shape(data))[:FLOW_LOG_SNAPSHOT_CHARS]
             except Exception:
                 pass
         table.put_item(Item={k: v for k, v in item.items() if v is not None and v != ''})

@@ -107,3 +107,56 @@ export const publishedFlowById = ( flowId: string ): CanonicalFlow | null => {
   return Object.values( CANONICAL_FLOWS )
     .find( flow => flow.flowId === target && flow.status === 'PUBLISHED' ) ?? null;
 };
+
+export type EntryMode = 'keyword_interactive' | 'payment_template' | 'internal_event' | 'manual' | 'none';
+
+/** The fixed launch contract of a canonical Flow capability. */
+export interface CanonicalContract {
+  readonly flowNumber: string;
+  readonly flowCode: string;
+  readonly label: string;
+  readonly flowType: string;
+  readonly entryMode: EntryMode;
+  readonly entryTemplateName: string;
+  readonly requiresPayment: boolean;
+  readonly submissionPrefix: string;
+  readonly wabaId: string;
+  readonly tokenPrefix: string;
+  readonly defaultKeywords: readonly string[];
+  readonly legacyFlowCodes: readonly string[];
+}
+
+/**
+ * Twin of CANONICAL_CONTRACTS in amplify/functions/shared/lambda_utils/canonical_flows.py.
+ * The server enforces the contract on every FlowRegistry write and every launch; Workspace
+ * uses this copy to explain it. scripts/check_f001_subscribe.py asserts the twins agree.
+ */
+export const CANONICAL_CONTRACTS: Record<string, CanonicalContract> = {
+  subscribe: {
+    flowNumber: 'F001',
+    flowCode: 'WD-F001-SUBSCRIBE-PROFILE',
+    label: 'Subscribe',
+    flowType: 'data_collection',
+    entryMode: 'keyword_interactive',
+    entryTemplateName: '',
+    requiresPayment: false,
+    submissionPrefix: 'WD-SUB',
+    wabaId: '2094615664435155',
+    tokenPrefix: 'subscribe',
+    defaultKeywords: [ 'subscribe', 'signup', 'sign up', 'register', 'join', '/subscribe' ],
+    legacyFlowCodes: [ 'WD_SUBSCRIBE' ],
+  },
+};
+
+/** The launch contract for a capability, or null when it has none. */
+export const canonicalContract = ( capability: string ): CanonicalContract | null =>
+  CANONICAL_CONTRACTS[capability] ?? null;
+
+/** [capability, contract] for a canonical Flow id that carries a contract, or null. */
+export const contractForFlowId = ( flowId: string ): [ string, CanonicalContract ] | null => {
+  const target = String( flowId || '' ).trim();
+  if ( !target ) return null;
+  const match = Object.entries( CANONICAL_CONTRACTS )
+    .find( ( [ capability ] ) => CANONICAL_FLOWS[capability]?.flowId === target );
+  return match ?? null;
+};

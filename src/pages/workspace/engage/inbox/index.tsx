@@ -28,6 +28,58 @@ import { searchEmojiCategories } from '../../../../lib/emoji-data';
 import { resolveWaMime, validateWaMediaSize, formatBytes, waMediaCategory, WA_ACCEPT_STRING } from '../../../../lib/wa-media';
 import { waErrorTooltip } from '../../../../lib/wa-errors';
 import { scrollToEnd } from '../../../../lib/scroll-to-end';
+import { addressFieldsFromContact, contactDeliveryAddress, formatAddress } from '../../../../lib/address-format';
+
+type ProfileGroup = { title: string; note: string; rows: [ string, string ][] };
+
+/**
+ * The Inbox customer profile, grouped so staff can tell WhatsApp/system identity (never
+ * customer-editable) from what the customer entered in F001 Subscribe or on the website.
+ * The canonical structured address wins; an older address is shown only when no canonical
+ * one exists, and is labelled as not yet confirmed by the customer.
+ */
+function profileGroups ( contact: api.Contact, fallbackPhone: string ): ProfileGroup[] {
+    const dash = ( value?: string ) => ( value && value.trim() ) || '—';
+    const canonical = contact.checkoutDeliveryAddress ? formatAddress( contact.checkoutDeliveryAddress ) : '';
+    const anyAddress = canonical || contactDeliveryAddress( contact );
+    const address = anyAddress ? addressFieldsFromContact( contact ) : null;
+    return [
+        {
+            title: 'Identity (WhatsApp and system)',
+            note: 'Set by WhatsApp or WECARE.DIGITAL. Customers cannot change these.',
+            rows: [
+                [ 'Customer ID', dash( contact.customerDisplayId || contact.customerUuid ) ],
+                [ 'Phone', dash( contact.phone || fallbackPhone ) ],
+                [ 'Meta WhatsApp username', contact.username ? `@${contact.username.replace( /^@/, '' )}` : '—' ],
+                [ 'WhatsApp BSUID', contact.bsuid ? `${contact.bsuid.slice( 0, 8 )}…` : '—' ],
+            ],
+        },
+        {
+            title: 'Customer-entered profile',
+            note: 'From F001 Subscribe or the website.',
+            rows: [
+                [ 'Name', dash( contact.name ) ],
+                [ 'WECARE.DIGITAL profile name', dash( contact.profileUsername ) ],
+                [ 'Organization', dash( contact.companyName ) ],
+                [ 'Job title', dash( contact.designation ) ],
+            ],
+        },
+        {
+            title: 'Address',
+            note: canonical ? 'Customer-entered, shared with website checkout.'
+                : address ? 'Older record, not yet confirmed by the customer.' : 'No address saved.',
+            rows: [
+                [ 'Street address', dash( address?.addressLine1 ) ],
+                [ 'Apartment / suite / unit', dash( address?.addressLine2 ) ],
+                [ 'Landmark / neighborhood', dash( address?.locality ) ],
+                [ 'City', dash( address?.city ) ],
+                [ 'State / region', dash( address?.state ) ],
+                [ 'Postal code', dash( address?.postalCode ) ],
+                [ 'Country', dash( address?.country ) ],
+            ],
+        },
+    ];
+}
 
 /**
  * Inbound WhatsApp media lives under the gated `secure/` prefix, which cannot be
@@ -1145,27 +1197,20 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                         <div style={ { padding: '8px 10px', fontWeight: 700, borderBottom: '1px solid var(--border)' } }>WECARE.DIGITAL customer profile</div>
                                         <div style={ { overflowX: 'auto' } }>
                                             <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 12 } }>
-                                                <tbody>
-                                                    { [
-                                                        [ 'Customer ID', selectedContact.customerDisplayId || selectedContact.customerUuid || '—' ],
-                                                        [ 'Name', selectedContact.name || '—' ],
-                                                        [ 'WECARE.DIGITAL profile name', selectedContact.profileUsername || '—' ],
-                                                        [ 'Meta WhatsApp username', selectedContact.username ? `@${selectedContact.username.replace( /^@/, '' )}` : '—' ],
-                                                        [ 'Phone', selectedContact.phone || replyTarget.phone || '—' ],
-                                                        [ 'Organization', selectedContact.companyName || '—' ],
-                                                        [ 'Job title', selectedContact.designation || '—' ],
-                                                        [ 'Street address', selectedContact.checkoutDeliveryAddress?.addressLine1 || '—' ],
-                                                        [ 'Apartment / suite / unit', selectedContact.checkoutDeliveryAddress?.addressLine2 || '—' ],
-                                                        [ 'Landmark / neighborhood', selectedContact.checkoutDeliveryAddress?.locality || '—' ],
-                                                        [ 'City', selectedContact.checkoutDeliveryAddress?.city || '—' ],
-                                                        [ 'State / region', selectedContact.checkoutDeliveryAddress?.state || '—' ],
-                                                        [ 'Postal code', selectedContact.checkoutDeliveryAddress?.postalCode || '—' ],
-                                                        [ 'Country', selectedContact.checkoutDeliveryAddress?.country || '—' ],
-                                                    ].map( ( [ label, value ] ) => <tr key={ label }>
-                                                        <th style={ { textAlign: 'left', padding: '6px 10px', width: '34%', borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', fontWeight: 600 } }>{ label }</th>
-                                                        <td style={ { padding: '6px 10px', borderBottom: '1px solid var(--border)' } }>{ value }</td>
-                                                    </tr> ) }
-                                                </tbody>
+                                                { profileGroups( selectedContact, replyTarget.phone ).map( group => (
+                                                    <tbody key={ group.title }>
+                                                        <tr>
+                                                            <th colSpan={ 2 } scope="colgroup" style={ { textAlign: 'left', padding: '8px 10px 4px', borderBottom: '1px solid var(--border)', fontWeight: 700 } }>
+                                                                { group.title }
+                                                                <span style={ { display: 'block', fontWeight: 400, color: 'var(--text-muted)' } }>{ group.note }</span>
+                                                            </th>
+                                                        </tr>
+                                                        { group.rows.map( ( [ label, value ] ) => <tr key={ label }>
+                                                            <th scope="row" style={ { textAlign: 'left', padding: '6px 10px', width: '34%', borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', fontWeight: 600 } }>{ label }</th>
+                                                            <td style={ { padding: '6px 10px', borderBottom: '1px solid var(--border)', wordBreak: 'break-word' } }>{ value }</td>
+                                                        </tr> ) }
+                                                    </tbody>
+                                                ) ) }
                                             </table>
                                         </div>
                                     </div>

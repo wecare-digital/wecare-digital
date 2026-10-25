@@ -17,6 +17,9 @@ import SubscribeSettings from './subscribe-settings';
 
 interface Props { signOut?: () => void; user?: any; embedded?: boolean; }
 
+/** F001's trigger is managed only in the Subscribe tab, where its launch contract is enforced. */
+const F001_TRIGGER_KEY = 'subscribe';
+
 // ── Types ──
 interface FlowTrigger {
   keywords: string[];
@@ -110,7 +113,22 @@ const AutoResponsePageBody: React.FC<Props> = () => {
       setSaving(false);
     }
   };
-  const saveTriggers = () => saveSetting('flow_triggers_config', triggers, 'Flow triggers saved');
+  // The SystemConfig write replaces the whole map. F001's own entry is owned by the Subscribe
+  // tab, so it is re-read at save time and written back unchanged, never from this tab's copy.
+  const saveTriggers = async () => {
+    const current = await api.getSystemConfigResult('flow_triggers_config');
+    if (!current.ok) {
+      toast.error(`Flow triggers could not be re-read, so nothing was saved: ${current.failure.message}`);
+      return;
+    }
+    const stored = current.data.config;
+    const storedSubscribe = stored && typeof stored === 'object' && !Array.isArray(stored)
+      ? (stored as Record<string, unknown>)[F001_TRIGGER_KEY] : undefined;
+    const next: Record<string, unknown> = { ...triggers };
+    delete next[F001_TRIGGER_KEY];
+    if (storedSubscribe !== undefined) next[F001_TRIGGER_KEY] = storedSubscribe;
+    await saveSetting('flow_triggers_config', next, 'Flow triggers saved');
+  };
   const saveSsMenu = () => saveSetting('customerservice_menu_config', ssMenu, 'Selfservice menu saved');
   const saveMainMenu = () => saveSetting('welcome_message_config', mainMenu, 'Main menu saved');
   const saveWelcome = () => saveSetting('wa_auto_response', { welcomeMessage: welcomeText, welcomeEnabled }, 'Welcome saved');
@@ -151,7 +169,16 @@ const AutoResponsePageBody: React.FC<Props> = () => {
           </div>
           {trigLoading && <p style={{ color: '#9ca3af', fontSize: 'var(--text-xs)' }}>Loading...</p>}
           {Object.keys(triggers).length === 0 && !trigLoading && <div style={{ ...S.card, textAlign: 'center', color: '#9ca3af', padding: 24 }}>No overrides. Lambda defaults active.</div>}
-          {Object.entries(triggers).map(([k, t]) => (
+          {triggers[F001_TRIGGER_KEY] && (
+            <div style={{ ...S.card, borderLeft: '3px solid var(--accent)' }}>
+              <code style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--accent)' }}>{F001_TRIGGER_KEY}</code>
+              <p style={{ margin: '4px 0 6px', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                F001 Subscribe keywords, switch and copy are managed in the Subscribe tab, which enforces its launch rules. Saving here never changes them.
+              </p>
+              <button style={S.btn} onClick={() => setTab('subscribe')}>Open Subscribe settings</button>
+            </div>
+          )}
+          {Object.entries(triggers).filter(([k]) => k !== F001_TRIGGER_KEY).map(([k, t]) => (
             <div key={k} style={{ ...S.card, opacity: t.enabled ? 1 : 0.5, borderLeft: `3px solid ${t.enabled ? 'var(--lime)' : '#d1d5db'}` }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div style={{ flex: 1 }}>

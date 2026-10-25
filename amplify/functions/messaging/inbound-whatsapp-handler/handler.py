@@ -42,8 +42,12 @@ from lambda_utils import contact_key, identity_claims
 from lambda_utils import contact_store  # one contact row per person, whichever channel minted it
 from lambda_utils import shared_tables  # one name per shared store (contacts, orders, flows)
 from lambda_utils.identity import subscriber_id
+from lambda_utils.identity import customer_uuid  # public Customer ID display code for `my id`
 from lambda_utils import customer_ideas
-from lambda_utils.canonical_flows import canonical_flow_id, canonical_flow_status  # one source of truth for WABA 1 flow ids
+from lambda_utils.canonical_flows import canonical_flow_id, canonical_contract  # one source of truth for WABA 1 flow ids
+# F001 Subscribe launch door: one entry-policy decision, server-issued Flow sessions, the
+# Workspace-managed opening copy and per-day funnel counters.
+from lambda_utils import flow_launch, flow_sessions, flow_funnel, subscribe_messages
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
 from lambda_utils.ecommerce import order_keys  # reference_id contract; never truncate a join key
 # The catalogue-order hand-off: lines and quantities, no money. Pure, so every rule it holds is
@@ -2880,84 +2884,70 @@ def _process_message(
             'find id', 'find my id', 'profile id', 'my profile id',
         }
         if content_lower in MY_ID_KEYWORDS:
+            # The Customer ID lives on the canonical contact row. FlowSubmission rows are
+            # history (and a submission reference is not a Customer ID), so they never answer
+            # "who am I". A WhatsApp sender is already proven to hold this number, which is
+            # why the public display code - never the internal UUID - is safe to return here.
             try:
-                # Look up subscriber by phone
-                fs_table = dynamodb.Table(FLOW_SUBMISSIONS_TABLE)
-                # Query by phone using GSI
-                fs_resp = fs_table.scan(
-                    FilterExpression='phone = :ph AND flowCode = :fc',
-                    ExpressionAttributeValues={':ph': sender_phone, ':fc': 'WD_SUBSCRIBE'},
-                    Limit=5,
-                )
-                subs = fs_resp.get('Items', [])
-                if not subs:
-                    # Try with normalized phone
-                    norm = sender_phone.replace('+', '').replace(' ', '')
-                    fs_resp = fs_table.scan(
-                        FilterExpression='phone = :ph AND flowCode = :fc',
-                        ExpressionAttributeValues={':ph': norm, ':fc': 'WD_SUBSCRIBE'},
-                        Limit=5,
-                    )
-                    subs = fs_resp.get('Items', [])
-
-                if subs:
-                    # Get the latest subscription
-                    latest = sorted(subs, key=lambda x: x.get('createdAt', 0), reverse=True)[0]
-                    sub_id = latest.get('submissionId', 'N/A')
-                    form_data = json.loads(latest.get('formData', '{}')) if latest.get('formData') else {}
-                    name = form_data.get('full_name', '')
-                    email = form_data.get('email_address', '')
-                    org = form_data.get('company_name', '')
-                    status = latest.get('status', 'active')
-
-                    reply = (
-                        f'🆔 *Your Subscriber Details*\n\n'
-                        f'*Subscriber ID:* {sub_id}\n'
-                        f'*Name:* {name}\n'
-                        f'*Email:* {email}\n'
-                        f'*Organization:* {org}\n'
-                        f'*Status:* {status.title()}\n\n'
-                        f'_Type "subscribe" to update your details._'
-                    )
-                else:
-                    reply = (
-                        '🔍 No subscription found for your number.\n\n'
-                        'Type *subscribe* to register and get your subscriber ID.'
-                    )
-
-                _send_ai_auto_reply(contact_id, reply, aws_phone_number_id, request_id)
-                return
+                row = contact_store.lookup(dynamodb.Table(CONTACTS_TABLE), sender_phone,
+                                           contact_id=contact_id) or {}
             except Exception as e:
-                logger.warning(f'My ID lookup failed: {e}')
-                _send_ai_auto_reply(contact_id, '⚠️ Could not retrieve your details. Please try again.', aws_phone_number_id, request_id)
+                logger.warning(json.dumps({'event': 'my_id_lookup_failed',
+                                           'errorType': type(e).__name__,
+                                           'requestId': request_id}))
+                _send_ai_auto_reply(contact_id, 'We could not look up your WECARE.DIGITAL Customer ID '
+                                    'right now. Please try again in a few minutes.',
+                                    aws_phone_number_id, request_id)
                 return
+            display_id = customer_uuid.display_code(row)
+            reply = (f'Your WECARE.DIGITAL Customer ID is {display_id}.' if display_id else
+                     'This WhatsApp number does not have a WECARE.DIGITAL Customer ID yet. '
+                     'Reply here and our team will help.')
+            _send_ai_auto_reply(contact_id, reply, aws_phone_number_id, request_id)
+            return
 
-        # Load flow triggers from SystemConfigTable (dashboard-configurable)
+        # Load flow triggers from SystemConfigTable (dashboard-configurable). Matching is EXACT:
+        # the whole message, trimmed and lowercased, must equal one configured keyword.
         flow_triggers = _get_flow_triggers_config()
         for flow_key, trigger in flow_triggers.items():
+            if content_lower not in flow_launch.normalize_keywords(trigger.get('keywords', [])):
+                continue
+            if flow_key == 'subscribe':
+                # F001 owns its whole launch policy; False means "not launched, keep looking".
+                if _launch_subscribe_flow(contact_id, aws_phone_number_id, sender_phone,
+                                          request_id, trigger):
+                    return  # Skip AI automation  -  flow handles the rest
+                continue
             if not trigger.get('enabled', True):
                 continue
             # Paid/post-payment/event-only flows are never allowed to become keyword doors.
             if trigger.get('entryMode', 'keyword_interactive') != 'keyword_interactive':
                 continue
-            # F001 stays manageable while DRAFT but cannot be customer-launched until published.
-            if flow_key == 'subscribe' and canonical_flow_status('subscribe') != 'PUBLISHED':
+            flow_id = trigger.get('flowId', '')
+            if not flow_id:
                 continue
-            keywords = [k.lower() for k in trigger.get('keywords', [])]
-            if content_lower in keywords:
-                flow_id = trigger.get('flowId', '')
-                if not flow_id:
-                    continue
-                # Keyword-native flows use the native WhatsApp Flow interactive sender.
-                _send_generic_flow(
-                    contact_id=contact_id,
-                    phone_number_id=aws_phone_number_id,
-                    sender_phone=sender_phone,
-                    request_id=request_id,
-                    flow_config=trigger,
-                    flow_key=flow_key,
-                )
-                return  # Skip AI automation  -  flow handles the rest
+            # The trigger is Workspace-editable, so FlowRegistry decides whether this Flow may
+            # open from a keyword at all. An unreadable registry refuses rather than guesses.
+            try:
+                registry_row = flow_launch.read_registry_row(
+                    dynamodb.Table(flow_launch.registry_table_name()), flow_id)
+                refusal = flow_launch.generic_keyword_refusal(flow_key, flow_id, registry_row)
+            except Exception as e:  # noqa: BLE001
+                refusal = f'registry_unreadable:{type(e).__name__}'
+            if refusal:
+                logger.warning(json.dumps({'event': 'keyword_flow_refused', 'flowKey': flow_key,
+                                           'reason': refusal, 'requestId': request_id}))
+                continue
+            # Keyword-native flows use the native WhatsApp Flow interactive sender.
+            _send_generic_flow(
+                contact_id=contact_id,
+                phone_number_id=aws_phone_number_id,
+                sender_phone=sender_phone,
+                request_id=request_id,
+                flow_config=trigger,
+                flow_key=flow_key,
+            )
+            return  # Skip AI automation  -  flow handles the rest
 
         # ── `review <REF>` — the attributed half of the website review door (Phase R) ──
         #
@@ -5478,70 +5468,79 @@ def _send_submit_request_flow(contact_id: str, phone_number_id: str, sender_phon
         }))
 
 
-def _send_subscribe_flow(contact_id: str, phone_number_id: str, sender_phone: str, request_id: str, flow_config: Dict = None) -> None:
+F001_CONTRACT = canonical_contract('subscribe')
+F001_SESSION_UNAVAILABLE_REPLY = ('We could not open Subscribe right now. Please try again in a '
+                                  'few minutes. - WECARE.DIGITAL')
+
+
+def _launch_subscribe_flow(contact_id: str, phone_number_id: str, sender_phone: str,
+                           request_id: str, trigger: Dict) -> bool:
+    """F001 Subscribe keyword door. True when the keyword was handled; False to keep looking.
+
+    Order is the policy: every launch control must agree (`flow_launch`), the thread must be
+    ours to answer, a server-issued session is recorded BEFORE the Flow message is sent (the
+    data-exchange endpoint answers 427 to any token without one), and the opening copy is the
+    Workspace-managed New / Returning customer message. A refusal is counted with its reason
+    and falls through exactly as a disabled trigger always has.
     """
-    Send the Subscribe WhatsApp Flow to the user.
-    Collects the F001 customer profile and structured address.
-    On completion, updates the canonical contact and records the Flow submission.
-    """
+    flow_code = F001_CONTRACT['flowCode']
+    funnel_table = dynamodb.Table(flow_funnel.table_name())
+
+    def count(stage: str, **fields: Any) -> None:
+        flow_funnel.record(funnel_table, flow_code, stage, logger=logger, requestId=request_id,
+                           launchChannel=flow_sessions.LAUNCH_KEYWORD,
+                           contactId=mask_contact_id(contact_id), **fields)
+
+    count('launch_attempted')
     try:
-        flow_id = (flow_config or {}).get('flowId', '')
-        if not flow_id:
-            logger.warning(json.dumps({
-                'event': 'subscribe_flow_no_id',
-                'contactId': mask_contact_id(contact_id),
-                'requestId': request_id,
-            }))
-            return
-        msg = (flow_config or {}).get('message', {})
-
-        _waba_suffix = '1' if phone_number_id == PHONE_NUMBER_ID_1 else '2'
-        flow_token = f'subscribe-{uuid.uuid4()}-waba-{_waba_suffix}-ph-{sender_phone}'
-        interactive_data = {
-            'body': msg.get('body', 'Save your details for faster service on WECARE.DIGITAL.'),
-            'footer': msg.get('footer', 'WECARE.DIGITAL'),
-            'flowId': flow_id,
-            'flowCta': msg.get('flowCta', 'Subscribe'),
-            'flowAction': 'data_exchange',
-            'flowToken': flow_token,
-        }
-        header_val = msg.get('header', '')
-        if header_val:
-            interactive_data['header'] = header_val
-
-        payload = {
-            'body': json.dumps({
-                'contactId': contact_id,
-                'phoneNumberId': phone_number_id,
-                'isInteractive': True,
-                'interactiveType': 'flow',
-                'interactiveData': interactive_data,
-            })
-        }
-
-        response = lambda_client.invoke(
-            FunctionName=OUTBOUND_WHATSAPP_FUNCTION,
-            InvocationType='Event',
-            Payload=json.dumps(payload)
-        )
-
-        logger.info(json.dumps({
-            'event': 'subscribe_flow_sent',
-            'contactId': mask_contact_id(contact_id),
-            'senderPhone': mask_phone(sender_phone),
-            'flowId': flow_id,
-            'flowToken': mask_flow_token(flow_token),
-            'statusCode': response.get('StatusCode'),
-            'requestId': request_id
-        }))
-
-    except Exception as e:
-        logger.error(json.dumps({
-            'event': 'subscribe_flow_error',
-            'contactId': mask_contact_id(contact_id),
-            'error': str(e),
-            'requestId': request_id
-        }))
+        registry_row = flow_launch.read_registry_row(
+            dynamodb.Table(flow_launch.registry_table_name()), canonical_flow_id('subscribe'))
+    except Exception:  # noqa: BLE001 - an unreadable registry is a refusal, never a launch
+        count('launch_blocked', reason='registry_unreadable')
+        return False
+    decision = flow_launch.keyword_launch_decision(capability='subscribe',
+                                                   registry_row=registry_row, trigger=trigger)
+    if not decision.allowed:
+        count('launch_blocked', reason=decision.reason)
+        return False
+    if not _may_send('subscribe_flow'):
+        count('launch_blocked', reason='not_thread_owner')
+        return True
+    try:
+        row = contact_store.lookup(dynamodb.Table(CONTACTS_TABLE), sender_phone,
+                                   contact_id=contact_id) or {}
+    except Exception:  # noqa: BLE001 - only chooses New vs Returning copy; identity is the session
+        row = {}
+    copy = subscribe_messages.copy_for(subscribe_messages.is_returning(row),
+                                       dynamodb.Table(SYSTEM_CONFIG_TABLE))
+    flow_config = {**trigger, 'flowId': canonical_flow_id('subscribe'),
+                   'message': {'body': copy['body'], 'footer': subscribe_messages.FOOTER,
+                               'flowCta': copy['flowCta']}}
+    if phone_number_id == PHONE_NUMBER_ID_2:
+        # F001 exists on WABA 1 only; a WABA 2 customer receives the website link instead.
+        _send_generic_flow(contact_id=contact_id, phone_number_id=phone_number_id,
+                           sender_phone=sender_phone, request_id=request_id,
+                           flow_config={**flow_config, 'flowId2': ''}, flow_key='subscribe')
+        count('launch_redirected')
+        return True
+    try:
+        flow_token = flow_sessions.mint_token(F001_CONTRACT['tokenPrefix'], sender_phone, '1')
+        flow_sessions.record_session(
+            dynamodb.Table(flow_sessions.table_name()), capability='subscribe',
+            token=flow_token, launch_channel=flow_sessions.LAUNCH_KEYWORD,
+            initiated_by='customer_keyword')
+    except (flow_sessions.FlowSessionUnavailable, ValueError) as e:
+        count('launch_failed', reason=f'session_{type(e).__name__}')
+        _send_ai_auto_reply(contact_id, F001_SESSION_UNAVAILABLE_REPLY, phone_number_id, request_id)
+        return True
+    sent = _send_generic_flow(contact_id=contact_id, phone_number_id=phone_number_id,
+                              sender_phone=sender_phone, request_id=request_id,
+                              flow_config=flow_config, flow_key='subscribe', flow_token=flow_token)
+    if sent:
+        count('launch_sent')
+    else:
+        count('launch_failed', reason='outbound_invoke')
+    return True
 
 
 # ── Attributed review door (Phase R) ──
@@ -5661,13 +5660,17 @@ def _park_review_reference(sender_phone: str, reference: str, request_id: str) -
 
 
 def _send_generic_flow(contact_id: str, phone_number_id: str, sender_phone: str,
-                       request_id: str, flow_config: Dict = None, flow_key: str = '') -> None:
+                       request_id: str, flow_config: Dict = None, flow_key: str = '',
+                       flow_token: str = '') -> bool:
     """
     Generic flow sender  -  works for all flow types.
     
     Phone 1 (WABA 1): Sends WhatsApp Flow interactive message (flows exist on WABA 1).
     Phone 2 (WABA 2): Sends CTA URL button with short link → wa.me message link on Phone 1.
     Flows are WABA-specific  -  they only exist on the WABA where they were created.
+
+    `flow_token` is a server-issued session token (F001); without one a token is minted
+    here as before. Returns whether the message was handed to the outbound sender.
     """
     try:
         flow_id = (flow_config or {}).get('flowId', '')
@@ -5678,7 +5681,7 @@ def _send_generic_flow(contact_id: str, phone_number_id: str, sender_phone: str,
                 'contactId': mask_contact_id(contact_id),
                 'requestId': request_id,
             }))
-            return
+            return False
         msg = (flow_config or {}).get('message', {})
 
         # ── Phone 2: check if WABA 2 has its own flow, otherwise CTA fallback ──
@@ -5736,11 +5739,11 @@ def _send_generic_flow(contact_id: str, phone_number_id: str, sender_phone: str,
                     'flowKey': flow_key, 'contactId': mask_contact_id(contact_id), 'shortUrl': short_url,
                     'phoneNumberId': phone_number_id, 'requestId': request_id,
                 }))
-                return
+                return True
 
         # ── Phone 1: send WhatsApp Flow interactive message ──
         _waba_suffix = '1' if phone_number_id == PHONE_NUMBER_ID_1 else '2'
-        flow_token = f'{flow_key[:10]}-{uuid.uuid4()}-waba-{_waba_suffix}-ph-{sender_phone}'
+        flow_token = flow_token or f'{flow_key[:10]}-{uuid.uuid4()}-waba-{_waba_suffix}-ph-{sender_phone}'
 
         # Flows whose FIRST screen is STATIC (needs no endpoint data at open) must
         # open with NAVIGATE, not data_exchange. NAVIGATE renders the first screen
@@ -5797,15 +5800,18 @@ def _send_generic_flow(contact_id: str, phone_number_id: str, sender_phone: str,
             'statusCode': response.get('StatusCode'),
             'requestId': request_id
         }))
+        # An Event invoke answers 202 once the outbound sender has accepted the payload.
+        return response.get('StatusCode') in (200, 202)
 
     except Exception as e:
         logger.error(json.dumps({
             'event': 'generic_flow_error',
             'flowKey': flow_key,
             'contactId': mask_contact_id(contact_id),
-            'error': str(e),
+            'errorType': type(e).__name__,
             'requestId': request_id
         }))
+        return False
 
 
 def _send_wd_list(list_key: str, contact_id: str, sender_phone: str,
@@ -7414,17 +7420,15 @@ DEFAULT_FLOW_TRIGGERS = {
         'enabled': True,
     },
     'subscribe': {
-        'keywords': ['subscribe', 'signup', 'sign up', 'register', 'join', '/subscribe'],
-        # F001 is a customer-initiated native Flow inside the 24-hour customer-service window.
-        # It stays disabled while the canonical Flow is DRAFT; publish-time activation flips
-        # canonical status + SystemConfig together.
+        # F001 Subscribe: a customer-initiated native Flow inside the customer-service window.
+        # A keyword opens it only when every control in lambda_utils.flow_launch agrees -
+        # canonical record, FlowRegistry row, Meta status and this runtime switch - so the
+        # switch defaults OFF and Workspace (Auto response -> Subscribe) turns it on. The Flow
+        # id always comes from the canonical registry and the opening copy from
+        # `subscribe_messages_config`, so no message is configured here.
+        'keywords': list(canonical_contract('subscribe')['defaultKeywords']),
         'flowId': canonical_flow_id('subscribe'),
         'entryMode': 'keyword_interactive',
-        'message': {
-            'body': 'Save your details for faster service on WECARE.DIGITAL.',
-            'footer': 'WECARE.DIGITAL',
-            'flowCta': 'Subscribe',
-        },
         'enabled': False,
     },
     'order_notes': {

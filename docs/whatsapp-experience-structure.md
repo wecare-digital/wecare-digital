@@ -303,7 +303,7 @@ reads them at runtime). Server handlers are `flows/*.py`, dispatched by `flows/r
 | `drop_docs` | `1211063631104445` | — | drop-docs-flow-v1 | DOC_FORM → REVIEW → CONFIRM | `WD_DOCS` | free |
 | `enterprise_assist` | `1707170524029465` | — | enterprise-assist-flow-v1 | INTAKE_FORM → CONFIRM | `WD_ENT` | free |
 | `leave_review` | `1578178897413815` | — | leave-review-flow-v2 | FEEDBACK → REVIEW | `WD_IDEA` | free |
-| `subscribe` | `1262971692700761` | `951987930811295` | **profile-flow** | PERSONAL_INFO → SHIPPING_ADDRESS → REVIEW → COMPLETE | `WD_SUBSCRIBE` | free |
+| `subscribe` (F001) | `2413873616105042` | — (WABA 1 only) | design-drafts/subscribe | PROFILE → ADDRESS → REVIEW → COMPLETE | `WD-F001-SUBSCRIBE-PROFILE` (earlier rows `WD_SUBSCRIBE`) | free; see `docs/operations/f001-subscribe.md` |
 | `order_notes` | `1434731571172691` | — | order-notes-flow-v1 | ORDER_SELECT → NOTES_FORM → CONFIRM | `WD_NOTE` | free |
 | *(post-pay)* | env `POST_PAYMENT_FLOW_WABA1/2` | | postpay-request-flow-v2 | SUMMARY → ADDRESS → DETAILS → SUCCESS | `03.WD_POSTPAY_REQUEST` | after payment |
 | *(post-pay v1)* | — | | postpay-flow-v1 | DETAILS only | `02.WD_POSTPAY` | after payment |

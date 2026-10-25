@@ -5,6 +5,8 @@ import Spinner from '../../../components/ui/Spinner';
 import Select, { type SelectOption } from '../../../components/ui/Select';
 import { StatusBadge, MaskedPhone } from '../../../components/wa';
 import MaybeLayout from '../../../components/MaybeLayout';
+import FlowFunnel from './flow-funnel';
+import { CANONICAL_CONTRACTS, contractForFlowId } from '../../../lib/canonicalFlows';
 
 interface FlowHubProps {
   signOut?: () => void;
@@ -38,6 +40,11 @@ const PAYMENT_STATUS_FILTER_OPTIONS: SelectOption[] = [
 ];
 /** Layout only: the filter rows are flex, and the trigger shows the SELECTED label. */
 const FILTER_SELECT_STYLE: React.CSSProperties = { flex: '0 1 220px', minWidth: 0 };
+/** Defaults for a NEW registry row; editing an existing row starts from the stored row. */
+const NEW_REGISTRY_ROW: Partial<api.FlowRegistryItem> = {
+  flowType: 'form_submit', status: 'DRAFT', flowVersion: '7.3', dataApiVersion: '4.0',
+  entryMode: 'none', requiresPayment: false, paymentAmount: 0, submissionPrefix: 'WD',
+};
 
 function FlowHubPageBody ( { embedded }: FlowHubProps ) {
   const toast = useToastContext();
@@ -79,17 +86,29 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
 
   /* Derived from the FETCHED registry, so memoised on it rather than rebuilt inline. Shared by
      the submissions filter and the stats filter, which listed the same flows. */
-  const flowFilterOptions: SelectOption[] = useMemo( () => [
-    { value: '', label: 'All Flows' },
-    ...registry.map( f => ( { value: f.flowCode, label: `${ f.flowCode } — ${ f.flowName }` } ) ),
-  ], [ registry ] );
+  const flowFilterOptions: SelectOption[] = useMemo( () => {
+    const options: SelectOption[] = [ { value: '', label: 'All Flows' } ];
+    const seen = new Set<string>();
+    for ( const f of registry )
+    {
+      if ( !f.flowCode || seen.has( f.flowCode ) ) continue;
+      seen.add( f.flowCode );
+      options.push( { value: f.flowCode, label: `${ f.flowCode } — ${ f.flowName }` } );
+    }
+    // Rows written before a Flow's canonical code stay filterable under their old code.
+    for ( const contract of Object.values( CANONICAL_CONTRACTS ) )
+      for ( const legacy of contract.legacyFlowCodes )
+        if ( !seen.has( legacy ) )
+        {
+          seen.add( legacy );
+          options.push( { value: legacy, label: `${ legacy } — ${ contract.flowNumber } ${ contract.label } (earlier rows)` } );
+        }
+    return options;
+  }, [ registry ] );
 
   // Register flow form
   const [ showRegForm, setShowRegForm ] = useState( false );
-  const [ regForm, setRegForm ] = useState<Partial<api.FlowRegistryItem>>( {
-    flowType: 'form_submit', status: 'DRAFT', flowVersion: '7.3', dataApiVersion: '4.0',
-    entryMode: 'none', requiresPayment: false, paymentAmount: 0, submissionPrefix: 'WD',
-  } );
+  const [ regForm, setRegForm ] = useState<Partial<api.FlowRegistryItem>>( { ...NEW_REGISTRY_ROW } );
 
   const loadRegistry = async () => {
     setRegistryLoading( true );
@@ -155,12 +174,21 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
     finally { setExporting( false ); }
   };
 
+  /** Load an existing row into the form. The server merges the save into the stored row. */
+  const editFlow = ( f: api.FlowRegistryItem ) => {
+    setRegForm( { ...f } );
+    setShowRegForm( true );
+  };
+
   const handleRegisterFlow = async () => {
     if ( !regForm.flowId || !regForm.flowCode || !regForm.flowName )
     {
       toast.error( 'Flow ID, Code, and Name are required' ); return;
     }
-    if ( regForm.entryMode === 'payment_template' && !regForm.entryTemplateName?.trim() )
+    // Mirrors of the server rules (lambda_utils.flow_launch), for an immediate explanation.
+    // The server re-checks the merged row and is the authority.
+    const template = regForm.entryMode === 'payment_template' ? ( regForm.entryTemplateName || '' ).trim() : '';
+    if ( regForm.entryMode === 'payment_template' && !template )
     {
       toast.error( 'Payment-template Flows require an approved Meta template name.' ); return;
     }
@@ -172,9 +200,17 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
     {
       toast.error( 'Keyword-native Flows cannot be payment-gated. Use Payment → approved template or Internal event.' ); return;
     }
-    const ok = await api.upsertFlowRegistry( regForm );
-    if ( ok ) { toast.success( 'Flow registered' ); setShowRegForm( false ); loadRegistry(); }
-    else toast.error( 'Failed to register flow' );
+    const contract = contractForFlowId( regForm.flowId );
+    if ( contract && ( regForm.entryMode !== contract[ 1 ].entryMode || regForm.flowCode !== contract[ 1 ].flowCode
+      || !!regForm.requiresPayment !== contract[ 1 ].requiresPayment ) )
+    {
+      toast.error( `${ contract[ 1 ].flowNumber } ${ contract[ 1 ].label } uses code ${ contract[ 1 ].flowCode }, entry ${ contract[ 1 ].entryMode } and no payment. Manage it from Auto response → Subscribe.` );
+      return;
+    }
+    // Only the payment-template mode carries a template; a hidden leftover value is dropped.
+    const result = await api.upsertFlowRegistry( { ...regForm, entryTemplateName: template } );
+    if ( result.ok ) { toast.success( 'Flow registry saved' ); setShowRegForm( false ); loadRegistry(); }
+    else toast.error( result.failure.kind === 'forbidden' ? 'Changing FlowRegistry requires the Admin role.' : result.failure.message );
   };
 
   const formatPaise = ( p: number ) => `₹${( p / 100 ).toFixed( 0 )}`;
@@ -216,7 +252,10 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
                 style={ { padding: '0.4rem 0.8rem', fontSize: '0.8rem', border: '1px solid #d1d5db', borderRadius: '0.375rem', cursor: 'pointer', background: '#fff' } }>
                 { registryLoading ? 'Loading...' : 'Refresh' }
               </button>
-              <button onClick={ () => setShowRegForm( !showRegForm ) }
+              <button onClick={ () => {
+                if ( !showRegForm ) setRegForm( { ...NEW_REGISTRY_ROW } );
+                setShowRegForm( !showRegForm );
+              } }
                 style={ { padding: '0.4rem 0.8rem', fontSize: '0.8rem', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', background: '#0f2a1d', color: '#fff' } }>
                 + Register Flow
               </button>
@@ -278,16 +317,6 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
                     style={ { width: '100%', padding: '0.4rem', border: '1px solid #d1d5db', borderRadius: '0.25rem' } } />
                 </div>
                 <div>
-                  <label style={ { display: 'block', marginBottom: '0.25rem', fontWeight: 500 } }>Preferred Gateway</label>
-                  <input value={ ( regForm as any ).preferredGateway || '' } onChange={ e => setRegForm( { ...regForm, preferredGateway: e.target.value } as any ) }
-                    placeholder="razorpay" style={ { width: '100%', padding: '0.4rem', border: '1px solid #d1d5db', borderRadius: '0.25rem' } } />
-                </div>
-                <div>
-                  <label style={ { display: 'block', marginBottom: '0.25rem', fontWeight: 500 } }>Payment Config Name</label>
-                  <input value={ ( regForm as any ).paymentConfigName || '' } onChange={ e => setRegForm( { ...regForm, paymentConfigName: e.target.value } as any ) }
-                    placeholder="WECAREDIGITAL" style={ { width: '100%', padding: '0.4rem', border: '1px solid #d1d5db', borderRadius: '0.25rem' } } />
-                </div>
-                <div>
                   <label style={ { display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '1.2rem' } }>
                     <input type="checkbox" checked={ regForm.requiresPayment || false }
                       onChange={ e => setRegForm( { ...regForm, requiresPayment: e.target.checked } ) } />
@@ -327,10 +356,13 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
                     <th style={ { padding: '8px 12px', textAlign: 'left' } }>Name</th>
                     <th style={ { padding: '8px 12px', textAlign: 'left' } }>Type</th>
                     <th style={ { padding: '8px 12px', textAlign: 'left' } }>Version</th>
-                    <th style={ { padding: '8px 12px', textAlign: 'left' } }>Status</th>
+                    <th style={ { padding: '8px 12px', textAlign: 'left' } }>Registry</th>
+                    <th style={ { padding: '8px 12px', textAlign: 'left' } }>Meta</th>
                     <th style={ { padding: '8px 12px', textAlign: 'left' } }>Entry</th>
                     <th style={ { padding: '8px 12px', textAlign: 'left' } }>Payment</th>
                     <th style={ { padding: '8px 12px', textAlign: 'left' } }>Flow ID</th>
+                    <th style={ { padding: '8px 12px', textAlign: 'left' } }>Last change</th>
+                    <th style={ { padding: '8px 12px', textAlign: 'left' } }>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -348,6 +380,9 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
                         <StatusBadge status={ f.status } />
                       </td>
                       <td style={ { padding: '8px 12px' } }>
+                        { f.metaStatus ? <StatusBadge status={ f.metaStatus } /> : <span style={ { color: 'var(--text-muted)' } }>Not synced</span> }
+                      </td>
+                      <td style={ { padding: '8px 12px' } }>
                         <div style={ { fontWeight: 600 } }>{ f.entryMode || 'none' }</div>
                         { f.entryTemplateName && <div style={ { color: 'var(--text-muted)', fontSize: '0.7rem' } }>{ f.entryTemplateName }</div> }
                       </td>
@@ -355,6 +390,15 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
                         { f.requiresPayment ? formatPaise( f.paymentAmount || 0 ) : '—' }
                       </td>
                       <td style={ { padding: '8px 12px', fontFamily: 'monospace', fontSize: '0.7rem', color: 'var(--text-muted)' } }>{ f.flowId }</td>
+                      <td style={ { padding: '8px 12px', fontSize: '0.7rem', color: 'var(--text-muted)' } }>
+                        { f.updatedAt ? formatDate( f.updatedAt ) : '—' }{ f.updatedBy ? ` · ${ f.updatedBy }` : '' }
+                      </td>
+                      <td style={ { padding: '8px 12px' } }>
+                        <button type="button" onClick={ () => editFlow( f ) } aria-label={ `Edit ${ f.flowCode || f.flowId }` }
+                          style={ { padding: '0.3rem 0.7rem', fontSize: '0.75rem', border: '1px solid #d1d5db', borderRadius: '0.375rem', cursor: 'pointer', background: '#fff' } }>
+                          Edit
+                        </button>
+                      </td>
                     </tr>
                   ) ) }
                 </tbody>
@@ -569,6 +613,9 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
               <p>Pending revenue: { formatPaise( stats.pendingAmount ) }</p>
             </div>
           ) }
+          { statsFlowFilter
+            ? <div style={ { marginTop: '1rem' } }><FlowFunnel flowCode={ statsFlowFilter } days={ 7 } showDays /></div>
+            : <p style={ { fontSize: '0.8rem', color: 'var(--text-muted)' } }>Choose a Flow to see its launch-to-COMPLETE funnel (recorded for Flows that report funnel stages, starting with F001).</p> }
         </div>
       ) }
 

@@ -46,7 +46,10 @@ class IdentityConflict(RuntimeError):
         ids = tuple(sorted({str(value).strip() for value in contact_ids if str(value).strip()}))
         self.identity = identity
         self.contact_ids = ids
-        super().__init__(f'identity conflict for {identity}: {len(ids)} live contacts')
+        # The message names the identity KIND only: it reaches logs, and the identity itself
+        # is a phone number or BSUID. `self.identity` keeps the full value for callers.
+        kind = str(identity or '').split(':', 1)[0] or 'identity'
+        super().__init__(f'identity conflict for {kind}: {len(ids)} live contacts')
 
 
 _MIN_DIGITS = 7

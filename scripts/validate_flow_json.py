@@ -165,7 +165,9 @@ def validate_flow(doc: Dict[str, Any]) -> List[str]:
 
 
 def flow_files(directory: Path = FLOWS_DIR) -> Iterable[Path]:
-    return sorted(directory.glob("*.json"))
+    # design-drafts/ holds live definitions too (F001 Subscribe is design-drafts/subscribe.json),
+    # so it is validated alongside the top-level Flow files.
+    return sorted(directory.glob("*.json")) + sorted((directory / "design-drafts").glob("*.json"))
 
 
 def main() -> int:
@@ -176,19 +178,20 @@ def main() -> int:
 
     failures = 0
     for path in files:
+        label = path.relative_to(FLOWS_DIR).as_posix() if path.is_relative_to(FLOWS_DIR) else path.name
         try:
             doc = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
-            print(f"{path.name}: unreadable: {type(exc).__name__}: {exc}")
+            print(f"{label}: unreadable: {type(exc).__name__}: {exc}")
             failures += 1
             continue
         problems = validate_flow(doc)
         if problems:
             failures += 1
             for problem in problems:
-                print(f"{path.name}: {problem}")
+                print(f"{label}: {problem}")
         else:
-            print(f"{path.name}: OK")
+            print(f"{label}: OK")
 
     print(f"\n{len(files) - failures}/{len(files)} flow JSON files valid "
           f"(LOCAL structural check, not Meta's Flow JSON API)")

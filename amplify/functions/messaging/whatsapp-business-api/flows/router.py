@@ -6,7 +6,7 @@ import json
 import logging
 from typing import Dict, Callable
 
-from flows import subscribe, submit_request, track_request, amend_request, appointment, sehat_appointment, drop_docs, enterprise_assist, leave_review, order_notes, generic, postpay
+from flows import subscribe_profile, submit_request, track_request, amend_request, appointment, sehat_appointment, drop_docs, enterprise_assist, leave_review, order_notes, generic, postpay
 from flows.common import get_phone_from_token, log_flow_event
 from flows.orders import fetch_orders_for_flow as _orders_fetch
 
@@ -81,16 +81,12 @@ def route_flow(action: str, screen: str, data: Dict, flow_token: str,
         # Any other data_exchange (e.g. THANK_YOU footer) completes the flow
         return _terminal_response(flow_token)
 
-    # ── SUBSCRIBE FLOW ──
+    # ── F001 SUBSCRIBE (WD-F001-SUBSCRIBE-PROFILE) ──
+    # One handler owns every subscribe-token request, including Meta error notifications.
+    # It verifies the server-issued session first and never answers with a terminal
+    # SUCCESS screen, so no request can finish the Flow without a confirmed save.
     if flow_token and flow_token.startswith('subscribe'):
-        if action == 'INIT':
-            return subscribe.handle_init(data, flow_token, request_id)
-        if screen == 'REVIEW':
-            return subscribe.handle_review(data, flow_token, request_id)
-        if screen in ('THANK_YOU', 'SUCCESS', 'COMPLETE'):
-            return _terminal_response(flow_token)
-        # Pass-through for intermediate screens
-        return {'data': data}
+        return subscribe_profile.route(action, screen, data, flow_token, request_id)
 
     # ── SUBMIT REQUEST FLOW ──
     if flow_key in ('sr', 'submit_re') or flow_key.startswith('sr'):

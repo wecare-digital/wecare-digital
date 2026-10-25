@@ -90,6 +90,10 @@ from lambda_utils.meta_version import META_API_VERSION  # one source; validated 
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
 from lambda_utils import shared_tables  # one name per shared store (contacts, orders, flows)
 from lambda_utils import flow_completion as flow_responses  # channel vocabulary, legacy rows
+from lambda_utils import flow_launch  # one entry-policy validator for registry writes and launches
+from lambda_utils import flow_sessions  # server-issued Flow tokens; unknown tokens answer 427
+from lambda_utils import flow_funnel  # per-day Flow funnel counters (no customer data)
+from lambda_utils.privacy import redact_string  # exception text can carry a phone number
 META_TOKEN_SECRET = os.environ.get('META_TOKEN_SECRET', 'wecare/meta-system-user-token')
 GRAPH_BASE = f'https://graph.facebook.com/{META_API_VERSION}'
 
@@ -2362,18 +2366,119 @@ def _send_request_contact_info(body: Dict) -> Dict:
     return _send_message(phone_id, {'type': 'interactive', 'interactive': interactive}, body)
 
 
-def _send_flow_msg(body: Dict) -> Dict:
+def _send_contract_flow(capability: str, record: Dict, body: Dict, mode: str,
+                        auth: Optional[Dict]) -> Dict:
+    """Manual staff send of a Flow with a canonical launch contract (today: F001 Subscribe).
+
+    The controlled QA / support door: Operator or Admin only, every publication control must
+    agree (`flow_launch.manual_launch_decision`), the server mints the session token and
+    records who sent it BEFORE delivery, the Flow always opens with data_exchange so INIT
+    prefills from ContactsTable, and the copy is the Workspace-managed copy, so what QA sees
+    is what customers see. The keyword switch is deliberately not required: this is how a
+    Flow is tested before keyword launch is enabled.
+    """
+    from flows import common as flow_common, subscribe_profile
+    from lambda_utils import canonical_flows, contact_store, subscribe_messages
+
+    contract = canonical_flows.canonical_contract(capability) or {}
+    flow_code = str(contract.get('flowCode') or '')
+    funnel_table = dynamodb.Table(flow_funnel.table_name())
+    actor = _actor(auth)
+    role = str((auth or {}).get('role') or '')
+
+    def count(stage: str, **fields: Any) -> None:
+        flow_funnel.record(funnel_table, flow_code, stage, logger=logger,
+                           launchChannel=flow_sessions.LAUNCH_STAFF,
+                           actor=_actor_ref(actor), role=role, **fields)
+
+    def refuse(status: int, reason: str, message: str) -> Dict:
+        count('launch_blocked', reason=reason)
+        return _resp(status, {'error': message, 'reason': reason})
+
+    count('launch_attempted')
+    if mode == 'draft':
+        return refuse(400, 'draft_mode', f"{contract.get('flowNumber')} sends always use the published Flow.")
+    if body.get('flowToken'):
+        return refuse(400, 'client_token', 'Flow tokens for this Flow are issued by the server.')
+    if not actor:
+        return refuse(403, 'no_actor', 'Authenticated staff identity required')
+    try:
+        registry_row = flow_launch.read_registry_row(dynamodb.Table(FLOW_REGISTRY_TABLE), record['flowId'])
+    except Exception as e:
+        logger.error(json.dumps({'event': 'flow_registry_read_failed', 'errorType': type(e).__name__}))
+        return refuse(503, 'registry_unreadable', flow_launch.explain('registry_unreadable'))
+    decision = flow_launch.manual_launch_decision(capability=capability,
+                                                  registry_row=registry_row, role=role)
+    if not decision.allowed:
+        status = 403 if decision.reason == 'role_insufficient' else 409
+        return refuse(status, decision.reason, flow_launch.explain(decision.reason))
+
+    # The session is bound to a phone, and the message is delivered to that same phone.
+    table = flow_common.dynamodb.Table(flow_common.CONTACTS_TABLE)
+    to = str(body.get('to') or '').strip()
+    bsuid = str(body.get('recipient') or '').strip()
+    try:
+        if to:
+            phone = contact_store.digits(to)
+            if not phone:
+                return refuse(400, 'bad_recipient', 'to must be a WhatsApp phone number')
+            contact_row = contact_store.lookup(table, phone) or {}
+        elif bsuid:
+            contact_row = contact_store.find_by_bsuid(table, bsuid) or {}
+            phone = contact_store.digits(contact_row.get('phone'))
+            if not phone:
+                return refuse(400, 'bad_recipient', 'That WhatsApp ID has no phone-backed customer profile')
+        else:
+            return refuse(400, 'bad_recipient', 'to (phone number) or recipient (BSUID) is required')
+    except contact_store.IdentityConflict:
+        return refuse(409, 'identity_conflict', 'More than one customer profile claims this '
+                                                'customer. Resolve it in Customers first.')
+
+    copy = subscribe_messages.copy_for(
+        subscribe_messages.is_returning(contact_row),
+        flow_common.dynamodb.Table(subscribe_messages.system_config_table_name()))
+    try:
+        token, session = subscribe_profile.launch_session_token(
+            phone, launch_channel=flow_sessions.LAUNCH_STAFF, initiated_by=actor)
+    except (flow_sessions.FlowSessionUnavailable, ValueError) as e:
+        count('launch_failed', reason=f'session_{type(e).__name__}')
+        return _resp(503, {'error': 'Could not start a Flow session; nothing was sent.'})
+    interactive: Dict[str, Any] = {
+        'type': 'flow',
+        'body': {'text': copy['body']},
+        'footer': {'text': subscribe_messages.FOOTER},
+        'action': {'name': 'flow', 'parameters': {
+            'flow_message_version': '3', 'flow_token': token, 'flow_id': record['flowId'],
+            'flow_cta': copy['flowCta'], 'flow_action': 'data_exchange',
+        }},
+    }
+    response = _send_message(PHONE1_META_ID, {'type': 'interactive', 'interactive': interactive},
+                             {'to': phone})
+    if response.get('statusCode') != 200:
+        count('launch_failed', reason='graph_error')
+        return response
+    count('launch_sent')
+    sent = json.loads(response.get('body') or '{}')
+    sent.update({'flowCode': flow_code, 'launchChannel': flow_sessions.LAUNCH_STAFF,
+                 'sessionExpiresAt': session.expires_at})
+    return _resp(200, sent)
+
+
+def _send_flow_msg(body: Dict, auth: Optional[Dict] = None) -> Dict:
     """Send a WhatsApp Flow through the canonical published-flow registry.
 
     Prefer `flowKey` for production sends. A caller may also provide a published canonical
     `flowId` or `flowName`; both resolve back to the same registry record. Draft mode may still
     send an explicit non-canonical id/name for workspace testing.
 
-    Canonical production sends receive a phone-backed token:
+    A Flow with a canonical launch contract (F001) goes through `_send_contract_flow`, which
+    adds staff authorization, server-issued sessions and launch-policy checks.
+
+    Other canonical production sends receive a phone-backed token:
       {routing-prefix}-{uuid}-waba-1-ph-{phone}
     so Flow responses resolve the same ContactsTable person used by Inbox and checkout.
     """
-    from flows import subscribe_messages, common as flow_common
+    from flows import common as flow_common
     from lambda_utils import canonical_flows, contact_store
 
     requested_key = str(body.get('flowKey') or '').strip()
@@ -2392,6 +2497,17 @@ def _send_flow_msg(body: Dict) -> Dict:
     elif requested_name:
         record = canonical_flows.published_flow_by_name(requested_name)
 
+    # A contract Flow is recognised by id even when its canonical record is not published,
+    # so a draft-mode send can never reach it through the generic path below.
+    contract_match = (canonical_flows.contract_for_flow_id(requested_id) if requested_id else None)
+    contract_capability = (str(record.get('capability')) if record else
+                           (contract_match[0] if contract_match else requested_key))
+    if canonical_flows.canonical_contract(contract_capability):
+        if not record:
+            return _resp(409, {'error': flow_launch.explain('canonical_not_published'),
+                               'reason': 'canonical_not_published'})
+        return _send_contract_flow(contract_capability, record, body, mode, auth)
+
     if mode != 'draft' and not record:
         return _resp(400, {'error': 'flow is not registered as published'})
 
@@ -2403,28 +2519,11 @@ def _send_flow_msg(body: Dict) -> Dict:
     contact_row: Dict[str, Any] = {}
     recipient = str(body.get('to') or body.get('recipient') or '').strip()
     direct_phone = contact_store.digits(recipient)
-    is_subscribe = capability == 'subscribe'
 
     if record:
-        needs_workspace_copy = is_subscribe and (
-            not body.get('bodyText') or not body.get('flowCta'))
-        needs_contact = needs_workspace_copy or (
-            not body.get('flowToken') and not direct_phone)
-        if needs_contact:
+        if not body.get('flowToken') and not direct_phone:
             table = flow_common.dynamodb.Table(flow_common.CONTACTS_TABLE)
-            if direct_phone:
-                contact_row = contact_store.lookup(table, recipient) or {}
-            else:
-                contact_row = contact_store.find_by_bsuid(table, recipient) or {}
-
-        if needs_workspace_copy:
-            selected = subscribe_messages.copy_for(
-                subscribe_messages.is_returning(contact_row))
-            body = {
-                **body,
-                'bodyText': body.get('bodyText') or selected['body'],
-                'flowCta': body.get('flowCta') or selected['flowCta'],
-            }
+            contact_row = contact_store.find_by_bsuid(table, recipient) or {}
 
         if not body.get('flowToken'):
             token_phone = direct_phone or contact_store.digits(contact_row.get('phone') or '')
@@ -2586,8 +2685,8 @@ def _send_product_msg(body: Dict) -> Dict:
     return _send_message(phone_id, {'type': 'interactive', 'interactive': interactive}, body)
 
 
-def _route_send_message(path: str, body: Dict) -> Dict:
-    """Dispatch /messages/send/{type}."""
+def _route_send_message(path: str, body: Dict, auth: Optional[Dict] = None) -> Dict:
+    """Dispatch /messages/send/{type}. `auth` is the caller's verified staff identity."""
     if path.rstrip('/').endswith('/text'):
         return _send_text(body)
     if path.rstrip('/').endswith('/template'):
@@ -2602,7 +2701,7 @@ def _route_send_message(path: str, body: Dict) -> Dict:
                            'detail': 'generic interactive sends were deleted on '
                                      '2026-10-02; use /text, /template, /media or /flow'})
     if path.rstrip('/').endswith('/flow'):
-        return _send_flow_msg(body)
+        return _send_flow_msg(body, auth)
     if path.rstrip('/').endswith('/contacts'):
         return _send_contacts_msg(body)
     if path.rstrip('/').endswith('/location'):
@@ -4411,86 +4510,193 @@ def _list_flow_registry(params: Dict) -> Dict:
         return _resp(500, {'error': str(e)})
 
 
-def _upsert_flow_registry(body: Dict) -> Dict:
-    """Create or update a flow registry entry."""
+#: Registry fields a Workspace write may set. Meta metadata (metaStatus, jsonVersion,
+#: validation and health) is owned by `_sync_flows`, and bookkeeping by this function, so
+#: a request body can never set either.
+_REGISTRY_EDITABLE = ('flowCode', 'flowName', 'flowType', 'flowVersion', 'dataApiVersion',
+                      'wabaId', 'status', 'category', 'entryMode', 'entryTemplateName',
+                      'requiresPayment', 'paymentAmount', 'paymentDescription', 'screenConfig',
+                      'contactMapping', 'dataFetchers', 'submissionPrefix', 'endpointUri',
+                      'abTestConfig')
+#: Defaults for a NEW row only. An update never re-applies them, which is what used to reset
+#: an existing row's status, entry mode and template on a partial save.
+_REGISTRY_DEFAULTS = {
+    'flowType': 'form_submit', 'flowVersion': '7.3', 'dataApiVersion': '4.0', 'status': 'DRAFT',
+    'entryMode': 'none', 'requiresPayment': False, 'paymentAmount': 0, 'screenConfig': '{}',
+    'contactMapping': '{}', 'dataFetchers': '{}', 'submissionPrefix': 'WD',
+    # canonical apex `/api` path.
+    'endpointUri': 'https://wecare.digital/api/wa-business/flow-data',
+}
+
+
+def _actor(auth: Optional[Dict]) -> str:
+    """The authenticated staff identity recorded on a write; '' when there is none."""
+    auth = auth or {}
+    return str(auth.get('username') or auth.get('email') or '').strip()[:200]
+
+
+def _actor_ref(actor: str) -> str:
+    """A log-safe reference to a staff identity: correlates log lines, reveals no email."""
+    return hashlib.sha256(actor.encode('utf-8')).hexdigest()[:12] if actor else ''
+
+
+def _upsert_flow_registry(body: Dict, auth: Optional[Dict] = None) -> Dict:
+    """Create or update one FlowRegistry row. Admin only (enforced at the route).
+
+    The row is validated AFTER merging the request into the stored row, so a partial update
+    cannot slip a contradiction past the entry-mode contract (`lambda_utils.flow_launch`), and
+    the write is conditional on the row it read, so two editors cannot silently overwrite
+    each other. `updatedBy` records who changed it.
+    """
+    actor = _actor(auth)
+    if not actor:
+        return _resp(403, {'error': 'Authenticated administrator identity required'})
+    flow_id = str(body.get('flowId') or '').strip()
+    if not flow_id:
+        return _resp(400, {'error': 'flowId required'})
     try:
-        flow_id = body.get('flowId', '')
-        if not flow_id:
-            return _resp(400, {'error': 'flowId required'})
-        
-        status = body.get('status', 'DRAFT')
-        valid_statuses = ('DRAFT', 'PUBLISHED', 'DEPRECATED')
-        if status not in valid_statuses:
-            return _resp(400, {'error': f'Invalid status: {status}. Must be one of {valid_statuses}'})
-        entry_mode = body.get('entryMode', 'none')
-        valid_entry_modes = ('keyword_interactive', 'payment_template', 'internal_event', 'manual', 'none')
-        if entry_mode not in valid_entry_modes:
-            return _resp(400, {'error': f'Invalid entryMode: {entry_mode}. Must be one of {valid_entry_modes}'})
-        entry_template = str(body.get('entryTemplateName', '') or '').strip()
-        requires_payment = bool(body.get('requiresPayment', False))
-        if entry_mode == 'payment_template' and not entry_template:
-            return _resp(400, {'error': 'entryTemplateName is required for payment_template entryMode'})
-        if entry_mode == 'payment_template' and not requires_payment:
-            return _resp(400, {'error': 'payment_template flows must set requiresPayment=true'})
-        if entry_mode == 'keyword_interactive' and entry_template:
-            return _resp(400, {'error': 'keyword_interactive flows must not declare an entryTemplateName'})
-        if entry_mode == 'keyword_interactive' and requires_payment:
-            return _resp(400, {'error': 'keyword_interactive flows must not be payment-gated; use payment_template or internal_event'})
-        
-        now = int(time.time())
         table = dynamodb.Table(FLOW_REGISTRY_TABLE)
-        item = {
-            'flowId': flow_id,
-            'flowCode': body.get('flowCode', ''),
-            'flowName': body.get('flowName', ''),
-            'flowType': body.get('flowType', 'form_submit'),
-            'flowVersion': body.get('flowVersion', '7.3'),
-            'dataApiVersion': body.get('dataApiVersion', '4.0'),
-            'wabaId': body.get('wabaId', ''),
-            'status': status,
-            'category': body.get('category', ''),
-            'entryMode': entry_mode,
-            'entryTemplateName': entry_template,
-            'requiresPayment': requires_payment,
-            'paymentAmount': int(body.get('paymentAmount', 0)),
-            'paymentDescription': body.get('paymentDescription', ''),
-            'screenConfig': body.get('screenConfig', '{}'),
-            'contactMapping': body.get('contactMapping', '{}'),
-            'dataFetchers': body.get('dataFetchers', '{}'),
-            'submissionPrefix': body.get('submissionPrefix', 'WD'),
-            # canonical apex `/api` path.
-            'endpointUri': body.get('endpointUri', 'https://wecare.digital/api/wa-business/flow-data'),
-            'createdAt': Decimal(str(body.get('createdAt', now))),
-            'updatedAt': Decimal(str(now)),
-        }
-        if body.get('publishedAt'):
-            item['publishedAt'] = Decimal(str(body['publishedAt']))
-        # Optional extended metadata (Part 4 A) — only persisted when provided.
-        for opt_key in ('abTestConfig', 'healthStatusJson', 'validationErrorsJson',
-                        'previewUrl', 'clonedFromFlowId', 'migrationBatchId', 'dataChannelUri',
-                        'jsonVersion', 'applicationId', 'categories'):
-            if body.get(opt_key):
-                item[opt_key] = body[opt_key]
-        for opt_ts in ('previewExpiresAt', 'lastSyncedAt', 'lastPublishedAt', 'lastDeprecatedAt'):
-            if body.get(opt_ts):
-                item[opt_ts] = Decimal(str(body[opt_ts]))
-        table.put_item(Item={k: v for k, v in item.items() if v is not None and v != ''})
-        # Invalidate cache
-        global _flow_registry_cache, _flow_registry_cache_ts
-        _flow_registry_cache = {}
-        _flow_registry_cache_ts = 0
-        
-        logger.info(json.dumps({
-            'event': 'flow_registry_upserted',
-            'flowId': flow_id,
-            'flowCode': body.get('flowCode', ''),
-            'status': status,
-            'requiresPayment': body.get('requiresPayment', False),
-        }))
-        return _resp(200, {'success': True, 'flowId': flow_id})
+        existing = table.get_item(Key={'flowId': flow_id}, ConsistentRead=True).get('Item') or {}
     except Exception as e:
-        logger.error(f'Upsert flow registry error: {e}')
-        return _resp(500, {'error': str(e)})
+        logger.error(json.dumps({'event': 'flow_registry_read_failed', 'errorType': type(e).__name__}))
+        return _resp(500, {'error': 'Could not read FlowRegistry; nothing was saved'})
+
+    merged: Dict[str, Any] = {} if existing else dict(_REGISTRY_DEFAULTS)
+    merged.update(existing)
+    for field in _REGISTRY_EDITABLE:
+        if field in body and body[field] is not None:
+            merged[field] = body[field]
+    merged['flowId'] = flow_id
+    merged['requiresPayment'] = flow_launch.parse_bool(merged.get('requiresPayment'))
+    merged['entryTemplateName'] = str(merged.get('entryTemplateName') or '').strip()
+    try:
+        amount = int(merged.get('paymentAmount') or 0)
+    except (TypeError, ValueError, ArithmeticError):
+        return _resp(400, {'error': 'paymentAmount must be a whole number of paise'})
+    if amount < 0:
+        return _resp(400, {'error': 'paymentAmount cannot be negative'})
+    merged['paymentAmount'] = amount
+    errors = flow_launch.registry_errors(merged)
+    if errors:
+        return _resp(400, {'error': errors[0], 'errors': errors})
+
+    now = int(time.time())
+    merged['createdAt'] = existing.get('createdAt') or Decimal(str(now))
+    merged['updatedAt'] = Decimal(str(now))
+    merged['updatedBy'] = actor
+    if merged.get('status') == 'PUBLISHED' and existing.get('status') != 'PUBLISHED':
+        merged['publishedAt'] = Decimal(str(now))
+    item = {k: v for k, v in merged.items() if v is not None and v != ''}
+    if existing:
+        if 'updatedAt' in existing:
+            condition = 'updatedAt = :previous'
+            values: Dict[str, Any] = {':previous': existing['updatedAt']}
+        else:
+            condition, values = 'attribute_not_exists(updatedAt)', {}
+    else:
+        condition, values = 'attribute_not_exists(flowId)', {}
+    try:
+        kwargs: Dict[str, Any] = {'Item': item, 'ConditionExpression': condition}
+        if values:
+            kwargs['ExpressionAttributeValues'] = values
+        table.put_item(**kwargs)
+    except Exception as e:
+        if 'ConditionalCheckFailed' in type(e).__name__ or 'ConditionalCheckFailed' in str(e):
+            return _resp(409, {'error': 'This Flow registry row changed while you were editing. '
+                                        'Reload it and try again.'})
+        logger.error(json.dumps({'event': 'flow_registry_write_failed', 'errorType': type(e).__name__}))
+        return _resp(500, {'error': 'Could not save FlowRegistry'})
+    global _flow_registry_cache, _flow_registry_cache_ts
+    _flow_registry_cache = {}
+    _flow_registry_cache_ts = 0
+    logger.info(json.dumps({
+        'event': 'flow_registry_upserted', 'flowId': flow_id,
+        'flowCode': item.get('flowCode', ''), 'status': item.get('status', ''),
+        'entryMode': item.get('entryMode', ''), 'requiresPayment': item['requiresPayment'],
+        'created': not existing, 'actorRef': _actor_ref(actor),
+    }))
+    return _resp(200, {'success': True, 'flowId': flow_id, 'flow': _plain_numbers(dict(item))})
+
+
+def _read_flow_triggers_config() -> Dict[str, Any]:
+    """The stored SystemConfig `flow_triggers_config` map. Read errors propagate."""
+    from lambda_utils import subscribe_messages
+    table = dynamodb.Table(subscribe_messages.system_config_table_name())
+    item = table.get_item(Key={'id': 'flow_triggers_config'}, ConsistentRead=True).get('Item') or {}
+    value = item.get('configValue') or {}
+    if isinstance(value, str):
+        value = json.loads(value)
+    return value if isinstance(value, dict) else {}
+
+
+def _flow_launch_status(params: Dict, auth: Optional[Dict] = None) -> Dict:
+    """GET /wa-business/flow-launch-status?capability=subscribe
+
+    One answer to "can customers open this Flow right now, and why not?", computed with the
+    same `lambda_utils.flow_launch` decisions the keyword dispatcher and the staff send use.
+    Read-only, and contains no customer data, so the Viewer floor applies.
+    """
+    from lambda_utils import canonical_flows
+    capability = str(params.get('capability') or '').strip()
+    contract = canonical_flows.canonical_contract(capability)
+    if not contract:
+        return _resp(404, {'error': 'No launch contract for that capability'})
+    flow_id = canonical_flows.canonical_flow_id(capability) or ''
+    registry_row, registry_error = None, ''
+    try:
+        registry_row = flow_launch.read_registry_row(dynamodb.Table(FLOW_REGISTRY_TABLE), flow_id)
+    except Exception as e:
+        registry_error = type(e).__name__
+    runtime_error = ''
+    try:
+        stored = _read_flow_triggers_config().get(capability)
+    except Exception as e:
+        stored, runtime_error = None, type(e).__name__
+    trigger = flow_launch.runtime_trigger(capability, stored)
+    if registry_error:
+        keyword = flow_launch.LaunchDecision(False, 'registry_unreadable')
+        manual = keyword
+    else:
+        keyword = flow_launch.keyword_launch_decision(capability=capability,
+                                                      registry_row=registry_row, trigger=trigger)
+        manual = flow_launch.manual_launch_decision(capability=capability, registry_row=registry_row,
+                                                    role=str((auth or {}).get('role') or ''))
+    if runtime_error and keyword.allowed:
+        keyword = flow_launch.LaunchDecision(False, 'runtime_disabled')
+    registry_view = _plain_numbers(dict(registry_row)) if registry_row else None
+    return _resp(200, {
+        'capability': capability,
+        'contract': contract,
+        'canonical': {'flowId': flow_id, 'status': canonical_flows.canonical_flow_status(capability),
+                      'metaName': (canonical_flows.published_flow(capability) or {}).get('metaName', '')},
+        'registry': registry_view,
+        'registryError': registry_error,
+        'registryProblems': flow_launch.registry_errors(registry_row) if registry_row else [],
+        'runtime': {**trigger, 'readError': runtime_error},
+        'keywordLaunch': {'allowed': keyword.allowed, 'reason': keyword.reason,
+                          'explanation': flow_launch.explain(keyword.reason)},
+        'manualLaunch': {'allowed': manual.allowed, 'reason': manual.reason,
+                         'explanation': flow_launch.explain(manual.reason),
+                         'minimumRole': flow_launch.MANUAL_SEND_MIN_ROLE},
+        'session': {'ttlSeconds': flow_sessions.SESSION_TTL_SECONDS},
+        'endpoint': (registry_row or {}).get('endpointUri') or _REGISTRY_DEFAULTS['endpointUri'],
+    })
+
+
+def _flow_funnel_view(params: Dict) -> Dict:
+    """GET /wa-business/flow-funnel?flowCode=...&days=7 — daily funnel counters, no PII."""
+    flow_code = str(params.get('flowCode') or '').strip()
+    try:
+        days = int(params.get('days') or 7)
+    except (TypeError, ValueError):
+        return _resp(400, {'error': 'days must be a whole number'})
+    try:
+        return _resp(200, flow_funnel.read(dynamodb.Table(FLOW_LOGS_TABLE), flow_code, days=days))
+    except ValueError:
+        return _resp(400, {'error': 'A valid flowCode is required'})
+    except Exception as e:
+        logger.error(json.dumps({'event': 'flow_funnel_read_failed', 'errorType': type(e).__name__}))
+        return _resp(500, {'error': 'Could not read the Flow funnel'})
 
 
 # ============================================================================
@@ -4620,6 +4826,7 @@ def _sync_flows(params: Dict, body: Dict) -> Dict:
     now = int(time.time())
     table = dynamodb.Table(FLOW_REGISTRY_TABLE)
     synced = 0
+    skipped = 0
     for f in flows:
         flow_id = f.get('id')
         if not flow_id:
@@ -4638,11 +4845,18 @@ def _sync_flows(params: Dict, body: Dict) -> Dict:
         if isinstance(health, dict) and str(health.get('can_send_message', 'AVAILABLE')).upper() == 'BLOCKED':
             _emit_event('flow_health_blocked', severity='error', waba_id=waba_id,
                         data={'flowId': flow_id, 'health': health})
-        update = {
+        # Meta's lifecycle state lands in `metaStatus`, NEVER in the registry `status`.
+        # Publishing a Flow in Meta and syncing must not activate it: registry status is a
+        # separate Workspace decision (lambda_utils.flow_launch checks both). Every other
+        # stored field is kept as it was.
+        update = dict(existing)
+        update.update({
             'flowId': flow_id,
-            'flowName': f.get('name', existing.get('flowName', '')),
-            'status': f.get('status', existing.get('status', 'DRAFT')),
-            'category': categories[0] if categories else existing.get('category', ''),
+            'flowName': existing.get('flowName') or f.get('name', ''),
+            'metaName': f.get('name', ''),
+            'metaStatus': str(f.get('status') or ''),
+            'status': existing.get('status') or 'DRAFT',
+            'category': existing.get('category') or (categories[0] if categories else ''),
             'categories': json.dumps(categories) if categories else existing.get('categories', '[]'),
             'wabaId': waba_id,
             'jsonVersion': str(f.get('json_version', existing.get('jsonVersion', ''))),
@@ -4651,24 +4865,53 @@ def _sync_flows(params: Dict, body: Dict) -> Dict:
             'healthStatusJson': json.dumps(health) if health else '{}',
             'lastSyncedAt': Decimal(str(now)),
             'updatedAt': Decimal(str(now)),
-        }
+        })
         if preview.get('preview_url'):
             update['previewUrl'] = preview['preview_url']
             update['previewExpiresAt'] = Decimal(str(now + 600))
-        # Preserve config-only fields already present.
-        for keep in ('flowCode', 'flowType', 'flowVersion', 'entryMode', 'entryTemplateName',
-                     'requiresPayment', 'paymentAmount', 'screenConfig', 'contactMapping',
-                     'dataFetchers', 'submissionPrefix', 'endpointUri', 'createdAt'):
-            if keep in existing and keep not in update:
-                update[keep] = existing[keep]
         update.setdefault('createdAt', Decimal(str(now)))
-        table.put_item(Item={k: v for k, v in update.items() if v is not None and v != ''})
+        if not existing:
+            # A first-seen canonical Flow starts from its launch contract (still DRAFT in
+            # the registry), so the row is never created in a contradictory state.
+            from lambda_utils import canonical_flows
+            match = canonical_flows.contract_for_flow_id(flow_id)
+            if match:
+                contract = match[1]
+                update.update({
+                    'flowCode': contract['flowCode'], 'flowType': contract['flowType'],
+                    'entryMode': contract['entryMode'],
+                    'entryTemplateName': contract['entryTemplateName'],
+                    'requiresPayment': contract['requiresPayment'],
+                    'submissionPrefix': contract['submissionPrefix'],
+                    'endpointUri': _REGISTRY_DEFAULTS['endpointUri'],
+                })
+        # Conditional on the row this sync read, so a concurrent Workspace edit is never
+        # overwritten with the older copy; that Flow is simply picked up on the next sync.
+        if existing:
+            condition = ('updatedAt = :previous' if 'updatedAt' in existing
+                         else 'attribute_not_exists(updatedAt)')
+        else:
+            condition = 'attribute_not_exists(flowId)'
+        kwargs: Dict[str, Any] = {
+            'Item': {k: v for k, v in update.items() if v is not None and v != ''},
+            'ConditionExpression': condition,
+        }
+        if existing and 'updatedAt' in existing:
+            kwargs['ExpressionAttributeValues'] = {':previous': existing['updatedAt']}
+        try:
+            table.put_item(**kwargs)
+        except Exception as e:
+            if 'ConditionalCheckFailed' in type(e).__name__ or 'ConditionalCheckFailed' in str(e):
+                skipped += 1
+                continue
+            raise
         synced += 1
 
     global _flow_registry_cache, _flow_registry_cache_ts
     _flow_registry_cache = {}
     _flow_registry_cache_ts = 0
-    return _resp(200, {'success': True, 'synced': synced, 'total': len(flows), 'wabaId': waba_id})
+    return _resp(200, {'success': True, 'synced': synced, 'skipped': skipped,
+                       'total': len(flows), 'wabaId': waba_id})
 
 
 def _get_flow_submission_stats(params: Dict) -> Dict:
@@ -4875,18 +5118,28 @@ def _clone_flow_to_waba(body: Dict) -> Dict:
     clone['status'] = 'DRAFT'
     clone['createdAt'] = Decimal(str(now))
     clone['updatedAt'] = Decimal(str(now))
-    if 'publishedAt' in clone:
-        del clone['publishedAt']
+    # Meta metadata belongs to the source Flow, not to the new one.
+    for field in ('publishedAt', 'metaStatus', 'metaName', 'lastSyncedAt', 'validationErrorsJson',
+                  'healthStatusJson', 'previewUrl', 'previewExpiresAt', 'updatedBy'):
+        clone.pop(field, None)
+    errors = flow_launch.registry_errors(clone)
+    if errors:
+        return _resp(400, {'error': errors[0], 'errors': errors})
     try:
         table = dynamodb.Table(FLOW_REGISTRY_TABLE)
-        table.put_item(Item={k: v for k, v in clone.items() if v is not None and v != ''})
+        # A clone creates a row; it never overwrites an existing Flow's registry entry.
+        table.put_item(Item={k: v for k, v in clone.items() if v is not None and v != ''},
+                       ConditionExpression='attribute_not_exists(flowId)')
         global _flow_registry_cache_ts
         _flow_registry_cache_ts = 0
         _emit_event('flow_cloned', severity='info', data={
             'sourceFlowCode': source_flow_code, 'clonedFlowId': target_flow_id})
         return _resp(200, {'success': True, 'clonedFlowId': target_flow_id, 'sourceFlowCode': source_flow_code})
     except Exception as e:
-        return _resp(500, {'error': str(e)})
+        if 'ConditionalCheckFailed' in type(e).__name__ or 'ConditionalCheckFailed' in str(e):
+            return _resp(409, {'error': 'A registry row already exists for that Flow ID'})
+        logger.error(json.dumps({'event': 'flow_clone_failed', 'errorType': type(e).__name__}))
+        return _resp(500, {'error': 'Could not clone the Flow registry row'})
 
 
 # ============================================================================
@@ -5046,9 +5299,21 @@ def _handle_flow_data(body: Dict, request_id: str, origin: str = '') -> Dict:
                 get_flow_registry_fn=_get_flow_registry_by_code,
                 fetch_orders_fn=_fetch_orders_for_flow,
             )
+        except flow_sessions.FlowSessionRejected as rejected:
+            # Not a server-issued live session. 427 is WhatsApp's "Flow token is no longer
+            # valid": the handset shows `error_msg` and disables this message's CTA. The
+            # body is plain JSON by Meta's contract, and carries no customer data.
+            logger.warning(json.dumps({
+                'event': 'flow_session_rejected', 'reason': rejected.reason,
+                'action': action, 'screen': screen,
+                'flow_token': mask_flow_token(flow_token), 'requestId': request_id,
+            }))
+            return {'statusCode': 427, 'headers': cors_headers(origin),
+                    'body': json.dumps({'error_msg': rejected.customer_message})}
         except Exception as e:
             logger.error(json.dumps({
-                'event': 'flow_route_error', 'error': str(e),
+                'event': 'flow_route_error', 'errorType': type(e).__name__,
+                'error': redact_string(str(e))[:200],
                 'action': action, 'screen': screen, 'requestId': request_id,
             }))
             # The exception text used to go straight into `data.error`, which is
@@ -5717,7 +5982,10 @@ def _list_flow_logs(params: Dict) -> Dict:
                 break
             scan_kwargs['ExclusiveStartKey'] = resp['LastEvaluatedKey']
 
-        items = [_flow_log_view(item) for item in items]
+        # Funnel counter rows share FlowLogTable but are not interactions; Flow Hub reads
+        # them through /flow-funnel instead.
+        items = [_flow_log_view(item) for item in items
+                 if item.get('type') != flow_funnel.ROW_TYPE]
         items.sort(key=lambda x: x.get('createdAt', 0), reverse=True)
         items = items[:limit]
         return _resp(200, {'logs': items, 'count': len(items)})
@@ -6009,7 +6277,10 @@ def _catalog_sync_admin_control(event: Dict[str, Any], method: str,
 #:
 #: One list and one helper rather than seven inline re-gates: seven copies is how six of
 #: them stay and the seventh is forgotten.
-OPERATOR_PATH_FRAGMENTS = ('/documents', '/flow-submissions')
+#: The journey view returns submissions and the flow-log list returns per-customer rows:
+#: the same customer records `/flow-submissions` already guards.
+OPERATOR_PATH_FRAGMENTS = ('/documents', '/flow-submissions', '/flow-customer-journey',
+                           '/flow-logs')
 
 
 def _require_operator(event: Dict[str, Any], path: str):
@@ -6137,7 +6408,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         elif '/messages/send/' in path:
             if method == 'POST':
-                return _route_send_message(path, body)
+                return _route_send_message(path, body, auth=event.get('_auth'))
             return _resp(405, {'error': 'POST only'})
 
         elif '/template-ttl/rules' in path:
@@ -6182,9 +6453,16 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return _delete_media(media_id, phone_id)
             return _resp(405, {'error': 'GET/POST/DELETE only'})
 
-        elif '/flows/publish' in path:
-            return _publish_flow(params.get('flowId') or body.get('flowId'))
-        elif '/flows/deprecate' in path:
+        elif '/flows/publish' in path or '/flows/deprecate' in path:
+            # Irreversible Meta lifecycle changes: POST and Admin only. A published Flow can
+            # never be edited again and a deprecated one never re-published.
+            if method != 'POST':
+                return _resp(405, {'error': 'POST only'})
+            admin_denied = require_auth(event, required_role='Admin')
+            if admin_denied is not None:
+                return admin_denied
+            if '/flows/publish' in path:
+                return _publish_flow(params.get('flowId') or body.get('flowId'))
             return _deprecate_flow(params.get('flowId') or body.get('flowId'),
                                    params.get('wabaId') or body.get('wabaId'))
         elif '/flows/preview' in path:
@@ -6199,6 +6477,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return _resp(405, {'error': 'POST only'})
         elif '/flows/sync' in path:
             if method == 'POST':
+                # Writes Meta metadata into FlowRegistry (never its status): Operator floor.
+                operator_only = require_auth(event, required_role='Operator')
+                if operator_only is not None:
+                    return operator_only
                 return _sync_flows(params, body)
             return _resp(405, {'error': 'POST only'})
         elif '/flows' in path:
@@ -6599,8 +6881,22 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if method == 'GET':
                 return _list_flow_registry(params)
             elif method == 'POST' or method == 'PUT':
-                return _upsert_flow_registry(body)
+                # Registry status and entry policy gate customer launches: Admin only.
+                admin_denied = require_auth(event, required_role='Admin')
+                if admin_denied is not None:
+                    return admin_denied
+                return _upsert_flow_registry(body, auth=event.get('_auth'))
             return _resp(405, {'error': 'GET/POST/PUT only'})
+
+        elif '/flow-launch-status' in path:
+            if method == 'GET':
+                return _flow_launch_status(params, auth=event.get('_auth'))
+            return _resp(405, {'error': 'GET only'})
+
+        elif '/flow-funnel' in path:
+            if method == 'GET':
+                return _flow_funnel_view(params)
+            return _resp(405, {'error': 'GET only'})
 
         elif '/flow-submissions/update-status' in path:
             if method == 'POST' or method == 'PATCH':
@@ -6634,6 +6930,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         elif '/flow-clone' in path:
             if method == 'POST':
+                admin_denied = require_auth(event, required_role='Admin')
+                if admin_denied is not None:
+                    return admin_denied
                 return _clone_flow_to_waba(body)
             return _resp(405, {'error': 'POST only'})
 
