@@ -10,6 +10,7 @@ import { postRequestIntent, fetchMyRequests, type ServiceRequestRow } from '../l
 import { setServiceLine } from '../lib/cart';
 import { CHECKOUT_PATH, goToServiceAction } from '../lib/serviceEntry';
 import CheckoutAction from './CheckoutAction';
+import { trackMetaAddToCart, trackMetaViewContent } from '../lib/metaPixel';
 
 /**
  * THE SERVICE CHECKOUT ACTION for Submit Request, Request Amendment, Drop Docs, Vault and
@@ -106,6 +107,17 @@ const ServiceBuyBox: React.FC<ServiceBuyBoxProps> = ( { service } ) => {
     return () => { cancelled = true; };
   }, [ service.slug ] );
 
+  useEffect( () => {
+    if ( phase.kind !== 'ready' ) return;
+    trackMetaViewContent( {
+      productId: service.productId,
+      variantId: service.variantId,
+      name: service.label,
+      value: phase.price.paise / 100,
+      currency: 'INR',
+    } );
+  }, [ phase, service ] );
+
   // Resolve the session (sync first, then a server restore), so the pill knows which label to
   // show and whether to load the customer's orders for a target pick.
   useEffect( () => {
@@ -187,6 +199,13 @@ const ServiceBuyBox: React.FC<ServiceBuyBoxProps> = ( { service } ) => {
       // One service line, priced for display from the live catalogue paise; intent pointer stored beside
       // it. `setServiceLine` writes nothing if the variant or amount is not usable.
       setServiceLine( service.variantId, outcome.intent.intentId, phase.price.paise );
+      trackMetaAddToCart( {
+        productId: service.productId,
+        variantId: service.variantId,
+        name: service.label,
+        value: phase.price.paise / 100,
+        currency: 'INR',
+      } );
       await router.push( CHECKOUT_PATH );
     } catch {
       if ( alive.current ) {

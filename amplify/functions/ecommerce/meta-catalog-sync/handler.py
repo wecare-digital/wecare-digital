@@ -58,18 +58,42 @@ logger = get_logger(__name__)
 #: Secret NAME, never a value.
 META_TOKEN_SECRET = os.environ.get("META_TOKEN_SECRET", "wecare/meta-system-user-token")
 
-#: Which field of that secret to use. `access_token` is WABA1's; `access_token_waba2` is WABA2's.
-#: Configuration rather than a branch on the catalog id, so pointing this function at the other
-#: WABA is two environment variables and no code change.
-META_TOKEN_FIELD = os.environ.get("META_TOKEN_FIELD", "access_token")
+#: Meta allows one WhatsApp Business Account per product catalog. The primary published `:live`
+#: alias owns WABA1; the unqualified function (and optional `:waba2` alias) owns WABA2. Keep
+#: target identity independent of the legacy META_CATALOG_ID / META_TOKEN_FIELD variables so a
+#: code deploy cannot accidentally publish WABA2's mutable $LATEST configuration onto WABA1.
+WABA1_TOKEN_FIELD = os.environ.get("META_TOKEN_FIELD_WABA1", "access_token")
+WABA2_TOKEN_FIELD = os.environ.get("META_TOKEN_FIELD_WABA2", "access_token_waba2")
+WABA1_CATALOG_ID = os.environ.get("META_CATALOG_ID_WABA1", "1457045652952851")
+WABA2_CATALOG_ID = os.environ.get("META_CATALOG_ID_WABA2", "1317472650427643")
 
-#: The target catalog - ONE shared catalog for both WABAs, from `catalog-builder.tsx`:
-#:     WABA1 2094615664435155 -> catalog 1457045652952851 (wecare_shop)
-#:     WABA2 2513394156072604 -> catalog 1457045652952851 (wecare_shop)
-#: So one sync run feeds both business numbers and there is no second catalog to keep in step.
-#: Still configuration and not a literal in the code path, so another catalog is reachable by
-#: environment variable alone.
-META_CATALOG_ID = os.environ.get("META_CATALOG_ID", "1457045652952851")
+#: Backward-compatible names for tests and old operational tooling that import these constants.
+META_TOKEN_FIELD = WABA1_TOKEN_FIELD
+META_CATALOG_ID = WABA1_CATALOG_ID
+
+
+def _target_config(context) -> tuple[str, str]:
+    """Return (catalog_id, token_field) from the Lambda invocation target.
+
+    Production routing is qualifier-based and therefore immutable with the published code:
+    - `:live` (or any numbered published version) -> WABA1
+    - unqualified function / `:waba2` -> WABA2
+
+    A missing invocation ARN is a unit-test/manual-call shape, so retain the legacy environment
+    overrides there for backward compatibility without allowing those mutable variables to steer
+    a real Lambda invocation.
+    """
+    arn = str(getattr(context, "invoked_function_arn", "") or "")
+    if not arn:
+        return (
+            os.environ.get("META_CATALOG_ID", WABA1_CATALOG_ID),
+            os.environ.get("META_TOKEN_FIELD", WABA1_TOKEN_FIELD),
+        )
+    parts = arn.split(":")
+    qualifier = parts[7] if len(parts) > 7 else ""
+    if qualifier in ("", "waba2"):
+        return WABA2_CATALOG_ID, WABA2_TOKEN_FIELD
+    return WABA1_CATALOG_ID, WABA1_TOKEN_FIELD
 
 #: The same `fields` set `catalog-management._list_products` asks for, plus nothing. Asking for
 #: less would make the diff report a change on a field we never read.
@@ -675,12 +699,12 @@ def handler(event, context, *, graph_requester=None,
     graph = graph_requester or _graph_request
 
     trigger = _trigger(event)
-    catalog_id = os.environ.get("META_CATALOG_ID", META_CATALOG_ID)
+    catalog_id, token_field = _target_config(context)
     enabled = _enabled()
     dry_run = _dry_run()
 
     secret = reader(META_TOKEN_SECRET) or {}
-    token = str(secret.get(META_TOKEN_FIELD) or "").strip()
+    token = str(secret.get(token_field) or "").strip()
     app_secret = str(secret.get("app_secret") or "").strip()
     if not token:
         # A fact about the secret ENTRY, which is a name - not about the credential. No boolean
@@ -688,7 +712,7 @@ def handler(event, context, *, graph_requester=None,
         # naming the field, not by reporting what was in it.
         logger.error(json.dumps({"event": "meta_catalog_sync_unconfigured",
                                  "secretId": META_TOKEN_SECRET,
-                                 "field": META_TOKEN_FIELD}))
+                                 "field": token_field}))
         return {"ok": False, "reason": "unconfigured", "enabled": enabled,
                 "dryRun": True, "catalogId": catalog_id, "applied": 0}
 

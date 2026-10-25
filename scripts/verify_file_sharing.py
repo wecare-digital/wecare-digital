@@ -32,11 +32,14 @@ Exit codes: 0 all checks passed, 1 at least one failed.
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import random
 import sys
 import urllib.error
 import urllib.request
+import zipfile
+from pathlib import Path
 
 try:
     import boto3
@@ -54,6 +57,35 @@ PROBE_KEY = "o/healthcheck.txt"
 # The gated tier. Must never be served over the public path, even when the object
 # exists - it is delivered only as a presigned URL by wecare-secure-files.
 GATED_PROBE_KEY = "secure/gated-probe.txt"
+# A gated object that EXISTS (the zero-byte `secure/` prefix marker), requested with one
+# percent-encoded character. S3 decodes the path once, so this proves the edge decodes too.
+ENCODED_GATED_PROBE_KEY = "secure/"
+ENCODED_GATED_PROBE_PATH = "secur%65/"
+# Catalog deploy tree: an existing object that must not be served over /get. Catalog
+# artwork is public only through the catalog-media API.
+CATALOG_DEPLOY_PROBE_KEY = "secure/d/public/catalog-deploy/catalog/catalog-v3-final-manifest.json"
+CATALOG_MEDIA_PROBE_URL = "https://wecare.digital/api/catalog-media/grahak-os-4096.png"
+# The source the associated edge version must contain, byte for byte.
+EDGE_SOURCE = Path(__file__).resolve().parents[1] / "amplify/functions/edge/get-miss-redirect/handler.py"
+
+
+def _edge_source_matches(version_arn: str) -> tuple[bool, str]:
+    """Compare the associated version's handler.py with the repo copy.
+
+    Origin-response functions do not run on cache hits, so a cached 302 can make the live
+    probes pass against any version. The deployed code cannot. The presigned code URL is a
+    credential-bearing link and is never printed.
+    """
+    try:
+        code = boto3.client("lambda", region_name=REGION).get_function(
+            FunctionName=version_arn)["Code"]["Location"]
+        with urllib.request.urlopen(code, timeout=30) as resp:
+            deployed = zipfile.ZipFile(io.BytesIO(resp.read())).read("handler.py")
+    except Exception as exc:  # noqa: BLE001 - reported as a failed check
+        return False, f"could not read deployed code: {type(exc).__name__}"
+    if deployed == EDGE_SOURCE.read_bytes():
+        return True, "deployed handler.py is identical to the repo source"
+    return False, "deployed handler.py differs from the repo source"
 
 
 class Result:
@@ -83,6 +115,10 @@ def _fetch(url: str, follow: bool = False) -> tuple[int, dict]:
             return resp.status, dict(resp.headers)
     except urllib.error.HTTPError as exc:
         return exc.code, dict(exc.headers)
+    except (urllib.error.URLError, OSError) as exc:
+        # Status 0 fails only the check that made this request; later checks still run
+        # and report individually instead of being lost to one outer exception.
+        return 0, {"X-Fetch-Error": type(exc).__name__}
 
 
 def check_amplify_rules(r: Result) -> None:
@@ -159,6 +195,8 @@ def check_distribution(r: Result) -> None:
             version.isdigit(),
             f"version {version}",
         )
+        r.add("edge function source matches the repo",
+              *_edge_source_matches(origin_resp[0]["LambdaFunctionARN"]))
     r.add(
         "custom error responses cleared",
         cfg["CustomErrorResponses"]["Quantity"] == 0,
@@ -256,6 +294,29 @@ def check_live_behaviour(r: Result) -> None:
         "gated object refused at the distribution directly",
         status == 302,
         f"HTTP {status}",
+    )
+    # A percent-encoded spelling of an EXISTING gated object, through both hops. Only
+    # meaningful while the probe object exists, so its existence is checked first.
+    s3 = boto3.client("s3", region_name=REGION)
+    for name, key in (("encoded gated probe", ENCODED_GATED_PROBE_KEY),
+                      ("catalog-deploy probe", CATALOG_DEPLOY_PROBE_KEY)):
+        try:
+            s3.head_object(Bucket=BUCKET, Key=key)
+            r.add(f"{name} object exists", True, key)
+        except Exception as exc:  # noqa: BLE001 - reported, not raised
+            r.add(f"{name} object exists", False, f"{key}: {type(exc).__name__}")
+    for host in (f"{SITE}/get", f"https://{dist['Distribution']['DomainName']}"):
+        status, _ = _fetch(f"{host}/{ENCODED_GATED_PROBE_PATH}")
+        r.add(f"percent-encoded gated path refused: {host}",
+              status == 302, f"HTTP {status}")
+        status, _ = _fetch(f"{host}/{CATALOG_DEPLOY_PROBE_KEY}")
+        r.add(f"catalog-deploy tree refused: {host}", status == 302, f"HTTP {status}")
+    # ...while approved catalog artwork still serves through its own API route.
+    status, headers = _fetch(CATALOG_MEDIA_PROBE_URL)
+    r.add(
+        "catalog artwork serves through /api/catalog-media/",
+        status == 200 and headers.get("Content-Type", "").startswith("image/png"),
+        f"HTTP {status} content-type={headers.get('Content-Type')}",
     )
 
     # the gated API must reject an unauthenticated caller
