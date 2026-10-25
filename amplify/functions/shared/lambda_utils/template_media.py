@@ -23,6 +23,7 @@ ORDER_CATALOG_HEADER_IMAGE = ORDER_CATALOG_HEADER
 
 FIXED_IMAGE_HEADERS = {
     "wecare_leave_review": SHARED_TEMPLATE_HEADER,
+    "wecare_default_download": SHARED_TEMPLATE_HEADER,
 }
 
 # Runtime dependencies, not disposable media-library uploads.
