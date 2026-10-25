@@ -467,10 +467,11 @@ definition is in `docs/execution/snapshots/whatsapp-template-feedback_survey_for
 
 Named in code but **not on Meta** (each path is currently unreachable or refuses cleanly):
 `wecare_share_pdf` (Orders Flow invoice copy; that Flow is DRAFT, and the reply says delivery is
-pending), `wd_file_delivery` (secure-files paid delivery; `SECURE_FILES_PAYMENT_ENABLED` is false),
-`wd_call_permission` (created on demand by the calling `create_permission_template` action).
-`postpay_request_v1`, `postpay_details_v1`, `01_wecare_doc` and `wecare_order_status_v2` no longer
-exist on Meta (Meta holds the deleted `_v2` name, so the ORDER_STATUS template is `_v3`). The
+pending), `wd_call_permission` (created on demand by the calling `create_permission_template`
+action). Secure-files paid delivery sends `wecare_default_download` (e22243370).
+`postpay_request_v1`, `postpay_details_v1`, `wd_file_delivery`, `01_wecare_doc` and
+`wecare_order_status_v2` no longer exist on Meta (Meta holds the deleted `_v2` name, so the
+ORDER_STATUS template is `_v3`). The
 payment, invoice, order-status and OTP names live in one registry,
 `amplify/functions/shared/lambda_utils/whatsapp_templates.py`.
 
