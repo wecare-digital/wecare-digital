@@ -3300,8 +3300,10 @@ def _send_order_status_processing(invoice_id: str, phone_number_id: str,
     if not invoice_id:
         return
     try:
+        # The same commerce runtime the invoice create, render and delivery invokes use, so all
+        # post-capture work lands on one engine and one alias.
         response = lambda_client.invoke(
-            FunctionName='wecare-checkout:live', InvocationType='RequestResponse',
+            FunctionName=COMMERCE_FUNCTION, InvocationType='RequestResponse',
             Payload=json.dumps({
                 'rawPath': f'/invoices/{invoice_id}/order-status',
                 'requestContext': {'http': {'method': 'POST'}},

@@ -259,8 +259,11 @@ SPECS: List[Spec] = [
     Spec(
         "wecare-commerce",
         "ecommerce/checkout",
-        extra_files=["invoice_engine.py"],
-        external_files=[("payments/invoice-engine/receipt_layout.py", "receipt_layout.py")],
+        # Byte-for-byte the wecare-checkout package: the engine ships from its one source.
+        external_files=[
+            ("payments/invoice-engine/handler.py", "invoice_engine.py"),
+            ("payments/invoice-engine/receipt_layout.py", "receipt_layout.py"),
+        ],
         external_dirs=[("payments/invoice-engine/fonts", "fonts")],
         required_layers=[PILLOW_LAYER_ARN],
         required_memory=512,
