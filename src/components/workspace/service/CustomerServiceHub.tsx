@@ -25,7 +25,7 @@ const FLOW_TYPES = [
   { key: 'vault', label: 'Vault', icon: '🔐', flowId: '1735480734227899', paid: true, price: '₹49', status: 'draft', confirmation: 'Vault access' },
   { key: 'drop_docs', label: 'Drop Docs', icon: '📄', flowId: canonicalFlowId('drop_docs')!, paid: true, price: '₹350', status: 'draft', confirmation: 'Document registered' },
   { key: 'amend_request', label: 'Request Amendment', icon: '✏️', flowId: canonicalFlowId('amend_request')!, paid: true, price: '₹350', status: 'draft', confirmation: 'Amendment confirmation' },
-  { key: 'leave_review', label: 'Leave Review', icon: '⭐', flowId: REVIEW_FLOW_ID, paid: false, price: 'Free', status: 'draft', confirmation: 'Review saved' },
+  { key: 'leave_review', label: 'Leave Review', icon: '⭐', flowId: REVIEW_FLOW_ID, paid: false, price: 'Free', status: 'published', confirmation: 'Private feedback saved' },
 ];
 
 const MESSAGE_LINKS: Record<string, string> = {
