@@ -1589,13 +1589,15 @@ def _() -> None:
     # rx_slot names a Flow that FlowRegistry has never seen (it no longer exists on Meta).
     expect(dispatch('pharmacy') is None and _cta_link() == links['rx_slot'] and not M['lambda'].invocations,
            f'unregistered Flow: {_cta_link()}')
-    review_flow = M['canonical_flows'].canonical_flow_id('leave_review')
-    registry().items[review_flow] = {'flowId': review_flow, 'status': 'PUBLISHED', 'metaStatus': 'DEPRECATED'}
-    expect(dispatch('review') is None and _cta_link() == links['leave_review'] and not M['lambda'].invocations,
-           'a deprecated Flow was sent')
-    registry().items[review_flow]['metaStatus'] = 'PUBLISHED'
-    expect(dispatch('review') is None and M['lambda'].invocations
-           and M['lambda'].invocations[-1]['body']['interactiveData']['flowId'] == review_flow,
+    # A generic (non-contract) door: its Flow opens only while FlowRegistry shows it live on Meta.
+    # (Not leave_review: F002 made that a canonical door with its own launch policy.)
+    set_triggers({'custom_live': {'enabled': True, 'keywords': ['liveform'], 'flowId': '8888'}})
+    registry().items['8888'] = {'flowId': '8888', 'status': 'PUBLISHED', 'metaStatus': 'DEPRECATED'}
+    expect(dispatch('liveform') is None and _cta_link() == M['inbound']['FLOW_LINK_DEFAULT']
+           and not M['lambda'].invocations, 'a deprecated Flow was sent')
+    registry().items['8888']['metaStatus'] = 'PUBLISHED'
+    expect(dispatch('liveform') is None and M['lambda'].invocations
+           and M['lambda'].invocations[-1]['body']['interactiveData']['flowId'] == '8888',
            'a live Flow stopped opening')
     cta_before = len(M['cta'])
     expect(dispatch('pharmacy', waba='phone2') is None and len(M['cta']) == cta_before + 1
