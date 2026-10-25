@@ -465,7 +465,9 @@ def handler(event, context):
             if action == 'place-details':
                 return _place_details(
                     query_params.get('placeId', ''), query_params.get('sessiontoken', ''))
-            if '/templates/library' in path:
+            # The live API Gateway route is GET /whatsapp/template-library (singular, hyphenated),
+            # which never contained '/templates/library' and so fell through to a template list.
+            if '/templates/library' in path or path.rstrip('/').endswith('/template-library'):
                 return _list_template_library(waba_id, query_params)
             if '/templates/send-media' in path:
                 return _list_send_media(query_params)
@@ -477,7 +479,10 @@ def handler(event, context):
         elif http_method == 'POST':
             if '/templates/validate' in path:
                 return _validate_template_route(body)
-            if '/templates/from-library' in path:
+            # Same drift for POST /whatsapp/template-from-library. Unmatched, it reached
+            # `_create_template` and could create a real Meta template from a library payload.
+            if ('/templates/from-library' in path
+                    or path.rstrip('/').endswith('/template-from-library')):
                 return _create_from_library(waba_id, body)
             if '/templates/carousel-media' in path:
                 return _upload_carousel_media(waba_id, body, query_params)
