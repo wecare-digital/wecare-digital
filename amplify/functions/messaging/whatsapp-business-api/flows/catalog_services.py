@@ -10,7 +10,7 @@ import os
 import secrets
 import time
 import boto3
-from lambda_utils import customer_auth, shared_tables, whatsapp_templates
+from lambda_utils import contact_store, customer_auth, shared_tables, whatsapp_templates
 from lambda_utils.identity import customer as customer_identity
 from lambda_utils.ecommerce import catalog_service_checkout as catalog, service_request_store as store, vault_access as vault
 
@@ -73,9 +73,12 @@ def handle(event, client):
         owner = str(session.get('customerId') or '')
         number = str(session.get('phone') or '')
         try:
+            # senderPhone is Meta's bare wa_id (country code, no `+`); see
+            # checkout._native_whatsapp_identity for why canonicalising it guesses nothing.
             event_phone = customer_identity.normalize_phone_preserving_country(
-                event.get('senderPhone') or '')
-            session_phone = customer_identity.normalize_phone_preserving_country(number)
+                contact_store.canonical_phone(event.get('senderPhone')))
+            session_phone = customer_identity.normalize_phone_preserving_country(
+                contact_store.canonical_phone(number))
         except customer_identity.InvalidPhoneNumber:
             event_phone = session_phone = ''
         if (not customer_auth.is_cognito_subject(owner)

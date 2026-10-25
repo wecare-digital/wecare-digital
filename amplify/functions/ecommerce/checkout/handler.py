@@ -92,8 +92,8 @@ from uuid import uuid4
 import boto3
 from boto3.dynamodb.conditions import Key
 
-from lambda_utils import (contact_key, customer_auth, customer_session, payment_readiness, shared_tables,
-                          whatsapp_templates)
+from lambda_utils import (contact_key, contact_store, customer_auth, customer_session, payment_readiness,
+                          shared_tables, whatsapp_templates)
 from lambda_utils.ecommerce import (
     blog_contribution, cart_contract, catalog_analytics, checkout_pricing, contact_address, customer_cart, finalization,
     india_address, order_channel, order_creation, order_keys, payment_address,
@@ -2897,7 +2897,12 @@ def _native_whatsapp_identity(
     the exact row now carries the returned subject and the same canonical phone. No browser token
     is created and no HTTP route reaches this helper.
     """
-    sender_phone = customer_identity.normalize_phone_preserving_country(sender_phone)
+    # Meta's signed sender id (`from`, the wa_id) is the full international number with no
+    # `+`. It already carries its country code, so `canonical_phone` only restores the marker
+    # and infers nothing; the country-preserving check then validates it like a typed `+`
+    # number. Handing it the bare wa_id raised MissingCountryCode for every real buyer.
+    sender_phone = customer_identity.normalize_phone_preserving_country(
+        contact_store.canonical_phone(sender_phone))
     waba_id = wa_payment_request.PHONE_ID_TO_WABA.get(phone_number_id, '')
     if not waba_id:
         raise customer_auth.CustomerNotAuthorized('WhatsApp payment sender is not permitted')
@@ -2922,8 +2927,10 @@ def _native_whatsapp_identity(
     contact = _table(CONTACTS_TABLE).get_item(
         Key={'id': contact_id}, ConsistentRead=True).get('Item') or {}
     try:
+        # Same spelling rule as the registration bridge: inbound-created rows predating the
+        # canonical `+digits` write still hold the bare wa_id.
         contact_phone = customer_identity.normalize_phone_preserving_country(
-            contact.get('phone') or '')
+            contact_store.canonical_phone(contact.get('phone')))
     except customer_identity.InvalidPhoneNumber:
         raise customer_auth.CustomerNotAuthorized(
             'WhatsApp customer contact has no valid phone') from None
