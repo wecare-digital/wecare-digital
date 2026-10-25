@@ -2359,6 +2359,7 @@ export async function sendWhatsAppTemplateMessage ( request: {
   headerFilename?: string;    // Filename for document headers
   headerLocation?: { latitude: string; longitude: string; name?: string; address?: string };  // Location header params
   flowButton?: { index: number; flowToken?: string; flowActionData?: Record<string, any> };  // Flow button component (templates with a FLOW button)
+  templateUrlButton?: { index: number; suffix: string };  // Dynamic URL button suffix; never pass the full template URL
   content?: string;           // Rendered preview text stored for inbox thread display
   campaignId?: string;        // Optional campaign tracking
   campaignName?: string;
@@ -2409,6 +2410,10 @@ export async function sendWhatsAppTemplateMessage ( request: {
   if ( request.flowButton )
   {
     payload.flowButton = request.flowButton;
+  }
+  if ( request.templateUrlButton )
+  {
+    payload.templateUrlButton = request.templateUrlButton;
   }
 
   // Support sending by contactId or recipientPhone (auto-creates contact)
@@ -3569,6 +3574,13 @@ export async function scheduleTemplateMessage ( request: {
   templateName: string;
   templateParams?: string[];
   phoneNumberId?: string;
+  recipientBsuid?: string;
+  headerMedia?: string;
+  headerType?: 'image' | 'video' | 'document' | 'location';
+  headerFilename?: string;
+  headerLocation?: { latitude: string; longitude: string; name?: string; address?: string };
+  flowButton?: { index: number; flowToken?: string; flowActionData?: Record<string, any> };
+  templateUrlButton?: { index: number; suffix: string };
   scheduledAt: string;  // ISO timestamp
 } ): Promise<ScheduledMessage | null> {
   const data = await apiCall<any>( `${API_BASE}/scheduled`, {
