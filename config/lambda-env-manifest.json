@@ -185,7 +185,7 @@
     "wecare-faq-handler": {},
     "wecare-get-miss-redirect": {},
     "wecare-inbound-whatsapp": {
-      "CHECKOUT_FUNCTION": "wecare-checkout:live",
+      "CHECKOUT_FUNCTION": "wecare-commerce:live",
       "COMMERCE_KEYS_TABLE": "stack-wecare-digital-CommerceKeys",
       "CONTACTS_TABLE": "stack-wecare-digital-ContactsTable",
       "IAM_REFRESH": "1772814879",
@@ -376,7 +376,8 @@
       "PAYMENT_ATTEMPTS_TABLE": "stack-wecare-digital-PaymentAttemptsTable",
       "REGION": "us-east-1",
       "S3_BUCKET": "wecare-digital-get",
-      "WEBHOOK_LOG_TABLE": "stack-wecare-digital-RazorpayWebhookLogTable"
+      "WEBHOOK_LOG_TABLE": "stack-wecare-digital-RazorpayWebhookLogTable",
+      "COMMERCE_FUNCTION": "wecare-commerce:live"
     },
     "wecare-rcs-dlr": {
       "CONTACTS_TABLE": "stack-wecare-digital-ContactsTable",
