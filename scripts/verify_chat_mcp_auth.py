@@ -133,6 +133,9 @@ def main() -> None:
             'redirect_uri': CALLBACK, 'resource': RESOURCE, 'code': 'fixture-code', 'code_verifier': 'v' * 43}
         def exchange(url, payload, **kwargs):
             assert url == oauth.LOGIN + '/oauth2/token' and kwargs == {'form': True}
+            assert 'resource' not in payload
+            expected_payload = form if payload['grant_type'] == 'authorization_code' else refresh
+            assert payload == {key: value for key, value in expected_payload.items() if key != 'resource'}
             return {'access_token': token(), 'refresh_token': 'fixture-refresh', 'token_type': 'Bearer',
                     'expires_in': 900, 'id_token': 'must-not-return'}, None
         def token_event(data):
@@ -143,6 +146,10 @@ def main() -> None:
         check(response['statusCode'] == 200 and 'id_token' not in json.loads(response['body']), 'Code exchange filters tokens')
         refresh = {'grant_type': 'refresh_token', 'client_id': ENV['CHAT_CLIENT_ID'], 'refresh_token': 'fixture-refresh'}
         check(dispatch(token_event(refresh), exchange=exchange)['statusCode'] == 200, 'Refresh grant')
+        check(dispatch(token_event({**refresh, 'resource': RESOURCE}), exchange=exchange)['statusCode'] == 200,
+            'Refresh resource validated locally and omitted upstream')
+        check(dispatch(token_event({**refresh, 'resource': 'https://evil.invalid'}), exchange=exchange)['statusCode'] == 400,
+            'Refresh cannot change the audience')
         for key, value in [('client_id', 'other'), ('redirect_uri', 'https://evil.invalid'),
                 ('resource', ''), ('code_verifier', ''), ('grant_type', 'password'), ('client_secret', 'forbidden')]:
             check(dispatch(token_event({**form, key: value}))['statusCode'] == 400, key)
