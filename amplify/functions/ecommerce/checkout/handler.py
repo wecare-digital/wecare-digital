@@ -2817,10 +2817,16 @@ def _native_catalog_service(event: Dict[str, Any], origin: str):
     if row.get('paymentAttemptId'):
         return {'outcome': 'CATALOG_SERVICE_ALREADY_PREPARED', 'paymentAttemptId': row['paymentAttemptId']}
     contact = _table(CONTACTS_TABLE).get_item(Key={'id': row.get('contactId', '')}, ConsistentRead=True).get('Item') or {}
-    owner = contact.get('checkoutCustomerId')
-    # Cognito sub is canonical UUID. Refuse malformed filter inputs before ListUsers.
-    if not customer_auth.is_cognito_subject(owner) or owner != row.get('customerId'):
-        return {'outcome': 'VERIFIED_CUSTOMER_REQUIRED'}
+    try:
+        identity, contact = _native_whatsapp_identity(
+            str(row.get('contactId') or ''),
+            str(row.get('phone') or ''),
+            str(row.get('phoneNumberId') or ''))
+    except (customer_auth.CustomerNotAuthorized, customer_identity.InvalidPhoneNumber):
+        return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
+    owner = identity.customer_id
+    if owner != row.get('customerId'):
+        return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
     # A2.5 — ONLY WABA1 MAY TAKE A PAYMENT, refused here with a named cause.
     #
     # Switching this leg onto the `isCheckoutTemplate` envelope newly subjects it to the
@@ -2843,9 +2849,6 @@ def _native_catalog_service(event: Dict[str, Any], origin: str):
         logger.error(json.dumps({'event': 'catalog_session_sender_not_permitted',
                                  'sessionToken': token[:8]}))
         return {'outcome': 'PAYMENT_SENDER_NOT_PERMITTED'}
-    users = boto3.client('cognito-idp', region_name=os.environ.get('AWS_REGION', 'us-east-1')).list_users(
-        UserPoolId=customer_auth.CUSTOMER_POOL_ID, Filter='sub = "' + owner + '"', Limit=2).get('Users') or []
-    identity = catalog.verified_identity(contact, users, row.get('phone', ''))
     from lambda_utils.ecommerce import service_request_store as store
     intent = _table('stack-wecare-digital-ServiceRequestsTable').get_item(
         Key={'requestId': 'INTENT#' + str(row.get('serviceIntentId') or '')}, ConsistentRead=True).get('Item') or {}
