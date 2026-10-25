@@ -5790,9 +5790,10 @@ def _park_review_reference(sender_phone: str, reference: str, request_id: str) -
 
 #: Where a Flow keyword sends the customer when the Flow itself cannot open: on WABA 2 (Flows
 #: live on WABA 1 only), when the trigger has no Flow, or when FlowRegistry does not show the
-#: Flow live on Meta. Direct destinations, not `/r/` short codes: `sr`, `ar`, `rx`, `ea`, `sub`
-#: and `lr` are 2026-07 "recovery" rows in ShortLinksTable that redirect to google.com. Every
-#: target below answered HTTP 200 (wa.me: 302 to WhatsApp) on 2026-10-25.
+#: Flow live on Meta. Direct destinations, not `/r/` short codes: a code's target lives in
+#: ShortLinksTable and can drift (`sr`, `ar`, `rx`, `ea`, `sub` and `lr` were 2026-07 "recovery"
+#: rows redirecting to google.com until 2026-10-25). Every target below answered HTTP 200
+#: (wa.me: 302 to WhatsApp) on 2026-10-25.
 FLOW_LINKS = {
     'submit_request': 'https://wecare.digital/submit-request/',
     'track_request': 'https://wecare.digital/shipments/track/',
