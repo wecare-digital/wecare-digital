@@ -94,6 +94,14 @@ def main() -> None:
         response = dispatch(event('/authorize', 'GET', rawQueryString=urllib.parse.urlencode(query)))
         check(response['statusCode'] == 302, 'Authorization redirect')
         check(response['headers']['Location'].startswith(oauth.LOGIN + '/oauth2/authorize?'), 'Fixed upstream')
+        hinted = dispatch(event('/authorize', 'GET', rawQueryString=urllib.parse.urlencode({**query, 'ui_locales': 'en-US'})))
+        check(hinted['statusCode'] == 302, 'ChatGPT locale hint accepted')
+        delegated = urllib.parse.parse_qs(urllib.parse.urlsplit(hinted['headers']['Location']).query)
+        check('ui_locales' not in delegated and delegated['resource'] == [RESOURCE]
+            and delegated['code_challenge'] == [query['code_challenge']], 'Locale hint cannot alter OAuth authority or PKCE')
+        for locale in ('', 'en-US<script>', 'a' * 129, 'en_US'):
+            check(dispatch(event('/authorize', 'GET', rawQueryString=urllib.parse.urlencode({**query,
+                'ui_locales': locale})))['statusCode'] == 400, 'Invalid locale hint refused')
         for key, value in [('client_id', 'other'), ('redirect_uri', 'https://evil.invalid'),
                 ('resource', 'https://evil.invalid'), ('code_challenge_method', 'plain'),
                 ('code_challenge', ''), ('state', ''), ('scope', 'openid')]:
