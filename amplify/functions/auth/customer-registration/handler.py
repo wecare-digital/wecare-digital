@@ -462,6 +462,9 @@ def _cognito_user_for_phone(phone: str) -> Optional[Dict[str, Any]]:
     one.  No user is a normal WhatsApp-first state; the caller provisions it server-side without
     asking the customer to leave WhatsApp.
     """
+    canonical = contact_store.canonical_phone(phone)
+    if not canonical or canonical != phone:
+        raise customer_auth.CustomerNotAuthorized("invalid canonical customer phone")
     users = _cognito_client().list_users(
         UserPoolId=CUSTOMER_POOL_ID,
         Filter='phone_number = "' + phone + '"',
