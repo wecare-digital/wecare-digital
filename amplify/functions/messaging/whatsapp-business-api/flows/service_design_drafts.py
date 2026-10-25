@@ -15,9 +15,21 @@ NAMES = {
     'drop-docs': 'WD_Drop_Docs_Design_v1',
     'vault': 'WD_Vault_Design_v1',
     'shipments': 'WD_Shipments_Design_v1',
-    'leave-review': 'WD_Leave_Review_Design_v1',
+    'leave-review': 'WD-F002-LEAVE-REVIEW',
     'orders': 'WD_Orders_Design_v1',
     'subscribe': 'WD_Subscribe_Design_v1',
+}
+
+# Reuse the existing Meta draft instead of creating a duplicate when a canonical
+# F-number name replaces an older design-preview name.
+LEGACY_NAMES = {
+    'leave-review': ('WD_Leave_Review_Design_v1',),
+}
+
+# F002 is numbered/named from F001's canonical convention, but its customer-facing
+# content is the existing published review contract (Meta Flow 940049388908144).
+ASSET_FILES = {
+    'leave-review': 'f002-leave-review.json',
 }
 
 def unwrap(response):
@@ -60,11 +72,19 @@ def handle(event, graph, create, upload, get_flow, update_flow=None):
     if response.get('error') or action == 'inspect':
         return response
     name = NAMES[service]
-    matches = [row for row in response['flows'] if row.get('name') == name]
+    accepted_names = {name, *LEGACY_NAMES.get(service, ())}
+    matches = [row for row in response['flows'] if row.get('name') in accepted_names]
     if len(matches) > 1:
         return {'error': 'Ambiguous design draft name'}
     if matches and matches[0].get('status') != 'DRAFT':
         return {'error': 'Existing design Flow is immutable; no change attempted'}
+    if matches and matches[0].get('name') != name:
+        if update_flow is None:
+            return {'error': 'Canonical draft rename requires update support; no duplicate created'}
+        renamed = unwrap(update_flow(matches[0]['id'], {'name': name}))
+        if renamed.get('error'):
+            return renamed
+        matches[0]['name'] = name
     if action == 'connect_orders_endpoint':
         if not matches:
             return {'error': 'Prepare the Orders draft first'}
@@ -82,7 +102,8 @@ def handle(event, graph, create, upload, get_flow, update_flow=None):
         return {'id': matches[0]['id'], 'status': meta.get('status'),
                 'endpoint_connected': meta.get('endpoint_uri') == endpoint, 'validation_errors': meta.get('validation_errors')}
     # Read before creation so missing assets cannot create empty draft records.
-    content = json.loads((Path(__file__).parent / 'design-drafts' / (service + '.json')).read_text())
+    asset_file = ASSET_FILES.get(service, service + '.json')
+    content = json.loads((Path(__file__).parent / 'design-drafts' / asset_file).read_text())
     created = not matches
     if matches:
         flow_id = matches[0]['id']
