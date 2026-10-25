@@ -2,7 +2,7 @@
 
 Reached only from the inbound worker for a cart that is exactly one Vault line (see
 `catalog_service_checkout.ALLOWED` for why Submit Request is no longer sold here). It proves the
-verified customer, lets them pick a file and hands ONE priced session to `wecare-checkout`
+verified customer, lets them pick a file and hands ONE priced session to `wecare-commerce`
 `prepareNativeCatalogService`; it never prices, reserves or sends a payment itself.
 """
 import json
@@ -10,7 +10,8 @@ import os
 import secrets
 import time
 import boto3
-from lambda_utils import customer_auth, customer_identity, shared_tables, whatsapp_templates
+from lambda_utils import customer_auth, shared_tables, whatsapp_templates
+from lambda_utils.identity import customer as customer_identity
 from lambda_utils.ecommerce import catalog_service_checkout as catalog, service_request_store as store, vault_access as vault
 
 
