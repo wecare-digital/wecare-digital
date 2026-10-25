@@ -67,6 +67,7 @@ def handle(event, client):
             'internalAction': 'ensureNativeWhatsAppIdentity',
             'contactId': contact.get('id', ''),
             'senderPhone': event.get('senderPhone', ''),
+            'sourceMessageId': event.get('sourceMessageId', ''),
             'phoneNumberId': sender['phoneNumberId'],
         })
     except Exception:
