@@ -37,7 +37,7 @@ import Spinner from '../../../components/ui/Spinner';
 import { useToastContext } from '../../../contexts/ToastContext';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 import * as api from '../../../api/client';
-import type { SecureFile } from '../../../api/client';
+import type { SecureFile, SecureFileAccessState } from '../../../api/client';
 
 const MAX_BYTES = 200 * 1024 * 1024;
 
@@ -49,6 +49,20 @@ function formatBytes ( bytes: number ): string {
 }
 
 const rupees = ( paise: number ) => `₹${( ( paise || 0 ) / 100 ).toFixed( 0 )}`;
+
+/** The backend's access state, or a fallback for a list served by an older backend. */
+function accessStateOf ( row: SecureFile ): SecureFileAccessState {
+    if ( row.accessState ) return row.accessState;
+    return row.vaultPaymentStatus === 'PAID' ? 'READY' : 'UNPAID';
+}
+
+const PURCHASE_LABELS: Record<SecureFileAccessState, string> = {
+    UNPAID: 'Awaiting purchase',
+    OPEN: 'Paid · Window open',
+    READY: 'Paid · Access ready',
+    EXPIRED: 'Paid · Window used, renewal needed',
+    PAID_UNVERIFIED: 'Paid · Needs reconciling, do not charge',
+};
 
 /** Status pill colours. Lime is reserved for actions, so status uses its own set. */
 const STATUS_COLOURS: Record<string, { bg: string; fg: string; border: string }> = {
@@ -75,6 +89,11 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
     const [ loading, setLoading ] = useState( true );
     const [ loadError, setLoadError ] = useState( '' );
     const [ filterMobile, setFilterMobile ] = useState( '' );
+    const [ truncated, setTruncated ] = useState( false );
+    // On by default: an unpaid document is only useful once its owner is asked for ₹49.
+    const [ requestAfterUpload, setRequestAfterUpload ] = useState( true );
+    // The fileId whose WhatsApp action is in flight, so one click cannot send twice.
+    const [ acting, setActing ] = useState( '' );
 
     /** Refetch and replace the table. Used by the filter button and after an upload. */
     const fetchInto = useCallback( async ( mobileFilter?: string ) => {
@@ -82,6 +101,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
         if ( result.ok )
         {
             setFiles( result.data.files || [] );
+            setTruncated( !!result.data.truncated );
             setLoadError( '' );
         } else
         {
@@ -108,6 +128,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
             if ( result.ok )
             {
                 setFiles( result.data.files || [] );
+                setTruncated( !!result.data.truncated );
                 setLoadError( '' );
             } else
             {
@@ -118,6 +139,52 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
         } );
         return () => { cancelled = true; };
     }, [] );
+
+    /** Report a WhatsApp action. 202 means "may have been sent", which is not a success. */
+    const reportAction = ( result: api.SecureFileActionResult ) => {
+        if ( result.ok && result.status !== 202 ) toast.success( result.message );
+        else if ( result.status === 202 || result.status === null ) toast.warning( result.message );
+        else toast.error( result.message );
+    };
+
+    const handleRequestPayment = async ( target: SecureFile ) => {
+        if ( acting ) return;
+        setActing( target.fileId );
+        try
+        {
+            reportAction( await api.requestSecureFilePayment( target.fileId ) );
+            load( filterMobile || undefined );
+        } finally
+        {
+            setActing( '' );
+        }
+    };
+
+    const handleSendAccess = async ( target: SecureFile ) => {
+        if ( acting ) return;
+        setActing( target.fileId );
+        try
+        {
+            reportAction( await api.sendSecureFileAccess( target.fileId ) );
+        } finally
+        {
+            setActing( '' );
+        }
+    };
+
+    /** The file ID is what the Vault template's button carries; copying beats retyping it. */
+    const handleCopyId = async ( target: SecureFile ) => {
+        try
+        {
+            if ( !navigator.clipboard?.writeText ) throw new Error( 'clipboard unavailable' );
+            await navigator.clipboard.writeText( target.fileId );
+            toast.success( 'File ID copied' );
+        } catch
+        {
+            // WebViews and insecure contexts often have no clipboard API: show it instead.
+            toast.info( `File ID: ${ target.fileId }` );
+        }
+    };
 
     const resetForm = () => {
         setName( '' );
@@ -175,6 +242,11 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
             }
 
             toast.success( `${displayName.trim() || file.name} registered to ${name.trim()}` );
+            if ( requestAfterUpload )
+            {
+                setStep( 'Sending the ₹49 request on WhatsApp…' );
+                reportAction( await api.requestSecureFilePayment( ticket.data.fileId ) );
+            }
             resetForm();
             load( filterMobile || undefined );
         } catch ( err: any )
@@ -307,6 +379,23 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                 </p>
                             ) }
                         </div>
+
+                        <div className="sf-field">
+                            <label className="sf-check" htmlFor="sf-request">
+                                <input
+                                    id="sf-request"
+                                    type="checkbox"
+                                    checked={ requestAfterUpload }
+                                    onChange={ e => setRequestAfterUpload( e.target.checked ) }
+                                    disabled={ uploading }
+                                />
+                                <span>Ask the customer for { rupees( 4900 ) } on WhatsApp after upload</span>
+                            </label>
+                            <p className="sf-hint">
+                                Sends Review and Pay for this file. If their WhatsApp is not linked
+                                yet, the Access Vault link goes instead and they pay from there.
+                            </p>
+                        </div>
                     </div>
 
                     <div className="sf-actions">
@@ -365,6 +454,12 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                         <p className="sf-note sf-note-pad">No files registered yet.</p>
                     ) }
 
+                    { !loading && truncated && (
+                        <p className="sf-note sf-note-pad" role="status">
+                            Showing the newest { files.length } files. Filter by mobile to see one customer&apos;s files.
+                        </p>
+                    ) }
+
                     { !loading && files.length > 0 && (
                         <div className="sf-tablewrap">
                             <table className="sf-table">
@@ -391,7 +486,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                                 <td>{ formatBytes( row.sizeBytes ) }</td>
                                                 <td>{ row.downloadCount ?? 0 }</td>
                                                 <td>
-                                                    <span className="sf-filename">{ row.vaultPaymentStatus === 'PAID' ? 'Paid · Access ready' : 'Awaiting purchase' }</span>
+                                                    <span className="sf-filename">{ PURCHASE_LABELS[ accessStateOf( row ) ] }</span>
                                                     { row.vaultOrderNumber && <span className="sf-fileorig">{ row.vaultOrderNumber }</span> }
                                                     { row.vaultRequestNumber && <span className="sf-fileorig">{ row.vaultRequestNumber }</span> }
                                                 </td>
@@ -418,14 +513,47 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                                     </span>
                                                 </td>
                                                 <td>
-                                                    { row.status !== 'revoked' && (
+                                                    <div className="sf-rowactions">
+                                                        { row.status === 'active' && ( accessStateOf( row ) === 'UNPAID' || accessStateOf( row ) === 'EXPIRED' ) && (
+                                                            <button
+                                                                className="sf-act"
+                                                                onClick={ () => { void handleRequestPayment( row ); } }
+                                                                disabled={ !!acting }
+                                                                aria-busy={ acting === row.fileId }
+                                                            >
+                                                                { acting === row.fileId
+                                                                    ? 'Sending…'
+                                                                    : accessStateOf( row ) === 'EXPIRED'
+                                                                        ? `Request ${ rupees( 4900 ) } renewal`
+                                                                        : `Request ${ rupees( 4900 ) }` }
+                                                            </button>
+                                                        ) }
+                                                        { row.status === 'active' && ( accessStateOf( row ) === 'OPEN' || accessStateOf( row ) === 'READY' ) && (
+                                                            <button
+                                                                className="sf-act"
+                                                                onClick={ () => { void handleSendAccess( row ); } }
+                                                                disabled={ !!acting }
+                                                                aria-busy={ acting === row.fileId }
+                                                            >
+                                                                { acting === row.fileId ? 'Sending…' : 'Send Access Vault' }
+                                                            </button>
+                                                        ) }
                                                         <button
-                                                            className="sf-revoke"
-                                                            onClick={ () => handleRevoke( row ) }
+                                                            className="sf-act sf-act-quiet"
+                                                            onClick={ () => { void handleCopyId( row ); } }
+                                                            aria-label={ `Copy the file ID of ${ row.displayName }` }
                                                         >
-                                                            Revoke
+                                                            Copy ID
                                                         </button>
-                                                    ) }
+                                                        { row.status !== 'revoked' && (
+                                                            <button
+                                                                className="sf-revoke"
+                                                                onClick={ () => handleRevoke( row ) }
+                                                            >
+                                                                Revoke
+                                                            </button>
+                                                        ) }
+                                                    </div>
                                                 </td>
                                             </tr>
                                         );
@@ -579,8 +707,28 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                 .sf-revoke:hover{background:#fee2e2;border-color:#ef4444;color:#991b1b}
                 .sf-revoke:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 
+                .sf-rowactions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+                /* Same pill geometry as .sf-revoke; lime is the action colour on this page. */
+                .sf-act{
+                  min-height:var(--tap-min,44px);border:2px solid var(--lime);border-radius:50px;
+                  background:var(--lime);color:var(--accent);padding:6px 16px;white-space:nowrap;
+                  font-size:var(--text-md);font-weight:600;cursor:pointer;transition:background-color .2s;
+                }
+                .sf-act:hover:not(:disabled){background:#fff}
+                .sf-act:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+                .sf-act:disabled{opacity:.55;cursor:default}
+                .sf-act-quiet{background:#fff;border-color:rgba(26,58,42,.18)}
+                .sf-act-quiet:hover:not(:disabled){background:var(--lime);border-color:var(--lime)}
+                .sf-revoke{min-height:var(--tap-min,44px)}
+
+                .sf-check{
+                  display:flex;align-items:center;gap:10px;min-height:var(--tap-min,44px);
+                  font-size:var(--text-md);font-weight:600;color:var(--accent);cursor:pointer;
+                }
+                .sf-check input{width:20px;height:20px;accent-color:var(--accent);flex:0 0 auto}
+
                 @media(prefers-reduced-motion:reduce){
-                  .sf-cta,.sf-input,.sf-revoke{transition:none}
+                  .sf-cta,.sf-input,.sf-revoke,.sf-act{transition:none}
                   .sf-cta:hover:not(:disabled){transform:none}
                 }
             ` }</style>

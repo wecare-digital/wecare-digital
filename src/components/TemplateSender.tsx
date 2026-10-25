@@ -39,6 +39,15 @@ const SHARED_TEMPLATE_HEADER = 'https://wecare.digital/get/secure/d/public/whats
    (`url_button_component`: letters, digits, - and _), so anything else is refused here first. */
 const URL_BUTTON_SUFFIX = /^[A-Za-z0-9_-]{1,120}$/;
 
+/* How each Vault file reads in the download-template picker. */
+const VAULT_STATE_LABELS: Record<api.SecureFileAccessState, string> = {
+  UNPAID: 'unpaid',
+  OPEN: 'paid, window open',
+  READY: 'paid',
+  EXPIRED: 'renewal needed',
+  PAID_UNVERIFIED: 'paid, needs reconciling',
+};
+
 const GENERIC_SEND_BLOCKED_TEMPLATES = new Set( [
   PAYMENT_ORDER_DETAILS_TEMPLATE,
   INVOICE_TEMPLATE,
@@ -52,6 +61,7 @@ interface TemplateSenderProps {
   phoneNumberId: string;
   recipientBsuid?: string;
   recipientPhone?: string;    // Send to phone directly — auto-creates contact if needed
+  customerPhone?: string;     // The contact's known number; lists their Vault files for the download button
   enableManualRecipient?: boolean;  // Show a phone-number input (new / unsaved contact)
   onRequestPayment?: () => void;     // Open the authoritative commerce payment composer
   onClose: () => void;
@@ -71,6 +81,7 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
   phoneNumberId,
   recipientBsuid,
   recipientPhone,
+  customerPhone,
   enableManualRecipient,
   onRequestPayment,
   onClose,
@@ -119,6 +130,11 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
   // https://wecare.digital/vault/?file={{1}}; staff enter only the file id/suffix.
   const [ urlButtonIndex, setUrlButtonIndex ] = useState<number | null>( null );
   const [ urlButtonSuffix, setUrlButtonSuffix ] = useState( '' );
+  // Vault file picker for wecare_default_download: this customer's own files, so the button
+  // carries a real file ID instead of whatever was typed. Manual entry stays as the fallback.
+  const [ vaultFiles, setVaultFiles ] = useState<api.SecureFile[] | null>( null );
+  const [ vaultFilesError, setVaultFilesError ] = useState( '' );
+  const [ vaultManual, setVaultManual ] = useState( false );
   // Media library (reusable wa-tpl/ files) — search, pick, permanently delete.
   const [ showLibrary, setShowLibrary ] = useState( false );
   const [ libraryItems, setLibraryItems ] = useState<any[]>( [] );
@@ -172,6 +188,30 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
     loadTemplates();
     setSelectedTemplate( null );
   }, [ phoneNumberId ] );
+
+  // The download template's button needs one of THIS customer's Vault file IDs. List them by
+  // number (the staff list is phone-keyed) so the ID is picked, not retyped. Settled from the
+  // promise callback, never synchronously in the effect body.
+  const isDownloadTemplate = selectedTemplate?.name.toLowerCase() === DOWNLOAD_TEMPLATE;
+  const vaultLookupPhone = ( customerPhone || recipientPhone || ( manualMode ? manualPhone : '' ) )
+    .replace( /\D/g, '' );
+  useEffect( () => {
+    if ( !isDownloadTemplate || vaultLookupPhone.length < 10 ) return undefined;
+    let cancelled = false;
+    void api.listSecureFiles( vaultLookupPhone ).then( result => {
+      if ( cancelled ) return;
+      if ( result.ok )
+      {
+        setVaultFiles( ( result.data.files || [] ).filter( row => row.status === 'active' ) );
+        setVaultFilesError( '' );
+      } else
+      {
+        setVaultFiles( null );
+        setVaultFilesError( result.failure.message || 'Could not load this customer\'s Vault files.' );
+      }
+    } );
+    return () => { cancelled = true; };
+  }, [ isDownloadTemplate, vaultLookupPhone ] );
 
   // Extract variables from template when selected
   useEffect( () => {
@@ -1064,16 +1104,39 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
                   { selectedTemplate.name.toLowerCase() === DOWNLOAD_TEMPLATE ? 'Vault file ID' : 'Dynamic URL value' }
                   <span className="required-tag">required</span>
                 </label>
-                <input
-                  type="text"
-                  className="header-url-input"
-                  value={ urlButtonSuffix }
-                  onChange={ ( e ) => setUrlButtonSuffix( e.target.value ) }
-                  placeholder={ selectedTemplate.name.toLowerCase() === DOWNLOAD_TEMPLATE ? 'Vault file ID (letters, digits, - and _)' : 'Dynamic URL suffix' }
-                />
+                { isDownloadTemplate && !vaultManual && vaultFiles && vaultFiles.length > 0 ? (
+                  <>
+                    <select
+                      className="header-url-input"
+                      value={ urlButtonSuffix }
+                      onChange={ ( e ) => setUrlButtonSuffix( e.target.value ) }
+                      aria-label="Vault file for the Access Vault button"
+                    >
+                      <option value="">Choose this customer&apos;s Vault file…</option>
+                      { vaultFiles.map( row => (
+                        <option key={ row.fileId } value={ row.fileId }>
+                          { `${ row.displayName } · ${ VAULT_STATE_LABELS[ row.accessState || ( row.vaultPaymentStatus === 'PAID' ? 'READY' : 'UNPAID' ) ] }` }
+                        </option>
+                      ) ) }
+                    </select>
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={ () => setVaultManual( true ) }>
+                      Enter a file ID instead
+                    </button>
+                  </>
+                ) : (
+                  <input
+                    type="text"
+                    className="header-url-input"
+                    value={ urlButtonSuffix }
+                    onChange={ ( e ) => setUrlButtonSuffix( e.target.value ) }
+                    placeholder={ isDownloadTemplate ? 'Vault file ID (letters, digits, - and _)' : 'Dynamic URL suffix' }
+                  />
+                ) }
                 <span className="manual-hint">
-                  { selectedTemplate.name.toLowerCase() === DOWNLOAD_TEMPLATE
-                    ? 'The approved template already contains https://wecare.digital/vault/?file={{1}}. Enter only the file ID, not a full URL.'
+                  { isDownloadTemplate
+                    ? ( vaultFiles && vaultFiles.length > 0 && !vaultManual
+                      ? 'Unpaid and renewal files open the Vault page, where the customer pays on WhatsApp. Paid files download straight away.'
+                      : `${ vaultFilesError ? `${ vaultFilesError } ` : vaultFiles && vaultFiles.length === 0 ? 'No active Vault files are registered to this number. ' : '' }The approved template already contains https://wecare.digital/vault/?file={{1}}. Enter only the file ID (Secure files → Copy ID), not a full URL.` )
                     : 'Enter only the value that replaces {{1}} in the approved button URL.' }
                 </span>
               </div>

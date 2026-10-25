@@ -121,6 +121,20 @@ SERVICE_PRODUCT_BY_VARIANT: Mapping[str, str] = MappingProxyType({
     "SHP7Q4N9": "166370fe-69a8-5ad2-9f9a-e9ce3f92839c",
 })
 
+#: Folded spelling -> the catalogue's own spelling. The SKUs above are upper-case, but the
+#: retired UUID identities were compared lower-cased, and #733 kept that `.lower()` when it
+#: switched to SKUs: every service line then missed this map and checkout refused all five
+#: services with SERVICE_UNKNOWN_CHOICE. Every lookup goes through `canonical_variant_id` so the
+#: comparison cannot depend on how a browser, a Meta cart or a stored row spelled the id.
+_CANONICAL_VARIANT_BY_FOLDED: Mapping[str, str] = MappingProxyType(
+    {variant.casefold(): variant for variant in SERVICE_KIND_BY_VARIANT})
+
+
+def canonical_variant_id(value: Any) -> str:
+    """The catalogue spelling of a service variant id, or ``''`` when it names no service."""
+    return _CANONICAL_VARIANT_BY_FOLDED.get(str(value or "").strip().casefold(), "")
+
+
 #: No legacy catalog identity is recognized. Fresh SKU-first service identities will be wired
 #: when the new catalog is created.
 SERVICE_PURCHASES_ENABLED = True
@@ -199,8 +213,17 @@ SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE"
 SERVICE_WEBSITE_ONLY = "SERVICE_WEBSITE_ONLY"
 SERVICE_PRICE_CHANGED = "SERVICE_PRICE_CHANGED"
 SERVICE_NOT_PAYABLE = "SERVICE_NOT_PAYABLE"
+#: Vault is sold per FILE. A Vault intent with no file could be paid for and never unlock
+#: anything, because `vault_access.grant_access` needs the file the payment is for.
+VAULT_FILE_REQUIRED = "VAULT_FILE_REQUIRED"
+#: The file is paid and its access window is open (or a paid window is still unused), so a new
+#: ₹49 would charge for access the customer already has.
+VAULT_ACCESS_ACTIVE = "VAULT_ACCESS_ACTIVE"
 
 SERVICE_MESSAGES: Mapping[str, str] = MappingProxyType({
+    VAULT_FILE_REQUIRED: "Choose the Vault document you want to unlock. Nothing has been charged.",
+    VAULT_ACCESS_ACTIVE: "This document is already paid and ready to download. "
+                         "Nothing has been charged.",
     SERVICE_NOT_OFFERED: "This service is not offered yet. Nothing has been charged.",
     SERVICE_UNKNOWN_CHOICE: "Choose a WECARE.DIGITAL service. Nothing has been charged.",
     SERVICE_INVALID_QUANTITY: "A service is bought one at a time. Set its quantity to 1. "
@@ -298,12 +321,15 @@ def service_line(line_items: Any) -> Optional[ServiceLine]:
         if not is_service_product(reference.get("catalogItemId")):
             continue
         options = reference.get("options")
-        variant_id = (str(options.get("variantId") or "").strip().lower()
-                      if isinstance(options, dict) else "")
-        if variant_id in NOT_OFFERED_VARIANT_IDS:
+        raw_variant = (str(options.get("variantId") or "").strip()
+                       if isinstance(options, dict) else "")
+        if raw_variant.casefold() in {v.casefold() for v in NOT_OFFERED_VARIANT_IDS}:
             logger.info(json.dumps({"event": "service_refused", "reason": SERVICE_NOT_OFFERED}))
             raise ServiceRejected(SERVICE_NOT_OFFERED)
-        if (variant_id not in SERVICE_KIND_BY_VARIANT
+        # The catalogue spelling, so the PAYREF serviceLine and `store.activate` agree with
+        # SERVICE_KIND_BY_VARIANT byte for byte.
+        variant_id = canonical_variant_id(raw_variant)
+        if (not variant_id
                 or SERVICE_PRODUCT_BY_VARIANT.get(variant_id) !=
                 str(reference.get("catalogItemId") or "").strip().lower()):
             logger.info(json.dumps({"event": "service_refused", "reason": SERVICE_UNKNOWN_CHOICE}))
@@ -402,7 +428,7 @@ def native_service_line_paise(snapshot: Any, line_items: Any) -> Optional[int]:
         if isinstance(item, Mapping)
         and str(item.get("productId") or "").strip().lower()
             == SERVICE_PRODUCT_BY_VARIANT.get(line.variant_id)
-        and str(item.get("variantId") or "").strip() == line.variant_id
+        and canonical_variant_id(item.get("variantId")) == line.variant_id
     ]
     if len(matches) != 1:
         raise ServicePriceChanged("native service quote does not identify one priced line")
@@ -466,9 +492,10 @@ __all__ = [
     "SERVICE_KIND_BY_SLUG", "SERVICE_KIND_BY_VARIANT",
     "SERVICE_LINE_MAX_PAISE", "SERVICE_LINE_MIN_PAISE",
     "SERVICE_MESSAGES", "SERVICE_PRODUCT_IDS", "SERVICE_SLUG_BY_KIND", "SERVICE_VARIANT_BY_KIND",
-    "SUBMIT_REQUEST", "TARGET_REQUIRED_KINDS", "VAULT", "ServiceLine",
+    "SUBMIT_REQUEST", "TARGET_REQUIRED_KINDS", "VAULT", "VAULT_ACCESS_ACTIVE",
+    "VAULT_FILE_REQUIRED", "ServiceLine",
     "ServiceNotPayable", "ServicePriceChanged", "ServiceRejected",
-    "checkout_preflight", "has_service_line", "intent_rebound", "is_service_product",
-    "native_service_line_paise", "payref_extra", "refusal",
+    "canonical_variant_id", "checkout_preflight", "has_service_line", "intent_rebound",
+    "is_service_product", "native_service_line_paise", "payref_extra", "refusal",
     "service_line",
 ]

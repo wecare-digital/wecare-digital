@@ -2930,6 +2930,32 @@ def _process_message(
         # Non-form service doors reuse secure website experiences. No second payment path.
         if _content_plain in {'vault', 'my vault', 'request amendment', 'drop docs',
                               'shipments', 'submit request'}:
+            if (_content_plain in {'vault', 'my vault'} and whatsapp_message_id
+                    and aws_phone_number_id == PHONE_NUMBER_ID_1
+                    and os.environ.get('WHATSAPP_CATALOG_SERVICES_ENABLED', 'false').lower() == 'true'):
+                # The keyword is a signed inbound message, so it opens the same document list a
+                # Vault catalog cart opens (business-api `catalogService.start`): commerce proves
+                # the customer from this message id, and each document is offered as Paid (free
+                # link), Renew or unpaid (one server-priced Review and Pay). WABA1 only, because
+                # only WABA1 may take a payment; anything else keeps the website door below.
+                try:
+                    from lambda_utils.ecommerce import service_requests as _services
+                    _vault_variant = _services.SERVICE_VARIANT_BY_KIND[_services.VAULT]
+                    if _may_send('vault_keyword'):
+                        lambda_client.invoke(
+                            FunctionName='wecare-whatsapp-business-api:live', InvocationType='Event',
+                            Payload=json.dumps({
+                                'internalAction': 'catalogService', 'action': 'start',
+                                'lines': [{'productId': _services.SERVICE_PRODUCT_BY_VARIANT[_vault_variant],
+                                           'variantId': _vault_variant, 'quantity': 1}],
+                                'sourceMessageId': whatsapp_message_id, 'contactId': contact_id,
+                                'senderPhone': sender_phone,
+                                'phoneNumberId': aws_phone_number_id}).encode())
+                    return
+                except Exception as error:  # noqa: BLE001 - fall back to the website door
+                    logger.warning(json.dumps({'event': 'vault_keyword_list_unavailable',
+                                               'errorType': type(error).__name__,
+                                               'requestId': request_id}))
             service_doors = {
                 'vault': ('Vault', '/vault/', 'Access documents linked to your verified account.'),
                 'my vault': ('Vault', '/vault/', 'Access documents linked to your verified account.'),
