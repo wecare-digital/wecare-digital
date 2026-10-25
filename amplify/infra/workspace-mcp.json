@@ -17,6 +17,22 @@
     },
     "AlarmTopic": {
       "Type": "String"
+    },
+    "ChatRedirectUri": {
+      "Type": "String",
+      "Default": "",
+      "MaxLength": 256,
+      "AllowedPattern": "^$|^https://chatgpt\\.com/connector/oauth/[A-Za-z0-9_-]{1,256}$",
+      "Description": "Exact callback from ChatGPT setup; empty disables the dedicated Chat endpoint."
+    },
+    "ChatDiscoveryEnabled": {
+      "Type": "String",
+      "Default": "false",
+      "AllowedValues": [
+        "false",
+        "true"
+      ],
+      "Description": "Provision public OAuth metadata before exact ChatGPT callback setup; no anonymous tools."
     }
   },
   "Resources": {
@@ -171,7 +187,9 @@
                     "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/seo/google-oauth-XnSVlc",
                     "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/google/ads-HuIYKY",
                     "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/razorpay/api-vaHEaM",
-                    "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/meta-system-user-token-*"
+                    "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/meta-system-user-token-*",
+                    "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/plivo/api-aIEx8b",
+                    "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/sinch/rcs-18kRci"
                   ]
                 },
                 {
@@ -183,7 +201,10 @@
                   "Condition": {
                     "StringEquals": {
                       "kms:ViaService": "secretsmanager.us-east-1.amazonaws.com",
-                      "kms:EncryptionContext:SecretARN": "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/google/ads-HuIYKY"
+                      "kms:EncryptionContext:SecretARN": [
+                        "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/google/ads-HuIYKY",
+                        "arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/plivo/api-aIEx8b"
+                      ]
                     }
                   }
                 },
@@ -242,6 +263,45 @@
             },
             "GITHUB_TOKEN_FIELD": {
               "Ref": "GithubTokenField"
+            },
+            "CHAT_API_ID": {
+              "Fn::If": [
+                "ChatProvisioned",
+                {
+                  "Ref": "ChatApi"
+                },
+                ""
+              ]
+            },
+            "CHAT_API_BASE": {
+              "Fn::If": [
+                "ChatProvisioned",
+                {
+                  "Fn::GetAtt": [
+                    "ChatApi",
+                    "ApiEndpoint"
+                  ]
+                },
+                ""
+              ]
+            },
+            "CHAT_CLIENT_ID": {
+              "Fn::If": [
+                "ChatEnabled",
+                {
+                  "Ref": "ChatClient"
+                },
+                ""
+              ]
+            },
+            "CHAT_REDIRECT_URI": {
+              "Fn::If": [
+                "ChatEnabled",
+                {
+                  "Ref": "ChatRedirectUri"
+                },
+                ""
+              ]
             }
           }
         }
@@ -258,7 +318,17 @@
         "CodeSha256": {
           "Ref": "CodeSha256"
         },
-        "Description": "Administrative MCP fixed read adapters and registered OAuth"
+        "Description": {
+          "Fn::If": [
+            "ChatEnabled",
+            {
+              "Ref": "ChatRedirectUri"
+            },
+            {
+              "Fn::Sub": "Administrative MCP; Chat discovery ${ChatDiscoveryEnabled}"
+            }
+          ]
+        }
       }
     },
     "Alias": {
@@ -433,6 +503,291 @@
           }
         ]
       }
+    },
+    "ChatApi": {
+      "Type": "AWS::ApiGatewayV2::Api",
+      "Condition": "ChatProvisioned",
+      "Properties": {
+        "Name": "wecare-chat-mcp",
+        "ProtocolType": "HTTP"
+      }
+    },
+    "ChatStage": {
+      "Type": "AWS::ApiGatewayV2::Stage",
+      "Condition": "ChatProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "ChatApi"
+        },
+        "StageName": "$default",
+        "AutoDeploy": true,
+        "DefaultRouteSettings": {
+          "ThrottlingBurstLimit": 5,
+          "ThrottlingRateLimit": 2
+        }
+      }
+    },
+    "ChatClient": {
+      "Type": "AWS::Cognito::UserPoolClient",
+      "Condition": "ChatEnabled",
+      "Properties": {
+        "ClientName": "wecare-chat-mcp",
+        "UserPoolId": "us-east-1_cSx0RHCIR",
+        "GenerateSecret": false,
+        "AllowedOAuthFlowsUserPoolClient": true,
+        "AllowedOAuthFlows": [
+          "code"
+        ],
+        "AllowedOAuthScopes": [
+          "aws.cognito.signin.user.admin"
+        ],
+        "SupportedIdentityProviders": [
+          "COGNITO"
+        ],
+        "CallbackURLs": [
+          {
+            "Ref": "ChatRedirectUri"
+          }
+        ],
+        "EnableTokenRevocation": true,
+        "PreventUserExistenceErrors": "ENABLED",
+        "AccessTokenValidity": 15,
+        "IdTokenValidity": 15,
+        "RefreshTokenValidity": 7,
+        "TokenValidityUnits": {
+          "AccessToken": "minutes",
+          "IdToken": "minutes",
+          "RefreshToken": "days"
+        },
+        "ExplicitAuthFlows": [
+          "ALLOW_REFRESH_TOKEN_AUTH"
+        ],
+        "ReadAttributes": [
+          "sub"
+        ],
+        "WriteAttributes": []
+      }
+    },
+    "ChatBranding": {
+      "Type": "AWS::Cognito::ManagedLoginBranding",
+      "Condition": "ChatEnabled",
+      "Properties": {
+        "UserPoolId": "us-east-1_cSx0RHCIR",
+        "ClientId": {
+          "Ref": "ChatClient"
+        },
+        "UseCognitoProvidedValues": true
+      }
+    },
+    "ChatIntegration": {
+      "Type": "AWS::ApiGatewayV2::Integration",
+      "Condition": "ChatProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "ChatApi"
+        },
+        "IntegrationType": "AWS_PROXY",
+        "IntegrationUri": {
+          "Ref": "Alias"
+        },
+        "PayloadFormatVersion": "2.0",
+        "TimeoutInMillis": 29000
+      }
+    },
+    "ChatResourceMetadataRoute": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Condition": "ChatProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "ChatApi"
+        },
+        "RouteKey": "GET /.well-known/oauth-protected-resource",
+        "AuthorizationType": "NONE",
+        "Target": {
+          "Fn::Join": [
+            "",
+            [
+              "integrations/",
+              {
+                "Ref": "ChatIntegration"
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "ChatResourceMetadataPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Condition": "ChatProvisioned",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "Alias"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ChatApi}/$default/GET/.well-known/oauth-protected-resource"
+        }
+      }
+    },
+    "ChatServerMetadataRoute": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Condition": "ChatProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "ChatApi"
+        },
+        "RouteKey": "GET /.well-known/oauth-authorization-server",
+        "AuthorizationType": "NONE",
+        "Target": {
+          "Fn::Join": [
+            "",
+            [
+              "integrations/",
+              {
+                "Ref": "ChatIntegration"
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "ChatServerMetadataPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Condition": "ChatProvisioned",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "Alias"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ChatApi}/$default/GET/.well-known/oauth-authorization-server"
+        }
+      }
+    },
+    "ChatAuthorizeRoute": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Condition": "ChatProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "ChatApi"
+        },
+        "RouteKey": "GET /authorize",
+        "AuthorizationType": "NONE",
+        "Target": {
+          "Fn::Join": [
+            "",
+            [
+              "integrations/",
+              {
+                "Ref": "ChatIntegration"
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "ChatAuthorizePermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Condition": "ChatProvisioned",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "Alias"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ChatApi}/$default/GET/authorize"
+        }
+      }
+    },
+    "ChatTokenRoute": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Condition": "ChatProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "ChatApi"
+        },
+        "RouteKey": "POST /token",
+        "AuthorizationType": "NONE",
+        "Target": {
+          "Fn::Join": [
+            "",
+            [
+              "integrations/",
+              {
+                "Ref": "ChatIntegration"
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "ChatTokenPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Condition": "ChatProvisioned",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "Alias"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ChatApi}/$default/POST/token"
+        }
+      }
+    },
+    "ChatMcpRoute": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Condition": "ChatProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "ChatApi"
+        },
+        "RouteKey": "ANY /mcp",
+        "AuthorizationType": "NONE",
+        "Target": {
+          "Fn::Join": [
+            "",
+            [
+              "integrations/",
+              {
+                "Ref": "ChatIntegration"
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "ChatMcpPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Condition": "ChatProvisioned",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "Alias"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ChatApi}/$default/*/mcp"
+        }
+      }
     }
   },
   "Outputs": {
@@ -459,6 +814,22 @@
     },
     "IamEndpoint": {
       "Value": "https://zllr9lrg7j.execute-api.us-east-1.amazonaws.com/prod/workspace/mcp-iam"
+    },
+    "ChatEndpoint": {
+      "Condition": "ChatProvisioned",
+      "Value": {
+        "Fn::Sub": "${ChatApi.ApiEndpoint}/mcp"
+      }
+    },
+    "ChatClientId": {
+      "Condition": "ChatEnabled",
+      "Value": {
+        "Ref": "ChatClient"
+      }
+    },
+    "ChatScope": {
+      "Condition": "ChatEnabled",
+      "Value": "aws.cognito.signin.user.admin"
     }
   },
   "Metadata": {
@@ -470,6 +841,35 @@
         {
           "at": "docs/workspace-mcp.md",
           "has": "Authentication, fixed read adapters, runtime credential custody and rollback constraints"
+        }
+      ]
+    }
+  },
+  "Conditions": {
+    "ChatEnabled": {
+      "Fn::Not": [
+        {
+          "Fn::Equals": [
+            {
+              "Ref": "ChatRedirectUri"
+            },
+            ""
+          ]
+        }
+      ]
+    },
+    "ChatProvisioned": {
+      "Fn::Or": [
+        {
+          "Condition": "ChatEnabled"
+        },
+        {
+          "Fn::Equals": [
+            {
+              "Ref": "ChatDiscoveryEnabled"
+            },
+            "true"
+          ]
         }
       ]
     }

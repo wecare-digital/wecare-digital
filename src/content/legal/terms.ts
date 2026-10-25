@@ -26,8 +26,7 @@
  *
  * WHAT IT DID NOT CHANGE: any obligation, right, remedy, limitation, disclaimer or
  * liability cap. The rewrite kept every section's original NUMBER, id and scope, so
- * citations still resolve - including the two from elsewhere in this codebase, src/pages/
- * orders.tsx to section 14 and src/pages/bharat-rx.tsx to section 17. The ONLY numbers
+ * citations still resolve - including src/pages/orders.tsx to section 14. The ONLY numbers
  * that have moved since are the last three, when the contact clause was sent to the end of
  * the document; see the note above section 45 for exactly what changed. Nothing was
  * added that makes a commitment the original did not already make; in particular the
@@ -780,9 +779,9 @@ export const TERMS_SECTIONS: LegalSection[] = [
    * WHAT THE RENUMBER MOVED: Machine translation 46 -> 45, AI 47 -> 46, How to contact us
    * 45 -> 47. Every section's `id` is its in-page anchor and tracks its number, so
    * /terms/#s45 now resolves to Machine translation, #s46 to AI, and #s47 to contact.
-   * Nothing in this repo links to any of the three: the only in-code citations of these
-   * Terms are src/pages/orders.tsx to section 14 and src/pages/bharat-rx.tsx to section
-   * 17, both untouched. 46 and 47 have never been published under any other number, so the
+   * Nothing in this repo links to any of the three: the remaining in-code Terms citation is
+   * src/pages/orders.tsx to section 14, untouched. 46 and 47 have never been published under
+   * any other number, so the
    * only real exposure is an external document citing "Terms section 45" for contact
    * details - which is the one thing this repo cannot check.
    *

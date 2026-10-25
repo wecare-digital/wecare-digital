@@ -121,10 +121,6 @@ const PUBLIC_PREFIXES = [ '/post/', '/blog/page/', '/blog/topic/', '/shop/' ];
  * concrete children are public pages. Keeping the guard here prevents a future refactor or
  * stale export from silently advertising a deleted parent again.
  */
-const RETIRED_PUBLIC_ROUTES = new Set( [
-  '/bharat-rx',
-] );
-
 const RETIRED_FAMILY_PARENTS = new Set( [
   '/clear-closure',
   '/dastavez',
@@ -410,17 +406,6 @@ function robotsDisallows () {
 }
 
 const routes = findHtmlFiles( OUT_DIR );
-
-const retiredPublicRoutes = routes.filter( route => RETIRED_PUBLIC_ROUTES.has( route ) );
-if ( retiredPublicRoutes.length > 0 )
-{
-  console.error(
-    '\nSITEMAP REFUSED: retired public route(s) were found in the export:\n'
-    + retiredPublicRoutes.map( route => `    ${route}` ).join( '\n' )
-    + '\n  These URLs were replaced and must not return to the canonical sitemap.\n'
-  );
-  process.exit( 1 );
-}
 
 const retiredFamilyRoutes = routes.filter( route => RETIRED_FAMILY_PARENTS.has( route ) );
 if ( retiredFamilyRoutes.length > 0 )

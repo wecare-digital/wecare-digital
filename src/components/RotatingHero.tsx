@@ -20,7 +20,7 @@ import RotatingPill from './RotatingPill';
  * the mega menu, where a renderLink() helper left the rules behind and every row fell
  * through to a global - so it is worth being exact about.
  *
- * Contact, Terms, Privacy, Bharat Rx, Orders, the product pages, Grahak OS and VayuLok
+ * Contact, Terms, Privacy, Orders, the product pages, Grahak OS and VayuLok
  * all use this. Home keeps its own headline (home-head) around the shared RotatingPill,
  * and `node tools/browser/animcheck.js` asserts that every rotating surface shares the
  * same computed transitions so the family cannot silently drift apart. Measured
