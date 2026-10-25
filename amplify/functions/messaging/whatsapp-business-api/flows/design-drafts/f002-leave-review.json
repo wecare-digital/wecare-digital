@@ -152,6 +152,10 @@
             "text": "Tap Submit idea to send your thought to our team."
           },
           {
+            "type": "TextCaption",
+            "text": "Need to change something? Tap Back to edit."
+          },
+          {
             "type": "Footer",
             "label": "Submit idea",
             "on-click-action": {
