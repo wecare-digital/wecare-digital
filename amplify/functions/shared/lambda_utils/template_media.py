@@ -17,6 +17,13 @@ ORDER_CATALOG_HEADER = (
 # constant without updating them, which left outbound unable to import (no WhatsApp send at all).
 ORDER_CATALOG_HEADER_IMAGE = ORDER_CATALOG_HEADER
 
+# The names these two had before #1567, kept because they are still imported: outbound-whatsapp
+# imports ORDER_CATALOG_HEADER_IMAGE at module scope (removing it makes every cold start an
+# ImportError, so no WhatsApp message can be sent) and the invoice engine reads it when it sends
+# a payment request.
+DEFAULT_HEADER_IMAGE = SHARED_TEMPLATE_HEADER
+ORDER_CATALOG_HEADER_IMAGE = ORDER_CATALOG_HEADER
+
 FIXED_IMAGE_HEADERS = {
     "wecare_leave_review": SHARED_TEMPLATE_HEADER,
 }
