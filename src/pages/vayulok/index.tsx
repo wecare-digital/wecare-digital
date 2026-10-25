@@ -41,6 +41,7 @@ import Breadcrumbs from '../../components/Breadcrumbs';
 import RotatingHero from '../../components/RotatingHero';
 import VayuLokApprovedGlobe from '../../components/VayuLokApprovedGlobe';
 import VayuLokLive from '../../components/VayuLokLive';
+import MetaCatalogView from '../../components/MetaCatalogView';
 
 /*
  * SOCIAL CARD. This page uses the sitewide square brand card from _app.tsx
@@ -140,6 +141,12 @@ const VayuLokPage: React.FC = () => {
           docs/grahak-os-handoff.md records that neither has an endpoint wired, and a meta
           description is the wrong place to promise an unbuilt feature. Solar is left out on
           the same caution. Add them here when they are real. */}
+      <MetaCatalogView
+        productId="native:vayulok"
+        variantId="e458f22c-bf73-42fe-8b00-9415e3561f59"
+        name="VayuLok"
+        value={ 99 }
+      />
       <PageMeta
         title="VayuLok — Bharat air and weather insights | WECARE.DIGITAL"
         description="VayuLok by WECARE.DIGITAL — live air quality, weather, forecasts, history and heatmaps for a chosen location."

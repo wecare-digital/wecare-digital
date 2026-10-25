@@ -6,6 +6,7 @@ import type { ShopProduct } from '../content/shop';
 import { CHECKOUT_PATH } from '../lib/serviceEntry';
 import { productCheckoutLine } from '../config/productCheckout';
 import CheckoutAction from './CheckoutAction';
+import { rupeesFromFormattedPrice, trackMetaAddToCart, trackMetaViewContent } from '../lib/metaPixel';
 
 /**
  * THE PRODUCT CHECKOUT ACTION.
@@ -41,12 +42,30 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( {
 
   const line = productCheckoutLine( slug );
 
+  useEffect( () => {
+    if ( !line ) return;
+    trackMetaViewContent( {
+      productId: line.productId,
+      variantId: line.variantId,
+      name: line.name,
+      value: rupeesFromFormattedPrice( line.formattedPrice ),
+      currency: 'INR',
+    } );
+  }, [ line ] );
+
   const onContinue = useCallback( async () => {
     if ( !line || busy ) return;
     setError( null );
     setBusy( true );
     try {
       addProductLine( line );
+      trackMetaAddToCart( {
+        productId: line.productId,
+        variantId: line.variantId,
+        name: line.name,
+        value: rupeesFromFormattedPrice( line.formattedPrice ),
+        currency: 'INR',
+      } );
       await router.push( CHECKOUT_PATH );
     } catch {
       if ( alive.current ) {

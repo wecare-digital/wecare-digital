@@ -9,7 +9,7 @@ own data. Nothing failed loudly: the apex host serves the whole bucket, so a key
 the root returned HTTP 200. The breakage only showed up as a missing invoice logo, an
 empty cleanup sweep, and a document download pointing at a bucket that does not exist.
 
-Four things are checked, and each one corresponds to a defect that actually shipped:
+Five things are checked, and each one corresponds to a defect that actually shipped:
 
 1. **No dead bucket names.** `wecare-digital-media` and `wecare-digital-documents` (never
    existed) must not appear in handler source or in live Lambda configuration.
@@ -17,7 +17,10 @@ Four things are checked, and each one corresponds to a defect that actually ship
 3. **Import precedes use.** `media_paths` imported BELOW its first use is a module-scope
    NameError that byte-compiles cleanly and only fails at runtime. Three handlers shipped
    that way for one deploy cycle; this is the check that catches it statically.
-4. **The host topology matches whichever state we are actually in.** This check used to
+4. **The edge gate matches the key contract.** The Lambda@Edge package cannot import
+   `media_paths`, so it carries its own copy of `PRIVATE_DELIVERABLE_PREFIXES`; the two
+   must be identical, and the edge must refuse a key under every one of them.
+5. **The host topology matches whichever state we are actually in.** This check used to
    assert that `wecare-digital-get` still served this bucket through origin path `/o`,
    on the reasoning that the dual-homing was the only thing making `o/` load-bearing.
    That host was retired on 2026-09-28 — distribution `ERCXSFDL0VM8X` deleted, DNS
@@ -253,8 +256,32 @@ def check_import_before_use(r: Result) -> None:
           "; ".join(offenders[:4]) if offenders else "ordering correct")
 
 
+def check_edge_parity(r: Result) -> None:
+    print("\n4. the edge gate refuses exactly media_paths.PRIVATE_DELIVERABLE_PREFIXES")
+    import importlib.util
+
+    def load(path: pathlib.Path, name: str):
+        spec = importlib.util.spec_from_file_location(name, path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    # Both files are dependency-free at import, which is what lets this run in CI.
+    paths = load(MEDIA_PATHS, "media_paths_parity")
+    edge = load(FUNCTIONS / "edge" / "get-miss-redirect" / "handler.py", "edge_parity")
+    expected = tuple(paths.PRIVATE_DELIVERABLE_PREFIXES)
+    actual = tuple(getattr(edge, "PRIVATE_DELIVERABLE_PREFIXES", ()))
+    r.add("edge PRIVATE_DELIVERABLE_PREFIXES matches media_paths", actual == expected,
+          f"{len(expected)} prefixes" if actual == expected else
+          f"only in media_paths: {sorted(set(expected) - set(actual))}; "
+          f"only in edge: {sorted(set(actual) - set(expected))}")
+    refused = [p for p in expected if not edge._is_denied("/" + p + "x")]
+    r.add("edge refuses a key under every private prefix", not refused,
+          "; ".join(refused) if refused else "all refused")
+
+
 def check_live(r: Result) -> None:
-    print("\n4. live AWS configuration")
+    print("\n5. live AWS configuration")
     try:
         import boto3
     except ImportError:
@@ -340,10 +367,11 @@ def main() -> int:
     check_no_dead_buckets(r)
     check_keys_rooted(r)
     check_import_before_use(r)
+    check_edge_parity(r)
     if args.live:
         check_live(r)
     else:
-        print("\n4. live AWS configuration  (skipped, pass --live)")
+        print("\n5. live AWS configuration  (skipped, pass --live)")
 
     print(f"\n{r.passed} passed, {r.failed} failed")
     return 1 if r.failed else 0

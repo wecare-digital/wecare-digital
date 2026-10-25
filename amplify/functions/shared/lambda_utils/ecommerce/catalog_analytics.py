@@ -8,9 +8,6 @@ from decimal import Decimal
 
 from . import meta_catalog_sync, payment_attempt
 
-PRODUCT_ID = ''
-VARIANTS = frozenset()
-
 
 def _integer(value):
     if isinstance(value, bool) or not isinstance(value, (int, Decimal)):
@@ -24,33 +21,36 @@ def _integer(value):
 def purchase_facts(attempt):
     """Catalog analytics facts from a paid attempt, provider-neutral.
 
-    Reads a small `catalogContents` list — `[{productId, variantId, quantity}, ...]` — which a
-    native checkout may attach to the attempt. Each content id is the Meta catalogue retailer id,
-    built by `meta_catalog_sync.retailer_id` (the one owner of that external contract), so the id a
-    downstream pixel/CAPI event keys on is exactly the id the published catalogue item carries.
+    Reads the frozen `catalogContents` list written by checkout before any payable request is
+    sent. Each line is `{productId, variantId, quantity}`; the external content id is generated
+    by `meta_catalog_sync.retailer_id`, the same function that publishes the Meta catalogue.
 
-    Returns None when the attempt is not a clean paid INR order, when no `catalogContents` is
-    present (nothing to attribute), or when any line fails the known product/variant allowlist —
-    a mixed basket must not attribute the whole payment to one service.
+    Returns None unless the attempt is a clean paid INR order with an order number and every
+    frozen line can be expressed as one of our valid retailer-id contracts. A malformed or mixed
+    non-catalog basket therefore suppresses attribution rather than manufacturing a match.
     """
-    if (attempt.get('status') != payment_attempt.PAYMENT_PAID
-            or not attempt.get('orderNumber') or attempt.get('currency') != 'INR'):
+    if (attempt.get("status") != payment_attempt.PAYMENT_PAID
+            or not attempt.get("orderNumber") or attempt.get("currency") != "INR"):
         return None
-    amount = _integer(attempt.get('amountPaise'))
-    lines = attempt.get('catalogContents')
+
+    amount = _integer(attempt.get("amountPaise"))
+    lines = attempt.get("catalogContents")
     if not amount or not isinstance(lines, list) or not lines:
         return None
+
     contents = []
     for line in lines:
         if not isinstance(line, Mapping):
             return None
-        product = line.get('productId')
-        variant = line.get('variantId')
-        quantity = _integer(line.get('quantity'))
-        # A mixed basket must not attribute the entire payment to one service.
-        if (product != PRODUCT_ID or not isinstance(variant, str)
-                or variant not in VARIANTS or not quantity):
+        product = str(line.get("productId") or "").strip()
+        variant = str(line.get("variantId") or "").strip()
+        quantity = _integer(line.get("quantity"))
+        if not product or not variant or not quantity:
             return None
-        contents.append({'id': meta_catalog_sync.retailer_id(PRODUCT_ID, variant),
-                         'quantity': quantity})
-    return {'contents': contents, 'amountPaise': amount, 'currency': 'INR'}
+        try:
+            retailer_id = meta_catalog_sync.retailer_id(product, variant)
+        except meta_catalog_sync.RetailerIdError:
+            return None
+        contents.append({"id": retailer_id, "quantity": quantity})
+
+    return {"contents": contents, "amountPaise": amount, "currency": "INR"}

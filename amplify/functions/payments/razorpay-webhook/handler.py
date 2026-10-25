@@ -1704,7 +1704,10 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
     # Conversions API: if this conversation started from a Click-to-WhatsApp ad,
     # log a Purchase event to Meta so the ad campaign can optimize/measure. No-op
     # (returns 400, just logged) for non-ad conversations. Fire-and-forget.
-    _log_ctwa_purchase(contact, amount_paise, currency, order_id, notes, request_id)
+    _log_ctwa_purchase(
+        contact, amount_paise, currency, order_id, notes, request_id,
+        payment_attempt_id=str((outcome or {}).get('paymentAttemptId') or ''),
+    )
 
     # Post-payment service activation remains an internal business step.
     #
@@ -1838,7 +1841,8 @@ def _phone_from_payment_reference_table(table_name: str, reference_id: str) -> s
 
 
 def _log_ctwa_purchase(contact: str, amount_paise: int, currency: str,
-                       order_id: str, notes: Dict, request_id: str) -> None:
+                       order_id: str, notes: Dict, request_id: str,
+                       payment_attempt_id: str = '') -> None:
     """Fire a Click-to-WhatsApp Purchase conversion event via the Conversions API.
     Delegates to wecare-whatsapp-business-api (which owns the dataset + ctwa_clid
     lookup). If the customer's conversation didn't originate from a CTWA ad, the
@@ -1858,6 +1862,36 @@ def _log_ctwa_purchase(contact: str, amount_paise: int, currency: str,
             'currency': currency or 'INR',
             'orderId': order_id or (notes or {}).get('referenceId', ''),
         }
+        if payment_attempt_id:
+            try:
+                from lambda_utils.ecommerce import meta_catalog_sync
+                attempt = dynamodb.Table(PAYMENT_ATTEMPTS_TABLE).get_item(
+                    Key={'paymentAttemptId': payment_attempt_id},
+                    ConsistentRead=True,
+                ).get('Item') or {}
+                raw_contents = attempt.get('catalogContents')
+                if isinstance(raw_contents, list) and raw_contents:
+                    contents = []
+                    for line in raw_contents:
+                        if not isinstance(line, dict):
+                            contents = []
+                            break
+                        product_id = str(line.get('productId') or '').strip()
+                        variant_id = str(line.get('variantId') or '').strip()
+                        quantity = line.get('quantity')
+                        if (not product_id or not variant_id
+                                or type(quantity) is not int or quantity <= 0):
+                            contents = []
+                            break
+                        contents.append({
+                            'id': meta_catalog_sync.retailer_id(product_id, variant_id),
+                            'quantity': quantity,
+                        })
+                    if contents:
+                        payload['contents'] = contents
+            except Exception:
+                # Analytics enrichment must never change a verified payment outcome.
+                pass
         if waba_id:
             payload['wabaId'] = waba_id
         event = {
