@@ -20,9 +20,15 @@ routed from here.
 # capability -> (flow_id or None, status, meta_name or None)
 CANONICAL_FLOWS = {
     'orders':         ('2167802357142172', 'DRAFT',     'WD_Orders_Design_v1'),
-    'submit_request': ('1107164111921876', 'PUBLISHED', 'WD_Submit_Request_Paid_v1'),
-    'amend_request':  ('3678132465672138', 'DRAFT',     '03.WD_Amend_Request'),
-    'drop_docs':      ('1211063631104445', 'DRAFT',     'WD_Drop_Documents'),
+    # DEPRECATED on Meta (live read 2026-10-25): it cannot be sent, so `published_flow` no longer
+    # offers it. The id stays as the identity of past paid submissions; paid requests start on
+    # the website (lambda_utils/ecommerce/catalog_service_checkout.ALLOWED).
+    'submit_request': ('1107164111921876', 'DEPRECATED', 'WD_Submit_Request_Paid_v1'),
+    # Both former DRAFT ids (3678132465672138, 1211063631104445) no longer exist on Meta (Graph
+    # error 100/33, 2026-10-25), so neither capability has a Flow; their keyword doors answer
+    # with the website link, as before.
+    'amend_request':  (None, 'NONE', None),
+    'drop_docs':      (None, 'NONE', None),
     'shipments':      ('849713848195607',  'DRAFT',     'WD_Shipments_Design_v1'),
     'leave_review':   ('993862443003108',  'PUBLISHED', 'WD-F002-LEAVE-REVIEW'),
     # Vault: website CTA + ₹49 catalog delivery, no Flow.

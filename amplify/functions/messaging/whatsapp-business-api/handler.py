@@ -74,6 +74,7 @@ from lambda_utils.middleware import require_auth
 from lambda_utils import meta_signature  # X-Hub-Signature-256, fails closed
 from lambda_utils.privacy import mask_flow_token  # a Flow token ends in the customer's number
 from lambda_utils.privacy import mask_phone  # never log a recipient in cleartext
+from lambda_utils.privacy import mask_contact_id  # a contact id can be `wa` + the customer's digits
 from lambda_utils import live_smoke  # WA_LIVE_SMOKE_TEST recipient lockdown
 # Direct Send facts (flag, WABA map, ttl_seconds bounds, error classification) live in one
 # shared module so this admin surface and the production sender cannot disagree. Module-scope
@@ -5592,17 +5593,18 @@ def _send_payment_after_flow(phone: str, order_id: str, subject: str, request_id
     if not payment_amount_paise:
         logger.error(json.dumps({
             'event': 'flow_payment_no_amount',
-            'phone': phone[:6] + '***' if phone else 'none',
+            'phone': mask_phone(phone) if phone else 'none',
             'requestId': request_id,
             'reason': 'payment_amount_paise is 0 — caller must pass flow-specific amount',
         }))
         return ''
 
+    # Masked number and the subject's length only: the subject is the customer's own words.
     logger.info(json.dumps({
         'event': 'flow_payment_start',
-        'phone': phone[:6] + '***' if phone else 'none',
+        'phone': mask_phone(phone) if phone else 'none',
         'orderId': order_id,
-        'subject': subject,
+        'subjectLength': len(subject or ''),
         'requestNumber': request_number,
         'paymentRefId': payment_ref_id,
         'paymentAmountPaise': payment_amount_paise,
@@ -5625,7 +5627,9 @@ def _send_payment_after_flow(phone: str, order_id: str, subject: str, request_id
             resp = table.get_item(Key={'id': contact_id}, ProjectionExpression='#n', ExpressionAttributeNames={'#n': 'name'})
             sender_name = resp.get('Item', {}).get('name', '')
         except Exception as e:
-            logger.warning(f'Contact name lookup failed for {contact_id}: {e}')
+            # The contact id is `wa` + the customer's digits, so it is masked like a number.
+            logger.warning(f'Contact name lookup failed for {mask_contact_id(contact_id)}: '
+                           f'{type(e).__name__}')
 
     # Step 1: Create invoice via invoice-engine Lambda
     # Amount comes from flow registry — convert paise to rupees for invoice
@@ -5672,14 +5676,17 @@ def _send_payment_after_flow(phone: str, order_id: str, subject: str, request_id
             'invoiceNumber': invoice_number,
             'referenceId': ref_id,
             'deduplicated': is_dedup,
-            'phone': phone[:6] + '***',
+            'phone': mask_phone(phone),
             'requestId': request_id,
         }))
 
         if not invoice_id:
+            # A stable refusal code only: the engine's error body can echo the request.
             logger.error(json.dumps({
                 'event': 'flow_invoice_create_failed',
-                'response': create_body,
+                'statusCode': create_result.get('statusCode'),
+                'code': str((create_body or {}).get('code')
+                            or (create_body or {}).get('error') or '')[:64],
                 'requestId': request_id,
             }))
             # No fallback send. `_send_payment_direct_fallback` used to fire here: a free-form
@@ -5715,7 +5722,7 @@ def _send_payment_after_flow(phone: str, order_id: str, subject: str, request_id
         except Exception as link_err:
             logger.warning(json.dumps({
                 'event': 'flow_invoice_link_error',
-                'error': str(link_err),
+                'error': type(link_err).__name__,
                 'requestId': request_id,
             }))
 
@@ -5753,7 +5760,7 @@ def _send_payment_after_flow(phone: str, order_id: str, subject: str, request_id
                 'invoiceId': invoice_id,
                 'invoiceNumber': invoice_number,
                 'referenceId': ref_id,
-                'phone': phone[:6] + '***',
+                'phone': mask_phone(phone),
                 'statusCode': send_status,
                 'requestId': request_id,
             }))
@@ -5769,7 +5776,7 @@ def _send_payment_after_flow(phone: str, order_id: str, subject: str, request_id
                 'invoiceId': invoice_id,
                 'invoiceNumber': invoice_number,
                 'referenceId': ref_id,
-                'phone': phone[:6] + '***',
+                'phone': mask_phone(phone),
                 'statusCode': send_status,
                 # A stable refusal code only. `invoice-engine._resp` carries `code`; the
                 # outbound gate's code travels in `error`.
@@ -5783,8 +5790,9 @@ def _send_payment_after_flow(phone: str, order_id: str, subject: str, request_id
     except Exception as e:
         logger.error(json.dumps({
             'event': 'flow_invoice_payment_error',
-            'phone': phone[:6] + '***',
-            'error': str(e),
+            'phone': mask_phone(phone),
+            # The class only: invoke and parse errors can carry the request body.
+            'error': type(e).__name__,
             'requestId': request_id,
         }))
         # No fallback send here either, for the reason given above.
@@ -5821,11 +5829,13 @@ def _send_flow_confirmation(phone: str, order_id: str, subject: str, request_id:
         flow_name = (flow_config or {}).get('flowName', 'Request')
         flow_code = (flow_config or {}).get('flowCode', '')
 
+        # The flow name is interpolated directly. A `.replace('{flow_name}', ...)` over the whole
+        # message also rewrote the customer's own subject wherever it contained that text.
         if requires_payment and payment_amount:
             amount_display = f'₹{payment_amount / 100:.0f}' if payment_amount >= 100 else f'₹{payment_amount}'
             inv_line = f'*Invoice:* {invoice_number}\n' if invoice_number else ''
             msg = (
-                '\u2705 *{flow_name} Submitted Successfully*\n\n'
+                f'\u2705 *{flow_name} Submitted Successfully*\n\n'
                 f'*Request No:* {request_number}\n'
                 f'{inv_line}'
                 f'*Payment Ref:* {payment_ref_id}\n'
@@ -5835,15 +5845,15 @@ def _send_flow_confirmation(phone: str, order_id: str, subject: str, request_id:
                 'Please complete the payment using the payment link sent above \u2b06\ufe0f\n'
                 'Our team will review your request within 24 hours.\n\n'
                 '_Thank you for choosing WECARE.DIGITAL_'
-            ).replace('{flow_name}', flow_name)
+            )
         else:
             msg = (
-                '\u2705 *{flow_name} Submitted Successfully*\n\n'
+                f'\u2705 *{flow_name} Submitted Successfully*\n\n'
                 f'*Reference:* {request_number}\n'
                 f'*Subject:* {subject}\n\n'
                 'Our team will review your submission within 24 hours.\n\n'
                 '_Thank you for choosing WECARE.DIGITAL_'
-            ).replace('{flow_name}', flow_name)
+            )
 
         payload = {
             'body': json.dumps({
@@ -5859,7 +5869,7 @@ def _send_flow_confirmation(phone: str, order_id: str, subject: str, request_id:
         )
         logger.info(json.dumps({
             'event': 'flow_confirmation_sent',
-            'phone': phone[:6] + '***',
+            'phone': mask_phone(phone),
             'phoneNumberId': send_phone_id,
             'flowName': flow_name,
             'flowCode': flow_code,
@@ -5870,7 +5880,7 @@ def _send_flow_confirmation(phone: str, order_id: str, subject: str, request_id:
     except Exception as e:
         logger.error(json.dumps({
             'event': 'flow_confirmation_error',
-            'error': str(e),
+            'error': type(e).__name__,
             'requestId': request_id,
         }))
 
@@ -6135,7 +6145,7 @@ def _handle_async_post_submit(event: Dict, request_id: str) -> Dict:
 
     logger.info(json.dumps({
         'event': 'async_post_submit_start',
-        'phone': phone[:6] + '***' if phone else '',
+        'phone': mask_phone(phone) if phone else '',
         'phoneNumberId': phone_number_id,
         'requestNumber': request_number,
         'requiresPayment': requires_payment,
@@ -6168,7 +6178,7 @@ def _handle_async_post_submit(event: Dict, request_id: str) -> Dict:
             except Exception as pay_err:
                 logger.error(json.dumps({
                     'event': 'async_payment_error',
-                    'error': str(pay_err),
+                    'error': type(pay_err).__name__,
                     'requestId': request_id,
                 }))
     else:
@@ -6192,7 +6202,7 @@ def _handle_async_post_submit(event: Dict, request_id: str) -> Dict:
     except Exception as conf_err:
         logger.error(json.dumps({
             'event': 'async_confirmation_error',
-            'error': str(conf_err),
+            'error': type(conf_err).__name__,
             'requestId': request_id,
         }))
 
@@ -6221,7 +6231,7 @@ def _handle_async_post_submit(event: Dict, request_id: str) -> Dict:
                 )
                 logger.info(f'FlowSubmission updated with invoiceNumber for paymentRefId={payment_ref_id}')
         except Exception as fs_err:
-            logger.warning(f'FlowSubmission invoice link failed: {fs_err}')
+            logger.warning(f'FlowSubmission invoice link failed: {type(fs_err).__name__}')
 
     # Step 4: Update the order — increment requestCount. Any order in the one order table,
     # whichever channel created it: the WD-ORD prefix gate this used to have skipped every
@@ -6246,7 +6256,7 @@ def _handle_async_post_submit(event: Dict, request_id: str) -> Dict:
                 'requestId': request_id,
             }))
         except Exception as ot_err:
-            logger.warning(f'OrdersTable requestCount update failed: {ot_err}')
+            logger.warning(f'OrdersTable requestCount update failed: {type(ot_err).__name__}')
 
     return {'statusCode': 200, 'headers': cors_headers(origin), 'body': json.dumps({'status': 'ok'})}
 

@@ -16,17 +16,34 @@ interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 type FlowSubmission = api.FlowLog;
 
+// Each card's badge is its row's `status`, matching the canonical map. The badge used to be
+// hard-coded by key: Submit Request read Published after Meta deprecated it, and Leave Review
+// read Draft while published.
 const FLOW_TYPES = [
   { key: 'orders', label: 'Orders', icon: '📦', flowId: canonicalFlowId('orders')!, paid: false, price: 'Free', status: 'draft', confirmation: 'Order history' },
-  { key: 'submit_request', label: 'Submit Request', icon: '📋', flowId: canonicalFlowId('submit_request')!, paid: true, price: '₹99', status: 'published', confirmation: 'Request details' },
+  { key: 'submit_request', label: 'Submit Request', icon: '📋', flowId: canonicalFlowId('submit_request')!, paid: true, price: '₹99', status: 'deprecated', confirmation: 'Request details' },
   { key: 'shipments', label: 'Shipments', icon: '🚚', flowId: canonicalFlowId('shipments')!, paid: false, price: 'Free', status: 'draft', confirmation: 'Shipment tracking' },
   // Vault has no canonical Flow (website CTA + ₹49 catalog); 1735480734227899 is a design
   // DRAFT kept for reference only. Shown here for the directory, not routed.
   { key: 'vault', label: 'Vault', icon: '🔐', flowId: '1735480734227899', paid: true, price: '₹49', status: 'draft', confirmation: 'Vault access' },
-  { key: 'drop_docs', label: 'Drop Docs', icon: '📄', flowId: canonicalFlowId('drop_docs')!, paid: true, price: '₹350', status: 'draft', confirmation: 'Document registered' },
-  { key: 'amend_request', label: 'Request Amendment', icon: '✏️', flowId: canonicalFlowId('amend_request')!, paid: true, price: '₹350', status: 'draft', confirmation: 'Amendment confirmation' },
+  { key: 'drop_docs', label: 'Drop Docs', icon: '📄', flowId: canonicalFlowId('drop_docs') ?? '—', paid: true, price: '₹350', status: 'none', confirmation: 'Document registered' },
+  { key: 'amend_request', label: 'Request Amendment', icon: '✏️', flowId: canonicalFlowId('amend_request') ?? '—', paid: true, price: '₹350', status: 'none', confirmation: 'Amendment confirmation' },
   { key: 'leave_review', label: 'Leave Review', icon: '⭐', flowId: REVIEW_FLOW_ID, paid: false, price: 'Free', status: 'published', confirmation: 'Private feedback saved' },
 ];
+
+const STATUS_BADGES: Record<string, { label: string; background: string }> = {
+  published: { label: 'Published', background: 'var(--lime)' },
+  draft: { label: 'Draft', background: '#fef3c7' },
+  deprecated: { label: 'Deprecated', background: '#fee2e2' },
+  none: { label: 'No Flow', background: '#f3f4f6' },
+};
+
+const FlowStatusBadge: React.FC<{ status: string }> = ({ status }) => {
+  const badge = STATUS_BADGES[status] ?? STATUS_BADGES.draft;
+  return (
+    <span style={{ fontSize: 'var(--text-xs)', padding: '2px 8px', background: badge.background, borderRadius: 4, fontWeight: 500 }}>{badge.label}</span>
+  );
+};
 
 const MESSAGE_LINKS: Record<string, string> = {
   orders: 'https://wa.me/message/2OQZCYBSMU4SE1',
@@ -104,11 +121,7 @@ const CustomerServicePage: React.FC<PageProps> = ({ signOut, user, embedded }) =
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {flow.key === 'submit_request' ? (
-                    <span style={{ fontSize: 'var(--text-xs)', padding: '2px 8px', background: 'var(--lime)', borderRadius: 4, fontWeight: 500 }}>Published</span>
-                  ) : (
-                    <span style={{ fontSize: 'var(--text-xs)', padding: '2px 8px', background: '#fef3c7', borderRadius: 4, fontWeight: 500 }}>Draft</span>
-                  )}
+                  <FlowStatusBadge status={flow.status} />
                   {MESSAGE_LINKS[flow.key] && (
                     <a href={MESSAGE_LINKS[flow.key]} target="_blank" rel="noopener noreferrer"
                        style={{ fontSize: 'var(--text-xs)', padding: '2px 8px', background: '#e0f2fe', borderRadius: 4, color: '#0369a1', textDecoration: 'none' }}>
