@@ -24,7 +24,8 @@ Safety
   `--drain-days` (default 7). A live caller aborts the teardown - this is the #897 precondition,
   enforced mechanically.
 - ROLLBACK CAPTURE FIRST: before any delete it writes a snapshot to docs/execution/snapshots/
-  containing the Lambda configuration, the integration, every `/coupons*` route, and a full scan
+  containing the Lambda configuration (environment values redacted to key names), the
+  integration, every `/coupons*` route, and a full scan
   of the table (0 rows today, but captured regardless). An operator can recreate all of it from
   the snapshot. The table additionally has PITR (35 days) as a second recovery path.
 - ORDERED teardown so nothing is briefly reachable-but-broken: routes first (makes the API stop
@@ -124,7 +125,13 @@ def capture_rollback(api, lam, ddb_resource, routes) -> pathlib.Path:
     path = SNAPSHOT_DIR / f"coupon-infra-retirement-{stamp}.json"
 
     try:
-        lambda_config = lam.get_function(FunctionName=LAMBDA_NAME)["Configuration"]
+        lambda_config = lam.get_function_configuration(FunctionName=LAMBDA_NAME)
+        lambda_config.pop("ResponseMetadata", None)
+        # This snapshot is written inside the repository, so environment VALUES never enter
+        # it: key names are enough to rebuild from config/lambda-env-manifest.json and source.
+        env = (lambda_config.get("Environment") or {}).get("Variables") or {}
+        if env:
+            lambda_config["Environment"]["Variables"] = {k: "<redacted>" for k in sorted(env)}
     except ClientError as exc:
         lambda_config = {"error": exc.response["Error"]["Code"]}
 
@@ -181,7 +188,9 @@ def main() -> int:
     routes = _coupon_routes(api)
     lambda_exists = True
     try:
-        lam.get_function(FunctionName=LAMBDA_NAME)
+        # Existence only. GetFunction would also return environment values and a signed
+        # code URL, neither of which this check needs.
+        lam.get_function_concurrency(FunctionName=LAMBDA_NAME)
     except ClientError:
         lambda_exists = False
     table_exists = True
