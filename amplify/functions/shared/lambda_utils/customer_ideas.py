@@ -1,6 +1,6 @@
 """Private endpointless WhatsApp ideas, linked to the authenticated sender.
 
-One row in FlowSubmissionTable (flowCode WD_IDEA) is the idea: the flow-response table is the
+One row in FlowSubmissionTable (flowCode WD-F002-LEAVE-REVIEW) is the idea: the flow-response table is the
 single store for every submitted form, and ReviewTable was folded into it (see
 `lambda_utils.flow_records`). The row carries the review fields the staff reviews page and
 the contact timeline read (`reviewId`, `reviewText`, `category`, `reviewType`,
@@ -13,11 +13,11 @@ public review or sales lead.
 """
 import hashlib
 
-from lambda_utils import flow_completion
+from lambda_utils import canonical_flows, flow_completion
 
 FLOW_KEY = 'wd_leave_review_v2'
-FLOW_ID = '940049388908144'
-FLOW_CODE = 'WD_IDEA'
+FLOW_ID = canonical_flows.canonical_flow_id('leave_review') or '940049388908144'
+FLOW_CODE = canonical_flows.canonical_contract('leave_review')['flowCode']
 TOPICS = {
     'feature_request': 'A feature I would love',
     'improvement': 'Something to improve',
