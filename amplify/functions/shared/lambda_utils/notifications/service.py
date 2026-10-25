@@ -61,7 +61,7 @@ logger = get_logger(__name__)
 #: Read at call time, not at import. The module-scope pattern used by the retired
 #: `pstn/notifications` froze the value into a warm sandbox, so flipping the variable
 #: did not take effect until a new version was published - see
-#: `.kiro/steering/lambda-snapstart-deploy.md`.
+#: `.kiro/steering/lambda-snapstart-deploy.md` (retired 2026-10-09, af7858fa).
 FLAG_ENV = "PSTN_CONNECTED_NOTIFICATIONS_ENABLED"
 
 

@@ -2986,7 +2986,7 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
         # Seeded deliberately: the tear is APPEARANCE ONLY and must be reproducible, so
         # re-rendering one invoice does not produce a different edge. `random` is never
         # used for an identifier here — `secrets` remains mandatory for anything that
-        # must be unique per call (.kiro/steering/lambda-snapstart-deploy.md).
+        # must be unique per call (.kiro/steering/lambda-snapstart-deploy.md (retired 2026-10-09, af7858fa)).
         rnd = _random.Random(7)
 
         def _rough_edge(base: int):

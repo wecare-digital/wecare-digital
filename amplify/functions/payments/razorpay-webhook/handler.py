@@ -65,7 +65,7 @@ def _get_webhook_secret() -> str:
     init, so an import-time read freezes whatever value existed when the
     version was published. Because _verify_signature fails closed, a rotation
     in Secrets Manager would then silently 401 every live payment webhook until
-    someone republished the function. See .kiro/steering/lambda-snapstart-deploy.md.
+    someone republished the function. See .kiro/steering/lambda-snapstart-deploy.md (retired 2026-10-09, af7858fa).
 
     Secrets Manager is the source of truth; RAZORPAY_WEBHOOK_SECRET remains a
     fallback only, so rotating the secret takes effect without a redeploy even

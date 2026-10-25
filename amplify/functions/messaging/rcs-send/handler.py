@@ -775,7 +775,7 @@ def _delete_template(body: Dict, request_id: str, origin: str) -> Dict:
     #
     # embeds `username`, a field of the `wecare/sinch/rcs` secret, so logging the URL writes a
     # credential component to CloudWatch. `bot_id` in the v1 forms comes from the same secret.
-    # `.kiro/steering/secret-handling.md` forbids a secret appearing in a logging expression at
+    # `.kiro/steering/secret-handling.md` (retired; now .kiro/steering/00-common.md) forbids a secret appearing in a logging expression at
     # all, and is explicit that routing the value through a redaction helper does not fix it -
     # CodeQL tracks taint across function boundaries, and a reviewer cannot verify the
     # laundering at a glance either. So the label is a constant chosen right here and has never

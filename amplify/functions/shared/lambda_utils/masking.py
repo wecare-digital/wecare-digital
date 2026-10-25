@@ -142,7 +142,7 @@ def mask_text(text: str) -> str:
 # errors; 131030 is the well-known one ("Recipient phone number not in allowed list: Add
 # recipient phone number ..."), and `error_data.details` is free text in general.
 #
-# So the rule is the same one `.kiro/steering/secret-handling.md` states for exceptions:
+# So the rule is the same one `.kiro/steering/secret-handling.md` (retired; now .kiro/steering/00-common.md) states for exceptions:
 # text our own code did not construct does not go in a log. The codes are what a human
 # actually debugs from, they come from a closed set Meta documents, and `fbtrace_id` is the
 # handle Meta support asks for -- none of them can carry a subscriber's number.

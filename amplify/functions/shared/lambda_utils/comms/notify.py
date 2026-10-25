@@ -48,7 +48,7 @@ logger = get_logger(__name__)
 
 # The only SMS function. Pinned to the `live` alias: 53 of 62 functions sit
 # behind one, and invoking $LATEST would bypass the published version the alias
-# points at. See .kiro/steering/lambda-snapstart-deploy.md.
+# points at. See .kiro/steering/lambda-snapstart-deploy.md (retired 2026-10-09, af7858fa).
 SMS_FUNCTION = os.environ.get("SMS_FUNCTION", "wecare-sms-aws:live")
 
 # The route `wecare-sms-aws` dispatches on.

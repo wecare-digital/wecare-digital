@@ -306,7 +306,7 @@ def _google_key() -> str:
     # expression, and its taint analysis cannot see that the ternary discards the
     # value. CodeQL is structurally right regardless of this instance - this repo
     # lost four live credentials to exactly this class of mistake, see
-    # .kiro/steering/secret-handling.md - so the rule wins over the reasoning.
+    # .kiro/steering/secret-handling.md (retired; now .kiro/steering/00-common.md) - so the rule wins over the reasoning.
     #
     # The resolved provider is logged in _translate_texts instead, where the
     # value comes from _google_enabled() returning a bool and nothing in scope

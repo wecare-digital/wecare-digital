@@ -41,7 +41,7 @@ reported receiving two emails and being unable to tell them apart.
 
 EMAIL IS NOT THE BROWSER - the deliberate deviations from the design contract
 ----------------------------------------------------------------------------
-Values come from .kiro/steering/grahak-os-design.md, with four changes forced by
+Values come from .kiro/steering/grahak-os-design.md (retired 2026-10-09, af7858fa), with four changes forced by
 mail clients rather than chosen:
 
 1. `rgba()` is replaced by its **composited hex equivalent on white**. Outlook's

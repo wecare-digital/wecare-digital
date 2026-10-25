@@ -62,7 +62,7 @@ def mask_contact_id(contact_id: str) -> str:
 
     Last four, not a hash, because that is already the convention every other masked
     number in these logs follows and an operator reading two adjacent lines should not
-    have to hold two schemes in their head. `.kiro/steering/02-qa-recipient.md` notes
+    have to hold two schemes in their head. `.kiro/steering/02-qa-recipient.md` (retired 2026-10-09, af7858fa) notes
     the ambiguity this creates for `...0044` and why widening the mask is the wrong
     answer to it.
     """

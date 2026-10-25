@@ -103,7 +103,7 @@ def new_code_verifier() -> str:
 
     `random` is seeded deterministically and, under a snapshotting runtime, can be restored
     to an identical state across environments - which would hand every concurrent
-    authorisation the same verifier. See `.kiro/steering/lambda-snapstart-deploy.md`; the
+    authorisation the same verifier. See `.kiro/steering/lambda-snapstart-deploy.md` (retired 2026-10-09, af7858fa); the
     same hazard is recorded there for the URL shortener.
     """
     return _b64url(secrets.token_bytes(_VERIFIER_BYTES))

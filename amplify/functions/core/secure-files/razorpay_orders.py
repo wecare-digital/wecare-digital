@@ -34,7 +34,7 @@ so it is not present in the Lambda runtime, and the Orders API is one POST -
 bundling a dependency to make it would be the larger risk.
 
 The read is lazy rather than at import for the reason recorded in
-``.kiro/steering/lambda-snapstart-deploy.md``: a module-scope secret read is
+``.kiro/steering/lambda-snapstart-deploy.md`` (retired 2026-10-09, af7858fa): a module-scope secret read is
 cached for the life of the execution environment, so a rotated value would not
 take effect until every warm sandbox recycled.
 
