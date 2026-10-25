@@ -5267,6 +5267,17 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
           .vl-live-cloud-field{animation:none!important}
         }
 
+        /* THE 44px TAP FLOOR FOR TOUCH. The AQI/PM2.5 switch, the forecast scroll arrows and the
+           health-profile pager are compact 32px controls, which is fine for a mouse and a
+           sub-minimum target for a finger: measured 2026-10-25 on the live page at 375 and 412,
+           the case tools/browser/devicecheck.js asserts. Phones and any coarse pointer get the
+           shared --tap-min; a fine-pointer desktop keeps the compact size. */
+        @media(max-width:700px),(pointer:coarse){
+          .vl-live-air-range button,
+          .vl-live-wx-history .vl-live-air-range button{min-height:var(--tap-min)}
+          .vl-live-air-scroll-btn,
+          .vl-live-air-health-page{width:var(--tap-min);height:var(--tap-min)}
+        }
         @media(max-width:760px){
           .vl-live-tools{margin-top:22px;padding-top:22px}
           .vl-live-tools-layout{grid-template-columns:1fr;align-items:start;gap:28px}
