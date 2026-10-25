@@ -274,7 +274,7 @@ const SECTION_ICON_PATHS: Record<string, string> = {
 };
 const MATERIAL_NAV_ICON_LABELS = new Set( [
   'VayuLok',
-  'Bharat Rx',
+  'Sehat',
   'Hunar',
   'Niji Setu',
   'Submit Request',
