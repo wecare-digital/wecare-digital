@@ -61,6 +61,7 @@ import time
 from typing import Any, Dict, Optional
 
 import boto3
+from boto3.dynamodb.conditions import Key
 
 from lambda_utils import contact_key, contact_store, customer_auth, customer_session, otp_throttle, shared_tables, identity_claims
 from lambda_utils.identity import customer as identity
@@ -101,6 +102,13 @@ OTP_TABLE = os.environ.get("OTP_TABLE", "stack-wecare-digital-DownloadGrantsTabl
 #: to target a separate `CustomersTable` of `CUS_<ULID>` records, which never existed in the
 #: account and would have been a second identity for every customer.)
 CONTACTS_TABLE = shared_tables.contacts_table_name()
+
+#: Signed Meta inbound evidence used by the internal WhatsApp identity bridge.  The bridge never
+#: trusts a caller-supplied phone/contact tuple alone; it requires the exact persisted WAMID.
+WHATSAPP_INBOUND_TABLE = os.environ.get(
+    "WHATSAPP_INBOUND_TABLE", "stack-wecare-digital-WhatsAppInboundTable")
+WHATSAPP_INBOUND_MESSAGE_INDEX = "whatsappMessageId-index"
+WHATSAPP_IDENTITY_MAX_AGE_SECONDS = 10 * 60
 
 #: The customer Cognito pool. Deliberately NOT the staff pool — the customer_auth helper pins the
 #: issuer to this one, and mixing them is the failure that helper exists to prevent.
@@ -144,6 +152,13 @@ def _contacts_table():
     if _dynamodb is None:
         _dynamodb = boto3.resource("dynamodb", region_name=REGION)
     return _dynamodb.Table(CONTACTS_TABLE)
+
+
+def _inbound_table():
+    global _dynamodb
+    if _dynamodb is None:
+        _dynamodb = boto3.resource("dynamodb", region_name=REGION)
+    return _dynamodb.Table(WHATSAPP_INBOUND_TABLE)
 
 def _claims_table():
     global _dynamodb
@@ -390,32 +405,55 @@ def _is_conditional_failure(error: Exception) -> bool:
 
 
 
-def _whatsapp_identity_evidence(contact: Dict[str, Any], phone: str) -> bool:
-    """Whether a ContactsTable row is proven to belong to this inbound WhatsApp handset.
+def _whatsapp_identity_evidence(
+    contact: Dict[str, Any], phone: str, source_message_id: str, waba_id: str
+) -> bool:
+    """Prove this bridge request came from the exact signed Meta inbound message.
 
-    This is deliberately stricter than "the row contains the same phone".  An operator can type
-    a phone into CRM and outbound messaging can create a contact; neither proves the handset ever
-    spoke to us.  The inbound worker stamps lastInboundMessageAt only after Meta's signed webhook
-    ingress has resolved the sender, and customer-profile already treats that stamp as
-    WHATSAPP_INBOUND claim evidence.  A VERIFIED provenance source is the forward-compatible twin.
+    Three independent facts must agree:
+      * ContactsTable has exactly ONE live row for the phone and it is this contact;
+      * that row's latest inbound WAMID is the capability presented by the caller;
+      * WhatsAppInboundTable independently contains the same WAMID/contact/phone/WABA tuple.
+
+    The WAMID is high-entropy, persisted only after signed webhook ingress, and limited to a short
+    freshness window.  Knowing a contact id and phone is therefore insufficient to provision.
     """
     if not contact or contact.get("deletedAt") is not None or bool(contact.get("isDeleted")):
         return False
     if contact_store.canonical_phone(contact.get("phone")) != phone:
         return False
-    try:
-        if int(contact.get("lastInboundMessageAt") or 0) > 0:
-            return True
-    except (TypeError, ValueError):
-        pass
-    source = provenance.existing_source(contact, "phone")
-    if not source:
+    if not source_message_id or str(contact.get("lastInboundWamid") or "") != source_message_id:
         return False
     try:
-        return provenance.trust_of(source) >= provenance.TRUST[provenance.VERIFIED]
-    except provenance.UnknownSource:
+        last_at = int(contact.get("lastInboundMessageAt") or 0)
+    except (TypeError, ValueError):
+        return False
+    now = int(time.time())
+    if last_at <= 0 or now - last_at > WHATSAPP_IDENTITY_MAX_AGE_SECONDS:
         return False
 
+    try:
+        page = _inbound_table().query(
+            IndexName=WHATSAPP_INBOUND_MESSAGE_INDEX,
+            KeyConditionExpression=Key("whatsappMessageId").eq(source_message_id),
+            Limit=2,
+        )
+    except Exception as error:  # noqa: BLE001
+        logger.warning(json.dumps({
+            "event": "whatsapp_identity_evidence_lookup_failed",
+            "error": type(error).__name__,
+        }))
+        return False
+
+    matches = []
+    for row in page.get("Items") or []:
+        row_wabas = [str(v) for v in (row.get("metaWabaIds") or [])]
+        if (str(row.get("contactId") or "") == contact_key.resolve(contact)
+                and contact_store.canonical_phone(row.get("senderPhone")) == phone
+                and str(row.get("status") or "") == "received"
+                and waba_id in row_wabas):
+            matches.append(row)
+    return len(matches) == 1
 
 def _cognito_user_for_phone(phone: str) -> Optional[Dict[str, Any]]:
     """The one enabled, phone-verified customer-pool user for phone, or None.
@@ -476,13 +514,22 @@ def _ensure_whatsapp_identity(event: Dict[str, Any]) -> Dict[str, Any]:
 
     phone = contact_store.canonical_phone(event.get("senderPhone"))
     contact_id = str(event.get("contactId") or "").strip()
-    if not phone or not contact_id:
+    source_message_id = str(event.get("sourceMessageId") or "").strip()
+    if not phone or not contact_id or not source_message_id:
         return {"outcome": "WHATSAPP_IDENTITY_NOT_READY"}
 
-    contact = _contacts_table().get_item(
-        Key={"id": contact_id}, ConsistentRead=True
-    ).get("Item") or {}
-    if contact_key.resolve(contact) != contact_id or not _whatsapp_identity_evidence(contact, phone):
+    # Fail closed when the phone belongs to more than one live canonical contact.  An explicit
+    # GetItem(contact_id) alone would bypass the uniqueness rule used everywhere else.
+    try:
+        canonical = contact_store.find_by_phone(_contacts_table(), phone)
+    except contact_store.IdentityConflict:
+        logger.warning(json.dumps({"event": "whatsapp_identity_contact_conflict"}))
+        return {"outcome": "WHATSAPP_IDENTITY_CONFLICT"}
+    if not canonical or contact_key.resolve(canonical) != contact_id:
+        return {"outcome": "WHATSAPP_IDENTITY_NOT_READY"}
+    contact = canonical
+    if not _whatsapp_identity_evidence(
+            contact, phone, source_message_id, str(event.get("wabaId") or "")):
         return {"outcome": "WHATSAPP_IDENTITY_NOT_READY"}
 
     existing_owner = str(contact.get("checkoutCustomerId") or "").strip()
@@ -520,9 +567,10 @@ def _ensure_whatsapp_identity(event: Dict[str, Any]) -> Dict[str, Any]:
             ),
             ConditionExpression=(
                 "attribute_exists(id) AND "
-                "(attribute_not_exists(checkoutCustomerId) OR checkoutCustomerId=:sub)"
+                "(attribute_not_exists(checkoutCustomerId) OR checkoutCustomerId=:empty "
+                "OR checkoutCustomerId=:sub)"
             ),
-            ExpressionAttributeValues={":sub": subject, ":now": now},
+            ExpressionAttributeValues={":sub": subject, ":empty": "", ":now": now},
         )
         logger.info(json.dumps({"event": "whatsapp_identity_ready"}))
         return {
@@ -542,7 +590,9 @@ def _ensure_whatsapp_identity(event: Dict[str, Any]) -> Dict[str, Any]:
                 Key={"id": contact_id}, ConsistentRead=True
             ).get("Item") or {}
             owner = str(current.get("checkoutCustomerId") or "").strip()
-            if owner and _whatsapp_identity_evidence(current, phone) and _cognito_user_for_sub(owner, phone):
+            if (owner and _whatsapp_identity_evidence(
+                    current, phone, source_message_id, str(event.get("wabaId") or ""))
+                    and _cognito_user_for_sub(owner, phone)):
                 return {
                     "outcome": "WHATSAPP_IDENTITY_READY",
                     "customerId": owner,
