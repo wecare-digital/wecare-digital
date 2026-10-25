@@ -3400,3 +3400,30 @@ Owner instruction: "yes resove this deploy and push" for the follow-ups of the t
   - dlq-replay's replay is unreachable because `INBOUND_DLQ_URL`/`BULK_DLQ_URL` are unset (only `DLQ_URL` is).
   - `wecare-messages-delete` `INBOUND_WHATSAPP_FUNCTION` is dead config.
   - Calling forwards a whole entry once per change, so a multi-change entry is processed more than once.
+
+## WhatsApp audit leftovers fixed and released — 2026-10-25 17:00 UTC
+
+Owner instruction: "fix all and deploy" for the findings left open in the entry above. No customer message, payment, template or Flow change, and no secret read.
+
+- Already closed by parallel work, verified here:
+  - #1572 makes calling forward each webhook entry once, and to inbound `:live`. Calling v63 runs it.
+  - Calling → inbound forwards since 15:22 UTC show inbound starting only numbered versions (143–146), never `$LATEST`.
+  - #1572 also points the inbound DLQ at `DLQ_URL`.
+- Code `3430414b2`:
+  - Submit Request REVIEW now hands off to `wecare-whatsapp-business-api:live` with a single-attempt client. Before, every invoke failed and the synchronous fallback ran inside Meta's data_exchange. The fallback now runs only when the hand-off provably did not happen; an uncertain one is left to the queue.
+  - The REVIEW screen's `payment_required`/`service_fee_amount` no longer turn payment on or set the amount. Payment comes only from a PUBLISHED FlowRegistry row (strict boolean). Today no `01.WD_SR` row exists, so this legacy path charges nothing; paid requests are pay-first (`paidsr:`).
+  - Inbound no longer invokes the retired `wecare-ad-attribution` on every click-to-WhatsApp referral. The architecture page no longer lists that function.
+  - dlq-replay now finds `stack-wecare-digital-bulk-dlq` without `BULK_DLQ_URL`. It judges a bulk replay by bulk-worker's job outcome instead of a `statusCode` bulk-worker never returns.
+- Released from a `git archive` export of `3430414b2`. Each function was probed before and after, and published with CodeSha256 + RevisionId preconditions:
+  - `wecare-dlq-replay` v34→**v35**, SHA `VPrgG81F34MwK9HV8CDIgeqJ0IF8IiBz55j/AKsOkpI=`.
+  - `wecare-whatsapp-business-api` v227→**v228**, SHA `7mB1y5HtEtxeI9D2T94nF89cCnbW9gg1c6N2uOiVkiM=`.
+  - `wecare-inbound-whatsapp` v145→**v146**, SHA `Q8yLeUq5BfANq0r6MANapjuHdtuX75/oL9r3bMZQu9g=`.
+  - `wecare-messages-delete` v41→**v42** (same code; dead `INBOUND_WHATSAPP_FUNCTION` removed from its environment and from the manifest).
+  - Rollback is one version back on each `live` alias.
+- Released after the parallel native-checkout release (#1576/#1578/3668f55b) had landed: before each upload, the live code differed from the export only in this change's files.
+- Verified:
+  - `check_deployed_source.py` shows 4/4 byte-identical.
+  - The flow router and `flows.submit_request` import from the deployed v228 package.
+  - 0 Lambda errors and 0 error-pattern log lines after release.
+  - Rail verifier 159/159; hermetic hand-off and DLQ checks 17/17. Build, tsc and eslint pass, and ruff shows no new findings.
+- Not verified: no customer Flow data_exchange or DLQ replay has run on the new versions yet.
