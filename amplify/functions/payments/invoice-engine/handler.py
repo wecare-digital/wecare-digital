@@ -5727,39 +5727,14 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
         _release_claim('no_image_key')
         return _resp(500, {'error': 'No invoice image available'})
 
-    # Fetch invoice for caption
+    # Re-read after the render: the review-token binding below needs the stored reference and
+    # customer id. There is no caption. The approved template is the whole message (`content` is
+    # empty), so this path composes no free-form "thank you" text; the caption that used to be
+    # built here was never sent and was deleted on 2026-10-25.
     table = dynamodb.Table(INVOICES_TABLE)
     inv_resp = table.get_item(Key={'invoiceId': invoice_id})
     invoice = inv_resp.get('Item', {})
-    # Rendered through integer paise and a display STRING, so the caption figure cannot be
-    # arithmetic'd by a later reader. A total that is not exactly expressible in paise falls back
-    # to the stored value rather than refusing: this is a caption, not a comparison.
-    try:
-        total_display = pay_status.rupees_str(wa_payment_request.exact_paise(
-            invoice.get('total', 0)))
-    except wa_payment_request.PaymentRequestRefused:
-        total_display = str(invoice.get('total', 0))
-    order_id = invoice.get('orderId', '')
     reference_id = invoice.get('referenceId', '')
-    order_line = f"\nOrder: {order_id}" if order_id and order_id != 'Offline' else ''
-    ref_line = f"\nRef: {reference_id}" if reference_id else ''
-    invoice_line = ''  # Invoice sequence remains on the stored record only.
-    # Every line here is an identifier or a label. NO PERSONAL DATA: no phone, no name, no
-    # address. A WhatsApp caption is rendered in notification previews and in forwards, so it is
-    # the least private surface this engine writes to, and the document inside the image already
-    # carries the bill-to details for the one recipient entitled to them.
-    source_line = f"\nChannel: {_source_label(invoice)}"
-    # The public customer id belongs here and the phone does not, and that distinction is the
-    # whole rule this caption is written to: the id is OURS, opaque, carries no timestamp and
-    # identifies nobody to a stranger reading a notification preview, whereas the phone, the name
-    # and the address identify the recipient to whoever is holding the handset. So this line is
-    # an identifier joining the ones already here, not an exception to the no-personal-data
-    # property. Omitted when absent, like the Invoice, Order and Ref lines above.
-    customer_id = _customer_id(invoice)
-    customer_id_line = f"\nCustomer ID: {customer_id}" if customer_id else ''
-    caption = (f"Invoice \u20b9{total_display}{invoice_line}{order_line}{ref_line}{source_line}"
-               f"{customer_id_line}"
-               f"\nThank you for your payment!")
 
     # Look up contact by phone
     contact = _lookup_contact_by_phone(to_phone)
