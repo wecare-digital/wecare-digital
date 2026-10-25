@@ -2497,29 +2497,41 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
                 return _error_response(500, 'Failed to upload media')
 
         # Resolve a template media header (IMAGE/VIDEO/DOCUMENT) into a sendable
-        # reference. A public https link is passed through as-is; an S3 key is
-        # uploaded to the WhatsApp media API and replaced with its media id so
-        # private-bucket files work without exposing a public URL.
+        # reference. A public https link, or a pre-resolved WhatsApp media id (digits
+        # only), is passed through as-is; an S3 key is uploaded to the WhatsApp media API
+        # and replaced with its media id so private-bucket files work without exposing a
+        # public URL. The type check mirrors _build_message_payload, the only reader.
+        #
+        # A key that cannot be resolved is refused HERE. It used to fall through and reach
+        # Meta as `image.id = "<s3 key>"`, so a paid invoice whose header upload failed was
+        # rejected by Meta instead of locally, with nothing a caller could act on. The
+        # invoice engine reads any status >= 400 from this function as definite
+        # non-delivery and releases its one-delivery claim, so the send stays retryable.
         resolved_header_media = template_header_media
-        if (is_template and template_header_media and template_header_type
-                and not str(template_header_media).startswith('http')):
+        header_ref = str(template_header_media or '')
+        if (is_template and header_ref
+                and template_header_type in ('image', 'video', 'document')
+                and not header_ref.startswith('http') and not header_ref.isdigit()):
+            _hdr_media_id = None
             try:
                 _, _hdr_media_id, _ = _upload_media(
                     template_header_media, template_header_type, message_id,
                     phone_number_id, request_id, template_header_filename
                 )
-                if _hdr_media_id:
-                    resolved_header_media = _hdr_media_id
-                else:
-                    logger.warning(json.dumps({
-                        'event': 'template_header_media_resolve_failed',
-                        'templateName': template_name, 'requestId': request_id
-                    }))
-            except Exception as _he:
-                logger.warning(json.dumps({
+            except Exception as _he:  # noqa: BLE001 - any failure is a refusal below
+                # The class only: an exception string from the media API can echo the request.
+                logger.error(json.dumps({
                     'event': 'template_header_media_resolve_error',
-                    'error': str(_he), 'requestId': request_id
+                    'templateName': template_name,
+                    'errorType': type(_he).__name__, 'requestId': request_id
                 }))
+            if not _hdr_media_id:
+                logger.error(json.dumps({
+                    'event': 'template_header_media_resolve_failed',
+                    'templateName': template_name, 'requestId': request_id
+                }))
+                return _error_response(500, 'Failed to upload template header media')
+            resolved_header_media = _hdr_media_id
 
         # Build WhatsApp message payload
         message_payload = _build_message_payload(
