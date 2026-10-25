@@ -41,6 +41,8 @@ logger = get_logger(__name__)
 dynamodb = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
 lambda_client = boto3.client('lambda', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
 
+COMMERCE_FUNCTION = os.environ.get('COMMERCE_FUNCTION', 'wecare-commerce:live')
+
 def _secret_from_sm(secret_id: str, key: str) -> str:
     """Fetch a key from a Secrets Manager JSON secret. Returns '' on any failure (fail-safe)."""
     try:
@@ -2605,7 +2607,7 @@ def _post_payment_handler(payment_id: str, contact: str,
         }
 
         inv_response = lambda_client.invoke(
-            FunctionName='wecare-checkout:live',
+            FunctionName=COMMERCE_FUNCTION,
             InvocationType='RequestResponse',
             Payload=json.dumps(invoice_payload),
         )
@@ -2713,7 +2715,7 @@ def _generate_invoice_assets(invoice_id: str, request_id: str) -> None:
             'body': json.dumps({'invoiceId': invoice_id}),
         }
         img_response = lambda_client.invoke(
-            FunctionName='wecare-checkout:live',
+            FunctionName=COMMERCE_FUNCTION,
             InvocationType='RequestResponse',
             Payload=json.dumps(img_payload),
         )
@@ -2785,7 +2787,7 @@ def _deliver_invoice_on_whatsapp(invoice_id: str, contact: str, phone_number_id:
                                                             channel='whatsapp-dispatch') or {}
             return previous.get('deliveryStatus') == order_keys.DELIVERY_CONFIRMED
         response = lambda_client.invoke(
-            FunctionName='wecare-checkout:live', InvocationType='RequestResponse',
+            FunctionName=COMMERCE_FUNCTION, InvocationType='RequestResponse',
             Payload=json.dumps({'rawPath': f'/invoices/{invoice_id}/send-whatsapp',
                 'requestContext': {'http': {'method': 'POST'}},
                 'pathParameters': {'invoiceId': invoice_id},
