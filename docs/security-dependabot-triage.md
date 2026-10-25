@@ -4,18 +4,103 @@ Companion to `docs/security-codeql-triage.md`, and it exists for the same reason
 dismissal without a recorded reason is indistinguishable from a dismissal without a thought,
 and an alert left open with no note is indistinguishable from one nobody read.
 
-Measured 2026-09-30 against `repos/wecare-digital/wecare-digital/dependabot/alerts?state=open`.
+Measured 2026-10-25 against `repos/wecare-digital/wecare-digital/dependabot/alerts?state=open`
+(first measured 2026-09-30).
 
-**Closed out 2026-09-30: 0 open alerts.** Two fixed, four dismissed with recorded evidence.
+**Closed out 2026-10-25: 0 open alerts.** The three `brace-expansion` alerts are now genuinely
+fixed, the one fixable copy of the new `zod` advisory was bumped, and 119/120 are dismissed with
+recorded evidence and watched by `scripts/check_bundled_advisories.py`.
 
 | # | Sev | Package | Vulnerable range | Manifest | Verdict |
 |---:|---|---|---|---|---|
+| 132 | HIGH | `zod` | `< 4.6.6` | `tools/browser/package-lock.json` | ✅ **FIXED** 2026-10-24 by another change |
+| 125 | HIGH | `zod` | `< 4.6.6` | `package-lock.json` | ✅ **FIXED** 2026-10-25 — dev-only copy bumped 4.6.5 → 4.6.7 (GitHub had auto-dismissed it) |
+| 120 | HIGH | `zod` | `< 4.6.6` | `amplify/package-lock.json` | ⛔ **DISMISSED `tolerable_risk`** — every copy 3.x, Amplify pins 3.25.17, watched by script |
+| 119 | MEDIUM | `@opentelemetry/core` | `< 2.8.0` | `amplify/package-lock.json` | ⛔ **DISMISSED `inaccurate`** — lockfile-only entries; nothing below 2.8.0 installs, watched by script |
 | 59 | MEDIUM | `oauthlib` | `>= 3.0.0, < 4.0.0` | `requirements-dev.txt` | ✅ **FIXED** — pinned to 4.0.0, closed by Dependabot 06:41:48Z |
 | 58 | MEDIUM | `oauthlib` | `>= 0.6.1, <= 3.3.1` | `requirements-dev.txt` | ✅ **FIXED** — same bump |
-| 57 | MEDIUM | `brace-expansion` | `>= 4.0.0, < 5.0.12` | `amplify/package-lock.json` | ⛔ **DISMISSED `tolerable_risk`** — unfixable here, watched by script |
-| 56 | HIGH | `brace-expansion` | `>= 4.0.0, < 5.0.11` | `amplify/package-lock.json` | ⛔ **DISMISSED `tolerable_risk`** |
-| 55 | HIGH | `brace-expansion` | `>= 4.0.0, < 5.0.10` | `amplify/package-lock.json` | ⛔ **DISMISSED `tolerable_risk`** |
+| 57 | MEDIUM | `brace-expansion` | `>= 4.0.0, < 5.0.12` | `amplify/package-lock.json` | ✅ **FIXED** 2026-10-25 — `aws-cdk-lib` 2.274.0 bundles 5.0.12; dismissal undone |
+| 56 | HIGH | `brace-expansion` | `>= 4.0.0, < 5.0.11` | `amplify/package-lock.json` | ✅ **FIXED** 2026-10-25 — same bump |
+| 55 | HIGH | `brace-expansion` | `>= 4.0.0, < 5.0.10` | `amplify/package-lock.json` | ✅ **FIXED** 2026-10-25 — same bump |
 | 23 | MEDIUM | `uuid` | `< 11.1.1` | `package-lock.json` | ⛔ **DISMISSED `not_used`** — vulnerable function never called |
+
+## 120 / 125 / 132 — `zod`, one advisory in three lockfiles
+
+GHSA-mrhx-c7xc-m3w5 (CVE-2023-54404): array parsing records an issue for every failing element
+with no cap, so a huge array against an unbounded array schema can exhaust memory. Every release
+before 4.6.6 is in range, the whole 3.x line included. Each lockfile needed a different answer:
+
+| Alert | Lockfile | Copy | Answer |
+|---|---|---|---|
+| 132 | `tools/browser/package-lock.json` | — | already fixed 2026-10-24 |
+| 125 | `package-lock.json` | 4.6.5, `dev`, via `eslint-config-next` → `eslint-plugin-react-hooks` | **bumped to 4.6.7.** GitHub's dev-scope rule had auto-dismissed it, but 4.6.6+ sits inside the plugin's `^3.25.0 \|\| ^4.0.0`, so it was fixable |
+| 120 | `amplify/package-lock.json` | seven 3.x copies | **dismissed `tolerable_risk`**, below |
+
+**125 is a three-line lockfile change, taken by hand on purpose.** `npm update zod` under the
+pinned npm 11.6.2 resolved 4.6.7 but also rewrote an unrelated `peer` flag on
+`eslint-plugin-import`, so only the `version` / `resolved` / `integrity` lines were kept.
+Verified: a clean `npm ci` under npm 11.6.2 exits 0 without touching the lockfile, `npm ls zod`
+shows 4.6.7 deduped under the plugin, and ESLint over `src/` from that install reports 0 errors
+(208 warnings, the existing baseline).
+
+**120 cannot be fixed here.**
+
+- The only patched line is 4.x. Six Amplify packages, each already at its latest version,
+  require zod **exactly** `3.25.17`: backend-cli 1.10.0, backend-output-schemas 1.8.0 (peer),
+  cli-core 2.2.7, client-config 1.11.1, deployed-backend-client 1.8.3 and platform-core 1.12.1.
+- `data-construct` and `graphql-api-construct` **bundle** their own 3.24.2 and 3.25.17 copies,
+  read from the 1.17.7 / 1.22.2 tarballs and the latest 1.17.8 / 1.22.3. No `overrides` entry
+  reaches a bundled copy; that is the lesson recorded under 55/56/57.
+- Forcing 4.x through an override would hand the v4 API to code written against v3.
+
+**The risk is tolerable, on reachability.**
+
+- Nothing deployed contains it. Every Lambda is Python, and `amplify.yml` installs only the root
+  lockfile. `amplify/` is a separate install root, used only when a developer runs `ampx`
+  locally (see 55/56/57 and `docs/npm-ci-backend-isolation.md`).
+- The schemas validate Amplify's own data: backend outputs, storage access definitions, bucket
+  config and the CLI's notices manifest. None of it is request data from site visitors; the
+  worst case is a crashed local CLI process.
+- The `$ZodArray` / `handleArrayResult` code the advisory names exists in 3.25.17 only under the
+  `zod/v4` subpath, and a clean install of the amplify lockfile has **zero** importers of
+  `zod/v4` outside zod itself. That is deliberately not the dismissal reason: the v3 array
+  parser collects issues the same way, and the advisory covers 3.x on purpose.
+
+The watch fails its gate if a 4.x copy below 4.6.6 appears (a patch bump would fix that one) or
+a copy appears that this triage never measured; `--check-upstream` reports when the Amplify
+packages stop requiring 3.x.
+
+## 119 — `@opentelemetry/core`, a copy that is never installed
+
+GHSA-8988-4f7v-96qf (CVE-2026-54285): `W3CBaggagePropagator.extract()` did not cap inbound
+`baggage` headers. Fixed in 2.8.0.
+
+The lockfile lists four 2.0.0 copies, all `inBundle: true`:
+
+```
+node_modules/@aws-amplify/{data-construct,graphql-api-construct}/node_modules/
+    @opentelemetry/{resources,sdk-trace-base}/node_modules/@opentelemetry/core
+```
+
+**None of them is installed, and none is in any tarball.**
+
+- The 1.17.7 / 1.22.2 tarballs, and the latest 1.17.8 / 1.22.3, each contain exactly one core:
+  `node_modules/@opentelemetry/core` **2.8.0**. Beside it, `resources` and `sdk-trace-base`
+  2.0.0 declare `"@opentelemetry/core": "2.0.0"` and resolve upward to that 2.8.0 copy.
+- A clean `npm ci` of the committed amplify lockfile installs core 2.8.0 (once per construct)
+  and 2.11.0 (top level), nothing else. All four nested paths are absent on disk.
+- The entries exist because `npm ci` demands a lockfile node for that exact `2.0.0` edge, the
+  inconsistency recorded in `docs/npm-ci-backend-isolation.md`. Removing them breaks `npm ci`
+  ("Missing: @opentelemetry/core@2.0.0 from lock file" ×4). A full `npm install` strips them and
+  `npm install --package-lock-only` puts them back, byte-identical.
+- Dependabot's own security update (`cbf45228`, titled "2.0.0 to 2.8.0") changed only `peer`
+  flags. It could not move the entries either, and the alert stayed open.
+
+`inaccurate` is exact: the alert describes a vulnerable copy that is recorded but never
+installed. `not_used` would be wrong, because that reason is for installed code whose
+vulnerable function is never called, and `tolerable_risk` would concede a risk that does not
+exist. The watch fails its gate if a sub-2.8.0 copy appears anywhere else or one of the four
+stops being `inBundle`, since either would be a real copy hidden by this dismissal.
 
 ## All four dismissals said `fix_started`, and that was wrong
 
@@ -37,6 +122,21 @@ cannot come back to tell you it became fixable. That is replaced by
 `scripts/check_bundled_advisories.py`, described under 55/56/57.
 
 ## 55 / 56 / 57 — `brace-expansion`, and why an override does not work
+
+**Fixed 2026-10-25.** The watch below did its job: `--check-upstream` reported that
+`aws-cdk-lib` 2.274.0 bundles `brace-expansion` 5.0.12, which clears all three ranges. The pin in
+`amplify/package.json` moved 2.270.0 → 2.274.0 (with `packages/config/vendorVersions.ts`), the
+three dismissals were undone so Dependabot could close them as fixed, and the brace-expansion
+watch was retired from the script.
+
+Regenerating the backend lockfile needed the two-step this install root always needs. A full
+`npm install` reads the new tarball's real bundle but strips the four lockfile-only
+`@opentelemetry/core@2.0.0` entries (see 119), after which `npm ci` refuses. A follow-up
+`npm install --package-lock-only` restores them byte-identical. Verified under the pinned npm
+11.6.2: `npm ci` exits 0 and installs `aws-cdk-lib` 2.274.0 with bundled `brace-expansion`
+5.0.12; `tsc --noEmit -p amplify/tsconfig.json` reports 0 errors before and after. No CDK synth
+was run. The analysis below stays because its override lesson applies to every bundled
+dependency.
 
 The three alerts are one copy: `node_modules/aws-cdk-lib/node_modules/brace-expansion` at
 **5.0.9**, reached through `aws-cdk-lib`'s bundled `minimatch`. The top-level
@@ -88,15 +188,16 @@ genuinely present in a manifest and genuinely installed whenever someone runs `n
 inside `amplify/` — unlike the `uuid` case below, where the vulnerable *function* is never
 called. What makes it tolerable is reachability, not absence.
 
-### They are dismissed, so a script does the noticing now
+### They were dismissed, so a script did the noticing
 
 The plan recorded here was to leave them open so the upstream fix would surface by itself. They
 were dismissed instead, which is defensible on reachability but removes that mechanism
 entirely: **a dismissed alert cannot come back to tell you it became fixable.**
 
-`scripts/check_bundled_advisories.py` replaces it, and is better than what it replaces — an
+`scripts/check_bundled_advisories.py` replaced it, and was better than what it replaced — an
 open alert nags on every page load and gets tuned out, whereas this answers the actual question
-on demand:
+on demand. It noticed the fix on 2026-10-25; the brace-expansion watch is retired and the script
+now watches 119 and 120 with the same two modes:
 
 ```
 python scripts/check_bundled_advisories.py --gate            # offline, CI-safe
@@ -112,14 +213,16 @@ python scripts/check_bundled_advisories.py --check-upstream  # is it fixable yet
   "CLEARS all three advisories" and tells you to undo the dismissal.
 
 Getting that split wrong is how a gate ends up firing on routine upgrades and then switched
-off. `tests/test_bundled_advisory_watch.py` asserts the split by running the script against
-doctored lockfiles: a de-bundled copy must exit 1, a bump to 5.0.10 must be a problem (it
-clears one advisory of three), and a bump to 5.0.12 must be a notice rather than either.
+off. `tests/test_bundled_advisory_watch.py` asserted the split against doctored lockfiles until
+the tests directory was retired (`c1f38b2b`). The 119/120 watches were checked the same way by
+hand on 2026-10-25, against nine doctored lockfiles: every case that invalidates a dismissal
+exits 1, and every version move that does not exits 0 with a notice.
 
-`--check-upstream` reads the newest `aws-cdk-lib` **tarball** rather than registry metadata,
+`--check-upstream` read the newest `aws-cdk-lib` **tarball** rather than registry metadata,
 because a bundled dependency does not appear in a package's declared dependency list — it is
 simply inside the archive. Measured 2026-09-30: latest `2.271.0`, still bundles `5.0.9`,
-`FIX AVAILABLE: False`.
+`FIX AVAILABLE: False`. Measured 2026-10-25: latest `2.274.0` bundles `5.0.12`,
+`FIX AVAILABLE: True`, and the pin moved.
 
 ## 23 — `uuid`, and what the earlier fix actually achieved
 

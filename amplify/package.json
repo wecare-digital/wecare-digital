@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@aws-amplify/backend": "^1.23.0",
-    "aws-cdk-lib": "2.270.0",
+    "aws-cdk-lib": "2.274.0",
     "constructs": "10.8.1"
   },
   "devDependencies": {

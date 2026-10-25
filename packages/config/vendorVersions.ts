@@ -264,9 +264,9 @@ export const TYPESCRIPT: VendorVersion = {
 
 export const AWS_CDK: VendorVersion = {
   name: 'aws-cdk-lib',
-  configured: '2.270.0',
-  verifiedLatest: '2.271.0',
-  verifiedOn: '2026-09-26',
+  configured: '2.274.0',
+  verifiedLatest: '2.274.0',
+  verifiedOn: '2026-10-25',
   evidence: 'LIVE',
   drift: 'pinned',
   upgradeBlockedReason:
