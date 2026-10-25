@@ -23,6 +23,30 @@ const tabItems: TabItem[] = [
 ];
 
 /** One account today, exactly as the single `<option>` it replaces. */
+const SPECIALIZED_WHATSAPP_TEMPLATES = new Set( [
+  'wecare_order_status_v3',
+  'wecare_default_invoice_image_template',
+  'wecare_leave_review',
+  'wecare_whatapp_native_pay_template',
+  'wecare_default_download',
+  'wecare_location_share_pin',
+  'wecare_otp',
+] );
+
+const campaignSafeTemplate = ( t: any ) => {
+  if ( SPECIALIZED_WHATSAPP_TEMPLATES.has( String( t?.name || '' ).toLowerCase() ) ) return false;
+  const components = Array.isArray( t?.components ) ? t.components : [];
+  return !components.some( ( comp: any ) => {
+    const type = String( comp?.type || '' ).toUpperCase();
+    const format = String( comp?.format || '' ).toUpperCase();
+    if ( type === 'HEADER' && [ 'IMAGE', 'VIDEO', 'DOCUMENT', 'LOCATION' ].includes( format ) ) return true;
+    if ( type === 'BUTTONS' ) return ( comp?.buttons || [] ).some( ( b: any ) =>
+      [ 'FLOW', 'URL', 'ORDER_DETAILS', 'COPY_CODE' ].includes( String( b?.type || '' ).toUpperCase() )
+    );
+    return false;
+  } );
+};
+
 const WABA_OPTIONS: SelectOption[] = [
   { value: WHATSAPP_PHONES.primary.id, label: WHATSAPP_PHONES.primary.name },
 ];
@@ -60,7 +84,7 @@ const WhatsAppCampaignPage: React.FC<PageProps> = ( { signOut, user, embedded = 
       const contactsData = await api.listContacts();
       setContacts( contactsData.filter( c => c.phone || c.bsuid ) );
       const tpls = await api.listTemplates( selectedWaba );
-      setTemplates( ( tpls as any[] ).filter( ( t ) => t.status === 'APPROVED' ) as any );
+      setTemplates( ( tpls as any[] ).filter( ( t ) => t.status === 'APPROVED' && campaignSafeTemplate( t ) ) as any );
       const messages = await api.listMessages( undefined, 'WHATSAPP' );
       const campaignMsgs = messages.filter( m => ( m as any ).campaignId );
       const campaignMap = new Map<string, CampaignLog>();
