@@ -7444,10 +7444,10 @@ export async function listMySecureFiles (): Promise<ApiResult<{
 }
 
 /**
- * Redeem a paid grant for a short-lived download URL.
+ * Redeem paid Vault entitlement for a short-lived download URL.
  *
- * Single use: the backend spends the grant with a conditional write, so calling
- * this twice fails the second time by design. Do not retry on a 403.
+ * The paid entitlement is durable. The backend issues renewable short-lived
+ * download sessions while the customer's access window is open.
  */
 export async function redeemSecureFileDownload ( fileId: string, grantId: string ): Promise<ApiResult<{
   downloadUrl: string; expiresInSeconds: number;
