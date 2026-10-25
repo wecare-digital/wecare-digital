@@ -149,7 +149,16 @@ def _attr(value: dict[str, Any]) -> Any:
 
 
 def read_scan(path: str) -> list[dict[str, Any]]:
-    payload = json.load(sys.stdin if path == "-" else open(path, encoding="utf-8"))
+    try:
+        if path == "-":
+            payload = json.load(sys.stdin)
+        else:
+            with open(path, encoding="utf-8") as handle:
+                payload = json.load(handle)
+    except (OSError, json.JSONDecodeError) as error:
+        raise ProjectionError(f"cannot read the ProductsTable scan: {error}") from error
+    if not isinstance(payload, dict) or not isinstance(payload.get("Items"), list):
+        raise ProjectionError("the input is not an AWS CLI `dynamodb scan --output json` result")
     if payload.get("LastEvaluatedKey") or payload.get("NextToken"):
         raise ProjectionError("the scan is paginated/truncated; re-run it to completion")
     return [{key: _attr(value) for key, value in item.items()} for item in payload["Items"]]
@@ -200,11 +209,13 @@ def inr(price_text: str) -> str:
 
 def listing_for(row: dict[str, Any], projection: ModuleType) -> dict[str, Any]:
     slug = str(row.get("slug") or "")
+    shaped = projection_row(row)
     try:
-        items = projection.desired_items([projection_row(row)], require_variant_price=True)
+        items = projection.desired_items([shaped], require_variant_price=True)
     except ValueError as error:  # unpriced variant or unrepresentable retailer id
         raise ProjectionError(f"{slug}: {error}") from error
-    if len(items) != 1:
+    # A variant-less row projects to no item, so this also refuses it before any SKU read.
+    if len(items) != 1 or len(shaped["variants"]) != 1:
         raise ProjectionError(f"{slug}: expected exactly one variant, found {len(items)}")
     item = items[0]
     if item.get("currency") != "INR":
@@ -217,7 +228,8 @@ def listing_for(row: dict[str, Any], projection: ModuleType) -> dict[str, Any]:
         "slug": slug,
         "name": item["name"],
         "blurb": item["description"],
-        "sku": str(row["variants"][0].get("sku") or row["variants"][0].get("id")),
+        # The same variant identity Meta's retailer id carries (sku, else id).
+        "sku": shaped["variants"][0]["id"],
         "href": url[len(ORIGIN):],
         "formattedPrice": inr(item["price"]),
     }
@@ -249,7 +261,8 @@ def render(listings: list[dict[str, Any]]) -> str:
     for listing in listings:
         fields = []
         for key, value in listing.items():
-            fields.append(f"{key}:{'false' if value is False else ts_string(str(value))}")
+            literal = ("true" if value else "false") if isinstance(value, bool) else ts_string(str(value))
+            fields.append(f"{key}:{literal}")
         lines.append("  { " + ", ".join(fields) + " },\n")
     return HEADER + "".join(lines) + FOOTER
 

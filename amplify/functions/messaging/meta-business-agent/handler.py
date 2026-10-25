@@ -85,12 +85,12 @@ def _appsecret_proof(token: str, secret: str) -> str:
 # X-Agent-Token header (secret wecare/agent-connector-token). Read-only.
 # ─────────────────────────────────────────────────────────────────────────
 AGENT_TOOL_SECRET = os.environ.get("AGENT_TOOL_SECRET", "wecare/agent-connector-token")
-# WABA phone-number-id -> its Meta product catalog id. Both WABAs now share the ONE
-# `wecare_shop` catalog 1457045652952851, so the two values are deliberately identical -
-# not a copy-paste slip. The mapping stays so a per-entity catalog remains one edit away.
+# Meta phone-number-id -> the catalog attached to that phone's WABA.
+# Meta permits a product catalog to be linked to only one WhatsApp Business Account,
+# so each WABA has its own synchronized catalog.
 _CATALOG_BY_ENTITY = {
     "1016149501586345": "1457045652952851",   # WABA1 wecare_shop
-    "1055232054343117": "1457045652952851",   # WABA2 wecare_shop (shared)
+    "1055232054343117": "1317472650427643",   # WABA2 WECARE.DIGITAL Catalog
 }
 
 

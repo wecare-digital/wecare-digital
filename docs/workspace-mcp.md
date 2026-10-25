@@ -172,7 +172,16 @@ Google offline grants renew on demand while valid. Revocation, changed permissio
 or provider refresh-token expiry can still require consent. Meta authorization
 errors must be resolved in the approved provider app/client configuration; do not
 mark a callback or ordinary Graph token as a verified remote MCP connection.
-Plivo/Sinch checks confirm documentation discovery, not a live account.
+The prepared Plivo/Sinch account adapters replace documentation discovery with
+fixed account reads after the reviewed runtime release. They resolve the existing
+`wecare/plivo/api` and `wecare/sinch/rcs` secrets inside the administrative Lambda.
+Plivo returns account type and billing mode only; Sinch India authenticates with
+the established ACL authority and reads only the configured Conversation app.
+No contact details, channel credentials or tokens are returned. This proves account
+read access, not RCS sender approval, delivery capability or permission to send.
+Each request uses current runtime credentials, so secret rotation takes effect
+without copying credentials into Chat. Missing credentials or denied provider
+access fail closed. Old documentation verification never counts as account access.
 
 
 The Meta Social/WhatsApp cloud flow requires Meta to accept its resource-specific
@@ -182,3 +191,64 @@ desktop Meta Social/WhatsApp connectors; do not copy their tokens into AWS. See
 `execution/mcp-connections-20261007.md` for the live provider response and Ads review
 limitations. Connection persistence does not override Meta client acceptance,
 permission review, consent or revocation.
+
+## Optional ChatGPT OAuth endpoint (prepared, not activated)
+
+The dedicated Chat endpoint reuses the staff Cognito pool through a separate public
+authorization-code client with S256 PKCE. The existing web client, staff route, IAM
+route and provider callback retain their existing authority. No provider grants
+are copied. Each MCP request calls Cognito GetUser to check the actual access token
+and revocation, then checks current Admin membership. Its owner hash uses the same
+issuer and subject as staff login. Plugin installation and workspace membership
+alone do not grant administrative or provider access. General workspace-member
+access requires a separately reviewed permission design.
+
+Both ChatRedirectUri and ChatDiscoveryEnabled default to disabled. To obtain a
+callback before creating its OAuth client, build with `--chat-discovery` and release
+the reviewed discovery stage first. It publishes only public OAuth metadata and
+an anonymous 401 challenge; authenticated MCP and OAuth remain unavailable until
+the exact client/callback configuration is complete. Obtain the exact callback
+from ChatGPT's connection setup, then build with
+`--chat-redirect-uri https://chatgpt.com/connector/oauth/CALLBACK_ID` (replace the
+placeholder; never use a wildcard). This authorization facade advertises no
+authorization-response issuer parameter, so use the callback-specific URL supplied
+by ChatGPT rather than its stable legacy redirect. Configure the static public
+client ID from the stack output with no client secret. Only the native
+`aws.cognito.signin.user.admin` scope is requested for Cognito GetUser. The MCP
+resource audience must match the exact ChatEndpoint output.
+
+Conditional resources add a dedicated HTTP API with a default stage, two discovery
+routes, fixed Cognito delegation at /authorize and /token, and /mcp. MCP is checked
+in the Lambda, even though API Gateway route auth is NONE; no anonymous MCP tools
+are served. Metadata is public. Token responses go only to the OAuth host and never
+to MCP tool results or logs. The public client has code-only OAuth, token revocation,
+15-minute access tokens and seven-day refresh tokens. The API has explicit
+throttling and uses the existing bounded Lambda concurrency. Requests can incur
+normal AWS charges. The Plivo/Sinch release separately adds GetSecretValue on only
+their two existing secret ARNs and KMS decrypt for only the Plivo secret context
+through Secrets Manager. No new secret store or provider write tool is introduced.
+
+Run `python scripts/verify_chat_mcp_auth.py`, compile the changed Python, and run
+`cfn-lint amplify/infra/workspace-mcp.json` before deployment. Build with the exact
+pinned dedicated dependency directory using scripts/build_workspace_mcp.py. The
+bundle includes chat_oauth.py and the manifest pins the template checksum. A
+callback change also replaces the immutable Lambda version, so the live alias
+cannot keep the old callback environment. Later builds that omit the callback
+preserve the existing stack parameters; omission does not silently disable Chat.
+
+Activation requires owner approval, merge to wecare.digital, and the existing
+reviewed change-set process in scripts/deploy_workspace_mcp.py. After deployment,
+use ChatEndpoint and ChatClientId outputs to register the connection and bind it
+to the consolidated WECARE.DIGITAL plugin. Validate unauthenticated discovery and
+401 challenge, then sign in individually and prove initialize, tools/list,
+Google Cloud and Google Ads reads. Repeat with a second authorized identity to
+verify isolation. Offline checks and CloudFormation ValidateTemplate do not prove
+that live consent, token refresh or provider reads work. Do not describe this
+endpoint as active until those checks pass in both Chat and Work.
+
+For rollback, preserve the registry and KMS key and restore the prior Lambda
+version with matching reviewed IaC. Clearing ChatRedirectUri removes the client
+and invalidates the connection. With ChatDiscoveryEnabled=true, the API remains
+for public discovery only; set it false as well to remove the API. These changes
+require explicit owner approval.
+Do not change existing staff-client settings or copy grants to repair a login.
