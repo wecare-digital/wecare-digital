@@ -1014,9 +1014,9 @@ def run(root: Path) -> int:
             check("INV", "the invoice template went to the buyer's number", delivered_to == [alice["phone"]], delivered_to)
         check("R17", "exactly ONE wecare_default_invoice_image_template send",
               len(counts["invoice_sends"]) - sends_before == 1, len(counts["invoice_sends"]) - sends_before)
-        # R18: exactly ONE Meta order_status `processing`, sent AFTER the invoice template as its own
-        # finalization step. Alice ordered from the chat, so her 24-hour window is open and the
-        # update travels as the interactive `order_status` message, which needs no template.
+        # R18: exactly ONE Meta order_status `processing`, sent BEFORE the invoice template (the
+        # owner's sequence, plan T7/D2). Alice ordered from the chat, so her 24-hour window is
+        # open and the update travels as the interactive `order_status` message (no template).
         capture_sends = W.since(mark, "meta_sends")
         status_idx = [i for i, s in enumerate(capture_sends)
                       if (s["payload"].get("interactive") or {}).get("type") == "order_status"]
@@ -1033,8 +1033,8 @@ def run(root: Path) -> int:
                   (params.get("order") or {}).get("status") == "processing"
                   and params.get("reference_id") == reference and status_payload.get("to") == alice["phone"],
                   {"status": (params.get("order") or {}).get("status"), "ref": params.get("reference_id")})
-            check("R18", "...and it went out AFTER the invoice template (receipt first, fulfilment second)",
-                  bool(invoice_idx) and invoice_idx[0] < status_idx[0],
+            check("R18", "...and it went out BEFORE the invoice template (order_status, then receipt)",
+                  bool(invoice_idx) and status_idx[0] < invoice_idx[0],
                   {"order_status": status_idx, "invoice": invoice_idx})
         post_capture_kinds = sorted(
             "invoice" if (s["payload"].get("template") or {}).get("name") == INVOICE_TEMPLATE
@@ -1235,8 +1235,8 @@ def run(root: Path) -> int:
                   if c["function"] in COMMERCE_FUNCTIONS]
         send_at = [i for i, r in enumerate(routes) if r.endswith("/send-whatsapp")]
         status_at = [i for i, r in enumerate(routes) if r.endswith("/order-status")]
-        check("ISO", "...the order_status step ran once, as its own call AFTER the invoice send",
-              len(status_at) == 1 and bool(send_at) and send_at[0] < status_at[0],
+        check("ISO", "...the order_status step ran once, BEFORE the invoice send, and did not stop it",
+              len(status_at) == 1 and bool(send_at) and status_at[0] < send_at[0],
               {"send": send_at, "status": status_at})
         lea_invoice = post_payment_counts(reference, lea_attempt["paymentAttemptId"])["invoices"]
         check("ISO", "...and the invoice does not claim Meta accepted any status",

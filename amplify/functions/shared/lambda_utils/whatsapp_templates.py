@@ -30,12 +30,14 @@ The post-payment contract
 -------------------------
 After a verified payment the customer receives, in order and nothing else:
 
-    1. INVOICE, once, with the paid-invoice PNG in its header and an order-bound review token on
-       its FLOW button. This is the payment confirmation.
-    2. Meta order_status `processing` (WhatsApp-rail orders only; interactive inside the 24-hour
-       window, the ORDER_STATUS template outside it, otherwise deferred). A separate
-       finalization step after the invoice: fulfilment, not receipt, and the invoice never
-       depends on it succeeding. Later fulfilment updates are staff-driven.
+    1. Meta order_status `processing` (WhatsApp-rail orders only; interactive inside the 24-hour
+       window, the ORDER_STATUS template outside it, otherwise deferred). Bounded and
+       best-effort: the invoice never depends on it succeeding.
+    2. INVOICE, once, with the paid-invoice PNG in its header and an order-bound review token on
+       its FLOW button.
+
+    That is the owner-approved order (audit plan T7/D2). Later fulfilment updates are
+    staff-driven.
 
 `POST_PAYMENT_FORBIDDEN` lists templates no post-payment automation may send.
 """

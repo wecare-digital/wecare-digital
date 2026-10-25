@@ -181,7 +181,7 @@ flows on WABA2, or accept that the menu degrades to links there. Do not paper ov
 | Catalog cart | native checkout | `order` | `_handle_cart_order` (`:5154`) |
 | New-thread open | `request_welcome` webhook | `request_welcome` | main menu — **currently never fires**, `enable_welcome_message: false` on both numbers |
 | Brand-new contact | first ever text/media | any | main menu, once, then `welcomeSent` |
-| Post-payment | Razorpay `payment.captured` | `wecare_default_invoice_image_template`, then order_status `processing` | the invoice's Leave Review FLOW button (F002) |
+| Post-payment | Razorpay `payment.captured` | order_status `processing` (WhatsApp rail), then `wecare_default_invoice_image_template` | the invoice's Leave Review FLOW button (F002) |
 
 ---
 
@@ -381,13 +381,14 @@ Four entry points converge on one pipeline:
                                        └─► razorpay-webhook  payment.captured
                                              • HMAC verify + provider readback, fails closed
                                              • ONE order, ONE paid GST invoice (wecare-commerce)
-                                             • wecare_default_invoice_image_template, once: the
-                                               PNG header + Leave Review FLOW button carrying an
-                                               order-bound review token (REVIEWTOKEN#)
-                                             • then Meta order_status `processing` (WhatsApp-rail
+                                             • Meta order_status `processing` (WhatsApp-rail
                                                orders only): interactive inside the 24-hour
                                                window, wecare_order_status_v3 outside it, else
-                                               deferred as pendingOrderStatus on the invoice
+                                               deferred as pendingOrderStatus on the invoice;
+                                               bounded, so it never holds back the receipt
+                                             • then wecare_default_invoice_image_template, once:
+                                               the PNG header + Leave Review FLOW button carrying
+                                               an order-bound review token (REVIEWTOKEN#)
 ```
 
 Website (Razorpay Standard Checkout) orders get the same invoice template on the verified number;
