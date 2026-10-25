@@ -667,6 +667,35 @@ def _profile_status(identity: customer_auth.CustomerIdentity, origin: str) -> Di
     }, origin))
 
 
+def _catalog_contents(snapshot) -> list:
+    """Return exact Meta-joinable product/variant identities from one frozen quote.
+
+    This is analytics metadata only. It is copied from the same server-authoritative frozen
+    snapshot used for pricing; no browser name, SKU, amount or display value is trusted. If even
+    one line is malformed the whole list is suppressed so a later Purchase event cannot partially
+    attribute a basket.
+    """
+    frozen = snapshot.frozen_data if snapshot is not None and isinstance(snapshot.frozen_data, dict) else {}
+    lines = frozen.get("items") if isinstance(frozen.get("items"), list) else []
+    if not lines:
+        return []
+    out = []
+    for line in lines:
+        if not isinstance(line, dict):
+            return []
+        product_id = str(line.get("productId") or "").strip()
+        variant_id = str(line.get("variantId") or "").strip()
+        quantity = line.get("quantity")
+        if not product_id or not variant_id or type(quantity) is not int or quantity <= 0:
+            return []
+        out.append({
+            "productId": product_id,
+            "variantId": variant_id,
+            "quantity": quantity,
+        })
+    return out
+
+
 def _cart_order_details(snapshot, reference_id: str, profile: Dict[str, Any],
                         address: Dict[str, Any], now: int) -> Dict[str, Any]:
     """Build Meta ORDER_DETAILS from the same frozen server-authoritative cart quote.
@@ -2021,6 +2050,10 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         payment_attempt_id=attempt_id,
     )
     attempt["checkoutMode"] = checkout_mode
+    if snapshot is not None:
+        catalog_contents = _catalog_contents(snapshot)
+        if catalog_contents:
+            attempt["catalogContents"] = catalog_contents
     if catalog_session is None and cart_profile is not None:
         attempt.update(
             channel=order_channel.CHANNEL_WHATSAPP,
