@@ -185,7 +185,7 @@
     "wecare-faq-handler": {},
     "wecare-get-miss-redirect": {},
     "wecare-inbound-whatsapp": {
-      "CHECKOUT_FUNCTION": "wecare-checkout:live",
+      "CHECKOUT_FUNCTION": "wecare-commerce:live",
       "COMMERCE_KEYS_TABLE": "stack-wecare-digital-CommerceKeys",
       "CONTACTS_TABLE": "stack-wecare-digital-ContactsTable",
       "IAM_REFRESH": "1772814879",
@@ -376,7 +376,8 @@
       "PAYMENT_ATTEMPTS_TABLE": "stack-wecare-digital-PaymentAttemptsTable",
       "REGION": "us-east-1",
       "S3_BUCKET": "wecare-digital-get",
-      "WEBHOOK_LOG_TABLE": "stack-wecare-digital-RazorpayWebhookLogTable"
+      "WEBHOOK_LOG_TABLE": "stack-wecare-digital-RazorpayWebhookLogTable",
+      "COMMERCE_FUNCTION": "wecare-commerce:live"
     },
     "wecare-rcs-dlr": {
       "CONTACTS_TABLE": "stack-wecare-digital-ContactsTable",
@@ -535,6 +536,37 @@
       "MEDIA_BUCKET": "wecare-digital-get",
       "REGION": "us-east-1",
       "S3_BUCKET": "wecare-digital-get"
+    },
+    "wecare-commerce": {
+      "COMMERCE_KEYS_TABLE": "stack-wecare-digital-CommerceKeys",
+      "CONTRIBUTION_PRODUCT_ID": "24fa0f39-330b-5365-b7eb-9caf27ad37f1",
+      "EXPECTED_CONFIGURATION_NAME": "WECAREDIGITAL",
+      "EXPECTED_PROVIDER_MID": "acc_TTFSyolquKEZEy",
+      "PAYMENT_ATTEMPTS_TABLE": "stack-wecare-digital-PaymentAttemptsTable",
+      "PAYMENT_WABA_ID": "2094615664435155",
+      "SENDER_FUNCTION": "wecare-whatsapp-business-api:live",
+      "CHECKOUT_MODE": "AWS_NATIVE",
+      "CATALOG_SOURCE": "aws",
+      "PRODUCTS_TABLE": "stack-wecare-digital-ProductsTable",
+      "WHATSAPP_CATALOG_SERVICES_ENABLED": "true",
+      "CONTACTS_TABLE": "stack-wecare-digital-ContactsTable",
+      "ORDERS_TABLE": "stack-wecare-digital-OrderTable",
+      "RAZORPAY_SECRET_ID": "wecare/razorpay/api",
+      "ADMIN_MFA_REQUIRED": "true",
+      "CDN_DOMAIN": "wecare.digital/get",
+      "INVOICES_TABLE": "stack-wecare-digital-InvoicesTable",
+      "INVOICE_ASSETS_TABLE": "stack-wecare-digital-InvoiceAssetsTable",
+      "INVOICE_DELIVERY_TABLE": "stack-wecare-digital-InvoiceDeliveryLogTable",
+      "INVOICE_ITEMS_TABLE": "stack-wecare-digital-InvoiceItemsTable",
+      "INVOICE_SEQ_TABLE": "stack-wecare-digital-InvoiceSequenceTable",
+      "LOG_LEVEL": "INFO",
+      "MEDIA_BUCKET": "wecare-digital-get",
+      "PAYMENTS_TABLE": "stack-wecare-digital-PaymentsTable",
+      "WA_PAY_TEMPLATE": "wecare_whatapp_native_pay_template",
+      "WA_INVOICE_TEMPLATE": "wecare_default_invoice_image_template",
+      "REFUND_INITIATION_ENABLED": "false",
+      "OUTBOUND_FUNCTION": "wecare-outbound-whatsapp:live",
+      "WA_CATALOG_ORDERS_ENABLED": "true"
     }
   }
 }

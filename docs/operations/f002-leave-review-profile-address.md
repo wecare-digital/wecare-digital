@@ -1,75 +1,45 @@
 # WD-F002-LEAVE-REVIEW
 
-Design reference: **WD-F001-SUBSCRIBE-PROFILE**.
+Design and numbering reference: **WD-F001-SUBSCRIBE-PROFILE**.
 
-## Customer screen order
+Content source: **Meta Flow 940049388908144** (`01. WECARE REVIEW FLOW`).
 
-1. PROFILE
-2. ADDRESS
-3. REVIEW
-4. COMPLETE
+## Contract
 
-The order intentionally matches F001 so customers learn one WECARE.DIGITAL pattern.
+F001 is used only for the canonical WECARE.DIGITAL naming/numbering pattern.
 
-## PROFILE
+F002 customer-facing content must match the published review Flow 940049388908144:
 
-Fields, in F001 order:
-- Full name — required
-- WhatsApp username — optional
-- Organization — optional
-- Job title — optional
+1. FEEDBACK
+2. REVIEW
 
-## ADDRESS
-
-Fields, in F001 order:
-- Street address — required
-- Apartment / suite / unit — optional
-- Landmark / neighborhood — optional
-- City — required
-- State / region — required
-- Postal code — required
-- Country — required
-
-The country selector reuses the same 195-country data source as F001.
-
-## REVIEW
-
-The page first shows the entered profile and address, then keeps the published review questions
-from Flow 940049388908144 exactly:
+### FEEDBACK
 
 - "What's on your mind?" — optional radio choice
+  - A feature I'd love
+  - Something to improve
+  - Something I liked
+  - Another thought
 - "Your thought" — required text
 
-Topic options, in the same order:
-- A feature I'd love
-- Something to improve
-- Something I liked
-- Another thought
+### REVIEW
 
-The review remains private.
+Show the submitted thought and complete the review.
 
-## COMPLETE
+There are no profile fields and no address fields in F002.
 
-The final screen shows the customer's thought and submits:
-- flow_key = wd_leave_review_v2
-- schema_version = 5
-- all profile fields
-- all address fields
-- topic
-- idea
+## Canonical identity
 
-## Compatibility
+- Flow number: F002
+- Flow code / intended Meta draft name: `WD-F002-LEAVE-REVIEW`
+- Current Meta draft: `993862443003108`
+- Historical draft (do not reuse for F002): `2352304845587149` / `WD_Leave_Review_Design_v1`
+- Published content source: `940049388908144`
 
-The currently published review Flow remains unchanged in this branch.
+The F002 target is the new canonical draft `993862443003108`; the historical design draft is not the F002 target.
 
-The new draft is:
+## Source asset
+
 `amplify/functions/messaging/whatsapp-business-api/flows/design-drafts/f002-leave-review.json`
 
-Backend review storage accepts both:
-- existing schema 4 payloads from the published review;
-- schema 5 payloads from WD-F002-LEAVE-REVIEW.
-
-For schema 5, full name, street address, city, state/region, postal code and country are
-required. Profile/address are stored as review snapshots. Trusted WhatsApp sender identity
-(phone, contact id, WhatsApp display name and customer UUID when present) remains server-owned;
-customer-entered name/address do not overwrite identity.
+This asset uses the F001 visual treatment and preserves the 940049388908144 review fields/content. The word `privately` is intentionally omitted from customer-facing copy.

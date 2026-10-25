@@ -466,8 +466,21 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # checkout's customer-session gate: invoice routes keep the invoice engine's existing auth
     # contract and must never be rejected as customer checkout with VERIFICATION_REQUIRED.
     # Lazy import keeps ordinary checkout cold starts and trust decisions unchanged.
-    commerce_path = str(event.get("rawPath") or event.get("path") or "")
-    if commerce_path.startswith("/invoices"):
+    rc0 = event.get("requestContext", {}) or {}
+    http0 = rc0.get("http", {}) or {}
+    commerce_path = str(
+        event.get("rawPath")
+        or event.get("path")
+        or http0.get("path")
+        or ""
+    )
+    route_key = str(event.get("routeKey") or rc0.get("routeKey") or "")
+    invoice_route = (
+        commerce_path.startswith("/invoices")
+        or "/invoices" in route_key
+        or "/invoices" in commerce_path
+    )
+    if invoice_route:
         import invoice_engine as commerce_invoice_engine
         return commerce_invoice_engine.handler(event, context)
     if event.get('internalAction') in ('prepareNativeCatalogService', 'finalizeNativeCatalogService'):

@@ -251,6 +251,22 @@ SPECS: List[Spec] = [
         # Now LIVE and recorded in the env manifest, so the awaiting-provisioning
         # marker was dropped. First creation was owned by scripts/provision_checkout.py.
     ),
+    # Strangler target for the checkout + invoice runtime. It intentionally packages the SAME
+    # proven source closure as wecare-checkout while caller/API cutover remains separate.
+    # Razorpay settlement verification stays in wecare-razorpay-webhook as an independent
+    # provider-evidence boundary. First creation has NO API routes and is owned by
+    # scripts/provision_commerce.py; production callers move only after shadow verification.
+    Spec(
+        "wecare-commerce",
+        "ecommerce/checkout",
+        extra_files=["invoice_engine.py"],
+        external_files=[("payments/invoice-engine/receipt_layout.py", "receipt_layout.py")],
+        external_dirs=[("payments/invoice-engine/fonts", "fonts")],
+        required_layers=[PILLOW_LAYER_ARN],
+        required_memory=512,
+        required_timeout=60,
+        provisioned_by="python scripts/provision_commerce.py",
+    ),
     # The customer's own order history and profile summary, read-only. One Query on the sparse
     # customerId-createdAt-index, scoped by the Cognito sub from the token rather than by any
     # value in the request. First creation is owned by scripts/provision_customer_orders.py,

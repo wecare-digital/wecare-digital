@@ -15,9 +15,16 @@ NAMES = {
     'drop-docs': 'WD_Drop_Docs_Design_v1',
     'vault': 'WD_Vault_Design_v1',
     'shipments': 'WD_Shipments_Design_v1',
-    'leave-review': 'WD_Leave_Review_Design_v1',
+    'leave-review': 'WD-F002-LEAVE-REVIEW',
     'orders': 'WD_Orders_Design_v1',
     'subscribe': 'WD_Subscribe_Design_v1',
+}
+
+
+# F002 is numbered/named from F001's canonical convention, but its customer-facing
+# content is the existing published review contract (Meta Flow 940049388908144).
+ASSET_FILES = {
+    'leave-review': 'f002-leave-review.json',
 }
 
 def unwrap(response):
@@ -82,7 +89,8 @@ def handle(event, graph, create, upload, get_flow, update_flow=None):
         return {'id': matches[0]['id'], 'status': meta.get('status'),
                 'endpoint_connected': meta.get('endpoint_uri') == endpoint, 'validation_errors': meta.get('validation_errors')}
     # Read before creation so missing assets cannot create empty draft records.
-    content = json.loads((Path(__file__).parent / 'design-drafts' / (service + '.json')).read_text())
+    asset_file = ASSET_FILES.get(service, service + '.json')
+    content = json.loads((Path(__file__).parent / 'design-drafts' / asset_file).read_text())
     created = not matches
     if matches:
         flow_id = matches[0]['id']

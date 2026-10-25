@@ -46,7 +46,7 @@ def response_answers(data):
         rows.append({'question': "What's on your mind?", 'answer': TOPICS[raw_topic]})
     idea = data.get('idea')
     if isinstance(idea, str) and idea.strip():
-        rows.append({'question': 'Your thought', 'answer': idea.strip()})
+        rows.append({'question': 'Idea', 'answer': idea.strip()})
     return rows
 
 
