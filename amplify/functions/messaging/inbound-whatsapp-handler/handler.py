@@ -2166,18 +2166,14 @@ def _process_message(
     _idea_inbox = None
     if _idea_data is not None and _idea_result is not None:
         _topic = str(_idea_data.get('topic') or 'other')
-        _idea_text = str(_idea_data.get('idea') or '').strip()
+        _schema_version = str(_idea_data.get('schema_version') or '4')
         _idea_inbox = {
             'flowCode': customer_ideas.FLOW_CODE,
             'flowType': 'customer_idea',
-            'flowScreen': 'REVIEW',
+            'flowScreen': 'COMPLETE' if _schema_version == '5' else 'REVIEW',
             'flowSubmissionId': _idea_result.submission_id,
             'flowReference': _idea_result.reference,
-            'flowAnswers': [
-                {'question': "What's on your mind?",
-                 'answer': customer_ideas.TOPICS.get(_topic, customer_ideas.TOPICS['other'])},
-                {'question': 'Your thought', 'answer': _idea_text},
-            ],
+            'flowAnswers': customer_ideas.response_answers(_idea_data),
             'flowAttachments': [],
             'reviewId': _idea_result.submission_id,
             'reviewStatus': 'pending',
