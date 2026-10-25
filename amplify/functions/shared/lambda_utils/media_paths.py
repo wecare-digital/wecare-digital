@@ -166,12 +166,24 @@ def _join(parts: tuple[str, ...]) -> str:
     return joined + "/" if trailing and joined else joined
 
 
+#: Stored-key prefixes that name a location no object lives at, mapped to where the objects
+#: actually are. `secure/whatsapp/` was written into MessagesTable `s3Key` by the 2026-10 media
+#: relocation, while the objects themselves went to `secure/d/public/whatsapp/`. Measured
+#: 2026-10-25: 12 rows used it, `secure/whatsapp/` held no objects, and every one of the 12
+#: objects was present at the mapped key. Nothing composes `secure/whatsapp/`, so this only
+#: resolves old pointers; it moves no object and exposes nothing that was gated.
+STORED_KEY_ALIASES: tuple[tuple[str, str], ...] = (
+    ("secure/whatsapp/", WHATSAPP_ROOT),
+)
+
+
 def canonical(key: Optional[str]) -> str:
     """Return ``key`` rooted in the tree it belongs to, without moving it between roots.
 
     A key already under ``o/`` or ``secure/`` is returned unchanged — so this is safe to
-    apply twice, and safe to apply to a gated key without exposing it. Anything else is
-    treated as a legacy key written before the bucket merge and rooted under ``o/``.
+    apply twice, and safe to apply to a gated key without exposing it — except a prefix in
+    `STORED_KEY_ALIASES`, which is resolved to where its objects actually live. Anything
+    else is treated as a legacy key written before the bucket merge and rooted under ``o/``.
 
     A full URL is returned unchanged: `DocumentTable` stores either a key or an absolute
     ``fileUrl``, and prefixing the latter would corrupt it.
@@ -181,6 +193,9 @@ def canonical(key: Optional[str]) -> str:
     k = key.lstrip("/")
     if k.startswith(("http://", "https://")):
         return key
+    for stored, actual in STORED_KEY_ALIASES:
+        if k.startswith(stored):
+            return actual + k[len(stored):]
     if k.startswith(PUBLIC_ROOT) or k.startswith(SECURE_ROOT):
         return k
     return PUBLIC_ROOT + k

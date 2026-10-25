@@ -43,20 +43,12 @@ import VayuLokApprovedGlobe from '../../components/VayuLokApprovedGlobe';
 import VayuLokLive from '../../components/VayuLokLive';
 
 /*
- * VAYULOK SOCIAL CARD. A VayuLok-specific landscape (1200x630, ~1.91:1) preview so a shared
- * /vayulok/ link no longer falls back to the generic square WECARE.DIGITAL brand card. The asset
- * lives in the shared media bucket under the same /get/o/stream/media/m/ CloudFront path every
- * other brand asset uses (see _app.tsx BRAND ASSETS note); upload `vayulok-social.png` there.
- * Because it is a true 1.91:1 image, twitter:card is 'summary_large_image' (PageMeta's default
- * when an image is supplied) rather than the sitewide 'summary'.
+ * SOCIAL CARD. This page uses the sitewide square brand card from _app.tsx
+ * (o/stream/media/m/wecare-digital.png, 1080x1080, twitter:card 'summary'). A VayuLok-specific
+ * 1200x630 card at o/stream/media/m/vayulok-social.png was wired here but never uploaded, so
+ * every share of /vayulok/ advertised an og:image that redirected to the home page (checked
+ * 2026-10-25). Pass PageMeta an `image` again once that object exists in the bucket.
  */
-const VAYULOK_SOCIAL_CARD = {
-  url: 'https://wecare.digital/get/o/stream/media/m/vayulok-social.png',
-  alt: 'VayuLok by WECARE.DIGITAL — Bharat air and weather insights',
-  width: 1200,
-  height: 630,
-  card: 'summary_large_image' as const,
-};
 
 /*
  * STRUCTURED DATA. Only a WebApplication node that accurately describes the live VayuLok app.
@@ -153,7 +145,6 @@ const VayuLokPage: React.FC = () => {
         description="VayuLok by WECARE.DIGITAL — live air quality, weather, forecasts, history and heatmaps for a chosen location."
         path="/vayulok/"
         jsonLd={ vayulokJsonLd() }
-        image={ VAYULOK_SOCIAL_CARD }
       />
 
       <main className="vl-page">

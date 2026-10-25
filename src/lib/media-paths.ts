@@ -34,6 +34,16 @@ export const SECURE_ROOT = 'secure/';
 export const PUBLIC_DELIVERABLE_ROOT = 'secure/d/public/';
 
 /**
+ * Stored-key prefixes that name a location no object lives at, mapped to where the objects
+ * actually are. Mirrors `STORED_KEY_ALIASES` in media_paths.py: the 2026-10 media relocation
+ * wrote `secure/whatsapp/` into stored message keys while the objects went to
+ * `secure/d/public/whatsapp/`.
+ */
+const STORED_KEY_ALIASES: ReadonlyArray<readonly [ string, string ]> = [
+    [ 'secure/whatsapp/', `${ PUBLIC_DELIVERABLE_ROOT }whatsapp/` ],
+];
+
+/**
  * The media host including its path segment. Deliberately NOT the bucket name —
  * see rule 1 in the module docstring.
  */
@@ -43,7 +53,8 @@ export const CDN_DOMAIN = 'wecare.digital/get';
  * Return `key` rooted in the tree it belongs to, without moving it between roots.
  *
  * A key already under `o/` or `secure/` comes back unchanged, so this is safe to apply
- * twice and safe to apply to a gated key without exposing it. An absolute URL is
+ * twice and safe to apply to a gated key without exposing it - except a prefix in
+ * `STORED_KEY_ALIASES`, which resolves to where its objects actually live. An absolute URL is
  * returned untouched, because a stored value may be either a key or a full `fileUrl`
  * and prefixing the latter would corrupt it. Anything else is treated as a pre-merge
  * legacy key and rooted under `o/`.
@@ -52,6 +63,9 @@ export function canonical ( key?: string | null ): string {
     if ( !key ) return '';
     const k = key.replace( /^\/+/, '' );
     if ( k.startsWith( 'http://' ) || k.startsWith( 'https://' ) ) return key;
+    for ( const [ stored, actual ] of STORED_KEY_ALIASES ) {
+        if ( k.startsWith( stored ) ) return actual + k.slice( stored.length );
+    }
     if ( k.startsWith( PUBLIC_ROOT ) || k.startsWith( SECURE_ROOT ) ) return k;
     return PUBLIC_ROOT + k;
 }

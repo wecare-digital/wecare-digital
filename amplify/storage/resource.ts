@@ -25,10 +25,12 @@ import { defineStorage } from '@aws-amplify/backend';
  * - o/                          : static/CDN assets. `o/` is a LOCATION, not a permission.
  *   - o/stream/media/           : m/ (branding), ivr/, reports/, docs/
  *
- * The access map below still names `o/stack/*` and `o/public/*`, retired trees that hold
- * no current objects. It is left unchanged here on purpose: editing it changes the IAM
- * this resource deploys, which needs its own owner-approved deploy. `secure/*` stays
- * absent from it; granting the gated root here would be a disclosure.
+ * NOT DEPLOYED. No Amplify storage bucket exists in the account (checked 2026-10-25), and
+ * `defineStorage` would create a NEW bucket rather than govern `wecare-digital-get`, which
+ * the repository forbids without explicit approval. So the access map below does not
+ * control access to the media bucket at all; Lambda roles, the bucket policy and the edge
+ * function do. It still names the retired `o/stack/*` and `o/public/*` trees. `secure/*`
+ * stays absent from it; granting the gated root here would be a disclosure.
  */
 export const storage = defineStorage( {
   name: 'wecare-media',
