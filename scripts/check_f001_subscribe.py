@@ -76,6 +76,10 @@ class FakeEndpointConnectionError(FakeBotoCoreError):
     pass
 
 
+class FakeConnectTimeoutError(FakeBotoCoreError):
+    pass
+
+
 def _conditional_failure(operation: str) -> FakeClientError:
     return FakeClientError({'Error': {'Code': 'ConditionalCheckFailedException'}}, operation)
 
@@ -339,6 +343,8 @@ def install_stubs() -> None:
     exceptions.ClientError = FakeClientError
     exceptions.BotoCoreError = FakeBotoCoreError
     exceptions.EndpointConnectionError = FakeEndpointConnectionError
+    # flows/submit_request.py catches it alongside EndpointConnectionError (3430414b2).
+    exceptions.ConnectTimeoutError = FakeConnectTimeoutError
     botocore.exceptions = exceptions
     config = types.ModuleType('botocore.config')
     config.Config = lambda *a, **k: None
