@@ -390,17 +390,10 @@ def _verify_webhook_signature(event: Dict[str, Any], request_id: str) -> bool:
         if hmac.compare_digest(expected_sig, signature_header):
             return True
 
-    # Neither secret matched — log for debugging
-    # Compute expected with primary secret for the log
-    primary_secret = app_secret_1 or app_secret_2
-    expected_sig = 'sha256=' + hmac.new(
-        primary_secret.encode('utf-8'),
-        body_bytes,
-        hashlib.sha256
-    ).hexdigest()
+    # Neither secret matched. No prefix of the signature we expected is logged: any part of a
+    # valid HMAC for this body is something a log reader should never be handed.
     logger.warning(json.dumps({
         'event': 'webhook_signature_mismatch',
-        'expectedPrefix': expected_sig[:20],
         'receivedPrefix': signature_header[:20],
         'bodyLen': len(raw_body or ''),
         'isBase64': event.get('isBase64Encoded', False),
@@ -568,6 +561,23 @@ def _validate_webhook_timestamp(body: Dict, request_id: str) -> bool:
     return True
 
 
+def _webhook_shape(body: Any) -> Dict[str, Any]:
+    """What a webhook was, never what it said.
+
+    Every verified Meta webhook is logged on arrival, and its body carries customers' numbers,
+    names, message text, Flow answers and payment details. This used to log the first 2,000
+    characters of that body; the object, entry count and change fields are enough to trace one.
+    """
+    if not isinstance(body, dict):
+        return {'object': type(body).__name__, 'entries': 0, 'fields': []}
+    entries = body.get('entry') if isinstance(body.get('entry'), list) else []
+    fields = {str(change.get('field', ''))
+              for entry in entries if isinstance(entry, dict)
+              for change in (entry.get('changes') or []) if isinstance(change, dict)}
+    return {'object': str(body.get('object', ''))[:64], 'entries': len(entries),
+            'fields': sorted(fields)[:20]}
+
+
 def _handle_webhook_event(body: Dict, request_id: str) -> Dict[str, Any]:
     """Process incoming WhatsApp webhook events."""
     # Replay protection: reject events older than 5 minutes
@@ -575,10 +585,8 @@ def _handle_webhook_event(body: Dict, request_id: str) -> Dict[str, Any]:
         logger.warning(json.dumps({'event': 'webhook_replay_rejected', 'requestId': request_id}))
         return _response(200, {'status': 'rejected', 'reason': 'stale_timestamp'})
 
-    logger.info(json.dumps({
-        'event': 'webhook_received', 'requestId': request_id,
-        'body_preview': json.dumps(body)[:2000],
-    }))
+    logger.info(json.dumps({'event': 'webhook_received', 'requestId': request_id,
+                            **_webhook_shape(body)}))
 
     obj = body.get('object', '')
     entries = body.get('entry', [])

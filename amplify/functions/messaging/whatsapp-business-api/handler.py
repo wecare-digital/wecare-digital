@@ -269,11 +269,23 @@ def _graph_api(endpoint: str, method: str = 'GET', payload: Dict = None, params:
             return json.loads(resp.read().decode('utf-8'))
     except urllib.error.HTTPError as e:
         error_body = e.read().decode('utf-8') if e.fp else str(e)
-        logger.error(f'Graph API error {e.code}: {error_body}')
         try:
-            return {'error': json.loads(error_body)}
+            parsed = json.loads(error_body)
         except (json.JSONDecodeError, TypeError, ValueError):
-            return {'error': {'message': error_body, 'code': e.code}}
+            parsed = None
+        meta_error = parsed.get('error') if isinstance(parsed, dict) else None
+        meta_error = meta_error if isinstance(meta_error, dict) else {}
+        # The fields that classify a failure, not Meta's whole envelope: `error_data.details`
+        # and `error_user_msg` can echo the request (recipient numbers, message ids, codes).
+        logger.error(json.dumps({
+            'event': 'graph_api_error', 'httpCode': e.code,
+            'metaCode': meta_error.get('code'), 'metaSubcode': meta_error.get('error_subcode'),
+            'metaType': meta_error.get('type'), 'fbtraceId': meta_error.get('fbtrace_id'),
+            'metaMessage': redact_string(str(meta_error.get('message') or ''))[:200],
+        }))
+        if parsed is not None:
+            return {'error': parsed}
+        return {'error': {'message': error_body, 'code': e.code}}
 
 def _resp(code: int, body: Dict, resp_origin: str = '') -> Dict:
     return {'statusCode': code, 'headers': cors_headers(resp_origin or origin), 'body': json.dumps(body, default=str)}
