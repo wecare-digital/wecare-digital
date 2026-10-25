@@ -2921,9 +2921,15 @@ def _native_whatsapp_identity(
         raise customer_auth.CustomerNotAuthorized('WhatsApp customer identity is malformed')
     contact = _table(CONTACTS_TABLE).get_item(
         Key={'id': contact_id}, ConsistentRead=True).get('Item') or {}
+    try:
+        contact_phone = customer_identity.normalize_phone_preserving_country(
+            contact.get('phone') or '')
+    except customer_identity.InvalidPhoneNumber:
+        raise customer_auth.CustomerNotAuthorized(
+            'WhatsApp customer contact has no valid phone') from None
     if (contact_key.resolve(contact) != contact_id
             or str(contact.get('checkoutCustomerId') or '') != subject
-            or customer_identity.normalize_phone_preserving_country(contact.get('phone')) != sender_phone):
+            or contact_phone != sender_phone):
         raise customer_auth.CustomerNotAuthorized('WhatsApp customer identity changed')
     identity = customer_auth.CustomerIdentity(
         customer_id=subject, subject=subject, phone=sender_phone, phone_verified=True)
