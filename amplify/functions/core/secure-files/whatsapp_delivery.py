@@ -53,11 +53,11 @@ META_PHONE_NUMBER_ID = os.environ.get("META_PHONE_NUMBER_ID", "1016149501586345"
 #: `outbound-whatsapp._resolve_meta_phone_id` accepts only an AWS-style id (its map, or a
 #: `-direct-<digits>` suffix) and otherwise raises rather than falling back to another WABA. A
 #: bare Meta id matches neither. Independently, the payment one was refused a second time by
-#: `PAYMENT_SENDERS`. It went unnoticed because this function records zero invocations and
-#: `SECURE_FILES_PAYMENT_ENABLED` is "false".
+#: `PAYMENT_SENDERS`. It went unnoticed because this function records zero invocations and the
+#: secure-files payment flag was off.
 #:
-#: This makes the surface CORRECT, not ENABLED. The payment flag stays "false"; turning it on is
-#: an owner action.
+#: The payment send and its flag are gone (8f5617a6, 27099fc3): secure-file purchases go through
+#: the commerce checkout PaymentAttempt, and this module only delivers files.
 WA_SEND_PHONE_ID = os.environ.get(
     "WA_SEND_PHONE_ID", "phone-number-id-waba1-direct-1016149501586345")
 

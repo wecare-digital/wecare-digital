@@ -1,8 +1,10 @@
-"""Razorpay order creation for paid secure-file downloads.
+"""Read-only Razorpay settlement check for historical secure-file download orders.
 
-Imported lazily by ``handler._create_order`` and only when
-``SECURE_FILES_PAYMENT_ENABLED`` is on, so that with the flag off this module is
-never loaded, no credential is read and no Razorpay endpoint is contacted.
+Secure-files no longer creates payments. New purchases go through the commerce checkout
+PaymentAttempt, and the order-creation half of this module (``create_order``) was deleted on
+2026-10-25 because nothing called it. What remains is ``order_is_paid``, imported lazily by
+``handler._confirm_with_razorpay`` so an already-issued historical Razorpay order can still be
+verified and its file delivered.
 
 Which secret, and why it matters
 --------------------------------
@@ -17,7 +19,7 @@ the API pair out of ``wecare/razorpay-webhook``, which has only ever contained
 customer-service top-up returned 501. Verified again 2026-09-25 - both secrets exist,
 and the webhook one still holds exactly one field.
 
-So this module reads ``wecare/razorpay/api`` and nothing else. If order creation
+So this module reads ``wecare/razorpay/api`` and nothing else. If the settlement check
 ever starts failing with a missing-key error, check that the env var was not
 pointed back at the webhook secret.
 
@@ -38,32 +40,11 @@ The read is lazy rather than at import for the reason recorded in
 cached for the life of the execution environment, so a rotated value would not
 take effect until every warm sandbox recycled.
 
-Granting access is NOT this module's job. An order is only an intent to pay.
-Entitlement is written by ``handler._confirm_with_razorpay``, which is the only writer
-of ``paid`` in this system, using ``order_is_paid`` below. A client-side success callback
-is trivially forged, and as of 2026-09-25 so is a webhook callback - the webhook secret
-is in this repository's public git history - so neither is trusted. Only an authenticated
-response to a request *we* made counts.
-
-Validating the loop without live money
---------------------------------------
-Razorpay test mode uses a separate ``rzp_test_`` key pair against the same API, and
-``RAZORPAY_SECRET_ID`` is an environment variable, so exercising the full order ->
-confirm -> deliver path against test mode needs **no code change**: point that variable at
-a secret holding the test pair.
-
-Two consequences of the redesign make this genuinely cheap:
-
-* The webhook secret is no longer part of entitlement, so a test-mode run does not need a
-  matching test-mode webhook secret, and does not need ``payment.captured`` to be
-  subscribed in the test dashboard either. ``confirmAndDeliver`` and the reconcile sweep
-  both work off this API key alone.
-* ``SECURE_FILES_PAYMENT_ENABLED`` still gates everything, so enabling the loop in test
-  mode is one flag plus one secret id - and turning it on does not move real money.
-
-Obtaining the test pair is an owner action (it comes from the Razorpay dashboard) and
-storing it is a credential write, so neither is done here. The point is that the code is
-already shaped for it and nothing needs to be built first.
+Granting access is NOT this module's job. Entitlement is written by
+``handler._confirm_with_razorpay``, which is the only writer of ``paid`` in this system,
+using ``order_is_paid`` below. A client-side success callback is trivially forged, and as of
+2026-09-25 so is a webhook callback - the webhook secret is in this repository's public git
+history - so neither is trusted. Only an authenticated response to a request *we* made counts.
 """
 
 from __future__ import annotations
@@ -74,7 +55,7 @@ import os
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
 import boto3
 
@@ -108,54 +89,6 @@ def _credentials() -> Dict[str, str]:
         # Deliberately says which secret to look at and nothing about its contents.
         raise RuntimeError(f"Razorpay key_id/key_secret missing from {RAZORPAY_SECRET_ID}")
     return _cached
-
-
-def create_order(*, amount_paise: int, receipt: str, notes: Dict[str, Any]) -> Dict[str, Any]:
-    """Create an INR order and return Razorpay's record plus the public key id.
-
-    ``payment_capture`` is left at Razorpay's account default rather than forced
-    here: capture behaviour is payment configuration and is the account owner's
-    decision, not this module's.
-    """
-    if amount_paise <= 0:
-        raise ValueError("amount_paise must be positive")
-
-    creds = _credentials()
-    payload = json.dumps(
-        {
-            "amount": int(amount_paise),
-            "currency": "INR",
-            "receipt": receipt[:40],
-            "notes": notes,
-        }
-    ).encode("utf-8")
-
-    token = base64.b64encode(
-        f"{creds['key_id']}:{creds['key_secret']}".encode("utf-8")
-    ).decode("ascii")
-
-    request = urllib.request.Request(
-        ORDERS_ENDPOINT,
-        data=payload,
-        method="POST",
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Basic {token}",
-        },
-    )
-
-    try:
-        with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
-            order = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        # Razorpay error bodies describe the request, not the credential, but the
-        # request carried basic auth - so surface the status only.
-        raise RuntimeError(f"Razorpay order creation failed with HTTP {exc.code}") from None
-    except urllib.error.URLError:
-        raise RuntimeError("Razorpay unreachable") from None
-
-    order["key_id"] = creds["key_id"]
-    return order
 
 
 def order_is_paid(order_id: str) -> tuple[bool, str, int]:

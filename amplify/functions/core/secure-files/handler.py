@@ -202,8 +202,8 @@ def _sender_waba() -> str:
     override the shared map does not recognise is a misconfiguration, not an
     instruction, so it is logged and ignored rather than stamped.
 
-    Read per call, not captured at import, for the same reason `_payment_enabled` is: a
-    repoint that only takes effect once every warm sandbox recycles is not a repoint.
+    Read per call, not captured at import: a repoint that only takes effect once every warm
+    sandbox recycles is not a repoint.
     """
     derived = waba_for_meta_phone(_sender_phone_id())
     override = str(os.environ.get("META_WABA_ID", "")).strip()
@@ -281,8 +281,8 @@ def _cognito_client():
 def _dropdocs_attach_enabled() -> bool:
     """Whether the Drop Docs attach route answers at all. Defaults OFF.
 
-    Read per call for the same reason as ``_payment_enabled``: a posture switch that only
-    takes effect once every warm sandbox recycles is not much of a switch. There is no UI
+    Read per call, not captured at import: a posture switch that only takes effect once
+    every warm sandbox recycles is not much of a switch. There is no UI
     for this in Phase O-2 - ``/drop-docs`` sells the service, and the route that registers
     a document exists but is switched off.
     """
@@ -1311,10 +1311,11 @@ def _reconcile_grant(grant_id: str, file_id: str, identity: Dict[str, Any]) -> b
     it cannot be used to replay a spent download. The ownership checks live here; the
     actual payment decision and the write are delegated to ``_confirm_with_razorpay``,
     which is the only function in this system that may set ``paid``.
-    """
-    if not _payment_enabled():
-        return False
 
+    Not flag-gated. 27099fc3 retired SECURE_FILES_PAYMENT_ENABLED so that historical grants
+    keep settling, but left a call to the deleted flag reader here; a customer presenting an
+    unpaid legacy grant then hit a NameError and a 500 instead of this reconciliation.
+    """
     table = _table(GRANTS_TABLE)
     grant = table.get_item(Key={"grantId": grant_id}).get("Item")
 
