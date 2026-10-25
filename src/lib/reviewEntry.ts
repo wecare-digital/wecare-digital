@@ -22,7 +22,7 @@
  * `data_api_version=4.0`, but the first screen `FEEDBACK` is still a static entry screen),
  * which is why the handler opens it with `navigate` — see `STATIC_ENTRY_SCREENS`.
  */
-export const REVIEW_FLOW_ID = '940049388908144';
+export const REVIEW_FLOW_ID = '993862443003108';
 
 /**
  * The owner's WhatsApp short link used by the public Leave Review menu action and the
