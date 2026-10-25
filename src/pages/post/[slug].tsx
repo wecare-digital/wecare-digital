@@ -10,7 +10,6 @@ import {
   SOCIAL_CARD_URL, SOCIAL_CARD_W, SOCIAL_CARD_H, SOCIAL_CARD_TYPE, SOCIAL_CARD_ALT, SHARE_CARD_TYPE,
 } from '../../config/share';
 import { ORG_ID, ORIGIN, WEBSITE_ID, SITE_ENTITIES, ld } from '../../lib/schema';
-import { extractRecipe, recipeSchema } from '../../lib/recipe-schema';
 import { getPublicBlogPost, listPublicBlogPosts, PublicBlogPost } from '../../lib/public-blog';
 import { postContext, type PostLink } from '../../lib/post-neighbours';
 import Breadcrumbs from '../../components/Breadcrumbs';
@@ -246,40 +245,15 @@ export default function BlogPostPage ( {
     },
     inLanguage: 'en-IN',
   };
-  /**
-   * RECIPE STRUCTURED DATA, DERIVED RATHER THAN AUTHORED.
-   *
-   * 448 of the 1279 posts are recipes - every one with an "Ingredients" heading and a "Method"
-   * heading, counted in the built export - and none of them was eligible for Google's Recipe
-   * rich result, because all 1279 emitted BlogPosting and nothing else.
-   *
-   * extractRecipe() reads the same Ricos nodes this page renders, so this is automatic: a new
-   * recipe post becomes eligible the moment it is published, with no field to remember and no
-   * step for an author. A post without both lists gets nothing, which is what keeps the 831
-   * essays out of the recipe index.
-   *
-   * It runs on `richNodes`, so posts that arrive through the markdown fallback are not covered.
-   * That is the honest boundary and not an oversight: every recipe in the corpus renders through
-   * the Ricos path, and inferring a recipe from loose lines of markdown would be guessing.
+  /*
+   * NO Recipe NODE. src/lib/recipe-schema.ts derived one for the ~440 posts with Ingredients and
+   * Method headings, and it was withdrawn on 2026-10-25 for two reasons, either sufficient:
+   *   - its `image` was the brand logo. Google's Recipe guidance makes image REQUIRED and
+   *     defines it as an image of the completed dish; a logo in that slot is a claim made only
+   *     to satisfy the validator, which .kiro/steering/00-common.md forbids;
+   *   - it was emitted with no `@context`, so it was not valid schema.org JSON-LD at all.
+   * Restore it (from git history) only alongside a real, visible photo of each dish.
    */
-  const recipeParts = extractRecipe( richNodes );
-  const recipeJsonLd = recipeParts ? recipeSchema( {
-    parts: recipeParts,
-    name: post.title,
-    description,
-    canonical,
-    // The same ImageObject the article node uses. Google documents image as REQUIRED for
-    // Recipe, and one source for it means the two nodes cannot disagree.
-    image: {
-      '@type': 'ImageObject',
-      url: SOCIAL_CARD_URL,
-      width: Number( SOCIAL_CARD_W ),
-      height: Number( SOCIAL_CARD_H ),
-    },
-    datePublished: post.publishedDate || undefined,
-    authorName: post.authorName || undefined,
-    publisherId: ORG_ID,
-  } ) : null;
 
   const crumbs: PageCrumb[] = [
     { name: 'Home', href: '/' }, { name: 'Blog', href: '/blog/' }, { name: post.title },
@@ -337,12 +311,6 @@ export default function BlogPostPage ( {
             dangerouslySetInnerHTML={ ld( entity ) } />
         ) ) }
         <script type="application/ld+json" dangerouslySetInnerHTML={ ld( articleSchema ) } />
-        {/* Emitted only when the post actually has both an ingredient list and a step list -
-            see extractRecipe(). A separate script tag rather than a member of one @graph,
-            matching how articleSchema and breadcrumbSchema are already emitted here. */}
-        { recipeJsonLd
-          ? <script type="application/ld+json" dangerouslySetInnerHTML={ ld( recipeJsonLd ) } />
-          : null }
         { ( post.jsonLd?.faqSchema?.mainEntity?.length || 0 ) > 0 && (
           <script type="application/ld+json" dangerouslySetInnerHTML={ ld( post.jsonLd?.faqSchema ) } />
         ) }
@@ -531,7 +499,13 @@ export default function BlogPostPage ( {
            clearance, the measure and the gutter. .article-shell is now a plain <article> inside
            .rh-layout, so it only needs its own 700px reading measure and font - the top padding
            moved out with the <main>. */
-        .article-shell{max-width:700px;margin:0 auto;color:#1a1a1a;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+        /* width:100% IS THE PHONE OVERFLOW FIX, not decoration. .rh-layout is a column flexbox,
+           and the auto inline margins below stop a flex item from stretching, so without a
+           definite width the article sized to fit-content - whose floor is the min-content of
+           the one-line .tags scroller. Measured 2026-10-25: 374 of 1430 posts scrolled sideways
+           at 360px, up to 220px at 320px. With the width set, .tags gets the column and
+           scrolls inside it as designed; max-width still caps the measure at 700px. */
+        .article-shell{width:100%;max-width:700px;margin:0 auto;color:#1a1a1a;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
         article{max-width:700px;margin:0 auto}
         /* THE GLOBAL BORDERLESS SEARCH FIELD, matching /blog/ (.blog-search) and the /anew/ panel
            (.pbp-search): transparent fill, one quiet bottom hairline, the shared lime mic, no submit button. On focus
