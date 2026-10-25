@@ -395,7 +395,7 @@
       "AWS_ACCOUNT_ID": "775261844268",
       "CONTACTS_TABLE": "stack-wecare-digital-ContactsTable",
       "LOG_LEVEL": "INFO",
-      "OUTBOUND_LAMBDA": "wecare-outbound-whatsapp",
+      "OUTBOUND_LAMBDA": "wecare-outbound-whatsapp:live",
       "REGION": "us-east-1",
       "S3_BUCKET": "wecare-digital-get",
       "SCHEDULED_TABLE": "stack-wecare-digital-ScheduledMessagesTable"
