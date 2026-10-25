@@ -6,7 +6,7 @@ import json
 import logging
 from typing import Dict, Callable
 
-from flows import subscribe_profile, submit_request, track_request, amend_request, appointment, sehat_appointment, drop_docs, enterprise_assist, leave_review, order_notes, generic, postpay
+from flows import subscribe_profile, submit_request, track_request, amend_request, appointment, sehat_appointment, drop_docs, enterprise_assist, order_notes, generic
 from flows.common import get_phone_from_token, log_flow_event
 from flows.orders import fetch_orders_for_flow as _orders_fetch
 
@@ -70,16 +70,14 @@ def route_flow(action: str, screen: str, data: Dict, flow_token: str,
     if action == 'ping':
         return {'data': {'status': 'active'}}
 
-    # ── POST-PAYMENT DETAILS FLOW (data_exchange) ──
+    # ── POST-PAYMENT DETAILS FLOW: retired ──
+    # flows/postpay.py was removed on 2026-10-25. Nothing mints a `postpay-` token any more (the
+    # paid invoice template is the only post-payment message) and both post-payment Flows are
+    # DEPRECATED on Meta. Its INIT answered invoice and payment details for whatever reference a
+    # token named, so a stale or forged postpay token gets a data-free refusal here instead of
+    # falling through to the order-fetch INIT below.
     if flow_token and flow_token.startswith('postpay'):
-        if action == 'INIT':
-            return postpay.handle_init(data, flow_token, request_id)
-        if screen in ('THANK_YOU', 'SUCCESS', 'COMPLETE'):
-            return _terminal_response(flow_token)
-        if screen == 'DETAILS':
-            return postpay.handle_submit(data, flow_token, request_id)
-        # Any other data_exchange (e.g. THANK_YOU footer) completes the flow
-        return _terminal_response(flow_token)
+        return {'data': {'error': 'This form is no longer available.'}}
 
     # ── F001 SUBSCRIBE (WD-F001-SUBSCRIBE-PROFILE) ──
     # One handler owns every subscribe-token request, including Meta error notifications.
@@ -172,14 +170,13 @@ def route_flow(action: str, screen: str, data: Dict, flow_token: str,
         if screen in ('CONFIRM', 'SUCCESS'):
             return _terminal_response(flow_token)
 
-    # ── LEAVE REVIEW FLOW ──
-    if flow_key in ('leave_revi',) or flow_key.startswith('leave'):
-        if action == 'INIT':
-            return leave_review.handle_init(data, flow_token, request_id)
-        if screen == 'REVIEW_FORM':
-            return leave_review.handle_review_form(data, flow_token, request_id)
-        if screen in ('CONFIRM', 'SUCCESS'):
-            return _terminal_response(flow_token)
+    # Leave Review has no handler here (removed 2026-10-25 with flows/leave_review.py). F002
+    # (WD-F002-LEAVE-REVIEW) is endpointless and opens with navigate, so Meta never calls this
+    # endpoint for it; its completion arrives as an nfm_reply that customer_ideas.save_idea saves.
+    # A data_exchange carrying a leave_review token is therefore not genuine, and is refused
+    # without data rather than reaching the order-fetch INIT below.
+    if flow_key.startswith('leave'):
+        return {'data': {'error': 'This form is no longer available.'}}
 
     # ── ORDER NOTES FLOW ──
     if flow_key in ('order_note',) or flow_key.startswith('order_n'):

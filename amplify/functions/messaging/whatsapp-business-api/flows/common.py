@@ -224,8 +224,6 @@ def _record_completion(flow_completion, *, flow_code, flow_type, phone, contact_
             if item not in attachments:
                 attachments.append(item)
 
-        review_id = str(extra_map.get('reviewId') or '') if flow_code == 'WD_REV' else ''
-        review_status = ('pending' if status == 'submitted' else str(status or '')) if review_id else ''
         message_store.put_message(
             channel='whatsapp', direction='inbound', contact_id=canonical_contact_id,
             content=f'Flow response — {str(flow_type or flow_code or "Flow").replace("_", " ").title()}',
@@ -234,10 +232,6 @@ def _record_completion(flow_completion, *, flow_code, flow_type, phone, contact_
             flowCode=flow_code, flowType=flow_type, flowScreen=screen,
             flowSubmissionId=result.submission_id, flowReference=result.reference,
             flowAnswers=answers, flowAttachments=attachments,
-            reviewId=review_id or None, reviewStatus=review_status or None,
-            reviewRating=extra_map.get('rating') if review_id else None,
-            reviewCategory=extra_map.get('category') if review_id else None,
-            reviewOrderId=extra_map.get('orderId') if review_id else None,
         )
 
     # Mirror a fresh completion into the CRM. Best-effort: the FlowSubmission row is the

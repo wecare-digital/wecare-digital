@@ -7,13 +7,31 @@ import secrets
 import time
 from decimal import Decimal
 import boto3
-from botocore.exceptions import ClientError
-from lambda_utils import customer_auth, shared_tables
+from lambda_utils import customer_auth, flow_completion, shared_tables
 from lambda_utils.identity import customer_uuid
 from lambda_utils.ecommerce import catalog_service_checkout as catalog, contact_address
 
 PREFIX = 'CUSTOMERHUB#'
 TOKEN_PATTERN = re.compile(r'^orders:([A-Za-z0-9_-]{40,80})$')
+
+
+def claim_request(request_id, screen, identity, contact_id, *, flow_type, status, fields):
+    """Insert one owner-bound Orders request through `flow_completion.claim_completion`.
+
+    `request_id` is the deterministic WD-HELP / WD-SUPPORT / WD-INVCOPY id. It is the
+    submission id and also the persisted flow token, because the real `orders:` token is a live
+    session credential that must never be written to a row. No `ttl`: these requests never had
+    one. A write failure raises, as the direct `put_item` this replaces did; a `duplicate` is
+    returned so the caller can re-check that the existing row belongs to this customer.
+    """
+    result = flow_completion.claim_completion(
+        flow_token=request_id, screen=screen, flow_code='WD_Orders', flow_type=flow_type,
+        phone=identity.phone, contact_id=contact_id, submission_id=request_id, status=status,
+        extra={**fields, 'customerId': identity.customer_id}, ttl_seconds=0,
+        channel=flow_completion.CHANNEL_WHATSAPP)
+    if result.status == 'error':
+        raise RuntimeError('Orders request could not be saved')
+    return result
 
 
 def record_order_help(table, identity, contact_id, session_token, data, *, public_customer_id=''):
@@ -26,21 +44,14 @@ def record_order_help(table, identity, contact_id, session_token, data, *, publi
         raise ValueError('Invalid order help request')
     request_id = 'WD-HELP-' + hashlib.sha256(
         (identity.customer_id + ':' + session_token).encode()).hexdigest()[:24].upper()
-    row = {'submissionId': request_id, 'flowType': 'order_lookup', 'flowName': 'Orders',
-           'flowCode': 'WD_Orders', 'submissionNumber': request_id,
-           'subject': 'Help finding an order', 'paymentStatus': 'none',
-           'customerId': identity.customer_id, 'contactId': contact_id, 'phone': identity.phone,
-           'orderReference': reference.strip(), 'description': description.strip(),
-           'status': 'awaiting_order_verification', 'source': 'whatsapp_flow',
-           'channel': 'whatsapp',
-           'tags': ['Orders', 'Order verification pending'], 'createdAt': int(time.time())}
-    if public_customer_id:
-        row['customerUuid'] = public_customer_id
-    try:
-        table.put_item(Item=row, ConditionExpression='attribute_not_exists(submissionId)')
-    except ClientError as exc:
-        if exc.response.get('Error', {}).get('Code') != 'ConditionalCheckFailedException':
-            raise
+    result = claim_request(
+        request_id, 'ORDER_HELP', identity, contact_id, flow_type='order_lookup',
+        status='awaiting_order_verification',
+        fields={'flowName': 'Orders', 'subject': 'Help finding an order',
+                'orderReference': reference.strip(), 'description': description.strip(),
+                'source': 'whatsapp_flow', 'tags': ['Orders', 'Order verification pending'],
+                'customerUuid': public_customer_id})
+    if result.duplicate:
         existing = table.get_item(Key={'submissionId': request_id}, ConsistentRead=True).get('Item') or {}
         if existing.get('customerId') != identity.customer_id:
             raise customer_auth.CustomerNotAuthorized('request unavailable')
@@ -55,22 +66,13 @@ def record_order_support(table, identity, contact_id, session_token, order, *, p
     request_id = 'WD-SUPPORT-' + hashlib.sha256(
         (identity.customer_id + ':' + session_token + ':' + order['order_id']).encode()
     ).hexdigest()[:24].upper()
-    row = {
-        'submissionId': request_id, 'flowType': 'order_support', 'flowName': 'Orders',
-        'flowCode': 'WD_Orders', 'submissionNumber': request_id,
-        'subject': 'Order support', 'paymentStatus': 'none',
-        'customerId': identity.customer_id, 'contactId': contact_id, 'phone': identity.phone,
-        'orderId': order['order_id'], 'orderNumber': order['order_number'],
-        'status': 'open', 'source': 'whatsapp_flow', 'channel': 'whatsapp',
-        'tags': ['Orders', 'Customer support'], 'createdAt': int(time.time())
-    }
-    if public_customer_id:
-        row['customerUuid'] = public_customer_id
-    try:
-        table.put_item(Item=row, ConditionExpression='attribute_not_exists(submissionId)')
-    except ClientError as exc:
-        if exc.response.get('Error', {}).get('Code') != 'ConditionalCheckFailedException':
-            raise
+    result = claim_request(
+        request_id, 'DETAILS', identity, contact_id, flow_type='order_support', status='open',
+        fields={'flowName': 'Orders', 'subject': 'Order support',
+                'orderId': order['order_id'], 'orderNumber': order['order_number'],
+                'source': 'whatsapp_flow', 'tags': ['Orders', 'Customer support'],
+                'customerUuid': public_customer_id})
+    if result.duplicate:
         existing = table.get_item(
             Key={'submissionId': request_id}, ConsistentRead=True).get('Item') or {}
         if (existing.get('customerId') != identity.customer_id

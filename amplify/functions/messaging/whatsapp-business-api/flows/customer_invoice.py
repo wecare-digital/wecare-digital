@@ -3,7 +3,6 @@ import hashlib
 import re
 import time
 import boto3
-from botocore.exceptions import ClientError
 from lambda_utils import customer_auth, media_paths, receipt_links, shared_tables, template_status
 from lambda_utils.identity import customer_uuid
 from flows import customer_orders, paid_vault
@@ -81,18 +80,13 @@ def handle(event, get_template, lambda_client, s3_client):
         f'{identity.customer_id}:{order["orderId"]}:{day}'.encode()).hexdigest()[:24].upper()
     table = db.Table(shared_tables.flow_submissions_table_name())
     key = {'submissionId': reference}
-    row = {**key, 'submissionNumber': reference, 'flowCode': 'WD_Orders', 'flowType': 'invoice_copy',
-        'subject': 'Invoice copy', 'customerId': identity.customer_id, 'contactId': session['contactId'],
-        'customerUuid': customer_uuid.from_contact(contact) or '', 'phone': identity.phone,
-        'orderId': order['orderId'], 'orderNumber': order['orderNumber'], 'paymentStatus': 'none',
-        'invoiceId': asset['invoiceId'] if asset else '',
-        'status': 'open', 'channel': 'whatsapp',
-        'tags': ['Orders', 'Invoice copy'], 'createdAt': int(time.time())}
-    try:
-        table.put_item(Item=row, ConditionExpression='attribute_not_exists(submissionId)')
-    except ClientError as exc:
-        if exc.response.get('Error', {}).get('Code') != 'ConditionalCheckFailedException':
-            raise
+    # Created or already there, the row is re-read below either way, so ownership is checked
+    # against what is stored rather than against what this call tried to write.
+    customer_orders.claim_request(
+        reference, 'DETAILS', identity, session['contactId'], flow_type='invoice_copy', status='open',
+        fields={'subject': 'Invoice copy', 'customerUuid': customer_uuid.from_contact(contact) or '',
+                'orderId': order['orderId'], 'orderNumber': order['orderNumber'],
+                'invoiceId': asset['invoiceId'] if asset else '', 'tags': ['Orders', 'Invoice copy']})
     current = table.get_item(Key=key, ConsistentRead=True).get('Item') or {}
     if current.get('customerId') != identity.customer_id or current.get('orderId') != order['orderId']:
         raise customer_auth.CustomerNotAuthorized('invoice unavailable')
