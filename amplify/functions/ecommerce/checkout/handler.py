@@ -1960,11 +1960,25 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         CHECKOUT_MODE if catalog_session is not None
         else wa_payment_request.WA_NATIVE_CART_CHECKOUT_MODE
     )
+    # The ONE sender for this payment request, resolved before the reservation so the PAYREF# row
+    # records the same phone the ORDER_DETAILS template is sent from (step 4 below reuses it).
+    send_phone_number_id = (str(catalog_session['phoneNumberId']) if catalog_session is not None
+                            else wa_payment_request.PHONE_NUMBER_ID_1)
     try:
         extra = {"customerId": identity.customer_id,
                  "amountPaise": amount_paise, "currency": "INR",
                  "checkoutMode": checkout_mode,
-                 "channel": order_channel.CHANNEL_WHATSAPP}
+                 "channel": order_channel.CHANNEL_WHATSAPP,
+                 # Meta creates the Razorpay order when the customer taps Pay, so the Razorpay
+                 # webhook can only bind a capture to this reference through an authenticated
+                 # Meta payment lookup keyed on sender phone + configuration name
+                 # (`meta_payment_binding.bind_attempt`). Without these two fields that lookup
+                 # refuses, and every native capture is quarantined as PROVIDER_UNAVAILABLE.
+                 # Same field names and source as the invoice-native reservation
+                 # (`wa_payment_request._reference_row`). Server-owned values only.
+                 "phoneId": send_phone_number_id,
+                 "configurationName": EXPECTED_CONFIGURATION_NAME,
+                 "wabaId": wa_payment_request.PHONE_ID_TO_WABA.get(send_phone_number_id, "")}
         if snapshot is not None:
             # The cart join keys. `cartId` + `cartRevision` is what reconciliation matches on,
             # and `quoteHash` is what proves the paid amount is the one the customer reviewed --
@@ -2077,25 +2091,30 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
     if catalog_session is not None:
         from lambda_utils.ecommerce.catalog_service_checkout import payment_details
         contact_id = catalog_session['contactId']
-        phone_number_id = catalog_session['phoneNumberId']
         details = payment_details(catalog_session, snapshot.quote, reference_id,
                                   EXPECTED_CONFIGURATION_NAME, int(time.time()))
     else:
         contact_id = contact_key.resolve(cart_profile or {})
-        phone_number_id = wa_payment_request.PHONE_NUMBER_ID_1
         details = _cart_order_details(
             snapshot, reference_id, cart_profile or {}, cart_address or {}, int(time.time()))
+    # The sender recorded on the PAYREF# row above, so the Meta binding lookup after capture
+    # addresses the phone that actually sent this payment request.
     sent = _send_order_details(
         phone=identity.phone, contact_id=contact_id,
-        phone_number_id=phone_number_id, order_details=details)
-    if not sent:
-        # The attempt is stored and ready; the message did not go. A soft failure the client can
-        # retry, and crucially still NO order and NO second charge — the reference is reusable for a
-        # delivery retry because the attempt is unchanged.
+        phone_number_id=send_phone_number_id, order_details=details)
+    if sent != SEND_SENT:
+        # The attempt is stored and ready; no confirmed message. Still NO order and NO charge.
+        # `sendUnconfirmed` tells an internal caller (the WhatsApp cart leg) that the request may
+        # already be on the customer's phone, so it must keep its dedupe key rather than retry.
+        # The website keeps reading `status` exactly as before.
+        unconfirmed = sent == SEND_UNCONFIRMED
         return cors_response(502, {
             "status": "SEND_FAILED",
+            "sendUnconfirmed": unconfirmed,
             "paymentAttemptId": attempt_id,
-            "message": "We could not open the payment. Please try again.",
+            "message": ("We could not confirm the payment request. Check WhatsApp before trying "
+                        "again." if unconfirmed else
+                        "We could not open the payment. Please try again."),
         }, origin)
 
     _mark_request_sent(attempt_id)
@@ -2175,17 +2194,48 @@ def _status(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
 
 # ── the WhatsApp order_details handoff ──────────────────────────────────────────
 
+#: `_send_order_details` outcomes. UNCONFIRMED is distinct from FAILED: the sender may already
+#: have delivered the payment request, so a caller must not treat it as "safe to send again".
+SEND_SENT = "SENT"
+SEND_FAILED = "FAILED"
+SEND_UNCONFIRMED = "UNCONFIRMED"
+
+#: Above wecare-outbound-whatsapp's 60 s function timeout, so the invoke returns that function's
+#: own answer (or its timeout error) instead of timing out client-side mid-send.
+OUTBOUND_SEND_READ_TIMEOUT_SECONDS = 75
+_outbound_send_lambda = None
+
+
+def _outbound_send_client():
+    """The Lambda client for the payment send ONLY. No SDK retries, by design.
+
+    botocore's default client retries an invoke on a read timeout, and a retried invoke of the
+    sender is a second Meta send of the same payment request. Exactly one attempt; an ambiguous
+    outcome is reported as UNCONFIRMED instead.
+    """
+    global _outbound_send_lambda
+    if _outbound_send_lambda is None:
+        from botocore.config import Config
+        _outbound_send_lambda = boto3.client(
+            "lambda", region_name=REGION,
+            config=Config(read_timeout=OUTBOUND_SEND_READ_TIMEOUT_SECONDS,
+                          retries={"max_attempts": 0}))
+    return _outbound_send_lambda
+
+
 def _send_order_details(*, phone: str, contact_id: str, phone_number_id: str,
-                        order_details: dict) -> bool:
-    """Invoke the in-chat payment-request sender. Returns True on a 2xx. THE ONLY SENDER HERE.
+                        order_details: dict) -> str:
+    """Invoke the in-chat payment-request sender ONCE. Returns SEND_SENT on a 2xx, SEND_FAILED on
+    a definite refusal, SEND_UNCONFIRMED when the sender may have delivered. THE ONLY SENDER HERE.
 
     This does NOT build `payment_settings` — `outbound-whatsapp._build_payment_settings` owns
     Mode 3, and the whole point of this shape is that it reaches that resolver. `payment_settings`
     is deliberately ABSENT from the payload: the `isCheckoutTemplate` branch builds them from the
     sender's configured gateway and now REFUSES a caller-supplied block outright, so the WABA1-only
-    refusal, the `payment_link_uri` / `upi_intent_link` refusals and the `VALID_PAYMENT_CONFIGS`
-    membership check all apply. The configuration NAME still travels, inside `order_details`, so
-    the configuration `payment_readiness` proved is the configuration Meta is told to use.
+    refusal, the `payment_link_uri` / `upi_intent_link` refusals, the WECAREDIGITAL configuration
+    pin and the single-template pin all apply. The configuration NAME still travels, inside
+    `order_details`, so the configuration `payment_readiness` proved is the configuration Meta is
+    told to use.
 
     THE ROUTE IT USED TO CALL DID NOT EXIST. It POSTed
     `/wa-business/messages/send/interactive-payment` at the business-API Lambda, whose send
@@ -2212,27 +2262,37 @@ def _send_order_details(*, phone: str, contact_id: str, phone_number_id: str,
             "checkoutOrderDetails": order_details,
         }),
     }
+    from botocore.exceptions import ConnectionClosedError, ReadTimeoutError
     try:
-        response = _lambda_client().invoke(
+        response = _outbound_send_client().invoke(
             FunctionName=OUTBOUND_SENDER_FUNCTION,
             InvocationType="RequestResponse",
             Payload=json.dumps(invoke_event).encode("utf-8"),
         )
         raw = response["Payload"].read()
-        if response.get("FunctionError"):
-            return False
         result = json.loads(raw.decode("utf-8")) if raw else {}
+        if response.get("FunctionError"):
+            # The sender crashed or timed out. A timeout can land after Meta accepted the send.
+            if "timed out" in str((result or {}).get("errorMessage") or "").lower():
+                logger.error(json.dumps({"event": "checkout_send_unconfirmed",
+                                         "error": "SenderTimedOut"}))
+                return SEND_UNCONFIRMED
+            return SEND_FAILED
         # TIGHTENED to add the lower bound; this is a change, not a preservation. The old form
         # was `< 300` with no floor, so a `statusCode` of 0, 100 or 204 read as success. Nothing
         # emits a sub-200 status today, so the 502 `SEND_FAILED` contract is unchanged in practice.
-        return 200 <= int(result.get("statusCode") or 500) < 300
+        return SEND_SENT if 200 <= int(result.get("statusCode") or 500) < 300 else SEND_FAILED
+    except (ReadTimeoutError, ConnectionClosedError) as error:
+        # The request reached the sender and no answer came back: it may have been delivered.
+        logger.error(json.dumps({"event": "checkout_send_unconfirmed",
+                                 "error": type(error).__name__}))
+        return SEND_UNCONFIRMED
     except Exception as error:  # noqa: BLE001
-        # Includes `AccessDeniedException` until the `wecare-checkout-role` invoke grant lands in
-        # both of its homes. The attempt is stored and no order exists, so the reference stays
-        # reusable for a delivery retry.
+        # The invoke was refused before the sender ran (e.g. `AccessDeniedException`, throttling).
+        # The attempt is stored and no order exists, so nothing was sent.
         logger.error(json.dumps({"event": "checkout_send_failed",
                                  "error": type(error).__name__}))
-        return False
+        return SEND_FAILED
 
 
 def _mark_request_sent(attempt_id: str) -> None:
@@ -2243,15 +2303,18 @@ def _mark_request_sent(attempt_id: str) -> None:
     the reference regardless of this marker.
     """
     try:
+        # `:rank` is the placeholder `condition_expression()` names. Supplying the rank as `:r`
+        # left that condition's value undefined, so DynamoDB rejected every one of these writes
+        # (swallowed below) and checkout attempts never recorded PAYMENT_REQUEST_SENT.
         _attempts_table().update_item(
             Key={"paymentAttemptId": attempt_id},
             UpdateExpression="SET #s = :s, " + payment_attempt.RANK_ATTRIBUTE
-            + " = :r, updatedAt = :t",
+            + " = :rank, updatedAt = :t",
             ConditionExpression=payment_attempt.condition_expression(),
             ExpressionAttributeNames={"#s": "status"},
             ExpressionAttributeValues={
                 ":s": payment_attempt.PAYMENT_REQUEST_SENT,
-                ":r": payment_attempt.rank(payment_attempt.PAYMENT_REQUEST_SENT),
+                ":rank": payment_attempt.rank(payment_attempt.PAYMENT_REQUEST_SENT),
                 ":t": int(time.time()),
             },
         )
@@ -2438,4 +2501,8 @@ def _native_cart(event: Dict[str, Any], origin: str):
         body = {}
     return {'outcome': 'NATIVE_CART_PREPARED' if status == 200 else 'NATIVE_CART_NOT_PREPARED',
             'statusCode': status, 'status': body.get('status'),
+            # The refusal code (`error`) and whether a payment request may already have gone out,
+            # so the caller can tell a definite refusal from an unconfirmed send.
+            'error': body.get('error'),
+            'sendUnconfirmed': bool(body.get('sendUnconfirmed')),
             'paymentAttemptId': body.get('paymentAttemptId')}

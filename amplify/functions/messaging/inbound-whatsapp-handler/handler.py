@@ -115,6 +115,25 @@ WHATSAPP_VOICE_FUNCTION = os.environ.get('WHATSAPP_VOICE_FUNCTION', 'wecare-what
 # live in one place. `:live` pins the alias the service leg also invokes.
 CHECKOUT_FUNCTION = os.environ.get('CHECKOUT_FUNCTION', 'wecare-checkout:live')
 
+# The prepareNativeCart invoke must reach checkout AT MOST ONCE per cart message. botocore's
+# default client retries a Lambda invoke on a read timeout (60s), and a retried invoke is a second
+# checkout execution - a second PaymentAttempt, PAYREF# and payment template for one cart. So this
+# invoke uses its own client: no SDK retries, and a read timeout above wecare-checkout's 60s
+# function timeout, so the call always returns the function's own answer (or its timeout error).
+CHECKOUT_INVOKE_READ_TIMEOUT_SECONDS = 75
+_checkout_lambda_client = None
+
+
+def _checkout_invoke_client():
+    global _checkout_lambda_client
+    if _checkout_lambda_client is None:
+        import botocore.config
+        _checkout_lambda_client = boto3.client(
+            'lambda', region_name=os.environ.get('AWS_REGION', 'us-east-1'),
+            config=botocore.config.Config(read_timeout=CHECKOUT_INVOKE_READ_TIMEOUT_SECONDS,
+                                          retries={'max_attempts': 0}))
+    return _checkout_lambda_client
+
 # ── the WhatsApp catalogue-order hand-off (see `_handle_cart_order`) ──────────
 #
 # The commerce-keys table, which holds the `WABASKET#` hand-off row beside `PAYREF#` and
@@ -2481,15 +2500,18 @@ def _process_message(
             except Exception as _pp_err:
                 logger.warning(json.dumps({'event': 'postpay_nfm_parse_error', 'error': str(_pp_err), 'requestId': request_id}))
 
-    # ── Cart order (native catalog checkout) ──
-    # Customer sent a cart from the catalog (message.type='order'). The product_items become a
-    # phone-bound hand-off row plus a link to /cart/?basket=<token>; the website prices and takes
-    # the payment. No order_details / Review-and-Pay message is built here any more, and no total
-    # is computed - see `_handle_cart_order`. Gated OFF by WA_CATALOG_ORDERS_ENABLED.
+    # ── Cart order (native WhatsApp Catalog checkout) ──
+    # Customer sent a cart from the catalog (message.type='order'). `_handle_cart_order` parses
+    # product_retailer_id + integer quantity ONLY (Meta's item_price/currency are never read),
+    # refuses unsafe senders and foreign/unparseable retailer ids, dedupes the cart, and hands
+    # productId/variantId/quantity to wecare-checkout `prepareNativeCart`. Checkout - not this
+    # file - prices from ProductsTable, reserves the ONE PaymentAttempt + PAYREF# and sends the
+    # approved ORDER_DETAILS template. No amount is computed and no payment message is composed
+    # here. Gated by `_catalog_orders_enabled()` (SystemConfig override, else the env flag) and
+    # by checkout's own WA_CATALOG_ORDERS_ENABLED.
     if msg_type == 'order':
-        # SEND #6 — the money path. `_send_payment_request` and its inner may-send guard are
-        # DELETED (A3.3); this guard is now the only one, and there is no reference mint left in
-        # this file to order it against.
+        # SEND #6 — the money path. This may-send guard runs before `_handle_cart_order`; the
+        # reference mint, pricing and send all live in ecommerce/checkout.
         if _may_send('cart_order'):
             _handle_cart_order(message, contact_id, sender_phone, aws_phone_number_id, request_id)
         return
@@ -6399,6 +6421,19 @@ def _handle_cart_order(message: Dict, contact_id: str, sender_phone: str,
             }))
             return
 
+        # The money path needs the number the cart was SENT TO, proven from the webhook's own
+        # metadata - never `_get_aws_phone_number_id`'s WABA1 fallback for an unmapped number,
+        # which would let a cart that reached another WABA (an Embedded-Signup tenant) be
+        # answered with a WECARE payment request from WABA1.
+        receiving_meta_id = str(_send_context.get('phone_number_id') or '')
+        if META_PHONE_ID_MAP.get(receiving_meta_id) != phone_number_id:
+            logger.warning(json.dumps({
+                'event': 'cart_order_receiving_number_unproven',
+                'metaPhoneId': receiving_meta_id,
+                'requestId': request_id,
+            }))
+            return
+
         basket = whatsapp_basket.parse_order_message(message)
         if basket is None:
             # Nothing in the cart resolves to a catalogue variant. The existing conversational paths
@@ -6437,10 +6472,11 @@ def _handle_cart_order(message: Dict, contact_id: str, sender_phone: str,
 
 
 def _rollback_cart_order_index(keys, order_id: str, token: str, request_id: str) -> None:
-    """Delete the resolve-before-generate index row this invocation wrote, so a redelivery retries.
+    """Delete the resolve-before-generate index row this invocation wrote, so a retry can proceed.
 
-    Called only when the `prepareNativeCart` invoke failed to reserve an attempt (the invoke
-    raised, or the action answered anything other than `NATIVE_CART_PREPARED`). The delete is
+    Called only when the `prepareNativeCart` invoke DEFINITELY did not prepare a payment (the
+    Lambda service refused the invoke, or checkout answered anything other than
+    `NATIVE_CART_PREPARED`); an ambiguous timeout keeps the index instead. The delete is
     CONDITIONAL on `token = :token`: the row we wrote carries this invocation's unguessable token,
     so if a concurrent winner has already replaced the row with its own the condition fails and we
     leave that live row untouched. That keeps the single-attempt invariant intact (we only ever
@@ -6523,19 +6559,25 @@ def _send_payment_request(basket, phone: str, contact_id: str, sender_phone: str
     # customerUuid, and sends the approved template through `_send_order_details`. We pass variants
     # and integer quantities only; no amount of any kind travels in this payload.
     #
-    # ROLLBACK ON A FAILED PREPARE. The index row was written BEFORE this invoke so a redelivery
-    # cannot race us into a second attempt, but a transient checkout failure (the invoke raises,
-    # or the action answers anything other than `NATIVE_CART_PREPARED`) means NO attempt was
-    # reserved and NO template went out. If we left the index in place, Meta's redelivery of the
-    # same cart would be swallowed as a replay and the customer would silently never get a payment
-    # request. So on any non-success we delete OUR index row, conditionally on `token`, so a
-    # redelivery can retry. The `token = :token` guard is the single-attempt safety net: the row
-    # we wrote carries this invocation's unguessable token, so if a concurrent winner replaced it
-    # the delete misses and we never clear an index another live prepare is relying on. The SUCCESS
-    # path never deletes, so a prepared cart still collapses every redelivery to one attempt.
+    # ROLLBACK ONLY WHEN NOTHING CAN HAVE BEEN RESERVED. The index row was written BEFORE this
+    # invoke so a redelivery cannot race us into a second attempt. Which redeliveries reach this
+    # point: the wamid was already claimed permanently in WebhookDedup at the top of
+    # `_process_message`, so a Meta redelivery of the SAME wamid stops there, before this
+    # function. What the rollback re-opens is the content-keyed (wamid-less) index, and with it
+    # the customer's own retry of the same cart. So:
+    #   * a definite failure (the Lambda service refused the invoke, or checkout answered anything
+    #     other than NATIVE_CART_PREPARED) deletes OUR index row, conditionally on `token`;
+    #   * an AMBIGUOUS failure (no answer within the read timeout, the connection dropped after
+    #     the request was sent, or checkout itself timed out) KEEPS the index, because checkout
+    #     may already have reserved the attempt and sent the template, and re-opening the key
+    #     could let a retry create a second payment request for the same cart.
+    # The `token = :token` guard means we never clear an index another live prepare relies on.
+    # The SUCCESS path never deletes, so a prepared cart collapses every redelivery to one attempt.
+    from botocore.exceptions import ConnectionClosedError, ReadTimeoutError
     outcome = ''
+    ambiguous = False
     try:
-        response = lambda_client.invoke(
+        response = _checkout_invoke_client().invoke(
             FunctionName=CHECKOUT_FUNCTION, InvocationType='RequestResponse',
             Payload=json.dumps({'internalAction': 'prepareNativeCart', 'lines': basket.lines,
                                 'sourceMessageId': basket.message_id, 'contactId': contact_id,
@@ -6544,6 +6586,19 @@ def _send_payment_request(basket, phone: str, contact_id: str, sender_phone: str
         raw = response['Payload'].read()
         result = json.loads(raw.decode('utf-8')) if raw else {}
         outcome = str(result.get('outcome') or '')
+        if response.get('FunctionError') and 'timed out' in str(
+                result.get('errorMessage') or '').lower():
+            ambiguous = True
+        # Checkout reserved the attempt but could not confirm the template left: it may be on
+        # the customer's phone already, so this is not a definite failure either.
+        if result.get('sendUnconfirmed') is True:
+            ambiguous = True
+    except (ReadTimeoutError, ConnectionClosedError) as error:
+        ambiguous = True
+        logger.error(json.dumps({'event': 'cart_order_payment_invoke_ambiguous',
+                                 'error': type(error).__name__,
+                                 'phone_suffix': _phone_suffix(sender_phone),
+                                 'requestId': request_id}))
     except Exception as error:  # noqa: BLE001
         logger.error(json.dumps({'event': 'cart_order_payment_invoke_error',
                                  'error': type(error).__name__,
@@ -6552,11 +6607,24 @@ def _send_payment_request(basket, phone: str, contact_id: str, sender_phone: str
         _rollback_cart_order_index(keys, index['orderId'], token, request_id)
         return
 
+    if ambiguous:
+        # Index retained on purpose; see above. An operator reconciles from the attempt table.
+        logger.error(json.dumps({'event': 'cart_order_payment_outcome_unknown',
+                                 'alert': 'CART_PAYMENT_PREPARE_AMBIGUOUS',
+                                 'sourceMessageId': basket.message_id,
+                                 'phone_suffix': _phone_suffix(sender_phone),
+                                 'requestId': request_id}))
+        return
+
     if outcome != 'NATIVE_CART_PREPARED':
-        # A reachable-but-not-prepared answer (e.g. NATIVE_CART_NOT_PREPARED): no attempt, no send.
-        # Clear the index so a redelivery retries, exactly as for an invoke that raised.
+        # A definite not-prepared answer from checkout (e.g. NATIVE_CART_NOT_PREPARED: no
+        # profile/address/verified customer, unpriceable cart, readiness blocked, send refused).
+        # Clear the index so the customer's retry of the same cart is not swallowed as a replay.
         logger.warning(json.dumps({'event': 'cart_order_payment_not_prepared',
                                     'outcome': outcome,
+                                    # A refusal CODE (e.g. DELIVERY_DETAILS_REQUIRED), never text.
+                                    'reason': str(result.get('error') or result.get('status')
+                                                  or '')[:64],
                                     'sourceMessageId': basket.message_id,
                                     'phone_suffix': _phone_suffix(sender_phone),
                                     'requestId': request_id}))

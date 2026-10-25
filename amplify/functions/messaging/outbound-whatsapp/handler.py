@@ -496,13 +496,28 @@ PAYMENT_SENDERS = frozenset({PHONE_NUMBER_ID_1})
 EXPECTED_CONFIGURATION_NAME = os.environ.get('EXPECTED_CONFIGURATION_NAME', '')
 EXPECTED_PROVIDER_MID = os.environ.get('EXPECTED_PROVIDER_MID', '')
 
-#: The three payload shapes that REQUEST a payment. `orderStatusDetails` is deliberately absent because fulfilment is not a payment request. `payment_action` in `handler` stays as it is - it answers a
-#: different question (does this need Admin?) and order_status does.
+#: The ONE payload key that REQUESTS a payment. `orderStatusDetails` is deliberately absent
+#: because fulfilment is not a payment request. `payment_action` in `handler` stays as it is - it
+#: answers a different question (does this need Admin?) and order_status does.
 _PAYMENT_REQUEST_KEYS = ('isCheckoutTemplate',)
 _REMOVED_PAYMENT_REQUEST_KEYS = ('isPaymentTemplate', 'isInteractivePayment')
 
 #: Removed payment envelopes. They are rejected at the public handler boundary and have no
 #: payload-building implementation. WhatsApp collection is template ORDER_DETAILS only.
+
+#: THE single approved Meta payment template (UTILITY / ORDER_DETAILS / `en`, WABA1). Pinned
+#: here, at the boundary, rather than trusted from each caller: an `isCheckoutTemplate` request
+#: naming any other template is refused before any provider read, so a second payable template
+#: cannot become a second payment rail even if Meta later approves one. Env-read with the same
+#: key and default as the invoice engine (`WA_PAY_TEMPLATE`), so the two cannot name different
+#: templates without the boundary refusing every payment.
+WA_PAY_TEMPLATE = os.environ.get('WA_PAY_TEMPLATE', 'wecare_whatapp_native_pay_template')
+WA_PAY_TEMPLATE_LANGUAGE = 'en'
+WA_PAY_TEMPLATE_NOT_PERMITTED = 'WA_PAY_TEMPLATE_NOT_PERMITTED'
+#: The only settlement currency and the only goods types Meta accepts for an India
+#: ORDER_DETAILS payment. Server-pinned so a caller cannot change what the provider settles.
+WA_PAY_CURRENCY = 'INR'
+WA_PAY_GOODS_TYPES = frozenset({'physical-goods', 'digital-goods'})
 
 #: The two states that mean "ask again later". Everything else means a human must act.
 _READINESS_TRANSIENT = frozenset({payment_readiness.META_UNAVAILABLE,
@@ -604,11 +619,12 @@ def _build_payment_settings(phone_number_id: str, order_details: dict) -> list:
 # ══ A0: one readiness gate at the boundary every payment send must cross ═════════════════════
 #
 # This function is the only one in the repository that composes a Meta `review_and_pay` message,
-# so every in-WhatsApp payment surface - the invoice engine, the native catalog service leg, the
-# secure-files paid download, the staff inbox composer and the staff commerce "send bill" tool -
-# reaches Meta through here. Gating at the boundary rather than at each caller is deliberate:
-# callers can be added by anyone, the Meta boundary cannot, and two of the live callers are
-# browser code that must not be trusted with a gate at all.
+# so every in-WhatsApp payment surface reaches Meta through here. Measured callers of
+# `isCheckoutTemplate`: `ecommerce/checkout` `_send_order_details` (WhatsApp catalog cart,
+# catalog service, authenticated website "pay on WhatsApp" create) and the invoice engine's
+# `send_payment_link` (staff invoices, Submit Request payments) - all server-side. No browser
+# code composes a payment any more. Gating at the boundary rather than at each caller is
+# deliberate: callers can be added by anyone, the Meta boundary cannot.
 #
 # After this gate, no in-WhatsApp payment send in the system reaches Meta without a live
 # readiness proof. Before it, that was false.
@@ -902,6 +918,22 @@ def _refuse_unless_payment_ready(body: Dict[str, Any], phone_number_id: str,
     if not isinstance(order_details, dict) or not order_details:
         logger.error(json.dumps({'event': 'wa_payment_order_details_invalid',
                                  'requestId': request_id}))
+        return _error_response(400, 'ORDER_DETAILS_INVALID', 'Nothing has been charged.')
+
+    # 4b. One template, one currency, Meta's goods types. No provider read can make another
+    #     template, a non-INR settlement or an unknown goods type acceptable, so these refuse
+    #     first. Absent currency/type keep their INR / physical-goods defaults in the sender.
+    template_name = str(body.get('templateName') or '')
+    if template_name != WA_PAY_TEMPLATE:
+        logger.error(json.dumps({'event': 'wa_payment_template_not_permitted',
+                                 'templateName': template_name[:80],
+                                 'code': WA_PAY_TEMPLATE_NOT_PERMITTED,
+                                 'requestId': request_id}))
+        return _error_response(409, WA_PAY_TEMPLATE_NOT_PERMITTED, _NOT_READY_MESSAGE)
+    if str(order_details.get('currency') or WA_PAY_CURRENCY) != WA_PAY_CURRENCY or \
+            str(order_details.get('type') or 'physical-goods') not in WA_PAY_GOODS_TYPES:
+        logger.error(json.dumps({'event': 'wa_payment_order_details_invalid',
+                                 'reason': 'currency_or_type', 'requestId': request_id}))
         return _error_response(400, 'ORDER_DETAILS_INVALID', 'Nothing has been charged.')
 
     # 5. The configuration name, resolved ONCE by the extracted resolver the sender also uses.
@@ -1349,9 +1381,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # and the handler re-checks afterwards. A disagreement falls back to the
         # 403 rather than sending a non-text message out of the window.
         if not within_window and not is_template:
+            # The retired `isPaymentTemplate` / `isInteractivePayment` envelopes are refused at
+            # the top of this handler and have no locals here. Naming them raised NameError,
+            # which turned every outside-window non-template send (including staff ORDER_STATUS
+            # fulfilment updates) into a 500 before the intended refusal/exemption could run.
             looks_plain_text = not any((
                 is_reaction, media_type, media_file, is_interactive,
-                is_payment_template, is_interactive_payment,
                 is_checkout_template, is_order_status,
             )) and bool(content) and bool(recipient_phone)
             if looks_plain_text:
@@ -1460,9 +1495,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 recipient_bsuid=recipient_bsuid
             )
         
-        # Handle checkout button template (order_details button with sale_amount + shipping_info)
+        # THE payment send: the approved ORDER_DETAILS template (`WA_PAY_TEMPLATE`) whose button is
+        # `sub_type: order_details` with server-built Razorpay `payment_settings`. The gate above
+        # has already pinned the template, sender, configuration, currency and live readiness.
         if is_checkout_template and checkout_order_details:
-            return _handle_checkout_template_send(
+            return _handle_order_details_template_send(
                 message_id, contact_id, recipient_phone, phone_number_id,
                 is_template, template_name, template_params,
                 checkout_order_details, header_image_url,
@@ -1775,47 +1812,47 @@ def _handle_order_status_send(message_id: str, contact_id: str, recipient_phone:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# CHECKOUT BUTTON TEMPLATE — Send handler
-# Per Meta docs: Checkout button templates use order_details button with
-# sale_amount, shipping_info, importer_address, and payment_settings.
+# APPROVED ORDER_DETAILS PAYMENT TEMPLATE — the ONE WhatsApp payment send
+# Meta's docs call a template whose button is `sub_type: order_details` a
+# "checkout button template"; here it is exactly one template, WA_PAY_TEMPLATE
+# (wecare_whatapp_native_pay_template), collected through payment_gateway /
+# Razorpay / WECAREDIGITAL. There is no data-exchange checkout: the
+# /wa-business/checkout-data callback only answers refusals and never reprices.
 # https://developers.facebook.com/docs/whatsapp/cloud-api/payments-api/
 #   payments-in/checkout-button-templates
 # ═══════════════════════════════════════════════════════════════════════════
 
-def _handle_checkout_template_send(
+def _handle_order_details_template_send(
         message_id: str, contact_id: str, recipient_phone: str,
         phone_number_id: str, is_template: bool, template_name: str,
         template_params: list, checkout_order_details: Dict,
         header_image_url: Optional[str], request_id: str,
         recipient_bsuid: Optional[str] = None) -> Dict[str, Any]:
     """
-    Send a checkout button template message with order_details action.
-    
-    The checkout_order_details dict is the FULL Meta order_details object including:
-    - reference_id, type (physical-goods/digital-goods), currency
-    - payment_settings (payment_gateway config)
-    - shipping_info (country, addresses with name/phone/address/city/state/pin)
-    - order (items with amount/sale_amount, subtotal, shipping, tax, discount, expiration)
-    - total_amount
-    
-    This builds the exact payload Meta expects for checkout button templates.
+    Send the approved ORDER_DETAILS payment template (button `sub_type: order_details`).
+
+    `checkout_order_details` is the caller's server-built order: reference_id, type
+    (physical-goods/digital-goods), currency, shipping_info (physical goods only), order (items,
+    subtotal, shipping, tax, discount, expiration) and total_amount. It must NOT carry
+    `payment_settings`: those are built here, server-side, by `_build_payment_settings`
+    (payment_gateway / razorpay / WECAREDIGITAL), and a caller-supplied block is refused.
+    The template header is the fixed WECARE.DIGITAL image; no caller can substitute it.
+
+    Reached only after `_refuse_unless_payment_ready` has pinned the template name, the WABA1
+    sender, the configuration, INR and a live Meta/Razorpay readiness readback.
     """
     try:
         formatted_phone = _normalize_phone_number(recipient_phone)
         whatsapp_phone = f"+{formatted_phone}"
 
-        # Determine template language from params or auto-detect per WABA
-        # wecare_whatapp_native_pay_template: WABA1 uses 'en', WABA-T uses 'en_US'
-        template_language = 'en_US'  # default
+        # The pinned payment template is approved in exactly one language on WABA1 ('en'), so the
+        # caller cannot choose another; a leading language-looking param is still stripped so a
+        # legacy caller's params do not leak into the (variable-free) body.
+        template_language = WA_PAY_TEMPLATE_LANGUAGE
         actual_params = list(template_params) if template_params else []
         if actual_params and isinstance(actual_params[0], str) and (
                 len(actual_params[0]) == 2 or '_' in actual_params[0]):
-            template_language = actual_params[0]
             actual_params = actual_params[1:]
-        elif '1016149501586345' in str(phone_number_id):
-            template_language = 'en'  # WABA1
-        else:
-            template_language = 'en_US'  # WABA-T
 
         # A3.8 — the RESOLVER owns Mode 3. This branch used to take the caller's
         # `payment_settings` when present and only build them when absent, which made the
@@ -1828,13 +1865,16 @@ def _handle_checkout_template_send(
         if checkout_order_details.get('payment_settings'):
             raise PaymentConfigurationUnresolved(
                 'payment_settings may not be supplied by a caller; the resolver owns Mode 3')
-        payment_settings = _build_payment_settings(phone_number_id, checkout_order_details)
 
-        # Ensure reference_id is sanitized
+        # Sanitized BEFORE the payment settings are built, so the Razorpay `receipt` and
+        # `notes.referenceId` carry exactly the reference Meta is sent (a minted reference
+        # passes through byte-for-byte; only a legacy shape is rewritten).
         ref_id = _sanitize_reference_id(checkout_order_details.get('reference_id', ''))
         checkout_order_details['reference_id'] = ref_id
+        payment_settings = _build_payment_settings(phone_number_id, checkout_order_details)
 
-        # Build the order_details action object (strip payment_settings — they go at top level)
+        # The order object; `payment_settings` is not part of it - it sits beside it inside the
+        # order_details action built below.
         order_obj = checkout_order_details.get('order', {})
 
         # Ensure expiration has description (Meta requires it for templates)
@@ -1913,26 +1953,17 @@ def _handle_checkout_template_send(
         # Header (image) — wecare_whatapp_native_pay_template template REQUIRES an image header.
         # FIXED company-logo header on EVERY payment, by owner decision 2026-10-07:
         # the same WECARE.DIGITAL logo on every payment message, never varied per order.
-        # The per-call header_image_url override is deliberately ignored for the checkout
-        # template so no caller can substitute a different image.
+        # Neither the per-call `header_image_url` nor an order-level `header_image_id` is
+        # honoured for the payment template, so no caller can substitute a different image.
+        # (No caller sends `header_image_id`; it used to be accepted here despite this rule.)
         FIXED_CHECKOUT_HEADER = media_paths.public_url(media_paths.WHATSAPP_TEMPLATE_IMAGE_PREFIX + 'wecarepay-header.png')
-        checkout_header = FIXED_CHECKOUT_HEADER
-        if checkout_order_details.get('header_image_id'):
-            components.append({
-                'type': 'header',
-                'parameters': [{
-                    'type': 'image',
-                    'image': {'id': checkout_order_details['header_image_id']},
-                }],
-            })
-        else:
-            components.append({
-                'type': 'header',
-                'parameters': [{
-                    'type': 'image',
-                    'image': {'link': checkout_header},
-                }],
-            })
+        components.append({
+            'type': 'header',
+            'parameters': [{
+                'type': 'image',
+                'image': {'link': FIXED_CHECKOUT_HEADER},
+            }],
+        })
 
         # Body parameters
         if actual_params:
@@ -1941,7 +1972,7 @@ def _handle_checkout_template_send(
                 'parameters': [{'type': 'text', 'text': str(p)} for p in actual_params],
             })
 
-        # Checkout button (order_details) — always index 0
+        # The ORDER_DETAILS button ("Review and Pay") — always index 0
         components.append({
             'type': 'button',
             'sub_type': 'order_details',
@@ -1961,7 +1992,9 @@ def _handle_checkout_template_send(
             'to': whatsapp_phone,
             'type': 'template',
             'template': {
-                'name': template_name,
+                # The server constant, not the request field: the gate has already refused any
+                # other name, and the wire value cannot drift from what the gate proved.
+                'name': WA_PAY_TEMPLATE,
                 'language': {
                     'policy': 'deterministic',
                     'code': template_language,
@@ -1982,7 +2015,8 @@ def _handle_checkout_template_send(
             'itemCount': len(order_details_action.get('order', {}).get('items', [])),
             'totalAmount': order_details_action.get('total_amount', {}).get('value', 0),
             'hasShippingInfo': 'shipping_info' in order_details_action,
-            'hasHeaderImage': bool(header_image_url or checkout_order_details.get('header_image_id')),
+            # Always the fixed header; caller header overrides are ignored on this template.
+            'hasHeaderImage': True,
             'bodyParamCount': len(actual_params),
             'requestId': request_id,
         }))

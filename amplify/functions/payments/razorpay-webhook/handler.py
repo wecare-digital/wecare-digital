@@ -793,32 +793,61 @@ def _create_order_for_captured_payment(payment: Dict, reference_id: str,
         # finalizer as website checkout after Meta/Razorpay have supplied authoritative capture
         # evidence. No finalization is attempted on idempotent outcomes that carry no fresh
         # provider readback; the first successful delivery already wrote the order.
-        if (native_cart and outcome.outcome == order_creation.ORDER_CREATED
-                and outcome.verified_captured_paise > 0
-                and outcome.provider_payment_id):
+        #
+        # RESUMABLE. A delivery that won the claim but failed inside `accept_paid` leaves a
+        # numbered order identity with no order row; every later delivery or redrive then answers
+        # ORDER_ALREADY_EXISTS before contacting the provider. That later pass resumes ONLY from
+        # the evidence the verified delivery already recorded on the attempt (`record_paid`), and
+        # `accept_paid` is idempotent on it (conditional order put + association check), so a
+        # retry converges on the same single order instead of skipping finalization forever.
+        if native_cart and outcome.has_order:
+            from lambda_utils import shared_tables
             from lambda_utils.ecommerce import finalization
             attempt = dynamodb.Table(PAYMENT_ATTEMPTS_TABLE).get_item(
                 Key={'paymentAttemptId': outcome.payment_attempt_id},
                 ConsistentRead=True).get('Item') or {}
             if not attempt:
                 raise RuntimeError('native cart payment attempt missing')
-            finalization.accept_paid(
-                attempts=dynamodb.Table(PAYMENT_ATTEMPTS_TABLE),
-                orders=dynamodb.Table(ORDERS_TABLE),
-                keys=table,
-                attempt=attempt,
-                outcome={
-                    **outcome.as_dict(),
-                    'providerPaymentId': outcome.provider_payment_id,
-                },
-                verified_captured_paise=outcome.verified_captured_paise,
-            )
-            logger.info(json.dumps({
-                'event': 'native_cart_order_finalized',
-                'referenceId': reference_id,
-                'orderNumber': outcome.order_number or None,
-                'requestId': request_id,
-            }))
+            evidence = None
+            if (outcome.outcome == order_creation.ORDER_CREATED
+                    and outcome.verified_captured_paise > 0
+                    and outcome.provider_payment_id):
+                evidence = (outcome.provider_payment_id, outcome.verified_captured_paise)
+            elif attempt.get('finalizationStage') != 'ORDER_FINALIZED':
+                stored_id = str(attempt.get('verifiedProviderPaymentId') or '')
+                stored_paise = finalization.integer_paise(
+                    attempt.get(finalization.VERIFIED_CAPTURED_PAISE_ATTR))
+                if stored_id and stored_paise:
+                    evidence = (stored_id, stored_paise)
+                else:
+                    # Money moved and no verified evidence is on the attempt. Never invent it:
+                    # a human redrives this capture through a fresh provider readback.
+                    logger.error(json.dumps({
+                        'event': 'native_cart_finalization_evidence_missing',
+                        'alert': 'PAID_BUT_NO_ORDER_RECORD',
+                        'outcome': outcome.outcome,
+                        'referenceId': reference_id,
+                        'requestId': request_id,
+                    }))
+            if evidence:
+                finalization.accept_paid(
+                    attempts=dynamodb.Table(PAYMENT_ATTEMPTS_TABLE),
+                    orders=dynamodb.Table(shared_tables.orders_table_name()),
+                    keys=table,
+                    attempt=attempt,
+                    outcome={
+                        **outcome.as_dict(),
+                        'providerPaymentId': evidence[0],
+                    },
+                    verified_captured_paise=evidence[1],
+                )
+                logger.info(json.dumps({
+                    'event': 'native_cart_order_finalized',
+                    'outcome': outcome.outcome,
+                    'referenceId': reference_id,
+                    'orderNumber': outcome.order_number or None,
+                    'requestId': request_id,
+                }))
 
         if outcome.has_order:
             # Phase O-1: a hint only (ids, fire-and-forget, never raises); the receiver re-reads
@@ -1461,6 +1490,16 @@ def _notification_recipient(reference_id: str, provider_contact: str) -> str:
                 Key={'invoiceId': reference['invoiceId']}, ConsistentRead=True).get('Item') or {}
             if invoice.get('referenceId') == reference_id:
                 return str(invoice.get('customerPhone') or '')
+            return ''
+        # Native WhatsApp checkout (catalog cart / catalog service) has no invoice until this
+        # capture creates one, so the billed customer is the one checkout recorded on OUR PAYREF#
+        # row from the Cognito-verified session phone - never the Razorpay event body. The
+        # engine's own recipient check (`send_invoice_whatsapp`) still refuses delivery unless
+        # the created invoice names the same customer.
+        from lambda_utils.ecommerce import wa_payment_request
+        if reference.get('checkoutMode') in (wa_payment_request.WA_NATIVE_CART_CHECKOUT_MODE,
+                                             'AWS_NATIVE'):
+            return str(reference.get('customerPhone') or '')
         return ''
     except Exception as error:
         logger.warning(json.dumps({'event': 'payment_recipient_unavailable',
@@ -1560,8 +1599,8 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
     # git history, so a valid signature proves only that someone read the history. So we reconcile
     # against Razorpay's own API and act ONLY on the typed verdict it returns. A NOT_PAID /
     # mismatch / unknown / unavailable / error / quarantine verdict produces ZERO of: a captured
-    # money-confirmed payment record, an invoice-paid write, the receipt/post-payment run, the
-    # CTWA purchase attribution, or the order_status confirmation to the customer.
+    # money-confirmed payment record, an invoice-paid write, the receipt/post-payment run, or the
+    # CTWA purchase attribution. (No verdict sends an ORDER_STATUS: see the block further down.)
     from lambda_utils.ecommerce import order_creation
 
     outcome = None
@@ -1899,7 +1938,11 @@ def _handle_payment_failed(event_data: Dict, request_id: str) -> None:
     payment_id = payment.get('id', '')
     error_code = payment.get('error_code', '')
     error_desc = payment.get('error_description', '')
-    notes = payment.get('notes', {})
+    # Razorpay serialises EMPTY notes as `[]`; `.get` on it raised AttributeError, turning every
+    # notes-less `payment.failed` into a 500 that Razorpay retries. Same guard as the capture path.
+    notes = payment.get('notes')
+    if not isinstance(notes, dict):
+        notes = {}
     logger.warning(json.dumps({
         'event': 'payment_failed', 'paymentId': payment_id,
         'errorCode': error_code, 'errorDesc': error_desc, 'requestId': request_id,
@@ -2421,7 +2464,8 @@ def _post_payment_handler(payment_id: str, contact: str,
     This is the BACKUP path — WhatsApp inbound handler is the primary invoice generator.
     1. Invoke invoice-engine to create invoice from payment (dedup will return existing if WhatsApp path already created it)
     2. Generate invoice image (POS receipt style)
-    3. Deliver the GST invoice IMAGE template on WhatsApp after the caller's Meta order_status update
+    3. Deliver the GST invoice IMAGE template on WhatsApp. This is the ONLY customer message a
+       capture produces: no ORDER_STATUS is sent here or by any caller on the capture path.
     4. The invoice template itself exposes the Leave Review Flow button; no standalone review send
 
     `channel` is WHERE the order came from (`website` / `whatsapp`), read off the `PAYREF#` row by
@@ -2528,9 +2572,10 @@ def _post_payment_handler(payment_id: str, contact: str,
     # resolves empty unless existing server-owned invoice/reference evidence supplies it.
     #
     # It travels as the approved `wecare_default_invoice_image_template` (invoice PNG in its
-    # header), after the provider-supported Meta order_status fulfilment update.  The two messages
-    # have different jobs: order_status updates the in-chat order lifecycle; this template delivers
-    # the statutory receipt and its embedded Leave Review Flow button.
+    # header), and it does not depend on any ORDER_STATUS message: none is sent on capture.
+    # Fulfilment status (processing / shipped / completed) is a separate, staff-driven workflow
+    # (`/invoices/{id}/order-status`); this template delivers the statutory receipt and its
+    # embedded Leave Review Flow button.
     #
     # Delivery is retried by REPLAY: a miss raises so the webhook lease lapses and Razorpay
     # redelivers the capture, and the delivery CLAIM inside `send_invoice_whatsapp` makes the
