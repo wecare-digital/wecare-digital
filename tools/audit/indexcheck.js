@@ -31,9 +31,16 @@
  * src/styles/inner-pages.css, everything under /workspace/. Those must be excluded by ALL
  * THREE mechanisms, not just one, because any single one of them can be edited away.
  *
- * TWO PUBLIC PAGES ARE DELIBERATELY NOT INDEXABLE and are allowlisted below with reasons. The
- * allowlist is exact and closed: a third noindex public page fails this check, which is the
- * point - it should require a decision rather than appearing.
+ * SEVEN PUBLIC PAGES ARE DELIBERATELY NOT INDEXABLE and are allowlisted below with reasons. The
+ * allowlist is exact and closed: an eighth noindex public page fails this check, which is the
+ * point - it should require a decision rather than appearing. The five customer-session screens
+ * joined on 2026-10-25, recording a decision src/pages/_app.tsx had already made and documented
+ * in its isPublic chain; nothing about those pages changed.
+ *
+ * A DECLARED DUPLICATE IS NOT AN UNADVERTISED PAGE. A page whose rel=canonical names another
+ * URL is telling Google to index that URL instead, and generate-sitemap.js correctly leaves it
+ * out (a sitemap lists canonical URLs only). It passes here only when its canonical target is
+ * itself advertised and emitted - a duplicate pointing at nothing indexable still fails.
  *
  * Usage:  node tools/audit/indexcheck.js            (after npm run build)
  *         node tools/audit/indexcheck.js --json
@@ -61,7 +68,32 @@ const ALLOWED_NOINDEX = {
     + 'WhatsApp against the customer pool before anything renders, so there is no content to '
     + 'index - only an authentication step. Indexing it would put a login gate in search '
     + 'results. Public so it needs no staff sign-in; not marketing, so no sitemap entry.',
+  // The customer-session screens. src/pages/_app.tsx lists each in its isPublic chain with the
+  // same reasoning: public chrome, robots noindex set by the page itself, and deliberately out of
+  // PUBLIC_PAGE_META, the sitemap and the AI manifest.
+  '/account/sign-in/': 'the customer OTP sign-in step in front of checkout - an authentication '
+    + 'gate with no content of its own. Indexing it would put a login form in search results.',
+  '/cart/': 'one visitor\'s cart - session state, empty for anyone arriving from search.',
+  '/checkout/': 'the payment-method step of a checkout already in progress - session state.',
+  '/checkout/status/': 'the payment-confirmation screen a customer returns to from an in-chat '
+    + 'payment - meaningful only for that payment.',
+  '/checkout/success/': 'the order-confirmation screen for one order - session state.',
 };
+
+/** rel=canonical, if the page declares one. */
+const CANONICAL = /<link\b[^>]*\brel="canonical"[^>]*>/i;
+function canonicalRoute ( html ) {
+  const tag = ( html.match( CANONICAL ) || [] )[ 0 ];
+  const href = tag && ( tag.match( /\bhref="([^"]+)"/i ) || [] )[ 1 ];
+  if ( !href ) return '';
+  try
+  {
+    const url = new URL( href, SITE );
+    if ( url.origin !== SITE ) return href;
+    return url.pathname.endsWith( '/' ) ? url.pathname : `${url.pathname}/`;
+  }
+  catch { return href; }
+}
 
 function emittedRoutes ( dir = OUT, base = '' ) {
   const out = [];
@@ -123,9 +155,12 @@ const pages = routes.map( route => {
   const html = fs.readFileSync( file, 'utf-8' );
   const m = META.exec( html );
   const meta = m ? m[ 1 ] : '';
+  const canonical = canonicalRoute( html );
   return {
     route,
     meta,
+    // The URL this page asks to be indexed as, when it is not itself.
+    canonicalElsewhere: canonical && canonical !== route ? canonical : '',
     noindex: /noindex/i.test( meta ),
     disallow: blockedBy( route ),
     advertised: advertised.has( route ),
@@ -149,8 +184,16 @@ const problems = {
     .map( p => `${p.route} is Disallowed by "${p.disallow}"` ),
   contradicted: publicPages.filter( p => p.advertised && ( p.noindex || p.disallow ) )
     .map( p => `${p.route} is advertised AND suppressed (noindex=${p.noindex} disallow="${p.disallow}")` ),
-  unadvertised: publicPages.filter( p => !p.advertised && !p.noindex && !p.disallow )
+  unadvertised: publicPages.filter( p => !p.advertised && !p.noindex && !p.disallow && !p.canonicalElsewhere )
     .map( p => `${p.route} is indexable but absent from sitemap.xml` ),
+  // A declared duplicate must point at a URL that is both advertised and emitted; otherwise the
+  // "index that one instead" it declares leads nowhere indexable.
+  badCanonicalTarget: publicPages.filter( p => !p.noindex && p.canonicalElsewhere
+      && !( advertised.has( p.canonicalElsewhere ) && routes.includes( p.canonicalElsewhere ) ) )
+    .map( p => `${p.route} canonicalises to ${p.canonicalElsewhere}, which is not an advertised, emitted page` ),
+  // ...and a declared duplicate must not ALSO be advertised: the sitemap lists canonicals only.
+  advertisedDuplicate: publicPages.filter( p => p.advertised && p.canonicalElsewhere )
+    .map( p => `${p.route} is in sitemap.xml but canonicalises to ${p.canonicalElsewhere}` ),
   // An allowlisted page that stopped being noindex is also a failure: the allowlist records a
   // decision, and silently reverting it is the regression this catches in the other direction.
   allowlistDrift: Object.keys( ALLOWED_NOINDEX )
@@ -171,6 +214,8 @@ const checks = [
   [ 'no public page is robots-Disallowed', problems.publicDisallowed ],
   [ 'no page is advertised and suppressed at once', problems.contradicted ],
   [ 'every indexable public page is in the sitemap', problems.unadvertised ],
+  [ 'every declared duplicate canonicalises to an advertised page', problems.badCanonicalTarget ],
+  [ 'no declared duplicate is advertised', problems.advertisedDuplicate ],
   [ 'allowlisted noindex pages still carry it', problems.allowlistDrift ],
   [ 'every sitemap URL has an emitted page', problems.sitemapOrphans ],
 ];

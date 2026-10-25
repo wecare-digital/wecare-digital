@@ -19,8 +19,9 @@
  *      instruction. privacy.ts already ended that way; terms.ts now does too.
  *   6. Every section has a non-empty heading, inShort and at least one paragraph.
  *
- * Reads the compiled content through tsx so it checks the real exported arrays rather
- * than a regex over the source.
+ * Reads the compiled content so it checks the real exported arrays rather than a regex over
+ * the source. The TypeScript is compiled with esbuild, which the app already depends on; this
+ * used `tsx`, which is not installed anywhere in the repo, so the check could not run at all.
  */
 const path = require( 'node:path' );
 
@@ -107,10 +108,28 @@ function checkDoc( name, sections ) {
   else bad( 'top-level sections missing inShort', noSummary.map( s => s.number ).join( ', ' ) );
 }
 
+/**
+ * Load a TypeScript module and its imports as CommonJS. esbuild bundles it in memory (nothing is
+ * written) and the result is compiled as a module rooted at the source file, so relative paths
+ * and stack traces still point at src/.
+ */
+function loadTs ( relative ) {
+  const esbuild = require( 'esbuild' );
+  const Module = require( 'node:module' );
+  const file = path.join( REPO, relative );
+  const built = esbuild.buildSync( {
+    entryPoints: [ file ], bundle: true, platform: 'node', format: 'cjs', write: false, logLevel: 'silent',
+  } );
+  const mod = new Module( file, module );
+  mod.filename = file;
+  mod.paths = Module._nodeModulePaths( path.dirname( file ) );
+  mod._compile( built.outputFiles[ 0 ].text, file );
+  return mod.exports;
+}
+
 ( async () => {
-  require( 'tsx/cjs' );
-  const terms = require( path.join( REPO, 'src/content/legal/terms.ts' ) );
-  const privacy = require( path.join( REPO, 'src/content/legal/privacy.ts' ) );
+  const terms = loadTs( 'src/content/legal/terms.ts' );
+  const privacy = loadTs( 'src/content/legal/privacy.ts' );
 
   console.log( 'LEGALCHECK — legal document structure' );
   checkDoc( 'terms', terms.TERMS_SECTIONS );
