@@ -600,6 +600,14 @@ def _handle_webhook_event(body: Dict, request_id: str) -> Dict[str, Any]:
     if obj != 'whatsapp_business_account':
         return _response(200, {'status': 'ignored', 'object': obj})
 
+    # Outcomes of the async hand-offs to inbound, so a failed one is not answered 200. Meta
+    # never redelivers an acknowledged event, so acking a failed forward loses it for good.
+    forwards = {'ok': 0, 'retry': 0, 'permanent': 0}
+    calls_handled = 0
+
+    def _forward(fwd_entry: Dict, fwd_waba_id: str) -> None:
+        forwards[_forward_to_inbound_handler(fwd_entry, fwd_waba_id, request_id)] += 1
+
     for entry in entries:
         waba_id = entry.get('id', '')
         changes = entry.get('changes', [])
@@ -617,9 +625,10 @@ def _handle_webhook_event(body: Dict, request_id: str) -> Dict[str, Any]:
                             f"display_phone={mask_phone(metadata.get('display_phone_number') or '')}")
                 for call in calls:
                     _handle_call_event(waba_id, call, metadata, contacts, request_id)
+                    calls_handled += 1
             elif field == 'messages':
                 # Forward message events to inbound handler (Direct API)
-                _forward_to_inbound_handler(entry, waba_id, request_id)
+                _forward(entry, waba_id)
             elif field == 'account_settings_update':
                 # Calling settings update webhook (status, call_icon_visibility, sip.status, etc.)
                 logger.info(json.dumps({
@@ -651,7 +660,7 @@ def _handle_webhook_event(body: Dict, request_id: str) -> Dict[str, Any]:
                            'partner_solutions'):
                 # Forward all non-call webhook fields to inbound handler for processing
                 # The inbound handler has full logic for template status, account updates, etc.
-                _forward_to_inbound_handler(entry, waba_id, request_id)
+                _forward(entry, waba_id)
             elif field in ('standby', 'messaging_handovers'):
                 # ── Conversation Routing ──
                 # These two forwarded identically to the tuple above via the catch-all
@@ -669,20 +678,38 @@ def _handle_webhook_event(body: Dict, request_id: str) -> Dict[str, Any]:
                     'wabaId': waba_id,
                     'requestId': request_id,
                 }))
-                _forward_to_inbound_handler(entry, waba_id, request_id)
+                _forward(entry, waba_id)
             else:
                 logger.info(f"Unhandled webhook field: {field} — forwarding to inbound handler")
-                _forward_to_inbound_handler(entry, waba_id, request_id)
+                _forward(entry, waba_id)
 
-    return _response(200, {'status': 'processed', 'entries': len(entries)})
+    if forwards['retry'] and not calls_handled:
+        # Not 200, so Meta redelivers. Safe to repeat: inbound claims every message id and
+        # payment status once (webhook_dedup.claim_event) and the remaining updates are
+        # idempotent writes. Withheld when this payload also carried call events, which were
+        # acted on above and must not be acted on twice; that rare mix keeps the 200 and the
+        # error log below.
+        return _response(503, {'status': 'retry', 'forwardFailures': forwards['retry']})
+    return _response(200, {'status': 'processed', 'entries': len(entries),
+                           'forwardFailures': forwards['retry'] + forwards['permanent']})
 
 
-def _forward_to_inbound_handler(entry: Dict, waba_id: str, request_id: str) -> None:
+#: Invoke errors no redelivery can cure: the same payload would fail the same way for the seven
+#: days Meta keeps retrying. Every other failure (throttling, a service fault, a permission or
+#: alias gap fixed later) is worth a redelivery.
+_PERMANENT_FORWARD_ERRORS = frozenset({
+    'RequestEntityTooLargeException', 'InvalidRequestContentException',
+})
+
+
+def _forward_to_inbound_handler(entry: Dict, waba_id: str, request_id: str) -> str:
     """
     Forward non-call webhook events (messages, statuses) to the inbound handler.
     Direct API uses override_callback_uri, so messages arrive here
     instead of via the standard webhook. We wrap them in the expected format the
     inbound handler expects and invoke it asynchronously.
+
+    Returns 'ok', 'retry' (a redelivery may succeed) or 'permanent' (it cannot).
     """
     try:
         # Extract metadata for context
@@ -725,13 +752,22 @@ def _forward_to_inbound_handler(entry: Dict, waba_id: str, request_id: str) -> N
             'statusCode': result.get('StatusCode'),
             'requestId': request_id,
         }))
+        # An accepted async invoke answers 202; anything else did not queue the event.
+        return 'ok' if result.get('StatusCode') == 202 else 'retry'
     except Exception as e:
+        code = (getattr(e, 'response', None) or {}).get('Error', {}).get('Code', '')
+        outcome = 'permanent' if code in _PERMANENT_FORWARD_ERRORS else 'retry'
+        # The class and code only: an invoke error can echo the payload, which carries
+        # customer phone numbers and message text.
         logger.error(json.dumps({
             'event': 'forward_to_inbound_handler_failed',
             'wabaId': waba_id,
-            'error': str(e),
+            'errorType': type(e).__name__,
+            'errorCode': code,
+            'outcome': outcome,
             'requestId': request_id,
-        }), exc_info=True)
+        }))
+        return outcome
 
 
 def _handle_call_event(waba_id: str, call: Dict, metadata: Dict, contacts: list, request_id: str) -> None:
