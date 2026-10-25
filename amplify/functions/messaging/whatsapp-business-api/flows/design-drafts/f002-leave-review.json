@@ -152,10 +152,12 @@
             "type": "Footer",
             "label": "Continue",
             "on-click-action": {
-              "name": "data_exchange",
+              "name": "navigate",
+              "next": {
+                "type": "screen",
+                "name": "CONFIRM"
+              },
               "payload": {
-                "flow_key": "wd_leave_review_v2",
-                "schema_version": "4",
                 "topic": "${data.topic}",
                 "idea": "${data.idea}"
               }
