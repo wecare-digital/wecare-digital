@@ -891,25 +891,57 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
             // Rupees, not paise: `CreateInvoiceEngineRequest.items[].amount` is a rupee figure
             // and the server converts with exact integer arithmetic. No total, no tax and no fee
             // is computed here — every figure on the invoice is the server's.
-            const invoice = ( payInvoiceDraft?.key === draftKey ? payInvoiceDraft.invoice : null ) || await api.createInvoiceEngine( {
-                customerPhone: phone,
-                customerEmail: '',
-                shippingAddress: '',
-                billingAddress: '',
-                contactId,
-                items: valid.map( it => ( {
-                    name: it.name.trim(),
-                    amount: parseFloat( it.amount ),
-                    quantity: parseInt( it.quantity ) || 1,
-                    gstRate: paymentGstRate( it.gstRate ),
-                } ) ),
-                goodsType: payGoodsType,
-                shipping: parseFloat( payDelivery || '0' ) || 0,
-                gstin: payGstin || DEFAULT_GSTIN,
-                orderId: payOrderId || 'Offline',
-                entryPoint: 'inbox',
-            } );
-            if ( !invoice?.invoiceId ) { toast.error( 'Could not raise the invoice. Check Pay → Invoices before trying again.' ); return; }
+            const addr = selectedContact ? addressFieldsFromContact( selectedContact ) : {
+                addressLine1: '', addressLine2: '', city: '', state: '', postalCode: '', countryCode: 'IN',
+            };
+            if ( payGoodsType === 'physical-goods'
+                && [ addr.addressLine1, addr.city, addr.state, addr.postalCode ].some( v => !String( v || '' ).trim() ) )
+            {
+                toast.error( 'This contact needs address line 1, city, state and postal code before a physical payment can be raised.' );
+                return;
+            }
+
+            let invoice = payInvoiceDraft?.key === draftKey ? payInvoiceDraft.invoice : null;
+            if ( !invoice )
+            {
+                const created = await api.createInvoiceEngineResult( {
+                    customerPhone: phone,
+                    customerEmail: '',
+                    shippingAddress: selectedContact ? contactDeliveryAddress( selectedContact ) : '',
+                    billingAddress: selectedContact ? contactDeliveryAddress( selectedContact ) : '',
+                    contactId,
+                    items: valid.map( it => ( {
+                        name: it.name.trim(),
+                        amount: parseFloat( it.amount ),
+                        quantity: parseInt( it.quantity ) || 1,
+                        gstRate: paymentGstRate( it.gstRate ),
+                    } ) ),
+                    goodsType: payGoodsType,
+                    shipping: parseFloat( payDelivery || '0' ) || 0,
+                    gstin: payGstin || DEFAULT_GSTIN,
+                    orderId: payOrderId || 'Offline',
+                    entryPoint: 'inbox',
+                    addressLine1: addr.addressLine1,
+                    addressLine2: addr.addressLine2,
+                    city: addr.city,
+                    state: addr.state,
+                    postalCode: addr.postalCode,
+                    countryCode: addr.countryCode || 'IN',
+                } );
+                if ( !created.ok )
+                {
+                    const messages: Record<string, string> = {
+                        DELIVERY_REQUIRED: 'Complete the customer delivery address before creating a physical invoice.',
+                        INVALID_PIN: 'The saved postal code is not payable for WhatsApp payment. Update the customer address.',
+                        INVALID_AMOUNT: 'Check the item amount, quantity, GST and delivery values.',
+                        REQUEST_FAILED: 'Invoice service could not be reached. Try again once.',
+                        CREATE_FAILED: 'Invoice creation was refused. Open Pay → Invoices for the current state before retrying.',
+                    };
+                    toast.error( messages[ created.errorCode ] || `Invoice create failed: ${created.errorCode}` );
+                    return;
+                }
+                invoice = created.invoice;
+            }
             setPayInvoiceDraft( { key: draftKey, contactId, invoice } );
             // The configuration name is NOT defaulted here. Omitted, the server resolves it from
             // the invoice row and then from its own proven expectation.
@@ -925,7 +957,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
             } else toast.error( `Payment request not confirmed. Invoice ${invoice.invoiceNumber} is retained; resolve it in Pay → Invoices.` );
         } catch { toast.error( 'Payment request not confirmed. Check Pay → Invoices before creating another invoice.' ); }
         finally { setSending( false ); }
-    }, [ replyTarget, payPhone, payUnlocked, payItems, payGoodsType, payInvoiceDraft, payDelivery, payGstin, payOrderId, toast, loadData ] );
+    }, [ replyTarget, selectedContact, payPhone, payUnlocked, payItems, payGoodsType, payInvoiceDraft, payDelivery, payGstin, payOrderId, toast, loadData ] );
 
     const handleSendCatalog = useCallback( async () => {
         const { contactId } = replyTarget;
