@@ -702,6 +702,22 @@ def ensure_role(dry_run: bool) -> str:
     )
     iam().put_role_policy(
         RoleName=ROLE_NAME,
+        PolicyName="CommerceWhatsAppIdentityBridge",
+        PolicyDocument=json.dumps({
+            "Version": "2012-10-17",
+            "Statement": [{
+                "Sid": "InvokeCustomerIdentityBridge",
+                "Effect": "Allow",
+                "Action": ["lambda:InvokeFunction"],
+                "Resource": [
+                    f"arn:aws:lambda:{REGION}:{account_id()}:function:wecare-customer-registration",
+                    f"arn:aws:lambda:{REGION}:{account_id()}:function:wecare-customer-registration:live",
+                ],
+            }],
+        }),
+    )
+    iam().put_role_policy(
+        RoleName=ROLE_NAME,
         PolicyName="LegacyMediaWriteGuard",
         PolicyDocument=json.dumps(legacy_media_write_guard_policy()),
     )
@@ -762,6 +778,7 @@ def expected_environment() -> dict:
         "WA_PAY_TEMPLATE": "wecare_whatapp_native_pay_template",
         "WA_INVOICE_TEMPLATE": "wecare_default_invoice_image_template",
         "OUTBOUND_FUNCTION": "wecare-outbound-whatsapp:live",
+        "WHATSAPP_IDENTITY_FUNCTION": "wecare-customer-registration:live",
         "REFUND_INITIATION_ENABLED": "false",
         "ADMIN_MFA_REQUIRED": "true",
         "LOG_LEVEL": "INFO",
