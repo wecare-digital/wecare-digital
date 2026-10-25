@@ -115,7 +115,7 @@ def by_name(name: str) -> Optional[Template]:
 
 
 #: The brand image the Vault templates carry in their IMAGE header, served publicly.
-VAULT_HEADER_IMAGE = "https://wecare.digital/get/o/stream/media/m/wecare-digital.png"
+VAULT_HEADER_IMAGE = "https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/whatsapp-header.png"
 
 
 def download_send_fields(file_id: str) -> dict:
