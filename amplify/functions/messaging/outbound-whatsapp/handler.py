@@ -35,7 +35,7 @@ from lambda_utils import live_smoke  # WA_LIVE_SMOKE_TEST recipient lockdown
 from lambda_utils import direct_send  # Direct Send flag + WABA map, fails closed
 from lambda_utils import contact_key, contact_store, identity_claims
 from lambda_utils import template_status
-from lambda_utils.template_media import fixed_image_header
+from lambda_utils.template_media import fixed_image_header, ORDER_CATALOG_HEADER_IMAGE
 from lambda_utils.identity import subscriber_id, consent as consent_evidence  # canonical identity + evidence ledger
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
 # One source for Meta's reference_id contract, so the send path and the minter cannot disagree.
@@ -2020,7 +2020,7 @@ def _handle_order_details_template_send(
         # Neither the per-call `header_image_url` nor an order-level `header_image_id` is
         # honoured for the payment template, so no caller can substitute a different image.
         # (No caller sends `header_image_id`; it used to be accepted here despite this rule.)
-        FIXED_CHECKOUT_HEADER = media_paths.public_url(media_paths.WHATSAPP_TEMPLATE_IMAGE_PREFIX + 'wecarepay-header.png')
+        FIXED_CHECKOUT_HEADER = ORDER_CATALOG_HEADER_IMAGE
         components.append({
             'type': 'header',
             'parameters': [{
