@@ -1,24 +1,29 @@
-"""Reusable send-time media for templates with a fixed brand header."""
+"""Reusable send-time media for WhatsApp templates with fixed headers.
 
-from lambda_utils import media_paths
+Header contract
+---------------
+* Generic image-header templates use whatsapp-header.png.
+* Native order/catalog payment uses wecare-catalog-icon.png.
+* Paid invoices never use either fixed image; the generated invoice PNG is the header.
+"""
 
-DEFAULT_HEADER_IMAGE = "https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/whatsapp-header.png"
-ORDER_CATALOG_HEADER_IMAGE = "https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/wecare-catalog-icon.png"
+SHARED_TEMPLATE_HEADER = (
+    "https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/whatsapp-header.png"
+)
+ORDER_CATALOG_HEADER = (
+    "https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/wecare-catalog-icon.png"
+)
 
 FIXED_IMAGE_HEADERS = {
-    'wecare_leave_review': DEFAULT_HEADER_IMAGE,
-    'wecare_default_download': DEFAULT_HEADER_IMAGE,
+    "wecare_leave_review": SHARED_TEMPLATE_HEADER,
 }
 
-#: Template media that code sends by URL. They sit in the same wa-tpl/img/ folder as library
-#: uploads, so the library delete route must refuse them: deleting the checkout header breaks
-#: every payment request (outbound-whatsapp FIXED_CHECKOUT_HEADER and invoice-engine
-#: headerImageUrl both name it).
+# Runtime dependencies, not disposable media-library uploads.
 RETAINED_MEDIA_KEYS = frozenset({
-    media_paths.WHATSAPP_TEMPLATE_ASSET_ROOT + 'whatsapp-header.png',
-    media_paths.WHATSAPP_TEMPLATE_ASSET_ROOT + 'wecare-catalog-icon.png',
+    "secure/d/public/whatsapp/wa-tpl/whatsapp-header.png",
+    "secure/d/public/whatsapp/wa-tpl/wecare-catalog-icon.png",
 })
 
 
 def fixed_image_header(template_name: str) -> str:
-    return FIXED_IMAGE_HEADERS.get(template_name, '')
+    return FIXED_IMAGE_HEADERS.get(template_name, "")
