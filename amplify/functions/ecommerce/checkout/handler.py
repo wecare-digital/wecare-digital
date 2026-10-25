@@ -483,6 +483,29 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     if invoice_route:
         import invoice_engine as commerce_invoice_engine
         return commerce_invoice_engine.handler(event, context)
+    if event.get('internalAction') == 'ensureNativeWhatsAppIdentity':
+        if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
+            return cors_response(403, {'error': 'Internal invocation required'}, origin)
+        phone_number_id = str(event.get('phoneNumberId') or '')
+        if phone_number_id == '1016149501586345':
+            phone_number_id = wa_payment_request.PHONE_NUMBER_ID_1
+        if phone_number_id not in wa_payment_request.PAYMENT_SENDERS:
+            return {'outcome': 'PAYMENT_SENDER_NOT_PERMITTED'}
+        try:
+            identity, contact = _native_whatsapp_identity(
+                str(event.get('contactId') or ''),
+                str(event.get('senderPhone') or ''),
+                phone_number_id)
+        except (customer_auth.CustomerNotAuthorized, customer_identity.InvalidPhoneNumber):
+            return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
+        return {
+            'outcome': 'WHATSAPP_IDENTITY_READY',
+            'customerId': identity.customer_id,
+            'phone': identity.phone,
+            'contactId': contact_key.resolve(contact),
+            'customerUuid': customer_uuid.from_contact(contact),
+        }
+
     if event.get('internalAction') in ('prepareNativeCatalogService', 'finalizeNativeCatalogService'):
         if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
             return cors_response(403, {'error': 'Internal invocation required'}, origin)
@@ -2188,7 +2211,8 @@ def _website_verify(identity: customer_auth.CustomerIdentity, body: Dict[str, An
 
 
 def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
-            origin: str, *, catalog_session: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+            origin: str, *, catalog_session: Optional[Dict[str, Any]] = None,
+            native_contact: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Resolve authoritative totals, gate on readiness, reserve an attempt, hand off to WhatsApp."""
     line_items = body.get("lineItems")
     if not isinstance(line_items, list) or not line_items:
@@ -2207,12 +2231,19 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
     cart_profile: Optional[Dict[str, Any]] = None
     cart_address: Optional[Dict[str, Any]] = None
     if catalog_session is None:
-        cart_profile = _checkout_profile(identity)
-        if not cart_profile:
-            return cors_response(409, {
-                "error": "PROFILE_REQUIRED",
-                "message": "Verify and save your checkout details first.",
-            }, origin)
+        # Native WhatsApp cart payment already has a signed-inbound, phone-bound ContactsTable
+        # row from _native_whatsapp_identity. It must NOT require a browser profile/email just to
+        # pay in WhatsApp. Website callers pass no native_contact and keep the existing profile
+        # requirement unchanged.
+        if native_contact is not None:
+            cart_profile = native_contact
+        else:
+            cart_profile = _checkout_profile(identity)
+            if not cart_profile:
+                return cors_response(409, {
+                    "error": "PROFILE_REQUIRED",
+                    "message": "Verify and save your checkout details first.",
+                }, origin)
         cart_address = contact_address.from_contact(cart_profile)
         if cart_address is None:
             return cors_response(409, {
@@ -2846,6 +2877,51 @@ def _native_catalog_service(event: Dict[str, Any], origin: str):
                    origin, catalog_session=row)
 
 
+
+WHATSAPP_IDENTITY_FUNCTION = os.environ.get(
+    'WHATSAPP_IDENTITY_FUNCTION', 'wecare-customer-registration:live')
+
+
+def _native_whatsapp_identity(contact_id: str, sender_phone: str, phone_number_id: str):
+    """Resolve one signed-inbound WhatsApp contact to the permanent customer identity.
+
+    The dedicated registration function owns customer-pool provisioning. Commerce gets only an
+    internal READY/CONFLICT answer, then re-reads ContactsTable and accepts the result only when
+    the exact row now carries the returned subject and the same canonical phone. No browser token
+    is created and no HTTP route reaches this helper.
+    """
+    sender_phone = customer_identity.normalize_phone_preserving_country(sender_phone)
+    waba_id = wa_payment_request.PHONE_ID_TO_WABA.get(phone_number_id, '')
+    if not waba_id:
+        raise customer_auth.CustomerNotAuthorized('WhatsApp payment sender is not permitted')
+    response = _lambda_client().invoke(
+        FunctionName=WHATSAPP_IDENTITY_FUNCTION,
+        InvocationType='RequestResponse',
+        Payload=json.dumps({
+            'internalAction': 'ensureWhatsAppIdentity',
+            'contactId': contact_id,
+            'senderPhone': sender_phone,
+            'wabaId': waba_id,
+        }).encode(),
+    )
+    raw = response['Payload'].read()
+    result = json.loads(raw.decode() if isinstance(raw, (bytes, bytearray)) else raw or '{}')
+    if response.get('FunctionError') or result.get('outcome') != 'WHATSAPP_IDENTITY_READY':
+        raise customer_auth.CustomerNotAuthorized('WhatsApp customer identity is not ready')
+    subject = str(result.get('customerId') or '')
+    if not customer_auth.is_cognito_subject(subject):
+        raise customer_auth.CustomerNotAuthorized('WhatsApp customer identity is malformed')
+    contact = _table(CONTACTS_TABLE).get_item(
+        Key={'id': contact_id}, ConsistentRead=True).get('Item') or {}
+    if (contact_key.resolve(contact) != contact_id
+            or str(contact.get('checkoutCustomerId') or '') != subject
+            or customer_identity.normalize_phone_preserving_country(contact.get('phone')) != sender_phone):
+        raise customer_auth.CustomerNotAuthorized('WhatsApp customer identity changed')
+    identity = customer_auth.CustomerIdentity(
+        customer_id=subject, subject=subject, phone=sender_phone, phone_verified=True)
+    return identity, contact
+
+
 def _native_cart(event: Dict[str, Any], origin: str):
     """Prepare a native WhatsApp ORDER_DETAILS payment for a GENERAL PRODUCT CART.
 
@@ -2861,8 +2937,8 @@ def _native_cart(event: Dict[str, Any], origin: str):
     The gates mirror the service leg's, in the same order so the same precedence tests hold:
       1. The rollout flag. OFF means no customer, no attempt, no reference, no order.
       2. A WABA1-only sender (`wa_payment_request.PAYMENT_SENDERS`): only WABA1 may collect.
-      3. A verified customer: the contact must carry a Cognito `checkoutCustomerId` whose
-         ListUsers record matches the sender's E.164, or the cart is refused with no side effect.
+      3. A signed-inbound customer: the exact contact + sender phone are bridged server-side to
+         the permanent customer identity. No browser sign-in or browser token is required.
     `_create`'s general-cart arm then refuses anything it cannot price (`_native_quote` raising ->
     no attempt, no order) and anything with no saved checkout profile/address, so an unpriceable
     or unattributable cart leaves nothing behind.
@@ -2904,19 +2980,13 @@ def _native_cart(event: Dict[str, Any], origin: str):
                                                 'options': {'variantId': variant_id}},
                           'quantity': quantity})
 
-    contact = _table(CONTACTS_TABLE).get_item(
-        Key={'id': str(event.get('contactId') or '')}, ConsistentRead=True).get('Item') or {}
-    owner = contact.get('checkoutCustomerId')
-    # Cognito sub is canonical UUID. Refuse malformed filter inputs before ListUsers.
-    if not customer_auth.is_cognito_subject(owner):
-        return {'outcome': 'VERIFIED_CUSTOMER_REQUIRED'}
+    contact_id = str(event.get('contactId') or '')
     sender_phone = str(event.get('senderPhone') or '')
-    users = boto3.client('cognito-idp', region_name=os.environ.get('AWS_REGION', 'us-east-1')).list_users(
-        UserPoolId=customer_auth.CUSTOMER_POOL_ID, Filter='sub = "' + owner + '"', Limit=2).get('Users') or []
     try:
-        identity = catalog.verified_identity(contact, users, sender_phone)
-    except customer_auth.CustomerNotAuthorized:
-        return {'outcome': 'VERIFIED_CUSTOMER_REQUIRED'}
+        identity, contact = _native_whatsapp_identity(
+            contact_id, sender_phone, phone_number_id)
+    except (customer_auth.CustomerNotAuthorized, customer_identity.InvalidPhoneNumber):
+        return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
 
     # ONE LIVE PAYMENT REQUEST PER BASKET. The inbound dedupe is per MESSAGE, so the same cart
     # sent again as a new message reached `_create` again and minted a second attempt, a second
@@ -2943,7 +3013,8 @@ def _native_cart(event: Dict[str, Any], origin: str):
     # through `_send_order_details` with the approved template. Anything it cannot price or
     # attribute is refused there with no attempt and no order.
     try:
-        response = _create(identity, {'lineItems': line_items}, origin)
+        response = _create(identity, {'lineItems': line_items}, origin,
+                           native_contact=contact)
     except Exception:
         _release_wa_cart(live_key, token)
         raise
