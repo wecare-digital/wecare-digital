@@ -18,7 +18,7 @@
 
     Deliberately NOT named _verify_*.ps1: .gitignore treats the underscore
     prefix as "utility scripts (local only)", and this one must be committed
-    because .kiro/steering/email-auth-dns.md instructs people to run it.
+    because .kiro/steering/email-auth-dns.md (retired 2026-10-09, af7858fa) instructs people to run it.
 #>
 
 [CmdletBinding()]

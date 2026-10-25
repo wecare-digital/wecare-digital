@@ -11,7 +11,7 @@ What it does:
      URLs are NOT secrets; this is a config record, and webhook SECRETS are not
      copied into it.
 
-TXT ledger safety, per .kiro/steering/plaintext-source-policy.md: parsed in
+TXT ledger safety, per .kiro/steering/plaintext-source-policy.md (retired; now .kiro/steering/00-common.md): parsed in
 memory, written atomically via a 0600 temp in the same directory then os.replace,
 mode preserved, no .bak/.swp/.tmp remnant, nothing printed.
 """

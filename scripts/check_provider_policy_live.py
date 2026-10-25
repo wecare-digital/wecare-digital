@@ -61,7 +61,7 @@ import provider_allowlist as allow  # noqa: E402
 REGION = "us-east-1"
 
 # Live Lambdas this repo deliberately does not deploy through scripts/deploy_all_lambdas.py.
-# Documented in .kiro/steering/lambda-snapstart-deploy.md.
+# Documented in .kiro/steering/lambda-snapstart-deploy.md (retired 2026-10-09, af7858fa).
 EXTERNALLY_DEPLOYED = {
     "wecare-seo-tools",      # scripts/deploy_seo_tools.py owns it
     "wecare-docs-scraper",   # PackageType=Image; separate container deployment

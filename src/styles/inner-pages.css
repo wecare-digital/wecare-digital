@@ -3,7 +3,7 @@
  * Only affects pages using the Layout component (not the public pages).
  *
  * ALIGNED TO THE PUBLIC DESIGN CONTRACT, 2026-09-24.
- * See .kiro/steering/grahak-os-design.md - it is the written contract for
+ * See .kiro/steering/grahak-os-design.md (retired 2026-10-09, af7858fa) - it is the written contract for
  * /grahak-os, and these rules now follow its hairline and colour rules rather
  * than a parallel language.
  *
@@ -59,7 +59,7 @@
  *
  * Put the attribute on the element itself, not an ancestor - these selectors
  * match the control directly. Use it only for elements genuinely styled from
- * .kiro/steering/grahak-os-design.md; it is an opt-in to a different design
+ * .kiro/steering/grahak-os-design.md (retired 2026-10-09, af7858fa); it is an opt-in to a different design
  * language, not a way to escape review.
  */
 

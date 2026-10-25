@@ -139,4 +139,4 @@ contiguous 25 is its own rule.
 
 And because the public site is a static export (`output: 'export'` in `next.config.js`),
 a published post is not visible until an Amplify build re-reads the native blog. See
-`.kiro/steering/lambda-snapstart-deploy.md` for the same two-phase shape on Lambda.
+`.kiro/steering/lambda-snapstart-deploy.md` (retired 2026-10-09, af7858fa) for the same two-phase shape on Lambda.

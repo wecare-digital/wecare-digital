@@ -63,7 +63,7 @@ FILE was chosen over the other two, for one reason each.
   token would go in the apex TXT record set, and that record set also carries the SPF
   string. DMARC here is `p=reject; sp=reject` and MTA-STS is `mode: enforce`, so email on
   this domain is fail-closed - a mistake in that record set rejects mail outright rather
-  than filtering it, and `.kiro/steering/email-auth-dns.md` makes exactly one SPF record a
+  than filtering it, and `.kiro/steering/email-auth-dns.md` (retired 2026-10-09, af7858fa) makes exactly one SPF record a
   hard rule. A sitemap submission is not worth putting a hand into that record.
 
   Not META, because the tag is rendered from `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION`
@@ -123,7 +123,7 @@ USAGE
 
 SECRET DISCIPLINE. The access token is held in memory only. It is never printed, never
 written to a file, and never placed on a command line or in an environment assignment -
-see .kiro/steering/secret-handling.md. This script reads nothing out of Secrets Manager.
+see .kiro/steering/secret-handling.md (retired; now .kiro/steering/00-common.md). This script reads nothing out of Secrets Manager.
 """
 from __future__ import annotations
 

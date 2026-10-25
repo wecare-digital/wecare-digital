@@ -23,7 +23,7 @@ preserved:
 
 NOTHING IS ROTATED. No value is regenerated, revoked or deactivated at any
 provider. Provider rotation is deferred by explicit user decision until PROJECT
-COMPLETE, per .kiro/steering/plaintext-source-policy.md.
+COMPLETE, per .kiro/steering/plaintext-source-policy.md (retired; now .kiro/steering/00-common.md).
 
 STAGING FILE FORMAT
 -------------------
@@ -51,7 +51,7 @@ ON get_secret_value
 -------------------
 Merging into an existing secret requires reading its current value, so that
 fields we were not given are preserved rather than silently dropped.
-.kiro/steering/aws-agent-rules.md forbids an agent from calling get-secret-value
+.kiro/steering/aws-agent-rules.md (retired; now .kiro/steering/00-common.md) forbids an agent from calling get-secret-value
 because it pulls a value into the agent's context. Here the value is read into
 this process's memory, merged, and written back; it is never rendered to stdout,
 never returned to the caller, and never enters the transcript. Secrets created

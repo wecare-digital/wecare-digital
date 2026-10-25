@@ -96,7 +96,7 @@ data** — which is a stronger claim than matching CodeQL's choice would have be
 Developer-run tooling that uses `print()`, so there is no dict. CodeQL flags them because
 names like `SECRET_ID` and `args.secret` look sensitive — they hold secret **identifiers**,
 and the value-bearing lines emit a length, a label or an irreversible `sha256[:12]`, which
-is precisely the by-reference reporting `.kiro/steering/secret-handling.md` prescribes:
+is precisely the by-reference reporting `.kiro/steering/secret-handling.md` (retired; now .kiro/steering/00-common.md) prescribes:
 *provider, credential present YES/NO, field count, fingerprint, length*.
 
 All 69 were read. Exactly one interpolated something that could have been a value —
@@ -169,7 +169,7 @@ they need to be written down.
   led to the finding above. `tests/test_codeql_triage_classifier.py` asserts it is absent.
 - **The exception rule first rejected any expression *mentioning* `exc`.** That wrongly
   condemned `type(exc).__name__` and `exc.response['Error']['Code']` — the two forms
-  `.kiro/steering/secret-handling.md` actually prescribes. The rule now distinguishes the
+  `.kiro/steering/secret-handling.md` (retired; now .kiro/steering/00-common.md) actually prescribes. The rule now distinguishes the
   exception's *text* (`{e}`, `str(e)`, `exc.args`, `…['Message']`) from a narrowing of it.
 
 ### 4c. The staleness guard was unsound at HEAD

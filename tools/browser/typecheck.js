@@ -3,7 +3,7 @@
 /**
  * typecheck - the heading ladder across every public page.
  *
- * WHAT IT IS FOR. `.kiro/steering/grahak-os-design.md` fixes one section-h2 rung for the
+ * WHAT IT IS FOR. `.kiro/steering/grahak-os-design.md` (retired 2026-10-09, af7858fa) fixes one section-h2 rung for the
  * whole site: clamp(28px,3.2vw,40px) / 700 / lh 1.08 / ls -1.2px. Nothing enforces it,
  * and each public page declares its own h2 rule inside its own <style jsx>, so they drift
  * independently and silently. A unit test cannot catch it either, because the value only
@@ -65,7 +65,7 @@ const WIDTHS = [ 1280, 900 ];
  * to 53.76px at 1280px, matched four headings on /grahak-os/ and nothing else, and made
  * this harness report 86 headings as "off-ladder" while every one of them agreed with
  * every other. The steering contract has since been reconciled onto the rung the site
- * actually ships - see .kiro/steering/grahak-os-design.md, which now records why 40px won:
+ * actually ships - see .kiro/steering/grahak-os-design.md (retired 2026-10-09, af7858fa), which now records why 40px won:
  * the hero h1 is clamp(36px,4.3vw,60px), so at 1280px it resolves to 55.04px and a 53.76px
  * h2 sat 1.28px below it. With the h2 also being the heavier weight, the hierarchy
  * inverted and the h2 read as the larger of the two.

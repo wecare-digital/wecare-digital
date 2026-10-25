@@ -4,7 +4,7 @@ Two tiers on one bucket. The open one is a plain CDN path; the gated one require
 verified customer and a paid, single-use grant.
 
 Status verified live 2026-09-25. Re-derive rather than trusting these numbers —
-`.kiro/steering/00-current-owner-overrides.md` requires rediscovery per phase.
+`.kiro/steering/00-current-owner-overrides.md` (retired 2026-10-09, af7858fa) requires rediscovery per phase.
 
 ## Tiers
 

@@ -338,7 +338,7 @@ Then the §55 per-subsystem report using the required status vocabulary.
 |---|---|
 | **Secret deletion** | Deleting a secret needs pointwise confirmation. Secrets stay until nothing reads them and the change has been live long enough to trust. |
 | **Lightsail retirement** | An **outcome** of Stage 7d (moves the SIP media leg). Not an input. Do not delete before it lands and a real call is verified. |
-| **Provider credential rotation** | Deferred by explicit user decision until PROJECT COMPLETE (`.kiro/steering/plaintext-source-policy.md`). Note that credentials pasted into chat are exposed and rotation is remediation, not hygiene. |
+| **Provider credential rotation** | Deferred by explicit user decision until PROJECT COMPLETE (`.kiro/steering/plaintext-source-policy.md` (retired; now .kiro/steering/00-common.md)). Note that credentials pasted into chat are exposed and rotation is remediation, not hygiene. |
 
 ---
 

@@ -6,7 +6,7 @@ WHY THIS IS A LOCAL CHECK AND NOT META'S VALIDATOR
 Meta validates Flow JSON as a side effect of `POST /{waba-id}/flows` (or
 `POST /{flow-id}/assets`) — i.e. you have to CREATE the Flow on the WABA to be told
 whether the JSON is well formed. Creating and publishing a Flow is an owner-only,
-customer-visible action under `.kiro/steering/01-standing-authorization.md`, so the
+customer-visible action under `.kiro/steering/01-standing-authorization.md` (retired; now .kiro/steering/00-common.md), so the
 build loop cannot reach the API validator without doing the one thing it is not
 allowed to do. The alternative was to validate nothing, which is how a flow ships
 with a `${data.x}` nobody declared and fails on the handset instead of in CI.

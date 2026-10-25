@@ -50,7 +50,7 @@ later with no code change.
 
 NO CREDENTIAL IS READ, WRITTEN OR NAMED. This function reads no secret: there is no Secrets
 Manager statement in the role and nothing here resolves one. Per
-.kiro/steering/secret-handling.md no credential value is ever placed on a command line or a
+.kiro/steering/secret-handling.md (retired; now .kiro/steering/00-common.md) no credential value is ever placed on a command line or a
 log line, and this script has none to place.
 
 Usage:
@@ -104,7 +104,7 @@ INVOICES_BY_REFERENCE_INDEX = "referenceId-index"
 INVOICE_ASSETS_TABLE = "stack-wecare-digital-InvoiceAssetsTable"
 RATE_LIMIT_TABLE = "stack-wecare-digital-RateLimitTable"
 
-#: The ONE bucket. `.kiro/steering/blog-production-s3.md`: do not create a new bucket.
+#: The ONE bucket. `.kiro/steering/blog-production-s3.md` (retired 2026-10-09, af7858fa): do not create a new bucket.
 MEDIA_BUCKET = "wecare-digital-get"
 
 #: The GATED root, not the public `o/` one. A rendered invoice carries a name, an address,

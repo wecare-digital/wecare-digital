@@ -226,7 +226,7 @@ const Footer: React.FC = () => {
               hierarchy.
               A plain <a> rather than next/link: styled-jsx does not scope capitalised
               components, and on a trailingSlash export '/' resolves the same either way.
-              `.kiro/steering/grahak-os-design.md` records this as a known styled-jsx trap
+              `.kiro/steering/grahak-os-design.md` (retired 2026-10-09, af7858fa) records this as a known styled-jsx trap
               rather than an oversight, so the rule is disabled at the site with the reason
               instead of being left as a standing error. */}
           {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}

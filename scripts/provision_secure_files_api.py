@@ -374,7 +374,7 @@ def environment() -> dict:
         # Drop Docs document attach. Ships OFF and stays off: there is no upload UI in
         # Phase O-2, so the only thing turning this on would do is open a route nothing calls.
         "DROPDOCS_ATTACH_ENABLED": "false",
-        # A secret NAME, never a value. See .kiro/steering/secret-handling.md.
+        # A secret NAME, never a value. See .kiro/steering/secret-handling.md (retired; now .kiro/steering/00-common.md).
         "RAZORPAY_SECRET_ID": RAZORPAY_SECRET_NAME,
     }
 
@@ -425,7 +425,7 @@ def ensure_alias(dry_run: bool) -> str:
     """Publish a version and point ``live`` at it.
 
     The HTTP API integrates with the alias, not ``$LATEST``, so nothing reaches
-    production until this runs. See .kiro/steering/lambda-snapstart-deploy.md.
+    production until this runs. See .kiro/steering/lambda-snapstart-deploy.md (retired 2026-10-09, af7858fa).
     """
     if dry_run:
         return "would publish and move alias"

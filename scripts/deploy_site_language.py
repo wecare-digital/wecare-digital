@@ -158,7 +158,7 @@ def deploy_lambda(zip_bytes: bytes) -> str:
         "SITE_LANGUAGE_MAX_TTS_CHARS": "2800",
         # A secret NAME, not a value. The key itself is never an env var - it is
         # fetched through the role above at request time. See
-        # .kiro/steering/secret-handling.md.
+        # .kiro/steering/secret-handling.md (retired; now .kiro/steering/00-common.md).
         "SITE_LANGUAGE_GOOGLE_SECRET": GOOGLE_SECRET_NAME,
         "SITE_LANGUAGE_TRANSLATE_PROVIDER": TRANSLATE_PROVIDER,
     }

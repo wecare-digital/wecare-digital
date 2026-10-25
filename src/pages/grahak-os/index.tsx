@@ -908,7 +908,7 @@ response = requests.post(
              53.76px against everyone else's 40px.
              The design contract still names 54px, so the contract is now the thing that is
              out of step rather than the code - 13 headings beat 3. Worth amending
-             .kiro/steering/grahak-os-design.md to match.
+             .kiro/steering/grahak-os-design.md (retired 2026-10-09, af7858fa) to match.
              There was also a real reason to move: at 1280px the hero h1 resolves to 55.04px,
              so a 53.76px section h2 sat 1.28px below its own h1 and the size hierarchy
              collapsed - only the 700/600 weight inversion separated them. */

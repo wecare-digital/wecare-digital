@@ -299,7 +299,7 @@ How development works without them:
 A Plivo credential would only be needed to ADD outbound capability - originating
 calls, pulling CDRs, or buying numbers programmatically. If that is ever wanted,
 create wecare/plivo-api and read it inside the Lambda by name. Do not pass it on
-a command line (see .kiro/steering/secret-handling.md).
+a command line (see .kiro/steering/secret-handling.md (retired; now .kiro/steering/00-common.md)).
 """
 
 LEAK_FOOTPRINT = [

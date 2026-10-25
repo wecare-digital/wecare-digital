@@ -165,7 +165,7 @@ def ensure_alias(dry_run: bool) -> str:
     """Publish a version and point `live` at it.
 
     The alias is what the API integration targets, so `$LATEST` changes never reach
-    production on their own - see `.kiro/steering/lambda-snapstart-deploy.md`.
+    production on their own - see `.kiro/steering/lambda-snapstart-deploy.md` (retired 2026-10-09, af7858fa).
     """
     if dry_run:
         return "would ensure"

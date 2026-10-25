@@ -618,7 +618,7 @@ Steps 1–4 changed no Meta-side asset, so they carry no Meta publish risk. Step
 and 8 do, which is why they are separate.
 
 Every step is verifiable against the QA recipient `+918100640044` (see
-`.kiro/steering/02-qa-recipient.md`). Nothing here requires a customer send.
+`.kiro/steering/02-qa-recipient.md` (retired 2026-10-09, af7858fa)). Nothing here requires a customer send.
 
 ### Open decisions for the owner
 

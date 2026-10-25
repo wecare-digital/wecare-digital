@@ -369,7 +369,7 @@ echo "  DEVELOPER TOKENS WERE SUNSET 2026-09-09. They may still be sent and are 
 echo "  the API servers; access level now attaches to the Google Cloud project that owns the"
 echo "  credential. So the live call below no longer needs GOOGLE_ADS_DEVELOPER_TOKEN, and"
 echo "  putting one on a command line is prohibited here anyway - see"
-echo "  .kiro/steering/secret-handling.md. Prefer: python scripts/google_products_pull.py"
+echo "  .kiro/steering/secret-handling.md (retired; now .kiro/steering/00-common.md). Prefer: python scripts/google_products_pull.py"
 echo
 echo "  Grant read access to: $SA"
 echo
@@ -385,7 +385,7 @@ echo
 # was `GOOGLE_ADS_DEVELOPER_TOKEN=...` on a command line, and an "Always allow" on that
 # shape records the whole command - secret included - into a Kiro permissions file. That
 # is precisely how four live credentials landed on disk here on 2026-09-19, so
-# .kiro/steering/secret-handling.md forbids it and .kiro/hooks/block-inline-secrets.json
+# .kiro/steering/secret-handling.md (retired; now .kiro/steering/00-common.md) forbids it and .kiro/hooks/block-inline-secrets.json
 # blocks it. Removing the header removes the only reason to ever set that variable.
 #
 # The call still works without it: access level now attaches to the Google Cloud project
@@ -417,7 +417,7 @@ if [[ -n "${GOOGLE_ADS_DEVELOPER_TOKEN:-}" ]]; then
   echo
   echo "  WARNING: GOOGLE_ADS_DEVELOPER_TOKEN is set in this environment. It is ignored"
   echo "  by this script and by Google's servers since the 2026-09-09 sunset, and holding"
-  echo "  a credential in an environment variable is what .kiro/steering/secret-handling.md"
+  echo "  a credential in an environment variable is what .kiro/steering/secret-handling.md (retired; now .kiro/steering/00-common.md)"
   echo "  exists to prevent. Unset it."
 fi
 echo

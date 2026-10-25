@@ -136,7 +136,7 @@ Two things were established and both still hold:
    the alert reports `scope=development` rather than runtime.
 
 It cannot be resolved by upgrading, because `xcode` requires `uuid@^7`, and native packaging
-is **POST-PROJECT** per `.kiro/steering/00-current-owner-overrides.md` — so the tool that
+is **POST-PROJECT** per `.kiro/steering/00-current-owner-overrides.md` (retired 2026-10-09, af7858fa) — so the tool that
 drags it in is not used in the current phase either.
 
 ### Dismissed `not_used` on owner instruction, and the evidence is sharper than "we don't import it"

@@ -439,7 +439,7 @@ def create_worker_function(dry_run: bool) -> str:
 
 def ensure_worker_alias(dry_run: bool) -> str:
     """The `live` alias. Every HTTP integration and event source in this account targets
-    an alias, never `$LATEST` - see `.kiro/steering/lambda-snapstart-deploy.md`."""
+    an alias, never `$LATEST` - see `.kiro/steering/lambda-snapstart-deploy.md` (retired 2026-10-09, af7858fa)."""
     if dry_run and not function_exists(WORKER_FUNCTION):
         return "would create alias live"
     try:

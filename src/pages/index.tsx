@@ -469,7 +469,7 @@ const HomePage: React.FC = () => {
            node tools/browser/typecheck.js before changing it. (No backticks in this
            comment on purpose: it sits inside a style jsx template literal, where one
            stray backtick ends the literal and once produced 520 tsc errors.)
-           NOTE this is not yet what .kiro/steering/grahak-os-design.md says. The contract
+           NOTE this is not yet what .kiro/steering/grahak-os-design.md (retired 2026-10-09, af7858fa) says. The contract
            specifies clamp(32px,4.2vw,54px), which exists on /grahak-os/ and nowhere else;
            reconciling the two is an owner decision, and typecheck.js reports the gap. */
         .home-flow-title{

@@ -25,7 +25,7 @@ Usage:
 After first provision, normal code updates use:
     python scripts/deploy_all_lambdas.py wecare-customer-registration
 
-Follows .kiro/steering/secret-handling.md: no credential on a command line, in argv, or in a log.
+Follows .kiro/steering/secret-handling.md (retired; now .kiro/steering/00-common.md): no credential on a command line, in argv, or in a log.
 The pepper is read by the function at runtime via a SecretId name only.
 """
 

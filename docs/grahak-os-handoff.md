@@ -39,7 +39,7 @@ misled every reader so far. Re-verify with the harness, not with this table.
 | What | Where |
 |---|---|
 | **The rotating-headline reflow is fixed.** `animcheck.js` went **16/20 → 18/18**. `/grahak-os/` jumped 40–41px at 320–360px and `/vayulok/` 39–40px at 320 and 450–520px, every 2400ms. Fixed with media queries scoped to only the widths that measured broken, so desktop line structure is unchanged | `src/pages/grahak-os/index.tsx`, `src/pages/vayulok/index.tsx` |
-| **The type contract now matches the site.** `typecheck.js` went **1/3 → 3/3**. The contract specified a 53.76px section-h2 rung that existed nowhere; both the steering file and the harness are now on `clamp(28px,3.2vw,40px)` | `.kiro/steering/grahak-os-design.md`, `tools/browser/typecheck.js` |
+| **The type contract now matches the site.** `typecheck.js` went **1/3 → 3/3**. The contract specified a 53.76px section-h2 rung that existed nowhere; both the steering file and the harness are now on `clamp(28px,3.2vw,40px)` | `.kiro/steering/grahak-os-design.md` (retired 2026-10-09, af7858fa), `tools/browser/typecheck.js` |
 | **Home section 3 is on the same rungs as section 2.** `.home-close-points li` 17px/600 → 20px/400 (the site's one body level), tick `top` 6px → 7px to stay on the x-height, and the mobile-only 18px lead override deleted so both section leads hold 20px down to 320px | `src/pages/index.tsx` |
 | **The sitewide SEO no longer advertises one product.** `<title>`, `og:title`, `twitter:title`, `og:description` and `twitter:description` were WhatsApp-product copy inherited by all 15 public routes; `twitter:url` was hardcoded to the site root on every page. The messaging `Service` schema is now scoped to `/grahak-os/` instead of being emitted everywhere | `src/pages/_app.tsx` |
 | **`/grahak-os/` no longer ships two of every `og:` tag.** `next/head` de-duplicates meta by `name`, **not** by `property`, so the page's own og set and `_app`'s coexisted — measured 2× each of type, url, title, description, image, site_name, locale. Fixed with matching `key` props on both sides | `src/pages/_app.tsx`, `src/pages/grahak-os/index.tsx` |
@@ -671,7 +671,7 @@ is replaying; one hard reload breaks that loop permanently.
 
 ## Design contract
 
-`.kiro/steering/grahak-os-design.md`, scoped to `src/pages/grahak-os/**`,
+`.kiro/steering/grahak-os-design.md` (retired 2026-10-09, af7858fa), scoped to `src/pages/grahak-os/**`,
 `src/components/**`, `src/styles/**`. Load-bearing points:
 
 - Section `h2` (700) is deliberately **heavier** than the hero `h1` (600).

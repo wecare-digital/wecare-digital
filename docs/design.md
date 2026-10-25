@@ -666,7 +666,7 @@ by `customerId` and by `commerceOrderNumber`.
 
 ## Deployment
 
-Per `.kiro/steering/lambda-snapstart-deploy.md`, and it is the `live` alias that makes this
+Per `.kiro/steering/lambda-snapstart-deploy.md` (retired 2026-10-09, af7858fa), and it is the `live` alias that makes this
 mandatory, not SnapStart — which is `ApplyOn=None` on every function.
 
 ```

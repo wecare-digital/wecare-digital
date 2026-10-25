@@ -99,7 +99,7 @@ message inspected. Account posture for context: production access enabled, `HEAL
 
 ## 5. `live` alias coverage is 58 of 65
 
-The release contract in `.kiro/steering/lambda-snapstart-deploy.md` only binds where the alias
+The release contract in `.kiro/steering/lambda-snapstart-deploy.md` (retired 2026-10-09, af7858fa) only binds where the alias
 exists. Measured sequentially with **0 call errors** — a concurrent count that swallows failures
 reports this wrong, which has happened before:
 

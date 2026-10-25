@@ -18,7 +18,7 @@ repository is connected, so this field is the only lever.
 SECRET HANDLING. The GitHub token is read from the `gh` CLI's keyring **into
 memory** and handed to boto3. It is never an argument, never an environment
 assignment on a command line, never printed, and never written to disk -- the rule
-in `.kiro/steering/secret-handling.md` is that secrets pass by reference, and
+in `.kiro/steering/secret-handling.md` (retired; now .kiro/steering/00-common.md) is that secrets pass by reference, and
 `gh auth token` is the reference. `subprocess` is given a list, so the value never
 reaches a shell. Failures are reported by exception type, since an error string can
 echo the request body.

@@ -279,7 +279,7 @@ Re-run `animcheck.js` after changing either word list: a word longer than `Whats
 
 The design contract specified `clamp(32px,4.2vw,54px)` = 53.76px at 1280, which existed on
 `/grahak-os/` and **nowhere else**, while `clamp(28px,3.2vw,40px)` = 40px was on ten pages.
-Both sides are now reconciled onto the 40px rung — `.kiro/steering/grahak-os-design.md`
+Both sides are now reconciled onto the 40px rung — `.kiro/steering/grahak-os-design.md` (retired 2026-10-09, af7858fa)
 records the reason, and `CONTRACT` in `typecheck.js` matches it. Keep the two in step; if
 they disagree, the harness is the only one of the pair that gets measured.
 
@@ -391,7 +391,7 @@ looks wrong for a control whose CSS is documented, suspect the backdrop before t
 
 ## No backticks in a styled-jsx comment — including in a prose note
 
-`.kiro/steering/grahak-os-design.md` already records this and it still cost two builds during
+`.kiro/steering/grahak-os-design.md` (retired 2026-10-09, af7858fa) already records this and it still cost two builds during
 this work. A `<style jsx>` block is a template literal, so a single backtick **inside a CSS
 comment** ends it and the build fails in JSX, pointing at a brace hundreds of lines away rather
 than at the comment:

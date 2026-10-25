@@ -23,7 +23,7 @@ first object arrives. Two reasons that can be true here:
 
 The bucket is fixed and the guard is deliberate
 ----------------------------------------------
-`.kiro/steering/blog-production-s3.md` requires the existing bucket `wecare-digital-get` and
+`.kiro/steering/blog-production-s3.md` (retired 2026-10-09, af7858fa) requires the existing bucket `wecare-digital-get` and
 forbids creating another without explicit approval; `.kiro/hooks/block-s3-bucket-creation.json`
 refuses the command shapes that would. This script has no create-bucket path at all - it
 verifies the bucket exists and refuses if it does not, rather than helpfully making one.
@@ -165,7 +165,7 @@ def main(argv=None) -> int:
         print(f"ERROR: bucket {BUCKET} could not be confirmed. Either there are no usable AWS "
               f"credentials in this environment (the usual cause in CI, and nothing is wrong), "
               f"or the bucket really is unreachable. This script does NOT create buckets - "
-              f"the existing bucket is mandated by .kiro/steering/blog-production-s3.md.",
+              f"the existing bucket is mandated by .kiro/steering/blog-production-s3.md (retired 2026-10-09, af7858fa).",
               file=sys.stderr)
         return 2
 

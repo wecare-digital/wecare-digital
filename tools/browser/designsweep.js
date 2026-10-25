@@ -303,7 +303,7 @@ const isPill = ( radius, height ) => {
 /** Controls that are deliberately not primary actions, with the reason. */
 const EXEMPT = [
   // An ACTIVE TAB, not an action. /grahak-os/ carries its own committed design contract in
-  // .kiro/steering/grahak-os-design.md and design-reference.tsx assigns lime to "active tabs".
+  // .kiro/steering/grahak-os-design.md (retired 2026-10-09, af7858fa) and design-reference.tsx assigns lime to "active tabs".
   /\bpp-tab\b/,
   // The header's WhatsApp glyph is a 40px circular icon affordance, not a text button.
   /\bwc-wa\b/,

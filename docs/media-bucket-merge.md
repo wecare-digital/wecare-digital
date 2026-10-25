@@ -63,7 +63,7 @@ registration. This is the binding constraint.
 The domain runs `p=reject` with fail-closed MTA-STS. The logo file now exists at
 both locations, so the `l=` URL *could* move, but it is an email-authentication
 record and belongs to the verify-before-and-after procedure in
-`.kiro/steering/email-auth-dns.md`, not to a bulk find-and-replace.
+`.kiro/steering/email-auth-dns.md` (retired 2026-10-09, af7858fa), not to a bulk find-and-replace.
 
 ### 3. Already-delivered content
 

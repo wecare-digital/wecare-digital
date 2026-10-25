@@ -6,7 +6,7 @@ back.
 
 Captured: **2026-09-21** · Account `775261844268` · Region `us-east-1`
 Authority: `A4_DESTRUCTIVE` under the standing grant in
-`.kiro/steering/01-standing-authorization.md` — "delete an API route or
+`.kiro/steering/01-standing-authorization.md` (retired; now .kiro/steering/00-common.md) — "delete an API route or
 integration whose target Lambda does not exist", conditional on this export.
 
 ## Why these are safe to remove

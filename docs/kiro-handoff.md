@@ -6,7 +6,7 @@ Updated: **2026-09-25**
 
 | Field | Value |
 |---|---|
-| Mode | **Unattended.** `.kiro/steering/01-standing-authorization.md` governs; no confirmation queue |
+| Mode | **Unattended.** `.kiro/steering/01-standing-authorization.md` (retired; now .kiro/steering/00-common.md) governs; no confirmation queue |
 | Phase | **All 11 phases closed.** See `docs/execution/PHASE-10.3-CLOSURE.md`. This session was a verification pass over that closure at a later HEAD |
 | Branch | `stack` |
 | HEAD at session start | `d39227ca`, local == `origin/stack` |
@@ -16,7 +16,7 @@ The previous version of this file was four days stale. It reported Phase 1 in
 progress at `4095cc68` with 1245 tests, while phases 2–10 had since closed and the
 suite had grown to 3424. Treat the numbers below as measured on 2026-09-25 and
 re-derive them rather than trusting them, per
-`.kiro/steering/00-current-owner-overrides.md`.
+`.kiro/steering/00-current-owner-overrides.md` (retired 2026-10-09, af7858fa).
 
 ## Gates, measured this session
 
@@ -68,7 +68,7 @@ Fail-open is deliberate and was kept. What changed is that a permanent failure
 (`ValidationException`, `ResourceNotFoundException`) now logs at ERROR as
 `rate_limit_disabled_permanent_error`, so "rate limiting is off" is greppable instead
 of looking identical to a transient blip. Exception *text* is no longer logged, only
-the type — `.kiro/steering/secret-handling.md`.
+the type — `.kiro/steering/secret-handling.md` (retired; now .kiro/steering/00-common.md).
 
 **2. Two Lambdas that no supported deploy path could reach.**
 `check_provider_policy_live.py` reported `wecare-pstn-softphone` and
@@ -182,7 +182,7 @@ Each is one action, and none is engineering hiding behind a label.
 | 7 of 8 integrations at `SCOPE_UNVERIFIED` | Provider access. Every unblock is listed on `/growth` |
 | Meta MCP servers | Add `http://localhost:7778/oauth/callback` (DevTools) and `http://localhost:7779/oauth/callback` (WhatsApp Business Tools) to app `2238810740192680` |
 | Razorpay MCP | Blocked on the provider: its token endpoint advertises only `client_secret_post` |
-| Live QA sends and calls | QA recipient `+918100640044` is nominated (`.kiro/steering/02-qa-recipient.md`), but every live-send flag is still absent by design. Enabling one is a separate decision |
+| Live QA sends and calls | QA recipient `+918100640044` is nominated (`.kiro/steering/02-qa-recipient.md` (retired 2026-10-09, af7858fa)), but every live-send flag is still absent by design. Enabling one is a separate decision |
 | CI live route-auth gate | Set repo variable `ROUTE_AUTH_ROLE_ARN` to a read-only OIDC role |
 | Native Android/iOS packaging | POST-PROJECT by owner override; cannot block closure |
 

@@ -62,7 +62,7 @@ Usage:
 After first provision, normal code updates use:
     python scripts/deploy_all_lambdas.py wecare-checkout
 
-Follows .kiro/steering/secret-handling.md: the Razorpay key is read by reference at runtime via a
+Follows .kiro/steering/secret-handling.md (retired; now .kiro/steering/00-common.md): the Razorpay key is read by reference at runtime via a
 SecretId name only; no credential is ever placed on a command line or in a log.
 """
 
@@ -368,7 +368,7 @@ def live_members(qualifier: str = LIVE_ALIAS) -> tuple:
     `get_function` returns a short-lived **presigned** S3 URL for the artifact. That URL carries an
     `X-Amz-Signature`, so it is credential-shaped material: it is fetched in-process and is never
     printed, logged, passed as an argument or written to a file. Only the resulting `CodeSha256`
-    and member list leave this function. See .kiro/steering/secret-handling.md.
+    and member list leave this function. See .kiro/steering/secret-handling.md (retired; now .kiro/steering/00-common.md).
     """
     try:
         described = lam().get_function(FunctionName=FUNCTION_NAME, Qualifier=qualifier)
@@ -979,7 +979,7 @@ def ensure_route_throttle(dry_run: bool) -> str:
     """Cap the ONE anonymous route so it cannot spend the stage's shared allowance.
 
     `UpdateStage` MERGES `RouteSettings` rather than replacing them -- the opposite of the
-    replace-not-patch rule `.kiro/steering/aws-agent-rules.md` applies to AWS "update" calls, and
+    replace-not-patch rule `.kiro/steering/aws-agent-rules.md` (retired; now .kiro/steering/00-common.md) applies to AWS "update" calls, and
     a proven exception measured by `scripts/deploy_mcp_server.py`, which is where this pattern
     comes from. Only this script's own key is ever sent, so a throttle another route owns cannot
     be dropped by this call.

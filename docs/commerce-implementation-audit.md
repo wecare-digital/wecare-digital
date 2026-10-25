@@ -159,7 +159,7 @@ depend on.
 
 ## 3. Stale spec material
 
-`.kiro/steering/PAYMENT-AUDIT-REPORT.md` is dated **2026-03-30** and says "Razorpay + PayU Only".
+`.kiro/steering/PAYMENT-AUDIT-REPORT.md` (retired 2026-10-09, af7858fa) is dated **2026-03-30** and says "Razorpay + PayU Only".
 §30 says **Razorpay only, do not restore PayU** — so that document is stale on gateway policy and
 should be corrected rather than followed. It also pins Graph **v25.0**, which needs reverification
 against current Meta docs before any payload change (§32).
@@ -190,7 +190,7 @@ Smallest reviewable steps, reusing everything above.
 ## 6. Rollback
 
 Backend changes are additive Lambda code behind existing versioned aliases — roll back by moving the
-`live` alias, per `.kiro/steering/lambda-snapstart-deploy.md`. Frontend is a static export; roll back
+`live` alias, per `.kiro/steering/lambda-snapstart-deploy.md` (retired 2026-10-09, af7858fa). Frontend is a static export; roll back
 by redeploying the previous Amplify build. No destructive vendor configuration is required for any of
 the above, and none should be made to test code (§68).
 

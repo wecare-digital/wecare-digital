@@ -32,7 +32,7 @@
  * STYLED TO THE PUBLIC CONTRACT, not the inner-page system
  * ---------------------------------------------------------------------------
  * Owner asked for this screen to match the new home-page design, so every value
- * below is quoted from .kiro/steering/grahak-os-design.md and from
+ * below is quoted from .kiro/steering/grahak-os-design.md (retired 2026-10-09, af7858fa) and from
  * src/pages/grahak-os/index.tsx - nothing is approximated:
  *
  *   card heading   22px / 700 / lh 1.27 / ls -.25px / #000        (.capability-card h3)

@@ -17,7 +17,7 @@ server-side for the Places proxy, under a comment saying it is "never exposed to
 the browser". Pasting that one value into ``NEXT_PUBLIC_GOOGLE_BROWSER_KEY`` would
 publish the credential that authorizes Places, Geocoding and PageSpeed to every
 visitor - and it is already one of the four historically exposed credentials
-awaiting rotation (``.kiro/steering/secret-handling.md``).
+awaiting rotation (``.kiro/steering/secret-handling.md`` (retired; now .kiro/steering/00-common.md)).
 
 `scripts/verify_no_secrets_in_tree.py` does not cover this: it scans a fixed list
 of six source files and never looks at build output.
@@ -26,7 +26,7 @@ HOW IT DECIDES, WITHOUT EVER READING A SECRET
 ---------------------------------------------
 Fingerprints are compared, never values. The unified key's fingerprint is already
 committed in ``docs/provider-inventory.md``, so this check needs no Secrets Manager
-read - which is prohibited anyway (``.kiro/steering/aws-agent-rules.md``).
+read - which is prohibited anyway (``.kiro/steering/aws-agent-rules.md`` (retired; now .kiro/steering/00-common.md)).
 
   * A Google key whose fingerprint matches a known SERVER-SIDE key  -> FAIL.
   * Any other Google key                                            -> allowed,
@@ -37,7 +37,7 @@ read - which is prohibited anyway (``.kiro/steering/aws-agent-rules.md``).
     in a browser bundle, so there is no fingerprint exception for them.
 
 Values are never printed. Findings are reported as file + fingerprint + length,
-the metadata set sanctioned by ``.kiro/steering/plaintext-source-policy.md``.
+the metadata set sanctioned by ``.kiro/steering/plaintext-source-policy.md`` (retired; now .kiro/steering/00-common.md).
 
 WHERE THIS HAS TO RUN
 -----------------------------------------------

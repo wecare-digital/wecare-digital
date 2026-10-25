@@ -39,7 +39,7 @@ SnapStart / alias
 ``live`` alias, so nothing reaches production until a version is published and
 the alias moves. That is ``scripts/snapstart_publish.py``, which this script
 invokes at the end unless ``--no-publish`` is passed. See
-``.kiro/steering/lambda-snapstart-deploy.md``.
+``.kiro/steering/lambda-snapstart-deploy.md`` (retired 2026-10-09, af7858fa).
 
 Usage
 -----

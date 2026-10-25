@@ -2,7 +2,7 @@
 """Store a provider credential in Secrets Manager and record it in the TXT ledger.
 
 WITHOUT ROTATING ANYTHING. Rotation at the provider is a deliberate manual step
-the user performs at project close (see .kiro/steering/plaintext-source-policy.md,
+the user performs at project close (see .kiro/steering/plaintext-source-policy.md (retired; now .kiro/steering/00-common.md),
 "Provider rotation deferred by user"). This script only writes what you already
 hold into the two places that are supposed to hold it:
 
@@ -13,7 +13,7 @@ Why it exists
 -------------
 On 2026-09-19 credentials arrived by being typed into chat, which is persisted to
 ~/.kiro/logs and the session transcript. The rule in
-.kiro/steering/secret-handling.md is that a secret value must never appear in a
+.kiro/steering/secret-handling.md (retired; now .kiro/steering/00-common.md) is that a secret value must never appear in a
 command, an argv, an environment assignment on a command line, or a log line.
 So an agent cannot write these values for you: doing so would require putting
 them in a tool call. YOU run this, and the value goes from your keyboard into
@@ -45,7 +45,7 @@ What it does NOT do
 -------------------
 * Does not revoke, regenerate or deactivate anything at the provider.
 * Does not read secrets back out (`get_secret_value` is prohibited for agents by
-  .kiro/steering/aws-agent-rules.md; retrieve values from the AWS console when a
+  .kiro/steering/aws-agent-rules.md (retired; now .kiro/steering/00-common.md); retrieve values from the AWS console when a
   human needs to paste one somewhere).
 * Does not touch the encrypted backups. Run scripts/secrets_backup.py afterwards
   so the local and S3 artifacts include the new material.

@@ -21,7 +21,7 @@ After first provision, normal code updates use:
     python scripts/deploy_all_lambdas.py wecare-email-verification
 
 Note on the pepper: this script is the ONLY place a pepper value is created, and it creates it
-without the value ever leaving the process. It follows .kiro/steering/secret-handling.md — no
+without the value ever leaving the process. It follows .kiro/steering/secret-handling.md (retired; now .kiro/steering/00-common.md) — no
 credential on a command line, in argv, or in a log.
 """
 

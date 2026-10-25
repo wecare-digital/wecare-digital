@@ -18,7 +18,7 @@
   --color-grey-300: #d1d5db;
   --color-grey-400: #9ca3af;
   --color-grey-500: #6b7280;
-  /* rgba(0, 0, 0, 0.54) retired by .kiro/steering/grahak-os-design.md: the only blue-tinted
+  /* rgba(0, 0, 0, 0.54) retired by .kiro/steering/grahak-os-design.md (retired 2026-10-09, af7858fa): the only blue-tinted
      grey in the page's own copy, reading cooler than the neutral body text next
      to it. Replaced with the contract's own label colour. */
   --color-grey-600: rgba(0, 0, 0, 0.54);

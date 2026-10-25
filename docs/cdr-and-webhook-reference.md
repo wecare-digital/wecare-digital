@@ -298,8 +298,8 @@ python scripts/export_provider_credentials.py --secret wecare/sinch/rcs --finger
 
 ## 6. Related
 
-- `.kiro/steering/secret-handling.md` — why none of the above prints a value
-- `.kiro/steering/lambda-snapstart-deploy.md` — why a code change needs a version publish and alias move
+- `.kiro/steering/secret-handling.md` (retired; now .kiro/steering/00-common.md) — why none of the above prints a value
+- `.kiro/steering/lambda-snapstart-deploy.md` (retired 2026-10-09, af7858fa) — why a code change needs a version publish and alias move
 - `docs/CREDENTIAL-ROTATION-RUNBOOK.md` — rotation procedure, and which function reads which secret
 - `scripts/rcs_webhook_control_plane.py` — read/repoint the DLR webhook
 - `scripts/plivo_control_plane.py` — read/plan/apply Plivo application config

@@ -266,7 +266,7 @@ row should not go hunting for a value that the provider stopped honouring.
 | `wecare/truecaller` | Truecaller | UNPROVISIONED — no live route/consumer; stored credential retired |
 
 Deleting a secret requires pointwise confirmation
-(`.kiro/steering/maintenance-reporting.md`). No secret is deleted during the code
+(`.kiro/steering/maintenance-reporting.md` (retired 2026-10-09, af7858fa)). No secret is deleted during the code
 migration; removal is a separate, later step once nothing reads it.
 
 ---

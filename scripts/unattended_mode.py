@@ -5,7 +5,7 @@ otherwise stop a long run to ask, and write an audit record for each one.
 Why this is a mode and not a deleted guard
 ------------------------------------------
 `block_catastrophic.py` asks before destructive AWS deletes because
-`.kiro/steering/maintenance-reporting.md` requires pointwise confirmation for
+`.kiro/steering/maintenance-reporting.md` (retired 2026-10-09, af7858fa) requires pointwise confirmation for
 deleting a secret, bucket, Lambda, table, queue or topic, and for IAM and KMS
 changes. That is a real control, and simply removing it would leave no record
 that it ever existed.

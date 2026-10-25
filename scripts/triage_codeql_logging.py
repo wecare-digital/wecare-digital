@@ -39,7 +39,7 @@ here rather than write again.
 AND A SECOND, DEEPER POINT: masking does NOT clear these alerts, and should not be expected
 to. `py/clear-text-logging-sensitive-data` is a taint query. `mask_phone(to_number)` still
 has `to_number` flowing into the sink, and CodeQL has no reason to believe `mask_phone`
-sanitises anything - the same behaviour `.kiro/steering/secret-handling.md` documents for
+sanitises anything - the same behaviour `.kiro/steering/secret-handling.md` (retired; now .kiro/steering/00-common.md) documents for
 the secret case ("reducing a secret to a boolean does not launder it"), and it is correct to
 behave that way. Fixing the fourteen real sites moved the open count 58 -> 56, not to zero.
 
@@ -432,7 +432,7 @@ def classify(key: str, value: ast.expr) -> str:
 #   * A function PARAMETER is never resolvable -- its value comes from a caller this pass
 #     cannot see. Treating a parameter as its default would be the classic wrong answer.
 #   * `except ... as e` binds an exception OBJECT, whose str() is provider text that can
-#     contain anything, including a recipient number. `.kiro/steering/secret-handling.md`
+#     contain anything, including a recipient number. `.kiro/steering/secret-handling.md` (retired; now .kiro/steering/00-common.md)
 #     requires `type(exc).__name__` unless our own code built the message, so this must
 #     stay UNPROVEN and be remediated rather than dismissed.
 #   * A module constant counts only when the module binds it EXACTLY ONCE. A name assigned
@@ -470,7 +470,7 @@ def _exception_leak(value: ast.expr) -> bool:
 
     The distinction is the whole point and a blanket "mentions `exc`" test gets it wrong in
     both directions. These must stay UNPROVEN, because provider text can contain anything
-    including a recipient number, and `.kiro/steering/secret-handling.md` requires
+    including a recipient number, and `.kiro/steering/secret-handling.md` (retired; now .kiro/steering/00-common.md) requires
     `type(exc).__name__` unless our own code built the message:
 
         {e}   {str(e)}   {exc.args}   {e.response['Error']['Message']}
@@ -763,7 +763,7 @@ def classify_expr(value: ast.expr, key: str, resolver: "Resolver | None",
 
 
 #: Helpers that reduce a credential to something non-reversible before it is printed.
-#: These are the by-reference pattern `.kiro/steering/secret-handling.md` prescribes:
+#: These are the by-reference pattern `.kiro/steering/secret-handling.md` (retired; now .kiro/steering/00-common.md) prescribes:
 #: report "provider, credential present YES/NO, field count, fingerprint, length", never
 #: the value.
 #:
@@ -890,7 +890,7 @@ def print_interpolations(path: pathlib.Path, start: int, end: int) -> list[tuple
                     verdict = "CONST"
                 elif isinstance(inner, ast.Attribute) and inner.attr == "__name__":
                     # `type(exc).__name__` -- the exception's CLASS, which is the form
-                    # `.kiro/steering/secret-handling.md` asks for. The dict path already
+                    # `.kiro/steering/secret-handling.md` (retired; now .kiro/steering/00-common.md) asks for. The dict path already
                     # classified this as TYPE_NAME; the print path did not, so the one site
                     # that logs it correctly was reported as unreviewed.
                     verdict = "TYPE_NAME"

@@ -298,7 +298,7 @@ is replaced as a whole array by `UpdateApp`, and another session is concurrently
 editing exactly that surface — `scripts/provision_legacy_redirects.py` is modified in
 the working tree and `docs/execution/snapshots/amplify-custom-rules-before-seo404.json`
 had just been written. Writing the array from two sessions is last-writer-wins and
-would silently drop their rules. Per `.kiro/steering/multi-session-parallel-agents.md`
+would silently drop their rules. Per `.kiro/steering/multi-session-parallel-agents.md` (retired; now .kiro/steering/00-common.md)
 this is sequenced, not raced.
 
 Handover, precisely: that script's map does **not** currently contain `[retired public path b180810d]`

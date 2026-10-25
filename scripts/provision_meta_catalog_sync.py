@@ -345,7 +345,7 @@ def ensure_alias(apply: bool) -> str:
 
     Both callers target the ALIAS, so a `$LATEST` change does not reach them until a version is
     published and the alias moves. That is the control, per
-    `.kiro/steering/lambda-snapstart-deploy.md`.
+    `.kiro/steering/lambda-snapstart-deploy.md` (retired 2026-10-09, af7858fa).
     """
     if not apply:
         return f"would publish a version and point {LIVE_ALIAS} at it"

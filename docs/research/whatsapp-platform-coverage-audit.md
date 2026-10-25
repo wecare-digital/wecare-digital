@@ -276,7 +276,7 @@ Paths are relative to `/Users/wecaredigital/wecare-store`. Backend paths omit th
 | Payment readiness evaluation | ✅ | `shared/lambda_utils/payment_readiness.py`; `whatsapp-business-api` `_payment_readiness_for:3249`, `_get_payment_config:3284`, `_check_payment_gateway:3309`; `tests/test_payment_readiness.py` | `api/client.ts` `checkPaymentGateways` | [Onboarding APIs](https://developers.facebook.com/docs/whatsapp/payments-india) |
 | UPI mode / UPI intent | 🟡 | `payment_type: 'upi'` for payment-link mode; merchant preferred UPI app and a ₹5,00,000 auto-switch to web in the order_details branch (~`handler.py:3270-3295`). Dynamic VPA not implemented | `whatsapp/send-test.tsx` | [UPI Intent](https://developers.facebook.com/docs/whatsapp/payments-india) · [Dynamic VPA](https://developers.facebook.com/docs/whatsapp/payments-india) |
 | Payment lookup (Meta) | ✅ | `whatsapp-business-api` `_payment_lookup:3375` | `engage/pay/*` | [Payment gateway](https://developers.facebook.com/docs/whatsapp/payments-india) |
-| Payment refund (Meta) | 🔵 | `_payment_refund:3391`. Refund execution is a standing prohibition per `.kiro/steering/01-standing-authorization.md` | — | [Payment gateway](https://developers.facebook.com/docs/whatsapp/payments-india) |
+| Payment refund (Meta) | 🔵 | `_payment_refund:3391`. Refund execution is a standing prohibition per `.kiro/steering/01-standing-authorization.md` (retired; now .kiro/steering/00-common.md) | — | [Payment gateway](https://developers.facebook.com/docs/whatsapp/payments-india) |
 | `order_status` template / message | ✅ | `outbound-whatsapp` `_handle_order_status_send:1141` | `engage/orders/index.tsx` | [Order status templates](https://developers.facebook.com/docs/whatsapp/payments-india) |
 | Checkout button template | ➖ | Deliberately declined with a recorded reason: the order_details branch notes that shipping-address collection is a checkout-button-template feature requiring the checkout endpoint beta and does **not** work with interactive order_details, so `beneficiaries` is always supplied instead | `whatsapp/send-test.tsx` | [Checkout button templates](https://developers.facebook.com/docs/whatsapp/payments-india) |
 | Razorpay webhook (the only gateway) | ✅ | `payments/razorpay-webhook/handler.py` (2445 lines); credential `wecare/razorpay/api` read lazily per request | `engage/pay/*` | — (gateway side) |
@@ -285,7 +285,7 @@ Paths are relative to `/Users/wecaredigital/wecare-store`. Backend paths omit th
 | In-WhatsApp capture branch | ➖ retired | `tests/test_inbound_whatsapp_payment_superseded.py` drives the real `_process_payment_status` with a forged `captured` event and asserts **no** paid invoice, receipt or order. Written to fail if the branch is reinstated | — | — |
 | Invoices / payment links / receipts | ✅ | `payments/invoice-engine/handler.py`, `payments/payments-read/handler.py`; `whatsapp-business-api` routes `/invoices`, `/invoices/send-payment-link` | `engage/pay/*`; `api/client.ts` `createInvoiceFromPayment`, `sendInvoiceWhatsApp`, `sendPaymentLink`, `sendCheckoutTemplate` | [Payment links](https://developers.facebook.com/docs/whatsapp/payments-india) |
 | Order creation / reconciliation | ✅ native (since this audit) | `shared/lambda_utils/ecommerce/` (`order_creation.py`, `order_keys.py`, `finalization.py`, `native_inventory_txn.py`) | `commerce/index.tsx`, `engage/orders/index.tsx` | — |
-| Payments Brazil / Rest-of-world | ➖ | India-only business; `.kiro/steering/whatsapp-payments-india-reference.md` fixes MCC 7392, purpose code 03, `INR` only, integer paise | — | [Payments Brazil](https://developers.facebook.com/docs/whatsapp/payments-brazil) |
+| Payments Brazil / Rest-of-world | ➖ | India-only business; `.kiro/steering/whatsapp-payments-india-reference.md` (retired 2026-10-09, af7858fa) fixes MCC 7392, purpose code 03, `INR` only, integer paise | — | [Payments Brazil](https://developers.facebook.com/docs/whatsapp/payments-brazil) |
 
 ### I. MM API for WhatsApp (marketing messages)
 
@@ -953,7 +953,7 @@ value; relevant if promotional campaigns are planned. **Backend + builder UI.**
 **G10. One-tap autofill / zero-tap / keyboard suggestions absent.** Severity LOW. OTP works
 through the `copy_code` button (`outbound-whatsapp:3509`), so this is a friction improvement
 rather than a functional gap. One-tap requires app-signature registration, which is
-post-project per `.kiro/steering/00-current-owner-overrides.md`. **Backend + Android signing.**
+post-project per `.kiro/steering/00-current-owner-overrides.md` (retired 2026-10-09, af7858fa). **Backend + Android signing.**
 
 **G11. Product carousel message and product carousel templates absent.** Severity LOW. SPM,
 MPM and catalog messages are all implemented, so this is an additional presentation of
@@ -1003,7 +1003,7 @@ above would overstate the engineering backlog.
 | Razorpay live key + secret not loaded | owner-only; disclosed in a transcript 2026-09-30, needs rotation not re-storage | `tasks.md:16-45`, `docs/CREDENTIAL-ROTATION-RUNBOOK.md` |
 | `WA_QA_RECIPIENT` unset in production | owner nominated `+918100640044` 2026-09-22; still absent from the live function | `docs/execution/feature-flag-register.md:15` |
 | Live payment configurations not re-probed | reported Active from the owner's dashboard, not measured | `tasks.md:20-26` |
-| Six credential values in git history | rotation deferred to project close by owner decision | `.kiro/steering/secret-handling.md` |
+| Six credential values in git history | rotation deferred to project close by owner decision | `.kiro/steering/secret-handling.md` (retired; now .kiro/steering/00-common.md) |
 | `config/lambda-env-manifest.json` ~20 keys / 7 functions stale | the generator refuses to export while `wecare-seo-tools` holds a real credential in an env var | `.agents/tasks/direct-send-api-20261006/review.json` |
 
 ---
@@ -1116,7 +1116,7 @@ checkout).
 | **Authentication template conveniences** — one-tap autofill, zero-tap, keyboard suggestions | Medium | Low-Medium | One-tap needs Android app-signature registration, and native packaging is explicitly post-project. Blocked by scope, not difficulty. |
 | **Coexistence** (`smb_app_state_sync`, `smb_message_echoes`) | High | Low | Only relevant if the business starts from a WhatsApp Business app presence. It does not. |
 | **Multi-Partner Solutions** | High | Low | Relevant only to a reseller model. `partner-onboarding` already covers the solution-partner pieces that matter. |
-| **Payments Brazil / rest-of-world** | High | None today | India-only. `.kiro/steering/whatsapp-payments-india-reference.md` fixes INR, MCC 7392, purpose code 03. |
+| **Payments Brazil / rest-of-world** | High | None today | India-only. `.kiro/steering/whatsapp-payments-india-reference.md` (retired 2026-10-09, af7858fa) fixes INR, MCC 7392, purpose code 03. |
 | **Business Compliance Information API** | Low | Medium | India-relevant. Worth a look ahead of the others in this tier. |
 | **Business Encryption API** | Low | Low | Relevant to on-premises; this is Cloud API. |
 | **Health status / API status reads** | Low | Low-Medium | Would let the dashboard distinguish a Meta incident from a local fault, which is operationally useful during an outage. |
@@ -1586,7 +1586,7 @@ Changelog · Error codes ·
 
 ### A9.4 Repo documents consulted
 
-- `.kiro/steering/whatsapp-payments-india-reference.md`, `secret-handling.md`,
+- `.kiro/steering/whatsapp-payments-india-reference.md` (retired 2026-10-09, af7858fa), `secret-handling.md`,
   `lambda-snapstart-deploy.md`, `00-current-owner-overrides.md`, `01-standing-authorization.md`,
   `02-qa-recipient.md`, `blog-production-s3.md`, `aws-agent-rules.md`
 - `.agents/tasks/conversation-routing-20261006/{review.json,report.md}` — APPROVED, 9 blocking
@@ -1628,7 +1628,7 @@ Changelog · Error codes ·
 
 ### Could not be verified
 
-1. **Live AWS state was not re-measured.** Per `.kiro/steering/00-current-owner-overrides.md`,
+1. **Live AWS state was not re-measured.** Per `.kiro/steering/00-current-owner-overrides.md` (retired 2026-10-09, af7858fa),
    dated counts should be re-derived with `scripts/aws_account_inventory.py` before being
    relied on. The 65-function / 58-alias / 361-route figures quoted here come from the
    2026-09-26 snapshot in that steering file, not from a probe taken during this audit.

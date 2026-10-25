@@ -128,7 +128,7 @@ site, not `out/`.**
 | Item | Severity | Measured |
 |---|---|---|
 | **No `ap-south-1` EUM origination identity** | `MEDIUM` | `describe-phone-numbers` in `ap-south-1` returns **empty**; `us-east-1` has `+18444891209` (TOLL_FREE) and `+14255556333` (SIMULATOR). India SMS depends on DLT plus sender registration — verify before relying on India SMS as an OTP fallback |
-| **`.kiro/steering/whatsapp-payments-india-reference.md` is 0 bytes** | `LOW` | Injected into every session as an empty rule. Either write it or delete it; an empty steering file is worse than none because it reads as coverage |
+| **`.kiro/steering/whatsapp-payments-india-reference.md` (retired 2026-10-09, af7858fa) is 0 bytes** | `LOW` | Injected into every session as an empty rule. Either write it or delete it; an empty steering file is worse than none because it reads as coverage |
 | No CSP on the public site | `MEDIUM` | `wecare.digital` returns HSTS, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` — and no `Content-Security-Policy` |
 | 6 retired-provider CloudFormation stacks | `LOW` | `wecare-elevenlabs-{init,mcp,mcp-enable,call-hooks,postcall-sms}` and `wecare-temp-code-inspector`, all 2026-09-19. Retirement candidates; deletion needs pointwise confirmation |
 | 8 stale `chatgpt/*` Amplify branches | `LOW` | Auto-build disabled on all 8; `stack` is the only PRODUCTION branch |
@@ -148,7 +148,7 @@ aws sts get-caller-identity                   # must report 775261844268
 
 Note the blog post count moves: 571 at the first probe, 575 an hour later. The endpoint is
 live and content is being added, so treat every count here as a timestamp rather than a
-constant — which is what `.kiro/steering/00-current-owner-overrides.md` requires anyway.
+constant — which is what `.kiro/steering/00-current-owner-overrides.md` (retired 2026-10-09, af7858fa) requires anyway.
 
 The WAF associations, SES state, EUM phone numbers and CloudFormation stacks were read with
 plain `boto3` `List*`/`Get*`/`Describe*` calls under profile `wecare-prod`. The Google key

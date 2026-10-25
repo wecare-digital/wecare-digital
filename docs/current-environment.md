@@ -41,7 +41,7 @@ Same vocabulary as `docs/compatibility.md`, deliberately, so the two can be read
 | `REPO` | asserted by this repository's code or docs; dated, not re-measured |
 | `BLOCKED` | could not be established, with the blocker named |
 
-Per `.kiro/steering/00-current-owner-overrides.md`, every count below is a **dated
+Per `.kiro/steering/00-current-owner-overrides.md` (retired 2026-10-09, af7858fa), every count below is a **dated
 snapshot**. Re-derive at the start of each phase using §9; do not carry these numbers
 forward on trust.
 
@@ -85,7 +85,7 @@ every service asked of it.
 | CloudFormation | `us-east-1` | no stacks in a live state | n/a | n/a | infrastructure is Amplify Gen 2 + scripts, not CFN stacks |
 
 Two `⚠️` corrections to the owner-overrides snapshot in
-`.kiro/steering/00-current-owner-overrides.md`, which is exactly why that file says to
+`.kiro/steering/00-current-owner-overrides.md` (retired 2026-10-09, af7858fa), which is exactly why that file says to
 rediscover: **routes are 361, not 332** (still 0 authorizers, still all `NONE`), and
 **regional WebACLs are 1, not 0**.
 
@@ -255,7 +255,7 @@ not on the suppression list. What is missing is application-side: there is no em
 code path, and the one SES client in the repo is classic v1 with no configuration set.
 
 The domain runs **fail-closed** email (`DMARC p=reject; sp=reject`, MTA-STS `enforce`).
-Read `.kiro/steering/email-auth-dns.md` before touching MX or adding a sender: under
+Read `.kiro/steering/email-auth-dns.md` (retired 2026-10-09, af7858fa) before touching MX or adding a sender: under
 `p=reject` an unaligned message hard-bounces rather than landing in spam.
 
 ---
@@ -294,7 +294,7 @@ Four distinct defects, each against a specific clause of the brief:
    `{latitude, longitude, name, address}`.
 
 Also noted, not recommended: `_get_gmaps_key()` calls `secretsmanager.get_secret_value`
-directly, which `.kiro/steering/aws-agent-rules.md` forbids, and logs `str(e)` on failure,
+directly, which `.kiro/steering/aws-agent-rules.md` (retired; now .kiro/steering/00-common.md) forbids, and logs `str(e)` on failure,
 which is looser than the secret-handling rule. Both are **pre-existing**, recorded here as
 inventory, not as a pattern to copy.
 
@@ -319,7 +319,7 @@ and no Lambda, route, secret or table for one.
 
 ## 8. Gaps
 
-Severity per `.kiro/steering/maintenance-reporting.md`. Not inflated: several brief clauses
+Severity per `.kiro/steering/maintenance-reporting.md` (retired 2026-10-09, af7858fa). Not inflated: several brief clauses
 turned out to be already satisfied, and they are recorded as such.
 
 | # | Gap | Sev | Current | Desired | Auto-fixable |

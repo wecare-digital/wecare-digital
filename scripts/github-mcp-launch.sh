@@ -3,7 +3,7 @@
 #
 # Why a wrapper instead of an `env` block in mcp.json:
 #   the server authenticates with GITHUB_PERSONAL_ACCESS_TOKEN, and
-#   .kiro/steering/secret-handling.md forbids a credential appearing in a
+#   .kiro/steering/secret-handling.md (retired; now .kiro/steering/00-common.md) forbids a credential appearing in a
 #   command, in argv, in an environment assignment on a command line, or in a
 #   log line. This script resolves the token from gh's keyring entry at process
 #   start via command substitution, so the value is never a literal on disk,

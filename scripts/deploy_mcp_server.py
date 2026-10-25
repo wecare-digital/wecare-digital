@@ -224,7 +224,7 @@ def deploy_lambda(zip_bytes: bytes) -> str:
     Publishing is NOT optional here. The API integration points at the alias, so
     `update_function_code` alone moves `$LATEST` and production keeps serving the old
     code while the deploy reports success - the failure mode
-    .kiro/steering/lambda-snapstart-deploy.md exists to prevent, and the reason
+    .kiro/steering/lambda-snapstart-deploy.md (retired 2026-10-09, af7858fa) exists to prevent, and the reason
     provision_live_alias.py refuses to create an alias for a function whose deploy path
     cannot move it.
     """
@@ -361,7 +361,7 @@ def ensure_route_throttle(api) -> None:
     """Cap /mcp on its own so it cannot spend the stage's shared allowance.
 
     UpdateStage MERGES RouteSettings, it does not replace them - measured here, and it is
-    the opposite of the `update-user-pool` behaviour `.kiro/steering/aws-agent-rules.md`
+    the opposite of the `update-user-pool` behaviour `.kiro/steering/aws-agent-rules.md` (retired; now .kiro/steering/00-common.md)
     warns about. Worth writing down because the steering's rule of thumb is to treat every
     AWS "update" as a replace until proven otherwise, and this is a proven exception.
 

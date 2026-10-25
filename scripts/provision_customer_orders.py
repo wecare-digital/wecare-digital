@@ -56,7 +56,7 @@ change.
 
 NO CREDENTIAL IS READ, WRITTEN OR NAMED. This function reads no secret: there is no Secrets
 Manager statement in the role, and nothing here resolves one. Per
-.kiro/steering/secret-handling.md no credential value is ever placed on a command line or a log
+.kiro/steering/secret-handling.md (retired; now .kiro/steering/00-common.md) no credential value is ever placed on a command line or a log
 line, and this script has none to place.
 
 `config/lambda-env-manifest.json` is updated AFTER the first successful deploy, not here: it is a

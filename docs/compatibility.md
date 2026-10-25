@@ -5,7 +5,7 @@ Measured against account `775261844268` / `us-east-1` on **2026-09-26**.
 
 Two things this document refuses to do: report a documented-but-unmeasured fact as
 verified, and carry a number forward without saying how it was obtained. Per
-`.kiro/steering/00-current-owner-overrides.md` the counts below are a dated snapshot and
+`.kiro/steering/00-current-owner-overrides.md` (retired 2026-10-09, af7858fa) the counts below are a dated snapshot and
 must be rediscovered at the start of each phase, not trusted.
 
 ## Evidence classes
@@ -26,7 +26,7 @@ must be rediscovered at the start of each phase, not trusted.
 | Node.js 26 | not used | preview only | `DOC` | ➖ correctly excluded |
 | HTTP APIs | 1 — `zllr9lrg7j` (`wecare-digital-api`) | n/a | `LIVE` `get-apis` | ⚠️ drift: owner-overrides snapshot said 2 |
 | IaC | Amplify Gen 2 (`@aws-amplify/backend ^1.23.0`) + CDK escape hatches, `aws-cdk-lib` pinned `2.270.0` | n/a | `REPO` | ✅ |
-| Deploy path | `scripts/deploy_all_lambdas.py` → publish version → move `live` alias | n/a | `REPO` `.kiro/steering/lambda-snapstart-deploy.md` | ✅ |
+| Deploy path | `scripts/deploy_all_lambdas.py` → publish version → move `live` alias | n/a | `REPO` `.kiro/steering/lambda-snapstart-deploy.md` (retired 2026-10-09, af7858fa) | ✅ |
 | SnapStart | `ApplyOn=None` on all functions | n/a | `REPO` measured 2026-09-19 | ✅ off by design |
 
 **Consequence for the architecture.** The prompt's `nodejs24.x` + CDK v2 + TypeScript
@@ -67,7 +67,7 @@ is simply unable to pay, so nothing may send an `order_details` message until it
 which is owner-administrative work in WhatsApp Manager, not something application code may do.
 
 Two more names survive from before the 2026-08-23 rebuild, in
-`.kiro/steering/META-BETA-REQUEST-EMAIL.md`: `WECARE-RAZOR-PAY` (WABA1) and
+`.kiro/steering/META-BETA-REQUEST-EMAIL.md` (retired 2026-10-09, af7858fa): `WECARE-RAZOR-PAY` (WABA1) and
 `Razorpay_ManishAgarwal` (WABA2). Four configuration names across three files; none at Meta.
 
 ### ⚠️ Correction, 2026-09-30 — the Razorpay MID and UPI VPA both conflict

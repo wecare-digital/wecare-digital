@@ -249,7 +249,7 @@ curl -sS -o /dev/null -w '%{http_code}\n' https://wecare.digital/mcp
 
 ## Related
 
-- `.kiro/steering/lambda-snapstart-deploy.md` — why a code change is not live until the
+- `.kiro/steering/lambda-snapstart-deploy.md` (retired 2026-10-09, af7858fa) — why a code change is not live until the
   `live` alias moves. `deploy_mcp_server.py` publishes and moves it itself.
 - `amplify/functions/core/site-language/handler.py` — the cost threat model for an
   unauthenticated route, written out at length.

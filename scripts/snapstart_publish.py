@@ -8,7 +8,7 @@ The HTTP API integrations invoke the **`live` alias**
 ``update-function-code`` alone does not reach production: it only rewrites
 ``$LATEST``. A new version must be published and the alias moved.
 
-``.kiro/steering/lambda-snapstart-deploy.md`` documents this and states that
+``.kiro/steering/lambda-snapstart-deploy.md`` (retired 2026-10-09, af7858fa) documents this and states that
 this file automates step 2. The PowerShell deploy scripts that used to call it
 were deleted on 2026-09-20; ``scripts/deploy_all_lambdas.py`` calls it now.
 
@@ -125,7 +125,7 @@ def publish_and_move(lam, name: str, dry_run: bool, only_stale: bool) -> str:
 
     # A function with no `live` alias is not a failure - it is a documented
     # deployment model. Nine functions invoke $LATEST directly (see
-    # .kiro/steering/lambda-snapstart-deploy.md), so update_function_code already
+    # .kiro/steering/lambda-snapstart-deploy.md (retired 2026-10-09, af7858fa)), so update_function_code already
     # reached production and there is no alias to move. Reporting these as failed
     # meant every fleet deploy ended "failed=7" for reasons unrelated to the
     # deploy, which trains everyone to ignore the number that matters.

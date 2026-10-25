@@ -14,7 +14,7 @@ decision needs, and it covers a fixed set of secrets.
 
 This script prints `field: present|absent` and nothing else. The value is read
 inside this process, compared against nothing, and discarded. Per
-`.kiro/steering/secret-handling.md` the secret is passed **by reference** - the
+`.kiro/steering/secret-handling.md` (retired; now .kiro/steering/00-common.md) the secret is passed **by reference** - the
 secret id is an argument, the value never is.
 
 Usage

@@ -11,7 +11,7 @@ string* is written to::
 
 That is how the 2026-09-19 leak happened. The credential did not arrive via a
 config file or a commit - it arrived as a permission rule. See
-``.kiro/steering/secret-handling.md``.
+``.kiro/steering/secret-handling.md`` (retired; now .kiro/steering/00-common.md).
 
 ``scripts/block_inline_secrets.py`` stops new ones being created. This script
 removes the ones already there.
