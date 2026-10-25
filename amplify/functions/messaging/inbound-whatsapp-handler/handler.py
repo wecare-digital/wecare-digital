@@ -2396,25 +2396,10 @@ def _process_message(
             'requestId': request_id
         }))
         
-        # Fire-and-forget: record ad attribution for analytics
-        try:
-            lambda_client.invoke(
-                FunctionName=os.environ.get('AD_ATTRIBUTION_FUNCTION', 'wecare-ad-attribution'),
-                InvocationType='Event',  # async
-                Payload=json.dumps({
-                    'requestContext': {'http': {'method': 'POST', 'path': '/ad-attribution'}},
-                    'body': json.dumps({
-                        'phone': sender_phone,
-                        'contactId': contact_id,
-                        'referral': referral,
-                        'wabaId': meta_waba_ids[0] if meta_waba_ids else '',
-                        'phoneNumberId': aws_phone_number_id,
-                        'whatsappMessageId': whatsapp_message_id,
-                    }),
-                }),
-            )
-        except Exception as e:
-            logger.warning(f'Ad attribution invoke failed (non-blocking): {e}')
+        # The referral stays on the message record and the click id in `capi_clid_*` above. The
+        # fire-and-forget invoke of `wecare-ad-attribution` that followed went with that function
+        # (retired 2026-10-24, 8709d5fdd): every ad click posted the customer's number to a
+        # function that no longer existed.
     
     # Capture message context (reply-to, forwarded)
     msg_context = message.get('context')

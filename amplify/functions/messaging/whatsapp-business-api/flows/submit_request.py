@@ -4,19 +4,34 @@ Collects: order, request type, subject, description.
 Saves submission, creates invoice, sends payment link + confirmation.
 """
 import json
+import os
 import uuid
 import logging
 from typing import Dict
 
+import boto3
+from botocore.config import Config
+from botocore.exceptions import ClientError, ConnectTimeoutError, EndpointConnectionError
+
 from flows.common import (
-    lambda_client, PHONE1_ID,
+    PHONE1_ID,
     get_phone_from_token, get_phone_number_id_for_flow,
     find_contact_by_phone, get_contact_name,
     record_completion, send_payment, send_confirmation,
     save_draft, restore_draft, clear_draft,
 )
+from lambda_utils.flow_launch import parse_bool
 
 logger = logging.getLogger(__name__)
+
+#: The post-submit work runs on this function's own published alias. It used to name
+#: `lambda_client._endpoint.host.split('/')[-1]`, the regional endpoint
+#: (`lambda.us-east-1.amazonaws.com`), never a function, so every invoke failed and the
+#: synchronous fallback ran inside Meta's data_exchange request.
+SELF_FUNCTION = f"{os.environ.get('AWS_LAMBDA_FUNCTION_NAME', 'wecare-whatsapp-business-api')}:live"
+#: One attempt only: a retried Event invoke can queue the post-submit work twice.
+_post_submit_client = boto3.client('lambda', region_name=os.environ.get('AWS_REGION', 'us-east-1'),
+                                   config=Config(retries={'total_max_attempts': 1}))
 
 # ── Flow config (defaults — overridden by FlowRegistry at runtime) ──
 FLOW_CODE = '01.WD_SR'
@@ -113,21 +128,17 @@ def handle_review(data: Dict, flow_token: str, request_id: str,
     description = data.get('description', '')
     request_type = data.get('request_type', '')
 
-    # Payment config from FlowRegistry — NOT hardcoded
-    # Fallback: if FlowRegistry has no config, check client-side payload flags
+    # Payment comes only from the PUBLISHED FlowRegistry row (`_get_flow_registry_by_code`).
+    # The REVIEW screen's own `payment_required`/`service_fee_amount` used to switch payment on
+    # and set the amount when the registry had no row: a price supplied by the customer's
+    # client. Paid requests are pay-first now (`paidsr:` tokens, flows/paid_submit_request.py).
     cfg = flow_config or {}
-    requires_payment = bool(cfg.get('requiresPayment', DEFAULT_REQUIRES_PAYMENT))
-    payment_amount = int(cfg.get('paymentAmount', DEFAULT_PAYMENT_AMOUNT)) if requires_payment else 0
-
-    # Client-side fallback: REVIEW screen sends payment_required + service_fee_amount
-    # This ensures payment works even if FlowRegistry is not yet seeded
-    if not requires_payment and data.get('payment_required') == 'true':
-        requires_payment = True
-        try:
-            client_fee = int(data.get('service_fee_amount', '0'))
-            payment_amount = client_fee * 100 if client_fee > 0 else 0  # convert rupees to paise
-        except (ValueError, TypeError):
-            payment_amount = 0
+    requires_payment = parse_bool(cfg.get('requiresPayment', DEFAULT_REQUIRES_PAYMENT))
+    try:
+        payment_amount = (int(cfg.get('paymentAmount') or DEFAULT_PAYMENT_AMOUNT)
+                          if requires_payment else 0)
+    except (TypeError, ValueError):
+        payment_amount = 0  # an unreadable registry amount charges nothing
 
     flow_name = cfg.get('flowName', FLOW_NAME)
     prefix = cfg.get('submissionPrefix', SUBMISSION_PREFIX)
@@ -136,6 +147,8 @@ def handle_review(data: Dict, flow_token: str, request_id: str,
         'event': 'sr_review_submit', 'order_id': order_id,
         'subjectLength': len(subject or ''),
         'requiresPayment': requires_payment, 'paymentAmount': payment_amount,
+        # Diagnostic only: the screen's own payment flag is never acted on.
+        'clientPaymentFlag': data.get('payment_required') == 'true',
         'phoneNumberId': phone_number_id, 'requestId': request_id,
     }))
 
@@ -205,9 +218,12 @@ def handle_review(data: Dict, flow_token: str, request_id: str,
         pass
 
     # ── Payment + confirmation (async) ──
+    # Handed to this function's `live` alias so THANK_YOU returns inside Meta's data_exchange
+    # budget. Both branches act on the values computed above and reach the same invoice-engine
+    # gates, and the invoice and payment request are deduplicated by `payment_ref_id`.
     try:
-        lambda_client.invoke(
-            FunctionName=lambda_client._endpoint.host.split('/')[-1] if hasattr(lambda_client, '_endpoint') else 'wecare-whatsapp-business-api',
+        _post_submit_client.invoke(
+            FunctionName=SELF_FUNCTION,
             InvocationType='Event',
             Payload=json.dumps({
                 '_async_action': 'flow_post_submit',
@@ -221,26 +237,36 @@ def handle_review(data: Dict, flow_token: str, request_id: str,
                 'flow_code': cfg.get('flowCode', FLOW_CODE),
             })
         )
-    except Exception as e:
-        logger.error(f'Async post-submit invoke failed: {e}')
-        # Fallback: sync
-        try:
-            invoice_number = ''
-            if requires_payment and payment_amount:
-                invoice_number = send_payment(
-                    phone=phone, phone_number_id=phone_number_id,
-                    order_id=order_id, subject=subject, request_id=request_id,
-                    request_number=request_number, payment_ref_id=payment_ref_id,
-                    payment_amount_paise=payment_amount, flow_name=flow_name,
-                )
-            send_confirmation(
-                phone=phone, phone_number_id=phone_number_id, request_id=request_id,
-                flow_name=flow_name, request_number=request_number,
-                requires_payment=requires_payment, payment_amount=payment_amount,
-                payment_ref_id=payment_ref_id, invoice_number=invoice_number,
-                order_id=order_id, subject=subject,
+        return response_payload
+    except (ClientError, EndpointConnectionError, ConnectTimeoutError) as e:
+        # Refused, or never connected: nothing was queued, so the work runs here instead.
+        logger.error(json.dumps({'event': 'sr_post_submit_invoke_failed',
+                                 'error': type(e).__name__, 'requestId': request_id}))
+    except Exception as e:  # noqa: BLE001 - e.g. a read timeout, after which it may be queued
+        # Running the fallback now could confirm (and invoice) twice; leave it to the queue.
+        logger.error(json.dumps({'event': 'sr_post_submit_invoke_uncertain',
+                                 'error': type(e).__name__, 'requestId': request_id}))
+        return response_payload
+
+    # Synchronous fallback, only when the hand-off provably did not happen.
+    try:
+        invoice_number = ''
+        if requires_payment and payment_amount:
+            invoice_number = send_payment(
+                phone=phone, phone_number_id=phone_number_id,
+                order_id=order_id, subject=subject, request_id=request_id,
+                request_number=request_number, payment_ref_id=payment_ref_id,
+                payment_amount_paise=payment_amount, flow_name=flow_name,
             )
-        except Exception as e2:
-            logger.error(f'Sync fallback failed: {e2}')
+        send_confirmation(
+            phone=phone, phone_number_id=phone_number_id, request_id=request_id,
+            flow_name=flow_name, request_number=request_number,
+            requires_payment=requires_payment, payment_amount=payment_amount,
+            payment_ref_id=payment_ref_id, invoice_number=invoice_number,
+            order_id=order_id, subject=subject,
+        )
+    except Exception as e2:  # noqa: BLE001 - the customer already has THANK_YOU
+        logger.error(json.dumps({'event': 'sr_post_submit_fallback_failed',
+                                 'error': type(e2).__name__, 'requestId': request_id}))
 
     return response_payload

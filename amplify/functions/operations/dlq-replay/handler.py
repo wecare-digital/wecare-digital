@@ -33,7 +33,10 @@ lambda_client = boto3.client('lambda', region_name=os.environ.get('AWS_REGION', 
 DLQ_MESSAGES_TABLE = os.environ.get('DLQ_MESSAGES_TABLE', 'stack-wecare-digital-DLQMessagesTable')
 # Live configuration names this queue `DLQ_URL`; reading only `INBOUND_DLQ_URL` left it ''.
 INBOUND_DLQ_URL = wa_internal_event.inbound_dlq_url()
-BULK_DLQ_URL = os.environ.get('BULK_DLQ_URL', '')
+#: `stack-wecare-digital-bulk-queue` redrives a job chunk here after three failed receives.
+#: Nothing sets `BULK_DLQ_URL` live, so replay answered "Queue URL not configured" for it.
+BULK_DLQ_DEFAULT_URL = 'https://sqs.us-east-1.amazonaws.com/775261844268/stack-wecare-digital-bulk-dlq'
+BULK_DLQ_URL = os.environ.get('BULK_DLQ_URL') or BULK_DLQ_DEFAULT_URL
 
 # Constants
 MAX_RETRIES = 5  # Requirement 9.7
@@ -378,6 +381,14 @@ def _replay_message(queue_name: str, message_body: Dict, request_id: str) -> boo
         )
         
         result = json.loads(response['Payload'].read())
+        if response.get('FunctionError'):
+            return False
+        if queue_name == 'bulk-dlq':
+            # bulk-worker answers a direct invoke with the job outcome, not an HTTP response:
+            # {'jobId', 'status', ...} or {'error': ...}. Reading `statusCode` counted every
+            # replay as failed, re-ran the job on each retry and dropped it after MAX_RETRIES.
+            return (isinstance(result, dict) and 'error' not in result
+                    and bool(result.get('status')))
         status_code = result.get('statusCode', 500)
         
         return status_code in [200, 201]
