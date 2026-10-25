@@ -52,7 +52,15 @@ account takeover. AWS's own guidance is to have **zero** root access keys.
 
 ---
 
-## Plan S — IAM Identity Center profile (prepared 2026-10-25, recommended)
+## Plan S — IAM Identity Center profile (steps 1–3 done 2026-10-25, recommended)
+
+**Status 2026-10-25 08:25:29 UTC:** `wecare-prod` resolves to
+`assumed-role/AWSReservedSSO_AdministratorAccess_39eb59d8bf7f2071/wecare-user` for both the
+CLI and boto3 (`method: sso`). Under the SSO role, the account inventory and cost model
+passed; `check_live_provider_independence.py` produced the same check outcomes as under root
+(its one FAIL, `lambda-env`, is an existing finding); `remediate_commerce_keys_iam.py` plan mode
+was COMPLIANT; and the `wecare-invoice-engine` v111 / `wecare-checkout` v121 hotfix was
+published with it. `docs/operations.md` is updated. Step 4 (the root key) remains.
 
 Nothing has to be created in AWS and no new key is issued. Verified live 2026-10-25:
 the organization instance `ssoins-72233d266e9d7140` (access portal
@@ -81,10 +89,12 @@ and `[profile wecare-sso]` (`AdministratorAccess` on `775261844268`).
    fallback. Rollback: delete those three lines from `[profile wecare-prod]`. Do not use
    `aws configure set sso-session.<name>.<key>`: it writes a stray key into the active
    profile instead of the session section.
-4. Plan A Steps 4–5: deactivate the root key, soak, delete. When it is deactivated, also
-   remove the `[wecare-prod]` keys from `~/.aws/credentials` (some SDKs prefer static keys
-   over SSO settings), and update `docs/operations.md`, which still says not to use
-   `aws sso login`.
+4. 🔒 Plan A Steps 4–5: deactivate the root key (`AKIA…PONC`), soak, delete. Before
+   deactivating, confirm in CloudTrail (`lookup-events` on that `AccessKeyId`) that nothing has
+   used it since the cutover; a process started earlier keeps the key it loaded until it
+   restarts, and Kiro's AWS MCP server is one such process. When it is deactivated, also remove
+   the `[wecare-prod]` keys from `~/.aws/credentials` (some SDKs prefer static keys over SSO
+   settings).
 
 Trade-off: when the Identity Center sign-in session ends (8 hours by default; settable from
 15 minutes to 90 days under IAM Identity Center → Settings → Authentication), every AWS call
@@ -205,10 +215,12 @@ to leak. That is a larger change and can follow Plan C.
 
 ## Verification checklist (owner signs off)
 
-- [ ] `wecare-prod` → `get-caller-identity` shows the Identity Center role (Plan S) or an
-      IAM user (Plan A/B), not `:root`.
-- [ ] All three read-only audit scripts pass under `AWS_PROFILE=wecare-prod`.
-- [ ] One write-path script resolves (dry-run) under the new principal.
+- [x] `wecare-prod` → `get-caller-identity` shows the Identity Center role (Plan S) or an
+      IAM user (Plan A/B), not `:root`. (2026-10-25, Plan S)
+- [x] All three read-only audit scripts pass under `AWS_PROFILE=wecare-prod`. (2026-10-25;
+      provider-independence matches its root run, including the existing `lambda-env` FAIL)
+- [x] One write-path script resolves (dry-run) under the new principal. (2026-10-25:
+      `remediate_commerce_keys_iam.py` plan mode COMPLIANT; a real Lambda publish also ran)
 - [ ] Root key soaked ≥24h **inactive** with no CloudTrail `AccessDenied`.
 - [ ] `AccountAccessKeysPresent = 0`.
 - [ ] Root login still has MFA (`AccountMFAEnabled = 1`).

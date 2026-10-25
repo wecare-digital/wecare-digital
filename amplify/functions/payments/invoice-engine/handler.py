@@ -5596,7 +5596,11 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
         'toNumber': to_phone,
         'waMessageId': wa_message_id,
         'status': wa_status,
-        'imageUrl': image_url,
+        # The key, never the presigned URL. That URL is a 24-hour bearer grant to a customer's
+        # invoice, so a stored copy is a disclosure while it lives and a dead link after; the
+        # asset row follows the same rule. The caller still gets a fresh URL in the response.
+        'imageUrl': '',
+        'imageS3Key': s3_key,
         'phoneNumberId': phone_number_id,
         'contactId': contact_id,
         'error': '' if wa_status != 'failed' else 'WhatsApp send failed',

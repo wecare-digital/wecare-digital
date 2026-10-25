@@ -14,7 +14,7 @@ does not restate them.
 | Thing | Value |
 |---|---|
 | Account / region | `775261844268` / `us-east-1` |
-| Profile | `AWS_PROFILE=wecare-prod`, long-term key from `~/.aws/credentials` |
+| Profile | `AWS_PROFILE=wecare-prod` → IAM Identity Center role `AdministratorAccess` (sso-session `wecare`), since 2026-10-25 |
 | API | `zllr9lrg7j`, stage `prod`, `AutoDeploy=true`, access logging on, base `https://wecare.digital/api` |
 | Hosting | Amplify `d22dm4b0jn71jw`, repo `wecare-digital/wecare-digital`, 23 custom rules |
 | Branch | `stack` — the only long-lived branch; there is no `main` |
@@ -24,10 +24,12 @@ does not restate them.
 | Email sender | `one@wecare.digital`, SES config set `wecare-digital` |
 | Google project | `wecaredigitalbw` (`756034744787`) |
 
-Do not use `aws login` or `aws sso login`. `[default]` in `~/.aws/config` is bound to a
-browser session that expires roughly every 12 hours and then blocks every AWS call;
-`AWS_PROFILE` exists to override it. Verify with `aws sts get-caller-identity` — it must
-report `775261844268`.
+`wecare-prod` signs in through IAM Identity Center (`[sso-session wecare]` in
+`~/.aws/config`), not a stored key. When that sign-in session ends, every AWS call fails with
+an SSO token error until the owner runs `aws sso login --sso-session wecare` again; an agent
+cannot complete that browser step, so it stops and reports it. Do not use `aws login`: it signs
+in with root console credentials. Verify with `aws sts get-caller-identity` — it must report an
+`AWSReservedSSO_AdministratorAccess_…` role in `775261844268`, never `:root`.
 
 ## Daily checks
 
