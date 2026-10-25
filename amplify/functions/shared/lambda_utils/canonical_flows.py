@@ -122,6 +122,25 @@ CANONICAL_CONTRACTS = {
         # FlowSubmission flowCode used by F001 rows written before the canonical code.
         'legacyFlowCodes': ('WD_SUBSCRIBE',),
     },
+    'leave_review': {
+        'flowNumber': 'F002',
+        'flowCode': 'WD-F002-LEAVE-REVIEW',
+        'label': 'Leave Review',
+        'flowType': 'customer_idea',
+        'entryMode': 'keyword_interactive',
+        'entryTemplateName': '',
+        'requiresPayment': False,
+        'submissionPrefix': 'WD-IDEA',
+        'wabaId': '2094615664435155',
+        'tokenPrefix': 'leave_review',
+        'defaultKeywords': (
+            'leave review', 'leave a review', 'review', 'reviews', 'feedback',
+            'leave feedback', 'give feedback', 'share feedback', 'rate', 'rate us',
+            'rate service', 'rating', 'ratings', 'testimonial', 'write a review',
+            'give a review', 'share your experience', 'how was it', '⭐ leave review',
+        ),
+        'legacyFlowCodes': ('WD_IDEA', 'WD_REV'),
+    },
 }
 
 
