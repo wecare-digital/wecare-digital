@@ -56,6 +56,14 @@ from lambda_utils.ecommerce import order_keys, wa_payment_request
 # SEPARATE lifecycle from the payment's money state — this is what the merchant did (shipped,
 # completed), not what the money did. One home for the rules `send_order_status` validates.
 from lambda_utils.ecommerce import wa_order_status
+# Order-bound review tokens for the paid-invoice template's FLOW button. `send_invoice_whatsapp`
+# is the only minter/binder: it records REVIEWTOKEN#<token> -> {invoiceId, orderId, referenceId,
+# contactId, customerUuid} on CommerceKeys so a review can be tied to the order it was about.
+from lambda_utils.ecommerce import review_token
+# The single home for the WhatsApp template names this platform sends. The payment and invoice
+# template defaults below come from here so a readiness check, a release audit and a send all
+# read one value; the env keys stay the same (the shared module reads them too).
+from lambda_utils import whatsapp_templates
 # The one, always-on discount: Delight (0.5% up to ₹50), a fixed owner policy computed standalone.
 # There is no coupon system and no gift-card system any more — this handler asks `default_coupon`
 # for the one figure and writes it onto the invoice like any other line. Nothing here reads a
@@ -143,8 +151,8 @@ COMMERCE_KEYS_TABLE = shared_tables.commerce_keys_table_name()
 #: so a pre-flight checks the same string the send uses - a gate that checks a different string
 #: from the one the send uses can pass while the send fails - and so the value can change without
 #: a code deploy if Meta's template registration ever needs it to.
-WA_PAY_TEMPLATE = os.environ.get('WA_PAY_TEMPLATE', 'wecare_whatapp_native_pay_template')
-WA_INVOICE_TEMPLATE = os.environ.get('WA_INVOICE_TEMPLATE', 'wecare_default_invoice_image_template')
+WA_PAY_TEMPLATE = os.environ.get('WA_PAY_TEMPLATE', whatsapp_templates.PAY.name)
+WA_INVOICE_TEMPLATE = os.environ.get('WA_INVOICE_TEMPLATE', whatsapp_templates.INVOICE.name)
 
 #: The Meta payment configuration this deployment can PROVE, compared against a live Meta read.
 #:
@@ -483,7 +491,12 @@ def _current_fy() -> str:
 
 def _format_invoice_number(prefix: str, fy: str, seq: int) -> str:
     """`WD/2627/00001` - the one place the GST number's shape is written."""
-    fy_short = fy.replace('20', '').replace('-', '')
+    # Take the two-digit tail of EACH year in a `YYYY-YYYY` FY, so `2026-2027` -> `2627`. The
+    # old `fy.replace('20', '')` stripped the literal `20` wherever it appeared, which turned
+    # `2020-2021` into `21` and `2000-2001` into `0001` - a different, invalid number for a
+    # perfectly valid FY. Same output as before for every FY whose years both start `20`.
+    start, _, end = fy.partition('-')
+    fy_short = f"{start[-2:]}{end[-2:]}" if end else start[-2:]
     return f"{prefix}/{fy_short}/{seq:05d}"
 
 
@@ -1627,9 +1640,15 @@ def create_invoice_from_payment(body: Dict, request_id: str) -> Dict:
     if not payment_id:
         return _resp(400, {'error': 'paymentId required'})
 
-    # Fetch payment record (full pagination to avoid DynamoDB Limit bug)
+    # Fetch the payment record by `paymentId`. The GSI `paymentId-index` is keyed on `paymentId`
+    # (HASH, no range key), so a single Query reads exactly the matching rows instead of scanning
+    # the whole table for one id. The old full-table scan is kept ONLY as a fallback for the one
+    # deployment that cannot yet Query the index: `wecare-checkout:live` runs this same engine and
+    # its role is granted the Query separately (amplify/infra/checkout.json). On AccessDenied we
+    # fall back and warn; any other failure is a real lookup failure and is surfaced.
     payments_table = dynamodb.Table(PAYMENTS_TABLE)
-    try:
+
+    def _scan_for_payment() -> list:
         items = []
         scan_kwargs = {
             'FilterExpression': boto3.dynamodb.conditions.Attr('paymentId').eq(payment_id),
@@ -1640,6 +1659,27 @@ def create_invoice_from_payment(body: Dict, request_id: str) -> Dict:
             if items or 'LastEvaluatedKey' not in result:
                 break
             scan_kwargs['ExclusiveStartKey'] = result['LastEvaluatedKey']
+        return items
+
+    try:
+        try:
+            items = payments_table.query(
+                IndexName='paymentId-index',
+                KeyConditionExpression=boto3.dynamodb.conditions.Key('paymentId').eq(payment_id),
+            ).get('Items', [])
+        except Exception as query_error:  # noqa: BLE001 - classified immediately below
+            code = (getattr(query_error, 'response', {}) or {}).get(
+                'Error', {}).get('Code')
+            if code != 'AccessDeniedException':
+                raise
+            # This caller's role cannot Query the index yet. Fall back to the scan rather than
+            # failing a paid customer's invoice, and WARN so the missing grant is visible.
+            logger.warning(json.dumps({
+                'event': 'payment_lookup_index_access_denied_fallback_scan',
+                'paymentId': payment_id, 'index': 'paymentId-index',
+                'requestId': request_id,
+            }))
+            items = _scan_for_payment()
         if not items:
             return _resp(404, {'error': f'Payment {payment_id} not found'})
         payment = items[0]
@@ -4055,6 +4095,45 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
     })
 
 
+# ─── Shared: the REAL order id, and whether the payment was an ORDER_DETAILS payment ───
+#: The checkout modes whose payment carried a Meta `order_details` reference, so an order_status
+#: fulfilment update can be sent back on that reference. Website Razorpay orders
+#: (`WEBSITE_RAZORPAY_STANDARD`) have no ORDER_DETAILS reference on Meta and cannot receive one.
+_ORDER_DETAILS_CHECKOUT_MODES = frozenset({
+    wa_payment_request.WA_NATIVE_CHECKOUT_MODE,       # WHATSAPP_NATIVE_PG
+    wa_payment_request.WA_NATIVE_CART_CHECKOUT_MODE,  # WHATSAPP_NATIVE_CART
+    'AWS_NATIVE',
+})
+
+
+def _resolve_order_id(invoice: Dict, keys_table: Any, request_id: str) -> str:
+    """The REAL Order id for an invoice, via the commerce claim, else `invoice.orderId`.
+
+    The order only exists after the webhook reconciled the capture, and it is bound to the
+    payment attempt, not to the invoice. Resolve PAYREF#<referenceId> -> paymentAttemptId ->
+    the order claim's `orderIdRef`, and fall back to the invoice's own `orderId` when no claim
+    is on record (a website order, or a claim not yet written). A storage error falls back the
+    same way rather than failing the caller - this resolves an identifier, it does not gate.
+    """
+    fallback = str(invoice.get('orderId') or '').strip()
+    reference_id = str(invoice.get('referenceId') or '').strip()
+    if not reference_id:
+        return fallback
+    try:
+        payref = order_keys.resolve_payment_reference(keys_table, reference_id)
+        attempt_id = str((payref or {}).get('paymentAttemptId') or '').strip()
+        claim = order_keys.resolve_order_for_payment(keys_table, attempt_id) if attempt_id else None
+        resolved = str((claim or {}).get('orderIdRef') or '').strip()
+        return resolved or fallback
+    except order_keys.OrderIdentityUnavailable:
+        logger.warning(json.dumps({
+            'event': 'order_id_resolve_unavailable',
+            'invoiceId': str(invoice.get('invoiceId') or ''),
+            'requestId': request_id,
+        }))
+        return fallback
+
+
 # ─── Send Order Status (fulfilment lifecycle) ───
 
 def send_order_status(invoice_id: str, target_status: str, description: str,
@@ -4073,8 +4152,10 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
         and `canceled` on a paid order is Meta error 2047 — the unpaid-cancel path is
         `cancel_invoice`, never this one.
       * the target must be a staff-drivable fulfilment status (`wa_order_status.STAFF_FULFILMENT_TARGETS`).
-      * the transition from the invoice's current `orderStatus` (defaulting to `processing`,
-        which capture set) to the target must be legal.
+      * the payment must have been an ORDER_DETAILS payment (native checkout mode); a website
+        Razorpay order has no Meta order to update and is refused with ORDER_STATUS_NOT_APPLICABLE.
+      * the transition from the status Meta last accepted (`waOrderStatus`, defaulting to
+        `pending`) to the target must be legal, so `processing` can be sent exactly once.
       * the sender must be a permitted payment WABA, reusing the one allowlist the payment path
         uses, so a status update cannot leave from a number the order was never sent from.
     """
@@ -4121,10 +4202,31 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
     if not reference_id:
         return _resp(400, {'error': 'No referenceId on invoice'})
 
-    # Capture sets the order to `processing` (razorpay-webhook), so an invoice with no recorded
-    # fulfilment status is treated as `processing` — the first forward step from there is legal.
-    current_status = wa_order_status.normalise(invoice.get('orderStatus', '')) \
-        or wa_order_status.PROCESSING
+    # order_status is only meaningful for a payment that carried a Meta `order_details`
+    # reference. A website Razorpay order (`WEBSITE_RAZORPAY_STANDARD`) has no such reference on
+    # Meta, so an order_status message for it would be refused on the wire - refuse it here with
+    # a named reason instead. The authority is the PAYREF# row's `checkoutMode`, by referenceId.
+    keys_table = dynamodb.Table(COMMERCE_KEYS_TABLE)
+    try:
+        payref = order_keys.resolve_payment_reference(keys_table, reference_id)
+    except order_keys.OrderIdentityUnavailable:
+        payref = None
+    checkout_mode = str((payref or {}).get('checkoutMode') or '').strip()
+    if checkout_mode not in _ORDER_DETAILS_CHECKOUT_MODES:
+        return _resp(409, {
+            'error': ('This order was not paid through a WhatsApp order_details payment, so it '
+                      'has no Meta order to update. Website orders are tracked under Orders.'),
+            'code': 'ORDER_STATUS_NOT_APPLICABLE',
+            'checkoutMode': checkout_mode,
+        })
+    # Two SEPARATE statuses. `waOrderStatus` is the last status META accepted (default
+    # `pending`, the state an order_details message opens in); `orderStatus` is this platform's
+    # projection. The transition is validated against `waOrderStatus`, so the first action after
+    # capture - `processing` - is legal exactly once (pending -> processing) rather than being
+    # blocked because `orderStatus` already read `processing`.
+    wa_current_status = wa_order_status.normalise(invoice.get('waOrderStatus', '')) \
+        or wa_order_status.PENDING
+    current_status = wa_current_status
     if current_status == target:
         return _resp(409, {
             'error': f'This order is already marked {target}.',
@@ -4173,6 +4275,46 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
         return _resp(502, {'error': 'Could not send the order status update.',
                            'code': 'ORDER_STATUS_SEND_FAILED'})
 
+    # outbound returns its own body as a JSON string. Parse it once: a 200 carries
+    # `orderStatusChannel` ('interactive' | 'template'); a 409 carries
+    # `error: ORDER_STATUS_DEFERRED` when the 24h window is closed and no template is approved.
+    wa_body = {}
+    raw_body = wa_result.get('body')
+    if isinstance(raw_body, str):
+        try:
+            wa_body = json.loads(raw_body)
+        except (ValueError, TypeError):
+            wa_body = {}
+    elif isinstance(raw_body, dict):
+        wa_body = raw_body
+    if wa_status_code == 409 and str(wa_body.get('error') or '') == 'ORDER_STATUS_DEFERRED':
+        # The window is closed and no approved ORDER_STATUS template exists. This is NOT a
+        # rejection of the transition - record the requested status as a PENDING send on the
+        # invoice so staff can see one is owed, and pass the deferral through as a 409.
+        now = int(time.time())
+        try:
+            table.update_item(
+                Key={'invoiceId': invoice_id},
+                UpdateExpression=('SET pendingOrderStatus = :ps, '
+                                  'pendingOrderStatusAt = :now, updatedAt = :now'),
+                ExpressionAttributeValues={':ps': target, ':now': now},
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.error(json.dumps({
+                'event': 'order_status_pending_writeback_failed', 'invoiceId': invoice_id,
+                'targetStatus': target, 'error': type(e).__name__, 'requestId': request_id,
+            }))
+        logger.info(json.dumps({
+            'event': 'order_status_deferred', 'invoiceId': invoice_id,
+            'targetStatus': target, 'requestId': request_id,
+        }))
+        return _resp(409, {
+            'error': str(wa_body.get('message') or 'The order status update was deferred.'),
+            'code': 'ORDER_STATUS_DEFERRED',
+            'invoiceId': invoice_id, 'referenceId': reference_id,
+            'pendingOrderStatus': target,
+        })
+
     if wa_status_code != 200:
         # Meta refused (e.g. 2046 bad transition, 2047 cancel-after-pay) or the send failed.
         # The order's recorded status is NOT advanced: the wire is the authority, and marking it
@@ -4184,14 +4326,19 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
         return _resp(502, {'error': 'WhatsApp did not accept the order status update.',
                            'code': 'ORDER_STATUS_REJECTED', 'waStatus': wa_status_code})
 
-    # The send succeeded, so record the new fulfilment status on the invoice row. `orderStatus`
-    # is NOT a financial field — it does not touch the issued-invoice immutability contract — so
-    # advancing it on a paid, issued invoice is correct.
+    # The send succeeded, so record the new fulfilment status on the invoice row. Keep
+    # `waOrderStatus` (what META accepted, the authority the next transition validates against)
+    # and `orderStatus` (this platform's projection) in step, and clear any `pendingOrderStatus`
+    # a prior deferral left behind. `orderStatus` is NOT a financial field, so advancing it on a
+    # paid, issued invoice does not touch the immutability contract.
+    channel = str(wa_body.get('orderStatusChannel') or '')
     now = int(time.time())
     try:
         table.update_item(
             Key={'invoiceId': invoice_id},
-            UpdateExpression='SET orderStatus = :os, orderStatusUpdatedAt = :now, updatedAt = :now',
+            UpdateExpression=('SET orderStatus = :os, waOrderStatus = :os, '
+                              'orderStatusUpdatedAt = :now, updatedAt = :now '
+                              'REMOVE pendingOrderStatus, pendingOrderStatusAt'),
             ExpressionAttributeValues={':os': target, ':now': now},
         )
     except Exception as e:  # noqa: BLE001
@@ -4203,26 +4350,32 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
         }))
 
     # OrderTable is the customer-facing canonical order projection. Advance it only AFTER Meta
-    # accepted the same transition, alongside the invoice projection, so /orders/ and Pay Flow
-    # cannot disagree about fulfilment state.
-    order_id = str(invoice.get('orderId') or '').strip()
+    # accepted the same transition. The REAL order id lives on the commerce claim, not on the
+    # invoice (which may carry a stale or empty `orderId`); resolve it and make the write
+    # conditional on the order row existing, so a resolved-but-absent id cannot CREATE an order.
+    order_id = _resolve_order_id(invoice, keys_table, request_id)
     if order_id:
         try:
             dynamodb.Table(shared_tables.orders_table_name()).update_item(
                 Key={'orderId': order_id},
                 UpdateExpression='SET #st = :os, orderStatus = :os, updatedAt = :now',
+                ConditionExpression='attribute_exists(orderId)',
                 ExpressionAttributeNames={'#st': 'status'},
                 ExpressionAttributeValues={':os': target, ':now': now},
             )
         except Exception as e:  # noqa: BLE001
-            logger.error(json.dumps({
-                'event': 'order_status_order_projection_failed',
-                'invoiceId': invoice_id,
-                'orderId': order_id,
-                'targetStatus': target,
-                'error': type(e).__name__,
-                'requestId': request_id,
-            }))
+            # A missing order row (ConditionalCheckFailed) is not an error on this path: the
+            # invoice projection already advanced, and a website order has no OrderTable row to
+            # move. Any other failure is logged for repair, same as before.
+            if not order_keys.is_conditional_failure(e):
+                logger.error(json.dumps({
+                    'event': 'order_status_order_projection_failed',
+                    'invoiceId': invoice_id,
+                    'orderId': order_id,
+                    'targetStatus': target,
+                    'error': type(e).__name__,
+                    'requestId': request_id,
+                }))
     else:
         logger.error(json.dumps({
             'event': 'order_status_order_projection_missing',
@@ -4237,8 +4390,7 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
             'timestamp': now,
             'channel': 'whatsapp_order_status',
             'toNumber': customer_phone,
-            'waMessageId': str((wa_result.get('body') and json.loads(wa_result['body']).get(
-                'whatsappMessageId')) or '') if isinstance(wa_result.get('body'), str) else '',
+            'waMessageId': str(wa_body.get('whatsappMessageId') or ''),
             'status': target,
             'imageUrl': '',
             'phoneNumberId': phone_number_id,
@@ -4250,10 +4402,12 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
 
     logger.info(json.dumps({
         'event': 'order_status_sent', 'invoiceId': invoice_id, 'referenceId': reference_id,
-        'fromStatus': current_status, 'toStatus': target, 'requestId': request_id,
+        'fromStatus': current_status, 'toStatus': target, 'channel': channel,
+        'requestId': request_id,
     }))
     return _resp(200, {'invoiceId': invoice_id, 'referenceId': reference_id,
-                       'orderStatus': target, 'previousStatus': current_status,
+                       'orderStatus': target, 'waOrderStatus': target,
+                       'previousStatus': current_status, 'channel': channel,
                        'status': 'order_status_sent'})
 
 
@@ -5470,11 +5624,32 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
     # legacy /generate-pdf route fails closed with INVOICE_IMAGE_ONLY.
     asset_type = 'image'
     assets_table = dynamodb.Table(INVOICE_ASSETS_TABLE)
+    # Send the NEWEST rendered image, not the base `image` row. A re-render after issue writes a
+    # new `image#v<n>` row and leaves `image` pointing at the document of record (see
+    # `_asset_target`); the customer must receive the latest rendition, so pick the highest
+    # version and fall back to the base row. The base row counts as version 1.
     try:
-        asset_resp = assets_table.get_item(Key={'invoiceId': invoice_id, 'assetType': asset_type})
-        asset = asset_resp.get('Item')
+        asset_rows = assets_table.query(
+            KeyConditionExpression=boto3.dynamodb.conditions.Key('invoiceId').eq(invoice_id)
+        ).get('Items', [])
     except Exception:
-        asset = None
+        asset_rows = []
+    asset = None
+    best_version = 0
+    _version_prefix = f'{asset_type}{_ASSET_VERSION_SEPARATOR}'
+    for row in asset_rows:
+        stored = str(row.get('assetType', '') or '')
+        if not row.get('s3Key'):
+            continue
+        if stored == asset_type:
+            version = 1
+        elif stored.startswith(_version_prefix) and stored[len(_version_prefix):].isdigit():
+            version = int(stored[len(_version_prefix):])
+        else:
+            continue
+        if version > best_version:
+            best_version = version
+            asset = row
 
     if not asset or not asset.get('s3Key'):
         # Generate image first
@@ -5545,6 +5720,25 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
     if not phone_number_id:
         phone_number_id = wa_payment_request.PHONE_NUMBER_ID_1
 
+    # ── the order-bound review token ──
+    #
+    # The template's FLOW button (index 0) opens "Leave Review", and Meta echoes the button's
+    # `flow_token` back on completion. Mint an opaque token and bind it to the invoice and the
+    # REAL order (resolved via the commerce claim, not the raw invoice.orderId), so a review can
+    # be tied to the order it was about. A bind failure is logged and the GST invoice is still
+    # sent with the token - a review link is never worth a lost statutory invoice.
+    review_flow_token = review_token.mint()
+    resolved_order_id = _resolve_order_id(invoice, keys_table, request_id)
+    try:
+        review_token.bind(
+            keys_table, token=review_flow_token, invoice_id=invoice_id,
+            order_id=resolved_order_id, reference_id=reference_id, contact_id=contact_id,
+            customer_uuid=str(invoice.get(customer_uuid.ATTRIBUTE) or ''))
+    except order_keys.OrderIdentityUnavailable:
+        logger.warning(json.dumps({
+            'event': 'review_token_bind_failed', 'invoiceId': invoice_id,
+            'requestId': request_id,
+        }))
     # TEMPLATE-ONLY invoice/payment confirmation. The live approved template carries the
     # generated paid-invoice PNG in its IMAGE header and a required FLOW button ("Leave Review")
     # at button index 0. Meta rejects this template with 131009 when that component is omitted.
@@ -5559,7 +5753,7 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
             'templateParams': [],
             'templateHeaderMedia': s3_key,
             'templateHeaderType': 'image',
-            'templateFlowButton': {'index': 0},
+            'templateFlowButton': {'index': 0, 'flowToken': review_flow_token},
         })
     }
 

@@ -54,6 +54,9 @@ REFERENCE_ID_MAX_LENGTH = order_keys.META_REFERENCE_ID_MAX_LENGTH
 # the two sets equal, so the import direction is established practice.
 from lambda_utils import payment_readiness
 from lambda_utils.ecommerce import wa_payment_request, business_identity, checkout_pricing
+# The one home for approved template names/languages. Reading PAY/ORDER_STATUS from here means
+# the gate, the sender and the registry cannot name different templates; env overrides still win.
+from lambda_utils import whatsapp_templates
 # The one discount: the fixed "Delight" policy. Imported for its CANONICAL label only — this
 # handler never computes the figure, it only labels the amount the authoritative checkout already
 # computed server-side. `DELIGHT_CODE`/`DISPLAY_LABEL` are the single source for the code the
@@ -511,7 +514,7 @@ _REMOVED_PAYMENT_REQUEST_KEYS = ('isPaymentTemplate', 'isInteractivePayment')
 #: cannot become a second payment rail even if Meta later approves one. Env-read with the same
 #: key and default as the invoice engine (`WA_PAY_TEMPLATE`), so the two cannot name different
 #: templates without the boundary refusing every payment.
-WA_PAY_TEMPLATE = os.environ.get('WA_PAY_TEMPLATE', 'wecare_whatapp_native_pay_template')
+WA_PAY_TEMPLATE = whatsapp_templates.PAY.name
 WA_PAY_TEMPLATE_LANGUAGE = 'en'
 WA_PAY_TEMPLATE_NOT_PERMITTED = 'WA_PAY_TEMPLATE_NOT_PERMITTED'
 #: The only settlement currency and the only goods types Meta accepts for an India
@@ -534,10 +537,12 @@ _NOT_READY_MESSAGE = 'WhatsApp payment is not ready. Nothing has been charged.'
 #: surface as META_UNAVAILABLE - the hardest state on this path to tell from a real outage.
 _PAYMENT_READ_FUNCTION = 'wecare-whatsapp-business-api:live'
 
-#: Single approved Meta Order Status template used for every fulfilment update.
-#: There is no service-window alternative: processing/shipped/completed always use this template.
-WA_ORDER_STATUS_TEMPLATE = 'wecare_order_status_v2'
-WA_ORDER_STATUS_TEMPLATE_LANGUAGE = 'en'
+#: The approved Meta Order Status template, used for a fulfilment update sent OUTSIDE the 24-hour
+#: customer-service window. Inside the window the interactive `order_status` message is sent
+#: instead and needs no template (see `_handle_order_status_send`). Name/language come from the
+#: shared registry so the gate and the sender read one value; the registry preserves env override.
+WA_ORDER_STATUS_TEMPLATE = whatsapp_templates.ORDER_STATUS.name
+WA_ORDER_STATUS_TEMPLATE_LANGUAGE = whatsapp_templates.ORDER_STATUS.language
 
 
 #: Refusal codes this gate owns. Deliberately NOT added to
@@ -1414,14 +1419,21 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             else:
                 return _outside_window_refusal(contact_id, bool(contact), request_id)
         
+        # ── Order-status channel selection ──────────────────────────────────
+        # Inside the 24-hour window a fulfilment update goes out as the interactive
+        # `order_status` message and needs no template. Outside the window only the
+        # approved ORDER_STATUS template may carry it. When the window is closed AND no
+        # template is approved there is no legal channel, so defer and send nothing.
+        # `within_window` is the value computed above for this send (open iff the contact
+        # has a fresh enough `lastInboundMessageAt`; fails closed with no contact record).
         order_status_template_name = ''
-        if is_order_status:
+        if is_order_status and not within_window:
             order_status_template_name = _approved_order_status_template(
                 phone_number_id, request_id)
             if not order_status_template_name:
                 return _error_response(
-                    409, 'ORDER_STATUS_TEMPLATE_NOT_READY',
-                    'The approved order status template is not ready. Nothing was sent.')
+                    409, 'ORDER_STATUS_DEFERRED',
+                    'This order update cannot be delivered right now. Nothing was sent.')
 
         # Requirement 5.4: Validate text length (skip for reactions)
         if not is_reaction and content and len(content) > MAX_TEXT_LENGTH:
@@ -1485,6 +1497,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 order_status_details, request_id,
                 recipient_bsuid=recipient_bsuid,
                 template_name=order_status_template_name,
+                within_window=within_window,
             )
         
         # Handle interactive messages (list, buttons, location request)
@@ -1697,8 +1710,18 @@ def _handle_order_status_send(message_id: str, contact_id: str, recipient_phone:
                                phone_number_id: str, order_status_details: Dict,
                                request_id: str,
                                recipient_bsuid: Optional[str] = None,
-                               template_name: str = '') -> Dict[str, Any]:
-    """Send one approved ORDER_STATUS template; business semantics live in wa_order_status."""
+                               template_name: str = '',
+                               within_window: bool = False) -> Dict[str, Any]:
+    """Send one Meta order_status fulfilment update; business semantics live in wa_order_status.
+
+    Two channels carry the SAME fulfilment update and the choice is the service window, decided
+    by the caller: INSIDE the 24-hour customer-service window it is the free-form interactive
+    `order_status` message (no template, no approval needed); OUTSIDE the window it is the
+    approved ORDER_STATUS template. The caller only passes a `template_name` when the window is
+    closed and the template read back APPROVED, and already returned 409 ORDER_STATUS_DEFERRED
+    when the window is closed and no template is approved — so a closed window with no template
+    never reaches here. Storage, metrics and BSUID handling are identical on both channels.
+    """
     try:
         from lambda_utils.ecommerce import wa_order_status as _wa_os
 
@@ -1713,64 +1736,83 @@ def _handle_order_status_send(message_id: str, contact_id: str, recipient_phone:
             'event': 'order_status_details_received',
             'referenceId': reference_id,
             'orderStatus': order_status,
+            'withinWindow': within_window,
             'requestId': request_id,
         }))
 
         # Normalize phone number
         formatted_phone = _normalize_phone_number(recipient_phone)
         whatsapp_phone = f"+{formatted_phone}"
-        
-        # Build the single template-based order_status message.
-        if not template_name:
-            return _error_response(
-                409, 'ORDER_STATUS_TEMPLATE_NOT_READY',
-                'The approved order status template is not ready. Nothing was sent.')
-        order_status_component = _wa_os.build_template_component(
-            reference_id, order_status, description)
-        order_status_payload = {
-            'messaging_product': 'whatsapp',
-            'recipient_type': 'individual',
-            'to': whatsapp_phone,
-            'type': 'template',
-            'template': {
-                'name': template_name,
-                'language': {
-                    'policy': 'deterministic',
-                    'code': WA_ORDER_STATUS_TEMPLATE_LANGUAGE,
+
+        # Pick the channel. Inside the window: interactive, no template. Outside the window: the
+        # approved template, which the caller has already read back as APPROVED. A closed window
+        # with no template was deferred before this function ran, but guard it anyway so the
+        # function never silently sends on the wrong channel.
+        if within_window:
+            channel = 'interactive'
+            interactive_object = _wa_os.build_interactive_payload(
+                reference_id, order_status, body_text=description)
+            order_status_payload = {
+                'messaging_product': 'whatsapp',
+                'recipient_type': 'individual',
+                'to': whatsapp_phone,
+                'type': 'interactive',
+                'interactive': interactive_object,
+            }
+        else:
+            channel = 'template'
+            if not template_name:
+                return _error_response(
+                    409, 'ORDER_STATUS_DEFERRED',
+                    'This order update cannot be delivered right now. Nothing was sent.')
+            order_status_component = _wa_os.build_template_component(
+                reference_id, order_status, description)
+            order_status_payload = {
+                'messaging_product': 'whatsapp',
+                'recipient_type': 'individual',
+                'to': whatsapp_phone,
+                'type': 'template',
+                'template': {
+                    'name': template_name,
+                    'language': {
+                        'policy': 'deterministic',
+                        'code': WA_ORDER_STATUS_TEMPLATE_LANGUAGE,
+                    },
+                    'components': [order_status_component],
                 },
-                'components': [order_status_component],
-            },
-        }
+            }
+        is_template_send = channel == 'template'
+
         # Add BSUID recipient if available (per Meta BSUID docs)
         if recipient_bsuid:
             order_status_payload['recipient'] = recipient_bsuid
-        
+
         logger.info(json.dumps({
             'event': 'order_status_payload',
             'to': mask_phone(whatsapp_phone),
             'referenceId': reference_id,
             'orderStatus': order_status,
+            'channel': channel,
             'payloadKeys': sorted(order_status_payload.keys()),
             'requestId': request_id
         }))
-        
+
         # Call SendWhatsAppMessage API (Direct API)
         response = _send_message(phone_number_id, order_status_payload)
-        
         whatsapp_message_id = response.get('messageId', '')
-        
+
         # Store message record
         _store_message_record(
             message_id=message_id,
             contact_id=contact_id,
             content=f'Order Status: {order_status} - {description}',
             status=WA_INITIAL_STATUS,
-            is_template=bool(template_name),
+            is_template=is_template_send,
             whatsapp_message_id=whatsapp_message_id,
             phone_number_id=phone_number_id,
             recipient_bsuid=recipient_bsuid,
         )
-        
+
         logger.info(json.dumps({
             'event': 'order_status_sent',
             'messageId': message_id,
@@ -1778,12 +1820,13 @@ def _handle_order_status_send(message_id: str, contact_id: str, recipient_phone:
             'contactId': mask_contact_id(contact_id),
             'referenceId': reference_id,
             'orderStatus': order_status,
+            'channel': channel,
             'requestId': request_id
         }))
-        
+
         # Emit success metric
-        _emit_delivery_metric('success', is_template=bool(template_name))
-        
+        _emit_delivery_metric('success', is_template=is_template_send)
+
         return {
             'statusCode': 200,
             'headers': cors_headers(origin),
@@ -1794,20 +1837,22 @@ def _handle_order_status_send(message_id: str, contact_id: str, recipient_phone:
                 'mode': 'LIVE',
                 'type': 'order_status',
                 'referenceId': reference_id,
-                'orderStatus': order_status
+                'orderStatus': order_status,
+                'orderStatusChannel': channel
             })
         }
-        
+
     except Exception as e:
         error_msg = str(e)
         logger.error(json.dumps({
             'event': 'order_status_send_error',
             'messageId': message_id,
             'referenceId': order_status_details.get('reference_id', ''),
+            'withinWindow': within_window,
             'error': error_msg,
             'requestId': request_id
         }))
-        _emit_delivery_metric('failed', is_template=bool(template_name))
+        _emit_delivery_metric('failed', is_template=not within_window)
         return _error_response(500, f'Failed to send order status: {error_msg}')
 
 
@@ -3888,10 +3933,17 @@ def _build_message_payload(recipient_phone: str, content: str, media_type: Optio
                     'hasActionData': bool(_fb_data),
                 }))
             except Exception as _fbe:
-                logger.warning(json.dumps({
+                # Fail closed. A template that declares a FLOW button is rejected by Meta
+                # (131008/131009) when the button component is missing, so swallowing the
+                # build error used to send a template that could never deliver. Refuse the
+                # send here instead: the raise propagates to `_handle_live_send`, which turns
+                # it into an `_error_response` and sends nothing. No PII in the message.
+                logger.error(json.dumps({
                     'event': 'template_flow_button_error',
                     'error': str(_fbe), 'templateName': template_name,
                 }))
+                raise ValueError(
+                    'flow button component could not be built; send refused') from _fbe
 
         logger.info(json.dumps({
             'event': 'template_payload_built',

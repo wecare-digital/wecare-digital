@@ -212,13 +212,15 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # Direct Lambda invokes require IAM. HTTP payloads cannot enter this recovery arm:
     # API Gateway/Function URLs always supply an envelope, and body JSON is never unwrapped.
     if event.get('internalAction') in ('recoverPaidInvoiceOrder', 'reconcileCustomerOrderLinks',
-                                              'redriveQuarantinedCapture'):
+                                              'redriveQuarantinedCapture', 'sweepStaleAttempts'):
         if any(key in event for key in ('requestContext', 'rawPath', 'path', 'httpMethod',
                                         'headers', 'body', 'Records')):
             return _response(403, {'error': 'Internal invocation required'})
         if event['internalAction'] == 'redriveQuarantinedCapture':
             return _redrive_quarantined_capture(
                 str(event.get('referenceId') or ''), str(event.get('paymentId') or ''), request_id)
+        if event['internalAction'] == 'sweepStaleAttempts':
+            return {'sweep': _sweep_stale_attempts(request_id)}
         from lambda_utils import shared_tables
         from lambda_utils.ecommerce import customer_order_link, paid_invoice_order
         if event['internalAction'] == 'reconcileCustomerOrderLinks':
@@ -231,7 +233,18 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             # different incidents, so age is emitted beside count. Best-effort: a metrics failure
             # must not fail the reconciliation it is reporting on.
             _emit_reconciliation_metrics(metrics, request_id)
-            return {'linkedOrders': metrics['promoted'], **metrics}
+            # Ride the same 5-minute schedule with the stale-attempt safety net so a dropped
+            # Razorpay webhook is still recovered without a second EventBridge rule. A sweep
+            # failure must never fail the link reconcile it rides on, and `_sweep_stale_attempts`
+            # never raises - but guard here too so this contract is local and obvious.
+            sweep = {}
+            try:
+                sweep = _sweep_stale_attempts(request_id)
+            except Exception as sweep_error:  # noqa: BLE001 - sweep must not fail reconcile
+                logger.error(json.dumps({'event': 'scheduled_sweep_error',
+                                         'error': type(sweep_error).__name__,
+                                         'requestId': request_id}))
+            return {'linkedOrders': metrics['promoted'], 'sweep': sweep, **metrics}
         return paid_invoice_order.materialize(
             invoices=dynamodb.Table(INVOICES_TABLE),
             items=dynamodb.Table(shared_tables.invoice_items_table_name()),
@@ -602,7 +615,7 @@ def _create_order_for_captured_payment(payment: Dict, reference_id: str,
     """
     try:
         from lambda_utils.ecommerce import (order_channel, order_creation, order_keys,
-                                            wa_payment_request)
+                                            wa_payment_request, website_checkout)
         from lambda_utils.identity import customer_uuid
         from lambda_utils.integrations import meta_payment_binding, razorpay_verify
 
@@ -735,8 +748,19 @@ def _create_order_for_captured_payment(payment: Dict, reference_id: str,
         # no-op, never an evidence conflict.
         native_invoice = (attribution.get('checkoutMode')
                           == wa_payment_request.WA_NATIVE_CHECKOUT_MODE)
+        # Website Standard Checkout is finalized here too. Its order row is normally written by
+        # the browser verify/status path (`checkout._finalize` -> `finalization.accept_paid`), but
+        # a capture whose browser never returned (closed tab, lost network) would otherwise leave
+        # a numbered order identity with no Order row until a human intervened. `accept_paid`'s
+        # `put_item` is conditional with an explicit field-agreement check, and `checkout._finalize`
+        # is documented as safe to re-enter from both verify and status for exactly this reason, so
+        # running it again from the webhook converges on the SAME single order rather than writing a
+        # second one. `website_checkout.verify_callback` only VERIFIES - it writes no order itself -
+        # so there is no conflicting writer; the sole writer of the order record is `accept_paid`,
+        # reached from either path through the same idempotent conditional put.
         native_cart = (attribution.get('checkoutMode')
-                       in (wa_payment_request.WA_NATIVE_CART_CHECKOUT_MODE, 'AWS_NATIVE'))
+                       in (wa_payment_request.WA_NATIVE_CART_CHECKOUT_MODE, 'AWS_NATIVE',
+                           website_checkout.CHECKOUT_MODE_WEBSITE))
         if native_invoice and outcome.has_order:
             if (outcome.outcome == order_creation.ORDER_CREATED
                     and outcome.verified_captured_paise > 0
@@ -1496,10 +1520,27 @@ def _notification_recipient(reference_id: str, provider_contact: str) -> str:
         # row from the Cognito-verified session phone - never the Razorpay event body. The
         # engine's own recipient check (`send_invoice_whatsapp`) still refuses delivery unless
         # the created invoice names the same customer.
-        from lambda_utils.ecommerce import wa_payment_request
+        from lambda_utils.ecommerce import wa_payment_request, website_checkout
         if reference.get('checkoutMode') in (wa_payment_request.WA_NATIVE_CART_CHECKOUT_MODE,
                                              'AWS_NATIVE'):
             return str(reference.get('customerPhone') or '')
+        # Website Standard Checkout also authenticates the buyer through the same WhatsApp-OTP
+        # identity, and the proven phone is stored server-side on OUR rows: newer PAYREF# rows
+        # carry it directly, while older rows predating that write carry it only on the
+        # PaymentAttempt (read by the stored paymentAttemptId). Never the Razorpay payer contact.
+        # The engine's own recipient check still refuses delivery unless the created invoice names
+        # the same customer, so this only names a candidate; it never forces delivery.
+        if reference.get('checkoutMode') == website_checkout.CHECKOUT_MODE_WEBSITE:
+            billed = str(reference.get('customerPhone') or '')
+            if billed:
+                return billed
+            attempt_id = str(reference.get('paymentAttemptId') or '')
+            if attempt_id:
+                attempt = dynamodb.Table(PAYMENT_ATTEMPTS_TABLE).get_item(
+                    Key={'paymentAttemptId': attempt_id},
+                    ConsistentRead=True).get('Item') or {}
+                return str(attempt.get('customerPhone') or '')
+            return ''
         return ''
     except Exception as error:
         logger.warning(json.dumps({'event': 'payment_recipient_unavailable',
@@ -2497,7 +2538,7 @@ def _plain_number(value: Any) -> Any:
 
 def _native_cart_invoice_fields(reference_id: str, checkout_mode: str,
                                 request_id: str) -> Dict[str, Any]:
-    """The billed customer and quoted invoice lines for a native WhatsApp cart's paid invoice.
+    """The billed customer and quoted invoice lines for a native-cart OR website paid invoice.
 
     Both come from OUR rows: the `PAYREF#` reservation (the Cognito-verified phone checkout
     recorded, the same one `_notification_recipient` delivers to) and its PaymentAttempt's
@@ -2505,12 +2546,20 @@ def _native_cart_invoice_fields(reference_id: str, checkout_mode: str,
     another number, and an invoice addressed to it is refused delivery to the buyer - and the
     event's notes are request content.
 
+    Website Standard Checkout is included for the same reason as the native cart: the buyer is
+    proven through the same WhatsApp-OTP identity and checkout records the billed phone and the
+    quoted `invoiceLines` on OUR rows, so a capture whose browser never returned still bills the
+    verified buyer and itemises the basket rather than addressing the Razorpay payer as one line.
+    Older website rows predating those writes carry neither field, and the single-line fallback
+    below covers them.
+
     `{}` for every other checkout mode and on any read failure, so the invoice keeps its
     single-line fallback instead of failing a capture that has already settled.
     """
-    from lambda_utils.ecommerce import wa_payment_request
+    from lambda_utils.ecommerce import wa_payment_request, website_checkout
     if not reference_id or checkout_mode not in (wa_payment_request.WA_NATIVE_CART_CHECKOUT_MODE,
-                                                 'AWS_NATIVE'):
+                                                 'AWS_NATIVE',
+                                                 website_checkout.CHECKOUT_MODE_WEBSITE):
         return {}
     try:
         reference = order_keys.resolve_payment_reference(
@@ -2541,12 +2590,16 @@ def _post_payment_handler(payment_id: str, contact: str,
                           reference_id: str = '') -> None:
     """
     After payment captured (Razorpay webhook path):
-    This is the BACKUP path — WhatsApp inbound handler is the primary invoice generator.
-    1. Invoke invoice-engine to create invoice from payment (dedup will return existing if WhatsApp path already created it)
+    This is the authoritative invoice path for a verified capture. (It was once described as a
+    BACKUP to a WhatsApp inbound generator; that generator no longer mints the invoice, so the
+    label was stale.)
+    1. Invoke invoice-engine to create invoice from payment (dedup will return existing if another path already created it)
     2. Generate invoice image (POS receipt style)
-    3. Deliver the GST invoice IMAGE template on WhatsApp. This is the ONLY customer message a
-       capture produces: no ORDER_STATUS is sent here or by any caller on the capture path.
-    4. The invoice template itself exposes the Leave Review Flow button; no standalone review send
+    3. For a WhatsApp ORDER_DETAILS payment only, ask the engine for Meta order_status
+       `processing` (best-effort; never blocks the receipt).
+    4. Deliver the GST invoice IMAGE template on WhatsApp. Steps 3 and 4 are the ONLY customer
+       messages a capture produces: no confirmation text, no review template, no Flow message.
+       The invoice template itself exposes the Leave Review Flow button; no standalone review send
 
     `channel` is WHERE the order came from (`website` / `whatsapp`), read off the `PAYREF#` row by
     the reconciliation above. KEYWORD-ONLY and defaulted so the legacy callers that pass eight
@@ -2621,12 +2674,31 @@ def _post_payment_handler(payment_id: str, contact: str,
             'deduplicated': deduplicated, 'requestId': request_id,
         }))
     except Exception as e:
-        logger.error(json.dumps({'event': 'invoice_create_error', 'paymentId': payment_id, 'error': str(e), 'requestId': request_id}))
-        return
-
+        # A verified capture with no invoice is a money-moved-but-no-receipt incident. Record a
+        # durable quarantine and RAISE so the webhook lease lapses and Razorpay redelivers the
+        # capture; the invoice create is dedup-safe, so the retry cannot double-bill. Only the
+        # commerce path reaches this handler (an order was verified above), so there is always a
+        # reference/order behind the failure. `type(e).__name__` only - an exception message can
+        # echo request content.
+        order_keys.record_capture_quarantine(
+            dynamodb.Table(COMMERCE_KEYS_TABLE),
+            payment_id=payment_id, reference_id=reference_id,
+            outcome='INVOICE_CREATE_FAILED', extra={'error': type(e).__name__})
+        logger.error(json.dumps({'event': 'invoice_create_error', 'paymentId': payment_id,
+                                 'error': type(e).__name__, 'requestId': request_id,
+                                 'alert': 'INVOICE_CREATE_FAILED'}))
+        raise RuntimeError('invoice creation failed for a verified capture') from None
     if not invoice_id:
-        logger.error(json.dumps({'event': 'invoice_create_empty', 'paymentId': payment_id, 'response': str(inv_body), 'requestId': request_id}))
-        return
+        # Same incident as the exception above: the engine answered but named no invoice, so there
+        # is no receipt to deliver and no durable projection. Quarantine and raise so the capture
+        # is redelivered rather than silently dropped.
+        order_keys.record_capture_quarantine(
+            dynamodb.Table(COMMERCE_KEYS_TABLE),
+            payment_id=payment_id, reference_id=reference_id,
+            outcome='INVOICE_CREATE_FAILED', extra={'stage': 'EMPTY_INVOICE_ID'})
+        logger.error(json.dumps({'event': 'invoice_create_empty', 'paymentId': payment_id,
+                                 'requestId': request_id, 'alert': 'INVOICE_CREATE_FAILED'}))
+        raise RuntimeError('invoice creation returned no invoice id for a verified capture')
 
     # If deduplicated (WhatsApp path already created it), the receipt image already exists —
     # skip the render step only.
@@ -2644,6 +2716,22 @@ def _post_payment_handler(payment_id: str, contact: str,
                                 'paymentId': payment_id, 'invoiceId': invoice_id,
                                 'requestId': request_id}))
 
+    # ── Step 3b: fulfilment order_status 'processing', before delivery ──
+    #
+    # Only the native WhatsApp/AWS legs send this. It tells the invoice engine to push a
+    # fulfilment ORDER_STATUS update to the buyer so the capture is acknowledged as "processing"
+    # ahead of the statutory receipt. The website leg is excluded because Meta's order_status
+    # updates an ORDER_DETAILS message, and a website payment never had one: its fulfilment
+    # status is shown on /orders/ only.
+    #
+    # BEST-EFFORT: it never blocks delivery and never raises. A 409 ORDER_STATUS_UNCHANGED means a
+    # prior delivery already sent it (idempotent, not an error); the other 409s (DEFERRED window
+    # closed, NOT_APPLICABLE) are expected engine verdicts, logged without PII.
+    from lambda_utils.ecommerce import wa_payment_request
+    if checkout_mode in (wa_payment_request.WA_NATIVE_CHECKOUT_MODE,
+                         wa_payment_request.WA_NATIVE_CART_CHECKOUT_MODE, 'AWS_NATIVE'):
+        _send_order_status_processing(invoice_id, originating_phone_id, request_id)
+
     # ── Step 4: deliver the GST invoice to the customer's VERIFIED WhatsApp number ──
     #
     # UNIVERSAL FOR COMMERCE ORDERS: both Website and WhatsApp checkout authenticate the customer
@@ -2656,10 +2744,10 @@ def _post_payment_handler(payment_id: str, contact: str,
     # resolves empty unless existing server-owned invoice/reference evidence supplies it.
     #
     # It travels as the approved `wecare_default_invoice_image_template` (invoice PNG in its
-    # header), and it does not depend on any ORDER_STATUS message: none is sent on capture.
-    # Fulfilment status (processing / shipped / completed) is a separate, staff-driven workflow
-    # (`/invoices/{id}/order-status`); this template delivers the statutory receipt and its
-    # embedded Leave Review Flow button.
+    # header), and it does not depend on the step 3b order_status: the receipt goes out whether
+    # that update was sent, deferred or not applicable. Later fulfilment updates (shipped /
+    # completed) stay a staff-driven workflow (`/invoices/{id}/order-status`); this template
+    # delivers the statutory receipt and its embedded Leave Review Flow button.
     #
     # Delivery is retried by REPLAY: a miss raises so the webhook lease lapses and Razorpay
     # redelivers the capture, and the delivery CLAIM inside `send_invoice_whatsapp` makes the
@@ -2783,7 +2871,35 @@ def _deliver_invoice_on_whatsapp(invoice_id: str, contact: str, phone_number_id:
                 channel='whatsapp-dispatch', extra={'requestId': request_id}):
             previous = order_keys.resolve_invoice_delivery(table, invoice_id,
                                                             channel='whatsapp-dispatch') or {}
-            return previous.get('deliveryStatus') == order_keys.DELIVERY_CONFIRMED
+            if previous.get('deliveryStatus') == order_keys.DELIVERY_CONFIRMED:
+                return True
+            # Our own dispatch claim exists but is NOT confirmed. That is the ambiguous case: an
+            # earlier capture claimed delivery and either the engine really sent it (and our
+            # confirm write was lost) or it never did. Consult the ENGINE's own delivery claim,
+            # which `send_invoice_whatsapp` owns, to break the tie rather than re-sending blindly.
+            engine = order_keys.resolve_invoice_delivery(table, invoice_id,
+                                                         channel='whatsapp') or {}
+            engine_status = engine.get('deliveryStatus')
+            if engine_status == order_keys.DELIVERY_CONFIRMED:
+                # The engine delivered. Confirm OUR dispatch claim with the engine's waMessageId
+                # so a later pass short-circuits here, and report success - no re-send.
+                order_keys.confirm_invoice_delivery(table, invoice_id=invoice_id,
+                    channel='whatsapp-dispatch',
+                    wa_message_id=str(engine.get('waMessageId') or ''))
+                return True
+            if engine_status == order_keys.DELIVERY_CLAIMED:
+                # The engine holds its own in-flight claim: a send may be in progress. Re-sending
+                # now could double-deliver, so wait for a later pass rather than resolve it here.
+                return False
+            # The engine has no claim at all, so the stale dispatch claim is not backed by any
+            # send. Release it and retry the invoke ONCE on this pass.
+            order_keys.release_invoice_delivery(table, invoice_id=invoice_id,
+                                                channel='whatsapp-dispatch')
+            if not order_keys.claim_invoice_delivery(table, invoice_id=invoice_id,
+                    channel='whatsapp-dispatch', extra={'requestId': request_id}):
+                # Another concurrent pass re-claimed between the release and here. Treat it the
+                # same as a held claim: do not double-send.
+                return False
         response = lambda_client.invoke(
             FunctionName='wecare-checkout:live', InvocationType='RequestResponse',
             Payload=json.dumps({'rawPath': f'/invoices/{invoice_id}/send-whatsapp',
@@ -3124,6 +3240,227 @@ def _handle_invoice_event(event_type: str, event_data: Dict, request_id: str) ->
     logger.info(json.dumps({
         'event': event_type, 'razorpayInvoiceId': invoice_id, 'status': status, 'requestId': request_id,
     }))
+
+
+def _send_order_status_processing(invoice_id: str, phone_number_id: str,
+                                  request_id: str) -> None:
+    """Ask the invoice engine to send the buyer a fulfilment ORDER_STATUS of 'processing'.
+
+    BEST-EFFORT and native-only (the caller gates the checkout mode): it never blocks the
+    statutory receipt and never raises. The engine owns idempotency and the 24h messaging window:
+    a 200 reports the channel it used; a 409 ORDER_STATUS_UNCHANGED means a prior capture delivery
+    already sent it; ORDER_STATUS_DEFERRED (window closed, no approved template) and
+    ORDER_STATUS_NOT_APPLICABLE are expected verdicts. All outcomes are logged WITHOUT PII - only
+    the invoice id, the engine code and the request id.
+    """
+    if not invoice_id:
+        return
+    try:
+        response = lambda_client.invoke(
+            FunctionName='wecare-checkout:live', InvocationType='RequestResponse',
+            Payload=json.dumps({
+                'rawPath': f'/invoices/{invoice_id}/order-status',
+                'requestContext': {'http': {'method': 'POST'}},
+                'pathParameters': {'invoiceId': invoice_id},
+                'body': json.dumps({'invoiceId': invoice_id, 'orderStatus': 'processing',
+                                    'phoneNumberId': phone_number_id or WABA1_PHONE_ID})}))
+        if response.get('FunctionError'):
+            logger.warning(json.dumps({'event': 'order_status_processing_invoke_error',
+                                       'invoiceId': invoice_id, 'requestId': request_id}))
+            return
+        result = json.loads(response['Payload'].read())
+        status_code = int(result.get('statusCode') or 0)
+        body = result.get('body') or {}
+        if isinstance(body, str):
+            try:
+                body = json.loads(body)
+            except (TypeError, ValueError):
+                body = {}
+        code = str(body.get('code') or body.get('status') or '')
+        logger.info(json.dumps({'event': 'order_status_processing_result',
+                                'invoiceId': invoice_id, 'statusCode': status_code,
+                                'code': code, 'requestId': request_id}))
+    except Exception as error:  # noqa: BLE001 - fulfilment hint must not fail a settled capture
+        logger.warning(json.dumps({'event': 'order_status_processing_unavailable',
+                                   'invoiceId': invoice_id, 'error': type(error).__name__,
+                                   'requestId': request_id}))
+
+
+#: The stale-attempt sweep's bounds. A Razorpay webhook that never arrives (a provider delivery
+#: that was dropped before this function ever saw it) leaves an attempt stuck IN-FLIGHT with money
+#: possibly already captured at the gateway. The sweep is the safety net: it reconciles such
+#: attempts from the PROVIDER'S own API, never from any event body. Bounded so it cannot turn into
+#: a wide scan - a short window and a small page per status.
+_SWEEP_MIN_AGE_SECONDS = 120          # younger than this is still a live checkout; leave it alone
+_SWEEP_MAX_AGE_SECONDS = 24 * 60 * 60  # older than this is beyond the recovery horizon
+_SWEEP_PAGE_LIMIT = 25                 # per status, per run
+#: Wall-clock budget for one run. The function's timeout is 60 s and the sweep rides the same
+#: invocation as the customer-link reconcile, so it stops starting new provider lookups after this
+#: and leaves the rest for the next 5-minute run.
+_SWEEP_TIME_BUDGET_SECONDS = 30
+
+
+def _sweep_stale_attempts(request_id: str) -> Dict[str, Any]:
+    """Reconcile in-flight attempts whose Razorpay capture webhook never arrived.
+
+    Bounded, provider-authoritative, and NEVER raises out: a failure here must not fail the
+    schedule it rides on. For each candidate attempt (status in-flight, aged into the recovery
+    window) it asks the right PROVIDER for whether exactly one capture exists:
+
+      * website mode with a stored providerOrderId -> Razorpay `GET /orders/{id}/payments`
+        (`razorpay_verify.order_is_paid`).
+      * native modes -> Meta payment lookup by our reference id
+        (`meta_payment_binding.lookup_payment`), which returns the gateway order/payment ids.
+
+    When exactly one captured payment id is found it reconstructs a minimal payment ENTITY from
+    the AUTHENTICATED Razorpay readback (`payment_capture_details`: status, amount, currency,
+    order_id) and runs the normal `_handle_payment_captured({'payment': {'entity': entity}})`
+    path. That path re-resolves the reference from the stored provider binding (never the body)
+    and RE-VERIFIES against Razorpay through `_create_order_for_captured_payment` before any paid
+    state is written, so the reconstructed entity is a trigger, not trusted evidence. Attempts
+    already PAID/finalized are skipped. One summary line is emitted; metrics are best-effort.
+    """
+    from boto3.dynamodb.conditions import Key
+    from lambda_utils.ecommerce import payment_attempt, wa_payment_request, website_checkout
+    from lambda_utils.integrations import meta_payment_binding, razorpay_verify
+
+    now = int(time.time())
+    deadline = time.time() + _SWEEP_TIME_BUDGET_SECONDS
+    low = now - _SWEEP_MAX_AGE_SECONDS
+    high = now - _SWEEP_MIN_AGE_SECONDS
+    counts = {'scanned': 0, 'skipped_paid': 0, 'no_capture': 0, 'reconciled': 0,
+              'provider_unavailable': 0, 'errors': 0, 'deferred': 0}
+    keys_table = dynamodb.Table(COMMERCE_KEYS_TABLE)
+    # The invoice leg stays PAYMENT_READINESS_CHECKED after sending, so it is swept too.
+    statuses = (payment_attempt.PAYMENT_REQUEST_SENT, payment_attempt.PAYMENT_PENDING,
+                payment_attempt.PAYMENT_READINESS_CHECKED)
+    attempts_table = dynamodb.Table(PAYMENT_ATTEMPTS_TABLE)
+    try:
+        for status in statuses:
+            try:
+                page = attempts_table.query(
+                    IndexName='status-index',
+                    KeyConditionExpression=(Key('status').eq(status)
+                                            & Key('createdAt').between(low, high)),
+                    Limit=_SWEEP_PAGE_LIMIT)
+            except Exception as error:  # noqa: BLE001
+                counts['errors'] += 1
+                logger.warning(json.dumps({'event': 'sweep_status_query_failed',
+                                           'status': status, 'error': type(error).__name__,
+                                           'requestId': request_id}))
+                continue
+            for attempt in page.get('Items') or []:
+                if time.time() > deadline:
+                    # Out of budget: leave the remainder for the next scheduled run.
+                    counts['deferred'] += 1
+                    continue
+                counts['scanned'] += 1
+                # Skip anything that has since reached a terminal/paid state (a redelivery or the
+                # browser path may have settled it between the query and here).
+                if (str(attempt.get('status') or '') not in statuses
+                        or attempt.get('finalizationStage') == 'ORDER_FINALIZED'
+                        or attempt.get('paidAt')):
+                    counts['skipped_paid'] += 1
+                    continue
+                reference_id = str(attempt.get('referenceId') or '')
+                checkout_mode = str(attempt.get('checkoutMode') or '')
+                if not reference_id:
+                    continue
+                try:
+                    captured_payment_id = ''
+                    if checkout_mode == website_checkout.CHECKOUT_MODE_WEBSITE:
+                        provider_order_id = str(attempt.get('providerOrderId') or '')
+                        if not provider_order_id:
+                            continue
+                        paid, pay_id, _amount, _currency = razorpay_verify.order_is_paid(
+                            provider_order_id)
+                        if paid and pay_id:
+                            captured_payment_id = pay_id
+                    elif (checkout_mode in wa_payment_request.NATIVE_CHECKOUT_MODES
+                          or checkout_mode == 'AWS_NATIVE'):
+                        # The sender phone and configuration live on OUR `PAYREF#` row (the
+                        # binding's configuration source `_load_attempt` reads); cart and
+                        # catalog-service attempts do not copy `phoneId` onto the attempt.
+                        reference_row = order_keys.resolve_payment_reference(
+                            keys_table, reference_id) or {}
+                        found = meta_payment_binding.lookup_payment(
+                            reference_id=reference_id,
+                            phone_number_id=str(reference_row.get('phoneId')
+                                                or attempt.get('phoneId') or ''),
+                            config_name=str(reference_row.get('configurationName')
+                                            or attempt.get('configurationName') or ''))
+                        captured_payment_id = str(found.get('gatewayPaymentId') or '')
+                        if not captured_payment_id:
+                            # Meta reported a captured ORDER but no explicit payment id. Resolve
+                            # the single captured payment id from the Razorpay order so the normal
+                            # path can re-verify a payment entity.
+                            order_paid, pay_id, _a, _c = razorpay_verify.order_is_paid(
+                                str(found.get('gatewayOrderId') or ''))
+                            if order_paid and pay_id:
+                                captured_payment_id = pay_id
+                    else:
+                        continue
+
+                    if not captured_payment_id:
+                        counts['no_capture'] += 1
+                        continue
+
+                    # Reconstruct the minimal payment entity from the AUTHENTICATED readback and
+                    # run the normal captured path, which re-resolves the reference from the
+                    # stored provider binding and re-verifies before writing any paid state.
+                    captured, amount_paise, currency, provider_order_id = (
+                        razorpay_verify.payment_capture_details(captured_payment_id))
+                    if not captured:
+                        counts['no_capture'] += 1
+                        continue
+                    # `notes.referenceId` is OUR reference, read off our own attempt row. A native
+                    # attempt whose webhook never arrived has no stored gateway binding yet, so
+                    # without it the captured path could not find the attempt and would
+                    # quarantine the payment instead of binding it through the Meta lookup.
+                    entity = {'id': captured_payment_id, 'order_id': provider_order_id,
+                              'status': razorpay_verify.CAPTURED, 'amount': amount_paise,
+                              'currency': currency, 'notes': {'referenceId': reference_id}}
+                    _handle_payment_captured({'payment': {'entity': entity}}, request_id)
+                    counts['reconciled'] += 1
+                except razorpay_verify.RazorpayUnavailable:
+                    counts['provider_unavailable'] += 1
+                except meta_payment_binding.MetaBindingUnavailable:
+                    # Not a confirmation of payment; just nothing to reconcile from Meta.
+                    counts['no_capture'] += 1
+                except Exception as error:  # noqa: BLE001 - one attempt must not stop the sweep
+                    counts['errors'] += 1
+                    logger.warning(json.dumps({'event': 'sweep_attempt_failed',
+                                               'referenceId': reference_id,
+                                               'error': type(error).__name__,
+                                               'requestId': request_id}))
+    except Exception as error:  # noqa: BLE001 - the sweep itself must never raise
+        counts['errors'] += 1
+        logger.error(json.dumps({'event': 'sweep_stale_attempts_error',
+                                 'error': type(error).__name__, 'requestId': request_id}))
+    logger.info(json.dumps({'event': 'sweep_stale_attempts_complete',
+                            'requestId': request_id, **counts}))
+    _emit_sweep_metrics(counts, request_id)
+    return counts
+
+
+def _emit_sweep_metrics(counts: Dict[str, Any], request_id: str) -> None:
+    """Publish the stale-attempt sweep's health to CloudWatch. Best-effort, never raises."""
+    global _cloudwatch
+    try:
+        if _cloudwatch is None:
+            _cloudwatch = boto3.client(
+                'cloudwatch', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
+        _cloudwatch.put_metric_data(Namespace='WeCare/CustomerOrderLink', MetricData=[
+            {'MetricName': 'SweepScanned', 'Value': float(counts['scanned']), 'Unit': 'Count'},
+            {'MetricName': 'SweepReconciled', 'Value': float(counts['reconciled']),
+             'Unit': 'Count'},
+            {'MetricName': 'SweepProviderUnavailable',
+             'Value': float(counts['provider_unavailable']), 'Unit': 'Count'},
+            {'MetricName': 'SweepErrors', 'Value': float(counts['errors']), 'Unit': 'Count'},
+        ])
+    except Exception as error:  # noqa: BLE001 - telemetry must not break the sweep
+        logger.warning(json.dumps({'event': 'sweep_metrics_emit_failed',
+                                   'error': type(error).__name__, 'requestId': request_id}))
 
 
 # ═══════════════════════════════════════════════════════════════════

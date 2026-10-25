@@ -121,6 +121,10 @@ def default_body(status: str) -> str:
 
 _REFERENCE_RE = re.compile(r"^[A-Za-z0-9_.-]{1,35}$")
 
+#: Meta's hard ceiling for the order's `description`; longer text is rejected. The builders trim
+#: to this rather than failing, so a verbose staff note never blocks a fulfilment update.
+MAX_DESCRIPTION_LENGTH = 120
+
 
 def canonical_reference(reference_id: str) -> str:
     """Return an exact Meta-safe order reference without rewriting the commerce identity."""
@@ -146,7 +150,7 @@ def build_template_component(reference_id: str, status: str, description: str = 
     """
     ref = canonical_reference(reference_id)
     wire_status = canonical_status(status)
-    text = str(description or "").strip() or default_body(wire_status)
+    text = (str(description or "").strip() or default_body(wire_status))[:MAX_DESCRIPTION_LENGTH]
     return {
         "type": "order_status",
         "parameters": [{
@@ -162,9 +166,43 @@ def build_template_component(reference_id: str, status: str, description: str = 
     }
 
 
+def build_interactive_payload(reference_id: str, status: str, description: str = "",
+                              body_text: str = "") -> dict:
+    """Build the canonical Meta interactive `order_status` message object.
+
+    This is the inside-the-window twin of `build_template_component`: inside the 24-hour
+    customer-service window a fulfilment update may be sent as a free-form interactive
+    message (Meta `review_order` action) with no approved template. The outbound Lambda wraps
+    this object in the message envelope (`messaging_product`, `to`, `type: interactive`) and
+    owns transport/persistence; the business shape lives here.
+
+    `reference_id` and `status` fail closed through the same canonical helpers the template
+    builder uses. `body_text` is the visible customer line (defaults to `default_body(status)`);
+    `description` is the order's optional detail line, trimmed to Meta's 120-char ceiling.
+    """
+    ref = canonical_reference(reference_id)
+    wire_status = canonical_status(status)
+    body = str(body_text or "").strip() or default_body(wire_status)
+    order = {"status": wire_status}
+    detail = str(description or "").strip()[:MAX_DESCRIPTION_LENGTH]
+    if detail:
+        order["description"] = detail
+    return {
+        "type": "order_status",
+        "body": {"text": body},
+        "action": {
+            "name": "review_order",
+            "parameters": {
+                "reference_id": ref,
+                "order": order,
+            },
+        },
+    }
+
+
 __all__ = [
     "PENDING", "PROCESSING", "PARTIALLY_SHIPPED", "SHIPPED", "COMPLETED", "CANCELED",
-    "ALL_STATUSES", "STAFF_FULFILMENT_TARGETS", "DEFAULT_BODY_TEXT",
+    "ALL_STATUSES", "STAFF_FULFILMENT_TARGETS", "DEFAULT_BODY_TEXT", "MAX_DESCRIPTION_LENGTH",
     "normalise", "is_valid", "can_transition", "default_body", "canonical_reference",
-    "canonical_status", "build_template_component",
+    "canonical_status", "build_template_component", "build_interactive_payload",
 ]

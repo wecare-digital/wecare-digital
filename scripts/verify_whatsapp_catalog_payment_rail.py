@@ -5,7 +5,8 @@
     -> ProductsTable pricing -> ONE PaymentAttempt + PAYREF# -> wecare-outbound-whatsapp
     -> `wecare_whatapp_native_pay_template` (button sub_type order_details, payment_gateway /
     Razorpay / WECAREDIGITAL) -> Razorpay `payment.captured` -> wecare-razorpay-webhook
-    -> ONE order -> ONE paid invoice -> `wecare_default_invoice_image_template`. No ORDER_STATUS.
+    -> ONE order -> ONE Meta order_status `processing` -> ONE paid invoice
+    -> `wecare_default_invoice_image_template` (its FLOW button carries an order-bound review token).
 
 WHAT RUNS FOR REAL
 ------------------
@@ -499,7 +500,12 @@ def run(root: Path) -> int:
     checkout = _load("h_checkout", functions / "ecommerce" / "checkout" / "handler.py")
     outbound = _load("h_outbound", functions / "messaging" / "outbound-whatsapp" / "handler.py")
     webhook = _load("h_webhook", functions / "payments" / "razorpay-webhook" / "handler.py")
-    import invoice_engine  # noqa: E402 - the copy packaged inside wecare-checkout
+    # The invoice engine ships inside wecare-checkout AS `invoice_engine.py`, sourced from its one
+    # home payments/invoice-engine/handler.py (there is no copy beside the checkout handler any
+    # more). Load that single source under the packaged module name so checkout's lazy
+    # `import invoice_engine` resolves to it and the seam patched below is the one that runs.
+    invoice_engine = _load("invoice_engine",
+                           functions / "payments" / "invoice-engine" / "handler.py")
 
     W.handlers.update({"wecare-checkout": checkout.handler, "wecare-outbound-whatsapp": outbound.handler,
                        "wecare-inbound-whatsapp": inbound.handler})
@@ -911,8 +917,8 @@ def run(root: Path) -> int:
     boundary("readiness proven, no recipient (zero-send positive control)", "R12", {**common, "checkoutOrderDetails": base_details},
              400, "contactId or recipientPhone is required")
 
-    # ── 9. payment -> ONE order -> ONE invoice -> invoice template, zero ORDER_STATUS ──────────
-    print("\n== 9. Razorpay payment.captured -> order -> invoice -> invoice template")
+    # ── 9. payment -> ONE order -> ONE order_status `processing` -> ONE invoice -> invoice template ─
+    print("\n== 9. Razorpay payment.captured -> order -> order_status -> invoice -> invoice template")
 
     def capture(reference: str, amount: int, payment_id: str, order_id: str, phone: str) -> Dict[str, Any]:
         W.meta_payments[reference] = {"order_id": order_id, "payment_id": payment_id}
@@ -995,10 +1001,51 @@ def run(root: Path) -> int:
             check("INV", "the invoice template went to the buyer's number", delivered_to == [alice["phone"]], delivered_to)
         check("R17", "exactly ONE wecare_default_invoice_image_template send",
               len(counts["invoice_sends"]) - sends_before == 1, len(counts["invoice_sends"]) - sends_before)
-        status_traffic = _order_status_traffic(W.since(mark, "invocations"), W.since(mark, "meta_sends"))
-        check("R18", "payment completion sent ZERO ORDER_STATUS messages", not status_traffic, status_traffic)
-        check("R18", "the order's internal status is 'processing' (database field only)",
+        # R18: exactly ONE Meta order_status `processing`, sent BEFORE the invoice template. Alice
+        # ordered from the chat, so her 24-hour window is open and the update travels as the
+        # interactive `order_status` message, which needs no template.
+        capture_sends = W.since(mark, "meta_sends")
+        status_idx = [i for i, s in enumerate(capture_sends)
+                      if (s["payload"].get("interactive") or {}).get("type") == "order_status"]
+        invoice_idx = [i for i, s in enumerate(capture_sends)
+                       if (s["payload"].get("template") or {}).get("name") == INVOICE_TEMPLATE]
+        status_traffic = _order_status_traffic(W.since(mark, "invocations"), capture_sends)
+        check("R18", "payment completion sent exactly ONE order_status (interactive: window open)",
+              sorted(status_traffic) == ["invoke:wecare-outbound-whatsapp", "meta:interactive_order_status"],
+              status_traffic)
+        if status_idx:
+            status_payload = capture_sends[status_idx[0]]["payload"]
+            params = ((status_payload.get("interactive") or {}).get("action") or {}).get("parameters") or {}
+            check("R18", "...it is 'processing' on the paid reference, sent to the buyer",
+                  (params.get("order") or {}).get("status") == "processing"
+                  and params.get("reference_id") == reference and status_payload.get("to") == alice["phone"],
+                  {"status": (params.get("order") or {}).get("status"), "ref": params.get("reference_id")})
+            check("R18", "...and it went out BEFORE the invoice template",
+                  bool(invoice_idx) and status_idx[0] < invoice_idx[0],
+                  {"order_status": status_idx, "invoice": invoice_idx})
+        check("R18", "the invoice records what Meta accepted (waOrderStatus 'processing')",
+              bool(counts["invoices"]) and counts["invoices"][0].get("waOrderStatus") == "processing",
+              counts["invoices"][0].get("waOrderStatus") if counts["invoices"] else None)
+        check("R18", "the order's status is 'processing'",
               counts["orders"] and counts["orders"][0].get("orderStatus") == "processing")
+        # F002: the invoice's Leave Review FLOW button carries an order-bound review token, so a
+        # review written from it can be tied to this order and invoice.
+        flow_tokens = [((param.get("action") or {}).get("flow_token"))
+                       for i in invoice_idx
+                       for comp in (capture_sends[i]["payload"].get("template") or {}).get("components") or []
+                       if comp.get("type") == "button" and comp.get("sub_type") == "flow"
+                       for param in comp.get("parameters") or []]
+        check("F002", "the invoice FLOW button carries a minted review token (no phone inside)",
+              len(flow_tokens) == 1 and str(flow_tokens[0]).startswith("review-")
+              and alice["digits"] not in str(flow_tokens[0]), flow_tokens)
+        if flow_tokens and counts["invoices"] and counts["orders"]:
+            binding = _table("CommerceKeys").get_item(
+                Key={"orderId": f"REVIEWTOKEN#{flow_tokens[0]}"}).get("Item") or {}
+            check("F002", "...bound to this invoice, this order and this reference",
+                  binding.get("invoiceId") == counts["invoices"][0].get("invoiceId")
+                  and binding.get("boundOrderId") == counts["orders"][0].get("orderId")
+                  and binding.get("referenceId") == reference,
+                  {k: binding.get(k) for k in ("invoiceId", "boundOrderId", "referenceId")})
         replay = webhook.handler(json.loads(json.dumps(event)), FakeContext("wecare-razorpay-webhook"))
         check("RETRY", "identical Razorpay retry is acknowledged as already processed",
               "already_processed" in str(replay.get("body")), replay.get("body"))
@@ -1009,8 +1056,12 @@ def run(root: Path) -> int:
               reprocess.get("statusCode") == 200 and len(again["orders"]) == 1 and len(again["invoices"]) == 1
               and len(again["invoice_sends"]) - sends_before == 1,
               f"orders={len(again['orders'])} invoices={len(again['invoices'])} sends={len(again['invoice_sends']) - sends_before}")
-        check("R18", "...and still ZERO ORDER_STATUS",
-              not _order_status_traffic(W.since(mark, "invocations"), W.since(mark, "meta_sends")))
+        # The replay and the reprocess find `waOrderStatus` already `processing`, so the engine
+        # refuses the repeat (ORDER_STATUS_UNCHANGED) before anything reaches outbound or Meta.
+        replay_traffic = _order_status_traffic(W.since(mark, "invocations"), W.since(mark, "meta_sends"))
+        check("R18", "...and still exactly ONE order_status after the replay and the reprocess",
+              sorted(replay_traffic) == ["invoke:wecare-outbound-whatsapp", "meta:interactive_order_status"],
+              replay_traffic)
         hints = [c for c in W.since(mark, "invocations") if c["function"] in ("wecare-service-requests", "wecare-whatsapp-business-api")
                  and c["event"].get("internalAction") in ("activateServiceRequest", "preparePaidSubmitRequest")]
         check("INFO", "activation hint is re-sent per verified delivery (receiver is idempotent; not exercised here)",
