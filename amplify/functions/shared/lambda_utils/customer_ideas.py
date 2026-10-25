@@ -25,12 +25,6 @@ TOPICS = {
     'other': 'Another thought',
 }
 
-PROFILE_FIELDS = ('full_name', 'username', 'company_name', 'designation')
-ADDRESS_FIELDS = (
-    'address_line1', 'address_line2', 'locality', 'city', 'state', 'postal_code', 'country',
-)
-
-
 def _text(data, key, *, required=False, limit=500):
     value = data.get(key, '')
     if not isinstance(value, str):
@@ -96,7 +90,7 @@ def save_idea(data, *, contact_id, phone, sender_name, message_id, dynamodb=None
     text = idea
     form = {**profile, **address, 'topic': topic, 'idea': text, 'schema_version': schema_version}
     result = flow_completion.claim_completion(
-        flow_token=message_id, screen='REVIEW', submission_id=review_id,
+        flow_token=message_id, screen=('COMPLETE' if schema_version == '5' else 'REVIEW'), submission_id=review_id,
         reference_prefix='WD-IDEA', flow_code=FLOW_CODE, flow_type='customer_idea',
         phone=phone, contact_id=contact_id, sender_name=sender_name, form_data=form,
         # The review vocabulary: the staff reviews page shows `submitted` as `pending`.

@@ -34,21 +34,23 @@ The country selector reuses the same 195-country data source as F001.
 
 ## REVIEW
 
-The page first shows the entered profile and address, then asks:
-- What is this about?
-- Your review
+The page first shows the entered profile and address, then keeps the published review questions
+from Flow 940049388908144 exactly:
 
-Topics remain:
-- Something I liked
+- "What's on your mind?" — optional radio choice
+- "Your thought" — required text
+
+Topic options, in the same order:
+- A feature I'd love
 - Something to improve
-- A feature I would love
+- Something I liked
 - Another thought
 
 The review remains private.
 
 ## COMPLETE
 
-The final screen shows the review and submits:
+The final screen shows the customer's thought and submits:
 - flow_key = wd_leave_review_v2
 - schema_version = 5
 - all profile fields

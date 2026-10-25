@@ -61,25 +61,29 @@
                 "type": "TextInput",
                 "name": "full_name",
                 "label": "Full name",
-                "required": true
+                "required": true,
+                "max-chars": 120
               },
               {
                 "type": "TextInput",
                 "name": "username",
                 "label": "WhatsApp username",
-                "required": false
+                "required": false,
+                "max-chars": 120
               },
               {
                 "type": "TextInput",
                 "name": "company_name",
                 "label": "Organization",
-                "required": false
+                "required": false,
+                "max-chars": 160
               },
               {
                 "type": "TextInput",
                 "name": "designation",
                 "label": "Job title",
-                "required": false
+                "required": false,
+                "max-chars": 120
               },
               {
                 "type": "Footer",
@@ -171,37 +175,43 @@
                 "type": "TextInput",
                 "name": "address_line1",
                 "label": "Street address",
-                "required": true
+                "required": true,
+                "max-chars": 250
               },
               {
                 "type": "TextInput",
                 "name": "address_line2",
                 "label": "Apartment / suite / unit",
-                "required": false
+                "required": false,
+                "max-chars": 250
               },
               {
                 "type": "TextInput",
                 "name": "locality",
                 "label": "Landmark / neighborhood",
-                "required": false
+                "required": false,
+                "max-chars": 160
               },
               {
                 "type": "TextInput",
                 "name": "city",
                 "label": "City",
-                "required": true
+                "required": true,
+                "max-chars": 120
               },
               {
                 "type": "TextInput",
                 "name": "state",
                 "label": "State / region",
-                "required": true
+                "required": true,
+                "max-chars": 120
               },
               {
                 "type": "TextInput",
                 "name": "postal_code",
                 "label": "Postal code",
-                "required": true
+                "required": true,
+                "max-chars": 32
               },
               {
                 "type": "Dropdown",
@@ -1067,6 +1077,10 @@
         "country": {
           "type": "string",
           "__example__": "India"
+        },
+        "topic": {
+          "type": "string",
+          "__example__": "other"
         }
       },
       "layout": {
@@ -1173,22 +1187,22 @@
             "name": "review_form",
             "children": [
               {
-                "type": "Dropdown",
+                "type": "RadioButtonsGroup",
                 "name": "topic",
-                "label": "What is this about?",
-                "required": true,
+                "label": "What's on your mind?",
+                "required": false,
                 "data-source": [
                   {
-                    "id": "worked_well",
-                    "title": "Something I liked"
+                    "id": "feature_request",
+                    "title": "A feature I'd love"
                   },
                   {
                     "id": "improvement",
                     "title": "Something to improve"
                   },
                   {
-                    "id": "feature_request",
-                    "title": "A feature I would love"
+                    "id": "worked_well",
+                    "title": "Something I liked"
                   },
                   {
                     "id": "other",
@@ -1199,8 +1213,9 @@
               {
                 "type": "TextArea",
                 "name": "idea",
-                "label": "Your review",
-                "required": true
+                "label": "Your thought",
+                "required": true,
+                "max-chars": 2000
               },
               {
                 "type": "Footer",
@@ -1305,7 +1320,7 @@
           },
           {
             "type": "TextCaption",
-            "text": "Your review"
+            "text": "Your thought"
           },
           {
             "type": "TextBody",
