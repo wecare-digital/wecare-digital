@@ -27,7 +27,7 @@
             "width": 328,
             "height": 8,
             "scale-type": "contain",
-            "alt-text": "WECARE.DIGITAL profile color accent"
+            "alt-text": "WECARE.DIGITAL feedback color accent"
           },
           {
             "type": "TextHeading",
@@ -134,7 +134,7 @@
           },
           {
             "type": "TextBody",
-            "text": "Your idea is ready to share. Thank you for helping us imagine a more useful WECARE.DIGITAL."
+            "text": "Your idea is ready to share. Thank you for helping us make WECARE.DIGITAL more useful."
           },
           {
             "type": "TextCaption",
@@ -147,7 +147,7 @@
           },
           {
             "type": "TextCaption",
-            "text": "Tap Submit idea to share it with our team."
+            "text": "Tap Submit idea to send it to our team."
           },
           {
             "type": "Footer",
