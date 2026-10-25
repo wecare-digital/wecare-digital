@@ -74,7 +74,8 @@ Two-Step Verification, Display Name, Quality Rating & Messaging Limits.
 | --- | --- | --- |
 | Create / update / delete templates | ✅ | `whatsapp-template-management` (`/message_templates`) |
 | List + live status refresh | ✅ | `_list_templates`, `templates/{id}/refresh` |
-| Category / TTL validation | ✅ | `_validate_template_ttl`, `_validate_template_definition` |
+| Category / TTL validation | ✅ | `shared/lambda_utils/template_validation.py` (create + `/templates/validate`), `template_ttl.py` |
+| Order details template (India): create | ✅ | `template_validation.py` (UTILITY, or MARKETING + `display_format: "order_details"`); builder "Order details message" option |
 | Canonical send-eligibility (APPROVED vs PAUSED/REJECTED/…) | ✅ | `shared/lambda_utils/template_status.py` (upstream) |
 | Template analytics | ✅ | `template-analytics` |
 | Authentication / OTP templates | 🟡 | category validated; OTP autofill/copy-code not confirmed |

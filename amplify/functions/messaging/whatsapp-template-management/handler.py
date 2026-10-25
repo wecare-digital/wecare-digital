@@ -604,95 +604,9 @@ def _get_template_details(waba_id, template_id, query_params):
 
 
 # ── CREATE ──
-
-def _validate_template_ttl(category, seconds):
-    """Validate message_send_ttl_seconds against category. Returns error string or None."""
-    if seconds is None:
-        return None
-    try:
-        s = int(seconds)
-    except (ValueError, TypeError):
-        return 'message_send_ttl_seconds must be an integer'
-    cat = (category or '').upper()
-    if cat == 'AUTHENTICATION':
-        return None if (s == -1 or 30 <= s <= 900) else 'AUTHENTICATION TTL must be 30-900 seconds (or -1 for 30 days)'
-    if cat == 'UTILITY':
-        return None if (s == -1 or 30 <= s <= 43200) else 'UTILITY TTL must be 30-43200 seconds (or -1 for 30 days)'
-    if cat == 'MARKETING':
-        return None if (43200 <= s <= 2592000) else 'MARKETING TTL must be 43200-2592000 seconds (-1 not allowed)'
-    return f'Unknown template category: {category}'
-
-
-def _validate_template_button_group(buttons):
-    """Validate button counts and quick-reply grouping. Returns error string or None."""
-    if not buttons:
-        return None
-    if len(buttons) > 10:
-        return 'A template may have at most 10 buttons'
-    counts = {}
-    for b in buttons:
-        t = (b.get('type') or '').upper()
-        counts[t] = counts.get(t, 0) + 1
-        if t in ('QUICK_REPLY', 'URL', 'PHONE_NUMBER', 'VOICE_CALL') and len(b.get('text', '')) > 25:
-            return f'{t} button text must be <= 25 characters'
-        if t == 'COPY_CODE' and len(str(b.get('example', ''))) > 20:
-            return 'COPY_CODE example must be <= 20 characters'
-        if t == 'PHONE_NUMBER' and len(str(b.get('phone_number', ''))) > 20:
-            return 'PHONE_NUMBER must be <= 20 characters'
-        if t == 'URL' and len(str(b.get('url', ''))) > 2000:
-            return 'URL must be <= 2000 characters'
-        if t == 'ORDER_DETAILS':
-            if b.get('text') != 'Review and Pay':
-                return 'ORDER_DETAILS button text must be exactly "Review and Pay"'
-    if counts.get('COPY_CODE', 0) > 1:
-        return 'At most 1 COPY_CODE button allowed'
-    if counts.get('PHONE_NUMBER', 0) > 1:
-        return 'At most 1 PHONE_NUMBER button allowed'
-    if counts.get('URL', 0) > 2:
-        return 'At most 2 URL buttons allowed'
-    if counts.get('ORDER_DETAILS', 0) > 1:
-        return 'At most 1 ORDER_DETAILS button allowed'
-    if counts.get('QUICK_REPLY', 0) > 10:
-        return 'At most 10 QUICK_REPLY buttons allowed'
-    types = [(b.get('type') or '').upper() for b in buttons]
-    qr = [i for i, t in enumerate(types) if t == 'QUICK_REPLY']
-    if qr and (max(qr) - min(qr) + 1) != len(qr):
-        return 'Quick reply buttons must be grouped together (contiguous)'
-    return None
-
-
-def _validate_template_definition(template_def):
-    """Validate a Meta template definition (category, TTL, components, buttons). Returns error string or None."""
-    category = template_def.get('category', '')
-    if category and category.upper() not in ('MARKETING', 'UTILITY', 'AUTHENTICATION'):
-        return f'Invalid category: {category}. Must be MARKETING, UTILITY, or AUTHENTICATION'
-    ttl_err = _validate_template_ttl(category, template_def.get('message_send_ttl_seconds'))
-    if ttl_err:
-        return ttl_err
-    has_body = False
-    for comp in template_def.get('components', []):
-        ctype = (comp.get('type') or '').upper()
-        if ctype == 'BODY':
-            has_body = True
-            if len(comp.get('text', '')) > 1024:
-                return 'BODY text must be <= 1024 characters'
-        elif ctype == 'HEADER':
-            fmt = (comp.get('format') or '').upper()
-            if fmt == 'TEXT' and len(comp.get('text', '')) > 60:
-                return 'TEXT header must be <= 60 characters'
-            if fmt == 'LOCATION' and category.upper() == 'AUTHENTICATION':
-                return 'LOCATION header is only allowed for UTILITY or MARKETING templates'
-        elif ctype == 'FOOTER':
-            if len(comp.get('text', '')) > 60:
-                return 'FOOTER text must be <= 60 characters'
-        elif ctype == 'BUTTONS':
-            btn_err = _validate_template_button_group(comp.get('buttons', []))
-            if btn_err:
-                return btn_err
-    if not has_body:
-        return 'Template must include a BODY component'
-    return None
-
+# One validator: `lambda_utils.template_validation` gates create and /validate alike, including
+# the order details rules (fixed "Review and Pay" ORDER_DETAILS button on UTILITY, or on
+# MARKETING with `display_format: "order_details"`). The definition is then POSTed verbatim.
 
 def _create_template(waba_id, body):
     try:
@@ -770,8 +684,24 @@ def _send_test_template(waba_id, template_id, body):
 
     Body: { to, templateName, language, components?, phoneId? }
     Fetches the template by id to resolve name/language when not supplied.
+
+    Never a payment request. `components` are forwarded to Meta verbatim, so an order details
+    button action here would bill a customer from a caller-chosen sender with caller-chosen
+    payment settings. Those are refused before any Meta call; payment requests go through
+    Pay Flow, Inbox or Commerce, which reach the gated `outbound-whatsapp` sender.
     """
     try:
+        from lambda_utils import template_validation as tv
+        if tv.send_components_request_payment(body.get('components')):
+            logger.warning(json.dumps({
+                'event': 'template_send_test_payment_refused',
+                'templateId': str(template_id or '')[:40],
+                'code': tv.PAYMENT_ENVELOPE_NOT_PERMITTED,
+            }))
+            return _coded_error_response(
+                400, tv.PAYMENT_ENVELOPE_NOT_PERMITTED,
+                'Order details payment requests cannot be sent as a test. Use Pay Flow, '
+                'Inbox or Commerce to send the approved payment template. Nothing was sent.')
         to = (body.get('to') or '').strip()
         if not to:
             return _error_response(400, 'to (recipient phone in E.164 without +) is required')
@@ -1283,4 +1213,14 @@ def _error_response(status_code, message):
         'statusCode': status_code,
         'headers': cors_headers(origin),
         'body': json.dumps({'error': message})
+    }
+
+
+def _coded_error_response(status_code, code, message):
+    """A refusal with a stable machine code in `error` and the readable text in `message`,
+    the shape `outbound-whatsapp` uses for the same payment refusal codes."""
+    return {
+        'statusCode': status_code,
+        'headers': cors_headers(origin),
+        'body': json.dumps({'error': code, 'message': message})
     }

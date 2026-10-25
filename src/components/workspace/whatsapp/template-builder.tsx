@@ -36,6 +36,16 @@ type BtnType = 'QUICK_REPLY' | 'URL' | 'PHONE_NUMBER' | 'COPY_CODE';
 // rules are server-authoritative and the builder does not re-implement them.
 const LTO_TEXT_MAX = 16;
 
+// Meta's order details ("Review and Pay") template, as WhatsApp Manager's "Order details
+// message" option builds it: one fixed ORDER_DETAILS button on a UTILITY template, or on a
+// MARKETING one marked display_format "order_details". Mirrors whatsapp_types; the server
+// validator stays authoritative.
+const ORDER_DETAILS_BUTTON_TEXT = 'Review and Pay';
+const ORDER_DETAILS_DISPLAY_FORMAT = 'order_details';
+const ORDER_DETAILS_CATEGORIES = [ 'UTILITY', 'MARKETING' ];
+
+const hint: React.CSSProperties = { fontSize: 'var(--text-xs)', color: '#666', lineHeight: 1.5, marginBottom: 10 };
+
 const TemplateBuilder: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => {
     const toast = useToastContext();
     const [ step, setStep ] = useState( 0 );
@@ -45,6 +55,11 @@ const TemplateBuilder: React.FC<PageProps> = ( { signOut, user, embedded = false
     const [ name, setName ] = useState( '' );
     const [ language, setLanguage ] = useState( 'en' );
     const [ category, setCategory ] = useState( 'UTILITY' );
+    // Order details message. Derived against the category rather than reset by an effect, so
+    // switching to AUTHENTICATION and back restores the choice instead of losing it.
+    const [ orderDetailsChosen, setOrderDetailsChosen ] = useState( false );
+    const orderDetailsAllowed = ORDER_DETAILS_CATEGORIES.includes( category );
+    const isOrderDetails = orderDetailsChosen && orderDetailsAllowed;
     // Header
     const [ headerFormat, setHeaderFormat ] = useState( 'NONE' );
     const [ headerText, setHeaderText ] = useState( '' );
@@ -82,15 +97,20 @@ const TemplateBuilder: React.FC<PageProps> = ( { signOut, user, embedded = false
         const body: any = { type: 'BODY', text: bodyText };
         if ( /\{\{\s*1\s*\}\}/.test( bodyText ) && bodyExample ) body.example = { body_text: [ [ bodyExample ] ] };
         components.push( body );
-        if ( offerEnabled && category === 'MARKETING' ) components.push( { type: 'LIMITED_TIME_OFFER', limited_time_offer: { text: offerText, has_expiration: offerHasExpiration } } );
+        if ( offerEnabled && category === 'MARKETING' && !isOrderDetails ) components.push( { type: 'LIMITED_TIME_OFFER', limited_time_offer: { text: offerText, has_expiration: offerHasExpiration } } );
         if ( footerText ) components.push( { type: 'FOOTER', text: footerText } );
-        const btns: any[] = buttons.map( b => ( { ...b } ) );
-        if ( flowEnabled && flowName ) btns.push( { type: 'FLOW', text: flowCtaText, flow_name: flowName, flow_action: 'navigate', navigate_screen: flowScreen } );
+        // An order details template carries Meta's one fixed button and nothing else. The other
+        // button state is kept, not cleared, so turning the option off restores it.
+        const btns: any[] = isOrderDetails
+            ? [ { type: 'ORDER_DETAILS', text: ORDER_DETAILS_BUTTON_TEXT } ]
+            : buttons.map( b => ( { ...b } ) );
+        if ( flowEnabled && flowName && !isOrderDetails ) btns.push( { type: 'FLOW', text: flowCtaText, flow_name: flowName, flow_action: 'navigate', navigate_screen: flowScreen } );
         if ( btns.length ) components.push( { type: 'BUTTONS', buttons: btns } );
         const def: any = { name, language, category, components };
+        if ( isOrderDetails && category === 'MARKETING' ) def.display_format = ORDER_DETAILS_DISPLAY_FORMAT;
         if ( ttl !== '' ) def.message_send_ttl_seconds = Number( ttl );
         return def;
-    }, [ name, language, category, headerFormat, headerText, bodyText, bodyExample, footerText, buttons, offerEnabled, offerText, offerHasExpiration, flowEnabled, flowName, flowScreen, flowCtaText, ttl ] );
+    }, [ name, language, category, isOrderDetails, headerFormat, headerText, bodyText, bodyExample, footerText, buttons, offerEnabled, offerText, offerHasExpiration, flowEnabled, flowName, flowScreen, flowCtaText, ttl ] );
 
     const runValidate = useCallback( async () => {
         try { setResult( await api.validateTemplateDefinition( templateDef ) ); }
@@ -142,6 +162,20 @@ const TemplateBuilder: React.FC<PageProps> = ( { signOut, user, embedded = false
                             <label style={ lbl }>Category</label>
                             <Select ariaLabel="Category" value={ category } onChange={ v => setCategory( v ) }
                                 options={ CATEGORY_OPTIONS } style={ selectLayout } />
+                            <label style={ { ...lbl, display: 'flex', gap: 6, alignItems: 'center', minHeight: 'var(--tap-min, 44px)' } }>
+                                <input type="checkbox" checked={ isOrderDetails } disabled={ !orderDetailsAllowed }
+                                    aria-describedby="order-details-hint"
+                                    onChange={ e => setOrderDetailsChosen( e.target.checked ) } /> Order details message (Review and Pay)
+                            </label>
+                            <div id="order-details-hint" style={ hint }>
+                                { !orderDetailsAllowed ? 'Order details messages are UTILITY or MARKETING templates, not AUTHENTICATION.' : ( <>
+                                    Adds Meta&apos;s fixed { ORDER_DETAILS_BUTTON_TEXT } button. The bill and payment details are attached to each message, not stored in the template.
+                                    { category === 'MARKETING'
+                                        ? ` Submitted as MARKETING with display_format "${ ORDER_DETAILS_DISPLAY_FORMAT }".`
+                                        : ' Keep the text factual: marketing content can get a UTILITY template recategorized.' }
+                                    { ' ' }Customer payments still go out only on the server&apos;s approved payment template, from Pay Flow, Inbox or Commerce.
+                                </> ) }
+                            </div>
                         </div>
                     ) }
                     { step === 1 && (
@@ -171,7 +205,19 @@ const TemplateBuilder: React.FC<PageProps> = ( { signOut, user, embedded = false
                             <input style={ inp } value={ footerText } maxLength={ 60 } onChange={ e => setFooterText( e.target.value ) } />
                         </div>
                     ) }
-                    { step === 4 && (
+                    { step === 4 && isOrderDetails && (
+                        <div>
+                            <div style={ { border: '1px solid #eee', borderRadius: 6, padding: 8, marginBottom: 8 } }>
+                                <strong style={ { fontSize: 'var(--text-xs)' } }>ORDER_DETAILS</strong>
+                                <div style={ { ...inp, background: '#f7f7f7', color: '#444' } }>{ ORDER_DETAILS_BUTTON_TEXT }</div>
+                            </div>
+                            <div style={ hint }>
+                                Fixed by Meta: an order details template carries this one button.
+                                { buttons.length > 0 && ' The other buttons you added are left out while Order details message is on.' }
+                            </div>
+                        </div>
+                    ) }
+                    { step === 4 && !isOrderDetails && (
                         <div>
                             <div style={ { display: 'flex', gap: 6, marginBottom: 10 } }>
                                 { ( [ 'QUICK_REPLY', 'URL', 'PHONE_NUMBER', 'COPY_CODE' ] as BtnType[] ).map( t => (
@@ -194,7 +240,11 @@ const TemplateBuilder: React.FC<PageProps> = ( { signOut, user, embedded = false
                     ) }
                     { step === 5 && (
                         <div>
-                            { category !== 'MARKETING' ? (
+                            { isOrderDetails ? (
+                                <div style={ { fontSize: 'var(--text-sm)', color: '#666' } }>
+                                    A limited-time offer cannot be combined with an order details message: it needs COPY_CODE and URL buttons.
+                                </div>
+                            ) : category !== 'MARKETING' ? (
                                 <div style={ { fontSize: 'var(--text-sm)', color: '#777' } }>
                                     A limited-time offer is supported on MARKETING templates only. Change the category in step 1 to add one.
                                 </div>
@@ -216,7 +266,12 @@ const TemplateBuilder: React.FC<PageProps> = ( { signOut, user, embedded = false
                             </> ) }
                         </div>
                     ) }
-                    { step === 6 && (
+                    { step === 6 && isOrderDetails && (
+                        <div style={ { fontSize: 'var(--text-sm)', color: '#666' } }>
+                            A Flow button cannot be added to an order details message.
+                        </div>
+                    ) }
+                    { step === 6 && !isOrderDetails && (
                         <div>
                             <label style={ { ...lbl, display: 'flex', gap: 6, alignItems: 'center' } }>
                                 <input type="checkbox" checked={ flowEnabled } onChange={ e => setFlowEnabled( e.target.checked ) } /> Add a Flow button

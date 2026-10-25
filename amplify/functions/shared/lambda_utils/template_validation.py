@@ -34,12 +34,20 @@ from .whatsapp_types import (
     OTP_AUTOFILL_TYPES,
     OTP_AUTOFILL_TEXT_MAX,
     SIGNATURE_HASH_LEN,
+    ORDER_DETAILS_BUTTON_TEXT,
+    ORDER_DETAILS_DISPLAY_FORMAT,
 )
 from .template_ttl import validate_ttl
 
 _PLACEHOLDER_RE = re.compile(r'\{\{\s*([A-Za-z0-9_]+)\s*\}\}')
 # Markdown-ish characters that need escaping in template text headers/bodies.
 _MARKDOWN_CHARS = set('*_~`')
+
+#: The refusal a generic template send returns for a payment request. The same code
+#: `outbound-whatsapp` returns for a removed payment envelope, so callers see one vocabulary.
+PAYMENT_ENVELOPE_NOT_PERMITTED = 'WA_PAY_ENVELOPE_NOT_PERMITTED'
+#: Keys that only an order details payment request carries in send-time components.
+_PAYMENT_ACTION_KEYS = frozenset({'order_details', 'payment_settings'})
 
 
 def detect_parameter_format(text: str) -> str:
@@ -86,6 +94,13 @@ def validate_root(template_def: Dict[str, Any]) -> Tuple[List[str], List[str]]:
         if not ttl_res['ok']:
             errors.append(ttl_res['error'])
         warnings.extend(ttl_res.get('warnings', []))
+
+    # A present-but-empty value is refused too: the definition is POSTed to Meta verbatim, so
+    # `display_format: null` would reach Meta rather than being read here as "absent".
+    if 'display_format' in template_def and \
+            template_def.get('display_format') != ORDER_DETAILS_DISPLAY_FORMAT:
+        errors.append(f'display_format must be "{ORDER_DETAILS_DISPLAY_FORMAT}" '
+                      '(the only display format Meta documents)')
 
     return errors, warnings
 
@@ -330,7 +345,31 @@ def validate_button_grouping(buttons: List[Dict[str, Any]]) -> Optional[str]:
     return None
 
 
-def validate_buttons(buttons: List[Dict[str, Any]], category: str = '') -> Tuple[List[str], List[str]]:
+def _order_details_button_errors(button: Dict[str, Any], category: str,
+                                 display_format: str) -> List[str]:
+    """Meta's order details template rules for its one fixed button. Returns errors.
+
+    UTILITY is the documented category. MARKETING is accepted only with
+    `display_format: "order_details"`, which is how Meta says a business creates the
+    same template under marketing. Anything else -- AUTHENTICATION, or a category the
+    caller left empty -- is refused, as it was before MARKETING was recognised.
+    """
+    errors: List[str] = []
+    cat = (category or '').upper()
+    if cat == 'MARKETING':
+        if display_format != ORDER_DETAILS_DISPLAY_FORMAT:
+            errors.append('A MARKETING order details template requires '
+                          f'display_format "{ORDER_DETAILS_DISPLAY_FORMAT}"')
+    elif cat != 'UTILITY':
+        errors.append('ORDER_DETAILS button is only allowed on a UTILITY template, or a MARKETING '
+                      f'template with display_format "{ORDER_DETAILS_DISPLAY_FORMAT}"')
+    if button.get('text') != ORDER_DETAILS_BUTTON_TEXT:
+        errors.append(f'ORDER_DETAILS button text must be exactly "{ORDER_DETAILS_BUTTON_TEXT}"')
+    return errors
+
+
+def validate_buttons(buttons: List[Dict[str, Any]], category: str = '', *,
+                     display_format: str = '') -> Tuple[List[str], List[str]]:
     """Validate a BUTTONS component. Returns (errors, warnings).
 
     `category` is optional and defaults to '' so every existing caller keeps working
@@ -338,6 +377,9 @@ def validate_buttons(buttons: List[Dict[str, Any]], category: str = '') -> Tuple
     SKIPPED when it is empty: a caller who supplied no category has not told us the
     template is not an AUTHENTICATION one, and inventing that answer would make the
     validator wrong in the silent direction this rule exists to close.
+
+    `display_format` is keyword-only for the same reason; it is the template's top-level
+    value and only changes the ORDER_DETAILS category rule.
     """
     errors: List[str] = []
     warnings: List[str] = []
@@ -364,10 +406,7 @@ def validate_buttons(buttons: List[Dict[str, Any]], category: str = '') -> Tuple
             warnings.extend(ow)
             continue
         if t == 'ORDER_DETAILS':
-            if (category or '').upper() != 'UTILITY':
-                errors.append('ORDER_DETAILS button is only allowed on a UTILITY template')
-            if b.get('text') != 'Review and Pay':
-                errors.append('ORDER_DETAILS button text must be exactly "Review and Pay"')
+            errors.extend(_order_details_button_errors(b, category, display_format))
             continue
         if t in ('QUICK_REPLY', 'URL', 'PHONE_NUMBER', 'VOICE_CALL') and len(b.get('text', '')) > BUTTON_TEXT_MAX:
             errors.append(f'{t} button text must be <= {BUTTON_TEXT_MAX} characters')
@@ -390,6 +429,11 @@ def validate_buttons(buttons: List[Dict[str, Any]], category: str = '') -> Tuple
         errors.append('At most 1 OTP button allowed')
     if counts.get('ORDER_DETAILS', 0) > 1:
         errors.append('At most 1 ORDER_DETAILS button allowed')
+    if counts.get('ORDER_DETAILS', 0) and len(buttons) > counts['ORDER_DETAILS']:
+        # Believed to be Meta's rule -- WhatsApp Manager's "Order details message" offers the
+        # one fixed button only -- and not confirmable here, so it warns and Meta decides.
+        warnings.append('An order details template normally carries only the ORDER_DETAILS '
+                        'button; Meta may reject other buttons beside it')
     if counts.get('OTP', 0) and (category or '').upper() not in ('', 'AUTHENTICATION'):
         errors.append('An OTP button is only allowed on an AUTHENTICATION template')
 
@@ -400,7 +444,8 @@ def validate_buttons(buttons: List[Dict[str, Any]], category: str = '') -> Tuple
 
 
 def validate_components(components: List[Dict[str, Any]], category: str,
-                        *, top_level: bool = True) -> Tuple[List[str], List[str]]:
+                        *, top_level: bool = True,
+                        display_format: str = '') -> Tuple[List[str], List[str]]:
     """Validate all components. Returns (errors, warnings).
 
     `top_level` is keyword-only and defaults to True, so validate_template_parts and
@@ -414,6 +459,10 @@ def validate_components(components: List[Dict[str, Any]], category: str,
     has_body's check deliberately stays OUTSIDE the guard -- a carousel card does
     legitimately require a BODY, and that is existing behaviour nobody asked to
     change.
+
+    `display_format` is the template's top-level value, handed to the top-level BUTTONS
+    only. Carousel cards do not receive it: an order details card is not a template Meta
+    documents.
     """
     errors: List[str] = []
     warnings: List[str] = []
@@ -437,7 +486,8 @@ def validate_components(components: List[Dict[str, Any]], category: str,
             e, w = validate_footer(comp)
         elif ctype == 'BUTTONS':
             buttons_seen.extend(comp.get('buttons', []) or [])
-            e, w = validate_buttons(comp.get('buttons', []), category)
+            e, w = validate_buttons(comp.get('buttons', []), category,
+                                    display_format=display_format)
         elif ctype == 'CAROUSEL':
             has_carousel = True
             e, w = [], []
@@ -491,12 +541,32 @@ def build_human_warnings(template_def: Dict[str, Any]) -> List[str]:
     return warnings
 
 
+def _has_order_details_button(components: List[Dict[str, Any]]) -> bool:
+    """True when a top-level BUTTONS component carries an ORDER_DETAILS button."""
+    for comp in components or []:
+        if not isinstance(comp, dict) or (comp.get('type') or '').upper() != 'BUTTONS':
+            continue
+        for button in comp.get('buttons', []) or []:
+            if isinstance(button, dict) and (button.get('type') or '').upper() == 'ORDER_DETAILS':
+                return True
+    return False
+
+
 def validate_template_parts(template_def: Dict[str, Any]) -> Tuple[List[str], List[str]]:
     """Run root + component validation. Returns (errors, warnings)."""
     errors, warnings = validate_root(template_def)
-    e, w = validate_components(template_def.get('components', []), template_def.get('category', ''))
+    display_format = template_def.get('display_format')
+    e, w = validate_components(
+        template_def.get('components', []), template_def.get('category', ''),
+        display_format=display_format if isinstance(display_format, str) else '')
     errors.extend(e)
     warnings.extend(w)
+    # `display_format` exists to make a template an order details one; on any other template
+    # it states something untrue, so it is refused rather than passed to Meta.
+    if display_format == ORDER_DETAILS_DISPLAY_FORMAT and \
+            not _has_order_details_button(template_def.get('components', [])):
+        errors.append(f'display_format "{ORDER_DETAILS_DISPLAY_FORMAT}" requires an '
+                      'ORDER_DETAILS button')
     if template_def.get('sub_category') == 'ORDER_STATUS':
         if template_def.get('category') != 'UTILITY':
             errors.append('ORDER_STATUS templates require category UTILITY')
@@ -520,3 +590,36 @@ def first_error(template_def: Dict[str, Any]) -> Optional[str]:
     """Backwards-compatible: return the first error string or None."""
     res = validate_template(template_def)
     return res['errors'][0] if res['errors'] else None
+
+
+def send_components_request_payment(components: Any) -> bool:
+    """True when send-time template components carry an order details payment request.
+
+    Meta's order details template takes the whole bill -- amounts, reference and
+    `payment_settings` -- as the `order_details` action of a `sub_type: order_details`
+    button parameter. A route that forwards caller components to Meta verbatim would
+    therefore be a second payment rail, one without the Admin role, the WABA1 sender pin,
+    the server-built Razorpay settings, the reference reservation and the live readiness
+    proof that `outbound-whatsapp` applies to the one approved payment template. Generic
+    template send routes call this and refuse with PAYMENT_ENVELOPE_NOT_PERMITTED.
+
+    Structural and case-insensitive at any depth, so a re-nested or re-cased payload is
+    still caught. Iterative, so a deeply nested body cannot exhaust the stack. A false
+    positive refuses a test send, which is the safe direction.
+    """
+    stack: List[Any] = [components]
+    while stack:
+        node = stack.pop()
+        if isinstance(node, dict):
+            for key, value in node.items():
+                name = str(key).strip().lower()
+                if name in _PAYMENT_ACTION_KEYS:
+                    return True
+                if name == 'sub_type' and isinstance(value, str) and \
+                        value.strip().lower() == 'order_details':
+                    return True
+                if isinstance(value, (dict, list)):
+                    stack.append(value)
+        elif isinstance(node, list):
+            stack.extend(item for item in node if isinstance(item, (dict, list)))
+    return False

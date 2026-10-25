@@ -66,6 +66,14 @@ LTO_ALLOWED_CATEGORIES = ('MARKETING',)
 LTO_HEADER_FORMATS = ('IMAGE', 'VIDEO')
 LTO_REQUIRED_BUTTON_TYPES = ('COPY_CODE', 'URL')
 
+# Order details ("Review and Pay") templates, per Meta's "Send order details template (India)".
+# Meta fixes the button text. The template is UTILITY, or MARKETING when the definition carries
+# `display_format: "order_details"` -- the only display format Meta documents, so the only one
+# accepted. The bill itself is not part of the template: it travels per message as the button's
+# `order_details` action, which only the gated payment sender may compose.
+ORDER_DETAILS_BUTTON_TEXT = 'Review and Pay'
+ORDER_DETAILS_DISPLAY_FORMAT = 'order_details'
+
 # Authentication-template OTP buttons. SIGNATURE_HASH_LEN is Meta's documented length
 # for an Android app signature hash. NOTHING in this account can produce one, because
 # there is no signed Android app -- native packaging is POST-PROJECT -- so the length

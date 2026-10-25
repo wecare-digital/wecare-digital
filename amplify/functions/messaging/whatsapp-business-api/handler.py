@@ -2340,6 +2340,21 @@ def _send_text(body: Dict) -> Dict:
 
 
 def _send_template_msg(body: Dict) -> Dict:
+    """Send a template by name with caller components. Never a payment request.
+
+    `components` reach Meta verbatim, so an order details button action here would bill a
+    customer from a caller-chosen sender with caller-chosen payment settings, past the gate
+    `outbound-whatsapp` applies to the one approved payment template. Refused before any
+    Meta call; payment requests go through Pay Flow, Inbox or Commerce.
+    """
+    from lambda_utils import template_validation as tv
+    if tv.send_components_request_payment(body.get('components')):
+        logger.warning(json.dumps({'event': 'send_template_payment_refused',
+                                   'code': tv.PAYMENT_ENVELOPE_NOT_PERMITTED}))
+        return _resp(400, {'error': tv.PAYMENT_ENVELOPE_NOT_PERMITTED,
+                           'message': 'Order details payment requests cannot be sent from this '
+                                      'route. Use Pay Flow, Inbox or Commerce to send the '
+                                      'approved payment template. Nothing was sent.'})
     name = body.get('templateName') or body.get('name')
     if not name:
         return _resp(400, {'error': 'templateName is required'})
@@ -2935,6 +2950,14 @@ def _send_group_message(phone_id: str, group_id: str, body: Dict) -> Dict:
         template_lang = body.get('templateLanguage', 'en')
         if not template_name:
             return _resp(400, {'error': 'templateName required for template messages'})
+        # Verbatim components, so never a payment request; see `_send_template_msg`.
+        from lambda_utils import template_validation as tv
+        if tv.send_components_request_payment(body.get('templateComponents')):
+            logger.warning(json.dumps({'event': 'group_template_payment_refused',
+                                       'code': tv.PAYMENT_ENVELOPE_NOT_PERMITTED}))
+            return _resp(400, {'error': tv.PAYMENT_ENVELOPE_NOT_PERMITTED,
+                               'message': 'Order details payment requests cannot be sent to a '
+                                          'group. Nothing was sent.'})
         template_obj = {'name': template_name, 'language': {'code': template_lang}}
         if body.get('templateComponents'):
             template_obj['components'] = body['templateComponents']

@@ -26,8 +26,19 @@ If a component has variables it must provide example values (`example.body_text`
 - Button text ≤25 chars; URL ≤2000; COPY_CODE example ≤20; phone ≤20.
 - Quick replies must be contiguous (one group).
 - 4+ buttons → warning (may truncate on desktop).
-- Types: QUICK_REPLY, URL, PHONE_NUMBER, COPY_CODE, VOICE_CALL, FLOW (+ OTP/MPM/SPM/
-  CATALOG placeholders).
+- Types: QUICK_REPLY, URL, PHONE_NUMBER, COPY_CODE, VOICE_CALL, FLOW, ORDER_DETAILS (+ OTP/
+  MPM/SPM/CATALOG placeholders).
+
+## Order details templates
+Meta's [order details template (India)](https://developers.facebook.com/documentation/business-messaging/whatsapp/payments/payments-in/orderdetailstemplate):
+- One `ORDER_DETAILS` button, text exactly `Review and Pay`.
+- Category `UTILITY`, or `MARKETING` with top-level `display_format: "order_details"`.
+  Any other `display_format` value, or `display_format` without the button, is refused.
+- Other buttons beside it → warning (WhatsApp Manager offers the one button only).
+- The bill is not part of the template. It is the button's `order_details` action at send
+  time, and only the gated `outbound-whatsapp` sender composes it (one approved template,
+  WABA1, Razorpay `payment_gateway`, live readiness check). Pay Flow, Inbox and Commerce
+  reach that sender.
 
 ## Flow buttons
 `validate_flow_button()` requires `text` and one of `flow_id | flow_name | flow_json`;
@@ -46,6 +57,11 @@ if a category change clears TTL.
 - `POST /whatsapp/templates/{id}/send-test` → send to a test recipient.
 - `POST /whatsapp/templates/{id}/refresh` → re-fetch live status/category/quality.
 
+`send-test`, `POST /wa-business/messages/send/template` and group template sends forward
+components verbatim, so all three refuse any payment action (`sub_type: order_details`, an
+`order_details` or `payment_settings` key) with 400 `WA_PAY_ENVELOPE_NOT_PERMITTED` before
+calling Meta.
+
 ## Common Meta errors
 - 132000 parameter count mismatch · 132001 template does not exist / wrong language ·
   132005 translation mismatch · 100 invalid parameter · 131009 parameter format.
@@ -56,3 +72,7 @@ Builder wizard (Basics → Header → Body → Footer → Buttons → Flow butto
 Preview → Submit) with live `WhatsAppChatPreview`/`TemplatePreviewCard`, variable
 detector, button-grouping validator, payload + cURL preview, save draft, duplicate,
 import/export JSON.
+
+Basics has an **Order details message** option (UTILITY or MARKETING). It replaces the
+buttons with the fixed `Review and Pay` button, adds `display_format` on MARKETING, and
+turns off the Offer and Flow button steps.

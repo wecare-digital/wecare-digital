@@ -2710,6 +2710,8 @@ export interface TemplateDefinition {
   language: string;
   category: 'UTILITY' | 'MARKETING' | 'AUTHENTICATION';
   components: TemplateComponent[];
+  /** Marks a MARKETING template as an order details ("Review and Pay") template. Meta's only value. */
+  display_format?: 'order_details';
 }
 
 export interface MetaLibraryTemplate {
