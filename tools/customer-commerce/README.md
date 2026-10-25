@@ -20,9 +20,12 @@ The WECARE logo belongs to the plugin listing/identity, not a new shopping websi
   the approved basket to existing checkout `create`, with a stable idempotency key. No caller
   phone number, customer identity, client price or arbitrary Lambda target is accepted.
 
-Private tools use the host's account connection and the customer bearer token in the HTTP
-Authorization header. Tokens, passwords and authentication OTPs are not tool arguments.
-Existing customer handlers verify the customer issuer, token validity and resource ownership.
+Private tools use the host's OAuth connection with opaque, resource-bound tokens. The new
+customer_oauth.py adapter wraps the existing WhatsApp Cognito CUSTOM_AUTH client without changing
+it. Codes and refresh tokens are one-use; KMS-encrypted custody stays in the existing session table
+under an isolated key prefix. Existing customer handlers still verify issuer, token validity and
+resource ownership. Tokens, passwords and authentication OTPs are not tool arguments. A minimal
+secure authorization form is the connection step only, not a shopping website or graphical app.
 The source does not grant a staff identity customer authority or expose the staff gateway.
 
 ## Run verification
@@ -54,50 +57,44 @@ customer authentication system and ContactsTable. Payment attempts, confirmed mo
 remain in their existing shared tables. WhatsApp Flows remain in WhatsApp and write their current
 FlowSubmissionTable/draft/log records. No replacement commerce or customer database is created.
 
-## Runtime configuration
+## Build and release
 
-Package the single handler.py as the Lambda entrypoint. Runtime boto3 comes from Lambda.
+```sh
+python3 tools/customer-commerce/verify.py
+python3 tools/customer-commerce/verify_oauth.py
+python3 tools/customer-commerce/prepare_release.py --output /absolute/review/output
+python3 tools/customer-commerce/verify_release.py /absolute/review/output/index.py
+```
 
-- `CUSTOMER_COMMERCE_ORIGIN`: the actual reviewed HTTPS MCP origin. No invented live endpoint.
-- `CHATGPT_APPROVED_PRODUCT_IDS`: JSON array of explicitly approved IDs; defaults `[]`, maximum 50.
-  Each approved row still requires active status, valid INR integer pricing, verified stock metadata
-  and available tracked inventory. Product names alone never establish platform eligibility.
-- `PRODUCTS_TABLE`: defaults to the existing stack-wecare-digital-ProductsTable.
-- `CUSTOMER_AUTHORIZATION_SERVER`: actual customer OAuth authorization-server issuer verified
-  during host connection setup. Unconfigured discovery returns ACCOUNT_CONNECTION_NOT_CONFIGURED;
-  the source does not invent an authorization server or claim that existing CUSTOM_AUTH is OAuth.
-- `WHATSAPP_PAYMENT_REQUESTS_ENABLED`: defaults disabled. Enable only after template, live sender,
-  merchant binding, customer ownership, published product approval and explicit send-intent checks.
+The release builder produces a deterministic runtime ZIP, source-verified single-file handler,
+and a complete CloudFormation deployment template using existing state and provider resources.
+It performs no upload, deployment, send or publication. The generated template has safe defaults:
+no approved products, no registered OAuth clients, no registration sends, no payment messages.
+It never fabricates a live endpoint or host callback URI. Read DEPLOYMENT-REVIEW.md before release.
 
-Expose POST `/mcp` and GET `/.well-known/oauth-protected-resource` using the existing AWS
-infrastructure workflow. Apply bounded API Gateway throttles before public exposure.
-The role needs only ProductsTable GetItem and InvokeFunction on exact existing :live aliases:
-wecare-checkout, wecare-customer-profile and wecare-customer-orders, plus logs. It needs no staff,
-Secrets Manager, direct contact/order write, database scan, payment capture or refund permission.
-Original gateway source IP is preserved during handler delegation.
+Configuration is carried by the deployment template's eight reviewed parameters. Only the exact
+customer OAuth client IDs/callbacks and approved product IDs are selected at activation time.
+Existing source resources are defaults, not proof of permission. No provider secret or new Cognito
+client is needed by the adapter. New-account creation delegates to the established registration
+function only after that service is restored and the release flag enabled.
 
-## Remaining live activation gates
+The listing draft targets all available countries at the owner's request. Indian delivery/address
+and INR payment rules remain enforced by the underlying commerce services. Global visibility is
+not a claim of worldwide shipping. Countries [], in the publication draft, deliberately removes
+listing restrictions; it does not change customer, product or provider eligibility.
 
-1. Production MCP routing, least-privilege role, throttles and approved product IDs are not deployed.
-2. Complete and test ChatGPT/Claude customer OAuth linking with the existing customer identity system.
-   Existing WhatsApp CUSTOM_AUTH sign-in is not itself proof of a compatible host OAuth flow.
-   Registration source exists, but the live API audit on 2026-10-25 found no customer-registration
-   route. Resolve that established service before promising new-account creation.
-3. Razorpay for ChatGPT Apps onboarding and product eligibility remain unconfirmed. This source
-   does not embed Razorpay.js, fabricate delegated-payment tokens, capture funds or claim that
-   ChatGPT's payment sheet is activated. Native charge completion is intentionally not a tool.
-4. Verify real tools in both hosts, including expired/revoked/cross-customer tokens, address updates,
-   payment failure/retry/duplicate callback and exactly one paid purchase in the shared OrderTable.
-5. Register the actual remote endpoint and finish publisher/reviewer materials and directory review.
+## Verification and remaining gates
 
-This directory is a source implementation, not an installed plugin or a submission-ready public
-archive. A source export must not contain a made-up mcp.json URL or reuse the privileged internal
-WECARE plugin's staff connections. The customer connector is a separate public product surface.
+25 conversation checks plus 22 OAuth checks pass against readable source. The same 47 checks pass
+against the exact packaged runtime. Python compilation and CloudFormation ValidateTemplate pass.
+No production deployment or live host case has run. The unchanged website build passed earlier;
+repository-wide lint still has the existing unrelated internal /cart anchor error at
+src/components/ElsewhereTravelAssistant.tsx:462.
 
-## Latest verification
+Before public release: reviewed deployment, actual host callbacks, live customer/KMS/IAM checks,
+restored registration, approved products, provider template/merchant verification, controlled
+transaction, verified publisher, plugin documentation, policy confirmation, real host recording,
+dedicated secure reviewer access, host test evidence and directory approval. Native ChatGPT charging
+is not enabled; WhatsApp is the prepared payment fallback after explicit customer request.
 
-25 focused offline checks pass. Python compilation passes. The repository production website build
-passed with network access; the first sandboxed attempt could not fetch public blog data. No website
-source changes remain in this task. Repository-wide lint has one existing unrelated error in
-src/components/ElsewhereTravelAssistant.tsx:462 (an internal /cart anchor), plus existing warnings.
-No lint rules or build gates were disabled and that unrelated source was not edited.
+The source export and runtime ZIP are not installable or submission-ready public plugins.

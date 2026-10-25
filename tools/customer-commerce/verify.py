@@ -6,10 +6,12 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import sys
 import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / 'amplify/functions/ecommerce/customer-commerce-mcp'))
 SPEC = importlib.util.spec_from_file_location('commerce_mcp', ROOT / 'amplify/functions/ecommerce/customer-commerce-mcp/handler.py')
 app = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(app)
@@ -39,6 +41,9 @@ class ConversationContract(unittest.TestCase):
                                      'WHATSAPP_PAYMENT_REQUESTS_ENABLED': 'false', 'CUSTOMER_AUTHORIZATION_SERVER': ''})
         env.start()
         self.addCleanup(env.stop)
+        authorization = patch.object(app.customer_oauth, 'customer_event', side_effect=lambda event, scope: event)
+        authorization.start()
+        self.addCleanup(authorization.stop)
 
     def test_default_approval_list_is_empty(self):
         self.assertEqual(app.catalog(), [])
@@ -186,7 +191,9 @@ class ConversationContract(unittest.TestCase):
 
     def test_no_fake_oauth_endpoint(self):
         response = app.handler(event(path='/.well-known/oauth-protected-resource', method='GET'), None)
-        self.assertEqual(response['statusCode'], 503)
+        self.assertEqual(response['statusCode'], 200)
+        metadata = json.loads(response['body'])
+        self.assertEqual(metadata['authorization_servers'], ['https://commerce.example.com'])
 
     def test_foreign_browser_origin_refused(self):
         self.assertEqual(app.handler(event(origin='https://untrusted.example'), None)['statusCode'], 403)

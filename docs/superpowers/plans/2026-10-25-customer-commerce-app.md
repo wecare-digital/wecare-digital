@@ -12,7 +12,9 @@ the final interaction must happen in the ChatGPT conversation itself.
 - [x] Reject caller-supplied prices, customer IDs, phone destinations and arbitrary provider targets.
 - [x] Verify plain-text/no-UI behavior, schemas, auth refusal, money/stock validity and request shape.
 - [x] Preserve WECARE listing branding using the established source logo and canonical website.
-- [ ] Deploy and verify a real MCP endpoint, host customer authentication and provider onboarding.
+- [x] Build the customer OAuth adapter, deterministic runtime and validated CloudFormation release.
+- [x] Prepare global listing metadata, icon, five positive and three negative review cases.
+- [ ] Deploy and verify a real MCP endpoint, host callbacks and provider onboarding.
 - [ ] Activate approved native ChatGPT payment collection and complete public-directory review.
 
 No production change, provider send, account creation, real transaction or public submission was

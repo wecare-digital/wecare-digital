@@ -15,6 +15,8 @@ import re
 from typing import Any
 from urllib.parse import urlparse
 
+import customer_oauth
+
 MAX_BODY = 32_768
 MAX_PRODUCTS = 50
 _ddb = None
@@ -188,7 +190,8 @@ def tools() -> list[dict]:
                                               'pattern': '[A-Za-z0-9_-]+'}}, ['items', 'idempotencyKey']), True, True))
     result = []
     for name, title, description, schema, private, write in definitions:
-        security = [{'type': 'oauth2', 'scopes': []}] if private else [{'type': 'noauth'}]
+        scope = 'commerce:write' if name in {'update_my_account', 'request_whatsapp_payment'} else 'commerce:read'
+        security = [{'type': 'oauth2', 'scopes': [scope]}] if private else [{'type': 'noauth'}]
         result.append({'name': name, 'title': title, 'description': description, 'inputSchema': schema,
                        'annotations': WRITE_ANNOTATIONS if write else READ_ANNOTATIONS,
                        'securitySchemes': security, '_meta': {'securitySchemes': security}})
@@ -270,6 +273,11 @@ def call_tool(name: str, args: dict, event: dict) -> dict:
     headers = {str(k).lower(): str(v) for k, v in (event.get('headers') or {}).items()}
     if private and not headers.get('authorization', '').startswith('Bearer '):
         return needs_auth()
+    if private:
+        try:
+            event = customer_oauth.customer_event(event, descriptor['securitySchemes'][0]['scopes'][0])
+        except customer_oauth.AuthError:
+            return needs_auth()
     if name == 'browse_products':
         query = args.get('query', '').casefold()
         return tool_result({'products': [p for p in catalog() if query in p['name'].casefold()], 'currency': 'INR'})
@@ -363,14 +371,14 @@ def handler(event: dict, context: Any) -> dict:
     method = str(((event.get('requestContext') or {}).get('http') or {}).get('method') or '').upper()
     try:
         origin = public_origin()
+        auth_response = customer_oauth.route(event)
+        if auth_response is not None:
+            return auth_response
         if headers.get('origin') and headers['origin'] != origin:
             return reply(403, {'error': 'ORIGIN_DENIED'})
         if method == 'GET' and path == '/.well-known/oauth-protected-resource':
-            issuer = os.environ.get('CUSTOMER_AUTHORIZATION_SERVER', '').rstrip('/')
-            parsed = urlparse(issuer)
-            if parsed.scheme != 'https' or not parsed.netloc or parsed.username or parsed.query or parsed.fragment:
-                return reply(503, {'error': 'ACCOUNT_CONNECTION_NOT_CONFIGURED'})
-            return reply(200, {'resource': origin + '/mcp', 'authorization_servers': [issuer],
+            return reply(200, {'resource': origin + '/mcp', 'authorization_servers': [origin],
+                               'scopes_supported': sorted(customer_oauth.SCOPES),
                                'bearer_methods_supported': ['header'], 'resource_name': 'WECARE customer commerce'})
         if path != '/mcp':
             return reply(404, {'error': 'NOT_FOUND'})
