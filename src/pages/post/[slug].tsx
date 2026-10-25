@@ -198,18 +198,13 @@ export default function BlogPostPage ( {
     headline: post.title,
     description,
     url: canonical,
-    // `image` WAS ABSENT, ON ALL 1,279 POSTS, and it is the property that gates the Article
-    // rich result — Google documents it as required, so without it every post was ineligible
-    // no matter how complete the rest of the node was. The asset was already in scope on this
-    // page and already used for og:image three lines below; the schema simply never got it.
-    // ImageObject with dimensions rather than a bare URL, for the reason the logo carries
-    // them: the object form is what the guidance documents.
-    image: {
-      '@type': 'ImageObject',
-      url: SOCIAL_CARD_URL,
-      width: Number( SOCIAL_CARD_W ),
-      height: Number( SOCIAL_CARD_H ),
-    },
+    // NO `image`, DELIBERATELY. This carried the brand logo (SOCIAL_CARD_URL) on every post, on
+    // the belief that Google requires it. Google's Article documentation now says "There are no
+    // required properties" and asks for images "relevant to the article, rather than logos" -
+    // so the logo was a claim about each post that bought nothing. No post renders an image of
+    // its own (IMAGE nodes render null and coverImage is empty across the corpus); add `image`
+    // only from a real, visible post image. tools/audit/schemacheck.js refuses the logo here.
+    // The logo stays where it is accurate: og:image below and Organization.logo.
     datePublished: post.publishedDate || undefined,
     dateModified: post.modifiedDate || post.publishedDate || undefined,
     author: { '@type': 'Organization', name: post.authorName || 'Anew by WECARE.DIGITAL' },

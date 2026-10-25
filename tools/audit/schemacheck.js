@@ -14,9 +14,12 @@
  *
  *   1. no empty or unparseable block. An empty `<script type="application/ld+json">` is worse
  *      than none: a validator reports it against the page rather than skipping it.
- *   2. required properties per type, from Google's own documentation. A `BlogPosting` with no
- *      `image` is INELIGIBLE for the Article rich result however complete the rest is — that
- *      was true of all 1,279 posts before this file existed.
+ *   2. required properties per type. Where Google documents required properties they are
+ *      used; for the Article family Google now documents NONE ("There are no required
+ *      properties"), so that row is this site's own floor - and it no longer includes `image`,
+ *      because the only image a post has is the brand logo, which Google's Article guidance
+ *      asks publishers not to use ("Use images that are relevant to the article, rather than
+ *      logos"). Assertion 5 below refuses the logo there outright.
  *   3. EVERY `@id` REFERENCE RESOLVES ON THE SAME PAGE. This is the assertion that catches the
  *      specific hazard this site kept walking into. `_app.tsx` renders its `<Head>` behind
  *      `!isContentPublic`, so `#organization` was undefined on the blog surface, and
@@ -25,6 +28,9 @@
  *      of seocheck's checks pass while the graph is broken.
  *   4. no cross-route `@id` collision. Two URLs defining one node with different content is
  *      the conflicting-copy case; seocheck's check is per-page and cannot see it.
+ *   5. no Article-family or Recipe node presents the BRAND LOGO as its image. A logo there is a
+ *      claim about the content ("this picture represents the article / is the finished dish")
+ *      made only to fill a field, which .kiro/steering/00-common.md forbids.
  *
  * WHAT IT DELIBERATELY DOES NOT DO. It cannot tell whether a value is TRUE. A fabricated
  * `aggregateRating` is syntactically perfect, and inventing one is grounds for a manual action
@@ -42,13 +48,20 @@ const path = require( 'path' );
 const OUT = path.join( __dirname, '..', '..', 'out' );
 const JSON_MODE = process.argv.includes( '--json' );
 
-/** Google's documented required properties. Recommended-but-absent is reported, not failed. */
+/**
+ * Required properties. Recommended-but-absent is reported, not failed.
+ *
+ * THE ARTICLE ROWS ARE THIS SITE'S FLOOR, NOT GOOGLE'S LIST: Google's Article documentation
+ * says "There are no required properties". `image` was dropped from them on 2026-10-25 -
+ * it had been satisfied on every post with the brand logo, which that same documentation asks
+ * publishers not to use. A real, relevant image is welcome; the logo is refused below.
+ */
 const REQUIRED = {
   Organization: [ 'name', 'url', 'logo' ],
   WebSite: [ 'name', 'url' ],
-  BlogPosting: [ 'headline', 'image', 'datePublished', 'author', 'publisher' ],
-  Article: [ 'headline', 'image', 'datePublished', 'author', 'publisher' ],
-  NewsArticle: [ 'headline', 'image', 'datePublished', 'author', 'publisher' ],
+  BlogPosting: [ 'headline', 'datePublished', 'author', 'publisher' ],
+  Article: [ 'headline', 'datePublished', 'author', 'publisher' ],
+  NewsArticle: [ 'headline', 'datePublished', 'author', 'publisher' ],
   BreadcrumbList: [ 'itemListElement' ],
   WebPage: [ 'name', 'url' ],
   ContactPage: [ 'name', 'url' ],
@@ -73,6 +86,15 @@ const REFUSED = {
 
 /** Google truncates an Article headline past ~110 characters. */
 const HEADLINE_MAX = 110;
+
+/**
+ * Types whose `image` must depict the content itself. For these, the brand logo is refused:
+ * Google's Article guidance says to use relevant images "rather than logos", and a Recipe image
+ * is defined as the completed dish. Organization.logo / Organization.image are not affected.
+ */
+const CONTENT_IMAGE_TYPES = new Set( [ 'Article', 'BlogPosting', 'NewsArticle', 'Recipe' ] );
+/** The brand marks served from the media bucket - any of them in a content image slot fails. */
+const BRAND_LOGO = /\/(wecare-digital|wecaredigital|wd-brand-16x9)\.(png|svg|ico|jpe?g|webp)(\?|$)/i;
 
 function walkHtml ( dir, acc = [] ) {
   if ( !fs.existsSync( dir ) ) return acc;
@@ -135,7 +157,7 @@ if ( pages.length === 0 )
   process.exit( 1 );
 }
 
-const problems = { empty: [], invalid: [], missing: [], dangling: [], duplicate: [], refused: [], long: [], relImage: [] };
+const problems = { empty: [], invalid: [], missing: [], dangling: [], duplicate: [], refused: [], long: [], relImage: [], logoImage: [] };
 const definitionsByRoute = new Map();   // @id -> Set(route)
 const typeCounts = new Map();
 let pagesWithLd = 0, blockCount = 0;
@@ -217,6 +239,16 @@ for ( const file of pages )
       {
         problems.relImage.push( `${normalised} ${type}.image is not absolute: ${imgUrl}` );
       }
+      // An image array is checked entry by entry: one logo among real photos is still a claim
+      // that the logo depicts the content.
+      if ( CONTENT_IMAGE_TYPES.has( type ) && img )
+      {
+        const urls = ( Array.isArray( img ) ? img : [ img ] )
+          .map( entry => ( typeof entry === 'string' ? entry : entry && entry.url ) )
+          .filter( url => typeof url === 'string' );
+        const logo = urls.find( url => BRAND_LOGO.test( url ) );
+        if ( logo ) problems.logoImage.push( `${normalised} ${type}.image is the brand logo: ${logo}` );
+      }
     }
   }
 
@@ -253,6 +285,7 @@ const failures = [
   [ 'the same @id defined twice on one page', problems.duplicate ],
   [ 'refused self-serving properties', problems.refused ],
   [ 'image URLs that are not absolute', problems.relImage ],
+  [ 'brand logo presented as an article or recipe image', problems.logoImage ],
   [ 'page-scoped @id defined on more than one route', crossRoute ],
 ];
 
