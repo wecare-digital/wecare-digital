@@ -4607,6 +4607,12 @@ def _upsert_flow_registry(body: Dict, auth: Optional[Dict] = None) -> Dict:
         if field in body and body[field] is not None:
             merged[field] = body[field]
     merged['flowId'] = flow_id
+    # A contract Flow's number (F001, F002) is identity, not an editable field: it comes from the
+    # canonical record, so a row created or saved here always carries the right one.
+    from lambda_utils import canonical_flows
+    contract_match = canonical_flows.contract_for_flow_id(flow_id)
+    if contract_match:
+        merged['flowNumber'] = contract_match[1]['flowNumber']
     merged['requiresPayment'] = flow_launch.parse_bool(merged.get('requiresPayment'))
     merged['entryTemplateName'] = str(merged.get('entryTemplateName') or '').strip()
     try:
@@ -4960,6 +4966,7 @@ def _sync_flows(params: Dict, body: Dict) -> Dict:
             if match:
                 contract = match[1]
                 update.update({
+                    'flowNumber': contract['flowNumber'],
                     'flowCode': contract['flowCode'], 'flowType': contract['flowType'],
                     'entryMode': contract['entryMode'],
                     'entryTemplateName': contract['entryTemplateName'],

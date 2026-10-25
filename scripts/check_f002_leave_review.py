@@ -50,6 +50,20 @@ check("data.get('phone')" not in idea and "data.get('contactId')" not in idea,'F
 records=RECORDS.read_text(encoding='utf-8')
 check("('WD-F002-LEAVE-REVIEW', 'WD_IDEA', 'WD_REV')" in records,'review readers must include canonical+legacy codes')
 
+# WD_IDEA / WD_REV are READ aliases for historical rows only: no backend module may write one as a
+# new row's flow code, and the registry writers stamp the contract's flowNumber.
+LEGACY_WRITE=re.compile(r"""(FLOW_CODE|flow_code|flowCode)['"]?\s*[=:]\s*['"](WD_IDEA|WD_REV)['"]""")
+for path in sorted((ROOT/'amplify/functions').rglob('*.py')):
+    if '__pycache__' in path.parts:
+        continue
+    for line_no, line in enumerate(path.read_text(encoding='utf-8').splitlines(), 1):
+        if LEGACY_WRITE.search(line):
+            check(False, f'{path.relative_to(ROOT)}:{line_no} writes a legacy F002 flow code')
+BIZ=ROOT/'amplify/functions/messaging/whatsapp-business-api/handler.py'
+biz=BIZ.read_text(encoding='utf-8')
+check("'flowNumber': contract['flowNumber']" in biz,'Flow sync must stamp flowNumber on a first-seen contract row')
+check("merged['flowNumber'] = contract_match[1]['flowNumber']" in biz,'registry upsert must stamp the contract flowNumber')
+
 doc=json.loads(FLOW.read_text(encoding='utf-8'))
 check(doc.get('version')=='7.3','Flow schema version')
 check(doc.get('routing_model')=={'FEEDBACK':['REVIEW'],'REVIEW':[]},'routing model')
