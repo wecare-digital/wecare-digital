@@ -54,9 +54,13 @@ const SEHAT_POLICY = productPolicyCopy( 'sehat', 'Sehat' );
 
 const SehatPage: React.FC = () => (
   <>
+    {/* The title and description restate only what the page itself says - the hero sub and
+        the three booking steps below - in the "Name — what it is" shape the other product
+        pages use. They were "Sehat" and a 42-character sentence, which tools/browser/seocheck.js
+        fails as too thin to describe the page in a result. No clinical claims, by design. */}
     <PageMeta
-      title="Sehat"
-      description="Appointments with qualified professionals."
+      title="Sehat — appointments with qualified professionals"
+      description="Sehat by WECARE.DIGITAL — book an appointment with a qualified professional, choose a preferred date and time, and get your booking confirmed before the visit."
       path="/sehat/"
     />
     <RotatingHero

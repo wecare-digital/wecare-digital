@@ -315,11 +315,12 @@ function generateSitemap ( routes ) {
   const entries = unique.map( route => {
     const pathname = route === '/' ? '/' : route + '/';
     const lastmod = lastmods.get( route );
+    // <loc> and a truthful <lastmod> only. <changefreq> and <priority> were removed on
+    // 2026-10-25: Google ignores both, and .kiro/steering/00-common.md says not to emit them.
+    // Every URL carried a typed-in guess for each, which said nothing true about any of them.
     return `  <url>
     <loc>${SITE_URL}${pathname}</loc>${lastmod ? `
     <lastmod>${lastmod}</lastmod>` : ''}
-    <changefreq>${route.startsWith( '/post/' ) ? 'monthly' : 'weekly'}</changefreq>
-    <priority>${route === '/' ? '1.0' : route === '/blog' ? '0.8' : '0.7'}</priority>
   </url>`;
   } ).join( '\n' );
 

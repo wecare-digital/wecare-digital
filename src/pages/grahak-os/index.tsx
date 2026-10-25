@@ -196,7 +196,8 @@ response = requests.post(
         path="/grahak-os/"
       />
       <Head>
-        <meta name="keywords" content="WhatsApp Business API, WhatsApp CRM, bulk WhatsApp messaging, WhatsApp marketing India, business messaging platform, SMS API India, email marketing, voice calls API, Razorpay WhatsApp payments, customer engagement platform, multi-channel CRM, WhatsApp automation, WhatsApp chatbot, business communication, enterprise messaging, WhatsApp templates, promotional messages, transactional messages, OTP WhatsApp, order notifications" />
+        {/* No meta keywords: Google Search does not use the tag, and the steering file says not
+            to add it. The page's positioning lives in its title, description and copy. */}
         <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
         <meta name="googlebot" content="index, follow" />
         <meta name="author" content="WECARE.DIGITAL" />

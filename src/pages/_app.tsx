@@ -98,7 +98,7 @@ import { ConfirmProvider } from '../contexts/ConfirmContext';
 import { initCapacitor, isNative } from '../lib/capacitor';
 import { registerPushToken } from '../lib/pushRegistration';
 import { VERIFICATION } from '../config/analytics';
-import { ORGANIZATION, WEBSITE, ORG_ID, ld } from '../lib/schema';
+import { ORGANIZATION, WEBSITE, ld } from '../lib/schema';
 
 /**
  * Plain-English labels for the MFA chooser.
@@ -314,65 +314,14 @@ const COMPANY_DESCRIPTION =
  */
 const organizationSchema = ORGANIZATION;
 
-// Structured data for the software application
-const softwareSchema = {
-  "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  "name": "WECARE.DIGITAL",
-  "alternateName": "WECARE.DIGITAL",
-  "applicationCategory": "BusinessApplication",
-  "applicationSubCategory": "CRM Software",
-  "operatingSystem": "Web Browser",
-  // offers REMOVED. It declared price "0" INR, InStock - i.e. the machine-readable version
-  // of every page said the product is free. The home page's closing band promises "Know the
-  // price before you commit" and the catalogue floor was 599 INR (Viveka) when this was written,
-  // so the page and its structured data contradicted each other on 22 routes.
-  // It is NOT replaced with 599 either: this is a company-wide node emitted on /terms,
-  // /privacy and every service page, and one price cannot be true for all of them. An Offer
-  // belongs on a node that describes a single purchasable thing, with a price derived from
-  // the catalogue rather than typed here - the same reasoning index.tsx already records for
-  // why no price is hardcoded into the closing band's copy.
-  "description": "Enterprise multi-channel messaging CRM platform with WhatsApp Business API, SMS, Email, Voice integration, and AI-powered automation. Features include bulk messaging, payment collection via Razorpay, customer data platform, and analytics.",
-  "featureList": [
-    "WhatsApp Business API Integration",
-    "Bulk WhatsApp Messaging",
-    "SMS API (India DLT templates)",
-    "Email Marketing (Amazon SES)",
-    "Voice Calls API",
-    "Razorpay Payment Integration",
-    "AI-Powered Responses",
-    "Customer Data Platform",
-    "Message Templates",
-    "Analytics Dashboard",
-    "Contact Management",
-    "Webhook Integration"
-  ],
-  "screenshot": LOGO_URL,
-  "softwareVersion": "1.0.0",
-  // AN @id REFERENCE, not a third anonymous copy of the company. This restated
-  // `{ name, url }` - no @id, no logo - in the same file that defines the real
-  // #organization node, so any page carrying both described one company twice, once fully
-  // and once as a blank node. ORGANIZATION is emitted on every public surface now, so the
-  // reference resolves everywhere.
-  "publisher": { "@id": ORG_ID },
-  // aggregateRating REMOVED, and this was the most serious of the four.
-  //
-  // It declared ratingValue "4.8" over ratingCount "150" - 150 reviews that do not exist,
-  // on 22 pages including the company home page, /terms and /privacy. Google's
-  // structured-data policy treats self-serving invented review markup as grounds for a
-  // MANUAL ACTION against the whole site, not merely as markup that gets ignored, so this
-  // was a standing risk to every ranking on the domain rather than a cosmetic defect.
-  //
-  // There is no honest version of this field today: a rating has to come from reviews that
-  // were actually collected. If reviews are gathered later, the node that carries them must
-  // also be the node they are about - a company-wide SoftwareApplication emitted on /privacy
-  // is not that - and the count must be the real count.
-  //
-  // WHY seocheck.js DID NOT CATCH ANY OF THIS, which is worth recording: it asserts that
-  // every JSON-LD block parses and that no @id appears twice. Both passed throughout. Neither
-  // is a truth check, and no amount of schema validation is - a fabricated rating is
-  // syntactically perfect.
-};
+// THE SITEWIDE SoftwareApplication IS DELETED, 2026-10-25. It was emitted on every public route
+// except /grahak-os/ and described "WECARE.DIGITAL" as an "Enterprise multi-channel messaging CRM
+// platform" - Grahak OS's positioning - on /terms, /privacy, the puja kit, the home page and every
+// other route whose visible content is not that software. It also asserted a `softwareVersion`
+// of "1.0.0" and the logo as its `screenshot`, neither of which is true. Structured data must
+// describe the page it is on (.kiro/steering/00-common.md), and the one page this software IS
+// about already declares its own, accurate SoftwareApplication (src/pages/grahak-os/index.tsx).
+// Its earlier removals - an invented aggregateRating and a price-0 Offer - are in git history.
 
 // Structured data for the website
 /** MOVED TO src/lib/schema.ts - see the note on organizationSchema above. Its `publisher` is
@@ -446,12 +395,16 @@ const serviceSchema = {
 };
 
 /**
- * Per-route WebPage/Service graph for public pages. A keyed breadcrumb script lets
- * PageShell supply the same trail it renders without emitting a second BreadcrumbList.
+ * Per-route WebPage/Service graph for public pages.
+ *
+ * NO `breadcrumb` PROPERTY, and no BreadcrumbList. Public pages render no visible trail
+ * (components/Breadcrumbs.tsx returns null since the October 2026 hero/content flow), so the
+ * WebPage used to point at a `#breadcrumb` node that no page defined - 32 dangling references,
+ * failed by tools/audit/schemacheck.js. Re-add both only together with a rendered trail.
  *
  * Why this exists: every public page was emitting the same five site-level entities
  * and nothing that identified the page itself, so Google had no per-URL description of
- * the site's hierarchy. Breadcrumbs are the supported signal for that.
+ * the site's hierarchy.
  *
  * Deliberately NOT a sitelinks search box - see the note on websiteSchema. Google
  * removed that feature in November 2024.
@@ -642,14 +595,13 @@ const getPublicPageSchema = ( pathname: string ) => {
         description: meta.description,
         isPartOf: { '@id': `${SITE}/#website` },
         inLanguage: 'en-IN',
-        breadcrumb: { '@id': `${url}#breadcrumb` },
         // Spread, not a conditional property set to undefined: JSON.stringify would drop an
         // undefined value anyway, but an explicit absent key keeps the emitted graph identical
         // to what it was on the routes that have no Service.
         ...( service ? { mainEntity: { '@id': `${url}#service` } } : {} ),
       },
       // Filtered rather than conditionally spread into the array, so the routes with no
-      // serviceType emit only the WebPage node; PageShell supplies its keyed breadcrumb separately.
+      // serviceType emit only the WebPage node.
       ...( service ? [ service ] : [] ),
     ],
   };
@@ -921,6 +873,24 @@ export default function App ( { Component, pageProps }: AppProps ) {
         <Head>
           <link rel="icon" href={ FAVICON_URL } key="icon" />
           <link rel="apple-touch-icon" href={ LOGO_URL } key="apple-touch-icon" />
+          {/* THE VIEWPORT, THEME COLOUR AND MANIFEST ARE OUT OF THE GATE TOO, for the favicon's
+              reason. They describe the device shell, not the page's identity, and none of the
+              replacement heads (BlogIndexHead, ShopListingHead, ShopProductHead, the post Head)
+              declares them - so the 1,516 blog, post and shop-detail pages shipped Next's bare
+              `width=device-width`, with no viewport-fit=cover, and env(safe-area-inset-*)
+              resolved to 0 under every notch and home indicator on those routes. Measured on
+              the export 2026-10-25. viewport-fit=cover opts the page into the full display on
+              notched/cutout phones and foldables; the value is the one the steering file fixes.
+              NO key ON THESE METAS, on purpose: next/head skips its name-based de-duplication
+              for a keyed name-meta, so a key here would sit BESIDE the unkeyed viewport and
+              theme-color /grahak-os/ declares instead of yielding to them. Unkeyed, the page's
+              copy wins and Next's own default viewport is dropped by name. */}
+          <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+          <meta name="theme-color" content="#ffffff" />
+          <meta name="apple-mobile-web-app-capable" content="yes" />
+          <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+          <meta name="mobile-web-app-capable" content="yes" />
+          <link rel="manifest" href="/manifest.json" key="manifest" />
         </Head>
         { !isContentPublic && (
           <Head>
@@ -950,21 +920,14 @@ export default function App ( { Component, pageProps }: AppProps ) {
               written for ONE product - so the company home page was indexed as a WhatsApp
               product page and competed with /grahak-os/ for the same terms.
               /grahak-os/ is unaffected by this change: it already declares its own title,
-              description, keywords and OG tags, so its WhatsApp positioning is stated where it
-              belongs rather than leaking sitewide. Any page wanting product-specific terms
-              should do the same.
-              NOTE ON KEYWORDS: Google has ignored meta keywords since 2009 and Bing gives it no
-              weight either, so this tag earns nothing for ranking. It is kept only so the page
-              does not describe a product it is not about; deleting it outright would be equally
-              valid. Do not invest in tuning it. */}
+              description and OG tags, so its WhatsApp positioning is stated where it belongs
+              rather than leaking sitewide.
+              NO meta keywords, anywhere on the public site. Google Search does not use the tag
+              and the steering file says not to add it; it was deleted here and on /grahak-os/
+              on 2026-10-25 rather than kept as a harmless leftover. */}
           <meta name="description" content={ COMPANY_DESCRIPTION } />
-          <meta name="keywords" content="WECARE.DIGITAL, everyday AI, AI services India, transparent pricing, consumer services, enterprise services, climate tech, frontier tech" />
-          {/* viewport-fit=cover opts the page into the full display on notched/cutout phones and
-              foldables, so env(safe-area-inset-*) resolves to real values. Without it those insets
-              are 0 and content can sit under a notch or the home indicator. */}
-          <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-          {/* THE ICON PAIR THAT USED TO BE HERE IS NOW ABOVE, OUTSIDE THE GATE. Moving it is
-              the whole of the blog/post favicon fix - see the note at the top of this branch. */}
+          {/* THE ICON PAIR, THE VIEWPORT, THE THEME COLOUR AND THE MANIFEST THAT USED TO BE HERE
+              ARE NOW ABOVE, OUTSIDE THE GATE - see the notes at the top of this branch. */}
           {/* CANONICAL AND og:url ARE COMPUTED, and carry a key.
               Both were hardcoded to the site root, on every page. The result was that
               /contact/, /terms/, /privacy/, /grahak-os/ and /vayulok/ each shipped TWO
@@ -1058,13 +1021,6 @@ export default function App ( { Component, pageProps }: AppProps ) {
           <meta name="language" content="English" />
           <meta name="geo.region" content="IN" />
           <meta name="geo.placename" content="India" />
-          <meta name="theme-color" content="#ffffff" />
-
-          {/* PWA / Mobile App */ }
-          <meta name="apple-mobile-web-app-capable" content="yes" />
-          <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-          <meta name="mobile-web-app-capable" content="yes" />
-          <link rel="manifest" href="/manifest.json" />
 
           {/* Structured Data.
               SITE-LEVEL ENTITIES ONLY, emitted once. Google's structured data
@@ -1078,22 +1034,16 @@ export default function App ( { Component, pageProps }: AppProps ) {
               and /vayulok, none of which contain an FAQ. Marking up content that is not
               on the page is a guidelines violation, not merely useless.
 
-              A per-route BreadcrumbList and WebPage are added below instead. Those are
-              still supported, and breadcrumbs are the part of this that actually helps
-              Google understand site hierarchy. */}
+              A per-route WebPage (plus a Service where the page describes one) is added
+              below instead. There is no BreadcrumbList: public pages render no visible
+              trail (components/Breadcrumbs.tsx returns null), and a trail in the markup
+              that the reader cannot see is exactly what the steering file forbids. */}
           <script type="application/ld+json" dangerouslySetInnerHTML={ { __html: JSON.stringify( organizationSchema ) } } />
-          {/* The PLATFORM-level SoftwareApplication is emitted everywhere EXCEPT
-              /grahak-os, which declares its own product-level one. Both together put
-              two SoftwareApplication entities on a single page, which leaves Google to
-              guess which application the page is actually about. The product page wins
-              there because it is the more specific claim; every other page keeps the
-              platform entity. */}
-          { router.pathname !== '/grahak-os' && (
-            <script type="application/ld+json" dangerouslySetInnerHTML={ { __html: JSON.stringify( softwareSchema ) } } />
-          ) }
+          {/* No SoftwareApplication here any more - see the note where softwareSchema was
+              declared. /grahak-os/ declares its own, which is the one page it describes. */}
           <script type="application/ld+json" dangerouslySetInnerHTML={ { __html: JSON.stringify( websiteSchema ) } } />
-          {/* serviceSchema IS SCOPED TO /grahak-os, the mirror image of the
-              softwareSchema gate just above. It declares serviceType "WhatsApp Business
+          {/* serviceSchema IS SCOPED TO /grahak-os, as the deleted sitewide
+              SoftwareApplication should have been. It declares serviceType "WhatsApp Business
               API Platform" and a hasOfferCatalog of WhatsApp / Bulk SMS / Email Marketing
               / Voice Calls - one product's offering - and it was being emitted on all 15
               public routes, so /terms, /privacy, /contact, /orders and the company home

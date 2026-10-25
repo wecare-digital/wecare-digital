@@ -85,7 +85,8 @@ const ShopListingHead: React.FC<ShopListingHeadProps> = ( { page, totalPages } )
         // SITE_ENTITIES below (so nothing dangles) and is cross-route by design (so nothing
         // collides). The CollectionPage's own #page @id already carries the per-route identity.
         isPartOf: { '@id': `${ORIGIN}/#website` },
-        breadcrumb: { '@id': `${canonical}#breadcrumb` },
+        // No `breadcrumb`: no page defines a #breadcrumb node (public trails are not rendered),
+        // so the reference dangled on every /shop/page/N/ - failed by tools/audit/schemacheck.js.
         publisher: { '@id': ORG_ID },
       },
 
