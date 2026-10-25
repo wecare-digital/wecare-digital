@@ -60,7 +60,19 @@ CLI and boto3 (`method: sso`). Under the SSO role, the account inventory and cos
 passed; `check_live_provider_independence.py` produced the same check outcomes as under root
 (its one FAIL, `lambda-env`, is an existing finding); `remediate_commerce_keys_iam.py` plan mode
 was COMPLIANT; and the `wecare-invoice-engine` v111 / `wecare-checkout` v121 hotfix was
-published with it. `docs/operations.md` is updated. Step 4 (the root key) remains.
+published with it. `docs/operations.md` is updated.
+
+**Status 2026-10-25 10:02:24 UTC:** the root access key `AKIA…PONC` is **Inactive** (Plan A
+Step 4, done on the owner's "fix all"). Before that, CloudTrail showed no use of it after the
+switch, and the credential report gives its last use as 08:25 UTC. Afterwards the key is
+refused (`InvalidClientTokenId`), the SSO role still works, and root MFA is on. Remaining owner
+steps: remove the `[wecare-prod]` keys from `~/.aws/credentials`; then, after a quiet soak (not
+before 2026-10-26 10:02 UTC), delete the key in the root console (Step 5). Until the keys are
+removed, the JavaScript SDK keeps choosing them over the SSO settings and now fails: its
+resolver checks static keys before SSO. In the week before the switch that was an aws-sdk-js
+client on this Mac (Bedrock `ListFoundationModels`/`ListInferenceProfiles`, CloudFormation
+`ListTypes`, STS), most likely an editor extension. Rollback: root console → Security
+credentials → Access keys → Activate.
 
 Nothing has to be created in AWS and no new key is issued. Verified live 2026-10-25:
 the organization instance `ssoins-72233d266e9d7140` (access portal
@@ -89,12 +101,12 @@ and `[profile wecare-sso]` (`AdministratorAccess` on `775261844268`).
    fallback. Rollback: delete those three lines from `[profile wecare-prod]`. Do not use
    `aws configure set sso-session.<name>.<key>`: it writes a stray key into the active
    profile instead of the session section.
-4. 🔒 Plan A Steps 4–5: deactivate the root key (`AKIA…PONC`), soak, delete. Before
-   deactivating, confirm in CloudTrail (`lookup-events` on that `AccessKeyId`) that nothing has
-   used it since the cutover; a process started earlier keeps the key it loaded until it
-   restarts, and Kiro's AWS MCP server is one such process. When it is deactivated, also remove
-   the `[wecare-prod]` keys from `~/.aws/credentials` (some SDKs prefer static keys over SSO
-   settings).
+4. 🔒 Plan A Steps 4–5: deactivate the root key (`AKIA…PONC`; **done 10:02:24 UTC**), soak,
+   delete. Before deactivating, confirm in CloudTrail (`lookup-events` on that `AccessKeyId`)
+   that nothing has used it since the cutover; a process started earlier keeps the key it loaded
+   until it restarts, and Kiro's AWS MCP server is one such process. When it is deactivated, also
+   remove the `[wecare-prod]` keys from `~/.aws/credentials`: the JavaScript SDK prefers static
+   keys over SSO settings in the same profile.
 
 Trade-off: when the Identity Center sign-in session ends (8 hours by default; settable from
 15 minutes to 90 days under IAM Identity Center → Settings → Authentication), every AWS call
@@ -221,7 +233,8 @@ to leak. That is a larger change and can follow Plan C.
       provider-independence matches its root run, including the existing `lambda-env` FAIL)
 - [x] One write-path script resolves (dry-run) under the new principal. (2026-10-25:
       `remediate_commerce_keys_iam.py` plan mode COMPLIANT; a real Lambda publish also ran)
-- [ ] Root key soaked ≥24h **inactive** with no CloudTrail `AccessDenied`.
+- [ ] Root key soaked ≥24h **inactive** with no CloudTrail `AccessDenied`. (inactive since
+      2026-10-25 10:02:24 UTC)
 - [ ] `AccountAccessKeysPresent = 0`.
 - [ ] Root login still has MFA (`AccountMFAEnabled = 1`).
 - [ ] (Plan C) automation policy scoped; `AdministratorAccess` detached.

@@ -1243,6 +1243,56 @@ def run(root: Path) -> int:
               bool(lea_invoice) and not lea_invoice[0].get("waOrderStatus"),
               lea_invoice[0].get("waOrderStatus") if lea_invoice else None)
 
+    # ── 10c. Razorpay never delivers; Meta's payment status asks the webhook to settle ─────────
+    print("\n== 10c. Meta payment status -> reconcileReference -> ONE order, ONE invoice")
+    moe = shop.customer(41)
+    mark = W.mark()
+    deliver(order_event(build, moe["digits"], "wamid.HERMETIC.MOE.1", [{"product_retailer_id": kit, "quantity": 1}]))
+    moe_refs = _payrefs_for(moe["sub"])
+    check("META", "setup: the buyer's cart produced a payment reference", bool(moe_refs))
+    if moe_refs:
+        reference = moe_refs[0]["referenceId"]
+        moe_attempt = _attempts_for(moe["sub"])[0]
+        amount = int(moe_attempt["amountPaise"])
+        # The money moved at Razorpay and Meta knows it, but no Razorpay webhook ever arrives.
+        W.meta_payments[reference] = {"order_id": "order_HERMETIC4", "payment_id": "pay_HERMETIC4"}
+        W.rzp_payments["pay_HERMETIC4"] = {"id": "pay_HERMETIC4", "order_id": "order_HERMETIC4",
+                                           "status": "captured", "amount": amount, "currency": "INR"}
+        pay_status_entry = {"id": WABA1, "changes": [{"field": "messages", "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {"display_phone_number": "919330994400", "phone_number_id": META_PHONE_1},
+            "statuses": [{"id": "wamid.HERMETIC.MOE.PAY", "type": "payment", "status": "captured",
+                          "timestamp": str(int(time.time())), "recipient_id": moe["digits"],
+                          "payment": {"reference_id": reference,
+                                      "amount": {"value": amount, "offset": 100}, "currency": "INR",
+                                      "transaction": {"id": "pay_HERMETIC4", "type": "razorpay",
+                                                      "status": "success"}}}]}}]}
+        W.handlers["wecare-razorpay-webhook"] = webhook.handler
+        try:
+            deliver(build(entry=pay_status_entry, waba_id=WABA1, meta_phone_number_ids=[META_PHONE_1],
+                          request_id=str(uuid.uuid4())))
+        finally:
+            W.handlers.pop("wecare-razorpay-webhook", None)
+        triggers = [c for c in W.since(mark, "invocations") if c["function"] == "wecare-razorpay-webhook"]
+        check("META", "inbound asked the webhook to reconcile the reference, asynchronously, once",
+              len(triggers) == 1 and triggers[0]["type"] == "Event"
+              and triggers[0]["event"] == {"internalAction": "reconcileReference", "referenceId": reference},
+              [(t["type"], t["event"]) for t in triggers])
+        settled_counts = post_payment_counts(reference, moe_attempt["paymentAttemptId"])
+        moe_stored = _table("PaymentAttemptsTable").get_item(
+            Key={"paymentAttemptId": moe_attempt["paymentAttemptId"]}).get("Item") or {}
+        check("META", "...the provider readback settled it: ONE paid order, ONE invoice",
+              len(settled_counts["orders"]) == 1
+              and settled_counts["orders"][0].get("paymentStatus") == "PAYMENT_PAID"
+              and len(settled_counts["invoices"]) == 1 and moe_stored.get("status") == "PAYMENT_PAID",
+              f"orders={len(settled_counts['orders'])} invoices={len(settled_counts['invoices'])} "
+              f"attempt={moe_stored.get('status')}")
+        check("META", "...with the Razorpay readback as the evidence, not Meta's word",
+              "/payments/pay_HERMETIC4" in W.rzp_reads, W.rzp_reads[-3:])
+        moe_sends = [s for s in W.since(mark, "meta_sends")
+                     if (s["payload"].get("template") or {}).get("name") == INVOICE_TEMPLATE]
+        check("META", "...and the buyer got exactly ONE invoice template", len(moe_sends) == 1, len(moe_sends))
+
     # ── 11. a failed payment with Razorpay's empty-notes shape is acknowledged, not retried ─────
     print("\n== 11. payment.failed with notes: []")
     body = json.dumps({"entity": "event", "event": "payment.failed", "created_at": int(time.time()),

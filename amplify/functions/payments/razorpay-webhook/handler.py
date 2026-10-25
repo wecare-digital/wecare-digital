@@ -23,6 +23,7 @@ import json
 import hmac
 import hashlib
 import logging
+import re
 import time
 import boto3
 from typing import Dict, Any, Optional
@@ -213,7 +214,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # Direct Lambda invokes require IAM. HTTP payloads cannot enter this recovery arm:
     # API Gateway/Function URLs always supply an envelope, and body JSON is never unwrapped.
     if event.get('internalAction') in ('recoverPaidInvoiceOrder', 'reconcileCustomerOrderLinks',
-                                              'redriveQuarantinedCapture', 'sweepStaleAttempts'):
+                                              'redriveQuarantinedCapture', 'sweepStaleAttempts',
+                                              'reconcileReference'):
         if any(key in event for key in ('requestContext', 'rawPath', 'path', 'httpMethod',
                                         'headers', 'body', 'Records')):
             return _response(403, {'error': 'Internal invocation required'})
@@ -222,6 +224,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 str(event.get('referenceId') or ''), str(event.get('paymentId') or ''), request_id)
         if event['internalAction'] == 'sweepStaleAttempts':
             return {'sweep': _sweep_stale_attempts(request_id)}
+        if event['internalAction'] == 'reconcileReference':
+            # Inbound's Meta payment-status webhook asks for this when Meta reports a capture,
+            # so a late or lost Razorpay webhook does not leave the customer waiting for the
+            # next sweep. The provider readback still decides; see `_reconcile_reference`.
+            return _reconcile_reference(str(event.get('referenceId') or ''), request_id)
         from lambda_utils import shared_tables
         from lambda_utils.ecommerce import customer_order_link, paid_invoice_order
         if event['internalAction'] == 'reconcileCustomerOrderLinks':
@@ -3364,6 +3371,142 @@ _SWEEP_PAGE_LIMIT = 25                 # per status, per run
 _SWEEP_TIME_BUDGET_SECONDS = 30
 
 
+#: The in-flight statuses a capture can still be missing from. The invoice leg stays
+#: PAYMENT_READINESS_CHECKED after sending, so it is included.
+_RECONCILABLE_STATUSES = ('PAYMENT_REQUEST_SENT', 'PAYMENT_PENDING', 'PAYMENT_READINESS_CHECKED')
+
+
+def _reconcile_in_flight_attempt(attempt: Dict[str, Any], keys_table: Any,
+                                 request_id: str) -> str:
+    """Settle ONE in-flight attempt from the provider's own records. Never raises.
+
+    The shared body of the scheduled sweep and the Meta-payment trigger. It asks the right
+    PROVIDER whether exactly one capture exists:
+
+      * website mode with a stored providerOrderId -> Razorpay `GET /orders/{id}/payments`
+        (`razorpay_verify.order_is_paid`).
+      * native modes -> Meta payment lookup by our reference id
+        (`meta_payment_binding.lookup_payment`), which returns the gateway order/payment ids.
+
+    When exactly one captured payment id is found it reconstructs a minimal payment ENTITY from
+    the AUTHENTICATED Razorpay readback (`payment_capture_details`) and runs the normal
+    `_handle_payment_captured` path, which re-resolves the reference from the stored provider
+    binding and RE-VERIFIES against Razorpay before any paid state is written. The reconstructed
+    entity is a trigger, not evidence, so this is not a second paid-state producer.
+
+    Returns the outcome word the sweep counts: skipped_paid, skipped, no_capture, reconciled,
+    provider_unavailable or errors.
+    """
+    from lambda_utils.ecommerce import wa_payment_request, website_checkout
+    from lambda_utils.integrations import meta_payment_binding, razorpay_verify
+
+    # Skip anything that has since reached a terminal/paid state (a redelivery or the browser
+    # path may have settled it between the read and here).
+    if (str(attempt.get('status') or '') not in _RECONCILABLE_STATUSES
+            or attempt.get('finalizationStage') == 'ORDER_FINALIZED'
+            or attempt.get('paidAt')):
+        return 'skipped_paid'
+    reference_id = str(attempt.get('referenceId') or '')
+    checkout_mode = str(attempt.get('checkoutMode') or '')
+    if not reference_id:
+        return 'skipped'
+    try:
+        captured_payment_id = ''
+        if checkout_mode == website_checkout.CHECKOUT_MODE_WEBSITE:
+            provider_order_id = str(attempt.get('providerOrderId') or '')
+            if not provider_order_id:
+                return 'skipped'
+            paid, pay_id, _amount, _currency = razorpay_verify.order_is_paid(provider_order_id)
+            if paid and pay_id:
+                captured_payment_id = pay_id
+        elif (checkout_mode in wa_payment_request.NATIVE_CHECKOUT_MODES
+              or checkout_mode == 'AWS_NATIVE'):
+            # The sender phone and configuration live on OUR `PAYREF#` row (the binding's
+            # configuration source `_load_attempt` reads); cart and catalog-service attempts do
+            # not copy `phoneId` onto the attempt.
+            reference_row = order_keys.resolve_payment_reference(keys_table, reference_id) or {}
+            found = meta_payment_binding.lookup_payment(
+                reference_id=reference_id,
+                phone_number_id=str(reference_row.get('phoneId') or attempt.get('phoneId') or ''),
+                config_name=str(reference_row.get('configurationName')
+                                or attempt.get('configurationName') or ''))
+            captured_payment_id = str(found.get('gatewayPaymentId') or '')
+            if not captured_payment_id:
+                # Meta reported a captured ORDER but no explicit payment id. Resolve the single
+                # captured payment id from the Razorpay order so the normal path can re-verify a
+                # payment entity.
+                order_paid, pay_id, _a, _c = razorpay_verify.order_is_paid(
+                    str(found.get('gatewayOrderId') or ''))
+                if order_paid and pay_id:
+                    captured_payment_id = pay_id
+        else:
+            return 'skipped'
+
+        if not captured_payment_id:
+            return 'no_capture'
+
+        captured, amount_paise, currency, provider_order_id = (
+            razorpay_verify.payment_capture_details(captured_payment_id))
+        if not captured:
+            return 'no_capture'
+        # `notes.referenceId` is OUR reference, read off our own attempt row. A native attempt
+        # whose webhook never arrived has no stored gateway binding yet, so without it the
+        # captured path could not find the attempt and would quarantine the payment instead of
+        # binding it through the Meta lookup.
+        entity = {'id': captured_payment_id, 'order_id': provider_order_id,
+                  'status': razorpay_verify.CAPTURED, 'amount': amount_paise,
+                  'currency': currency, 'notes': {'referenceId': reference_id}}
+        _handle_payment_captured({'payment': {'entity': entity}}, request_id)
+        return 'reconciled'
+    except razorpay_verify.RazorpayUnavailable:
+        return 'provider_unavailable'
+    except meta_payment_binding.MetaBindingUnavailable:
+        # Not a confirmation of payment; just nothing to reconcile from Meta.
+        return 'no_capture'
+    except Exception as error:  # noqa: BLE001 - one attempt must not stop the caller
+        logger.warning(json.dumps({'event': 'reconcile_attempt_failed',
+                                   'referenceId': reference_id,
+                                   'error': type(error).__name__, 'requestId': request_id}))
+        return 'errors'
+
+
+#: Our payment reference shape (`WD-PAY-` + base32), checked before any lookup so the
+#: Meta-payment trigger cannot be made to address arbitrary keys.
+_REFERENCE_RE = re.compile(r'^WD-PAY-[A-Z0-9]{6,32}$')
+
+
+def _reconcile_reference(reference_id: str, request_id: str) -> Dict[str, Any]:
+    """Settle the ONE attempt behind a reference, now. The Meta-payment-webhook trigger.
+
+    Meta's payment status webhook is advisory and creates no paid state; when it reports a
+    capture, inbound asks for this instead of waiting for the next 5-minute sweep. The attempt
+    is resolved from OUR `PAYREF#` row, and settlement still comes only from the provider
+    readback in `_reconcile_in_flight_attempt`. Never raises.
+    """
+    reference_id = str(reference_id or '').strip()
+    if not _REFERENCE_RE.fullmatch(reference_id):
+        return {'outcome': 'invalid_reference'}
+    try:
+        keys_table = dynamodb.Table(COMMERCE_KEYS_TABLE)
+        payref = order_keys.resolve_payment_reference(keys_table, reference_id) or {}
+        attempt_id = str(payref.get('paymentAttemptId') or '')
+        if not attempt_id:
+            return {'outcome': 'no_attempt'}
+        attempt = dynamodb.Table(PAYMENT_ATTEMPTS_TABLE).get_item(
+            Key={'paymentAttemptId': attempt_id}, ConsistentRead=True).get('Item') or {}
+        if not attempt:
+            return {'outcome': 'no_attempt'}
+        outcome = _reconcile_in_flight_attempt(attempt, keys_table, request_id)
+    except Exception as error:  # noqa: BLE001 - a trigger must never fail its caller
+        logger.warning(json.dumps({'event': 'reconcile_reference_failed',
+                                   'referenceId': reference_id, 'error': type(error).__name__,
+                                   'requestId': request_id}))
+        outcome = 'errors'
+    logger.info(json.dumps({'event': 'reconcile_reference_complete', 'referenceId': reference_id,
+                            'outcome': outcome, 'requestId': request_id}))
+    return {'outcome': outcome}
+
+
 def _sweep_stale_attempts(request_id: str) -> Dict[str, Any]:
     """Reconcile in-flight attempts whose Razorpay capture webhook never arrived.
 
@@ -3383,10 +3526,10 @@ def _sweep_stale_attempts(request_id: str) -> Dict[str, Any]:
     and RE-VERIFIES against Razorpay through `_create_order_for_captured_payment` before any paid
     state is written, so the reconstructed entity is a trigger, not trusted evidence. Attempts
     already PAID/finalized are skipped. One summary line is emitted; metrics are best-effort.
+    The per-attempt work is `_reconcile_in_flight_attempt`, shared with the Meta-payment trigger.
     """
     from boto3.dynamodb.conditions import Key
-    from lambda_utils.ecommerce import payment_attempt, wa_payment_request, website_checkout
-    from lambda_utils.integrations import meta_payment_binding, razorpay_verify
+    from lambda_utils.ecommerce import payment_attempt
 
     now = int(time.time())
     deadline = time.time() + _SWEEP_TIME_BUDGET_SECONDS
@@ -3419,84 +3562,9 @@ def _sweep_stale_attempts(request_id: str) -> Dict[str, Any]:
                     counts['deferred'] += 1
                     continue
                 counts['scanned'] += 1
-                # Skip anything that has since reached a terminal/paid state (a redelivery or the
-                # browser path may have settled it between the query and here).
-                if (str(attempt.get('status') or '') not in statuses
-                        or attempt.get('finalizationStage') == 'ORDER_FINALIZED'
-                        or attempt.get('paidAt')):
-                    counts['skipped_paid'] += 1
-                    continue
-                reference_id = str(attempt.get('referenceId') or '')
-                checkout_mode = str(attempt.get('checkoutMode') or '')
-                if not reference_id:
-                    continue
-                try:
-                    captured_payment_id = ''
-                    if checkout_mode == website_checkout.CHECKOUT_MODE_WEBSITE:
-                        provider_order_id = str(attempt.get('providerOrderId') or '')
-                        if not provider_order_id:
-                            continue
-                        paid, pay_id, _amount, _currency = razorpay_verify.order_is_paid(
-                            provider_order_id)
-                        if paid and pay_id:
-                            captured_payment_id = pay_id
-                    elif (checkout_mode in wa_payment_request.NATIVE_CHECKOUT_MODES
-                          or checkout_mode == 'AWS_NATIVE'):
-                        # The sender phone and configuration live on OUR `PAYREF#` row (the
-                        # binding's configuration source `_load_attempt` reads); cart and
-                        # catalog-service attempts do not copy `phoneId` onto the attempt.
-                        reference_row = order_keys.resolve_payment_reference(
-                            keys_table, reference_id) or {}
-                        found = meta_payment_binding.lookup_payment(
-                            reference_id=reference_id,
-                            phone_number_id=str(reference_row.get('phoneId')
-                                                or attempt.get('phoneId') or ''),
-                            config_name=str(reference_row.get('configurationName')
-                                            or attempt.get('configurationName') or ''))
-                        captured_payment_id = str(found.get('gatewayPaymentId') or '')
-                        if not captured_payment_id:
-                            # Meta reported a captured ORDER but no explicit payment id. Resolve
-                            # the single captured payment id from the Razorpay order so the normal
-                            # path can re-verify a payment entity.
-                            order_paid, pay_id, _a, _c = razorpay_verify.order_is_paid(
-                                str(found.get('gatewayOrderId') or ''))
-                            if order_paid and pay_id:
-                                captured_payment_id = pay_id
-                    else:
-                        continue
-
-                    if not captured_payment_id:
-                        counts['no_capture'] += 1
-                        continue
-
-                    # Reconstruct the minimal payment entity from the AUTHENTICATED readback and
-                    # run the normal captured path, which re-resolves the reference from the
-                    # stored provider binding and re-verifies before writing any paid state.
-                    captured, amount_paise, currency, provider_order_id = (
-                        razorpay_verify.payment_capture_details(captured_payment_id))
-                    if not captured:
-                        counts['no_capture'] += 1
-                        continue
-                    # `notes.referenceId` is OUR reference, read off our own attempt row. A native
-                    # attempt whose webhook never arrived has no stored gateway binding yet, so
-                    # without it the captured path could not find the attempt and would
-                    # quarantine the payment instead of binding it through the Meta lookup.
-                    entity = {'id': captured_payment_id, 'order_id': provider_order_id,
-                              'status': razorpay_verify.CAPTURED, 'amount': amount_paise,
-                              'currency': currency, 'notes': {'referenceId': reference_id}}
-                    _handle_payment_captured({'payment': {'entity': entity}}, request_id)
-                    counts['reconciled'] += 1
-                except razorpay_verify.RazorpayUnavailable:
-                    counts['provider_unavailable'] += 1
-                except meta_payment_binding.MetaBindingUnavailable:
-                    # Not a confirmation of payment; just nothing to reconcile from Meta.
-                    counts['no_capture'] += 1
-                except Exception as error:  # noqa: BLE001 - one attempt must not stop the sweep
-                    counts['errors'] += 1
-                    logger.warning(json.dumps({'event': 'sweep_attempt_failed',
-                                               'referenceId': reference_id,
-                                               'error': type(error).__name__,
-                                               'requestId': request_id}))
+                outcome = _reconcile_in_flight_attempt(attempt, keys_table, request_id)
+                if outcome in counts:
+                    counts[outcome] += 1
     except Exception as error:  # noqa: BLE001 - the sweep itself must never raise
         counts['errors'] += 1
         logger.error(json.dumps({'event': 'sweep_stale_attempts_error',

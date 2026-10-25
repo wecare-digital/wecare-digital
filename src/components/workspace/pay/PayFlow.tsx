@@ -482,6 +482,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
         // No discount is sent: the invoice engine auto-applies the standalone Delight policy
         // (0.5% up to Rs50) server-side. There is no coupon code and no manual adjustment to pass.
       };
+      req.entryPoint = 'pay_flow';
       // The result wrapper keeps the server's refusal, so the banner can say WHY a create was
       // refused instead of "Create failed". The success body carries the applied Delight figure
       // for the preview below.
@@ -530,7 +531,13 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
       else
       {
         setRedemption( null );
-        showMsg( describeCreateFailure( created ), 'error' );
+        // Refusals with one clear fix get that fix; everything else says what the server said.
+        const fixes: Record<string, string> = {
+          DELIVERY_REQUIRED: 'Add a complete structured delivery address before creating this physical invoice.',
+          INVALID_PIN: 'The saved postal code is not payable for WhatsApp payment. Update the customer address.',
+          INVALID_AMOUNT: 'Check item amount, quantity, GST and delivery values.',
+        };
+        showMsg( fixes[ created.errorCode ] || describeCreateFailure( created ), 'error' );
       }
     } catch ( e ) { showMsg( 'Creation was not confirmed. Check Invoices before creating another.', 'error' ); }
     finally { invoiceCreateInFlight.current = false; setCreating( false ); }

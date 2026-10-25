@@ -4949,6 +4949,12 @@ def _process_payment_status(status: Dict, request_id: str) -> None:
             'referenceId': reference_id,
             'requestId': request_id,
         }))
+        # Meta saying "captured" is a reason to LOOK, never evidence. Ask the Razorpay webhook,
+        # the one paid-state producer, to settle this reference now from the provider readback,
+        # instead of waiting for a late Razorpay delivery or the next 5-minute sweep. Async and
+        # best-effort: this path still writes no paid state, and a failure here only means the
+        # sweep finds it instead.
+        _trigger_capture_reconcile(reference_id, request_id)
     elif effective_failed:
         logger.info(json.dumps({
             'event': 'payment_effective_failure',
@@ -4974,6 +4980,36 @@ def _process_payment_status(status: Dict, request_id: str) -> None:
             'transactionStatus': transaction_status,
             'requestId': request_id,
         }))
+
+
+#: The one paid-state producer. Inbound only ever asks it to look (`reconcileReference`).
+RAZORPAY_WEBHOOK_FUNCTION = os.environ.get('RAZORPAY_WEBHOOK_FUNCTION',
+                                           'wecare-razorpay-webhook:live')
+
+
+def _trigger_capture_reconcile(reference_id: str, request_id: str) -> None:
+    """Fire-and-forget: ask the Razorpay webhook to settle `reference_id` from the provider.
+
+    An `Event` invoke, so the inbound webhook answers Meta immediately. The webhook validates
+    the reference shape, resolves the attempt from its own PAYREF# row and settles only on a
+    Razorpay readback, so nothing in this request (beyond which reference to look at) is
+    trusted. Never raises.
+    """
+    if not reference_id:
+        return
+    try:
+        lambda_client.invoke(
+            FunctionName=RAZORPAY_WEBHOOK_FUNCTION,
+            InvocationType='Event',
+            Payload=json.dumps({'internalAction': 'reconcileReference',
+                                'referenceId': reference_id}),
+        )
+        logger.info(json.dumps({'event': 'capture_reconcile_requested',
+                                'referenceId': reference_id, 'requestId': request_id}))
+    except Exception as error:  # noqa: BLE001 - the sweep is the backstop
+        logger.warning(json.dumps({'event': 'capture_reconcile_request_failed',
+                                   'referenceId': reference_id, 'error': type(error).__name__,
+                                   'requestId': request_id}))
 
 
 def _store_payment_record(reference_id: str, recipient_id: str, payment_status: str,

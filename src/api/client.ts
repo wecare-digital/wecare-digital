@@ -4751,8 +4751,9 @@ export async function updateCallingSettings ( phoneId: string, settings: {
 }
 
 // ============================================================================
-// INVOICE ENGINE API (Unified Invoice System)
-// Lambda: wecare-invoice-engine
+// INVOICE API (Unified Invoice System)
+// Canonical route: /api/invoices -> wecare-commerce:live.
+// The legacy standalone wecare-invoice-engine remains only as a rollback target.
 // ============================================================================
 
 const INVOICE_BASE = `${API_BASE}/invoices`;
@@ -4889,6 +4890,8 @@ export interface CreateInvoiceEngineRequest {
   state?: string;
   postalCode?: string;
   landmark?: string;
+  /** ISO country code for the delivery address; the engine stores it and defaults to IN. */
+  countryCode?: string;
   /*
    * There is NO coupon field and NO gift-card field on this request. The only discount an invoice
    * carries is the server's always-on Delight policy (0.5% up to ₹50), applied by the invoice

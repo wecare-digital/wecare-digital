@@ -25,6 +25,12 @@ const CATEGORY_FILTER_OPTIONS: SelectOption[] = [
 /* LAYOUT ONLY - what `.category-filter` carried inside the flex `.search-filters` row. */
 const CATEGORY_FILTER_STYLE: React.CSSProperties = { flex: '0 0 180px' };
 
+/**
+ * Meta's approved native payment template is not a generic template-send surface.
+ * Its ORDER_DETAILS button needs authoritative items/amount/payment settings from commerce.
+ */
+const PAYMENT_ORDER_DETAILS_TEMPLATE = 'wecare_whatapp_native_pay_template';
+
 interface TemplateSenderProps {
   contactId?: string;
   contactName: string;
@@ -32,6 +38,7 @@ interface TemplateSenderProps {
   recipientBsuid?: string;
   recipientPhone?: string;    // Send to phone directly — auto-creates contact if needed
   enableManualRecipient?: boolean;  // Show a phone-number input (new / unsaved contact)
+  onRequestPayment?: () => void;     // Open the authoritative commerce payment composer
   onClose: () => void;
   onSent: () => void;
   onError: ( msg: string ) => void;
@@ -50,6 +57,7 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
   recipientBsuid,
   recipientPhone,
   enableManualRecipient,
+  onRequestPayment,
   onClose,
   onSent,
   onError,
@@ -118,8 +126,13 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
       const wabaId = phone?.wabaId;
       const data = await api.listTemplates( wabaId );
       if ( request !== templateLoad.current ) return;
-      // Only show approved templates
-      const approved = data.filter( t => t.status === 'APPROVED' );
+      // Only show approved templates that are safe for a generic template send.
+      // Native WhatsApp payment must go through the commerce composer so the server
+      // freezes items/amounts and builds the required ORDER_DETAILS action.
+      const approved = data.filter( t =>
+        t.status === 'APPROVED'
+        && t.name.toLowerCase() !== PAYMENT_ORDER_DETAILS_TEMPLATE
+      );
       setTemplates( approved );
       setSelectedTemplate( current => approved.find( t => t.id === current?.id && t.language === current?.language ) || null );
     } catch ( err )
@@ -564,6 +577,14 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
     if ( !selectedTemplate )
     {
       onError( 'Please select a template' );
+      return;
+    }
+
+    // Defensive boundary: never let the native payment template fall through the
+    // generic sender even if stale component state retained it across a refresh.
+    if ( selectedTemplate.name.toLowerCase() === PAYMENT_ORDER_DETAILS_TEMPLATE )
+    {
+      onError( 'Use Commerce / Request payment to add items, amount, GST and send Review and Pay.' );
       return;
     }
 

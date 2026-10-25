@@ -52,7 +52,7 @@ forward on trust.
 | RESOURCE | REGION | NAME | PURPOSE | REUSABLE? | ACTION REQUIRED |
 |---|---|---|---|---|---|
 | AWS account | `us-east-1` | `775261844268` | the only account for this project | YES | none |
-| IAM principal | global | `AWSReservedSSO_AdministratorAccess_39eb59d8bf7f2071` (Identity Center user `wecare-user`) | `AWS_PROFILE=wecare-prod` through sso-session `wecare`, since 2026-10-25 | YES | the root access key is still active until the owner retires it — `docs/migrations/b0-retire-root-access-keys.md` |
+| IAM principal | global | `AWSReservedSSO_AdministratorAccess_39eb59d8bf7f2071` (Identity Center user `wecare-user`) | `AWS_PROFILE=wecare-prod` through sso-session `wecare`, since 2026-10-25 | YES | the root access key is Inactive since 2026-10-25 10:02 UTC; the owner removes its `~/.aws/credentials` entry, then deletes it after the soak — `docs/migrations/b0-retire-root-access-keys.md` |
 | Google Cloud project | global | `wecaredigitalbw` (`756034744787`) | Maps / Places / Translate / Vision | YES | see §6 — key restrictions are wrong |
 | Meta WABA | n/a | `2094615664435155` "WECARE.DIGITAL" | WhatsApp sender + payments | YES | none |
 
