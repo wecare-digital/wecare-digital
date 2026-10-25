@@ -314,7 +314,7 @@ const STORAGE_PATHS: StoragePath[] = [
   { path: 'secure/d/public/whatsapp/calling-ai/', purpose: 'WhatsApp calling recordings', readBy: 'whatsapp-calling', writtenBy: 'whatsapp-calling' },
   { path: 'secure/d/public/whatsapp/template-headers/', purpose: 'Template header media', readBy: 'whatsapp-templates', writtenBy: 'whatsapp-template-management' },
   { path: 'secure/d/public/whatsapp/downloads/', purpose: 'User-initiated media downloads', readBy: 'Frontend', writtenBy: 'messages-read' },
-  { path: 'secure/d/public/Invoice/customer_invoice/', purpose: 'Invoice PNGs. Under secure/d/public/, so served WITHOUT authentication: unlisted, not gated, although each carries the customer name, address, amount and GST breakdown', readBy: 'invoice-engine (presigned), system-cleanup', writtenBy: 'invoice-engine, inbound-whatsapp-handler' },
+  { path: 'secure/d/public/Invoice/customer_invoice/', purpose: 'Invoice PNGs. Gated at the edge (customer name, address, amount and GST breakdown), so served only by presigned URL', readBy: 'invoice-engine (presigned), system-cleanup', writtenBy: 'invoice-engine, inbound-whatsapp-handler' },
   { path: 'o/stream/media/reports/', purpose: 'Bulk job reports and exports', readBy: 'Frontend', writtenBy: 'bulk-worker' },
   { path: 'secure/d/public/catalog-deploy/catalog-media/generated/', purpose: 'Product images', readBy: 'catalog-management, Frontend', writtenBy: 'product-image-gen' },
   { path: 'o/stream/media/m/', purpose: 'Logos, branding images (static)', readBy: 'Frontend (CDN)', writtenBy: 'Manual upload' },

@@ -13,7 +13,9 @@ import { defineStorage } from '@aws-amplify/backend';
  * - secure/                     : edge-gated (`wecare-get-miss-redirect` Lambda@Edge),
  *                                 reachable only via a presigned URL, EXCEPT d/public/.
  *   - secure/u/                 : uploads as received — dropdocs/, service-requests/
- *   - secure/d/public/          : deliverables, served publicly with NO authentication
+ *   - secure/d/public/          : deliverables, served publicly with NO authentication,
+ *                                 except the customer data in
+ *                                 media_paths.PRIVATE_DELIVERABLE_PREFIXES (edge-gated)
  *     - Invoice/                : customer_invoice/, fonts/
  *     - receipts/
  *     - whatsapp/               : incoming/, outgoing/, voice/, transcriptions/, downloads/,

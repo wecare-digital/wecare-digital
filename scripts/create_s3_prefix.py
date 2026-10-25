@@ -59,10 +59,9 @@ BUCKET = media_paths.BUCKET
 #: so a reader can tell a deliberate reservation from a stray folder.
 KNOWN_PREFIXES = {
     media_paths.INVOICE_CUSTOMER_IMAGE_PREFIX: (
-        "invoice-engine (PNG) and inbound-whatsapp-handler. NOTE: under secure/d/public/, which "
-        "the edge serves WITHOUT authentication, so a rendered invoice (name, address, amount, "
-        "GST breakdown) is unlisted-but-public by URL. Presigned links are still what the "
-        "code hands out."
+        "invoice-engine (PNG) and inbound-whatsapp-handler. Under secure/d/public/ but listed "
+        "in media_paths.PRIVATE_DELIVERABLE_PREFIXES, so the edge redirects it: a rendered "
+        "invoice (name, address, amount, GST breakdown) is served only by presigned URL."
     ),
 }
 

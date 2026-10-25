@@ -10,7 +10,7 @@ names one of these prefixes, and nothing else holds a current object::
         dropdocs/
         service-requests/
       d/                         DELIVERABLES: generated output
-        public/                  served WITHOUT authentication, see below
+        public/                  served without auth, except customer data (see below)
           Invoice/customer_invoice/   Invoice/fonts/
           receipts/
           whatsapp/  incoming/ outgoing/ voice/ transcriptions/ downloads/ calling-ai/
@@ -31,18 +31,19 @@ CloudFront ``E2GP22R4BIFGQ3`` serves the bucket as ``https://wecare.digital/get/
 (origin path ``""``, so the root segment is part of the URL), and the
 ``wecare-get-miss-redirect`` Lambda@Edge decides exposure by prefix:
 
-* ``secure/d/public/**`` is served with **no authentication**. It is the one public
-  subtree of ``secure/`` (probed 2026-10-25: a font and the ``whatsapp/incoming/``
-  marker under it both returned 200).
+* ``secure/d/public/**`` is served with **no authentication** - template media
+  (``whatsapp/wa-tpl/``), template-header copies, the IVR greeting folder, catalog,
+  blog and invoice fonts - EXCEPT the customer data in `PRIVATE_DELIVERABLE_PREFIXES`
+  (invoices, receipts, WhatsApp incoming/outgoing/voice media, transcriptions,
+  downloads, calling-ai, resumable uploads), which is redirected since 2026-10-25.
 * Every other ``secure/**`` key - ``secure/u/**`` and any ``secure/d/`` key outside
   ``public/`` - is redirected at the edge and reachable only through a presigned URL.
 * Everything else, including ``o/**`` and the bucket root, is public.
 
-So ``o/`` is a location, not a permission, and the ``secure/`` name does not make a
-``secure/d/public/`` object private. Customer invoices, receipts and WhatsApp media live
-in that public subtree today: unlisted, not access-controlled, so a leaked URL is a
-disclosure. Ask `is_gated` whether a key is really gated, and never move a key between
-subtrees to "make it work" - that is a disclosure one way and a broken link the other.
+So ``o/`` is a location, not a permission, and the folder name alone does not say whether
+a key is served. Ask `is_gated`, hand gated keys out only as presigned URLs, and never
+move a key between subtrees to "make it work" - that is a disclosure one way and a broken
+link the other.
 
 Why ``o/`` stays
 ----------------
@@ -105,6 +106,23 @@ WHATSAPP_TEMPLATE_DOCUMENT_PREFIX = WHATSAPP_TEMPLATE_ASSET_ROOT + "docs/"
 WHATSAPP_TEMPLATE_VIDEO_PREFIX = WHATSAPP_TEMPLATE_ASSET_ROOT + "vid/"
 WHATSAPP_TEMPLATE_AUDIO_PREFIX = WHATSAPP_TEMPLATE_ASSET_ROOT + "aud/"
 WHATSAPP_TEMPLATE_STICKER_PREFIX = WHATSAPP_TEMPLATE_ASSET_ROOT + "stk/"
+
+#: Customer data that sits under PUBLIC_DELIVERABLE_ROOT but must not be served by URL.
+#: The edge function (`edge/get-miss-redirect`) redirects these exactly like the rest of
+#: `secure/`; code reaches them through the S3 API or a presigned URL. Nothing hands a
+#: public URL for them to Meta, Plivo, Sinch or a browser (checked 2026-10-25), so gating
+#: them broke no consumer. `verify_media_prefixes.py` keeps the edge copy identical.
+PRIVATE_DELIVERABLE_PREFIXES: tuple[str, ...] = (
+    INVOICE_CUSTOMER_IMAGE_PREFIX,
+    RECEIPT_PREFIX,
+    WHATSAPP_INCOMING_PREFIX,
+    WHATSAPP_OUTGOING_PREFIX,
+    WHATSAPP_VOICE_PREFIX,
+    WHATSAPP_TRANSCRIPTIONS_PREFIX,
+    WHATSAPP_DOWNLOADS_PREFIX,
+    WHATSAPP_CALLING_AI_PREFIX,
+    WHATSAPP_RESUMABLE_PREFIX,
+)
 
 BLOG_ROOT = PUBLIC_DELIVERABLE_ROOT + "blog/"
 BLOG_AUDITS_PREFIX = BLOG_ROOT + "audits/"
@@ -210,7 +228,7 @@ def public_url(key: Optional[str], cdn_domain: Optional[str] = None) -> str:
     string surfaces it at the call site instead of shipping a dead link to a recipient.
     """
     k = canonical(key)
-    if not k or (k.startswith(SECURE_ROOT) and not k.startswith(PUBLIC_DELIVERABLE_ROOT)):
+    if not k or is_gated(k):
         return ""
     if k.startswith(("http://", "https://")):
         return k
@@ -218,7 +236,20 @@ def public_url(key: Optional[str], cdn_domain: Optional[str] = None) -> str:
 
 
 def is_gated(key: Optional[str]) -> bool:
-    """True when the key lives under the gated root."""
+    """True when the edge refuses this key: all of `secure/` except the public-delivery
+    subtree, and within that subtree the customer data in PRIVATE_DELIVERABLE_PREFIXES."""
+    if not key:
+        return False
+    k = canonical(key)
+    if k.startswith(PRIVATE_DELIVERABLE_PREFIXES):
+        return True
+    return k.startswith(SECURE_ROOT) and not k.startswith(PUBLIC_DELIVERABLE_ROOT)
+
+
+def in_private_store(key: Optional[str]) -> bool:
+    """True for a `secure/` key outside the public-delivery subtree: uploads as received
+    (`secure/u/`) and secure-files deliverables. Conversation media under
+    `secure/d/public/whatsapp/` is gated at the edge but is not in this store."""
     if not key:
         return False
     k = canonical(key)

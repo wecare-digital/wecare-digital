@@ -14,10 +14,11 @@
  *    subtree.** Everything outside `secure/` is public. `o/` is just the root that static
  *    assets live under. A `secure/` key is denied at the edge by the
  *    `wecare-get-miss-redirect` Lambda@Edge and only reachable through a presigned URL,
- *    EXCEPT `secure/d/public/**`, which is served with no authentication (invoices,
- *    receipts and WhatsApp media live there). Handing a gated key to a public-URL builder
- *    is a caller mistake — {@link publicUrl} returns `''` rather than a link that will 302,
- *    which surfaces the mistake here instead of shipping a dead link to a recipient.
+ *    EXCEPT `secure/d/public/**`, which is served with no authentication - apart from the
+ *    customer data in it (invoices, receipts, WhatsApp conversation media), which the edge
+ *    refuses too. Handing a gated key to a public-URL builder is a caller mistake —
+ *    {@link publicUrl} returns `''` rather than a link that will 302, which surfaces the
+ *    mistake here instead of shipping a dead link to a recipient.
  *
  * Keys persisted in DynamoDB before the bucket merge lack the `o/` segment, so
  * {@link canonical} normalises on read. It is idempotent, and it never moves a key
@@ -70,10 +71,22 @@ export function canonical ( key?: string | null ): string {
     return PUBLIC_ROOT + k;
 }
 
-/** True when the key lives under the gated root. */
+/**
+ * Customer data under the public-delivery subtree that the edge still refuses. Mirrors
+ * `PRIVATE_DELIVERABLE_PREFIXES` in media_paths.py (invoices, receipts, WhatsApp
+ * conversation media); these are only ever handed out as presigned URLs.
+ */
+const PRIVATE_DELIVERABLE_PREFIXES: ReadonlyArray<string> = [
+    'Invoice/customer_invoice/', 'receipts/',
+    'whatsapp/incoming/', 'whatsapp/outgoing/', 'whatsapp/voice/', 'whatsapp/transcriptions/',
+    'whatsapp/downloads/', 'whatsapp/calling-ai/', 'whatsapp/resumable/',
+].map( p => PUBLIC_DELIVERABLE_ROOT + p );
+
+/** True when the edge refuses this key, so it has no public URL. */
 export function isGated ( key?: string | null ): boolean {
     if ( !key ) return false;
     const k = canonical( key );
+    if ( PRIVATE_DELIVERABLE_PREFIXES.some( p => k.startsWith( p ) ) ) return true;
     return k.startsWith( SECURE_ROOT ) && !k.startsWith( PUBLIC_DELIVERABLE_ROOT );
 }
 
@@ -86,7 +99,7 @@ export function isGated ( key?: string | null ): boolean {
  */
 export function publicUrl ( key?: string | null, cdnDomain: string = CDN_DOMAIN ): string {
     const k = canonical( key );
-    if ( !k || ( k.startsWith( SECURE_ROOT ) && !k.startsWith( PUBLIC_DELIVERABLE_ROOT ) ) ) return '';
+    if ( !k || isGated( k ) ) return '';
     if ( k.startsWith( 'http://' ) || k.startsWith( 'https://' ) ) return k;
     return `https://${ cdnDomain.replace( /^\/+|\/+$/g, '' ) }/${ k }`;
 }

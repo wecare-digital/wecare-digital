@@ -5048,7 +5048,7 @@ def _tool_delete_media_files(params: Dict, request_id: str) -> Dict:
             # not be reachable through a conversation-media tool.
             for raw in file_keys:
                 key = media_paths.canonical(raw)
-                if not key or media_paths.is_gated(key):
+                if not key or media_paths.in_private_store(key):
                     continue
                 try:
                     s3.delete_object(Bucket=MEDIA_BUCKET, Key=key)
@@ -5122,7 +5122,7 @@ def _media_keys_for_contact(contact_id: str) -> List[str]:
                 key = media_paths.canonical(raw)
                 # A gated key is deliberately excluded: secure/ objects belong to the
                 # secure-files flow with its own lifecycle, not to conversation media.
-                if not key or key in seen or media_paths.is_gated(key):
+                if not key or key in seen or media_paths.in_private_store(key):
                     continue
                 seen.add(key)
                 keys.append(key)

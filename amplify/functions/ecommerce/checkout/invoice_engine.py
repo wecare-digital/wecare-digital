@@ -224,11 +224,10 @@ _PAYMENT_READ_FUNCTION = 'wecare-whatsapp-business-api:live'
 # rows**, so there was nothing to migrate. Once an invoice URL has been sent, it cannot be
 # retracted — the same argument media_paths records for the 61 approved WhatsApp template URLs.
 #
-# CURRENT STATE (2026-10-25): that gating no longer holds. INVOICE_CUSTOMER_IMAGE_PREFIX is
-# `secure/d/public/Invoice/customer_invoice/`, and the edge serves `secure/d/public/**` with NO
-# authentication, so a rendered invoice is unlisted-but-public again. Presigned links still
-# work. Moving invoices out of the public subtree is an owner decision and a data migration;
-# until it happens, treat every invoice key as public to anyone holding its URL.
+# CURRENT STATE (2026-10-25): INVOICE_CUSTOMER_IMAGE_PREFIX is
+# `secure/d/public/Invoice/customer_invoice/`. It sits in the public-delivery subtree but is
+# listed in media_paths.PRIVATE_DELIVERABLE_PREFIXES, so the edge redirects it like the rest
+# of `secure/`: an invoice is reachable only through a presigned URL.
 #
 # Delivery is unaffected: `send_invoice_whatsapp` passes `mediaFile: s3_key` to
 # outbound-whatsapp, which reads the object and uploads the bytes to Meta. Meta never fetches
@@ -292,33 +291,6 @@ def _load_logo_bytes() -> Optional[bytes]:
         return data
     except Exception as e:
         logger.warning(f"Logo load error: {e}")
-        return None
-
-
-def _load_s3_image(key: str):
-    """Load an image from S3 as PIL Image (RGBA) with /tmp cache."""
-    import hashlib
-    # Defensive: this is the shared read path for every image in the invoice, so rooting
-    # here means a caller passing a legacy un-rooted key still finds the object.
-    key = media_paths.canonical(key)
-    cache_path = f"/tmp/_s3img_{hashlib.md5(key.encode()).hexdigest()}.png"
-    try:
-        from PIL import Image as PILImage
-        return PILImage.open(cache_path).convert('RGBA')
-    except Exception as _e:
-        logger.debug(f"S3 image cache miss: {_e}")
-    try:
-        from PIL import Image as PILImage
-        obj = s3.get_object(Bucket=MEDIA_BUCKET, Key=key)
-        data = obj['Body'].read()
-        img = PILImage.open(io.BytesIO(data)).convert('RGBA')
-        try:
-            img.save(cache_path, 'PNG')
-        except Exception as _e:
-            logger.debug(f"S3 image cache write failed: {_e}")
-        return img
-    except Exception as e:
-        logger.warning(f"S3 image load error ({key}): {e}")
         return None
 
 
@@ -2173,7 +2145,7 @@ td{{padding:3px 2px;vertical-align:top;color:#000}}
 <div class="footer">
     <div style="font-size:12px;font-weight:bold;margin:6px 0">Thank You!</div>
     <div>Visit Again!</div>
-    <div style="margin-top:2px">wecare.digital/customerservice</div>
+    <div style="margin-top:2px">https://wecare.digital</div>
 </div>
 </body></html>'''
 
@@ -2871,45 +2843,9 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
         _center(f"Status: {payment_status}", FB)
         y += LINE_H
 
-    # ═══ QR CODE — links to customerservice ═══
-    #
-    # Served from a pre-rendered S3 object, not generated. The runtime `import
-    # qrcode` branch that used to lead this block was removed on 2026-09-24:
-    #
-    #   * `qrcode` was in no requirements file and in no attached layer (the only
-    #     layer on this function is pillow-python312), so the import failed on
-    #     every single invoice and the code always fell through to here anyway.
-    #   * It logged at WARNING each time, for a condition that was permanent and
-    #     not actionable. A warning that always fires trains people to ignore
-    #     warnings.
-    #   * The encoded value is the constant `[retired public path]`.
-    #     Every invoice would have produced a byte-identical image, so generating
-    #     it per render was work to reproduce a fixed asset.
-    #
-    # Adding the dependency would have been the wrong repair for the same reason:
-    # the right artifact for a constant is a file. `o/stream/media/m/qr-customerservice.png`
-    # was present on 2026-09-24 (459 bytes) but holds no object as of 2026-10-25, so the text
-    # fallback below is what renders until the image is restored to that key.
-    qr_rendered = False
-    try:
-        qr_s3_img = _load_s3_image(media_paths.public('stream/media/m/qr-customerservice.png'))
-        if qr_s3_img:
-            qr_s3_img = qr_s3_img.resize((80, 80), Image.LANCZOS).convert('RGB')
-            qr_x = (W - 80) // 2
-            img.paste(qr_s3_img, (qr_x, y))
-            y += 84
-            qr_rendered = True
-    except Exception as qr_err:
-        # Debug, not warning: the text fallback below is a complete substitute, so
-        # a missing image degrades the invoice rather than breaking it.
-        logger.debug(f"QR image load failed: {qr_err}")
-
-    # If the image is unavailable, the URL in text carries the same information.
-    if not qr_rendered:
-        _center("Scan QR or visit:", FSM, CLR_GRY)
-        y += LINE_H
-        _center("wecare.digital/customerservice", F)
-        y += LINE_H
+    # No QR code. It encoded the customer-service portal, which was retired by owner
+    # instruction on 2026-09-27, and its image (o/stream/media/m/qr-customerservice.png)
+    # is gone. The footer below prints the site address, matching receipt_layout.render.
 
     # ═══ FOOTER ═══
     _sep()
@@ -2917,7 +2853,7 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
     y += LINE_H + 2
     _center("Visit Again!", F, CLR_GRY)
     y += LINE_H
-    _center("wecare.digital/customerservice", FSM, CLR_GRY)
+    _center("https://wecare.digital", FSM, CLR_GRY)
     y += LINE_H
     _dsep()
 

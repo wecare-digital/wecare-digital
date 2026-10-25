@@ -3,23 +3,24 @@
 ## Single Bucket: `wecare-digital-get`
 
 All WhatsApp media uses one bucket with folder-based routing. Every prefix below sits under
-`secure/d/public/whatsapp/`, which the edge serves **without authentication**: an object is
-unlisted, not access-controlled, so anyone holding its URL can fetch it. The key constants are
-in `amplify/functions/shared/lambda_utils/media_paths.py`.
+`secure/d/public/whatsapp/`. Customer media is **gated**: the edge redirects it like the rest
+of `secure/`, so the Inbox and every other reader get presigned URLs. Only the folders marked
+Public are served by URL. The key constants and the gated list
+(`PRIVATE_DELIVERABLE_PREFIXES`) are in `amplify/functions/shared/lambda_utils/media_paths.py`.
 
 ## S3 Folder Map
 
 | Prefix | Use Case | Lambda Function | Access |
 |--------|----------|-----------------|--------|
-| `secure/d/public/whatsapp/incoming/` | Customer sends media TO you | `wecare-inbound-whatsapp` | Public by URL |
-| `secure/d/public/whatsapp/outgoing/` | You send media TO customer | `wecare-outbound-whatsapp` | Public by URL |
-| `secure/d/public/whatsapp/voice/` | Voice messages + MP3 | `wecare-whatsapp-voice` | Public by URL |
-| `secure/d/public/whatsapp/transcriptions/` | AWS Transcribe output | `wecare-whatsapp-voice` | Public by URL |
-| `secure/d/public/whatsapp/downloads/` | Downloaded media | `wecare-whatsapp-business-api`, `wecare-waba-management` | Public by URL |
-| `secure/d/public/whatsapp/calling-ai/` | WhatsApp calling AI | `wecare-whatsapp-calling` | Public by URL |
-| `secure/d/public/whatsapp/whatsapp-calling/` | IVR greeting audio (TTS) | `wecare-whatsapp-calling` | Public by URL |
-| `secure/d/public/whatsapp/resumable/` | Resumable-upload staging | `wecare-whatsapp-business-api` | Public by URL |
-| `secure/d/public/whatsapp/template-headers/` | Template creation header media (uploaded to Meta) | `wecare-whatsapp-template-management` | Public by URL |
+| `secure/d/public/whatsapp/incoming/` | Customer sends media TO you | `wecare-inbound-whatsapp` | Gated (presigned) |
+| `secure/d/public/whatsapp/outgoing/` | You send media TO customer | `wecare-outbound-whatsapp` | Gated (presigned) |
+| `secure/d/public/whatsapp/voice/` | Voice messages + MP3 | `wecare-whatsapp-voice` | Gated (presigned) |
+| `secure/d/public/whatsapp/transcriptions/` | AWS Transcribe output | `wecare-whatsapp-voice` | Gated (presigned) |
+| `secure/d/public/whatsapp/downloads/` | Downloaded media | `wecare-whatsapp-business-api`, `wecare-waba-management` | Gated (presigned) |
+| `secure/d/public/whatsapp/calling-ai/` | WhatsApp calling AI | `wecare-whatsapp-calling` | Gated (presigned) |
+| `secure/d/public/whatsapp/whatsapp-calling/` | IVR greeting audio (TTS) | `wecare-whatsapp-calling` | Public |
+| `secure/d/public/whatsapp/resumable/` | Resumable-upload staging | `wecare-whatsapp-business-api` | Gated (presigned) |
+| `secure/d/public/whatsapp/template-headers/` | Template creation header media (uploaded to Meta) | `wecare-whatsapp-template-management` | Public |
 | `secure/d/public/whatsapp/wa-tpl/docs/` | Template send — document attachments | `wecare-outbound-whatsapp` | Public |
 | `secure/d/public/whatsapp/wa-tpl/img/` | Template send — image attachments | `wecare-outbound-whatsapp` | Public |
 | `secure/d/public/whatsapp/wa-tpl/vid/` | Template send — video attachments | `wecare-outbound-whatsapp` | Public |

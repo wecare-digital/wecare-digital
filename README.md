@@ -60,8 +60,12 @@ Served as `https://wecare.digital/get/<key>` via CloudFront `E2GP22R4BIFGQ3`
 (origin path `""`, so the root segment is part of the URL). Exposure is decided by
 the `wecare-get-miss-redirect` Lambda@Edge, by prefix:
 
-- `secure/d/public/**` is served **without authentication**. That includes invoices,
-  receipts and WhatsApp media: they are unlisted, not access-controlled.
+- `secure/d/public/**` is served **without authentication**, except the customer data
+  in it, which is redirected like the rest of `secure/` (since 2026-10-25):
+  `Invoice/customer_invoice/`, `receipts/`, and `whatsapp/` `incoming/`, `outgoing/`,
+  `voice/`, `transcriptions/`, `downloads/`, `calling-ai/`, `resumable/`. Those are
+  reachable only via a presigned URL. The list lives in
+  `media_paths.PRIVATE_DELIVERABLE_PREFIXES`; the edge copy is checked against it.
 - Every other `secure/**` key (`secure/u/**`, any `secure/d/` key outside `public/`)
   is redirected at the edge and reachable only via a presigned URL.
 - Everything else, including `o/**`, is public. `o/` is a **location, not a permission**.
