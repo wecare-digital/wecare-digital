@@ -1056,8 +1056,9 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                           <Button variant="secondary" size="sm" onClick={ () => openRemarkModal( selInvoice, 'refund' ) }>Reconcile Refund</Button>
                           <Button variant="secondary" size="sm" onClick={ () => openRemarkModal( selInvoice, 'credit_note' ) }>Record Credit Note</Button>
                           { /* WhatsApp order_status fulfilment updates are a separate fulfilment
-                               workflow. Payment capture sends the invoice only; staff deliberately
-                               chooses when to notify the customer about fulfilment. The server validates the
+                               workflow. Payment capture sends the invoice, then (WhatsApp orders only)
+                               one `processing` update; staff deliberately choose when to send the
+                               later fulfilment steps. The server validates the
                                WhatsApp transition, so sending "shipped" before "processing" or
                                after "completed" is refused with a reason. `partially-shipped` is
                                available via the API but kept off the quick row to stay simple. */ }

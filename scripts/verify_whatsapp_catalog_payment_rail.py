@@ -5,8 +5,10 @@
     -> ProductsTable pricing -> ONE PaymentAttempt + PAYREF# -> wecare-outbound-whatsapp
     -> `wecare_whatapp_native_pay_template` (button sub_type order_details, payment_gateway /
     Razorpay / WECAREDIGITAL) -> Razorpay `payment.captured` -> wecare-razorpay-webhook
-    -> ONE order -> ONE Meta order_status `processing` -> ONE paid invoice
-    -> `wecare_default_invoice_image_template` (its FLOW button carries an order-bound review token).
+    -> ONE order (orderStatus 'processing') -> ONE paid invoice
+    -> `wecare_default_invoice_image_template` (its FLOW button carries an order-bound review token)
+    -> then, as a SEPARATE finalization step, ONE Meta order_status `processing`. Invoice delivery
+    never depends on that order_status send succeeding.
 
 WHAT RUNS FOR REAL
 ------------------
@@ -917,8 +919,8 @@ def run(root: Path) -> int:
     boundary("readiness proven, no recipient (zero-send positive control)", "R12", {**common, "checkoutOrderDetails": base_details},
              400, "contactId or recipientPhone is required")
 
-    # ── 9. payment -> ONE order -> ONE order_status `processing` -> ONE invoice -> invoice template ─
-    print("\n== 9. Razorpay payment.captured -> order -> order_status -> invoice -> invoice template")
+    # ── 9. payment -> ONE order -> ONE invoice template -> then ONE order_status `processing` ─────
+    print("\n== 9. Razorpay payment.captured -> order -> invoice template -> order_status processing")
 
     def capture(reference: str, amount: int, payment_id: str, order_id: str, phone: str) -> Dict[str, Any]:
         W.meta_payments[reference] = {"order_id": order_id, "payment_id": payment_id}
@@ -1001,9 +1003,9 @@ def run(root: Path) -> int:
             check("INV", "the invoice template went to the buyer's number", delivered_to == [alice["phone"]], delivered_to)
         check("R17", "exactly ONE wecare_default_invoice_image_template send",
               len(counts["invoice_sends"]) - sends_before == 1, len(counts["invoice_sends"]) - sends_before)
-        # R18: exactly ONE Meta order_status `processing`, sent BEFORE the invoice template. Alice
-        # ordered from the chat, so her 24-hour window is open and the update travels as the
-        # interactive `order_status` message, which needs no template.
+        # R18: exactly ONE Meta order_status `processing`, sent AFTER the invoice template as its own
+        # finalization step. Alice ordered from the chat, so her 24-hour window is open and the
+        # update travels as the interactive `order_status` message, which needs no template.
         capture_sends = W.since(mark, "meta_sends")
         status_idx = [i for i, s in enumerate(capture_sends)
                       if (s["payload"].get("interactive") or {}).get("type") == "order_status"]
@@ -1020,9 +1022,24 @@ def run(root: Path) -> int:
                   (params.get("order") or {}).get("status") == "processing"
                   and params.get("reference_id") == reference and status_payload.get("to") == alice["phone"],
                   {"status": (params.get("order") or {}).get("status"), "ref": params.get("reference_id")})
-            check("R18", "...and it went out BEFORE the invoice template",
-                  bool(invoice_idx) and status_idx[0] < invoice_idx[0],
+            check("R18", "...and it went out AFTER the invoice template (receipt first, fulfilment second)",
+                  bool(invoice_idx) and invoice_idx[0] < status_idx[0],
                   {"order_status": status_idx, "invoice": invoice_idx})
+        post_capture_kinds = sorted(
+            "invoice" if (s["payload"].get("template") or {}).get("name") == INVOICE_TEMPLATE
+            else "order_status" if (s["payload"].get("interactive") or {}).get("type") == "order_status"
+            else f"OTHER:{s['payload'].get('type')}:{(s['payload'].get('template') or {}).get('name', '')}"
+            for s in capture_sends)
+        check("R17", "the capture sent nothing else: no text, no PDF, no review template, no Flow",
+              post_capture_kinds == ["invoice", "order_status"], post_capture_kinds)
+        invoice_template = (capture_sends[invoice_idx[0]]["payload"].get("template") or {}) if invoice_idx else {}
+        components = invoice_template.get("components") or []
+        header_ok = any(c.get("type") == "header" and any(p.get("type") == "image" for p in c.get("parameters") or [])
+                        for c in components)
+        button_ok = any(c.get("type") == "button" and c.get("sub_type") == "flow" and str(c.get("index")) == "0"
+                        for c in components)
+        check("R17", "the invoice template carries the PNG IMAGE header and the FLOW button at index 0",
+              header_ok and button_ok, [(c.get("type"), c.get("sub_type"), c.get("index")) for c in components])
         check("R18", "the invoice records what Meta accepted (waOrderStatus 'processing')",
               bool(counts["invoices"]) and counts["invoices"][0].get("waOrderStatus") == "processing",
               counts["invoices"][0].get("waOrderStatus") if counts["invoices"] else None)
@@ -1062,6 +1079,37 @@ def run(root: Path) -> int:
         check("R18", "...and still exactly ONE order_status after the replay and the reprocess",
               sorted(replay_traffic) == ["invoke:wecare-outbound-whatsapp", "meta:interactive_order_status"],
               replay_traffic)
+        # The one order_status sender keeps ONE send per (invoice, target), whoever calls it.
+        alice_invoice = counts["invoices"][0]["invoiceId"] if counts["invoices"] else ""
+        if alice_invoice:
+            repeat = invoice_engine.send_order_status(alice_invoice, "processing", "", PHONE_ID_1, "hermetic")
+            check("R18", "a repeat 'processing' is refused before outbound (ORDER_STATUS_UNCHANGED)",
+                  repeat["statusCode"] == 409 and "ORDER_STATUS_UNCHANGED" in repeat["body"], repeat.get("body"))
+            real_outbound = W.handlers["wecare-outbound-whatsapp"]
+
+            def crashing_outbound(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+                if "orderStatusDetails" in str(event.get("body") or ""):
+                    raise RuntimeError("simulated outbound crash")
+                return real_outbound(event, context)
+
+            W.handlers["wecare-outbound-whatsapp"] = crashing_outbound
+            crash_mark = W.mark()
+            try:
+                first = invoice_engine.send_order_status(alice_invoice, "shipped", "", PHONE_ID_1, "hermetic")
+                second = invoice_engine.send_order_status(alice_invoice, "shipped", "", PHONE_ID_1, "hermetic")
+            finally:
+                W.handlers["wecare-outbound-whatsapp"] = real_outbound
+                # The crash is injected on purpose; keep the global NET check about everything else.
+                W.unexpected_http[:] = [u for u in W.unexpected_http if "simulated outbound crash" not in u]
+            row = _table("InvoicesTable").get_item(Key={"invoiceId": alice_invoice}).get("Item") or {}
+            check("R18", "an outbound crash is UNCERTAIN: 502, and waOrderStatus is not advanced",
+                  first["statusCode"] == 502 and "ORDER_STATUS_SEND_UNCERTAIN" in first["body"]
+                  and row.get("waOrderStatus") == "processing", (first.get("body"), row.get("waOrderStatus")))
+            outbound_calls = [c for c in W.since(crash_mark, "invocations")
+                              if c["function"] == "wecare-outbound-whatsapp"]
+            check("R18", "...and the held claim stops a second 'shipped' before it reaches outbound",
+                  second["statusCode"] == 409 and "ORDER_STATUS_IN_FLIGHT" in second["body"]
+                  and len(outbound_calls) == 1, (second.get("body"), len(outbound_calls)))
         hints = [c for c in W.since(mark, "invocations") if c["function"] in ("wecare-service-requests", "wecare-whatsapp-business-api")
                  and c["event"].get("internalAction") in ("activateServiceRequest", "preparePaidSubmitRequest")]
         check("INFO", "activation hint is re-sent per verified delivery (receiver is idempotent; not exercised here)",
@@ -1138,6 +1186,51 @@ def run(root: Path) -> int:
               len(done["orders"]) == 1 and done["orders"][0].get("finalizationStage") == "ORDER_FINALIZED"
               and len(done["invoices"]) == 1 and len(jay_sends) == 1,
               f"orders={len(done['orders'])} invoices={len(done['invoices'])} sends={len(jay_sends)}")
+
+    # ── 10b. the order_status step failing never blocks or repeats the invoice ──────────────────
+    print("\n== 10b. order_status outage is isolated from invoice delivery")
+    lea = shop.customer(40)  # numbers 1-14 belong to the other scenarios
+    mark = W.mark()
+    deliver(order_event(build, lea["digits"], "wamid.HERMETIC.LEA.1", [{"product_retailer_id": kit, "quantity": 1}]))
+    lea_refs = _payrefs_for(lea["sub"])
+    check("ISO", "setup: the buyer's cart produced a payment reference", bool(lea_refs))
+    if lea_refs:
+        reference = lea_refs[0]["referenceId"]
+        lea_attempt = _attempts_for(lea["sub"])[0]
+        real_outbound = W.handlers["wecare-outbound-whatsapp"]
+
+        def outbound_order_status_down(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+            if "orderStatusDetails" in str(event.get("body") or ""):
+                raise RuntimeError("simulated order_status outage")
+            return real_outbound(event, context)
+
+        W.handlers["wecare-outbound-whatsapp"] = outbound_order_status_down
+        try:
+            event = capture(reference, int(lea_attempt["amountPaise"]), "pay_HERMETIC3", "order_HERMETIC3",
+                            lea["phone"])
+            settled = webhook.handler(json.loads(json.dumps(event)), FakeContext("wecare-razorpay-webhook"))
+        finally:
+            W.handlers["wecare-outbound-whatsapp"] = real_outbound
+            W.unexpected_http[:] = [u for u in W.unexpected_http if "simulated order_status outage" not in u]
+        lea_sends = W.since(mark, "meta_sends")
+        lea_invoice_sends = [s for s in lea_sends if (s["payload"].get("template") or {}).get("name") == INVOICE_TEMPLATE]
+        check("ISO", "order_status outage: the capture still settles with 200 (no forced replay)",
+              settled.get("statusCode") == 200, settled.get("body"))
+        check("ISO", "...the invoice template still went out exactly once, to the buyer",
+              [s["payload"].get("to") for s in lea_invoice_sends] == [lea["phone"]], len(lea_invoice_sends))
+        check("ISO", "...no order_status reached Meta",
+              not [s for s in lea_sends if (s["payload"].get("interactive") or {}).get("type") == "order_status"])
+        routes = [str(c["event"].get("rawPath") or "") for c in W.since(mark, "invocations")
+                  if c["function"] == "wecare-checkout"]
+        send_at = [i for i, r in enumerate(routes) if r.endswith("/send-whatsapp")]
+        status_at = [i for i, r in enumerate(routes) if r.endswith("/order-status")]
+        check("ISO", "...the order_status step ran once, as its own call AFTER the invoice send",
+              len(status_at) == 1 and bool(send_at) and send_at[0] < status_at[0],
+              {"send": send_at, "status": status_at})
+        lea_invoice = post_payment_counts(reference, lea_attempt["paymentAttemptId"])["invoices"]
+        check("ISO", "...and the invoice does not claim Meta accepted any status",
+              bool(lea_invoice) and not lea_invoice[0].get("waOrderStatus"),
+              lea_invoice[0].get("waOrderStatus") if lea_invoice else None)
 
     # ── 11. a failed payment with Razorpay's empty-notes shape is acknowledged, not retried ─────
     print("\n== 11. payment.failed with notes: []")

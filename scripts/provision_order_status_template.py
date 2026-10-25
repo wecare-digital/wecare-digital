@@ -3,9 +3,9 @@
 
 Why this template exists
 ------------------------
-A verified WhatsApp-rail capture sends Meta order_status `processing` before the invoice, and
-staff drive a paid order forward from the workspace (Pay Flow → "Mark Shipped" / "Mark
-Completed"). Inside the 24-hour customer-service window those updates go out as the interactive
+A verified WhatsApp-rail capture sends the paid invoice template first and then, as a separate
+finalization step, Meta order_status `processing`; staff drive a paid order forward from the
+workspace (Pay Flow → "Mark Shipped" / "Mark Completed"). Inside the 24-hour customer-service window those updates go out as the interactive
 `order_status` message and need no template. Outside the window only this approved ORDER_STATUS
 template may carry them; without it the update is deferred (409 ORDER_STATUS_DEFERRED, recorded
 as `pendingOrderStatus` on the invoice). This provisions that one template and verifies Meta

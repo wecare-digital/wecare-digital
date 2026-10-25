@@ -4241,6 +4241,36 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
             'orderStatus': current_status,
         })
 
+    # ONE send per (invoice, target). The transition check above reads `waOrderStatus`, which only
+    # advances after Meta accepts, so two overlapping callers (a Razorpay redelivery racing a
+    # redrive or the stale-attempt sweep, or a double-clicked staff button) could both pass it and
+    # message the customer twice. Same claim primitive and semantics as the invoice delivery: an
+    # intent until Meta accepts, released on a definite refusal so a later attempt may send, and
+    # kept on an uncertain outcome so nothing is sent twice.
+    claim_channel = f'order-status:{target}'
+    try:
+        claimed = order_keys.claim_invoice_delivery(
+            keys_table, invoice_id=invoice_id, channel=claim_channel,
+            extra={'requestId': request_id})
+    except order_keys.OrderIdentityUnavailable:
+        return _resp(503, {'error': 'Order status claim unavailable; nothing was sent.',
+                           'code': 'ORDER_STATUS_CLAIM_UNAVAILABLE'})
+    if not claimed:
+        return _resp(409, {
+            'error': f'A {target} update for this order is already being sent or was sent.',
+            'code': 'ORDER_STATUS_IN_FLIGHT',
+            'orderStatus': current_status,
+        })
+
+    def _release_status_claim() -> None:
+        try:
+            order_keys.release_invoice_delivery(keys_table, invoice_id=invoice_id,
+                                                channel=claim_channel)
+        except order_keys.OrderIdentityUnavailable:
+            logger.error(json.dumps({'event': 'order_status_claim_release_failed',
+                                     'invoiceId': invoice_id, 'targetStatus': target,
+                                     'requestId': request_id}))
+
     body_text = (description or '').strip() or wa_order_status.default_body(target)
     contact = _lookup_contact_by_phone(customer_phone)
     contact_id = (contact.get('contactId') or contact.get('id', '')) if contact else ''
@@ -4268,12 +4298,23 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
         wa_result = json.loads(wa_response['Payload'].read())
         wa_status_code = int(wa_result.get('statusCode', wa_response.get('StatusCode', 0)) or 0)
     except Exception as e:  # noqa: BLE001
+        # Uncertain: outbound may already have handed the message to Meta, so the claim stays.
         logger.error(json.dumps({
             'event': 'order_status_invoke_error', 'invoiceId': invoice_id,
             'targetStatus': target, 'error': type(e).__name__, 'requestId': request_id,
         }))
         return _resp(502, {'error': 'Could not send the order status update.',
                            'code': 'ORDER_STATUS_SEND_FAILED'})
+    if wa_response.get('FunctionError'):
+        # Outbound crashed. Its error payload has no `statusCode`, so the line above fell back to
+        # the invoke's own 200; reading that as Meta's acceptance would advance `waOrderStatus`
+        # for a message that may never have been sent. Uncertain, so the claim stays.
+        logger.error(json.dumps({
+            'event': 'order_status_outbound_function_error', 'invoiceId': invoice_id,
+            'targetStatus': target, 'requestId': request_id,
+        }))
+        return _resp(502, {'error': 'The order status update could not be confirmed.',
+                           'code': 'ORDER_STATUS_SEND_UNCERTAIN'})
 
     # outbound returns its own body as a JSON string. Parse it once: a 200 carries
     # `orderStatusChannel` ('interactive' | 'template'); a 409 carries
@@ -4308,6 +4349,8 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
             'event': 'order_status_deferred', 'invoiceId': invoice_id,
             'targetStatus': target, 'requestId': request_id,
         }))
+        # Nothing was sent, so a later attempt (window reopened, template approved) may send.
+        _release_status_claim()
         return _resp(409, {
             'error': str(wa_body.get('message') or 'The order status update was deferred.'),
             'code': 'ORDER_STATUS_DEFERRED',
@@ -4323,8 +4366,14 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
             'event': 'order_status_send_rejected', 'invoiceId': invoice_id,
             'targetStatus': target, 'waStatus': wa_status_code, 'requestId': request_id,
         }))
+        # A definite refusal: outbound answered and nothing reached the customer.
+        _release_status_claim()
         return _resp(502, {'error': 'WhatsApp did not accept the order status update.',
                            'code': 'ORDER_STATUS_REJECTED', 'waStatus': wa_status_code})
+
+    order_keys.confirm_invoice_delivery(
+        keys_table, invoice_id=invoice_id, channel=claim_channel,
+        wa_message_id=str(wa_body.get('whatsappMessageId') or ''))
 
     # The send succeeded, so record the new fulfilment status on the invoice row. Keep
     # `waOrderStatus` (what META accepted, the authority the next transition validates against)

@@ -1731,16 +1731,25 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
     contact = _notification_recipient(reference_id, contact)
     originating_phone_id = _resolve_originating_phone(reference_id) or WABA1_PHONE_ID
 
-    # Payment completion and fulfilment messaging are separate workflows.
-    # A verified payment triggers the statutory invoice below, but MUST NOT automatically
-    # send a WhatsApp ORDER_STATUS update. Fulfilment updates are driven independently.
-
-    _post_payment_handler(payment_id, contact, email, description, notes, request_id,
-                          channel=str((outcome or {}).get('channel') or ''),
-                          customer_uuid=str((outcome or {}).get('customerUuid') or ''),
-                          checkout_mode=str((outcome or {}).get('checkoutMode') or ''),
-                          originating_phone_id=originating_phone_id,
-                          reference_id=reference_id)
+    # Payment completion and fulfilment messaging are separate workflows, in this order:
+    #   1. PAYMENT_PAID -> OrderTable.orderStatus 'processing' (written by finalization above)
+    #   2. the paid invoice template, once (`_post_payment_handler`) - the payment confirmation
+    #   3. Meta order_status 'processing' for a WhatsApp-native order (`_start_native_fulfilment`)
+    # Step 3 is a separate finalization step that runs AFTER the invoice step and whatever its
+    # outcome (including the raise that asks Razorpay to replay a pending receipt), and it can
+    # never raise. So invoice delivery never waits on, or depends on, an order-status send.
+    checkout_mode = str((outcome or {}).get('checkoutMode') or '')
+    invoice_ref: Dict[str, str] = {}
+    try:
+        _post_payment_handler(payment_id, contact, email, description, notes, request_id,
+                              channel=str((outcome or {}).get('channel') or ''),
+                              customer_uuid=str((outcome or {}).get('customerUuid') or ''),
+                              checkout_mode=checkout_mode,
+                              originating_phone_id=originating_phone_id,
+                              reference_id=reference_id, invoice_sink=invoice_ref)
+    finally:
+        _start_native_fulfilment(reference_id, checkout_mode, originating_phone_id, request_id,
+                                 invoice_id=invoice_ref.get('invoiceId', ''))
 
     # Conversions API: if this conversation started from a Click-to-WhatsApp ad,
     # log a Purchase event to Meta so the ad campaign can optimize/measure. No-op
@@ -2587,7 +2596,8 @@ def _post_payment_handler(payment_id: str, contact: str,
                           email: str, description: str, notes: Dict, request_id: str,
                           *, channel: str = '', customer_uuid: str = '',
                           checkout_mode: str = '', originating_phone_id: str = '',
-                          reference_id: str = '') -> None:
+                          reference_id: str = '',
+                          invoice_sink: Optional[Dict[str, str]] = None) -> None:
     """
     After payment captured (Razorpay webhook path):
     This is the authoritative invoice path for a verified capture. (It was once described as a
@@ -2595,11 +2605,13 @@ def _post_payment_handler(payment_id: str, contact: str,
     label was stale.)
     1. Invoke invoice-engine to create invoice from payment (dedup will return existing if another path already created it)
     2. Generate invoice image (POS receipt style)
-    3. For a WhatsApp ORDER_DETAILS payment only, ask the engine for Meta order_status
-       `processing` (best-effort; never blocks the receipt).
-    4. Deliver the GST invoice IMAGE template on WhatsApp. Steps 3 and 4 are the ONLY customer
-       messages a capture produces: no confirmation text, no review template, no Flow message.
-       The invoice template itself exposes the Leave Review Flow button; no standalone review send
+    3. Deliver the GST invoice IMAGE template on WhatsApp, once. It is the payment confirmation:
+       no confirmation text, no review template, no Flow message. The invoice template itself
+       exposes the Leave Review Flow button; no standalone review send.
+
+    This function sends no Meta order_status. The initial `processing` update for a WhatsApp-native
+    order is `_start_native_fulfilment`, which the caller runs after this returns or raises, so
+    the receipt never waits on it.
 
     `channel` is WHERE the order came from (`website` / `whatsapp`), read off the `PAYREF#` row by
     the reconciliation above. KEYWORD-ONLY and defaulted so the legacy callers that pass eight
@@ -2699,6 +2711,10 @@ def _post_payment_handler(payment_id: str, contact: str,
         logger.error(json.dumps({'event': 'invoice_create_empty', 'paymentId': payment_id,
                                  'requestId': request_id, 'alert': 'INVOICE_CREATE_FAILED'}))
         raise RuntimeError('invoice creation returned no invoice id for a verified capture')
+    # Handed back as soon as it exists, so the caller's separate fulfilment step has it even if
+    # delivery below raises to ask Razorpay for a replay.
+    if invoice_sink is not None:
+        invoice_sink['invoiceId'] = invoice_id
 
     # If deduplicated (WhatsApp path already created it), the receipt image already exists —
     # skip the render step only.
@@ -2716,23 +2732,7 @@ def _post_payment_handler(payment_id: str, contact: str,
                                 'paymentId': payment_id, 'invoiceId': invoice_id,
                                 'requestId': request_id}))
 
-    # ── Step 3b: fulfilment order_status 'processing', before delivery ──
-    #
-    # Only the native WhatsApp/AWS legs send this. It tells the invoice engine to push a
-    # fulfilment ORDER_STATUS update to the buyer so the capture is acknowledged as "processing"
-    # ahead of the statutory receipt. The website leg is excluded because Meta's order_status
-    # updates an ORDER_DETAILS message, and a website payment never had one: its fulfilment
-    # status is shown on /orders/ only.
-    #
-    # BEST-EFFORT: it never blocks delivery and never raises. A 409 ORDER_STATUS_UNCHANGED means a
-    # prior delivery already sent it (idempotent, not an error); the other 409s (DEFERRED window
-    # closed, NOT_APPLICABLE) are expected engine verdicts, logged without PII.
-    from lambda_utils.ecommerce import wa_payment_request
-    if checkout_mode in (wa_payment_request.WA_NATIVE_CHECKOUT_MODE,
-                         wa_payment_request.WA_NATIVE_CART_CHECKOUT_MODE, 'AWS_NATIVE'):
-        _send_order_status_processing(invoice_id, originating_phone_id, request_id)
-
-    # ── Step 4: deliver the GST invoice to the customer's VERIFIED WhatsApp number ──
+    # ── Step 3: deliver the GST invoice to the customer's VERIFIED WhatsApp number ──
     #
     # UNIVERSAL FOR COMMERCE ORDERS: both Website and WhatsApp checkout authenticate the customer
     # through the same WhatsApp-OTP identity. Website checkout stores that proven phone on the
@@ -2744,10 +2744,11 @@ def _post_payment_handler(payment_id: str, contact: str,
     # resolves empty unless existing server-owned invoice/reference evidence supplies it.
     #
     # It travels as the approved `wecare_default_invoice_image_template` (invoice PNG in its
-    # header), and it does not depend on the step 3b order_status: the receipt goes out whether
-    # that update was sent, deferred or not applicable. Later fulfilment updates (shipped /
-    # completed) stay a staff-driven workflow (`/invoices/{id}/order-status`); this template
-    # delivers the statutory receipt and its embedded Leave Review Flow button.
+    # header). It is the payment confirmation, and nothing here waits on Meta order_status: the
+    # initial `processing` update is a separate finalization step the caller runs AFTER this
+    # function (`_start_native_fulfilment`), and later fulfilment updates (shipped / completed)
+    # stay a staff-driven workflow (`/invoices/{id}/order-status`). This template delivers the
+    # statutory receipt and its embedded Leave Review Flow button.
     #
     # Delivery is retried by REPLAY: a miss raises so the webhook lease lapses and Razorpay
     # redelivers the capture, and the delivery CLAIM inside `send_invoice_whatsapp` makes the
@@ -3242,16 +3243,58 @@ def _handle_invoice_event(event_type: str, event_data: Dict, request_id: str) ->
     }))
 
 
+def _start_native_fulfilment(reference_id: str, checkout_mode: str, phone_number_id: str,
+                             request_id: str, *, invoice_id: str = '') -> None:
+    """The explicit post-payment finalization step: Meta order_status `processing`, at most once.
+
+    Meta's order details page shows only what order_status messages say, and an order opens as
+    `pending` ("not paid yet"), so a WhatsApp-native order gets one `processing` update after
+    capture. It is deliberately NOT part of invoice delivery: `_handle_payment_captured` runs it
+    after `_post_payment_handler` has returned or raised, so the receipt never waits on it, and
+    it never raises - it runs inside that caller's `finally`, where an exception would replace the
+    receipt-replay signal.
+
+    Native checkout modes only (read off OUR `PAYREF#` row by reconciliation): a website Razorpay
+    order has no Meta order_details to update. `invoice_id` is the invoice the receipt step
+    created or found; when that step failed before naming one, the single invoice stored for the
+    reference is used, and with none (or an ambiguous two) the step is skipped and logged. The
+    engine owns the rest: the paid check, the pending -> processing transition, the one-send
+    claim, the 24-hour window and the template fallback.
+    """
+    try:
+        from lambda_utils.ecommerce import wa_payment_request
+        if not reference_id or checkout_mode not in (
+                wa_payment_request.WA_NATIVE_CHECKOUT_MODE,
+                wa_payment_request.WA_NATIVE_CART_CHECKOUT_MODE, 'AWS_NATIVE'):
+            return
+        if not invoice_id:
+            items = dynamodb.Table(INVOICES_TABLE).query(
+                IndexName='referenceId-index', KeyConditionExpression='referenceId = :ref',
+                ExpressionAttributeValues={':ref': reference_id}, Limit=2).get('Items', [])
+            if len(items) == 1:
+                invoice_id = str(items[0].get('invoiceId') or '')
+        if not invoice_id:
+            logger.info(json.dumps({'event': 'order_status_processing_skipped',
+                                    'referenceId': reference_id, 'reason': 'NO_SINGLE_INVOICE',
+                                    'requestId': request_id}))
+            return
+        _send_order_status_processing(invoice_id, phone_number_id, request_id)
+    except Exception as error:  # noqa: BLE001 - must never mask the receipt step's outcome
+        logger.warning(json.dumps({'event': 'order_status_processing_unavailable',
+                                   'referenceId': reference_id, 'error': type(error).__name__,
+                                   'requestId': request_id}))
+
+
 def _send_order_status_processing(invoice_id: str, phone_number_id: str,
                                   request_id: str) -> None:
     """Ask the invoice engine to send the buyer a fulfilment ORDER_STATUS of 'processing'.
 
-    BEST-EFFORT and native-only (the caller gates the checkout mode): it never blocks the
-    statutory receipt and never raises. The engine owns idempotency and the 24h messaging window:
-    a 200 reports the channel it used; a 409 ORDER_STATUS_UNCHANGED means a prior capture delivery
-    already sent it; ORDER_STATUS_DEFERRED (window closed, no approved template) and
-    ORDER_STATUS_NOT_APPLICABLE are expected verdicts. All outcomes are logged WITHOUT PII - only
-    the invoice id, the engine code and the request id.
+    BEST-EFFORT and native-only (`_start_native_fulfilment` gates the checkout mode): it never
+    raises. The engine owns idempotency and the 24h messaging window: a 200 reports the channel
+    it used; a 409 ORDER_STATUS_UNCHANGED or ORDER_STATUS_IN_FLIGHT means another delivery
+    already sent or is sending it; ORDER_STATUS_DEFERRED (window closed, no approved template)
+    and ORDER_STATUS_NOT_APPLICABLE are expected verdicts. All outcomes are logged WITHOUT PII -
+    only the invoice id, the engine code and the request id.
     """
     if not invoice_id:
         return
