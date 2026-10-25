@@ -36,7 +36,7 @@ lambda_client = boto3.client('lambda', region_name=os.environ.get('AWS_REGION', 
 
 SCHEDULED_TABLE = os.environ.get('SCHEDULED_TABLE', 'stack-wecare-digital-ScheduledMessagesTable')
 CONTACTS_TABLE = os.environ.get('CONTACTS_TABLE', 'stack-wecare-digital-ContactsTable')
-OUTBOUND_LAMBDA = os.environ.get('OUTBOUND_LAMBDA', 'wecare-outbound-whatsapp')
+OUTBOUND_LAMBDA = os.environ.get('OUTBOUND_LAMBDA', 'wecare-outbound-whatsapp:live')
 
 # CORS headers provided by lambda_utils.response.cors_headers(origin)
 
@@ -219,6 +219,15 @@ def _create_scheduled(body: Dict[str, Any], request_id: str) -> Dict[str, Any]:
         'templateName': template_name,
         'templateParams': body.get('templateParams', []),
         'phoneNumberId': body.get('phoneNumberId', ''),
+        # Preserve the full send-time component envelope. Meta media/location/FLOW/URL
+        # components are required at SEND time; dropping them here makes a scheduled
+        # message structurally different from an immediate send.
+        'templateHeaderMedia': body.get('headerMedia') or body.get('templateHeaderMedia') or '',
+        'templateHeaderType': body.get('headerType') or body.get('templateHeaderType') or '',
+        'templateHeaderFilename': body.get('headerFilename') or body.get('templateHeaderFilename') or '',
+        'templateHeaderLocation': body.get('headerLocation') or body.get('templateHeaderLocation') or {},
+        'templateFlowButton': body.get('flowButton') or body.get('templateFlowButton') or {},
+        'templateUrlButton': body.get('templateUrlButton') or {},
         'scheduledAt': scheduled_at,
         'status': 'PENDING',
         'createdAt': now,
@@ -456,6 +465,12 @@ def _process_due_messages(request_id: str) -> Dict[str, Any]:
                     'templateParams': item.get('templateParams', []),
                     'phoneNumberId': item.get('phoneNumberId', ''),
                     'recipientBsuid': item.get('recipientBsuid', ''),
+                    'templateHeaderMedia': item.get('templateHeaderMedia', ''),
+                    'templateHeaderType': item.get('templateHeaderType', ''),
+                    'templateHeaderFilename': item.get('templateHeaderFilename', ''),
+                    'templateHeaderLocation': item.get('templateHeaderLocation') or None,
+                    'templateFlowButton': item.get('templateFlowButton') or None,
+                    'templateUrlButton': item.get('templateUrlButton') or None,
                 })}
                 try:
                     response = lambda_client.invoke(FunctionName=OUTBOUND_LAMBDA,
