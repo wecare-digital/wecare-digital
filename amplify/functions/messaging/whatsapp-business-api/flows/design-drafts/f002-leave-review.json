@@ -147,11 +147,11 @@
           },
           {
             "type": "TextCaption",
-            "text": "When you're ready, tap Send idea to share it with our team."
+            "text": "Tap Submit idea to share it with our team."
           },
           {
             "type": "Footer",
-            "label": "Send idea",
+            "label": "Submit idea",
             "on-click-action": {
               "name": "complete",
               "payload": {
