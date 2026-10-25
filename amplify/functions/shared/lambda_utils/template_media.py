@@ -2,11 +2,11 @@
 
 from lambda_utils import media_paths
 
+DEFAULT_HEADER_IMAGE = "https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/whatsapp-header.png"
+ORDER_CATALOG_HEADER_IMAGE = "https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/wecare-catalog-icon.png"
+
 FIXED_IMAGE_HEADERS = {
-    'wecare_leave_review': media_paths.public_url(
-        media_paths.WHATSAPP_TEMPLATE_IMAGE_PREFIX
-        + 'wecare-digital-cebc83f1_img.png'
-    ),
+    'wecare_leave_review': DEFAULT_HEADER_IMAGE,
 }
 
 #: Template media that code sends by URL. They sit in the same wa-tpl/img/ folder as library
