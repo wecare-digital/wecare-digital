@@ -35,6 +35,9 @@ const ORDER_STATUS_TEMPLATE = 'wecare_order_status_v3';
 const OTP_TEMPLATE = 'wecare_otp';
 const DOWNLOAD_TEMPLATE = 'wecare_default_download';
 const SHARED_TEMPLATE_HEADER = 'https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/whatsapp-header.png';
+/* The value that replaces {{1}} in a dynamic URL button. Outbound accepts identifiers only
+   (`url_button_component`: letters, digits, - and _), so anything else is refused here first. */
+const URL_BUTTON_SUFFIX = /^[A-Za-z0-9_-]{1,120}$/;
 
 const GENERIC_SEND_BLOCKED_TEMPLATES = new Set( [
   PAYMENT_ORDER_DETAILS_TEMPLATE,
@@ -652,6 +655,11 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
         : 'Enter the dynamic URL value for this template.' );
       return;
     }
+    if ( urlButtonIndex !== null && !URL_BUTTON_SUFFIX.test( urlButtonSuffix.trim() ) )
+    {
+      onError( 'The button value can use only letters, digits, - and _ (up to 120), not a file name or a full URL.' );
+      return;
+    }
 
     // Bulk CSV broadcast path.
     if ( manualMode && bulkMode )
@@ -1061,7 +1069,7 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
                   className="header-url-input"
                   value={ urlButtonSuffix }
                   onChange={ ( e ) => setUrlButtonSuffix( e.target.value ) }
-                  placeholder={ selectedTemplate.name.toLowerCase() === DOWNLOAD_TEMPLATE ? 'e.g. doc.pdf or canonical file ID' : 'Dynamic URL suffix' }
+                  placeholder={ selectedTemplate.name.toLowerCase() === DOWNLOAD_TEMPLATE ? 'Vault file ID (letters, digits, - and _)' : 'Dynamic URL suffix' }
                 />
                 <span className="manual-hint">
                   { selectedTemplate.name.toLowerCase() === DOWNLOAD_TEMPLATE
