@@ -11,6 +11,7 @@ IDEA=ROOT/'amplify/functions/shared/lambda_utils/customer_ideas.py'
 RECORDS=ROOT/'amplify/functions/shared/lambda_utils/flow_records.py'
 FLOW=ROOT/'amplify/functions/messaging/whatsapp-business-api/flows/leave-review-flow-v2.json'
 HUB=ROOT/'src/components/workspace/service/CustomerServiceHub.tsx'
+INBOUND=ROOT/'amplify/functions/messaging/inbound-whatsapp-handler/handler.py'
 
 errors=[]
 
@@ -61,6 +62,16 @@ for token in ('wd_leave_review_v2','schema_version','topic','idea','WECARE.DIGIT
 
 hub=HUB.read_text(encoding='utf-8')
 check("key: 'leave_review'" in hub and "status: 'published'" in hub,'Workspace must show F002 published')
+
+inbound=INBOUND.read_text(encoding='utf-8')
+leave=inbound[inbound.index("    'leave_review': {"):inbound.index("    'subscribe': {", inbound.index("    'leave_review': {"))]
+idea_alias=inbound[inbound.index("    'customer_idea': {"):inbound.index("    'submit_request': {", inbound.index("    'customer_idea': {"))]
+check("'enabled': False" in leave,'F002 runtime default must be disabled')
+check("'enabled': False" in idea_alias,'legacy customer_idea alias must not be a second live door')
+check("capability='leave_review', registry_row=registry_row, trigger=trigger" in inbound,
+      'normal F002 launch must use canonical keyword decision')
+check("capability='leave_review', registry_row=review_registry" in inbound,
+      'attributed F002 launch must use the same canonical decision')
 
 if errors:
     print('F002 CHECK FAILED')
