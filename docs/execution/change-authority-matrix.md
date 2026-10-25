@@ -3427,3 +3427,19 @@ Owner instruction: "fix all and deploy" for the findings left open in the entry 
   - 0 Lambda errors and 0 error-pattern log lines after release.
   - Rail verifier 159/159; hermetic hand-off and DLQ checks 17/17. Build, tsc and eslint pass, and ruff shows no new findings.
 - Not verified: no customer Flow data_exchange or DLQ replay has run on the new versions yet.
+
+## Checkout role parity and post-cutover verifiers — 2026-10-25 23:25 UTC
+
+Owner instruction: "fix all issued and deploy and. check build status". No customer message, payment, template, Flow or Lambda code change, and no secret read.
+
+- IAM, `wecare-checkout-role` (23:06 UTC), brought to what `provision_checkout.ensure_role` and `scripts/iam-native-catalog-checkout.json` write, which `wecare-commerce-role` already had:
+  - `CheckoutNativeCatalogAuthority`: removed `VerifyNativeCustomer` (`cognito-idp:ListUsers` on the customer pool). #1576 deleted the last ListUsers call and the statement from both repo policy files; it had stayed live on this role only.
+  - Added `CommerceStaffAuth` and `CommerceWhatsAppIdentityBridge`, the same documents commerce has. `wecare-checkout` runs the same package and is the cutover's rollback target, so it needs the same grants to take the routes back.
+  - Before-state: `docs/execution/snapshots/iam-checkout-role-before-parity-20261026.json`. Rollback: delete the two added policies and put `CheckoutNativeCatalogAuthority` back from the snapshot.
+  - Verified: 6/6 inline policies equal the repo on both roles. Simulated: `ListUsers` implicitDeny; invoke `wecare-customer-registration:live` allowed; staff-pool `AdminGetUser`/`AdminListGroupsForUser` allowed. `wecare-checkout:live` answered a synthetic unknown sender `PAYMENT_SENDER_NOT_PERMITTED` and a synthetic WABA1 bridge call `WHATSAPP_IDENTITY_REQUIRED`, with no FunctionError and 0 error lines.
+- Verifiers brought up to the cutover (#1554), scripts only:
+  - `provision_checkout.py`: `ROUTE_OWNER_FUNCTION = "wecare-commerce"`. `--verify` judges the five website checkout routes against `wecare-commerce:live`. `ensure_integration` reuses the route owner's integration (`reusing fduftck`) instead of creating one for wecare-checkout that no route uses.
+  - `provision_commerce.py`: `--verify` no longer requires a shadow alias with no resource policy. It requires API Gateway invoke statements and fails on any statement that is not API Gateway on `zllr9lrg7j`; checked against a foreign principal, another API and an empty policy.
+  - `provision_commerce.py --verify` passes. `provision_checkout.py --verify` passes except the `ConditionCheckItem` verdict, a false positive since `21fa70b02` (2026-10-07): it flags any transaction in the import closure, but the commerce/checkout transactions are Put/Update only. The one ConditionCheck in the closure, `service_request_store.activate` on ServiceRequestsTable, runs only in wecare-service-requests and the business API, whose roles allow it (simulated). Not granted.
+- Also checked at `5ef80fd7c`/`3117cc796`: 67/68 Lambdas byte-identical before the parallel Vault release began (blog-subscribe was never provisioned); env manifest 0 key differences; 7/7 templates APPROVED, including `wecare_order_status_v3`; commerce health GREEN; post-deploy health PASS; rail verifier 159/159; F001 59/59; Amplify job 141 SUCCEED; validation build `wecare-native-wa-release:7fb7e0f1` SUCCEEDED (package + 159/159).
+- Finding, not changed: `wecare-native-wa-release` and `wecare-native-wa-release-role` ("Temporary ... release runner", created 16:32 UTC for #1576) still exist. The role can update, publish, move aliases on and `DeleteFunction` four production functions. Deleting both is an owner decision.
