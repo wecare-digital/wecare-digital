@@ -7,7 +7,7 @@ import Button from '../../../components/ui/Button';
 import Select, { type SelectOption } from '../../../components/ui/Select';
 import * as api from '../../../api/client';
 import { useConfirm } from '../../../contexts/ConfirmContext';
-import type { Invoice, InvoiceDeliveryLog, Contact, CreateInvoiceEngineRequest, ApiResult, SendPaymentLinkResult } from '../../../api/client';
+import type { Invoice, InvoiceDeliveryLog, Contact, CreateInvoiceEngineRequest, CreateInvoiceEngineResult, ApiResult, SendPaymentLinkResult } from '../../../api/client';
 import { DEFAULT_GSTIN } from '../../../config/constants';
 import {
   ADDRESS_FIELDS, EMPTY_ADDRESS_FIELDS, addressPayload, addressFieldsFromContact,
@@ -200,6 +200,25 @@ const describeSendOutcome = (
     tone: 'error',
     text: 'Sending is not confirmed.',
   };
+};
+/*
+ * Why a create produced no invoice, in the server's own words.
+ *
+ * Two outcomes that must not be confused. A deliberate refusal (any 4xx, or a 5xx the engine
+ * marked `retryable`) wrote nothing, so the operator is told what to fix. No answer, a 2xx with
+ * no invoice id, or a gateway 5xx is UNKNOWN: the write may have landed, and a second click mints
+ * a fresh referenceId the server cannot dedupe against, so the ledger comes before the button.
+ */
+const CREATE_NOT_CONFIRMED = 'Check Invoices before creating another.';
+const describeCreateFailure = ( result: Extract<CreateInvoiceEngineResult, { ok: false }> ): string => {
+  const { status, message, retryable } = result;
+  if ( status === null ) return `Creation was not confirmed. ${ CREATE_NOT_CONFIRMED }`;
+  if ( status < 400 || ( status >= 500 && !retryable ) ) {
+    return `Creation was not confirmed (status ${ status }). ${ CREATE_NOT_CONFIRMED }`;
+  }
+  const said = message ? `: ${ message.replace( /\.$/, '' ) }` : '';
+  const next = status === 401 ? ' Sign in again, then retry.' : retryable ? ' You can retry.' : '';
+  return `Invoice not created (status ${ status })${ said }.${ next }`;
 };
 /** Integer paise -> a rupee string. */
 const fmtPaise = ( paise: number ) => {
@@ -463,11 +482,13 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
         // No discount is sent: the invoice engine auto-applies the standalone Delight policy
         // (0.5% up to Rs50) server-side. There is no coupon code and no manual adjustment to pass.
       };
-      // The server applies Delight and never refuses on a discount, so the plain wrapper is
-      // enough; the response carries the applied Delight figure for the preview below.
-      const r = await api.createInvoiceEngine( req );
-      if ( r )
+      // The result wrapper keeps the server's refusal, so the banner can say WHY a create was
+      // refused instead of "Create failed". The success body carries the applied Delight figure
+      // for the preview below.
+      const created = await api.createInvoiceEngineResult( req );
+      if ( created.ok )
       {
+        const r = created.invoice;
         showMsg( `Review invoice ${r.invoiceNumber} and send the payment request below.` );
         // Every figure here is the SERVER's. Nothing on this page recomputes a discount.
         setRedemption( r );
@@ -509,7 +530,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
       else
       {
         setRedemption( null );
-        showMsg( 'Create failed', 'error' );
+        showMsg( describeCreateFailure( created ), 'error' );
       }
     } catch ( e ) { showMsg( 'Creation was not confirmed. Check Invoices before creating another.', 'error' ); }
     finally { invoiceCreateInFlight.current = false; setCreating( false ); }

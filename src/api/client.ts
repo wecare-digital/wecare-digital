@@ -4925,22 +4925,22 @@ export async function createInvoiceEngine ( request: CreateInvoiceEngineRequest 
  * A create that reports WHY it was refused.
  *
  * `createInvoiceEngine` stays exactly as it is, because ~every other caller wants the invoice or
- * nothing. But `apiCall` collapses a non-2xx to `null`, and FEAT-002 answers every coupon refusal as a 4xx/503 carrying a typed `errorCode` - `COUPON_EXPIRED`,
- * `HELD_BY_ANOTHER_CART`, and the fourteen others. A form that can only
- * see `null` has to say "Create failed" and the staff member has no idea which code to fix.
+ * nothing. But `apiCall` collapses a non-2xx to `null`, so a form built on it can only say
+ * "Create failed" - for a 400 address refusal, a 401 the auth gate raised, a 403 role/MFA
+ * refusal and a dropped connection alike - and the staff member has no idea what to fix.
  *
- * So this follows `hardDeleteContact`'s precedent and uses `authFetch` directly: the refusal code
+ * So this follows `hardDeleteContact`'s precedent and uses `authFetch` directly: the refusal
  * lives in the body and the body is the one thing this caller needs. It returns a discriminated
- * result rather than throwing, because "the coupon has expired" is an ordinary answer and not an
- * exception.
+ * result rather than throwing, because a refusal is an ordinary answer and not an exception.
  *
- * `errorCode` is passed through VERBATIM and is never invented here. An unrecognised code must
- * still reach the UI so a new server refusal degrades to an honest unknown-reason message rather
- * than to a wrong one.
+ * `errorCode` and `message` are passed through VERBATIM and are never invented here. An
+ * unrecognised code must still reach the UI so a new server refusal degrades to an honest
+ * unknown-reason message rather than to a wrong one.
  */
 export type CreateInvoiceEngineResult =
   | { ok: true; invoice: CreateInvoiceEngineResponse }
-  | { ok: false; status: number | null; errorCode: string; retryable: boolean };
+  // `message` is the server's own sentence; '' when the body carried none.
+  | { ok: false; status: number | null; errorCode: string; retryable: boolean; message: string };
 
 export async function createInvoiceEngineResult (
   request: CreateInvoiceEngineRequest,
@@ -4955,7 +4955,7 @@ export async function createInvoiceEngineResult (
   } catch ( error )
   {
     console.error( 'Invoice create request failed:', error );
-    return { ok: false, status: null, errorCode: 'REQUEST_FAILED', retryable: true };
+    return { ok: false, status: null, errorCode: 'REQUEST_FAILED', retryable: true, message: '' };
   }
 
   let data: any = null;
@@ -4966,11 +4966,19 @@ export async function createInvoiceEngineResult (
     return { ok: true, invoice: data as CreateInvoiceEngineResponse };
   }
 
+  // The engine refuses with `error` (plus `detail` on the Admin MFA gate); API Gateway's own
+  // answers carry `message` instead.
+  const text = ( v: unknown ): string => ( typeof v === 'string' ? v.trim() : '' );
+  const error = text( data?.error ), detail = text( data?.detail );
+  const message = ( error && detail ? `${ error.replace( /\.$/, '' ) }. ${ detail }` : error || detail )
+    || text( data?.message );
+
   return {
     ok: false,
     status: response.status,
     errorCode: typeof data?.errorCode === 'string' && data.errorCode ? data.errorCode : 'CREATE_FAILED',
     retryable: data?.retryable === true,
+    message,
   };
 }
 
