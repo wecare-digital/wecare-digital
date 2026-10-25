@@ -29,7 +29,6 @@ import { resolveWaMime, validateWaMediaSize, formatBytes, waMediaCategory, WA_AC
 import { waErrorTooltip } from '../../../../lib/wa-errors';
 import { scrollToEnd } from '../../../../lib/scroll-to-end';
 import { addressFieldsFromContact, contactDeliveryAddress, formatAddress } from '../../../../lib/address-format';
-import { describeInvoiceCreateRefusal } from '../../../../lib/invoiceCreateRefusal';
 
 type ProfileGroup = { title: string; note: string; rows: [ string, string ][] };
 
@@ -881,17 +880,6 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
         if ( phoneObj?.paymentProtected && !payUnlocked ) { toast.error( 'Unlock this number first' ); return; }
         const valid = payItems.filter( i => i.name.trim() && parseFloat( i.amount ) > 0 );
         if ( !valid.length ) { toast.error( 'Add at least one item with an amount' ); return; }
-        // A physical collection is refused (400 DELIVERY_REQUIRED) unless the create itself carries
-        // the structured delivery address: the engine checks the request body, not the contact,
-        // because no invoice row exists yet. Send the contact's address the way Pay does, and stop
-        // here with a clear message when it is incomplete rather than spend a request on a refusal.
-        const contact = contactDir[ contactId ];
-        const address = contact ? addressFieldsFromContact( contact ) : null;
-        if ( !contact || !address || [ address.addressLine1, address.city, address.state, address.postalCode ].some( v => !v.trim() ) )
-        {
-            toast.error( 'Add a complete delivery address (address line 1, city, state and postal code) to this contact before requesting payment.' );
-            return;
-        }
         const draftKey = JSON.stringify( { contactId, items: valid, delivery: payDelivery, goodsType: payGoodsType, orderId: payOrderId, gstin: payGstin } );
         if ( payInvoiceDraft?.contactId === contactId && payInvoiceDraft.key !== draftKey )
         {
@@ -903,45 +891,30 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
             // Rupees, not paise: `CreateInvoiceEngineRequest.items[].amount` is a rupee figure
             // and the server converts with exact integer arithmetic. No total, no tax and no fee
             // is computed here — every figure on the invoice is the server's.
-            let invoice = payInvoiceDraft?.key === draftKey ? payInvoiceDraft.invoice : null;
-            if ( !invoice )
-            {
-                const deliveryAddress = contactDeliveryAddress( contact );
-                const created = await api.createInvoiceEngineResult( {
-                    customerPhone: phone,
-                    customerEmail: '',
-                    shippingAddress: deliveryAddress,
-                    billingAddress: deliveryAddress,
-                    addressLine1: address.addressLine1,
-                    addressLine2: address.addressLine2,
-                    city: address.city,
-                    state: address.state,
-                    postalCode: address.postalCode,
-                    landmark: address.locality,
-                    contactId,
-                    items: valid.map( it => ( {
-                        name: it.name.trim(),
-                        amount: parseFloat( it.amount ),
-                        quantity: parseInt( it.quantity ) || 1,
-                        gstRate: paymentGstRate( it.gstRate ),
-                    } ) ),
-                    goodsType: payGoodsType,
-                    shipping: parseFloat( payDelivery || '0' ) || 0,
-                    gstin: payGstin || DEFAULT_GSTIN,
-                    orderId: payOrderId || 'Offline',
-                    entryPoint: 'inbox',
-                } );
-                if ( !created.ok ) { toast.error( describeInvoiceCreateRefusal( created, 'Pay → Invoices' ) ); return; }
-                invoice = created.invoice;
-            }
+            const invoice = ( payInvoiceDraft?.key === draftKey ? payInvoiceDraft.invoice : null ) || await api.createInvoiceEngine( {
+                customerPhone: phone,
+                customerEmail: '',
+                shippingAddress: '',
+                billingAddress: '',
+                contactId,
+                items: valid.map( it => ( {
+                    name: it.name.trim(),
+                    amount: parseFloat( it.amount ),
+                    quantity: parseInt( it.quantity ) || 1,
+                    gstRate: paymentGstRate( it.gstRate ),
+                } ) ),
+                goodsType: payGoodsType,
+                shipping: parseFloat( payDelivery || '0' ) || 0,
+                gstin: payGstin || DEFAULT_GSTIN,
+                orderId: payOrderId || 'Offline',
+                entryPoint: 'inbox',
+            } );
+            if ( !invoice?.invoiceId ) { toast.error( 'Could not raise the invoice. Check Pay → Invoices before trying again.' ); return; }
             setPayInvoiceDraft( { key: draftKey, contactId, invoice } );
             // The configuration name is NOT defaulted here. Omitted, the server resolves it from
             // the invoice row and then from its own proven expectation.
-            const sent = await api.sendPaymentLinkResult( invoice.invoiceId, payPhone );
-            // `payment_link_sent` is the ONLY success. A 2xx can also say rejected or already in
-            // progress, and reporting either as "sent" would send staff chasing a payment that
-            // was never requested.
-            if ( sent.ok && sent.data.status === 'payment_link_sent' )
+            const sent = await api.sendPaymentLink( invoice.invoiceId, payPhone );
+            if ( sent )
             {
                 toast.success( `Payment request sent (invoice ${invoice.invoiceNumber})` );
                 setComposer( null );
@@ -949,16 +922,10 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                 setPayItems( [ { name: '', amount: '', quantity: '1', gstRate: '18' } ] );
                 setPayDelivery( '0' ); setPayOrderId( '' );
                 setTimeout( loadData, 800 );
-            }
-            else
-            {
-                // "Not confirmed", never "not sent": a timeout can still have reached Meta.
-                const why = sent.ok ? sent.data.status : sent.failure.message;
-                toast.error( `Payment request not confirmed${ why ? ` (${ why })` : '' }. Invoice ${invoice.invoiceNumber} is retained; check it in Pay → Invoices before resending.` );
-            }
+            } else toast.error( `Payment request not confirmed. Invoice ${invoice.invoiceNumber} is retained; resolve it in Pay → Invoices.` );
         } catch { toast.error( 'Payment request not confirmed. Check Pay → Invoices before creating another invoice.' ); }
         finally { setSending( false ); }
-    }, [ replyTarget, payPhone, payUnlocked, payItems, payGoodsType, payInvoiceDraft, payDelivery, payGstin, payOrderId, contactDir, toast, loadData ] );
+    }, [ replyTarget, payPhone, payUnlocked, payItems, payGoodsType, payInvoiceDraft, payDelivery, payGstin, payOrderId, toast, loadData ] );
 
     const handleSendCatalog = useCallback( async () => {
         const { contactId } = replyTarget;
