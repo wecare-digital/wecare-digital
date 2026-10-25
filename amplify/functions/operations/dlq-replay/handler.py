@@ -17,6 +17,7 @@ from typing import Dict, Any, List, Set
 from decimal import Decimal
 
 from lambda_utils.response import cors_response, cors_headers, options_response, extract_origin
+from lambda_utils import wa_internal_event  # owns the inbound DLQ URL
 
 # Configure logging
 from lambda_utils.logging import get_logger
@@ -30,7 +31,8 @@ lambda_client = boto3.client('lambda', region_name=os.environ.get('AWS_REGION', 
 
 # Environment variables
 DLQ_MESSAGES_TABLE = os.environ.get('DLQ_MESSAGES_TABLE', 'stack-wecare-digital-DLQMessagesTable')
-INBOUND_DLQ_URL = os.environ.get('INBOUND_DLQ_URL', '')
+# Live configuration names this queue `DLQ_URL`; reading only `INBOUND_DLQ_URL` left it ''.
+INBOUND_DLQ_URL = wa_internal_event.inbound_dlq_url()
 BULK_DLQ_URL = os.environ.get('BULK_DLQ_URL', '')
 
 # Constants

@@ -2502,24 +2502,34 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
         # private-bucket files work without exposing a public URL.
         resolved_header_media = template_header_media
         if (is_template and template_header_media and template_header_type
-                and not str(template_header_media).startswith('http')):
+                and not str(template_header_media).startswith('http')
+                # An all-digit value is already a WhatsApp media id; there is nothing to upload.
+                and not str(template_header_media).isdigit()):
+            _hdr_media_id = None
             try:
                 _, _hdr_media_id, _ = _upload_media(
                     template_header_media, template_header_type, message_id,
                     phone_number_id, request_id, template_header_filename
                 )
-                if _hdr_media_id:
-                    resolved_header_media = _hdr_media_id
-                else:
-                    logger.warning(json.dumps({
-                        'event': 'template_header_media_resolve_failed',
-                        'templateName': template_name, 'requestId': request_id
-                    }))
             except Exception as _he:
                 logger.warning(json.dumps({
                     'event': 'template_header_media_resolve_error',
-                    'error': str(_he), 'requestId': request_id
+                    'error': type(_he).__name__, 'requestId': request_id
                 }))
+            if not _hdr_media_id:
+                # Fail closed. This used to carry on and send the unresolved S3 key as the
+                # header's media `id`, which Meta can only refuse: for the GST invoice that is a
+                # statutory receipt lost at Meta instead of a clear local refusal its caller can
+                # retry. Nothing has been sent or written at this point.
+                logger.error(json.dumps({
+                    'event': 'template_header_media_resolve_failed',
+                    'templateName': template_name, 'headerType': template_header_type,
+                    'requestId': request_id
+                }))
+                return _error_response(
+                    502, 'TEMPLATE_HEADER_UNAVAILABLE',
+                    'The template header could not be prepared. Nothing was sent.')
+            resolved_header_media = _hdr_media_id
 
         # Build WhatsApp message payload
         message_payload = _build_message_payload(

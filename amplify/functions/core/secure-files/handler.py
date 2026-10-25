@@ -239,9 +239,6 @@ PRICE_PAISE = int(os.environ.get("SECURE_FILE_PRICE_PAISE", "4900"))  # Rs. 49
 UPLOAD_URL_TTL = int(os.environ.get("UPLOAD_URL_TTL_SECONDS", "900"))
 # Web redeem: the browser follows this immediately, so it can be very short.
 DOWNLOAD_URL_TTL = int(os.environ.get("DOWNLOAD_URL_TTL_SECONDS", "60"))
-# Direct links are bearer capabilities. Keep the read window bounded; a customer
-# can use authenticated Vault access after the delivery link expires.
-WHATSAPP_LINK_TTL = max(60, min(900, int(os.environ.get("WHATSAPP_LINK_TTL_SECONDS", "900"))))
 GRANT_TTL = int(os.environ.get("GRANT_TTL_SECONDS", "1800"))
 MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_BYTES", str(200 * 1024 * 1024)))
 
@@ -1379,9 +1376,7 @@ def _redeem_after_reconcile(
 def _download_url(item: Dict[str, Any], ttl: Optional[int] = None) -> str:
     """A presigned GET that downloads under the readable filename.
 
-    ``ttl`` defaults to the short web value. Pass ``WHATSAPP_LINK_TTL`` when the URL is
-    going into a message a human will read later rather than a redirect a browser
-    follows now.
+    ``ttl`` defaults to the short web value, because the browser follows it at once.
     """
     return _s3_client().generate_presigned_url(
         "get_object",
@@ -1415,21 +1410,13 @@ def deliver_over_whatsapp(grant_id: str) -> Tuple[bool, str]:
     if not grant.get('customerId') or item.get('ownerCustomerId') != grant['customerId']:
         return False, "grant and file disagree on permanent owner"
 
-    from whatsapp_delivery import send_document, send_download_link
+    from whatsapp_delivery import send_vault_link
 
+    # Every deliverable goes the same way: the approved download template, whose Vault deep link
+    # the customer opens to collect the file through the paid entitlement. No presigned URL is
+    # put in the chat, so delivery does not consume the grant the customer may redeem on the web.
     phone = str(grant["ownerPhone"])
-    if item.get("deliverable") in ("pdf", "image"):
-        ok, detail = send_document(phone=phone, file_row=item)
-    else:
-        # Not openable inline on WhatsApp, so send a link instead, on the longer TTL - a
-        # person taps when they read the message, not within the web redeem's 60
-        # seconds. Generated here rather than reusing the redeem route so delivery does
-        # not consume the grant the customer may still redeem on the web.
-        ok, detail = send_download_link(
-            phone=phone,
-            file_row=item,
-            url=_download_url(item, ttl=WHATSAPP_LINK_TTL),
-        )
+    ok, detail = send_vault_link(phone=phone, file_row=item)
 
     # Record the outcome ON THE GRANT. Until this existed a failed send was only a log
     # line, while the customer had already paid - so nothing could find the people owed

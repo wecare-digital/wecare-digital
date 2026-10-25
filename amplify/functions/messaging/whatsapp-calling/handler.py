@@ -106,9 +106,13 @@ WABA2_IDS = set()  # No longer need separate token routing for WABA2
 
 # Inbound handler Lambda for forwarding non-call webhook events (messages, statuses)
 # The `live` alias, never the unqualified name: $LATEST is what an upload reaches before it is
-# published and verified, and every Meta webhook is processed by whatever this names.
-INBOUND_HANDLER_FUNCTION = os.environ.get('INBOUND_HANDLER_FUNCTION', 'wecare-inbound-whatsapp:live')
+# published and verified, and every Meta webhook is processed by whatever this names. A configured
+# name without a qualifier gets `:live` appended, because the live environment still carries the
+# bare `wecare-inbound-whatsapp`, which overrode the alias default and kept forwarding to $LATEST.
+_INBOUND_FN = os.environ.get('INBOUND_HANDLER_FUNCTION', '') or 'wecare-inbound-whatsapp'
+INBOUND_HANDLER_FUNCTION = _INBOUND_FN if ':' in _INBOUND_FN else _INBOUND_FN + ':live'
 lambda_client = boto3.client('lambda', region_name=REGION)
+sqs_client = boto3.client('sqs', region_name=REGION)
 
 # Cache Meta tokens (dual)
 _token_cache = {}
@@ -600,6 +604,17 @@ def _handle_webhook_event(body: Dict, request_id: str) -> Dict[str, Any]:
     if obj != 'whatsapp_business_account':
         return _response(200, {'status': 'ignored', 'object': obj})
 
+    # The worker processes every change in the entry it is given, so one forward per entry is
+    # enough. Forwarding once per change sent an N-change entry N times: messages and statuses
+    # were deduplicated downstream, but system events were stored N times.
+    forwarded_entries = set()
+
+    def _forward_to_inbound_handler(entry, waba_id, request_id):
+        if id(entry) in forwarded_entries:
+            return
+        forwarded_entries.add(id(entry))
+        _forward_entry_to_inbound_handler(entry, waba_id, request_id)
+
     for entry in entries:
         waba_id = entry.get('id', '')
         changes = entry.get('changes', [])
@@ -677,13 +692,17 @@ def _handle_webhook_event(body: Dict, request_id: str) -> Dict[str, Any]:
     return _response(200, {'status': 'processed', 'entries': len(entries)})
 
 
-def _forward_to_inbound_handler(entry: Dict, waba_id: str, request_id: str) -> None:
+def _forward_entry_to_inbound_handler(entry: Dict, waba_id: str, request_id: str) -> None:
     """
     Forward non-call webhook events (messages, statuses) to the inbound handler.
-    Direct API uses override_callback_uri, so messages arrive here
-    instead of via the standard webhook. We wrap them in the expected format the
-    inbound handler expects and invoke it asynchronously.
+    Meta delivers every webhook here (the app-level callback). We wrap the entry in the
+    typed event the inbound handler expects and invoke it asynchronously.
+
+    A failed hand-off is parked in the inbound DLQ rather than dropped. Meta has already
+    been answered 200 by then and never redelivers, so the DLQ is the only copy left;
+    `/dlq/replay` (wecare-dlq-replay) invokes the worker with it.
     """
+    inbound_event = None
     try:
         # Extract metadata for context
         changes = entry.get('changes', [])
@@ -729,9 +748,37 @@ def _forward_to_inbound_handler(entry: Dict, waba_id: str, request_id: str) -> N
         logger.error(json.dumps({
             'event': 'forward_to_inbound_handler_failed',
             'wabaId': waba_id,
-            'error': str(e),
+            'error': type(e).__name__,
             'requestId': request_id,
-        }), exc_info=True)
+        }))
+        _park_failed_forward(inbound_event, waba_id, type(e).__name__, request_id)
+
+
+def _park_failed_forward(inbound_event: Optional[Dict], waba_id: str, error: str,
+                         request_id: str) -> None:
+    """Put a webhook entry the worker never received into the inbound DLQ. Never raises.
+
+    Same message shape as the worker's own `_send_to_dlq`, so `wecare-dlq-replay` replays both.
+    """
+    if not inbound_event:
+        return
+    try:
+        sqs_client.send_message(
+            QueueUrl=wa_internal_event.inbound_dlq_url(),
+            MessageBody=json.dumps({
+                'originalRecord': inbound_event,
+                'error': f'forward_failed: {error}',
+                'timestamp': int(time.time()),
+                'requestId': request_id,
+            }, default=str),
+        )
+        logger.warning(json.dumps({'event': 'forward_parked_in_dlq', 'wabaId': waba_id,
+                                   'requestId': request_id}))
+    except Exception as dlq_error:  # noqa: BLE001 - the last resort must not raise
+        # Alarm-worthy: this webhook entry now exists nowhere.
+        logger.error(json.dumps({'event': 'forward_dlq_failed', 'alert': 'WEBHOOK_EVENT_LOST',
+                                 'wabaId': waba_id, 'error': type(dlq_error).__name__,
+                                 'requestId': request_id}))
 
 
 def _handle_call_event(waba_id: str, call: Dict, metadata: Dict, contacts: list, request_id: str) -> None:

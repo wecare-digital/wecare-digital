@@ -95,7 +95,7 @@ FLOW_SUBMISSIONS_TABLE = shared_tables.flow_submissions_table_name()
 FLOW_DRAFTS_TABLE = shared_tables.flow_drafts_table_name()
 AI_INTERACTIONS_TABLE = os.environ.get('AI_INTERACTIONS_TABLE', 'stack-wecare-digital-AIInteractionsTable')
 INVOICES_TABLE = os.environ.get('INVOICES_TABLE', 'stack-wecare-digital-InvoicesTable')
-INBOUND_DLQ_URL = os.environ.get('INBOUND_DLQ_URL', '')
+INBOUND_DLQ_URL = wa_internal_event.inbound_dlq_url()  # was '' when unset, so nothing was parked
 MEDIA_BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
 # The PUBLIC host, deliberately separate from the bucket name. The media URL below
 # was built from MEDIA_BUCKET, which only produced a valid URL while the bucket was
