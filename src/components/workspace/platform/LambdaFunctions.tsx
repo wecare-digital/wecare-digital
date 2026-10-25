@@ -77,7 +77,10 @@ const LAMBDA_FUNCTIONS: LambdaFunction[] = [
   { name: 'wecare-billing', displayName: 'Billing', category: 'Operations', runtime: 'Python 3.12', timeout: 60, memory: 128, description: 'AWS billing and usage tracking', apiRoute: '/billing', envVars: {}, triggers: [ 'API Gateway', 'EventBridge' ], status: 'active' },
 
   // Ecommerce
-  { name: 'wecare-catalog-management', displayName: 'Catalog Management', category: 'Ecommerce', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'WhatsApp catalog sync', apiRoute: '/catalog', envVars: { CATALOG_TABLE: 'stack-wecare-digital-CatalogCacheTable' }, triggers: [ 'API Gateway' ], status: 'active' },
+  // No API route, rule, schedule or queue reaches this function. CloudTrail (2026-10-25) shows
+  // only operator invokes of :live, the fleet deploy's post-publish smoke test. Its environment
+  // is empty per config/lambda-env-manifest.json; the cache table name is the code default.
+  { name: 'wecare-catalog-management', displayName: 'Catalog Management', category: 'Ecommerce', runtime: 'Python 3.12', timeout: 30, memory: 128, description: 'WhatsApp catalog sync', apiRoute: '', envVars: {}, triggers: [ 'Direct invoke (operator)' ], status: 'active' },
   { name: 'wecare-product-image-gen', displayName: 'Product Image Gen', category: 'Ecommerce', runtime: 'Python 3.12', timeout: 60, memory: 512, description: 'AI product image generation', apiRoute: '/store/image-gen', envVars: { MEDIA_BUCKET: 'wecare-digital-get' }, triggers: [ 'API Gateway' ], status: 'active' },
 ];
 

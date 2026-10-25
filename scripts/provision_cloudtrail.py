@@ -75,24 +75,14 @@ MANAGEMENT_SELECTOR = {
     "FieldSelectors": [{"Field": "eventCategory", "Equals": ["Management"]}],
 }
 
-#: Data events stay OFF account-wide: S3/Lambda data events on ~77 tables and ~71 functions
-#: would dominate the bill and the signal. The single exception is Invoke on
-#: `wecare-catalog-management`, added 2026-10-25. It has no API route, rule, schedule,
-#: event-source mapping, function URL or resource policy, yet is invoked directly
-#: (103 times on 2026-10-25), and only a data event names the caller. Advanced
-#: selectors because basic Lambda ARNs match exactly, while StartsWith also covers the
-#: `:live` alias and version ARNs. Remove this selector once the caller is identified.
-CATALOG_INVOKE_SELECTOR = {
-    "Name": "wecare-catalog-management invocations",
-    "FieldSelectors": [
-        {"Field": "eventCategory", "Equals": ["Data"]},
-        {"Field": "resources.type", "Equals": ["AWS::Lambda::Function"]},
-        {"Field": "resources.ARN", "StartsWith": [
-            f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:wecare-catalog-management"]},
-    ],
-}
-
-ADVANCED_SELECTORS = [MANAGEMENT_SELECTOR, CATALOG_INVOKE_SELECTOR]
+#: Data events stay OFF: S3/Lambda data events on ~76 tables and ~70 functions would
+#: dominate the bill and the signal. To log one function's callers temporarily, add a
+#: selector with eventCategory=Data, resources.type=AWS::Lambda::Function and
+#: resources.ARN StartsWith the function ARN. StartsWith also matches `:live` and version
+#: ARNs, which a basic selector's exact ARN does not. That is how the caller of
+#: `wecare-catalog-management` was identified on 2026-10-25: root, from an operator
+#: machine, smoke-testing `:live` right after a fleet deploy. It has no production caller.
+ADVANCED_SELECTORS = [MANAGEMENT_SELECTOR]
 
 
 def logs_all_management_events(response: dict) -> bool:
