@@ -31,8 +31,8 @@
  * Razorpay directly. That is why this polls after checkout instead of downloading
  * straight from the callback.
  *
- * A grant is single use. A failed redeem must not be retried blindly - a second call
- * on a spent grant is indistinguishable from an unpaid one, by design.
+ * Paid entitlement is durable. Each successful redeem mints a short-lived transport URL
+ * while the paid access window remains open; ownership and window state are enforced server-side.
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
