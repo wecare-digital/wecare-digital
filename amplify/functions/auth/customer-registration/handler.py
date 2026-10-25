@@ -513,13 +513,13 @@ def _ensure_whatsapp_identity(event: Dict[str, Any]) -> Dict[str, Any]:
     contact.  Website/API checkout still requires its normal bearer session.
     """
     if str(event.get("wabaId") or "") != META_WABA_ID:
-        return {"outcome": "WHATSAPP_IDENTITY_NOT_READY"}
+        return {"outcome": "WHATSAPP_IDENTITY_NOT_READY", "reason": "waba_not_permitted"}
 
     phone = contact_store.canonical_phone(event.get("senderPhone"))
     contact_id = str(event.get("contactId") or "").strip()
     source_message_id = str(event.get("sourceMessageId") or "").strip()
     if not phone or not contact_id:
-        return {"outcome": "WHATSAPP_IDENTITY_NOT_READY"}
+        return {"outcome": "WHATSAPP_IDENTITY_NOT_READY", "reason": "identity_input_missing"}
 
     # Fail closed when the phone belongs to more than one live canonical contact.  An explicit
     # GetItem(contact_id) alone would bypass the uniqueness rule used everywhere else.
@@ -527,9 +527,9 @@ def _ensure_whatsapp_identity(event: Dict[str, Any]) -> Dict[str, Any]:
         canonical = contact_store.find_by_phone(_contacts_table(), phone)
     except contact_store.IdentityConflict:
         logger.warning(json.dumps({"event": "whatsapp_identity_contact_conflict"}))
-        return {"outcome": "WHATSAPP_IDENTITY_CONFLICT"}
+        return {"outcome": "WHATSAPP_IDENTITY_CONFLICT", "reason": "contact_ambiguous"}
     if not canonical or contact_key.resolve(canonical) != contact_id:
-        return {"outcome": "WHATSAPP_IDENTITY_NOT_READY"}
+        return {"outcome": "WHATSAPP_IDENTITY_NOT_READY", "reason": "contact_not_found"}
     contact = canonical
 
     existing_owner = str(contact.get("checkoutCustomerId") or "").strip()
@@ -539,7 +539,7 @@ def _ensure_whatsapp_identity(event: Dict[str, Any]) -> Dict[str, Any]:
         # or ownership edge is created here, so no WAMID capability is needed.
         if _cognito_user_for_sub(existing_owner, phone) is None:
             logger.warning(json.dumps({"event": "whatsapp_identity_owner_conflict"}))
-            return {"outcome": "WHATSAPP_IDENTITY_CONFLICT"}
+            return {"outcome": "WHATSAPP_IDENTITY_CONFLICT", "reason": "owner_phone_mismatch"}
         return {
             "outcome": "WHATSAPP_IDENTITY_READY",
             "customerId": existing_owner,
@@ -551,7 +551,7 @@ def _ensure_whatsapp_identity(event: Dict[str, Any]) -> Dict[str, Any]:
     # customer-registration independently resolves in the signed inbound-message store.
     if not _whatsapp_identity_evidence(
             contact, phone, source_message_id, str(event.get("wabaId") or "")):
-        return {"outcome": "WHATSAPP_IDENTITY_NOT_READY"}
+        return {"outcome": "WHATSAPP_IDENTITY_NOT_READY", "reason": "signed_evidence_missing"}
 
     try:
         user = _cognito_user_for_phone(phone)
@@ -561,11 +561,11 @@ def _ensure_whatsapp_identity(event: Dict[str, Any]) -> Dict[str, Any]:
             _provision_login(phone, contact_id)
             user = _cognito_user_for_phone(phone)
         if user is None:
-            return {"outcome": "WHATSAPP_IDENTITY_NOT_READY"}
+            return {"outcome": "WHATSAPP_IDENTITY_NOT_READY", "reason": "cognito_user_unavailable"}
         attrs = {a["Name"]: a["Value"] for a in user.get("Attributes", [])}
         subject = str(attrs.get("sub") or "")
         if not customer_auth.is_cognito_subject(subject):
-            return {"outcome": "WHATSAPP_IDENTITY_NOT_READY"}
+            return {"outcome": "WHATSAPP_IDENTITY_NOT_READY", "reason": "cognito_subject_invalid"}
 
         now = int(time.time())
         _contacts_table().update_item(
@@ -590,7 +590,7 @@ def _ensure_whatsapp_identity(event: Dict[str, Any]) -> Dict[str, Any]:
         }
     except customer_auth.CustomerNotAuthorized:
         logger.warning(json.dumps({"event": "whatsapp_identity_conflict"}))
-        return {"outcome": "WHATSAPP_IDENTITY_CONFLICT"}
+        return {"outcome": "WHATSAPP_IDENTITY_CONFLICT", "reason": "cognito_identity_conflict"}
     except Exception as error:  # noqa: BLE001
         # Conditional failure means another path linked the row concurrently. Re-read once and
         # accept only the exact same phone-bound owner; never overwrite a different owner.
@@ -610,7 +610,7 @@ def _ensure_whatsapp_identity(event: Dict[str, Any]) -> Dict[str, Any]:
                 }
         logger.error(json.dumps({"event": "whatsapp_identity_bridge_failed",
                                  "error": type(error).__name__}))
-        return {"outcome": "WHATSAPP_IDENTITY_NOT_READY"}
+        return {"outcome": "WHATSAPP_IDENTITY_NOT_READY", "reason": "bridge_error"}
 
 
 # ── request/response plumbing ───────────────────────────────────────────────────
