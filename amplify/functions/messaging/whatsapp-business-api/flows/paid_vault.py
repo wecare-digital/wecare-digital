@@ -109,7 +109,9 @@ def prepare_and_send(event, lambda_client):
     # Its IMAGE header is fixed by whatsapp_templates.download_send_fields and button 0
     # receives only the file-id suffix for https://wecare.digital/vault/?file={{1}}.
     ready = dict(base, **whatsapp_templates.download_send_fields(file['fileId']))
-    link_sent = True
+    # The link is the delivery: the template is approved for use outside the 24-hour window, so
+    # every paid (or renewed) file reaches the customer through it. `_send_once` keys on this
+    # purchase's request row, so a renewal - a new request - sends again.
     if not _send_once(requests, row, 'vaultNotificationStatus', lambda_client, ready):
         return {'outcome': 'VAULT_NOTIFICATION_PENDING'}
     # A PDF attachment is a separate ordinary document message. The approved
@@ -117,7 +119,6 @@ def prepare_and_send(event, lambda_client):
     last = contact.get('lastInboundMessageAt', 0)
     if isinstance(last, str):
         last = datetime.fromisoformat(last.replace('Z', '+00:00')).timestamp()
-    delivered = False
     if file.get('deliverable') == 'pdf' and file.get('deliveryKey') and 0 <= time.time() - float(last or 0) < 86400:
         document = {'contactId': contact['id'], 'recipientPhone': phone,
                     'phoneNumberId': WABA1_SENDER, 'mediaType': 'document',
@@ -125,23 +126,8 @@ def prepare_and_send(event, lambda_client):
                     'content': 'Your Vault document'}
         if not _send_once(requests, row, 'vaultDocumentStatus', lambda_client, document):
             return {'outcome': 'VAULT_DOCUMENT_PENDING'}
-        delivered = True
-    if not link_sent and not delivered:
-        # Neither a link nor a file reached the customer, so this is not ready. Reporting it
-        # is what makes the paid-but-undelivered population findable. First match wins,
-        # mirroring the document condition's own left-to-right evaluation: the two
-        # file-shape reasons are permanent data problems, while a closed window is a timing
-        # problem a re-send resolves - so it comes last, being the only one that can be true
-        # while the file is perfectly deliverable.
-        if file.get('deliverable') != 'pdf':
-            reason = 'not_deliverable'
-        elif not file.get('deliveryKey'):
-            reason = 'no_delivery_key'
-        else:
-            reason = 'window_closed'
-        log_event(logger, 'vault_delivery_deferred',
-                  requestId=row['publicRequestId'], reason=reason)
-        return {'outcome': 'VAULT_DELIVERY_DEFERRED', 'requestId': row['publicRequestId']}
+    log_event(logger, 'vault_ready', requestId=row['publicRequestId'],
+              renewal=bool(grant.get('renewal')))
     return {'outcome': 'VAULT_READY', 'requestId': row['publicRequestId']}
 
 

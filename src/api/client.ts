@@ -59,6 +59,8 @@ export interface ApiFailure {
   status: number | null;
   /** Human-readable, safe to render. Never contains a token or a secret. */
   message: string;
+  /** The server's own refusal code (e.g. `ACCESS_WINDOW_CLOSED`), verbatim, when it sent one. */
+  code?: string;
   url: string;
   /** True when trying the same call again could plausibly succeed. */
   retryable: boolean;
@@ -7258,17 +7260,86 @@ export interface SecureFile {
   accessWindowOpen?: boolean;
   accessWindowEndsAt?: number;
   accessWindowCount?: number;
+  /**
+   * What can be done with the file now: UNPAID (₹49 buys a window), OPEN (download free),
+   * READY (paid; the next download opens the window), EXPIRED (renewal needed) or
+   * PAID_UNVERIFIED (a payment is recorded but its access could not be read: reconcile, never
+   * charge again). Absent from older backends.
+   */
+  accessState?: SecureFileAccessState;
   /** Admin views only — masked to the last four digits, never the full number. */
   ownerName?: string;
   ownerPhoneMasked?: string;
   uploadedBy?: string;
 }
 
+export type SecureFileAccessState = 'UNPAID' | 'OPEN' | 'READY' | 'EXPIRED' | 'PAID_UNVERIFIED';
+
 export interface SecureUploadTicket {
   fileId: string;
   uploadUrl: string;
   expiresInSeconds: number;
   contentType: string;
+}
+
+/** The answer to a one-shot staff Vault action. `message` is the server's sentence. */
+export interface SecureFileActionResult {
+  ok: boolean;
+  /** HTTP status, or null when the request never got an answer. 202 = may have been sent. */
+  status: number | null;
+  /** The server outcome or refusal code, e.g. PAYMENT_REQUEST_SENT, VAULT_LINK_SENT. */
+  outcome: string;
+  message: string;
+}
+
+/**
+ * POST one staff action on a Vault file, exactly once.
+ *
+ * Deliberately NOT `apiCallResult`: that aborts at 8 s and retries on abort and on 502/503, and
+ * a payment request is a WhatsApp send. A retried send is a second message (or a refusal that
+ * hides a first one that worked), so an unanswered request is reported as "check the chat".
+ */
+async function secureFileAction (
+  fileId: string, action: 'request-payment' | 'send-access',
+): Promise<SecureFileActionResult> {
+  const url = `${API_BASE}/secure-files/${encodeURIComponent( fileId )}/${action}`;
+  try
+  {
+    const response = await authFetch( url, { method: 'POST', body: '{}' } );
+    let body: { outcome?: unknown; error?: unknown; message?: unknown } = {};
+    try { body = await response.json(); } catch { body = {}; }
+    if ( response.status >= 502 && typeof body.outcome !== 'string' )
+    {
+      // A gateway timeout, not the handler's answer: the send may still have happened.
+      return {
+        ok: false, status: null, outcome: 'NO_RESPONSE',
+        message: 'No answer was received in time. Check the WhatsApp chat before trying again.',
+      };
+    }
+    const outcome = typeof body.outcome === 'string' && body.outcome
+      ? body.outcome
+      : typeof body.error === 'string' && body.error ? body.error : `HTTP_${response.status}`;
+    const message = typeof body.message === 'string' && body.message
+      ? body.message
+      : response.ok ? 'Done.' : `The request failed (${response.status}).`;
+    return { ok: response.ok, status: response.status, outcome, message };
+  } catch
+  {
+    return {
+      ok: false, status: null, outcome: 'NO_RESPONSE',
+      message: 'No answer was received. Check the WhatsApp chat before trying again.',
+    };
+  }
+}
+
+/** Ask the file's owner for ₹49 on WhatsApp (Review and Pay, or the Access Vault link). */
+export function requestSecureFilePayment ( fileId: string ): Promise<SecureFileActionResult> {
+  return secureFileAction( fileId, 'request-payment' );
+}
+
+/** Resend the Access Vault link for a paid file. Never charges. */
+export function sendSecureFileAccess ( fileId: string ): Promise<SecureFileActionResult> {
+  return secureFileAction( fileId, 'send-access' );
 }
 
 /**
@@ -7331,7 +7402,7 @@ export async function confirmSecureUpload ( fileId: string ): Promise<ApiResult<
 
 /** Admin listing. Pass a mobile number to scope it to one customer via the GSI. */
 export async function listSecureFiles ( mobile?: string ): Promise<ApiResult<{
-  files: SecureFile[]; count: number;
+  files: SecureFile[]; count: number; truncated?: boolean;
 }>> {
   const qs = mobile ? `?mobile=${encodeURIComponent( mobile )}` : '';
   return apiCallResult( `${API_BASE}/secure-files${qs}` );
@@ -7413,6 +7484,9 @@ async function customerApiCall<T> ( url: string, options?: RequestInit ): Promis
             : response.status === 403 ? 'forbidden' : 'http',
           status: response.status,
           message: parsed.message || parsed.error || `Request failed (${response.status})`,
+          // One 403 status covers "not your file", "not paid" and "window closed"; the code is
+          // what lets the Vault page answer each one differently.
+          code: typeof parsed.error === 'string' && /^[A-Z][A-Z0-9_]+$/.test( parsed.error ) ? parsed.error : undefined,
           url,
           retryable: false,
           at: Date.now(),
