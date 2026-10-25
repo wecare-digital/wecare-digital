@@ -30,10 +30,15 @@ account takeover. AWS's own guidance is to have **zero** root access keys.
 - IAM user **`wecare-admin`** — `AdministratorAccess`, one active programmatic key
   (id `AKIA…TYEC`, created 2026-09-18; full id via `aws iam list-access-keys
   --user-name wecare-admin`). A usable, non-root principal.
-- IAM user **`wecare-user`** — `AdministratorAccess`, **no** access keys
-  (console/human).
+- IAM user **`wecare-user`** — `AdministratorAccess`, **no** access keys. Its console
+  password (no MFA device, last used 2026-09-25) was removed on 2026-10-25, so it has no
+  credentials at all; see `docs/execution/snapshots/wecare-user-console-password-removal-20261025.json`.
 - IAM user **`asterisk-ivr-service`** — service user, no attached managed policy
-  (the Lightsail IVR identity).
+  (the Lightsail IVR identity). Since 2026-10-25 it has no Secrets Manager access; the
+  unused `wecare/*` read was removed.
+- IAM user **`wecare-xacct-reader`** — can assume `OrganizationAccountAccessRole` in the
+  backup account `991322955408`. Its only access key, never used, was set Inactive on
+  2026-10-25.
 - 74 roles for the Lambda/CI workloads (unaffected by this change).
 
 ## Target state
