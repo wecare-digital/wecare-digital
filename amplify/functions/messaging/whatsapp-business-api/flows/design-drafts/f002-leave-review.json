@@ -9,7 +9,7 @@
   "screens": [
     {
       "id": "FEEDBACK",
-      "title": "Share an idea",
+      "title": "Shape what's next",
       "layout": {
         "type": "SingleColumnLayout",
         "children": [
@@ -31,15 +31,15 @@
           },
           {
             "type": "TextHeading",
-            "text": "What should we make better?"
+            "text": "What would you love us to make possible?"
           },
           {
             "type": "TextBody",
-            "text": "Share an idea, improvement, or something worth building on."
+            "text": "Share a feature you wish existed, a simpler way to do something, or an experience worth building on."
           },
           {
             "type": "TextCaption",
-            "text": "Your input helps shape what comes next."
+            "text": "Your ideas can help shape what comes next. Shared with our team."
           },
           {
             "type": "Form",
@@ -48,7 +48,7 @@
               {
                 "type": "RadioButtonsGroup",
                 "name": "topic",
-                "label": "Topic",
+                "label": "What's on your mind?",
                 "required": false,
                 "data-source": [
                   {
@@ -72,7 +72,7 @@
               {
                 "type": "TextArea",
                 "name": "idea",
-                "label": "Idea",
+                "label": "Your thought",
                 "required": true,
                 "helper-text": "Imagine what could be better, simpler, or possible. Tell us in your own words."
               },
