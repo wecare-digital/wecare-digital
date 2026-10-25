@@ -7,7 +7,7 @@ import Button from '../../../components/ui/Button';
 import Select, { type SelectOption } from '../../../components/ui/Select';
 import * as api from '../../../api/client';
 import { useConfirm } from '../../../contexts/ConfirmContext';
-import type { Invoice, InvoiceDeliveryLog, Contact, CreateInvoiceEngineRequest, ApiResult, SendPaymentLinkResult } from '../../../api/client';
+import type { Invoice, InvoiceDeliveryLog, Contact, CreateInvoiceEngineRequest, CreateInvoiceEngineResult, ApiResult, SendPaymentLinkResult } from '../../../api/client';
 import { DEFAULT_GSTIN } from '../../../config/constants';
 import {
   ADDRESS_FIELDS, EMPTY_ADDRESS_FIELDS, addressPayload, addressFieldsFromContact,
@@ -200,6 +200,25 @@ const describeSendOutcome = (
     tone: 'error',
     text: 'Sending is not confirmed.',
   };
+};
+/*
+ * Why a create produced no invoice, in the server's own words.
+ *
+ * Two outcomes that must not be confused. A deliberate refusal (any 4xx, or a 5xx the engine
+ * marked `retryable`) wrote nothing, so the operator is told what to fix. No answer, a 2xx with
+ * no invoice id, or a gateway 5xx is UNKNOWN: the write may have landed, and a second click mints
+ * a fresh referenceId the server cannot dedupe against, so the ledger comes before the button.
+ */
+const CREATE_NOT_CONFIRMED = 'Check Invoices before creating another.';
+const describeCreateFailure = ( result: Extract<CreateInvoiceEngineResult, { ok: false }> ): string => {
+  const { status, message, retryable } = result;
+  if ( status === null ) return `Creation was not confirmed. ${ CREATE_NOT_CONFIRMED }`;
+  if ( status < 400 || ( status >= 500 && !retryable ) ) {
+    return `Creation was not confirmed (status ${ status }). ${ CREATE_NOT_CONFIRMED }`;
+  }
+  const said = message ? `: ${ message.replace( /\.$/, '' ) }` : '';
+  const next = status === 401 ? ' Sign in again, then retry.' : retryable ? ' You can retry.' : '';
+  return `Invoice not created (status ${ status })${ said }.${ next }`;
 };
 /** Integer paise -> a rupee string. */
 const fmtPaise = ( paise: number ) => {
@@ -464,6 +483,9 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
         // (0.5% up to Rs50) server-side. There is no coupon code and no manual adjustment to pass.
       };
       req.entryPoint = 'pay_flow';
+      // The result wrapper keeps the server's refusal, so the banner can say WHY a create was
+      // refused instead of "Create failed". The success body carries the applied Delight figure
+      // for the preview below.
       const created = await api.createInvoiceEngineResult( req );
       if ( created.ok )
       {
@@ -509,14 +531,13 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
       else
       {
         setRedemption( null );
-        const messages: Record<string, string> = {
+        // Refusals with one clear fix get that fix; everything else says what the server said.
+        const fixes: Record<string, string> = {
           DELIVERY_REQUIRED: 'Add a complete structured delivery address before creating this physical invoice.',
           INVALID_PIN: 'The saved postal code is not payable for WhatsApp payment. Update the customer address.',
           INVALID_AMOUNT: 'Check item amount, quantity, GST and delivery values.',
-          REQUEST_FAILED: 'Invoice service could not be reached. Try again once.',
-          CREATE_FAILED: 'Invoice creation was refused. Check the invoice ledger before retrying.',
         };
-        showMsg( messages[ created.errorCode ] || `Invoice create failed: ${created.errorCode}`, 'error' );
+        showMsg( fixes[ created.errorCode ] || describeCreateFailure( created ), 'error' );
       }
     } catch ( e ) { showMsg( 'Creation was not confirmed. Check Invoices before creating another.', 'error' ); }
     finally { invoiceCreateInFlight.current = false; setCreating( false ); }
@@ -1042,8 +1063,9 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                           <Button variant="secondary" size="sm" onClick={ () => openRemarkModal( selInvoice, 'refund' ) }>Reconcile Refund</Button>
                           <Button variant="secondary" size="sm" onClick={ () => openRemarkModal( selInvoice, 'credit_note' ) }>Record Credit Note</Button>
                           { /* WhatsApp order_status fulfilment updates are a separate fulfilment
-                               workflow. Payment capture sends the invoice only; staff deliberately
-                               chooses when to notify the customer about fulfilment. The server validates the
+                               workflow. Payment capture sends the invoice, then (WhatsApp orders only)
+                               one `processing` update; staff deliberately choose when to send the
+                               later fulfilment steps. The server validates the
                                WhatsApp transition, so sending "shipped" before "processing" or
                                after "completed" is refused with a reason. `partially-shipped` is
                                available via the API but kept off the quick row to stay simple. */ }
