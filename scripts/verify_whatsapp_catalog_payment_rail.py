@@ -1419,8 +1419,9 @@ def run(root: Path) -> int:
                                        "sourceMessageId": "wamid.HERMETIC.MIA.1", "contactId": mia["contactId"],
                                        "senderPhone": mia["digits"], "phoneNumberId": PHONE_ID_1}, FakeLambda())
     replies = replies_in(W.since(mark, "invocations"))
-    check("SVC", "an account linked to another verified number is refused with a sign-in reply, not a crash",
-          refusal.get("outcome") == "VERIFIED_CUSTOMER_REQUIRED" and len(replies) == 1 and "sign in" in replies[0].lower()
+    check("SVC", "an account linked to another verified number is refused without a browser sign-in CTA",
+          refusal.get("outcome") == "WHATSAPP_IDENTITY_REQUIRED" and len(replies) == 1
+          and "could not verify" in replies[0].lower() and "sign in" not in replies[0].lower()
           and not _table("CommerceKeys").get_item(Key={"orderId": "CATALOGSERVICEMSG#wamid.HERMETIC.MIA.1"}).get("Item"),
           refusal)
 
@@ -1455,7 +1456,7 @@ def run(root: Path) -> int:
                                         "fileIndex": 0, "contactId": nora["contactId"], "senderPhone": nora["digits"],
                                         "phoneNumberId": PHONE_ID_1}, FakeLambda())
 
-    W.handlers["wecare-checkout"] = checkout_not_ready
+    W.handlers["wecare-commerce"] = checkout_not_ready
     # moto 5.2.4 cancels the intent store's TransactWriteItems with an internal TypeError
     # ("unhashable type: 'dict'"), so the intent is stubbed here; these checks are about the lock.
     real_request_intent = catalog_services.store.request_intent
@@ -1495,7 +1496,7 @@ def run(root: Path) -> int:
           fourth.get("outcome") == "VAULT_FILE_SELECTION_UNAVAILABLE" and stubbed["calls"] == 2
           and not _table("CommerceKeys").get_item(Key=lock_key).get("Item"), fourth)
     catalog_services.store.request_intent = real_request_intent
-    W.handlers["wecare-checkout"] = checkout.handler
+    W.handlers["wecare-commerce"] = checkout.handler
     W.handlers.pop("wecare-whatsapp-business-api", None)
     # Paid Vault delivery and the invoice copy reach the customer through outbound, which resolves
     # only our Direct-API sender ids and refuses the bare Meta phone id they used to send with.
