@@ -105,14 +105,11 @@ def prepare_and_send(event, lambda_client):
     base = {'contactId': contact['id'], 'recipientPhone': phone,
             'phoneNumberId': WABA1_SENDER, 'isTemplate': True,
             'templateParams': [], **TEMPLATE_IMAGE_HEADER}
-    ready = dict(base, templateName='wecare_share_pdf')
-    # The share template has an IMAGE header and carries no URL button, so it delivers no
-    # link. Only the dynamic download template does, and it stays closed.
-    link_sent = False
-    # Enable only after live Meta readback confirms this exact template is approved.
-    if os.environ.get('VAULT_DYNAMIC_DOWNLOAD_TEMPLATE_ENABLED', 'false').lower() == 'true':
-        ready = dict(base, **whatsapp_templates.download_send_fields(file['fileId']))
-        link_sent = True
+    # The approved Vault delivery template is always the dynamic download template.
+    # Its IMAGE header is fixed by whatsapp_templates.download_send_fields and button 0
+    # receives only the file-id suffix for https://wecare.digital/vault/?file={{1}}.
+    ready = dict(base, **whatsapp_templates.download_send_fields(file['fileId']))
+    link_sent = True
     if not _send_once(requests, row, 'vaultNotificationStatus', lambda_client, ready):
         return {'outcome': 'VAULT_NOTIFICATION_PENDING'}
     # A PDF attachment is a separate ordinary document message. The approved
