@@ -19,8 +19,8 @@ import { PRODUCT_SKU_BY_SLUG, productPolicyCopy } from '../content/productCommer
  * Classes are pdp- prefixed. The globally imported src/styles/*.css declares unscoped rules
  * for generic names and styled-jsx does not shield a page from them.
  *
- * TYPE COMES OFF THE DESIGN CONTRACT and matches bharat-rx.tsx exactly, because these pages
- * sit beside it in the same menu column and any difference would read as an accident:
+ * TYPE COMES OFF THE established product-page design contract, so sibling product pages
+ * stay visually consistent rather than drifting into accidental one-off typography:
  * section h2 on the 700 rung (heavier than the hero h1's 600, which is the site's deliberate
  * inversion), card headings at 22px/700/-.25px, and the single body level at
  * 20px/400/1.4/-.125px.
