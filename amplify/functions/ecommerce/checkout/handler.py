@@ -2824,8 +2824,9 @@ def _native_catalog_service(event: Dict[str, Any], origin: str):
             str(row.get('phone') or ''),
             str(row.get('phoneNumberId') or ''),
             str(row.get('sourceMessageId') or ''))
-    except (customer_auth.CustomerNotAuthorized, customer_identity.InvalidPhoneNumber):
-        return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
+    except (customer_auth.CustomerNotAuthorized, customer_identity.InvalidPhoneNumber) as error:
+        reason = str(error).replace('whatsapp_identity_', '') if str(error).startswith('whatsapp_identity_') else ''
+        return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED', 'reason': reason}
     owner = identity.customer_id
     if owner != row.get('customerId'):
         return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
@@ -2915,7 +2916,9 @@ def _native_whatsapp_identity(
     raw = response['Payload'].read()
     result = json.loads(raw.decode() if isinstance(raw, (bytes, bytearray)) else raw or '{}')
     if response.get('FunctionError') or result.get('outcome') != 'WHATSAPP_IDENTITY_READY':
-        raise customer_auth.CustomerNotAuthorized('WhatsApp customer identity is not ready')
+        reason = re.sub(r'[^a-z0-9_]+', '', str(result.get('reason') or 'bridge_refused').lower())
+        raise customer_auth.CustomerNotAuthorized(
+            'whatsapp_identity_' + (reason or 'bridge_refused'))
     subject = str(result.get('customerId') or '')
     if not customer_auth.is_cognito_subject(subject):
         raise customer_auth.CustomerNotAuthorized('WhatsApp customer identity is malformed')
@@ -3000,8 +3003,9 @@ def _native_cart(event: Dict[str, Any], origin: str):
         identity, contact = _native_whatsapp_identity(
             contact_id, sender_phone, phone_number_id,
             str(event.get('sourceMessageId') or ''))
-    except (customer_auth.CustomerNotAuthorized, customer_identity.InvalidPhoneNumber):
-        return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
+    except (customer_auth.CustomerNotAuthorized, customer_identity.InvalidPhoneNumber) as error:
+        reason = str(error).replace('whatsapp_identity_', '') if str(error).startswith('whatsapp_identity_') else ''
+        return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED', 'reason': reason}
 
     # ONE LIVE PAYMENT REQUEST PER BASKET. The inbound dedupe is per MESSAGE, so the same cart
     # sent again as a new message reached `_create` again and minted a second attempt, a second
