@@ -63,7 +63,7 @@ const F002SubmissionDetails: React.FC<{ submission: api.FlowSubmissionItem }> = 
   const rows = [
     ...( data.topic && F002_TOPIC_LABELS[ data.topic ]
       ? [ [ "What's on your mind?", F002_TOPIC_LABELS[ data.topic ] ] as const ] : [] ),
-    ...( data.idea ? [ [ 'Your thought', String( data.idea ) ] as const ] : [] ),
+    ...( data.idea ? [ [ 'Idea', String( data.idea ) ] as const ] : [] ),
   ];
   return <details>
     <summary style={ { cursor: 'pointer' } }>{ submission.subject || 'Leave Review' }</summary>
