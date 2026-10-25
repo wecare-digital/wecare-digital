@@ -459,6 +459,10 @@ const ElsewhereTravelAssistant: React.FC = () => {
                         <span>{ hasRupeePrice( result.price ) ? rupeeAmount( result.price ) : result.price }</span>
                       </div>
                       { responseSource === 'demo' && (
+                        // Plain anchor, as in ClosingBand: <Link> is a component, so styled-jsx
+                        // would not scope `.eta-action` onto the <a> it renders and the action
+                        // would lose its styles.
+                        // eslint-disable-next-line @next/next/no-html-link-for-pages
                         <a
                           className="eta-action eta-demo-checkout"
                           href="/cart/"
