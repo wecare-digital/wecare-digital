@@ -495,7 +495,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             identity, contact = _native_whatsapp_identity(
                 str(event.get('contactId') or ''),
                 str(event.get('senderPhone') or ''),
-                phone_number_id)
+                phone_number_id,
+                str(event.get('sourceMessageId') or ''))
         except (customer_auth.CustomerNotAuthorized, customer_identity.InvalidPhoneNumber):
             return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
         return {
@@ -2821,7 +2822,8 @@ def _native_catalog_service(event: Dict[str, Any], origin: str):
         identity, contact = _native_whatsapp_identity(
             str(row.get('contactId') or ''),
             str(row.get('phone') or ''),
-            str(row.get('phoneNumberId') or ''))
+            str(row.get('phoneNumberId') or ''),
+            str(row.get('sourceMessageId') or ''))
     except (customer_auth.CustomerNotAuthorized, customer_identity.InvalidPhoneNumber):
         return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
     owner = identity.customer_id
@@ -2885,7 +2887,9 @@ WHATSAPP_IDENTITY_FUNCTION = os.environ.get(
     'WHATSAPP_IDENTITY_FUNCTION', 'wecare-customer-registration:live')
 
 
-def _native_whatsapp_identity(contact_id: str, sender_phone: str, phone_number_id: str):
+def _native_whatsapp_identity(
+    contact_id: str, sender_phone: str, phone_number_id: str, source_message_id: str
+):
     """Resolve one signed-inbound WhatsApp contact to the permanent customer identity.
 
     The dedicated registration function owns customer-pool provisioning. Commerce gets only an
@@ -2904,6 +2908,7 @@ def _native_whatsapp_identity(contact_id: str, sender_phone: str, phone_number_i
             'internalAction': 'ensureWhatsAppIdentity',
             'contactId': contact_id,
             'senderPhone': sender_phone,
+            'sourceMessageId': str(source_message_id or ''),
             'wabaId': waba_id,
         }).encode(),
     )
@@ -2987,7 +2992,8 @@ def _native_cart(event: Dict[str, Any], origin: str):
     sender_phone = str(event.get('senderPhone') or '')
     try:
         identity, contact = _native_whatsapp_identity(
-            contact_id, sender_phone, phone_number_id)
+            contact_id, sender_phone, phone_number_id,
+            str(event.get('sourceMessageId') or ''))
     except (customer_auth.CustomerNotAuthorized, customer_identity.InvalidPhoneNumber):
         return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
 
