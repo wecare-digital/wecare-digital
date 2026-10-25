@@ -5,9 +5,8 @@ What it stands up
 -----------------
 - A least-privilege execution role: logs; read of the OTP pepper secret; read/write on the OTP
   challenge table and the customers table only; `lambda:InvokeFunction` on the WhatsApp template
-  sender (so it can deliver the `wecare_otp` code); and the three Cognito admin actions on the
-  CUSTOMER pool needed to provision a login — `admin_create_user`, `admin_set_user_password`,
-  `admin_update_user_attributes`. It has NO SES permission (email verification is a separate
+  sender (so it can deliver the `wecare_otp` code); and the scoped Cognito actions on the CUSTOMER pool needed to provision/resolve a login —
+  `admin_create_user`, `admin_set_user_password`, `admin_update_user_attributes`, and `list_users`. It has NO SES permission (email verification is a separate
   function) and NO `cognito-idp:SignUp` (the pool is AllowAdminCreateUserOnly and self-signup
   stays off — provisioning is admin-only).
 - The function `wecare-customer-registration`, then a published version and the `live` alias.
