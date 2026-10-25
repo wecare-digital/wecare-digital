@@ -77,23 +77,21 @@
 		<string>remote-notification</string>
 	</array>
 
-	<!-- Camera / Microphone (for WhatsApp media + voice) -->
+	<!-- Usage descriptions: truthful, and free of an app name, because this one project builds
+	     both the internal Workspace app and the public WECARE.DIGITAL shell. iOS shows each only
+	     when the matching feature is used. Kept because WKWebView needs them: a photo/file input
+	     offers "Take Photo or Video" (camera, microphone) and the photo picker, the Workspace
+	     softphone asks for the microphone, and an image's "Add to Photos" writes to the library.
+	     Removed 2026-10-25 with nothing in the app that uses them: NSContactsUsageDescription
+	     (no contacts sync exists) and NSFaceIDUsageDescription (no LocalAuthentication use). -->
 	<key>NSCameraUsageDescription</key>
-	<string>Stack CRM needs camera access to capture photos for WhatsApp messages</string>
+	<string>The camera is used only when you choose to take a photo or video to attach or send.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Stack CRM needs microphone access for voice calls and audio messages</string>
+	<string>The microphone is used only when you start a call, or record a video to attach or send.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Stack CRM needs photo library access to send media via WhatsApp</string>
+	<string>Your photo library is used only when you choose a photo or video to attach or send.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Stack CRM needs to save received media to your photo library</string>
-
-	<!-- Contacts (for contact sync) -->
-	<key>NSContactsUsageDescription</key>
-	<string>Stack CRM can sync your device contacts for quick messaging</string>
-
-	<!-- Face ID -->
-	<key>NSFaceIDUsageDescription</key>
-	<string>Stack CRM uses Face ID for secure authentication</string>
+	<string>Photos are saved to your library only when you choose to save an image.</string>
 
 	<!-- Status Bar -->
 	<key>UIStatusBarStyle</key>
