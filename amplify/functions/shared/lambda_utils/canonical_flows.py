@@ -24,7 +24,7 @@ CANONICAL_FLOWS = {
     'amend_request':  ('3678132465672138', 'DRAFT',     '03.WD_Amend_Request'),
     'drop_docs':      ('1211063631104445', 'DRAFT',     'WD_Drop_Documents'),
     'shipments':      ('849713848195607',  'DRAFT',     'WD_Shipments_Design_v1'),
-    'leave_review':   ('940049388908144',  'PUBLISHED', '01. WECARE REVIEW FLOW'),
+    'leave_review':   ('993862443003108',  'PUBLISHED', 'WD-F002-LEAVE-REVIEW'),
     # Vault: website CTA + ₹49 catalog delivery, no Flow.
     'vault':          (None, 'NONE', None),
     # F001 replacement. Published in Meta; runtime activation remains controlled from

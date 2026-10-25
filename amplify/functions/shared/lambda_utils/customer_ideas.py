@@ -29,7 +29,7 @@ from lambda_utils.privacy import mask_contact_id, mask_flow_token
 logger = logging.getLogger(__name__)
 
 FLOW_KEY = 'wd_leave_review_v2'
-FLOW_ID = canonical_flows.canonical_flow_id('leave_review') or '940049388908144'
+FLOW_ID = canonical_flows.canonical_flow_id('leave_review') or '993862443003108'
 FLOW_CODE = canonical_flows.canonical_contract('leave_review')['flowCode']
 TOPICS = {
     'feature_request': "A feature I'd love",
