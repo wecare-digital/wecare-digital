@@ -207,7 +207,7 @@ def handle(event, client):
                                   row['kind'], vault_file=file)
     keys.update_item(Key={'orderId': row['orderId']}, UpdateExpression='SET serviceIntentId=:intent',
                      ExpressionAttributeValues={':intent': intent['intentId']})
-    result = _invoke(client, 'wecare-checkout:live', {
+    result = _invoke(client, 'wecare-commerce:live', {
         'internalAction': 'prepareNativeCatalogService', 'catalogToken': row['token']})
     # No automatic second attempt after an ambiguous provider send. Staff reconcile this session.
     keys.update_item(Key={'orderId': row['orderId']}, UpdateExpression='SET paymentResult=:result',
