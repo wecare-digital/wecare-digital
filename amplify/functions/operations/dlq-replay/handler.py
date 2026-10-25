@@ -44,10 +44,12 @@ DLQ_URLS = {
     'bulk-dlq': BULK_DLQ_URL,
 }
 
-# Handler function mapping
+# Handler function mapping. The deployed names, on the `live` alias. The old defaults were the
+# source folder names ('inbound-whatsapp-handler', 'bulk-worker'), which are not functions, and
+# neither variable is set live, so every replay failed with ResourceNotFound.
 HANDLERS = {
-    'inbound-dlq': os.environ.get('INBOUND_HANDLER_FUNCTION', 'inbound-whatsapp-handler'),
-    'bulk-dlq': os.environ.get('BULK_WORKER_FUNCTION', 'bulk-worker'),
+    'inbound-dlq': os.environ.get('INBOUND_HANDLER_FUNCTION', 'wecare-inbound-whatsapp:live'),
+    'bulk-dlq': os.environ.get('BULK_WORKER_FUNCTION', 'wecare-bulk-worker:live'),
 }
 
 

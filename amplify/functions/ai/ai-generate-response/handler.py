@@ -2056,7 +2056,7 @@ def _tool_send_whatsapp(params: Dict, request_id: str) -> Dict:
             }
             
             response = lambda_client.invoke(
-                FunctionName='wecare-outbound-whatsapp',
+                FunctionName='wecare-outbound-whatsapp:live',
                 InvocationType='RequestResponse',
                 Payload=json.dumps(payload)
             )
@@ -4459,7 +4459,7 @@ def _tool_send_whatsapp_buttons(params: Dict, request_id: str) -> Dict:
         }
         
         response = lambda_client.invoke(
-            FunctionName='wecare-outbound-whatsapp',
+            FunctionName='wecare-outbound-whatsapp:live',
             InvocationType='RequestResponse',
             Payload=json.dumps(payload)
         )
@@ -4518,7 +4518,7 @@ def _tool_send_whatsapp_pay(params: Dict, request_id: str) -> Dict:
         }
 
         response = lambda_client.invoke(
-            FunctionName='wecare-outbound-whatsapp',
+            FunctionName='wecare-outbound-whatsapp:live',
             InvocationType='RequestResponse',
             Payload=json.dumps(payload)
         )
@@ -4575,7 +4575,7 @@ def _tool_make_voice_call(params: Dict, request_id: str) -> Dict:
         }
         
         response = lambda_client.invoke(
-            FunctionName='wecare-voice-aws',
+            FunctionName='wecare-voice-aws:live',
             InvocationType='RequestResponse',
             Payload=json.dumps(payload)
         )
@@ -4615,7 +4615,7 @@ def _tool_send_sms(params: Dict, request_id: str) -> Dict:
         }
         
         response = lambda_client.invoke(
-            FunctionName='wecare-outbound-sms',
+            FunctionName='wecare-outbound-sms:live',
             InvocationType='RequestResponse',
             Payload=json.dumps(payload)
         )
@@ -4657,7 +4657,7 @@ def _tool_send_email(params: Dict, request_id: str) -> Dict:
         }
         
         response = lambda_client.invoke(
-            FunctionName='wecare-outbound-email',
+            FunctionName='wecare-outbound-email:live',
             InvocationType='RequestResponse',
             Payload=json.dumps(payload)
         )
@@ -4696,7 +4696,7 @@ def _tool_schedule_message(params: Dict, request_id: str) -> Dict:
         }
         
         response = lambda_client.invoke(
-            FunctionName='wecare-scheduled-messages',
+            FunctionName='wecare-scheduled-messages:live',
             InvocationType='RequestResponse',
             Payload=json.dumps(payload)
         )
@@ -4829,7 +4829,7 @@ def _tool_send_template(params: Dict, request_id: str) -> Dict:
         }
         
         response = lambda_client.invoke(
-            FunctionName='wecare-outbound-whatsapp',
+            FunctionName='wecare-outbound-whatsapp:live',
             InvocationType='RequestResponse',
             Payload=json.dumps(payload)
         )
@@ -5193,7 +5193,7 @@ def _tool_get_voice_cdr(params: Dict, request_id: str) -> Dict:
         }
         
         response = lambda_client.invoke(
-            FunctionName='wecare-voice-cdr-read',
+            FunctionName='wecare-voice-cdr-read:live',
             InvocationType='RequestResponse',
             Payload=json.dumps(payload)
         )
@@ -5250,7 +5250,7 @@ def _tool_get_billing_summary(params: Dict, request_id: str) -> Dict:
         }
         
         response = lambda_client.invoke(
-            FunctionName='wecare-billing',
+            FunctionName='wecare-billing:live',
             InvocationType='RequestResponse',
             Payload=json.dumps(payload)
         )
@@ -5518,7 +5518,7 @@ def _tool_send_whatsapp_flow(params: Dict, request_id: str) -> Dict:
         }
         
         response = lambda_client.invoke(
-            FunctionName='wecare-outbound-whatsapp',
+            FunctionName='wecare-outbound-whatsapp:live',
             InvocationType='RequestResponse',
             Payload=json.dumps(payload)
         )

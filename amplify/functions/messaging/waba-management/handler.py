@@ -539,12 +539,14 @@ def _get_system_events(query_params: Dict, request_id: str) -> Dict[str, Any]:
         event_type = query_params.get('type', 'all')
         config_table = dynamodb.Table(SYSTEM_CONFIG_TABLE)
 
-        events = {'templateStatus': [], 'phoneQuality': [], 'accountUpdates': []}
+        events = {'templateStatus': [], 'phoneQuality': [], 'accountUpdates': [], 'flowEvents': []}
 
         mapping = [
             ('template_status', 'templateStatus', 'whatsapp_events_template_status'),
             ('phone_quality', 'phoneQuality', 'whatsapp_events_phone_quality'),
             ('account_update', 'accountUpdates', 'whatsapp_events_account_update'),
+            # Flow status changes and endpoint-health alerts (inbound `_process_flow_event`).
+            ('flows', 'flowEvents', 'whatsapp_events_flows'),
         ]
         for type_key, out_key, config_id in mapping:
             if event_type in ('all', type_key):

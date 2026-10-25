@@ -27,7 +27,9 @@ import boto3
 
 REGION = os.environ.get("AWS_REGION", "us-east-1")
 
-SENDER_FUNCTION = os.environ.get("WA_SENDER_FUNCTION", "wecare-outbound-whatsapp")
+# The `live` alias, like MEDIA_FUNCTION: the unqualified name runs $LATEST, which an upload
+# reaches before it is published and verified.
+SENDER_FUNCTION = os.environ.get("WA_SENDER_FUNCTION", "wecare-outbound-whatsapp:live")
 MEDIA_FUNCTION = os.environ.get(
     "WA_MEDIA_FUNCTION", "wecare-whatsapp-business-api:live"
 )

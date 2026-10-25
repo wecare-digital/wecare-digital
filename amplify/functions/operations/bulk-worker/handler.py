@@ -162,14 +162,15 @@ def _process_job(body: Dict, request_id: str) -> Dict:
                             time.sleep(0.5)
                         _send_whatsapp(phone, phone_number_id, template_name, template_params, content, contact_id, request_id)
                     elif channel == 'SMS':
-                        _send_via_lambda('wecare-outbound-sms', {
+                        # The `live` alias: the unqualified name would run $LATEST.
+                        _send_via_lambda('wecare-outbound-sms:live', {
                             'contactId': contact_id, 'phoneNumber': phone, 'content': content,
                         }, request_id)
                     elif channel == 'EMAIL':
                         email = contact.get('email', '')
                         if not email:
                             raise ValueError('No email address')
-                        _send_via_lambda('wecare-outbound-email', {
+                        _send_via_lambda('wecare-outbound-email:live', {
                             'contactId': contact_id, 'subject': body.get('subject', 'Message from WECARE.DIGITAL'),
                             'content': content,
                         }, request_id)

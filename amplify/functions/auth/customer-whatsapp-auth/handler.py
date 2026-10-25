@@ -432,10 +432,13 @@ def _send_otp(phone: str, otp: str, route: dict) -> None:
 def _meta_error_code(result: dict):
     """The integer Meta error code out of the sender's response body, or None.
 
-    The sender json-dumps Meta's `{"error": {...}}` straight into `body`, so the code is
-    recoverable without a second Graph call. Only the integer is taken. The accompanying
-    Meta `message` is free-form provider text and is deliberately not read, let alone
-    logged.
+    The sender (`_graph_api` in whatsapp-business-api) wraps Meta's whole envelope, so the
+    body is `{"error": {"error": {"code": ...}}}`; reading only `error.code` recorded None
+    for every refusal. The nested code is read first. A flat `error.code` counts only when
+    the object is Meta's own (it carries `type` or `fbtrace_id`): the sender's fallback for a
+    non-JSON reply is `{"error": {"message": ..., "code": <HTTP status>}}`, and an HTTP
+    status is not a Meta code. Only the integer is taken. The accompanying Meta `message`
+    is free-form provider text and is deliberately not read, let alone logged.
     """
     body = result.get("body")
     if not isinstance(body, str):
@@ -447,7 +450,15 @@ def _meta_error_code(result: dict):
     if not isinstance(parsed, dict):
         return None
     error = parsed.get("error")
-    code = error.get("code") if isinstance(error, dict) else None
+    if not isinstance(error, dict):
+        return None
+    nested = error.get("error")
+    if isinstance(nested, dict):
+        code = nested.get("code")
+    elif "type" in error or "fbtrace_id" in error:
+        code = error.get("code")
+    else:
+        code = None
     return code if isinstance(code, int) else None
 
 

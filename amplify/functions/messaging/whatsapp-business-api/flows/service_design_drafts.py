@@ -21,8 +21,8 @@ NAMES = {
 }
 
 
-# F002 is numbered/named from F001's canonical convention, but its customer-facing
-# content is the existing published review contract (Meta Flow 940049388908144).
+# F002 is numbered/named from F001's canonical convention. It is published as Meta Flow
+# 993862443003108; its review questions came from Flow 940049388908144, now DEPRECATED.
 ASSET_FILES = {
     'leave-review': 'f002-leave-review.json',
 }

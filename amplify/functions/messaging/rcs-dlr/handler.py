@@ -464,7 +464,7 @@ def _process_inbound(data: Dict, request_id: str):
             _auto = evaluate_rules(content, 'rcs')
             if _auto:
                 boto3.client('lambda', region_name=os.environ.get('AWS_REGION', 'us-east-1')).invoke(
-                    FunctionName='wecare-rcs-send',
+                    FunctionName='wecare-rcs-send:live',  # never $LATEST's unpublished code
                     InvocationType='Event',
                     Payload=json.dumps({
                         'requestContext': {'http': {'method': 'POST'}},

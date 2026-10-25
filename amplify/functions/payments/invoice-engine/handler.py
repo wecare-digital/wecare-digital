@@ -4136,6 +4136,12 @@ def _resolve_order_id(invoice: Dict, keys_table: Any, request_id: str) -> str:
 
 # ─── Send Order Status (fulfilment lifecycle) ───
 
+#: The value of `orderStatusRetry` on an invoice with a deferred fulfilment update. Only rows that
+#: carry it appear in the sparse `orderStatusRetry-index` (HASH orderStatusRetry, RANGE
+#: pendingOrderStatusAt) that `wecare-razorpay-webhook`'s schedule retries from.
+ORDER_STATUS_RETRY_PENDING = 'PENDING'
+
+
 def send_order_status(invoice_id: str, target_status: str, description: str,
                       phone_number_id: str, request_id: str) -> Dict:
     """Send a WhatsApp order_status fulfilment update (shipped / completed / …) for a PAID order.
@@ -4332,13 +4338,22 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
         # The window is closed and no approved ORDER_STATUS template exists. This is NOT a
         # rejection of the transition - record the requested status as a PENDING send on the
         # invoice so staff can see one is owed, and pass the deferral through as a 409.
+        #
+        # `orderStatusRetry = 'PENDING'` puts the row in the sparse `orderStatusRetry-index`
+        # (keyed by `pendingOrderStatusAt`), which the 5-minute razorpay-webhook schedule queries
+        # to retry the oldest few through this function; it re-decides the channel each time.
+        # `pendingOrderStatusSince` keeps the first deferral so the retry can give up after a week.
         now = int(time.time())
         try:
             table.update_item(
                 Key={'invoiceId': invoice_id},
                 UpdateExpression=('SET pendingOrderStatus = :ps, '
-                                  'pendingOrderStatusAt = :now, updatedAt = :now'),
-                ExpressionAttributeValues={':ps': target, ':now': now},
+                                  'pendingOrderStatusAt = :now, updatedAt = :now, '
+                                  'orderStatusRetry = :retry, '
+                                  'pendingOrderStatusSince = '
+                                  'if_not_exists(pendingOrderStatusSince, :now)'),
+                ExpressionAttributeValues={':ps': target, ':now': now,
+                                           ':retry': ORDER_STATUS_RETRY_PENDING},
             )
         except Exception as e:  # noqa: BLE001
             logger.error(json.dumps({
@@ -4387,7 +4402,8 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
             Key={'invoiceId': invoice_id},
             UpdateExpression=('SET orderStatus = :os, waOrderStatus = :os, '
                               'orderStatusUpdatedAt = :now, updatedAt = :now '
-                              'REMOVE pendingOrderStatus, pendingOrderStatusAt'),
+                              'REMOVE pendingOrderStatus, pendingOrderStatusAt, '
+                              'orderStatusRetry, pendingOrderStatusSince'),
             ExpressionAttributeValues={':os': target, ':now': now},
         )
     except Exception as e:  # noqa: BLE001

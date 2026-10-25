@@ -252,7 +252,16 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 logger.error(json.dumps({'event': 'scheduled_sweep_error',
                                          'error': type(sweep_error).__name__,
                                          'requestId': request_id}))
-            return {'linkedOrders': metrics['promoted'], 'sweep': sweep, **metrics}
+            # And the deferred fulfilment updates, on the same schedule and the same terms.
+            order_status_retry = {}
+            try:
+                order_status_retry = _retry_deferred_order_status(request_id)
+            except Exception as retry_error:  # noqa: BLE001 - retry must not fail reconcile
+                logger.error(json.dumps({'event': 'order_status_retry_error',
+                                         'error': type(retry_error).__name__,
+                                         'requestId': request_id}))
+            return {'linkedOrders': metrics['promoted'], 'sweep': sweep,
+                    'orderStatusRetry': order_status_retry, **metrics}
         return paid_invoice_order.materialize(
             invoices=dynamodb.Table(INVOICES_TABLE),
             items=dynamodb.Table(shared_tables.invoice_items_table_name()),
@@ -1953,7 +1962,8 @@ def _log_ctwa_purchase(contact: str, amount_paise: int, currency: str,
             'body': json.dumps(payload),
         }
         lambda_client.invoke(
-            FunctionName=os.environ.get('WA_BUSINESS_FUNCTION', 'wecare-whatsapp-business-api'),
+            # The `live` alias: the unqualified name would run $LATEST, unpublished code.
+            FunctionName=os.environ.get('WA_BUSINESS_FUNCTION', 'wecare-whatsapp-business-api:live'),
             InvocationType='Event',  # async, fire-and-forget
             Payload=json.dumps(event),
         )
@@ -3323,6 +3333,17 @@ def _send_order_status_processing(invoice_id: str, phone_number_id: str,
     """
     if not invoice_id:
         return
+    _invoke_order_status(invoice_id, 'processing', phone_number_id, request_id,
+                         event_prefix='order_status_processing')
+
+
+def _invoke_order_status(invoice_id: str, target: str, phone_number_id: str, request_id: str,
+                         *, event_prefix: str) -> tuple[int, str]:
+    """One fulfilment ORDER_STATUS request to the engine. Returns (HTTP status, engine code).
+
+    Never raises: (0, '') means the engine could not be reached or answered with a function
+    error, so the caller cannot tell what happened and must not act on it.
+    """
     try:
         # The same commerce runtime the invoice create, render and delivery invokes use, so all
         # post-capture work lands on one engine and one alias. A dedicated, bounded client: this
@@ -3333,12 +3354,12 @@ def _send_order_status_processing(invoice_id: str, phone_number_id: str,
                 'rawPath': f'/invoices/{invoice_id}/order-status',
                 'requestContext': {'http': {'method': 'POST'}},
                 'pathParameters': {'invoiceId': invoice_id},
-                'body': json.dumps({'invoiceId': invoice_id, 'orderStatus': 'processing',
+                'body': json.dumps({'invoiceId': invoice_id, 'orderStatus': target,
                                     'phoneNumberId': phone_number_id or WABA1_PHONE_ID})}))
         if response.get('FunctionError'):
-            logger.warning(json.dumps({'event': 'order_status_processing_invoke_error',
+            logger.warning(json.dumps({'event': f'{event_prefix}_invoke_error',
                                        'invoiceId': invoice_id, 'requestId': request_id}))
-            return
+            return 0, ''
         result = json.loads(response['Payload'].read())
         status_code = int(result.get('statusCode') or 0)
         body = result.get('body') or {}
@@ -3348,13 +3369,111 @@ def _send_order_status_processing(invoice_id: str, phone_number_id: str,
             except (TypeError, ValueError):
                 body = {}
         code = str(body.get('code') or body.get('status') or '')
-        logger.info(json.dumps({'event': 'order_status_processing_result',
-                                'invoiceId': invoice_id, 'statusCode': status_code,
-                                'code': code, 'requestId': request_id}))
+        logger.info(json.dumps({'event': f'{event_prefix}_result',
+                                'invoiceId': invoice_id, 'targetStatus': target,
+                                'statusCode': status_code, 'code': code,
+                                'requestId': request_id}))
+        return status_code, code
     except Exception as error:  # noqa: BLE001 - fulfilment hint must not fail a settled capture
-        logger.warning(json.dumps({'event': 'order_status_processing_unavailable',
+        logger.warning(json.dumps({'event': f'{event_prefix}_unavailable',
                                    'invoiceId': invoice_id, 'error': type(error).__name__,
                                    'requestId': request_id}))
+        return 0, ''
+
+
+#: Deferred fulfilment updates. The engine's `send_order_status` parks a status Meta could not
+#: take yet (the customer's 24-hour window closed and no ORDER_STATUS template approved) on the
+#: invoice with `orderStatusRetry='PENDING'`, which puts the row in this sparse index keyed by
+#: `pendingOrderStatusAt`. Each scheduled run retries the oldest few through the engine, which
+#: re-decides the channel: inside a reopened window it is the interactive message, outside it the
+#: template once approved, otherwise it defers again and refreshes `pendingOrderStatusAt`.
+_ORDER_STATUS_RETRY_INDEX = 'orderStatusRetry-index'
+_ORDER_STATUS_RETRY_PENDING = 'PENDING'
+_ORDER_STATUS_RETRY_MIN_AGE_SECONDS = 15 * 60          # at most one retry per 15 minutes
+_ORDER_STATUS_RETRY_MAX_AGE_SECONDS = 7 * 24 * 60 * 60  # after a week, leave it to staff
+_ORDER_STATUS_RETRY_LIMIT = 10                          # per run
+_ORDER_STATUS_RETRY_BUDGET_SECONDS = 15
+#: Engine verdicts that make a parked update moot: the order already has that status, can no
+#: longer move to it, or never had a Meta order. Retrying them would never succeed.
+_ORDER_STATUS_RETRY_MOOT = frozenset({
+    'ORDER_STATUS_UNCHANGED', 'ORDER_STATUS_TRANSITION_INVALID', 'ORDER_STATUS_NOT_APPLICABLE',
+    'ORDER_STATUS_NOT_ALLOWED', 'ORDER_NOT_PAID'})
+
+
+def _clear_order_status_retry(invoice_id: str, target: str, now: int, *, reason: str,
+                              request_id: str) -> bool:
+    """Take one invoice out of the retry index, only while it still waits on `target`."""
+    try:
+        dynamodb.Table(INVOICES_TABLE).update_item(
+            Key={'invoiceId': invoice_id},
+            UpdateExpression=('REMOVE orderStatusRetry '
+                              'SET pendingOrderStatusRetryEndedAt = :now, '
+                              'pendingOrderStatusRetryEndReason = :reason'),
+            ConditionExpression='orderStatusRetry = :pending AND pendingOrderStatus = :target',
+            ExpressionAttributeValues={':pending': _ORDER_STATUS_RETRY_PENDING, ':target': target,
+                                       ':now': now, ':reason': reason})
+        return True
+    except Exception as error:  # noqa: BLE001 - a lost race means someone else resolved it
+        if 'ConditionalCheckFailed' not in type(error).__name__ + str(error):
+            logger.warning(json.dumps({'event': 'order_status_retry_clear_failed',
+                                       'invoiceId': invoice_id, 'error': type(error).__name__,
+                                       'requestId': request_id}))
+        return False
+
+
+def _retry_deferred_order_status(request_id: str) -> Dict[str, Any]:
+    """Retry fulfilment updates the engine deferred. Bounded, scan-free and never raises."""
+    from boto3.dynamodb.conditions import Key
+
+    now = int(time.time())
+    deadline = time.time() + _ORDER_STATUS_RETRY_BUDGET_SECONDS
+    counts = {'candidates': 0, 'sent': 0, 'deferred': 0, 'moot': 0, 'abandoned': 0,
+              'unknown': 0, 'errors': 0}
+    try:
+        page = dynamodb.Table(INVOICES_TABLE).query(
+            IndexName=_ORDER_STATUS_RETRY_INDEX,
+            KeyConditionExpression=(
+                Key('orderStatusRetry').eq(_ORDER_STATUS_RETRY_PENDING)
+                & Key('pendingOrderStatusAt').lte(now - _ORDER_STATUS_RETRY_MIN_AGE_SECONDS)),
+            Limit=_ORDER_STATUS_RETRY_LIMIT)
+    except Exception as error:  # noqa: BLE001 - the index may not exist yet; nothing to retry
+        counts['errors'] += 1
+        logger.warning(json.dumps({'event': 'order_status_retry_query_failed',
+                                   'error': type(error).__name__, 'requestId': request_id}))
+        return counts
+    for row in page.get('Items') or []:
+        if time.time() > deadline:
+            break  # the rest wait for the next run
+        invoice_id = str(row.get('invoiceId') or '')
+        target = str(row.get('pendingOrderStatus') or '')
+        if not invoice_id or not target:
+            continue
+        counts['candidates'] += 1
+        since = int(row.get('pendingOrderStatusSince') or row.get('pendingOrderStatusAt') or now)
+        if now - since > _ORDER_STATUS_RETRY_MAX_AGE_SECONDS:
+            if _clear_order_status_retry(invoice_id, target, now, reason='expired',
+                                         request_id=request_id):
+                counts['abandoned'] += 1
+                # Kept visible: `pendingOrderStatus` stays on the invoice for staff.
+                logger.warning(json.dumps({'event': 'order_status_retry_abandoned',
+                                           'invoiceId': invoice_id, 'targetStatus': target,
+                                           'requestId': request_id}))
+            continue
+        status_code, code = _invoke_order_status(invoice_id, target, WABA1_PHONE_ID, request_id,
+                                                 event_prefix='order_status_retry')
+        if status_code == 200:
+            counts['sent'] += 1  # the engine removed the retry markers itself
+        elif code == 'ORDER_STATUS_DEFERRED':
+            counts['deferred'] += 1  # re-parked by the engine with a fresh pendingOrderStatusAt
+        elif code in _ORDER_STATUS_RETRY_MOOT:
+            counts['moot'] += 1
+            _clear_order_status_retry(invoice_id, target, now, reason=code,
+                                      request_id=request_id)
+        else:
+            counts['unknown'] += 1  # in flight, rejected or unreachable: try again next run
+    logger.info(json.dumps({'event': 'order_status_retry_complete', 'requestId': request_id,
+                            **counts}))
+    return counts
 
 
 #: The stale-attempt sweep's bounds. A Razorpay webhook that never arrives (a provider delivery

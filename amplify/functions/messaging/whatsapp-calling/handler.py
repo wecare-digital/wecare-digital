@@ -45,6 +45,7 @@ from lambda_utils.logging import get_logger
 from lambda_utils.response import cors_response, cors_headers, options_response, extract_origin
 from lambda_utils.privacy import mask_phone, mask_contact_id, redact_pii  # contactId is `wa` + the customer's digits
 from lambda_utils.masking import meta_error_summary  # Meta writes recipients into error prose
+from lambda_utils import graph_errors  # log-safe fields of a Graph error, never the raw body
 from lambda_utils.message_store import put_call_breadcrumb
 from lambda_utils.middleware import require_auth  # unified timeline breadcrumb
 from lambda_utils import wa_internal_event  # typed ingress -> worker contract
@@ -104,7 +105,9 @@ PHONE2_META_ID = '1055232054343117'  # New Meta phone ID after migration
 WABA2_IDS = set()  # No longer need separate token routing for WABA2
 
 # Inbound handler Lambda for forwarding non-call webhook events (messages, statuses)
-INBOUND_HANDLER_FUNCTION = os.environ.get('INBOUND_HANDLER_FUNCTION', 'wecare-inbound-whatsapp')
+# The `live` alias, never the unqualified name: $LATEST is what an upload reaches before it is
+# published and verified, and every Meta webhook is processed by whatever this names.
+INBOUND_HANDLER_FUNCTION = os.environ.get('INBOUND_HANDLER_FUNCTION', 'wecare-inbound-whatsapp:live')
 lambda_client = boto3.client('lambda', region_name=REGION)
 
 # Cache Meta tokens (dual)
@@ -208,11 +211,14 @@ def _meta_api_call(endpoint: str, method: str = 'POST', payload: Dict = None, ph
             error_msg = error_obj.get('message', '')
         except (json.JSONDecodeError, TypeError):
             pass
-        if error_code and error_code in META_CALLING_ERRORS:
-            meta_err = META_CALLING_ERRORS[error_code]
-            logger.error(f"Meta API error {e.code} — Code {error_code}: {meta_err['msg']} | Action: {meta_err['action']} | Detail: {error_msg}")
-        else:
-            logger.error(f"Meta API error {e.code}: {error_body}")
+        # Classified, redacted fields only: Meta's details can echo the request.
+        meta_err = META_CALLING_ERRORS.get(error_code) if error_code else None
+        logger.error(json.dumps({
+            'event': 'meta_api_error',
+            'endpoint': endpoint.split('?', 1)[0].split('/')[-1][:40],
+            **graph_errors.log_fields(error_body, e.code),
+            **({'knownError': meta_err['msg'], 'action': meta_err['action']} if meta_err else {}),
+        }))
         # Emitted in addition to the line above, never instead of it: a routing refusal
         # is remedied in the Meta Business Suite rather than in the request, so it needs
         # its own alarmable event name.

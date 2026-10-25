@@ -27,7 +27,8 @@ lambda_client = boto3.client('lambda', region_name=os.environ.get('AWS_REGION', 
 CONTACTS_TABLE = shared_tables.contacts_table_name()
 FLOW_SUBMISSIONS_TABLE = shared_tables.flow_submissions_table_name()
 FLOW_LOGS_TABLE = shared_tables.flow_logs_table_name()
-OUTBOUND_WHATSAPP_FUNCTION = os.environ.get('OUTBOUND_WHATSAPP_FUNCTION', 'wecare-outbound-whatsapp')
+# The `live` alias, like INVOICE_ENGINE_FUNCTION: never $LATEST's unpublished code.
+OUTBOUND_WHATSAPP_FUNCTION = os.environ.get('OUTBOUND_WHATSAPP_FUNCTION', 'wecare-outbound-whatsapp:live')
 INVOICE_ENGINE_FUNCTION = os.environ.get('INVOICE_ENGINE_FUNCTION', 'wecare-checkout:live')
 DRAFTS_TABLE = shared_tables.flow_drafts_table_name()
 STATUS_HISTORY_TABLE = shared_tables.status_history_table_name()

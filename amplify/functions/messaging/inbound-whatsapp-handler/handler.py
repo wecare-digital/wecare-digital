@@ -36,6 +36,8 @@ from lambda_utils.validation import normalize_phone
 from lambda_utils.message_store import put_message, query_by_contact  # unified MessagesTable: dual-write + contactId-index read
 from lambda_utils.automation import evaluate_rules  # cross-channel auto-reply rules
 from lambda_utils import meta_signature  # raw-body X-Hub-Signature-256 on the public route
+from lambda_utils import graph_errors  # log-safe fields of a Meta error, never the raw body
+from lambda_utils import whatsapp_templates  # which templates automation depends on
 from lambda_utils import wa_status  # monotonic status ordering (no backward transitions)
 from lambda_utils import wa_internal_event  # typed ingress -> worker contract
 from lambda_utils import contact_key, identity_claims
@@ -44,7 +46,7 @@ from lambda_utils import shared_tables  # one name per shared store (contacts, o
 from lambda_utils.identity import subscriber_id
 from lambda_utils.identity import customer_uuid  # public Customer ID display code for `my id`
 from lambda_utils import customer_ideas
-from lambda_utils.canonical_flows import canonical_flow_id, canonical_contract  # one source of truth for WABA 1 flow ids
+from lambda_utils.canonical_flows import canonical_flow_id, canonical_contract, published_flow_by_id  # one source of truth for WABA 1 flow ids
 # F001 Subscribe launch door: one entry-policy decision, server-issued Flow sessions, the
 # Workspace-managed opening copy and per-day funnel counters.
 from lambda_utils import flow_launch, flow_sessions, flow_funnel, subscribe_messages
@@ -104,15 +106,16 @@ MEDIA_CDN_DOMAIN = os.environ.get('MEDIA_CDN_DOMAIN', media_paths.CDN_DOMAIN)
 MEDIA_PREFIX = media_paths.WHATSAPP_INCOMING_PREFIX
 SEND_MODE = os.environ.get('SEND_MODE', 'LIVE')
 
-# AI Lambda function names
-AI_QUERY_KB_FUNCTION = os.environ.get('AI_QUERY_KB_FUNCTION', 'wecare-ai-query-kb')
-AI_GENERATE_RESPONSE_FUNCTION = os.environ.get('AI_GENERATE_RESPONSE_FUNCTION', 'wecare-ai-generate-response')
+# AI Lambda function names. Every invoke target is the `live` alias: an unqualified name runs
+# $LATEST, which an upload reaches before it is published and verified.
+AI_QUERY_KB_FUNCTION = os.environ.get('AI_QUERY_KB_FUNCTION', 'wecare-ai-query-kb:live')
+AI_GENERATE_RESPONSE_FUNCTION = os.environ.get('AI_GENERATE_RESPONSE_FUNCTION', 'wecare-ai-generate-response:live')
 
 # Outbound WhatsApp Lambda function name
-OUTBOUND_WHATSAPP_FUNCTION = os.environ.get('OUTBOUND_WHATSAPP_FUNCTION', 'wecare-outbound-whatsapp')
+OUTBOUND_WHATSAPP_FUNCTION = os.environ.get('OUTBOUND_WHATSAPP_FUNCTION', 'wecare-outbound-whatsapp:live')
 
 # WhatsApp Voice Lambda function name (TTS via Amazon Polly)
-WHATSAPP_VOICE_FUNCTION = os.environ.get('WHATSAPP_VOICE_FUNCTION', 'wecare-whatsapp-voice')
+WHATSAPP_VOICE_FUNCTION = os.environ.get('WHATSAPP_VOICE_FUNCTION', 'wecare-whatsapp-voice:live')
 
 # The unified checkout Lambda. The native WhatsApp cart money leg reaches its `prepareNativeCart`
 # internal action through this name - the SAME machinery the website and the catalog-service leg
@@ -968,10 +971,13 @@ def _send_direct_api_message(to_number: str, message_payload: Dict, meta_phone_i
             return {'success': True, 'messageId': msg_id}
     except urllib.error.HTTPError as e:
         error_body = e.read().decode('utf-8') if e.fp else ''
-        logger.error(f"Direct API send failed {e.code}: {error_body}")
+        # Classified, redacted fields only: Meta's details can echo the request.
+        logger.error(json.dumps({'event': 'direct_api_send_failed',
+                                 **graph_errors.log_fields(error_body, e.code)}))
         return {'error': True, 'status': e.code, 'detail': error_body}
     except Exception as e:
-        logger.error(f"Direct API send failed: {e}")
+        # Only the class name: a URLError's text can embed the request URL.
+        logger.error(json.dumps({'event': 'direct_api_send_failed', 'error': type(e).__name__}))
         return {'error': True, 'detail': str(e)}
 
 
@@ -1019,7 +1025,8 @@ def _send_direct_api_read_receipt(whatsapp_message_id: str, meta_phone_id: str =
         # `req` and `headers` must never be logged: the URL carries
         # appsecret_proof and the headers carry the bearer token.
         error_body = e.read().decode('utf-8') if e.fp else ''
-        logger.warning(f"Direct API read receipt failed {e.code}: {error_body}")
+        logger.warning(json.dumps({'event': 'direct_api_read_receipt_failed',
+                                   **graph_errors.log_fields(error_body, e.code)}))
         return {'error': True, 'status': e.code, 'detail': error_body}
     except Exception as e:
         # Only the class name: a URLError's text embeds the request URL.
@@ -1580,6 +1587,19 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                             'error': str(e),
                             'requestId': request_id
                         }))
+
+                # Flow lifecycle and endpoint-health webhooks. The ingress has always forwarded
+                # this field; until 2026-10-25 nothing here read it, so a BLOCKED Flow or a failing
+                # endpoint was silent.
+                if field == 'flows':
+                    try:
+                        _process_flow_event(value, request_id)
+                    except Exception as e:
+                        logger.error(json.dumps({
+                            'event': 'flow_event_processing_error',
+                            'error': type(e).__name__,
+                            'requestId': request_id
+                        }))
                 
                 # Process phone number quality updates
                 if field == 'phone_number_quality_update':
@@ -1643,7 +1663,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                                         ct = dynamodb.Table(CONTACTS_TABLE)
                                         _update_contact_bsuid_fields(ct, contact, '', '', phone=pref_phone, bsuid=pref_bsuid)
                                 except Exception as e:
-                                    logger.warning(f'BSUID enrichment failed for {pref_phone[:6]}***: {e}')
+                                    logger.warning(json.dumps({
+                                        'event': 'bsuid_enrichment_failed',
+                                        'phone': mask_phone(pref_phone),
+                                        'error': type(e).__name__}))
                     except Exception as e:
                         logger.error(json.dumps({
                             'event': 'user_preferences_error',
@@ -2464,7 +2487,7 @@ def _process_message(
             # would also skip everything after it and change today's flow.
             if _auto and _may_send('automation_auto_reply'):
                 lambda_client.invoke(
-                    FunctionName=os.environ.get('OUTBOUND_FUNCTION', 'wecare-outbound-whatsapp'),
+                    FunctionName=os.environ.get('OUTBOUND_FUNCTION', OUTBOUND_WHATSAPP_FUNCTION),
                     InvocationType='Event',
                     Payload=json.dumps({
                         'requestContext': {'http': {'method': 'POST', 'path': '/whatsapp/send'}},
@@ -8089,15 +8112,77 @@ def _process_template_status(value: Dict, request_id: str) -> None:
         request_id=request_id
     )
     
-    # Log warning for rejected/paused templates
+    # A template that cannot be sent. `template_status_alert` drives the
+    # `wecare-whatsapp-template-status-alert` CloudWatch alarm
+    # (scripts/provision_template_flow_alarms.py); `registered` says whether automation (payment,
+    # invoice, order status, OTP, Vault) sends it, which is what makes a PAUSED one urgent.
     if event in ['REJECTED', 'PAUSED', 'DISABLED', 'FLAGGED']:
         logger.warning(json.dumps({
             'event': 'template_status_alert',
             'templateEvent': event,
+            'templateId': str(template_id),
             'templateName': template_name,
+            'registered': whatsapp_templates.by_name(template_name) is not None,
             'reason': reason,
             'action': 'Review template in Meta Business Manager',
             'requestId': request_id
+        }))
+
+
+#: Flow states a customer cannot open. BLOCKED/THROTTLED always need a person; DEPRECATED only
+#: when the runtime still names the Flow (a planned retirement is not an incident).
+_FLOW_ALERT_STATUSES = frozenset({'BLOCKED', 'THROTTLED'})
+#: Health events Meta sends with alert_state ACTIVATED on a breach and DEACTIVATED on recovery.
+_FLOW_HEALTH_EVENTS = frozenset({'CLIENT_ERROR_RATE', 'ENDPOINT_ERROR_RATE', 'ENDPOINT_LATENCY',
+                                 'ENDPOINT_AVAILABILITY'})
+
+
+def _process_flow_event(value: Dict, request_id: str) -> None:
+    """Record one `flows` webhook and raise `flow_status_alert` when it stops customers.
+
+    Meta sends FLOW_STATUS_CHANGE (DRAFT/PUBLISHED/DEPRECATED/BLOCKED/THROTTLED, sometimes with a
+    version-freeze `warning`), the four endpoint/client health events and
+    FLOW_VERSION_EXPIRY_WARNING. Every one is stored in the `flows` ring buffer the Workspace event
+    view reads (waba-management GET /waba/events). The alert drives the
+    `wecare-whatsapp-flow-status-alert` alarm. The payload names a Flow and its metrics only;
+    nothing in it identifies a customer.
+    """
+    event = str(value.get('event') or '')
+    flow_id = str(value.get('flow_id') or '')
+    new_status = str(value.get('new_status') or '')
+    alert_state = str(value.get('alert_state') or '')
+    data = {key: value.get(key) for key in (
+        'event', 'flow_id', 'old_status', 'new_status', 'alert_state', 'threshold', 'error_rate',
+        'p50_latency', 'p90_latency', 'availability', 'requests_count')
+        if value.get(key) not in (None, '')}
+    errors = value.get('errors')
+    if isinstance(errors, list):
+        data['errors'] = [{k: e.get(k) for k in ('error_type', 'error_rate', 'error_count')}
+                          for e in errors[:10] if isinstance(e, dict)]
+    if value.get('warning'):
+        data['warning'] = str(value.get('warning'))[:300]
+    in_use = published_flow_by_id(flow_id) is not None
+
+    logger.info(json.dumps({'event': 'flow_webhook', 'flowEvent': event, 'flowId': flow_id,
+                            'newStatus': new_status, 'alertState': alert_state,
+                            'inUse': in_use, 'requestId': request_id}))
+    _store_system_event(event_type='flows', event_data=data, request_id=request_id)
+
+    alert = ((event == 'FLOW_STATUS_CHANGE'
+              and (new_status in _FLOW_ALERT_STATUSES or (new_status == 'DEPRECATED' and in_use)))
+             or (event in _FLOW_HEALTH_EVENTS and alert_state == 'ACTIVATED')
+             or event == 'FLOW_VERSION_EXPIRY_WARNING' or bool(value.get('warning')))
+    if alert:
+        logger.warning(json.dumps({
+            'event': 'flow_status_alert',
+            'flowEvent': event,
+            'flowId': flow_id,
+            'newStatus': new_status,
+            'alertState': alert_state,
+            'inUse': in_use,
+            'message': str(value.get('message') or '')[:200],
+            'action': 'Review the Flow in WhatsApp Manager > Flows',
+            'requestId': request_id,
         }))
 
 

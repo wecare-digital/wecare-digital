@@ -308,7 +308,12 @@ def _send_direct_api(phone_number_id: str, message_json: str) -> Dict:
         return {'messageId': msg_id, 'waId': wa_id}
     except urllib.error.HTTPError as e:
         error_body = e.read().decode('utf-8') if e.fp else ''
-        logger.error(f"Direct API send failed {e.code} for phone {meta_phone_id}: {error_body[:500]}")
+        # Classified, redacted fields only: Meta's details can echo the request.
+        logger.error(json.dumps({'event': 'direct_api_send_failed', 'metaPhoneId': meta_phone_id,
+                                 **graph_errors.log_fields(error_body, e.code)}))
+        # The body can be read once. Callers that classify the failure (`_handle_live_send`)
+        # read it from here; re-reading the exhausted stream gave them '' and no Meta code.
+        e.meta_error_body = error_body
         raise
 
 
@@ -416,8 +421,11 @@ def _block_users_api(phone_number_id: str, users: list, action: str) -> Dict:
             return json.loads(r.read().decode())
     except urllib.error.HTTPError as e:
         error_body = e.read().decode('utf-8') if e.fp else ''
-        logger.error(f"block_users {action} failed {e.code}: {error_body[:500]}")
-        raise Exception(f"HTTP {e.code}: {error_body[:300]}")
+        # A block_users error can echo the customer's number, so neither the log nor the
+        # exception (which reaches the API response) carries the raw body.
+        fields = graph_errors.log_fields(error_body, e.code)
+        logger.error(json.dumps({'event': 'block_users_failed', 'action': action, **fields}))
+        raise Exception(f"HTTP {e.code}: {fields['metaMessage'] or 'block_users failed'}")
 
 # Constants
 from lambda_utils.meta_version import META_API_VERSION  # one source; validated at import
@@ -1159,7 +1167,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # OTP / Authentication template support
         is_otp_template = body.get('isOtpTemplate', False) or body.get('isAuthenticationTemplate', False)
         otp_code = body.get('otpCode', '')
-        otp_button_type = body.get('otpButtonType', 'copy_code')  # 'url' or 'copy_code'
+        # 'url' by default: an AUTHENTICATION template's copy-code button is materialised as a URL
+        # button, and Meta refuses `copy_code` for it (#132018, wecare_otp). 'copy_code' stays
+        # available for a caller that names it.
+        otp_button_type = body.get('otpButtonType', 'url')
 
         # Limited-time-offer (LTO) template support. The offer code is a Meta coupon
         # string, NOT a payment instrument: no amount, no discount arithmetic, no
@@ -1249,6 +1260,30 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return _error_response(
                 503, 'TEMPLATE_CATEGORY_UNAVAILABLE',
                 'Template category could not be verified. Nothing was sent.')
+
+        # An AUTHENTICATION template carries a one-time code in its body AND its copy-code URL
+        # button, so only the OTP envelope builds it. Sent as an ordinary template it reaches Meta
+        # without the button parameter and is refused, and a code typed by hand was never issued
+        # by sign-in. The category comes from the cached live read the purpose check just made;
+        # campaign sends skip that read by design (they are MARKETING by construction), so they
+        # skip this check too rather than gain a provider dependency here.
+        if (is_template and not is_otp_template and not is_lto_template
+                and not (body.get('campaignId') or body.get('campaignName'))):
+            try:
+                live_category = _template_category_for_send(
+                    phone_number_id, str(template_name or ''), request_id)
+            except TemplateCategoryUnavailable:
+                return _error_response(
+                    503, 'TEMPLATE_CATEGORY_UNAVAILABLE',
+                    'Template category could not be verified. Nothing was sent.')
+            if live_category == 'AUTHENTICATION':
+                logger.warning(json.dumps({'event': 'authentication_template_generic_send_refused',
+                                           'templateName': str(template_name or '')[:80],
+                                           'requestId': request_id}))
+                return _error_response(
+                    409, 'AUTHENTICATION_TEMPLATE_NOT_PERMITTED',
+                    'Verification codes are sent by sign-in and registration, not by hand. '
+                    'Nothing was sent.')
 
         # Allow sending without contactId if recipientPhone is provided (for order_status)
         if not contact_id and not recipient_phone_direct:
@@ -2793,7 +2828,9 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
         # Handle Meta API HTTP errors. Parse the Meta error envelope so we capture
         # the specific error CODE (e.g. 131047, 131026, 131009) + message and store
         # them on the failed message for a UI tooltip explaining the reason.
-        error_body = e.read().decode('utf-8') if e.fp else ''
+        error_body = getattr(e, 'meta_error_body', None)
+        if error_body is None:
+            error_body = e.read().decode('utf-8') if e.fp else ''
         http_code = e.code
         meta_code = None
         meta_message = ''
@@ -2818,15 +2855,16 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
         # NEVER auto-retry as a template. Choosing one would mean guessing which
         # template matches this body, and a wrong guess sends the customer a
         # different message. The 403 is what the caller already handles today.
+        # The log-safe view of the same error: redacted and bounded free text.
+        _meta_log = graph_errors.log_fields(error_body, http_code)
         if direct_send_category:
             _ds_kind = direct_send.classify_error(meta_code, meta_details)
             _ds_log = {
                 'wabaId': direct_send_waba,
                 'metaCode': meta_code,
-                # Meta's description of OUR request. It carries no customer data, and
-                # logging it in full is how the classifier gets tightened once a real
-                # 100 has been seen — the details wording is documented, not verified.
-                'metaDetails': meta_details,
+                # Meta's description of OUR request: how the classifier gets tightened once a
+                # real 100 has been seen. Redacted and bounded, because details can echo it.
+                'metaDetails': _meta_log['metaDetails'],
                 'requestId': request_id,
             }
             if _ds_kind == direct_send.NOT_ONBOARDED:
@@ -2854,8 +2892,9 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
                     'event': 'direct_send_rejected',
                     'note': 'Direct Send request rejected for an unclassified reason '
                             '— treat as our defect',
-                    'metaMessage': meta_message,
-                    'errorBody': error_body[:1000],
+                    'metaMessage': _meta_log['metaMessage'],
+                    'metaSubcode': _meta_log['metaSubcode'],
+                    'fbtraceId': _meta_log['fbtraceId'],
                     **_ds_log,
                 }))
                 return _outside_window_refusal(contact_id, has_contact_record, request_id)
@@ -2893,8 +2932,8 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
             'metaSubcode': error_subcode,
             'fbtraceId': fbtrace_id,
             'classification': 'transient' if is_transient else 'permanent',
-            'metaMessage': meta_message,
-            'metaDetails': meta_details,
+            'metaMessage': _meta_log['metaMessage'],
+            'metaDetails': _meta_log['metaDetails'],
             'requestId': request_id,
         }))
         # A distinct event name, emitted ALONGSIDE the generic one above rather than
@@ -3832,7 +3871,7 @@ def _build_message_payload(recipient_phone: str, content: str, media_type: Optio
                     'parameters': [{'type': 'text', 'text': str(p)} for p in actual_params]
                 })
             
-            btn_type = (otp_button_type or 'copy_code').lower()
+            btn_type = (otp_button_type or 'url').lower()
             if btn_type in _OTP_URL_SUBTYPES:
                 # URL button: OTP code appended to the template URL as {{1}}
                 payload['template']['components'].append({

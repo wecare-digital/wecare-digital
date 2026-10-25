@@ -57,6 +57,41 @@ def normalize(body: Any, http_status: Optional[int] = None) -> Dict[str, Any]:
     }
 
 
+#: Longest Meta free text a log line keeps. Enough to name the fault ("'action' cannot be null for
+#: ORDER_DETAILS button type"); the rest of the envelope can echo the request back.
+LOG_TEXT_LIMIT = 200
+
+
+def log_fields(body: Any, http_status: Optional[int] = None) -> Dict[str, Any]:
+    """The fields of a Meta error that are safe and useful to log, never the raw envelope.
+
+    `message` and `error_data.details` are free text that can echo the request: a recipient's
+    number, a message id, a template value. They are kept only after phone numbers and emails
+    are redacted, and cut to LOG_TEXT_LIMIT. Codes, subcode, type and fbtrace id classify the
+    failure and carry no customer data.
+    """
+    from lambda_utils.privacy import redact_string  # local import to avoid cycle
+
+    parsed = _parse(body)
+    err = parsed.get('error') if isinstance(parsed.get('error'), dict) else parsed
+    err = err if isinstance(err, dict) else {}
+    details = (err.get('error_data') or {}).get('details', '') if isinstance(
+        err.get('error_data'), dict) else ''
+
+    def _text(value: Any) -> str:
+        return (redact_string(str(value or '')) or '')[:LOG_TEXT_LIMIT]
+
+    return {
+        'httpCode': http_status,
+        'metaCode': err.get('code'),
+        'metaSubcode': err.get('error_subcode'),
+        'metaType': err.get('type'),
+        'fbtraceId': err.get('fbtrace_id'),
+        'metaMessage': _text(err.get('message')),
+        'metaDetails': _text(details),
+    }
+
+
 def is_error(result: Any) -> bool:
     return isinstance(result, dict) and 'error' in result
 

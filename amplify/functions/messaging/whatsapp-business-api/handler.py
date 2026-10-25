@@ -116,7 +116,9 @@ ORDER_IDS_TABLE = os.environ.get('COMMERCE_KEYS_TABLE', 'stack-wecare-digital-Co
 # Lambda client for invoking outbound WhatsApp (payment after flow)
 lambda_client = boto3.client('lambda', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
 s3_client = boto3.client('s3', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
-OUTBOUND_WHATSAPP_FUNCTION = os.environ.get('OUTBOUND_WHATSAPP_FUNCTION', 'wecare-outbound-whatsapp')
+# The `live` alias: the unqualified name runs $LATEST, which an upload reaches before it is
+# published and verified.
+OUTBOUND_WHATSAPP_FUNCTION = os.environ.get('OUTBOUND_WHATSAPP_FUNCTION', 'wecare-outbound-whatsapp:live')
 
 # Media handling (Part 4 D)
 MEDIA_BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)

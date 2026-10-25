@@ -455,7 +455,7 @@ def send_rcs_ivr_notification(phone: str, request_id: str = '') -> dict:
             }),
         }
         resp = _lambda.invoke(
-            FunctionName='wecare-rcs-send',
+            FunctionName='wecare-rcs-send:live',  # never $LATEST's unpublished code
             InvocationType='RequestResponse',
             Payload=json.dumps(invoke_payload).encode(),
         )
