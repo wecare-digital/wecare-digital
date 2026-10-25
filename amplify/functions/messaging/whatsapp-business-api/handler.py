@@ -6406,7 +6406,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     if event.get('internalAction') == 'serviceDesignDrafts':
         from flows.service_design_drafts import handle
-        return handle(event, _graph_api, _create_flow, _upload_flow_asset, _get_flow)
+        return handle(event, _graph_api, _create_flow, _upload_flow_asset, _get_flow, _update_flow)
 
     if event.get('internalAction') in ('catalogServiceReadiness', 'serviceReview', 'vaultReview'):
         if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
