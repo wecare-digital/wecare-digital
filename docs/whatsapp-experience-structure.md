@@ -436,10 +436,29 @@ Post-flow actions the AI layer can return: `showOptions`, `showMainMenu`, `showS
 `showRating` (`🙌 Great` / `😐 Just okay` / `🥲 Could be better`), `sendPayment`,
 `sendPendingPayments`, `humanHandoff`, `end`.
 
-Outbound templates: `wecare_whatapp_native_pay_template` (checkout), `postpay_request_v1` (post-pay flow outside 24h),
-`wd_file_delivery` (secure file), `01_wecare_doc` (rollback predecessor), `wecare_otp` (auth),
-`wd_call_permission` (calling). `postpay_details_v1` is approved on Meta but has **no code
-reference**. There is no code-level template registry.
+Outbound templates, live readback 2026-10-25 (WABA 1 `2094615664435155`; WABA 2 holds only
+Meta's three `sample_*` templates and no business template):
+
+| Template | Category | Sent by |
+|---|---|---|
+| `wecare_whatapp_native_pay_template` | UTILITY, `ORDER_DETAILS` button | checkout, invoice-engine, outbound (`WA_PAY_TEMPLATE`) |
+| `wecare_default_invoice_image_template` | UTILITY, invoice image header, Leave Review Flow button | invoice-engine, checkout (`WA_INVOICE_TEMPLATE`) |
+| `wecare_leave_review` | UTILITY, Leave Review Flow button | review follow-up |
+| `wecare_default_download` | UTILITY, URL button to `/vault/?file=` | outbound download link |
+| `wecare_location_share_pin` | UTILITY, LOCATION header | outbound location share |
+| `wecare_otp` | AUTHENTICATION, copy code | customer-whatsapp-auth, blog-subscribe, customer-registration |
+
+No template opens F001 Subscribe: its only entry is the exact keyword. `feedback_survey_form_1`,
+which opened the F001 Flow with NAVIGATE (no INIT, no session), was deleted on 2026-10-25; its
+definition is in `docs/execution/snapshots/whatsapp-template-feedback_survey_form_1-20261025.json`.
+
+Named in code but **not on Meta** (each path is currently unreachable or refuses cleanly):
+`wecare_share_pdf` (Orders Flow invoice copy; that Flow is DRAFT, and the reply says delivery is
+pending), `wd_file_delivery` (secure-files paid delivery; `SECURE_FILES_PAYMENT_ENABLED` is false),
+`wecare_order_status_v2` (fulfilment updates refuse with `order_status_template_not_approved`;
+`scripts/provision_order_status_template.py` creates it), `wd_call_permission` (created on demand
+by the calling `create_permission_template` action). `postpay_request_v1`, `postpay_details_v1`
+and `01_wecare_doc` no longer exist on Meta. There is no code-level template registry.
 
 ---
 

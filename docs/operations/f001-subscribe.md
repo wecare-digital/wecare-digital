@@ -24,7 +24,10 @@ types one exact keyword (default `subscribe`, `signup`, `sign up`, `register`, `
 `/subscribe`; matching is the whole message, case-insensitive), and the inbound Lambda sends a
 native Flow message. No template, no payment, no internal event. The contract rejects any
 registry row that says otherwise, and the generic keyword loop refuses to open F001 under any
-other trigger key.
+other trigger key. No Meta template opens F001 either: `feedback_survey_form_1`, whose button
+opened it with NAVIGATE (skipping INIT and the session, so the form arrived empty and then
+expired) and whose copy promised notification updates, was deleted on 2026-10-25. Its definition
+is kept in `docs/execution/snapshots/whatsapp-template-feedback_survey_form_1-20261025.json`.
 
 A staff send is the controlled QA/support door, not a second entry mode: Operator or Admin,
 one customer at a time, recorded with the sender's identity, available before keyword launch
