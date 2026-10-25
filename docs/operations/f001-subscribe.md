@@ -9,7 +9,7 @@ Flow, not a marketing subscription, and it never grants consent.
 | Flow number / code | F001 / `WD-F001-SUBSCRIBE-PROFILE` |
 | Customer-facing name | Subscribe |
 | Meta Flow ID / name | `2413873616105042` / `WD-F001-SUBSCRIBE-PROFILE` (PUBLISHED in Meta, immutable) |
-| WABA | WABA 1 (`2094615664435155`, +91 93309 94400) only. A WABA 2 (+91 99033 00044) customer gets a button to `https://wa.me/919330994400?text=subscribe`, which opens WABA 1 with the keyword typed. (`/r/sub` was a ShortLinksTable recovery row redirecting to google.com.) |
+| WABA | WABA 1 (`2094615664435155`, +91 93309 94400) only. A WABA 2 (+91 99033 00044) customer gets a button to `https://wa.me/919330994400?text=subscribe`, which opens WABA 1 with the keyword typed. (`/r/sub` was a ShortLinksTable recovery row redirecting to google.com; on 2026-10-25 it and `sr`, `ar`, `rx`, `ea`, `lr` were repointed through the shortener's `PUT /links/{code}`.) |
 | Definition | `amplify/functions/messaging/whatsapp-business-api/flows/design-drafts/subscribe.json` (Flow JSON 7.3, data API 3.0) |
 | Endpoint | `https://wecare.digital/api/wa-business/flow-data` |
 | Handler | `flows/subscribe_profile.py` (the only handler for `subscribe*` tokens) |
