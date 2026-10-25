@@ -66,6 +66,7 @@ from modules.content import extract_content as _extract_content_v2
 from modules.content import extract_unsupported_content as _extract_unsupported_content_v2
 from modules.content import extract_contacts_payload as _extract_contacts_payload
 from modules.content import KNOWN_TYPES as _KNOWN_TYPES
+from modules.content import UNSUPPORTED_DISAPPEARING, UNSUPPORTED_UNKNOWN
 
 logger = get_logger(__name__)
 
@@ -2625,7 +2626,19 @@ def _process_message(
         global _current_direct_api_phone
         _current_direct_api_phone = _get_meta_phone_id_for_direct_api(aws_phone_number_id)
         
-        if _is_direct_api_phone(aws_phone_number_id):
+        if msg_type == 'unsupported':
+            # FIX-3, opened on its recorded gate (>= 48 h of FIX-2, one graphError code for
+            # >= 95 % of unsupported receipts). Measured 2026-10-22 06:34Z to 2026-10-25 05:53Z:
+            # 22 unsupported messages, 22 read receipts refused with Graph 100, and 22 thumbs-up
+            # reactions that Meta accepted synchronously and then failed in the status webhook
+            # (Graph 100, "Cannot react to a message ... doesn't correspond to any message").
+            # Meta holds no message we can mark read or react to, so neither is attempted.
+            logger.info(json.dumps({
+                'event': 'unsupported_ack_skipped',
+                'whatsappMessageId': whatsapp_message_id,
+                'requestId': request_id,
+            }))
+        elif _is_direct_api_phone(aws_phone_number_id):
             # Send reaction and read receipt via Meta Graph API
             # Both callees return a dict rather than raising, so the `except` blocks
             # below were dead and the success events were emitted unconditionally —
@@ -2722,6 +2735,13 @@ def _process_message(
                 phone_number_id=aws_phone_number_id,
                 request_id=request_id
             )
+
+    # ── A message WhatsApp delivered without its content ──
+    # Nothing below answers it (keyword routing reads text only), so without this the customer
+    # hears nothing, and while the cause lasts (most often disappearing messages on the chat)
+    # every message they send arrives the same way.
+    if msg_type == 'unsupported' and content in UNREADABLE_MESSAGE_LABELS:
+        _send_unreadable_hint(contact_id, aws_phone_number_id, now, request_id)
     
     # ── request_welcome: user tapped "Start"  -  always answer ──
     if msg_type == 'request_welcome':
@@ -2925,7 +2945,10 @@ def _process_message(
                 continue
             flow_id = trigger.get('flowId', '')
             if not flow_id:
-                continue
+                # No Flow behind this door (track_request today): its website link answers.
+                _send_flow_link(contact_id, aws_phone_number_id, flow_key, trigger, request_id,
+                                reason='no_flow_id')
+                return
             # The trigger is Workspace-editable, so FlowRegistry decides whether this Flow may
             # open from a keyword at all. An unreadable registry refuses rather than guesses.
             try:
@@ -2938,6 +2961,14 @@ def _process_message(
                 logger.warning(json.dumps({'event': 'keyword_flow_refused', 'flowKey': flow_key,
                                            'reason': refusal, 'requestId': request_id}))
                 continue
+            # WABA 1 sends the Flow itself, so it must be live on Meta: a missing, draft or
+            # deprecated Flow is refused after this Lambda returns and the customer hears
+            # nothing. WABA 2 never sends this Flow (`_send_generic_flow` links instead).
+            liveness = flow_launch.meta_liveness(registry_row)
+            if aws_phone_number_id != PHONE_NUMBER_ID_2 and liveness != 'live':
+                _send_flow_link(contact_id, aws_phone_number_id, flow_key, trigger, request_id,
+                                reason=liveness)
+                return
             # Keyword-native flows use the native WhatsApp Flow interactive sender.
             _send_generic_flow(
                 contact_id=contact_id,
@@ -5403,6 +5434,57 @@ def _send_ai_auto_reply(contact_id: str, content: str, phone_number_id: str, req
         }))
 
 
+#: Stored labels (modules.content) for a message WhatsApp delivered without its content:
+#: 131051 with no declared type (the measured common case) and a disappearing message.
+#: An OTP/authentication label is deliberately absent: those come from Meta, not a customer.
+UNREADABLE_MESSAGE_LABELS = frozenset({UNSUPPORTED_UNKNOWN, UNSUPPORTED_DISAPPEARING})
+UNREADABLE_HINT_TEXT = ("We couldn't read your last message. If disappearing messages are on "
+                        "in this chat, please turn them off, then send your message again as text.")
+#: One hint per contact per day. The cause usually persists for every message that follows.
+UNREADABLE_HINT_INTERVAL_SECONDS = 24 * 60 * 60
+
+
+def _send_unreadable_hint(contact_id: str, phone_number_id: str, now: int,
+                          request_id: str) -> bool:
+    """Tell the customer we could not read their message, at most once a day. True when sent.
+
+    The once-a-day claim is a conditional write on the contact row, made before the send, so
+    concurrent deliveries of the same burst produce one reply. Any failure to claim it sends
+    nothing: a missed hint is better than a repeated one.
+    """
+    if not contact_id or not _may_send('unreadable_message_hint'):
+        return False
+    try:
+        dynamodb.Table(CONTACTS_TABLE).update_item(
+            Key={'id': contact_id},
+            UpdateExpression='SET unreadableHintAt = :now',
+            ConditionExpression=('attribute_exists(id) AND (attribute_not_exists(unreadableHintAt) '
+                                 'OR unreadableHintAt < :cutoff)'),
+            ExpressionAttributeValues={
+                ':now': Decimal(str(int(now))),
+                ':cutoff': Decimal(str(int(now) - UNREADABLE_HINT_INTERVAL_SECONDS)),
+            },
+        )
+    except ClientError as e:
+        code = e.response.get('Error', {}).get('Code', '')
+        logger.info(json.dumps({
+            'event': 'unreadable_hint_skipped',
+            'reason': 'sent_recently' if code == 'ConditionalCheckFailedException' else f'claim_failed:{code}',
+            'contactId': mask_contact_id(contact_id), 'requestId': request_id,
+        }))
+        return False
+    except Exception as e:  # noqa: BLE001 - never let the hint break message processing
+        logger.warning(json.dumps({
+            'event': 'unreadable_hint_skipped', 'reason': f'claim_failed:{type(e).__name__}',
+            'contactId': mask_contact_id(contact_id), 'requestId': request_id,
+        }))
+        return False
+    _send_ai_auto_reply(contact_id, UNREADABLE_HINT_TEXT, phone_number_id, request_id)
+    logger.info(json.dumps({'event': 'unreadable_hint_sent',
+                            'contactId': mask_contact_id(contact_id), 'requestId': request_id}))
+    return True
+
+
 def _send_submit_request_flow(contact_id: str, phone_number_id: str, sender_phone: str, request_id: str, flow_config: Dict = None) -> None:
     """
     Send the Submit Request WhatsApp Flow to the user.
@@ -5659,6 +5741,61 @@ def _park_review_reference(sender_phone: str, reference: str, request_id: str) -
         return False
 
 
+#: Where a Flow keyword sends the customer when the Flow itself cannot open: on WABA 2 (Flows
+#: live on WABA 1 only), when the trigger has no Flow, or when FlowRegistry does not show the
+#: Flow live on Meta. Direct destinations, not `/r/` short codes: `sr`, `ar`, `rx`, `ea`, `sub`
+#: and `lr` are 2026-07 "recovery" rows in ShortLinksTable that redirect to google.com. Every
+#: target below answered HTTP 200 (wa.me: 302 to WhatsApp) on 2026-10-25.
+FLOW_LINKS = {
+    'submit_request': 'https://wecare.digital/submit-request/',
+    'track_request': 'https://wecare.digital/shipments/track/',
+    'amend_request': 'https://wecare.digital/request-amendment/',
+    'schedule_appointment': 'https://wecare.digital/contact/',
+    'rx_slot': 'https://wecare.digital/sehat/',
+    'drop_docs': 'https://wecare.digital/drop-docs/',
+    'enterprise_assist': 'https://wecare.digital/contact/',
+    # Both review doors share one Meta Flow, so they share the owner's verified review link.
+    'leave_review': 'https://wa.me/message/ZM74K2H2BIFOA1',
+    'customer_idea': 'https://wa.me/message/ZM74K2H2BIFOA1',
+    # F001 Subscribe has no web form and exists on WABA 1 only, so a WABA 2 customer continues
+    # on WABA 1 with the keyword already typed.
+    'subscribe': 'https://wa.me/919330994400?text=subscribe',
+    'order_notes': 'https://wecare.digital/orders/',
+}
+FLOW_LINK_DEFAULT = 'https://wecare.digital/contact/'
+FLOW_LINK_BODIES = {
+    'submit_request': '\U0001f4cb Start a new support request. Share the details and our team will follow up with you.',
+    'track_request': '\U0001f50d Check the status of your request anytime with your reference ID.',
+    'amend_request': '\u270f\ufe0f Need to make a change? Edit or correct your submitted request.',
+    'schedule_appointment': '\U0001f4c5 Schedule a consultation or service visit at a time that works best for you.',
+    'rx_slot': '\U0001fa7a Schedule a medical tourism or prescription-related visit.',
+    'drop_docs': '\U0001f4c4 Send supporting documents for your request.',
+    'enterprise_assist': '\U0001f3e2 Corporate, B2B, and bulk enquiries. Tell us what you need.',
+    'leave_review': '\u2b50 Share your experience with our service.',
+    'subscribe': ('Save your details for faster service on WECARE.DIGITAL. Subscribe opens on our '
+                  'main WhatsApp number: tap below, then send the message as it is.'),
+    'order_notes': '\U0001f4dd Add notes to your order with any special instructions.',
+}
+
+
+def _send_flow_link(contact_id: str, phone_number_id: str, flow_key: str,
+                    flow_config: Optional[Dict], request_id: str, *, reason: str) -> bool:
+    """Answer a Flow keyword with its website (or WhatsApp) link. Returns True once handed off."""
+    msg = (flow_config or {}).get('message') or {}
+    link = FLOW_LINKS.get(flow_key, FLOW_LINK_DEFAULT)
+    cta_text = msg.get('flowCta') or flow_key.replace('_', ' ').title()
+    body_text = FLOW_LINK_BODIES.get(flow_key, msg.get('body') or 'Tap below to continue.')
+    _send_cta_button(contact_id, phone_number_id, cta_text, link, request_id,
+                     body_text=body_text, footer_text='WECARE.DIGITAL')
+    logger.info(json.dumps({
+        # The WABA 2 event keeps its established name; the others are keyword fallbacks.
+        'event': 'generic_flow_phone2_cta_sent' if reason == 'waba2' else 'keyword_flow_link_fallback',
+        'flowKey': flow_key, 'reason': reason, 'contactId': mask_contact_id(contact_id),
+        'shortUrl': link, 'phoneNumberId': phone_number_id, 'requestId': request_id,
+    }))
+    return True
+
+
 def _send_generic_flow(contact_id: str, phone_number_id: str, sender_phone: str,
                        request_id: str, flow_config: Dict = None, flow_key: str = '',
                        flow_token: str = '') -> bool:
@@ -5666,7 +5803,7 @@ def _send_generic_flow(contact_id: str, phone_number_id: str, sender_phone: str,
     Generic flow sender  -  works for all flow types.
     
     Phone 1 (WABA 1): Sends WhatsApp Flow interactive message (flows exist on WABA 1).
-    Phone 2 (WABA 2): Sends CTA URL button with short link → wa.me message link on Phone 1.
+    Phone 2 (WABA 2): Sends a CTA URL button with the door's `FLOW_LINKS` destination.
     Flows are WABA-specific  -  they only exist on the WABA where they were created.
 
     `flow_token` is a server-issued session token (F001); without one a token is minted
@@ -5696,50 +5833,9 @@ def _send_generic_flow(contact_id: str, phone_number_id: str, sender_phone: str,
                 }))
                 # Fall through to flow sending logic below
             else:
-                # No WABA 2 flow  -  send CTA URL fallback
-                SHORT_URLS = {
-                    'submit_request': 'https://wecare.digital/r/sr',
-                    'track_request': 'https://wecare.digital/r/tr',
-                    'amend_request': 'https://wecare.digital/r/ar',
-                    'schedule_appointment': 'https://wecare.digital/r/sa',
-                    'rx_slot': 'https://wecare.digital/r/rx',
-                    'drop_docs': 'https://wecare.digital/r/dd',
-                    'enterprise_assist': 'https://wecare.digital/r/ea',
-                    # BOTH review doors use the owner's verified short link, not /r/lr.
-                    # /r/lr's live ShortLinksTable row is a `recovery` row that 302s to
-                    # google.com, so it is a dead end for a customer on WABA 2; repairing
-                    # that row is a live data change and is tracked separately. These two
-                    # keys share one Meta flow, so they must not disagree about the
-                    # fallback either - whichever door claims the keyword, the customer
-                    # gets the same destination.
-                    'leave_review': 'https://wa.me/message/ZM74K2H2BIFOA1',
-                    'customer_idea': 'https://wa.me/message/ZM74K2H2BIFOA1',
-                    'subscribe': 'https://wecare.digital/r/sub',
-                    'order_notes': 'https://wecare.digital/r/on',
-                }
-                PHONE2_BODY = {
-                    'submit_request': '\U0001f4cb Start a new support request. Share the details and our team will follow up with you.',
-                    'track_request': '\U0001f50d Check the status of your request anytime. Enter your reference ID below.',
-                    'amend_request': '\u270f\ufe0f Need to make a change? Edit or correct your submitted request.',
-                    'schedule_appointment': '\U0001f4c5 Schedule a consultation or service visit at a time that works best for you.',
-                    'rx_slot': '\U0001fa7a Schedule a medical tourism or prescription-related visit.',
-                    'drop_docs': '\U0001f4c4 Send supporting documents for your request.',
-                    'enterprise_assist': '\U0001f3e2 Corporate, B2B, and bulk enquiries. Tell us what you need.',
-                    'leave_review': '\u2b50 Share your experience with our service.',
-                    'subscribe': 'Save your details for faster service on WECARE.DIGITAL.',
-                    'order_notes': '\U0001f4dd Add notes to your order with any special instructions.',
-                }
-                short_url = SHORT_URLS.get(flow_key, 'https://wecare.digital/r/sr')
-                cta_text = msg.get('flowCta', flow_key.replace('_', ' ').title())
-                body_text = PHONE2_BODY.get(flow_key, msg.get('body', 'Tap below to continue.'))
-                _send_cta_button(contact_id, phone_number_id, cta_text, short_url, request_id,
-                    body_text=body_text, footer_text='WECARE.DIGITAL')
-                logger.info(json.dumps({
-                    'event': 'generic_flow_phone2_cta_sent',
-                    'flowKey': flow_key, 'contactId': mask_contact_id(contact_id), 'shortUrl': short_url,
-                    'phoneNumberId': phone_number_id, 'requestId': request_id,
-                }))
-                return True
+                # No WABA 2 flow  -  send the website link instead
+                return _send_flow_link(contact_id, phone_number_id, flow_key, flow_config,
+                                       request_id, reason='waba2')
 
         # ── Phone 1: send WhatsApp Flow interactive message ──
         _waba_suffix = '1' if phone_number_id == PHONE_NUMBER_ID_1 else '2'

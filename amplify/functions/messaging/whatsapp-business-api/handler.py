@@ -4826,6 +4826,11 @@ def _migrate_flows(body: Dict) -> Dict:
     })
 
 
+#: Meta Flow list paging for a sync: 100 per page, at most 5 pages (500 Flows per WABA).
+_SYNC_PAGE_SIZE = 100
+_SYNC_MAX_PAGES = 5
+
+
 def _sync_flows(params: Dict, body: Dict) -> Dict:
     """POST /wa-business/flows/sync — reconcile Meta flows into FlowRegistry.
 
@@ -4837,11 +4842,22 @@ def _sync_flows(params: Dict, body: Dict) -> Dict:
         return _resp(400, {'error': 'wabaId required'})
     fields = ('id,name,status,categories,validation_errors,json_version,'
               'data_api_version,health_status,preview')
-    result = _graph_api(f'{waba_id}/flows', params={'fields': fields}, waba_id=waba_id)
-    if 'error' in result:
-        return _resp(400, result)
-
-    flows = result.get('data', [])
+    # Meta pages this list (25 by default), and WABA 1 alone holds over 40 Flows. Follow the
+    # cursor, bounded, so a Flow on a later page is never silently left unsynced.
+    flows: list[dict] = []
+    after = ''
+    for _page in range(_SYNC_MAX_PAGES):
+        page_params = {'fields': fields, 'limit': str(_SYNC_PAGE_SIZE)}
+        if after:
+            page_params['after'] = after
+        result = _graph_api(f'{waba_id}/flows', params=page_params, waba_id=waba_id)
+        if 'error' in result:
+            return _resp(400, result)
+        flows.extend(f for f in (result.get('data') or []) if isinstance(f, dict))
+        paging = result.get('paging') or {}
+        after = str((paging.get('cursors') or {}).get('after') or '')
+        if not after or not paging.get('next'):
+            break
     now = int(time.time())
     table = dynamodb.Table(FLOW_REGISTRY_TABLE)
     synced = 0
@@ -6556,6 +6572,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             waba_id = params.get('wabaId') or body.get('wabaId')
             if not waba_id:
                 return _resp(400, {'error': 'wabaId required'})
+            if method in ('POST', 'DELETE'):
+                # DELETE stops every inbound WhatsApp message for the WABA and POST can repoint
+                # Meta's callback URL (see the note above `require_auth`): Admin only.
+                admin_denied = require_auth(event, required_role='Admin')
+                if admin_denied is not None:
+                    return admin_denied
             if method == 'GET':
                 return _get_webhook_subscriptions(waba_id)
             elif method == 'POST':

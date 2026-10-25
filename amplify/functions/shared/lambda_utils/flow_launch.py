@@ -229,6 +229,24 @@ def generic_keyword_refusal(trigger_key: str, flow_id: str,
     return ''
 
 
+def meta_liveness(registry_row: Optional[Mapping[str, Any]]) -> str:
+    """'live' when FlowRegistry shows Meta serving the Flow; otherwise why it is not known live.
+
+    `metaStatus` is the only record of Meta's state this side of a send ("Sync from Meta"
+    writes it). Meta refuses a missing, draft or deprecated Flow only after the inbound Lambda
+    has handed the message off, so a generic keyword door without this evidence answers with
+    its website link instead of a Flow the customer would never receive.
+    """
+    if not registry_row:
+        return 'registry_missing'
+    status = str(registry_row.get('metaStatus') or '').strip().upper()
+    if not status:
+        return 'meta_status_unknown'
+    if status not in SENDABLE_META_STATUSES:
+        return f'meta_{status.lower()}'
+    return 'live'
+
+
 def keyword_launch_decision(*, capability: str, registry_row: Optional[Mapping[str, Any]],
                             trigger: Optional[Mapping[str, Any]]) -> LaunchDecision:
     """Whether a customer's exact keyword may open this Flow right now."""
