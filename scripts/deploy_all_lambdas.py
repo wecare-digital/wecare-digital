@@ -628,6 +628,308 @@ def validate_handler(members: Dict[str, bytes], handler_string: str) -> List[str
     return []
 
 
+def _module_file(members: Dict[str, bytes], dotted: str) -> Optional[str]:
+    """The package member ``import <dotted>`` executes; None if absent or a namespace package."""
+    base = dotted.replace(".", "/")
+    for arcname in (f"{base}.py", f"{base}/__init__.py"):
+        if arcname in members:
+            return arcname
+    return None
+
+
+def _package_directories(members: Dict[str, bytes]) -> frozenset:
+    """Every directory holding a packaged .py file: the packages, namespace ones included."""
+    directories: set = set()
+    for name in members:
+        if name.endswith(".py"):
+            parts = name.split("/")[:-1]
+            directories.update("/".join(parts[:depth]) for depth in range(1, len(parts) + 1))
+    return frozenset(directories)
+
+
+def _absolute_module(arcname: str, node: ast.ImportFrom) -> Optional[str]:
+    """The module an ImportFrom in ``arcname`` names; None for a relative import past the top."""
+    if not node.level:
+        return node.module
+    package = arcname.removesuffix(".py").split("/")[:-1]
+    if node.level - 1 >= len(package):
+        return None
+    base = package[: len(package) - (node.level - 1)]
+    return ".".join(base + (node.module.split(".") if node.module else []))
+
+
+#: Module bindings by sha256 of the source. lambda_utils ships in nearly every package,
+#: so a fleet run would otherwise recompute the same modules once per function.
+_BINDINGS_CACHE: Dict[bytes, Tuple[frozenset, bool]] = {}
+
+
+def _module_bindings(source: bytes, tree: ast.Module) -> Tuple[frozenset, bool]:
+    """(names a module defines once imported, whether it can define names not visible here).
+
+    Deliberately generous, because a false "not defined" refuses a correct deploy: any
+    module-level binding in any branch counts, as do ``global`` declarations and walrus
+    targets anywhere in the file. A module-level ``__getattr__``, a star import or a call
+    to ``globals()``/``exec`` makes the set unknowable, and callers then check nothing.
+    """
+    key = hashlib.sha256(source).digest()
+    if key in _BINDINGS_CACHE:
+        return _BINDINGS_CACHE[key]
+    names: set = set()
+    dynamic = False
+
+    def bind(target: ast.AST) -> None:
+        if isinstance(target, ast.Name):
+            names.add(target.id)
+        elif isinstance(target, (ast.Tuple, ast.List)):
+            for element in target.elts:
+                bind(element)
+        elif isinstance(target, ast.Starred):
+            bind(target.value)
+
+    def visit(body: Sequence[ast.stmt]) -> None:
+        nonlocal dynamic
+        for node in body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                names.add(node.name)
+                dynamic = dynamic or node.name == "__getattr__"
+            elif isinstance(node, ast.Assign):
+                for target in node.targets:
+                    bind(target)
+            elif isinstance(node, (ast.AnnAssign, ast.AugAssign)):
+                bind(node.target)
+            elif isinstance(node, ast.Import):
+                names.update(alias.asname or alias.name.split(".")[0] for alias in node.names)
+            elif isinstance(node, ast.ImportFrom):
+                for alias in node.names:
+                    if alias.name == "*":
+                        dynamic = True
+                    else:
+                        names.add(alias.asname or alias.name)
+            elif isinstance(node, (ast.For, ast.AsyncFor)):
+                bind(node.target)
+                visit(node.body)
+                visit(node.orelse)
+            elif isinstance(node, (ast.With, ast.AsyncWith)):
+                for item in node.items:
+                    if item.optional_vars is not None:
+                        bind(item.optional_vars)
+                visit(node.body)
+            elif isinstance(node, (ast.If, ast.While)):
+                visit(node.body)
+                visit(node.orelse)
+            elif isinstance(node, (ast.Try, ast.TryStar)):
+                visit(node.body)
+                for handler in node.handlers:
+                    if handler.name:
+                        names.add(handler.name)
+                    visit(handler.body)
+                visit(node.orelse)
+                visit(node.finalbody)
+            elif isinstance(node, ast.Match):
+                for case in node.cases:
+                    visit(case.body)
+
+    visit(tree.body)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Global):
+            names.update(node.names)
+        elif isinstance(node, ast.NamedExpr) and isinstance(node.target, ast.Name):
+            names.add(node.target.id)
+        elif isinstance(node, (ast.MatchAs, ast.MatchStar)) and node.name:
+            names.add(node.name)
+        elif isinstance(node, ast.MatchMapping) and node.rest:
+            names.add(node.rest)
+        elif (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+              and node.func.id in {"globals", "exec"}):
+            dynamic = True
+    _BINDINGS_CACHE[key] = (frozenset(names), dynamic)
+    return _BINDINGS_CACHE[key]
+
+
+def _rebound_names(tree: ast.AST) -> set:
+    """Every name a file binds other than by import; any of them may shadow an import alias."""
+    names: set = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and not isinstance(node.ctx, ast.Load):
+            names.add(node.id)
+        elif isinstance(node, ast.arg):
+            names.add(node.arg)
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            names.add(node.name)
+        elif isinstance(node, ast.ExceptHandler) and node.name:
+            names.add(node.name)
+        elif isinstance(node, (ast.MatchAs, ast.MatchStar)) and node.name:
+            names.add(node.name)
+        elif isinstance(node, ast.MatchMapping) and node.rest:
+            names.add(node.rest)
+    return names
+
+
+def _attribute_error_guarded(tree: ast.AST) -> set:
+    """ids of the nodes inside a try body with a handler that names AttributeError.
+
+    Only that handler is a fallback for a missing attribute. ``except Exception``
+    around a handler body is not one: it turns the missing name into a send that
+    silently never happens, which is worse than the crash.
+    """
+    def names_attribute_error(kind: Optional[ast.expr]) -> bool:
+        if isinstance(kind, ast.Tuple):
+            return any(names_attribute_error(element) for element in kind.elts)
+        return isinstance(kind, ast.Name) and kind.id == "AttributeError"
+
+    guarded: set = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Try, ast.TryStar)) and any(
+                names_attribute_error(handler.type) for handler in node.handlers):
+            for statement in node.body:
+                guarded.update(id(child) for child in ast.walk(statement))
+    return guarded
+
+
+def _check_package_names(
+    members: Dict[str, bytes], trees: Dict[str, ast.Module]
+) -> Tuple[List[str], List[str]]:
+    """Resolve imports of the package's own modules down to the names they use.
+
+    The root check in ``validate`` passes ``from lambda_utils.template_media import X``
+    once ``lambda_utils`` is packaged, whatever X is. On 2026-10-25 #1567 renamed
+    ORDER_CATALOG_HEADER_IMAGE without updating its users. Outbound's module-level
+    import of it passed ``--dry-run`` and would have failed every cold start with
+    ImportError; the invoice engine's ``template_media.ORDER_CATALOG_HEADER_IMAGE``
+    would have failed every payment-request send with AttributeError. With SnapStart
+    off, publishing a version runs none of this code either, so nothing else stood
+    between the rename and the first production invocation.
+
+    For the package's own modules, then: an imported module must exist, a name
+    imported from one must be defined there or be a submodule, and ``alias.name``
+    read through an import alias must be defined in that module. As in the root
+    check, an import inside try/except is a warning; for a read, only a handler that
+    names AttributeError makes it one.
+    """
+    errors: List[str] = []
+    warnings: List[str] = []
+    local = {name.split("/")[0].removesuffix(".py") for name in members if name.endswith(".py")}
+    directories = _package_directories(members)
+    bindings_by_file: Dict[str, Tuple[frozenset, bool]] = {}
+
+    def exists(dotted: str) -> bool:
+        return (_module_file(members, dotted) is not None
+                or dotted.replace(".", "/") in directories)
+
+    def bindings(arcname: str) -> Tuple[frozenset, bool]:
+        if arcname not in bindings_by_file:
+            bindings_by_file[arcname] = _module_bindings(members[arcname], trees[arcname])
+        return bindings_by_file[arcname]
+
+    def defines(module: str, name: str) -> bool:
+        if exists(f"{module}.{name}"):
+            return True
+        arcname = _module_file(members, module)
+        if arcname is None:  # a namespace package binds nothing but its submodules
+            return False
+        if arcname not in trees:  # unparseable, already reported as a syntax error
+            return True
+        names, dynamic = bindings(arcname)
+        return dynamic or name in names
+
+    def module_of(expr: ast.expr, modules: Dict[str, str]) -> Optional[str]:
+        """The package module an expression like ``alias`` or ``alias.sub`` evaluates to."""
+        if isinstance(expr, ast.Name):
+            return modules.get(expr.id)
+        if isinstance(expr, ast.Attribute):
+            parent = module_of(expr.value, modules)
+            if parent and exists(f"{parent}.{expr.attr}"):
+                return f"{parent}.{expr.attr}"
+        return None
+
+    for arcname, tree in trees.items():
+        # Only computed once a file has a finding: problems are rare, walks are not free.
+        guards: Dict[str, set] = {}
+
+        def report(node: ast.AST, problem: str, guard: str) -> None:
+            if guard not in guards:
+                guards[guard] = (_guarded_import_lines(tree) if guard == "import"
+                                 else _attribute_error_guarded(tree))
+            message = f"{arcname}:{node.lineno} {problem}"
+            key = node.lineno if guard == "import" else id(node)
+            if key in guards[guard]:
+                warnings.append(message + " (guarded by try/except)")
+            else:
+                errors.append(message)
+
+        # local name -> the package modules imports bind it to. A name an import binds
+        # to anything else ("other") is ambiguous, so reads through it are not checked.
+        aliases: Dict[str, set] = {}
+        other: set = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    root = alias.name.split(".")[0]
+                    bound = alias.asname or root
+                    if root not in local:
+                        other.add(bound)
+                    elif not exists(alias.name):
+                        report(node, f"imports '{alias.name}', which is not in the package", "import")
+                    else:
+                        aliases.setdefault(bound, set()).add(alias.name if alias.asname else root)
+            elif isinstance(node, ast.ImportFrom):
+                module = _absolute_module(arcname, node)
+                if not module or module.split(".")[0] not in local:
+                    other.update(alias.asname or alias.name for alias in node.names)
+                    continue
+                if not exists(module):
+                    report(node, f"imports from '{module}', which is not in the package", "import")
+                    continue
+                parent = _module_file(members, module)
+                parent_names = bindings(parent)[0] if parent in trees else frozenset()
+                for alias in node.names:
+                    if alias.name == "*":
+                        continue
+                    bound = alias.asname or alias.name
+                    submodule = f"{module}.{alias.name}"
+                    if alias.name not in parent_names and exists(submodule):
+                        aliases.setdefault(bound, set()).add(submodule)
+                        continue
+                    other.add(bound)
+                    if not defines(module, alias.name):
+                        report(node, f"imports '{alias.name}' from '{module}', which does not define it",
+                               "import")
+
+        modules = {name: next(iter(targets)) for name, targets in aliases.items()
+                   if len(targets) == 1 and name not in other}
+        if not modules:
+            continue
+        suspects = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Attribute) or not isinstance(node.ctx, ast.Load):
+                continue
+            if node.attr.startswith("__") and node.attr.endswith("__"):
+                continue  # module dunders (__name__, __file__, ...) always exist
+            module = module_of(node.value, modules)
+            if module is not None and not defines(module, node.attr):
+                suspects.append((node, module))
+        if not suspects:
+            continue
+        # A suspect read is only a finding if its alias really is the module: not shadowed
+        # by a local of the same name anywhere in the file, and the attribute not assigned
+        # onto it here.
+        rebound = _rebound_names(tree)
+        assigned = {(node.value.id, node.attr) for node in ast.walk(tree)
+                    if isinstance(node, ast.Attribute) and not isinstance(node.ctx, ast.Load)
+                    and isinstance(node.value, ast.Name)}
+        for node, module in suspects:
+            base = node.value
+            while isinstance(base, ast.Attribute):
+                base = base.value
+            if not isinstance(base, ast.Name) or base.id in rebound:
+                continue
+            if isinstance(node.value, ast.Name) and (node.value.id, node.attr) in assigned:
+                continue
+            report(node, f"reads '{module}.{node.attr}', which that module does not define", "read")
+
+    return errors, warnings
+
+
 def validate(
     spec: Spec, members: Dict[str, bytes], provided: frozenset
 ) -> Tuple[List[str], List[str]]:
@@ -639,6 +941,10 @@ def validate(
 
     An unresolved import inside try/except is a warning, not an error, because
     the code has a documented fallback path for it.
+
+    Imports of the package's own modules are then resolved down to the names
+    they use (``_check_package_names``): a packaged module is no proof that the
+    name imported from it exists.
     """
     errors: List[str] = []
     warnings: List[str] = []
@@ -646,6 +952,7 @@ def validate(
     available = {name.split("/")[0].removesuffix(".py") for name in members}
     known = available | provided | RUNTIME_PROVIDED | set(sys.stdlib_module_names)
 
+    trees: Dict[str, ast.Module] = {}
     for arcname in sorted(members):
         if not arcname.endswith(".py"):
             continue
@@ -654,6 +961,7 @@ def validate(
         except SyntaxError as exc:
             errors.append(f"{arcname}: syntax error: {exc}")
             continue
+        trees[arcname] = tree
 
         guarded = _guarded_import_lines(tree)
         for node in ast.walk(tree):
@@ -674,6 +982,9 @@ def validate(
                 else:
                     errors.append(message)
 
+    package_errors, package_warnings = _check_package_names(members, trees)
+    errors += package_errors
+    warnings += package_warnings
     return sorted(set(errors)), sorted(set(warnings))
 
 
