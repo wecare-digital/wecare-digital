@@ -32,11 +32,14 @@ Exit codes: 0 all checks passed, 1 at least one failed.
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import random
 import sys
 import urllib.error
 import urllib.request
+import zipfile
+from pathlib import Path
 
 try:
     import boto3
@@ -62,6 +65,27 @@ ENCODED_GATED_PROBE_PATH = "secur%65/"
 # artwork is public only through the catalog-media API.
 CATALOG_DEPLOY_PROBE_KEY = "secure/d/public/catalog-deploy/catalog/catalog-v3-final-manifest.json"
 CATALOG_MEDIA_PROBE_URL = "https://wecare.digital/api/catalog-media/grahak-os-4096.png"
+# The source the associated edge version must contain, byte for byte.
+EDGE_SOURCE = Path(__file__).resolve().parents[1] / "amplify/functions/edge/get-miss-redirect/handler.py"
+
+
+def _edge_source_matches(version_arn: str) -> tuple[bool, str]:
+    """Compare the associated version's handler.py with the repo copy.
+
+    Origin-response functions do not run on cache hits, so a cached 302 can make the live
+    probes pass against any version. The deployed code cannot. The presigned code URL is a
+    credential-bearing link and is never printed.
+    """
+    try:
+        code = boto3.client("lambda", region_name=REGION).get_function(
+            FunctionName=version_arn)["Code"]["Location"]
+        with urllib.request.urlopen(code, timeout=30) as resp:
+            deployed = zipfile.ZipFile(io.BytesIO(resp.read())).read("handler.py")
+    except Exception as exc:  # noqa: BLE001 - reported as a failed check
+        return False, f"could not read deployed code: {type(exc).__name__}"
+    if deployed == EDGE_SOURCE.read_bytes():
+        return True, "deployed handler.py is identical to the repo source"
+    return False, "deployed handler.py differs from the repo source"
 
 
 class Result:
@@ -171,6 +195,8 @@ def check_distribution(r: Result) -> None:
             version.isdigit(),
             f"version {version}",
         )
+        r.add("edge function source matches the repo",
+              *_edge_source_matches(origin_resp[0]["LambdaFunctionARN"]))
     r.add(
         "custom error responses cleared",
         cfg["CustomErrorResponses"]["Quantity"] == 0,

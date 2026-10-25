@@ -60,8 +60,14 @@ before the key lookup. Matching the raw URI let `/get/secur%65/...` and
 `/get/secure%2F...` through to gated objects until 2026-10-25.
 
 `secure/d/public/catalog-deploy/` (catalog masters, manifest, QA and deploy evidence) is
-not served here at all. Approved catalog artwork is public only through
+not served here, except product-image-gen's draft previews under
+`catalog-media/generated/`. Approved catalog artwork is public only through
 `https://wecare.digital/api/catalog-media/<file>`, whose Lambda reads S3 directly.
+Paths with a `.` or `..` segment are refused outright.
+
+A refused path returns an empty-bodied 302: the origin body and the object's own headers
+(ETag, Last-Modified, `x-amz-*`) are dropped, because Lambda@Edge passes the origin body
+through unless the function replaces it.
 
 ## Paid download flow
 
