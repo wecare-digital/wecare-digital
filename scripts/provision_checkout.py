@@ -181,6 +181,8 @@ RAZORPAY_WEBHOOK_LOG_TABLE = "stack-wecare-digital-RazorpayWebhookLogTable"
 AUDIT_LOG_TABLE = "stack-wecare-digital-AuditLogsTable"
 MEDIA_BUCKET = "wecare-digital-get"
 INVOICE_PREFIX = "secure/d/public/Invoice/customer_invoice/"
+# Receipt fonts read by invoice_engine's legacy renderer (media_paths.INVOICE_FONT_PREFIX).
+INVOICE_FONT_PREFIX = "secure/d/public/Invoice/fonts/"
 PILLOW_LAYER_ARN = "arn:aws:lambda:us-east-1:775261844268:layer:pillow-python312:2"
 
 #: The business-API Lambda. Holds the Meta token; answers the readiness readback.
@@ -569,7 +571,10 @@ def expected_invoice_role_policy(acct: str | None = None) -> dict:
                 "Sid": "InvoiceMediaRead",
                 "Effect": "Allow",
                 "Action": ["s3:GetObject"],
-                "Resource": [f"arn:aws:s3:::{MEDIA_BUCKET}/o/*"],
+                "Resource": [
+                    f"arn:aws:s3:::{MEDIA_BUCKET}/o/*",
+                    f"arn:aws:s3:::{MEDIA_BUCKET}/{INVOICE_FONT_PREFIX}*",
+                ],
             },
             {
                 "Sid": "InvoiceMediaObjects",

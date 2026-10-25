@@ -5,7 +5,7 @@ import uuid
 import hashlib
 import hmac
 import boto3
-from lambda_utils.template_media import FIXED_IMAGE_HEADERS, fixed_image_header
+from lambda_utils.template_media import FIXED_IMAGE_HEADERS, RETAINED_MEDIA_KEYS, fixed_image_header
 import urllib.request
 import urllib.parse
 import urllib.error
@@ -1150,7 +1150,8 @@ def _delete_send_media(query_params, body=None):
         if s3_key[len(PUBLIC_MEDIA_PREFIX):].split('/', 1)[0] not in WA_MEDIA_MAX_SIZES:
             return _error_response(403, 'Refusing to delete outside a template media folder')
 
-        if f'https://{CDN_DOMAIN}/{s3_key}' in FIXED_IMAGE_HEADERS.values():
+        if (s3_key in RETAINED_MEDIA_KEYS
+                or f'https://{CDN_DOMAIN}/{s3_key}' in FIXED_IMAGE_HEADERS.values()):
             return _error_response(409, 'This image is a fixed template header and must be retained')
 
         s3.delete_object(Bucket=MEDIA_BUCKET, Key=s3_key)

@@ -280,6 +280,9 @@
                   "Resource": [
                     {
                       "Fn::Sub": "arn:aws:s3:::wecare-digital-get/o/*"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:s3:::wecare-digital-get/secure/d/public/Invoice/fonts/*"
                     }
                   ]
                 },

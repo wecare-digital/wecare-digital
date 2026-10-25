@@ -9,6 +9,15 @@ FIXED_IMAGE_HEADERS = {
     ),
 }
 
+#: Template media that code sends by URL. They sit in the same wa-tpl/img/ folder as library
+#: uploads, so the library delete route must refuse them: deleting the checkout header breaks
+#: every payment request (outbound-whatsapp FIXED_CHECKOUT_HEADER and invoice-engine
+#: headerImageUrl both name it).
+RETAINED_MEDIA_KEYS = frozenset({
+    media_paths.WHATSAPP_TEMPLATE_IMAGE_PREFIX + 'wecare-digital-cebc83f1_img.png',
+    media_paths.WHATSAPP_TEMPLATE_IMAGE_PREFIX + 'wecarepay-header.png',
+})
+
 
 def fixed_image_header(template_name: str) -> str:
     return FIXED_IMAGE_HEADERS.get(template_name, '')
