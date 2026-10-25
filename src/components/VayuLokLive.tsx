@@ -3412,7 +3412,9 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                     type="button"
                     role="tab"
                     id="vl-live-air-tab"
-                    aria-controls="vl-live-air-panel"
+                    // Only the active tab's panel is rendered, so only it may point at one -
+                    // an aria-controls naming an absent id is a dangling reference.
+                    aria-controls={ detailTab === 'air' ? 'vl-live-air-panel' : undefined }
                     aria-selected={ detailTab === 'air' }
                     className={ `vl-live-air-toggle-btn is-air ${detailTab === 'air' ? 'is-active' : ''}`.trim() }
                     onClick={ () => { setDetailTab( 'air' ); onModeChange?.( 'air' ); } }
@@ -3423,7 +3425,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                     type="button"
                     role="tab"
                     id="vl-live-weather-tab"
-                    aria-controls="vl-live-weather-panel"
+                    aria-controls={ detailTab === 'weather' ? 'vl-live-weather-panel' : undefined }
                     aria-selected={ detailTab === 'weather' }
                     className={ `vl-live-air-toggle-btn is-weather ${detailTab === 'weather' ? 'is-active' : ''}`.trim() }
                     onClick={ () => { setDetailTab( 'weather' ); onModeChange?.( 'weather' ); } }
@@ -3467,7 +3469,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
 
                       { air.pollutants.length > 0 && (
                         <div className="vl-live-air-pollutants">
-                          <h4 className="vl-live-air-pollutants-title">Pollutants</h4>
+                          <h2 className="vl-live-air-pollutants-title">Pollutants</h2>
                           <ul className="vl-live-air-pollutant-list">
                             { air.pollutants.map( p => (
                               <li className="vl-live-air-pollutant-row" key={ p.code }>
@@ -3541,7 +3543,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
 
                       <div className="vl-live-air-forecast">
                         <div className="vl-live-air-forecast-head">
-                          <h4 className="vl-live-air-forecast-title">Air Forecast</h4>
+                          <h2 className="vl-live-air-forecast-title">Air Forecast</h2>
                           <div className="vl-live-air-forecast-head-actions">
                             <div className="vl-live-air-range" role="group" aria-label="Air forecast range">
                               { ( [ 24, 48, 96 ] as const ).map( hours => (
@@ -3637,7 +3639,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                       { activeHealthPersona && (
                         <div className="vl-live-air-health">
                           <div className="vl-live-air-health-head">
-                            <h4 className="vl-live-air-health-title">Health Recommendations</h4>
+                            <h2 className="vl-live-air-health-title">Health Recommendations</h2>
                             <div className="vl-live-air-health-head-nav" role="group" aria-label="Health recommendations pagination">
                               <button
                                 type="button"
@@ -3708,7 +3710,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                             return (
                               <>
                                 <div className="vl-live-air-history-head">
-                                  <h4 className="vl-live-air-history-title">Hourly History</h4>
+                                  <h2 className="vl-live-air-history-title">Hourly History</h2>
                                   <div className="vl-live-air-range" role="group" aria-label="Air history range">
                                     { ( [ 24, 168 ] as const ).map( hours => (
                                       <VayuLokCompactPill key={ hours } className={ historyRange === hours ? 'is-active' : '' } aria-pressed={ historyRange === hours } onClick={ () => setHistoryRange( hours ) }>
@@ -3769,7 +3771,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                           return (
                             <>
                               <div className="vl-live-air-history-head">
-                                <h4 className="vl-live-air-history-title">Hourly History</h4>
+                                <h2 className="vl-live-air-history-title">Hourly History</h2>
                                 <div className="vl-live-air-history-head-meta">
                                   <div className="vl-live-air-range" role="group" aria-label="Air history range">
                                     { ( [ 24, 168 ] as const ).map( hours => (
@@ -3934,7 +3936,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                             alerts render with their authority/source attribution as before. */}
                         { ( weatherAlertStatus === 'error' || ( weatherAlertStatus === 'active' && weatherAlerts.length > 0 ) ) && (
                           <div className="vl-live-wx-alerts">
-                            <h4 className="vl-live-air-forecast-title">Alerts</h4>
+                            <h2 className="vl-live-air-forecast-title">Alerts</h2>
                             { weatherAlertStatus === 'error' ? (
                               <p className="vl-live-air-history-empty" role="status">Alerts unavailable.</p>
                             ) : weatherAlerts.map( alert => (
@@ -3987,7 +3989,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                         { weatherHourly.length > 0 && (
                           <div className="vl-live-air-forecast">
                             <div className="vl-live-air-forecast-head">
-                              <h4 className="vl-live-air-forecast-title">Hourly Forecast</h4>
+                              <h2 className="vl-live-air-forecast-title">Hourly Forecast</h2>
                               <div className="vl-live-air-range" role="group" aria-label="Weather forecast range">
                                 { ( [ 24, 48, 96 ] as const ).map( hours => (
                                   <VayuLokCompactPill key={ hours } className={ weatherHours === hours ? 'is-active' : '' } aria-pressed={ weatherHours === hours } onClick={ () => setWeatherHours( hours ) }>
@@ -4049,7 +4051,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                         {/* 10-DAY FORECAST - compact vertical rows, detail on selection. */}
                         { weatherDaily.length > 0 && (
                           <div className="vl-live-wx-daily">
-                            <h4 className="vl-live-air-forecast-title">10-Day Forecast</h4>
+                            <h2 className="vl-live-air-forecast-title">10-Day Forecast</h2>
                             <ul className="vl-live-wx-daily-list">
                               { weatherDaily.map( ( day, idx ) => (
                                 <li key={ day.time }>
@@ -4117,7 +4119,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                         { weatherHistory.length > 0 && (
                           <div className="vl-live-wx-history">
                             <div className="vl-live-air-forecast-head">
-                              <h4 className="vl-live-air-forecast-title">Last 24 Hours</h4>
+                              <h2 className="vl-live-air-forecast-title">Last 24 Hours</h2>
                               <div className="vl-live-air-range" role="group" aria-label="Weather history metric">
                                 { ( [ [ 'temp', 'Temp' ], [ 'rain', 'Rain' ], [ 'humidity', 'Humidity' ], [ 'pressure', 'Pressure' ], [ 'wind', 'Wind' ], [ 'cloud', 'Cloud' ] ] as const ).map( ( [ metric, label ] ) => (
                                   <VayuLokCompactPill key={ metric } className={ weatherHistMetric === metric ? 'is-active' : '' } aria-pressed={ weatherHistMetric === metric } onClick={ () => setWeatherHistMetric( metric ) }>
@@ -4255,7 +4257,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
           <div className="vl-live-tools-layout">
             <div className="vl-live-tools-left">
               <div className="vl-live-tools-head">
-                <h3 id="vl-live-tools-title">Local time &amp; currency</h3>
+                <h2 id="vl-live-tools-title">Local time &amp; currency</h2>
                 <p>Compare time zones and reference exchange rates.</p>
               </div>
 
@@ -4265,7 +4267,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                   type="button"
                   role="tab"
                   id="vl-live-tool-time-tab"
-                  aria-controls="vl-live-tool-time-panel"
+                  aria-controls={ toolTab === 'time' ? 'vl-live-tool-time-panel' : undefined }
                   aria-selected={ toolTab === 'time' }
                   className={ `vl-live-tool-toggle-btn is-time ${toolTab === 'time' ? 'is-active' : ''}`.trim() }
                   onClick={ () => setToolTab( 'time' ) }
@@ -4276,7 +4278,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                   type="button"
                   role="tab"
                   id="vl-live-tool-currency-tab"
-                  aria-controls="vl-live-tool-currency-panel"
+                  aria-controls={ toolTab === 'currency' ? 'vl-live-tool-currency-panel' : undefined }
                   aria-selected={ toolTab === 'currency' }
                   className={ `vl-live-tool-toggle-btn is-currency ${toolTab === 'currency' ? 'is-active' : ''}`.trim() }
                   onClick={ () => setToolTab( 'currency' ) }
@@ -4287,7 +4289,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
 
               { toolTab === 'time' && (
                 <div className="vl-live-tool-panel" role="tabpanel" id="vl-live-tool-time-panel" aria-labelledby="vl-live-tool-time-tab">
-                  <h4>Compare local time</h4>
+                  <h3>Compare local time</h3>
                   <div className="vl-live-world-pair">
                     <div className="vl-live-world-place">
                       <span>From place</span>
@@ -4305,7 +4307,9 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                           } }
                           onKeyDown={ e => onUtilityKeyDown( 'world-from', e ) }
                           aria-label="World time from place"
-                          aria-controls="vl-live-world-from-results"
+                          // ARIA 1.2: a combobox needs aria-controls only while its popup is
+                          // shown, and the listbox is rendered only then.
+                          aria-controls={ utilityOpenSlot === 'world-from' && utilityResults.length > 0 ? 'vl-live-world-from-results' : undefined }
                           aria-autocomplete="list"
                           aria-expanded={ utilityOpenSlot === 'world-from' && utilityResults.length > 0 }
                           aria-activedescendant={ utilityOpenSlot === 'world-from' && utilityActive >= 0 ? `vl-live-world-from-option-${utilityActive}` : undefined }
@@ -4352,7 +4356,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                           } }
                           onKeyDown={ e => onUtilityKeyDown( 'world-to', e ) }
                           aria-label="World time to place"
-                          aria-controls="vl-live-world-to-results"
+                          aria-controls={ utilityOpenSlot === 'world-to' && utilityResults.length > 0 ? 'vl-live-world-to-results' : undefined }
                           aria-autocomplete="list"
                           aria-expanded={ utilityOpenSlot === 'world-to' && utilityResults.length > 0 }
                           aria-activedescendant={ utilityOpenSlot === 'world-to' && utilityActive >= 0 ? `vl-live-world-to-option-${utilityActive}` : undefined }
@@ -4386,7 +4390,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
 
               { toolTab === 'currency' && (
                 <div className="vl-live-tool-panel" role="tabpanel" id="vl-live-tool-currency-panel" aria-labelledby="vl-live-tool-currency-tab">
-                  <h4>Currency rate</h4>
+                  <h3>Currency rate</h3>
                   <div className="vl-live-fx-pair" aria-label="Currency pair">
                     <div className="vl-live-utility-search vl-live-fx-search">
                       <input
@@ -4402,7 +4406,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                         onBlur={ () => normalizeCurrencyInput( 'base' ) }
                         onKeyDown={ e => onCurrencyKeyDown( 'base', e ) }
                         aria-label="Base currency"
-                        aria-controls="vl-live-fx-base-results"
+                        aria-controls={ currencyOpenSide === 'base' && currencySuggestions.length > 0 ? 'vl-live-fx-base-results' : undefined }
                         aria-autocomplete="list"
                         aria-expanded={ currencyOpenSide === 'base' && currencySuggestions.length > 0 }
                         aria-activedescendant={ currencyOpenSide === 'base' && currencySuggestions.length ? `vl-live-fx-base-option-${currencyActive}` : undefined }
@@ -4449,7 +4453,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                         onBlur={ () => normalizeCurrencyInput( 'quote' ) }
                         onKeyDown={ e => onCurrencyKeyDown( 'quote', e ) }
                         aria-label="Quote currency"
-                        aria-controls="vl-live-fx-quote-results"
+                        aria-controls={ currencyOpenSide === 'quote' && currencySuggestions.length > 0 ? 'vl-live-fx-quote-results' : undefined }
                         aria-autocomplete="list"
                         aria-expanded={ currencyOpenSide === 'quote' && currencySuggestions.length > 0 }
                         aria-activedescendant={ currencyOpenSide === 'quote' && currencySuggestions.length ? `vl-live-fx-quote-option-${currencyActive}` : undefined }
@@ -4503,7 +4507,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
             </div>
             <div className="vl-live-tools-right">
               <div className="vl-live-tools-head">
-                <h3>Route</h3>
+                <h2>Route</h2>
                 <p>Time and distance, at a glance.</p>
               </div>
 
@@ -4531,7 +4535,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
                               } }
                               onKeyDown={ e => onUtilityKeyDown( slot, e ) }
                               aria-label={ `${label} for route` }
-                              aria-controls={ resultId }
+                              aria-controls={ utilityOpenSlot === slot && utilityResults.length > 0 ? resultId : undefined }
                               aria-autocomplete="list"
                               aria-expanded={ utilityOpenSlot === slot && utilityResults.length > 0 }
                               aria-activedescendant={ utilityOpenSlot === slot && utilityActive >= 0 ? `${resultId}-option-${utilityActive}` : undefined }
@@ -4699,7 +4703,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-tools-layout{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch;gap:48px}
         .vl-live-tools-left,.vl-live-tools-right{display:flex;min-width:0;flex-direction:column}
         .vl-live-tools-head{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-bottom:16px}
-        .vl-live-tools-head h3{margin:0;color:var(--heading);font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight);line-height:var(--vl-card-heading-lh);letter-spacing:var(--vl-card-heading-track)}
+        .vl-live-tools-head h2{margin:0;color:var(--heading);font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight);line-height:var(--vl-card-heading-lh);letter-spacing:var(--vl-card-heading-track)}
         .vl-live-tools-head p{max-width:520px;margin:0;color:var(--body);font-size:var(--vl-body-size);font-weight:var(--vl-body-weight);line-height:var(--vl-body-lh);letter-spacing:var(--vl-body-track)}
         .vl-live-tool-card{position:relative;min-width:0;flex:1;padding:24px;border:1px solid var(--hair);border-radius:var(--panel-r);background:#fff;filter:none}
         .vl-live-tool-toggle{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff;box-shadow:0 6px 18px rgba(26,58,42,.08)}
@@ -4708,7 +4712,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-tool-toggle-btn.is-active{background:var(--lime);color:var(--green)}
         .vl-live-tool-toggle-btn.is-active .vl-live-tool-toggle-dot{background:var(--green)}
         .vl-live-tool-panel{margin-top:var(--vl-section-gap)}
-        .vl-live-tool-panel>h4{margin:0;color:var(--heading);font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight);line-height:var(--vl-card-heading-lh);letter-spacing:var(--vl-card-heading-track);padding-inline-start:10px;border-inline-start:3px solid var(--lime)}
+        .vl-live-tool-panel>h3{margin:0;color:var(--heading);font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight);line-height:var(--vl-card-heading-lh);letter-spacing:var(--vl-card-heading-track);padding-inline-start:10px;border-inline-start:3px solid var(--lime)}
 
         .vl-live-world-pair,.vl-live-fx-pair{display:grid;grid-template-columns:minmax(0,1fr) var(--vl-action-size) minmax(0,1fr);align-items:start;gap:12px;margin-top:var(--vl-heading-gap)}
         .vl-live-world-place{display:flex;min-width:0;flex-direction:column;gap:4px}
