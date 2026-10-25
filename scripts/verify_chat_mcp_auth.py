@@ -3,6 +3,7 @@
 import base64
 import hashlib
 import importlib.util
+import io
 import json
 import os
 import subprocess
@@ -168,6 +169,22 @@ def main() -> None:
             return original(ROOT / 'config/workspace-mcp.json' if path == SOURCE / 'workspace-mcp.json' else path, *args, **kwargs)
         with patch.object(Path, 'read_text', bundled_policy):
             spec.loader.exec_module(gateway)
+        for error, expected_error in [('invalid_grant', 'invalid_grant'),
+                ('invalid_grant fixture-credential-must-not-escape', None)]:
+            failure = gateway.urllib.error.HTTPError('https://example.invalid', 400, 'Bad request', {},
+                io.BytesIO(json.dumps({'error': error,
+                    'error_description': 'fixture-credential-must-not-escape'}).encode()))
+            detail = gateway.provider_error_detail(failure)
+            check(detail.get('oauthError') == expected_error, 'Only exact standard OAuth errors retained')
+            def refused_exchange(*args, **kwargs):
+                raise gateway.Refusal('fixture-credential-must-not-escape', detail)
+            with patch.object(oauth.logging.getLogger('workspace_mcp'), 'info') as log:
+                result = dispatch(token_event(form), exchange=refused_exchange)
+            audit = json.loads(log.call_args.args[0])
+            check(audit == {'event': 'chat_oauth_token_refused',
+                'reason': expected_error or 'unclassified'}, 'Bounded OAuth diagnostic')
+            check('fixture-credential' not in result['body'] + json.dumps(detail) + json.dumps(audit),
+                'OAuth diagnostics never echo credentials or upstream prose')
         with patch.object(gateway, 'client', return_value=Cognito()):
             response = gateway.handler(event(bearer=token()), None)
             tools = json.loads(response['body'])['result']['tools']
