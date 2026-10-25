@@ -1,0 +1,24 @@
+{
+  "id": "/workspace/",
+  "name": "Stack CRM by WECARE.DIGITAL",
+  "short_name": "Stack CRM",
+  "description": "The WECARE.DIGITAL team workspace: conversations, customers, commerce and operations.",
+  "start_url": "/workspace/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1a3a2a",
+  "orientation": "any",
+  "categories": ["business", "productivity"],
+  "lang": "en-IN",
+  "dir": "ltr",
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "https://wecare.digital/get/o/stream/media/m/wecare-digital.png",
+      "sizes": "1080x1080",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

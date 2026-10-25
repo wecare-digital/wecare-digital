@@ -1,6 +1,13 @@
 /**
  * SEO Component - WECARE.DIGITAL
- * Reusable SEO meta tags for all pages
+ *
+ * Head tags for the authenticated Workspace screens and the noindex /get/ utility page. Public,
+ * indexable pages use components/PageMeta.tsx instead; nothing that should rank renders this.
+ *
+ * DEFAULT IS noindex, nofollow. It used to be "index, follow", and because a component's <Head>
+ * is processed after _app.tsx's, every Workspace screen that omitted the prop replaced the
+ * authenticated branch's noindex with an index signal once it rendered. Default to deny; a page
+ * that genuinely should be indexed belongs on PageMeta, not here.
  */
 
 import Head from 'next/head';
@@ -39,7 +46,7 @@ export default function SEO({
   title, 
   description, 
   canonical,
-  noindex = false,
+  noindex = true,
   ogImage = DEFAULT_IMAGE 
 }: SEOProps) {
   const fullTitle = buildPageTitle( title );

@@ -607,30 +607,6 @@ const getPublicPageSchema = ( pathname: string ) => {
   };
 };
 
-// Breadcrumb schema for internal (authenticated) pages
-const getBreadcrumbSchema = ( pageName: string, pageUrl: string ) => ( {
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [
-    {
-      "@type": "ListItem",
-      "position": 1,
-      "name": "Home",
-      // The apex, matching the public canonicals. This previously named the subdomain on
-      // the basis that authenticated pages were served from it; they are not - the apex
-      // serves them and the subdomain only 301'd here, so this breadcrumb was pointing
-      // at a redirect from a page already served on the apex.
-      "item": "https://wecare.digital"
-    },
-    {
-      "@type": "ListItem",
-      "position": 2,
-      "name": pageName,
-      "item": pageUrl
-    }
-  ]
-} );
-
 /* `AuthGate` MOVED TO src/components/AuthShell.tsx. See the note where authTheme used to be
    declared, above: it uses `useAuthenticator`, so leaving it here would have kept
    @aws-amplify/ui-react in the shared bundle and defeated the split.
@@ -1122,11 +1098,6 @@ export default function App ( { Component, pageProps }: AppProps ) {
     );
   }
 
-  // Get page name for breadcrumb
-  const pageName = router.pathname.split( '/' ).filter( Boolean ).map( s => s.charAt( 0 ).toUpperCase() + s.slice( 1 ) ).join( ' > ' ) || 'Dashboard';
-  // The apex serves these routes; the old subdomain only 301'd here.
-  const pageUrl = `https://wecare.digital${router.pathname}`;
-
   // Protected pages
   return (
     <ErrorBoundary>
@@ -1157,9 +1128,13 @@ export default function App ( { Component, pageProps }: AppProps ) {
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="theme-color" content="#1a3a2a" />
-        <link rel="manifest" href="/manifest.json" />
+        {/* The Workspace's OWN manifest. /manifest.json is the public site's identity
+            (WECARE.DIGITAL, white theme) now that every public page links it; installing from
+            here should still give the team app its own name, colour and /workspace/ start. */}
+        <link rel="manifest" href="/manifest-workspace.json" />
+        {/* No BreadcrumbList here any more: it was derived from the pathname rather than from
+            the trail on screen, on pages that are noindex and robots-Disallowed anyway. */}
         <script type="application/ld+json" dangerouslySetInnerHTML={ { __html: JSON.stringify( organizationSchema ) } } />
-        <script type="application/ld+json" dangerouslySetInnerHTML={ { __html: JSON.stringify( getBreadcrumbSchema( pageName, pageUrl ) ) } } />
       </Head>
         {/* NO DIRECT gtag.js HERE - BY POLICY, and it was being violated.
             _document.tsx states that all Google tracking on this property is delivered
