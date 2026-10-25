@@ -492,7 +492,16 @@ def run(root: Path) -> int:
                     str(functions / "payments" / "invoice-engine")]
 
     cognito = _real_boto3_client("cognito-idp", region_name="us-east-1")
-    pool_id = cognito.create_user_pool(PoolName="hermetic-customers")["UserPool"]["Id"]
+    pool_id = cognito.create_user_pool(
+        PoolName="hermetic-customers",
+        Schema=[{
+            "Name": "partner_waba_id",
+            "AttributeDataType": "String",
+            "Mutable": True,
+            "Required": False,
+            "StringAttributeConstraints": {"MinLength": "1", "MaxLength": "64"},
+        }],
+    )["UserPool"]["Id"]
     os.environ["CUSTOMER_POOL_ID"] = pool_id
     _create_tables()
 
