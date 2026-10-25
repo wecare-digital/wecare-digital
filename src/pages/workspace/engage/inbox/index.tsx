@@ -1386,6 +1386,19 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                                         onChange={ v => { setWabaOverridden( true ); setSelectedWaba( v ); } }
                                                         options={ WABA_OPTIONS } style={ WABA_SELECT_STYLE } />
                                                     <button className="ui-tpl-btn" onClick={ () => setShowTemplateSender( true ) }>Send template ▾</button>
+                                                    { replyTarget.contactId && (
+                                                        <button
+                                                            className="ui-tpl-btn"
+                                                            onClick={ () => {
+                                                                setPayPhone( PAYMENT_CONFIG.phoneNumberId );
+                                                                setPayUnlocked( false );
+                                                                setComposer( 'pay' );
+                                                            } }
+                                                            title="Create an invoice and send the approved Review and Pay template"
+                                                        >
+                                                            Commerce / Request payment
+                                                        </button>
+                                                    ) }
                                                 </div>
                                             ) }
                                             { replyChannel === 'rcs' && (
@@ -1677,6 +1690,12 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                     phoneNumberId={ selectedWaba }
                     recipientPhone={ !replyTarget.contactId ? ( replyTarget.phone || undefined ) : undefined }
                     enableManualRecipient
+                    onRequestPayment={ () => {
+                        setShowTemplateSender( false );
+                        setPayPhone( PAYMENT_CONFIG.phoneNumberId );
+                        setPayUnlocked( false );
+                        setComposer( 'pay' );
+                    } }
                     onClose={ () => setShowTemplateSender( false ) }
                     onSent={ () => { setShowTemplateSender( false ); toast.success( 'Template sent' ); setTimeout( loadData, 800 ); } }
                     onError={ ( m: string ) => toast.error( m ) }
