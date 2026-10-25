@@ -28,8 +28,8 @@ What it watches (measured 2026-10-25)
 
 Retired: `brace-expansion` inside `aws-cdk-lib` (alerts 55/56/57), watched here from 2026-09-30
 until `--check-upstream` reported that `aws-cdk-lib` 2.274.0 bundles the patched 5.0.12. The pin
-moved on 2026-10-25 and the alerts were reopened so Dependabot could close them as fixed; with
-no dismissal in place, nothing here suppresses Dependabot's own reporting if the copy regresses.
+moved on 2026-10-25 and Dependabot closed the alerts as fixed straight from `dismissed`; with no
+dismissal left, nothing here suppresses Dependabot's own reporting if the copy regresses.
 
 Two kinds of finding, and the distinction matters
 -------------------------------------------------

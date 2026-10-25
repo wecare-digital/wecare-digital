@@ -19,7 +19,7 @@ recorded evidence and watched by `scripts/check_bundled_advisories.py`.
 | 119 | MEDIUM | `@opentelemetry/core` | `< 2.8.0` | `amplify/package-lock.json` | ⛔ **DISMISSED `inaccurate`** — lockfile-only entries; nothing below 2.8.0 installs, watched by script |
 | 59 | MEDIUM | `oauthlib` | `>= 3.0.0, < 4.0.0` | `requirements-dev.txt` | ✅ **FIXED** — pinned to 4.0.0, closed by Dependabot 06:41:48Z |
 | 58 | MEDIUM | `oauthlib` | `>= 0.6.1, <= 3.3.1` | `requirements-dev.txt` | ✅ **FIXED** — same bump |
-| 57 | MEDIUM | `brace-expansion` | `>= 4.0.0, < 5.0.12` | `amplify/package-lock.json` | ✅ **FIXED** 2026-10-25 — `aws-cdk-lib` 2.274.0 bundles 5.0.12; dismissal undone |
+| 57 | MEDIUM | `brace-expansion` | `>= 4.0.0, < 5.0.12` | `amplify/package-lock.json` | ✅ **FIXED** 2026-10-25 — `aws-cdk-lib` 2.274.0 bundles 5.0.12; Dependabot closed it 08:38Z |
 | 56 | HIGH | `brace-expansion` | `>= 4.0.0, < 5.0.11` | `amplify/package-lock.json` | ✅ **FIXED** 2026-10-25 — same bump |
 | 55 | HIGH | `brace-expansion` | `>= 4.0.0, < 5.0.10` | `amplify/package-lock.json` | ✅ **FIXED** 2026-10-25 — same bump |
 | 23 | MEDIUM | `uuid` | `< 11.1.1` | `package-lock.json` | ⛔ **DISMISSED `not_used`** — vulnerable function never called |
@@ -125,9 +125,10 @@ cannot come back to tell you it became fixable. That is replaced by
 
 **Fixed 2026-10-25.** The watch below did its job: `--check-upstream` reported that
 `aws-cdk-lib` 2.274.0 bundles `brace-expansion` 5.0.12, which clears all three ranges. The pin in
-`amplify/package.json` moved 2.270.0 → 2.274.0 (with `packages/config/vendorVersions.ts`), the
-three dismissals were undone so Dependabot could close them as fixed, and the brace-expansion
-watch was retired from the script.
+`amplify/package.json` moved 2.270.0 → 2.274.0 (with `packages/config/vendorVersions.ts`) and
+the brace-expansion watch was retired from the script. Dependabot closed all three as fixed at
+08:38Z, on the push that carried the lockfile, straight from `dismissed`; nothing had to be
+reopened first.
 
 Regenerating the backend lockfile needed the two-step this install root always needs. A full
 `npm install` reads the new tarball's real bundle but strips the four lockfile-only
