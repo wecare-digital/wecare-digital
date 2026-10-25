@@ -189,6 +189,14 @@ def local_bytes(dal, spec, arcname: str) -> bytes | None:
             cand = pathlib.Path(base) / arcname[len(prefix):]
             return cand.read_bytes() if cand.is_file() else None
 
+    # external_files map a source RELATIVE TO amplify/functions onto a destination name in the
+    # zip (`(source_rel, dest_rel)`), so a dest like `invoice_engine.py` resolves to its single
+    # source `payments/invoice-engine/handler.py` rather than to a copy beside the handler. This
+    # is why the reverse map must consult them: the invoice engine ships from one source now.
+    for source_rel, dest_rel in getattr(spec, "external_files", []):
+        if arcname == dest_rel:
+            cand = dal.FUNCTIONS / source_rel
+            return cand.read_bytes() if cand.is_file() else None
     p = pathlib.PurePosixPath(arcname)
     if p.parts[0] == "lambda_utils":
         cand = dal.LAMBDA_UTILS.joinpath(*p.parts[1:])

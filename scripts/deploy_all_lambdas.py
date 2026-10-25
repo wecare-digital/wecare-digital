@@ -236,8 +236,14 @@ SPECS: List[Spec] = [
     Spec(
         "wecare-checkout",
         "ecommerce/checkout",
-        extra_files=["invoice_engine.py"],
-        external_files=[("payments/invoice-engine/receipt_layout.py", "receipt_layout.py")],
+        # The invoice engine ships as `invoice_engine.py` from its ONE source,
+        # payments/invoice-engine/handler.py, rather than from a byte-identical copy under
+        # ecommerce/checkout/. receipt_layout.py and the fonts already ship the same external way,
+        # so there is one engine to maintain and nothing to drift.
+        external_files=[
+            ("payments/invoice-engine/handler.py", "invoice_engine.py"),
+            ("payments/invoice-engine/receipt_layout.py", "receipt_layout.py"),
+        ],
         external_dirs=[("payments/invoice-engine/fonts", "fonts")],
         required_layers=[PILLOW_LAYER_ARN],
         required_memory=512,
