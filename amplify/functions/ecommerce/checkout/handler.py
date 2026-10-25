@@ -2555,6 +2555,12 @@ def _native_cart(event: Dict[str, Any], origin: str):
         return {'outcome': 'NATIVE_CART_ROLLOUT_DISABLED'}
 
     phone_number_id = str(event.get('phoneNumberId') or '')
+    # The Meta webhook names WABA1 by its Graph phone-number ID, while the payment sender
+    # allowlist deliberately uses our internal Direct-API sender ID. They are two identifiers
+    # for the SAME protected sender. Canonicalize only this one known Meta ID at the checkout
+    # trust boundary; WABA2 and every unknown identifier remain refused below.
+    if phone_number_id == '1016149501586345':
+        phone_number_id = wa_payment_request.PHONE_NUMBER_ID_1
     # A2.5 — ONLY WABA1 MAY TAKE A PAYMENT. Checked before any contacts read, Cognito call,
     # pricing or send, so a non-permitted sender reaches none of them.
     if phone_number_id not in wa_payment_request.PAYMENT_SENDERS:
