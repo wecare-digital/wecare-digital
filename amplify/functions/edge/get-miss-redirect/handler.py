@@ -37,6 +37,8 @@ Constraints this file must respect
 
 from __future__ import annotations
 
+from urllib.parse import unquote
+
 # Lambda@Edge cannot read environment variables, so this is a constant.
 MAIN_SITE = "https://wecare.digital/"
 
@@ -55,8 +57,17 @@ ERROR_THRESHOLD = 400
 #
 # Matched after normalising away a leading slash, on a segment boundary, so
 # ``secure/x`` is denied but a legitimately public ``secure-notes.pdf`` is not.
+#
+# Matched on the PERCENT-DECODED key, because S3 decodes the request path once before
+# looking the key up. Comparing the raw URI let ``/secur%65/...`` or ``/secure%2Fu/...``
+# miss the deny while S3 still resolved and served the gated object.
 PUBLIC_DELIVERABLE_PREFIX = "secure/d/public/"
 DENIED_PREFIXES = ("secure/",)
+
+# Catalog masters, manifest, QA and deploy evidence live under the public-delivery tier, but
+# the only public route for catalog artwork is /api/catalog-media/<file> (Lambda with its own
+# S3 read), so CloudFront never needs to serve this subtree. Denied before the exemption.
+DENIED_PUBLIC_PREFIXES = ("secure/d/public/catalog-deploy/",)
 
 
 def _redirect(response: dict) -> dict:
@@ -90,8 +101,14 @@ def _redirect(response: dict) -> dict:
 
 
 def _is_denied(uri: str) -> bool:
-    """Whether this URI addresses a prefix that must not be served publicly."""
-    normalised = (uri or "").lstrip("/")
+    """Whether this URI addresses a prefix that must not be served publicly.
+
+    Decoded exactly once, like S3: a double-encoded ``%2565`` stays a literal ``%65`` in
+    the key, which names no object and falls through to the error redirect.
+    """
+    normalised = unquote(uri or "").lstrip("/")
+    if any(normalised.startswith(prefix) for prefix in DENIED_PUBLIC_PREFIXES):
+        return True
     if normalised.startswith(PUBLIC_DELIVERABLE_PREFIX):
         return False
     return any(normalised.startswith(prefix) for prefix in DENIED_PREFIXES)

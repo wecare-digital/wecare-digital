@@ -54,6 +54,14 @@ PROBE_KEY = "o/healthcheck.txt"
 # The gated tier. Must never be served over the public path, even when the object
 # exists - it is delivered only as a presigned URL by wecare-secure-files.
 GATED_PROBE_KEY = "secure/gated-probe.txt"
+# A gated object that EXISTS (the zero-byte `secure/` prefix marker), requested with one
+# percent-encoded character. S3 decodes the path once, so this proves the edge decodes too.
+ENCODED_GATED_PROBE_KEY = "secure/"
+ENCODED_GATED_PROBE_PATH = "secur%65/"
+# Catalog deploy tree: an existing object that must not be served over /get. Catalog
+# artwork is public only through the catalog-media API.
+CATALOG_DEPLOY_PROBE_KEY = "secure/d/public/catalog-deploy/catalog/catalog-v3-final-manifest.json"
+CATALOG_MEDIA_PROBE_URL = "https://wecare.digital/api/catalog-media/grahak-os-4096.png"
 
 
 class Result:
@@ -256,6 +264,29 @@ def check_live_behaviour(r: Result) -> None:
         "gated object refused at the distribution directly",
         status == 302,
         f"HTTP {status}",
+    )
+    # A percent-encoded spelling of an EXISTING gated object, through both hops. Only
+    # meaningful while the probe object exists, so its existence is checked first.
+    s3 = boto3.client("s3", region_name=REGION)
+    for name, key in (("encoded gated probe", ENCODED_GATED_PROBE_KEY),
+                      ("catalog-deploy probe", CATALOG_DEPLOY_PROBE_KEY)):
+        try:
+            s3.head_object(Bucket=BUCKET, Key=key)
+            r.add(f"{name} object exists", True, key)
+        except Exception as exc:  # noqa: BLE001 - reported, not raised
+            r.add(f"{name} object exists", False, f"{key}: {type(exc).__name__}")
+    for host in (f"{SITE}/get", f"https://{dist['Distribution']['DomainName']}"):
+        status, _ = _fetch(f"{host}/{ENCODED_GATED_PROBE_PATH}")
+        r.add(f"percent-encoded gated path refused: {host}",
+              status == 302, f"HTTP {status}")
+        status, _ = _fetch(f"{host}/{CATALOG_DEPLOY_PROBE_KEY}")
+        r.add(f"catalog-deploy tree refused: {host}", status == 302, f"HTTP {status}")
+    # ...while approved catalog artwork still serves through its own API route.
+    status, headers = _fetch(CATALOG_MEDIA_PROBE_URL)
+    r.add(
+        "catalog artwork serves through /api/catalog-media/",
+        status == 200 and headers.get("Content-Type", "").startswith("image/png"),
+        f"HTTP {status} content-type={headers.get('Content-Type')}",
     )
 
     # the gated API must reject an unauthenticated caller
