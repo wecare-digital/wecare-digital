@@ -206,6 +206,22 @@ PROVIDERS: Dict[str, dict] = {
         ],
         "consumers": "Google Ads API callers (none built yet)",
     },
+    "github-pat": {
+        "secret_id": "wecare/github-pat",                          # EXISTS
+        # The field name MUST match the workspace MCP's GITHUB_TOKEN_FIELD (CloudFormation
+        # parameter GithubTokenField, live value "token"). The prefix guard only accepts a
+        # FINE-GRAINED token, so the exposed near-full-scope classic token (ghp_...) this
+        # replaces cannot be stored again by mistake.
+        "fields": [
+            Field("token", prefix=("github_pat_",),
+                  note="fine-grained PAT: resource owner wecare-digital, only the repository "
+                       "wecare-digital/wecare-digital, Repository permissions > Metadata: "
+                       "Read-only, nothing else"),
+        ],
+        "consumers": "wecare-workspace-mcp github_status (GET /repos/wecare-digital/wecare-digital). "
+                     "Revoke the old classic token at github.com/settings/tokens only after "
+                     "github_status succeeds with this one.",
+    },
 }
 
 
