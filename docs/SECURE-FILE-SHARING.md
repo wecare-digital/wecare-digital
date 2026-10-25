@@ -1,7 +1,7 @@
 # Secure file sharing — wecare.digital/get
 
 Two tiers on one bucket. The open one is a plain CDN path; the gated one requires a
-verified customer and a paid, single-use grant.
+verified customer and a durable paid entitlement.
 
 Status verified live 2026-09-25. Re-derive rather than trusting these numbers —
 `.kiro/steering/00-current-owner-overrides.md` (retired 2026-10-09, af7858fa) requires rediscovery per phase.
@@ -11,7 +11,7 @@ Status verified live 2026-09-25. Re-derive rather than trusting these numbers �
 | Tier | Prefix | Gate | URL |
 |---|---|---|---|
 | Open | `o/` | none | `wecare.digital/get/o/<file>` |
-| Gated | `secure/` | WhatsApp OTP, then ₹49 per download | `wecare.digital/files/` |
+| Gated | `secure/` | WhatsApp OTP, then ₹49 per 24-hour access window | `wecare.digital/files/` |
 
 A link that matches nothing, and anything under `secure/`, redirects to the apex.
 
@@ -71,27 +71,23 @@ through unless the function replaces it.
 
 ## Paid download flow
 
-    GET  /secure-files/mine                  customer's own files
-    POST /secure-files/{fileId}/whatsapp-pay PRIMARY: sends the wecare_whatapp_native_pay_template template
-    POST /secure-files/{fileId}/order        FALLBACK: Razorpay Checkout on the web
-    GET  /secure-files/{fileId}/download     FALLBACK: redeems a grant -> presigned URL
+    GET  /secure-files/mine                          customer's own files
+    GET  /secure-files/{fileId}/download?grant=<id>  transport from the paid entitlement
 
-### Why the web payment path is kept
+The payment-initiation routes `/whatsapp-pay` and `/order` were removed on 2026-10-22
+(bf90ff69a). Secure-file purchases go through the commerce checkout's PaymentAttempt; this
+function settles historical grants (`confirmAndDeliver`), keeps the durable entitlement and
+delivers.
 
-`/order` and `/download` are live and tested, and **nothing in the UI calls them** — the
-page uses `/whatsapp-pay`. That looks like dead code and is not.
+### When WhatsApp delivery fails
 
-They are the only route by which a customer who has already paid can obtain a file when
-WhatsApp delivery keeps failing. `reconcile_file_deliveries.py` retries the send, but if
-a number is permanently unreachable — blocked, ported away, WhatsApp uninstalled — retry
-cannot help and the customer is owed a file with no way to collect it. Deleting these
-would mean the only recovery path is a manual S3 presign by an operator.
+`reconcile_file_deliveries.py` retries the send. A customer whose number cannot receive it
+— blocked, ported away, WhatsApp uninstalled — still collects on the web: the Vault page
+offers Download for a file whose row names an active entitlement, and `/download` issues
+transport from that entitlement. Delivery establishes the entitlement and that pointer
+before it sends.
 
-So they stay, deliberately, as a documented fallback rather than an accident. If they are
-ever removed, a replacement recovery path has to exist first.
-
-Entitlement is never taken from the browser. Razorpay Checkout's success callback is
-forgeable, so it only stops the spinner.
+Entitlement is never taken from the browser.
 
 ### Razorpay's API is the only thing that can set `paid`
 
@@ -126,9 +122,11 @@ granting on it would hand over the file for a payment that can still fail.
 payment is not granted immediately. That is recoverable — `reconcile_file_deliveries.py`
 re-runs the same path — whereas a forged grant is not, because the file has already left.
 
-Redemption is a conditional write on `paid = true AND consumed = false`, so a
-forwarded link is dead on second use and two concurrent requests cannot both win. The
-grant write requires `paid = false`, so a replayed capture cannot revive a spent grant.
+Redemption never consumes the purchase: `/download` issues a short-lived download session
+from the durable paid entitlement. A successful WhatsApp delivery, or the first redeem,
+opens a 24-hour access window (`VAULT_ACCESS_WINDOW_HOURS`); downloads inside it are free,
+and once it closes access needs a renewal. The grant write requires
+`paid = false`, so a replayed capture cannot revive a spent grant.
 
 Both callers of the single writer record provenance: `paidVia=webhook` when the hint
 arrived, `paidVia=reconcile` when the sweep got there first. The latter also logs
@@ -161,8 +159,7 @@ not match.
 
 Conflating them has cost this codebase twice. `partner-onboarding` read the API pair
 from the webhook secret and returned 501 on every top-up; this feature repeated it on
-first write. `tests/test_secure_files.py` now pins both the module default and the
-IAM grant.
+first write.
 
 No Razorpay SDK is bundled. `razorpay==2.0.1` is in `requirements-dev.txt` only, so
 it is absent from the Lambda runtime, and the Orders API is a single POST.
@@ -183,81 +180,40 @@ it is absent from the Lambda runtime, and the Orders API is a single POST.
 ## Verify
 
     python scripts/verify_file_sharing.py                        # both tiers, 30 checks
-    python scripts/provision_secure_files_api.py --verify        # lambda, routes, flag
+    python scripts/provision_secure_files_api.py --verify        # lambda, routes
     python scripts/provision_secure_file_sharing.py --verify     # tables, GSIs, TTL
     python scripts/provision_customer_whatsapp_auth.py --verify  # pool, client, triggers
-    python -m pytest tests/test_secure_files.py                  # 72 invariants
 
 `provision_customer_whatsapp_auth.py --verify` checks the env on the **`live` alias**, not
 `$LATEST`. The three Cognito triggers invoke the alias, so a published version freezes the
 config a caller actually sees and `update_function_configuration` alone changes nothing.
 It reported "verified" once against a stale alias; it now fails and names the fix.
 
-## Enabling paid downloads
+## Paid downloads have no switch
 
-    python scripts/provision_secure_files_api.py --enable-payment
-
-Three steps in one, and skipping any leaves a misleading state: write the **whole**
-env map (a partial map deletes every variable not mentioned), publish a version (a
-version freezes its environment), and move the `live` alias (the API invokes the
-alias, so until this runs the change is real on `$LATEST` and invisible to every
-request).
-
-The flag is **sticky**. `provision_secure_files_api.py` reads the current value off
-the live alias and preserves it, so re-provisioning cannot silently switch payments
-back off. `deploy_all_lambdas.py` never touches configuration, so code deploys are
-safe too. A brand-new function still starts off.
-
-Rollback: `--disable-payment`, or the alias move the enable step prints.
+`SECURE_FILES_PAYMENT_ENABLED` and the provisioner's `--enable-payment`/`--disable-payment`
+were retired on 2026-10-22 (27099fc3, e9a8c0db6) together with the payment routes. There is
+nothing to enable here: purchases are taken by the commerce checkout, and this function's
+part starts after payment.
 
 ## WhatsApp delivery
 
-Payment request and file both go out as approved templates.
+Every paid file is announced with `wecare_default_download`, the approved WABA1 template for
+Vault delivery: a fixed IMAGE header and URL button 0 `https://wecare.digital/vault/?file={{1}}`,
+of which only the file id travels. `whatsapp_delivery.send_vault_link` builds the send with
+`lambda_utils.whatsapp_templates.download_send_fields`, the same builder paid Vault delivery
+and the paid-file refresh use, so the three cannot drift. The customer signs in on the Vault
+page and downloads through the durable paid entitlement.
 
-| Template | Components | Role |
-|---|---|---|
-| `wecare_whatapp_native_pay_template` | IMAGE, BODY, FOOTER, BUTTONS(`ORDER_DETAILS`) | ₹49 request |
-| `wd_file_delivery` | DOCUMENT, BODY({{1}} name, {{2}} file), FOOTER, no buttons | delivery, `WA_DOC_TEMPLATE` value, **not on Meta (2026-10-25 readback)** |
-| `01_wecare_doc` | DOCUMENT, BODY, FOOTER, BUTTONS(`FLOW`) | former rollback, **not on Meta (2026-10-25 readback)** |
+The template carries no bearer link and can be delivered outside the 24-hour
+customer-service window. It replaced two transports that could not work (e22243370,
+2026-10-25): PDFs and images named the document-header template `wd_file_delivery`, which is
+not on WABA1, so Meta refused every such send; other file types got a presigned S3 URL in a
+free-form text, which Meta accepts only inside the window. Nothing sends `wd_file_delivery`
+or its former rollback `01_wecare_doc` any more, and `WA_DOC_TEMPLATE`, `WA_MEDIA_FUNCTION`
+and `WHATSAPP_LINK_TTL_SECONDS` were removed with their readers.
 
-As of 2026-10-25 neither document template exists on WABA 1, so `send_document` cannot deliver
-until one is approved again (`scripts/provision_file_delivery_template.py` resubmits
-`wd_file_delivery`). Nothing reaches it today: `SECURE_FILES_PAYMENT_ENABLED` is false.
-
-`wecare_whatapp_native_pay_template`'s button is `ORDER_DETAILS`, i.e. WhatsApp Pay's native checkout, not a URL
-button — which is why a Razorpay payment link was never an option for it. The amount
-travels in the `order_details` payload rather than the message text, because that BODY
-has no variables.
-
-`wd_file_delivery` was submitted to replace the reuse of `01_wecare_doc`, which cannot
-name the file or the customer and carries a leftover `FLOW` button labelled "Subscribe" —
-an upsell attached to something already paid for. `WA_DOC_TEMPLATE` was pointed at it once
-Meta approved it. Both templates were gone from Meta by 2026-10-25; to resubmit and check:
-
-    python scripts/provision_file_delivery_template.py            # resubmit wd_file_delivery
-    python scripts/provision_file_delivery_template.py --verify   # check approval
-
-Body parameters are keyed on the template **name** (`TEMPLATES_WITH_BODY_VARS`), not a
-separate flag, because sending parameters to a template without placeholders is a Meta
-parameter mismatch — the two must move together.
-
-`wecare_whatapp_native_pay_template` is deliberately not recreated. Its gap is cosmetic, and its `ORDER_DETAILS`
-button is coupled to the account payment configuration, so hand-rolling a replacement
-risks breaking a working checkout to fix wording.
-
-### The document travels as a media id
-
-Meta must be able to fetch what it attaches, and the whole `secure/` prefix is refused at
-the edge, so there is no URL to hand it. Bytes go to `/wa-business/media` with `s3Key` +
-`s3Bucket` and the returned media id becomes the template header.
-
-Passing bytes inline as base64 was the obvious alternative and is wrong: a synchronous
-Lambda invoke payload caps at 6MB and base64 adds about a third, so anything over roughly
-4.4MB fails — well under the 100MB Meta accepts for documents.
-
-`s3Bucket` is guarded by `MEDIA_SOURCE_BUCKETS`, an allowlist. `whatsapp-business-api` is
-invoked by several other Lambdas, and an open bucket parameter would have handed every one
-of them a read-any-object primitive.
+An outbound dry run answers 200 without sending, so it is recorded as not delivered.
 
 ### Delivery is findable when it fails
 
@@ -271,15 +227,12 @@ nothing could answer "who is owed a file". Delivery now writes `delivered`,
 It ignores `consumed` on purpose — a web redeem does not discharge a WhatsApp delivery the
 customer also paid for — and skips the `otpprobe#` rows that share the grants table.
 
-### Two TTLs, not one
+### One download TTL
 
     DOWNLOAD_URL_TTL_SECONDS   60      web redeem; a browser follows it instantly
-    WHATSAPP_LINK_TTL_SECONDS  21600   link delivery; a person taps when they read it
 
-A `deliverable=link` file goes out as a message containing a URL. At 60 seconds that URL
-is usually expired before it is read, after the customer has paid. Capped below 24h
-because a SigV4 URL signed with temporary Lambda credentials cannot outlive the role
-session.
+It is the only presigned link this function issues. WhatsApp delivery sends a Vault page
+link instead, so the separate link TTL went with the link transport.
 
 ## OTP enumeration budget
 
@@ -308,7 +261,7 @@ budget instead.
 
 | Item | Status | Note |
 |---|---|---|
-| Paid downloads | ⚠️ **DISABLED** | `SECURE_FILES_PAYMENT_ENABLED=false`. Owner action; enabling payment capture is outside agent authority, and so is making it default-on |
+| Paid downloads | ➖ **NO SWITCH** | `SECURE_FILES_PAYMENT_ENABLED` was retired on 2026-10-22. Purchases go through the commerce checkout; this function settles historical grants and delivers |
 | `verified -> list files` hop | ⏳ **UNPROVEN** | Needs a customer token, which needs the OTP from the handset. The handler deliberately never logs the code, so this cannot be closed from the code side |
 | `payment.captured` subscription | ➖ **NO LONGER LOAD-BEARING** | Was ⏳ UNCONFIRMED. The webhook is now only a hint, so whether the subscription exists changes *latency*, not *entitlement* — a missing subscription means the reconcile sweep grants instead of the webhook. 316 webhook events were received 2026-09-24/25 and every one was `payment.downtime.*` |
 | Webhook secret in public git history | ➖ **NEUTRALISED, not removed** | Still in history (69 blobs). It can no longer grant anything: signature verification is not entitlement. The history itself is unchanged — that needs a rewrite, which the owner has deferred |
@@ -316,9 +269,10 @@ budget instead.
 
 ## Four things that are easy to misread
 
-`deploy_all_lambdas.py --dry-run` **always** reports `unchanged`, regardless of what
-would change — the dry-run branch increments that tally unconditionally without
-comparing shas. A dry run tells you packaging succeeded, not what would deploy.
+`deploy_all_lambdas.py --dry-run` compares each package's sha with the live `CodeSha256`,
+and every package embeds `lambda_utils`, so one shared-module commit makes nearly every
+function `WOULD UPDATE`. That says a shared module moved, not that each function runs stale
+code; `scripts/check_deployed_source.py` answers that file by file.
 
 `wecare-get-miss-redirect` has **no `live` alias**, and that is correct. Lambda@Edge
 associations must name a published version; an alias is not permitted. Do not "fix"
@@ -328,7 +282,8 @@ it by adding one.
 from `request` yields an empty string silently — which is how the probe budget shipped
 doing nothing at all and eight consecutive probes got the reveal.
 
-`/order` and `/download` look like dead routes and are not. See the fallback note above.
+`/download` is not a fallback any more; it is how the Vault page collects a paid file. See
+"When WhatsApp delivery fails" above.
 
 ## Test links
 
