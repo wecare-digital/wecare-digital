@@ -11,8 +11,8 @@
 export interface LegalSection {
   /**
    * "14" or "14.11". PRESERVED VERBATIM. Numbers are cross-referenced from outside this
-   * directory - src/pages/orders.tsx points at section 14 and src/pages/bharat-rx.tsx
-   * points at section 17 - and by anyone who has ever cited a clause to us. Renumbering
+   * directory - src/pages/orders.tsx points at section 14 - and by anyone who has ever
+   * cited a clause to us. Renumbering
    * is a breaking change to those references even when the wording is untouched.
    */
   number: string;
