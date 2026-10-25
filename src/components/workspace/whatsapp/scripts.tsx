@@ -146,7 +146,7 @@ const ScriptsPageBody: React.FC<Props> = () => {
     const ctaLinks = [
       { key: 'sr', label: 'Submit Request' }, { key: 'tr', label: 'Track Request' },
       { key: 'ar', label: 'Update Request' }, { key: 'sa', label: 'Book Appointment' },
-      { key: 'rx', label: 'Book Medical Visit' }, { key: 'dd', label: 'Upload Documents' },
+      { key: 'sehat', label: 'Book Appointment' }, { key: 'dd', label: 'Upload Documents' },
       { key: 'ea', label: 'Enterprise Support' }, { key: 'lr', label: 'Leave Feedback' },
       { key: 'sub', label: 'Subscribe' }, { key: 'pay', label: 'Pay Now' },
     ];
