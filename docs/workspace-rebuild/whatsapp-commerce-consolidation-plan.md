@@ -269,7 +269,7 @@ ONE active PaymentAttempt
              ↓
        GST invoice once
              ↓
-secure/Invoice/customer_invoice/
+secure/d/public/Invoice/customer_invoice/
              ↓
 wecare_default_invoice_image_template
   IMAGE + embedded Leave Review Flow
@@ -459,4 +459,4 @@ New tests needed:
 
 ## Appendix B: Verified reference example (non-secret)
 
-- Order `WD-ORD-9NMB2KT3`; linked invoice `WD/2627/00007`; invoice PNG at `secure/Invoice/customer_invoice/`. Both invoice delivery-dedup records marked delivered, so webhook retries do not re-send the invoice. `wecare_default_invoice_image_template` (English) requires an IMAGE header + a FLOW button "Leave Review" at index 0.
+- Order `WD-ORD-9NMB2KT3`; linked invoice `WD/2627/00007`; invoice PNG at `secure/d/public/Invoice/customer_invoice/` (the old `secure/Invoice/customer_invoice/` prefix is empty and write-denied). Both invoice delivery-dedup records marked delivered, so webhook retries do not re-send the invoice. `wecare_default_invoice_image_template` (English) requires an IMAGE header + a FLOW button "Leave Review" at index 0.

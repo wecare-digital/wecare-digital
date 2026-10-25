@@ -213,7 +213,7 @@ Function reduction does NOT become table reduction. One function ≠ one table. 
 PAYMENT_PAID → Meta order_status = processing → wecare_default_invoice_image_template
 ```
 
-Template pipeline: `wecare_otp` → `wecare_whatapp_native_pay_template` → `wecare_default_invoice_image_template`. Invoice image at S3 `secure/Invoice/customer_invoice/`. Review entry = the invoice template's OWN Flow button ("Leave Review", index 0, IMAGE header) ONLY — no separate `wecare_leave_review` send, no post-payment interactive Flow, no free-form confirmation. Later `processing → shipped → completed` updates Meta fulfilment WITHOUT sending a new GST invoice. Verified manifest: `wecare-invoice-engine` carries `WA_PAY_TEMPLATE=wecare_whatapp_native_pay_template` and `WA_INVOICE_TEMPLATE=wecare_default_invoice_image_template`.
+Template pipeline: `wecare_otp` → `wecare_whatapp_native_pay_template` → `wecare_default_invoice_image_template`. Invoice image at S3 `secure/d/public/Invoice/customer_invoice/`. Review entry = the invoice template's OWN Flow button ("Leave Review", index 0, IMAGE header) ONLY — no separate `wecare_leave_review` send, no post-payment interactive Flow, no free-form confirmation. Later `processing → shipped → completed` updates Meta fulfilment WITHOUT sending a new GST invoice. Verified manifest: `wecare-invoice-engine` carries `WA_PAY_TEMPLATE=wecare_whatapp_native_pay_template` and `WA_INVOICE_TEMPLATE=wecare_default_invoice_image_template`.
 
 ### 7.2 Live-vs-repo drift to CLEAN UP (do not copy)
 
@@ -237,7 +237,7 @@ Do low-risk shared-module and whole-Lambda removals first; do the money merge la
 7. Move pricing/identity/PaymentAttempt/finalization/order/invoice into its modules; run the EXISTING checkout/webhook/invoice tests against them; baseline green.
 8. Repoint `checkout prepare` (inbound's `wecare-checkout:live` call at inbound L116/L6472) to `wecare-commerce`; verify Rs 1 prepare/send.
 9. Repoint the Razorpay webhook route to `wecare-commerce`; verify captured payment → exactly ONE Order (CommerceKeys + single-writer).
-10. Enable Meta `order_status = processing` via `wa_order_status`→outbound; render invoice PNG to `secure/Invoice/customer_invoice/`; send `wecare_default_invoice_image_template` (IMAGE + Flow button index 0). InvoiceDeliveryLog dedup must hold.
+10. Enable Meta `order_status = processing` via `wa_order_status`→outbound; render invoice PNG to `secure/d/public/Invoice/customer_invoice/`; send `wecare_default_invoice_image_template` (IMAGE + Flow button index 0). InvoiceDeliveryLog dedup must hold.
 11. Move invoice API routes to `wecare-commerce`; repoint `razorpay-webhook → secure-files` entitlement invoke to `wecare-commerce → secure-files`.
 12. After a monitoring window with the money/invoice invariants green, retire `wecare-checkout`, `wecare-razorpay-webhook`, `wecare-invoice-engine` (remove provision/bundle wiring + manifest entries).
 13. Strip the live POST_PAYMENT_* drift (7.2); fix the stale checkout docstring; confirm the allowlist test still passes against the new layout.

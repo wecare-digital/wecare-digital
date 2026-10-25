@@ -43,8 +43,10 @@ the published checkout had both. An order-status template was not configured on 
    fail validation/update prevent alias publication for the batch. Publication detects changed
    environment variables even if the code hash is unchanged.
 4. Verify `wecare_default_invoice_image_template` is APPROVED in English on the payment WABA.
-   Fulfilment state is stored internally and every customer-facing status notification re-sends
-   the issued invoice image from `secure/Invoice/customer_invoice/`.
+   Superseded 2026-10-25: the invoice image is sent once, from
+   `secure/d/public/Invoice/customer_invoice/` (presigned only), and fulfilment updates travel as
+   Meta order_status (interactive inside the 24-hour window, `wecare_order_status_v3` outside
+   it). A status update never re-sends the invoice.
 
 MCP's bundled page catalogue matched the source at audit time; the source handler's newer
 sitemap filtering still requires its separate deployment/verification workflow.

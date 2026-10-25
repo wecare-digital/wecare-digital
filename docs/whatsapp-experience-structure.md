@@ -181,7 +181,7 @@ flows on WABA2, or accept that the menu degrades to links there. Do not paper ov
 | Catalog cart | native checkout | `order` | `_handle_cart_order` (`:5154`) |
 | New-thread open | `request_welcome` webhook | `request_welcome` | main menu — **currently never fires**, `enable_welcome_message: false` on both numbers |
 | Brand-new contact | first ever text/media | any | main menu, once, then `welcomeSent` |
-| Post-payment | Razorpay `payment.captured` | flow message or `postpay_request_v1` template | post-pay flow |
+| Post-payment | Razorpay `payment.captured` | `wecare_default_invoice_image_template`, then order_status `processing` | the invoice's Leave Review FLOW button (F002) |
 
 ---
 
@@ -365,7 +365,7 @@ Four entry points converge on one pipeline:
    └─► inbound-whatsapp-handler
          ├─ WABA2 → CTA button "Pay Now" → wecare.digital/r/pay   [no native pay]
          └─ WABA1 → "👀 Pulling your pending invoice..."
-               └─► wecare-invoice-engine  /invoices/send-pending-by-phone
+               └─► wecare-commerce (checkout + packaged invoice engine)  /invoices/send-pending-by-phone
                      • scans InvoicesTable for created|pending_payment|sent
                      • strict 10-digit phone match
                      • SEQUENTIAL: sends the OLDEST invoice only
@@ -379,12 +379,22 @@ Four entry points converge on one pipeline:
                                  • payment_settings → Razorpay WECAREDIGITAL
                                  └─► customer taps → WhatsApp Pay → Razorpay
                                        └─► razorpay-webhook  payment.captured
-                                             • HMAC verify, fails closed
-                                             • mark invoice paid
-                                             • order_status message
-                                             • post-payment Flow (if configured)
-                                             • receipt PNG with PAID stamp
+                                             • HMAC verify + provider readback, fails closed
+                                             • ONE order, ONE paid GST invoice (wecare-commerce)
+                                             • wecare_default_invoice_image_template, once: the
+                                               PNG header + Leave Review FLOW button carrying an
+                                               order-bound review token (REVIEWTOKEN#)
+                                             • then Meta order_status `processing` (WhatsApp-rail
+                                               orders only): interactive inside the 24-hour
+                                               window, wecare_order_status_v3 outside it, else
+                                               deferred as pendingOrderStatus on the invoice
 ```
+
+Website (Razorpay Standard Checkout) orders get the same invoice template on the verified number;
+they get no order_status, because they never had a Meta order_details message. One basket can
+hold only one live payment across both rails (shared CARTPAYMENT#/CARTBASKET#/CARTNARROW# rows).
+A dropped capture webhook is recovered by the stale-attempt sweep on the 5-minute
+`wecare-commerce-customer-links` schedule.
 
 | Fact | Value |
 |---|---|
@@ -404,7 +414,8 @@ Customer-visible payment copy (`PAY_MSG`, `:538`): `👀 Pulling your pending in
 
 Kill switches, both **default OFF**: `whatsapp_inbound_order_status` (would double-send the
 confirmation) and `whatsapp_auto_next_due` (post-payment next-invoice nag).
-`POST_PAYMENT_FLOW_WABA1` / `POST_PAYMENT_FLOW_WABA2` unset means no post-payment flow at all.
+There is no post-payment Flow, no `wecare_leave_review` send and no free-form confirmation: the
+invoice template's own FLOW button is the only review entry point after a payment.
 
 ---
 
@@ -443,7 +454,8 @@ Meta's three `sample_*` templates and no business template):
 |---|---|---|
 | `wecare_whatapp_native_pay_template` | UTILITY, `ORDER_DETAILS` button | checkout, invoice-engine, outbound (`WA_PAY_TEMPLATE`) |
 | `wecare_default_invoice_image_template` | UTILITY, invoice image header, Leave Review Flow button | invoice-engine, checkout (`WA_INVOICE_TEMPLATE`) |
-| `wecare_leave_review` | UTILITY, Leave Review Flow button | review follow-up |
+| `wecare_order_status_v3` | UTILITY / `ORDER_STATUS` (approved 2026-10-25) | outbound, order_status outside the 24-hour window |
+| `wecare_leave_review` | UTILITY, Leave Review Flow button | manual Inbox send only; never after a payment |
 | `wecare_default_download` | UTILITY, URL button to `/vault/?file=` | outbound download link |
 | `wecare_location_share_pin` | UTILITY, LOCATION header | outbound location share |
 | `wecare_otp` | AUTHENTICATION, copy code | customer-whatsapp-auth, blog-subscribe, customer-registration |
@@ -455,10 +467,11 @@ definition is in `docs/execution/snapshots/whatsapp-template-feedback_survey_for
 Named in code but **not on Meta** (each path is currently unreachable or refuses cleanly):
 `wecare_share_pdf` (Orders Flow invoice copy; that Flow is DRAFT, and the reply says delivery is
 pending), `wd_file_delivery` (secure-files paid delivery; `SECURE_FILES_PAYMENT_ENABLED` is false),
-`wecare_order_status_v2` (fulfilment updates refuse with `order_status_template_not_approved`;
-`scripts/provision_order_status_template.py` creates it), `wd_call_permission` (created on demand
-by the calling `create_permission_template` action). `postpay_request_v1`, `postpay_details_v1`
-and `01_wecare_doc` no longer exist on Meta. There is no code-level template registry.
+`wd_call_permission` (created on demand by the calling `create_permission_template` action).
+`postpay_request_v1`, `postpay_details_v1`, `01_wecare_doc` and `wecare_order_status_v2` no longer
+exist on Meta (Meta holds the deleted `_v2` name, so the ORDER_STATUS template is `_v3`). The
+payment, invoice, order-status and OTP names live in one registry,
+`amplify/functions/shared/lambda_utils/whatsapp_templates.py`.
 
 ---
 
