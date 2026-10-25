@@ -172,6 +172,24 @@ def route_flow(action: str, screen: str, data: Dict, flow_token: str,
         if screen in ('CONFIRM', 'SUCCESS'):
             return _terminal_response(flow_token)
 
+    # ── F002 IDEA REVIEW PREVIEW ──
+    # The canonical F002 draft opens statically, then uses the shared endpoint only to
+    # move REVIEW -> CONFIRM. Submission still happens on the terminal complete action
+    # and is saved from the resulting nfm_reply by customer_ideas, so this endpoint step
+    # never creates a duplicate response row.
+    if (action == 'data_exchange' and screen == 'REVIEW'
+            and isinstance(data, dict)
+            and data.get('flow_key') == 'wd_leave_review_v2'):
+        topic = data.get('topic', '')
+        idea = data.get('idea', '')
+        return {
+            'screen': 'CONFIRM',
+            'data': {
+                'topic': topic if isinstance(topic, str) else '',
+                'idea': idea.strip() if isinstance(idea, str) else '',
+            },
+        }
+
     # ── LEAVE REVIEW FLOW ──
     if flow_key in ('leave_revi',) or flow_key.startswith('leave'):
         if action == 'INIT':
