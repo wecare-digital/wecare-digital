@@ -52,7 +52,58 @@ account takeover. AWS's own guidance is to have **zero** root access keys.
 
 ---
 
-## Plan A — minimal, lowest-risk (recommended first move)
+## Plan S — IAM Identity Center profile (prepared 2026-10-25, recommended)
+
+Nothing has to be created in AWS and no new key is issued. Verified live 2026-10-25:
+the organization instance `ssoins-72233d266e9d7140` (access portal
+`https://d-906601e018.awsapps.com/start`, `us-east-1`) has the user `wecare-user`, and the
+`AdministratorAccess` permission set (`ps-722332fc036c7db8`) is assigned to that user on
+`775261844268` and provisioned. Role credentials are short-lived and the CLI refreshes them,
+so there is no standing secret on disk.
+
+Already added locally (non-secret, additive; `wecare-prod` untouched): `~/.aws/config`
+holds `[sso-session wecare]` (portal above, region `us-east-1`, scope `sso:account:access`)
+and `[profile wecare-sso]` (`AdministratorAccess` on `775261844268`).
+
+1. 🔒 Owner: `aws sso login --sso-session wecare`, sign in as `wecare-user` with its MFA,
+   choose **Allow**.
+2. Verify: `aws sts get-caller-identity --profile wecare-sso` must show
+   `assumed-role/AWSReservedSSO_AdministratorAccess_…/wecare-user`, then run the Step 3
+   checks below with `AWS_PROFILE=wecare-sso`.
+3. Cut over without renaming any profile:
+   ```sh
+   aws configure set profile.wecare-prod.sso_session wecare
+   aws configure set profile.wecare-prod.sso_account_id 775261844268
+   aws configure set profile.wecare-prod.sso_role_name AdministratorAccess
+   ```
+   The AWS CLI and boto3 (all of this repo's tooling) try the SSO settings before
+   `~/.aws/credentials`, so the root key stops being used while staying in place as the
+   fallback. Rollback: delete those three lines from `[profile wecare-prod]`. Do not use
+   `aws configure set sso-session.<name>.<key>`: it writes a stray key into the active
+   profile instead of the session section.
+4. Plan A Steps 4–5: deactivate the root key, soak, delete. When it is deactivated, also
+   remove the `[wecare-prod]` keys from `~/.aws/credentials` (some SDKs prefer static keys
+   over SSO settings), and update `docs/operations.md`, which still says not to use
+   `aws sso login`.
+
+Trade-off: when the Identity Center sign-in session ends (8 hours by default; settable from
+15 minutes to 90 days under IAM Identity Center → Settings → Authentication), every AWS call
+fails closed until step 1 is repeated. If unattended runs must never wait for a sign-in,
+use Plan A.
+
+### Other root sign-ins (CloudTrail, 2026-10-25)
+
+Deleting the root access key does not end these, because they use root's console sign-in:
+
+- `openai-connectors-oauth/1.0`: a ChatGPT connector authorised as root, 483
+  `CreateOAuth2Token` refreshes since 2026-10-03. Disconnect it, or reconnect it signed in
+  as a non-root identity.
+- `aws-cli/2.38.5` on Windows 10 (`aws login`, same network as the Mac), 6 refreshes on
+  2026-10-25. Run `aws logout` there and sign in with the Identity Center profile instead.
+
+---
+
+## Plan A — minimal, lowest-risk (non-interactive alternative)
 
 Repoint automation to a **new dedicated IAM user** created for tooling, verify,
 then delete the root key. A new user (rather than reusing `wecare-admin`) keeps
@@ -154,7 +205,8 @@ to leak. That is a larger change and can follow Plan C.
 
 ## Verification checklist (owner signs off)
 
-- [ ] `wecare-prod` → `get-caller-identity` shows an IAM user, not `:root`.
+- [ ] `wecare-prod` → `get-caller-identity` shows the Identity Center role (Plan S) or an
+      IAM user (Plan A/B), not `:root`.
 - [ ] All three read-only audit scripts pass under `AWS_PROFILE=wecare-prod`.
 - [ ] One write-path script resolves (dry-run) under the new principal.
 - [ ] Root key soaked ≥24h **inactive** with no CloudTrail `AccessDenied`.
