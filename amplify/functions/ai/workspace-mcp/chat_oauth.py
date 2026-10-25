@@ -140,7 +140,11 @@ def token_exchange(event: dict, headers: dict, client_id: str, callback: str,
             or ('redirect_uri' in form and form['redirect_uri'] != callback)):
         raise InvalidRequest()
     try:
-        data, _ = exchange(LOGIN + '/oauth2/token', form, form=True)
+        # Cognito binds the audience at authorization and retains it on refresh.
+        # Its token endpoint has no resource request parameter. Validate the host's
+        # resource above, then send only Cognito's documented token parameters.
+        upstream = {key: value for key, value in form.items() if key != 'resource'}
+        data, _ = exchange(LOGIN + '/oauth2/token', upstream, form=True)
         bound_claims(data.get('access_token', ''), client_id, resource)
     except Exception as exc:
         # The upstream body can echo codes, verifiers and refresh tokens.
