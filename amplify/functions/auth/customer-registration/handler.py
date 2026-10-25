@@ -66,6 +66,7 @@ from lambda_utils import contact_key, contact_store, customer_auth, customer_ses
 from lambda_utils.identity import customer as identity
 from lambda_utils.identity import registration
 from lambda_utils.identity import consent as consent_evidence
+from lambda_utils.identity import provenance
 from lambda_utils.identity import subscriber_id
 from lambda_utils.logging import get_logger
 from lambda_utils.response import cors_response, extract_origin, options_response
@@ -120,6 +121,10 @@ OTP_TEMPLATE_LANGUAGE = os.environ.get("OTP_TEMPLATE_LANGUAGE", "en")
 #: Read by reference, lazily, never printed. `block-inline-secrets` allows a `SecretId='wecare/...'`
 #: name; this is a name, not a value.
 OTP_PEPPER_SECRET_ID = os.environ.get("OTP_PEPPER_SECRET_ID", "wecare/otp/pepper")
+
+#: The provenance a phone proven by this door's WhatsApp OTP is recorded under. An existing
+#: VERIFIED source, so a `customer-profile` deployed with an older `lambda_utils` already honours it.
+OTP_PHONE_SOURCE = "PAYMENT_VERIFIED"
 
 _dynamodb = None
 _lambda = None
@@ -265,6 +270,14 @@ def _create_customer(e164: str) -> Dict[str, Any]:
     write is conditional on the id, so a race between two verifications collapses to one contact.
     Purchase/transactional identity is not marketing consent, so every opt-in starts False, as on
     the website profile path. Names arrive later through the checkout profile.
+
+    The phone carries `PAYMENT_VERIFIED` provenance ("an OTP or payment we verified end to end"),
+    because the WhatsApp OTP this row is created behind proves who holds the handset. That is the
+    evidence `customer-profile` requires before it links a Cognito sub to a row. Without it, the
+    customer this door just created could never save a checkout profile: the claim refused with
+    NO_INBOUND_EVIDENCE and the save ended in 409. Only rows created HERE get the stamp. A row
+    adopted below (one that already existed for this phone) keeps whatever evidence it had, so a
+    staff-typed record is never handed to the session by this door.
     """
     now = int(time.time())
     contact_id = contact_store.deterministic_id(e164)
@@ -275,6 +288,7 @@ def _create_customer(e164: str) -> Dict[str, Any]:
         **subscriber_id.new_contact_fields(now=now),
         "phone": contact_store.canonical_phone(e164),
         "phoneVerifiedAt": now,
+        provenance.PROVENANCE_ATTRIBUTE: {"phone": OTP_PHONE_SOURCE},
         "optInWhatsApp": False,
         "optInEmail": False,
         "optInSms": False,
@@ -332,9 +346,9 @@ def _provision_login(e164: str, customer_id: str) -> None:  # noqa: ARG001 - see
     IT DOES NOT STAMP `custom:customer_id`, AND IT CANNOT. That attribute is not in pool
     `us-east-1_46ULYuukt`'s schema (measured 2026-10-02: the only custom attribute is
     `custom:partner_waba_id`), so sending it here would have Cognito reject the whole
-    `AdminCreateUser` call with `InvalidParameterException`. It was never reached in production
-    because this function has **no deployed Lambda and no API route** today, so removing it is
-    pinning the real contract rather than changing behaviour.
+    `AdminCreateUser` call with `InvalidParameterException`. It was never reached in production,
+    because when it was removed this function had no deployed Lambda and no API route, so the
+    removal pinned the real contract rather than changing behaviour.
 
     Session identity now comes from `customer_auth.customer_id_from_attributes`, which derives it
     from the Cognito `sub` - so the login this provisions and the session `customer_auth` proves

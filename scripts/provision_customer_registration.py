@@ -11,6 +11,10 @@ What it stands up
   function) and NO `cognito-idp:SignUp` (the pool is AllowAdminCreateUserOnly and self-signup
   stays off — provisioning is admin-only).
 - The function `wecare-customer-registration`, then a published version and the `live` alias.
+- The website's front door on HTTP API `zllr9lrg7j` (stage `prod`): one Lambda-proxy
+  integration on the `live` alias, the `POST` and `OPTIONS /auth/customer-registration` routes,
+  and the resource-based permission that lets that API (and only that API) invoke the alias.
+  `--verify` reads all three back.
 
 It does NOT create the OTP pepper secret. `provision_email_verification.py` owns that secret's
 first creation; this function only reads it, and both doors share one pepper deliberately so a
@@ -65,6 +69,14 @@ SENDER_FUNCTION = "wecare-whatsapp-business-api"
 OTP_TEMPLATE_NAME = "wecare_otp"
 OTP_TEMPLATE_LANGUAGE = "en"
 
+#: The HTTP API the website calls through `/api/*`. `src/components/account/SignInPage.tsx` posts
+#: `{action: 'request'|'verify'}` to `/auth/customer-registration` for a number Cognito does not
+#: know yet, so without these routes no new customer can ever sign in. Same shape as the
+#: email-verification door: POST plus the CORS preflight, both on the `live` alias.
+API_ID = "zllr9lrg7j"
+STAGE = "prod"
+ROUTE_KEYS = ("POST /auth/customer-registration", "OPTIONS /auth/customer-registration")
+
 _account_id_cache = None
 
 
@@ -86,6 +98,10 @@ def lam():
 
 def logs():
     return boto3.client("logs", region_name=REGION)
+
+
+def api():
+    return boto3.client("apigatewayv2", region_name=REGION)
 
 
 def _not_found(exc: ClientError, *codes: str) -> bool:
@@ -320,6 +336,81 @@ def ensure_live_alias(dry_run: bool) -> str:
     return f"created -> v{version}"
 
 
+def _all_api(method_name: str) -> list:
+    method = getattr(api(), method_name)
+    items, token = [], None
+    while True:
+        kwargs = {"ApiId": API_ID, "MaxResults": "100"}
+        if token:
+            kwargs["NextToken"] = token
+        result = method(**kwargs)
+        items.extend(result.get("Items", []))
+        token = result.get("NextToken")
+        if not token:
+            return items
+
+
+def ensure_integration(dry_run: bool) -> tuple[str, str]:
+    """The AWS_PROXY integration on the `live` alias, reused when it already exists."""
+    wanted = f"arn:aws:lambda:{REGION}:{account_id()}:function:{FUNCTION_NAME}:{LIVE_ALIAS}"
+    for item in _all_api("get_integrations"):
+        if wanted in str(item.get("IntegrationUri") or ""):
+            return item["IntegrationId"], "exists"
+    if dry_run:
+        return "DRY_RUN", "would create"
+    created = api().create_integration(
+        ApiId=API_ID,
+        IntegrationType="AWS_PROXY",
+        IntegrationUri=wanted,
+        PayloadFormatVersion="2.0",
+        TimeoutInMillis=15000,
+    )
+    return created["IntegrationId"], "created"
+
+
+def ensure_routes(integration_id: str, dry_run: bool) -> str:
+    existing = {item["RouteKey"] for item in _all_api("get_routes")}
+    states = []
+    for route_key in ROUTE_KEYS:
+        if route_key in existing:
+            states.append(f"{route_key}=exists")
+        elif dry_run:
+            states.append(f"{route_key}=would create")
+        else:
+            api().create_route(
+                ApiId=API_ID, RouteKey=route_key,
+                Target=f"integrations/{integration_id}")
+            states.append(f"{route_key}=created")
+    return ", ".join(states)
+
+
+def ensure_permissions(dry_run: bool) -> str:
+    """Alias-qualified invoke permission per route. A function-level grant does not cover `live`."""
+    states = []
+    for route_key in ROUTE_KEYS:
+        method, path = route_key.split(" ", 1)
+        sid = "apigw-customer-registration-" + method.lower() + path.replace("/", "-")
+        if dry_run:
+            states.append(f"{route_key}=would ensure")
+            continue
+        try:
+            lam().add_permission(
+                FunctionName=FUNCTION_NAME,
+                Qualifier=LIVE_ALIAS,
+                StatementId=sid,
+                Action="lambda:InvokeFunction",
+                Principal="apigateway.amazonaws.com",
+                SourceArn=f"arn:aws:execute-api:{REGION}:{account_id()}:{API_ID}/{STAGE}/{method}{path}",
+            )
+            states.append(f"{route_key}=created")
+        except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") == "ResourceConflictException":
+                states.append(f"{route_key}=exists")
+            else:
+                raise
+    return ", ".join(states)
+
+
 def verify() -> int:
     problems: list[str] = []
 
@@ -353,6 +444,12 @@ def verify() -> int:
     print(f"customer pool: {CUSTOMER_POOL_ID}")
     print(f"sender: {SENDER_FUNCTION}:{LIVE_ALIAS} template {OTP_TEMPLATE_NAME}")
 
+    live_routes = {item["RouteKey"] for item in _all_api("get_routes")}
+    for route_key in ROUTE_KEYS:
+        if route_key not in live_routes:
+            problems.append(f"route missing: {route_key}")
+    print(f"routes: {', '.join(ROUTE_KEYS)}")
+
     if problems:
         print("\nFAIL:")
         for p in problems:
@@ -381,6 +478,10 @@ def main(argv=None) -> int:
     print(f"Lambda: {ensure_function(args.dry_run)}")
     print(f"env: {reconcile_environment(args.dry_run)}")
     print(f"live alias: {ensure_live_alias(args.dry_run)}")
+    integration_id, integration_state = ensure_integration(args.dry_run)
+    print(f"integration: {integration_state}")
+    print(f"routes: {ensure_routes(integration_id, args.dry_run)}")
+    print(f"permissions: {ensure_permissions(args.dry_run)}")
 
     if args.dry_run:
         print("\ndry run: nothing changed")
