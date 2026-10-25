@@ -11,10 +11,12 @@
  * are retuned site-wide, retune this too; `node tools/browser/typecheck.js` reports
  * the gaps.
  *
- * Why only /get/ itself reaches this page
- * ---------------------------------------
- * Amplify serves the bare /get/ path from this page. Its /get/<*> rewrite sends file
- * requests to CloudFront, so a nested route under /get/ would not reach Next.js.
+ * Route ownership
+ * ---------------
+ * /get/ is the general collection page. /vault/?file=<id> reuses this component for the
+ * approved WhatsApp download deep-link, scoped to one file. Amplify's /get/<*> rewrite still
+ * sends nested /get/ file requests to CloudFront, so this remains a page component rather than
+ * a nested /get/ route.
  *
  * It also has to be in the public allowlist in `_app.tsx`. Without that entry it
  * renders the staff Authenticator at HTTP 200 - which is how it shipped the first
@@ -29,8 +31,8 @@
  * Razorpay directly. That is why this polls after checkout instead of downloading
  * straight from the callback.
  *
- * A grant is single use. A failed redeem must not be retried blindly - a second call
- * on a spent grant is indistinguishable from an unpaid one, by design.
+ * Paid entitlement is durable. Each successful redeem mints a short-lived transport URL
+ * while the paid access window remains open; ownership and window state are enforced server-side.
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
@@ -74,7 +76,12 @@ const GET_WORDS: CycleWord[] = [
 
 type Stage = 'mobile' | 'otp' | 'files';
 
-export default function FilesPage () {
+interface FilesPageProps {
+    /** Optional WhatsApp Vault deep-link target. Ownership is still proven server-side. */
+    targetFileId?: string;
+}
+
+export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
     const [ stage, setStage ] = useState<Stage>( 'mobile' );
     // `mobile` holds the COMPOSED E.164 string, not raw keystrokes. The field itself is now the
     // divided PhoneField, which owns a dial-code segment and a national-number segment, so the two
@@ -99,10 +106,18 @@ export default function FilesPage () {
         const result = await api.listMySecureFiles();
         if ( result.ok )
         {
-            setFiles( result.data.files || [] );
+            const ownedFiles = result.data.files || [];
+            const visibleFiles = targetFileId
+                ? ownedFiles.filter( file => file.fileId === targetFileId )
+                : ownedFiles;
+            setFiles( visibleFiles );
             setPrice( result.data.pricePaise || 4900 );
             setStage( 'files' );
-            setError( '' );
+            setError(
+                targetFileId && visibleFiles.length === 0
+                    ? 'This Vault file is not available to this verified account.'
+                    : ''
+            );
         } else if ( result.failure.status === 401 )
         {
             clearSession();
@@ -112,7 +127,7 @@ export default function FilesPage () {
         {
             setError( result.failure.message || 'Could not load your files' );
         }
-    }, [] );
+    }, [ targetFileId ] );
 
     // Resume an existing tab session rather than making the customer re-verify.
     useEffect( () => {
@@ -120,15 +135,61 @@ export default function FilesPage () {
             if ( !result ) return;
             if ( result.ok )
             {
-                setFiles( result.data.files || [] );
+                const ownedFiles = result.data.files || [];
+                const visibleFiles = targetFileId
+                    ? ownedFiles.filter( file => file.fileId === targetFileId )
+                    : ownedFiles;
+                setFiles( visibleFiles );
                 setPrice( result.data.pricePaise || 4900 );
                 setStage( 'files' );
+                if ( targetFileId && visibleFiles.length === 0 )
+                {
+                    setError( 'This Vault file is not available to this verified account.' );
+                }
             } else if ( result.failure.status === 401 )
             {
                 clearSession();
             }
         } ).catch( () => setError( 'Sign-in is temporarily unavailable. Please try again.' ) );
-    }, [] );
+    }, [ targetFileId ] );
+
+    const handleDownload = async ( file: SecureFile ) => {
+        const accessId = file.paidEntitlementId || file.paidGrantId;
+        if ( !accessId )
+        {
+            setError( 'Paid Vault access is not ready for this file yet.' );
+            return;
+        }
+        setWorking( file.fileId );
+        setError( '' );
+        try
+        {
+            const result = await api.redeemSecureFileDownload( file.fileId, accessId );
+            if ( !result.ok )
+            {
+                setError(
+                    result.failure.status === 403
+                        ? 'This paid access window is not available. If you already paid, do not pay again; contact support.'
+                        : ( result.failure.message || 'Could not prepare the download.' )
+                );
+                return;
+            }
+            if ( !result.data.downloadUrl )
+            {
+                setError( 'The download URL was not returned. Please try again.' );
+                return;
+            }
+            // The backend returns a short-lived S3 URL with Content-Disposition: attachment.
+            // Top-level navigation lets the browser download it without exposing the S3 key here.
+            window.location.assign( result.data.downloadUrl );
+        } catch ( err: any )
+        {
+            setError( err?.message || 'Could not prepare the download.' );
+        } finally
+        {
+            setWorking( '' );
+        }
+    };
 
     /**
      * The divided field's contents, as the E.164 string the backend keys the customer on.
@@ -437,9 +498,22 @@ export default function FilesPage () {
                                         amount is the thing being agreed to, and the action segment
                                         is the control's accessible name - so the button answers to
                                         "Pay ₹49 on WhatsApp", which is what it does. */}
-                                    <p className="sf-fine">
-                                        Purchase access is handled through the main checkout flow.
-                                    </p>
+                                    { file.paidEntitlementId || file.paidGrantId ? (
+                                        <PillButton
+                                            as="button"
+                                            type="button"
+                                            label="Vault"
+                                            action={ working === file.fileId ? 'Preparing…' : 'Download file' }
+                                            block
+                                            onClick={ () => { void handleDownload( file ); } }
+                                            disabled={ working === file.fileId }
+                                            busy={ working === file.fileId }
+                                        />
+                                    ) : (
+                                        <p className="sf-fine">
+                                            Purchase access is handled through the main checkout flow.
+                                        </p>
+                                    ) }
 
                                 </div>
                             ) ) }
