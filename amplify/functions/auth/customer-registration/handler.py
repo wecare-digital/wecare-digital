@@ -515,7 +515,7 @@ def _ensure_whatsapp_identity(event: Dict[str, Any]) -> Dict[str, Any]:
     phone = contact_store.canonical_phone(event.get("senderPhone"))
     contact_id = str(event.get("contactId") or "").strip()
     source_message_id = str(event.get("sourceMessageId") or "").strip()
-    if not phone or not contact_id or not source_message_id:
+    if not phone or not contact_id:
         return {"outcome": "WHATSAPP_IDENTITY_NOT_READY"}
 
     # Fail closed when the phone belongs to more than one live canonical contact.  An explicit
@@ -528,12 +528,12 @@ def _ensure_whatsapp_identity(event: Dict[str, Any]) -> Dict[str, Any]:
     if not canonical or contact_key.resolve(canonical) != contact_id:
         return {"outcome": "WHATSAPP_IDENTITY_NOT_READY"}
     contact = canonical
-    if not _whatsapp_identity_evidence(
-            contact, phone, source_message_id, str(event.get("wabaId") or "")):
-        return {"outcome": "WHATSAPP_IDENTITY_NOT_READY"}
 
     existing_owner = str(contact.get("checkoutCustomerId") or "").strip()
     if existing_owner:
+        # This is the pre-existing production trust contract: the stored owner must be one enabled
+        # customer-pool subject whose verified phone is exactly the WhatsApp sender. No new account
+        # or ownership edge is created here, so no WAMID capability is needed.
         if _cognito_user_for_sub(existing_owner, phone) is None:
             logger.warning(json.dumps({"event": "whatsapp_identity_owner_conflict"}))
             return {"outcome": "WHATSAPP_IDENTITY_CONFLICT"}
@@ -543,6 +543,12 @@ def _ensure_whatsapp_identity(event: Dict[str, Any]) -> Dict[str, Any]:
             "contactId": contact_id,
             "customerUuid": str(contact.get("customerUuid") or ""),
         }
+
+    # New ownership/provisioning is the sensitive edge. It requires an exact fresh WAMID that
+    # customer-registration independently resolves in the signed inbound-message store.
+    if not _whatsapp_identity_evidence(
+            contact, phone, source_message_id, str(event.get("wabaId") or "")):
+        return {"outcome": "WHATSAPP_IDENTITY_NOT_READY"}
 
     try:
         user = _cognito_user_for_phone(phone)
