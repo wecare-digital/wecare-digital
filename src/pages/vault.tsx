@@ -1,5 +1,7 @@
 import React from 'react';
+import { useRouter } from 'next/router';
 import ProductPage from '../components/ProductPage';
+import GetPage from '../components/get/GetPage';
 import ServiceBuyBox from '../components/ServiceBuyBox';
 import { customerserviceBySlug } from '../content/customerservice';
 import { serviceByKind } from '../config/services';
@@ -16,9 +18,9 @@ import { serviceByKind } from '../config/services';
  * this one needed adding there by hand - if it is ever missing from the menu, that is where
  * to look, not here.
  *
- * NOT A SECOND /get/. That route is the mechanism: verify a number over WhatsApp, then
- * collect the files shared with you. It is noindex,nofollow and has zero inbound links in the
- * whole export, which is deliberate - it is reached from the message that carries the link.
+ * Without a file query this remains the public Vault service page. The approved WhatsApp
+ * template lands on /vault/?file={{1}}; that deep-link delegates to the same authenticated
+ * collection component as /get/, scoped to the named file.
  * This page is the part that CAN sit in a menu: what is kept, for how long, and how a copy is
  * released.
  *
@@ -38,6 +40,18 @@ import { serviceByKind } from '../config/services';
  * trailingSlash means the URL is /vault/.
  */
 const VaultPage: React.FC = () => {
+  const router = useRouter();
+  const fileParam = router.query.file;
+  const targetFileId = Array.isArray( fileParam ) ? fileParam[ 0 ] : fileParam;
+
+  // The approved WhatsApp download template lands here with ?file={{1}}.
+  // No file parameter keeps the public Vault service page unchanged; a file parameter
+  // enters the authenticated collection surface for that exact file.
+  if ( router.isReady && targetFileId )
+  {
+    return <GetPage targetFileId={ targetFileId } />;
+  }
+
   const service = serviceByKind( 'VAULT' );
   const product = customerserviceBySlug( 'vault' );
   return (
