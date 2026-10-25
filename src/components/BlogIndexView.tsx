@@ -504,7 +504,12 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
            what this rule did. #1a3a2a on #d1f470 is ~10:1. */
         .category{display:inline-block;align-self:flex-start;background:var(--public-brand-lime);color:var(--public-brand-green);border-radius:999px;padding:6px 12px;font-size:14px;font-weight:600;letter-spacing:-.125px;margin-bottom:14px}
         h2{font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking);margin:0 0 12px}
-        h2 :global(a){color:var(--public-heading);text-decoration:none;text-underline-offset:3px}
+        /* THE TITLE IS THE CARD'S ONLY LINK, so it carries the 44px tap floor. A one-line title is
+           29px tall at the phone card size, measured 2026-10-25 on /blog/page/N/ and every topic
+           stream. 8px of padding each way takes the hit area to 45px, and the equal negative
+           margin keeps the layout exactly where it was: the h2 is a flex item, so the margins
+           cannot collapse through it. */
+        h2 :global(a){display:block;padding-block:8px;margin-block:-8px;color:var(--public-heading);text-decoration:none;text-underline-offset:3px}
         h2 :global(a:hover){color:var(--public-brand-green)}
         h2 :global(a:focus-visible){outline:3px solid var(--public-brand-green);outline-offset:3px;border-radius:2px}
         .post-copy p{

@@ -130,8 +130,12 @@ const BlogTags: React.FC<BlogTagsProps> = ( { tags, className, ariaLabel = 'Tags
            the 2px edge that .pill, .pp-pill and .category-switch all carry.
            :global() because these are next/link, and styled-jsx does not scope a composite
            component - the same reason .category-switch and .post-related-card use it. */
+        /* min-height is the shared 44px tap floor (--tap-min). The pill was 38px tall, so every
+           tag on every post and blog panel was a sub-minimum touch target; align-items:center
+           keeps the label and dot where they were inside the taller pill. */
         .tags :global(a){
-          flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;
+          flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;min-height:var(--tap-min);
+          box-sizing:border-box;
           font-size:14px;font-weight:400;letter-spacing:-.125px;
           background:#fff;border:2px solid #e5e7eb;border-radius:999px;
           padding:6px 13px;color:rgba(0,0,0,.54);text-decoration:none;white-space:nowrap;

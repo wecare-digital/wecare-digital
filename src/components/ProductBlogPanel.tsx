@@ -310,8 +310,10 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards: initialCard
       <style jsx>{`
         .pbp{max-width:560px;width:100%}
         .pbp-foot{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:22px 0 0}
+        /* min-height: the 44px tap floor. 8px padding around a 17px x 1.4 line came to 40px. */
         .pbp :global(.pbp-browse){
           display:inline-flex;align-items:center;gap:5px;width:max-content;margin-inline-start:-10px;padding:8px 10px;
+          min-height:var(--tap-min);box-sizing:border-box;
           border-radius:10px;color:var(--public-brand-green);
           font-size:17px;font-weight:600;line-height:1.4;letter-spacing:-.05px;
           text-decoration:underline;text-decoration-thickness:1.5px;text-underline-offset:3px;

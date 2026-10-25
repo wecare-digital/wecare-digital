@@ -258,11 +258,27 @@ const ElsewhereTravelAssistant: React.FC = () => {
     const centreActiveTab = () => {
       window.cancelAnimationFrame( frame );
       frame = window.requestAnimationFrame( () => {
-        tabRefs.current[ mode ]?.scrollIntoView( {
-          behavior: 'auto',
-          block: 'nearest',
-          inline: 'center',
-        } );
+        // SCROLL THE RAIL, NOT THE PAGE. This was tab.scrollIntoView({ block: 'nearest',
+        // inline: 'center' }), and scrollIntoView moves EVERY scrollable ancestor - the
+        // document included. On a short viewport (a folded-landscape 653x280, a small phone
+        // in landscape, or 200% zoom) the rail starts below the fold, so on load the page
+        // itself jumped down and the hero's h1 ended up under the fixed header
+        // (tools/browser/pageaudit.js, 2026-10-25). Moving the rail by the physical distance
+        // between the two centres touches only the rail, and it is right in RTL too: under
+        // the spec's negative-scrollLeft convention a larger value still moves the view right.
+        const tab = tabRefs.current[ mode ];
+        const rail = tab?.parentElement;
+        if ( !tab || !rail ) return;
+        const tabBox = tab.getBoundingClientRect();
+        const railBox = rail.getBoundingClientRect();
+        const delta = ( tabBox.left + tabBox.width / 2 ) - ( railBox.left + railBox.width / 2 );
+        if ( Math.abs( delta ) < 1 ) return;
+        // An ABSOLUTE scrollTo, not scrollBy. On this scroll-snapping rail a relative scroll is
+        // snapped directionally - to the next snap point in the scroll's direction - and under
+        // dir="rtl" Chromium sent a sub-pixel scrollBy to the far end of the rail, 49-69px off
+        // centre at 320-360px (measured 2026-10-25). An absolute target snaps to the nearest
+        // point, which is the active tab's own.
+        rail.scrollTo( { left: rail.scrollLeft + delta, behavior: 'auto' } );
       } );
     };
 
