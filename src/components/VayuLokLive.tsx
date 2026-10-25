@@ -4877,13 +4877,17 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-air-heatmap-ends{display:flex;align-items:center;justify-content:space-between;margin-top:6px}
         .vl-live-air-heatmap-end{color:var(--muted);font-size:var(--vl-meta-size);font-weight:700;letter-spacing:.02em}
         .vl-live-air-range{display:inline-flex;align-items:center;gap:6px;padding:0;border-radius:var(--pill-r);background:transparent}
-        .vl-live-air-range button{min-height:32px;padding:0 10px;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff;color:var(--green);font-size:var(--vl-meta-size);font-weight:700;line-height:1;white-space:nowrap}
+        /* The 44px tap floor (--tap-min) on the AQI/PM2.5 switch, the forecast scroll arrows and
+           the health-profile pager - at every width, because the steering file's 44x44 applies to
+           mouse and pen as well as touch, and tools/browser/devicecheck.js asserts it on VayuLok's
+           live app at all 21 postures. These were 32px (measured on the live page, 2026-10-25). */
+        .vl-live-air-range button{min-height:var(--tap-min);padding:0 10px;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff;color:var(--green);font-size:var(--vl-meta-size);font-weight:700;line-height:1;white-space:nowrap}
         .vl-live-air-range button.is-active{border-color:var(--lime);background:var(--lime);color:var(--green)}
         .vl-live-air-range button:hover{border-color:var(--lime);background:var(--vl-hover-bg);color:var(--green)}
         .vl-live-air-forecast-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:var(--vl-heading-gap);flex-wrap:wrap}
         .vl-live-air-forecast-head-actions{display:flex;min-width:0;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
         .vl-live-air-scroll-nav{display:inline-flex;align-items:center;gap:4px}
-        .vl-live-air-scroll-btn{display:inline-flex;width:32px;height:32px;align-items:center;justify-content:center;padding:0;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff;color:var(--green)}
+        .vl-live-air-scroll-btn{display:inline-flex;width:var(--tap-min);height:var(--tap-min);align-items:center;justify-content:center;padding:0;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff;color:var(--green)}
         .vl-live-air-scroll-btn:hover{border-color:var(--lime);background:var(--vl-hover-bg);box-shadow:var(--vl-hover-shadow)}
         .vl-live-air-scroll-btn svg{width:16px;height:16px;fill:currentColor}
         .vl-live-air-forecast-strip{display:flex;gap:8px;overflow-x:auto;padding:0 0 8px;scroll-snap-type:x proximity;scrollbar-width:thin;overscroll-behavior-x:contain;touch-action:pan-x;-webkit-overflow-scrolling:touch}
@@ -4941,7 +4945,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         }
         .vl-live-wx-history .vl-live-air-range::-webkit-scrollbar{height:6px}
         .vl-live-wx-history .vl-live-air-range button{
-          position:relative;flex:0 0 auto;min-width:max-content;min-height:32px;
+          position:relative;flex:0 0 auto;min-width:max-content;min-height:var(--tap-min);
           padding:0 10px;scroll-snap-align:center;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff;
           color:var(--green);font-size:var(--vl-meta-size);font-weight:700;white-space:nowrap;
         }
@@ -4984,7 +4988,7 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
         .vl-live-air-health-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:var(--vl-heading-gap)}
         .vl-live-air-health-head-nav{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto}
         .vl-live-air-health-rail-shell{display:block}
-        .vl-live-air-health-page{display:inline-flex;width:32px;height:32px;align-items:center;justify-content:center;padding:0;border:1px solid var(--lime);border-radius:50%;background:var(--lime-tint);color:var(--green)}
+        .vl-live-air-health-page{display:inline-flex;width:var(--tap-min);height:var(--tap-min);align-items:center;justify-content:center;padding:0;border:1px solid var(--lime);border-radius:50%;background:var(--lime-tint);color:var(--green)}
         .vl-live-air-health-page:hover:not(:disabled){border-color:var(--lime);background:var(--vl-hover-bg);box-shadow:var(--vl-hover-shadow)}
         .vl-live-air-health-page:disabled{opacity:.42;cursor:default}
         .vl-live-air-health-page svg{width:18px;height:18px;fill:currentColor}
@@ -5267,17 +5271,6 @@ const VayuLokLive: React.FC<VayuLokLiveProps> = ( { mode = 'air', onModeChange, 
           .vl-live-cloud-field{animation:none!important}
         }
 
-        /* THE 44px TAP FLOOR FOR TOUCH. The AQI/PM2.5 switch, the forecast scroll arrows and the
-           health-profile pager are compact 32px controls, which is fine for a mouse and a
-           sub-minimum target for a finger: measured 2026-10-25 on the live page at 375 and 412,
-           the case tools/browser/devicecheck.js asserts. Phones and any coarse pointer get the
-           shared --tap-min; a fine-pointer desktop keeps the compact size. */
-        @media(max-width:700px),(pointer:coarse){
-          .vl-live-air-range button,
-          .vl-live-wx-history .vl-live-air-range button{min-height:var(--tap-min)}
-          .vl-live-air-scroll-btn,
-          .vl-live-air-health-page{width:var(--tap-min);height:var(--tap-min)}
-        }
         @media(max-width:760px){
           .vl-live-tools{margin-top:22px;padding-top:22px}
           .vl-live-tools-layout{grid-template-columns:1fr;align-items:start;gap:28px}

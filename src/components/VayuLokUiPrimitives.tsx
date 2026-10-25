@@ -52,19 +52,16 @@ export function VayuLokFreshnessStamp( { className, iconClassName, iconPath, tex
 export function VayuLokUiStyles() {
   return (
     <style jsx global>{`
+      /* min-height: the 44px tap floor at every width - the steering file's 44x44 covers mouse
+         and pen too, and tools/browser/devicecheck.js asserts it on VayuLok's live app. */
       .vl-ui-compact-pill{
-        min-height:32px;padding:0 10px;border:1px solid var(--hair,var(--public-hairline));
+        min-height:var(--tap-min,44px);padding:0 10px;border:1px solid var(--hair,var(--public-hairline));
         border-radius:var(--pill-r,var(--radius-full));background:#fff;color:var(--green,var(--public-brand-green));
         font:inherit;font-size:var(--vl-meta-size,var(--public-meta-size));font-weight:700;line-height:1;white-space:nowrap;cursor:pointer
       }
       .vl-ui-compact-pill:hover{border-color:var(--lime,var(--public-brand-lime));background:var(--lime-tint,var(--public-lime-tint))}
       .vl-ui-compact-pill.is-active{border-color:var(--lime,var(--public-brand-lime));background:var(--lime,var(--public-brand-lime));color:var(--green,var(--public-brand-green))}
-      /* 32px is the compact pill for a mouse; on a phone or any coarse pointer it is a
-         sub-minimum touch target (tools/browser/devicecheck.js asserts 44px on VayuLok's live
-         app), so touch gets the shared --tap-min floor. */
-      @media(max-width:700px),(pointer:coarse){
-        .vl-ui-compact-pill{min-height:var(--tap-min,44px);min-width:var(--tap-min,44px)}
-      }
+      .vl-ui-compact-pill{min-width:var(--tap-min,44px)}
       .vl-ui-horizontal-rail{
         display:flex;gap:8px;overflow-x:auto;padding:0 0 8px;scroll-snap-type:x proximity;scrollbar-width:thin;
         overscroll-behavior-x:contain;touch-action:pan-x;-webkit-overflow-scrolling:touch;scroll-padding-inline:2px
