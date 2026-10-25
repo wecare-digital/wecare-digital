@@ -674,8 +674,8 @@ def run(root: Path) -> int:
         check("R14", "no UPI intent anywhere in the Meta request", "upi_intent" not in wire and "preferred_upi_app" not in wire)
         check("R15", "message is a template, not an interactive order_details", msg["type"] == "template" and "interactive" not in msg)
         header = [c for c in template["components"] if c.get("type") == "header"][0]
-        check("HDR", "fixed WECARE header image link", header["parameters"][0]["image"]["link"].endswith(
-            "secure/d/public/whatsapp/wa-tpl/img/wecarepay-header.png"), header["parameters"][0]["image"])
+        check("HDR", "fixed order catalog icon header", header["parameters"][0]["image"]["link"].endswith(
+            "secure/d/public/whatsapp/wa-tpl/wecare-catalog-icon.png"), header["parameters"][0]["image"])
         send_calls = [c for c in calls if c["function"] == "wecare-outbound-whatsapp"]
         bodies = [_outbound_body(c) for c in send_calls]
         check("R11", "checkout's only outbound call uses isCheckoutTemplate + the approved template",
