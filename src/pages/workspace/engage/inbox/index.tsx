@@ -945,8 +945,11 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
             setPayInvoiceDraft( { key: draftKey, contactId, invoice } );
             // The configuration name is NOT defaulted here. Omitted, the server resolves it from
             // the invoice row and then from its own proven expectation.
-            const sent = await api.sendPaymentLink( invoice.invoiceId, payPhone );
-            if ( sent )
+            const sent = await api.sendPaymentLinkResult( invoice.invoiceId, payPhone );
+            // `payment_link_sent` is the ONLY success. A 2xx can also answer rejected or already in
+            // progress, and reporting either as "sent" would have staff chasing a payment request
+            // that never went out.
+            if ( sent.ok && sent.data.status === 'payment_link_sent' )
             {
                 toast.success( `Payment request sent (invoice ${invoice.invoiceNumber})` );
                 setComposer( null );
@@ -954,7 +957,13 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                 setPayItems( [ { name: '', amount: '', quantity: '1', gstRate: '18' } ] );
                 setPayDelivery( '0' ); setPayOrderId( '' );
                 setTimeout( loadData, 800 );
-            } else toast.error( `Payment request not confirmed. Invoice ${invoice.invoiceNumber} is retained; resolve it in Pay → Invoices.` );
+            }
+            else
+            {
+                // "Not confirmed", never "not sent": a timeout can still have reached Meta.
+                const why = sent.ok ? sent.data.status : sent.failure.message;
+                toast.error( `Payment request not confirmed${ why ? ` (${ why })` : '' }. Invoice ${invoice.invoiceNumber} is retained; check it in Pay → Invoices before resending.` );
+            }
         } catch { toast.error( 'Payment request not confirmed. Check Pay → Invoices before creating another invoice.' ); }
         finally { setSending( false ); }
     }, [ replyTarget, selectedContact, payPhone, payUnlocked, payItems, payGoodsType, payInvoiceDraft, payDelivery, payGstin, payOrderId, toast, loadData ] );
