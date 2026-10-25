@@ -1,12 +1,12 @@
 /**
  * PageMeta - the per-page half of the document head.
  *
- * WHY THIS EXISTS. Thirteen public pages each declared the same three-line Head by hand:
+ * WHY THIS EXISTS. Public pages each declared the same three-line Head by hand:
  * a <title>, a <meta name="description">, and a keyed canonical. None of them declared
  * og: or twitter: tags, and only /grahak-os/ does. Everything else therefore inherited the
  * SITEWIDE share preview from _app.tsx, which means /contact/, /terms/, /privacy/,
- * /orders/, /bharat-rx/, /vayulok/ and all seven product pages shared ONE og:title and
- * ONE og:description between them - measured on the built export, fourteen routes previewed
+ * /orders/, /vayulok/ and the product pages shared ONE og:title and
+ * ONE og:description between them - measured on the built export, multiple routes previewed
  * as "Everyday AI, built for Bharat | WECARE.DIGITAL" with the company description.
  *
  * Every one of those pages already had good, owner-written title and description copy. The
