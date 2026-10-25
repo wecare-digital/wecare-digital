@@ -14,6 +14,8 @@ import Select from '../../components/ui/Select';
 import PolicyDetails from '../../components/public/PolicyDetails';
 import CheckoutAction from '../../components/CheckoutAction';
 import { PRODUCT_SKU_BY_SLUG, productPolicyCopy } from '../../content/productCommerce';
+import { productCheckoutLine } from '../../config/productCheckout';
+import { rupeesFromFormattedPrice, trackMetaAddToCart, trackMetaViewContent } from '../../lib/metaPixel';
 
 /**
  * /shop/<slug>/ - one page per catalogue item.
@@ -48,6 +50,20 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
   const [ busy, setBusy ] = useState( false );
   const sku = PRODUCT_SKU_BY_SLUG[ product.slug ];
   const policy = sku ? productPolicyCopy( product.slug, product.name ) : null;
+  const checkoutLine = productCheckoutLine( product.slug );
+  const analyticsVariant = checkoutLine?.variantId
+    || ( product.variants?.length === 1 ? product.variants[ 0 ]?.id : undefined );
+
+  React.useEffect( () => {
+    if ( product.id === CONTRIBUTION_PRODUCT_ID || !analyticsVariant ) return;
+    trackMetaViewContent( {
+      productId: checkoutLine?.productId || product.id,
+      variantId: analyticsVariant,
+      name: product.name,
+      value: rupeesFromFormattedPrice( product.formattedPrice ),
+      currency: product.currency || 'INR',
+    } );
+  }, [ analyticsVariant, checkoutLine, product ] );
 
   const onCheckout = useCallback( async (): Promise<void> => {
     if ( busy ) return;
@@ -57,13 +73,23 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
         const choice = CONTRIBUTION_CHOICES[ 0 ];
         if ( choice ) setContribution( choice.variantId );
       } else {
-        addItem( product, 1, variantId || undefined );
+        const chosenVariant = variantId || analyticsVariant;
+        addItem( product, 1, chosenVariant || undefined );
+        if ( chosenVariant ) {
+          trackMetaAddToCart( {
+            productId: checkoutLine?.productId || product.id,
+            variantId: chosenVariant,
+            name: product.name,
+            value: rupeesFromFormattedPrice( product.formattedPrice ),
+            currency: product.currency || 'INR',
+          } );
+        }
       }
       await router.push( '/cart/' );
     } finally {
       setBusy( false );
     }
-  }, [ busy, product, variantId, router ] );
+  }, [ busy, product, variantId, analyticsVariant, checkoutLine, router ] );
 
   return (
     <>

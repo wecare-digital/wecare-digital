@@ -1,5 +1,5 @@
 {
-  "version": 8,
+  "version": 9,
   "account": "775261844268",
   "region": "us-east-1",
   "repository": "wecare-digital/wecare-digital",
@@ -101,13 +101,17 @@
       "_note": "WECARE Ads MCP uses the verified user-access-token Login for Business configuration with exactly ads_read, business_management and ads_mcp_management. The prior shared configuration selected a non-expiring system-user token and 32 permissions, and opened Messenger Marketing Messages onboarding. A fresh consent and authenticated MCP verification are required after deployment. Meta still reports ads_read and ads_mcp_management rejected with another submission pending; this configuration change does not establish provider approval or successful MCP access. Advertising execution remains disabled."
     },
     "plivo": {
-      "kind": "documentation-only",
-      "endpoint": "https://plivo.mintlify.app/mcp"
+      "kind": "sdk",
+      "mode": "read-only",
+      "credentialSource": "workspace-admin-runtime",
+      "tools": ["connection_verify"]
     },
     "sinch": {
-      "kind": "documentation-only",
-      "endpoint": "https://developers.sinch.com/mcp",
-      "restriction": "RCS only"
+      "kind": "sdk",
+      "mode": "read-only",
+      "credentialSource": "workspace-admin-runtime",
+      "restriction": "Sinch India RCS only",
+      "tools": ["connection_verify"]
     }
   }
 }

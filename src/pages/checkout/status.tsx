@@ -79,6 +79,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import RotatingHero from '../../components/RotatingHero';
 import { getSession, restoreSession } from '../../lib/customerAuth';
 import { amountLabel, isInFlight, isOrderNumber, isPaid, isRetryable } from '../../lib/paymentVocabulary';
+import { trackMetaPurchase, type PaidCatalogEvent } from '../../lib/metaPixel';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api';
 const CHECKOUT_STATUS_URL = `${API_BASE}/ecommerce/checkout/status`;
@@ -101,6 +102,7 @@ interface AttemptView {
   amountPaise?: number | null;
   currency?: string | null;
   canRetry?: boolean;
+  catalogEvent?: PaidCatalogEvent;
 }
 
 /**
@@ -214,6 +216,7 @@ export default function CheckoutStatus (): React.ReactElement {
         // the attempt was created with, rendered by the integer helper - never recomputed here.
         setOrderNumber( String( attempt.orderNumber ) );
         setAmount( amountLabel( attempt.amountPaise, attempt.currency ) );
+        trackMetaPurchase( attemptId, attempt.catalogEvent );
       }
       setView( nextView );
       // Keep polling only while still in flight. Paid, failed and unavailable are not going to

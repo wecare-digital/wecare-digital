@@ -1526,6 +1526,23 @@ def _capi_log_event(body: Dict) -> Dict:
             pass
     if body.get('orderId'):
         custom['order_id'] = str(body['orderId'])
+    raw_contents = body.get('contents')
+    if isinstance(raw_contents, list) and raw_contents:
+        contents = []
+        for line in raw_contents[:100]:
+            if not isinstance(line, dict):
+                contents = []
+                break
+            retailer_id = str(line.get('id') or '').strip()
+            quantity = line.get('quantity')
+            if not retailer_id or type(quantity) is not int or quantity <= 0:
+                contents = []
+                break
+            contents.append({'id': retailer_id, 'quantity': quantity})
+        if contents:
+            custom['contents'] = contents
+            custom['content_ids'] = [line['id'] for line in contents]
+            custom['content_type'] = 'product'
     if custom:
         event['custom_data'] = custom
 

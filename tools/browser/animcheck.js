@@ -23,7 +23,7 @@
  *    /grahak-os/, vl- on /vayulok/, rh- in the shared RotatingHero). They were extracted
  *    into ONE shared component, src/components/RotatingPill.tsx, which self-scopes a single
  *    rp-* class set and is mounted by all four surfaces (and by /terms/, /privacy/,
- *    /bharat-rx/, /orders/ through RotatingHero). This still compares the COMPUTED
+ *    /orders/ through RotatingHero). This still compares the COMPUTED
  *    transition of the pill, the word, the tint and the dot across all four surfaces: with
  *    one shared implementation they MUST be identical, so any drift now means a page has
  *    shadowed rp-* CSS or failed to mount the shared pill - which is exactly the regression

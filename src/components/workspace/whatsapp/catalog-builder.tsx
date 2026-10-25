@@ -10,8 +10,10 @@ import Button from '../../../components/ui/Button';
 import { useToastContext } from '../../../contexts/ToastContext';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 import * as api from '../../../api/client';
-import { CDN_DOMAIN } from '../../../lib/media-paths';
 import Select, { type SelectOption } from '../../../components/ui/Select';
+
+/** The only public route for approved catalog artwork (see amplify/functions/ecommerce/catalog-media). */
+const CATALOG_MEDIA_EXAMPLE = 'https://wecare.digital/api/catalog-media/<name>-4096.png';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
@@ -145,10 +147,9 @@ function ProductTab ( { acct, toast, confirm }: { acct: typeof ACCOUNTS[ number 
                 if ( r.imageFetchStatus === 'FETCH_FAILED' )
                 {
                     // Meta fetches the image itself, so the URL has to be publicly
-                    // reachable. The example is built from CDN_DOMAIN rather than written
-                    // out: this line used to name `wecare-digital-get`, a bucket-shaped
-                    // host that was retired on 2026-09-28, so the advice could only fail.
-                    toast.error( `Product created but the image failed to fetch — use an approved public catalog image URL (for example https://${ CDN_DOMAIN }/secure/d/public/catalog-deploy/catalog/products/...)` );
+                    // reachable. Approved catalog artwork is public ONLY through the
+                    // catalog-media API; the /get/ path refuses secure/d/public/catalog-deploy/.
+                    toast.error( `Product created but the image failed to fetch — use an approved catalog image URL (for example ${ CATALOG_MEDIA_EXAMPLE })` );
                 } else
                 {
                     toast.success( `Product created (${r.productId || 'ok'})` );

@@ -37,6 +37,8 @@ Constraints this file must respect
 
 from __future__ import annotations
 
+from urllib.parse import unquote
+
 # Lambda@Edge cannot read environment variables, so this is a constant.
 MAIN_SITE = "https://wecare.digital/"
 
@@ -55,8 +57,43 @@ ERROR_THRESHOLD = 400
 #
 # Matched after normalising away a leading slash, on a segment boundary, so
 # ``secure/x`` is denied but a legitimately public ``secure-notes.pdf`` is not.
+#
+# Matched on the PERCENT-DECODED key, because S3 decodes the request path once before
+# looking the key up. Comparing the raw URI let ``/secur%65/...`` or ``/secure%2Fu/...``
+# miss the deny while S3 still resolved and served the gated object.
 PUBLIC_DELIVERABLE_PREFIX = "secure/d/public/"
 DENIED_PREFIXES = ("secure/",)
+
+# Catalog masters, manifest, QA and deploy evidence live under the public-delivery tier, but
+# the only public route for approved catalog artwork is /api/catalog-media/<file> (a Lambda
+# with its own S3 read), so CloudFront never needs to serve this subtree. Denied before the
+# exemption. product-image-gen's draft previews are the one part still delivered here.
+CATALOG_DEPLOY_PREFIX = "secure/d/public/catalog-deploy/"
+CATALOG_GENERATED_MEDIA_PREFIX = CATALOG_DEPLOY_PREFIX + "catalog-media/generated/"
+
+# Customer data inside the public-delivery tier, denied like the rest of ``secure/``.
+# Must equal ``lambda_utils.media_paths.PRIVATE_DELIVERABLE_PREFIXES`` (this package cannot
+# import it); ``scripts/verify_media_prefixes.py`` fails if the two drift. Code reaches these
+# objects through the S3 API or presigned URLs only.
+PRIVATE_DELIVERABLE_PREFIXES = tuple(PUBLIC_DELIVERABLE_PREFIX + p for p in (
+    "Invoice/customer_invoice/",
+    "receipts/",
+    "whatsapp/incoming/",
+    "whatsapp/outgoing/",
+    "whatsapp/voice/",
+    "whatsapp/transcriptions/",
+    "whatsapp/downloads/",
+    "whatsapp/calling-ai/",
+    "whatsapp/resumable/",
+))
+
+# Response headers that describe the refused object. Dropped on a deny so the 302 reveals
+# nothing about it - not even an ETag, which for a small file is a content fingerprint.
+# x-amz-cf-* belong to CloudFront and are never exposed to the function, so they are skipped.
+_OBJECT_HEADERS = frozenset({
+    "etag", "last-modified", "accept-ranges", "content-range", "content-disposition",
+    "content-encoding", "content-language", "expires",
+})
 
 
 def _redirect(response: dict) -> dict:
@@ -89,9 +126,46 @@ def _redirect(response: dict) -> dict:
     return response
 
 
+def _refuse(response: dict) -> dict:
+    """Redirect a denied path AND drop the object the origin returned with it.
+
+    Lambda@Edge sends the origin's body to the viewer unless the function replaces it, so a
+    status-and-headers-only redirect still carried the gated object to any client that reads
+    a 302's body instead of following it. The body is emptied here and the object's
+    descriptive headers removed. ``Via`` and ``Transfer-Encoding`` stay untouched (read-only),
+    and ``Content-Length`` is rewritten only when the origin sent one, so a chunked origin
+    response never gains a conflicting length.
+    """
+    _redirect(response)
+    headers = response["headers"]
+    for name in list(headers):
+        lower = name.lower()
+        if lower in _OBJECT_HEADERS or (
+                lower.startswith("x-amz-") and not lower.startswith("x-amz-cf-")):
+            del headers[name]
+    if "content-length" in headers:
+        headers["content-length"] = [{"key": "Content-Length", "value": "0"}]
+    headers["content-type"] = [{"key": "Content-Type", "value": "text/plain; charset=utf-8"}]
+    response["body"] = ""
+    return response
+
+
 def _is_denied(uri: str) -> bool:
-    """Whether this URI addresses a prefix that must not be served publicly."""
-    normalised = (uri or "").lstrip("/")
+    """Whether this URI addresses a prefix that must not be served publicly.
+
+    Decoded exactly once, like S3: a double-encoded ``%2565`` stays a literal ``%65`` in
+    the key, which names no object and falls through to the error redirect.
+    """
+    normalised = unquote(uri or "").lstrip("/")
+    # No real key here has a "." or ".." segment, and refusing them means a prefix
+    # exemption below can never be stretched over a dot-segment path.
+    if any(segment in (".", "..") for segment in normalised.split("/")):
+        return True
+    if (normalised.startswith(CATALOG_DEPLOY_PREFIX)
+            and not normalised.startswith(CATALOG_GENERATED_MEDIA_PREFIX)):
+        return True
+    if normalised.startswith(PRIVATE_DELIVERABLE_PREFIXES):
+        return True
     if normalised.startswith(PUBLIC_DELIVERABLE_PREFIX):
         return False
     return any(normalised.startswith(prefix) for prefix in DENIED_PREFIXES)
@@ -105,7 +179,7 @@ def handler(event: dict, context: object) -> dict:
     # Checked before the status, and regardless of it: a gated object that exists
     # returns 200 from S3, so keying only off errors would serve it.
     if _is_denied(record.get("request", {}).get("uri", "")):
-        return _redirect(response)
+        return _refuse(response)
 
     try:
         status = int(response["status"])
