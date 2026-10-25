@@ -175,7 +175,7 @@ const AWS_RESOURCES: AWSResource[] = [
   { name: 'us-east-1_cSx0RHCIR', type: 'Cognito User Pool', purpose: 'User authentication & RBAC', module: 'Auth', env: 'Production', status: 'Active', risk: '' },
   { name: 'us-east-1:471c2c38-...', type: 'Cognito Identity Pool', purpose: 'Federated identity for AWS access', module: 'Auth', env: 'Production', status: 'Active', risk: '' },
   { name: 'wecare.digital/api', type: 'API Gateway (REST)', purpose: 'Main API endpoint for all Lambda functions', module: 'All', env: 'Production', status: 'Active', risk: '' },
-  { name: 'wecare-digital-get', type: 'S3 Bucket', purpose: 'Media storage, invoices, voice, static assets (o/ public, secure/ gated)', module: 'Storage', env: 'Production', status: 'Active', risk: '' },
+  { name: 'wecare-digital-get', type: 'S3 Bucket', purpose: 'Media storage, invoices, voice, static assets (o/ and secure/d/public/ public, rest of secure/ gated)', module: 'Storage', env: 'Production', status: 'Active', risk: '' },
   { name: DB_TABLES.length + ' DynamoDB Tables', type: 'DynamoDB', purpose: 'Primary database (PAY_PER_REQUEST)', module: 'Data', env: 'Production', status: 'Active', risk: '' },
   { name: '42 Lambda Functions', type: 'Lambda', purpose: 'Backend compute (Python 3.12)', module: 'Backend', env: 'Production', status: 'Active', risk: '' },
   { name: 'stack-wecare-digital-bulk-queue', type: 'SQS Queue', purpose: 'Bulk message job processing', module: 'Operations', env: 'Production', status: 'Active', risk: '' },
@@ -314,16 +314,16 @@ const STORAGE_PATHS: StoragePath[] = [
   { path: 'secure/d/public/whatsapp/calling-ai/', purpose: 'WhatsApp calling recordings', readBy: 'whatsapp-calling', writtenBy: 'whatsapp-calling' },
   { path: 'secure/d/public/whatsapp/template-headers/', purpose: 'Template header media', readBy: 'whatsapp-templates', writtenBy: 'whatsapp-template-management' },
   { path: 'secure/d/public/whatsapp/downloads/', purpose: 'User-initiated media downloads', readBy: 'Frontend', writtenBy: 'messages-read' },
-  { path: 'secure/d/public/Invoice/customer_invoice/', purpose: 'Invoice PNGs and PDFs — gated: a rendered invoice carries the customer name, address, amount and GST breakdown, so it is served by presigned URL rather than from the unauthenticated o/ tree', readBy: 'invoice-engine (presigned), system-cleanup', writtenBy: 'invoice-engine, inbound-whatsapp-handler' },
+  { path: 'secure/d/public/Invoice/customer_invoice/', purpose: 'Invoice PNGs. Under secure/d/public/, so served WITHOUT authentication: unlisted, not gated, although each carries the customer name, address, amount and GST breakdown', readBy: 'invoice-engine (presigned), system-cleanup', writtenBy: 'invoice-engine, inbound-whatsapp-handler' },
   { path: 'o/stream/media/reports/', purpose: 'Bulk job reports and exports', readBy: 'Frontend', writtenBy: 'bulk-worker' },
   { path: 'secure/d/public/catalog-deploy/catalog-media/generated/', purpose: 'Product images', readBy: 'catalog-management, Frontend', writtenBy: 'product-image-gen' },
   { path: 'o/stream/media/m/', purpose: 'Logos, branding images (static)', readBy: 'Frontend (CDN)', writtenBy: 'Manual upload' },
-  { path: 'o/stream/media/fonts/', purpose: 'Invoice PDF fonts', readBy: 'invoice-engine', writtenBy: 'Manual upload' },
+  { path: 'secure/d/public/Invoice/fonts/', purpose: 'Invoice receipt fonts (DejaVu Sans Mono)', readBy: 'invoice-engine', writtenBy: 'Manual upload' },
   { path: 'o/stream/media/docs/', purpose: 'Scraped documentation (Markdown)', readBy: 'Frontend, meta-business-agent', writtenBy: 'docs-scraper' },
   { path: 'secure/d/public/whatsapp/wa-tpl/', purpose: 'Template media named by Meta-APPROVED templates — do not move or rename', readBy: 'Meta (refetch at send time)', writtenBy: 'whatsapp-template-management' },
   { path: 'secure/d/public/whatsapp/whatsapp-calling/', purpose: 'IVR greeting audio (TTS)', readBy: 'whatsapp-calling', writtenBy: 'whatsapp-calling' },
   { path: 'secure/u/', purpose: 'Gated: upload as received — presigned access only', readBy: 'Presigned URL', writtenBy: 'document upload' },
-  { path: 'secure/d/', purpose: 'Gated: deliverable rendition — presigned access only', readBy: 'Presigned URL', writtenBy: 'document pipeline' },
+  { path: 'secure/d/', purpose: 'Deliverable rendition — gated, presigned access only, EXCEPT secure/d/public/, which the edge serves publicly', readBy: 'Presigned URL', writtenBy: 'document pipeline' },
 ];
 
 // ─── Data: Environment Config ───
@@ -752,7 +752,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
           </div>
           <div>
             <div style={ label }>Storage</div>
-            <div style={ { marginTop: 4 } }>S3 (wecare-digital-get) — o/stack/ + o/stream/</div>
+            <div style={ { marginTop: 4 } }>S3 (wecare-digital-get) — secure/u/ + secure/d/public/ + o/stream/media/</div>
           </div>
           <div>
             <div style={ label }>Channels</div>
@@ -1150,11 +1150,10 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user, embedded 
             name: '📦 Storage — S3', children: [
               {
                 name: 'wecare-digital-get', children: [
-                  { name: 'o/ (public root)' },
-                  { name: 'o/stack/ (user data — factory reset wipes this)' },
-                  { name: 'o/stream/ (static assets — never wiped)' },
+                  { name: 'o/stream/media/ (static/CDN assets: m/, ivr/, reports/, docs/)' },
+                  { name: 'secure/u/ (uploads as received — gated, presigned access only)' },
+                  { name: 'secure/d/public/ (deliverables: Invoice/, receipts/, whatsapp/, blog/, catalog-deploy/ — served publicly)' },
                   { name: 'secure/d/public/whatsapp/wa-tpl/ (Meta-approved template media — do not move)' },
-                  { name: 'secure/ (gated at the edge — presigned access only)' },
                 ]
               },
             ]

@@ -7,7 +7,7 @@ text, image, audio, video, document, sticker, location, contacts, interactive (b
 
 ## Repo mapping
 - Builder: `outbound-whatsapp/handler.py` `_build_message_payload` + `_handle_interactive_send`.
-- Media: `_upload_media` (S3 key → WhatsApp media id), download `inbound-whatsapp-handler` `_download_media_direct_api` → S3 `stack/whatsapp-media/incoming/`.
+- Media: `_upload_media` (S3 key → WhatsApp media id), download `inbound-whatsapp-handler` `_download_media_direct_api` → S3 `secure/d/public/whatsapp/incoming/`.
 - Mark read: `_send_direct_api_read_receipt` (`status=read`).
 - Typing: `outbound-whatsapp` `_send_typing_indicator` — native `status=read` + `message_id` + `typing_indicator:{type:text}`.
 - Frontend: inbox composer (multi-file presigned S3 upload), `InteractiveMessageComposer.tsx`.

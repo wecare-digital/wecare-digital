@@ -7,39 +7,28 @@ import { defineStorage } from '@aws-amplify/backend';
  * 2026-09-28, when that bucket was deleted; the name is not a hostname any more, so
  * never interpolate it into a URL. Browser-facing URLs are `wecare.digital/get/<key>`.
  *
- * TWO ROOTS, and every prefix below is rooted. These rules previously read `stack/*`,
- * `public/*` and `stream/*` — one level ABOVE where the data actually lives, the same
- * off-by-one-prefix defect that the media-prefix verification script exists to catch.
+ * TWO ROOTS. Live layout (2026-10-25); the canonical key constants are in
+ * `amplify/functions/shared/lambda_utils/media_paths.py`:
  *
- * - o/                   : public root. `o/` is a LOCATION, not a permission —
- *                          everything outside `secure/` is public.
- *   - o/stack/           : user/transactional data (factory reset = wipe o/stack/ only)
- *     - whatsapp-media/  : incoming/, outgoing/, voice/, calling-ai/, template-headers/, downloads/
- *     - invoices/        : Invoice PNGs and PDFs
- *     - voice/           : Voice recordings
- *     - reports/         : Bulk job reports and exports
- *     - store/products/  : Product images
- *   - o/public/          : media Meta fetches by URL (no auth)
- *     - wa-tpl/          : Template message media. DO NOT MOVE OR RENAME — 61 objects
- *                          here are named by Meta-APPROVED templates, Meta refetches
- *                          from the approved URL at send time, and an approved
- *                          template body cannot be edited in place.
- *       - docs/          : PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT (max 100MB)
- *       - img/           : JPEG, PNG (max 5MB)
- *       - vid/           : MP4, 3GP (max 16MB)
- *       - aud/           : AAC, AMR, MP3, M4A, OGG (max 16MB)
- *       - stk/           : WebP stickers (max 500KB)
- *   - o/stream/          : Static internal assets (NEVER wiped)
- *     - media/m/         : Logos, branding images
- *     - media/fonts/     : Invoice PDF fonts
- *     - media/ivr/       : IVR audio files
- *     - docs/            : Scraped documentation (Markdown)
- * - secure/              : gated root. Denied at the edge by the
- *                          `wecare-get-miss-redirect` Lambda@Edge and reachable only
- *                          via a presigned URL, so it is DELIBERATELY absent from the
- *                          access map below. Granting it here would be a disclosure.
- *   - secure/u/          : the upload as received
- *   - secure/d/          : the deliverable rendition
+ * - secure/                     : edge-gated (`wecare-get-miss-redirect` Lambda@Edge),
+ *                                 reachable only via a presigned URL, EXCEPT d/public/.
+ *   - secure/u/                 : uploads as received — dropdocs/, service-requests/
+ *   - secure/d/public/          : deliverables, served publicly with NO authentication
+ *     - Invoice/                : customer_invoice/, fonts/
+ *     - receipts/
+ *     - whatsapp/               : incoming/, outgoing/, voice/, transcriptions/, downloads/,
+ *                                 calling-ai/, whatsapp-calling/, resumable/, template-headers/
+ *       - wa-tpl/               : reusable template media — img/ docs/ vid/ aud/ stk/
+ *     - blog/                   : audits/, categories/, editorial/, remediation/
+ *     - catalog-deploy/         : catalog/products/, catalog-media/, catalog-relocation/,
+ *                                 catalog-always-available/
+ * - o/                          : static/CDN assets. `o/` is a LOCATION, not a permission.
+ *   - o/stream/media/           : m/ (branding), ivr/, reports/, docs/
+ *
+ * The access map below still names `o/stack/*` and `o/public/*`, retired trees that hold
+ * no current objects. It is left unchanged here on purpose: editing it changes the IAM
+ * this resource deploys, which needs its own owner-approved deploy. `secure/*` stays
+ * absent from it; granting the gated root here would be a disclosure.
  */
 export const storage = defineStorage( {
   name: 'wecare-media',

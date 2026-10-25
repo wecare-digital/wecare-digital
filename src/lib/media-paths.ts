@@ -10,13 +10,14 @@
  * 1. **The bucket name is not a hostname.** `wecare-digital-get` is for S3 API calls;
  *    `wecare.digital/get` is the browser-facing media surface. Keep them separate.
  *
- * 2. **`o/` does not mean public, and `secure/` is the real boundary.** Everything
- *    outside `secure/` is public. `o/` is just the root that real objects live under.
- *    A `secure/` key is denied at the edge by the `wecare-get-miss-redirect`
- *    Lambda@Edge and only reachable through a presigned URL, so handing one to a
- *    public-URL builder is a caller mistake — {@link publicUrl} returns `''` rather
- *    than a link that will 302, which surfaces the mistake here instead of shipping a
- *    dead link to a recipient.
+ * 2. **`o/` does not mean public, and `secure/` is the real boundary - with one public
+ *    subtree.** Everything outside `secure/` is public. `o/` is just the root that static
+ *    assets live under. A `secure/` key is denied at the edge by the
+ *    `wecare-get-miss-redirect` Lambda@Edge and only reachable through a presigned URL,
+ *    EXCEPT `secure/d/public/**`, which is served with no authentication (invoices,
+ *    receipts and WhatsApp media live there). Handing a gated key to a public-URL builder
+ *    is a caller mistake — {@link publicUrl} returns `''` rather than a link that will 302,
+ *    which surfaces the mistake here instead of shipping a dead link to a recipient.
  *
  * Keys persisted in DynamoDB before the bucket merge lack the `o/` segment, so
  * {@link canonical} normalises on read. It is idempotent, and it never moves a key

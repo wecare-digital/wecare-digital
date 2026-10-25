@@ -2947,9 +2947,8 @@ export async function uploadTemplateMedia ( request: {
 
 /**
  * Upload media for SENDING a template message (public URL for WhatsApp to fetch).
- * Returns a CDN URL: https://wecare.digital/get/o/public/wa-tpl/{folder}/...
- * (the bucket is `wecare-digital-get`; the old `wecare-digital-get` host, whose name
- * doubled as the bucket name, was retired on 2026-09-28.)
+ * Returns a CDN URL: https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/{folder}/...
+ * (the bucket is `wecare-digital-get`; its name is not a hostname.)
  *
  * Supports all WhatsApp Cloud API media types:
  *   - Documents: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT (max 100MB) → docs/

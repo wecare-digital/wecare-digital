@@ -21,51 +21,54 @@ npm run dev
 - **App Client**: 1j8kbi48m4v2rped3n224rlevb
 
 ### S3 Bucket
-Single bucket: **`wecare-digital-get`** (versioning **Suspended**).
+Single bucket: **`wecare-digital-get`** (versioning **Enabled**; noncurrent versions
+expire after 90 days).
 
 > `wecare-digital-get` is an S3 bucket name, not a hostname. Use it for S3 API calls
-> and use `wecare.digital/get` for browser-facing media URLs. Compose keys through
-> `lambda_utils/media_paths.py` (Python) or `src/lib/media-paths.ts` (browser)
-> rather than hand-building them.
+> and use `wecare.digital/get` for browser-facing media URLs. Compose keys from the
+> constants in `lambda_utils/media_paths.py` (Python, canonical) or `src/lib/media-paths.ts`
+> (browser) rather than hand-building them.
 
-Two top-level roots, and nothing else:
+Layout (verified live 2026-10-25):
 
-- **`o/`** - public root. Everything real lives here.
-- **`secure/`** - gated root. Denied at the edge by the `wecare-get-miss-redirect`
-  Lambda@Edge; reachable only via a presigned URL.
-  - `u/` - the upload as received
-  - `d/` - the deliverable rendition
-
-`o/` is a **location, not a permission** — everything outside `secure/` is public.
-Never move a key between the two roots to "make it work": that is a disclosure in
-one direction and a broken link in the other.
-
-Under `o/`:
-
-- `o/stack/` - All user/transactional data (factory reset = wipe `o/stack/` only)
-  - `whatsapp-media/incoming/` - Inbound media
-  - `whatsapp-media/outgoing/` - Outbound media
-  - `whatsapp-media/voice/` - TTS audio
-  - `whatsapp-media/calling-ai/` - Call transcripts & TTS
-  - `whatsapp-media/template-headers/` - Template media
-  - `whatsapp-media/downloads/` - Media downloads
-  - `invoices/` - Invoice PNGs and PDFs (created on first write)
-  - `voice/` - Voice recordings (created on first write)
-  - `reports/` - Bulk job reports
-  - `store/products/` - Product images
-- `o/stream/` - Static internal assets (NEVER wiped by cleanup)
-  - `media/m/` - Logos, branding
-  - `media/fonts/` - Invoice PDF fonts
-  - `media/ivr/` - IVR audio files
-  - `media/reports/` - Report assets
-  - `blog/`, `code/`, `docs/` - Scraped and generated content
-- `secure/d/public/whatsapp/wa-tpl/` - **Do not move or rename.** 61 objects whose URLs are
-  embedded in WhatsApp templates Meta has already approved, and Meta refetches
-  media from the approved URL at send time.
-- `secure/d/public/whatsapp/whatsapp-calling/`, `o/app-review/`, `o/meta-app-review/`
+```text
+s3://wecare-digital-get/
+├── secure/
+│   ├── u/                              # INPUT / uploads (edge-gated)
+│   │   ├── dropdocs/
+│   │   └── service-requests/
+│   └── d/                              # DELIVERABLES / generated output
+│       └── public/                     # served publicly, see below
+│           ├── Invoice/{customer_invoice,fonts}/
+│           ├── receipts/
+│           ├── whatsapp/
+│           │   ├── incoming/ outgoing/ voice/ transcriptions/ downloads/
+│           │   ├── calling-ai/ whatsapp-calling/ resumable/ template-headers/
+│           │   └── wa-tpl/{img,docs,vid,aud,stk}/
+│           ├── blog/{audits,categories,editorial,remediation}/
+│           └── catalog-deploy/
+│               ├── catalog/            # products/ masters + manifest, contact sheet, QA
+│               ├── catalog-media/
+│               ├── catalog-relocation/
+│               └── catalog-always-available/
+└── o/                                  # STATIC/CDN assets
+    ├── stream/media/{m,ivr,reports,docs}/
+    └── error.html, healthcheck.txt
+```
 
 Served as `https://wecare.digital/get/<key>` via CloudFront `E2GP22R4BIFGQ3`
-(origin path `""`, so the `o/` segment is part of the URL).
+(origin path `""`, so the root segment is part of the URL). Exposure is decided by
+the `wecare-get-miss-redirect` Lambda@Edge, by prefix:
+
+- `secure/d/public/**` is served **without authentication**. That includes invoices,
+  receipts and WhatsApp media: they are unlisted, not access-controlled.
+- Every other `secure/**` key (`secure/u/**`, any `secure/d/` key outside `public/`)
+  is redirected at the edge and reachable only via a presigned URL.
+- Everything else, including `o/**`, is public. `o/` is a **location, not a permission**.
+
+Never move a key between subtrees to "make it work": that is a disclosure in one
+direction and a broken link in the other. A Meta-approved template keeps fetching the
+exact media URL it was approved with, so never move or rename an object that one names.
 
 
 ### DynamoDB Tables

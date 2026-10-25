@@ -15,7 +15,7 @@ Evidence-based as of 2026-06-10. "Live verified" means a real message was sent/r
 | 7 | Contacts/location messages | BUILT (present) | `handleSendLocationRequest`, interactive `location_request` | No |
 | 8 | Mark message as read | BUILT (present) | `_send_direct_api_read_receipt` | No |
 | 9 | Typing indicator | IMPROVED_AND_TESTED | `outbound-whatsapp` `_send_typing_indicator` (native `status=read`+`typing_indicator`); client `sendTypingIndicator` | No |
-| 10 | Media upload/download/storage | BUILT (present) | `_download_media_direct_api` → S3 `stack/whatsapp-media/`; `MediaFilesTable` | No |
+| 10 | Media upload/download/storage | BUILT (present) | `_download_media_direct_api` → S3 `secure/d/public/whatsapp/`; `MediaFilesTable` | No |
 | 11 | Webhook verification (GET) | NOT_APPLICABLE (AWS-managed) | AWS End User Messaging handles GET verify | n/a |
 | 12 | Webhook signature validation | NOT_APPLICABLE (AWS-managed) | SNS delivery from AWS End User Messaging | n/a |
 | 13 | Inbound message processing | BUILT (present) | `inbound-whatsapp-handler` `_process_message` | Partial (5 items in `WhatsAppInboundTable`) |

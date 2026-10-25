@@ -14,7 +14,7 @@
 | CORS | ⚠️ REVIEW | Gateway `AllowOrigins: *`; handlers echo specific origin. Tighten gateway to known origins |
 | Idempotency / dup webhooks | ⚠️ PARTIAL | dedup + DLQ + timeout-guard present; add explicit message-id dedup table if duplicates observed |
 | Flow payload encryption | ✅ | RSA private key in `wecare/flow-private-key` |
-| Media objects private | ✅ (assumed) | `wecare-digital-get` under `stack/whatsapp-media/`; presigned URLs for read. Confirm public-access-block |
+| Media objects private | ❌ not private (measured 2026-10-25) | WhatsApp media is in `wecare-digital-get` under `secure/d/public/whatsapp/`, which the edge (`wecare-get-miss-redirect`) serves with no authentication; a probe of the `incoming/` marker returned 200. Objects are unlisted, not access-controlled. Moving them to a gated prefix is an owner decision and a data migration |
 | `AUTH_SKIP_PATHS` scope | ✅ narrowed 2026-09-21 | Only `/wa-business/flow-data` is exempt, and it self-authenticates by RSA decryption. `/wa-business/webhooks` was also exempt — it is not a Meta callback but the management surface for `subscribed_apps`, where `DELETE` stops all inbound delivery and `POST` forwards `override_callback_uri`. Matching is now exact-or-child-segment, not substring |
 | Live-send gating | ✅ implemented, held off | `lambda_utils/live_smoke` enforces `WA_LIVE_SMOKE_TEST` + `WA_QA_RECIPIENT`. It is a **lockdown**: off changes nothing, on refuses every recipient but the QA number. Both vars are absent in production (measured on `wecare-outbound-whatsapp:19`) |
 

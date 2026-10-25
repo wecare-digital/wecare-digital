@@ -59,8 +59,8 @@ WAF is gone from this account. Owner decision, taken as a cost decision.
 
 - **DynamoDB:** all tables use `PAY_PER_REQUEST`; no provisioned capacity.
 - **CloudWatch retention:** log groups default to 3 months; do not raise without reason.
-- **S3 lifecycle:** add expiry rules for `stack/whatsapp-media/downloads/` and
-  `resumable/` staging keys; raw archives (if ever enabled) must have lifecycle + encryption.
+- **S3 lifecycle:** add expiry rules for `secure/d/public/whatsapp/downloads/` and
+  `secure/d/public/whatsapp/resumable/` staging keys; raw archives (if ever enabled) must have lifecycle + encryption.
 - **Bedrock / Textract / Athena:** highest cost; keep disabled. Never send PII to
   Bedrock; add redaction before enabling.
 
