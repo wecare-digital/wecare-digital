@@ -18,7 +18,7 @@ The live set (WABA1 `2094615664435155`, verified by the owner and the 2026-10-25
 
     PAY            wecare_whatapp_native_pay_template     UTILITY, IMAGE header, ORDER_DETAILS button
     INVOICE        wecare_default_invoice_image_template  UTILITY, IMAGE header, FLOW button index 0
-    ORDER_STATUS   wecare_order_status_v2                 UTILITY / ORDER_STATUS (submitted for approval)
+    ORDER_STATUS   wecare_order_status_v3                 UTILITY / ORDER_STATUS (submitted 2026-10-25)
     OTP            wecare_otp                             AUTHENTICATION, URL button index 0
     LEAVE_REVIEW   wecare_leave_review                    manual only: never sent by automation
     DOWNLOAD       wecare_default_download                URL button (Vault digital delivery)
@@ -71,9 +71,10 @@ INVOICE = Template(
     language="en", category="UTILITY", header="image", buttons=("flow",))
 
 #: Fulfilment updates outside the customer-service window. Inside the window the interactive
-#: `order_status` message is used instead and needs no template.
+#: `order_status` message is used instead and needs no template. `_v3` because Meta still holds
+#: the deleted `_v2` name (error_subcode 2388023 refuses new English content under it).
 ORDER_STATUS = Template(
-    name=os.environ.get("WA_ORDER_STATUS_TEMPLATE", "wecare_order_status_v2"),
+    name=os.environ.get("WA_ORDER_STATUS_TEMPLATE", "wecare_order_status_v3"),
     language="en", category="UTILITY", sub_category="ORDER_STATUS")
 
 #: Website sign-in and registration. `customer-whatsapp-auth` is packaged standalone and keeps

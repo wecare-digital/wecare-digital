@@ -1,13 +1,22 @@
 #!/usr/bin/env python3
-"""Submit the WhatsApp Order Status template used for all fulfilment updates.
+"""Submit the WhatsApp Order Status template used for fulfilment updates outside the window.
 
 Why this template exists
 ------------------------
-Staff can drive a paid order forward from the workspace (Pay Flow → "Mark Shipped" /
-"Mark Completed"). Payment capture does not send ORDER_STATUS; fulfilment notifications are a
-separate operator-driven workflow. All processing/shipped/completed updates use one approved ORDER_STATUS template. There is no
-service-window fallback. This provisions that one template and verifies Meta approval before the
-runtime is promoted.
+A verified WhatsApp-rail capture sends Meta order_status `processing` before the invoice, and
+staff drive a paid order forward from the workspace (Pay Flow → "Mark Shipped" / "Mark
+Completed"). Inside the 24-hour customer-service window those updates go out as the interactive
+`order_status` message and need no template. Outside the window only this approved ORDER_STATUS
+template may carry them; without it the update is deferred (409 ORDER_STATUS_DEFERRED, recorded
+as `pendingOrderStatus` on the invoice). This provisions that one template and verifies Meta
+approval.
+
+Why `_v3`
+---------
+`wecare_order_status_v2` was deleted on Meta earlier, and Meta refuses new English content under
+a name whose English content is still being deleted (error_subcode 2388023, "try again in 4
+weeks or consider creating a new message template"). The name lives in ONE place for the
+runtime, `lambda_utils.whatsapp_templates.ORDER_STATUS`; keep this constant equal to it.
 
 Shape Meta requires
 --------------------
@@ -50,9 +59,9 @@ TEMPLATES_FUNCTION = "wecare-whatsapp-template-management:live"
 # without sub_category and would pass a wrongly-categorised template.
 BUSINESS_API_FUNCTION = "wecare-whatsapp-business-api:live"
 
-# MUST equal config/lambda-env-manifest.json → wecare-outbound-whatsapp →
-# WA_ORDER_STATUS_TEMPLATE / WA_ORDER_STATUS_TEMPLATE_LANGUAGE.
-TEMPLATE_NAME = "wecare_order_status_v2"
+# MUST equal lambda_utils.whatsapp_templates.ORDER_STATUS and config/lambda-env-manifest.json →
+# wecare-outbound-whatsapp → WA_ORDER_STATUS_TEMPLATE / WA_ORDER_STATUS_TEMPLATE_LANGUAGE.
+TEMPLATE_NAME = "wecare_order_status_v3"
 LANGUAGE = "en"
 
 
@@ -156,7 +165,8 @@ def verify() -> int:
         status = template.get("status", "?")
         if status != "APPROVED":
             print(f"\n{TEMPLATE_NAME} is {status}. Approval is Meta's; re-run --verify later.")
-            print("Until it is APPROVED, order_status updates are not sent.")
+            print("Until it is APPROVED, updates inside the 24-hour window still go out as the")
+            print("interactive order_status message; outside it they are deferred, not sent.")
         return 1
 
     print(f"\n{TEMPLATE_NAME} is ready. Ensure the outbound function env matches:")

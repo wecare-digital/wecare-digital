@@ -51,7 +51,7 @@ def audit_release(lam, hosting, manifest, expected_commit, *, app_id, branch='we
     invoice = configs['wecare-invoice-engine'].get('Environment', {}).get('Variables', {})
     smoke_mode = outbound.get('WA_LIVE_SMOKE_TEST', '').strip().lower() == 'true'
     provider = {'payment_template_approved': False, 'payment_configuration_matches': False,
-                'invoice_template_approved': False}
+                'invoice_template_approved': False, 'order_status_template_approved': False}
     try:
         waba = checkout.get('WABA_ID') or '2094615664435155'
         templates = _provider_read(lam, '/wa-business/payment-templates/list', waba).get('data', [])
@@ -65,6 +65,16 @@ def audit_release(lam, hosting, manifest, expected_commit, *, app_id, branch='we
         provider['invoice_template_approved'] = any(
             row.get('name') == invoice_name and row.get('status') == 'APPROVED'
             and row.get('category') == 'UTILITY'
+            and row.get('language') == 'en'
+            for row in templates)
+        # Reported, not gating: the capture-time `processing` update goes out as the interactive
+        # order_status message inside the 24-hour window without any template. Outside it, a
+        # missing approval defers the update (ORDER_STATUS_DEFERRED) rather than blocking money.
+        order_status_name = (outbound.get('WA_ORDER_STATUS_TEMPLATE')
+                             or 'wecare_order_status_v3')
+        provider['order_status_template_approved'] = any(
+            row.get('name') == order_status_name and row.get('status') == 'APPROVED'
+            and row.get('category') == 'UTILITY' and row.get('sub_category') == 'ORDER_STATUS'
             and row.get('language') == 'en'
             for row in templates)
         configurations = _provider_read(lam, '/wa-business/payment-config/list', waba).get('data', [])
