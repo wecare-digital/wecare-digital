@@ -92,7 +92,8 @@ from uuid import uuid4
 import boto3
 from boto3.dynamodb.conditions import Key
 
-from lambda_utils import contact_key, customer_auth, customer_session, payment_readiness, shared_tables
+from lambda_utils import (contact_key, customer_auth, customer_session, payment_readiness, shared_tables,
+                          whatsapp_templates)
 from lambda_utils.ecommerce import (
     blog_contribution, cart_contract, catalog_analytics, checkout_pricing, contact_address, customer_cart, finalization,
     india_address, order_channel, order_creation, order_keys, payment_address,
@@ -459,8 +460,9 @@ def _service_prices(origin: str) -> Dict[str, Any]:
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     origin = extract_origin(event)
 
-    # Strangler seam: invoice-engine is packaged inside checkout but receives no live traffic
-    # until API/internal callers are migrated deliberately. This dispatch MUST remain before
+    # Strangler seam: invoice-engine is packaged inside checkout and DOES carry live traffic:
+    # the Razorpay payment webhook relays a paid cart to `/invoices/from-payment`, so these
+    # `/invoices` routes are served here. This dispatch MUST remain before
     # checkout's customer-session gate: invoice routes keep the invoice engine's existing auth
     # contract and must never be rejected as customer checkout with VERIFICATION_REQUIRED.
     # Lazy import keeps ordinary checkout cold starts and trust decisions unchanged.
@@ -1253,6 +1255,189 @@ def _refuse_rebound_service_intent(identity: customer_auth.CustomerIdentity, req
         raise website_checkout.CheckoutRejected("INTENT_CHANGED")
 
 
+#: The ORDER_DETAILS expiry the WhatsApp "Pay on WhatsApp" rail stamps on its PaymentAttempt
+#: (`now + 900`, the same window `_cart_order_details` writes into the Meta `expiration`). Recorded
+#: on the attempt as `paymentRequestExpiresAt` so the one-live-payment guard can tell a request the
+#: customer can still pay from one that has lapsed, WITHOUT consulting Meta. Equal to the
+#: `_cart_order_details` expiry and to `WA_CART_LIVE_SECONDS`.
+WA_REQUEST_LIVE_SECONDS = 900
+#: The handler-level cross-rail refusal both rails answer with, so the browser's existing
+#: CHECKOUT_AMBIGUOUS branch (navigate to /checkout/status/?a=) covers it with no frontend change.
+PAYMENT_IN_PROGRESS_OTHER_RAIL = "PAYMENT_IN_PROGRESS_OTHER_RAIL"
+
+
+def _website_invoice_lines(snapshot) -> Optional[Dict[str, Any]]:
+    """`_native_invoice_lines` for the website attempt, guarded so it can NEVER refuse a checkout.
+    The website snapshot and the WhatsApp-cart snapshot both come from `_native_quote`, so the
+    shape `_native_invoice_lines` expects is identical. Display data only: any failure answers
+    None and the attempt simply carries no lines, exactly as before this landed.
+    """
+    try:
+        return _native_invoice_lines(snapshot)
+    except Exception as error:  # noqa: BLE001 - display data must never refuse a checkout
+        logger.warning(json.dumps({"event": "website_checkout_invoice_lines_unavailable",
+                                   "error": type(error).__name__}))
+        return None
+
+
+def _attempt_is_website(attempt: Dict[str, Any]) -> bool:
+    """Whether a stored attempt belongs to the website Razorpay Standard Checkout rail.
+    Keyed on `checkoutMode`, the one field each rail stamps unconditionally: the website rail
+    writes `website_checkout.CHECKOUT_MODE_WEBSITE`, and both WhatsApp rails write a
+    `wa_payment_request` native-cart/service mode. `channel` is deliberately NOT used -- a website
+    order can be attributed to the WhatsApp CHANNEL, so channel does not name the settlement rail.
+    """
+    return str(attempt.get("checkoutMode") or "") == website_checkout.CHECKOUT_MODE_WEBSITE
+
+
+def _wa_request_live(attempt: Dict[str, Any], now: int) -> bool:
+    """Whether a WhatsApp "Pay on WhatsApp" request on this attempt can still be paid.
+    Live means in flight AND inside the ORDER_DETAILS window the attempt recorded. The window is
+    read off `paymentRequestExpiresAt`; an attempt written before that field existed falls back to
+    the shared in-flight window, which only ever OVER-blocks (fail-safe, never a second charge).
+    """
+    if not payment_attempt.is_in_flight(attempt):
+        return False
+    expires_at = int(attempt.get("paymentRequestExpiresAt") or 0)
+    if expires_at:
+        return now <= expires_at
+    moved = int(attempt.get("updatedAt") or attempt.get("createdAt") or 0)
+    return now - moved <= website_checkout.CART_PAYMENT_IN_FLIGHT_SECONDS
+
+
+def _website_attempt_live(attempt: Dict[str, Any], now: int) -> bool:
+    """Whether a website attempt is a live, unpaid gateway order inside its block window."""
+    if not payment_attempt.is_in_flight(attempt):
+        return False
+    moved = int(attempt.get("updatedAt") or attempt.get("createdAt") or 0)
+    return now - moved <= website_checkout.CART_PAYMENT_IN_FLIGHT_SECONDS
+
+
+def _basket_pointer_attempt_ids(keys, *, customer_id: str, cart_id: str,
+                                basket_hash: str, narrow_hash: str) -> list:
+    """The attempt ids named by the THREE shared cart pointer rows, de-duplicated, order-stable.
+    These are the exact rows the website rail writes (`order_keys.record_cart_*`) and its guard
+    reads, so the WhatsApp "Pay on WhatsApp" rail claiming the same rows is what makes "one live
+    payment per basket" hold ACROSS both rails rather than within each. Lets
+    `OrderIdentityUnavailable` propagate: the caller must never read a storage failure as "no live
+    payment", because it would then create one.
+    """
+    ids: list = []
+    seen: set = set()
+    rows = []
+    if cart_id:
+        rows.append(order_keys.resolve_cart_payment(
+            keys, customer_id=customer_id, cart_id=cart_id) or {})
+        if basket_hash:
+            rows.append(order_keys.resolve_cart_basket(
+                keys, customer_id=customer_id, cart_id=cart_id, basket_hash=basket_hash) or {})
+        if narrow_hash:
+            rows.append(order_keys.resolve_cart_narrow_basket(
+                keys, customer_id=customer_id, cart_id=cart_id, narrow_hash=narrow_hash) or {})
+    for row in rows:
+        attempt_id = str((row or {}).get("paymentAttemptId") or "")
+        if attempt_id and attempt_id not in seen:
+            seen.add(attempt_id)
+            ids.append(attempt_id)
+    return ids
+
+
+def _cross_rail_block(identity: customer_auth.CustomerIdentity, snapshot, now: int, *,
+                      this_rail_is_website: bool):
+    """One live payment per basket, ACROSS the website and WhatsApp rails. Shared slot design.
+
+    THE SLOT. The website rail already writes three CommerceKeys pointer rows per basket --
+    `CARTPAYMENT#<cus>#<cart>` (which attempt is LIVE on the cart), `CARTBASKET#<cus>#<cart>#<hash>`
+    and `CARTNARROW#<cus>#<cart>#<narrow>` (has THIS BASKET been paid) -- and its guard
+    (`website_checkout._live_cart_payment`) reads exactly those rows. The WhatsApp "Pay on
+    WhatsApp" rail prices with the SAME `_native_quote`, so it derives the SAME `cart_id` and basket
+    hashes and can claim the SAME rows (`_record_cross_rail_pointer` below). Both rails therefore
+    share ONE slot per customer+cart+basket identity instead of inventing a second. No new row kind
+    and no DeleteItem is needed: the rows already exist and are upserted.
+
+    THE DECISION. This reads the shared rows, resolves each named attempt, and classifies it:
+      * PAID (`payment_attempt.may_create_order`)             -> CART_ALREADY_PAID, both rails.
+      * live on the OTHER rail                                -> PAYMENT_IN_PROGRESS_OTHER_RAIL.
+    A live attempt on the SAME rail is NOT reported here: the website rail's own in-rail guard
+    (inside `prepare_checkout`) and the WhatsApp rail's same-request-key dedup own that case, and
+    reporting it here would convert a legitimate resume into a refusal. Liveness is judged with
+    `paymentRequestExpiresAt` for a WhatsApp request (so an expired one stops blocking and a fresh
+    attempt is allowed) and the shared in-flight window for a website order.
+
+    Returns `(reason, attempt_id)` or `('', '')`. Lets `OrderIdentityUnavailable` propagate so the
+    caller fails closed with a 503 rather than creating a second payable order.
+    """
+    keys = _keys_table()
+    try:
+        basket = checkout_pricing.basket_hash(snapshot.frozen_data)
+        narrow = checkout_pricing.narrow_basket_hash(snapshot.frozen_data)
+    except checkout_pricing.PricingError:
+        # No frozen payload means no basket identity and no guard; the per-rail request-key and
+        # reference reservations remain. A lost backstop, never an open door.
+        return "", ""
+    attempt_ids = _basket_pointer_attempt_ids(
+        keys, customer_id=identity.customer_id, cart_id=snapshot.cart_id,
+        basket_hash=basket, narrow_hash=narrow)
+    for attempt_id in attempt_ids:
+        stored = _attempts_table().get_item(
+            Key={"paymentAttemptId": attempt_id}, ConsistentRead=True).get("Item")
+        if not stored:
+            continue
+        if str(stored.get("customerId") or "") != identity.customer_id:
+            # The pointer is an INDEX, not an authority. A foreign-owned row is corrupt and must
+            # neither block this customer nor be trusted.
+            logger.warning(json.dumps({"event": "checkout_cross_rail_pointer_foreign"}))
+            continue
+        if payment_attempt.may_create_order(stored):
+            return website_checkout.CART_ALREADY_PAID, attempt_id
+        other_is_website = _attempt_is_website(stored)
+        if other_is_website == this_rail_is_website:
+            # Same rail: owned by the per-rail guard / dedup, not reported cross-rail.
+            continue
+        live = (_website_attempt_live(stored, now) if other_is_website
+                else _wa_request_live(stored, now))
+        if live:
+            return PAYMENT_IN_PROGRESS_OTHER_RAIL, attempt_id
+    return "", ""
+
+
+def _record_cross_rail_pointer(snapshot, *, customer_id: str, attempt_id: str,
+                               request_key: str) -> None:
+    """Claim the shared cart pointer rows for a WhatsApp "Pay on WhatsApp" attempt.
+    The SAME three rows the website rail writes, so the website guard sees this live WhatsApp
+    payment and refuses a second order for the basket. A lost row re-opens the double-order path,
+    but the WhatsApp rail has already SENT the request by the time the slot matters, so a write
+    failure here is logged rather than undoing a delivered payment request -- the per-attempt
+    `paymentRequestExpiresAt` and the website guard's own in-flight check still bound it. An empty
+    key part (`ValueError`/`PricingError`) is swallowed to a log: this is attribution for the
+    cross-rail guard, never a money decision.
+    """
+    try:
+        basket = checkout_pricing.basket_hash(snapshot.frozen_data)
+        narrow = checkout_pricing.narrow_basket_hash(snapshot.frozen_data)
+        keys = _keys_table()
+        order_keys.record_cart_payment(
+            keys, customer_id=customer_id, cart_id=snapshot.cart_id,
+            payment_attempt_id=attempt_id, request_key=request_key,
+            basket_hash=basket, narrow_basket_hash=narrow,
+            snapshot_hash=snapshot.snapshot_hash)
+        order_keys.record_cart_basket(
+            keys, customer_id=customer_id, cart_id=snapshot.cart_id,
+            basket_hash=basket, payment_attempt_id=attempt_id,
+            request_key=request_key, narrow_basket_hash=narrow,
+            snapshot_hash=snapshot.snapshot_hash)
+        if narrow:
+            order_keys.record_cart_narrow_basket(
+                keys, customer_id=customer_id, cart_id=snapshot.cart_id,
+                narrow_hash=narrow, payment_attempt_id=attempt_id,
+                request_key=request_key, basket_hash=basket,
+                snapshot_hash=snapshot.snapshot_hash)
+    except (order_keys.OrderIdentityUnavailable, ValueError,
+            checkout_pricing.PricingError) as error:  # noqa: BLE001
+        logger.warning(json.dumps({"event": "checkout_cross_rail_pointer_save_failed",
+                                   "error": type(error).__name__}))
+
+
 def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
                      origin: str) -> Dict[str, Any]:
     line_items = body.get("lineItems")
@@ -1303,6 +1488,22 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
         # is created, so a disagreement refuses while no money can have moved. `None` for a
         # basket with no service line.
         native_service_paise = service_requests.native_service_line_paise(snapshot, line_items)
+        # CROSS-RAIL one-live-payment guard, BEFORE the gateway order is created. The website
+        # rail's OWN in-rail guard (inside `prepare_checkout`) already refuses a second website
+        # order and a paid basket; this arm adds the OTHER rail -- a live WhatsApp "Pay on
+        # WhatsApp" request on the same basket -- so one basket can never hold a live payment
+        # on both rails at once. Answered as CHECKOUT_AMBIGUOUS so `cart.tsx` navigates to the
+        # status page; `PAYMENT_IN_PROGRESS_OTHER_RAIL` is the honest "in progress elsewhere".
+        cross_reason, cross_attempt = _cross_rail_block(
+            identity, snapshot, now, this_rail_is_website=True)
+        if cross_reason:
+            logger.info(json.dumps({"event": "website_checkout_cross_rail_block",
+                                    "reason": cross_reason}))
+            return cors_response(200, {
+                "status": website_checkout.CHECKOUT_AMBIGUOUS,
+                "reason": cross_reason,
+                "paymentAttemptId": cross_attempt,
+            }, origin)
 
         def _allocate_reference(attempt_id: str, leg_paise: int) -> str:
             """Mint and durably reserve the `PAYREF#` row the webhook reconciles on.
@@ -1355,8 +1556,23 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
                     # suppresses every downstream render anyway.
                     **({customer_uuid.ATTRIBUTE: public_customer_uuid}
                        if public_customer_uuid else {}),
+                    # The verified session phone and the contact row's id, on the PAYREF#
+                    # row as well as the attempt and for the same lineage reason as the
+                    # public customer id above: the webhook reads attribution off PAYREF#
+                    # while finalisation reads it off the attempt, so writing to only one
+                    # leaves one settlement path without it. Spread CONDITIONALLY so a row
+                    # with no phone / contact id keeps a byte-identical key set to before.
+                    **({"customerPhone": _profile_phone(identity)}
+                       if _profile_phone(identity) else {}),
+                    **({"contactId": public_contact_id}
+                       if public_contact_id else {}),
                 })
 
+        # The invoice line items the paid GST invoice itemises after capture, derived ONCE
+        # here from the website snapshot (the SAME `_native_invoice_lines` the WhatsApp rail
+        # records; both snapshots come from `_native_quote`, so the shape is identical). The
+        # helper is guarded so this display data can never refuse a checkout.
+        website_invoice_lines = _website_invoice_lines(snapshot)
         prepared = website_checkout.prepare_checkout(
             customer_id=identity.customer_id,
             snapshot=snapshot,
@@ -1396,7 +1612,12 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
                      # The ONE ContactsTable row this customer has - the row the session owns,
                      # already read by `_checkout_profile` - so the order lands on the same
                      # contact the WhatsApp inbox and Flows use, whichever channel it came from.
-                     **({'contactId': public_contact_id} if public_contact_id else {}))),
+                     **({'contactId': public_contact_id} if public_contact_id else {}),
+                     # Invoice lines beside the attribution, emitted only when present so an
+                     # un-itemisable snapshot leaves a byte-identical attempt. Same field and
+                     # shape the WhatsApp rail writes.
+                     **({'invoiceLines': website_invoice_lines}
+                        if website_invoice_lines else {}))),
             # The read-only attempt store the one-live-payment guard needs. Without it the guard
             # can tell a basket has a recorded attempt but not whether that attempt was paid.
             attempts_table=_attempts_table(),
@@ -2025,7 +2246,79 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
                                        "reason": service_requests.SERVICE_UNAVAILABLE}))
             return cors_response(503, service_requests.refusal(
                 service_requests.SERVICE_UNAVAILABLE), origin)
-
+    # 1b. ONE LIVE PAYMENT PER BASKET, ACROSS RAILS -- only the HTTP "Pay on WhatsApp" rail.
+    #     `catalog_session is None` AND a `requestKey` present scopes this to the browser rail;
+    #     the internal `_native_cart` caller (no requestKey, its own WACARTLIVE# slot) and the
+    #     catalog-service leg (`catalog_session` set) skip it and keep working unchanged. The
+    #     SHARED SLOT is the website rail's own cart pointer rows: the request key is stored as a
+    #     correlator on them, NOT reserved via REQUESTKEY# -- the frontend reuses one key across
+    #     both rails and the website rail owns that REQUESTKEY# row, so claiming it here would
+    #     corrupt its create-right coordination.
+    wa_request_key = "" if catalog_session is not None else str(body.get("requestKey") or "").strip()
+    now_create = int(time.time())
+    if wa_request_key:
+        try:
+            # DEDUP: a repeat with the SAME key and SAME basket while the earlier WhatsApp
+            # request is still payable returns the EXISTING attempt and sends nothing. Keyed on
+            # the shared cart pointer, whose liveness is judged by `paymentRequestExpiresAt`, so
+            # once the request lapses a fresh attempt is allowed.
+            pointer = order_keys.resolve_cart_payment(
+                _keys_table(), customer_id=identity.customer_id, cart_id=snapshot.cart_id) or {}
+            pointer_attempt_id = str(pointer.get("paymentAttemptId") or "")
+            if pointer_attempt_id:
+                existing = _attempts_table().get_item(
+                    Key={"paymentAttemptId": pointer_attempt_id},
+                    ConsistentRead=True).get("Item") or {}
+                same_customer = str(existing.get("customerId") or "") == identity.customer_id
+                wa_live = (same_customer and not _attempt_is_website(existing)
+                           and _wa_request_live(existing, now_create))
+                if wa_live and str(pointer.get("requestKey") or "") == wa_request_key:
+                    # DEDUP: the SAME key and SAME basket while the request is still payable.
+                    # Return the existing attempt and send nothing. The amount is the one that
+                    # attempt was sent for -- what the customer will actually pay on WhatsApp --
+                    # not a re-quote, which can differ if a price moved in between.
+                    logger.info(json.dumps({"event": "checkout_wa_request_deduplicated"}))
+                    return cors_response(200, {
+                        "status": "PAYMENT_REQUEST_SENT",
+                        "paymentAttemptId": pointer_attempt_id,
+                        "deduplicated": True,
+                        "amountPaise": int(existing.get("amountPaise") or amount_paise),
+                        "currency": "INR",
+                        "message": "Check WhatsApp to complete your payment.",
+                    }, origin)
+                if wa_live:
+                    # ONE LIVE PAYMENT PER BASKET, same rail: a DIFFERENT key presenting a
+                    # basket that already has a live WhatsApp request. The HTTP WhatsApp rail
+                    # has no other in-rail guard (unlike the website rail), so it is enforced
+                    # here. Not a dedup -- a different key is a different interaction -- so the
+                    # existing request is surfaced for the customer to finish rather than a
+                    # second one minted. CHECKOUT_AMBIGUOUS sends the browser to the status
+                    # page, same as the website rail's own in-flight refusal.
+                    logger.info(json.dumps({"event": "checkout_wa_request_in_flight"}))
+                    return cors_response(200, {
+                        "status": website_checkout.CHECKOUT_AMBIGUOUS,
+                        "reason": website_checkout.CART_PAYMENT_IN_FLIGHT,
+                        "paymentAttemptId": pointer_attempt_id,
+                    }, origin)
+            # CROSS-RAIL: a live WEBSITE payment on this basket refuses here; a PAID basket
+            # refuses on both rails. Both answer CHECKOUT_AMBIGUOUS so the browser navigates to
+            # the status page.
+            cross_reason, cross_attempt = _cross_rail_block(
+                identity, snapshot, now_create, this_rail_is_website=False)
+            if cross_reason:
+                logger.info(json.dumps({"event": "checkout_wa_cross_rail_block",
+                                        "reason": cross_reason}))
+                return cors_response(200, {
+                    "status": website_checkout.CHECKOUT_AMBIGUOUS,
+                    "reason": cross_reason,
+                    "paymentAttemptId": cross_attempt,
+                }, origin)
+        except order_keys.OrderIdentityUnavailable:
+            # A read the guard depends on failed. Fail closed: refusing is safe, but creating a
+            # second payable request is not.
+            logger.error(json.dumps({"event": "checkout_wa_cross_rail_unavailable"}))
+            return cors_response(503, {"error": "TEMPORARILY_UNAVAILABLE",
+                                       "message": "Please try again shortly."}, origin)
     # 2. Readiness gate. A live provider readback must confirm PAYMENT_READY, or the CTA is refused
     #    with the blocking state. No local constant makes this pass.
     readiness = _readiness()
@@ -2156,6 +2449,12 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
 
     attempt = payment_attempt.transition(
         attempt, payment_attempt.PAYMENT_READINESS_CHECKED)
+    if wa_request_key:
+        # The ORDER_DETAILS window (`now + 900`, the same expiry `_cart_order_details` stamps
+        # into Meta) recorded on the attempt so the cross-rail guard can tell a request the
+        # customer can still pay from a lapsed one WITHOUT asking Meta. Emitted only on this
+        # rail, so every other attempt row is byte-identical to before.
+        attempt["paymentRequestExpiresAt"] = now_create + WA_REQUEST_LIVE_SECONDS
     try:
         _attempts_table().put_item(
             Item=attempt,
@@ -2206,6 +2505,15 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
     sent = _send_order_details(
         phone=identity.phone, contact_id=contact_id,
         phone_number_id=send_phone_number_id, order_details=details)
+    if wa_request_key and sent in (SEND_SENT, SEND_UNCONFIRMED):
+        # The request has left, or may have (UNCONFIRMED: the sender timed out after Meta may
+        # have accepted it). Either way it can be on the customer's phone, so claim the SHARED
+        # cart pointer rows the website guard reads: a website prepare for this basket now sees
+        # a live WhatsApp payment and refuses, and a same-key retry deduplicates onto this
+        # attempt instead of minting a second payable request. Best-effort by design: the
+        # attempt carries `paymentRequestExpiresAt`, so a lost pointer does not undo the send.
+        _record_cross_rail_pointer(snapshot, customer_id=identity.customer_id,
+                                   attempt_id=attempt_id, request_key=wa_request_key)
     if sent != SEND_SENT:
         # The attempt is stored and ready; no confirmed message. Still NO order and NO charge.
         # `sendUnconfirmed` tells an internal caller (the WhatsApp cart leg) that the request may
@@ -2361,7 +2669,7 @@ def _send_order_details(*, phone: str, contact_id: str, phone_number_id: str,
             "phoneNumberId": phone_number_id,
             "isTemplate": True,
             "isCheckoutTemplate": True,
-            "templateName": "wecare_whatapp_native_pay_template",
+            "templateName": whatsapp_templates.PAY.name,
             "templateParams": [],
             "checkoutOrderDetails": order_details,
         }),
