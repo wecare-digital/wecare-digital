@@ -19,11 +19,48 @@ FLOW_KEY = 'wd_leave_review_v2'
 FLOW_ID = canonical_flows.canonical_flow_id('leave_review') or '940049388908144'
 FLOW_CODE = canonical_flows.canonical_contract('leave_review')['flowCode']
 TOPICS = {
-    'feature_request': 'A feature I would love',
+    'feature_request': "A feature I'd love",
     'improvement': 'Something to improve',
     'worked_well': 'Something I liked',
     'other': 'Another thought',
 }
+
+_RESPONSE_FIELDS = (
+    ('full_name', 'Full name'),
+    ('username', 'WhatsApp username'),
+    ('company_name', 'Organization'),
+    ('designation', 'Job title'),
+    ('address_line1', 'Street address'),
+    ('address_line2', 'Apartment / suite / unit'),
+    ('locality', 'Landmark / neighborhood'),
+    ('city', 'City'),
+    ('state', 'State / region'),
+    ('postal_code', 'Postal code'),
+    ('country', 'Country'),
+)
+
+
+def response_answers(data):
+    """Readable Inbox/Workspace answers in the same order as the F002 Flow.
+
+    Schema 4 is the existing two-question published review. Schema 5 adds the F001-style
+    profile/address context ahead of those same review questions. Empty optional fields are
+    omitted rather than shown as fake answers.
+    """
+    schema_version = str(data.get('schema_version') or '4')
+    rows = []
+    if schema_version == '5':
+        for key, label in _RESPONSE_FIELDS:
+            value = data.get(key)
+            if isinstance(value, str) and value.strip():
+                rows.append({'question': label, 'answer': value.strip()})
+    raw_topic = data.get('topic')
+    if isinstance(raw_topic, str) and raw_topic in TOPICS:
+        rows.append({'question': "What's on your mind?", 'answer': TOPICS[raw_topic]})
+    idea = data.get('idea')
+    if isinstance(idea, str) and idea.strip():
+        rows.append({'question': 'Your thought', 'answer': idea.strip()})
+    return rows
 
 def _text(data, key, *, required=False, limit=500):
     value = data.get(key, '')
