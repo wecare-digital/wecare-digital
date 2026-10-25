@@ -90,7 +90,7 @@ def owner(token: str, client_id: str, resource: str, cognito) -> str:
 
 def authorization(query: dict, client_id: str, callback: str, resource: str) -> dict:
     allowed = {'response_type', 'client_id', 'redirect_uri', 'scope', 'state',
-        'resource', 'code_challenge', 'code_challenge_method', 'response_mode'}
+        'resource', 'code_challenge', 'code_challenge_method', 'response_mode', 'ui_locales'}
     if (set(query) - allowed or query.get('response_type') != 'code'
             or query.get('client_id') != client_id or query.get('redirect_uri') != callback
             or query.get('resource') != resource or query.get('scope', SCOPE) != SCOPE
@@ -99,8 +99,14 @@ def authorization(query: dict, client_id: str, callback: str, resource: str) -> 
             or not 1 <= len(query.get('state', '')) <= 2048
             or query.get('response_mode', 'query') != 'query'):
         raise InvalidRequest()
+    if 'ui_locales' in query and (len(query['ui_locales']) > 128 or not re.fullmatch(
+            r'[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*(?: [A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*){0,7}', query['ui_locales'])):
+        raise InvalidRequest()
+    # ChatGPT supplies this optional presentation hint. Cognito uses its own lang
+    # parameter; omit the hint without altering validated OAuth authority or PKCE.
+    delegated = {key: value for key, value in query.items() if key != 'ui_locales'}
     return reply(302, {}, {'Location': LOGIN + '/oauth2/authorize?' +
-        urllib.parse.urlencode({**query, 'scope': SCOPE})})
+        urllib.parse.urlencode({**delegated, 'scope': SCOPE})})
 
 
 def token_exchange(event: dict, headers: dict, client_id: str, callback: str,
