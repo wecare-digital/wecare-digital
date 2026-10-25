@@ -63,7 +63,7 @@ def render(invoice, items, *, company, font_path, ist_strftime, canonical_status
     status = str(canonical_status(invoice.get('paymentStatus', 'pending'))).upper()
     epoch = invoice.get('createdAt') or invoice.get('invoiceDate') or 0
     text(company['legal_name'], title, 'center')
-    text('Brand: ' + company['name'], heading, 'center')
+    text(company['name'], heading, 'center')
     text('GSTIN: ' + company['gstin'], small, 'center')
     text('PAN: ' + company['pan'], small, 'center')
     text('The W.B.S.I.D.C. Building, Unit 1/20,', small, 'center')
@@ -79,7 +79,8 @@ def render(invoice, items, *, company, font_path, ist_strftime, canonical_status
         pair('Payment Ref:', trace, small)
     gateway_payment = str(invoice.get('providerPaymentId') or invoice.get('paymentId') or '')
     if gateway_payment:
-        pair('Razorpay Txn:', gateway_payment, small)
+        # The id is printed; the gateway's name is not (owner instruction 2026-10-25).
+        pair('Txn:', gateway_payment, small)
     pair('Date:', ist_strftime('%d-%m-%Y', epoch))
     pair('Time:', ist_strftime('%H:%M IST', epoch))
     pair('Status:', 'PAID' if status == 'CAPTURED' else status or 'PENDING', heading)
@@ -179,17 +180,15 @@ def render(invoice, items, *, company, font_path, ist_strftime, canonical_status
     mask = Image.new('L', paper.size, 0)
     ImageDraw.Draw(mask).polygon(edge(tear) + list(reversed(edge(height - tear))), fill=255)
     mask = mask.filter(ImageFilter.GaussianBlur(1.8))
-    canvas = Image.new('RGBA', (width + 2 * margin, height + 2 * margin), (0, 0, 0, 0))
-    shadow_alpha = Image.new('L', canvas.size, 0)
-    shadow_alpha.paste(mask, (margin + 12, margin + 21))
-    shadow_alpha = shadow_alpha.filter(ImageFilter.GaussianBlur(18)).point(lambda value: int(value * .35))
-    shadow = Image.new('RGBA', canvas.size, (0, 0, 0, 0))
-    shadow.putalpha(shadow_alpha)
-    canvas = Image.alpha_composite(canvas, shadow)
-    layer = Image.new('RGBA', canvas.size, (0, 0, 0, 0))
-    layer.paste(paper, (margin, margin), mask)
-    canvas = Image.alpha_composite(canvas, layer)
+    # Only the paper is drawn. There is no drop shadow (owner instruction 2026-10-25): it read as
+    # a grey background, and without it every pixel outside the torn edge is alpha 0.
+    canvas = Image.new('RGBA', (width + 2 * margin, height + 2 * margin), (255, 255, 255, 0))
+    canvas.paste(paper, (margin, margin), mask)
     canvas = canvas.resize((canvas.width * 2 // scale, canvas.height * 2 // scale), Image.Resampling.LANCZOS)
+    # The resize premultiplies alpha and leaves black under every fully transparent pixel. Put
+    # white back, so a viewer that drops alpha instead of compositing it shows white, not black.
+    clear = canvas.getchannel('A').point(lambda alpha: 255 if alpha else 0)
+    canvas = Image.composite(canvas, Image.new('RGBA', canvas.size, (255, 255, 255, 0)), clear)
     output = io.BytesIO()
     canvas.save(output, format='PNG')
     return output.getvalue()

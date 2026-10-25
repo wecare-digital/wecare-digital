@@ -2246,7 +2246,7 @@ td{{padding:3px 2px;vertical-align:top;color:#000}}
     <div class="header-logo">{logo_html}</div>
     <div class="header-text">
         <h1>{COMPANY['legal_name']}</h1>
-        <div class="subtitle">Brand: {COMPANY['name']}</div>
+        <div class="subtitle">{COMPANY['name']}</div>
         <div class="subtitle">GSTIN: {COMPANY['gstin']}</div>
         <div class="subtitle">PAN: {COMPANY['pan']}</div>
         <div class="subtitle">The W.B.S.I.D.C. Building, Unit 1/20,</div>
@@ -2763,8 +2763,9 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
     # Legal name — centered in header area, bold (owner-approved mockup 2026-10-07)
     _hdr_center(COMPANY['legal_name'], FLG)
     y += 22
-    # Fixed brand line, always "WECARE.DIGITAL", never derived from entryPoint.
-    _hdr_center(f"Brand: {COMPANY['name']}", FSM)
+    # Fixed brand line, always "WECARE.DIGITAL", never derived from entryPoint. Printed without
+    # a "Brand:" label (owner instruction 2026-10-25).
+    _hdr_center(COMPANY['name'], FSM)
     y += LINE_H
     # GSTIN — regular, grey
     _hdr_center(f"GSTIN: {COMPANY['gstin']}", FSM, CLR_GRY)
@@ -2797,7 +2798,7 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
     # `_source_label` is total, so there is no empty-label case to guard.
     _left(f"Channel: {_source_label(invoice)}", F)
     y += LINE_H
-    # Brand is now the FIXED header line "Brand: WECARE.DIGITAL" (set in the header block),
+    # Brand is now the FIXED header line "WECARE.DIGITAL" (set in the header block),
     # never derived from entryPoint. The old entryPoint-derived Brand line is removed.
     # Note line: show request/submission reference (clean format, no #)
     notes = invoice.get('notes', '')

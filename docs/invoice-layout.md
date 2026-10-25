@@ -302,3 +302,16 @@ the canonical identity in contacts, orders, and invoices. These short display
 digests are not guaranteed unique and must never be used as database keys,
 authentication credentials, or the sole basis for a customer lookup. Support must
 resolve against the canonical customer record when disambiguation is needed.
+
+
+## 2026-10-25 header, payment id label and background
+
+The header prints the brand as `WECARE.DIGITAL` with no `Brand:` label, in all three
+renderers (approved PNG, legacy PNG, HTML). The gateway payment id prints as
+`Txn: pay_...`; the invoice never names the payment gateway.
+
+The drop shadow is removed. Every pixel outside the torn paper is alpha 0 and stores
+white underneath, so a viewer that drops alpha instead of compositing it shows white,
+not black. The paper stays `(252, 252, 250)` so black text remains readable on dark
+backgrounds. Issued S3 assets are not rewritten; new renders pick this up once the
+engine is deployed.
