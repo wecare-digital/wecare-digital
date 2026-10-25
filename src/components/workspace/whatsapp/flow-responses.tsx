@@ -51,20 +51,6 @@ const parseFormData = ( raw?: string ): Record<string, any> => {
   }
 };
 
-const F002_RESPONSE_FIELDS: Array<[ string, string ]> = [
-  [ 'full_name', 'Full name' ],
-  [ 'username', 'WhatsApp username' ],
-  [ 'company_name', 'Organization' ],
-  [ 'designation', 'Job title' ],
-  [ 'address_line1', 'Street address' ],
-  [ 'address_line2', 'Apartment / suite / unit' ],
-  [ 'locality', 'Landmark / neighborhood' ],
-  [ 'city', 'City' ],
-  [ 'state', 'State / region' ],
-  [ 'postal_code', 'Postal code' ],
-  [ 'country', 'Country' ],
-];
-
 const F002_TOPIC_LABELS: Record<string, string> = {
   feature_request: "A feature I'd love",
   improvement: 'Something to improve',
@@ -75,9 +61,6 @@ const F002_TOPIC_LABELS: Record<string, string> = {
 const F002SubmissionDetails: React.FC<{ submission: api.FlowSubmissionItem }> = ( { submission } ) => {
   const data = parseFormData( submission.formData );
   const rows = [
-    ...F002_RESPONSE_FIELDS
-      .map( ( [ key, label ] ) => [ label, String( data[ key ] || '' ).trim() ] as const )
-      .filter( ( [ , value ] ) => Boolean( value ) ),
     ...( data.topic && F002_TOPIC_LABELS[ data.topic ]
       ? [ [ "What's on your mind?", F002_TOPIC_LABELS[ data.topic ] ] as const ] : [] ),
     ...( data.idea ? [ [ 'Your thought', String( data.idea ) ] as const ] : [] ),
