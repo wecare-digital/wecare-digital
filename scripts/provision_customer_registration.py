@@ -62,6 +62,8 @@ OTP_TABLE = "stack-wecare-digital-DownloadGrantsTable"
 CONTACTS_TABLE = "stack-wecare-digital-ContactsTable"
 IDENTITY_CLAIMS_TABLE = "stack-wecare-digital-IdentityClaimsTable"
 CONTACTS_PHONE_INDEX = "phone-index"
+WHATSAPP_INBOUND_TABLE = "stack-wecare-digital-WhatsAppInboundTable"
+WHATSAPP_INBOUND_MESSAGE_INDEX = "whatsappMessageId-index"
 CUSTOMER_POOL_ID = "us-east-1_46ULYuukt"
 META_WABA_ID = "2094615664435155"
 META_PHONE_NUMBER_ID = "1016149501586345"
@@ -203,6 +205,14 @@ def ensure_role(dry_run: bool) -> str:
                 ],
             },
             {
+                "Sid": "ReadSignedWhatsAppInboundEvidence",
+                "Effect": "Allow",
+                "Action": ["dynamodb:Query"],
+                "Resource": [
+                    f"arn:aws:dynamodb:{REGION}:{acct}:table/{WHATSAPP_INBOUND_TABLE}/index/{WHATSAPP_INBOUND_MESSAGE_INDEX}"
+                ],
+            },
+            {
                 "Sid": "InvokeWhatsAppSender",
                 "Effect": "Allow",
                 "Action": ["lambda:InvokeFunction"],
@@ -259,6 +269,7 @@ def expected_environment() -> dict:
     return {
         "OTP_TABLE": OTP_TABLE,
         "CONTACTS_TABLE": CONTACTS_TABLE,
+        "WHATSAPP_INBOUND_TABLE": WHATSAPP_INBOUND_TABLE,
         "IDENTITY_CLAIMS_TABLE": IDENTITY_CLAIMS_TABLE,
         "CUSTOMER_POOL_ID": CUSTOMER_POOL_ID,
         "OTP_PEPPER_SECRET_ID": PEPPER_SECRET_ID,
