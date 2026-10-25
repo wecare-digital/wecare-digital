@@ -56,13 +56,7 @@ SANCTIONED_FUNCTION = 'claim_completion'
 #: Inserts that bypass the one writer, are known, and are owned by a named piece of work.
 #: Keyed `<path>::<function qualname>`. Never add an entry to make a new writer pass: route the
 #: insert through `flow_completion.claim_completion` instead.
-KNOWN_PENDING: Dict[str, str] = {
-    # The nfm_reply save for the post-payment request Flow (03.WD_POSTPAY_REQUEST). That file
-    # belongs to another session while this guard lands; the insert moves onto claim_completion
-    # there, and then this entry is deleted (the guard fails until it is).
-    'amplify/functions/messaging/inbound-whatsapp-handler/handler.py::_handle_postpay_submission':
-        'owned by the inbound-whatsapp-handler session; route it through claim_completion',
-}
+KNOWN_PENDING: Dict[str, str] = {}
 # Offline migrations such as scripts/consolidate_shared_tables.py live under scripts/, outside
 # the amplify/functions scan, so they need no entry here.
 

@@ -7456,51 +7456,46 @@ def _handle_postpay_submission(data: Dict, contact_id: str, sender_phone: str,
                           data.get('state', ''), data.get('pin', '')]
             address_str = ', '.join(str(p).strip() for p in addr_parts if str(p).strip())
         form = {k: v for k, v in data.items() if k not in ('flow_token',)}
-        item = {
-            'submissionId': sub_id,
-            'flowCode': '03.WD_POSTPAY_REQUEST',
-            'flowType': 'service_request',
-            'phone': sender_phone,
-            'contactId': contact_id or '',
-            'formData': json.dumps(form),
-            'submissionNumber': sub_id,
-            'requestId': request_sr_id,
-            'orderId': reference_id,
-            'referenceId': reference_id,
-            'orderNumber': str(data.get('order_number', '')),
-            'product': str(data.get('product', '')),
-            'amount': str(data.get('amount', '')),
-            'customerName': str(data.get('name', '')),
-            'shippingAddress': address_str,
-            'addressLine1': str(data.get('address', '')),
-            'city': str(data.get('city', '')),
-            'state': str(data.get('state', '')),
-            'postalCode': str(data.get('pin', '')),
-            'landmark': str(data.get('landmark', '')),
-            'description': str(data.get('description', '')),
-            'deliveryNote': str(data.get('delivery_note', '')),
-            'preferredTime': str(data.get('preferred_time', '')),
-            'status': 'open',
-            'paymentStatus': 'paid',
-            'channel': 'whatsapp',
-            'createdAt': Decimal(str(now)),
-            'updatedAt': Decimal(str(now)),
-            'ttl': now + (365 * 86400),
-        }
-        try:
-            dynamodb.Table(FLOW_SUBMISSIONS_TABLE).put_item(
-                Item={k: v for k, v in item.items() if v is not None and v != ''},
-                ConditionExpression='attribute_not_exists(submissionId)',
-            )
-            logger.info(json.dumps({'event': 'postpay_submission_saved', 'submissionId': sub_id,
-                                    'requestId2': request_sr_id, 'referenceId': reference_id,
+        # Through the ONE FlowSubmissionTable writer. The explicit id keeps one row per request
+        # (or per payment for the old payload), and the id doubles as the persisted token, so no
+        # live Flow token is written. `formData` rides in `extra`, serialised as before, rather
+        # than as `form_data`, so the promoted orderId stays the referenceId and is never a
+        # payload field. Default ttl is the 365 days this row always had.
+        from lambda_utils import flow_completion
+        result = flow_completion.claim_completion(
+            flow_token=sub_id, screen='DETAILS', flow_code='03.WD_POSTPAY_REQUEST',
+            flow_type='service_request', phone=sender_phone, contact_id=contact_id or '',
+            submission_id=sub_id, status='open', request_id=request_id,
+            channel=flow_completion.CHANNEL_WHATSAPP,
+            extra={
+                'formData': json.dumps(form),
+                'requestId': request_sr_id,
+                'orderId': reference_id,
+                'referenceId': reference_id,
+                'orderNumber': str(data.get('order_number', '')),
+                'product': str(data.get('product', '')),
+                'amount': str(data.get('amount', '')),
+                'customerName': str(data.get('name', '')),
+                'shippingAddress': address_str,
+                'addressLine1': str(data.get('address', '')),
+                'city': str(data.get('city', '')),
+                'state': str(data.get('state', '')),
+                'postalCode': str(data.get('pin', '')),
+                'landmark': str(data.get('landmark', '')),
+                'description': str(data.get('description', '')),
+                'deliveryNote': str(data.get('delivery_note', '')),
+                'preferredTime': str(data.get('preferred_time', '')),
+                'paymentStatus': 'paid',
+            })
+        if result.duplicate:
+            logger.info(json.dumps({'event': 'postpay_submission_duplicate', 'submissionId': sub_id,
                                     'requestId': request_id}))
-        except Exception as e:
-            if 'ConditionalCheckFailedException' in str(e):
-                logger.info(json.dumps({'event': 'postpay_submission_duplicate', 'submissionId': sub_id,
-                                        'requestId': request_id}))
-                return  # already recorded — do not send a second confirmation
-            raise
+            return  # already recorded — do not send a second confirmation
+        if not result.created:
+            raise RuntimeError('post-payment request could not be saved')
+        logger.info(json.dumps({'event': 'postpay_submission_saved', 'submissionId': sub_id,
+                                'requestId2': request_sr_id, 'referenceId': reference_id,
+                                'requestId': request_id}))
         # Link this submission + its address back onto the ONE OrderTable row (resolved through
         # the immutable PAYREF chain). After the idempotent put above, so a redelivered flow does
         # not re-link; before the contact write so the order and contact get one consistent
