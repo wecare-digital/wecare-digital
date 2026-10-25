@@ -22,6 +22,50 @@ export const isAndroid = () => Capacitor.getPlatform() === 'android';
 
 /* ── Push Notifications ── */
 /**
+ * Where this device stands on notifications. 'unsupported' is the web, or a shell whose
+ * plugin cannot answer; 'prompt' covers Android's 'prompt-with-rationale' too, because the
+ * opt-in control's own explanation IS the rationale.
+ */
+export type PushPermission = 'granted' | 'denied' | 'prompt' | 'unsupported';
+
+/*
+ * One set of listeners per app session, whichever path arms push first - the silent launch
+ * check or the user's opt-in tap. A second addListener would deliver every token twice.
+ * The sinks are module state so the later caller's callbacks are the ones used.
+ */
+let pushListenersAdded = false;
+let pushTokenSink: (token: string) => void = () => {};
+let pushNotificationSink: (data: unknown) => void = () => {};
+
+/**
+ * Listeners first, THEN register() - the order Capacitor documents, so the 'registration'
+ * event cannot fire before anything is listening. Only ever called once permission is granted.
+ * Payloads are not logged: a notification can carry customer names or message text.
+ */
+async function armPush(onToken: (token: string) => void, onNotification: (data: unknown) => void) {
+  pushTokenSink = onToken;
+  pushNotificationSink = onNotification;
+  if (!pushListenersAdded) {
+    pushListenersAdded = true;
+    void PushNotifications.addListener('registration', (token) => {
+      // The token itself is not logged: it addresses this device for pushes.
+      console.log('[Push] Registered');
+      pushTokenSink(token.value);
+    });
+    void PushNotifications.addListener('registrationError', (err) => {
+      console.error('[Push] Registration error:', err.error);
+    });
+    void PushNotifications.addListener('pushNotificationReceived', (notification) => {
+      pushNotificationSink(notification);
+    });
+    void PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+      pushNotificationSink(action.notification);
+    });
+  }
+  await PushNotifications.register();
+}
+
+/**
  * Arm push for a device that ALREADY granted notification permission. Never prompts.
  *
  * This runs from _app.tsx's mount effect, i.e. on every launch of BOTH native shells, before
@@ -32,40 +76,51 @@ export const isAndroid = () => Capacitor.getPlatform() === 'android';
  * and never to appear on load.
  *
  * checkPermissions() reads the state without showing anything, so a device that granted earlier
- * keeps registering exactly as before. Asking a device that has not been asked is now the job of
- * an explicit, explained opt-in control, which does not exist yet - that is the release gate for
- * push on new installs, stated rather than worked around with a launch-time prompt.
+ * keeps registering exactly as before. Asking a device that has not been asked is the job of
+ * requestPushPermission() below, called only from the explained opt-in in the Workspace profile
+ * menu (src/components/PushOptIn.tsx).
  */
 export async function initPushNotifications(
   onToken: (token: string) => void,
-  onNotification: (data: any) => void,
+  onNotification: (data: unknown) => void,
 ) {
   if (!isNative()) return;
+  if ((await pushPermissionState()) !== 'granted') return;
+  await armPush(onToken, onNotification);
+}
 
-  const perm = await PushNotifications.checkPermissions();
-  if (perm.receive !== 'granted') return;
+/** Read the permission state without showing anything. */
+export async function pushPermissionState(): Promise<PushPermission> {
+  if (!isNative()) return 'unsupported';
+  try {
+    const { receive } = await PushNotifications.checkPermissions();
+    if (receive === 'granted') return 'granted';
+    if (receive === 'denied') return 'denied';
+    return 'prompt';
+  } catch {
+    return 'unsupported';
+  }
+}
 
-  await PushNotifications.register();
-
-  PushNotifications.addListener('registration', (token) => {
-    // The token itself is not logged: it addresses this device for pushes.
-    console.log('[Push] Registered');
-    onToken(token.value);
-  });
-
-  PushNotifications.addListener('registrationError', (err) => {
-    console.error('[Push] Registration error:', err);
-  });
-
-  PushNotifications.addListener('pushNotificationReceived', (notification) => {
-    console.log('[Push] Received:', notification);
-    onNotification(notification);
-  });
-
-  PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
-    console.log('[Push] Action:', action);
-    onNotification(action.notification);
-  });
+/**
+ * Show the OS notification prompt. ONLY call this from a user's explicit tap on a control that
+ * has already explained why - never on load, and never again after 'denied' (iOS will not show
+ * the prompt twice anyway, and asking in a loop is what the steering file forbids).
+ */
+export async function requestPushPermission(
+  onToken: (token: string, platform: 'ios' | 'android') => void,
+): Promise<PushPermission> {
+  if (!isNative()) return 'unsupported';
+  const platform: 'ios' | 'android' = isIOS() ? 'ios' : 'android';
+  let receive: string;
+  try {
+    ({ receive } = await PushNotifications.requestPermissions());
+  } catch {
+    return 'unsupported';
+  }
+  if (receive !== 'granted') return receive === 'denied' ? 'denied' : 'prompt';
+  await armPush((token) => onToken(token, platform), () => {});
+  return 'granted';
 }
 
 /* ── Status Bar ── */

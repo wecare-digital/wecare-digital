@@ -11,6 +11,7 @@ import Link from 'next/link';
 import SearchModal from './SearchModal';
 import BottomNav from './BottomNav';
 import BrandLockup from './BrandLockup';
+import PushOptIn from './PushOptIn';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { useUserRole, isPartnerAllowed } from '../hooks/useUserRole';
 import { Breadcrumbs, KeyboardShortcuts, useKeyboardShortcutsModal } from './ui';
@@ -107,6 +108,9 @@ const Layout: React.FC<LayoutProps> = ( { children, user, onSignOut, showBreadcr
                       <strong>{ role }</strong>
                       { loginId && <span>{ loginId }</span> }
                     </div>
+                    {/* Native shells only - renders nothing on the web. The one place this
+                        app asks for notification permission, and only on a tap. */}
+                    <PushOptIn />
                     { onSignOut && (
                       <button type="button" className="profile-signout" onClick={ onSignOut }>
                         Sign out
