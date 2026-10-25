@@ -399,12 +399,18 @@ Mirror the Lightsail migration discipline that is already proven in this repo:
 - [x] **Stray org cleaned up** — the accidental "WECARE-DIGITAL-Team" org
   (`046491879396` + members) was closed. The production org `o-plhlfh8drl` holds
   only production + the backup account; the dead invite is CANCELED, no residue.
+- [x] **Media backfill done, grant revoked (2026-10-25)** — done from the source side
+  instead of `aws s3 sync`: the 15 objects that predated replication (all public static
+  assets under `o/`) were rewritten in place with identical bytes and metadata, so the
+  existing rules replicated them. Afterwards every current object in `wecare-digital-get`
+  reported `ReplicationStatus: COMPLETED` (both destinations), and the usw2 replica held
+  every `o/` key. The read grant was then removed with
+  `grant_source_read_to_backup_account.py --revoke`; the two other bucket-policy
+  statements are unchanged. Re-run `--apply` only if a source-side read is needed again.
 
 **Open (backup-account-side, run in 991322955408; + optional):**
 
-1. **Run the media backfill** — `aws s3 sync s3://wecare-digital-get/ \
-   s3://wecare-digital-get-replica-xacct/` from the backup account (read grant is in
-   place), then revoke the grant with `grant_source_read_to_backup_account.py --revoke`.
+1. ~~Run the media backfill~~ — done 2026-10-25, see above.
 2. **Compliance-mode Vault Lock** (irreversible) if an immutable retention guarantee
    is wanted: `provision_backup_account_side.py --apply --compliance-lock` in 991322955408.
 3. **A full recovery rehearsal** — run `recover_into_account.py --apply` in 991322955408
@@ -416,6 +422,5 @@ layer: Cognito deletion protection, DynamoDB PITR, S3 versioning with BOTH
 cross-region and cross-account replication, a scheduled AWS Backup plan under a
 governance Vault Lock with cross-account copies into a dedicated backup account, a
 Cognito export, a current credential backup with weekly refresh, and a proven
-restore drill. What remains is housekeeping: the pre-existing-media backfill into
-the cross-account bucket, finishing the `table_backup_defaults` rollout, the
+restore drill. What remains is housekeeping: finishing the `table_backup_defaults` rollout, the
 optional irreversible compliance-mode lock, and recurring S3/secrets drills.
