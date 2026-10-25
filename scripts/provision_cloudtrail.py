@@ -14,7 +14,7 @@ usable here: `alias/wecaredigital` is an `ECC_NIST_P256` / `SIGN_VERIFY` key own
 by Route 53 DNSSEC and cannot encrypt at all, and `alias/wecare-secrets-manager`
 is the key behind Secrets Manager and the credential-backup buckets -- putting
 audit logs on the secrets key destroys a separation that exists on purpose. A third
-key would be a `KMS create`, which `.kiro/steering/maintenance-reporting.md` puts
+key would be a `KMS create`, which `.kiro/steering/maintenance-reporting.md` (retired 2026-10-09, af7858fa) puts
 behind pointwise confirmation. So the bucket uses SSE-S3 (`AES256`), and
 **log-file validation is enabled**, which is the control that actually detects
 tampering -- encryption at rest does not. Moving to a dedicated CMK later is a
@@ -22,7 +22,7 @@ one-field change on both the bucket and the trail.
 
 The bucket policy carries `aws:SourceArn` and `aws:SourceAccount` conditions, so a
 CloudTrail trail in another account cannot write here (the confused-deputy pattern
-`.kiro/steering/aws-agent-rules.md` requires).
+`.kiro/steering/aws-agent-rules.md` (retired; now .kiro/steering/00-common.md) requires).
 
     python scripts/provision_cloudtrail.py --plan
     python scripts/provision_cloudtrail.py --apply
@@ -66,6 +66,46 @@ LIFECYCLE = {
         }
     ]
 }
+
+
+#: Management events, both read and write, from every source (no readOnly or eventSource
+#: filter), which is what the original basic selector logged.
+MANAGEMENT_SELECTOR = {
+    "Name": "Management events",
+    "FieldSelectors": [{"Field": "eventCategory", "Equals": ["Management"]}],
+}
+
+#: Data events stay OFF account-wide: S3/Lambda data events on ~77 tables and ~71 functions
+#: would dominate the bill and the signal. The single exception is Invoke on
+#: `wecare-catalog-management`, added 2026-10-25. It has no API route, rule, schedule,
+#: event-source mapping, function URL or resource policy, yet is invoked directly
+#: (103 times on 2026-10-25), and only a data event names the caller. Advanced
+#: selectors because basic Lambda ARNs match exactly, while StartsWith also covers the
+#: `:live` alias and version ARNs. Remove this selector once the caller is identified.
+CATALOG_INVOKE_SELECTOR = {
+    "Name": "wecare-catalog-management invocations",
+    "FieldSelectors": [
+        {"Field": "eventCategory", "Equals": ["Data"]},
+        {"Field": "resources.type", "Equals": ["AWS::Lambda::Function"]},
+        {"Field": "resources.ARN", "StartsWith": [
+            f"arn:aws:lambda:{REGION}:{ACCOUNT}:function:wecare-catalog-management"]},
+    ],
+}
+
+ADVANCED_SELECTORS = [MANAGEMENT_SELECTOR, CATALOG_INVOKE_SELECTOR]
+
+
+def logs_all_management_events(response: dict) -> bool:
+    """True when the trail logs read AND write management events from every source."""
+    basic = response.get("EventSelectors") or []
+    if basic:
+        return any(s.get("IncludeManagementEvents") is True and s.get("ReadWriteType") == "All"
+                   and not s.get("ExcludeManagementEventSources") for s in basic)
+    return any(
+        {f["Field"] for f in s.get("FieldSelectors", [])} == {"eventCategory"}
+        and next(f for f in s["FieldSelectors"] if f["Field"] == "eventCategory").get("Equals")
+        == ["Management"]
+        for s in response.get("AdvancedEventSelectors") or [])
 
 
 def bucket_policy() -> dict:
@@ -203,20 +243,7 @@ def apply() -> int:
         )
         print(f"updated trail {TRAIL}")
 
-    # Management events, both read and write. Data events are deliberately NOT
-    # enabled: S3/Lambda data events on 79 tables and 65 functions would dominate
-    # the bill and the signal, and nothing in the gap register asks for them.
-    ct.put_event_selectors(
-        TrailName=TRAIL,
-        EventSelectors=[
-            {
-                "ReadWriteType": "All",
-                "IncludeManagementEvents": True,
-                "DataResources": [],
-                "ExcludeManagementEventSources": [],
-            }
-        ],
-    )
+    ct.put_event_selectors(TrailName=TRAIL, AdvancedEventSelectors=ADVANCED_SELECTORS)
     ct.start_logging(Name=TRAIL)
     print("logging started")
     time.sleep(5)
@@ -242,9 +269,11 @@ def verify() -> int:
     status = ct.get_trail_status(Name=TRAIL)
     checks["IsLogging"] = status.get("IsLogging") is True
 
-    selectors = ct.get_event_selectors(TrailName=TRAIL).get("EventSelectors", [])
-    checks["IncludeManagementEvents"] = bool(
-        selectors and selectors[0].get("IncludeManagementEvents") is True)
+    selectors = ct.get_event_selectors(TrailName=TRAIL)
+    checks["IncludeManagementEvents"] = logs_all_management_events(selectors)
+    for selector in selectors.get("AdvancedEventSelectors") or []:
+        if selector.get("Name") != MANAGEMENT_SELECTOR["Name"]:
+            print(f"  ..    data-event selector: {selector.get('Name')}")
 
     enc = s3.get_bucket_encryption(Bucket=BUCKET)
     rule = enc["ServerSideEncryptionConfiguration"]["Rules"][0]
