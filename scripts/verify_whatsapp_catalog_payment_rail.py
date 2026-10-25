@@ -1104,6 +1104,162 @@ def run(root: Path) -> int:
                           FakeContext("wecare-razorpay-webhook"))
     check("AUTH", "a capture with an invalid signature is refused 401", bad.get("statusCode") == 401)
 
+    # ── 12. the catalog-service leg (Vault), with its rollout flag on for this section only ───────
+    print("\n== 12. catalog-service leg: Vault only, every refusal answered, lock expires with its session")
+    from lambda_utils.ecommerce import catalog_service_checkout as catalog_svc, service_requests
+    catalog_services = _load("h_catalog_services", functions / "messaging" / "whatsapp-business-api"
+                             / "flows" / "catalog_services.py")
+    download_button = {"type": "BUTTONS", "buttons": [{"type": "URL", "text": "Access Vault",
+                                                       "url": "https://wecare.digital/vault/?file={{1}}"}]}
+    vault_readiness = {"templates": {
+        PAY_TEMPLATE: {"id": "2714938845570815", "name": PAY_TEMPLATE, "status": "APPROVED",
+                       "language": "en", "components": []},
+        "wecare_default_download": {"id": "1410998911012572", "name": "wecare_default_download",
+                                    "status": "APPROVED", "language": "en", "components": [download_button]}}}
+
+    def business_api_with_services(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+        if event.get("internalAction") == "catalogService":
+            return catalog_services.handle(event, FakeLambda())
+        if event.get("internalAction") == "catalogServiceReadiness":
+            return json.loads(json.dumps(vault_readiness))
+        return _business_api(event, context)
+
+    def service_line(kind: str, quantity: int = 1) -> Dict[str, Any]:
+        variant = service_requests.SERVICE_VARIANT_BY_KIND[kind]
+        return {"product_retailer_id": shop.rid(service_requests.SERVICE_PRODUCT_BY_VARIANT[variant], variant),
+                "quantity": quantity}
+
+    def service_invokes(calls: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        return [c for c in calls if c["function"] == "wecare-whatsapp-business-api"
+                and c["event"].get("internalAction") == "catalogService"]
+
+    def replies_in(calls: List[Dict[str, Any]]) -> List[str]:
+        return [json.dumps(_outbound_body(c)) for c in calls if c["function"] == "wecare-outbound-whatsapp"]
+
+    W.handlers["wecare-whatsapp-business-api"] = business_api_with_services
+    os.environ["WHATSAPP_CATALOG_SERVICES_ENABLED"] = "true"
+    lena = shop.customer(12)
+    for label, lines_in, expected in (
+            ("a Vault line mixed with goods", [service_line(service_requests.VAULT), {"product_retailer_id": tee, "quantity": 1}],
+             "ordered on its own"),
+            ("a Vault line with quantity 2", [service_line(service_requests.VAULT, 2)], "ordered on its own"),
+            ("Submit Request (not sold on WhatsApp)", [service_line(service_requests.SUBMIT_REQUEST)],
+             "cannot be bought from the WhatsApp catalog"),
+            ("Drop Docs (not sold on WhatsApp)", [service_line(service_requests.DROP_DOCS)],
+             "cannot be bought from the WhatsApp catalog")):
+        mark = W.mark()
+        deliver(order_event(build, lena["digits"], f"wamid.HERMETIC.LENA.{len(label)}.{expected[:6]}", lines_in))
+        calls = W.since(mark, "invocations")
+        replies = replies_in(calls)
+        check("SVC", f"{label}: no service session, no checkout, nothing reserved",
+              not service_invokes(calls) and not _checkout_invokes(calls) and not _attempts_for(lena["sub"]),
+              [c["function"] for c in calls])
+        check("SVC", f"{label}: the customer gets one reply ({expected!r})",
+              len(replies) == 1 and expected in replies[0], replies)
+
+    mark = W.mark()
+    deliver(order_event(build, lena["digits"], "wamid.HERMETIC.LENA.VAULT", [service_line(service_requests.VAULT)]))
+    calls = W.since(mark, "invocations")
+    svc = service_invokes(calls)
+    replies = replies_in(calls)
+    check("SVC", "a lone Vault line goes to business-api catalogService once, asynchronously, never to prepareNativeCart",
+          len(svc) == 1 and svc[0]["type"] == "Event" and svc[0]["event"].get("action") == "start"
+          and not _checkout_invokes(calls), [(c["function"], c["event"].get("internalAction")) for c in calls])
+    check("SVC", "...a verified customer with no Vault file is told so and nothing is reserved",
+          not _attempts_for(lena["sub"]) and len(replies) == 1 and "No payment has been requested" in replies[0], replies)
+
+    mia = shop.customer(13)
+    mia_contact = _table("ContactsTable").get_item(Key={"id": mia["contactId"]})["Item"]
+    _table("ContactsTable").put_item(Item={**mia_contact, "checkoutCustomerId": lena["sub"]})
+    mark = W.mark()
+    refusal = catalog_services.handle({"internalAction": "catalogService", "action": "start",
+                                       "lines": [{"productId": service_requests.SERVICE_PRODUCT_BY_VARIANT[
+                                           service_requests.SERVICE_VARIANT_BY_KIND[service_requests.VAULT]],
+                                           "variantId": service_requests.SERVICE_VARIANT_BY_KIND[service_requests.VAULT],
+                                           "quantity": 1}],
+                                       "sourceMessageId": "wamid.HERMETIC.MIA.1", "contactId": mia["contactId"],
+                                       "senderPhone": mia["digits"], "phoneNumberId": PHONE_ID_1}, FakeLambda())
+    replies = replies_in(W.since(mark, "invocations"))
+    check("SVC", "an account linked to another verified number is refused with a sign-in reply, not a crash",
+          refusal.get("outcome") == "VERIFIED_CUSTOMER_REQUIRED" and len(replies) == 1 and "sign in" in replies[0].lower()
+          and not _table("CommerceKeys").get_item(Key={"orderId": "CATALOGSERVICEMSG#wamid.HERMETIC.MIA.1"}).get("Item"),
+          refusal)
+
+    nora = shop.customer(14)
+    vault_variant = service_requests.SERVICE_VARIANT_BY_KIND[service_requests.VAULT]
+    vault_product = service_requests.SERVICE_PRODUCT_BY_VARIANT[vault_variant]
+    lock_key = {"orderId": "NATIVESERVICEACTIVE#" + nora["sub"]}
+    stubbed = {"calls": 0}
+
+    def checkout_not_ready(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+        if event.get("internalAction") == "prepareNativeCatalogService":
+            stubbed["calls"] += 1
+            return {"outcome": "NATIVE_SERVICE_META_NOT_READY"}
+        return checkout.handler(event, context)
+
+    def vault_session(token: str, file_id: str, *, owner: Optional[str]) -> None:
+        now_s = int(time.time())
+        file_row = {"fileId": file_id, "ownerPhone": nora["digits"], "status": "active",
+                    "createdAt": str(now_s), "displayName": "Hermetic.pdf"}
+        if owner:
+            file_row["ownerCustomerId"] = owner
+        _table("SecureFilesTable").put_item(Item=file_row)
+        _table("CommerceKeys").put_item(Item={
+            "orderId": catalog_svc.SESSION_PREFIX + token, "token": token, "kind": "VAULT",
+            "variantId": vault_variant, "productId": vault_product, "contactId": nora["contactId"],
+            "phone": nora["phone"], "customerId": nora["sub"], "phoneNumberId": PHONE_ID_1,
+            "sourceMessageId": "wamid." + token, "createdAt": now_s, "expiresAt": now_s + 3600,
+            "status": "SELECTING", "fileChoices": [file_id], "fileChoiceStates": ["UNPAID"]})
+
+    def select(token: str) -> Dict[str, Any]:
+        return catalog_services.handle({"internalAction": "catalogService", "action": "select", "token": token,
+                                        "fileIndex": 0, "contactId": nora["contactId"], "senderPhone": nora["digits"],
+                                        "phoneNumberId": PHONE_ID_1}, FakeLambda())
+
+    W.handlers["wecare-checkout"] = checkout_not_ready
+    # moto 5.2.4 cancels the intent store's TransactWriteItems with an internal TypeError
+    # ("unhashable type: 'dict'"), so the intent is stubbed here; these checks are about the lock.
+    real_request_intent = catalog_services.store.request_intent
+    catalog_services.store.request_intent = lambda *a, **k: {"intentId": str(uuid.uuid4())}
+    now_s = int(time.time())
+    _table("CommerceKeys").put_item(Item={**lock_key, "status": "ACTIVE", "sessionKey": "CATALOGSERVICE#abandoned"})
+    token_a = "A" * 24
+    vault_session(token_a, "file-hermetic-a", owner=nora["sub"])
+    first = select(token_a)
+    lock = _table("CommerceKeys").get_item(Key=lock_key)["Item"]
+    session_a = _table("CommerceKeys").get_item(Key={"orderId": catalog_svc.SESSION_PREFIX + token_a})["Item"]
+    check("LOCK", "an abandoned lock from before the expiry existed no longer blocks a new purchase",
+          stubbed["calls"] == 1 and lock.get("sessionKey") == catalog_svc.SESSION_PREFIX + token_a, first)
+    check("LOCK", "the lock lives exactly as long as the session it names",
+          int(lock.get("activeUntil", 0)) == int(session_a["expiresAt"]), {k: lock.get(k) for k in ("activeUntil", "status")})
+    _table("CommerceKeys").put_item(Item={**lock_key, "status": "ACTIVE", "sessionKey": "CATALOGSERVICE#live",
+                                          "activeUntil": now_s + 600})
+    token_b = "B" * 24
+    vault_session(token_b, "file-hermetic-b", owner=nora["sub"])
+    mark = W.mark()
+    second = select(token_b)
+    replies = replies_in(W.since(mark, "invocations"))
+    check("LOCK", "a live lock still refuses a second purchase, and says so",
+          second.get("outcome") == "NATIVE_SERVICE_PAYMENT_ALREADY_IN_PROGRESS" and stubbed["calls"] == 1
+          and len(replies) == 1 and "already have a service payment in progress" in replies[0], second)
+    _table("CommerceKeys").put_item(Item={**lock_key, "status": "ACTIVE", "sessionKey": "CATALOGSERVICE#live",
+                                          "activeUntil": now_s - 1})
+    third = select(token_b)
+    check("LOCK", "once its session has expired the lock is taken over by the new session",
+          stubbed["calls"] == 2 and _table("CommerceKeys").get_item(Key=lock_key)["Item"].get("sessionKey")
+          == catalog_svc.SESSION_PREFIX + token_b, third)
+    token_c = "C" * 24
+    vault_session(token_c, "file-hermetic-c", owner=None)
+    _table("CommerceKeys").delete_item(Key=lock_key)
+    fourth = select(token_c)
+    check("SVC", "an ownerless legacy file is refused at selection without a crash or a lock",
+          fourth.get("outcome") == "VAULT_FILE_SELECTION_UNAVAILABLE" and stubbed["calls"] == 2
+          and not _table("CommerceKeys").get_item(Key=lock_key).get("Item"), fourth)
+    catalog_services.store.request_intent = real_request_intent
+    W.handlers["wecare-checkout"] = checkout.handler
+    W.handlers.pop("wecare-whatsapp-business-api", None)
+    os.environ.pop("WHATSAPP_CATALOG_SERVICES_ENABLED", None)
+
     # ── summary ────────────────────────────────────────────────────────────────────────────────
     stray = [u for u in W.unexpected_http]
     check("NET", "no unexpected network call or unhandled handler error", not stray, stray[:5])

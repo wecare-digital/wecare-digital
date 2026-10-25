@@ -6390,7 +6390,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return _resp(403, {'error': 'Internal invocation required'})
         if event['internalAction'] == 'catalogServiceReadiness':
             from flows.catalog_services import readiness
-            return readiness(_get_flow, _graph_api)
+            return readiness(_graph_api)
         # Backward-compatible sink for already queued legacy review jobs. The paid invoice
         # template now owns the single Leave Review Flow button, so these actions must never
         # emit a second review invitation.

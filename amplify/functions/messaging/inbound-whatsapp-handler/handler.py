@@ -183,6 +183,11 @@ CART_REPLY_ITEMS_UNAVAILABLE = ('Items in this cart are no longer available. Not
                                 'charged. Please open the catalog again and send a new cart.')
 CART_REPLY_SERVICE = ('This service cannot be bought from the WhatsApp catalog yet. Nothing has '
                       'been charged. You can start it on wecare.digital.')
+# Only reachable while the catalog-service leg is on: the service is one this leg sells, but the
+# cart also held other lines, more than one service, or a quantity other than 1.
+CART_REPLY_SERVICE_ALONE = ('A service has to be ordered on its own, one at a time. Nothing has '
+                            'been charged. Please send it in a separate cart, or start it on '
+                            'wecare.digital.')
 CART_REPLY_NOT_HERE = ('Payment on WhatsApp is not available from this number. Nothing has been '
                        'charged. You can complete this order on wecare.digital.')
 CART_REPLY_TRY_LATER = ('We could not prepare a payment request for this cart right now. Nothing '
@@ -6620,9 +6625,24 @@ def _handle_cart_order(message: Dict, contact_id: str, sender_phone: str,
             return
 
         if os.environ.get('WHATSAPP_CATALOG_SERVICES_ENABLED', 'false').lower() == 'true':
-            from lambda_utils.ecommerce.catalog_service_checkout import service_from_lines
-            if service_from_lines(basket.lines):
+            from lambda_utils.ecommerce.catalog_service_checkout import (service_from_lines,
+                                                                         service_refusal)
+            # A refused service cart used to raise out of this handler into the `except` below,
+            # so the customer heard nothing. Each refusal now gets the reply that fits it.
+            try:
+                choice = service_from_lines(basket.lines)
+            except ValueError:
+                refusal = service_refusal(basket.lines)
+                logger.info(json.dumps({'event': 'cart_order_service_refused', 'kind': refusal,
+                                        **basket.log_fields(),
+                                        'phone_suffix': _phone_suffix(sender_phone),
+                                        'requestId': request_id}))
+                _reply_cart_refused('service' if refusal == 'unsupported' else 'service_alone',
+                                    contact_id, phone_number_id, request_id)
+                return
+            if choice:
                 if basket.dropped or basket.clamped:
+                    _reply_cart_refused('partial', contact_id, phone_number_id, request_id)
                     return
                 lambda_client.invoke(FunctionName='wecare-whatsapp-business-api:live', InvocationType='Event',
                     Payload=json.dumps({'internalAction': 'catalogService', 'action': 'start',
@@ -6877,10 +6897,11 @@ def _reply_cart_refused(kind: str, contact_id: str, phone_number_id: str, reques
         if kind == 'sign_in':
             _send_cta_button(contact_id, phone_number_id, 'Sign in', CART_SIGN_IN_URL, request_id,
                              body_text=CART_REPLY_SIGN_IN, footer_text='WECARE.DIGITAL')
-        elif kind in ('service', 'not_here'):
+        elif kind in ('service', 'service_alone', 'not_here'):
             _send_cta_button(contact_id, phone_number_id, 'Open shop', CART_SHOP_URL, request_id,
-                             body_text=CART_REPLY_SERVICE if kind == 'service'
-                             else CART_REPLY_NOT_HERE,
+                             body_text={'service': CART_REPLY_SERVICE,
+                                        'service_alone': CART_REPLY_SERVICE_ALONE}.get(
+                                            kind, CART_REPLY_NOT_HERE),
                              footer_text='WECARE.DIGITAL')
         else:
             text = {'already_requested': CART_REPLY_ALREADY_REQUESTED,

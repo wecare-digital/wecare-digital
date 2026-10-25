@@ -10,7 +10,13 @@ from lambda_utils import customer_auth, template_status
 from . import meta_catalog_sync, service_requests, whatsapp_basket
 
 SESSION_PREFIX = 'CATALOGSERVICE#'
-ALLOWED = frozenset({'SUBMIT_REQUEST', 'VAULT'})
+# Vault only. Submit Request was sold here too, but every dependency of a paid WhatsApp Submit
+# Request is gone: its continuation Flow 1107164111921876 reads DEPRECATED on Meta (2026-10-25),
+# `paid_submit_request.VARIANT_ID` was wiped with the retired catalogue identities (#712), and
+# `service_request_store.request_intent` now requires the original order, which this leg never
+# had. A Submit Request session therefore failed only AFTER its customer lock and intent were
+# written. The customer is now told up front to start it on the website instead.
+ALLOWED = frozenset({'VAULT'})
 
 
 def finalization_complete(attempt: dict) -> bool:
@@ -33,8 +39,22 @@ def service_from_lines(lines: list[dict]) -> dict | None:
     item = relevant[0]
     kind = service_requests.SERVICE_KIND_BY_VARIANT.get(item.get('variantId'))
     if kind not in ALLOWED or type(item.get('quantity')) is not int or item['quantity'] != 1:
-        raise ValueError('Choose one Submit Request or Vault item, quantity 1.')
+        raise ValueError('Choose one Vault item, quantity 1.')
     return {'kind': kind, 'variantId': item['variantId'], 'productId': item['productId']}
+
+
+def service_refusal(lines: list[dict]) -> str:
+    """Why `service_from_lines` refused `lines`, as the reply the customer should get.
+
+    'unsupported' when a service line is one this leg does not sell, so the answer is the website;
+    otherwise 'alone': the service was mixed with other lines, sent more than once, or with a
+    quantity other than 1, and sending it again on its own would work.
+    """
+    for line in lines:
+        if (service_requests.is_service_product(line.get('productId'))
+                and service_requests.SERVICE_KIND_BY_VARIANT.get(line.get('variantId')) not in ALLOWED):
+            return 'unsupported'
+    return 'alone'
 
 
 def verified_identity(contact: dict, users: list[dict], phone: str):
@@ -114,8 +134,4 @@ def meta_ready(readiness: dict, kind: str) -> bool:
                for b in c.get('buttons') or []]
     if not buttons or buttons[0].get('type') != 'URL' or buttons[0].get('url') != 'https://wecare.digital/vault/?file={{1}}':
         return False
-    if kind == 'SUBMIT_REQUEST':
-        flow = readiness.get('flow') or {}
-        if flow.get('id') != '1107164111921876' or flow.get('status') != 'PUBLISHED' or flow.get('validation_errors'):
-            return False
     return kind in ALLOWED
