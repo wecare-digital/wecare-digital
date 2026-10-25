@@ -389,6 +389,171 @@ def _is_conditional_failure(error: Exception) -> bool:
     return response.get("Error", {}).get("Code") == "ConditionalCheckFailedException"
 
 
+
+def _whatsapp_identity_evidence(contact: Dict[str, Any], phone: str) -> bool:
+    """Whether a ContactsTable row is proven to belong to this inbound WhatsApp handset.
+
+    This is deliberately stricter than "the row contains the same phone".  An operator can type
+    a phone into CRM and outbound messaging can create a contact; neither proves the handset ever
+    spoke to us.  The inbound worker stamps lastInboundMessageAt only after Meta's signed webhook
+    ingress has resolved the sender, and customer-profile already treats that stamp as
+    WHATSAPP_INBOUND claim evidence.  A VERIFIED provenance source is the forward-compatible twin.
+    """
+    if not contact or contact.get("deletedAt") is not None or bool(contact.get("isDeleted")):
+        return False
+    if contact_store.canonical_phone(contact.get("phone")) != phone:
+        return False
+    try:
+        if int(contact.get("lastInboundMessageAt") or 0) > 0:
+            return True
+    except (TypeError, ValueError):
+        pass
+    source = provenance.existing_source(contact, "phone")
+    if not source:
+        return False
+    try:
+        return provenance.trust_of(source) >= provenance.TRUST[provenance.VERIFIED]
+    except provenance.UnknownSource:
+        return False
+
+
+def _cognito_user_for_phone(phone: str) -> Optional[Dict[str, Any]]:
+    """The one enabled, phone-verified customer-pool user for phone, or None.
+
+    More than one matching user is an identity conflict and therefore raises rather than picking
+    one.  No user is a normal WhatsApp-first state; the caller provisions it server-side without
+    asking the customer to leave WhatsApp.
+    """
+    users = _cognito_client().list_users(
+        UserPoolId=CUSTOMER_POOL_ID,
+        Filter='phone_number = "' + phone + '"',
+        Limit=2,
+    ).get("Users") or []
+    enabled = [u for u in users if u.get("Enabled", True)]
+    if len(enabled) > 1:
+        raise customer_auth.CustomerNotAuthorized("ambiguous WhatsApp customer identity")
+    if not enabled:
+        return None
+    attrs = {a["Name"]: a["Value"] for a in enabled[0].get("Attributes", [])}
+    if attrs.get("phone_number") != phone or attrs.get("phone_number_verified") != "true":
+        raise customer_auth.CustomerNotAuthorized("WhatsApp customer phone is not verified")
+    return enabled[0]
+
+
+def _cognito_user_for_sub(subject: str, phone: str) -> Optional[Dict[str, Any]]:
+    """Validate an already-linked owner without trusting the ContactsTable stamp by itself."""
+    if not customer_auth.is_cognito_subject(subject):
+        return None
+    users = _cognito_client().list_users(
+        UserPoolId=CUSTOMER_POOL_ID,
+        Filter='sub = "' + subject + '"',
+        Limit=2,
+    ).get("Users") or []
+    if len(users) != 1 or not users[0].get("Enabled", True):
+        return None
+    attrs = {a["Name"]: a["Value"] for a in users[0].get("Attributes", [])}
+    if (attrs.get("sub") != subject or attrs.get("phone_number") != phone
+            or attrs.get("phone_number_verified") != "true"):
+        return None
+    return users[0]
+
+
+def _ensure_whatsapp_identity(event: Dict[str, Any]) -> Dict[str, Any]:
+    """Bridge a signed inbound WhatsApp contact to the customer pool, without browser sign-in.
+
+    Trust boundary:
+      * callable only as a direct internal Lambda event (the handler rejects API-Gateway shapes);
+      * WABA1 only, matching the native payment sender allow-list;
+      * exact ContactsTable id + exact E.164 sender phone;
+      * signed-inbound evidence (or equally strong VERIFIED provenance) must already exist.
+
+    The bridge creates no session and returns no token.  It only ensures the same Cognito subject
+    that a later website sign-in will use exists and stamps that subject on the already-proven
+    contact.  Website/API checkout still requires its normal bearer session.
+    """
+    if str(event.get("wabaId") or "") != META_WABA_ID:
+        return {"outcome": "WHATSAPP_IDENTITY_NOT_READY"}
+
+    phone = contact_store.canonical_phone(event.get("senderPhone"))
+    contact_id = str(event.get("contactId") or "").strip()
+    if not phone or not contact_id:
+        return {"outcome": "WHATSAPP_IDENTITY_NOT_READY"}
+
+    contact = _contacts_table().get_item(
+        Key={"id": contact_id}, ConsistentRead=True
+    ).get("Item") or {}
+    if contact_key.resolve(contact) != contact_id or not _whatsapp_identity_evidence(contact, phone):
+        return {"outcome": "WHATSAPP_IDENTITY_NOT_READY"}
+
+    existing_owner = str(contact.get("checkoutCustomerId") or "").strip()
+    if existing_owner:
+        if _cognito_user_for_sub(existing_owner, phone) is None:
+            logger.warning(json.dumps({"event": "whatsapp_identity_owner_conflict"}))
+            return {"outcome": "WHATSAPP_IDENTITY_CONFLICT"}
+        return {
+            "outcome": "WHATSAPP_IDENTITY_READY",
+            "customerId": existing_owner,
+            "contactId": contact_id,
+            "customerUuid": str(contact.get("customerUuid") or ""),
+        }
+
+    try:
+        user = _cognito_user_for_phone(phone)
+        if user is None:
+            # Same backend-only provisioning used after OTP registration: no invite, no password
+            # exposed, and the only future browser sign-in method remains WhatsApp CUSTOM_AUTH.
+            _provision_login(phone, contact_id)
+            user = _cognito_user_for_phone(phone)
+        if user is None:
+            return {"outcome": "WHATSAPP_IDENTITY_NOT_READY"}
+        attrs = {a["Name"]: a["Value"] for a in user.get("Attributes", [])}
+        subject = str(attrs.get("sub") or "")
+        if not customer_auth.is_cognito_subject(subject):
+            return {"outcome": "WHATSAPP_IDENTITY_NOT_READY"}
+
+        now = int(time.time())
+        _contacts_table().update_item(
+            Key={"id": contact_id},
+            UpdateExpression=(
+                "SET checkoutCustomerId=:sub, "
+                "phoneVerifiedAt=if_not_exists(phoneVerifiedAt,:now), updatedAt=:now"
+            ),
+            ConditionExpression=(
+                "attribute_exists(id) AND "
+                "(attribute_not_exists(checkoutCustomerId) OR checkoutCustomerId=:sub)"
+            ),
+            ExpressionAttributeValues={":sub": subject, ":now": now},
+        )
+        logger.info(json.dumps({"event": "whatsapp_identity_ready"}))
+        return {
+            "outcome": "WHATSAPP_IDENTITY_READY",
+            "customerId": subject,
+            "contactId": contact_id,
+            "customerUuid": str(contact.get("customerUuid") or ""),
+        }
+    except customer_auth.CustomerNotAuthorized:
+        logger.warning(json.dumps({"event": "whatsapp_identity_conflict"}))
+        return {"outcome": "WHATSAPP_IDENTITY_CONFLICT"}
+    except Exception as error:  # noqa: BLE001
+        # Conditional failure means another path linked the row concurrently. Re-read once and
+        # accept only the exact same phone-bound owner; never overwrite a different owner.
+        if _is_conditional_failure(error):
+            current = _contacts_table().get_item(
+                Key={"id": contact_id}, ConsistentRead=True
+            ).get("Item") or {}
+            owner = str(current.get("checkoutCustomerId") or "").strip()
+            if owner and _whatsapp_identity_evidence(current, phone) and _cognito_user_for_sub(owner, phone):
+                return {
+                    "outcome": "WHATSAPP_IDENTITY_READY",
+                    "customerId": owner,
+                    "contactId": contact_id,
+                    "customerUuid": str(current.get("customerUuid") or ""),
+                }
+        logger.error(json.dumps({"event": "whatsapp_identity_bridge_failed",
+                                 "error": type(error).__name__}))
+        return {"outcome": "WHATSAPP_IDENTITY_NOT_READY"}
+
+
 # ── request/response plumbing ───────────────────────────────────────────────────
 
 def _body(event: Dict[str, Any]) -> Dict[str, Any]:
@@ -422,6 +587,14 @@ def _reply(result: registration.RegistrationResult, origin: str) -> Dict[str, An
 
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    if event.get("internalAction") == "ensureWhatsAppIdentity":
+        # API Gateway always supplies at least one of these fields.  Refuse the same payload when
+        # it arrives through the public registration endpoint: only a direct Lambda caller with
+        # IAM permission may use WhatsApp inbound evidence as identity proof.
+        if any(event.get(k) for k in ("requestContext", "rawPath", "path", "httpMethod")):
+            return {"outcome": "INTERNAL_INVOCATION_REQUIRED", "statusCode": 403}
+        return _ensure_whatsapp_identity(event)
+
     origin = extract_origin(event)
     rc = event.get("requestContext", {}) or {}
     method = rc.get("http", {}).get("method", event.get("httpMethod", "")).upper()
