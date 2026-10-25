@@ -118,7 +118,7 @@ WHATSAPP_VOICE_FUNCTION = os.environ.get('WHATSAPP_VOICE_FUNCTION', 'wecare-what
 # internal action through this name - the SAME machinery the website and the catalog-service leg
 # use - so pricing, the single attempt + PAYREF# reservation and the approved-template send all
 # live in one place. `:live` pins the alias the service leg also invokes.
-CHECKOUT_FUNCTION = os.environ.get('CHECKOUT_FUNCTION', 'wecare-checkout:live')
+CHECKOUT_FUNCTION = os.environ.get('CHECKOUT_FUNCTION', 'wecare-commerce:live')
 
 # The prepareNativeCart invoke must reach checkout AT MOST ONCE per cart message. botocore's
 # default client retries a Lambda invoke on a read timeout (60s), and a retried invoke is a second
@@ -6708,7 +6708,7 @@ def _send_payment_request(basket, phone: str, contact_id: str, sender_phone: str
     function; it is deliberately NOT the self-contained calculator-and-sender that was deleted.
     It computes NO money and mints NO reference. The amount comes from `_native_quote`
     (ProductsTable, integer paise) and the ONE `PAYREF#` + ONE PaymentAttempt come from the
-    checkout reservation — both reached through a single invoke of `wecare-checkout:live`'s
+    checkout reservation — both reached through a single invoke of `wecare-commerce:live`'s
     `prepareNativeCart` internal action, the general-cart twin of the catalog-service convergence.
     The approved Meta template `wecare_whatapp_native_pay_template` is sent by `_send_order_details`
     inside that action, never from here.
