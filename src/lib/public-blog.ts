@@ -1,3 +1,5 @@
+import blogMerges from '../../config/blog-merges.json';
+
 export interface PublicBlogPost {
   id: string;
   title: string;
@@ -265,13 +267,21 @@ async function fetchJsonOrThrow ( url: string, label: string ): Promise<any | nu
   );
 }
 
+/**
+ * POSTS RETIRED BY AN APPROVED MERGE (config/blog-merges.json). Their URL answers 301 to the
+ * post that stays, so they are dropped here, once, for every page that lists the corpus: no
+ * /post/<from>/ page, no card, no pager or related link, and therefore no sitemap entry.
+ */
+const MERGED_AWAY = new Set( blogMerges.merges.map( merge => merge.from ) );
+
 async function fetchAllPosts (): Promise<PublicBlogPost[]> {
   const body = await fetchJsonOrThrow( PUBLIC_BLOG_API, 'blog listing' );
   if ( !body?.ok || !Array.isArray( body.posts ) )
   {
     throw new Error( 'blog listing: response was not a post array' );
   }
-  return body.posts;
+  const posts: PublicBlogPost[] = body.posts;
+  return posts.filter( post => !MERGED_AWAY.has( post.slug ) );
 }
 
 /**

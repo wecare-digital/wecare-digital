@@ -40,6 +40,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { mergedAwaySlugs } from './blog-merges.js';
 
 const __dirname = path.dirname( fileURLToPath( import.meta.url ) );
 
@@ -132,8 +133,10 @@ async function main () {
     console.warn( `Blog RSS: fetch failed (${error.message}) — writing an empty feed.` );
   }
 
+  // Merged-away posts answer 301 and have no page, as in lib/public-blog.ts.
+  const mergedAway = mergedAwaySlugs();
   const items = posts
-    .filter( post => post && post.slug && post.title )
+    .filter( post => post && post.slug && post.title && !mergedAway.has( post.slug ) )
     .sort( byNewest )
     .slice( 0, FEED_LIMIT );
 
