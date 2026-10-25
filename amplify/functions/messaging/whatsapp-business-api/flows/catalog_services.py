@@ -10,7 +10,7 @@ import os
 import secrets
 import time
 import boto3
-from lambda_utils import customer_auth, shared_tables, whatsapp_templates
+from lambda_utils import customer_auth, customer_identity, shared_tables, whatsapp_templates
 from lambda_utils.ecommerce import catalog_service_checkout as catalog, service_request_store as store, vault_access as vault
 
 
@@ -59,37 +59,63 @@ def handle(event, client):
               'phoneNumberId': event.get('phoneNumberId') or os.environ.get(
                   'WHATSAPP_PHONE_NUMBER_ID_1', 'phone-number-id-waba1-direct-1016149501586345')}
 
-    # Native WhatsApp payment identity is established from signed inbound evidence, not a browser
-    # session. Commerce owns the bridge to the dedicated registration function, so this shared
-    # business-api role never gains customer-pool provisioning rights.
-    try:
-        resolved = _invoke(client, 'wecare-commerce:live', {
-            'internalAction': 'ensureNativeWhatsAppIdentity',
-            'contactId': contact.get('id', ''),
-            'senderPhone': event.get('senderPhone', ''),
-            'sourceMessageId': event.get('sourceMessageId', ''),
-            'phoneNumberId': sender['phoneNumberId'],
-        })
-    except Exception:
-        resolved = {}
-    if resolved.get('outcome') != 'WHATSAPP_IDENTITY_READY':
-        _send(client, sender, content=IDENTITY_NOT_READY)
-        return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
-    owner = str(resolved.get('customerId') or '')
-    number = str(resolved.get('phone') or '')
-    if not customer_auth.is_cognito_subject(owner) or not number:
-        _send(client, sender, content=IDENTITY_NOT_READY)
-        return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
-    identity = customer_auth.CustomerIdentity(
-        customer_id=owner, subject=owner, phone=number, phone_verified=True)
-    # Re-read because the bridge may have attached checkoutCustomerId to this row.
-    contact = contacts.get_item(
-        Key={'id': event.get('contactId', '')}, ConsistentRead=True).get('Item') or {}
-    if str(contact.get('checkoutCustomerId') or '') != owner:
-        _send(client, sender, content=IDENTITY_NOT_READY)
-        return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
     now = int(time.time())
     action = event.get('action', 'start')
+
+    if action == 'select':
+        # Selection is authorized by the already-created, high-entropy session token. Identity
+        # provisioning happened only on the signed cart message that created this session.
+        token = str(event.get('token') or '')
+        session = keys.get_item(
+            Key={'orderId': catalog.SESSION_PREFIX + token}, ConsistentRead=True
+        ).get('Item') or {}
+        owner = str(session.get('customerId') or '')
+        number = str(session.get('phone') or '')
+        try:
+            event_phone = customer_identity.normalize_phone_preserving_country(
+                event.get('senderPhone') or '')
+            session_phone = customer_identity.normalize_phone_preserving_country(number)
+        except customer_identity.InvalidPhoneNumber:
+            event_phone = session_phone = ''
+        if (not customer_auth.is_cognito_subject(owner)
+                or not event_phone or event_phone != session_phone
+                or str(session.get('contactId') or '') != str(contact.get('id') or '')
+                or str(contact.get('checkoutCustomerId') or '') != owner):
+            _send(client, sender, content=IDENTITY_NOT_READY)
+            return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
+        identity = customer_auth.CustomerIdentity(
+            customer_id=owner, subject=owner, phone=session_phone, phone_verified=True)
+    else:
+        # Native WhatsApp payment identity is established from the signed cart message, not a
+        # browser session. Commerce owns the bridge to the dedicated registration function, so
+        # this shared business-api role never gains customer-pool provisioning rights.
+        try:
+            resolved = _invoke(client, 'wecare-commerce:live', {
+                'internalAction': 'ensureNativeWhatsAppIdentity',
+                'contactId': contact.get('id', ''),
+                'senderPhone': event.get('senderPhone', ''),
+                'sourceMessageId': event.get('sourceMessageId', ''),
+                'phoneNumberId': sender['phoneNumberId'],
+            })
+        except Exception:
+            resolved = {}
+        if resolved.get('outcome') != 'WHATSAPP_IDENTITY_READY':
+            _send(client, sender, content=IDENTITY_NOT_READY)
+            return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
+        owner = str(resolved.get('customerId') or '')
+        number = str(resolved.get('phone') or '')
+        if not customer_auth.is_cognito_subject(owner) or not number:
+            _send(client, sender, content=IDENTITY_NOT_READY)
+            return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
+        identity = customer_auth.CustomerIdentity(
+            customer_id=owner, subject=owner, phone=number, phone_verified=True)
+        # Re-read because the bridge may have attached checkoutCustomerId to this row.
+        contact = contacts.get_item(
+            Key={'id': event.get('contactId', '')}, ConsistentRead=True).get('Item') or {}
+        if str(contact.get('checkoutCustomerId') or '') != owner:
+            _send(client, sender, content=IDENTITY_NOT_READY)
+            return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
+
     if action == 'start':
         choice = catalog.service_from_lines(event.get('lines') or [])
         if not choice or not event.get('sourceMessageId'):
