@@ -2552,8 +2552,14 @@ def _process_message(
                 'requestId': request_id,
             }))
             # SEND #3.
+            # A list tap is a fresh signed inbound message. Stamp its WAMID before any
+            # commerce action so the identity bridge can independently prove this exact action.
+            _update_contact_timestamp(
+                contact_id, now, wamid=whatsapp_message_id or '')
             if _may_send('list_reply_route'):
-                _route_wd_list_reply(list_id, contact_id, sender_phone, aws_phone_number_id, request_id)
+                _route_wd_list_reply(
+                    list_id, contact_id, sender_phone, aws_phone_number_id, request_id,
+                    source_message_id=whatsapp_message_id or '')
             return
         # Native Flow Message reply — India Address Message submission arrives here
         # as nfm_reply with name='address_message' (also used by flow completions).
@@ -6236,7 +6242,8 @@ def _send_wd_list(list_key: str, contact_id: str, sender_phone: str,
 
 
 def _route_wd_list_reply(list_id: str, contact_id: str, sender_phone: str,
-                         aws_phone_number_id: str, request_id: str) -> str:
+                         aws_phone_number_id: str, request_id: str,
+                         source_message_id: str = '') -> str:
     """Route one tapped list row. Three ways out and no fourth.
 
     Returns a short token naming which way it went ('back', 'list', 'leaf',
@@ -6253,7 +6260,8 @@ def _route_wd_list_reply(list_id: str, contact_id: str, sender_phone: str,
         lambda_client.invoke(FunctionName='wecare-whatsapp-business-api:live', InvocationType='Event',
             Payload=json.dumps({'internalAction': 'catalogService', 'action': 'select',
                 'token': parts[1], 'fileIndex': int(parts[2]), 'contactId': contact_id,
-                'senderPhone': sender_phone, 'phoneNumberId': aws_phone_number_id}).encode())
+                'senderPhone': sender_phone, 'sourceMessageId': source_message_id,
+                'phoneNumberId': aws_phone_number_id}).encode())
         return 'vault'
     if list_id == 'wd_back':
         # Explicit, so WD_LISTS stays one key per list rather than gaining an alias.
@@ -7010,8 +7018,11 @@ def _cart_refusal_kind(outcome: str, error: str) -> str:
     """
     if outcome == 'NATIVE_CART_ROLLOUT_DISABLED':
         return ''
-    if outcome == 'VERIFIED_CUSTOMER_REQUIRED' or error == 'PROFILE_REQUIRED':
-        return 'sign_in'
+    if outcome in ('VERIFIED_CUSTOMER_REQUIRED', 'WHATSAPP_IDENTITY_REQUIRED'):
+        # Native WhatsApp payment never redirects to browser sign-in. Identity failures are
+        # fail-closed and recoverable by retry/support; website authentication remains on HTTP
+        # checkout routes only.
+        return 'try_later'
     if error == 'DELIVERY_DETAILS_REQUIRED':
         return 'address'
     if outcome == 'NATIVE_CART_ALREADY_REQUESTED':

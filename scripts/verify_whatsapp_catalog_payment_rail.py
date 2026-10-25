@@ -492,7 +492,16 @@ def run(root: Path) -> int:
                     str(functions / "payments" / "invoice-engine")]
 
     cognito = _real_boto3_client("cognito-idp", region_name="us-east-1")
-    pool_id = cognito.create_user_pool(PoolName="hermetic-customers")["UserPool"]["Id"]
+    pool_id = cognito.create_user_pool(
+        PoolName="hermetic-customers",
+        Schema=[{
+            "Name": "partner_waba_id",
+            "AttributeDataType": "String",
+            "Mutable": True,
+            "Required": False,
+            "StringAttributeConstraints": {"MinLength": "1", "MaxLength": "64"},
+        }],
+    )["UserPool"]["Id"]
     os.environ["CUSTOMER_POOL_ID"] = pool_id
     _create_tables()
 
@@ -504,6 +513,8 @@ def run(root: Path) -> int:
 
     inbound = _load("h_inbound", functions / "messaging" / "inbound-whatsapp-handler" / "handler.py")
     checkout = _load("h_checkout", functions / "ecommerce" / "checkout" / "handler.py")
+    registration = _load("h_customer_registration",
+                         functions / "auth" / "customer-registration" / "handler.py")
     outbound = _load("h_outbound", functions / "messaging" / "outbound-whatsapp" / "handler.py")
     webhook = _load("h_webhook", functions / "payments" / "razorpay-webhook" / "handler.py")
     # The invoice engine ships inside wecare-checkout AS `invoice_engine.py`, sourced from its one
@@ -519,7 +530,8 @@ def run(root: Path) -> int:
     # to wecare-checkout. Both names route to the same handler here, exactly as deployed.
     W.handlers.update({name: checkout.handler for name in COMMERCE_FUNCTIONS})
     W.handlers.update({"wecare-outbound-whatsapp": outbound.handler,
-                       "wecare-inbound-whatsapp": inbound.handler})
+                       "wecare-inbound-whatsapp": inbound.handler,
+                       "wecare-customer-registration": registration.handler})
     # The function inbound's cart leg invokes, so faults land where production would see them.
     cart_function = str(inbound.CHECKOUT_FUNCTION).split(":")[0]
 
@@ -783,6 +795,12 @@ def run(root: Path) -> int:
     http = checkout.handler({**direct, "requestContext": {"http": {"method": "POST"}}, "rawPath": "/checkout"},
                             FakeContext("wecare-checkout"))
     check("AUTH", "prepareNativeCart over an HTTP envelope is refused 403", http.get("statusCode") == 403)
+    website_no_session = checkout.handler(
+        {"requestContext": {"http": {"method": "POST", "path": "/ecommerce/checkout"}},
+         "rawPath": "/ecommerce/checkout", "headers": {}, "body": json.dumps({"lineItems": []})},
+        FakeContext("wecare-checkout"))
+    check("AUTH", "website checkout still requires its customer session",
+          website_no_session.get("statusCode") == 401, website_no_session.get("statusCode"))
 
     # ── 7. refusals that must never reach a payable message ────────────────────────────────────
     print("\n== 7. refusals before any payable message")
@@ -799,8 +817,13 @@ def run(root: Path) -> int:
     refused("physical goods without a delivery address", frank, [{"productId": shop.tee, "variantId": "TEE-M", "quantity": 1}],
             "DELIVERY_DETAILS_REQUIRED")
     gina = shop.customer(7, verified=False)
-    refused("customer without a verified WECARE account", gina, [{"productId": shop.kit, "variantId": "KIT1", "quantity": 1}],
-            "VERIFIED_CUSTOMER_REQUIRED")
+    staff_only = shop.customer(15, verified=False)
+    _table("ContactsTable").update_item(
+        Key={"id": staff_only["contactId"]},
+        UpdateExpression="REMOVE lastInboundMessageAt")
+    refused("contact with no signed WhatsApp inbound evidence", staff_only,
+            [{"productId": shop.kit, "variantId": "KIT1", "quantity": 1}],
+            "WHATSAPP_IDENTITY_REQUIRED")
     hank = shop.customer(8)
     refused("archived ProductsTable item", hank, [{"productId": shop.retired, "variantId": "OLD", "quantity": 1}],
             "AMOUNT_NOT_SETTLED")
@@ -863,20 +886,31 @@ def run(root: Path) -> int:
     check("UX", "a second address submission resumes nothing",
           len(_attempts_for(frank["sub"])) == 1 and not _pay_sends(W.since(mark, "meta_sends")))
 
-    # Gina last wrote two days ago: the cart itself is what opens the 24-hour window.
+    # Gina has never signed into the website and has no Cognito user. The signed inbound cart
+    # itself is the handset proof: inbound stamps lastInboundMessageAt before prepareNativeCart.
     _table("ContactsTable").update_item(Key={"id": gina["contactId"]},
                                         UpdateExpression="SET lastInboundMessageAt = :t",
                                         ExpressionAttributeValues={":t": Decimal(int(time.time()) - 172800)})
     mark = W.mark()
-    deliver(order_event(build, gina["digits"], "wamid.HERMETIC.GINA.1", [{"product_retailer_id": kit, "quantity": 1}]))
-    replies = [_outbound_body(c) for c in W.since(mark, "invocations") if c["function"] == "wecare-outbound-whatsapp"]
-    check("UX", "an unverified customer is sent ONE sign-in prompt, no address request and no payment",
-          len(replies) == 1 and replies[0].get("interactiveType") == "cta_url"
-          and replies[0]["interactiveData"]["url"] == "https://wecare.digital/account/sign-in/"
-          and not _pay_sends(W.since(mark, "meta_sends")),
-          [r.get("interactiveType") for r in replies])
-    sent = [s for s in W.since(mark, "meta_sends") if (s["payload"].get("interactive") or {}).get("type") == "cta_url"]
-    check("UX", "...and outbound actually delivered it (the cart opened the 24-hour window)", len(sent) == 1, len(sent))
+    deliver(order_event(build, gina["digits"], "wamid.HERMETIC.GINA.1",
+                        [{"product_retailer_id": kit, "quantity": 1}]))
+    gina_contact = _table("ContactsTable").get_item(
+        Key={"id": gina["contactId"]}, ConsistentRead=True).get("Item") or {}
+    gina_owner = str(gina_contact.get("checkoutCustomerId") or "")
+    gina_attempts = _attempts_for(gina_owner) if gina_owner else []
+    gina_pay = _pay_sends(W.since(mark, "meta_sends"))
+    gina_ctas = [s for s in W.since(mark, "meta_sends")
+                 if (s["payload"].get("interactive") or {}).get("type") == "cta_url"]
+    check("UX", "WhatsApp-first buyer is linked server-side with no browser sign-in",
+          bool(gina_owner) and len(gina_ctas) == 0, {"owner": bool(gina_owner), "ctas": len(gina_ctas)})
+    check("UX", "...and receives exactly ONE native payment request",
+          len(gina_attempts) == 1 and len(gina_pay) == 1,
+          {"attempts": len(gina_attempts), "pay": len(gina_pay)})
+    users = cognito.list_users(UserPoolId=pool_id, Filter='phone_number = "' + gina["phone"] + '"',
+                               Limit=2).get("Users") or []
+    check("AUTH", "...the bridge created one verified customer-pool identity for later website use",
+          len(users) == 1 and any(a.get("Name") == "phone_number_verified" and a.get("Value") == "true"
+                                  for a in users[0].get("Attributes", [])), len(users))
     mark = W.mark()
     ivy = shop.customer(9)
     deliver(order_event(build, ivy["digits"], "wamid.HERMETIC.IVY.1", [{"product_retailer_id": kit, "quantity": 1}],
@@ -1385,8 +1419,9 @@ def run(root: Path) -> int:
                                        "sourceMessageId": "wamid.HERMETIC.MIA.1", "contactId": mia["contactId"],
                                        "senderPhone": mia["digits"], "phoneNumberId": PHONE_ID_1}, FakeLambda())
     replies = replies_in(W.since(mark, "invocations"))
-    check("SVC", "an account linked to another verified number is refused with a sign-in reply, not a crash",
-          refusal.get("outcome") == "VERIFIED_CUSTOMER_REQUIRED" and len(replies) == 1 and "sign in" in replies[0].lower()
+    check("SVC", "an account linked to another verified number is refused without a browser sign-in CTA",
+          refusal.get("outcome") == "WHATSAPP_IDENTITY_REQUIRED" and len(replies) == 1
+          and "could not verify" in replies[0].lower() and "sign in" not in replies[0].lower()
           and not _table("CommerceKeys").get_item(Key={"orderId": "CATALOGSERVICEMSG#wamid.HERMETIC.MIA.1"}).get("Item"),
           refusal)
 
@@ -1421,7 +1456,7 @@ def run(root: Path) -> int:
                                         "fileIndex": 0, "contactId": nora["contactId"], "senderPhone": nora["digits"],
                                         "phoneNumberId": PHONE_ID_1}, FakeLambda())
 
-    W.handlers["wecare-checkout"] = checkout_not_ready
+    W.handlers["wecare-commerce"] = checkout_not_ready
     # moto 5.2.4 cancels the intent store's TransactWriteItems with an internal TypeError
     # ("unhashable type: 'dict'"), so the intent is stubbed here; these checks are about the lock.
     real_request_intent = catalog_services.store.request_intent
@@ -1461,7 +1496,7 @@ def run(root: Path) -> int:
           fourth.get("outcome") == "VAULT_FILE_SELECTION_UNAVAILABLE" and stubbed["calls"] == 2
           and not _table("CommerceKeys").get_item(Key=lock_key).get("Item"), fourth)
     catalog_services.store.request_intent = real_request_intent
-    W.handlers["wecare-checkout"] = checkout.handler
+    W.handlers["wecare-commerce"] = checkout.handler
     W.handlers.pop("wecare-whatsapp-business-api", None)
     # Paid Vault delivery and the invoice copy reach the customer through outbound, which resolves
     # only our Direct-API sender ids and refuses the bare Meta phone id they used to send with.

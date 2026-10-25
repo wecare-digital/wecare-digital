@@ -10,7 +10,7 @@ import os
 import secrets
 import time
 import boto3
-from lambda_utils import customer_auth, shared_tables, whatsapp_templates
+from lambda_utils import customer_auth, customer_identity, shared_tables, whatsapp_templates
 from lambda_utils.ecommerce import catalog_service_checkout as catalog, service_request_store as store, vault_access as vault
 
 
@@ -39,8 +39,10 @@ def readiness(graph):
     return {'templates': templates}
 
 
-SIGN_IN_REQUIRED = ('Please sign in to your WECARE.DIGITAL customer account and verify this WhatsApp '
-                    'number before purchasing this service: https://wecare.digital/account/sign-in/')
+IDENTITY_NOT_READY = (
+    'We could not verify this WhatsApp checkout safely. Nothing has been charged. '
+    'Please send the catalog item again or contact support.'
+)
 
 
 def handle(event, client):
@@ -52,27 +54,68 @@ def handle(event, client):
     keys = db.Table('stack-wecare-digital-CommerceKeys')
     contacts = db.Table(shared_tables.contacts_table_name())
     contact = contacts.get_item(Key={'id': event.get('contactId', '')}, ConsistentRead=True).get('Item') or {}
-    owner = contact.get('checkoutCustomerId')
     # Outbound resolves only our Direct-API sender ids; the bare Meta phone id is refused.
     sender = {'contactId': contact.get('id', ''), 'phone': event.get('senderPhone', ''),
               'phoneNumberId': event.get('phoneNumberId') or os.environ.get(
                   'WHATSAPP_PHONE_NUMBER_ID_1', 'phone-number-id-waba1-direct-1016149501586345')}
-    # Cognito sub is canonical UUID. Refuse malformed filter inputs before ListUsers.
-    if not customer_auth.is_cognito_subject(owner):
-        _send(client, sender, content=SIGN_IN_REQUIRED)
-        return {'outcome': 'VERIFIED_CUSTOMER_REQUIRED'}
-    users = boto3.client('cognito-idp', region_name=os.environ.get('AWS_REGION', 'us-east-1')).list_users(
-        UserPoolId=customer_auth.CUSTOMER_POOL_ID, Filter='sub = "' + owner + '"', Limit=2).get('Users') or []
-    try:
-        identity = catalog.verified_identity(contact, users, event.get('senderPhone', ''))
-    except customer_auth.CustomerNotAuthorized:
-        # A linked account whose WhatsApp number is not the verified one (or is disabled). This
-        # used to escape as a function error: the inbound worker invokes asynchronously, so the
-        # customer heard nothing and Lambda retried a refusal twice.
-        _send(client, sender, content=SIGN_IN_REQUIRED)
-        return {'outcome': 'VERIFIED_CUSTOMER_REQUIRED'}
+
     now = int(time.time())
     action = event.get('action', 'start')
+
+    if action == 'select':
+        # Selection is authorized by the already-created, high-entropy session token. Identity
+        # provisioning happened only on the signed cart message that created this session.
+        token = str(event.get('token') or '')
+        session = keys.get_item(
+            Key={'orderId': catalog.SESSION_PREFIX + token}, ConsistentRead=True
+        ).get('Item') or {}
+        owner = str(session.get('customerId') or '')
+        number = str(session.get('phone') or '')
+        try:
+            event_phone = customer_identity.normalize_phone_preserving_country(
+                event.get('senderPhone') or '')
+            session_phone = customer_identity.normalize_phone_preserving_country(number)
+        except customer_identity.InvalidPhoneNumber:
+            event_phone = session_phone = ''
+        if (not customer_auth.is_cognito_subject(owner)
+                or not event_phone or event_phone != session_phone
+                or str(session.get('contactId') or '') != str(contact.get('id') or '')
+                or str(contact.get('checkoutCustomerId') or '') != owner):
+            _send(client, sender, content=IDENTITY_NOT_READY)
+            return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
+        identity = customer_auth.CustomerIdentity(
+            customer_id=owner, subject=owner, phone=session_phone, phone_verified=True)
+    else:
+        # Native WhatsApp payment identity is established from the signed cart message, not a
+        # browser session. Commerce owns the bridge to the dedicated registration function, so
+        # this shared business-api role never gains customer-pool provisioning rights.
+        try:
+            resolved = _invoke(client, 'wecare-commerce:live', {
+                'internalAction': 'ensureNativeWhatsAppIdentity',
+                'contactId': contact.get('id', ''),
+                'senderPhone': event.get('senderPhone', ''),
+                'sourceMessageId': event.get('sourceMessageId', ''),
+                'phoneNumberId': sender['phoneNumberId'],
+            })
+        except Exception:
+            resolved = {}
+        if resolved.get('outcome') != 'WHATSAPP_IDENTITY_READY':
+            _send(client, sender, content=IDENTITY_NOT_READY)
+            return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
+        owner = str(resolved.get('customerId') or '')
+        number = str(resolved.get('phone') or '')
+        if not customer_auth.is_cognito_subject(owner) or not number:
+            _send(client, sender, content=IDENTITY_NOT_READY)
+            return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
+        identity = customer_auth.CustomerIdentity(
+            customer_id=owner, subject=owner, phone=number, phone_verified=True)
+        # Re-read because the bridge may have attached checkoutCustomerId to this row.
+        contact = contacts.get_item(
+            Key={'id': event.get('contactId', '')}, ConsistentRead=True).get('Item') or {}
+        if str(contact.get('checkoutCustomerId') or '') != owner:
+            _send(client, sender, content=IDENTITY_NOT_READY)
+            return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
+
     if action == 'start':
         choice = catalog.service_from_lines(event.get('lines') or [])
         if not choice or not event.get('sourceMessageId'):
@@ -191,7 +234,7 @@ def handle(event, client):
                                   row['kind'], vault_file=file)
     keys.update_item(Key={'orderId': row['orderId']}, UpdateExpression='SET serviceIntentId=:intent',
                      ExpressionAttributeValues={':intent': intent['intentId']})
-    result = _invoke(client, 'wecare-checkout:live', {
+    result = _invoke(client, 'wecare-commerce:live', {
         'internalAction': 'prepareNativeCatalogService', 'catalogToken': row['token']})
     # No automatic second attempt after an ambiguous provider send. Staff reconcile this session.
     keys.update_item(Key={'orderId': row['orderId']}, UpdateExpression='SET paymentResult=:result',

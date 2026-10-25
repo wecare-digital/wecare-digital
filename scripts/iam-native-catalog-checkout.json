@@ -13,14 +13,6 @@
       ]
     },
     {
-      "Sid": "VerifyNativeCustomer",
-      "Effect": "Allow",
-      "Action": [
-        "cognito-idp:ListUsers"
-      ],
-      "Resource": "arn:aws:cognito-idp:us-east-1:775261844268:userpool/us-east-1_46ULYuukt"
-    },
-    {
       "Sid": "SendCanonicalNativePayment",
       "Effect": "Allow",
       "Action": [

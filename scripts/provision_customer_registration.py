@@ -5,9 +5,8 @@ What it stands up
 -----------------
 - A least-privilege execution role: logs; read of the OTP pepper secret; read/write on the OTP
   challenge table and the customers table only; `lambda:InvokeFunction` on the WhatsApp template
-  sender (so it can deliver the `wecare_otp` code); and the three Cognito admin actions on the
-  CUSTOMER pool needed to provision a login — `admin_create_user`, `admin_set_user_password`,
-  `admin_update_user_attributes`. It has NO SES permission (email verification is a separate
+  sender (so it can deliver the `wecare_otp` code); and the scoped Cognito actions on the CUSTOMER pool needed to provision/resolve a login —
+  `admin_create_user`, `admin_set_user_password`, `admin_update_user_attributes`, and `list_users`. It has NO SES permission (email verification is a separate
   function) and NO `cognito-idp:SignUp` (the pool is AllowAdminCreateUserOnly and self-signup
   stays off — provisioning is admin-only).
 - The function `wecare-customer-registration`, then a published version and the `live` alias.
@@ -62,6 +61,8 @@ OTP_TABLE = "stack-wecare-digital-DownloadGrantsTable"
 CONTACTS_TABLE = "stack-wecare-digital-ContactsTable"
 IDENTITY_CLAIMS_TABLE = "stack-wecare-digital-IdentityClaimsTable"
 CONTACTS_PHONE_INDEX = "phone-index"
+WHATSAPP_INBOUND_TABLE = "stack-wecare-digital-WhatsAppInboundTable"
+WHATSAPP_INBOUND_MESSAGE_INDEX = "whatsappMessageId-index"
 CUSTOMER_POOL_ID = "us-east-1_46ULYuukt"
 META_WABA_ID = "2094615664435155"
 META_PHONE_NUMBER_ID = "1016149501586345"
@@ -149,10 +150,9 @@ def _zip_package() -> bytes:
 
 
 def ensure_role(dry_run: bool) -> str:
-    if role_exists():
-        return "exists"
+    exists = role_exists()
     if dry_run:
-        return "would create"
+        return "would reconcile existing role" if exists else "would create and reconcile role"
 
     assume = {
         "Version": "2012-10-17",
@@ -162,13 +162,14 @@ def ensure_role(dry_run: bool) -> str:
             "Action": "sts:AssumeRole",
         }],
     }
-    iam().create_role(
-        RoleName=ROLE_NAME,
-        AssumeRolePolicyDocument=json.dumps(assume),
-        Description="Customer registration front door execution role",
-        Tags=[{"Key": "Project", "Value": "WECARE.DIGITAL"},
-              {"Key": "Purpose", "Value": "CustomerRegistration"}],
-    )
+    if not exists:
+        iam().create_role(
+            RoleName=ROLE_NAME,
+            AssumeRolePolicyDocument=json.dumps(assume),
+            Description="Customer registration front door execution role",
+            Tags=[{"Key": "Project", "Value": "WECARE.DIGITAL"},
+                  {"Key": "Purpose", "Value": "CustomerRegistration"}],
+        )
     iam().attach_role_policy(
         RoleName=ROLE_NAME,
         PolicyArn="arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
@@ -203,6 +204,14 @@ def ensure_role(dry_run: bool) -> str:
                 ],
             },
             {
+                "Sid": "ReadSignedWhatsAppInboundEvidence",
+                "Effect": "Allow",
+                "Action": ["dynamodb:Query"],
+                "Resource": [
+                    f"arn:aws:dynamodb:{REGION}:{acct}:table/{WHATSAPP_INBOUND_TABLE}/index/{WHATSAPP_INBOUND_MESSAGE_INDEX}"
+                ],
+            },
+            {
                 "Sid": "InvokeWhatsAppSender",
                 "Effect": "Allow",
                 "Action": ["lambda:InvokeFunction"],
@@ -215,12 +224,14 @@ def ensure_role(dry_run: bool) -> str:
             {
                 "Sid": "AdminProvisionCustomerLogin",
                 "Effect": "Allow",
-                # Exactly the three admin actions the front door uses to provision a login. No
-                # SignUp: the customer pool is AllowAdminCreateUserOnly and self-signup stays off.
+                # Provisioning plus exact phone/sub lookup for the internal WhatsApp identity
+                # bridge. No SignUp: the customer pool is AllowAdminCreateUserOnly and self-signup
+                # stays off.
                 "Action": [
                     "cognito-idp:AdminCreateUser",
                     "cognito-idp:AdminSetUserPassword",
                     "cognito-idp:AdminUpdateUserAttributes",
+                    "cognito-idp:ListUsers",
                 ],
                 "Resource": [
                     f"arn:aws:cognito-idp:{REGION}:{acct}:userpool/{CUSTOMER_POOL_ID}"],
@@ -232,7 +243,7 @@ def ensure_role(dry_run: bool) -> str:
         PolicyName="CustomerRegistrationLeastPrivilege",
         PolicyDocument=json.dumps(least_privilege),
     )
-    return "created"
+    return "reconciled" if exists else "created"
 
 
 def ensure_log_group(dry_run: bool) -> str:
@@ -257,6 +268,7 @@ def expected_environment() -> dict:
     return {
         "OTP_TABLE": OTP_TABLE,
         "CONTACTS_TABLE": CONTACTS_TABLE,
+        "WHATSAPP_INBOUND_TABLE": WHATSAPP_INBOUND_TABLE,
         "IDENTITY_CLAIMS_TABLE": IDENTITY_CLAIMS_TABLE,
         "CUSTOMER_POOL_ID": CUSTOMER_POOL_ID,
         "OTP_PEPPER_SECRET_ID": PEPPER_SECRET_ID,
