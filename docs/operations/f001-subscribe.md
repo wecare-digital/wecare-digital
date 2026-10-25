@@ -15,7 +15,7 @@ Flow, not a marketing subscription, and it never grants consent.
 | Handler | `flows/subscribe_profile.py` (the only handler for `subscribe*` tokens) |
 | Contract | `CANONICAL_CONTRACTS['subscribe']` in `lambda_utils/canonical_flows.py`, twin in `src/lib/canonicalFlows.ts` |
 | Workspace | Communications → Manage → WhatsApp → Auto response → Subscribe (control surface); Flow Hub (`?view=manage&section=flows`) for history |
-| Verification | `python3 scripts/check_f001_subscribe.py` (52 offline checks) and `python3 scripts/validate_flow_json.py` |
+| Verification | `python3 scripts/check_f001_subscribe.py` (55 offline checks) and `python3 scripts/validate_flow_json.py` |
 
 ## Entry model
 
@@ -106,10 +106,26 @@ history failed, COMPLETE returned, client error reports. Counters only; each eve
 one `flow_funnel` JSON line without customer data. Flow-log breadcrumbs now keep field shapes,
 not values, and mask the token.
 
+Every `/flow-data` request also logs one `flow_endpoint_signature` line (`verified`, `reason`):
+whether Meta's `X-Hub-Signature-256` matched either WABA app secret. It is observe-only and
+never changes the answer. Enforce it (HTTP 432) only after real traffic shows every genuine
+request as `verified: true`.
+
+## Who can change what
+
+| Change | Minimum role | Enforced in |
+|---|---|---|
+| Keyword switch and keywords (`flow_triggers_config`), Subscribe copy (`subscribe_messages_config`) | Operator | `ai-config-management` (`OPERATOR_WRITE_KEYS`) |
+| Staff send to one customer | Operator | business API `/messages/send/flow` |
+| FlowRegistry row, publish/deprecate, Flow metadata update (`PUT /flows`) | Admin | business API |
+| Sync from Meta (writes `metaStatus` only) | Operator | business API `/flows/sync` |
+| Read launch status, funnel, Flow metadata and assets | Viewer | business API |
+
 ## Activation runbook
 
 1. Validate locally: `python3 scripts/validate_flow_json.py` and `python3 scripts/check_f001_subscribe.py`.
-2. Confirm the published Meta asset equals `design-drafts/subscribe.json` and Meta validation errors = 0 (Meta access needed).
+2. Confirm the published Meta asset equals `design-drafts/subscribe.json` (`GET /wa-business/flows/assets?flowId=2413873616105042`
+   returns Meta's short-lived download link) and Meta validation errors = 0 (`GET /wa-business/flows?flowId=…`).
 3. Deploy `wecare-whatsapp-business-api` and `wecare-inbound-whatsapp` with `scripts/deploy_all_lambdas.py`
    (publishes versions and moves `live`), then `scripts/check_deployed_source.py` for both functions.
 4. Run "Sync from Meta" so the registry row records `metaStatus`.

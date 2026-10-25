@@ -49,6 +49,7 @@ TS_SETTINGS = ROOT / 'src' / 'components' / 'workspace' / 'whatsapp' / 'subscrib
 TS_FLOW_HUB = ROOT / 'src' / 'components' / 'workspace' / 'whatsapp' / 'flow-hub.tsx'
 TS_AUTO_RESPONSE = ROOT / 'src' / 'components' / 'workspace' / 'whatsapp' / 'auto-response.tsx'
 TS_INBOX = ROOT / 'src' / 'pages' / 'workspace' / 'engage' / 'inbox' / 'index.tsx'
+AI_CONFIG = ROOT / 'amplify' / 'functions' / 'ai' / 'ai-config-management' / 'handler.py'
 
 PHONE_A = '15550100001'
 PHONE_B = '15550100002'
@@ -405,10 +406,16 @@ def setup() -> None:
                  'lambda_utils.identity_claims', 'lambda_utils.flow_completion', 'lambda_utils.privacy',
                  'lambda_utils.message_store', 'lambda_utils.identity.customer_uuid',
                  'lambda_utils.ecommerce.contact_address', 'lambda_utils.middleware',
+                 'lambda_utils.meta_signature',
                  'flows.common', 'flows.subscribe_profile', 'flows.router', 'flows.country_options',
                  'validate_flow_json'):
         M[name.split('.')[-1]] = importlib.import_module(name)
     M['bizapi'] = importlib.import_module('handler')
+    # The AI config API is also a module named `handler`, so it is loaded under its own name.
+    import importlib.util
+    ai_spec = importlib.util.spec_from_file_location('ai_config_handler', AI_CONFIG)
+    M['ai_config'] = importlib.util.module_from_spec(ai_spec)
+    ai_spec.loader.exec_module(M['ai_config'])
     # The CRM projection is best-effort and outside F001; record it instead of running it.
     M['crm_calls'] = []
     M['flow_completion'].capture_crm_lead = lambda result, **kw: M['crm_calls'].append(kw) or {'outcome': 'recorded'}
@@ -1232,6 +1239,119 @@ def _() -> None:
                'Viewer sent F001')
     finally:
         biz.require_auth, middleware.require_auth = saved
+
+
+def _role_gate(event: Dict[str, Any], required_role: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Stand-in for `require_auth` keyed on the test event's `_test_role` (no Cognito)."""
+    rank = {'Viewer': 1, 'Operator': 2, 'Admin': 3}
+    role = event.get('_test_role', '')
+    if not role:
+        return {'statusCode': 401, 'body': '{}'}
+    if required_role and rank.get(role, 0) < rank[required_role]:
+        return {'statusCode': 403, 'body': json.dumps({'error': 'Insufficient permissions'})}
+    event['_auth'] = {'username': f'{role.lower()}@example.test', 'role': role}
+    return None
+
+
+def _staff_event(method: str, path: str, role: str, body: Optional[Dict[str, Any]] = None,
+                 params: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+    return {'requestContext': {'http': {'method': method, 'path': path, 'sourceIp': '203.0.113.9'},
+                               'apiId': 'test'}, 'headers': {}, '_test_role': role,
+            'body': json.dumps(body or {}), 'queryStringParameters': params or {}}
+
+
+@check('E6 /flow-data logs whether the Meta signature verifies and never changes the answer')
+def _() -> None:
+    FAKE_DB.reset()
+    biz, signature = M['bizapi'], M['meta_signature']
+    token = new_session()
+    payload = {'version': '3.0', 'action': 'INIT', 'screen': '', 'data': {}, 'flow_token': token}
+    biz._decrypt_flow_request = lambda *_: (copy.deepcopy(payload), b'k', b'i')
+    biz._encrypt_flow_response = lambda response, *_: json.dumps(response)
+    raw = json.dumps({'encrypted_flow_data': 'x', 'encrypted_aes_key': 'y', 'initial_vector': 'z'})
+    saved_secret = biz._get_app_secret
+
+    def post(headers: Dict[str, str]) -> Tuple[int, List[str]]:
+        start = len(LOGS.lines)
+        # No API Gateway context: the same auth path Meta's callback takes via AUTH_SKIP_PATHS.
+        out = biz.handler({'requestContext': {'http': {'method': 'POST', 'path': '/wa-business/flow-data'}},
+                           'headers': headers, 'body': raw}, None)
+        return out['statusCode'], [line for line in LOGS.lines[start:] if 'flow_endpoint_signature' in line]
+    try:
+        biz._get_app_secret = lambda *a, **k: 'test-app-secret'
+        good = signature.expected_signature('test-app-secret', raw)
+        for headers, verified, reason in (({'X-Hub-Signature-256': good}, True, 'ok'),
+                                          ({}, False, 'missing_signature'),
+                                          ({'x-hub-signature-256': 'sha256=' + '0' * 64}, False, 'signature_mismatch')):
+            status, lines = post(headers)
+            expect(status == 200, f'{reason}: the answer changed (HTTP {status})')
+            expect(len(lines) == 1 and json.loads(lines[0]) == {
+                'event': 'flow_endpoint_signature', 'verified': verified, 'reason': reason,
+                'requestId': json.loads(lines[0]).get('requestId')}, f'{reason}: logged {lines}')
+
+        def unavailable(*_: Any, **__: Any) -> str:
+            raise RuntimeError('secrets unavailable')
+        biz._get_app_secret = unavailable
+        status, lines = post({'X-Hub-Signature-256': good})
+        expect(status == 200 and lines and '"verify_error:RuntimeError"' in lines[0],
+               f'a failed observation broke the Flow: HTTP {status} {lines}')
+    finally:
+        biz._get_app_secret = saved_secret
+
+
+@check('E7 Flow asset readback is read-only and numeric-only; Flow metadata updates need Admin')
+def _() -> None:
+    FAKE_DB.reset()
+    biz, middleware = M['bizapi'], M['middleware']
+    graph_calls: List[Tuple[str, str]] = []
+
+    def fake_graph(endpoint: str, method: str = 'GET', *a: Any, **k: Any) -> Dict[str, Any]:
+        graph_calls.append((endpoint, method))
+        if endpoint.endswith('/assets'):
+            return {'data': [{'name': 'flow.json', 'asset_type': 'FLOW_JSON',
+                              'download_url': 'https://example.test/flow.json'}]}
+        return {'success': True}
+    saved = (biz.require_auth, middleware.require_auth, biz._graph_api)
+    biz.require_auth = middleware.require_auth = _role_gate
+    biz._graph_api = fake_graph
+    try:
+        expect(_resp(biz._get_flow_assets('123/../me'))[0] == 400 and not graph_calls, 'non-numeric flowId reached Graph')
+        expect(_resp(biz._get_flow_assets('１２３'))[0] == 400, 'non-ASCII digits accepted')
+        out = biz.handler(_staff_event('GET', '/wa-business/flows/assets', 'Viewer', params={'flowId': F001_ID()}), None)
+        status, body = _resp(out)
+        expect(status == 200 and body['assets'] == [{'name': 'flow.json', 'assetType': 'FLOW_JSON',
+                                                    'downloadUrl': 'https://example.test/flow.json'}], f'{status} {body}')
+        expect(graph_calls == [(f'{F001_ID()}/assets', 'GET')], f'readback was not a single GET: {graph_calls}')
+        graph_calls.clear()
+        update = {'flowId': F001_ID(), 'endpoint_uri': 'https://example.test/elsewhere'}
+        expect(biz.handler(_staff_event('PUT', '/wa-business/flows', 'Operator', update), None)['statusCode'] == 403
+               and not graph_calls, 'Operator repointed a Flow endpoint')
+        expect(biz.handler(_staff_event('PUT', '/wa-business/flows', 'Admin', update), None)['statusCode'] == 200
+               and graph_calls == [(F001_ID(), 'POST')], f'Admin update refused: {graph_calls}')
+    finally:
+        biz.require_auth, middleware.require_auth, biz._graph_api = saved
+
+
+@check('E8 keyword triggers and Subscribe copy need Operator to change; other settings keep the staff floor')
+def _() -> None:
+    FAKE_DB.reset()
+    ai, middleware = M['ai_config'], M['middleware']
+    config_rows = table(ai.SYSTEM_CONFIG_TABLE).items
+    saved = middleware.require_auth
+    middleware.require_auth = _role_gate
+    try:
+        def put(role: str, key: str) -> int:
+            body = {'key': key, 'config': {'subscribe': {'enabled': True}}}
+            return ai.handler(_staff_event('PUT', '/ai/config', role, body), None)['statusCode']
+        for key in ('flow_triggers_config', 'subscribe_messages_config'):
+            expect(put('Viewer', key) == 403 and key not in config_rows, f'Viewer changed {key}')
+            expect(put('Operator', key) == 200 and key in config_rows, f'Operator could not change {key}')
+        expect(put('Viewer', 'welcome_message') == 200 and 'welcome_message' in config_rows,
+               'an unrelated setting lost the staff floor')
+        reader = _staff_event('GET', '/ai/config', 'Viewer', params={'key': 'flow_triggers_config'})
+        expect(ai.handler(reader, None)['statusCode'] == 200, 'Viewer can no longer read keyword triggers')
+    finally:
+        middleware.require_auth = saved
 
 
 # ── F. Inbound keyword dispatch (extracted from the real handler source) ────────────
