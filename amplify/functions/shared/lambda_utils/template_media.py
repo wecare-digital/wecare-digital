@@ -13,9 +13,6 @@ SHARED_TEMPLATE_HEADER = (
 ORDER_CATALOG_HEADER = (
     "https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/wecare-catalog-icon.png"
 )
-# The name outbound (`FIXED_CHECKOUT_HEADER`) and the invoice engine import. #1567 renamed the
-# constant without updating them, which left outbound unable to import (no WhatsApp send at all).
-ORDER_CATALOG_HEADER_IMAGE = ORDER_CATALOG_HEADER
 
 # The names these two had before #1567, kept because they are still imported: outbound-whatsapp
 # imports ORDER_CATALOG_HEADER_IMAGE at module scope (removing it makes every cold start an
