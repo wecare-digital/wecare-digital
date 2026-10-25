@@ -1226,7 +1226,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'statusCode': 401,
                 'body': json.dumps({'success': False, 'error': 'internal_invocation_only'}),
             }
-        return _handle_dashboard_invoice(event, request_id)
+        # The legacy free-form invoice path (own PNG, float maths, 2% fee, WD-PAY-<hex>) is
+        # retired: it rendered outside the GST series. Callers must use the invoice engine's GST
+        # series instead; the action is answered with a terminal 410 rather than silently dropped.
+        logger.info(json.dumps({
+            'event': 'create_invoice_gone',
+            'requestId': request_id,
+        }))
+        return {'statusCode': 410, 'success': False, 'error': 'INVOICE_CREATION_MOVED'}
     
     # Accept the typed contract from the ingress AND the legacy synthetic SNS
     # envelope. Both arms are load-bearing: the ingress and this worker deploy
@@ -3161,8 +3168,12 @@ def _process_message(
                         'phoneNumberId': aws_phone_number_id,
                     }),
                 }
+                # The checkout function's `live` alias serves /invoices/send-pending-by-phone from
+                # the invoice engine it packages (the same code wecare-invoice-engine runs while
+                # its API routes move to checkout). Pinning the alias keeps this leg on the
+                # published code, as the prepareNativeCart invoke above already does.
                 inv_response = lambda_client.invoke(
-                    FunctionName='wecare-invoice-engine',
+                    FunctionName=CHECKOUT_FUNCTION,
                     InvocationType='RequestResponse',
                     Payload=json.dumps(inv_payload),
                 )
@@ -3468,7 +3479,28 @@ def _get_or_create_contact(phone: str, sender_name: str = '', bsuid: str = '', u
                 return contact
         except Exception as e:
             logger.warning(f"BSUID index query failed for {bsuid}: {str(e)}")
-    
+
+    # Canonical resolver: follows merge aliases and skips deleted/merged rows, so it is the
+    # right answer when a person has more than one historical row. It raises IdentityConflict
+    # only when two LIVE rows both claim this phone; that is a data problem, not a reason to drop
+    # the inbound message, so we log it (masked) and fall through to the oldest-row choice below.
+    try:
+        resolved = contact_store.lookup(contacts_table, phone)
+    except contact_store.IdentityConflict as conflict:
+        logger.warning(json.dumps({
+            'event': 'contact_identity_conflict',
+            'phone': mask_phone(phone),
+            'detail': type(conflict).__name__,
+            'bsuid': bsuid,
+        }))
+        resolved = None
+    except Exception as e:
+        logger.warning(f"contact_store.lookup failed for {mask_phone(phone)}: {type(e).__name__}")
+        resolved = None
+    if resolved and not resolved.get('deletedAt'):
+        _update_contact_bsuid_fields(contacts_table, resolved, sender_name, username, phone, bsuid, contact_book_name, parent_bsuid)
+        return resolved
+
     # Clean phone for search - normalize to digits-only E.164
     clean_phone = normalize_phone(phone) if phone else ''
     if not clean_phone:
@@ -3810,18 +3842,29 @@ def _update_contact_timestamp(contact_id: str, timestamp: int, wamid: str = '') 
     (Meta's typing_indicator API requires the customer's last received message_id)."""
     try:
         contacts_table = dynamodb.Table(CONTACTS_TABLE)
+        # Conditional on the row already existing: an unconditional update_item would UPSERT a
+        # stub contact (id + timestamps, no phone/opt-in fields) for any id that no longer exists,
+        # e.g. after a merge. A missing row means there is nothing to touch, so we let the
+        # condition fail and swallow it rather than minting a ghost.
         if wamid:
             contacts_table.update_item(
                 Key={'id': contact_id},
                 UpdateExpression='SET lastInboundMessageAt = :ts, updatedAt = :ts, lastInboundWamid = :w',
-                ExpressionAttributeValues={':ts': Decimal(str(timestamp)), ':w': wamid}
+                ExpressionAttributeValues={':ts': Decimal(str(timestamp)), ':w': wamid},
+                ConditionExpression='attribute_exists(id)',
             )
         else:
             contacts_table.update_item(
                 Key={'id': contact_id},
                 UpdateExpression='SET lastInboundMessageAt = :ts, updatedAt = :ts',
-                ExpressionAttributeValues={':ts': Decimal(str(timestamp))}
+                ExpressionAttributeValues={':ts': Decimal(str(timestamp))},
+                ConditionExpression='attribute_exists(id)',
             )
+    except ClientError as e:
+        if e.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
+            # No such contact row (merged/deleted). Nothing to update; not an error.
+            return
+        logger.error(f"Failed to update contact timestamp: {str(e)}")
     except Exception as e:
         logger.error(f"Failed to update contact timestamp: {str(e)}")
 
@@ -4571,10 +4614,13 @@ def _process_payment_status(status: Dict, request_id: str) -> None:
         "timestamp": "1706140800"
     }
     """
-    # Log full status for debugging
+    # Keys and masked ids only: the status object carries the payer's recipient_id and the full
+    # payment payload (amount, transaction), none of which belong in an advisory log line.
     logger.info(json.dumps({
         'event': 'payment_status_processing',
-        'fullStatus': status,
+        'statusKeys': sorted(status) if isinstance(status, dict) else [],
+        'statusWord': status.get('status', ''),
+        'recipientId': mask_phone(status.get('recipient_id', '')),
         'requestId': request_id
     }))
     
@@ -4646,6 +4692,21 @@ def _process_payment_status(status: Dict, request_id: str) -> None:
         'transactionType': transaction_type,
         'requestId': request_id
     }))
+
+    # Meta can redeliver the same payment status. This path is advisory only (the Razorpay
+    # webhook is the paid-state authority), but a redelivery still re-stores the record and
+    # re-emits the advisory log, so claim once per (reference, status, transaction). claim_event
+    # fails open on a missing key or a DynamoDB error, so a real status is never dropped.
+    from lambda_utils.webhook_dedup import claim_event
+    _dedup_key = f'wa-payment:{reference_id}:{payment_status}:{transaction_id}'
+    if not claim_event(_dedup_key, source='whatsapp_payment_status'):
+        logger.info(json.dumps({
+            'event': 'payment_status_duplicate_skipped',
+            'referenceId': reference_id,
+            'paymentStatus': payment_status,
+            'requestId': request_id,
+        }))
+        return
     
     # Store payment record in DynamoDB
     _store_payment_record(
@@ -4735,15 +4796,15 @@ def _process_payment_status(status: Dict, request_id: str) -> None:
         # and on the invoice from one Meta had confirmed. Asking "which captures did
         # we accept without verifying?" had no answer.
         #
-        # SUPERSEDED (2026-10-01, website-only ruling): this lookup no longer gates
-        # any financial side effect — the branch below creates NO paid state at all
-        # (see the SUPERSEDED block). The verification is retained ONLY to compute an
-        # auditable `verification_outcome` for the SUPERSEDED log, so the historical
-        # fail-open exposure stays visible. PAYMENT_LOOKUP_REQUIRED is intentionally
-        # LEFT DEFINED (its env-var contract is preserved) but is now dead on the
-        # financial path: regardless of its value, no paid invoice/order/receipt can be
-        # created here. The single authoritative payment producer is the Razorpay
-        # webhook (payments/razorpay-webhook/handler.py) via razorpay_verify.
+        # ADVISORY ONLY: this lookup no longer gates any financial side effect — the branch
+        # below creates NO paid state at all (see the advisory block). In-WhatsApp payments ARE
+        # live, but the Razorpay webhook (payments/razorpay-webhook/handler.py, via razorpay_verify)
+        # is the single authoritative payment producer: it re-derives the paid state from a provider
+        # readback, so this Meta-webhook path must not mint a second, unverified one. The
+        # verification is retained ONLY to compute an auditable `verification_outcome` for the
+        # advisory log, so the historical fail-open exposure stays visible. PAYMENT_LOOKUP_REQUIRED
+        # is intentionally LEFT DEFINED (its env-var contract is preserved) but is now dead on the
+        # financial path: regardless of its value, no paid invoice/order/receipt can be created here.
         VERIFIED = 'verified'
         UNVERIFIED_NO_CONFIG = 'unverified_no_payment_config'
         UNVERIFIED_LOOKUP_FAILED = 'unverified_lookup_failed'
@@ -4852,10 +4913,11 @@ def _process_payment_status(status: Dict, request_id: str) -> None:
                     'requestId': request_id,
                 }))
 
-        # ── SUPERSEDED: in-WhatsApp payment capture retired (2026-10-01) ──
-        # The owner's 2026-10-01 ruling is website-only checkout ("yes no whatsapp
-        # all in the website"). In-WhatsApp payment has been removed from the active
-        # purchase flow, so this CAPTURED branch no longer creates ANY paid state.
+        # ── ADVISORY: this Meta-webhook CAPTURED branch creates NO paid state ──
+        # In-WhatsApp payments are live, but the Razorpay webhook is the authoritative payment
+        # producer. This Meta payment-webhook path is advisory only, so this CAPTURED branch
+        # deliberately creates no paid state — a second producer here, off an unverified webhook
+        # body, could mint paid invoices/orders/receipts that disagree with the authority.
         #
         # Previously this path marked the invoice paid, sent a 'completed' order_status,
         # generated a GST invoice, and notified balance-due — all off a capture that was
@@ -4879,9 +4941,9 @@ def _process_payment_status(status: Dict, request_id: str) -> None:
         # audit; regardless of PAYMENT_LOOKUP_REQUIRED, no paid state can be created here.
         logger.error(json.dumps({
             'event': 'in_whatsapp_payment_capture_superseded',
-            'note': ('in-WhatsApp payment retired by the 2026-10-01 website-only '
-                     'ruling; no financial side effects — the Razorpay webhook is the '
-                     'single authoritative payment producer'),
+            'note': ('advisory only; no financial side effects — in-WhatsApp payments '
+                     'are live but the Razorpay webhook is the single authoritative '
+                     'payment producer'),
             'verificationOutcome': verification_outcome,
             'lookupRequired': lookup_required,
             'referenceId': reference_id,
@@ -5283,10 +5345,11 @@ def _lookup_payment_amount(reference_id: str, request_id: str) -> float:
 
 
 def _inbound_order_status_enabled() -> bool:
-    """The razorpay-webhook is the authoritative payment path and already sends the
-    order-status confirmation on payment.captured. This inbound (Meta payment webhook)
-    path would send a SECOND, duplicate confirmation. Gated OFF by default to avoid
-    the duplicate; enable SystemConfig id='whatsapp_inbound_order_status' to restore."""
+    """The Razorpay webhook is the authoritative payment path: in-WhatsApp payments are live
+    and it re-derives the paid state from a provider readback, then owns the order-status
+    confirmation. This inbound (Meta payment webhook) path is advisory, so sending an
+    order-status here would risk a SECOND, duplicate confirmation. Gated OFF by default to avoid
+    that; enable SystemConfig id='whatsapp_inbound_order_status' to restore."""
     try:
         item = dynamodb.Table(SYSTEM_CONFIG_TABLE).get_item(Key={'id': 'whatsapp_inbound_order_status'}).get('Item')
         if item and 'configValue' in item:
@@ -7024,584 +7087,6 @@ def _resume_pending_cart(contact_id: str, sender_phone: str, phone_number_id: st
                             'contactId': mask_contact_id(contact_id), 'requestId': request_id}))
     _send_payment_request(basket, phone, contact_id, sender_phone, phone_number_id, request_id)
     return True
-
-
-# ============================================================================
-# POS INVOICE IMAGE GENERATOR (pure Python PNG  -  zero external dependencies)
-# ============================================================================
-
-# Minimal 5x7 bitmap font for ASCII 32-126 (space to ~)
-# Each char is 5 pixels wide, 7 pixels tall, stored as 7 bytes (each byte = 5-bit row)
-_FONT_5x7 = {
-    32: [0,0,0,0,0,0,0], 33: [4,4,4,4,0,0,4], 34: [10,10,0,0,0,0,0],
-    35: [10,31,10,10,31,10,0], 36: [4,15,20,14,5,30,4], 37: [24,25,2,4,8,19,3],
-    38: [8,20,20,8,21,18,13], 39: [4,4,0,0,0,0,0], 40: [2,4,8,8,8,4,2],
-    41: [8,4,2,2,2,4,8], 42: [0,4,21,14,21,4,0], 43: [0,4,4,31,4,4,0],
-    44: [0,0,0,0,0,4,8], 45: [0,0,0,31,0,0,0], 46: [0,0,0,0,0,0,4],
-    47: [0,1,2,4,8,16,0], 48: [14,17,19,21,25,17,14], 49: [4,12,4,4,4,4,14],
-    50: [14,17,1,2,4,8,31], 51: [14,17,1,6,1,17,14], 52: [2,6,10,18,31,2,2],
-    53: [31,16,30,1,1,17,14], 54: [6,8,16,30,17,17,14], 55: [31,1,2,4,8,8,8],
-    56: [14,17,17,14,17,17,14], 57: [14,17,17,15,1,2,12], 58: [0,0,4,0,0,4,0],
-    59: [0,0,4,0,0,4,8], 60: [1,2,4,8,4,2,1], 61: [0,0,31,0,31,0,0],
-    62: [16,8,4,2,4,8,16], 63: [14,17,1,2,4,0,4], 64: [14,17,23,21,23,16,14],
-    65: [14,17,17,31,17,17,17], 66: [30,17,17,30,17,17,30], 67: [14,17,16,16,16,17,14],
-    68: [30,17,17,17,17,17,30], 69: [31,16,16,30,16,16,31], 70: [31,16,16,30,16,16,16],
-    71: [14,17,16,23,17,17,14], 72: [17,17,17,31,17,17,17], 73: [14,4,4,4,4,4,14],
-    74: [7,2,2,2,2,18,12], 75: [17,18,20,24,20,18,17], 76: [16,16,16,16,16,16,31],
-    77: [17,27,21,21,17,17,17], 78: [17,25,21,21,21,19,17], 79: [14,17,17,17,17,17,14],
-    80: [30,17,17,30,16,16,16], 81: [14,17,17,17,21,18,13], 82: [30,17,17,30,20,18,17],
-    83: [14,17,16,14,1,17,14], 84: [31,4,4,4,4,4,4], 85: [17,17,17,17,17,17,14],
-    86: [17,17,17,17,10,10,4], 87: [17,17,17,21,21,21,10], 88: [17,17,10,4,10,17,17],
-    89: [17,17,10,4,4,4,4], 90: [31,1,2,4,8,16,31],
-    91: [14,8,8,8,8,8,14], 92: [0,16,8,4,2,1,0], 93: [14,2,2,2,2,2,14],
-    94: [4,10,17,0,0,0,0], 95: [0,0,0,0,0,0,31], 96: [8,4,0,0,0,0,0],
-    97: [0,0,14,1,15,17,15], 98: [16,16,30,17,17,17,30], 99: [0,0,14,17,16,17,14],
-    100: [1,1,15,17,17,17,15], 101: [0,0,14,17,31,16,14], 102: [6,9,8,28,8,8,8],
-    103: [0,0,15,17,15,1,14], 104: [16,16,30,17,17,17,17], 105: [4,0,12,4,4,4,14],
-    106: [2,0,6,2,2,18,12], 107: [16,16,18,20,24,20,18], 108: [12,4,4,4,4,4,14],
-    109: [0,0,26,21,21,21,17], 110: [0,0,30,17,17,17,17], 111: [0,0,14,17,17,17,14],
-    112: [0,0,30,17,30,16,16], 113: [0,0,15,17,15,1,1], 114: [0,0,22,25,16,16,16],
-    115: [0,0,15,16,14,1,30], 116: [8,8,28,8,8,9,6], 117: [0,0,17,17,17,17,15],
-    118: [0,0,17,17,17,10,4], 119: [0,0,17,17,21,21,10], 120: [0,0,17,10,4,10,17],
-    121: [0,0,17,17,15,1,14], 122: [0,0,31,2,4,8,31],
-    123: [3,4,4,8,4,4,3], 124: [4,4,4,4,4,4,4], 125: [24,4,4,2,4,4,24],
-    126: [0,0,8,21,2,0,0],
-}
-# Special chars mapped to ASCII equivalents
-_CHAR_MAP = {0x20B9: ord('R'), 0x2500: ord('-'), 0x2502: ord('|'), 0x2714: ord('*'),
-             0x274C: ord('x'), 0x2705: ord('*')}
-
-
-def _decode_png_pixels(png_bytes: bytes):
-    """Minimal pure-Python PNG decoder. Returns (width, height, rows) where rows is list of lists of (R,G,B,A)."""
-    import struct as _struct
-    import zlib as _zlib
-
-    if png_bytes[:8] != b'\x89PNG\r\n\x1a\n':
-        return None, None, None
-
-    pos = 8
-    width = height = bit_depth = color_type = 0
-    idat_chunks = []
-    palette = []
-
-    while pos < len(png_bytes):
-        length = _struct.unpack('>I', png_bytes[pos:pos+4])[0]
-        chunk_type = png_bytes[pos+4:pos+8]
-        chunk_data = png_bytes[pos+8:pos+8+length]
-        pos += 12 + length
-
-        if chunk_type == b'IHDR':
-            width, height, bit_depth, color_type = _struct.unpack('>IIBB', chunk_data[:10])
-        elif chunk_type == b'PLTE':
-            for i in range(0, len(chunk_data), 3):
-                palette.append((chunk_data[i], chunk_data[i+1], chunk_data[i+2]))
-        elif chunk_type == b'IDAT':
-            idat_chunks.append(chunk_data)
-        elif chunk_type == b'IEND':
-            break
-
-    raw = _zlib.decompress(b''.join(idat_chunks))
-
-    # Determine bytes per pixel
-    if color_type == 0:
-        bpp = 1  # grayscale
-    elif color_type == 2:
-        bpp = 3  # RGB
-    elif color_type == 3:
-        bpp = 1  # indexed
-    elif color_type == 4:
-        bpp = 2  # grayscale + alpha
-    elif color_type == 6:
-        bpp = 4  # RGBA
-    else:
-        return None, None, None
-
-    stride = width * bpp
-    rows = []
-    prev_row = bytearray(stride)
-
-    offset = 0
-    for y in range(height):
-        filter_type = raw[offset]
-        offset += 1
-        cur_row = bytearray(raw[offset:offset + stride])
-        offset += stride
-
-        # Reconstruct filtered row
-        for i in range(stride):
-            a = cur_row[i - bpp] if i >= bpp else 0
-            b = prev_row[i]
-            c = prev_row[i - bpp] if i >= bpp else 0
-            if filter_type == 1:
-                cur_row[i] = (cur_row[i] + a) & 0xFF
-            elif filter_type == 2:
-                cur_row[i] = (cur_row[i] + b) & 0xFF
-            elif filter_type == 3:
-                cur_row[i] = (cur_row[i] + (a + b) // 2) & 0xFF
-            elif filter_type == 4:
-                p = a + b - c
-                pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
-                pr = a if pa <= pb and pa <= pc else (b if pb <= pc else c)
-                cur_row[i] = (cur_row[i] + pr) & 0xFF
-
-        # Convert to RGBA tuples
-        pixel_row = []
-        for x in range(width):
-            idx = x * bpp
-            if color_type == 0:
-                v = cur_row[idx]
-                pixel_row.append((v, v, v, 255))
-            elif color_type == 2:
-                pixel_row.append((cur_row[idx], cur_row[idx+1], cur_row[idx+2], 255))
-            elif color_type == 3:
-                ci = cur_row[idx]
-                if ci < len(palette):
-                    r, g, b = palette[ci]
-                    pixel_row.append((r, g, b, 255))
-                else:
-                    pixel_row.append((0, 0, 0, 255))
-            elif color_type == 4:
-                v, a = cur_row[idx], cur_row[idx+1]
-                pixel_row.append((v, v, v, a))
-            elif color_type == 6:
-                pixel_row.append((cur_row[idx], cur_row[idx+1], cur_row[idx+2], cur_row[idx+3]))
-
-        rows.append(pixel_row)
-        prev_row = cur_row
-
-    return width, height, rows
-
-
-def _render_text_to_png(lines: list, scale: int = 2, logo_pixels=None, logo_w: int = 0, logo_h: int = 0) -> bytes:
-    """Render lines of text to a PNG image using a 5x7 bitmap font. Optionally composites a logo at top center. Returns PNG bytes."""
-    import struct as _struct
-    import zlib as _zlib
-    import io as _io
-
-    char_w, char_h = 6 * scale, 9 * scale
-    pad_x, pad_y = 12 * scale, 8 * scale
-    max_cols = max((len(l) for l in lines), default=1)
-    img_w = max_cols * char_w + pad_x * 2
-    img_h = len(lines) * char_h + pad_y * 2
-
-    # If logo, add space at top
-    logo_offset_y = 0
-    if logo_pixels and logo_h > 0:
-        # Scale logo to fit ~60% of receipt width, max 80px tall
-        target_w = int(img_w * 0.4)
-        logo_scale = min(target_w / max(logo_w, 1), 80 / max(logo_h, 1), 1.0)
-        scaled_lw = int(logo_w * logo_scale)
-        scaled_lh = int(logo_h * logo_scale)
-        logo_offset_y = scaled_lh + pad_y
-        img_h += logo_offset_y
-
-    # Create RGBA pixel buffer (white background)
-    pixels = bytearray([255, 255, 255, 255] * (img_w * img_h))
-
-    # Composite logo at top center
-    if logo_pixels and logo_h > 0 and logo_offset_y > 0:
-        logo_x_start = (img_w - scaled_lw) // 2
-        for ly in range(scaled_lh):
-            src_y = int(ly / logo_scale)
-            if src_y >= logo_h:
-                src_y = logo_h - 1
-            for lx in range(scaled_lw):
-                src_x = int(lx / logo_scale)
-                if src_x >= logo_w:
-                    src_x = logo_w - 1
-                r, g, b, a = logo_pixels[src_y][src_x]
-                px = logo_x_start + lx
-                py = pad_y + ly
-                if 0 <= px < img_w and 0 <= py < img_h and a > 0:
-                    idx = (py * img_w + px) * 4
-                    if a == 255:
-                        pixels[idx] = r
-                        pixels[idx+1] = g
-                        pixels[idx+2] = b
-                        pixels[idx+3] = 255
-                    else:
-                        # Alpha blend
-                        af = a / 255.0
-                        pixels[idx] = int(r * af + pixels[idx] * (1 - af))
-                        pixels[idx+1] = int(g * af + pixels[idx+1] * (1 - af))
-                        pixels[idx+2] = int(b * af + pixels[idx+2] * (1 - af))
-                        pixels[idx+3] = 255
-
-    # Render text
-    for row_idx, line in enumerate(lines):
-        for col_idx, ch in enumerate(line):
-            code = ord(ch)
-            code = _CHAR_MAP.get(code, code)
-            glyph = _FONT_5x7.get(code, _FONT_5x7.get(63))
-            if not glyph:
-                continue
-            bx = pad_x + col_idx * char_w
-            by = pad_y + logo_offset_y + row_idx * char_h
-            for gy, row_bits in enumerate(glyph):
-                for gx in range(5):
-                    if row_bits & (1 << (4 - gx)):
-                        for sy in range(scale):
-                            for sx in range(scale):
-                                px = bx + gx * scale + sx
-                                py = by + gy * scale + sy
-                                if 0 <= px < img_w and 0 <= py < img_h:
-                                    idx = (py * img_w + px) * 4
-                                    pixels[idx] = 0
-                                    pixels[idx+1] = 0
-                                    pixels[idx+2] = 0
-                                    pixels[idx+3] = 255
-
-    # Encode as PNG (RGBA, 8-bit)
-    def _png_chunk(chunk_type, data):
-        c = chunk_type + data
-        return _struct.pack('>I', len(data)) + c + _struct.pack('>I', _zlib.crc32(c) & 0xFFFFFFFF)
-
-    raw_rows = b''
-    for y in range(img_h):
-        raw_rows += b'\x00' + bytes(pixels[y * img_w * 4:(y + 1) * img_w * 4])
-
-    buf = _io.BytesIO()
-    buf.write(b'\x89PNG\r\n\x1a\n')
-    # color_type=6 = RGBA
-    buf.write(_png_chunk(b'IHDR', _struct.pack('>IIBBBBB', img_w, img_h, 8, 6, 0, 0, 0)))
-    buf.write(_png_chunk(b'IDAT', _zlib.compress(raw_rows, 9)))
-    buf.write(_png_chunk(b'IEND', b''))
-    return buf.getvalue()
-
-
-def _build_invoice_lines(ref_id: str, pay_ref: str, item_name: str, unit_price: float, qty: int,
-                         gst_rate: float, shipping: float, discount: float,
-                         sender_phone: str, purpose: str, due_ref: str,
-                         paid_at: str = '', order_id: str = 'Offline',
-                         customer_name: str = '', customer_phone: str = '',
-                         customer_email: str = '', shipping_address: str = '',
-                         billing_address: str = '', pay_for: str = 'self') -> list:
-    """Build POS receipt text lines for the invoice."""
-    import datetime
-    if paid_at:
-        date_str = paid_at.split(' ')[0] if ' ' in paid_at else paid_at
-        time_str = paid_at.split(' ')[1] if ' ' in paid_at else ''
-    else:
-        now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=5, minutes=30)))
-        date_str = now.strftime('%d-%m-%Y')
-        time_str = now.strftime('%H:%M:%S')
-
-    subtotal = unit_price * qty
-    after_promo = subtotal - discount
-    gst_amt = round(after_promo * gst_rate / 100, 2)
-    half_rate = gst_rate / 2
-    cgst = round(gst_amt / 2, 2)
-    sgst = round(gst_amt / 2, 2)
-    conv_base = round(after_promo * 0.02, 2)
-    conv_gst = round(conv_base * 0.18, 2)
-    conv_fee = round(conv_base + conv_gst, 2)
-    total = round(after_promo + gst_amt + shipping + conv_fee, 2)
-
-    W = 42  # receipt width in chars
-    sep = '-' * W
-    dsep = '=' * W
-
-    def center(t):
-        return t.center(W)
-
-    def lr(left, right):
-        space = W - len(left) - len(right)
-        return left + ' ' * max(space, 1) + right
-
-    def fmt(v):
-        return f'{v:,.2f}'
-
-    lines = []
-    # Header  -  logo will be composited above this
-    lines.append('')
-    lines.append('')
-    lines.append('')  # space for logo
-    lines.append(center('WECARE.DIGITAL'))
-    lines.append(center('GSTIN: 19AAFFW7196L1Z8'))
-    lines.append(center('The W.B.S.I.D.C. Building'))
-    lines.append(center('Unit 1/20, 81/2/7 Phears Ln'))
-    lines.append(center('Kolkata, WB 700012'))
-    lines.append(center('Email: one@wecare.digital'))
-    lines.append(center('Phone: +919330994400'))
-    lines.append(dsep)
-    lines.append(center('TAX INVOICE'))
-    lines.append(sep)
-    lines.append(lr(f'Inv: {ref_id}', f'Date: {date_str}'))
-    lines.append(lr(f'Pay Ref: {pay_ref}', f'Time: {time_str}'))
-    lines.append(f'Order: {order_id}')
-    lines.append(sep)
-    # Customer details
-    lines.append(center('BILL TO'))
-    if customer_name:
-        lines.append(f'Name: {customer_name[:30]}')
-    cust_ph = customer_phone or sender_phone
-    cust_ph_display = cust_ph[-10:] if len(cust_ph) > 10 else cust_ph
-    lines.append(f'Phone: {cust_ph_display}')
-    if customer_email:
-        lines.append(f'Email: {customer_email[:30]}')
-    if billing_address:
-        # Wrap long address
-        addr = billing_address[:60]
-        lines.append(f'Addr: {addr}')
-    if pay_for == 'other':
-        paid_by = sender_phone[-10:] if len(sender_phone) > 10 else sender_phone
-        lines.append(f'Paid By: {paid_by}')
-    lines.append(sep)
-    lines.append(center('SHIP TO'))
-    if shipping_address:
-        lines.append(f'{shipping_address[:42]}')
-    else:
-        lines.append('Same as billing')
-    if purpose:
-        lines.append(f'Purpose: {purpose[:30]}')
-    if due_ref:
-        lines.append(f'Due Ref: {due_ref}')
-    lines.append(sep)
-    lines.append(lr('ITEM', 'AMOUNT'))
-    lines.append(sep)
-    item_display = item_name[:24]
-    lines.append(f'{item_display}')
-    lines.append(lr(f'  Rs.{fmt(unit_price)} x {qty}', f'Rs.{fmt(subtotal)}'))
-    lines.append(sep)
-    lines.append(lr('Subtotal:', f'Rs.{fmt(subtotal)}'))
-    if discount > 0:
-        lines.append(lr('Promo Discount:', f'-Rs.{fmt(discount)}'))
-    lines.append(lr(f'CGST @{half_rate:.1f}%:', f'Rs.{fmt(cgst)}'))
-    lines.append(lr(f'SGST @{half_rate:.1f}%:', f'Rs.{fmt(sgst)}'))
-    lines.append(lr('Shipping:', f'Rs.{fmt(shipping)}'))
-    lines.append(lr('Conv. Fee (2%+GST):', f'Rs.{fmt(conv_fee)}'))
-    lines.append(dsep)
-    lines.append(lr('TOTAL PAID:', f'Rs.{fmt(total)}'))
-    lines.append(dsep)
-    lines.append(center('GST SUMMARY'))
-    lines.append(sep)
-    lines.append(lr('Tax', 'Taxable    Amount'))
-    lines.append(lr(f'CGST @{half_rate:.1f}%', f'{fmt(after_promo)}  {fmt(cgst)}'))
-    lines.append(lr(f'SGST @{half_rate:.1f}%', f'{fmt(after_promo)}  {fmt(sgst)}'))
-    lines.append(lr('Total Tax:', f'Rs.{fmt(gst_amt)}'))
-    lines.append(sep)
-    lines.append('')
-    lines.append(center('** PAID **'))
-    lines.append(center(f'{date_str} {time_str} IST'))
-    lines.append('')
-    lines.append(center('Thank You for your payment!'))
-    lines.append(center('wecare.digital'))
-    lines.append(dsep)
-
-    return lines
-
-
-def _handle_dashboard_invoice(event, request_id):
-    """Handle direct invoke from dashboard to create and send an invoice."""
-    try:
-        contact_id = event['contactId']
-        phone_number_id = event.get('phoneNumberId', '919330994400')
-        item_name = event['itemName']
-        unit_price = float(event['unitPrice'])
-        quantity = int(event.get('quantity', 1))
-        gst_rate = float(event.get('gstRate', 18))
-        shipping = float(event.get('shipping', 49))
-        discount = float(event.get('discount', 15))
-        purpose = event.get('purpose', '')
-        order_id = event.get('orderId', 'Offline')
-        customer_name = event.get('customerName', '')
-        customer_phone = event.get('customerPhone', '')
-        customer_email = event.get('customerEmail', '')
-        shipping_address = event.get('shippingAddress', '')
-        billing_address = event.get('billingAddress', '')
-        sender_phone = event.get('senderPhone', customer_phone or contact_id)
-
-        # Cap promo so it never exceeds subtotal
-        subtotal = unit_price * quantity
-        discount = min(discount, subtotal)
-
-        _generate_and_send_invoice(
-            contact_id=contact_id,
-            phone_number_id=phone_number_id,
-            amount=unit_price,
-            quantity=quantity,
-            item_name=item_name,
-            gst_rate=gst_rate,
-            shipping=shipping,
-            discount=discount,
-            purpose=purpose,
-            due_ref='',
-            sender_phone=sender_phone,
-            request_id=request_id,
-            order_id=order_id,
-            customer_name=customer_name,
-            customer_phone=customer_phone,
-            customer_email=customer_email,
-            shipping_address=shipping_address,
-            billing_address=billing_address,
-            pay_for='self',
-        )
-
-        return {'statusCode': 200, 'success': True, 'message': 'Invoice created and sent'}
-    except Exception as e:
-        logger.error(json.dumps({'event': 'dashboard_invoice_error', 'error': str(e), 'requestId': request_id}))
-        return {'statusCode': 500, 'success': False, 'error': str(e)}
-
-
-def _generate_and_send_invoice(contact_id: str, phone_number_id: str, amount: float,
-                               quantity: int, item_name: str, gst_rate: float,
-                               shipping: float, discount: float, purpose: str,
-                               due_ref: str, sender_phone: str, request_id: str,
-                               pay_ref: str = '', paid_at: str = '',
-                               order_id: str = 'Offline', customer_name: str = '',
-                               customer_phone: str = '', customer_email: str = '',
-                               shipping_address: str = '', billing_address: str = '',
-                               pay_for: str = 'self') -> None:
-    """Generate POS invoice image with logo, upload to S3, send via WhatsApp."""
-    try:
-        inv_ref = f"WD-PAY-{uuid.uuid4().hex[:8].upper()}"
-
-        if not paid_at:
-            import datetime
-            now_ist = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=5, minutes=30)))
-            paid_at = now_ist.strftime('%d-%m-%Y %H:%M:%S')
-
-        # Load logo from S3
-        logo_pixels = None
-        logo_w = logo_h = 0
-        try:
-            logo_obj = s3.get_object(
-                Bucket=MEDIA_BUCKET,
-                Key=media_paths.public('stream/media/m/wecare-digital.png'))
-            logo_bytes = logo_obj['Body'].read()
-            logo_w, logo_h, logo_pixels = _decode_png_pixels(logo_bytes)
-            if logo_w is None:
-                logo_pixels = None
-                logo_w = logo_h = 0
-            logger.info(json.dumps({'event': 'logo_loaded', 'width': logo_w, 'height': logo_h}))
-        except Exception as logo_err:
-            logger.warning(json.dumps({'event': 'logo_load_error', 'error': str(logo_err)}))
-
-        lines = _build_invoice_lines(
-            ref_id=inv_ref, pay_ref=pay_ref or '-', item_name=item_name,
-            unit_price=amount, qty=quantity, gst_rate=gst_rate,
-            shipping=shipping, discount=discount, sender_phone=sender_phone,
-            purpose=purpose, due_ref=due_ref, paid_at=paid_at,
-            order_id=order_id, customer_name=customer_name,
-            customer_phone=customer_phone, customer_email=customer_email,
-            shipping_address=shipping_address, billing_address=billing_address,
-            pay_for=pay_for,
-        )
-
-        png_bytes = _render_text_to_png(lines, scale=3, logo_pixels=logo_pixels, logo_w=logo_w, logo_h=logo_h)
-
-        # Gated, not public, and it must stay in step with `invoice-engine.INVOICE_PREFIX` —
-        # these are TWO writers to one prefix, and a disagreement between them means an invoice
-        # rendered on this path is readable by URL while one rendered on the other is not.
-        #
-        # A rendered invoice carries the customer's name, address, amount and GST breakdown, and
-        # `o/` is served by CloudFront with no authentication. Delivery does not need a public
-        # URL: the bytes are read from S3 and uploaded to Meta, so Meta never fetches by URL.
-        s3_key = media_paths.deliverable_public(f'Invoice/customer_invoice/wecare-digital-{inv_ref}.png')
-        s3.put_object(
-            Bucket=MEDIA_BUCKET,
-            Key=s3_key,
-            Body=png_bytes,
-            ContentType='image/png',
-            # `private`, not `public`: the year-long public directive was harmless only because
-            # nothing revalidates, and it contradicted the object's actual reachability.
-            CacheControl='private, max-age=31536000',
-        )
-
-        logger.info(json.dumps({
-            'event': 'invoice_uploaded',
-            'invoiceRef': inv_ref,
-            'payRef': pay_ref,
-            's3Key': s3_key,
-            'sizeBytes': len(png_bytes),
-            'requestId': request_id,
-        }))
-
-        invoice_payload = {
-            'body': json.dumps({
-                'contactId': contact_id,
-                'phoneNumberId': phone_number_id,
-                'content': f'Here is your invoice {inv_ref}',
-                'mediaFile': f's3://{MEDIA_BUCKET}/{s3_key}',
-                'mediaType': 'image',
-                'mediaFileName': f'{inv_ref}.png',
-            })
-        }
-        lambda_client.invoke(
-            FunctionName=OUTBOUND_WHATSAPP_FUNCTION,
-            InvocationType='Event',
-            Payload=json.dumps(invoice_payload),
-        )
-
-        # Store invoice record in Messages table
-        try:
-            messages_table = dynamodb.Table(MESSAGES_TABLE)
-            now = int(time.time())
-            subtotal = amount * quantity
-            after_promo = subtotal - discount
-            gst_amt = round(after_promo * gst_rate / 100, 2)
-            cgst = round(gst_amt / 2, 2)
-            sgst = round(gst_amt / 2, 2)
-            conv_base = round(after_promo * 0.02, 2)
-            conv_gst = round(conv_base * 0.18, 2)
-            conv_fee = round(conv_base + conv_gst, 2)
-            total = round(after_promo + gst_amt + shipping + conv_fee, 2)
-
-            messages_table.put_item(Item={
-                'id': str(uuid.uuid4()),
-                'messageId': inv_ref,
-                'contactId': contact_id,
-                'channel': 'whatsapp',
-                'direction': 'outbound',
-                'messageType': 'invoice',
-                'content': f'Invoice {inv_ref} (Paid)',
-                'invoiceRef': inv_ref,
-                'invoiceS3Key': s3_key,
-                'paymentReferenceId': pay_ref or '',
-                'paymentItemName': item_name,
-                'paymentQuantity': quantity,
-                'paymentAmount': Decimal(str(int(amount * 100))),
-                'paymentSubtotal': Decimal(str(int(subtotal * 100))),
-                'paymentDiscount': Decimal(str(int(discount * 100))),
-                'paymentGstRate': Decimal(str(gst_rate)),
-                'paymentGstAmount': Decimal(str(int(gst_amt * 100))),
-                'paymentCgst': Decimal(str(int(cgst * 100))),
-                'paymentSgst': Decimal(str(int(sgst * 100))),
-                'paymentShipping': Decimal(str(int(shipping * 100))),
-                'paymentConvFee': Decimal(str(int(conv_fee * 100))),
-                'paymentTotal': Decimal(str(int(total * 100))),
-                'paymentPurpose': purpose or '',
-                'paymentDueRef': due_ref or '',
-                'senderPhone': sender_phone,
-                'paidAt': paid_at,
-                'status': 'paid',
-                'createdAt': Decimal(str(now)),
-                'expiresAt': Decimal(str(now + 86400 * 365)),
-            })
-        except Exception as store_err:
-            logger.warning(json.dumps({
-                'event': 'invoice_store_error',
-                'error': str(store_err),
-                'invoiceRef': inv_ref,
-                'requestId': request_id,
-            }))
-
-        logger.info(json.dumps({
-            'event': 'invoice_sent',
-            'invoiceRef': inv_ref,
-            'payRef': pay_ref,
-            'contactId': mask_contact_id(contact_id),
-            'requestId': request_id,
-        }))
-
-    except Exception as e:
-        logger.error(json.dumps({
-            'event': 'invoice_generation_error',
-            'error': str(e),
-            'contactId': mask_contact_id(contact_id),
-            'requestId': request_id,
-        }))
 
 
 # ============================================================================

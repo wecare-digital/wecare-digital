@@ -23,13 +23,11 @@ logger = get_logger(__name__)
 dynamodb = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
 dynamodb_client = boto3.client('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
 s3_client = boto3.client('s3', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
-lambda_client = boto3.client('lambda', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
 
 # Table names - actual tables used by the system
 INBOUND_TABLE = os.environ.get('INBOUND_TABLE', 'stack-wecare-digital-WhatsAppInboundTable')
 OUTBOUND_TABLE = os.environ.get('OUTBOUND_TABLE', 'stack-wecare-digital-WhatsAppOutboundTable')
 MEDIA_BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
-INBOUND_WHATSAPP_FUNCTION = os.environ.get('INBOUND_WHATSAPP_FUNCTION', 'wecare-inbound-whatsapp')
 
 # Cache key schemas to avoid repeated describe_table calls
 _key_schema_cache = {}
@@ -102,7 +100,13 @@ def handler(event, context):
         return _handle_update(event, origin)
 
     if http_method == 'POST':
-        return _handle_create_invoice(event, origin)
+        # Free-form invoice creation moved to Workspace > Payments (the GST invoice
+        # engine). This route only deletes/updates messages now; any POST other than
+        # clear-all is no longer served here.
+        return cors_response(410, {
+            'error': 'INVOICE_CREATION_MOVED',
+            'message': 'Create invoices from Workspace > Payments.',
+        }, origin)
     
     try:
         # Get message ID from path
@@ -455,75 +459,5 @@ def _handle_update(event, origin):
         )
 
         return cors_response(200, {'success': True, 'messageId': message_id, 'updated': list(updates.keys())}, origin)
-    except Exception as e:
-        return cors_response(500, {'error': 'Internal server error'}, origin)
-
-
-def _handle_create_invoice(event, origin):
-    """Create an invoice from dashboard — invokes inbound-whatsapp handler to generate & send."""
-    try:
-        try:
-            body = json.loads(event.get('body', '{}'))
-        except (json.JSONDecodeError, TypeError, ValueError):
-            return cors_response(400, {'error': 'Invalid JSON in request body'}, origin)
-
-        # Required fields
-        contact_id = body.get('contactId', '')
-        item_name = body.get('itemName', '')
-        unit_price = float(body.get('unitPrice', 0))
-        quantity = int(body.get('quantity', 1))
-
-        if not contact_id or not item_name or unit_price <= 0:
-            return cors_response(400, {'error': 'contactId, itemName, and unitPrice > 0 are required'}, origin)
-
-        # Optional fields with defaults
-        gst_rate = float(body.get('gstRate', 18))
-        shipping = float(body.get('shipping', 49))
-        discount = float(body.get('discount', 15))
-        purpose = body.get('purpose', '')
-        order_id = body.get('orderId', 'Offline')
-        customer_name = body.get('customerName', '')
-        customer_phone = body.get('customerPhone', '')
-        customer_email = body.get('customerEmail', '')
-        shipping_address = body.get('shippingAddress', '')
-        billing_address = body.get('billingAddress', '')
-        phone_number_id = body.get('phoneNumberId', '919330994400')
-
-        # Invoke inbound-whatsapp handler with a special "create_invoice" action
-        invoke_payload = {
-            'action': 'create_invoice',
-            'contactId': contact_id,
-            'phoneNumberId': phone_number_id,
-            'itemName': item_name,
-            'unitPrice': unit_price,
-            'quantity': quantity,
-            'gstRate': gst_rate,
-            'shipping': shipping,
-            'discount': discount,
-            'purpose': purpose,
-            'orderId': order_id,
-            'customerName': customer_name,
-            'customerPhone': customer_phone,
-            'customerEmail': customer_email,
-            'shippingAddress': shipping_address,
-            'billingAddress': billing_address,
-            'senderPhone': customer_phone or contact_id,
-        }
-
-        response = lambda_client.invoke(
-            FunctionName=INBOUND_WHATSAPP_FUNCTION,
-            InvocationType='RequestResponse',
-            Payload=json.dumps(invoke_payload),
-        )
-
-        result_payload = json.loads(response['Payload'].read().decode('utf-8'))
-
-
-        return cors_response(200, {
-            'success': True,
-            'message': 'Invoice created and sent via WhatsApp',
-            'result': result_payload,
-        }, origin)
-
     except Exception as e:
         return cors_response(500, {'error': 'Internal server error'}, origin)

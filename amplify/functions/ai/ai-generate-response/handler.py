@@ -50,7 +50,7 @@ from lambda_utils.agent import governance as gov
 from lambda_utils.agent import approvals as approval_module
 from lambda_utils.agent import drafts as draft_module
 from lambda_utils.middleware import require_auth
-from lambda_utils import contact_key, identity_claims
+from lambda_utils import contact_key, contact_store, identity_claims
 from lambda_utils.identity import subscriber_id  # `id` is the physical key; `contactId` is its alias
 from lambda_utils.meta_version import META_API_VERSION  # one source; validated at import
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
@@ -3679,88 +3679,66 @@ def _save_customer_profile(phone_hash: str, profile: Dict) -> None:
 
 
 def _update_contact_with_customer_info(sender_phone: str, profile: Dict, request_id: str) -> None:
-    """Update the contacts table with customer billing/shipping info."""
+    """Fill a missing name/email on the sender's existing contact row.
+
+    The inbound handler always creates the sender's contact before the AI replies, so
+    this never creates a contact. It resolves the one canonical, merge-aware row via
+    `contact_store.lookup` and, when that row is missing a `name` or a valid `email`,
+    fills only those. It no longer writes the flat `customerName`/`customerEmail`/
+    `billingAddress`/`shippingAddress` columns onto ContactsTable: the CRM owns the
+    address fields and checkout reads only the validated `checkoutDeliveryAddress` map.
+    """
     try:
         contacts_table = dynamodb.Table(CONTACTS_TABLE)
-        clean_phone = sender_phone.replace('+', '').replace(' ', '').replace('-', '')
-        # Find contact by phone
-        existing = None
-        for variant in [f'+{clean_phone}', clean_phone]:
-            try:
-                resp = contacts_table.query(
-                    IndexName='phone-index',
-                    KeyConditionExpression='phone = :phone',
-                    ExpressionAttributeValues={':phone': variant},
-                    Limit=1
-                )
-                items = resp.get('Items', [])
-                if items:
-                    existing = items[0]
-                    break
-            except Exception:
-                pass
+        try:
+            existing = contact_store.lookup(contacts_table, sender_phone)
+        except contact_store.IdentityConflict:
+            logger.info(json.dumps({
+                'event': 'contact_customer_info_skipped_conflict',
+                'phone': mask_phone(sender_phone),
+                'requestId': request_id,
+            }))
+            return
+        if not existing:
+            logger.info(json.dumps({
+                'event': 'contact_customer_info_skipped_no_contact',
+                'phone': mask_phone(sender_phone),
+                'requestId': request_id,
+            }))
+            return
 
         now = Decimal(str(int(time.time())))
         update_parts = []
         attr_names = {}
         attr_values = {':now': now}
 
-        field_map = {
-            'customer_name': ('customerName', '#cn'),
-            'customer_email': ('customerEmail', '#ce'),
-            'billing_address': ('billingAddress', '#ba'),
-            'shipping_address': ('shippingAddress', '#sa'),
-        }
-        for data_key, (db_field, alias) in field_map.items():
-            val = profile.get(data_key, '')
-            if val:
-                update_parts.append(f'{alias} = :{db_field}')
-                attr_names[alias] = db_field
-                attr_values[f':{db_field}'] = val
+        # Only fill a gap. Never overwrite a name/email the row already carries.
+        name = str(profile.get('customer_name') or '').strip()
+        if name and not str(existing.get('name') or '').strip():
+            update_parts.append('#n = :name')
+            attr_names['#n'] = 'name'
+            attr_values[':name'] = name
+
+        email = str(profile.get('customer_email') or '').strip()
+        if email and not str(existing.get('email') or '').strip():
+            valid_email, normalized_email = validate_email(email)
+            if valid_email:
+                update_parts.append('email = :email')
+                attr_values[':email'] = normalized_email
 
         if not update_parts:
             return
-
         update_parts.append('updatedAt = :now')
-
-        if existing:
-            contacts_table.update_item(
-                Key={'id': existing['id']},
-                UpdateExpression='SET ' + ', '.join(update_parts),
-                ExpressionAttributeNames=attr_names,
-                ExpressionAttributeValues=attr_values,
-            )
-        else:
-            # Create new contact with customer info
-            contact_id = str(uuid.uuid4())
-            item = {
-                # Both identifier spellings, from one value. This path used to write `id`
-                # alone, and the two RCS `_lookup_contact_by_phone` readers returned
-                # `contactId` with no fallback - so a contact first created here was
-                # invisible to them and its RCS messages were stored with an empty
-                # contact id, silently.
-                **contact_key.contact_item_keys(contact_id),
-                **subscriber_id.new_contact_fields(now=now),
-                'phone': clean_phone,
-                'channel': 'whatsapp',
-                'source': 'payment_flow',
-                'createdAt': now,
-                'updatedAt': now,
-            }
-            for data_key, (db_field, _) in field_map.items():
-                val = profile.get(data_key, '')
-                if val:
-                    item[db_field] = val
-            if profile.get('customer_name'):
-                item['name'] = profile['customer_name']
-            identity_claims.claim_identities(
-                dynamodb.Table(identity_claims.TABLE_NAME),
-                contact_id=contact_id, phone=clean_phone, now=int(now))
-            contacts_table.put_item(Item=item)
-
+        contacts_table.update_item(
+            Key={'id': existing['id']},
+            UpdateExpression='SET ' + ', '.join(update_parts),
+            ConditionExpression='attribute_exists(id)',
+            ExpressionAttributeNames=attr_names,
+            ExpressionAttributeValues=attr_values,
+        )
         logger.info(json.dumps({
             'event': 'contact_customer_info_updated',
-            'phone': mask_phone(clean_phone),
+            'phone': mask_phone(sender_phone),
             'requestId': request_id,
         }))
     except Exception as e:
@@ -3810,72 +3788,65 @@ def _clear_flow_state(phone_hash: str) -> None:
 
 
 def _save_subscriber(data: Dict, phone_hash: str, request_id: str) -> None:
-    """Save subscribe form data to contacts table."""
+    """Flag the sender's existing contact as subscribed via the bot.
+
+    The inbound handler creates the sender's contact before the AI runs, so this never
+    creates one. It resolves the canonical, merge-aware row via `contact_store.lookup`,
+    always records `subscribedViaBot`, and fills `name`/`email` only when the row has
+    none (and the email looks valid). It never overwrites an existing name/email.
+    """
     try:
         contacts_table = dynamodb.Table(CONTACTS_TABLE)
         now = int(time.time())
-        contact_id = str(uuid.uuid4())
-
-        # Check for existing contact by phone
-        clean_phone = data.get('phone', '').replace(' ', '').replace('-', '')
-        existing = None
         try:
-            resp = contacts_table.query(
-                IndexName='phone-index',
-                KeyConditionExpression='phone = :phone',
-                ExpressionAttributeValues={':phone': clean_phone},
-                Limit=1
-            )
-            items = resp.get('Items', [])
-            if items:
-                existing = items[0]
-        except Exception:
-            pass
+            existing = contact_store.lookup(contacts_table, data.get('phone', ''))
+        except contact_store.IdentityConflict:
+            logger.info(json.dumps({
+                'event': 'subscriber_skipped_conflict',
+                'phoneHash': phone_hash,
+                'requestId': request_id
+            }))
+            return
+        if not existing:
+            logger.info(json.dumps({
+                'event': 'subscriber_skipped_no_contact',
+                'phoneHash': phone_hash,
+                'requestId': request_id
+            }))
+            return
 
-        if existing:
-            # Update existing contact
-            contacts_table.update_item(
-                Key={'id': existing['id']},
-                UpdateExpression='SET #n = :name, email = :email, updatedAt = :now, subscribedViaBot = :t',
-                ExpressionAttributeNames={'#n': 'name'},
-                ExpressionAttributeValues={
-                    ':name': data.get('name', ''),
-                    ':email': data.get('email', ''),
-                    ':now': Decimal(str(now)),
-                    ':t': True,
-                }
-            )
-            logger.info(json.dumps({
-                'event': 'subscriber_updated',
-                'contactId': mask_contact_id(existing['id']),
-                'phoneHash': phone_hash,
-                'requestId': request_id
-            }))
-        else:
-            # Create new contact only after both strong identities are reserved.
-            identity_claims.claim_identities(
-                dynamodb.Table(identity_claims.TABLE_NAME),
-                contact_id=contact_id, phone=clean_phone,
-                email=data.get('email', ''), now=now)
-            contacts_table.put_item(Item={
-                # See the payment_flow writer above: `id` alone is not enough.
-                **contact_key.contact_item_keys(contact_id),
-                **subscriber_id.new_contact_fields(now=now),
-                'name': data.get('name', ''),
-                'email': data.get('email', ''),
-                'phone': clean_phone,
-                'channel': 'whatsapp',
-                'source': 'bot_subscribe',
-                'subscribedViaBot': True,
-                'createdAt': Decimal(str(now)),
-                'updatedAt': Decimal(str(now)),
-            })
-            logger.info(json.dumps({
-                'event': 'subscriber_created',
-                'contactId': mask_contact_id(contact_id),
-                'phoneHash': phone_hash,
-                'requestId': request_id
-            }))
+        update_parts = ['updatedAt = :now', 'subscribedViaBot = :t']
+        attr_names = {}
+        attr_values = {':now': Decimal(str(now)), ':t': True}
+
+        name = str(data.get('name') or '').strip()
+        if name and not str(existing.get('name') or '').strip():
+            update_parts.append('#n = :name')
+            attr_names['#n'] = 'name'
+            attr_values[':name'] = name
+
+        email = str(data.get('email') or '').strip()
+        if email and not str(existing.get('email') or '').strip():
+            valid_email, normalized_email = validate_email(email)
+            if valid_email:
+                update_parts.append('email = :email')
+                attr_values[':email'] = normalized_email
+
+        update_kwargs = {
+            'Key': {'id': existing['id']},
+            'UpdateExpression': 'SET ' + ', '.join(update_parts),
+            'ConditionExpression': 'attribute_exists(id)',
+            'ExpressionAttributeValues': attr_values,
+        }
+        if attr_names:
+            update_kwargs['ExpressionAttributeNames'] = attr_names
+        contacts_table.update_item(**update_kwargs)
+        logger.info(json.dumps({
+            'event': 'subscriber_updated',
+            'contactId': mask_contact_id(existing['id']),
+            'phoneHash': phone_hash,
+            'requestId': request_id
+        }))
     except Exception as e:
         logger.error(json.dumps({
             'event': 'subscriber_save_error',
@@ -4329,7 +4300,9 @@ def _tool_create_contact(params: Dict, request_id: str) -> Dict:
             **contact_key.contact_item_keys(contact_id),
             **subscriber_id.new_contact_fields(now=now),
             'name': name,
-            'phone': phone,
+            # Store the one canonical spelling so later phone-index readers converge on
+            # this row; fall back to the validated input if it is not a plausible number.
+            'phone': contact_store.canonical_phone(phone) or phone,
             'email': email,
             'optInWhatsApp': True,
             'optInSms': True,
