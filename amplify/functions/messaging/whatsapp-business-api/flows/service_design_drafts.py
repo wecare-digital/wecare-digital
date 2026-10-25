@@ -20,11 +20,6 @@ NAMES = {
     'subscribe': 'WD_Subscribe_Design_v1',
 }
 
-# Reuse the existing Meta draft instead of creating a duplicate when a canonical
-# F-number name replaces an older design-preview name.
-LEGACY_NAMES = {
-    'leave-review': ('WD_Leave_Review_Design_v1',),
-}
 
 # F002 is numbered/named from F001's canonical convention, but its customer-facing
 # content is the existing published review contract (Meta Flow 940049388908144).
@@ -72,19 +67,11 @@ def handle(event, graph, create, upload, get_flow, update_flow=None):
     if response.get('error') or action == 'inspect':
         return response
     name = NAMES[service]
-    accepted_names = {name, *LEGACY_NAMES.get(service, ())}
-    matches = [row for row in response['flows'] if row.get('name') in accepted_names]
+    matches = [row for row in response['flows'] if row.get('name') == name]
     if len(matches) > 1:
         return {'error': 'Ambiguous design draft name'}
     if matches and matches[0].get('status') != 'DRAFT':
         return {'error': 'Existing design Flow is immutable; no change attempted'}
-    if matches and matches[0].get('name') != name:
-        if update_flow is None:
-            return {'error': 'Canonical draft rename requires update support; no duplicate created'}
-        renamed = unwrap(update_flow(matches[0]['id'], {'name': name}))
-        if renamed.get('error'):
-            return renamed
-        matches[0]['name'] = name
     if action == 'connect_orders_endpoint':
         if not matches:
             return {'error': 'Prepare the Orders draft first'}
