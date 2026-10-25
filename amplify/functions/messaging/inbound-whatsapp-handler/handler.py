@@ -163,6 +163,36 @@ CART_HANDOFF_BUTTON = 'Open my cart'
 CART_HANDOFF_BODY = ('Your cart is saved. Open it on our website to review it and pay securely. '
                      'Sign in with this same WhatsApp number and the items will be waiting.')
 
+# ── replies for a cart that did not become a payment request ──
+# A cart answered with silence reads as "it worked". Every reply says what happened, what the
+# customer can do, and that nothing was charged. No price and no total: those belong to the
+# ORDER_DETAILS message checkout sends, which is the only priced message on this path.
+CART_SIGN_IN_URL = 'https://wecare.digital/account/sign-in/'
+CART_SHOP_URL = 'https://wecare.digital/shop/'
+CART_REPLY_SIGN_IN = ('Please sign in to your WECARE.DIGITAL customer account and verify this '
+                      'WhatsApp number, then send your cart again. Nothing has been charged.')
+CART_REPLY_ADDRESS = ('To deliver your order, please share your delivery address. Your payment '
+                      'request follows as soon as it is saved.')
+CART_REPLY_ADDRESS_UNUSABLE = ('We could not use that address. Please check it and share it '
+                               'again. Nothing has been charged.')
+CART_REPLY_ALREADY_REQUESTED = ('We have already sent you a payment request for this cart. '
+                                'Please use that message to pay. Nothing new has been charged.')
+CART_REPLY_PARTIAL = ('Some items in this cart cannot be ordered on WhatsApp. Nothing has been '
+                      'charged. Please remove them and send your cart again.')
+CART_REPLY_ITEMS_UNAVAILABLE = ('Items in this cart are no longer available. Nothing has been '
+                                'charged. Please open the catalog again and send a new cart.')
+CART_REPLY_SERVICE = ('This service cannot be bought from the WhatsApp catalog yet. Nothing has '
+                      'been charged. You can start it on wecare.digital.')
+CART_REPLY_NOT_HERE = ('Payment on WhatsApp is not available from this number. Nothing has been '
+                       'charged. You can complete this order on wecare.digital.')
+CART_REPLY_TRY_LATER = ('We could not prepare a payment request for this cart right now. Nothing '
+                        'has been charged. Please try again in a few minutes.')
+# A cart refused ONLY for a missing or unpayable delivery address waits here, so the India Address
+# Message submission resumes it instead of asking the customer to send the cart again. One row per
+# contact (the latest such cart wins); expiry is compared in code because CommerceKeys has no TTL.
+CART_PENDING_PREFIX = 'WABASKETPENDING#'
+CART_PENDING_LIFETIME_SECONDS = 24 * 3600
+
 # Fix #6: Circuit breaker for AI failures  -  skip AI if too many consecutive failures
 _ai_fail_count = 0
 _ai_fail_reset_time = 0
@@ -2486,6 +2516,9 @@ def _process_message(
                 return  # Persisted above; never route a private idea into auto-replies.
             nfm = interactive.get('nfm_reply', {})
             if nfm.get('name') == 'address_message':
+                # Opens the 24-hour window like any customer message (see the `order` branch):
+                # the submission can resume a waiting cart, whose replies must not be refused.
+                _update_contact_timestamp(contact_id, now, wamid=whatsapp_message_id or '')
                 # SEND #4.
                 if _may_send('address_submission'):
                     _handle_address_submission(nfm, contact_id, sender_phone, aws_phone_number_id, request_id)
@@ -2515,6 +2548,11 @@ def _process_message(
     # here. Gated by `_catalog_orders_enabled()` (SystemConfig override, else the env flag) and
     # by checkout's own WA_CATALOG_ORDERS_ENABLED.
     if msg_type == 'order':
+        # The cart IS a customer message, so it opens the 24-hour window. This branch returns
+        # before the general `_update_contact_timestamp` below, which left outbound reading a
+        # stale window and refusing every non-template reply to the cart (the address request
+        # and the refusal replies) for a customer whose last message was a day old.
+        _update_contact_timestamp(contact_id, now, wamid=whatsapp_message_id or '')
         # SEND #6 — the money path. This may-send guard runs before `_handle_cart_order`; the
         # reference mint, pricing and send all live in ecommerce/checkout.
         if _may_send('cart_order'):
@@ -2536,8 +2574,10 @@ def _process_message(
                 'senderPhone': mask_phone(sender_phone),
                 'newBsuid': new_bsuid,
                 'newParentBsuid': new_parent_bsuid,
-                'newWaId': new_wa_id,
-                'systemBody': system_data.get('body', ''),
+                # The new number masked, and the system text (which quotes both numbers) only
+                # by presence. The full values are stored on the system event below.
+                'newWaId': mask_phone(new_wa_id),
+                'hasSystemBody': bool(system_data.get('body')),
                 'requestId': request_id
             }))
             # Update contact with new BSUID and phone if available
@@ -3381,7 +3421,9 @@ def _get_or_create_contact(phone: str, sender_name: str = '', bsuid: str = '', u
                 _update_contact_bsuid_fields(contacts_table, existing, sender_name, username, phone, bsuid, contact_book_name, parent_bsuid)
                 return existing
         except Exception as e:
-            logger.warning(f"deterministic contact get failed for {det_id}: {e}")
+            # `det_id` is `wa` + the customer's digits, so it is masked like any contact id.
+            logger.warning(f"deterministic contact get failed for {mask_contact_id(det_id)}: "
+                           f"{type(e).__name__}")
 
     # Try BSUID lookup first (most reliable identifier going forward)
     if bsuid:
@@ -3423,7 +3465,8 @@ def _get_or_create_contact(phone: str, sender_name: str = '', bsuid: str = '', u
                 variant_items = [i for i in variant_items if not i.get('deletedAt')]
                 items.extend(variant_items)
             except Exception as e:
-                logger.warning(f"GSI phone-index query failed for {phone_variant}: {str(e)}")
+                logger.warning(f"GSI phone-index query failed for {mask_phone(phone_variant)}: "
+                               f"{type(e).__name__}")
     
     # Fallback to scan if GSI not ready
     if not items and clean_phone:
@@ -4178,15 +4221,19 @@ def _process_status(status: Dict, request_id: str, contacts_map: Dict = None, wa
     recipient_user_id = status.get('recipient_user_id', '')  # BSUID
     parent_recipient_user_id = status.get('parent_recipient_user_id', '')  # Parent BSUID
     
-    # Log all status updates for debugging
+    # Log all status updates for debugging. The SHAPE of the status, never its values:
+    # `recipient_id` is the customer's phone number, and the full object also carries the BSUID,
+    # Meta's error details and the payment object. Error codes are enough to debug a failure.
     logger.info(json.dumps({
         'event': 'status_update_received',
         'statusType': status_type,
         'statusValue': status_value,
         'whatsappMessageId': whatsapp_message_id,
-        'recipientId': recipient_id,
+        'recipientId': mask_phone(recipient_id),
         'hasPaymentData': 'payment' in status,
-        'fullStatus': status,
+        'statusKeys': sorted(status) if isinstance(status, dict) else [],
+        'errorCodes': [e.get('code') for e in (status.get('errors') or [])
+                       if isinstance(e, dict)],
         'requestId': request_id
     }))
     
@@ -4523,10 +4570,11 @@ def _process_payment_status(status: Dict, request_id: str) -> None:
     # Log payment data extraction
     logger.info(json.dumps({
         'event': 'payment_data_extracted',
-        'paymentData': payment_data,
+        # Keys only: the payment object can carry the payer's details.
+        'paymentDataKeys': sorted(payment_data) if isinstance(payment_data, dict) else [],
         'referenceId': reference_id,
         'paymentStatus': payment_status,
-        'recipientId': recipient_id,
+        'recipientId': mask_phone(recipient_id),
         'requestId': request_id
     }))
     
@@ -4565,7 +4613,7 @@ def _process_payment_status(status: Dict, request_id: str) -> None:
         'event': 'payment_status_received',
         'referenceId': reference_id,
         'paymentStatus': payment_status,
-        'recipientId': recipient_id,
+        'recipientId': mask_phone(recipient_id),
         'amount': actual_amount,
         'currency': currency,
         'transactionId': transaction_id,
@@ -5055,9 +5103,7 @@ def _get_contact_by_phone(phone: str) -> Optional[Dict]:
         
         logger.info(json.dumps({
             'event': 'contact_lookup_by_phone',
-            'originalPhone': phone,
             'cleanPhone': mask_phone(clean_phone),
-            'phoneWithPlus': phone_with_plus
         }))
         
         # Use GSI query on phone-index for O(1) lookup
@@ -5244,7 +5290,7 @@ def _send_order_status_message(recipient_id: str, reference_id: str,
         if not contact:
             logger.warning(json.dumps({
                 'event': 'order_status_no_contact',
-                'recipientId': recipient_id,
+                'recipientId': mask_phone(recipient_id),
                 'referenceId': reference_id,
                 'requestId': request_id,
                 'note': 'Will try to send using phone number directly'
@@ -5306,9 +5352,10 @@ def _send_order_status_message(recipient_id: str, reference_id: str,
     except Exception as e:
         logger.error(json.dumps({
             'event': 'order_status_message_error',
-            'recipientId': recipient_id,
+            'recipientId': mask_phone(recipient_id),
             'referenceId': reference_id,
-            'error': str(e),
+            # The class only: an exception message on this path can echo the phone number.
+            'error': type(e).__name__,
             'requestId': request_id
         }))
 
@@ -6428,24 +6475,24 @@ def _catalog_orders_enabled() -> bool:
 
 
 def _request_shipping_address(contact_id: str, phone_number_id: str, sender_phone: str,
-                              request_id: str) -> None:
-    """Ask for a delivery address when none is on file. RETAINED, unchanged in behaviour.
+                              request_id: str, body_text: str = CART_REPLY_ADDRESS) -> None:
+    """Ask for a delivery address with the India Address Message. Never raises.
 
-    Lifted out of `_handle_cart_order` verbatim rather than rewritten, because it is the one part
-    of the old path that was never wrong and is still needed: the website leg refuses a physical
-    basket with no owned address (`purchase_intent.DeliveryDetailsRequired`), and the India Address
-    Message submission arrives back as `nfm_reply`/`address_message` and is stored by
-    `_handle_address_submission`. So collecting it in chat is what lets the hand-off be payable
-    when the customer arrives on the site.
+    Called only AFTER checkout has answered DELIVERY_DETAILS_REQUIRED for a cart, so it always
+    asks: checkout's own address test (`contact_address.from_contact` on the verified checkout
+    profile, then `payment_address.assert_payable`) has already said the address on file is
+    missing or unusable for a WhatsApp payment. It used to run before checkout was invoked and
+    skip any contact holding a legacy `shippingAddress`, so an unverified customer was asked for
+    an address that could never make their cart payable, and a customer whose stored address was
+    unpayable was never asked at all. The submission comes back as `nfm_reply`/`address_message`,
+    is stored by `_handle_address_submission`, and resumes the waiting cart.
     """
     try:
         contact = {}
         if contact_id:
             contact = dynamodb.Table(CONTACTS_TABLE).get_item(
                 Key={'id': contact_id}).get('Item', {}) or {}
-        if contact.get('shippingAddress'):
-            return
-        values = {'phone_number': '+' + str(sender_phone or '')}
+        values = {'phone_number': '+' + str(sender_phone or '').lstrip('+')}
         name = contact.get('contactBookName', '') or contact.get('name', '') or ''
         if name:
             values['name'] = name
@@ -6453,7 +6500,7 @@ def _request_shipping_address(contact_id: str, phone_number_id: str, sender_phon
             'contactId': contact_id, 'phoneNumberId': phone_number_id,
             'isInteractive': True, 'interactiveType': 'address_message',
             'interactiveData': {
-                'body': 'To deliver your order, please share your delivery address.',
+                'body': body_text,
                 'country': 'IN', 'values': values,
             },
         })}
@@ -6538,13 +6585,16 @@ def _handle_cart_order(message: Dict, contact_id: str, sender_phone: str,
 
         basket = whatsapp_basket.parse_order_message(message)
         if basket is None:
-            # Nothing in the cart resolves to a catalogue variant. The existing conversational paths
-            # still apply; handing over a link to an empty basket would not.
+            # Nothing in the cart resolves to a catalogue variant. No later path answers an
+            # `order` message (the dispatcher returns after this handler), so the customer is told
+            # rather than left with silence.
             logger.info(json.dumps({
                 'event': 'cart_order_no_resolvable_lines',
                 'phone_suffix': _phone_suffix(sender_phone),
                 'requestId': request_id,
             }))
+            if _catalog_orders_enabled():
+                _reply_cart_refused('items_unavailable', contact_id, phone_number_id, request_id)
             return
 
         if os.environ.get('WHATSAPP_CATALOG_SERVICES_ENABLED', 'false').lower() == 'true':
@@ -6560,6 +6610,16 @@ def _handle_cart_order(message: Dict, contact_id: str, sender_phone: str,
                 return
 
         if not _catalog_orders_enabled():
+            return
+
+        if basket.dropped:
+            # Part of the cart is not ours (or is past the line ceiling). Charging for the rest
+            # would bill an order the customer did not build, so the whole cart is refused and
+            # they are told why - the same rule the service leg applies.
+            logger.info(json.dumps({'event': 'cart_order_partial_refused', **basket.log_fields(),
+                                    'phone_suffix': _phone_suffix(sender_phone),
+                                    'requestId': request_id}))
+            _reply_cart_refused('partial', contact_id, phone_number_id, request_id)
             return
 
         # The general PRODUCT cart. Everything priced, reserved and sent is owned by
@@ -6651,10 +6711,10 @@ def _send_payment_request(basket, phone: str, contact_id: str, sender_phone: str
         }))
         return
 
-    # Physical goods still need a delivery address, and the checkout refuses a basket without one
-    # (DELIVERY_DETAILS_REQUIRED). Ask for it in chat so the customer can complete, exactly as the
-    # hand-off path did. Retained unchanged; see `_request_shipping_address`.
-    _request_shipping_address(contact_id, phone_number_id, sender_phone, request_id)
+    # The delivery address is asked for only AFTER checkout says it is what is missing
+    # (DELIVERY_DETAILS_REQUIRED, below). Asking before the invoke prompted customers whose cart
+    # was going to be refused for another reason, and skipped those whose stored address was
+    # unpayable.
 
     # THE ONE SEAM. `prepareNativeCart` resolves the verified customer from the contact, prices the
     # basket via `_native_quote`, reserves the single attempt + `PAYREF#` carrying contactId +
@@ -6707,6 +6767,8 @@ def _send_payment_request(basket, phone: str, contact_id: str, sender_phone: str
                                  'phone_suffix': _phone_suffix(sender_phone),
                                  'requestId': request_id}))
         _rollback_cart_order_index(keys, index['orderId'], token, request_id)
+        # Definite: the Lambda service refused the invoke, so checkout never ran.
+        _reply_cart_refused('try_later', contact_id, phone_number_id, request_id)
         return
 
     if ambiguous:
@@ -6731,8 +6793,20 @@ def _send_payment_request(basket, phone: str, contact_id: str, sender_phone: str
                                     'phone_suffix': _phone_suffix(sender_phone),
                                     'requestId': request_id}))
         _rollback_cart_order_index(keys, index['orderId'], token, request_id)
+        kind = _cart_refusal_kind(outcome, str(result.get('error') or ''))
+        if kind == 'address':
+            # The one refusal the customer can fix in this chat: keep the cart, ask for the
+            # address, and let the submission resume it (`_resume_pending_cart`).
+            _remember_pending_cart(keys, basket, phone, contact_id, phone_number_id, now,
+                                   request_id)
+            _request_shipping_address(contact_id, phone_number_id, sender_phone, request_id)
+        elif kind:
+            _reply_cart_refused(kind, contact_id, phone_number_id, request_id)
         return
 
+    # A cart that became a payment request supersedes any cart still waiting for an address, so a
+    # later address submission can never resume an older basket.
+    _forget_pending_cart(keys, contact_id, request_id)
     logger.info(json.dumps({
         'event': 'cart_order_payment_prepared',
         'outcome': outcome,
@@ -6742,8 +6816,171 @@ def _send_payment_request(basket, phone: str, contact_id: str, sender_phone: str
         'contactId': mask_contact_id(contact_id),
         'phone_suffix': _phone_suffix(sender_phone),
         'lineCount': len(basket.lines),
+        'clampedLines': basket.clamped,
         'requestId': request_id,
     }))
+
+
+def _cart_refusal_kind(outcome: str, error: str) -> str:
+    """Which reply a DEFINITE not-prepared answer gets. '' means the customer is not messaged.
+
+    Only the rollout gate stays silent: OFF means no customer-visible effect at all (see
+    `_catalog_orders_enabled`). An ambiguous answer never reaches here - the request may already
+    be on the customer's phone, and "we could not prepare it" would then be false.
+    """
+    if outcome == 'NATIVE_CART_ROLLOUT_DISABLED':
+        return ''
+    if outcome == 'VERIFIED_CUSTOMER_REQUIRED' or error == 'PROFILE_REQUIRED':
+        return 'sign_in'
+    if error == 'DELIVERY_DETAILS_REQUIRED':
+        return 'address'
+    if outcome == 'NATIVE_CART_ALREADY_REQUESTED':
+        return 'already_requested'
+    if outcome == 'PAYMENT_SENDER_NOT_PERMITTED':
+        return 'not_here'
+    if error.startswith('SERVICE_'):
+        return 'service'
+    if outcome == 'NATIVE_CART_EMPTY' or error == 'AMOUNT_NOT_SETTLED':
+        return 'items_unavailable'
+    return 'try_later'
+
+
+def _reply_cart_refused(kind: str, contact_id: str, phone_number_id: str, request_id: str) -> None:
+    """Tell the customer why their cart produced no payment request. Never raises.
+
+    Through outbound (`_send_cta_button` / `_send_ai_auto_reply`), so the inbox records the reply
+    and the window, live-smoke and consent rules apply exactly as to any other send.
+    """
+    try:
+        if kind == 'sign_in':
+            _send_cta_button(contact_id, phone_number_id, 'Sign in', CART_SIGN_IN_URL, request_id,
+                             body_text=CART_REPLY_SIGN_IN, footer_text='WECARE.DIGITAL')
+        elif kind in ('service', 'not_here'):
+            _send_cta_button(contact_id, phone_number_id, 'Open shop', CART_SHOP_URL, request_id,
+                             body_text=CART_REPLY_SERVICE if kind == 'service'
+                             else CART_REPLY_NOT_HERE,
+                             footer_text='WECARE.DIGITAL')
+        else:
+            text = {'already_requested': CART_REPLY_ALREADY_REQUESTED,
+                    'partial': CART_REPLY_PARTIAL,
+                    'items_unavailable': CART_REPLY_ITEMS_UNAVAILABLE}.get(kind, CART_REPLY_TRY_LATER)
+            _send_ai_auto_reply(contact_id, text, phone_number_id, request_id)
+        logger.info(json.dumps({'event': 'cart_order_refusal_replied', 'kind': kind,
+                                'contactId': mask_contact_id(contact_id),
+                                'requestId': request_id}))
+    except Exception as error:  # noqa: BLE001
+        logger.warning(json.dumps({'event': 'cart_order_refusal_reply_failed', 'kind': kind,
+                                   'error': type(error).__name__, 'requestId': request_id}))
+
+
+def _remember_pending_cart(keys, basket, phone: str, contact_id: str, phone_number_id: str,
+                           now: int, request_id: str) -> None:
+    """Keep a cart refused only for its delivery address, so the address can resume it.
+
+    No money, no price: the lines and quantities `whatsapp_basket` parsed, the E.164 the cart was
+    sent from (the resume must come from the same number) and the receiving number. An
+    unconditional put, so the latest such cart from this contact is the one that resumes.
+    """
+    if not contact_id or not basket.lines:
+        return
+    try:
+        keys.put_item(Item={
+            'orderId': CART_PENDING_PREFIX + contact_id,
+            'token': whatsapp_basket.new_token(),
+            'contactId': contact_id,
+            'phone': phone,
+            'phoneNumberId': phone_number_id,
+            'lines': [dict(line) for line in basket.lines],
+            'sourceMessageId': basket.message_id,
+            'catalogId': basket.catalog_id,
+            'createdAt': int(now),
+            'expiresAt': int(now) + CART_PENDING_LIFETIME_SECONDS,
+        })
+    except Exception as error:  # noqa: BLE001 - the address is still requested without it
+        logger.warning(json.dumps({'event': 'cart_pending_store_failed',
+                                   'error': type(error).__name__, 'requestId': request_id}))
+
+
+def _forget_pending_cart(keys, contact_id: str, request_id: str) -> None:
+    """Drop this contact's waiting cart, if any. Best-effort."""
+    if not contact_id:
+        return
+    try:
+        keys.delete_item(Key={'orderId': CART_PENDING_PREFIX + contact_id})
+    except Exception as error:  # noqa: BLE001
+        logger.warning(json.dumps({'event': 'cart_pending_clear_failed',
+                                   'error': type(error).__name__, 'requestId': request_id}))
+
+
+def _pending_cart(contact_id: str) -> Dict[str, Any]:
+    """This contact's unexpired waiting cart, or {}. Read consistently: it gates a payment."""
+    if not contact_id:
+        return {}
+    row = dynamodb.Table(COMMERCE_KEYS_TABLE).get_item(
+        Key={'orderId': CART_PENDING_PREFIX + contact_id}, ConsistentRead=True).get('Item') or {}
+    if int(row.get('expiresAt') or 0) <= int(time.time()):
+        return {}
+    return row
+
+
+def _resume_pending_cart(contact_id: str, sender_phone: str, phone_number_id: str,
+                         request_id: str) -> bool:
+    """Resume the cart that was waiting for this delivery address. True when one was resumed.
+
+    The cart re-enters `_send_payment_request` exactly as the original message did - same lines,
+    same wamid, so the same resolve-before-generate index (which that refusal rolled back) - and
+    checkout re-checks everything: rollout gate, verified customer, the address just saved, price.
+    The pending row is CLAIMED by a token-conditional delete first, so two submissions of the
+    address resume one cart, never two.
+    """
+    try:
+        row = _pending_cart(contact_id)
+    except Exception as error:  # noqa: BLE001
+        logger.warning(json.dumps({'event': 'cart_pending_read_failed',
+                                   'error': type(error).__name__, 'requestId': request_id}))
+        return False
+    if not row or not _catalog_orders_enabled():
+        return False
+    phone = whatsapp_basket.e164(sender_phone)
+    # Same number, same business number, proven from this webhook - the rule `_handle_cart_order`
+    # applies to the cart itself.
+    receiving_meta_id = str(_send_context.get('phone_number_id') or '')
+    if (not phone or row.get('phone') != phone
+            or str(row.get('phoneNumberId') or '') != phone_number_id
+            or META_PHONE_ID_MAP.get(receiving_meta_id) != phone_number_id):
+        logger.warning(json.dumps({'event': 'cart_pending_resume_refused',
+                                   'phone_suffix': _phone_suffix(sender_phone),
+                                   'requestId': request_id}))
+        return False
+    keys = dynamodb.Table(COMMERCE_KEYS_TABLE)
+    try:
+        keys.delete_item(Key={'orderId': CART_PENDING_PREFIX + contact_id},
+                         ConditionExpression='#t = :token',
+                         ExpressionAttributeNames={'#t': 'token'},
+                         ExpressionAttributeValues={':token': str(row.get('token') or '')})
+    except ClientError as error:
+        if error.response.get('Error', {}).get('Code') != 'ConditionalCheckFailedException':
+            raise
+        return False  # another submission resumed it first
+    # DynamoDB hands numbers back as Decimal; checkout accepts integer quantities only.
+    lines = []
+    for line in row.get('lines') or []:
+        if not isinstance(line, dict):
+            continue
+        product_id = str(line.get('productId') or '')
+        variant_id = str(line.get('variantId') or '')
+        quantity = int(line.get('quantity') or 0)
+        if product_id and variant_id and quantity > 0:
+            lines.append({'productId': product_id, 'variantId': variant_id, 'quantity': quantity})
+    if not lines:
+        return False
+    basket = whatsapp_basket.Basket(lines=lines, catalog_id=str(row.get('catalogId') or ''),
+                                    message_id=str(row.get('sourceMessageId') or ''))
+    logger.info(json.dumps({'event': 'cart_order_resumed_after_address',
+                            'sourceMessageId': basket.message_id, 'lineCount': len(lines),
+                            'contactId': mask_contact_id(contact_id), 'requestId': request_id}))
+    _send_payment_request(basket, phone, contact_id, sender_phone, phone_number_id, request_id)
+    return True
 
 
 # ============================================================================
@@ -7804,11 +8041,21 @@ def _handle_address_submission(nfm: Dict, contact_id: str, sender_phone: str,
             logger.info(json.dumps({
                 'event': 'address_submission_unusable', 'code': bad.code, 'field': bad.field,
                 'phone_suffix': sender_phone[-4:] if sender_phone else '', 'requestId': request_id}))
+            # A cart is waiting on this address: ask again rather than leave the customer with
+            # silence. Without a waiting cart nothing depends on it, and nothing is sent.
+            try:
+                waiting = bool(_pending_cart(contact_id))
+            except Exception:  # noqa: BLE001
+                waiting = False
+            if waiting:
+                _request_shipping_address(contact_id, phone_number_id, sender_phone, request_id,
+                                          body_text=CART_REPLY_ADDRESS_UNUSABLE)
             return
         logger.info(json.dumps({
             'event': 'address_submission', 'phone_suffix': sender_phone[-4:] if sender_phone else '',
             'savedAddressId': data.get('saved_address_id', ''),
-            'pin': address.get('postalCode', ''), 'city': address.get('city', ''),
+            # The PIN's region digits only; a full PIN plus a city narrows to a street.
+            'pinPrefix': str(address.get('postalCode', ''))[:3],
             'requestId': request_id,
         }))
         if not contact_id:
@@ -7837,8 +8084,11 @@ def _handle_address_submission(nfm: Dict, contact_id: str, sender_phone: str,
         ct.update_item(Key={'id': contact_id}, UpdateExpression=update_expr,
                        ExpressionAttributeNames=expr_names, ExpressionAttributeValues=expr_vals)
         logger.info(json.dumps({'event': 'address_saved', 'contactId': mask_contact_id(contact_id), 'requestId': request_id}))
+        # The cart that was refused for want of this address continues now, so the customer
+        # does not have to send it again.
+        _resume_pending_cart(contact_id, sender_phone, phone_number_id, request_id)
     except Exception as e:
-        logger.error(json.dumps({'event': 'address_submission_error', 'error': str(e), 'requestId': request_id}))
+        logger.error(json.dumps({'event': 'address_submission_error', 'error': type(e).__name__, 'requestId': request_id}))
 
 
 def _get_flow_triggers_config() -> Dict:

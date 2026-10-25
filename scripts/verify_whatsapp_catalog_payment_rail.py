@@ -586,8 +586,7 @@ def run(root: Path) -> int:
     mark = W.mark()
     wamid = "wamid.HERMETIC.ALICE.1"
     items = [{"product_retailer_id": tee, "quantity": 2, "item_price": 499, "currency": "USD"},
-             {"product_retailer_id": tee, "quantity": 1, "item_price": 499, "currency": "USD"},
-             {"product_retailer_id": "FOREIGN-SKU-9", "quantity": 4, "item_price": 1, "currency": "INR"}]
+             {"product_retailer_id": tee, "quantity": 1, "item_price": 499, "currency": "USD"}]
     deliver(order_event(build, alice["digits"], wamid, items))
     calls = W.since(mark, "invocations")
     prepares = _checkout_invokes(calls)
@@ -641,9 +640,14 @@ def run(root: Path) -> int:
         check("R1", "total = ProductsTable price x qty, Delight, 2.5% fee + 18% fee GST",
               action["total_amount"]["value"] == expected_total == int(attempt["amountPaise"]) == int(ref["amountPaise"]),
               f"total={action['total_amount']['value']} expected={expected_total} attempt={attempt['amountPaise']}")
-        check("R3", "the foreign retailer id never became a payable line",
+        check("R3", "the only payable lines are the ProductsTable line and the convenience fee",
               len(action["order"]["items"]) == 2 and action["order"]["items"][1]["name"] == "Convenience fee",
               [i["name"] for i in action["order"]["items"]])
+        check("INV", "the attempt records the invoice lines it was quoted (name, quantity, unit paise)",
+              (attempt.get("invoiceLines") or {}).get("lines") == [
+                  {"productId": shop.tee, "variantId": "TEE-M", "name": "Hermetic Tee",
+                   "quantity": 3, "unitPricePaise": 59900}],
+              (attempt.get("invoiceLines") or {}).get("lines"))
         check("PHY", "physical goods carry a complete shipping address",
               action["type"] == "physical-goods" and action["shipping_info"]["addresses"][0]["in_pin_code"] == "700001")
         wire = json.dumps(msg)
@@ -668,6 +672,21 @@ def run(root: Path) -> int:
               attempt.get("status") == "PAYMENT_REQUEST_SENT" and int(attempt.get("attemptRank", 0)) == 30,
               {k: attempt.get(k) for k in ("status", "attemptRank")})
 
+    # ── 2b. a cart that is partly not ours is refused whole, and the customer is told ─────────
+    print("\n== 2b. partly foreign cart")
+    kim = shop.customer(11)
+    mark = W.mark()
+    deliver(order_event(build, kim["digits"], "wamid.HERMETIC.KIM.1",
+                        [{"product_retailer_id": tee, "quantity": 1},
+                         {"product_retailer_id": "FOREIGN-SKU-9", "quantity": 4, "item_price": 1}]))
+    calls = W.since(mark, "invocations")
+    replies = [_outbound_body(c) for c in calls if c["function"] == "wecare-outbound-whatsapp"]
+    check("R3", "a partly foreign cart never reaches checkout and reserves nothing",
+          not _checkout_invokes(calls) and not _attempts_for(kim["sub"]) and not _pay_sends(W.since(mark, "meta_sends")))
+    check("UX", "...and the customer gets one plain reply saying nothing was charged",
+          len(replies) == 1 and "Nothing has been charged" in str(replies[0].get("content")),
+          [r.get("content") or r.get("interactiveType") for r in replies])
+
     # ── 3. Meta redelivers the same webhook ────────────────────────────────────────────────────
     print("\n== 3. duplicate webhook delivery (same wamid)")
     mark = W.mark()
@@ -676,6 +695,19 @@ def run(root: Path) -> int:
     check("R6", "two redeliveries invoked checkout zero times", len(_checkout_invokes(W.since(mark, "invocations"))) == 0)
     check("R6", "still exactly ONE attempt and ONE payment template",
           len(_attempts_for(alice["sub"])) == 1 and len(_pay_sends(W.since(mark, "meta_sends"))) == 0)
+
+    # ── 3b. the same cart sent again as a NEW message while its request is still payable ──────
+    print("\n== 3b. identical cart in a new message (new wamid)")
+    mark = W.mark()
+    deliver(order_event(build, alice["digits"], "wamid.HERMETIC.ALICE.2", list(reversed(items))))
+    calls = W.since(mark, "invocations")
+    replies = [_outbound_body(c) for c in calls if c["function"] == "wecare-outbound-whatsapp"]
+    check("DUP", "a second message with the same basket mints no second attempt or payment template",
+          len(_attempts_for(alice["sub"])) == 1 and not _pay_sends(W.since(mark, "meta_sends")),
+          f"attempts={len(_attempts_for(alice['sub']))}")
+    check("DUP", "...the customer is pointed at the request they already hold",
+          len(replies) == 1 and "already sent you a payment request" in str(replies[0].get("content")),
+          [r.get("content") for r in replies])
 
     # ── 4. wamid-less delivery: content-key fallback ───────────────────────────────────────────
     print("\n== 4. duplicate cart content without a wamid")
@@ -764,8 +796,68 @@ def run(root: Path) -> int:
     deliver(order_event(build, frank["digits"], "wamid.HERMETIC.FRANK.1", [{"product_retailer_id": tee, "quantity": 1}]))
     asks = [_outbound_body(c) for c in W.since(mark, "invocations") if c["function"] == "wecare-outbound-whatsapp"]
     check("PHY", "missing address over WhatsApp: only an address request is sent, never a payment",
-          not _pay_sends(W.since(mark, "meta_sends")) and asks and all(b.get("interactiveType") == "address_message" for b in asks),
+          not _pay_sends(W.since(mark, "meta_sends")) and len(asks) == 1
+          and all(b.get("interactiveType") == "address_message" for b in asks),
           [b.get("interactiveType") or b.get("templateName") for b in asks])
+    order_at = [i for i, c in enumerate(W.since(mark, "invocations"))
+                if c["function"] == "wecare-checkout" and c["event"].get("internalAction") == "prepareNativeCart"]
+    ask_at = [i for i, c in enumerate(W.since(mark, "invocations"))
+              if c["function"] == "wecare-outbound-whatsapp" and _outbound_body(c).get("interactiveType") == "address_message"]
+    check("UX", "the address is requested only AFTER checkout answered DELIVERY_DETAILS_REQUIRED",
+          order_at and ask_at and ask_at[0] > order_at[0], f"prepare@{order_at} ask@{ask_at}")
+    pending = _table("CommerceKeys").get_item(Key={"orderId": "WABASKETPENDING#" + frank["contactId"]}).get("Item")
+    check("UX", "the refused cart waits for the address (lines + quantity, no money)",
+          pending and [dict(l, quantity=int(l["quantity"])) for l in pending["lines"]]
+          == [{"productId": shop.tee, "variantId": "TEE-M", "quantity": 1}]
+          and not any(k in pending for k in ("amountPaise", "price", "total")), pending and pending.get("lines"))
+
+    def address_event(digits: str, wamid_in: str) -> Dict[str, Any]:
+        values = {"name": "Buyer Six", "phone_number": "+" + digits, "address": "7 Resume Road",
+                  "landmark_area": "Park Street", "city": "Kolkata", "state": "West Bengal",
+                  "in_pin_code": "700016"}
+        message = {"from": digits, "id": wamid_in, "timestamp": str(int(time.time())), "type": "interactive",
+                   "interactive": {"type": "nfm_reply", "nfm_reply": {
+                       "name": "address_message", "body": "Sent", "response_json": json.dumps({"values": values})}}}
+        entry = {"id": WABA1, "changes": [{"field": "messages", "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {"display_phone_number": "919330994400", "phone_number_id": META_PHONE_1},
+            "contacts": [{"wa_id": digits, "profile": {"name": "Hermetic Buyer"}}],
+            "messages": [message]}}]}
+        return build(entry=entry, waba_id=WABA1, meta_phone_number_ids=[META_PHONE_1],
+                     request_id=str(uuid.uuid4()))
+
+    mark = W.mark()
+    deliver(address_event(frank["digits"], "wamid.HERMETIC.FRANK.ADDR1"))
+    frank_attempts = _attempts_for(frank["sub"])
+    check("UX", "submitting the address resumes the cart: ONE attempt and ONE payment template",
+          len(frank_attempts) == 1 and len(_pay_sends(W.since(mark, "meta_sends"))) == 1,
+          f"attempts={len(frank_attempts)} pay={len(_pay_sends(W.since(mark, 'meta_sends')))}")
+    resumed = _pay_sends(W.since(mark, "meta_sends"))
+    if resumed:
+        shipped = [c for c in resumed[0]["payload"]["template"]["components"] if c.get("type") == "button"][0]
+        info = shipped["parameters"][0]["action"]["order_details"]["shipping_info"]["addresses"][0]
+        check("UX", "...addressed to the address just submitted", info.get("in_pin_code") == "700016", info)
+    check("UX", "...and the waiting cart is consumed",
+          not _table("CommerceKeys").get_item(Key={"orderId": "WABASKETPENDING#" + frank["contactId"]}).get("Item"))
+    mark = W.mark()
+    deliver(address_event(frank["digits"], "wamid.HERMETIC.FRANK.ADDR2"))
+    check("UX", "a second address submission resumes nothing",
+          len(_attempts_for(frank["sub"])) == 1 and not _pay_sends(W.since(mark, "meta_sends")))
+
+    # Gina last wrote two days ago: the cart itself is what opens the 24-hour window.
+    _table("ContactsTable").update_item(Key={"id": gina["contactId"]},
+                                        UpdateExpression="SET lastInboundMessageAt = :t",
+                                        ExpressionAttributeValues={":t": Decimal(int(time.time()) - 172800)})
+    mark = W.mark()
+    deliver(order_event(build, gina["digits"], "wamid.HERMETIC.GINA.1", [{"product_retailer_id": kit, "quantity": 1}]))
+    replies = [_outbound_body(c) for c in W.since(mark, "invocations") if c["function"] == "wecare-outbound-whatsapp"]
+    check("UX", "an unverified customer is sent ONE sign-in prompt, no address request and no payment",
+          len(replies) == 1 and replies[0].get("interactiveType") == "cta_url"
+          and replies[0]["interactiveData"]["url"] == "https://wecare.digital/account/sign-in/"
+          and not _pay_sends(W.since(mark, "meta_sends")),
+          [r.get("interactiveType") for r in replies])
+    sent = [s for s in W.since(mark, "meta_sends") if (s["payload"].get("interactive") or {}).get("type") == "cta_url"]
+    check("UX", "...and outbound actually delivered it (the cart opened the 24-hour window)", len(sent) == 1, len(sent))
     mark = W.mark()
     ivy = shop.customer(9)
     deliver(order_event(build, ivy["digits"], "wamid.HERMETIC.IVY.1", [{"product_retailer_id": kit, "quantity": 1}],
@@ -846,7 +938,9 @@ def run(root: Path) -> int:
     if alice.get("reference"):
         reference, attempt = alice["reference"], alice["attempt"]
         amount = int(attempt["amountPaise"])
-        event = capture(reference, amount, "pay_HERMETIC1", "order_HERMETIC1", alice["phone"])
+        # Paid from someone else's UPI: Razorpay's payer contact is NOT the billed customer.
+        payer_phone = "+919999911111"
+        event = capture(reference, amount, "pay_HERMETIC1", "order_HERMETIC1", payer_phone)
         mark = W.mark()
         sends_before = len([s for s in W.meta_sends if (s["payload"].get("template") or {}).get("name") == INVOICE_TEMPLATE])
         first = webhook.handler(json.loads(json.dumps(event)), FakeContext("wecare-razorpay-webhook"))
@@ -867,6 +961,38 @@ def run(root: Path) -> int:
               and stored.get("verifiedProviderPaymentId") == "pay_HERMETIC1")
         check("R17", "exactly ONE paid invoice for the reference",
               len(counts["invoices"]) == 1 and counts["invoices"][0].get("status") == "paid", len(counts["invoices"]))
+        if counts["invoices"]:
+            invoice = counts["invoices"][0]
+            from boto3.dynamodb.conditions import Key as _Key
+            rows = sorted((_table("InvoiceItemsTable").query(
+                KeyConditionExpression=_Key("invoiceId").eq(invoice["invoiceId"]))
+                .get("Items") or []), key=lambda r: int(r["itemIndex"]))
+            paise = lambda v: int((Decimal(str(v)) * 100).to_integral_value())  # noqa: E731
+            subtotal_p, discount_p, tax_p, fee_p, total_p = (paise(invoice.get(k, 0)) for k in
+                                                             ("subtotal", "discount", "tax", "convenienceFee", "total"))
+            quote = checkout_pricing.compute_quote(collection, currency="INR")
+            check("INV", "invoice is billed to the verified buyer, not the Razorpay payer",
+                  invoice.get("customerPhone") == alice["phone"] and invoice.get("paidByPhone") == payer_phone,
+                  {k: invoice.get(k) for k in ("customerPhone", "paidByPhone")})
+            check("INV", "invoice itemises the cart (product name, quantity) instead of one 'Payment' line",
+                  [(r["name"], int(r["quantity"])) for r in rows] == [("Hermetic Tee", 3)],
+                  [(r.get("name"), r.get("quantity")) for r in rows])
+            check("INV", "line amounts are taxable values that sum to the subtotal",
+                  sum(paise(r["amount"]) * int(r["quantity"]) for r in rows) == subtotal_p,
+                  f"lines={[str(r['amount']) for r in rows]} subtotal={invoice.get('subtotal')}")
+            check("INV", "Delight discount shown and named; fee + fee GST exactly as quoted",
+                  invoice.get("couponCode") == "DELIGHT" and discount_p > 0
+                  and fee_p == quote.convenience_fee_paise + quote.convenience_gst_paise,
+                  {k: invoice.get(k) for k in ("couponCode", "discount", "convenienceFee")})
+            check("INV", "subtotal - discount + tax + fee == the captured amount, to the paise",
+                  subtotal_p - discount_p + tax_p + fee_p == total_p == amount,
+                  f"{subtotal_p}-{discount_p}+{tax_p}+{fee_p}={subtotal_p - discount_p + tax_p + fee_p} total={total_p} captured={amount}")
+            check("INV", "goods GST is the 18% inclusive share of the goods collection (within rounding)",
+                  abs(tax_p - (collection - (collection * 100 + 59) // 118)) <= 3,
+                  f"tax={tax_p} expected~{collection - (collection * 100 + 59) // 118}")
+            delivered_to = [s["payload"].get("to") for s in W.since(mark, "meta_sends")
+                            if (s["payload"].get("template") or {}).get("name") == INVOICE_TEMPLATE]
+            check("INV", "the invoice template went to the buyer's number", delivered_to == [alice["phone"]], delivered_to)
         check("R17", "exactly ONE wecare_default_invoice_image_template send",
               len(counts["invoice_sends"]) - sends_before == 1, len(counts["invoice_sends"]) - sends_before)
         status_traffic = _order_status_traffic(W.since(mark, "invocations"), W.since(mark, "meta_sends"))
@@ -889,6 +1015,38 @@ def run(root: Path) -> int:
                  and c["event"].get("internalAction") in ("activateServiceRequest", "preparePaidSubmitRequest")]
         check("INFO", "activation hint is re-sent per verified delivery (receiver is idempotent; not exercised here)",
               True, f"{len(hints)} hint invoke(s) over 2 processed deliveries")
+        mark = W.mark()
+        deliver(order_event(build, alice["digits"], "wamid.HERMETIC.ALICE.3", items))
+        check("DUP", "once the request is PAID, the same basket can be requested again (a new purchase)",
+              len(_attempts_for(alice["sub"])) == 2 and len(_pay_sends(W.since(mark, "meta_sends"))) == 1,
+              f"attempts={len(_attempts_for(alice['sub']))}")
+
+    # ── 9b. status webhooks are logged without the customer's number ──────────────────────────
+    print("\n== 9b. PII in inbound status logs")
+    import logging as _logging
+
+    class _Capture(_logging.Handler):
+        def __init__(self) -> None:
+            super().__init__()
+            self.lines: List[str] = []
+
+        def emit(self, record: _logging.LogRecord) -> None:
+            self.lines.append(record.getMessage())
+
+    capture_logs = _Capture()
+    _logging.getLogger().addHandler(capture_logs)
+    status_entry = {"id": WABA1, "changes": [{"field": "messages", "value": {
+        "messaging_product": "whatsapp",
+        "metadata": {"display_phone_number": "919330994400", "phone_number_id": META_PHONE_1},
+        "statuses": [{"id": "wamid.HERMETIC0001", "status": "delivered", "timestamp": str(int(time.time())),
+                      "recipient_id": alice["digits"],
+                      "errors": [{"code": 131047, "title": "Re-engagement message",
+                                  "error_data": {"details": "Message failed to send to " + alice["digits"]}}]}]}}]}
+    deliver(build(entry=status_entry, waba_id=WABA1, meta_phone_number_ids=[META_PHONE_1],
+                  request_id=str(uuid.uuid4())))
+    _logging.getLogger().removeHandler(capture_logs)
+    leaked = [line[:120] for line in capture_logs.lines if alice["digits"] in line]
+    check("PII", "a status webhook logs no full customer number", capture_logs.lines and not leaked, leaked[:3])
 
     # ── 10. finalization interrupted mid-way, then a redelivery resumes it ─────────────────────
     print("\n== 10. interrupted finalization resumes on redelivery")

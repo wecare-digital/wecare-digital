@@ -107,9 +107,8 @@ messages, related Flows, related service requests, refund/return state, activity
 Website path: product → cart → verified customer → saved address → server quote →
 Review → Razorpay → server verification → verified capture → ONE order; browser
 callback is never proof of payment. WhatsApp Review&Pay converges to the same
-model. WhatsApp Catalog orders: BACKEND IMPLEMENTED / PRODUCTION GATED
-(WA_CATALOG_ORDERS_ENABLED last known false) — verify end-to-end before enabling;
-re-check live config.
+model. WhatsApp Catalog orders: LIVE (WA_CATALOG_ORDERS_ENABLED=true on inbound and
+checkout, verified 2026-10-25) — re-check live config before relying on it.
 
 **CATALOG** — ProductsTable authoritative; owns products/variants/pricing/
 inventory/media/publishing/Flow mappings/activity. Website and WhatsApp share one
@@ -198,7 +197,7 @@ catalog-management; OrderTable/PaymentAttemptsTable/CommerceKeys/ProductsTable
 active; OrderTable customerId-createdAt-v2-index ACTIVE; EventBridge
 wecare-commerce-customer-links ENABLED rate(5 min); no sampled recent errors;
 payment/checkout core stronger than UI (preserve); WA_CATALOG_ORDERS_ENABLED
-false; India SMS = AWS EUM ap-south-1 + TRAI DLT (others us-east-1); India RCS =
+true (live 2026-10-25); India SMS = AWS EUM ap-south-1 + TRAI DLT (others us-east-1); India RCS =
 Sinch; canonical address = checkoutDeliveryAddress; Delight 0.5%/max ₹50 only
 discount, coupon/gift-card retired. Treat as last-known facts, not permanent
 truth.

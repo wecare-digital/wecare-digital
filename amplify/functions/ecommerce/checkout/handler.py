@@ -769,6 +769,65 @@ def _cart_order_details(snapshot, reference_id: str, profile: Dict[str, Any],
     }
 
 
+def _native_invoice_lines(snapshot) -> Optional[Dict[str, Any]]:
+    """The lines the paid invoice for a WhatsApp cart must itemise, recorded on the attempt.
+
+    Stored BESIDE `purchasedSnapshot`, never inside it: product names are display data and must
+    not move `snapshotHash` or `quoteHash`. Every amount is the frozen integer paise the customer
+    reviewed in the ORDER_DETAILS message - the lines, the Delight discount, and the convenience
+    fee with its GST - so the invoice issued after capture describes exactly what was paid.
+
+    None when the snapshot cannot be itemised (a supply-GST or delivery term this cart does not
+    carry today, an unusable line). The invoice then keeps its single-line inclusive split.
+    """
+    from lambda_utils.ecommerce import default_coupon
+
+    frozen = snapshot.frozen_data if isinstance(snapshot.frozen_data, dict) else {}
+    frozen_items = frozen.get("items") if isinstance(frozen.get("items"), list) else []
+    reader = _native_product_reader()
+    names: Dict[str, str] = {}
+    lines = []
+    merchandise_paise = 0
+    for line in frozen_items:
+        if not isinstance(line, dict):
+            return None
+        product_id = str(line.get("productId") or "")
+        quantity = int(line.get("quantity") or 0)
+        unit_paise = int(line.get("unitPricePaise") or 0)
+        if not product_id or quantity <= 0 or unit_paise <= 0:
+            return None
+        if product_id not in names:
+            product = reader(product_id) or {}
+            names[product_id] = str(product.get("title") or product.get("name")
+                                    or "WECARE.DIGITAL item").strip()[:120]
+        lines.append({"productId": product_id, "variantId": str(line.get("variantId") or ""),
+                      "name": names[product_id], "quantity": quantity,
+                      "unitPricePaise": unit_paise})
+        merchandise_paise += unit_paise * quantity
+    if not lines:
+        return None
+    delivery = frozen.get("delivery") if isinstance(frozen.get("delivery"), dict) else {}
+    delivery_paise = int(delivery.get("paise") or 0)
+    quote = snapshot.quote
+    # Same derivation `_cart_order_details` sends Meta: the only adjustment between merchandise +
+    # delivery and the collection is the always-on Delight discount.
+    discount_paise = merchandise_paise + delivery_paise - int(
+        quote.collection_before_convenience_paise)
+    if discount_paise < 0:
+        return None
+    spec: Dict[str, Any] = {
+        "lines": lines,
+        "deliveryPaise": delivery_paise,
+        "discountPaise": discount_paise,
+        "convenienceFeePaise": int(quote.convenience_fee_paise),
+        "convenienceGstPaise": int(quote.convenience_gst_paise),
+        "totalPaise": int(quote.total_payable_paise),
+    }
+    if discount_paise:
+        spec["discountCode"] = default_coupon.DELIGHT_CODE
+    return spec
+
+
 class DeliveryMethodUnavailable(purchase_intent.DeliveryDetailsRequired):
     """A chosen delivery method cannot be offered for this basket — DISTINCT from "no address or
     method chosen yet" (`DeliveryDetailsRequired`), which it subclasses so the base arm still
@@ -2050,6 +2109,18 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         if len(json.dumps(attempt, default=str).encode()) > 350000:
             return cors_response(409, {'error': 'CATALOG_SERVICE_SNAPSHOT_TOO_LARGE'}, origin)
 
+    if catalog_session is None and cart_profile is not None and snapshot is not None:
+        # What the paid GST invoice itemises after capture (razorpay-webhook relays it to
+        # `/invoices/from-payment`). Without it that invoice falls back to one "Payment" line.
+        try:
+            invoice_lines = _native_invoice_lines(snapshot)
+        except Exception as error:  # noqa: BLE001 - display data must never refuse a checkout
+            logger.warning(json.dumps({"event": "checkout_invoice_lines_unavailable",
+                                       "error": type(error).__name__}))
+            invoice_lines = None
+        if invoice_lines:
+            attempt["invoiceLines"] = invoice_lines
+
     attempt = payment_attempt.transition(
         attempt, payment_attempt.PAYMENT_READINESS_CHECKED)
     try:
@@ -2487,22 +2558,167 @@ def _native_cart(event: Dict[str, Any], origin: str):
     except customer_auth.CustomerNotAuthorized:
         return {'outcome': 'VERIFIED_CUSTOMER_REQUIRED'}
 
+    # ONE LIVE PAYMENT REQUEST PER BASKET. The inbound dedupe is per MESSAGE, so the same cart
+    # sent again as a new message reached `_create` again and minted a second attempt, a second
+    # reference and a second payable ORDER_DETAILS for one purchase. The slot is taken before any
+    # reservation and is held for the request's own 15-minute expiry.
+    now = int(time.time())
+    live_key = _wa_cart_live_key(identity.customer_id, line_items)
+    try:
+        token = (_claim_wa_cart(live_key, identity.customer_id, now)
+                 or _take_over_settled_wa_cart(live_key, identity.customer_id, now))
+    except Exception as error:  # noqa: BLE001 - no slot, no request: fail closed, nothing reserved
+        logger.error(json.dumps({'event': 'native_cart_live_slot_unavailable',
+                                 'error': type(error).__name__}))
+        return {'outcome': 'NATIVE_CART_NOT_PREPARED', 'statusCode': 503, 'status': None,
+                'error': 'TEMPORARILY_UNAVAILABLE', 'sendUnconfirmed': False,
+                'paymentAttemptId': None}
+    if not token:
+        logger.info(json.dumps({'event': 'native_cart_already_requested'}))
+        return {'outcome': 'NATIVE_CART_ALREADY_REQUESTED'}
+
     # The general-cart arm of `_create` (catalog_session=None) owns the rest: it requires a saved
     # checkout profile and address, prices via `_native_quote`, reserves ONE attempt + PAYREF#
     # carrying contactId + customerUuid read from that profile, and sends `_cart_order_details`
     # through `_send_order_details` with the approved template. Anything it cannot price or
     # attribute is refused there with no attempt and no order.
-    response = _create(identity, {'lineItems': line_items}, origin)
+    try:
+        response = _create(identity, {'lineItems': line_items}, origin)
+    except Exception:
+        _release_wa_cart(live_key, token)
+        raise
     status = int(response.get('statusCode') or 0)
     body = {}
     try:
         body = json.loads(response.get('body') or '{}')
     except (TypeError, ValueError):
         body = {}
-    return {'outcome': 'NATIVE_CART_PREPARED' if status == 200 else 'NATIVE_CART_NOT_PREPARED',
+    # PREPARED means a payment request actually went out. A 200 that sent nothing (initiation
+    # disabled) is not a prepared cart, and must not be reported to the customer as one.
+    prepared = status == 200 and body.get('status') == 'PAYMENT_REQUEST_SENT'
+    unconfirmed = bool(body.get('sendUnconfirmed'))
+    if prepared or unconfirmed:
+        # Either the request is on the customer's phone or it may be: the slot stays held.
+        _record_wa_cart(live_key, token, str(body.get('paymentAttemptId') or ''), now)
+    else:
+        _release_wa_cart(live_key, token)
+    return {'outcome': 'NATIVE_CART_PREPARED' if prepared else 'NATIVE_CART_NOT_PREPARED',
             'statusCode': status, 'status': body.get('status'),
             # The refusal code (`error`) and whether a payment request may already have gone out,
             # so the caller can tell a definite refusal from an unconfirmed send.
             'error': body.get('error'),
-            'sendUnconfirmed': bool(body.get('sendUnconfirmed')),
+            'sendUnconfirmed': unconfirmed,
             'paymentAttemptId': body.get('paymentAttemptId')}
+
+
+# ── one live WhatsApp payment request per customer and basket ─────────────────────────────────
+#
+# A CommerceKeys slot per (customer, canonical basket). CommerceKeys carries no TTL and this
+# function's role has GetItem/PutItem/UpdateItem on it but no DeleteItem, so a slot is released by
+# expiring it (`expiresAt = 0`), never by deleting it, and every write is conditional on the
+# claim token so one invocation can never release or overwrite another's live slot.
+
+WA_CART_LIVE_PREFIX = 'WACARTLIVE#'
+#: The ORDER_DETAILS expiry `_cart_order_details` stamps (now + 900): the window in which the
+#: request the customer already holds can still be paid.
+WA_CART_LIVE_SECONDS = 900
+
+
+def _wa_cart_live_key(customer_id: str, line_items: list) -> str:
+    """The slot key: the customer plus the basket, summed per variant and sorted.
+
+    The same canonical form `_native_quote` hashes, so two messages carrying the same items in a
+    different order, or split across duplicate lines, are the same basket.
+    """
+    import hashlib
+    merged: Dict[tuple, int] = {}
+    for line in line_items:
+        ref = line.get('catalogReference') or {}
+        key = (str(ref.get('catalogItemId') or ''),
+               str((ref.get('options') or {}).get('variantId') or ''))
+        merged[key] = merged.get(key, 0) + int(line.get('quantity') or 0)
+    canonical = sorted((pid, vid, qty) for (pid, vid), qty in merged.items())
+    material = json.dumps([str(customer_id or ''), canonical], separators=(',', ':'))
+    return WA_CART_LIVE_PREFIX + hashlib.sha256(material.encode('utf-8')).hexdigest()
+
+
+def _claim_wa_cart(key: str, customer_id: str, now: int) -> str:
+    """Take a free or expired slot. The claim token, or '' when a live request holds it."""
+    import secrets
+    from botocore.exceptions import ClientError
+    token = secrets.token_urlsafe(18)
+    try:
+        _keys_table().put_item(
+            Item={'orderId': key, 'customerId': customer_id, 'token': token,
+                  'claimedAt': now, 'expiresAt': now + WA_CART_LIVE_SECONDS},
+            ConditionExpression='attribute_not_exists(orderId) OR expiresAt < :now',
+            ExpressionAttributeValues={':now': now})
+    except ClientError as error:
+        if not order_keys.is_conditional_failure(error):
+            raise
+        return ''
+    return token
+
+
+def _take_over_settled_wa_cart(key: str, customer_id: str, now: int) -> str:
+    """Re-take a held slot whose request is no longer payable (paid, failed, expired).
+
+    '' while the held request can still be paid, or while its prepare is still running (no
+    attempt recorded yet): that is the case the slot exists for. A slot naming another customer's
+    attempt is corrupt and stays held until it expires rather than being trusted either way.
+    """
+    import secrets
+    from botocore.exceptions import ClientError
+    row = _keys_table().get_item(Key={'orderId': key}, ConsistentRead=True).get('Item') or {}
+    attempt_id = str(row.get('paymentAttemptId') or '')
+    if not attempt_id or str(row.get('customerId') or '') != customer_id:
+        return ''
+    attempt = _attempts_table().get_item(Key={'paymentAttemptId': attempt_id},
+                                         ConsistentRead=True).get('Item') or {}
+    if not attempt or payment_attempt.is_in_flight(attempt):
+        return ''
+    token = secrets.token_urlsafe(18)
+    try:
+        _keys_table().update_item(
+            Key={'orderId': key},
+            UpdateExpression='SET #t = :new, claimedAt = :now, expiresAt = :exp '
+                             'REMOVE paymentAttemptId, recordedAt',
+            ConditionExpression='#t = :old',
+            ExpressionAttributeNames={'#t': 'token'},
+            ExpressionAttributeValues={':new': token, ':now': now,
+                                       ':exp': now + WA_CART_LIVE_SECONDS,
+                                       ':old': str(row.get('token') or '')})
+    except ClientError as error:
+        if not order_keys.is_conditional_failure(error):
+            raise
+        return ''
+    return token
+
+
+def _record_wa_cart(key: str, token: str, attempt_id: str, now: int) -> None:
+    """Name the attempt holding the slot. Best-effort: the slot is already held either way."""
+    try:
+        _keys_table().update_item(
+            Key={'orderId': key},
+            UpdateExpression='SET paymentAttemptId = :a, recordedAt = :now',
+            ConditionExpression='#t = :t',
+            ExpressionAttributeNames={'#t': 'token'},
+            ExpressionAttributeValues={':a': attempt_id, ':now': now, ':t': token})
+    except Exception as error:  # noqa: BLE001
+        logger.warning(json.dumps({'event': 'native_cart_live_slot_record_failed',
+                                   'error': type(error).__name__}))
+
+
+def _release_wa_cart(key: str, token: str) -> None:
+    """Free the slot after a definite refusal, so the customer's retry is not refused as live."""
+    try:
+        _keys_table().update_item(
+            Key={'orderId': key},
+            UpdateExpression='SET expiresAt = :zero',
+            ConditionExpression='#t = :t',
+            ExpressionAttributeNames={'#t': 'token'},
+            ExpressionAttributeValues={':zero': 0, ':t': token})
+    except Exception as error:  # noqa: BLE001
+        # A held slot expires on its own within WA_CART_LIVE_SECONDS; nothing is lost.
+        logger.warning(json.dumps({'event': 'native_cart_live_slot_release_failed',
+                                   'error': type(error).__name__}))

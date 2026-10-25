@@ -127,8 +127,8 @@ Changelog, Troubleshooting.
 | AWS → Meta catalog sync / feed | ✅ | `ecommerce/meta-catalog-sync` (stream-driven) |
 | Native product authority (ProductsTable) | ✅ | `ecommerce/native-catalog-admin` |
 | Single / multi-product messages | ✅ | `product`, `product_list` |
-| Cart / `order` inbound (native catalog order) | 🟡 gated | `inbound-whatsapp-handler`; `WA_CATALOG_ORDERS_ENABLED=false` |
-| WhatsApp Pay (order_details) | 🟡 gated | not live; website Razorpay is the money path |
+| Cart / `order` inbound (native catalog order) | ✅ live | `inbound-whatsapp-handler` → checkout `prepareNativeCart`; `WA_CATALOG_ORDERS_ENABLED=true` (live readback 2026-10-25) |
+| WhatsApp Pay (order_details) | ✅ live | `wecare_whatapp_native_pay_template`, payment_gateway / Razorpay / WECAREDIGITAL, WABA1 only |
 
 **Canonical next links:** Catalog, Products, Sell Products & Services,
 Single/Multi-Product Messages, Order Details / Payments (India), Cart.
@@ -183,12 +183,13 @@ Business Management API, System Users & Tokens.
 
 ## Gaps worth a decision (not yet built / gated)
 
-1. **Native WhatsApp Pay (order_details)** — 🟡 gated off; website Razorpay is the
-   live money path. (Templates `wecare_whatapp_native_pay_template` + config are APPROVED/Active, but
-   `CHECKOUT_INITIATION_ENABLED` is off and the binding/reconcile path is the one
-   under active repair — see `meta-payment-binding-redrive-*.md`.)
-2. **Native catalog `order` inbound** — 🟡 `WA_CATALOG_ORDERS_ENABLED=false`;
-   backend exists, gated pending end-to-end verification.
+1. **Native WhatsApp Pay (order_details)** — ✅ live (corrected 2026-10-25). The approved
+   `wecare_whatapp_native_pay_template` collects through WECAREDIGITAL / Razorpay on WABA1;
+   `CHECKOUT_INITIATION_ENABLED=true` live. Open item: one owner-authorised real purchase as the
+   final end-to-end proof.
+2. **Native catalog `order` inbound** — ✅ live (`WA_CATALOG_ORDERS_ENABLED=true` on inbound
+   and checkout, no SystemConfig override; verified 2026-10-25). Hermetic proof:
+   `scripts/verify_whatsapp_catalog_payment_rail.py`.
 3. **Send contacts message** — ❌.
 4. **Authentication/OTP templates** (one-tap autofill / copy-code) — 🟡 verify.
 5. **Advanced template types** (carousel, LTO, MPM) — 🟡 not confirmed.

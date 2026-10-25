@@ -693,6 +693,79 @@ def _back_calculate_inclusive(total_paise: int, gst_rate: Decimal) -> tuple:
     return taxable_paise, total - taxable_paise
 
 
+def _inclusive_itemization(spec: Any, expected_total_paise: int,
+                           gst_rate: Decimal) -> Optional[Dict[str, Any]]:
+    """Itemise a tax-inclusive captured total from the lines the customer was quoted, or None.
+
+    A native WhatsApp cart quoted GST-inclusive catalogue prices, the Delight discount on them,
+    and a convenience fee plus 18% GST on that fee (`checkout_pricing.compute_quote`). This turns
+    that record into invoice figures without moving the captured total by a paise:
+
+      * each goods line at its per-unit TAXABLE value, back-calculated at `gst_rate`;
+      * the Delight discount at its taxable value;
+      * the goods GST as the REMAINDER, so `subtotal - discount + tax` is exactly the goods
+        collection whatever the per-line rounding did - the same rule `_back_calculate_inclusive`
+        applies to one figure;
+      * the convenience fee and its GST exactly as quoted, as the one `convenienceFee` figure the
+        additive path also stores (fee + GST on fee).
+
+    None for anything inconsistent: lines that do not add up to the capture, a delivery charge
+    (none is quoted today), a negative figure, an unusable line. The caller then keeps the
+    single-line split, so the statutory invoice is never refused for want of itemisation.
+    """
+    try:
+        if not isinstance(spec, dict):
+            return None
+        lines = spec.get('lines')
+        if not isinstance(lines, list) or not lines or len(lines) > 100:
+            return None
+        discount_paise = int(spec.get('discountPaise') or 0)
+        delivery_paise = int(spec.get('deliveryPaise') or 0)
+        fee_paise = int(spec.get('convenienceFeePaise') or 0)
+        fee_gst_paise = int(spec.get('convenienceGstPaise') or 0)
+        if delivery_paise != 0 or min(discount_paise, fee_paise, fee_gst_paise) < 0:
+            return None
+        items = []
+        gross_paise = 0
+        taxable_paise = 0
+        for line in lines:
+            if not isinstance(line, dict):
+                return None
+            quantity = int(line.get('quantity'))
+            unit_paise = int(line.get('unitPricePaise'))
+            if not 1 <= quantity <= 100000 or unit_paise <= 0:
+                return None
+            unit_taxable_paise, _ = _back_calculate_inclusive(unit_paise, gst_rate)
+            gross_paise += unit_paise * quantity
+            taxable_paise += unit_taxable_paise * quantity
+            items.append({
+                'name': str(line.get('name') or '').strip()[:120] or 'Item',
+                'amount': _paise_to_rupees(unit_taxable_paise),
+                'quantity': quantity,
+                'gstRate': gst_rate,
+                'productId': str(line.get('productId') or ''),
+            })
+        collection_paise = gross_paise - discount_paise
+        if collection_paise <= 0 or collection_paise + fee_paise + fee_gst_paise != expected_total_paise:
+            return None
+        discount_taxable_paise = (_back_calculate_inclusive(discount_paise, gst_rate)[0]
+                                  if discount_paise else 0)
+        net_taxable_paise = taxable_paise - discount_taxable_paise
+        tax_paise = collection_paise - net_taxable_paise
+        if net_taxable_paise <= 0 or tax_paise < 0:
+            return None
+        return {
+            'items': items,
+            'subtotal': _paise_to_rupees(taxable_paise),
+            'discount': _paise_to_rupees(discount_taxable_paise),
+            'tax': _paise_to_rupees(tax_paise),
+            'convenienceFee': _paise_to_rupees(fee_paise + fee_gst_paise),
+            'discountCode': str(spec.get('discountCode') or '') if discount_paise else '',
+        }
+    except (TypeError, ValueError, ArithmeticError):
+        return None
+
+
 def _split_tax_halves(tax_paise: int) -> tuple:
     """Split a tax figure into `(cgst_paise, sgst_paise)` that sum to it EXACTLY.
 
@@ -1073,6 +1146,9 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
     # and burns no GST number - the ordering this whole block exists to preserve.
     amount_is_tax_inclusive = bool(body.get('amountIsTaxInclusive'))
     expected_total_paise = 0
+    # Set only by an itemised tax-inclusive capture (`_inclusive_itemization`).
+    inclusive_convenience_fee = Decimal('0')
+    inclusive_discount_code = ''
     if amount_is_tax_inclusive:
         if body.get('expectedTotalPaise') is None:
             return _resp(400, {
@@ -1128,6 +1204,19 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
             'quantity': 1,
             'gstRate': gst_rate,
         }]
+        # A capture whose quoted lines are known (a native WhatsApp cart) is itemised instead:
+        # the goods at their taxable value, the Delight discount, the goods GST and the
+        # convenience fee with its GST, summing to the capture exactly. Any inconsistency keeps
+        # the single line above; the invoice is never refused for want of itemisation.
+        itemized = _inclusive_itemization(body.get('inclusiveItemization'),
+                                          expected_total_paise, gst_rate_decimal)
+        if itemized is not None:
+            items = itemized['items']
+            subtotal = itemized['subtotal']
+            discount = itemized['discount']
+            tax = itemized['tax']
+            inclusive_convenience_fee = itemized['convenienceFee']
+            inclusive_discount_code = itemized['discountCode']
     else:
         tax = sum((
             Decimal(str(i.get('amount', 0))) * int(i.get('quantity', 1)) * Decimal(str(i.get('gstRate', gst_rate))) / 100
@@ -1179,6 +1268,14 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
             # exempt from the single-use and per-customer limits a campaign coupon would have had.
             redemption_attributes['couponCode'] = stored_coupon_code
             redemption_attributes['couponDiscount'] = _dec(coupon_discount_rupees)
+    elif amount_is_tax_inclusive and inclusive_discount_code == default_coupon.DELIGHT_CODE \
+            and discount > 0:
+        # The Delight discount the customer was quoted on an itemised capture, named so the
+        # renderers print it as the Delight line (at its taxable value, as a tax invoice must).
+        stored_coupon_code = default_coupon.DELIGHT_CODE
+        coupon_discount_rupees = discount
+        redemption_attributes['couponCode'] = stored_coupon_code
+        redemption_attributes['couponDiscount'] = _dec(discount)
 
     # Convenience fee policy has ONE home: checkout_pricing.compute_quote.
     # For new/manual/WhatsApp collections the server derives the fee from the exact post-discount,
@@ -1191,9 +1288,10 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
     raw_convenience_fee = body.get('convenienceFee')
     if amount_is_tax_inclusive:
         # The inclusive branch above converted subtotal/tax/additive components to Decimal.
-        # Keep this zero Decimal too: Decimal + float is a TypeError and, more importantly,
-        # captured-money arithmetic must never leave exact decimal space.
-        convenience_fee = Decimal('0')
+        # Keep this a Decimal too: Decimal + float is a TypeError and, more importantly,
+        # captured-money arithmetic must never leave exact decimal space. Zero unless an itemised
+        # capture carried the fee it quoted; no fee is ever ADDED to captured money.
+        convenience_fee = inclusive_convenience_fee
     elif _new_collection_pricing_applies(entry_point, amount_is_tax_inclusive):
         collection = subtotal - discount + shipping + effective_gp + effective_nf + handling + tax
         quote = checkout_pricing.compute_quote(_rupees_to_paise(collection))
@@ -1580,8 +1678,12 @@ def create_invoice_from_payment(body: Dict, request_id: str) -> Dict:
             'errorCode': 'PAYMENT_AMOUNT_UNUSABLE',
         })
 
-    # Fetch contact if available
-    contact_phone = payment.get('contact', '')
+    # The BILLED customer. For a native WhatsApp cart the webhook relays the Cognito-verified phone
+    # checkout recorded on its own PAYREF# row; the Razorpay payer contact is only who tapped Pay
+    # (it can be empty or another number, and `send_invoice_whatsapp` refuses to deliver an
+    # invoice to anyone but its customerPhone). The payer stays on the document as paidByPhone.
+    payer_phone = payment.get('contact', '')
+    contact_phone = str(body.get('customerPhone') or '').strip() or payer_phone
     contact = _lookup_contact_by_phone(contact_phone)
 
     # Build invoice body from payment + contact
@@ -1607,7 +1709,7 @@ def create_invoice_from_payment(body: Dict, request_id: str) -> Dict:
         'contactId': contact.get('contactId', '') if contact else '',
         'customerName': contact.get('name', '') if contact else '',
         'customerPhone': contact_phone,
-        'paidByPhone': contact_phone,
+        'paidByPhone': payer_phone or contact_phone,
         'customerEmail': contact.get('email', payment.get('email', '')) if contact else payment.get('email', ''),
         # ONE address shape: prefer the canonical `checkoutDeliveryAddress` Map, fall back to the
         # legacy flat columns for a contact row written before the convergence. `_contact_address_fields`
@@ -1634,6 +1736,14 @@ def create_invoice_from_payment(body: Dict, request_id: str) -> Dict:
         'purpose': body.get('purpose', ''),
         'currency': payment.get('currency', 'INR'),
     }
+    # The quoted lines of a native WhatsApp cart (relayed by the webhook from the attempt), so the
+    # tax-inclusive capture is itemised rather than collapsed into one line. `create_invoice`
+    # still proves the itemised document equals the capture to the paise, and keeps the
+    # single-line split if it does not.
+    native_lines = body.get('nativeCartInvoice')
+    if isinstance(native_lines, dict) and native_lines.get('lines'):
+        inv_body['inclusiveItemization'] = native_lines
+        inv_body['goodsType'] = 'physical-goods'
 
     return create_invoice(inv_body, request_id)
 

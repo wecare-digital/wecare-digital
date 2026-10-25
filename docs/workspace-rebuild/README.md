@@ -227,9 +227,9 @@ WEBSITE   WHATSAPP     WHATSAPP
   see in Commerce → Orders.
 - **WhatsApp Review & Pay** converges to the same OrderTable after authoritative
   capture.
-- **WhatsApp Catalog orders:** backend + duplicate-charge protection exist, but
-  last-known `WA_CATALOG_ORDERS_ENABLED=false`. Classify **BACKEND IMPLEMENTED /
-  PRODUCTION GATED**. Before enabling verify end-to-end: catalog mapping,
+- **WhatsApp Catalog orders:** backend + duplicate-charge protection exist, and
+  `WA_CATALOG_ORDERS_ENABLED=true` is live on inbound and checkout (readback 2026-10-25;
+  the earlier "false" was stale). Classify **LIVE**. End-to-end checklist: catalog mapping,
   retailer IDs, inbound order message, canonical identity, basket handoff, claim,
   address, server pricing, inventory, duplicate prevention, payment, order
   creation, customer UX. **Re-check live config before acting.**
@@ -424,7 +424,7 @@ backend/provider state re-read before claiming something is operational.
 - No sampled recent errors in checkout/webhook/invoice/customer-orders/
   service-request functions.
 - Payment/checkout core is materially stronger than the current UI — **preserve**.
-- Native WhatsApp catalog handling exists in code; `WA_CATALOG_ORDERS_ENABLED=false`.
+- Native WhatsApp catalog handling is live; `WA_CATALOG_ORDERS_ENABLED=true` (verified 2026-10-25).
 - India SMS = AWS End User Messaging `ap-south-1` + TRAI DLT; other SMS default
   `us-east-1`. India RCS = Sinch. Canonical address = `checkoutDeliveryAddress`.
   Delight = 0.5% / max ₹50, only discount policy; coupon/gift-card architecture

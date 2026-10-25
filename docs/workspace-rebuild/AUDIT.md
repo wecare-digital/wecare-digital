@@ -51,7 +51,8 @@ in a live in-chat charge today.
 
 ### Config observed in repo (`config/lambda-env-manifest.json`)
 - `CHECKOUT_MODE = "AWS_NATIVE"`
-- `WA_CATALOG_ORDERS_ENABLED = "false"`
+- `WA_CATALOG_ORDERS_ENABLED = "false"` — **superseded 2026-10-25:** the manifest and both
+  live functions (inbound, checkout) carry `"true"`; see `whatsapp-meta-coverage.md`.
 - `CHECKOUT_INITIATION_ENABLED` — absent (= off) in `amplify/infra/checkout.json`.
 
 ### Bottom line

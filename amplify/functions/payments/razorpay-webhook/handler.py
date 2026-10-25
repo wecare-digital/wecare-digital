@@ -2454,6 +2454,52 @@ def _mark_invoice_paid_by_phone_and_amount(phone: str, amount_rupees: float,
 # ═══════════════════════════════════════════════════════════════════
 
 
+def _plain_number(value: Any) -> Any:
+    """`json.dumps` default for DynamoDB numbers: whole Decimals as int, anything else as str."""
+    if isinstance(value, Decimal) and value == value.to_integral_value():
+        return int(value)
+    return str(value)
+
+
+def _native_cart_invoice_fields(reference_id: str, checkout_mode: str,
+                                request_id: str) -> Dict[str, Any]:
+    """The billed customer and quoted invoice lines for a native WhatsApp cart's paid invoice.
+
+    Both come from OUR rows: the `PAYREF#` reservation (the Cognito-verified phone checkout
+    recorded, the same one `_notification_recipient` delivers to) and its PaymentAttempt's
+    `invoiceLines`. The Razorpay payer contact is not the billed customer - it can be empty or
+    another number, and an invoice addressed to it is refused delivery to the buyer - and the
+    event's notes are request content.
+
+    `{}` for every other checkout mode and on any read failure, so the invoice keeps its
+    single-line fallback instead of failing a capture that has already settled.
+    """
+    from lambda_utils.ecommerce import wa_payment_request
+    if not reference_id or checkout_mode not in (wa_payment_request.WA_NATIVE_CART_CHECKOUT_MODE,
+                                                 'AWS_NATIVE'):
+        return {}
+    try:
+        reference = order_keys.resolve_payment_reference(
+            dynamodb.Table(COMMERCE_KEYS_TABLE), reference_id) or {}
+        fields: Dict[str, Any] = {}
+        billed_phone = str(reference.get('customerPhone') or '')
+        if billed_phone:
+            fields['customerPhone'] = billed_phone
+        attempt_id = str(reference.get('paymentAttemptId') or '')
+        if attempt_id:
+            attempt = dynamodb.Table(PAYMENT_ATTEMPTS_TABLE).get_item(
+                Key={'paymentAttemptId': attempt_id}, ConsistentRead=True).get('Item') or {}
+            lines = attempt.get('invoiceLines')
+            if isinstance(lines, dict) and lines.get('lines'):
+                fields['nativeCartInvoice'] = json.loads(json.dumps(lines, default=_plain_number))
+        return fields
+    except Exception as error:  # noqa: BLE001 - itemisation never fails a settled capture
+        logger.warning(json.dumps({'event': 'native_cart_invoice_fields_unavailable',
+                                   'referenceId': reference_id,
+                                   'error': type(error).__name__, 'requestId': request_id}))
+        return {}
+
+
 def _post_payment_handler(payment_id: str, contact: str,
                           email: str, description: str, notes: Dict, request_id: str,
                           *, channel: str = '', customer_uuid: str = '',
@@ -2515,6 +2561,10 @@ def _post_payment_handler(payment_id: str, contact: str,
                 # and the three money fields to 0. Re-deriving them from the attempt was the
                 # alternative and is more code for a value the invoice already holds.
                 'purpose': notes.get('purpose', description or ''),
+                # A native WhatsApp cart: the BILLED customer and the quoted lines, read from OUR
+                # PAYREF# + attempt rows (never from this event), so the invoice is itemised and
+                # addressed to the verified buyer rather than to whoever's contact Razorpay holds.
+                **_native_cart_invoice_fields(reference_id, checkout_mode, request_id),
             }),
             'rawPath': '/invoices/from-payment',
             'requestContext': {'http': {'method': 'POST'}},
