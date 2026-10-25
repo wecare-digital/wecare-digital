@@ -1,7 +1,9 @@
 # Invoice layout - website and WhatsApp
 
 What a WECARE.DIGITAL invoice looks like when it is SHOWN on the website (Download receipt,
-`/orders`) and SENT on WhatsApp (image + caption). One design serves both: the website receipt
+`/orders`) and SENT on WhatsApp (the approved `wecare_default_invoice_image_template`: the PNG
+in its IMAGE header and a Leave Review FLOW button at index 0; there is no caption). One design
+serves both: the website receipt
 (`lambda_utils/ecommerce/customer_receipt.py`) calls the invoice engine's own
 `_build_invoice_html`, and the WhatsApp image is the engine's `_generate_receipt_png`
 (`amplify/functions/payments/invoice-engine/handler.py`).
@@ -148,10 +150,13 @@ The fee is charged on the discounted collection, never on the pre-coupon subtota
 
 ## 4. The WhatsApp version - what the customer sees in the chat
 
-Today `send_invoice_whatsapp` (`handler.py:2567-2687`) sends the PNG above as an image with a
-short caption. The 2x-scaled PNG has a paper-tear zigzag top and bottom, and sits on a solid
-**grey `(200, 200, 200)`** backdrop saved as RGB with no alpha - see the subsection below, which
-is the approved replacement for that grey and is currently switched OFF.
+**Current (2026-10-25).** `send_invoice_whatsapp` sends the PNG above once per invoice as the
+approved UTILITY template `wecare_default_invoice_image_template`: the newest `image#vN` render
+in the IMAGE header and the Leave Review FLOW button at index 0, carrying an order-bound review
+token. No caption is sent (the unsent caption code was deleted). For a WhatsApp-rail order the
+Meta order_status `processing` goes out just before it. The PNG has a paper-tear zigzag top and
+bottom; the approved transparent background (4.1) is ON by default. The mock and caption below
+are the earlier free-form design and are kept for the layout record only.
 
     +--------------------------------------------------+
     | WECARE.DIGITAL                          (chat)   |
@@ -198,14 +203,14 @@ Proposed caption [P], adding the invoice number and the source, still free of an
 
 Delivery constraints that apply to the WhatsApp version:
 
-- It is a free-form media message, so it only sends inside the 24-hour service window. Outside it
-  an owner-approved UTILITY template with an IMAGE or DOCUMENT header is needed; none exists today
-  (only `wecare_otp` is approved, per Phase P findings).
+- It is a template message (`wecare_default_invoice_image_template`, UTILITY, APPROVED on WABA1),
+  so it sends inside or outside the 24-hour window. Meta rejects it (131009) without the FLOW
+  button component, and outbound refuses the send rather than omit it.
 - The image is uploaded to Meta as a media id from the secure `secure/d/public/Invoice/customer_invoice/...` key, so no
   public URL is created.
 - No live send is enabled by this document. QA sends go only to the owner-nominated QA recipient.
 
-### 4.1 The approved transparent background - `RECEIPT_TRANSPARENT_BG`, default OFF
+### 4.1 The approved transparent background - `RECEIPT_TRANSPARENT_BG`, default ON
 
 The owner reviewed the receipt in a chat, objected to the grey, and approved a specimen rendered
 as torn paper on a **transparent** background. It is promoted to a stable public asset:
@@ -229,8 +234,8 @@ The flag:
 | | |
 |---|---|
 | Name | `RECEIPT_TRANSPARENT_BG` |
-| Function | `wecare-invoice-engine` only |
-| Default | **OFF** - absent means off, so live output is unchanged |
+| Function | the invoice engine, wherever it runs (`wecare-commerce`, `wecare-checkout`, `wecare-invoice-engine`) |
+| Default | **ON** since the 2026-10-08 owner approval; `false` restores the grey |
 | Read | at call time in `_generate_receipt_png`, never at module scope |
 
 With it on, `_generate_receipt_png` returns **RGBA**: the paper is `(252, 252, 250)`, and the

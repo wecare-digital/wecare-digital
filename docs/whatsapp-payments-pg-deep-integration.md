@@ -27,10 +27,11 @@ E.164 phone), same order pages.
 |---|---|---|---|---|---|
 | **A. PG Deep Integration** (chosen) | **published payment configuration** on WABA linking Razorpay | ✅ | ✅ | ✅ | `_build_payment_settings` mode 1 — built |
 | B. Enhanced Payment Links | WABA **allowlisted** by Meta/BSP (not GA) | ✅ (in-app browser) | PG webhook only | — | mode 2 (`payment_link`) — built |
-| C. UPI Intent | VPA only (`WECAREUPI`) | ❌ UPI only | ❌ | ❌ | mode 3 (`upi_intent_link`) — built |
+| C. UPI Intent | VPA only (`WECAREUPI`) | ❌ UPI only | ❌ | ❌ | mode 3 (`upi_intent_link`) — not used |
 
-Chosen: **A**. B and C are fallbacks and remain wired as modes in
-`_build_payment_settings`.
+Chosen: **A**, and it is the only live rail. Outbound builds `payment_settings` itself with
+`WECAREDIGITAL` and refuses caller-supplied settings, WABA2 senders and `WECAREUPI` (decision D5:
+the VPA configuration has no provider order to bind or verify). B and C are not sendable.
 
 ## The blocker is CLEARED — payment configurations are live (owner, 2026-10-02)
 
@@ -118,11 +119,12 @@ name; `WECAREDIGITAL` is now verified, so it is not a guess.
   or → terminal; `completed`/`canceled` terminal. Errors `2046` (bad transition),
   `2047` (cannot cancel a paid order). The order page in-chat only reflects
   `order_status` messages, so one MUST be sent after every PG transaction update.
-- After Meta accepts a fulfilment `order_status` update for a paid order, WECARE.DIGITAL also
-  sends the approved `wecare_default_invoice_image_template` using the already-issued invoice
-  image from `s3://wecare-digital-get/secure/d/public/Invoice/customer_invoice/`. The invoice send is a
-  separate template delivery; it does not replace the `order_status` message or alter the
-  `reference_id` lifecycle.
+- Live behaviour (2026-10-25): after a verified capture the Razorpay webhook sends one
+  `processing` order_status for the WhatsApp-rail order (interactive inside the 24-hour window,
+  `wecare_order_status_v3` outside it, otherwise recorded as `pendingOrderStatus`), then the
+  approved `wecare_default_invoice_image_template` once, from
+  `s3://wecare-digital-get/secure/d/public/Invoice/customer_invoice/`. Later fulfilment updates
+  (shipped, completed) never re-send the invoice.
 
 ### 6. Refunds (Step 8)
 - `POST /[PHONE_NUMBER_ID]/payments_refund` with `reference_id`, `speed`
