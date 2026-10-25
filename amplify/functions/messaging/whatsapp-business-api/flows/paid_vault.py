@@ -4,7 +4,7 @@ import json
 import time
 from datetime import datetime
 import boto3
-from lambda_utils import customer_auth, shared_tables
+from lambda_utils import customer_auth, shared_tables, whatsapp_templates
 from lambda_utils.ecommerce import vault_access
 from lambda_utils.logging import get_logger, log_event
 
@@ -15,7 +15,13 @@ WABA1_SENDER = os.environ.get('WHATSAPP_PHONE_NUMBER_ID_1', 'phone-number-id-wab
 
 logger = get_logger(__name__)
 
-HEADER_IMAGE = 'https://wecare.digital/get/o/stream/media/m/wecare-digital.png'
+HEADER_IMAGE = whatsapp_templates.VAULT_HEADER_IMAGE
+
+#: The IMAGE header both Vault templates declare, in the keys outbound's generic template builder
+#: reads. Outbound honours `headerImageUrl` only on the ORDER_DETAILS checkout path, so a body that
+#: carried only `headerImageUrl` reached Meta with no header component and was refused: the
+#: approval-time example image is not reusable at send time.
+TEMPLATE_IMAGE_HEADER = {'templateHeaderMedia': HEADER_IMAGE, 'templateHeaderType': 'image'}
 
 
 def _send_once(requests, row, key, lambda_client, body, *, record_key=None):
@@ -98,15 +104,14 @@ def prepare_and_send(event, lambda_client):
     contact = valid[0]
     base = {'contactId': contact['id'], 'recipientPhone': phone,
             'phoneNumberId': WABA1_SENDER, 'isTemplate': True,
-            'templateParams': [], 'headerImageUrl': HEADER_IMAGE}
+            'templateParams': [], **TEMPLATE_IMAGE_HEADER}
     ready = dict(base, templateName='wecare_share_pdf')
     # The share template has an IMAGE header and carries no URL button, so it delivers no
     # link. Only the dynamic download template does, and it stays closed.
     link_sent = False
     # Enable only after live Meta readback confirms this exact template is approved.
     if os.environ.get('VAULT_DYNAMIC_DOWNLOAD_TEMPLATE_ENABLED', 'false').lower() == 'true':
-        ready = dict(base, templateName='wecare_default_download',
-                     templateUrlButton={'index': 0, 'suffix': file['fileId']})
+        ready = dict(base, **whatsapp_templates.download_send_fields(file['fileId']))
         link_sent = True
     if not _send_once(requests, row, 'vaultNotificationStatus', lambda_client, ready):
         return {'outcome': 'VAULT_NOTIFICATION_PENDING'}

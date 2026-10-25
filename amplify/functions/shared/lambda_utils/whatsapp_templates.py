@@ -14,14 +14,19 @@ Meta is the authority on whether a template is APPROVED. This module is the auth
 template each business step uses and what components that step must supply. Senders still prove
 approval with a live readback before a money-path send; nothing here can enable a send on its own.
 
-The live set (WABA1 `2094615664435155`, verified by the owner and the 2026-10-25 readback):
+The live set (WABA1 `2094615664435155`, verified by the owner and the 2026-10-25 readback; all
+seven APPROVED, `en`). `scripts/check_whatsapp_template_payloads_live.py` builds each send with
+the production code and checks it against these live definitions:
 
     PAY            wecare_whatapp_native_pay_template     UTILITY, IMAGE header, ORDER_DETAILS button
     INVOICE        wecare_default_invoice_image_template  UTILITY, IMAGE header, FLOW button index 0
-    ORDER_STATUS   wecare_order_status_v3                 UTILITY / ORDER_STATUS (submitted 2026-10-25)
-    OTP            wecare_otp                             AUTHENTICATION, URL button index 0
-    LEAVE_REVIEW   wecare_leave_review                    manual only: never sent by automation
-    DOWNLOAD       wecare_default_download                URL button (Vault digital delivery)
+                                                          (NAVIGATE to FEEDBACK of Flow 993862443003108)
+    ORDER_STATUS   wecare_order_status_v3                 UTILITY / ORDER_STATUS, order_status component
+    OTP            wecare_otp                             AUTHENTICATION, copy-code URL button index 0
+    LEAVE_REVIEW   wecare_leave_review                    IMAGE header, FLOW button index 0 (same Flow);
+                                                          manual only: never sent by automation
+    DOWNLOAD       wecare_default_download                IMAGE header, URL button index 0
+                                                          (`/vault/?file={{1}}`, Vault digital delivery)
     LOCATION_PIN   wecare_location_share_pin              LOCATION header, manual only
 
 `wecare_whatapp_native_pay_template` is the real approved spelling ("whatapp"); do not "fix" it.
@@ -86,12 +91,12 @@ ORDER_STATUS = Template(
 OTP = Template(name=os.environ.get("OTP_TEMPLATE_NAME", "wecare_otp"),
                language="en", category="AUTHENTICATION", buttons=("url",))
 
-# Descriptive entries: no automated sender reads these yet. Vault delivery still names its
-# download template in `flows/paid_vault.py`, and the other two are manual Inbox sends.
+# LEAVE_REVIEW and LOCATION_PIN are manual Inbox sends. DOWNLOAD is sent by Vault delivery
+# through `download_send_fields` below; its IMAGE header must travel with every send.
 LEAVE_REVIEW = Template(name="wecare_leave_review", language="en", category="UTILITY",
                         header="image", buttons=("flow",), automated=False)
 DOWNLOAD = Template(name="wecare_default_download", language="en", category="UTILITY",
-                    buttons=("url",))
+                    header="image", buttons=("url",))
 LOCATION_PIN = Template(name="wecare_location_share_pin", language="en", category="UTILITY",
                         header="location", automated=False)
 
@@ -109,5 +114,26 @@ def by_name(name: str) -> Optional[Template]:
     return next((template for template in ALL if template.name == wanted), None)
 
 
+#: The brand image the Vault templates carry in their IMAGE header, served publicly.
+VAULT_HEADER_IMAGE = "https://wecare.digital/get/o/stream/media/m/wecare-digital.png"
+
+
+def download_send_fields(file_id: str) -> dict:
+    """The outbound-whatsapp request fields for one DOWNLOAD send of a Vault file.
+
+    The live template has an IMAGE header, a body with no variables and URL button 0
+    `https://wecare.digital/vault/?file={{1}}`, so a send carries exactly the header and the file
+    id as the button suffix. The header goes in `templateHeaderMedia`/`templateHeaderType`, the
+    keys outbound's generic template builder reads: it honours `headerImageUrl` only on the
+    ORDER_DETAILS checkout path, and Meta refuses a send that omits a media header.
+
+    Shared by paid delivery and the paid-file refresh, so the two cannot drift apart.
+    """
+    return {"isTemplate": True, "templateName": DOWNLOAD.name, "templateParams": [],
+            "templateHeaderMedia": VAULT_HEADER_IMAGE, "templateHeaderType": "image",
+            "templateUrlButton": {"index": 0, "suffix": file_id}}
+
+
 __all__ = ["Template", "PAY", "INVOICE", "ORDER_STATUS", "OTP", "LEAVE_REVIEW", "DOWNLOAD",
-           "LOCATION_PIN", "ALL", "POST_PAYMENT_FORBIDDEN", "by_name"]
+           "LOCATION_PIN", "ALL", "POST_PAYMENT_FORBIDDEN", "by_name", "VAULT_HEADER_IMAGE",
+           "download_send_fields"]

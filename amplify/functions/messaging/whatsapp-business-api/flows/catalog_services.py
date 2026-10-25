@@ -10,10 +10,8 @@ import os
 import secrets
 import time
 import boto3
-from lambda_utils import customer_auth, shared_tables
+from lambda_utils import customer_auth, shared_tables, whatsapp_templates
 from lambda_utils.ecommerce import catalog_service_checkout as catalog, service_request_store as store, vault_access as vault
-
-HEADER_IMAGE = 'https://wecare.digital/get/o/stream/media/m/wecare-digital.png'
 
 
 def _invoke(client, function, payload):
@@ -146,9 +144,7 @@ def handle(event, client):
         if state == 'PAID' or file.get('vaultEntitlementId') or file.get('vaultAccessGrantId') or file.get('vaultPaymentStatus') == 'PAID':
             if os.environ.get('VAULT_DYNAMIC_DOWNLOAD_TEMPLATE_ENABLED', 'false').lower() != 'true':
                 return {'outcome': 'VAULT_REFRESH_NOT_RELEASED'}
-            response = _send(client, row, isTemplate=True, templateName='wecare_default_download',
-                             templateParams=[], headerImageUrl=HEADER_IMAGE,
-                             templateUrlButton={'index': 0, 'suffix': file['fileId']})
+            response = _send(client, row, **whatsapp_templates.download_send_fields(file['fileId']))
             code = int(response.get('statusCode', 500)) if isinstance(response, dict) else 500
             return {'outcome': 'VAULT_ACCESS_REFRESH_SENT' if 200 <= code < 300 else 'VAULT_ACCESS_REFRESH_PENDING',
                     'fileId': file['fileId']}

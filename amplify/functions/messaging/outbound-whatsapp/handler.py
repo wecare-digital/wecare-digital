@@ -1113,6 +1113,20 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     if refusal is not None:
         return refusal
 
+    # The payment template travels only in the checkout envelope above. Its ORDER_DETAILS button
+    # needs the server-built `order_details` action, so Meta refuses a generic send of it with
+    # 131008 ("'action' cannot be null for ORDER_DETAILS button type"), as two such sends did on
+    # 2026-10-25. Refused here, before any contact write, media upload or provider call.
+    if (body.get('isTemplate') and not body.get('isCheckoutTemplate')
+            and str(body.get('templateName') or '').strip().lower() == WA_PAY_TEMPLATE.lower()):
+        logger.warning(json.dumps({'event': 'wa_pay_template_generic_send_refused',
+                                   'code': WA_PAY_TEMPLATE_NOT_PERMITTED,
+                                   'requestId': request_id}))
+        return _error_response(
+            409, WA_PAY_TEMPLATE_NOT_PERMITTED,
+            'The payment template is sent only with its order details, from Pay Flow, Inbox or '
+            'Commerce. Nothing was sent.')
+
     # Bound before the try, so every path that reaches `_handle_live_send` passes
     # a defined value. Only the outside-window plain-text branch below ever sets
     # the category; everything else sends with it None, which is today's request
@@ -3945,12 +3959,14 @@ def _build_message_payload(recipient_phone: str, content: str, media_type: Optio
                 raise ValueError(
                     'flow button component could not be built; send refused') from _fbe
 
+        # Counts only: body variables carry customer names, amounts and codes.
         logger.info(json.dumps({
             'event': 'template_payload_built',
             'templateName': template_name,
             'language': template_language,
             'paramCount': len(actual_params),
-            'params': actual_params,
+            'componentTypes': [c.get('sub_type') or c.get('type')
+                               for c in payload['template']['components']],
             'isPaymentTemplate': is_payment_template
         }))
     elif media_id and media_type:

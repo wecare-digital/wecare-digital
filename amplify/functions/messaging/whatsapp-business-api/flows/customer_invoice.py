@@ -93,9 +93,11 @@ def handle(event, get_template, lambda_client, s3_client):
     if not asset or not template_ready(get_template(TEMPLATE)):
         return {'reference': reference, 'message': 'Your invoice copy request is saved. Delivery is pending preparation. You can also check invoices on the website Orders page.'}
     link = receipt_links.signed_url(s3_client, bucket='wecare-digital-get', key=asset['s3Key'], ttl_seconds=300)
+    # The invoice image IS the template's IMAGE header, so it travels in the keys outbound's
+    # generic builder reads; `headerImageUrl` is honoured only on the checkout path.
     body = {'contactId': session['contactId'], 'recipientPhone': identity.phone,
         'phoneNumberId': paid_vault.WABA1_SENDER, 'isTemplate': True, 'templateName': TEMPLATE,
-        'templateParams': [], 'headerImageUrl': link}
+        'templateParams': [], 'templateHeaderMedia': link, 'templateHeaderType': 'image'}
     accepted = paid_vault._send_once(table, {}, 'invoiceDeliveryStatus', lambda_client, body, record_key=key)
     if accepted:
         table.update_item(Key=key, UpdateExpression='SET #status=:progress',
