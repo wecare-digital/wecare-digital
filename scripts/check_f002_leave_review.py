@@ -27,7 +27,7 @@ for node in tree.body:
 
 flow=vals['CANONICAL_FLOWS']['leave_review']
 contract=vals['CANONICAL_CONTRACTS']['leave_review']
-check(flow==('940049388908144','PUBLISHED','01. WECARE REVIEW FLOW'),f'canonical flow is {flow!r}')
+check(flow==('993862443003108','PUBLISHED','WD-F002-LEAVE-REVIEW'),f'canonical flow is {flow!r}')
 check(contract['flowNumber']=='F002','flowNumber')
 check(contract['flowCode']=='WD-F002-LEAVE-REVIEW','flowCode')
 check(contract['entryMode']=='keyword_interactive','entry mode')
