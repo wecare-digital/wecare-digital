@@ -892,28 +892,6 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                     Convenience fee and final total are calculated by the server when the invoice is created. The stored invoice is the authority for subtotal, tax, Delight and total.
                   </div>
 
-                  {/* Post-payment messaging options */ }
-                  <div className="inner-card" style={ { marginBottom: 16, maxWidth: 500, padding: '10px 14px' } }>
-                    <h4 style={ { margin: '0 0 6px', fontSize: 'var(--text-sm)', color: 'var(--accent)' } }>After Payment</h4>
-                    <p style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: '0 0 8px' } }>
-                      When payment is captured, these messages are sent automatically via WhatsApp.
-                    </p>
-                    <div style={ { display: 'flex', flexDirection: 'column', gap: 4 } }>
-                      <label style={ { display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--text-xs)', color: '#374151' } }>
-                        <input type="checkbox" defaultChecked disabled style={ { accentColor: 'var(--accent)' } } />
-                        Invoice PDF + payment confirmation
-                      </label>
-                      <label style={ { display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--text-xs)', color: '#374151' } }>
-                        <input type="checkbox" defaultChecked disabled style={ { accentColor: 'var(--accent)' } } />
-                        Order status interactive message
-                      </label>
-                      <label style={ { display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>
-                        <input type="checkbox" disabled style={ { accentColor: 'var(--accent)' } } />
-                        Template message (requires approved template)
-                      </label>
-                    </div>
-                  </div>
-
                   <Button variant="primary" size="md" loading={ creating } disabled={ creating } onClick={ () => submitInvoice( true ) }>Create and send payment request</Button>
                   <Button variant="secondary" size="md" disabled={ creating } onClick={ () => submitInvoice( false ) }>Save invoice for review</Button>
                 </div>
