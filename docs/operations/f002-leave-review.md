@@ -7,8 +7,8 @@
 | Flow number | F002 |
 | Customer-facing name | Leave Review |
 | Internal Flow code | WD-F002-LEAVE-REVIEW |
-| Meta Flow ID | 940049388908144 |
-| Meta name | 01. WECARE REVIEW FLOW |
+| Meta Flow ID | 993862443003108 |
+| Meta name | WD-F002-LEAVE-REVIEW |
 | Purpose | Let a WhatsApp customer send one private idea or piece of feedback to WECARE.DIGITAL. |
 | Type | feedback |
 | WABA | WABA 1 — 2094615664435155 |
@@ -132,7 +132,7 @@ Do not enable step 6 before steps 1–5 are live.
 
 | Component | Status | Evidence | Remaining risk |
 |---|---|---|---|
-| Meta Flow | READY | Live registry sync: 940049388908144, PUBLISHED, zero validation errors | Real handset QA still required after runtime enable |
+| Meta Flow | READY | Live registry sync: 993862443003108, PUBLISHED, zero validation errors | Real handset QA still required after runtime enable |
 | Canonical registry | READY IN CODE | F002 contract added to Python + TypeScript twins | Must deploy |
 | FlowRegistry | BLOCKED | Live row exists and is healthy but still uses legacy flowCode WD_IDEA and lacks the F002 entry contract | Canonicalize after deploy |
 | SystemConfig/runtime | BLOCKED | flow_triggers_config currently contains only F001 Subscribe | Enable F002 only after registry canonicalization |
