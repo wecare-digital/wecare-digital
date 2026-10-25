@@ -21,8 +21,14 @@ ORDER_CATALOG_HEADER = (
 DEFAULT_HEADER_IMAGE = SHARED_TEMPLATE_HEADER
 ORDER_CATALOG_HEADER_IMAGE = ORDER_CATALOG_HEADER
 
+# Every live template whose IMAGE header is the same picture on every send. Outbound forces
+# this header over any caller-supplied one, and template management advertises it as
+# `fixedHeaderMedia` so the Inbox sender and scheduled sends carry it. The Vault download
+# template belongs here: without it a manual or scheduled download send has no header and
+# Meta refuses it.
 FIXED_IMAGE_HEADERS = {
     "wecare_leave_review": SHARED_TEMPLATE_HEADER,
+    "wecare_default_download": SHARED_TEMPLATE_HEADER,
 }
 
 # Runtime dependencies, not disposable media-library uploads.
