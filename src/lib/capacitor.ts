@@ -21,19 +21,35 @@ export const isIOS = () => Capacitor.getPlatform() === 'ios';
 export const isAndroid = () => Capacitor.getPlatform() === 'android';
 
 /* ── Push Notifications ── */
+/**
+ * Arm push for a device that ALREADY granted notification permission. Never prompts.
+ *
+ * This runs from _app.tsx's mount effect, i.e. on every launch of BOTH native shells, before
+ * anyone has signed in or tapped anything. It used to call requestPermissions(), which put the
+ * OS notification prompt in front of every first launch - including the public WECARE.DIGITAL
+ * shell, whose visitors have no staff session and so can never complete POST /push/register.
+ * .kiro/steering/00-common.md requires a prompt to follow a clear user action and an explanation,
+ * and never to appear on load.
+ *
+ * checkPermissions() reads the state without showing anything, so a device that granted earlier
+ * keeps registering exactly as before. Asking a device that has not been asked is now the job of
+ * an explicit, explained opt-in control, which does not exist yet - that is the release gate for
+ * push on new installs, stated rather than worked around with a launch-time prompt.
+ */
 export async function initPushNotifications(
   onToken: (token: string) => void,
   onNotification: (data: any) => void,
 ) {
   if (!isNative()) return;
 
-  const perm = await PushNotifications.requestPermissions();
+  const perm = await PushNotifications.checkPermissions();
   if (perm.receive !== 'granted') return;
 
   await PushNotifications.register();
 
   PushNotifications.addListener('registration', (token) => {
-    console.log('[Push] Token:', token.value);
+    // The token itself is not logged: it addresses this device for pushes.
+    console.log('[Push] Registered');
     onToken(token.value);
   });
 
@@ -156,8 +172,9 @@ export interface InitCapacitorOptions {
   push: (path: string) => void;
   back: () => void;
   /**
-   * Called with the device's native push token (FCM on Android, APNs on iOS) once the user
-   * grants permission and registration succeeds. The caller forwards it to the backend
+   * Called with the device's native push token (FCM on Android, APNs on iOS) when the device has
+   * already granted notification permission and registration succeeds - launch never prompts.
+   * The caller forwards it to the backend
    * (POST /push/register) so it can create the SNS platform endpoint. Optional: omit it and
    * push is simply not initialised (the previous behaviour). It lives in _app.tsx rather than
    * here so this module stays free of the API client — the token-to-backend hop needs the
@@ -180,8 +197,8 @@ export async function initCapacitor(opts: InitCapacitorOptions) {
   initBackButton(() => opts.back());
   initKeyboard();
 
-  // Push: only armed when the caller supplies a token sink. requestPermissions() shows the OS
-  // prompt, so gating on onPushToken keeps a build that does not wire delivery from asking.
+  // Push: only armed when the caller supplies a token sink, and only for a device that already
+  // granted permission - initPushNotifications never shows the OS prompt (see its note).
   if (opts.onPushToken) {
     const platform: 'ios' | 'android' = isIOS() ? 'ios' : 'android';
     await initPushNotifications(
