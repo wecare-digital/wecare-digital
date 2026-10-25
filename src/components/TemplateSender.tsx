@@ -34,6 +34,7 @@ const INVOICE_TEMPLATE = 'wecare_default_invoice_image_template';
 const ORDER_STATUS_TEMPLATE = 'wecare_order_status_v3';
 const OTP_TEMPLATE = 'wecare_otp';
 const DOWNLOAD_TEMPLATE = 'wecare_default_download';
+const SHARED_TEMPLATE_HEADER = 'https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/whatsapp-header.png';
 
 const GENERIC_SEND_BLOCKED_TEMPLATES = new Set( [
   PAYMENT_ORDER_DETAILS_TEMPLATE,
@@ -211,7 +212,10 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
     setUrlButtonIndex( typeof urlIdx === 'number' && urlIdx >= 0 ? urlIdx : null );
     setUrlButtonSuffix( '' );
 
-    setHeaderMedia( selectedTemplate.fixedHeaderMedia || '' );
+    setHeaderMedia(
+      selectedTemplate.fixedHeaderMedia
+      || ( selectedTemplate.name.toLowerCase() === DOWNLOAD_TEMPLATE ? SHARED_TEMPLATE_HEADER : '' )
+    );
     setHeaderFilename( '' );
     setLocLat( '' );
     setLocLng( '' );
