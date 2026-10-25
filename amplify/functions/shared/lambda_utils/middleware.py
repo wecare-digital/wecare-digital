@@ -160,19 +160,23 @@ AUTH_SKIP_PATHS = os.environ.get('AUTH_SKIP_PATHS', '').split(',')
 
 
 def path_is_exempt(path: str, stage: str = '', skips=None) -> bool:
-    """Exact path match, or a child segment of an exempt path. Never a substring.
+    """Exact path match only (after the stage prefix and slashes are normalised).
 
-    The original form was `skip.strip() in path`, a bare substring test, and that
-    is wider than it looks once a catch-all route exists. `wecare-whatsapp-business-api`
-    serves `ANY /wa-business/{proxy+}` alongside its explicit routes, so a request
-    to `/wa-business/webhooks-anything` reached the same handler, matched the
-    substring, and skipped authentication - then fell into the handler's
-    `elif '/webhooks' in path` branch and executed the management action anyway.
-    Two loose matchers in series, each individually defensible.
+    Never a substring, and never a child path. Both looser forms were exploitable for
+    the same reason: `wecare-whatsapp-business-api` serves `ANY /wa-business/{proxy+}`
+    and dispatches on SUBSTRINGS of the path, so whatever the exemption admits is then
+    routed to whichever admin arm its path happens to contain.
 
-    Matching on segment boundaries removes the first one. `/wa-business/flow-data`
-    still exempts itself and `/wa-business/flow-data/sub`; it no longer exempts
-    `/wa-business/flow-dataX` or `/x/wa-business/flow-data`.
+      * `skip in path` admitted `/wa-business/webhooks-anything`, which then ran the
+        `/webhooks` management arm with no authentication.
+      * The child-segment form that replaced it admitted `/wa-business/flow-data/<x>`.
+        Measured 2026-10-25: `GET /wa-business/flow-data/template-ttl/rules` answered
+        200 while `GET /wa-business/template-ttl/rules` answered 401 - so
+        `/wa-business/flow-data/messages/send/text`, `/.../webhooks` and `/.../profile`
+        were reachable unauthenticated, ahead of the `/flow-data` signature check.
+
+    Meta calls exactly the registered endpoint (`/wa-business/flow-data`), so exact
+    matching costs no legitimate caller anything.
     """
     candidates = [s.strip() for s in (AUTH_SKIP_PATHS if skips is None else skips) if s and s.strip()]
     if not candidates:
@@ -190,11 +194,7 @@ def path_is_exempt(path: str, stage: str = '', skips=None) -> bool:
         normalized = path or ''
     normalized = '/' + (normalized or '').strip('/')
 
-    for skip in candidates:
-        skip = '/' + skip.strip('/')
-        if normalized == skip or normalized.startswith(skip + '/'):
-            return True
-    return False
+    return any(normalized == '/' + skip.strip('/') for skip in candidates)
 
 
 def require_auth(
