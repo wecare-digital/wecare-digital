@@ -91,6 +91,10 @@ def _fetch(url: str, follow: bool = False) -> tuple[int, dict]:
             return resp.status, dict(resp.headers)
     except urllib.error.HTTPError as exc:
         return exc.code, dict(exc.headers)
+    except (urllib.error.URLError, OSError) as exc:
+        # Status 0 fails only the check that made this request; later checks still run
+        # and report individually instead of being lost to one outer exception.
+        return 0, {"X-Fetch-Error": type(exc).__name__}
 
 
 def check_amplify_rules(r: Result) -> None:
