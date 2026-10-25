@@ -21,6 +21,21 @@ A deploy path that cannot fail loudly is worse than none.
 Consequence observed on 2026-08-25: every payment-path `live` alias was still
 pinned to a July version while ``$LATEST`` carried weeks of newer code.
 
+Concurrent deploys
+------------------
+Nothing serialises deploys. On 2026-10-25 local sessions, a CodeBuild project and an MCP
+client moved the same five WhatsApp `live` aliases 19 times in 17 minutes. Unguarded, a run
+publishes whatever ``$LATEST`` holds when it gets there, which can be another run's code, and
+its alias move can put production back on code another run had already replaced. So each
+write here is conditional:
+
+* ``publish_version`` carries ``CodeSha256`` (and ``RevisionId``), so the version holds
+  exactly the code and configuration this run inspected;
+* ``update_alias`` carries the alias ``RevisionId`` read at the start, so an alias someone
+  else moved in the meantime is left alone and this run fails instead;
+* ``--expect FUNCTION=CODESHA256`` (``deploy_all_lambdas.py`` passes the sha it uploaded)
+  refuses to publish unless ``$LATEST`` still holds that code.
+
 Usage
 -----
     python scripts/_snapstart_publish.py                     # every function with a `live` alias
@@ -36,7 +51,7 @@ from __future__ import annotations
 import argparse
 import sys
 import time
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, NamedTuple, Optional
 
 try:
     import boto3
@@ -74,21 +89,31 @@ def functions_with_live_alias(lam) -> List[str]:
     return sorted(names)
 
 
-def current_state(lam, name: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
-    """(alias_version, alias_sha, latest_sha)"""
-    alias_version = alias_sha = latest_sha = None
+class State(NamedTuple):
+    """One read of the alias and of $LATEST, with the revision ids that guard the writes."""
+    alias_version: Optional[str]
+    alias_sha: Optional[str]
+    alias_revision: Optional[str]
+    latest_sha: Optional[str]
+    latest_revision: Optional[str]
+
+
+def current_state(lam, name: str) -> State:
+    alias_version = alias_sha = alias_revision = latest_sha = latest_revision = None
     try:
-        alias_version = lam.get_alias(FunctionName=name, Name=ALIAS)["FunctionVersion"]
+        alias = lam.get_alias(FunctionName=name, Name=ALIAS)
+        alias_version, alias_revision = alias["FunctionVersion"], alias.get("RevisionId")
         alias_sha = lam.get_function_configuration(
             FunctionName=f"{name}:{alias_version}"
         )["CodeSha256"]
     except ClientError:
         pass
     try:
-        latest_sha = lam.get_function_configuration(FunctionName=name)["CodeSha256"]
+        latest = lam.get_function_configuration(FunctionName=name)
+        latest_sha, latest_revision = latest["CodeSha256"], latest.get("RevisionId")
     except ClientError:
         pass
-    return alias_version, alias_sha, latest_sha
+    return State(alias_version, alias_sha, alias_revision, latest_sha, latest_revision)
 
 
 def environment_matches(lam, name: str, version: str) -> bool:
@@ -177,12 +202,24 @@ def _restore_secondary_catalog_env(lam, name: str, original_environment, dry_run
     lam.get_waiter("function_updated_v2").wait(FunctionName=name)
 
 
-def publish_and_move(lam, name: str, dry_run: bool, only_stale: bool) -> str:
-    """Returns one of: 'updated', 'skipped', 'failed'."""
-    alias_version, alias_sha, latest_sha = current_state(lam, name)
+def publish_and_move(lam, name: str, dry_run: bool, only_stale: bool,
+                     expected_sha: Optional[str] = None) -> str:
+    """Returns one of: 'updated', 'skipped', 'failed'.
+
+    expected_sha: the CodeSha256 the calling deploy uploaded. When given, a $LATEST holding
+    anything else means another deploy replaced it, and nothing is published.
+    """
+    state = current_state(lam, name)
+    alias_version, alias_sha, latest_sha = state.alias_version, state.alias_sha, state.latest_sha
 
     if latest_sha is None:
         print(f"  {name}: cannot read $LATEST, skipping")
+        return "failed"
+
+    if expected_sha and latest_sha != expected_sha:
+        print(f"  {name}")
+        print(f"    $LATEST is {latest_sha[:12]}..., not the {expected_sha[:12]}... this deploy "
+              "uploaded: another deploy replaced it. Not publishing.")
         return "failed"
 
     # A function with no `live` alias is not a failure - it is a documented
@@ -225,11 +262,17 @@ def publish_and_move(lam, name: str, dry_run: bool, only_stale: bool) -> str:
         print(f"    DRY RUN: would publish a version and move {ALIAS} onto it")
         return "skipped"
 
+    publish_request = {
+        "FunctionName": name,
+        "Description": "auto-publish by _snapstart_publish.py",
+        # Exactly the code inspected above, never a $LATEST another deploy swapped in since.
+        "CodeSha256": latest_sha,
+    }
+    if state.latest_revision and not catalog_env_changed:
+        # Staging the catalog environment is this run's own write and moves the revision.
+        publish_request["RevisionId"] = state.latest_revision
     try:
-        published = lam.publish_version(
-            FunctionName=name,
-            Description=f"auto-publish by _snapstart_publish.py",
-        )
+        published = lam.publish_version(**publish_request)
     except ClientError as exc:
         print(f"    publish_version failed: {exc}")
         try:
@@ -245,18 +288,29 @@ def publish_and_move(lam, name: str, dry_run: bool, only_stale: bool) -> str:
         print(f"    NOT moving {ALIAS}: version never became Active")
         return "failed"
 
+    alias_request = {"FunctionName": name, "Name": ALIAS, "FunctionVersion": new_version}
+    if state.alias_revision:
+        # Only over the alias this run read: never move production back onto older code
+        # after another deploy has moved it on.
+        alias_request["RevisionId"] = state.alias_revision
     try:
-        lam.update_alias(
-            FunctionName=name, Name=ALIAS, FunctionVersion=new_version
-        )
+        lam.update_alias(**alias_request)
     except ClientError as exc:
-        print(f"    update_alias failed: {exc}")
+        if exc.response.get("Error", {}).get("Code") == "PreconditionFailedException":
+            print(f"    {ALIAS} moved after this run read it (another deploy); leaving it. "
+                  f"v{new_version} is published but not live.")
+        else:
+            print(f"    update_alias failed: {exc}")
+        try:
+            _restore_secondary_catalog_env(lam, name, original_catalog_env, dry_run=False)
+        except ClientError as restore_exc:
+            print(f"    WABA2 environment restore failed: {restore_exc.response['Error']['Code']}")
         return "failed"
 
     # verify rather than assume
-    check_version, check_sha, _ = current_state(lam, name)
-    if check_version != new_version:
-        print(f"    VERIFY FAILED: {ALIAS} is v{check_version}, expected v{new_version}")
+    check = current_state(lam, name)
+    if check.alias_version != new_version:
+        print(f"    VERIFY FAILED: {ALIAS} is v{check.alias_version}, expected v{new_version}")
         return "failed"
 
     try:
@@ -283,7 +337,18 @@ def main() -> int:
                     help="report what would change, write nothing")
     ap.add_argument("--only-stale", action="store_true",
                     help="skip functions whose alias already matches $LATEST")
+    ap.add_argument("--expect", action="append", default=[], metavar="FUNCTION=CODESHA256",
+                    help="publish FUNCTION only while $LATEST holds exactly this code "
+                         "(repeatable; deploy_all_lambdas.py passes what it uploaded)")
     args = ap.parse_args()
+
+    expected: Dict[str, str] = {}
+    for item in args.expect:
+        # CodeSha256 is base64 and may end in '=', so split on the first '=' only.
+        function, separator, sha = item.partition("=")
+        if not separator or not function or not sha:
+            ap.error(f"--expect wants FUNCTION=CODESHA256, got {item!r}")
+        expected[function] = sha
 
     lam = client()
 
@@ -291,6 +356,9 @@ def main() -> int:
     if not targets:
         print("no functions with a `live` alias found")
         return 0
+    stray = sorted(set(expected) - set(targets))
+    if stray:
+        ap.error("--expect names functions that are not targets: " + ", ".join(stray))
 
     print(f"region={REGION} alias={ALIAS} targets={len(targets)} "
           f"dry_run={args.dry_run} only_stale={args.only_stale}")
@@ -298,7 +366,8 @@ def main() -> int:
 
     tally: Dict[str, int] = {"updated": 0, "skipped": 0, "failed": 0}
     for name in targets:
-        tally[publish_and_move(lam, name, args.dry_run, args.only_stale)] += 1
+        tally[publish_and_move(lam, name, args.dry_run, args.only_stale,
+                               expected.get(name))] += 1
         print()
 
     print(f"updated={tally['updated']} skipped={tally['skipped']} "

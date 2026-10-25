@@ -41,6 +41,19 @@ the alias moves. That is ``scripts/snapstart_publish.py``, which this script
 invokes at the end unless ``--no-publish`` is passed. See
 ``.kiro/steering/lambda-snapstart-deploy.md`` (retired 2026-10-09, af7858fa).
 
+Shared checkout, concurrent deployers
+-------------------------------------
+Many sessions share this checkout, and other deployers (CodeBuild, MCP clients) write the
+same functions. Packaging reads whatever is on disk, and nothing serialises deploys, so:
+
+* A real deploy refuses when a file it would package differs from HEAD (modified, staged or
+  untracked): it would ship another session's unfinished edit. Commit first, or deploy a
+  pinned commit from an export (``git archive <ref> amplify/functions scripts | tar -x -C
+  <dir>``, then run ``<dir>/scripts/deploy_all_lambdas.py``). A dry run only warns.
+* The upload carries the ``RevisionId`` this run read, and the publish step gets
+  ``--expect <function>=<CodeSha256>``, so a function another deploy touched in between fails
+  instead of being overwritten or published with the other run's code.
+
 Usage
 -----
     python scripts/deploy_all_lambdas.py                    # whole fleet, then publish
@@ -532,6 +545,59 @@ def build_zip(spec: Spec) -> Tuple[bytes, Dict[str, bytes]]:
     return buf.getvalue(), members
 
 
+def uncommitted_sources() -> Optional[List[str]]:
+    """Repository paths under amplify/functions that differ from HEAD (modified, staged, untracked).
+
+    None when this copy of the script is not at the top of its own git checkout: it is running
+    from an exported tree (``git archive``), which is one commit's content by construction.
+    Raises RuntimeError when the checkout's status cannot be read, so a deploy can refuse.
+    """
+    try:
+        top = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--show-toplevel"],
+                             capture_output=True, text=True, check=True).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    if Path(top).resolve() != ROOT:
+        return None
+    # --no-optional-locks: never take the index lock the other sessions in this checkout need.
+    result = subprocess.run(
+        ["git", "--no-optional-locks", "-C", str(ROOT), "status", "--porcelain=v1", "-z",
+         "--untracked-files=all", "--", FUNCTIONS.relative_to(ROOT).as_posix()],
+        capture_output=True)
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.decode("utf-8", "replace").strip() or "git status failed")
+    fields = result.stdout.decode("utf-8", "surrogateescape").split("\0")
+    paths: List[str] = []
+    index = 0
+    while index < len(fields):
+        entry = fields[index]
+        index += 1
+        if len(entry) < 4:
+            continue
+        paths.append(entry[3:])
+        if {"R", "C"} & set(entry[:2]) and index < len(fields):
+            paths.append(fields[index])  # -z prints a rename/copy as "XY new\0old"
+            index += 1
+    return paths
+
+
+def dirty_sources_for(spec: Spec, dirty: Iterable[str]) -> List[str]:
+    """The uncommitted paths build_zip would read for this spec."""
+    roots = [spec.source]
+    if not spec.standalone:
+        roots += [LAMBDA_UTILS, STATIC_KB]
+        roots += [FUNCTIONS / source for source, _ in (*spec.external_dirs, *spec.external_files)]
+    hits = []
+    for rel in dirty:
+        parts = Path(rel).parts
+        if Path(rel).suffix in {".pyc", ".pyo"} or any(part in EXCLUDE_DIRS for part in parts):
+            continue
+        path = ROOT / rel
+        if any(path == root or root in path.parents for root in roots):
+            hits.append(rel)
+    return sorted(hits)
+
+
 _LAYER_CACHE: Dict[str, frozenset] = {}
 
 
@@ -1007,23 +1073,38 @@ _RETRYABLE = (
 )
 
 
-def _update_with_retry(lam, spec: Spec, zip_bytes: bytes, attempts: int = 5):
+def _update_with_retry(lam, spec: Spec, zip_bytes: bytes, attempts: int = 5,
+                       read: Optional[dict] = None):
     """update_function_code with exponential backoff on transient errors.
 
     Returns the API result, or raises the last ClientError. A retry is only
     attempted for the codes in _RETRYABLE; a genuine error (bad zip, missing
     function, denied) still fails immediately, because retrying it would just
     slow the run down and bury the message.
+
+    ``read`` is the configuration this run read before packaging. The upload
+    carries its RevisionId, so if another deploy uploaded different code in the
+    meantime, PreconditionFailedException is raised rather than overwriting it.
+    A revision moved without a code change (a configuration edit, or Lambda
+    settling a previous update) is re-read and retried.
     """
+    request = {"FunctionName": spec.name, "ZipFile": zip_bytes, "Publish": False}
+    if read and read.get("RevisionId"):
+        request["RevisionId"] = read["RevisionId"]
     delay = 2.0
     last: ClientError | None = None
     for attempt in range(1, attempts + 1):
         try:
-            return lam.update_function_code(
-                FunctionName=spec.name, ZipFile=zip_bytes, Publish=False
-            )
+            return lam.update_function_code(**request)
         except ClientError as exc:
             code = exc.response.get("Error", {}).get("Code", "")
+            if code == "PreconditionFailedException" and read and attempt < attempts:
+                fresh = lam.get_function_configuration(FunctionName=spec.name)
+                if fresh.get("CodeSha256") != read.get("CodeSha256"):
+                    raise
+                request["RevisionId"] = fresh["RevisionId"]
+                last = exc
+                continue
             if code not in _RETRYABLE or attempt == attempts:
                 raise
             last = exc
@@ -1039,9 +1120,13 @@ def _update_with_retry(lam, spec: Spec, zip_bytes: bytes, attempts: int = 5):
 def deploy(lam, spec: Spec, zip_bytes: bytes, current: dict) -> str:
     """'updated', 'unchanged', or 'failed'."""
     try:
-        result = _update_with_retry(lam, spec, zip_bytes)
+        result = _update_with_retry(lam, spec, zip_bytes, read=current)
     except ClientError as exc:
-        print(f"    update_function_code failed: {exc}")
+        if exc.response.get("Error", {}).get("Code") == "PreconditionFailedException":
+            print("    refused: another deploy uploaded different code after this run read "
+                  "the function; not uploading over it")
+        else:
+            print(f"    update_function_code failed: {exc}")
         return "failed"
 
     try:
@@ -1144,6 +1229,29 @@ def main() -> int:
         if not selected:
             return 1
 
+    try:
+        dirty = uncommitted_sources()
+    except RuntimeError as exc:
+        print(f"cannot read the checkout's status: {exc}")
+        if not args.dry_run:
+            return 1
+        dirty = []
+    if dirty is None:
+        print(f"packaging an exported tree: {ROOT}")
+    else:
+        unclean = sorted({path for spec in selected for path in dirty_sources_for(spec, dirty)})
+        if unclean:
+            print(("WARNING" if args.dry_run else "REFUSING")
+                  + f": {len(unclean)} uncommitted file(s) would be packaged:")
+            for path in unclean:
+                print(f"  {path}")
+            if not args.dry_run:
+                print("Commit them first, or deploy a pinned commit from an export:\n"
+                      "  git archive <ref> amplify/functions scripts | tar -x -C <dir>\n"
+                      "  python <dir>/scripts/deploy_all_lambdas.py <functions>")
+                return 1
+            print("A real deploy refuses this tree.\n")
+
     lam = boto3.client("lambda", region_name=REGION)
     print(f"region={REGION} targets={len(selected)} dry_run={args.dry_run}")
     print()
@@ -1153,6 +1261,7 @@ def main() -> int:
              "would_update": 0}
     failures: List[str] = []
     deployed: List[str] = []
+    uploaded: Dict[str, str] = {}  # name -> CodeSha256 of the zip this run uploaded
     awaiting: List[str] = []
     all_warnings: List[str] = []
 
@@ -1267,6 +1376,7 @@ def main() -> int:
             failures.append(spec.name)
         else:
             deployed.append(spec.name)
+            uploaded[spec.name] = base64.b64encode(hashlib.sha256(zip_bytes).digest()).decode()
 
     print()
     summary = (f"updated={tally['updated']} unchanged={tally['unchanged']} "
@@ -1299,8 +1409,8 @@ def main() -> int:
         print("\nPublishing versions + moving the `live` alias "
               "(the API invokes :live, not $LATEST)...\n")
         publish_rc = subprocess.call(
-            [sys.executable, str(ROOT / "scripts" / "snapstart_publish.py"),
-             "--only-stale", *deployed]
+            [sys.executable, str(ROOT / "scripts" / "snapstart_publish.py"), "--only-stale",
+             *(f"--expect={name}={sha}" for name, sha in uploaded.items()), *deployed]
         )
 
     if failures and deployed and not args.no_publish:
