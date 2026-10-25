@@ -44,15 +44,24 @@ issued after ownership and payment are both checked.
 
     CloudFront E2GP22R4BIFGQ3
       no alternate domain name, so no Route 53 record and no ACM certificate
-      Lambda@Edge origin-response v4:
-        URI under secure/   -> 302 apex   (checked BEFORE status)
-        status >= 400       -> 302 apex
+      Lambda@Edge origin-response (wecare-get-miss-redirect, associated by version):
+        decoded URI under secure/ (not secure/d/public/) -> 302 apex  (checked BEFORE status)
+        decoded URI under secure/d/public/catalog-deploy/ -> 302 apex
+        status >= 400                                     -> 302 apex
       OAC EWEJQDZIBHRZU -> S3 wecare-digital-get (private, BPA on, AES256, versioned)
 
     wecare.digital/api (HTTP API zllr9lrg7j) -> wecare-secure-files:live
 
 The prefix deny is checked before the response status deliberately: a gated object
 that exists returns 200 from S3, so keying only off errors would serve it.
+
+It is matched on the percent-decoded key, because S3 decodes the request path once
+before the key lookup. Matching the raw URI let `/get/secur%65/...` and
+`/get/secure%2F...` through to gated objects until 2026-10-25.
+
+`secure/d/public/catalog-deploy/` (catalog masters, manifest, QA and deploy evidence) is
+not served here at all. Approved catalog artwork is public only through
+`https://wecare.digital/api/catalog-media/<file>`, whose Lambda reads S3 directly.
 
 ## Paid download flow
 
