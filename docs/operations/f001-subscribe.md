@@ -9,13 +9,13 @@ Flow, not a marketing subscription, and it never grants consent.
 | Flow number / code | F001 / `WD-F001-SUBSCRIBE-PROFILE` |
 | Customer-facing name | Subscribe |
 | Meta Flow ID / name | `2413873616105042` / `WD-F001-SUBSCRIBE-PROFILE` (PUBLISHED in Meta, immutable) |
-| WABA | WABA 1 (`2094615664435155`) only. WABA 2 customers get the website link `/r/sub`. |
+| WABA | WABA 1 (`2094615664435155`, +91 93309 94400) only. A WABA 2 (+91 99033 00044) customer gets a button to `https://wa.me/919330994400?text=subscribe`, which opens WABA 1 with the keyword typed. (`/r/sub` was a ShortLinksTable recovery row redirecting to google.com.) |
 | Definition | `amplify/functions/messaging/whatsapp-business-api/flows/design-drafts/subscribe.json` (Flow JSON 7.3, data API 3.0) |
 | Endpoint | `https://wecare.digital/api/wa-business/flow-data` |
 | Handler | `flows/subscribe_profile.py` (the only handler for `subscribe*` tokens) |
 | Contract | `CANONICAL_CONTRACTS['subscribe']` in `lambda_utils/canonical_flows.py`, twin in `src/lib/canonicalFlows.ts` |
 | Workspace | Communications → Manage → WhatsApp → Auto response → Subscribe (control surface); Flow Hub (`?view=manage&section=flows`) for history |
-| Verification | `python3 scripts/check_f001_subscribe.py` (55 offline checks) and `python3 scripts/validate_flow_json.py` |
+| Verification | `python3 scripts/check_f001_subscribe.py` (59 offline checks) and `python3 scripts/validate_flow_json.py` |
 
 ## Entry model
 
@@ -111,6 +111,22 @@ whether Meta's `X-Hub-Signature-256` matched either WABA app secret. It is obser
 never changes the answer. Enforce it (HTTP 432) only after real traffic shows every genuine
 request as `verified: true`.
 
+### When "subscribe" gets no Flow
+
+- `unsupported_or_new_message_type` with error 131051: WhatsApp delivered the message without
+  its content, most often because disappearing messages are on for that chat (also polls and
+  some GIFs). Keyword routing never sees text, so no Flow can open. The customer now gets one
+  `unreadable_hint_sent` reply a day asking them to turn disappearing messages off and resend
+  as text; such messages are no longer marked read or reacted to (Meta refuses both).
+- `generic_flow_phone2_cta_sent` with `flowKey: subscribe`: the message reached WABA 2, which
+  has no F001 Flow; the customer gets the WABA 1 link above.
+- `flow_funnel` `launch_blocked` with a `reason`: a launch control said no (see Launch controls).
+
+Other keyword doors use the same rule: a Flow is sent only when FlowRegistry shows it live on
+Meta (`metaStatus` PUBLISHED or THROTTLED, from Sync from Meta). Otherwise the door answers
+with its `FLOW_LINKS` website link (`keyword_flow_link_fallback`) instead of a Flow that Meta
+would refuse after the handoff.
+
 ## Who can change what
 
 | Change | Minimum role | Enforced in |
@@ -119,6 +135,7 @@ request as `verified: true`.
 | Staff send to one customer | Operator | business API `/messages/send/flow` |
 | FlowRegistry row, publish/deprecate, Flow metadata update (`PUT /flows`) | Admin | business API |
 | Sync from Meta (writes `metaStatus` only) | Operator | business API `/flows/sync` |
+| WhatsApp webhook subscription change (`POST`/`DELETE /webhooks`) | Admin | business API |
 | Read launch status, funnel, Flow metadata and assets | Viewer | business API |
 
 ## Activation runbook
