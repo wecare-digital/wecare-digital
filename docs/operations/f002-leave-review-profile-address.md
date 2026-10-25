@@ -32,14 +32,14 @@ There are no profile fields and no address fields in F002.
 
 - Flow number: F002
 - Flow code / intended Meta draft name: `WD-F002-LEAVE-REVIEW`
-- Existing Meta draft to reuse: `2352304845587149`
-- Legacy draft name: `WD_Leave_Review_Design_v1`
+- Current Meta draft: `993862443003108`
+- Historical draft (do not reuse for F002): `2352304845587149` / `WD_Leave_Review_Design_v1`
 - Published content source: `940049388908144`
 
-The existing draft must be renamed/reused rather than creating a duplicate draft.
+The F002 target is the new canonical draft `993862443003108`; the historical design draft is not the F002 target.
 
 ## Source asset
 
 `amplify/functions/messaging/whatsapp-business-api/flows/design-drafts/f002-leave-review.json`
 
-This asset preserves the 940049388908144 review content. F001 is not a source for review fields.
+This asset uses the F001 visual treatment and preserves the 940049388908144 review fields/content. The word `privately` is intentionally omitted from customer-facing copy.
