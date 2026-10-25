@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 # system fault, so the label is ours and fixed — the inbox also prefix-matches
 # `[Unsupported: ` so a row stored before this change still renders cleanly.
 UNSUPPORTED_UNKNOWN = '[Unsupported: WhatsApp did not say what this message was]'
+UNSUPPORTED_DISAPPEARING = ('[Unsupported: Disappearing message — disable disappearing messages '
+                            'in this chat to fix]')
 
 # Caps for the stored contacts payload. A DynamoDB item is capped at 400 KB and a
 # forwarded vCard is attacker-influenced input, so bound it at ingest rather than
@@ -366,7 +368,7 @@ def extract_unsupported_content(message: Dict) -> str:
             return f'[Unsupported: {details or title or "Message type not supported (error 131051)"}]'
 
         if 'ephemeral' in error_text or 'disappearing' in error_text:
-            return '[Unsupported: Disappearing message — disable disappearing messages in this chat to fix]'
+            return UNSUPPORTED_DISAPPEARING
 
         if details:
             return f'[Unsupported: {details}]'

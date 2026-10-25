@@ -92,7 +92,10 @@ class _KeyCondition:
 
 
 _TOKEN = re.compile(r'\s*(attribute_exists\(\s*[#\w]+\s*\)|attribute_not_exists\(\s*[#\w]+\s*\)'
-                    r'|\(|\)|AND\b|OR\b|[#\w]+\s*=\s*:\w+)')
+                    r'|\(|\)|AND\b|OR\b|[#\w]+\s*(?:<=|>=|<>|=|<|>)\s*:\w+)')
+_COMPARE = {'=': lambda a, b: _same(a, b), '<>': lambda a, b: not _same(a, b),
+            '<': lambda a, b: a < b, '<=': lambda a, b: a <= b,
+            '>': lambda a, b: a > b, '>=': lambda a, b: a >= b}
 
 
 def _same(a: Any, b: Any) -> bool:
@@ -134,9 +137,9 @@ def evaluate_condition(expr: str, item: Dict[str, Any], names: Dict[str, str],
         if fn:
             present = resolve(fn.group(2)) in item
             return not present if fn.group(1) else present
-        left, right = (part.strip() for part in token.split('=', 1))
+        left, op, right = re.fullmatch(r'([#\w]+)\s*(<=|>=|<>|=|<|>)\s*(:\w+)', token).groups()
         attr = resolve(left)
-        return attr in item and _same(item[attr], values[right])
+        return attr in item and _COMPARE[op](item[attr], values[right])
 
     def parse_and() -> bool:
         nonlocal index
@@ -1358,6 +1361,43 @@ def _() -> None:
         middleware.require_auth = saved
 
 
+@check('E9 webhook subscription changes need Admin; Meta sync follows pages, bounded')
+def _() -> None:
+    FAKE_DB.reset()
+    biz, middleware = M['bizapi'], M['middleware']
+    graph_calls: List[Tuple[str, str, Dict[str, Any]]] = []
+
+    def fake_graph(endpoint: str, method: str = 'GET', payload: Any = None, params: Any = None,
+                   *a: Any, **k: Any) -> Dict[str, Any]:
+        graph_calls.append((endpoint, method, dict(params or {})))
+        if endpoint.endswith('/flows'):
+            page = sum(1 for e, _, _ in graph_calls if e.endswith('/flows'))
+            return {'data': [{'id': f'90{page}', 'name': f'Draft {page}', 'status': 'DRAFT'}],
+                    'paging': {'cursors': {'after': f'c{page}'}, 'next': 'https://graph.example.test/next'}}
+        return {'success': True, 'data': []}
+    saved = (biz.require_auth, middleware.require_auth, biz._graph_api)
+    biz.require_auth = middleware.require_auth = _role_gate
+    biz._graph_api = fake_graph
+    try:
+        for method in ('POST', 'DELETE'):
+            event = _staff_event(method, '/wa-business/webhooks', 'Operator', {'wabaId': '2094615664435155'})
+            expect(biz.handler(event, None)['statusCode'] == 403 and not graph_calls, f'Operator {method} on webhooks')
+        expect(biz.handler(_staff_event('GET', '/wa-business/webhooks', 'Viewer',
+                                        params={'wabaId': '2094615664435155'}), None)['statusCode'] == 200,
+               'Viewer can no longer read webhook subscriptions')
+        expect(biz.handler(_staff_event('DELETE', '/wa-business/webhooks', 'Admin', {'wabaId': '2094615664435155'}),
+                           None)['statusCode'] != 403, 'Admin refused')
+        graph_calls.clear()
+        status, body = _resp(biz._sync_flows({'wabaId': '2094615664435155'}, {}))
+        pages = [c for c in graph_calls if c[0].endswith('/flows')]
+        expect(status == 200 and len(pages) == biz._SYNC_MAX_PAGES and body['total'] == biz._SYNC_MAX_PAGES,
+               f'pagination unbounded or not followed: {len(pages)} pages, {body}')
+        expect(pages[1][2].get('after') == 'c1' and pages[0][2].get('limit') == str(biz._SYNC_PAGE_SIZE),
+               f'cursor not passed: {pages[:2]}')
+    finally:
+        biz.require_auth, middleware.require_auth, biz._graph_api = saved
+
+
 # ── F. Inbound keyword dispatch (extracted from the real handler source) ────────────
 
 class FakeLambda:
@@ -1376,8 +1416,11 @@ class FakeLambda:
 def load_inbound() -> None:
     tree = ast.parse(INBOUND.read_text(encoding='utf-8'))
     wanted_assign = {'DEFAULT_FLOW_TRIGGERS', 'F001_CONTRACT', 'F001_SESSION_UNAVAILABLE_REPLY',
-                     'CUSTOMER_IDEA_KEYWORDS'}
-    wanted_func = {'_get_flow_triggers_config', '_send_generic_flow', '_launch_subscribe_flow'}
+                     'CUSTOMER_IDEA_KEYWORDS', 'FLOW_LINKS', 'FLOW_LINK_DEFAULT', 'FLOW_LINK_BODIES',
+                     'UNREADABLE_MESSAGE_LABELS', 'UNREADABLE_HINT_TEXT',
+                     'UNREADABLE_HINT_INTERVAL_SECONDS'}
+    wanted_func = {'_get_flow_triggers_config', '_send_generic_flow', '_launch_subscribe_flow',
+                   '_send_flow_link', '_send_unreadable_hint'}
     nodes: List[ast.stmt] = [n for n in tree.body if (
         isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id in wanted_assign for t in n.targets)
     ) or (isinstance(n, ast.FunctionDef) and n.name in wanted_func)]
@@ -1403,7 +1446,14 @@ def load_inbound() -> None:
     module = ast.fix_missing_locations(ast.Module(body=nodes, type_ignores=[]))
     privacy = M['privacy']
     M['cta'], M['replies'], M['lambda'] = [], [], FakeLambda()
+    import importlib.util
+    content_spec = importlib.util.spec_from_file_location('inbound_content', INBOUND.parent / 'modules' / 'content.py')
+    M['inbound_content'] = importlib.util.module_from_spec(content_spec)
+    content_spec.loader.exec_module(M['inbound_content'])
     ns: Dict[str, Any] = {
+        'ClientError': FakeClientError,
+        'UNSUPPORTED_UNKNOWN': M['inbound_content'].UNSUPPORTED_UNKNOWN,
+        'UNSUPPORTED_DISAPPEARING': M['inbound_content'].UNSUPPORTED_DISAPPEARING,
         'json': json, 'uuid': uuid, 'time': time, 'Decimal': Decimal, 'Dict': Dict, 'Any': Any,
         'Optional': Optional, 'logger': logging.getLogger('inbound-under-test'), 'dynamodb': FAKE_DB,
         'CONTACTS_TABLE': M['common'].CONTACTS_TABLE, 'SYSTEM_CONFIG_TABLE': M['subscribe_messages'].system_config_table_name(),
@@ -1478,7 +1528,7 @@ def _() -> None:
         expect(dispatch(near_miss) == 'fell_through', f'{near_miss!r} launched (not exact)')
 
 
-@check('F4 returning customers get the returning copy; WABA 2 gets the website link and no session')
+@check('F4 returning customers get the returning copy; WABA 2 is sent on to WABA 1, with no session')
 def _() -> None:
     reset_inbound()
     set_triggers({'subscribe': {'enabled': True}})
@@ -1492,7 +1542,8 @@ def _() -> None:
            == M['subscribe_messages'].DEFAULTS['returningCustomer']['body'], 'returning copy')
     before = len(sessions().items)
     dispatch('subscribe', PHONE_A, waba='phone2')
-    expect(M['cta'] and M['cta'][-1]['args'][3] == 'https://wecare.digital/r/sub', 'WABA 2 website link')
+    expect(M['cta'] and M['cta'][-1]['args'][3] == 'https://wa.me/919330994400?text=subscribe',
+           f'WABA 2 must continue on WABA 1 with the keyword typed, got {M["cta"][-1]["args"][3] if M["cta"] else None}')
     expect(len(sessions().items) == before, 'no session for the link fallback')
 
 
@@ -1516,9 +1567,85 @@ def _() -> None:
                   'custom_ok': {'enabled': True, 'keywords': ['okform'], 'flowId': '8888'}})
     registry().items['7777'] = {'flowId': '7777', 'entryMode': 'payment_template', 'requiresPayment': True,
                                 'entryTemplateName': 'wd_paid'}
+    registry().items['8888'] = {'flowId': '8888', 'status': 'PUBLISHED', 'metaStatus': 'PUBLISHED'}
     expect(dispatch('vipform') == 'fell_through' and not M['lambda'].invocations, 'F001 opened via a custom key')
     expect(dispatch('paidform') == 'fell_through' and not M['lambda'].invocations, 'paid Flow opened by keyword')
     expect(dispatch('okform') is None and M['lambda'].invocations, 'ordinary keyword Flow stopped working')
+
+
+def _cta_link() -> Optional[str]:
+    return M['cta'][-1]['args'][3] if M['cta'] else None
+
+
+@check('F8 a keyword Flow not known live on Meta answers with its working link, never a dead Flow')
+def _() -> None:
+    reset_inbound()
+    links = M['inbound']['FLOW_LINKS']
+    expect(not any('/r/' in url for url in [*links.values(), M['inbound']['FLOW_LINK_DEFAULT']]),
+           'a fallback points at an /r/ short code (six are google.com recovery rows)')
+    # track_request has no Flow at all.
+    expect(dispatch('track') is None and _cta_link() == links['track_request'] and not M['lambda'].invocations,
+           f'no-Flow door: {_cta_link()}')
+    # rx_slot names a Flow that FlowRegistry has never seen (it no longer exists on Meta).
+    expect(dispatch('pharmacy') is None and _cta_link() == links['rx_slot'] and not M['lambda'].invocations,
+           f'unregistered Flow: {_cta_link()}')
+    review_flow = M['canonical_flows'].canonical_flow_id('leave_review')
+    registry().items[review_flow] = {'flowId': review_flow, 'status': 'PUBLISHED', 'metaStatus': 'DEPRECATED'}
+    expect(dispatch('review') is None and _cta_link() == links['leave_review'] and not M['lambda'].invocations,
+           'a deprecated Flow was sent')
+    registry().items[review_flow]['metaStatus'] = 'PUBLISHED'
+    expect(dispatch('review') is None and M['lambda'].invocations
+           and M['lambda'].invocations[-1]['body']['interactiveData']['flowId'] == review_flow,
+           'a live Flow stopped opening')
+    cta_before = len(M['cta'])
+    expect(dispatch('pharmacy', waba='phone2') is None and len(M['cta']) == cta_before + 1
+           and _cta_link() == links['rx_slot'], 'WABA 2 link path changed')
+
+
+@check('F9 an unreadable message gets one hint a day; never for an unknown contact or a thread we do not own')
+def _() -> None:
+    reset_inbound()
+    ns, content = M['inbound'], M['inbound_content']
+    expect(ns['UNREADABLE_MESSAGE_LABELS'] == {content.UNSUPPORTED_UNKNOWN, content.UNSUPPORTED_DISAPPEARING},
+           'labels drifted from modules.content')
+    unknown = {'type': 'unsupported', 'unsupported': {'type': 'unknown'},
+               'errors': [{'code': 131051, 'title': 'Message type unknown',
+                           'error_data': {'details': 'Message type is currently not supported.'}}]}
+    otp = {'type': 'unsupported', 'errors': [{'code': 131051, 'error_data': {
+        'details': 'OTP authentication message not supported'}}]}
+    expect(content.extract_unsupported_content(unknown) in ns['UNREADABLE_MESSAGE_LABELS'], 'measured payload not covered')
+    expect(content.extract_unsupported_content(otp) not in ns['UNREADABLE_MESSAGE_LABELS'], 'Meta OTP would be answered')
+    contact_id = f'wa{PHONE_A}'
+    contacts().items[contact_id] = {'id': contact_id, 'phone': f'+{PHONE_A}'}
+    hint, now = ns['_send_unreadable_hint'], 1_800_000_000
+    expect(hint(contact_id, 'phone2', now, 'r') and M['replies'][-1] == ns['UNREADABLE_HINT_TEXT'], 'first hint')
+    expect(not hint(contact_id, 'phone2', now + 60, 'r') and len(M['replies']) == 1, 'second hint inside a day')
+    expect(hint(contact_id, 'phone2', now + ns['UNREADABLE_HINT_INTERVAL_SECONDS'] + 1, 'r')
+           and len(M['replies']) == 2, 'no hint the next day')
+    expect(not hint('wa15550199999', 'phone2', now, 'r') and 'wa15550199999' not in contacts().items,
+           'hint sent to (or row created for) an unknown contact')
+    ns['_may_send'] = lambda purpose: False
+    try:
+        contacts().items[contact_id].pop('unreadableHintAt')
+        expect(not hint(contact_id, 'phone2', now, 'r') and len(M['replies']) == 2, 'hint sent on a thread we do not own')
+    finally:
+        ns['_may_send'] = lambda purpose: True
+
+
+@check('F10 an unsupported message is not marked read or reacted to, and the hint is wired in')
+def _() -> None:
+    tree = ast.parse(INBOUND.read_text(encoding='utf-8'))
+    process = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == '_process_message')
+    ack = next(n for n in ast.walk(process) if isinstance(n, ast.If) and ast.unparse(n.test) == "msg_type != 'reaction'")
+    branch = next(n for n in ack.body if isinstance(n, ast.If))
+    expect(ast.unparse(branch.test) == "msg_type == 'unsupported'", 'unsupported is not the first ack branch')
+    skipped = ast.unparse(ast.Module(body=branch.body, type_ignores=[]))
+    expect('_send_direct_api_read_receipt' not in skipped and '_send_direct_api_reaction' not in skipped
+           and '_send_read_receipt' not in skipped, 'unsupported branch still acknowledges')
+    expect(branch.orelse and '_is_direct_api_phone' in ast.unparse(branch.orelse[0].test), 'other types lost their ack')
+    wired = [n for n in ast.walk(process) if isinstance(n, ast.If)
+             and ast.unparse(n.test) == "msg_type == 'unsupported' and content in UNREADABLE_MESSAGE_LABELS"]
+    expect(wired and '_send_unreadable_hint' in ast.unparse(wired[0]), 'hint not called for unreadable messages')
 
 
 @check('F7 "my id" answers from the contact row, never from Flow history')
