@@ -663,6 +663,33 @@ def ensure_role(dry_run: bool) -> str:
     )
     iam().put_role_policy(
         RoleName=ROLE_NAME,
+        PolicyName="CommerceStaffAuth",
+        PolicyDocument=json.dumps({
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Sid": "CognitoGetUserForStaffAuth",
+                    "Effect": "Allow",
+                    "Action": ["cognito-idp:GetUser"],
+                    "Resource": "*",
+                },
+                {
+                    "Sid": "CognitoStaffRoleAndMfa",
+                    "Effect": "Allow",
+                    "Action": [
+                        "cognito-idp:AdminListGroupsForUser",
+                        "cognito-idp:AdminGetUser",
+                    ],
+                    "Resource": (
+                        f"arn:aws:cognito-idp:{REGION}:{account_id()}:"
+                        "userpool/us-east-1_cSx0RHCIR"
+                    ),
+                },
+            ],
+        }),
+    )
+    iam().put_role_policy(
+        RoleName=ROLE_NAME,
         PolicyName="LegacyMediaWriteGuard",
         PolicyDocument=json.dumps(legacy_media_write_guard_policy()),
     )
