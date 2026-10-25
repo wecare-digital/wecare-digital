@@ -2332,7 +2332,7 @@ export interface WhatsAppTemplate {
 
 export interface TemplateComponent {
   type: 'HEADER' | 'BODY' | 'FOOTER' | 'BUTTONS' | 'CAROUSEL';
-  format?: 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT';
+  format?: 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT' | 'LOCATION';
   text?: string;
   example?: { body_text?: string[][] };
   buttons?: { type: string; text: string; url?: string; phone_number?: string }[];
