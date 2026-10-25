@@ -68,18 +68,25 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     global origin
     origin = extract_origin(event)
 
+    # Handle both HTTP API v2 and REST API event formats
+    http_method = str(
+        event.get('requestContext', {}).get('http', {}).get('method') or
+        event.get('httpMethod') or
+        'GET'
+    ).upper()
+
+    # A preflight is answered here and does nothing else. require_auth lets OPTIONS through
+    # unauthenticated precisely so a handler can answer it, and the routing below used to send
+    # every method that was not GET to the replay, so an OPTIONS call received, re-ran and
+    # deleted DLQ messages.
+    if http_method == 'OPTIONS':
+        return options_response(origin)
+
     from lambda_utils.middleware import require_auth
     _auth = require_auth(event)
     if _auth is not None:
         return _auth
 
-    # Handle both HTTP API v2 and REST API event formats
-    http_method = (
-        event.get('requestContext', {}).get('http', {}).get('method') or
-        event.get('httpMethod') or
-        'GET'
-    )
-    
     logger.info(json.dumps({
         'event': 'dlq_handler_start',
         'method': http_method,
@@ -91,7 +98,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return _list_dlq_messages(request_id)
     
     # POST /dlq/replay - Replay messages
-    return _replay_dlq_messages(event, request_id)
+    if http_method == 'POST':
+        return _replay_dlq_messages(event, request_id)
+
+    # Default deny: no other method means anything here, least of all a replay.
+    return _error_response(405, 'Method not allowed')
 
 
 def _list_dlq_messages(request_id: str) -> Dict[str, Any]:
