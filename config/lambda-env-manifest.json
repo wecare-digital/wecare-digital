@@ -564,7 +564,8 @@
       "WA_INVOICE_TEMPLATE": "wecare_default_invoice_image_template",
       "REFUND_INITIATION_ENABLED": "false",
       "OUTBOUND_FUNCTION": "wecare-outbound-whatsapp:live",
-      "WA_CATALOG_ORDERS_ENABLED": "true"
+      "WA_CATALOG_ORDERS_ENABLED": "true",
+      "WHATSAPP_IDENTITY_FUNCTION": "wecare-customer-registration:live"
     }
   }
 }
