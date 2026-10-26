@@ -2617,11 +2617,11 @@ def _post_payment_handler(payment_id: str, contact: str,
     label was stale.)
     1. Invoke invoice-engine to create invoice from payment (dedup will return existing if another path already created it)
     2. Generate invoice image (POS receipt style)
-    3. WhatsApp-native orders only: Meta order_status `processing` (`_start_native_fulfilment`),
-       bounded and best-effort, so it can never hold back or fail the receipt.
-    4. Deliver the GST invoice IMAGE template on WhatsApp, once. Steps 3 and 4 are the ONLY
-       customer messages a capture produces: no confirmation text, no review template, no Flow
-       message. The invoice template itself exposes the Leave Review Flow button.
+    3. WhatsApp-native orders only: advance the Meta payment-order lifecycle in order:
+       `processing` ("Payment received.") then `completed` ("Payment complete.").
+       The second transition is attempted only after the first was accepted or already current.
+    4. Deliver the GST invoice IMAGE template on WhatsApp, once. The invoice template itself
+       exposes the Leave Review Flow button; no standalone review/free-form confirmation is sent.
 
     `channel` is WHERE the order came from (`website` / `whatsapp`), read off the `PAYREF#` row by
     the reconciliation above. KEYWORD-ONLY and defaulted so the legacy callers that pass eight
@@ -2738,12 +2738,11 @@ def _post_payment_handler(payment_id: str, contact: str,
                                 'paymentId': payment_id, 'invoiceId': invoice_id,
                                 'requestId': request_id}))
 
-    # ── Step 3: Meta order_status `processing`, before the receipt (WhatsApp-native only) ──
+    # ── Step 3: finish the Meta payment-order lifecycle before the receipt ──
     #
-    # The owner's sequence: the order card moves to "processing", then the invoice arrives.
-    # Bounded (`_FULFILMENT_INVOKE_READ_TIMEOUT_SECONDS`, no client retry) and it never raises,
-    # so a slow or failed Meta send costs the receipt at most that wait. On a redelivery it runs
-    # again harmlessly: the engine's one-send claim and `waOrderStatus` refuse a second send.
+    # Payment-only invariant: pending -> processing -> completed. The chained helper sends the
+    # second transition ONLY when processing was accepted (or was already current), so Meta never
+    # receives completed out of order. Both sends are template-only in outbound-whatsapp.
     _start_native_fulfilment(reference_id, checkout_mode, originating_phone_id, request_id,
                              invoice_id=invoice_id)
 
@@ -3259,21 +3258,11 @@ def _handle_invoice_event(event_type: str, event_data: Dict, request_id: str) ->
 
 def _start_native_fulfilment(reference_id: str, checkout_mode: str, phone_number_id: str,
                              request_id: str, *, invoice_id: str = '') -> None:
-    """The post-payment fulfilment step: Meta order_status `processing`, at most once.
+    """Finish the payment-only Meta lifecycle: pending -> processing -> completed.
 
-    Meta's order details page shows only what order_status messages say, and an order opens as
-    `pending` ("not paid yet"), so a WhatsApp-native order gets one `processing` update after
-    capture. `_post_payment_handler` runs it once the invoice exists and BEFORE the invoice
-    template is delivered (the owner's sequence: order_status, then the receipt). It never
-    raises, and its engine call is bounded, so the receipt that follows never fails on it and
-    waits at most `_FULFILMENT_INVOKE_READ_TIMEOUT_SECONDS`.
-
-    Native checkout modes only (read off OUR `PAYREF#` row by reconciliation): a website Razorpay
-    order has no Meta order_details to update. `invoice_id` is the invoice the receipt step
-    created or found; without one, the single invoice stored for the reference is used, and with
-    none (or an ambiguous two) the step is skipped and logged. The engine owns the rest: the paid
-    check, the pending -> processing transition, the one-send claim, the 24-hour window and the
-    template fallback.
+    Both transitions use the approved ORDER_STATUS template. The completed update is attempted
+    only after processing was accepted or the engine reports it is already current. This keeps
+    Meta's transition order valid and makes Razorpay webhook redelivery idempotent.
     """
     try:
         from lambda_utils.ecommerce import wa_payment_request
@@ -3288,13 +3277,31 @@ def _start_native_fulfilment(reference_id: str, checkout_mode: str, phone_number
             if len(items) == 1:
                 invoice_id = str(items[0].get('invoiceId') or '')
         if not invoice_id:
-            logger.info(json.dumps({'event': 'order_status_processing_skipped',
+            logger.info(json.dumps({'event': 'payment_order_status_skipped',
                                     'referenceId': reference_id, 'reason': 'NO_SINGLE_INVOICE',
                                     'requestId': request_id}))
             return
-        _send_order_status_processing(invoice_id, phone_number_id, request_id)
+
+        processing_status, processing_code = _invoke_order_status(
+            invoice_id, 'processing', phone_number_id, request_id,
+            event_prefix='order_status_processing',
+            description='Payment received.')
+        if not (processing_status == 200 or processing_code == 'ORDER_STATUS_UNCHANGED'):
+            logger.info(json.dumps({
+                'event': 'order_status_completed_blocked',
+                'invoiceId': invoice_id,
+                'processingStatusCode': processing_status,
+                'processingCode': processing_code,
+                'requestId': request_id,
+            }))
+            return
+
+        _invoke_order_status(
+            invoice_id, 'completed', phone_number_id, request_id,
+            event_prefix='order_status_completed',
+            description='Payment complete.')
     except Exception as error:  # noqa: BLE001 - must never mask the receipt step's outcome
-        logger.warning(json.dumps({'event': 'order_status_processing_unavailable',
+        logger.warning(json.dumps({'event': 'payment_order_status_unavailable',
                                    'referenceId': reference_id, 'error': type(error).__name__,
                                    'requestId': request_id}))
 
@@ -3338,7 +3345,7 @@ def _send_order_status_processing(invoice_id: str, phone_number_id: str,
 
 
 def _invoke_order_status(invoice_id: str, target: str, phone_number_id: str, request_id: str,
-                         *, event_prefix: str) -> tuple[int, str]:
+                         *, event_prefix: str, description: str = '') -> tuple[int, str]:
     """One fulfilment ORDER_STATUS request to the engine. Returns (HTTP status, engine code).
 
     Never raises: (0, '') means the engine could not be reached or answered with a function
@@ -3355,6 +3362,7 @@ def _invoke_order_status(invoice_id: str, target: str, phone_number_id: str, req
                 'requestContext': {'http': {'method': 'POST'}},
                 'pathParameters': {'invoiceId': invoice_id},
                 'body': json.dumps({'invoiceId': invoice_id, 'orderStatus': target,
+                                    'description': description,
                                     'phoneNumberId': phone_number_id or WABA1_PHONE_ID})}))
         if response.get('FunctionError'):
             logger.warning(json.dumps({'event': f'{event_prefix}_invoke_error',
