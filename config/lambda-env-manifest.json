@@ -397,7 +397,7 @@
       "AWS_ACCOUNT_ID": "775261844268",
       "CDN_DOMAIN": "wecare.digital/get",
       "CONTACTS_TABLE": "stack-wecare-digital-ContactsTable",
-      "DIRECT_SEND_ENABLED_WABAS": "2094615664435155,2513394156072604",
+      "DIRECT_SEND_ENABLED_WABAS": "",
       "EXPECTED_CONFIGURATION_NAME": "WECAREDIGITAL",
       "EXPECTED_PROVIDER_MID": "acc_TTFSyolquKEZEy",
       "LOG_LEVEL": "INFO",
@@ -609,7 +609,7 @@
     "wecare-whatsapp-business-api": {
       "AUTH_SKIP_PATHS": "/wa-business/flow-data",
       "COMMERCE_KEYS_TABLE": "stack-wecare-digital-CommerceKeys",
-      "DIRECT_SEND_ENABLED_WABAS": "2094615664435155,2513394156072604",
+      "DIRECT_SEND_ENABLED_WABAS": "",
       "FLOW_LOGS_TABLE": "stack-wecare-digital-FlowLogTable",
       "FLOW_PRIVATE_KEY_PASSPHRASE": "",
       "FLOW_PRIVATE_KEY_SECRET": "wecare/flow-private-key",

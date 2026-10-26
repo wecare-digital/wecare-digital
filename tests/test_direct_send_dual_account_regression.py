@@ -15,6 +15,7 @@ SECONDARY_PHONE_ID = "1055232054343117"
 PRIMARY_ACCOUNT_ID = "2094615664435155"
 SECONDARY_ACCOUNT_ID = "2513394156072604"
 ENABLED_BOTH = f"{PRIMARY_ACCOUNT_ID},{SECONDARY_ACCOUNT_ID}"
+PRODUCTION_ENABLED = ""
 
 
 def _load_direct_send():
@@ -86,11 +87,11 @@ class DirectSendDualAccountRegressionTests(TestCase):
         )
         self.assertIn("return _resp(403", admin_source)
 
-    def test_live_env_manifest_pins_both_accounts_on_both_senders(self):
+    def test_live_env_manifest_fails_closed_until_meta_onboarding(self):
         functions = self.manifest["functions"]
         for function_name in ("wecare-outbound-whatsapp", "wecare-whatsapp-business-api"):
             self.assertEqual(
                 functions[function_name]["DIRECT_SEND_ENABLED_WABAS"],
-                ENABLED_BOTH,
+                PRODUCTION_ENABLED,
                 function_name,
             )
