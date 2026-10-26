@@ -79,6 +79,19 @@ const MigrationPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
     setProcessing(false);
   };
 
+  const handleSetTwoStepPin = async () => {
+    if (!phoneId) { toast.error('Enter phone number ID'); return; }
+    if (!/^\d{6}$/.test(pin)) { toast.error('Two-step PIN must be exactly 6 digits'); return; }
+    setProcessing(true);
+    addLog(`Setting two-step verification for ${phoneDisplay || phoneId}...`);
+    try {
+      const ok = await api.setPhoneTwoStepPin(phoneId, pin);
+      if (ok) { addLog('Two-step verification PIN updated'); toast.success('Two-step verification updated'); }
+      else { addLog('Failed to update two-step verification'); toast.error('Update failed'); }
+    } catch (err: any) { addLog(`Error: ${err.message || 'Unknown'}`); toast.error('Update failed'); }
+    setProcessing(false);
+  };
+
   const handleRegister = async () => {
     setProcessing(true);
     addLog(`Registering ${phoneDisplay || phoneId}...`);
@@ -171,8 +184,8 @@ const MigrationPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
             <input value={targetWaba} onChange={e => setTargetWaba(e.target.value)} placeholder="e.g. 2094615664435155" style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 'var(--text-sm)' }} />
           </div>
           <div>
-            <label style={{ fontSize: 'var(--text-xs)', fontWeight: 500, display: 'block', marginBottom: 4 }}>2FA PIN (6 digits, optional)</label>
-            <input value={pin} onChange={e => setPin(e.target.value)} placeholder="123456" maxLength={6} style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 'var(--text-sm)' }} />
+            <label style={{ fontSize: 'var(--text-xs)', fontWeight: 500, display: 'block', marginBottom: 4 }}>Two-step verification PIN (6 digits)</label>
+            <input value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="new-password" placeholder="123456" maxLength={6} style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 'var(--text-sm)' }} />
           </div>
           <div>
             <label style={{ fontSize: 'var(--text-xs)', fontWeight: 500, display: 'block', marginBottom: 4 }}>OTP Method</label>
@@ -192,6 +205,9 @@ const MigrationPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
               2. Verify
             </button>
           </div>
+          <button onClick={handleSetTwoStepPin} disabled={processing || !phoneId || !/^\d{6}$/.test(pin)} style={{ padding: '8px 16px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 8, fontSize: 'var(--text-sm)', cursor: 'pointer', opacity: processing ? 0.5 : 1 }}>
+            Set / Change Two-step PIN
+          </button>
           <button onClick={handleRegister} disabled={processing || !phoneId} style={{ padding: '8px 16px', background: '#374151', color: '#fff', border: 'none', borderRadius: 8, fontSize: 'var(--text-sm)', cursor: 'pointer', opacity: processing ? 0.5 : 1 }}>
             3. Register
           </button>
@@ -233,7 +249,8 @@ const MigrationPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
           <ol style={{ margin: 0, paddingLeft: 20 }}>
             <li>Request OTP — sends a verification code to the phone via SMS or voice call</li>
             <li>Verify OTP — enter the code to prove ownership</li>
-            <li>Register — register the phone with optional 2FA PIN</li>
+            <li>Set / Change Two-step PIN — securely configure the 6-digit Meta PIN when required</li>
+            <li>Register — register the phone; a PIN may be supplied for Meta registration but is never stored</li>
             <li>Migrate — move the phone from source WABA to target WABA</li>
           </ol>
           <p style={{ margin: '8px 0 0', fontSize: 'var(--text-xs)', color: '#9ca3af' }}>
