@@ -50,6 +50,28 @@ Owner instructions: "enable both for both WABAs", then "go ahead, fix, deploy an
   `wecare-whatsapp-business-api`. `wecare-customer-whatsapp-auth` and
   `wecare-customer-registration` are deployed from an export of the pushed commit with
   `scripts/deploy_all_lambdas.py`. Both changes are inert while the allowlist is empty.
+- **Deployed (A3_PRODUCTION), 10:44–10:51 IST.**
+  - Pushed `344729c98..8831f205c` as a fast-forward, after the previous CI deploy had
+    finished, because the workflow has no concurrency group. `payment-rail-ci` run
+    40273159412 passed every job (typecheck, rail verifier, Direct Send regression test,
+    package, deploy). `wecare-whatsapp-business-api` live v242 `SoofQCoep…`, which a dry
+    run from the pushed tree matches; `wecare-outbound-whatsapp` live v129. Later pushes by
+    other sessions sit on top of this commit and redeployed both.
+  - From an export of `512bd5d2f` (contains this change; no sign-in path changed after it):
+    `wecare-customer-whatsapp-auth` live v17 → v18 `W4y7CfrX…`, `wecare-customer-registration`
+    live v12 → v13 `/FwPkw/RT…`. Both Active/Successful, env key counts unchanged (12, 10).
+    Registration's package also picks up origin's newer `lambda_utils/ecommerce` files, which
+    nothing it imports reads. Rollback: `aws lambda update-alias --name live
+    --function-version 17` (whatsapp-auth) and `12` (registration).
+  - `scripts/provision_direct_send_alarms.py` re-run: both alarms OK, one action each, new
+    descriptions.
+  - Read-only `/direct-send/templates` on both WABAs: 0 generated templates on each.
+  - One QA sign-in to the QA number (05:20:41Z): `CUSTOM_CHALLENGE` over WhatsApp,
+    `customer_whatsapp_otp_sent` with `deliveredVia: template`, CreateAuthChallenge 2.9 s in
+    one invocation, business-api 1.4 s, no `direct_send_*` line, and Meta statuses `sent`
+    then `delivered` for `918****0044`.
+  - Flags afterwards: `DIRECT_SEND_ENABLED_WABAS=""` on both functions;
+    `DIRECT_SEND_AUTHENTICATION_ENABLED_WABAS` not set.
 - To turn authentication on later: `scripts/set_lambda_env_flag.py --set
   DIRECT_SEND_AUTHENTICATION_ENABLED_WABAS=2094615664435155,2513394156072604 --functions
   wecare-whatsapp-business-api --apply`, then one QA sign-in: expect `direct_send_otp_sent`,
