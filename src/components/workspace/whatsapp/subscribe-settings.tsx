@@ -65,12 +65,12 @@ type Messages = Record<Scenario, Copy>;
 /** Mirrors lambda_utils/subscribe_messages.py DEFAULTS, used when nothing is saved. */
 const DEFAULTS: Messages = {
   newCustomer: {
-    body: 'Welcome to WECARE.DIGITAL. Add your name, WhatsApp username, and address to complete your customer profile.',
-    flowCta: 'Subscribe', confirmation: 'Your details have been saved.',
+    body: 'Welcome to WECARE.DIGITAL. Add your full name, optional WhatsApp username, organization and job title, then your address.',
+    flowCta: 'Subscribe', confirmation: 'Your WECARE.DIGITAL profile and address have been saved.',
   },
   returningCustomer: {
-    body: 'Welcome back to WECARE.DIGITAL. Review your saved details and update your WhatsApp username or address whenever needed.',
-    flowCta: 'Update details', confirmation: 'Your details have been updated.',
+    body: 'Welcome back to WECARE.DIGITAL. Review the same profile and address fields, then update anything that has changed.',
+    flowCta: 'Update details', confirmation: 'Your WECARE.DIGITAL profile and address have been updated.',
   },
 };
 const SCENARIOS: Scenario[] = [ 'newCustomer', 'returningCustomer' ];
