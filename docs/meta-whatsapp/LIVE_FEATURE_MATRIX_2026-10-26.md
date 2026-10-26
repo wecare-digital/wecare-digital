@@ -67,3 +67,10 @@ The live WECARE.DIGITAL app subscribes to newer WhatsApp fields including `autom
 6. Implement Message History chunk/phase processing with idempotency and backpressure before exposing imported history in Inbox.
 7. Add Multi-Partner Solutions only if WECARE.DIGITAL is intentionally operating a partner lifecycle for customer accounts.
 8. Build a curated WhatsApp analytics lake only if cross-period campaign/delivery attribution is needed beyond DynamoDB/CloudWatch operational views.
+
+
+## Correction — shared secondary account integration
+
+The Manish Agarwal production sender is not waiting for a separate Manish-owned developer app. The production code and prior live Graph verification show that the secondary account uses the WECARE.DIGITAL app and shared system-user integration. The WhatsApp Business connector's onboarding checklist only reports apps directly administered under the Manish business, so its "no developer app you administer" result is a visibility limitation and must not be treated as proof that the shared WECARE app relationship is absent.
+
+For the secondary sender, preserve the existing WECARE.DIGITAL app/token path and validate account subscription through the WECARE system-user/Graph integration. Do not create a duplicate app merely to satisfy the connector checklist.
