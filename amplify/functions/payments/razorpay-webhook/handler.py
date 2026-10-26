@@ -3465,9 +3465,35 @@ def _retry_deferred_order_status(request_id: str) -> Dict[str, Any]:
                                            'invoiceId': invoice_id, 'targetStatus': target,
                                            'requestId': request_id}))
             continue
-        status_code, code = _invoke_order_status(invoice_id, target, WABA1_PHONE_ID, request_id,
-                                                 event_prefix='order_status_retry')
-        if status_code == 200:
+        description = ('Payment received.' if target == 'processing'
+                       else 'Payment complete.' if target == 'completed' else '')
+        status_code, code = _invoke_order_status(
+            invoice_id, target, WABA1_PHONE_ID, request_id,
+            event_prefix='order_status_retry', description=description)
+
+        # A deferred processing update belongs to the same payment-only state machine as the
+        # immediate capture path. Once processing is accepted (or was already current), continue
+        # to completed in the SAME retry pass. If completed must defer, the engine replaces the
+        # retry marker with pendingOrderStatus=completed, so the next scheduled run resumes there.
+        if target == 'processing' and (status_code == 200 or code == 'ORDER_STATUS_UNCHANGED'):
+            completed_status, completed_code = _invoke_order_status(
+                invoice_id, 'completed', WABA1_PHONE_ID, request_id,
+                event_prefix='order_status_retry_completed',
+                description='Payment complete.')
+            if completed_status == 200 or completed_code == 'ORDER_STATUS_UNCHANGED':
+                counts['sent'] += 1
+                if completed_code == 'ORDER_STATUS_UNCHANGED':
+                    _clear_order_status_retry(
+                        invoice_id, target, now, reason=completed_code, request_id=request_id)
+            elif completed_code == 'ORDER_STATUS_DEFERRED':
+                counts['deferred'] += 1
+            elif completed_code in _ORDER_STATUS_RETRY_MOOT:
+                counts['moot'] += 1
+                _clear_order_status_retry(
+                    invoice_id, target, now, reason=completed_code, request_id=request_id)
+            else:
+                counts['unknown'] += 1
+        elif status_code == 200:
             counts['sent'] += 1  # the engine removed the retry markers itself
         elif code == 'ORDER_STATUS_DEFERRED':
             counts['deferred'] += 1  # re-parked by the engine with a fresh pendingOrderStatusAt
