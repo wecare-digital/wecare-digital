@@ -211,8 +211,36 @@ def _get(table: Any, key: str) -> Optional[Dict[str, Any]]:
             f"could not read a request row: {type(error).__name__}") from error
 
 
+#: The fields of a TransactWriteItems operation that hold AttributeValues.
+_ATTRIBUTE_VALUE_FIELDS = ("Item", "Key", "ExpressionAttributeValues")
+
+
 def _transact(table: Any, items: List[Dict[str, Any]]) -> None:
-    table.meta.client.transact_write_items(TransactItems=items)
+    """One TransactWriteItems, with `items` built in AttributeValue form (`_put`, `_marshal_item`).
+
+    `table.meta.client` belongs to a boto3 *resource*, and that client serializes every value
+    itself. Handed the already-marshalled items it wrapped them a second time, so a key such as
+    {"S": "INTENT#…"} reached DynamoDB as {"M": {"S": {"S": "INTENT#…"}}}. Every transaction
+    was refused, each caller read the cancellation as a lost race, and no service intent,
+    activation, Vault grant or document attach was ever written (ServiceRequestsTable held 0
+    rows on 2026-10-26; a WhatsApp Unlock Vault tap answered "cannot be paid for right now").
+    Converting the values back to Python lets that client serialize them exactly once, on the
+    caller's own client, session and endpoint.
+    """
+    from boto3.dynamodb.types import TypeDeserializer
+
+    deserialize = TypeDeserializer().deserialize
+    native = []
+    for entry in items:
+        native_entry = {}
+        for operation, spec in entry.items():
+            spec = dict(spec)
+            for field in _ATTRIBUTE_VALUE_FIELDS:
+                if field in spec:
+                    spec[field] = {name: deserialize(value) for name, value in spec[field].items()}
+            native_entry[operation] = spec
+        native.append(native_entry)
+    table.meta.client.transact_write_items(TransactItems=native)
 
 
 def _put(table_name: str, item: Dict[str, Any], condition: str,
