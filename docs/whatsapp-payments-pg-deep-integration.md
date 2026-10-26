@@ -125,14 +125,15 @@ name; `WECAREDIGITAL` is now verified, so it is not a guess.
   approved `wecare_default_invoice_image_template` once, from
   `s3://wecare-digital-get/secure/d/public/Invoice/customer_invoice/`. Later fulfilment updates
   (shipped, completed) never re-send the invoice.
-- Order page (2026-10-26): every automatic order_status text (no staff description) ends with
-  the customer's order page, `https://wecare.digital/orders/?o=<orderNumber>`, for the cart and
-  catalog-service modes that write an order row (`order_links`, invoice-engine
-  `_order_status_body`). The page is session-gated: checkout's `order` action answers only for an
-  order the WhatsApp-OTP session owns. The website rail lands on the same page from
-  `/checkout/status/` once the attempt carries its order number. The delivery address shown there
-  is the one frozen on the PaymentAttempt at checkout and copied to the order by `accept_paid`
-  (`order_delivery`), never the contact's current address.
+- Order page (2026-10-26): `https://wecare.digital/orders/?o=<orderNumber>` shows one order:
+  lines, amounts, the delivery address and the payment and order status. It is session-gated:
+  checkout's `order` action answers only for an order the WhatsApp-OTP session owns, with the same
+  404 for a missing order and someone else's. The website rail lands there from
+  `/checkout/status/` once the attempt carries its order number; a WhatsApp buyer opens it from
+  `/orders/` (the WhatsApp `orders` reply's button). The order_status templates carry no link:
+  their wording is fixed by `docs/operations/whatsapp-payment-collection-stack.md`. The delivery
+  address shown is the one frozen on the PaymentAttempt at checkout and copied to the order by
+  `accept_paid` (`order_delivery`), never the contact's current address.
 - Delivery address (2026-10-26): every WhatsApp catalog cart confirms where it ships before the
   payment request. Once the cart prices and payments are ready, checkout answers
   `DELIVERY_CONFIRMATION_REQUIRED` and inbound sends the India Address Message, prefilled with the

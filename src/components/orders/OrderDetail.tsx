@@ -11,9 +11,9 @@ import {
  * The order page body: one of the signed-in customer's own orders, at /orders/?o=<orderNumber>.
  *
  * This is where both purchase channels end. A website purchase arrives here from
- * /checkout/status/ once the payment is confirmed; a WhatsApp catalog purchase arrives from the
- * link in the `processing` order update. Either way it shows what was bought, where it ships,
- * what was paid and what is happening to the order now.
+ * /checkout/status/ once the payment is confirmed; a WhatsApp catalog purchase is opened from the
+ * order history (`/orders/`, which the WhatsApp `orders` reply links). Either way it shows what
+ * was bought, where it ships, what was paid and the order's current status.
  *
  * ONE AUTHENTICATED READ. `POST /ecommerce/checkout/status` with `{action:'order', orderNumber}`
  * (checkout `_order_detail`). The server answers only for an order the session owns and returns
@@ -247,8 +247,12 @@ export default function OrderDetail (
               ) }
             </p>
             { paymentNote && <p className="odt-note">{ paymentNote }</p> }
+            { /* No promise of further WhatsApp updates: the WhatsApp payment rail sends its
+                 status templates at payment, and a later change to the order row is not
+                 guaranteed to send a message. This page reads that row, so it is the place that
+                 stays current. */ }
             { paid && (
-              <p className="odt-p">We will keep you updated on WhatsApp as your order moves.</p>
+              <p className="odt-p">This page shows the latest status of your order.</p>
             ) }
           </header>
 

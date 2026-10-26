@@ -65,8 +65,9 @@ import OrderDetail from './OrderDetail';
  * and no later writer creates one. Phase 3 cannot repair that; the repair is on the money path.
  *
  * THE ORDER PAGE IS THIS PAGE WITH `?o=<orderNumber>`. Both purchase channels end there: the
- * website's /checkout/status/ hands off to it once the payment is confirmed, the WhatsApp
- * `processing` update links to it, and each history row's panel links to it. OrderDetail renders
+ * website's /checkout/status/ hands off to it once the payment is confirmed, and each history
+ * row's panel links to it, which is how a WhatsApp buyer arrives (the WhatsApp `orders` reply
+ * opens this page; the rail's order_status templates carry no link). OrderDetail renders
  * it, from one session-gated read of one order. It is a client-side view of the same static
  * route, so the export, the canonical and the signed-out first render above are unchanged. A
  * number opened while signed out is kept in sessionStorage (`lib/orderPage`) and reopened once

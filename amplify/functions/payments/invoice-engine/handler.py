@@ -56,10 +56,6 @@ from lambda_utils.ecommerce import order_keys, wa_payment_request
 # SEPARATE lifecycle from the payment's money state — this is what the merchant did (shipped,
 # completed), not what the money did. One home for the rules `send_order_status` validates.
 from lambda_utils.ecommerce import wa_order_status
-# The customer's order page link (`/orders/?o=<orderNumber>`), and the checkout modes whose
-# capture also writes the internal order row that page reads. A fulfilment update for any other
-# mode carries no link, because the page would have no order to show.
-from lambda_utils.ecommerce import finalization, order_links
 # Order-bound review tokens for the paid-invoice template's FLOW button. `send_invoice_whatsapp`
 # is the only minter/binder: it records REVIEWTOKEN#<token> -> {invoiceId, orderId, referenceId,
 # contactId, customerUuid} on CommerceKeys so a review can be tied to the order it was about.
@@ -4110,31 +4106,6 @@ _ORDER_DETAILS_CHECKOUT_MODES = frozenset({
     'AWS_NATIVE',
 })
 
-#: The ORDER_DETAILS modes whose capture ALSO writes the internal order row the customer's order
-#: page reads (`finalization.ACCEPTED_CHECKOUT_MODES`): the WhatsApp cart and the catalog-service
-#: leg. An invoice-native payment (`WHATSAPP_NATIVE_PG`) settles an invoice and no order row, so
-#: its fulfilment updates carry no order-page link.
-_ORDER_PAGE_CHECKOUT_MODES = _ORDER_DETAILS_CHECKOUT_MODES & finalization.ACCEPTED_CHECKOUT_MODES
-
-
-def _order_status_body(target: str, invoice: Dict, checkout_mode: str) -> str:
-    """The default customer line for a fulfilment update, ending in the order page link.
-
-    The link is added only when this payment has an order row to show and the invoice already
-    names its order number (`_cross_link_invoice_and_order` writes it when the invoice is created),
-    and only when the whole line fits Meta's 120-character `order.description` ceiling: outside
-    the 24-hour window this text travels in the ORDER_STATUS template's description, which is
-    trimmed to that length, and a cut link is worse than none.
-    """
-    text = wa_order_status.default_body(target)
-    link = (order_links.order_page_url(invoice.get('orderNumber'))
-            if checkout_mode in _ORDER_PAGE_CHECKOUT_MODES else '')
-    if link:
-        with_link = f'{text} View your order: {link}'
-        if len(with_link) <= wa_order_status.MAX_DESCRIPTION_LENGTH:
-            return with_link
-    return text
-
 
 def _resolve_order_id(invoice: Dict, keys_table: Any, request_id: str) -> str:
     """The REAL Order id for an invoice, via the commerce claim, else `invoice.orderId`.
@@ -4216,9 +4187,7 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
         })
 
     table = dynamodb.Table(INVOICES_TABLE)
-    # Consistent: at capture this runs moments after `_cross_link_invoice_and_order` wrote the
-    # order number onto this row, and that number is what the update's order-page link names.
-    resp = table.get_item(Key={'invoiceId': invoice_id}, ConsistentRead=True)
+    resp = table.get_item(Key={'invoiceId': invoice_id})
     invoice = resp.get('Item')
     if not invoice:
         return _resp(404, {'error': 'Invoice not found'})
@@ -4309,11 +4278,7 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
                                      'invoiceId': invoice_id, 'targetStatus': target,
                                      'requestId': request_id}))
 
-    # A staff-written description is sent as written. The default line points the customer at
-    # their order page, so every automatic update (the `processing` sent at capture and its
-    # deferred retry included) says where to see the order.
-    body_text = ((description or '').strip()
-                 or _order_status_body(target, invoice, checkout_mode))
+    body_text = (description or '').strip() or wa_order_status.default_body(target)
     contact = _lookup_contact_by_phone(customer_phone)
     contact_id = (contact.get('contactId') or contact.get('id', '')) if contact else ''
 

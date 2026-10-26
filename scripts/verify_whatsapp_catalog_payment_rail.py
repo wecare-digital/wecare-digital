@@ -12,8 +12,8 @@
     -> then, as a SEPARATE finalization step, ONE Meta order_status `processing`. Invoice delivery
     never depends on that order_status send succeeding.
     -> the order page (`/orders/?o=<orderNumber>`, checkout's `order` action): the delivery address
-    frozen at checkout, the reviewed lines and the paid status, to the order's owner only. The
-    `processing` text links it. Section 9d covers the website prepare's own address gate.
+    frozen at checkout, the reviewed lines and the paid status, to the order's owner only.
+    Section 9d covers the website prepare's own address gate.
 
 WHAT RUNS FOR REAL
 ------------------
@@ -1240,13 +1240,6 @@ def run(root: Path) -> int:
             check("R18", "...and it went out BEFORE the invoice template (order_status, then receipt)",
                   bool(invoice_idx) and status_idx[0] < invoice_idx[0],
                   {"order_status": status_idx, "invoice": invoice_idx})
-            status_text = (((status_payload.get("interactive") or {}).get("body") or {})
-                           .get("text") or "")
-            paid_number = counts["orders"][0].get("orderNumber") if counts["orders"] else ""
-            check("PAGE", "...and its text links the buyer's own order page",
-                  bool(paid_number)
-                  and status_text.endswith(f"View your order: https://wecare.digital/orders/?o={paid_number}")
-                  and len(status_text) <= 120, status_text)
         post_capture_kinds = sorted(
             "invoice" if (s["payload"].get("template") or {}).get("name") == INVOICE_TEMPLATE
             else "order_status" if (s["payload"].get("interactive") or {}).get("type") == "order_status"

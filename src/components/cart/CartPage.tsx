@@ -127,22 +127,26 @@ import { colors } from '../../lib/design-tokens';
  */
 import { LOGO_URL } from '../../lib/schema';
 import { CHECKOUT_METHOD_PATH, takePendingAction, type CheckoutChannel } from '../../lib/serviceEntry';
+// The two request-key slots live with the status-screen hand-off, so the screen that empties a
+// paid cart and the page that minted its key name the same storage keys.
+import {
+  CHECKOUT_REQUEST_BASKET, CHECKOUT_REQUEST_KEY, rememberCheckoutAttempt,
+} from '../../lib/checkoutHandoff';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api';
 const PREPARE_CHECKOUT_URL = `${API_BASE}/ecommerce/prepare-checkout`;
 const VERIFY_CHECKOUT_URL = `${API_BASE}/ecommerce/verify-callback`;
 const RAZORPAY_SDK = 'https://checkout.razorpay.com/v1/checkout.js';
-const CHECKOUT_REQUEST_KEY = 'wc_checkout_request_key';
+
 /**
- * The basket fingerprint the request key above was minted for.
- *
- * TWO SLOTS, FIXED, so there is no growth to bound: one key plus the basket it belongs to. Keying
- * the slot NAME on the fingerprint was the alternative and is worse - it leaves basket A's key
- * sitting there when the customer edits back to A, and resuming it is a GUARANTEED refusal rather
- * than a resumption, because getting back to A re-ran the server-side reconcile and moved both
- * `cart.revision` and `snapshot_hash`.
+ * Every hand-off to /checkout/status/. The attempt is recorded first, so that screen empties this
+ * cart once the server reports that attempt PAID (`lib/checkoutHandoff`). The cart stays until
+ * then: the hand-off itself proves nothing about money.
  */
-const CHECKOUT_REQUEST_BASKET = 'wc_checkout_request_basket';
+function goToCheckoutStatus ( attemptId: string ): void {
+  rememberCheckoutAttempt( attemptId );
+  window.location.assign( `/checkout/status/?a=${ encodeURIComponent( attemptId ) }` );
+}
 /**
  * What to say when the server refuses the contribution amount.
  *
@@ -980,15 +984,20 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                 window.location.assign( `/checkout/status/?a=${ paidAttempt }` );
                 return;
               }
-              setNotice( {
-                kind: 'error',
-                message: 'Payment returned, but we are still verifying it. Check your orders before retrying.',
-              } );
+              /*
+               * ANY OTHER ANSWER, OR NONE, HANDS OFF TO THE STATUS SCREEN. Razorpay has returned a
+               * payment for this attempt, so the money may have moved whatever verify said: a lost
+               * response, a 503, or NOT_CAPTURED while the capture is still settling. The Razorpay
+               * webhook settles the attempt independently, and /checkout/status/ polls exactly
+               * that and opens the order page once it is paid. Staying here left the customer on
+               * a latched cart, told to "check your orders". The screen never says a charge was
+               * or was not made; the cart is emptied there only if this attempt is reported PAID.
+               */
+              goToCheckoutStatus( String( verdict.paymentAttemptId || attemptId ) );
             } catch {
-              setNotice( {
-                kind: 'error',
-                message: 'Payment returned, but we could not confirm it yet. Check your orders before retrying.',
-              } );
+              // The verify request itself failed. Same hand-off: the attempt is the one Razorpay
+              // just returned, and the status screen asks the server about it.
+              goToCheckoutStatus( attemptId );
             }
           },
           modal: {
@@ -1010,8 +1019,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
 
       if ( status === 'CHECKOUT_AMBIGUOUS' && data.paymentAttemptId )
       {
-        const a = encodeURIComponent( String( data.paymentAttemptId ) );
-        window.location.assign( `/checkout/status/?a=${a}` );
+        goToCheckoutStatus( String( data.paymentAttemptId ) );
         return { kind: 'NAVIGATED' };
       }
 
@@ -1055,9 +1063,8 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       // direction: the request has left and only the server knows where it stands.
       if ( status === 'PAYMENT_REQUEST_SENT' && data.paymentAttemptId )
       {
-        // Keep the cart until the server confirms a paid order.
-        const a = encodeURIComponent( String( data.paymentAttemptId ) );
-        window.location.assign( `/checkout/status/?a=${a}` );
+        // Keep the cart until the server confirms a paid order; the status screen empties it then.
+        goToCheckoutStatus( String( data.paymentAttemptId ) );
         return { kind: 'NAVIGATED' };
       }
 
