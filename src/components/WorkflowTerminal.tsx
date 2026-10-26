@@ -1059,13 +1059,13 @@ const WorkflowTerminal: React.FC = () => {
            toward a solidly-legible muted white by OPACITY ONLY (no new hex): title .88, state
            .86. Both stay BELOW the solid-#fff step content so the content lines remain the
            loudest glyphs. .88/.86 on #000 clear AA comfortably (~18:1 / ~17:1). */
-        .wt-bar-title{margin-left:8px;color:rgba(255,255,255,.88);font-size:14px}
-        .wt-bar-state{margin-left:auto;display:flex;align-items:center;gap:7px;color:rgba(255,255,255,.86);font-size:13.5px}
+        .wt-bar-title{margin-left:8px;color:rgba(255,255,255,.88);font-size:14px;white-space:nowrap}
+        .wt-bar-state{margin-left:auto;display:flex;align-items:center;gap:7px;color:rgba(255,255,255,.86);font-size:13.5px;white-space:nowrap}
         /* GREEN "live trace" dot. #3da35a is the third light's own value, so no new colour
            enters, and green for a live status is the one hue here that already means
            "healthy/running". Measured on this bar's #3b271a: 4.42:1, well clear of 3:1 on a
            6px decorative dot inside an aria-hidden window. */
-        .wt-state-dot{width:6px;height:6px;border-radius:50%;background:#3da35a}
+        .wt-state-dot{width:6px;height:6px;flex:0 0 auto;border-radius:50%;background:#3da35a}
 
         /* min-height:0 is load-bearing on a flex child that scrolls: without it the
            flex item's automatic minimum size is its content, so it refuses to shrink,
@@ -1296,8 +1296,14 @@ const WorkflowTerminal: React.FC = () => {
              panel is a primary reading surface, so meaningful lines move into a 15-18px band and
              only true metadata stays at 14px. Larger type is allowed to scroll inside the panel
              rather than being shrunk to show more lines at once. */
-          .wt-play{font-size:14px}
-          .wt-bar-title{font-size:15px}
+          /* Keep the whole title bar useful on phones instead of hiding live trace.
+             The Pause control is compacted, the chrome gets a smaller rung, and the bar
+             reserves only the control's measured footprint. */
+          .wt-play{font-size:12px;gap:5px;padding:0 10px}
+          .wt-bar{padding:0 72px 0 10px;gap:5px}
+          .wt-light{width:8px;height:8px}
+          .wt-bar-title{margin-left:2px;font-size:12px}
+          .wt-bar-state{display:flex;font-size:11.5px;gap:5px}
           .wt-request{font-size:18px}
           .wt-call-text{font-size:17px}
           .wt-time{font-size:14px}
@@ -1310,20 +1316,27 @@ const WorkflowTerminal: React.FC = () => {
           .wt-lane-name{font-size:16px}
           .wt-lane-detail{font-size:15px}
           .wt-foot{font-size:15px}
-          .wt-bar-state{display:none}
           .wt-step{padding-left:29px}
           /* ONE LANE PER ROW ON PHONES. Five across only fits where the panel is full width
              (>=768px). On a phone the five-across default would shrink each track below its
              content; a single column gives each of the five lanes a clean full-width row with
              no orphaned last cell and no clipping of the longest detail. */
           .wt-lanes{grid-template-columns:1fr}
-          /* STACK THE STEP TIME UNDER THE $ LINE. On a phone the call text needs the full
-             measure, so the time drops below it rather than squeezing the call. The call row
-             switches from a space-between row to a column, and the time aligns to the start
-             under the prompt. The code block keeps its own overflow-x:auto, so a long call
-             scrolls inside its block and the page never scrolls sideways. */
-          .wt-call{flex-direction:column;align-items:flex-start;gap:2px}
-          .wt-time{margin-left:16px}
+          /* Code calls stay one physical line on phones. Long machine output already owns
+             horizontal scrolling inside .wt-code, so wrapping the elapsed time onto a second
+             line only made the trace look like prose and changed row heights between devices. */
+          .wt-call{flex-direction:row;align-items:baseline;gap:12px}
+          .wt-time{margin-left:auto}
+        }
+        @media(max-width:340px){
+          /* At the Fold width the decorative traffic lights are the expendable chrome.
+             Removing them leaves enough room for both "platform · runtime" and "live trace"
+             plus the Pause control without wrapping or overlap. */
+          .wt-bar{padding-right:64px}
+          .wt-light{display:none}
+          .wt-bar-title{margin-left:0;font-size:11px}
+          .wt-bar-state{font-size:10.5px}
+          .wt-play{font-size:11px;padding-inline:8px}
         }
 
         /* Reduced motion starts on the finished state with the loop paused, so by default this
