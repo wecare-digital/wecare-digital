@@ -119,12 +119,15 @@ name; `WECAREDIGITAL` is now verified, so it is not a guess.
   or → terminal; `completed`/`canceled` terminal. Errors `2046` (bad transition),
   `2047` (cannot cancel a paid order). The order page in-chat only reflects
   `order_status` messages, so one MUST be sent after every PG transaction update.
-- Live behaviour (2026-10-25): after a verified capture the Razorpay webhook sends one
-  `processing` order_status for the WhatsApp-rail order (interactive inside the 24-hour window,
-  `wecare_order_status_v3` outside it, otherwise recorded as `pendingOrderStatus`), then the
-  approved `wecare_default_invoice_image_template` once, from
-  `s3://wecare-digital-get/secure/d/public/Invoice/customer_invoice/`. Later fulfilment updates
-  (shipped, completed) never re-send the invoice.
+- Current payment-rail behaviour (restored 2026-10-27): after verified capture the Razorpay
+  webhook sends `wecare_order_status_v3` twice for a WhatsApp ORDER_DETAILS order:
+  `processing` ("Payment received.") then, only after acceptance/recorded state, `completed`
+  ("Payment complete."). The transport is always the approved template; there is no interactive
+  24-hour-window fallback. Temporary template unavailability is recorded as
+  `pendingOrderStatus` / `orderStatusRetry=PENDING` and retried. The approved
+  `wecare_default_invoice_image_template` follows once with the paid PNG from
+  `s3://wecare-digital-get/secure/d/public/Invoice/customer_invoice/`. Operational shipment
+  fulfilment is separate and never re-sends the invoice.
 - Order page (2026-10-26): `https://wecare.digital/orders/?o=<orderNumber>` shows one order:
   lines, amounts, the delivery address and the payment and order status. It is session-gated:
   checkout's `order` action answers only for an order the WhatsApp-OTP session owns, with the same
