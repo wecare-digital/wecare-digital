@@ -61,7 +61,10 @@ def render(invoice, items, *, company, font_path, ist_strftime, canonical_status
         return 'Rs' + format(Decimal(str(value or 0)), ',.2f')
 
     status = str(canonical_status(invoice.get('paymentStatus', 'pending'))).upper()
-    epoch = invoice.get('createdAt') or invoice.get('invoiceDate') or 0
+    # A PAID tax invoice should display when the money was captured, not when the draft/request
+    # was first created. Keep createdAt as the honest fallback for unpaid/legacy rows.
+    epoch = ((invoice.get('paidAt') if status == 'CAPTURED' else None)
+             or invoice.get('createdAt') or invoice.get('invoiceDate') or 0)
     text(company['legal_name'], title, 'center')
     text(company['name'], heading, 'center')
     text('GSTIN: ' + company['gstin'], small, 'center')
