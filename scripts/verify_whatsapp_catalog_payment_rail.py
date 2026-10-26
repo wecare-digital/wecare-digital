@@ -1159,6 +1159,11 @@ def run(root: Path) -> int:
                 Key={"invoiceId": alice_invoice},
                 UpdateExpression="SET orderStatus = :p, waOrderStatus = :p",
                 ExpressionAttributeValues={":p": "processing"})
+            # The happy path already confirmed the completed delivery claim. Remove only that
+            # hermetic claim so this isolated scenario can model the first completed attempt
+            # crashing after processing was accepted.
+            _table("CommerceKeys").delete_item(
+                Key={"orderId": f"INVOICEDELIVERY#{alice_invoice}#order-status:completed"})
             real_outbound = W.handlers["wecare-outbound-whatsapp"]
 
             def crashing_outbound(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
