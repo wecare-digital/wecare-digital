@@ -2280,9 +2280,10 @@ def _process_message(
                 s3_key = _download_media(whatsapp_media_id, message_id, msg_type, aws_phone_number_id, request_id, mime_type_hint)
             if s3_key:
                 media_id = _store_media_record(message_id, s3_key, media_data, whatsapp_media_id)
-                # ── GAP 2 FIX: Auto-ingest WhatsApp documents into DocumentsTable ──
+                # Ordinary Inbox media stays in the conversation. Only an explicit,
+                # recent Drop Docs request may bind this media into DocumentTable.
                 if msg_type in ('document', 'image'):
-                    _ingest_whatsapp_document(
+                    _attach_whatsapp_document_to_pending_dropdocs(
                         sender_phone, sender_name, contact_id, message_id,
                         whatsapp_media_id, s3_key, msg_type,
                         media_data.get('mime_type', ''),
@@ -4234,70 +4235,105 @@ def _store_media_record(message_id: str, s3_key: str, media_data: Dict, whatsapp
         return None
 
 
-def _ingest_whatsapp_document(
+def _attach_whatsapp_document_to_pending_dropdocs(
     sender_phone: str, sender_name: str, contact_id: str, message_id: str,
     whatsapp_media_id: str, s3_key: str, msg_type: str,
     mime_type: str, filename: str, file_size: int, request_id: str,
-):
+) -> bool:
+    """Bind WhatsApp media only to an explicit, recent Drop Docs upload target.
+
+    Ordinary Inbox images/documents remain conversation media. They must not become
+    business DocumentTable rows merely because their MIME type looks document-like.
+    The Drop Docs flow places a two-hour target on the contact; this consumes it once.
     """
-    GAP 2 FIX: Auto-ingest WhatsApp-uploaded documents into the DocumentsTable.
-    This ensures documents sent via WhatsApp automatically appear in the
-    Drop Docs admin page for review/approval.
-    """
-    DOCUMENTS_TABLE_NAME = os.environ.get('DOCUMENTS_TABLE', 'stack-wecare-digital-DocumentTable')
+    if not contact_id or not s3_key:
+        return False
+
+    now = int(time.time())
     try:
-        doc_table = dynamodb.Table(DOCUMENTS_TABLE_NAME)
-        doc_id = f'WD-DOC-{uuid.uuid4().hex[:8].upper()}'
-        now = int(time.time())
+        contact = dynamodb.Table(CONTACTS_TABLE).get_item(
+            Key={'id': contact_id}, ConsistentRead=True).get('Item') or {}
+        doc_id = str(contact.get('pendingDocumentSubmissionId') or '').strip()
+        try:
+            opened = int(contact.get('pendingDocumentSubmissionAt') or 0)
+        except (TypeError, ValueError):
+            opened = 0
+        if not doc_id or opened <= 0 or now - opened < 0 or now - opened > 2 * 3600:
+            return False
 
-        # Infer document type from mime type
-        doc_type = 'other'
-        if mime_type:
-            if 'pdf' in mime_type:
-                doc_type = 'prescription'  # PDFs often prescriptions
-            elif 'image' in mime_type:
-                doc_type = 'photo'
-            elif 'spreadsheet' in mime_type or 'excel' in mime_type:
-                doc_type = 'invoice'
+        doc_table = dynamodb.Table(
+            os.environ.get('DOCUMENTS_TABLE', 'stack-wecare-digital-DocumentTable'))
+        doc = doc_table.get_item(Key={'documentId': doc_id}, ConsistentRead=True).get('Item') or {}
+        if not doc:
+            return False
+        if str(doc.get('contactId') or '') != str(contact_id):
+            logger.warning(json.dumps({
+                'event': 'dropdocs_media_owner_mismatch',
+                'documentId': doc_id, 'requestId': request_id,
+            }))
+            return False
+        if str(doc.get('sourceType') or '') != 'flow':
+            return False
 
-        item = {
-            'documentId': doc_id,
-            'customerPhone': sender_phone,
-            'customerName': sender_name or '',
-            'contactId': contact_id or '',
-            'sourceType': 'whatsapp',
-            'sourceReferenceId': whatsapp_media_id,
-            'documentType': doc_type,
-            'fileName': filename or f'{msg_type}_{message_id[:8]}',
-            'storageKey': s3_key,
-            'mimeType': mime_type,
-            'fileSize': file_size or 0,
-            'verificationStatus': 'uploaded',
-            'uploadedAt': now,
-            'createdAt': now,
-            'updatedAt': now,
-        }
-        item = {k: v for k, v in item.items() if v is not None and v != '' and v != 0}
-        # Ensure required fields are present even if empty
-        item.setdefault('verificationStatus', 'uploaded')
-        item.setdefault('sourceType', 'whatsapp')
+        existing_key = str(doc.get('storageKey') or '')
+        existing_ref = str(doc.get('sourceReferenceId') or '')
+        if existing_key:
+            return existing_ref == whatsapp_media_id
 
-        doc_table.put_item(Item=item)
+        doc_table.update_item(
+            Key={'documentId': doc_id},
+            UpdateExpression=(
+                'SET storageKey=:key, sourceReferenceId=:ref, fileName=:name, '
+                'mimeType=:mime, fileSize=:size, verificationStatus=:uploaded, '
+                'uploadedAt=:now, updatedAt=:now'
+            ),
+            ConditionExpression=(
+                'contactId=:cid AND sourceType=:flow AND attribute_not_exists(storageKey)'
+            ),
+            ExpressionAttributeValues={
+                ':key': s3_key,
+                ':ref': whatsapp_media_id,
+                ':name': filename or f'{msg_type}_{message_id[:8]}',
+                ':mime': mime_type or '',
+                ':size': int(file_size or 0),
+                ':uploaded': 'uploaded',
+                ':now': now,
+                ':cid': contact_id,
+                ':flow': 'flow',
+            },
+        )
+
+        try:
+            dynamodb.Table(CONTACTS_TABLE).update_item(
+                Key={'id': contact_id},
+                UpdateExpression='REMOVE pendingDocumentSubmissionId, pendingDocumentSubmissionAt',
+                ConditionExpression='pendingDocumentSubmissionId=:doc',
+                ExpressionAttributeValues={':doc': doc_id},
+            )
+        except Exception:
+            pass
+
         logger.info(json.dumps({
-            'event': 'whatsapp_document_ingested',
+            'event': 'dropdocs_media_attached',
             'documentId': doc_id,
-            'phone': sender_phone[-4:] if sender_phone else '',
-            'type': doc_type,
-            's3Key': s3_key,
+            'messageId': message_id,
             'requestId': request_id,
         }))
-    except Exception as e:
+        return True
+    except ClientError as exc:
+        code = str((exc.response.get('Error') or {}).get('Code') or '')
+        if code != 'ConditionalCheckFailedException':
+            logger.warning(json.dumps({
+                'event': 'dropdocs_media_attach_failed',
+                'errorType': type(exc).__name__, 'requestId': request_id,
+            }))
+        return False
+    except Exception as exc:
         logger.warning(json.dumps({
-            'event': 'whatsapp_document_ingest_failed',
-            'error': str(e),
-            'requestId': request_id,
+            'event': 'dropdocs_media_attach_failed',
+            'errorType': type(exc).__name__, 'requestId': request_id,
         }))
-
+        return False
 
 def _meter_partner_usage(status: Dict, waba_id: str, request_id: str) -> None:
     """Charge a partner (Embedded-Signup) tenant's prepaid wallet for a billable
