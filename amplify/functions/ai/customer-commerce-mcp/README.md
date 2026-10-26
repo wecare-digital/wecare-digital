@@ -16,4 +16,15 @@ To change the function, edit `index.py`, copy it into `template.json` as `ZipFil
 stack with its current parameters. `scripts/check_deployed_source.py` compares the live package
 with `index.py`. The live environment is recorded in `config/lambda-env-manifest.json`.
 
+`index.py` is generated, not hand-written: comments and docstrings are stripped and whitespace is
+compacted so the template fits CloudFormation's inline limit. Its readable source, `handler.py`
+and `customer_oauth.py`, plus the builder `tools/customer-commerce/prepare_release.py` and its
+tests, are on branch `cleanup/aws-drift-reconciliation-20261025` (commit `4914d67`) in a local
+Codex workspace, and that branch has never been pushed. Rebuilding from it reproduces `index.py`
+and `template.json` byte for byte (checked 2026-10-26).
+
+CloudFormation rejects an inline template body over 51,200 bytes. `template.json` here is
+pretty-printed (59,130 bytes); sent compact (`json.dumps(template, separators=(",", ":"))`) it is
+51,140 bytes. That leaves 60 bytes for any code change before the template no longer fits inline.
+
 Imported from the live stack on 2026-10-26. Until then this source was on no branch.
