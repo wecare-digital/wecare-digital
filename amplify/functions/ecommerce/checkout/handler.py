@@ -86,18 +86,19 @@ from __future__ import annotations
 import json
 import os
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 from uuid import uuid4
 
 import boto3
 from boto3.dynamodb.conditions import Key
 
 from lambda_utils import (contact_key, contact_store, customer_auth, customer_session, payment_readiness,
-                          shared_tables, whatsapp_templates)
+                          payment_status, shared_tables, whatsapp_templates)
 from lambda_utils.ecommerce import (
     blog_contribution, cart_contract, catalog_analytics, checkout_pricing, contact_address, customer_cart, finalization,
-    india_address, order_channel, order_creation, order_keys, payment_address,
-    payment_attempt, purchase_intent, wa_payment_request, website_checkout, whatsapp_basket)
+    india_address, order_channel, order_creation, order_delivery, order_keys, payment_address,
+    payment_attempt, purchase_intent, wa_order_status, wa_payment_request, website_checkout,
+    whatsapp_basket)
 # AWS-native supply engine; ProductsTable is the only pricing authority. These compute the
 # collection total, and the payment, order and invoice paths downstream consume the frozen
 # snapshot they produce. Imported at module load (cheap, pure) so a missing module fails the
@@ -376,7 +377,7 @@ def _body(event: Dict[str, Any]) -> Dict[str, Any]:
 
 def _action(event: Dict[str, Any], body: Dict[str, Any]) -> str:
     explicit = str(body.get("action") or event.get("action") or "").strip().lower()
-    if explicit in ("create", "status", "prepare", "verify", "profile", "claim-basket"):
+    if explicit in ("create", "status", "prepare", "verify", "profile", "claim-basket", "order"):
         return explicit
     path = str(event.get("rawPath") or event.get("path") or "").lower()
     if path.endswith("/status"):
@@ -559,6 +560,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # route a claim into the checkout-CREATE path.
         if action == "claim-basket":
             return _claim_basket(identity, body, origin)
+        # The order page's one read. AHEAD of the `_create` fallback for the reason `profile` is:
+        # an action in `_action`'s tuple with no arm here would route an order READ into the
+        # checkout-CREATE path.
+        if action == "order":
+            return _order_detail(identity, body, origin)
         return _create(identity, body, origin)
     except customer_auth.CustomerNotAuthorized:
         # Same opaque 401 as unauthenticated, so the endpoint is not an IDOR oracle.
@@ -818,7 +824,9 @@ def _cart_order_details(snapshot, reference_id: str, profile: Dict[str, Any],
     shipping_info = {
         "country": str(address.get("countryCode") or "IN"),
         "addresses": [{
-            "name": str(profile.get("name") or "").strip()[:60],
+            # The SAME recipient `order_delivery.attempt_fields` freezes for the order, so the
+            # name Meta shows before payment is the name the order page shows after it.
+            "name": order_delivery.recipient_name(profile)[:60],
             "address": full_address[:300],
             "landmark_area": str(address.get("locality") or address.get("addressLine2") or "")[:100],
             "city": str(address.get("city") or "")[:60],
@@ -1013,6 +1021,73 @@ def _reserve_website_attempt(attempt: Dict[str, Any]) -> None:
         Item=attempt,
         ConditionExpression="attribute_not_exists(paymentAttemptId)",
     )
+
+
+def _basket_requires_delivery(line_items: Any) -> bool:
+    """Whether this basket ships anything: the server twin of `src/lib/cart.ts::cartRequiresDelivery`.
+
+    Every line that is neither a contribution nor a service is a product that ships. Fails
+    CLOSED: a line whose product cannot be read counts as shipping, so a malformed basket is asked
+    for an address rather than waved past it (the native quote refuses that basket anyway).
+    """
+    if not isinstance(line_items, list) or not line_items:
+        return True
+    for line in line_items:
+        reference = line.get("catalogReference") if isinstance(line, dict) else None
+        product_id = (str(reference.get("catalogItemId") or "").strip().lower()
+                      if isinstance(reference, dict) else "")
+        if not product_id:
+            return True
+        if (product_id not in CONTRIBUTION_PRODUCT_IDS
+                and not service_requests.is_service_product(product_id)):
+            return True
+    return False
+
+
+def _refresh_attempt_delivery(attempt_id: str, identity: customer_auth.CustomerIdentity,
+                              fields: Dict[str, Any]) -> None:
+    """Re-stamp the confirmed delivery address on an UNPAID website attempt. Never raises.
+
+    `website_checkout.prepare_checkout` reserves the attempt once per request key, and a later
+    prepare of the same basket resumes it without writing it again. A customer who closed the
+    payment window, changed the address and then paid would otherwise ship to the address of the
+    first prepare. The update is conditional on the session owning the row and on no capture or
+    finalization being recorded on it, so a late or concurrent prepare can never move the address
+    of an order that is already paid. Every paid-state writer is covered: the browser verify
+    (`_record_verified_capture`) stamps `paidAt` and the verified amount, `finalization.record_paid`
+    stamps `paidAt` and the verified provider payment id, and `accept_paid` stages the attempt.
+    """
+    if not attempt_id or not fields:
+        return
+    names: Dict[str, str] = {"#owner": "customerId"}
+    values: Dict[str, Any] = {":owner": identity.customer_id}
+    sets = []
+    for index, (key, value) in enumerate(sorted(fields.items())):
+        names[f"#f{index}"] = key
+        values[f":v{index}"] = value
+        sets.append(f"#f{index} = :v{index}")
+    update = "SET " + ", ".join(sets)
+    if order_delivery.RECIPIENT not in fields:
+        # A recipient the profile no longer has must not survive from the earlier prepare.
+        names["#recipient"] = order_delivery.RECIPIENT
+        update += " REMOVE #recipient"
+    try:
+        _attempts_table().update_item(
+            Key={"paymentAttemptId": attempt_id},
+            UpdateExpression=update,
+            ConditionExpression=("attribute_exists(paymentAttemptId) AND #owner = :owner AND "
+                                 "attribute_not_exists(paidAt) AND "
+                                 "attribute_not_exists(" + finalization.VERIFIED_CAPTURED_PAISE_ATTR
+                                 + ") AND attribute_not_exists(verifiedProviderPaymentId) AND "
+                                 "attribute_not_exists(finalizationStage)"),
+            ExpressionAttributeNames=names,
+            ExpressionAttributeValues=values)
+    except Exception as error:  # noqa: BLE001 - the payment window must still open
+        if order_keys.is_conditional_failure(error):
+            # Paid, finalised or not this session's row: what is frozen on it stands.
+            return
+        logger.warning(json.dumps({"event": "checkout_attempt_delivery_refresh_failed",
+                                   "error": type(error).__name__}))
 
 
 
@@ -1496,6 +1571,33 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
             "message": "Verify your email and save your checkout details first.",
         }, origin)
 
+    # THE DELIVERY ADDRESS, enforced HERE for a basket that ships. The browser's readiness probe
+    # asks for it too, but a probe that could not answer still posts prepare (CartPage rule 2), so
+    # this is the authority. It is read off the session-owned contact row `_checkout_profile` just
+    # returned, never from the request, and asked the WEBSITE channel's payment rule: in India a
+    # six-digit PIN and a resolvable state, because the address is the place of supply. A
+    # contribution- or service-only basket ships nothing and is not asked.
+    #
+    # The address that passes is frozen on the attempt (`delivery_fields`), so the order this
+    # payment becomes ships where the customer confirmed, whatever the profile says later.
+    delivery_fields: Dict[str, Any] = {}
+    if _basket_requires_delivery(line_items):
+        delivery_address = contact_address.from_contact(profile)
+        if delivery_address is None:
+            return cors_response(409, {
+                "error": "DELIVERY_DETAILS_REQUIRED",
+                "message": "Add your delivery address to continue.",
+            }, origin)
+        try:
+            payment_address.assert_payable(
+                delivery_address, channel=payment_address.WEBSITE_RAZORPAY)
+        except payment_address.UnpayableAddress:
+            return cors_response(409, {
+                "error": "DELIVERY_DETAILS_REQUIRED",
+                "message": "We cannot deliver to this address yet. Please check it and save it again.",
+            }, origin)
+        delivery_fields = order_delivery.attempt_fields(delivery_address, profile)
+
     # ATTRIBUTION, read once, here. `channel` says WHERE the order came from; `checkoutMode`
     # below says HOW it settles and stays `CHECKOUT_MODE_WEBSITE` for both channels -- nothing is
     # added to `finalization.ACCEPTED_CHECKOUT_MODES`, because a second accepted mode would be a
@@ -1654,7 +1756,9 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
                      # un-itemisable snapshot leaves a byte-identical attempt. Same field and
                      # shape the WhatsApp rail writes.
                      **({'invoiceLines': website_invoice_lines}
-                        if website_invoice_lines else {}))),
+                        if website_invoice_lines else {}),
+                     # The confirmed delivery address, `{}` for a basket that ships nothing.
+                     **delivery_fields)),
             # The read-only attempt store the one-live-payment guard needs. Without it the guard
             # can tell a basket has a recorded attempt but not whether that attempt was paid.
             attempts_table=_attempts_table(),
@@ -1769,6 +1873,12 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
         logger.error(json.dumps({"event": "website_checkout_prepare_failed",
                                  "error": type(error).__name__}))
         return cors_response(503, {"error": "TEMPORARILY_UNAVAILABLE"}, origin)
+
+    if prepared.status == website_checkout.CHECKOUT_OPTIONS_READY and delivery_fields:
+        # A RESUMED request key re-opens the attempt the first prepare reserved, without writing
+        # it again, so the address on it is the one confirmed THEN. Re-stamp the one confirmed
+        # now, while nothing has been paid on it.
+        _refresh_attempt_delivery(prepared.payment_attempt_id, identity, delivery_fields)
 
     payload: Dict[str, Any] = {
         "status": prepared.status,
@@ -2464,6 +2574,9 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
             attempt[customer_uuid.ATTRIBUTE] = public_uuid
         if public_contact_id:
             attempt["contactId"] = public_contact_id
+        # The address the ORDER_DETAILS message below shows Meta as `shipping_info`, frozen here
+        # so the order this payment becomes ships there even if the profile is edited later.
+        attempt.update(order_delivery.attempt_fields(cart_address, cart_profile))
     if catalog_session is not None:
         # AWS-native WhatsApp catalog-service attempt. The authoritative record is the frozen
         # `purchasedSnapshot` + `snapshotHash`, which `finalization.accept_paid` turns into the
@@ -2647,6 +2760,185 @@ def _status(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
     if catalog_event:
         entry['catalogEvent'] = catalog_event
     return cors_response(200, {"status": entry.get("status"), "attempt": entry}, origin)
+
+
+# ── the order page (`/orders/?o=<orderNumber>`) ─────────────────────────────────────────────
+
+#: The order page's refusal for an order this session cannot see. ONE code and ONE status for "no
+#: such order" and "another customer's order", so the action is not an oracle for which order
+#: numbers exist.
+ORDER_NOT_FOUND = "ORDER_NOT_FOUND"
+
+
+def _order_detail(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
+                  origin: str) -> Dict[str, Any]:
+    """`action:"order"`: one of the caller's own orders, for the order page.
+
+    THE NUMBER SELECTS, THE SESSION AUTHORISES. An order number is printed on receipts and read
+    aloud to support, so it is never a credential (`receipt_links`). It resolves through its
+    immutable `ORDERNO#` reservation to the order id, the order row is read by that key, and the
+    row is answered only when its `customerId` is the proven Cognito subject. A missing order and
+    another customer's order return the identical 404.
+
+    CONSISTENT READS. The page is opened seconds after `finalization.accept_paid` committed the
+    row (the status screen hands off only once the attempt carries the order number, which is
+    written after the order row), so an eventually consistent read could miss the order the
+    customer has just paid for.
+
+    Read-only, and `no-store`: the body carries the delivery address.
+    """
+    order_number = str(body.get("orderNumber") or "").strip()
+    if not order_keys.is_public_order_number(order_number):
+        return _hardened(cors_response(400, {"error": "ORDER_NUMBER_REQUIRED"}, origin))
+    try:
+        reservation = _keys_table().get_item(
+            Key={"orderId": order_keys.ORDER_NUMBER_PREFIX + order_number},
+            ConsistentRead=True).get("Item") or {}
+        order_id = str(reservation.get("orderIdRef") or "")
+        order = (_orders_table().get_item(Key={"orderId": order_id}, ConsistentRead=True)
+                 .get("Item") or {}) if order_id else {}
+    except Exception as error:  # noqa: BLE001
+        logger.error(json.dumps({"event": "checkout_order_read_failed",
+                                 "error": type(error).__name__}))
+        return _hardened(cors_response(503, {"error": "TEMPORARILY_UNAVAILABLE"}, origin))
+    if (not order or not identity.customer_id
+            or str(order.get("customerId") or "") != identity.customer_id
+            or str(order.get("orderNumber") or "") != order_number):
+        return _hardened(cors_response(404, {"error": ORDER_NOT_FOUND}, origin))
+
+    # The itemised lines the customer reviewed live on the attempt (`invoiceLines`), beside the
+    # frozen snapshot. Display data only: a failed read still answers with the order.
+    attempt: Dict[str, Any] = {}
+    attempt_id = str(order.get("paymentAttemptId") or "")
+    if attempt_id:
+        try:
+            attempt = _attempts_table().get_item(
+                Key={"paymentAttemptId": attempt_id}).get("Item") or {}
+        except Exception as error:  # noqa: BLE001
+            logger.warning(json.dumps({"event": "checkout_order_lines_unavailable",
+                                       "error": type(error).__name__}))
+            attempt = {}
+        if str(attempt.get("customerId") or "") != identity.customer_id:
+            attempt = {}
+    return _hardened(cors_response(200, {"status": "ORDER_READY",
+                                         "order": _order_view(order, attempt)}, origin))
+
+
+def _order_view(order: Dict[str, Any], attempt: Dict[str, Any]) -> Dict[str, Any]:
+    """The customer-safe projection of one order row, in integer paise and canonical words.
+
+    The only identifiers are the ones the customer already holds: the order number, the payment
+    reference printed on the receipt, the invoice number and the public customer id. Total by
+    construction, like `customer-orders._project`: an unreadable value degrades to an explicit
+    "unavailable" rather than raising, so one bad attribute cannot blank the page.
+    """
+    currency = str(order.get("currency") or "")
+    amount = finalization.integer_paise(order.get("amountPaise"))
+    if currency != "INR" or amount is None or amount < 0:
+        # Compared, never inferred: the page says "amount unavailable" instead of guessing.
+        amount = None
+    items, charges = _order_lines(order, attempt, amount)
+    try:
+        created_at: Optional[int] = int(order.get("createdAt"))
+    except (TypeError, ValueError):
+        created_at = None
+    fulfilment = wa_order_status.normalise(order.get("orderStatus") or order.get("status"))
+    return {
+        "orderNumber": str(order.get("orderNumber") or ""),
+        "referenceId": str(order.get("referenceId") or ""),
+        "createdAt": created_at,
+        "channel": order_channel.canonical(order.get("channel")),
+        "currency": currency,
+        "amountPaise": amount,
+        # What the MONEY did, in the one payment vocabulary `/orders` already reads.
+        "paymentStatus": payment_status.canonical(order.get("paymentStatus")),
+        # What the FULFILMENT did, in Meta's order_status vocabulary ('' when unrecognised).
+        "fulfilmentStatus": fulfilment if fulfilment in wa_order_status.ALL_STATUSES else "",
+        "items": items,
+        "charges": charges,
+        "delivery": order_delivery.from_order(order),
+        "invoiceNumber": str(order.get("invoiceNumber") or ""),
+        customer_uuid.ATTRIBUTE: customer_uuid.from_contact(order),
+    }
+
+
+def _display_lines(lines: Any) -> list:
+    """Order lines as `{name, quantity, unitPricePaise, totalPaise}`, or `[]`.
+
+    ALL OR NOTHING, the rule `_catalog_contents` applies: one unreadable line suppresses the list,
+    so the page never presents part of a basket as if it were the whole order.
+    """
+    if not isinstance(lines, list):
+        return []
+    out = []
+    for line in lines:
+        if not isinstance(line, dict):
+            return []
+        quantity = finalization.integer_paise(line.get("quantity"))
+        unit = finalization.integer_paise(line.get("unitPricePaise"))
+        if quantity is None or quantity <= 0 or unit is None or unit < 0:
+            return []
+        name = " ".join(str(line.get("name") or "").split())[:120] or "WECARE.DIGITAL item"
+        out.append({"name": name, "quantity": quantity, "unitPricePaise": unit,
+                    "totalPaise": unit * quantity})
+    return out
+
+
+def _order_lines(order: Dict[str, Any], attempt: Dict[str, Any],
+                 amount: Optional[int]) -> Tuple[list, Optional[Dict[str, Any]]]:
+    """`(items, charges)` for the order page. `charges` is None unless it closes to the paise."""
+    spec = attempt.get("invoiceLines") if isinstance(attempt.get("invoiceLines"), dict) else {}
+    items = _display_lines(spec.get("lines"))
+    if items:
+        return items, _order_charges(spec, items, amount)
+    # No itemised lines on the attempt (an order placed before they were recorded, or a snapshot
+    # that could not be itemised): the frozen snapshot's own lines, named from the catalogue.
+    snapshot = order.get("purchasedSnapshot")
+    frozen = snapshot.get("items") if isinstance(snapshot, dict) else None
+    if not isinstance(frozen, list):
+        return [], None
+    reader = _native_product_reader()
+    names: Dict[str, str] = {}
+    lines = []
+    for line in frozen:
+        if not isinstance(line, dict):
+            return [], None
+        product_id = str(line.get("productId") or "")
+        if product_id and product_id not in names:
+            try:
+                product = reader(product_id) or {}
+            except Exception:  # noqa: BLE001 - a name is display data
+                product = {}
+            names[product_id] = str(product.get("title") or product.get("name") or "")
+        lines.append({"name": names.get(product_id, ""), "quantity": line.get("quantity"),
+                      "unitPricePaise": line.get("unitPricePaise")})
+    return _display_lines(lines), None
+
+
+def _order_charges(spec: Dict[str, Any], items: list,
+                   amount: Optional[int]) -> Optional[Dict[str, Any]]:
+    """The price breakdown recorded with the lines, or None when it does not reconcile.
+
+    Integer paise only, and EXACT: merchandise + delivery - discount + fee + fee GST must equal
+    the recorded total and the order's own amount. A breakdown that disagrees with what was
+    charged by one paise is omitted rather than shown, and the page shows the total alone.
+    """
+    terms = {key: finalization.integer_paise(spec.get(key)) for key in (
+        "deliveryPaise", "discountPaise", "convenienceFeePaise", "convenienceGstPaise",
+        "totalPaise")}
+    if any(value is None or value < 0 for value in terms.values()):
+        return None
+    merchandise = sum(item["totalPaise"] for item in items)
+    total = (merchandise + terms["deliveryPaise"] - terms["discountPaise"]
+             + terms["convenienceFeePaise"] + terms["convenienceGstPaise"])
+    if total != terms["totalPaise"] or amount is None or total != amount:
+        return None
+    charges: Dict[str, Any] = {"merchandisePaise": merchandise, **terms}
+    if terms["discountPaise"]:
+        from lambda_utils.ecommerce import default_coupon
+        # The one string any surface prints for this discount.
+        charges["discountLabel"] = default_coupon.DISPLAY_LABEL
+    return charges
 
 
 # ── the WhatsApp order_details handoff ──────────────────────────────────────────

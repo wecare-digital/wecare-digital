@@ -9,6 +9,9 @@
     -> `wecare_default_invoice_image_template` (its FLOW button carries an order-bound review token)
     -> then, as a SEPARATE finalization step, ONE Meta order_status `processing`. Invoice delivery
     never depends on that order_status send succeeding.
+    -> the order page (`/orders/?o=<orderNumber>`, checkout's `order` action): the delivery address
+    frozen at checkout, the reviewed lines and the paid status, to the order's owner only. The
+    `processing` text links it. Section 9d covers the website prepare's own address gate.
 
 WHAT RUNS FOR REAL
 ------------------
@@ -681,6 +684,14 @@ def run(root: Path) -> int:
               (attempt.get("invoiceLines") or {}).get("lines"))
         check("PHY", "physical goods carry a complete shipping address",
               action["type"] == "physical-goods" and action["shipping_info"]["addresses"][0]["in_pin_code"] == "700001")
+        frozen_address = attempt.get("deliveryAddress") or {}
+        check("ADDR", "the attempt freezes the address and recipient Meta was shown",
+              frozen_address.get("postalCode") == "700001"
+              and frozen_address.get("addressLine1") == "12 Hermetic Street"
+              and attempt.get("deliveryRecipient") == "Buyer 1"
+              == action["shipping_info"]["addresses"][0]["name"],
+              {"postalCode": frozen_address.get("postalCode"),
+               "recipient": attempt.get("deliveryRecipient")})
         wire = json.dumps(msg)
         check("R13", "no payment link anywhere in the Meta request", "payment_link" not in wire)
         check("R14", "no UPI intent anywhere in the Meta request", "upi_intent" not in wire and "preferred_upi_app" not in wire)
@@ -853,10 +864,10 @@ def run(root: Path) -> int:
           == [{"productId": shop.tee, "variantId": "TEE-M", "quantity": 1}]
           and not any(k in pending for k in ("amountPaise", "price", "total")), pending and pending.get("lines"))
 
-    def address_event(digits: str, wamid_in: str) -> Dict[str, Any]:
+    def address_event(digits: str, wamid_in: str, pin: str = "700016") -> Dict[str, Any]:
         values = {"name": "Buyer Six", "phone_number": "+" + digits, "address": "7 Resume Road",
                   "landmark_area": "Park Street", "city": "Kolkata", "state": "West Bengal",
-                  "in_pin_code": "700016"}
+                  "in_pin_code": pin}
         message = {"from": digits, "id": wamid_in, "timestamp": str(int(time.time())), "type": "interactive",
                    "interactive": {"type": "nfm_reply", "nfm_reply": {
                        "name": "address_message", "body": "Sent", "response_json": json.dumps({"values": values})}}}
@@ -868,6 +879,33 @@ def run(root: Path) -> int:
         return build(entry=entry, waba_id=WABA1, meta_phone_number_ids=[META_PHONE_1],
                      request_id=str(uuid.uuid4()))
 
+    # A five-digit PIN passes storage (international) but cannot settle a WhatsApp payment.
+    mark = W.mark()
+    deliver(address_event(frank["digits"], "wamid.HERMETIC.FRANK.ADDR0", pin="70001"))
+    reasks = [_outbound_body(c) for c in W.since(mark, "invocations")
+              if c["function"] == "wecare-outbound-whatsapp"]
+    reask_data = (reasks[0].get("interactiveData") or {}) if reasks else {}
+    frank_row = _table("ContactsTable").get_item(Key={"id": frank["contactId"]}).get("Item") or {}
+    check("ADDR", "an address WhatsApp payment cannot settle is sent back, filled in, with the PIN marked",
+          not _pay_sends(W.since(mark, "meta_sends")) and len(reasks) == 1
+          and reasks[0].get("interactiveType") == "address_message"
+          and "in_pin_code" in (reask_data.get("validationErrors") or {})
+          and (reask_data.get("values") or {}).get("address") == "7 Resume Road"
+          and "could not use that address" in str(reask_data.get("body")),
+          reask_data.get("validationErrors"))
+    reask_wire = [s["payload"] for s in W.since(mark, "meta_sends")
+                  if (s["payload"].get("interactive") or {}).get("type") == "address_message"]
+    wire_params = (((reask_wire[0].get("interactive") or {}).get("action") or {})
+                   .get("parameters") or {}) if reask_wire else {}
+    check("ADDR", "...and Meta receives the values and validation_errors on the address form",
+          len(reask_wire) == 1 and "in_pin_code" in (wire_params.get("validation_errors") or {})
+          and (wire_params.get("values") or {}).get("in_pin_code") == "70001"
+          and wire_params.get("country") == "IN", sorted(wire_params))
+    check("ADDR", "...it is not saved, and the cart keeps waiting for a usable one",
+          not frank_row.get("checkoutDeliveryAddress")
+          and bool(_table("CommerceKeys").get_item(
+              Key={"orderId": "WABASKETPENDING#" + frank["contactId"]}).get("Item")),
+          frank_row.get("checkoutDeliveryAddress"))
     mark = W.mark()
     deliver(address_event(frank["digits"], "wamid.HERMETIC.FRANK.ADDR1"))
     frank_attempts = _attempts_for(frank["sub"])
@@ -1070,6 +1108,13 @@ def run(root: Path) -> int:
             check("R18", "...and it went out BEFORE the invoice template (order_status, then receipt)",
                   bool(invoice_idx) and status_idx[0] < invoice_idx[0],
                   {"order_status": status_idx, "invoice": invoice_idx})
+            status_text = (((status_payload.get("interactive") or {}).get("body") or {})
+                           .get("text") or "")
+            paid_number = counts["orders"][0].get("orderNumber") if counts["orders"] else ""
+            check("PAGE", "...and its text links the buyer's own order page",
+                  bool(paid_number)
+                  and status_text.endswith(f"View your order: https://wecare.digital/orders/?o={paid_number}")
+                  and len(status_text) <= 120, status_text)
         post_capture_kinds = sorted(
             "invoice" if (s["payload"].get("template") or {}).get("name") == INVOICE_TEMPLATE
             else "order_status" if (s["payload"].get("interactive") or {}).get("type") == "order_status"
@@ -1090,6 +1135,12 @@ def run(root: Path) -> int:
               counts["invoices"][0].get("waOrderStatus") if counts["invoices"] else None)
         check("R18", "the order's status is 'processing'",
               counts["orders"] and counts["orders"][0].get("orderStatus") == "processing")
+        paid_order = counts["orders"][0] if counts["orders"] else {}
+        check("ADDR", "the order records where it ships: the address and recipient frozen at checkout",
+              (paid_order.get("checkoutDeliveryAddress") or {}).get("postalCode") == "700001"
+              and str(paid_order.get("shippingAddress") or "").startswith("12 Hermetic Street, Kolkata")
+              and paid_order.get("deliveryRecipient") == "Buyer 1",
+              {k: paid_order.get(k) for k in ("shippingAddress", "deliveryRecipient")})
         # F002: the invoice's Leave Review FLOW button carries an order-bound review token, so a
         # review written from it can be tied to this order and invoice.
         flow_tokens = [((param.get("action") or {}).get("flow_token"))
@@ -1164,6 +1215,162 @@ def run(root: Path) -> int:
         check("DUP", "once the request is PAID, the same basket can be requested again (a new purchase)",
               len(_attempts_for(alice["sub"])) == 2 and len(_pay_sends(W.since(mark, "meta_sends"))) == 1,
               f"attempts={len(_attempts_for(alice['sub']))}")
+
+        # ── 9c. the order page: the owner reads the order; nobody else can ─────────────────────
+        print("\n== 9c. order page: /orders/?o=<orderNumber> -> checkout action 'order'")
+        from lambda_utils import customer_auth
+        origin = "https://wecare.digital"
+        number = str(paid_order.get("orderNumber") or "")
+        owner = customer_auth.CustomerIdentity(customer_id=alice["sub"], subject=alice["sub"],
+                                               phone=alice["phone"])
+        page = checkout._order_detail(owner, {"orderNumber": number}, origin)
+        page_body = json.loads(page.get("body") or "{}")
+        view = page_body.get("order") or {}
+        check("PAGE", "the owner gets the order: 200 ORDER_READY, never cached",
+              page.get("statusCode") == 200 and page_body.get("status") == "ORDER_READY"
+              and view.get("orderNumber") == number
+              and "no-store" in json.dumps(page.get("headers") or {}).lower(),
+              (page.get("statusCode"), page_body.get("status")))
+        check("PAGE", "...with the lines the buyer reviewed (name, quantity, integer paise)",
+              view.get("items") == [{"name": "Hermetic Tee", "quantity": 3, "unitPricePaise": 59900,
+                                     "totalPaise": 179700}], view.get("items"))
+        charges = view.get("charges") or {}
+        check("PAGE", "...a breakdown that closes to the amount paid, with Delight named",
+              charges.get("totalPaise") == amount == view.get("amountPaise")
+              and charges.get("merchandisePaise") == 179700 and charges.get("discountPaise", 0) > 0
+              and charges.get("discountLabel") == "Delight", charges)
+        check("PAGE", "...paid, being prepared, placed on WhatsApp",
+              view.get("paymentStatus") == "captured" and view.get("fulfilmentStatus") == "processing"
+              and view.get("channel") == "whatsapp",
+              {k: view.get(k) for k in ("paymentStatus", "fulfilmentStatus", "channel")})
+        delivery = view.get("delivery") or {}
+        check("PAGE", "...and the delivery address frozen at checkout",
+              (delivery.get("address") or {}).get("postalCode") == "700001"
+              and delivery.get("recipient") == "Buyer 1", delivery.get("recipient"))
+        contact_row = _table("ContactsTable").get_item(Key={"id": alice["contactId"]})["Item"]
+        _table("ContactsTable").put_item(Item={**contact_row, "checkoutDeliveryAddress": {
+            "addressLine1": "9 Moved Lane", "city": "Bengaluru", "state": "Karnataka",
+            "postalCode": "560001", "countryCode": "IN"}})
+        moved = json.loads(checkout._order_detail(owner, {"orderNumber": number}, origin)["body"])
+        _table("ContactsTable").put_item(Item=contact_row)
+        check("PAGE", "a profile address edited AFTER payment does not move the order",
+              ((moved.get("order") or {}).get("delivery") or {}).get("address", {}).get("postalCode")
+              == "700001", ((moved.get("order") or {}).get("delivery") or {}).get("address"))
+        stranger = customer_auth.CustomerIdentity(customer_id=bob["sub"], subject=bob["sub"],
+                                                  phone=bob["phone"])
+        foreign = checkout._order_detail(stranger, {"orderNumber": number}, origin)
+        absent = checkout._order_detail(owner, {"orderNumber": "WD-ORD-22222222"}, origin)
+        check("PAGE", "another customer's order and a non-existent order answer the identical 404",
+              foreign.get("statusCode") == absent.get("statusCode") == 404
+              and foreign.get("body") == absent.get("body"),
+              (foreign.get("statusCode"), absent.get("statusCode")))
+        malformed = checkout._order_detail(owner, {"orderNumber": "WD-ORD-../../x"}, origin)
+        check("PAGE", "a malformed order number is refused 400 before any read",
+              malformed.get("statusCode") == 400, malformed.get("statusCode"))
+        anonymous = checkout.handler(
+            {"requestContext": {"http": {"method": "POST", "path": "/ecommerce/checkout/status"}},
+             "rawPath": "/ecommerce/checkout/status", "headers": {},
+             "body": json.dumps({"action": "order", "orderNumber": number})},
+            FakeContext("wecare-checkout"))
+        check("PAGE", "the order action requires the customer session (401 without one)",
+              anonymous.get("statusCode") == 401, anonymous.get("statusCode"))
+
+    # ── 9d. website checkout: the server asks for the address and freezes the one confirmed ───
+    print("\n== 9d. website prepare: delivery address enforced server-side and frozen on the attempt")
+    from lambda_utils import customer_auth as _customer_auth
+    created_orders: List[Dict[str, Any]] = []
+
+    def fake_create_order(*, amount_paise: int, receipt: str, notes: Any = None) -> Dict[str, Any]:
+        order = {"id": f"order_WEB{len(created_orders) + 1:03d}", "key_id": "rzp_test_hermetic",
+                 "amount": amount_paise, "currency": "INR", "receipt": receipt, "notes": notes or {}}
+        created_orders.append(order)
+        return order
+
+    real_create, real_find = checkout.razorpay_orders.create_order, checkout.razorpay_orders.find_order_by_receipt
+    checkout.razorpay_orders.create_order = fake_create_order
+    checkout.razorpay_orders.find_order_by_receipt = lambda receipt: None
+    try:
+        web_basket = [{"catalogReference": {"catalogItemId": shop.kit, "options": {"variantId": "KIT1"}},
+                       "quantity": 1}]
+
+        def web_prepare(customer: Dict[str, str], key: str) -> Dict[str, Any]:
+            who = _customer_auth.CustomerIdentity(customer_id=customer["sub"], subject=customer["sub"],
+                                                  phone=customer["phone"])
+            result = checkout._website_prepare(who, {"action": "prepare", "lineItems": web_basket,
+                                                     "requestKey": key}, "https://wecare.digital")
+            return {"statusCode": result.get("statusCode"), **json.loads(result.get("body") or "{}")}
+
+        def set_address(customer: Dict[str, str], postal: str, city: str, state: str) -> None:
+            row = _table("ContactsTable").get_item(Key={"id": customer["contactId"]})["Item"]
+            row["checkoutDeliveryAddress"] = {"addressLine1": f"{postal} Web Street", "city": city,
+                                              "state": state, "postalCode": postal, "countryCode": "IN"}
+            _table("ContactsTable").put_item(Item=row)
+
+        web = shop.customer(42, address=False, legacy_shipping=False)
+        before = len(created_orders)
+        missing = web_prepare(web, "hermetic-web-1")
+        check("WEB", "a physical basket with no delivery address is refused 409 before any provider call",
+              missing["statusCode"] == 409 and missing.get("error") == "DELIVERY_DETAILS_REQUIRED"
+              and len(created_orders) == before and not _attempts_for(web["sub"]), missing)
+        set_address(web, "12345", "Kolkata", "West Bengal")
+        unpayable = web_prepare(web, "hermetic-web-1")
+        check("WEB", "...and so is an address the website channel cannot settle (5-digit PIN)",
+              unpayable["statusCode"] == 409 and unpayable.get("error") == "DELIVERY_DETAILS_REQUIRED"
+              and len(created_orders) == before, unpayable)
+        set_address(web, "700020", "Kolkata", "West Bengal")
+        ready = web_prepare(web, "hermetic-web-1")
+        web_attempt_id = str(ready.get("paymentAttemptId") or "")
+        web_attempt = _table("PaymentAttemptsTable").get_item(
+            Key={"paymentAttemptId": web_attempt_id}).get("Item") or {} if web_attempt_id else {}
+        check("WEB", "a payable address opens the payment and is frozen on the attempt",
+              ready.get("status") == "CHECKOUT_OPTIONS_READY"
+              and (web_attempt.get("deliveryAddress") or {}).get("postalCode") == "700020"
+              and web_attempt.get("deliveryRecipient") == "Buyer 42", ready.get("status"))
+        set_address(web, "560001", "Bengaluru", "Karnataka")
+        resumed = web_prepare(web, "hermetic-web-1")
+        web_attempt = _table("PaymentAttemptsTable").get_item(
+            Key={"paymentAttemptId": web_attempt_id}).get("Item") or {}
+        check("WEB", "a resumed prepare after an address change re-stamps the unpaid attempt",
+              resumed.get("status") == "CHECKOUT_OPTIONS_READY"
+              and resumed.get("paymentAttemptId") == web_attempt_id
+              and (web_attempt.get("deliveryAddress") or {}).get("postalCode") == "560001"
+              and len(created_orders) == before + 1,
+              {"status": resumed.get("status"), "orders": len(created_orders) - before})
+        # Exactly the attributes the browser verify's `_record_verified_capture` writes (it does NOT
+        # write `verifiedProviderPaymentId`; `record_paid` does that later, inside finalization).
+        _table("PaymentAttemptsTable").update_item(
+            Key={"paymentAttemptId": web_attempt_id},
+            UpdateExpression="SET paidAt = :t, providerPaymentId = :p, verifiedCapturedPaise = :v",
+            ExpressionAttributeValues={":t": int(time.time()), ":p": "pay_HERMETICWEB",
+                                       ":v": int(web_attempt.get("amountPaise") or 0)})
+        from lambda_utils.ecommerce import order_delivery as _order_delivery
+        web_who = _customer_auth.CustomerIdentity(customer_id=web["sub"], subject=web["sub"],
+                                                  phone=web["phone"])
+        checkout._refresh_attempt_delivery(web_attempt_id, web_who, _order_delivery.attempt_fields(
+            {"addressLine1": "1 Late Lane", "city": "New Delhi", "state": "Delhi",
+             "postalCode": "110001", "countryCode": "IN"}, {"name": "Someone Else"}))
+        set_address(web, "110001", "New Delhi", "Delhi")
+        web_prepare(web, "hermetic-web-1")
+        web_attempt = _table("PaymentAttemptsTable").get_item(
+            Key={"paymentAttemptId": web_attempt_id}).get("Item") or {}
+        check("WEB", "...but once a capture is recorded the frozen address never moves",
+              (web_attempt.get("deliveryAddress") or {}).get("postalCode") == "560001"
+              and web_attempt.get("deliveryRecipient") == "Buyer 42",
+              (web_attempt.get("deliveryAddress") or {}).get("postalCode"))
+        order_view = checkout._order_view(
+            {"orderNumber": "WD-ORD-22222223", "currency": "INR", "amountPaise": Decimal(100),
+             "paymentStatus": "PAYMENT_PAID", "orderStatus": "shipped", "createdAt": Decimal(1),
+             "checkoutDeliveryAddress": {"addressLine1": "x"}},
+            {"invoiceLines": {"lines": [{"name": "A", "quantity": 1, "unitPricePaise": 100}],
+                              "deliveryPaise": 0, "discountPaise": 0, "convenienceFeePaise": 1,
+                              "convenienceGstPaise": 0, "totalPaise": 101}})
+        check("PAGE", "an unreconciled breakdown or an unusable stored address is omitted, not shown",
+              order_view["charges"] is None and order_view["delivery"] is None
+              and order_view["items"][0]["totalPaise"] == 100 and order_view["fulfilmentStatus"] == "shipped",
+              {k: order_view[k] for k in ("charges", "delivery", "fulfilmentStatus")})
+    finally:
+        checkout.razorpay_orders.create_order = real_create
+        checkout.razorpay_orders.find_order_by_receipt = real_find
 
     # ── 9b. status webhooks are logged without the customer's number ──────────────────────────
     print("\n== 9b. PII in inbound status logs")

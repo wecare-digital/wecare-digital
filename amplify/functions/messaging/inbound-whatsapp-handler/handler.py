@@ -6595,8 +6595,29 @@ def _catalog_orders_enabled() -> bool:
     return WA_CATALOG_ORDERS_ENABLED
 
 
+#: The India Address Message's own field names (Meta "Address messages"), which are the only keys
+#: a re-asked form may be prefilled with.
+_ADDRESS_MESSAGE_FIELDS = ('name', 'phone_number', 'in_pin_code', 'house_number', 'floor_number',
+                           'tower_number', 'building_name', 'address', 'landmark_area', 'city',
+                           'state')
+
+#: A refused address field -> (the Address Message field to mark, the line WhatsApp shows under
+#: it). Meta's documented recovery for an address the business cannot use is to send the form
+#: back with the customer's own values and a `validation_errors` entry per bad field, and
+#: WhatsApp then holds the form until those fields change. Keyed on the canonical field names
+#: `contact_address.UnusableAddress` and `payment_address.UnpayableAddress` report.
+_ADDRESS_FIELD_ERRORS = {
+    'postalCode': ('in_pin_code', 'Enter the 6-digit PIN code for this address.'),
+    'state': ('state', 'Enter the state name in full, for example West Bengal.'),
+    'city': ('city', 'Enter the city or town.'),
+    'addressLine1': ('address', 'Enter the house number and street.'),
+}
+
+
 def _request_shipping_address(contact_id: str, phone_number_id: str, sender_phone: str,
-                              request_id: str, body_text: str = CART_REPLY_ADDRESS) -> None:
+                              request_id: str, body_text: str = CART_REPLY_ADDRESS, *,
+                              submitted: Optional[Dict[str, Any]] = None,
+                              bad_field: str = '') -> None:
     """Ask for a delivery address with the India Address Message. Never raises.
 
     Called only AFTER checkout has answered DELIVERY_DETAILS_REQUIRED for a cart, so it always
@@ -6607,23 +6628,32 @@ def _request_shipping_address(contact_id: str, phone_number_id: str, sender_phon
     an address that could never make their cart payable, and a customer whose stored address was
     unpayable was never asked at all. The submission comes back as `nfm_reply`/`address_message`,
     is stored by `_handle_address_submission`, and resumes the waiting cart.
+
+    A RE-ASK after a refused submission passes `submitted` (the customer's own form values) and
+    the canonical `bad_field`, so the form comes back filled in with the one field to fix marked,
+    instead of an empty form that reads as "we lost your address".
     """
     try:
         contact = {}
         if contact_id:
             contact = dynamodb.Table(CONTACTS_TABLE).get_item(
                 Key={'id': contact_id}).get('Item', {}) or {}
-        values = {'phone_number': '+' + str(sender_phone or '').lstrip('+')}
+        values = {}
+        for key, value in (submitted or {}).items():
+            if key in _ADDRESS_MESSAGE_FIELDS and isinstance(value, (str, int)) and str(value).strip():
+                values[key] = str(value).strip()[:200]
+        values['phone_number'] = '+' + str(sender_phone or '').lstrip('+')
         name = contact.get('contactBookName', '') or contact.get('name', '') or ''
-        if name:
+        if name and not values.get('name'):
             values['name'] = name
+        interactive_data = {'body': body_text, 'country': 'IN', 'values': values}
+        if bad_field in _ADDRESS_FIELD_ERRORS:
+            field, message = _ADDRESS_FIELD_ERRORS[bad_field]
+            interactive_data['validationErrors'] = {field: message}
         payload = {'body': json.dumps({
             'contactId': contact_id, 'phoneNumberId': phone_number_id,
             'isInteractive': True, 'interactiveType': 'address_message',
-            'interactiveData': {
-                'body': body_text,
-                'country': 'IN', 'values': values,
-            },
+            'interactiveData': interactive_data,
         })}
         lambda_client.invoke(FunctionName=OUTBOUND_WHATSAPP_FUNCTION,
                              InvocationType='Event', Payload=json.dumps(payload))
@@ -7611,8 +7641,34 @@ def _handle_address_submission(nfm: Dict, contact_id: str, sender_phone: str,
                 waiting = False
             if waiting:
                 _request_shipping_address(contact_id, phone_number_id, sender_phone, request_id,
-                                          body_text=CART_REPLY_ADDRESS_UNUSABLE)
+                                          body_text=CART_REPLY_ADDRESS_UNUSABLE,
+                                          submitted=vals, bad_field=bad.field)
             return
+        # A cart is waiting on this address, so it must be one a WhatsApp payment can SETTLE, not
+        # just one storage accepts (India: a six-digit PIN and a state that maps to a GST state).
+        # Asked HERE, before it is saved: an unpayable address used to be saved, the resumed cart
+        # was refused for it again, and the customer was asked for "your delivery address" a
+        # second time with no hint of what was wrong. Without a waiting cart, storage stays
+        # international (FEAT-003) and the address is kept as before.
+        try:
+            waiting = bool(_pending_cart(contact_id))
+        except Exception:  # noqa: BLE001 - the resume re-checks everything anyway
+            waiting = False
+        if waiting:
+            from lambda_utils.ecommerce import payment_address
+            try:
+                payment_address.assert_payable(
+                    address, channel=payment_address.WHATSAPP_ORDER_DETAILS)
+            except payment_address.UnpayableAddress as unpayable:
+                logger.info(json.dumps({
+                    'event': 'address_submission_unpayable', 'code': unpayable.code,
+                    'field': unpayable.field,
+                    'phone_suffix': sender_phone[-4:] if sender_phone else '',
+                    'requestId': request_id}))
+                _request_shipping_address(contact_id, phone_number_id, sender_phone, request_id,
+                                          body_text=CART_REPLY_ADDRESS_UNUSABLE,
+                                          submitted=vals, bad_field=unpayable.field)
+                return
         logger.info(json.dumps({
             'event': 'address_submission', 'phone_suffix': sender_phone[-4:] if sender_phone else '',
             'savedAddressId': data.get('saved_address_id', ''),

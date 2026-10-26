@@ -28,6 +28,15 @@
  * state renders in place with the order number and the amount captured. One authenticated read,
  * one screen, no hop that can fail between the money and the confirmation.
  *
+ * Then the order page, and the confirmation still comes first
+ * -----------------------------------------------------------
+ * A paid checkout ends on the customer's order page, /orders/?o=<orderNumber>, which shows what
+ * was bought, where it ships and where it is now. The hand-off happens only AFTER the paid view
+ * above has rendered from the authenticated read, so the confirmation never depends on it, and
+ * it is a client-side replace: nothing unloads under the purchase event just recorded, and Back
+ * does not return to a screen that would only forward again. If the navigation fails, the paid
+ * view stays, and its primary action is the same link.
+ *
  * `finalizationStage` is NOT consulted, and that is the point
  * ----------------------------------------------------------
  * The internal order commits as soon as the capture is verified, and any later finalization
@@ -74,10 +83,12 @@
 
 import Head from 'next/head';
 import Link from 'next/link';
-import React, { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import RotatingHero from '../../components/RotatingHero';
 import { getSession, restoreSession } from '../../lib/customerAuth';
+import { orderPagePath } from '../../lib/orderPage';
 import { amountLabel, isInFlight, isOrderNumber, isPaid, isRetryable } from '../../lib/paymentVocabulary';
 import { trackMetaPurchase, type PaidCatalogEvent } from '../../lib/metaPixel';
 
@@ -182,6 +193,8 @@ export default function CheckoutStatus (): React.ReactElement {
   // value comes from the URL: the URL carries the opaque attempt id and nothing else.
   const [ orderNumber, setOrderNumber ] = useState<string>( '' );
   const [ amount, setAmount ] = useState<string>( '' );
+  const router = useRouter();
+  const handedOffRef = useRef( false );
 
   const poll = useCallback( async ( attemptId: string ): Promise<boolean> => {
     let session;
@@ -256,6 +269,19 @@ export default function CheckoutStatus (): React.ReactElement {
     };
   }, [ poll ] );
 
+  // THE ORDER PAGE, once the paid view has rendered from the authenticated read (see the module
+  // docblock). Only a paid attempt WITH a server order number gets here, which is exactly when
+  // the order row exists for the order page to read.
+  useEffect( () => {
+    // Once: the router object can change identity while its own navigation is in flight.
+    if ( view !== 'paid' || !orderNumber || handedOffRef.current ) return;
+    handedOffRef.current = true;
+    void ( async () => {
+      try { await router.replace( orderPagePath( orderNumber ) ); }
+      catch { /* The paid view stays, and its primary action is the same link. */ }
+    } )();
+  }, [ view, orderNumber, router ] );
+
   const copy = COPY[ view ];
 
   return (
@@ -305,7 +331,7 @@ export default function CheckoutStatus (): React.ReactElement {
           {view === 'paid' && (
             <div className="co-actions">
               {/* No retry here, and nothing that starts a second payment. */}
-              <Link className="co-btn co-btn-primary" href="/orders/">View my orders</Link>
+              <Link className="co-btn co-btn-primary" href={ orderPagePath( orderNumber ) }>View your order</Link>
               <Link className="co-btn co-btn-quiet" href="/shop/">Continue shopping</Link>
             </div>
           )}
