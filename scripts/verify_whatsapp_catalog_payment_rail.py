@@ -133,7 +133,11 @@ TABLES: Dict[str, Any] = {
     'OrderTable': ([('orderId', 'S', 'HASH')], {'shortId': [('shortId', 'S', 'HASH')], 'customerPhone': [('customerPhone', 'S', 'HASH')], 'customerId-createdAt-v2-index': [('customerId', 'S', 'HASH'), ('createdAt', 'N', 'RANGE')], 'orderStatus': [('orderStatus', 'S', 'HASH')], 'source': [('source', 'S', 'HASH')], 'customerId-createdAt-index': [('customerId', 'S', 'HASH'), ('createdAt', 'N', 'RANGE')]}),
     'ProductsTable': ([('id', 'S', 'HASH')], {'slug-updatedAt-index': [('slug', 'S', 'HASH'), ('updatedAt', 'S', 'RANGE')], 'category-updatedAt-index': [('category', 'S', 'HASH'), ('updatedAt', 'S', 'RANGE')], 'status-updatedAt-index': [('status', 'S', 'HASH'), ('updatedAt', 'S', 'RANGE')]}),
     'PaymentsTable': ([('id', 'S', 'HASH')], {'orderId-index': [('orderId', 'S', 'HASH')], 'paymentId-index': [('paymentId', 'S', 'HASH')]}),
-    'InvoicesTable': ([('invoiceId', 'S', 'HASH')], {'referenceId-index': [('referenceId', 'S', 'HASH')], 'contactId-index': [('contactId', 'S', 'HASH')]}),
+    'InvoicesTable': ([('invoiceId', 'S', 'HASH')], {
+        'referenceId-index': [('referenceId', 'S', 'HASH')],
+        'contactId-index': [('contactId', 'S', 'HASH')],
+        'orderStatusRetry-index': [('orderStatusRetry', 'S', 'HASH'), ('pendingOrderStatusAt', 'N', 'RANGE')],
+    }),
     'InvoiceItemsTable': ([('invoiceId', 'S', 'HASH'), ('itemIndex', 'N', 'RANGE')], {}),
     'InvoiceAssetsTable': ([('invoiceId', 'S', 'HASH'), ('assetType', 'S', 'RANGE')], {}),
     'InvoiceSequenceTable': ([('fy', 'S', 'HASH')], {}),
@@ -176,6 +180,7 @@ LIVE_TEMPLATES = [
     {"name": "feedback_survey_form_1", "status": "APPROVED", "category": "UTILITY", "sub_category": "FORM", "language": "en_US"},
     {"name": "wecare_leave_review", "status": "APPROVED", "category": "UTILITY", "sub_category": "FORM", "language": "en"},
     {"name": PAY_TEMPLATE, "status": "APPROVED", "category": "UTILITY", "sub_category": "ORDER_DETAILS", "language": "en", "id": "2714938845570815"},
+    {"name": ORDER_STATUS_TEMPLATE, "status": "APPROVED", "category": "UTILITY", "sub_category": "ORDER_STATUS", "language": "en", "id": "1754227779211208"},
 ]
 
 # ── result collection ─────────────────────────────────────────────────────────────────────────
@@ -1275,7 +1280,9 @@ def run(root: Path) -> int:
         check("ISO", "...the invoice template still went out exactly once, to the buyer",
               [s["payload"].get("to") for s in lea_invoice_sends] == [lea["phone"]], len(lea_invoice_sends))
         check("ISO", "...no order_status reached Meta",
-              not [s for s in lea_sends if (s["payload"].get("interactive") or {}).get("type") == "order_status"])
+              not [s for s in lea_sends
+                   if (s["payload"].get("template") or {}).get("name") == ORDER_STATUS_TEMPLATE
+                   or (s["payload"].get("interactive") or {}).get("type") == "order_status"])
         routes = [str(c["event"].get("rawPath") or "") for c in W.since(mark, "invocations")
                   if c["function"] in COMMERCE_FUNCTIONS]
         send_at = [i for i, r in enumerate(routes) if r.endswith("/send-whatsapp")]
@@ -1287,6 +1294,71 @@ def run(root: Path) -> int:
         check("ISO", "...and the invoice does not claim Meta accepted any status",
               bool(lea_invoice) and not lea_invoice[0].get("waOrderStatus"),
               lea_invoice[0].get("waOrderStatus") if lea_invoice else None)
+
+    # ── 10b2. approved status template unavailable -> scheduled retry completes the chain ─────
+    print("\n== 10b2. deferred processing retry -> processing -> completed")
+    ria = shop.customer(42)
+    mark = W.mark()
+    deliver(order_event(build, ria["digits"], "wamid.HERMETIC.RIA.1",
+                        [{"product_retailer_id": kit, "quantity": 1}]))
+    ria_refs = _payrefs_for(ria["sub"])
+    check("RETRY", "setup: deferred-status buyer produced a payment reference", bool(ria_refs))
+    if ria_refs:
+        reference = ria_refs[0]["referenceId"]
+        ria_attempt = _attempts_for(ria["sub"])[0]
+        saved_templates = list(W.templates)
+        W.templates = [t for t in W.templates if t.get("name") != ORDER_STATUS_TEMPLATE]
+        try:
+            event = capture(reference, int(ria_attempt["amountPaise"]), "pay_HERMETIC_RETRY",
+                            "order_HERMETIC_RETRY", ria["phone"])
+            settled = webhook.handler(json.loads(json.dumps(event)),
+                                      FakeContext("wecare-razorpay-webhook"))
+        finally:
+            W.templates = saved_templates
+
+        ria_rows = post_payment_counts(reference, ria_attempt["paymentAttemptId"])["invoices"]
+        check("RETRY", "capture still settled and invoice was delivered while status template was unavailable",
+              settled.get("statusCode") == 200 and bool(ria_rows), settled.get("body"))
+        if ria_rows:
+            ria_invoice = ria_rows[0]
+            check("RETRY", "processing was parked in the sparse retry index",
+                  ria_invoice.get("pendingOrderStatus") == "processing"
+                  and ria_invoice.get("orderStatusRetry") == "PENDING",
+                  {k: ria_invoice.get(k) for k in ("pendingOrderStatus", "orderStatusRetry")})
+
+            old = int(time.time()) - 16 * 60
+            _table("InvoicesTable").update_item(
+                Key={"invoiceId": ria_invoice["invoiceId"]},
+                UpdateExpression="SET pendingOrderStatusAt = :old, pendingOrderStatusSince = :old",
+                ExpressionAttributeValues={":old": old})
+
+            retry_mark = W.mark()
+            result = webhook.handler(
+                {"internalAction": "reconcileCustomerOrderLinks"},
+                FakeContext("wecare-razorpay-webhook"))
+            retry_sends = W.since(retry_mark, "meta_sends")
+            retry_statuses = []
+            for send in retry_sends:
+                tpl = send["payload"].get("template") or {}
+                if tpl.get("name") != ORDER_STATUS_TEMPLATE:
+                    continue
+                for comp in tpl.get("components") or []:
+                    if comp.get("type") != "order_status":
+                        continue
+                    for param in comp.get("parameters") or []:
+                        retry_statuses.append(
+                            (((param.get("order_status") or {}).get("order") or {}).get("status")))
+            check("RETRY", "scheduled retry preserved processing -> completed ordering",
+                  retry_statuses == ["processing", "completed"],
+                  {"statuses": retry_statuses, "result": result.get("orderStatusRetry")})
+            final_invoice = _table("InvoicesTable").get_item(
+                Key={"invoiceId": ria_invoice["invoiceId"]}).get("Item") or {}
+            check("RETRY", "retry finished at terminal Meta status and cleared retry marker",
+                  final_invoice.get("waOrderStatus") == "completed"
+                  and not final_invoice.get("orderStatusRetry")
+                  and not final_invoice.get("pendingOrderStatus"),
+                  {k: final_invoice.get(k) for k in
+                   ("waOrderStatus", "orderStatusRetry", "pendingOrderStatus")})
 
     # ── 10c. Razorpay never delivers; Meta's payment status asks the webhook to settle ─────────
     print("\n== 10c. Meta payment status -> reconcileReference -> ONE order, ONE invoice")
