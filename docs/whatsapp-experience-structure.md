@@ -381,11 +381,12 @@ Four entry points converge on one pipeline:
                                        └─► razorpay-webhook  payment.captured
                                              • HMAC verify + provider readback, fails closed
                                              • ONE order, ONE paid GST invoice (wecare-commerce)
-                                             • Meta order_status `processing` (WhatsApp-rail
-                                               orders only): interactive inside the 24-hour
-                                               window, wecare_order_status_v3 outside it, else
-                                               deferred as pendingOrderStatus on the invoice;
-                                               bounded, so it never holds back the receipt
+                                             • wecare_order_status_v3 `processing` then
+                                               `completed` (WhatsApp ORDER_DETAILS orders only),
+                                               always through the approved template channel;
+                                               if temporarily unavailable the requested state is
+                                               deferred/retried, while invoice delivery remains
+                                               independently recoverable and idempotent
                                              • then wecare_default_invoice_image_template, once:
                                                the PNG header + Leave Review FLOW button carrying
                                                an order-bound review token (REVIEWTOKEN#)
@@ -414,12 +415,14 @@ Customer-visible payment copy (`PAY_MSG`, `:538`): `👀 Pulling your pending in
 `⚠️ Something went wrong. Please try again.`
 
 Kill switch, **default OFF**: `whatsapp_auto_next_due` (post-payment next-invoice nag). The old
-`whatsapp_inbound_order_status` switch and the inbound `canceled` order-status sender behind it
-were deleted on 2026-10-26. WhatsApp order-status messages are disabled: outbound-whatsapp and
-the invoice engine both answer 410 `ORDER_STATUS_DISABLED`, no runtime code builds an
-`orderStatusDetails` payload, and fulfilment status stays internal (OrderTable / Track Order).
-There is no post-payment Flow, no `wecare_leave_review` send and no free-form confirmation: the
-invoice template's own FLOW button is the only review entry point after a payment.
+`whatsapp_inbound_order_status` switch and inbound `canceled` sender remain deleted. For a
+verified WhatsApp ORDER_DETAILS capture, the payment rail automatically sends exactly two
+`wecare_order_status_v3` template updates — `processing` ("Payment received.") followed by
+`completed` ("Payment complete.") — before the paid invoice template. There is no interactive
+order_status fallback and Workspace has no manual payment-order status sender. Operational
+shipment fulfilment remains a separate OrderTable / Track Order concern. There is no separate
+post-payment `wecare_leave_review` message: the invoice template's own FLOW button is the only
+review entry point after payment.
 
 ---
 
@@ -458,7 +461,7 @@ Meta's three `sample_*` templates and no business template):
 |---|---|---|
 | `wecare_whatapp_native_pay_template` | UTILITY, `ORDER_DETAILS` button | checkout, invoice-engine, outbound (`WA_PAY_TEMPLATE`) |
 | `wecare_default_invoice_image_template` | UTILITY, invoice image header, Leave Review Flow button | invoice-engine, checkout (`WA_INVOICE_TEMPLATE`) |
-| `wecare_order_status_v3` | UTILITY / `ORDER_STATUS` (approved 2026-10-25) | outbound, order_status outside the 24-hour window |
+| `wecare_order_status_v3` | UTILITY / `ORDER_STATUS` (approved 2026-10-25) | automatic payment-order `processing` then `completed`; template channel only |
 | `wecare_leave_review` | UTILITY, Leave Review Flow button | manual Inbox send only; never after a payment |
 | `wecare_default_download` | UTILITY, URL button to `/vault/?file=` | outbound download link |
 | `wecare_location_share_pin` | UTILITY, LOCATION header | outbound location share |
