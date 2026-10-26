@@ -1,24 +1,13 @@
-"""Meta WhatsApp order_status fulfilment vocabulary and the legal transitions between states.
+"""Canonical internal order-fulfilment vocabulary and legal transitions.
 
-What this module is for
------------------------
-A WhatsApp `order_details` payment carries an ORDER that has a fulfilment lifecycle SEPARATE from
-the payment's money state. Meta's order_status message updates that lifecycle, and Meta enforces
-the transitions: an illegal transition is rejected with webhook error 2046, and cancelling an
-order that already has a successful or pending payment is rejected with 2047.
+This module is deliberately separate from payment_status: payment_status records what the money
+did, while these states record what fulfilment did. Since 2026-10-26 they are internal commerce
+state only. Workspace writes OrderTable through the guarded service API and the customer Track
+Order projection reads the same value. No function in this module authorizes or constructs a
+WhatsApp order-status message.
 
-This is NOT the payment vocabulary. `payment_status` (captured/failed/…) is what the MONEY did;
-`order_status` here is what the FULFILMENT did (the merchant shipped it, completed it, cancelled
-it). They are deliberately different modules so a reader is never tempted to drive a shipment off
-a capture word or vice versa.
-
-One home for the rules
-----------------------
-The valid states and the legal forward transitions live here so the invoice-engine sender (which
-validates a staff-requested transition before asking Meta) and the tests read the SAME table.
-Meta remains the final authority — a transition this module permits can still be refused by Meta
-(the order's real state lives on Meta's side) — but refusing locally what Meta would refuse keeps
-a bad request off the wire and gives staff an immediate, named reason.
+Legacy Meta-shaped helpers are retained only where another internal renderer still consumes the
+same canonical spelling; they are not a delivery surface.
 """
 from __future__ import annotations
 
@@ -176,35 +165,3 @@ def canonical_status(status: str) -> str:
         raise ValueError("invalid order status")
     return wire
 
-def build_template_component(reference_id: str, status: str, description: str = "") -> dict:
-    """Build the canonical Meta ORDER_STATUS template component.
-
-    Business semantics live here; the outbound Lambda owns only transport/persistence.
-    reference_id is already the canonical commerce reference owned by the payment/order
-    core and is never rewritten here. Invalid or blank values fail closed.
-    """
-    ref = canonical_reference(reference_id)
-    wire_status = canonical_status(status)
-    text = (str(description or "").strip() or default_body(wire_status))[:MAX_DESCRIPTION_LENGTH]
-    return {
-        "type": "order_status",
-        "parameters": [{
-            "type": "order_status",
-            "order_status": {
-                "reference_id": ref,
-                "order": {
-                    "status": wire_status,
-                    "description": text,
-                },
-            },
-        }],
-    }
-
-
-__all__ = [
-    "PENDING", "PROCESSING", "PARTIALLY_SHIPPED", "SHIPPED", "COMPLETED", "CANCELED",
-    "ALL_STATUSES", "STAFF_FULFILMENT_TARGETS", "PAYMENT_ORDER_TARGETS",
-    "DEFAULT_BODY_TEXT", "PAYMENT_DEFAULT_BODY_TEXT", "MAX_DESCRIPTION_LENGTH",
-    "normalise", "is_valid", "can_transition", "payment_can_transition", "default_body",
-    "payment_default_body", "canonical_reference", "canonical_status", "build_template_component",
-]
