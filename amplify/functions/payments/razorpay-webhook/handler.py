@@ -2068,14 +2068,33 @@ def _handle_payment_failed(event_data: Dict, request_id: str) -> None:
 
             for inv in matched:
                 if inv.get('paymentStatus') in ('pending', 'pending_payment', None, ''):
-                    inv_table.update_item(
-                        Key={'invoiceId': inv['invoiceId']},
-                        UpdateExpression='SET paymentStatus = :ps, updatedAt = :now',
-                        ExpressionAttributeValues={
-                            ':ps': 'failed',
-                            ':now': Decimal(str(int(_time.time()))),
-                        },
-                    )
+                    try:
+                        inv_table.update_item(
+                            Key={'invoiceId': inv['invoiceId']},
+                            UpdateExpression='SET paymentStatus = :ps, updatedAt = :now',
+                            # The read above is an eventually consistent GSI query, and a customer
+                            # who retries can be captured between it and this write. Only an
+                            # invoice still waiting for payment may be marked failed; a late
+                            # failure must never overwrite a capture.
+                            ConditionExpression=('attribute_not_exists(paymentStatus) '
+                                                 'OR paymentStatus IN (:pending, :pendingPayment, :blank)'),
+                            ExpressionAttributeValues={
+                                ':ps': 'failed',
+                                ':now': Decimal(str(int(_time.time()))),
+                                ':pending': 'pending',
+                                ':pendingPayment': 'pending_payment',
+                                ':blank': '',
+                            },
+                        )
+                    except Exception as error:
+                        if not order_keys.is_conditional_failure(error):
+                            raise
+                        logger.info(json.dumps({'event': 'invoice_payment_failed_skipped',
+                                                'invoiceId': inv['invoiceId'],
+                                                'referenceId': reference_id,
+                                                'reason': 'NO_LONGER_PENDING',
+                                                'requestId': request_id}))
+                        continue
                     logger.info(json.dumps({'event': 'invoice_payment_failed', 'invoiceId': inv['invoiceId'], 'referenceId': reference_id, 'requestId': request_id}))
         except Exception as e:
             logger.error(json.dumps({'event': 'invoice_fail_update_error', 'referenceId': reference_id, 'error': str(e), 'requestId': request_id}))
