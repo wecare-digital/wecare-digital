@@ -187,6 +187,12 @@ def handle(event, client):
 
     if action == 'sendOffer':
         return _send_offer(event, client, db, keys, contacts, now)
+    # Answered before any read: an unknown action (such as the retired `requestPayment`) or a
+    # customer action without its contact used to reach `get_item` with an empty key and crash.
+    if action not in ('start', 'select', 'unlock'):
+        return {'outcome': 'CATALOG_ACTION_UNAVAILABLE'}
+    if not event.get('contactId'):
+        return {'outcome': 'CATALOG_SERVICE_UNAVAILABLE'}
 
     contact = contacts.get_item(Key={'id': event.get('contactId', '')}, ConsistentRead=True).get('Item') or {}
     # Outbound resolves only our Direct-API sender ids; the bare Meta phone id is refused.
