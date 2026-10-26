@@ -262,6 +262,10 @@ Both stream mappings and both schedules must target aliases. Never target unqual
 
 ## 11. Release gates
 
+The default branch carries `.github/workflows/payment-rail-ci.yml`. Any PR touching the payment
+rail must pass its hermetic Python payment simulation and Workspace TypeScript typecheck before
+merge.
+
 A payment release is not ready unless all are true:
 
 - payment template is APPROVED, UTILITY, ORDER_DETAILS, English
