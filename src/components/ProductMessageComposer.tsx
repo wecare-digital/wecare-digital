@@ -76,8 +76,6 @@ const ProductMessageComposer: React.FC<ProductMessageComposerProps> = ( { phoneN
                 opts = {
                     carouselCards: ids.map( r => ( { productRetailerId: r } ) ),
                     bodyText,
-                    headerText: headerText || undefined,
-                    footerText: footerText || undefined,
                 };
             } else
             {
@@ -138,10 +136,9 @@ const ProductMessageComposer: React.FC<ProductMessageComposerProps> = ( { phoneN
                     <input style={ input } value={ carouselIds } onChange={ e => setCarouselIds( e.target.value ) } placeholder="SKU-1, SKU-2, SKU-3" />
                     <label style={ label }>Body text *</label>
                     <input style={ input } value={ bodyText } onChange={ e => setBodyText( e.target.value ) } />
-                    <label style={ label }>Header text (optional)</label>
-                    <input style={ input } value={ headerText } onChange={ e => setHeaderText( e.target.value ) } />
-                    <label style={ label }>Footer text (optional)</label>
-                    <input style={ input } value={ footerText } onChange={ e => setFooterText( e.target.value ) } />
+                    <div style={ { fontSize: 12, color: '#666', marginBottom: 10 } }>
+                        Meta product carousels support body text plus 2–10 product cards only; no header, footer, or buttons.
+                    </div>
                 </>
             ) : (
                 <>
