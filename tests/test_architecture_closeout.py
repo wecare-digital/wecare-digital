@@ -200,14 +200,19 @@ class WebhookUnnumberedInvoiceTests(unittest.TestCase):
         cls.webhook = _load("webhook_closeout_under_test",
                             FUNCTIONS / "payments" / "razorpay-webhook" / "handler.py")
 
-    def run_post_payment(self, engine_body: dict):
+    def run_post_payment(self, *engine_bodies: dict):
         quarantined, ensured = [], []
+        answers = list(engine_bodies)
+        self.invokes = 0
+        test = self
 
         class FakeLambda:
             def invoke(self, **_kw):
-                return {"Payload": _Payload(engine_body)}
+                test.invokes += 1
+                return {"Payload": _Payload(answers.pop(0) if len(answers) > 1 else answers[0])}
 
         with patch.object(self.webhook, "lambda_client", FakeLambda()), \
+                patch.object(self.webhook, "_IN_FLIGHT_INVOICE_RECHECK_SECONDS", 0), \
                 patch.object(self.webhook, "_native_cart_invoice_fields", lambda *_a, **_k: {}), \
                 patch.object(self.webhook, "dynamodb", FakeResource({})), \
                 patch.object(self.webhook.order_keys, "record_capture_quarantine",
@@ -226,20 +231,29 @@ class WebhookUnnumberedInvoiceTests(unittest.TestCase):
                 return "rendered", "", quarantined, ensured
         return "returned", "", quarantined, ensured
 
+    CLAIMING = {"invoiceId": "inv-claiming", "invoiceNumber": "", "deduplicated": True}
+    NUMBERED = {"invoiceId": "inv-claiming", "invoiceNumber": "WD/2026-27/00042",
+                "deduplicated": True}
+
     def test_unnumbered_invoice_is_quarantined_and_never_rendered(self):
-        outcome, _msg, quarantined, ensured = self.run_post_payment(
-            {"invoiceId": "inv-claiming", "invoiceNumber": "", "deduplicated": True})
+        outcome, _msg, quarantined, ensured = self.run_post_payment(self.CLAIMING)
         self.assertEqual(outcome, "raised")
+        self.assertEqual(self.invokes, 2, "one bounded re-ask, then the incident")
         self.assertEqual(ensured, [])
         self.assertEqual(quarantined[0]["outcome"], "INVOICE_CREATE_FAILED")
         self.assertEqual(quarantined[0]["extra"]["stage"], "UNNUMBERED_INVOICE")
 
-    def test_numbered_invoice_still_reaches_rendering(self):
-        outcome, _msg, quarantined, ensured = self.run_post_payment(
-            {"invoiceId": "inv-done", "invoiceNumber": "WD/2026-27/00042", "deduplicated": True})
+    def test_a_create_still_in_flight_is_re_asked_not_quarantined(self):
+        outcome, _msg, quarantined, ensured = self.run_post_payment(self.CLAIMING, self.NUMBERED)
         self.assertEqual(outcome, "rendered")
-        self.assertEqual(len(ensured), 1)
-        self.assertEqual(quarantined, [])
+        self.assertEqual(self.invokes, 2)
+        self.assertEqual((len(ensured), quarantined), (1, []))
+
+    def test_numbered_invoice_reaches_rendering_without_a_re_ask(self):
+        outcome, _msg, quarantined, ensured = self.run_post_payment(self.NUMBERED)
+        self.assertEqual(outcome, "rendered")
+        self.assertEqual(self.invokes, 1)
+        self.assertEqual((len(ensured), quarantined), (1, []))
 
 
 class PaidStateAlarmTests(unittest.TestCase):
