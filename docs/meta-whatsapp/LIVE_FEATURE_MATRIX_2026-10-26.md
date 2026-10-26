@@ -18,7 +18,7 @@
 | Direct Send authentication | BUILT_GATED | BUILT_GATED | Shared Direct Send foundations present | Meta beta/eligibility required |
 | Marketing Messages API | BUILT_GATED | OWNER_ACTION | Partial | WECARE app review shows Marketing API Access Tier not live/rejected; Manish needs an app first |
 | Marketing conversion/click measurement | PARTIAL | OWNER_ACTION | Partial | Complete the attribution loop after Marketing API access is granted |
-| Marketing product fallback policy | MISSING | OWNER_ACTION | No product_policy handling found | Add after Marketing API entitlement |
+| Marketing product fallback policy | BUILT_GATED | OWNER_ACTION | `product_policy` supports `CLOUD_API_FALLBACK` / `STRICT` with regression tests | Enable only after Marketing API entitlement |
 | Catalog management | BUILT_GATED | OWNER_ACTION | Significant code exists | WECARE app review shows catalog_management not live/rejected; complete review evidence |
 | Catalog/product messages | PARTIAL | OWNER_ACTION | Built | Provider entitlement/catalog connection required |
 | WhatsApp Flows | BUILT_GATED | OWNER_ACTION | Strong implementation | Live verification/asset readiness still required per flow |
@@ -30,15 +30,15 @@
 | Template lifecycle/quality | AVAILABLE | PARTIAL | Built | Manish app parity required for full webhook lifecycle |
 | Template library create | AVAILABLE through connector | AVAILABLE through connector | Repo support varies | Prefer library entries for ordinary utility/auth use cases |
 | Limited-time-offer templates | PARTIAL | PARTIAL | Partial/template-builder references | Add only if business need justifies it |
-| Media/product carousels | PARTIAL | PARTIAL | Partial | Validate latest Meta payload contracts before enabling |
-| Coexistence with WhatsApp Business app | PARTIAL | OWNER_ACTION | Webhooks subscribed; audit-only processing | Implement message echoes/state sync as a first-class ingestion path if coexistence is desired |
-| Message history synchronization | PARTIAL | OWNER_ACTION | history webhook stored as system event only | Build async chunk/phase ingestion for coexistence history before claiming support |
+| Media/product carousels | BUILT_GATED | BUILT_GATED | Media/template carousels exist; interactive product carousel now follows Meta `carousel` + `action.cards[]` (2–10 cards) | Controlled live send still requires provider/catalog readiness |
+| Coexistence with WhatsApp Business app | BUILT_GATED | OWNER_ACTION | Raw events are archived; message echoes can project into the canonical Inbox through the no-automation replay lane | Enable `whatsapp_coexistence_ingest` only for an intentionally configured coexistence account |
+| Message history synchronization | BUILT_GATED | OWNER_ACTION | History phase/chunk/progress is archived and can deduplicated-project messages into the canonical Inbox without replaying automation | Enable only for coexistence onboarding/history sharing |
 | Multi-Partner Solutions | PARTIAL | OWNER_ACTION | partner_solutions is audit-only | Design partner lifecycle/ownership before activation |
 | Automatic Events | AVAILABLE after 2026-10-26 patch | OWNER_ACTION | Durable system-event capture | Add domain-specific processing only when required |
 | Tracking Events | AVAILABLE after 2026-10-26 patch | OWNER_ACTION | Durable system-event capture | Feed into marketing attribution after entitlement |
 | Business status update webhook | AVAILABLE after 2026-10-26 patch | OWNER_ACTION | Durable system-event capture | Surface operational alerts as needed |
 | Business capability update webhook | AVAILABLE | OWNER_ACTION | Durable system-event capture | Use to refresh feature readiness dynamically |
-| Two-step verification management | MISSING | MISSING | Registration accepts PIN when required, no management surface | Add set/change management only with an explicit operational requirement |
+| Two-step verification management | AVAILABLE in code | PARTIAL | Admin set/change PIN route + Workspace control; PIN is never persisted | Live use requires an owner-selected 6-digit PIN; disabling remains WhatsApp Manager-only per Meta |
 | Pre-verified phone onboarding | MISSING | MISSING | Not found | Add only for partner onboarding at scale |
 | Business compliance information API | MISSING | MISSING | Not found | Add read-only support if compliance operations need it |
 | Business encryption management API | PARTIAL | PARTIAL | Flow crypto exists; account encryption API is separate | Add only if provider/account encryption management is required |

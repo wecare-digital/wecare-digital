@@ -263,6 +263,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return _request_otp(body, request_id)
             elif '/verify-otp' in path:
                 return _verify_otp(body, request_id)
+            elif '/two-step-pin' in path:
+                return _set_two_step_pin(body, request_id)
             elif '/register-phone' in path:
                 return _register_phone(body, request_id)
 
@@ -976,6 +978,58 @@ def _verify_otp(body: Dict, request_id: str) -> Dict[str, Any]:
     }
 
 
+def _set_two_step_pin(body: Dict, request_id: str) -> Dict[str, Any]:
+    """Set or change a business phone number's WhatsApp two-step verification PIN.
+
+    Meta's current contract is POST /{PHONE_NUMBER_ID} with {"pin": "6_DIGIT_PIN"}.
+    There is deliberately no disable route: Meta does not expose disabling through the API.
+    The PIN is never logged or persisted by WECARE.DIGITAL.
+    """
+    phone_number_id = str(body.get('phoneNumberId') or '').strip()
+    pin = str(body.get('pin') or '').strip()
+    if not phone_number_id:
+        return _error_response(400, 'phoneNumberId is required')
+    if len(pin) != 6 or not pin.isdigit():
+        return _error_response(400, 'pin must be exactly 6 digits')
+
+    if not phone_number_id.startswith('phone-number-id-'):
+        phone_number_id = f'phone-number-id-{phone_number_id}'
+    meta_phone_id = _resolve_meta_phone_id(phone_number_id)
+
+    result = _meta.post(
+        meta_phone_id,
+        payload={'pin': pin},
+        token_context={'phone_id': meta_phone_id},
+    )
+    if MetaGraphClient.is_error(result):
+        return _meta_error_response(result)
+
+    success = bool(result.get('success', False))
+    record_audit(
+        action='phone.two_step_pin_set',
+        actor=_actor,
+        resource_type='phone',
+        resource_id=meta_phone_id,
+        details={'success': success},
+    )
+    logger.info(json.dumps({
+        'event': 'phone_two_step_pin_set',
+        'phoneNumberId': phone_number_id,
+        'metaPhoneId': meta_phone_id,
+        'success': success,
+        'requestId': request_id,
+    }))
+    return {
+        'statusCode': 200,
+        'headers': cors_headers(origin),
+        'body': json.dumps({
+            'success': success,
+            'phoneNumberId': phone_number_id,
+            'twoStepVerification': 'ENABLED_OR_UPDATED' if success else 'UNCHANGED',
+        }),
+    }
+
+
 def _register_phone(body: Dict, request_id: str) -> Dict[str, Any]:
     """Register a phone number with a WABA. POST /{phone_id}/register."""
     phone_number_id = body.get('phoneNumberId', '')
@@ -1001,8 +1055,9 @@ def _register_phone(body: Dict, request_id: str) -> Dict[str, Any]:
     config_table.put_item(Item={
         'id': f'phone_registration_{phone_number_id}',
         'configValue': json.dumps({
-            'phoneNumberId': phone_number_id, 'metaPhoneId': meta_phone_id, 'pin': pin,
-            'registeredAt': datetime.now(timezone.utc).replace(tzinfo=None).isoformat(), 'status': 'REGISTERED'
+            'phoneNumberId': phone_number_id, 'metaPhoneId': meta_phone_id,
+            'registeredAt': datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
+            'status': 'REGISTERED', 'usedPin': bool(pin)
         }),
         'updatedAt': datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     })

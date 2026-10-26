@@ -1131,14 +1131,139 @@ _AUDIT_ONLY_REPLAY_FIELDS = _COEXISTENCE_FIELDS | {'history'}
 
 
 def _coexistence_ingest_enabled() -> bool:
-    """Whether coexistence ingest is requested. Defaults FALSE; false means audit-only.
+    """Whether history/app-echo replay is projected into the canonical Inbox.
 
-    Read per call rather than cached at module scope, following `_standby_reply_enabled`:
-    a module-scope read is frozen for the life of the execution environment, so a
-    configuration change would not take effect until every warm sandbox recycled.
+    SystemConfig `whatsapp_coexistence_ingest` overrides the environment default so an owner
+    can enable/disable ingestion without a deploy. The replay lane never calls live-message
+    automation and never advances lastInboundMessageAt.
     """
-    return os.environ.get('COEXISTENCE_INGEST_ENABLED', 'false').strip().lower() \
+    default = os.environ.get('COEXISTENCE_INGEST_ENABLED', 'false').strip().lower() \
         in ('1', 'true', 'yes', 'on')
+    try:
+        item = dynamodb.Table(SYSTEM_CONFIG_TABLE).get_item(
+            Key={'id': 'whatsapp_coexistence_ingest'}, ConsistentRead=True).get('Item') or {}
+        if 'configValue' in item:
+            return str(item.get('configValue') or '').strip().lower() in ('1', 'true', 'yes', 'on')
+    except Exception as e:
+        logger.warning(json.dumps({
+            'event': 'coexistence_ingest_config_read_failed',
+            'error': type(e).__name__,
+        }))
+    return default
+
+
+def _replay_message_content(message: Dict) -> str:
+    """Best-effort Inbox text for a Meta history/echo message, without side effects."""
+    try:
+        msg_type = str(message.get('type') or 'unknown')
+        content = _extract_content_v2(message, msg_type)
+        if isinstance(content, str):
+            return content
+    except Exception:
+        pass
+    msg_type = str(message.get('type') or 'unknown')
+    if msg_type == 'media_placeholder':
+        return '[Historical media]'
+    return f'[Historical {msg_type} message]'
+
+
+def _ingest_replay_message(message: Dict, user_phone: str, business_phone: str,
+                           phone_number_id: str, request_id: str, source: str,
+                           *, phase: Any = None, chunk_order: Any = None) -> bool:
+    """Project one history/Business-App echo into MessagesTable only.
+
+    This intentionally does NOT call `_process_message`: no keyword/AI/welcome/payment action,
+    no media download, no consent mutation, and no 24-hour service-window timestamp update.
+    The Meta wamid is the row id, so webhook replay overwrites the same row instead of duplicating.
+    """
+    user_digits = contact_store.digits(user_phone)
+    if not user_digits or not isinstance(message, dict):
+        return False
+    wamid = str(message.get('id') or '').strip()
+    if not wamid:
+        return False
+
+    # A history chunk can include messages already received live before coexistence was
+    # enabled. Deduplicate on Meta's global message id before choosing a new row id.
+    try:
+        existing = dynamodb.Table(UNIFIED_MESSAGES_TABLE).query(
+            IndexName='whatsappMessageId-index',
+            KeyConditionExpression='whatsappMessageId = :w',
+            ExpressionAttributeValues={':w': wamid},
+            Limit=1,
+        ).get('Items') or []
+        if existing:
+            logger.info(json.dumps({
+                'event': 'coexistence_replay_message_already_present',
+                'source': source,
+                'requestId': request_id,
+            }))
+            return True
+    except Exception as e:
+        # Fail closed on a dedup read failure: importing a duplicate is worse than deferring
+        # this historical projection, while the raw webhook remains archived for redrive.
+        logger.warning(json.dumps({
+            'event': 'coexistence_replay_dedup_failed',
+            'source': source,
+            'error': type(e).__name__,
+            'requestId': request_id,
+        }))
+        return False
+
+    try:
+        contact = _get_or_create_contact(user_digits)
+        contact_id = contact_key.resolve(contact)
+    except Exception as e:
+        logger.warning(json.dumps({
+            'event': 'coexistence_replay_contact_failed',
+            'source': source,
+            'phone': mask_phone(user_phone),
+            'error': type(e).__name__,
+            'requestId': request_id,
+        }))
+        return False
+    if not contact_id:
+        return False
+
+    from_digits = contact_store.digits(message.get('from'))
+    business_digits = contact_store.digits(business_phone)
+    direction = 'outbound' if from_digits and business_digits and from_digits == business_digits else 'inbound'
+    history_context = message.get('history_context') or {}
+    raw_status = str(history_context.get('status') or ('sent' if direction == 'outbound' else 'received')).lower()
+    status = raw_status if raw_status in ('pending', 'sent', 'delivered', 'read', 'failed', 'received') \
+        else ('sent' if direction == 'outbound' else 'received')
+    try:
+        timestamp = int(message.get('timestamp') or time.time())
+    except (TypeError, ValueError):
+        timestamp = int(time.time())
+
+    stored = put_message(
+        channel='whatsapp',
+        direction=direction,
+        contact_id=contact_id,
+        content=_replay_message_content(message),
+        status=status,
+        message_id=wamid,
+        timestamp=timestamp,
+        whatsapp_message_id=wamid,
+        message_type=str(message.get('type') or 'unknown'),
+        aws_phone_number_id=_get_aws_phone_number_id(
+            str(business_phone or ''), str(phone_number_id or ''), [str(phone_number_id or '')]),
+        replaySource=source,
+        replayOnly=True,
+        historyPhase=phase,
+        historyChunkOrder=chunk_order,
+        raise_on_error=False,
+    )
+    logger.info(json.dumps({
+        'event': 'coexistence_replay_message_ingested' if stored else 'coexistence_replay_message_skipped',
+        'source': source,
+        'direction': direction,
+        'contactId': mask_contact_id(contact_id),
+        'wamidPresent': bool(wamid),
+        'requestId': request_id,
+    }))
+    return bool(stored)
 
 
 def _archive_meta_event(event_type: str, value: Dict, request_id: str,
@@ -1232,6 +1357,30 @@ def _process_history_event(value: Dict, request_id: str, waba_id: str = '') -> N
                 'messageCount': message_count,
             },
         )
+        if _coexistence_ingest_enabled():
+            business_phone = str((value.get('metadata') or {}).get('display_phone_number') or '')
+            imported = 0
+            for thread in threads:
+                if not isinstance(thread, dict):
+                    continue
+                user_phone = str(thread.get('id') or '')
+                for message in (thread.get('messages') or []):
+                    if _ingest_replay_message(
+                            message, user_phone, business_phone, phone_id, request_id, 'history',
+                            phase=meta.get('phase'), chunk_order=meta.get('chunk_order')):
+                        imported += 1
+            record_system_event(
+                'whatsapp_history_chunk_ingested',
+                waba_id=waba_id or None,
+                phone_number_id=phone_id or None,
+                severity='info',
+                data={
+                    'requestId': request_id,
+                    'phase': meta.get('phase'),
+                    'chunkOrder': meta.get('chunk_order'),
+                    'imported': imported,
+                },
+            )
 
 
 def _process_partner_solution_event(value: Dict, request_id: str, waba_id: str = '') -> None:
@@ -1289,13 +1438,24 @@ def _process_coexistence_event(field: str, value: Dict, request_id: str) -> None
             'ingested': False,
             'requestId': request_id,
         }))
-    if _coexistence_ingest_enabled():
-        # Deliberately not implemented. A flag whose enabled path silently does nothing is
-        # worse than no flag: reaching here means somebody set the flag without building
-        # the ingest, so say so loudly rather than quietly acting on half a feature.
-        logger.warning(json.dumps({
-            'event': 'coexistence_ingest_requested_but_absent', 'field': field,
-            'requestId': request_id}))
+    if _coexistence_ingest_enabled() and field == 'smb_message_echoes':
+        business_phone = str((value.get('metadata') or {}).get('display_phone_number') or '')
+        phone_id = str((value.get('metadata') or {}).get('phone_number_id') or '')
+        echoes = value.get('message_echoes') or value.get('messages') or []
+        imported = 0
+        for message in echoes if isinstance(echoes, list) else []:
+            if not isinstance(message, dict):
+                continue
+            user_phone = str(message.get('to') or '')
+            if _ingest_replay_message(
+                    message, user_phone, business_phone, phone_id, request_id, 'smb_message_echoes'):
+                imported += 1
+        logger.info(json.dumps({
+            'event': 'smb_message_echoes_ingested',
+            'imported': imported,
+            'phoneNumberId': phone_id,
+            'requestId': request_id,
+        }))
 
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
