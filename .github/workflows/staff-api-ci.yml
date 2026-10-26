@@ -1,9 +1,8 @@
 name: Staff API CI
 
-# Tests and packages the staff configuration APIs (WhatsApp template management and AI/settings
-# config) on every relevant change. The deploy job stays off until the owner creates the scoped
-# OIDC role `wecare-staff-api-deploy-oidc` and sets the repository variable
-# STAFF_API_DEPLOY_ENABLED=true; see docs/operations/staff-api-deploy.md for the exact policy.
+# Tests, packages and deploys the staff configuration APIs (WhatsApp template management and
+# AI/settings config) on relevant production pushes. Deployment uses the scoped GitHub OIDC role
+# `wecare-staff-api-deploy-oidc`; see docs/operations/staff-api-deploy.md for the exact policy.
 
 on:
   pull_request:
@@ -104,10 +103,7 @@ jobs:
           retention-days: 7
 
   deploy:
-    # Off until the owner provisions the scoped deploy role and enables it (see header).
-    if: >-
-      github.event_name == 'push' && github.ref == 'refs/heads/wecare.digital'
-      && vars.STAFF_API_DEPLOY_ENABLED == 'true'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/wecare.digital'
     needs: package
     concurrency:
       group: staff-api-deploy
