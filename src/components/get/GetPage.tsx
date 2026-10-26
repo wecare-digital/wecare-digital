@@ -602,8 +602,9 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                                                         ? 'Your access window has ended. '
                                                         : '' }
                                                     WhatsApp opens with &ldquo;Vault&rdquo; typed. Send it, choose this
-                                                    document, and pay in the chat. WhatsApp shows the total, including the
-                                                    convenience fee, before you pay; the download link follows once paid.
+                                                    document, and pay in the chat. Vault access is charged at exactly
+                                                    { ` ${ rupees( price ) }` } for this window; no convenience fee is added.
+                                                    The download link follows once paid.
                                                 </p>
                                             </>
                                         );
