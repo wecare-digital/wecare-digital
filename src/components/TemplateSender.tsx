@@ -119,6 +119,8 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
   // https://wecare.digital/vault/?file={{1}}; staff enter only the file id/suffix.
   const [ urlButtonIndex, setUrlButtonIndex ] = useState<number | null>( null );
   const [ urlButtonSuffix, setUrlButtonSuffix ] = useState( '' );
+  const [ vaultFiles, setVaultFiles ] = useState<api.SecureFile[]>( [] );
+  const [ vaultFilesLoading, setVaultFilesLoading ] = useState( false );
   // Media library (reusable wa-tpl/ files) — search, pick, permanently delete.
   const [ showLibrary, setShowLibrary ] = useState( false );
   const [ libraryItems, setLibraryItems ] = useState<any[]>( [] );
@@ -301,6 +303,38 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
     setVariables( vars );
     setCardVariables( cardVars );
   }, [ selectedTemplate, contactName ] );
+
+  useEffect( () => {
+    if ( selectedTemplate?.name.toLowerCase() !== DOWNLOAD_TEMPLATE )
+    {
+      setVaultFiles( [] );
+      return;
+    }
+    const phone = String( recipientPhone || '' ).trim();
+    if ( !phone )
+    {
+      setVaultFiles( [] );
+      return;
+    }
+    let active = true;
+    setVaultFilesLoading( true );
+    void api.listSecureFiles( phone ).then( result => {
+      if ( !active ) return;
+      if ( result.ok )
+      {
+        const files = ( result.data.files || [] ).filter(
+          file => file.status === 'active'
+            && !!( file.paidEntitlementId || file.paidGrantId )
+        );
+        setVaultFiles( files );
+        if ( files.length === 1 ) setUrlButtonSuffix( files[ 0 ].fileId );
+      } else
+      {
+        setVaultFiles( [] );
+      }
+    } ).finally( () => { if ( active ) setVaultFilesLoading( false ); } );
+    return () => { active = false; };
+  }, [ selectedTemplate, recipientPhone ] );
 
   const updateVariable = ( index: number, value: string ) => {
     setVariables( vars => vars.map( ( v, i ) => i === index ? { ...v, value } : v ) );
@@ -651,13 +685,19 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
     if ( urlButtonIndex !== null && !urlButtonSuffix.trim() )
     {
       onError( selectedTemplate.name.toLowerCase() === DOWNLOAD_TEMPLATE
-        ? 'Enter the Vault file ID for the Access Vault button.'
+        ? 'Choose a paid Vault file for this customer.'
         : 'Enter the dynamic URL value for this template.' );
       return;
     }
     if ( urlButtonIndex !== null && !URL_BUTTON_SUFFIX.test( urlButtonSuffix.trim() ) )
     {
       onError( 'The button value can use only letters, digits, - and _ (up to 120), not a file name or a full URL.' );
+      return;
+    }
+
+    if ( selectedTemplate.name.toLowerCase() === DOWNLOAD_TEMPLATE && manualMode )
+    {
+      onError( 'Open a saved customer conversation to send a Vault file. Vault links can only be sent after the file is matched to that customer.' );
       return;
     }
 
@@ -1060,22 +1100,46 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
 
             { urlButtonIndex !== null && (
               <div className="header-media-section">
-                <label>
-                  { selectedTemplate.name.toLowerCase() === DOWNLOAD_TEMPLATE ? 'Vault file ID' : 'Dynamic URL value' }
-                  <span className="required-tag">required</span>
-                </label>
-                <input
-                  type="text"
-                  className="header-url-input"
-                  value={ urlButtonSuffix }
-                  onChange={ ( e ) => setUrlButtonSuffix( e.target.value ) }
-                  placeholder={ selectedTemplate.name.toLowerCase() === DOWNLOAD_TEMPLATE ? 'Vault file ID (letters, digits, - and _)' : 'Dynamic URL suffix' }
-                />
-                <span className="manual-hint">
-                  { selectedTemplate.name.toLowerCase() === DOWNLOAD_TEMPLATE
-                    ? 'The approved template already contains https://wecare.digital/vault/?file={{1}}. Enter only the file ID, not a full URL.'
-                    : 'Enter only the value that replaces {{1}} in the approved button URL.' }
-                </span>
+                { selectedTemplate.name.toLowerCase() === DOWNLOAD_TEMPLATE ? (
+                  <>
+                    <label>Choose Vault file<span className="required-tag">required</span></label>
+                    { !recipientPhone ? (
+                      <span className="manual-hint">Open this template from a saved customer conversation so Workspace can verify which Vault files belong to that customer.</span>
+                    ) : (
+                      <>
+                        <select
+                          className="header-url-input"
+                          value={ urlButtonSuffix }
+                          onChange={ ( e ) => setUrlButtonSuffix( e.target.value ) }
+                          disabled={ vaultFilesLoading }
+                        >
+                          <option value="">{ vaultFilesLoading ? 'Loading Vault files…' : 'Choose a paid Vault file…' }</option>
+                          { vaultFiles.map( file => (
+                            <option key={ file.fileId } value={ file.fileId }>
+                              { file.displayName || file.originalFilename || file.fileId }
+                              { file.accessWindowStatus ? ` · ${file.accessWindowStatus}` : '' }
+                            </option>
+                          ) ) }
+                        </select>
+                        <span className="manual-hint">
+                          Only active files owned by this customer with a paid Vault entitlement are shown. Workspace sends only the internal file ID to the approved Access Vault button.
+                        </span>
+                      </>
+                    ) }
+                  </>
+                ) : (
+                  <>
+                    <label>Dynamic URL value<span className="required-tag">required</span></label>
+                    <input
+                      type="text"
+                      className="header-url-input"
+                      value={ urlButtonSuffix }
+                      onChange={ ( e ) => setUrlButtonSuffix( e.target.value ) }
+                      placeholder="Dynamic URL suffix"
+                    />
+                    <span className="manual-hint">Enter only the value that replaces {{1}} in the approved button URL.</span>
+                  </>
+                ) }
               </div>
             ) }
 
