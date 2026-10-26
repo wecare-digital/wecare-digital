@@ -4,5 +4,5 @@
   "website": "https://wecare.digital/",
   "logo": "assets/logo.svg",
   "interaction": "conversation-only",
-  "status": "source implementation; hosting and host connection pending"
+  "status": "AWS customer backend; main-site auth path; ChatGPT verification pending"
 }

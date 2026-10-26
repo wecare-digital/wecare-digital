@@ -85,7 +85,7 @@ listing restrictions; it does not change customer, product or provider eligibili
 
 ## Verification and remaining gates
 
-25 conversation checks plus 28 OAuth checks pass against readable source. The same 53 checks pass
+25 conversation checks plus 29 OAuth checks pass against readable source. The same 54 checks pass
 against the exact packaged runtime. Python compilation and CloudFormation ValidateTemplate pass.
 No production deployment or live host case has run. The unchanged website build passed earlier;
 repository-wide lint still has the existing unrelated internal /cart anchor error at
@@ -99,16 +99,19 @@ is not enabled; WhatsApp is the prepared payment fallback after explicit custome
 
 The source export and runtime ZIP are not installable or submission-ready public plugins.
 
-## Branded secure connection
+## Main-site secure sign-in
 
-ConnectOrigin optionally enables https://connect.wecare.digital using the existing wildcard
-certificate and hosted zone. Discovery sends authorization to that origin; the issuer, MCP
-audience and registered host callbacks remain unchanged. Cached legacy authorization GETs
-redirect before creating cookies. Existing pending POSTs remain supported on the original host.
-The secure page embeds the canonical WECARE logo and src/lib/dialCodes.ts country list at build
-time, without a website request or new tracking. Server validation combines dial code and
-national number before calling the existing identity service. This screen is only for sign-in;
-shopping stays in conversation. ChatGPT chrome, app-card icon and tool routing remain host-owned.
+The customer connection uses https://wecare.digital/auth through two exact existing-site
+Amplify forwarding rules. AuthOrigin is restricted to the main website; no subdomain,
+certificate or DNS resource is provisioned. The MCP issuer/audience and exact host callbacks
+remain unchanged. The secure form posts to /auth, is no-store and noindex, and is excluded
+from public sitemap generation. Cached initial AWS authorization links redirect to /auth.
+The form embeds the canonical S3 SVG logo, homepage brand lockup, lime controls, footer and
+Stay connected links. It never shares an authorization URL through the public share controls.
+
+Large KMS custody payloads are encrypted in bounded authenticated parts; index and total
+count are included in each part's encryption context alongside app, resource, client and
+record. Existing single-part records remain readable. No credential material is logged.
 
 If templateRequiresS3 is true, upload the exact template to the existing private CDK assets
 bucket and use TemplateURL. Never truncate the runtime to fit the inline template limit.

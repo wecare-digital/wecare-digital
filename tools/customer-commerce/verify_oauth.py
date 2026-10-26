@@ -67,15 +67,36 @@ class FakeCognito:
 
 
 class OAuthContract(unittest.TestCase):
+    def test_large_custody_uses_bounded_authenticated_parts(self):
+        class BoundedKms:
+            def encrypt(self, **kw):
+                if len(kw['Plaintext']) > 4096:
+                    raise ValueError('KMS plaintext size limit')
+                return {'CiphertextBlob': json.dumps({'context': kw['EncryptionContext'], 'data': base64.b64encode(kw['Plaintext']).decode()}).encode()}
+            def decrypt(self, **kw):
+                value = json.loads(kw['CiphertextBlob'])
+                if value['context'] != kw['EncryptionContext']: raise auth.AuthError('Context mismatch')
+                return {'Plaintext': base64.b64decode(value['data'])}
+        data = {'AccessToken': 'synthetic-access-' * 300, 'RefreshToken': 'synthetic-refresh-' * 300}
+        with patch.object(auth, 'aws', lambda _: BoundedKms()), patch.dict(os.environ, {'CUSTOMER_SESSION_KMS_KEY_ID': 'synthetic-key'}):
+            cipher = self.real_capsule(data, 'test-client', 'mcp:commerce:grant:synthetic')
+            self.assertEqual(self.real_uncapsule(cipher, 'test-client', 'mcp:commerce:grant:synthetic'), data)
+            parts = json.loads(cipher[5:])
+            for mutated in [parts[::-1], parts[:-1]]:
+                with self.assertRaises(auth.AuthError):
+                    self.real_uncapsule('kms2:' + json.dumps(mutated), 'test-client', 'mcp:commerce:grant:synthetic')
+            with self.assertRaises(auth.AuthError):
+                self.real_uncapsule(cipher, 'other-client', 'mcp:commerce:grant:synthetic')
+
     def test_cached_host_authorization_link_redirects_only_to_configured_brand_origin(self):
-        with patch.dict(os.environ, {'CUSTOMER_CONNECT_ORIGIN': 'https://connect.wecare.digital'}):
+        with patch.dict(os.environ, {'CUSTOMER_AUTH_ORIGIN': 'https://wecare.digital'}):
             event = {'rawPath': '/oauth/authorize', 'rawQueryString': urlencode(self.params),
                      'requestContext': {'domainName': 'commerce.example.com', 'http': {'method': 'GET'}}}
             result = auth.route(event)
             self.assertEqual(result['statusCode'], 302)
-            self.assertEqual(result['headers']['Location'], 'https://connect.wecare.digital/oauth/authorize?' + urlencode(self.params))
+            self.assertEqual(result['headers']['Location'], 'https://wecare.digital/auth?' + urlencode(self.params))
             self.assertEqual(self.store.rows, {})
-            event['requestContext']['domainName'] = 'connect.wecare.digital'
+            event['rawPath'] = '/auth'
             self.assertEqual(auth.route(event)['statusCode'], 200)
 
     def test_country_selection_normalizes_before_cognito(self):
@@ -93,11 +114,11 @@ class OAuthContract(unittest.TestCase):
         self.assertEqual(self.cognito.sends, 0)
 
     def test_branded_authorization_origin_keeps_resource_binding(self):
-        with patch.dict(os.environ, {'CUSTOMER_CONNECT_ORIGIN': 'https://connect.wecare.digital'}):
-            self.assertEqual(auth.auth_metadata()['authorization_endpoint'], 'https://connect.wecare.digital/oauth/authorize')
+        with patch.dict(os.environ, {'CUSTOMER_AUTH_ORIGIN': 'https://wecare.digital'}):
+            self.assertEqual(auth.auth_metadata()['authorization_endpoint'], 'https://wecare.digital/auth')
             self.assertEqual(auth.auth_metadata()['issuer'], BASE)
             cookie, csrf = self.begin()
-            result = self.post(cookie, {'csrf': csrf, 'phone': '+447700900123'}, 'https://connect.wecare.digital')
+            result = self.post(cookie, {'csrf': csrf, 'phone': '+447700900123'}, 'https://wecare.digital')
             self.assertIn('WhatsApp verification code', result['body'])
 
     def test_host_language_hint_does_not_change_authorization(self):
@@ -113,6 +134,7 @@ class OAuthContract(unittest.TestCase):
         self.assertEqual(auth.response(200, {})['headers']['Referrer-Policy'], 'no-referrer')
 
     def setUp(self):
+        self.real_capsule, self.real_uncapsule = auth.capsule, auth.uncapsule
         self.store, self.cognito = FakeStore(), FakeCognito()
         env = patch.dict(os.environ, {'CUSTOMER_COMMERCE_ORIGIN': BASE,
             'CUSTOMER_OAUTH_CLIENTS': json.dumps([{'client_id': 'test-client', 'name': 'Test client', 'redirect_uris': [REDIRECT]}]),

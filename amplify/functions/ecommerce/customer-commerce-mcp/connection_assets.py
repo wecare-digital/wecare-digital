@@ -7,6 +7,7 @@ import re
 
 ROOT = Path(__file__).resolve().parents[4]
 BRAND_LOGO = (ROOT / 'tools/customer-commerce/assets/logo.svg').read_text().strip()
+BRAND_LOGO = BRAND_LOGO[BRAND_LOGO.index('<svg'):]
 DIAL_COUNTRIES = [
     (code, country, [int(n) for n in re.findall(r'\d+', lengths)])
     for code, country, lengths in re.findall(

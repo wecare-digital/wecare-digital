@@ -115,7 +115,7 @@ def template(code: str, source_hash: str) -> dict:
             'Role': get('Role', 'Arn'), 'Timeout': 30, 'MemorySize': 256, 'ReservedConcurrentExecutions': 5,
             'LoggingConfig': {'LogGroup': ref('FunctionLogs')}, 'Code': {'ZipFile': code},
             'Environment': {'Variables': {'CUSTOMER_COMMERCE_ORIGIN': get('Api', 'ApiEndpoint'),
-                'CUSTOMER_CONNECT_ORIGIN': ref('ConnectOrigin'),
+                'CUSTOMER_AUTH_ORIGIN': ref('AuthOrigin'),
                 'CUSTOMER_OAUTH_CLIENTS': ref('CustomerClients'), 'PRODUCTS_TABLE': ref('ProductsTable'),
                 'CUSTOMER_SESSIONS_TABLE': ref('SessionsTable'), 'CUSTOMER_SESSION_KMS_KEY_ID': ref('CustodyKeyArn'),
                 'CHATGPT_APPROVED_PRODUCT_IDS': ref('ApprovedProductIds'),
@@ -132,7 +132,7 @@ def template(code: str, source_hash: str) -> dict:
         'Metadata': context('Customer alias only.', ['Preserve source IP; no caller routing.']),
         'Properties': {'ApiId': ref('Api'), 'IntegrationType': 'AWS_PROXY', 'IntegrationUri': ref('Live'), 'PayloadFormatVersion': '2.0', 'TimeoutInMillis': 30000}}
     routes = ['POST /mcp', 'GET /.well-known/oauth-protected-resource', 'GET /.well-known/oauth-authorization-server',
-              'GET /oauth/authorize', 'POST /oauth/authorize', 'POST /oauth/token', 'POST /oauth/revoke']
+              'GET /oauth/authorize', 'POST /oauth/authorize', 'POST /oauth/token', 'POST /oauth/revoke', 'GET /auth', 'POST /auth']
     for number, route in enumerate(routes):
         resources[f'Route{number}'] = {'Type': 'AWS::ApiGatewayV2::Route',
             'Metadata': context('Explicit protocol endpoint.', ['No wildcard proxy or storefront.']),
@@ -143,16 +143,6 @@ def template(code: str, source_hash: str) -> dict:
             'DefaultRouteSettings': {'ThrottlingBurstLimit': 10, 'ThrottlingRateLimit': 5},
             'AccessLogSettings': {'DestinationArn': get('ApiLogs', 'Arn'),
                 'Format': '{"requestId":"$context.requestId","route":"$context.routeKey","status":"$context.status"}'}}}
-    resources['ConnectDomain'] = {'Type': 'AWS::ApiGatewayV2::DomainName', 'Condition': 'EnableConnectDomain',
-        'Properties': {'DomainName': 'connect.wecare.digital', 'DomainNameConfigurations': [{
-            'CertificateArn': 'arn:aws:acm:us-east-1:775261844268:certificate/f75d0db0-d476-443a-b787-96c4931862d2',
-            'EndpointType': 'REGIONAL', 'SecurityPolicy': 'TLS_1_2'}]}}
-    resources['ConnectMapping'] = {'Type': 'AWS::ApiGatewayV2::ApiMapping', 'Condition': 'EnableConnectDomain',
-        'Properties': {'DomainName': ref('ConnectDomain'), 'ApiId': ref('Api'), 'Stage': ref('Stage')}}
-    resources['ConnectDns'] = {'Type': 'AWS::Route53::RecordSet', 'Condition': 'EnableConnectDomain',
-        'Properties': {'HostedZoneId': 'Z03939753QJGZ6ZD6BXO8', 'Name': 'connect.wecare.digital', 'Type': 'A',
-            'AliasTarget': {'DNSName': get('ConnectDomain', 'RegionalDomainName'),
-                'HostedZoneId': get('ConnectDomain', 'RegionalHostedZoneId'), 'EvaluateTargetHealth': False}}}
     resources['InvokePermission'] = {'Type': 'AWS::Lambda::Permission',
         'Metadata': context('API-only invocation.', ['Bind exact account and API.']),
         'Properties': {'Action': 'lambda:InvokeFunction', 'FunctionName': ref('Live'), 'Principal': 'apigateway.amazonaws.com',
@@ -172,9 +162,8 @@ def template(code: str, source_hash: str) -> dict:
             'ApprovedProductIds': {'Type': 'String', 'Default': '[]', 'MaxLength': 8000, 'Description': 'Only platform-approved saleable product IDs; empty publishes no products.'},
             'WhatsAppPaymentsEnabled': {'Type': 'String', 'Default': 'false', 'AllowedValues': ['false', 'true']},
             'RegistrationEnabled': {'Type': 'String', 'Default': 'false', 'AllowedValues': ['false', 'true'], 'Description': 'Enable only after restoring/verifying the established customer-registration service.'},
-            'ConnectOrigin': {'Type': 'String', 'Default': '', 'AllowedValues': ['', 'https://connect.wecare.digital'], 'Description': 'Optional owner-controlled secure sign-in origin; issuer and audience are unchanged.'},
-        }, 'Conditions': {'EnableRegistration': {'Fn::Equals': [ref('RegistrationEnabled'), 'true']},
-                         'EnableConnectDomain': {'Fn::Equals': [ref('ConnectOrigin'), 'https://connect.wecare.digital']}},
+            'AuthOrigin': {'Type': 'String', 'Default': '', 'AllowedValues': ['', 'https://wecare.digital'], 'Description': 'Main-site auth path through existing Amplify proxy; no subdomain.'},
+        }, 'Conditions': {'EnableRegistration': {'Fn::Equals': [ref('RegistrationEnabled'), 'true']}},
         'Resources': resources, 'Outputs': {
             'McpUrl': {'Value': {'Fn::Join': ['', [get('Api', 'ApiEndpoint'), '/mcp']]}},
             'AuthorizationServer': {'Value': get('Api', 'ApiEndpoint')},
