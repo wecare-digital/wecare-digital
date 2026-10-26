@@ -13,12 +13,14 @@ Keys:
 - ai_config: Main AI configuration
 - ai_prompts_{lang}: Language-specific prompts
 - ai_fallbacks_{lang}: Language-specific fallback messages
-- any other key through PUT /ai/config with body.key (Workspace settings)
+- the Workspace settings rows in SETTINGS_CONFIG_KEYS through ?key= / body.key; no other row
 
-Authority: a staff token (Viewer or above) for every route. Writing a key in
-OPERATOR_WRITE_KEYS (keyword-to-Flow triggers and F001 Subscribe copy) needs Operator.
+Authority: a staff token (Viewer or above) for reads and POST /ai/test. Every write needs
+Operator (it changes what customers are sent); clearing logs, deleting bot flows and the
+internal agent config need Admin. Writes are audit-logged.
 """
 
+import hashlib
 import os
 import json
 import logging
@@ -84,11 +86,50 @@ SUPPORTED_LANGUAGES = {
 }
 
 
-#: SystemConfig keys that decide what customers are sent: which keyword opens which WhatsApp
-#: Flow (`flow_triggers_config`, including the F001 Subscribe keyword switch) and the F001
-#: Subscribe customer copy (`subscribe_messages_config`). Writing them is an Operator action.
-#: Every other route here keeps the staff (Viewer) floor, and reading these keys stays there.
-OPERATOR_WRITE_KEYS = frozenset({'flow_triggers_config', 'subscribe_messages_config'})
+#: The SystemConfig rows the Workspace settings pages read and write through
+#: `GET /ai/config?key=` and `PUT /ai/config {key}`: AI auto-reply, welcome copy, menus,
+#: keyword-to-Flow triggers (including the F001 Subscribe switch) and the F001 Subscribe copy.
+#: Every other row in the table (dedup markers, cleanup confirmations, captured webhook events,
+#: account wiring) is not a setting, and this route refuses to read or rewrite it.
+SETTINGS_CONFIG_KEYS = frozenset({
+    'ai_config', 'welcome_message', 'welcome_message_2', 'welcome_message_config',
+    'customerservice_menu_config', 'wa_auto_response',
+    'flow_triggers_config', 'subscribe_messages_config',
+})
+
+
+def _required_write_role(method: str, path: str) -> str:
+    """'' for a read; otherwise the least staff role that may make this change.
+
+    Every write decides what customers are sent (auto-reply, prompts, fallbacks, welcome copy,
+    menus, Flow triggers, bot flows), so it needs Operator. Deleting logs or bot flows and the
+    internal agent's configuration need Admin. `POST /ai/test` writes nothing and stays a read.
+    """
+    if method in ('GET', 'HEAD'):
+        return ''
+    if method == 'POST' and '/ai/test' in path:
+        return ''
+    if ('/ai/clear-logs' in path or '/ai/internal/config' in path
+            or (method == 'DELETE' and '/ai/botflow' in path)):
+        return 'Admin'
+    return 'Operator'
+
+
+def _audit_config_write(event: Dict[str, Any], method: str, path: str, config_key: str,
+                        request_id: str) -> None:
+    """One structured line per settings write: who (pseudonymous), what, which key."""
+    auth = event.get('_auth') or {}
+    actor = str(auth.get('username') or '')
+    logger.info(json.dumps({
+        'event': 'ai_config_write_audit',
+        'method': method,
+        'path': path,
+        'configKey': config_key,
+        # A short hash, not the username: correlatable with the staff pool, not PII in logs.
+        'actor': hashlib.sha256(actor.encode('utf-8')).hexdigest()[:12] if actor else 'internal',
+        'groups': list(auth.get('groups') or []),
+        'requestId': request_id,
+    }))
 
 
 # Module-level origin for CORS (set per-invocation in handler)
@@ -145,7 +186,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return options_response(origin)
 
     from lambda_utils.middleware import require_auth
-    _auth = require_auth(event)
+    write_role = _required_write_role(http_method, path)
+    _auth = require_auth(event, required_role=write_role or None)
     if _auth is not None:
         return _auth
     
@@ -153,15 +195,21 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         body = {}
         if event.get('body'):
             body = json.loads(event.get('body', '{}'))
+        if write_role:
+            _audit_config_write(event, http_method, path,
+                                str(body.get('key') or '') if isinstance(body, dict) else '',
+                                request_id)
         
         # Route handling
         if http_method == 'GET':
             # Internal AI config (FloatingAgent - admin tasks)
             if '/ai/internal/config' in path:
                 return _get_internal_config(request_id)
-            # External AI config (WhatsApp auto-reply) — supports ?key= for arbitrary config
+            # External AI config (WhatsApp auto-reply) and the Workspace settings rows by ?key=
             elif '/ai/config' in path:
                 cfg_key = query_params.get('key', 'ai_config')
+                if cfg_key not in SETTINGS_CONFIG_KEYS:
+                    return _error_response(400, 'Unknown settings key')
                 return _get_config(request_id, config_key=cfg_key)
             elif '/ai/prompts' in path:
                 lang = path_params.get('lang')
@@ -179,19 +227,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return _get_botflow_config(request_id)
         
         elif http_method == 'PUT':
-            # Body-based clear-logs trigger via existing PUT route
-            if body.get('_action') == 'clear-logs':
-                return _clear_ai_logs(request_id)
             # Internal AI config
             if '/ai/internal/config' in path:
                 return _update_internal_config(body, request_id)
-            # External AI config — supports body.key for arbitrary config
+            # External AI config and the Workspace settings rows by body.key
             elif '/ai/config' in path:
                 cfg_key = body.pop('key', 'ai_config') if isinstance(body, dict) else 'ai_config'
-                if isinstance(cfg_key, str) and cfg_key in OPERATOR_WRITE_KEYS:
-                    operator_denied = require_auth(event, required_role='Operator')
-                    if operator_denied is not None:
-                        return operator_denied
+                if cfg_key not in SETTINGS_CONFIG_KEYS:
+                    return _error_response(400, 'Unknown settings key')
                 return _update_config(body, request_id, config_key=cfg_key)
             elif '/ai/prompts' in path:
                 lang = path_params.get('lang') or body.get('language')
@@ -203,9 +246,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return _update_botflow_config(body, request_id)
         
         elif http_method == 'POST':
-            if body.get('_action') == 'clear-logs':
-                return _clear_ai_logs(request_id)
-            elif '/ai/test' in path:
+            if '/ai/test' in path:
                 return _test_ai_response(body, request_id)
             elif '/ai/clear-logs' in path:
                 return _clear_ai_logs(request_id)

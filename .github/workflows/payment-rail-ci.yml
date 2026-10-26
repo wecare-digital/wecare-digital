@@ -13,11 +13,13 @@ on:
       - "scripts/env_manifest.py"
       - "scripts/provision_payment_rail_alarms.py"
       - "scripts/provision_order_status_template.py"
-      - "scripts/provision_order_status_template.py"
       - "tests/test_env_manifest_aliases.py"
       - "tests/test_direct_send_dual_account_regression.py"
       - "tests/test_whatsapp_marketing_policy.py"
       - "tests/test_commerce_audit_hardening.py"
+      - "tests/test_architecture_closeout.py"
+      - "tests/test_order_status_single_producer.py"
+      - "tests/test_staff_api_authorization.py"
       - "amplify/functions/ecommerce/checkout/**"
       - "amplify/functions/core/service-api/**"
       - "amplify/functions/core/secure-files/**"
@@ -53,6 +55,9 @@ on:
       - "tests/test_env_manifest_aliases.py"
       - "tests/test_direct_send_dual_account_regression.py"
       - "tests/test_commerce_audit_hardening.py"
+      - "tests/test_architecture_closeout.py"
+      - "tests/test_order_status_single_producer.py"
+      - "tests/test_staff_api_authorization.py"
       # wecare-commerce and wecare-checkout are built from this source; a change to it alone
       # must still test and deploy the canonical commerce writer.
       - "amplify/functions/ecommerce/checkout/**"
@@ -99,6 +104,12 @@ jobs:
 
       - name: Verify commerce audit hardening
         run: python -m unittest discover -s tests -p 'test_commerce_audit_hardening.py'
+
+      - name: Verify architecture closeout (payment-order rail, invoice claim, alarms)
+        run: |
+          python -m unittest discover -s tests -p 'test_architecture_closeout.py'
+          python -m unittest discover -s tests -p 'test_order_status_single_producer.py'
+          python -m unittest discover -s tests -p 'test_staff_api_authorization.py'
 
       - name: Verify WhatsApp payment rail
         run: python scripts/verify_whatsapp_catalog_payment_rail.py

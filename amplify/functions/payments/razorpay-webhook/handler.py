@@ -42,6 +42,10 @@ logger = get_logger(__name__)
 dynamodb = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
 lambda_client = boto3.client('lambda', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
 COMMERCE_FUNCTION = os.environ.get('COMMERCE_FUNCTION', 'wecare-commerce:live')
+#: A duplicate delivery that loses the invoice claim race is answered with the winner's id
+#: before the winner has numbered it. One short re-ask lets that create finish, so a benign
+#: race is not quarantined. Only an id that is still unnumbered after it is an incident.
+_IN_FLIGHT_INVOICE_RECHECK_SECONDS = 2.0
 
 def _secret_from_sm(secret_id: str, key: str) -> str:
     """Fetch a key from a Secrets Manager JSON secret. Returns '' on any failure (fail-safe)."""
@@ -2746,6 +2750,19 @@ def _post_payment_handler(payment_id: str, contact: str,
         invoice_id = inv_body.get('invoiceId', '')
         invoice_number = inv_body.get('invoiceNumber', '')
         deduplicated = inv_body.get('deduplicated', False)
+        if invoice_id and not invoice_number and deduplicated:
+            # Another create holds the claim and has not numbered it yet. Ask once more; the
+            # create is idempotent, so this re-ask cannot make a second invoice.
+            time.sleep(_IN_FLIGHT_INVOICE_RECHECK_SECONDS)
+            inv_response = lambda_client.invoke(
+                FunctionName=COMMERCE_FUNCTION,
+                InvocationType='RequestResponse',
+                Payload=json.dumps(invoice_payload),
+            )
+            inv_body = json.loads(json.loads(inv_response['Payload'].read()).get('body', '{}'))
+            invoice_id = inv_body.get('invoiceId', '')
+            invoice_number = inv_body.get('invoiceNumber', '')
+            deduplicated = inv_body.get('deduplicated', False)
 
         logger.info(json.dumps({
             'event': 'invoice_created_from_payment', 'paymentId': payment_id,
@@ -2778,6 +2795,20 @@ def _post_payment_handler(payment_id: str, contact: str,
         logger.error(json.dumps({'event': 'invoice_create_empty', 'paymentId': payment_id,
                                  'requestId': request_id, 'alert': 'INVOICE_CREATE_FAILED'}))
         raise RuntimeError('invoice creation returned no invoice id for a verified capture')
+    if not invoice_number:
+        # An id with no GST number is an unfinished claim row (a concurrent create still running,
+        # or one that died before numbering), not an invoice. Rendering and sending it would give
+        # the customer an unnumbered receipt. Same handling as an empty id: quarantine and raise,
+        # so the redelivery finds the finished invoice.
+        order_keys.record_capture_quarantine(
+            dynamodb.Table(COMMERCE_KEYS_TABLE),
+            payment_id=payment_id, reference_id=reference_id,
+            outcome='INVOICE_CREATE_FAILED',
+            extra={'stage': 'UNNUMBERED_INVOICE', 'invoiceId': invoice_id})
+        logger.error(json.dumps({'event': 'invoice_create_unnumbered', 'paymentId': payment_id,
+                                 'invoiceId': invoice_id, 'requestId': request_id,
+                                 'alert': 'INVOICE_CREATE_FAILED'}))
+        raise RuntimeError('invoice creation returned an unnumbered invoice for a verified capture')
 
     # Guarantee the customer PNG even when invoice creation deduplicated onto a pre-payment
     # invoice. Deduplication proves invoice identity, not that a previous render succeeded.

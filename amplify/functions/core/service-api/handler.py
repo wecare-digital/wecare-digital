@@ -1579,7 +1579,16 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         method in ('PATCH', 'PUT')
         and str(body.get('action') or '').strip().lower() == 'cancel'
     )
-    _auth = require_auth(event, required_role='Admin' if is_cancel_command else None)
+    # Reads keep the staff (Viewer) floor. Every write here (orders, drafts, documents, FAQ,
+    # appointments, enterprise cases, reviews) changes what customers see or receive, so it
+    # needs Operator; an order cancel needs Admin.
+    if is_cancel_command:
+        required_role = 'Admin'
+    elif method in ('GET', 'HEAD'):
+        required_role = None
+    else:
+        required_role = 'Operator'
+    _auth = require_auth(event, required_role=required_role)
     if _auth is not None:
         return _auth
 

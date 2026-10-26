@@ -413,8 +413,11 @@ Customer-visible payment copy (`PAY_MSG`, `:538`): `👀 Pulling your pending in
 `⚠️ You have unpaid invoice of ₹{total}.` · `❌ Could not send payment link. Please try again.` ·
 `⚠️ Something went wrong. Please try again.`
 
-Kill switches, both **default OFF**: `whatsapp_inbound_order_status` (would double-send the
-confirmation) and `whatsapp_auto_next_due` (post-payment next-invoice nag).
+Kill switch, **default OFF**: `whatsapp_auto_next_due` (post-payment next-invoice nag). The old
+`whatsapp_inbound_order_status` switch and the inbound `canceled` order-status sender behind it
+were deleted on 2026-10-26. WhatsApp order-status messages are disabled: outbound-whatsapp and
+the invoice engine both answer 410 `ORDER_STATUS_DISABLED`, no runtime code builds an
+`orderStatusDetails` payload, and fulfilment status stays internal (OrderTable / Track Order).
 There is no post-payment Flow, no `wecare_leave_review` send and no free-form confirmation: the
 invoice template's own FLOW button is the only review entry point after a payment.
 
@@ -492,7 +495,6 @@ defaults are authoritative today.
 | `ai_hybrid_routing` | bot-vs-AI trigger sets |
 | `wa_auto_response` | fallback message (currently unreachable) |
 | `catalog_flow_map` | catalog product → post-payment flow |
-| `whatsapp_inbound_order_status` | duplicate payment confirmation (off) |
 | `whatsapp_auto_next_due` | next-due nag (off) |
 | `whatsapp_auto_thumb` | auto 👍 reaction (on) |
 

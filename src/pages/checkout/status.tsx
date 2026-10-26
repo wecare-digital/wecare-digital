@@ -240,8 +240,10 @@ export default function CheckoutStatus (): React.ReactElement {
       }
       if ( !response.ok )
       {
-        setView( 'unavailable' );
-        return false; // a 5xx or a throttle is transient; keep asking
+        // A 5xx or a throttle is transient; keep asking. It never downgrades a payment the server
+        // already reported as paid and finalizing to the neutral holding screen.
+        setView( current => ( current === 'finalizing' ? current : 'unavailable' ) );
+        return false;
       }
       const data = ( await response.json() ) as { attempt?: AttemptView; status?: string };
       const attempt = data.attempt || {};

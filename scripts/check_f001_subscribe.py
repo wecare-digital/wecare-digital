@@ -1354,7 +1354,7 @@ def _() -> None:
         biz.require_auth, middleware.require_auth, biz._graph_api = saved
 
 
-@check('E8 keyword triggers and Subscribe copy need Operator to change; other settings keep the staff floor')
+@check('E8 keyword triggers, Subscribe copy and every other setting need Operator to change')
 def _() -> None:
     FAKE_DB.reset()
     ai, middleware = M['ai_config'], M['middleware']
@@ -1365,11 +1365,11 @@ def _() -> None:
         def put(role: str, key: str) -> int:
             body = {'key': key, 'config': {'subscribe': {'enabled': True}}}
             return ai.handler(_staff_event('PUT', '/ai/config', role, body), None)['statusCode']
-        for key in ('flow_triggers_config', 'subscribe_messages_config'):
+        for key in ('flow_triggers_config', 'subscribe_messages_config', 'welcome_message'):
             expect(put('Viewer', key) == 403 and key not in config_rows, f'Viewer changed {key}')
             expect(put('Operator', key) == 200 and key in config_rows, f'Operator could not change {key}')
-        expect(put('Viewer', 'welcome_message') == 200 and 'welcome_message' in config_rows,
-               'an unrelated setting lost the staff floor')
+        expect(put('Admin', 'catalog_flow_map') == 400 and 'catalog_flow_map' not in config_rows,
+               'a non-settings SystemConfig row was writable through /ai/config')
         reader = _staff_event('GET', '/ai/config', 'Viewer', params={'key': 'flow_triggers_config'})
         expect(ai.handler(reader, None)['statusCode'] == 200, 'Viewer can no longer read keyword triggers')
     finally:
