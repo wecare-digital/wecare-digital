@@ -133,33 +133,24 @@ class InvoiceClaimTests(unittest.TestCase):
         self.assertEqual(table.writes, [])
 
 
-class DisabledOrderStatusRouteTests(unittest.TestCase):
-    """#1650 disabled WhatsApp order-status sends. Pin that the engine route stays inert."""
+class AutomaticOrderStatusRouteTests(unittest.TestCase):
+    """The payment-order route stays active for processing -> completed only."""
 
     @classmethod
     def setUpClass(cls):
         cls.engine = _load("invoice_engine_order_status_under_test",
                            FUNCTIONS / "payments" / "invoice-engine" / "handler.py")
 
-    def test_every_status_is_refused_without_reading_or_invoking(self):
-        tables: dict = {}
-        invokes: list = []
+    def test_payment_order_targets_are_processing_and_completed(self):
+        self.assertEqual(
+            set(self.engine.wa_order_status.PAYMENT_ORDER_TARGETS),
+            {"processing", "completed"},
+        )
 
-        class RecordingLambda:
-            def invoke(self, **kw):
-                invokes.append(kw.get("FunctionName"))
-                raise AssertionError("the disabled route invoked another Lambda")
+    def test_shipment_statuses_are_not_payment_order_targets(self):
+        for status in ("shipped", "partially-shipped", "canceled"):
+            self.assertNotIn(status, self.engine.wa_order_status.PAYMENT_ORDER_TARGETS)
 
-        with patch.object(self.engine, "dynamodb", FakeResource(tables)), \
-                patch.object(self.engine, "lambda_client", RecordingLambda(), create=True):
-            for status in ("processing", "completed", "shipped", "partially-shipped", "canceled"):
-                result = self.engine.send_order_status(
-                    "inv-closeout", status, "", "1016149501586345", "req-test")
-                body = json.loads(result["body"])
-                self.assertEqual((int(result["statusCode"]), body.get("code")),
-                                 (410, "ORDER_STATUS_DISABLED"), status)
-        self.assertEqual(invokes, [])
-        self.assertEqual([w for t in tables.values() for w in t.writes], [])
 
 
 class _Payload:
