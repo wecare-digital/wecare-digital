@@ -3574,3 +3574,36 @@ Owner instruction: "FIX ALL AND DEPLOY DEEP RRESEARCH". No IAM, environment, tem
   - No real website Razorpay payment, and no signed-in order page read of a production order.
   - Firefox (the probe harness cannot launch it here), physical devices and the WhatsApp in-app browser.
 - The shared local branch is behind origin and has diverged. Merging origin conflicts in `scripts/verify_whatsapp_catalog_payment_rail.py` (take this release's version for these sections) and in `PayFlow.tsx` (`761f382eb`, another session's change).
+
+## Untracked commerce MCP imported; release runner gone; RCS signing still open — 2026-10-26 05:25 UTC
+
+Owner instruction: "yes go ahead fix deploy and push and check the build status", for the open items in the 01:20 UTC report. No customer message, payment, template, Flow, IAM or Lambda change.
+
+- `wecare-customer-commerce-mcp` (stack `wecare-customer-commerce-mcp`, HTTP API `mtx59syrt6`) ran from source that was on no branch. It is imported from the live stack into `amplify/functions/ai/customer-commerce-mcp/`:
+  - `template.json`, read back with `cloudformation get-template`.
+  - `index.py`, byte-identical to the template's inline `ZipFile` and to the live v3 package (`SOURCE_SHA256` `f52852d9ad279d48…`).
+  - `check_deployed_source.py` now compares it: 1/1 byte-identical, and a changed local copy reports DIFFERS with exit 1. `scan_repo_secrets.py --tree` is CLEAN. The stack is not redeployed.
+- `wecare-native-wa-release` (CodeBuild) and `wecare-native-wa-release-role` were deleted by a parallel session at 05:08 UTC (CloudTrail: DeleteProject, DeleteRolePolicy, DeleteRole). Verified absent; no Lambda used the role.
+- `wecare-native-catalog-admin` is deployed by its own provisioner and had been running shared modules from 2026-10-23, its auth middleware among them. Refreshed with `provision_native_catalog_api.py --apply`:
+  - v15→**v16** at 22:58 UTC.
+  - **v18** at 01:28 UTC, with files identical to a parallel v17, byte-identical to `c433d9da7`.
+  - An unauthenticated API call still answers 401. Rollback: move `live` back one version.
+- RCS signing is still not configured, and was not changed here:
+  - `wecare/sinch/rcs` has no `webhook_secret`, so `wecare-rcs-dlr` answers every callback except a delivery receipt with 503.
+  - The API access log (3 days) shows 11 such 503s and no other callback on `POST /webhook/sinch-rcs`. All 11 came from the three addresses of the webhook-auth probe sweep.
+  - Setting it needs the ACL/Sinch credentials and a write to that secret, and an agent session must not read either.
+  - Order matters: first set the signing secret on the provider webhook, then add the same value as `webhook_secret`. The reverse makes rcs-dlr reject unsigned delivery receipts with 401, which Sinch does not retry. Warm rcs-dlr containers cache the empty value until they recycle.
+- Disclosed policy breach: at 05:19:45–49 UTC this session ran `scripts/verify_secret_consumption.py`. It calls `GetSecretValue` on all 17 `wecare/*` secrets to compare them in memory with Lambda environment values. It printed only counts (34 consumers, 0 missing ids, PASS), wrote no file, and no value left the process. It should not be run from an agent session.
+
+## WhatsApp: a non-+91 cart that needs an address is answered on the website (`52ce49720`) — 2026-10-26 05:21–05:30 UTC
+
+Owner instruction: "yes go ahead fix deploy and push and check ceh build status". No IAM, environment, template or Flow change, no customer message or payment sent by the release, and no secret read.
+
+- Code `52ce49720` on `efe630132`. Meta sends the India Address Message to +91 numbers only, so a cart from any other number that checkout refused for its delivery address (`DELIVERY_DETAILS_REQUIRED`) received nothing, and a `WABASKETPENDING#` row waited for a submission that could not arrive. Inbound `_send_payment_request` now answers it once with "Open shop" and `CART_REPLY_ADDRESS_WEB`, and keeps no pending row. +91 numbers are unchanged.
+- Released:
+  - `wecare-inbound-whatsapp` v150→**v151** (`N0G28p6caMqKC3ggO4/z2kS1STo0Mg9tZa1WVQ5FJGY=`), from a `git archive` export of `52ce49720` with `deploy_all_lambdas.py`. CI does not deploy inbound, so v151 also carries what origin merged after v150: #1605's inbound half (WhatsApp images and documents attach only to a pending Drop Docs target; its business-api and service-api halves were already live through CI) and the shared modules `512bd5d2f` changed, which inbound does not call.
+  - Payment-rail CI run `40273790785` on `52ce49720`: rail, typecheck, package and deploy all succeeded. The commit changes no payment Lambda code.
+  - Amplify: no job ran for `52ce49720` on its own; job 173 on `566faafe4`, which contains it, SUCCEED 05:25:39–05:29:44 UTC (build, deploy, verify).
+  - Rollback: `aws lambda update-alias --function-name wecare-inbound-whatsapp --name live --function-version 150`. That also takes back #1605's inbound half.
+- Verified: on the export, rail 202/202, and both new address checks fail against the previous inbound. `check_deployed_source.py`: 174 files byte-identical to `52ce49720`. v151 Active and Successful. A no-op invoke of `live` answered 200 `{"processed": 0, "errors": 0}`. 05:23–05:30 UTC: 0 Lambda errors, 0 throttles, 0 error log lines, no alarm in ALARM. `/`, `/orders/` and `/shop/` answer 200.
+- Not verified: no real WhatsApp cart from a non-+91 number and no real Drop Docs upload has run on v151.
