@@ -186,6 +186,11 @@ CART_REPLY_ADDRESS_CONFIRM = ('Please confirm the delivery address for this orde
                               'send it. Your payment request follows.')
 CART_REPLY_ADDRESS_FIX = ('We cannot deliver to the address we have on file. Please correct it '
                           'and send it. Your payment request follows.')
+# A cart from a number outside India that needs an address: Meta sends the address form to +91
+# numbers only, so the website takes the address and the order instead.
+CART_REPLY_ADDRESS_WEB = ('We need a delivery address for this order, and WhatsApp can collect '
+                          'one only from Indian (+91) numbers. Nothing has been charged. You can '
+                          'complete this order on wecare.digital.')
 CART_REPLY_ALREADY_REQUESTED = ('We have already sent you a payment request for this cart. '
                                 'Please use that message to pay. Nothing new has been charged.')
 CART_REPLY_PARTIAL = ('Some items in this cart cannot be ordered on WhatsApp. Nothing has been '
@@ -7036,6 +7041,14 @@ def _send_payment_request(basket, phone: str, contact_id: str, sender_phone: str
         _rollback_cart_order_index(keys, index['orderId'], token, request_id)
         kind = _cart_refusal_kind(outcome, str(result.get('error') or ''))
         if kind == 'address':
+            from lambda_utils.ecommerce import contact_address
+            if not contact_address.address_message_reaches(phone):
+                # Meta sends the India Address Message to +91 numbers only, so asking this number
+                # for an address would leave the customer with nothing. Nothing is kept waiting,
+                # since no submission can arrive to resume it; the website takes the address and
+                # the order instead.
+                _reply_cart_refused('address_web', contact_id, phone_number_id, request_id)
+                return
             # The one refusal the customer can fix in this chat: keep the cart, ask for the
             # address, and let the submission resume it (`_resume_pending_cart`).
             _remember_pending_cart(keys, basket, phone, contact_id, phone_number_id, now,
@@ -7099,10 +7112,11 @@ def _reply_cart_refused(kind: str, contact_id: str, phone_number_id: str, reques
         if kind == 'sign_in':
             _send_cta_button(contact_id, phone_number_id, 'Sign in', CART_SIGN_IN_URL, request_id,
                              body_text=CART_REPLY_SIGN_IN, footer_text='WECARE.DIGITAL')
-        elif kind in ('service', 'service_alone', 'not_here'):
+        elif kind in ('service', 'service_alone', 'not_here', 'address_web'):
             _send_cta_button(contact_id, phone_number_id, 'Open shop', CART_SHOP_URL, request_id,
                              body_text={'service': CART_REPLY_SERVICE,
-                                        'service_alone': CART_REPLY_SERVICE_ALONE}.get(
+                                        'service_alone': CART_REPLY_SERVICE_ALONE,
+                                        'address_web': CART_REPLY_ADDRESS_WEB}.get(
                                             kind, CART_REPLY_NOT_HERE),
                              footer_text='WECARE.DIGITAL')
         else:

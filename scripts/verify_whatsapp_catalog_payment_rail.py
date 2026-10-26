@@ -404,8 +404,9 @@ class Shop:
         return self.mcs.retailer_id(product, variant)
 
     def customer(self, n: int, *, verified: bool = True, email: bool = True,
-                 address: bool = True, legacy_shipping: bool = True) -> Dict[str, str]:
-        phone = f"+9198765{n:05d}"
+                 address: bool = True, legacy_shipping: bool = True,
+                 phone: Optional[str] = None) -> Dict[str, str]:
+        phone = phone or f"+9198765{n:05d}"
         sub = ""
         if verified:
             user = self.cognito.admin_create_user(
@@ -1086,6 +1087,33 @@ def run(root: Path) -> int:
           and (omar_attempts[0].get("deliveryAddress") or {}).get("postalCode") == "700001",
           {"attempts": len(omar_attempts),
            "pin": (omar_attempts[0].get("deliveryAddress") or {}).get("postalCode") if omar_attempts else None})
+
+    # A number outside India: Meta sends the India Address Message to +91 numbers only.
+    # 63 and 64 are unused by the other scenarios.
+    uma = shop.customer(63, address=False, legacy_shipping=False, phone="+14155550163")
+    mark = W.mark()
+    deliver(order_event(build, uma["digits"], "wamid.HERMETIC.UMA.1",
+                        [{"product_retailer_id": kit, "quantity": 1}]))
+    uma_calls = W.since(mark, "invocations")
+    uma_replies = [_outbound_body(c) for c in uma_calls if c["function"] == "wecare-outbound-whatsapp"]
+    uma_reply = uma_replies[0] if uma_replies else {}
+    check("ADDR", "a non-+91 buyer with no address gets one website reply, never an address form it cannot receive",
+          len(_checkout_invokes(uma_calls)) == 1 and len(uma_replies) == 1
+          and not address_forms(uma, mark) and not _pay_sends(W.since(mark, "meta_sends"))
+          and not _attempts_for(uma["sub"])
+          and "only from Indian (+91) numbers" in json.dumps(uma_reply)
+          and "https://wecare.digital/shop/" in json.dumps(uma_reply),
+          [r.get("interactiveType") or r.get("content") for r in uma_replies])
+    check("ADDR", "...and no cart is left waiting for an address that cannot arrive",
+          not _table("CommerceKeys").get_item(Key={"orderId": "WABASKETPENDING#" + uma["contactId"]}).get("Item"))
+    vic = shop.customer(64, phone="+14155550164")
+    mark = W.mark()
+    deliver(order_event(build, vic["digits"], "wamid.HERMETIC.VIC.1",
+                        [{"product_retailer_id": kit, "quantity": 1}]))
+    check("ADDR", "a non-+91 buyer with a payable address on file still gets ONE payment request, with no form",
+          len(_attempts_for(vic["sub"])) == 1 and len(_pay_sends(W.since(mark, "meta_sends"))) == 1
+          and not address_forms(vic, mark),
+          {"attempts": len(_attempts_for(vic["sub"])), "pay": len(_pay_sends(W.since(mark, "meta_sends")))})
 
     mark = W.mark()
     ivy = shop.customer(9)
