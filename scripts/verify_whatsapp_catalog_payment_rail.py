@@ -5,10 +5,10 @@
     -> ProductsTable pricing -> ONE PaymentAttempt + PAYREF# -> wecare-outbound-whatsapp
     -> `wecare_whatapp_native_pay_template` (button sub_type order_details, payment_gateway /
     Razorpay / WECAREDIGITAL) -> Razorpay `payment.captured` -> wecare-razorpay-webhook
-    -> ONE order (orderStatus 'processing') -> ONE paid invoice
-    -> `wecare_default_invoice_image_template` (its FLOW button carries an order-bound review token)
-    -> then, as a SEPARATE finalization step, ONE Meta order_status `processing`. Invoice delivery
-    never depends on that order_status send succeeding.
+    -> ONE order + ONE paid invoice
+    -> `wecare_order_status_v3` processing, then completed (template-only, ordered/idempotent)
+    -> `wecare_default_invoice_image_template` (its FLOW button carries an order-bound review token).
+    Invoice delivery never depends on an order_status send succeeding.
 
 WHAT RUNS FOR REAL
 ------------------
@@ -686,8 +686,8 @@ def run(root: Path) -> int:
         check("R14", "no UPI intent anywhere in the Meta request", "upi_intent" not in wire and "preferred_upi_app" not in wire)
         check("R15", "message is a template, not an interactive order_details", msg["type"] == "template" and "interactive" not in msg)
         header = [c for c in template["components"] if c.get("type") == "header"][0]
-        check("HDR", "fixed order catalog icon header", header["parameters"][0]["image"]["link"].endswith(
-            "secure/d/public/whatsapp/wa-tpl/wecare-catalog-icon.png"), header["parameters"][0]["image"])
+        check("HDR", "fixed wide payment header", header["parameters"][0]["image"]["link"].endswith(
+            "secure/d/public/whatsapp/wa-tpl/whatsapp-header.png"), header["parameters"][0]["image"])
         send_calls = [c for c in calls if c["function"] == "wecare-outbound-whatsapp"]
         bodies = [_outbound_body(c) for c in send_calls]
         check("R11", "checkout's only outbound call uses isCheckoutTemplate + the approved template",
@@ -964,8 +964,8 @@ def run(root: Path) -> int:
     boundary("readiness proven, no recipient (zero-send positive control)", "R12", {**common, "checkoutOrderDetails": base_details},
              400, "contactId or recipientPhone is required")
 
-    # ── 9. payment -> ONE order -> ONE invoice template -> then ONE order_status `processing` ─────
-    print("\n== 9. Razorpay payment.captured -> order -> invoice template -> order_status processing")
+    # ── 9. payment -> ordered processing/completed templates -> ONE invoice template ─────────────
+    print("\n== 9. Razorpay payment.captured -> processing -> completed -> invoice template")
 
     def capture(reference: str, amount: int, payment_id: str, order_id: str, phone: str) -> Dict[str, Any]:
         W.meta_payments[reference] = {"order_id": order_id, "payment_id": payment_id}
@@ -1048,35 +1048,46 @@ def run(root: Path) -> int:
             check("INV", "the invoice template went to the buyer's number", delivered_to == [alice["phone"]], delivered_to)
         check("R17", "exactly ONE wecare_default_invoice_image_template send",
               len(counts["invoice_sends"]) - sends_before == 1, len(counts["invoice_sends"]) - sends_before)
-        # R18: exactly ONE Meta order_status `processing`, sent BEFORE the invoice template (the
-        # owner's sequence, plan T7/D2). Alice ordered from the chat, so her 24-hour window is
-        # open and the update travels as the interactive `order_status` message (no template).
+        # R18: payment collection is a template-only ordered chain:
+        # pending -> processing ("Payment received.") -> completed ("Payment complete.") -> invoice.
         capture_sends = W.since(mark, "meta_sends")
         status_idx = [i for i, s in enumerate(capture_sends)
-                      if (s["payload"].get("interactive") or {}).get("type") == "order_status"]
+                      if (s["payload"].get("template") or {}).get("name") == ORDER_STATUS_TEMPLATE]
         invoice_idx = [i for i, s in enumerate(capture_sends)
                        if (s["payload"].get("template") or {}).get("name") == INVOICE_TEMPLATE]
         status_traffic = _order_status_traffic(W.since(mark, "invocations"), capture_sends)
-        check("R18", "payment completion sent exactly ONE order_status (interactive: window open)",
-              sorted(status_traffic) == ["invoke:wecare-outbound-whatsapp", "meta:interactive_order_status"],
+        check("R18", "payment completion sent exactly TWO order-status templates",
+              status_traffic.count("meta:order_status_template") == 2
+              and status_traffic.count("meta:interactive_order_status") == 0,
               status_traffic)
-        if status_idx:
-            status_payload = capture_sends[status_idx[0]]["payload"]
-            params = ((status_payload.get("interactive") or {}).get("action") or {}).get("parameters") or {}
-            check("R18", "...it is 'processing' on the paid reference, sent to the buyer",
-                  (params.get("order") or {}).get("status") == "processing"
-                  and params.get("reference_id") == reference and status_payload.get("to") == alice["phone"],
-                  {"status": (params.get("order") or {}).get("status"), "ref": params.get("reference_id")})
-            check("R18", "...and it went out BEFORE the invoice template (order_status, then receipt)",
-                  bool(invoice_idx) and status_idx[0] < invoice_idx[0],
-                  {"order_status": status_idx, "invoice": invoice_idx})
-        post_capture_kinds = sorted(
+
+        status_values = []
+        status_refs = []
+        for i in status_idx:
+            tpl = capture_sends[i]["payload"].get("template") or {}
+            for comp in tpl.get("components") or []:
+                if comp.get("type") != "order_status":
+                    continue
+                for param in comp.get("parameters") or []:
+                    osd = param.get("order_status") or {}
+                    status_values.append(((osd.get("order") or {}).get("status")))
+                    status_refs.append(osd.get("reference_id"))
+        check("R18", "status templates are ordered processing -> completed on the same reference",
+              status_values == ["processing", "completed"]
+              and status_refs == [reference, reference],
+              {"statuses": status_values, "refs": status_refs})
+        check("R18", "both order-status templates went out BEFORE the invoice template",
+              len(status_idx) == 2 and bool(invoice_idx)
+              and status_idx[0] < status_idx[1] < invoice_idx[0],
+              {"order_status": status_idx, "invoice": invoice_idx})
+
+        post_capture_kinds = [
             "invoice" if (s["payload"].get("template") or {}).get("name") == INVOICE_TEMPLATE
-            else "order_status" if (s["payload"].get("interactive") or {}).get("type") == "order_status"
+            else "order_status" if (s["payload"].get("template") or {}).get("name") == ORDER_STATUS_TEMPLATE
             else f"OTHER:{s['payload'].get('type')}:{(s['payload'].get('template') or {}).get('name', '')}"
-            for s in capture_sends)
-        check("R17", "the capture sent nothing else: no text, no PDF, no review template, no Flow",
-              post_capture_kinds == ["invoice", "order_status"], post_capture_kinds)
+            for s in capture_sends]
+        check("R17", "the capture sent only two status templates and one invoice template",
+              post_capture_kinds == ["order_status", "order_status", "invoice"], post_capture_kinds)
         invoice_template = (capture_sends[invoice_idx[0]]["payload"].get("template") or {}) if invoice_idx else {}
         components = invoice_template.get("components") or []
         header_ok = any(c.get("type") == "header" and any(p.get("type") == "image" for p in c.get("parameters") or [])
@@ -1085,11 +1096,11 @@ def run(root: Path) -> int:
                         for c in components)
         check("R17", "the invoice template carries the PNG IMAGE header and the FLOW button at index 0",
               header_ok and button_ok, [(c.get("type"), c.get("sub_type"), c.get("index")) for c in components])
-        check("R18", "the invoice records what Meta accepted (waOrderStatus 'processing')",
-              bool(counts["invoices"]) and counts["invoices"][0].get("waOrderStatus") == "processing",
+        check("R18", "the invoice records Meta's terminal payment-order status",
+              bool(counts["invoices"]) and counts["invoices"][0].get("waOrderStatus") == "completed",
               counts["invoices"][0].get("waOrderStatus") if counts["invoices"] else None)
-        check("R18", "the order's status is 'processing'",
-              counts["orders"] and counts["orders"][0].get("orderStatus") == "processing")
+        check("R18", "the order's status is completed",
+              counts["orders"] and counts["orders"][0].get("orderStatus") == "completed")
         # F002: the invoice's Leave Review FLOW button carries an order-bound review token, so a
         # review written from it can be tied to this order and invoice.
         flow_tokens = [((param.get("action") or {}).get("flow_token"))
