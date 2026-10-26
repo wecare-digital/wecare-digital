@@ -2443,15 +2443,20 @@ def _latest_image_asset(invoice_id: str) -> Optional[Dict]:
 
 
 def ensure_invoice_image(invoice_id: str, request_id: str) -> Dict:
-    """Return the existing PNG, or render one when none is recorded.
+    """Return a current PNG, or render one when the recorded rendition predates capture.
 
-    The customer-invoice download Lambda remains read-only. This mutation stays inside the invoice
-    engine and is called from the provider-verified capture path, so website, WhatsApp, staff and
-    Flow purchases all converge on the same artifact guarantee.
+    A pre-payment preview is not a paid receipt: it can say AMOUNT PAYABLE, omit paidAt and lack
+    provider transaction details. Therefore an existing image is reusable after capture only when
+    its generatedAt/createdAt is at least the invoice's paidAt. Older renditions remain preserved
+    by the issued-asset versioning rules and a fresh paid image is appended.
     """
     if not invoice_id:
         return _resp(400, {'error': 'invoiceId required'})
     try:
+        invoice = dynamodb.Table(INVOICES_TABLE).get_item(
+            Key={'invoiceId': invoice_id}, ConsistentRead=True).get('Item')
+        if not invoice:
+            return _resp(404, {'error': 'Invoice not found'})
         asset = _latest_image_asset(invoice_id)
     except Exception as error:  # noqa: BLE001
         logger.warning(json.dumps({
@@ -2459,7 +2464,9 @@ def ensure_invoice_image(invoice_id: str, request_id: str) -> Dict:
             'error': type(error).__name__, 'requestId': request_id,
         }))
         return _resp(503, {'error': 'Invoice image state is temporarily unavailable'})
-    if asset:
+    paid_at = int(invoice.get('paidAt') or 0)
+    asset_at = int((asset or {}).get('generatedAt') or (asset or {}).get('createdAt') or 0)
+    if asset and (not paid_at or asset_at >= paid_at):
         s3_key = str(asset.get('s3Key') or '')
         return _resp(200, {
             'invoiceId': invoice_id,
