@@ -1,12 +1,11 @@
 # Staff API deploy path (template management and AI/settings config)
 
-`wecare-whatsapp-template-management` and `wecare-ai-config-management` had no CI deploy path.
-Their `live` aliases were last published by the operator script
-(`auto-publish by _snapstart_publish.py`). `.github/workflows/staff-api-ci.yml` now tests and
-packages both functions on every relevant change. Its deploy job stays **off** until the owner
-completes the two steps below. Creating the role is an IAM change, so an agent must not do it.
+`wecare-whatsapp-template-management` and `wecare-ai-config-management` now have a complete
+CI deploy path. `.github/workflows/staff-api-ci.yml` tests and packages both functions on every
+relevant change, and production pushes deploy the exact tested packages through the scoped GitHub
+OIDC role `wecare-staff-api-deploy-oidc`.
 
-## 1. Create the scoped OIDC deploy role (owner)
+## 1. Scoped OIDC deploy role
 
 Role name: `wecare-staff-api-deploy-oidc`. Max session 3600 s, no permissions boundary. This
 mirrors `wecare-waba-management-deploy-oidc`.
@@ -48,11 +47,13 @@ Inline policy `StaffApiLambdaRelease`. It can release these two functions only:
 }
 ```
 
-## 2. Enable the deploy job (owner)
+The role is provisioned in account `775261844268`, trusts only the production branch OIDC
+subject, and can release only the two staff API Lambda functions listed above.
 
-Set the repository variable `STAFF_API_DEPLOY_ENABLED` to `true` (Settings → Secrets and
-variables → Actions → Variables). Then run **Staff API CI** with `workflow_dispatch` on
-`wecare.digital`, or push a change on its paths.
+## 2. Deploy behavior
+
+A push to `wecare.digital` on the workflow's watched paths runs test → package → deploy.
+Pull requests run test and package only. No repository secret or long-lived AWS key is required.
 
 ## 3. Verify
 
