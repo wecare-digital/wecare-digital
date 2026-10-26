@@ -2886,7 +2886,8 @@ def _ensure_invoice_asset(invoice_id: str, request_id: str) -> None:
         raise
 
 
-def _generate_invoice_assets(invoice_id: str, request_id: str) -> None:    """Render the invoice PNG used for customer delivery.
+def _generate_invoice_assets(invoice_id: str, request_id: str) -> None:
+    """Render the invoice PNG used for customer delivery.
 
     Invoice PDF generation is intentionally retired. The WhatsApp customer receives one
     rendered image, and all post-payment automation depends only on that image asset.
