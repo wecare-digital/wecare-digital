@@ -20,9 +20,10 @@ import type { ApiFailure } from '../../../api/client';
 import ErrorState from '../../../components/ErrorState';
 import {
   allowedFulfilmentTargets,
+  allowedPaymentOrderTargets,
   canonicalFulfilmentStatus,
   fulfilmentLabel,
-  isSendableFulfilmentStatus,
+  isSendablePaymentOrderStatus,
   isWhatsAppOrder,
   orderStatusFailureText,
 } from '../../../lib/orderFulfilment';
@@ -114,12 +115,18 @@ function orderFulfilment ( order: api.Order ): string {
   return canonicalFulfilmentStatus( order.fulfillmentStatus || order.orderStatus || order.status, order.paymentStatus );
 }
 
+function allowedOrderTargets ( order: api.Order ) {
+  const current = orderFulfilment( order );
+  return isWhatsAppOrder( order.checkoutMode )
+    ? allowedPaymentOrderTargets( current, order.paymentStatus )
+    : allowedFulfilmentTargets( current, order.paymentStatus );
+}
+
 function fulfilmentOptions ( order: api.Order ): SelectOption[] {
   const current = orderFulfilment( order );
   return [
     { value: current, label: fulfilmentLabel( current ), disabled: true },
-    ...allowedFulfilmentTargets( current, order.paymentStatus )
-      .map( value => ( { value, label: fulfilmentLabel( value ) } ) ),
+    ...allowedOrderTargets( order ).map( value => ( { value, label: fulfilmentLabel( value ) } ) ),
   ];
 }
 
@@ -323,7 +330,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
         toast.error( 'This WhatsApp order has no linked invoice, so its status cannot be sent. Nothing was changed.' );
         return;
       }
-      if ( !isSendableFulfilmentStatus( status ) )
+      if ( !isSendablePaymentOrderStatus( status ) )
       {
         toast.error( `${ fulfilmentLabel( status ) } cannot be sent to WhatsApp. Nothing was changed.` );
         return;
@@ -799,10 +806,11 @@ const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoad
         {/* Status controls */ }
         <div style={ { display: 'flex', gap: 12, padding: 12, background: 'var(--bg-secondary)', borderRadius: 8, flexWrap: 'wrap' } }>
           { /* SHAPE (a) - wrapping <label> deleted, label passed. */ }
-          <Select label="Fulfilment" value={ orderFulfilment( order ) }
+          <Select label={ isWhatsAppOrder( order.checkoutMode ) ? 'Payment order' : 'Fulfilment' }
+            value={ orderFulfilment( order ) }
             onChange={ v => onStatusUpdate( order, v ) }
             options={ fulfilmentOptions( order ) }
-            disabled={ allowedFulfilmentTargets( orderFulfilment( order ), order.paymentStatus ).length === 0 }
+            disabled={ allowedOrderTargets( order ).length === 0 }
             style={ DETAIL_SELECT_STYLE } />
           { canCancelOrder( order ) ? (
             <div style={ { flex: '1 1 280px' } }>
