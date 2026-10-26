@@ -365,8 +365,14 @@ const PublicShare: React.FC<PublicShareProps> = ( {
           opacity:1;transform:translateX(-50%) translateY(0);
         }
 
+        /* ANCHORED TO THE BOTTOM OF THE BUTTON ROW, not a fixed offset. top was 82px (78px on
+           phones), set before #761 put the "Stay connected" eyebrow above the row and pushed the
+           row down 50px, so every menu opened over the lower ~30px of the button that opened it -
+           measured on the live site at 320-430px. 100% of this padding box is the bottom of the
+           row plus the block's bottom padding (28px, 24px on phones), so 100% - 18px is 10px
+           below the row, and it follows the row when the buttons wrap at 200% zoom. */
         .ps-menu{
-          position:absolute;top:82px;inset-inline-start:0;z-index:30;
+          position:absolute;top:calc(100% - 18px);inset-inline-start:0;z-index:30;
           width:min(340px,calc(100vw - 48px));padding:8px;
           background:#fff;border:1px solid var(--public-hairline);border-radius:18px;
           box-shadow:0 18px 46px rgba(26,58,42,.13);box-sizing:border-box;
@@ -415,11 +421,17 @@ const PublicShare: React.FC<PublicShareProps> = ( {
 
         @media(max-width:767px){
           .public-share{padding:10px 0 24px}
-          .ps-menu{top:78px;width:min(330px,calc(100vw - 40px))}
+          .ps-menu{top:calc(100% - 14px);width:min(330px,calc(100vw - 40px))}
         }
         @media(max-width:390px){
           .ps-row{gap:8px}
           .ps-menu{width:calc(100vw - 40px)}
+        }
+        /* Below 192px the three 48px buttons and their 8px gaps no longer fit in one row and
+           Share wraps under Contribute, so the arrows' fixed offsets would point at the wrong
+           button or past the menu's edge. The menu still opens directly under the row. */
+        @media(max-width:191.98px){
+          .ps-menu::before{display:none}
         }
         @media(prefers-reduced-motion:reduce){
           .ps-action,.ps-tip{transition:none}

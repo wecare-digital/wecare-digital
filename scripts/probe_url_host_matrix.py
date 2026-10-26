@@ -222,18 +222,24 @@ def _open(url: str, method: str):
     return opener.open(req, timeout=30)
 
 
+# 256 KiB, not 64. The not-found row asserts '"page":"/404"', which Next writes into the data
+# script at the END of the page: measured at byte 81,154 of the 81,317-byte 404 page on
+# 2026-10-26, so a 64 KiB prefix failed the row on a correct response.
+BODY_PREFIX_BYTES = 262144
+
+
 def _one_hop(url: str, method: str) -> tuple[int, str, str]:
     """Return (status, location, body-prefix) without following the redirect."""
     try:
         with _open(url, method) as response:
             body = ""
             if response.status == 200:
-                body = response.read(65536).decode("utf-8", "replace")
+                body = response.read(BODY_PREFIX_BYTES).decode("utf-8", "replace")
             return response.status, response.headers.get("Location", "") or "", body
     except urllib.error.HTTPError as exc:
         body = ""
         try:
-            body = exc.read(65536).decode("utf-8", "replace")
+            body = exc.read(BODY_PREFIX_BYTES).decode("utf-8", "replace")
         except Exception:  # noqa: BLE001 - a bodyless error response is normal
             pass
         location = exc.headers.get("Location", "") if exc.headers else ""
