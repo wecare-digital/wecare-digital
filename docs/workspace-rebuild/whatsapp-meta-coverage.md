@@ -78,8 +78,8 @@ Two-Step Verification, Display Name, Quality Rating & Messaging Limits.
 | Order details template (India): create | ✅ | `template_validation.py` (UTILITY, or MARKETING + `display_format: "order_details"`); builder "Order details message" option |
 | Canonical send-eligibility (APPROVED vs PAUSED/REJECTED/…) | ✅ | `shared/lambda_utils/template_status.py` (upstream) |
 | Template analytics | ✅ | `template-analytics` |
-| Authentication / OTP templates | 🟡 | category validated; OTP autofill/copy-code not confirmed |
-| Media / LTO / carousel / MPM templates | 🟡 | header media yes; LTO/carousel/MPM not confirmed |
+| Authentication / OTP templates | ✅ | COPY_CODE, ONE_TAP and ZERO_TAP are validated; send-time URL/copy-code handling is implemented. Device/template eligibility remains provider-controlled. |
+| Media / LTO / carousel / MPM templates | 🟡 | Media headers, LIMITED_TIME_OFFER and carousel template creation/sending are implemented; keep MPM/provider-specific variants gated until live-template QA. |
 
 **Canonical next links:** Create Templates, Template Components, Categorization,
 Template Pacing, Analytics, Authentication Templates, Media-Card/Carousel/MPM.
