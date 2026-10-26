@@ -44,9 +44,10 @@ const TYPE_FILTER_OPTIONS: SelectOption[] = [
   { value: '', label: 'All Types' },
   ...TYPE_OPTIONS.map( s => ( { value: s, label: s.replace( /_/g, ' ' ) } ) ),
 ];
-const TYPE_SELECT_OPTIONS: SelectOption[] = TYPE_OPTIONS.map(
-  t => ( { value: t, label: t.replace( /_/g, ' ' ) } )
-);
+const TYPE_SELECT_OPTIONS: SelectOption[] = [
+  { value: '', label: 'Select document type' },
+  ...TYPE_OPTIONS.map( t => ( { value: t, label: t.replace( /_/g, ' ' ) } ) ),
+];
 
 /* LAYOUT ONLY - the three filters are flex children, and a native select sized itself to
    its widest option while the trigger shows the selected one. */
@@ -96,7 +97,16 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
   const [ remarks, setRemarks ] = useState( '' );
   const [ showCreate, setShowCreate ] = useState( false );
   const [ creating, setCreating ] = useState( false );
-  const [ createForm, setCreateForm ] = useState( { customerName: '', customerPhone: '', orderId: '', type: 'other', fileName: '', notes: '' } );
+  const [ contactQuery, setContactQuery ] = useState( '' );
+  const [ contactResults, setContactResults ] = useState<api.Contact[]>( [] );
+  const [ contactSearching, setContactSearching ] = useState( false );
+  const [ customerOrders, setCustomerOrders ] = useState<api.Order[]>( [] );
+  const [ ordersLoading, setOrdersLoading ] = useState( false );
+  const [ createFile, setCreateFile ] = useState<File | null>( null );
+  const [ createForm, setCreateForm ] = useState( {
+    contactId: '', customerName: '', customerPhone: '', orderId: '',
+    type: '', typeLabel: '', fileName: '', notes: '',
+  } );
 
   const loadData = useCallback( async () => {
     setLoading( true );
@@ -113,6 +123,133 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
   }, [ statusFilter, sourceFilter, typeFilter, toast ] );
 
   useEffect( () => { loadData(); }, [ loadData ] );
+
+  useEffect( () => {
+    if ( !showCreate )
+    {
+      setContactResults( [] );
+      return;
+    }
+    const q = contactQuery.trim();
+    if ( q.length < 2 )
+    {
+      setContactResults( [] );
+      return;
+    }
+    const timer = window.setTimeout( () => {
+      setContactSearching( true );
+      void api.searchContactsResult( q, 8 ).then( result => {
+        setContactResults( result.ok ? result.data : [] );
+      } ).finally( () => setContactSearching( false ) );
+    }, 250 );
+    return () => window.clearTimeout( timer );
+  }, [ contactQuery, showCreate ] );
+
+  useEffect( () => {
+    if ( !showCreate || !createForm.customerPhone )
+    {
+      setCustomerOrders( [] );
+      return;
+    }
+    let cancelled = false;
+    setOrdersLoading( true );
+    void api.listOrders( { phone: createForm.customerPhone, limit: 50 } )
+      .then( result => { if ( !cancelled ) setCustomerOrders( result.orders || [] ); } )
+      .finally( () => { if ( !cancelled ) setOrdersLoading( false ); } );
+    return () => { cancelled = true; };
+  }, [ createForm.customerPhone, showCreate ] );
+
+  const resetCreate = () => {
+    setCreateForm( {
+      contactId: '', customerName: '', customerPhone: '', orderId: '',
+      type: '', typeLabel: '', fileName: '', notes: '',
+    } );
+    setContactQuery( '' );
+    setContactResults( [] );
+    setCustomerOrders( [] );
+    setCreateFile( null );
+  };
+
+  const selectContact = ( contact: api.Contact ) => {
+    setCreateForm( form => ( {
+      ...form,
+      contactId: contact.contactId || contact.id,
+      customerName: contact.name || [ contact.firstName, contact.lastName ].filter( Boolean ).join( ' ' ),
+      customerPhone: contact.phone || '',
+      orderId: '',
+    } ) );
+    setContactQuery( contact.name || contact.phone || '' );
+    setContactResults( [] );
+  };
+
+  const handleCreateDocument = async () => {
+    if ( !createForm.customerPhone && !createForm.contactId )
+    {
+      toast.error( 'Select a customer or enter their mobile number' );
+      return;
+    }
+    if ( !createForm.type )
+    {
+      toast.error( 'Select a document type' );
+      return;
+    }
+    if ( createForm.type === 'other' && !createForm.typeLabel.trim() )
+    {
+      toast.error( 'Enter the document type/name' );
+      return;
+    }
+    if ( !createFile )
+    {
+      toast.error( 'Choose a file to upload' );
+      return;
+    }
+
+    setCreating( true );
+    try
+    {
+      const mimeType = createFile.type || 'application/octet-stream';
+      const ticket = await api.initDocumentUpload( {
+        contactId: createForm.contactId || undefined,
+        customerName: createForm.customerName || undefined,
+        customerPhone: createForm.customerPhone || undefined,
+        orderId: createForm.orderId || undefined,
+        type: createForm.type,
+        typeLabel: createForm.type === 'other' ? createForm.typeLabel.trim() : undefined,
+        fileName: createFile.name,
+        mimeType,
+        fileSize: createFile.size,
+        notes: createForm.notes || undefined,
+      } );
+      if ( !ticket.ok )
+      {
+        toast.error( ticket.failure.message || 'Could not start the upload' );
+        return;
+      }
+
+      const uploaded = await api.uploadDocumentBytes(
+        ticket.data.uploadUrl, createFile, ticket.data.contentType || mimeType );
+      if ( !uploaded )
+      {
+        toast.error( 'File upload failed. Please try again.' );
+        return;
+      }
+
+      const confirmed = await api.confirmDocumentUpload( ticket.data.documentId );
+      if ( !confirmed.ok )
+      {
+        toast.error( confirmed.failure.message || 'The upload could not be confirmed' );
+        return;
+      }
+
+      toast.success( 'Document uploaded' );
+      setShowCreate( false );
+      resetCreate();
+      void loadData();
+    } finally
+    {
+      setCreating( false );
+    }
+  };
 
   const handleStatusAction = async ( doc: api.Document, newStatus: string, actionRemarks?: string ) => {
     setActionLoading( true );
@@ -291,32 +428,143 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
       </Modal>
 
       {/* Create Document Modal */ }
-      <Modal isOpen={ showCreate } onClose={ () => setShowCreate( false ) } title="Add Document (Manual)" size="md" footer={
-        <><Button variant="secondary" onClick={ () => setShowCreate( false ) }>Cancel</Button><Button variant="primary" loading={ creating } onClick={ async () => {
-          if ( !createForm.customerPhone && !createForm.customerName ) { toast.error( 'Customer name or phone is required' ); return; }
-          setCreating( true );
-          const doc = await api.createDocument( { customerName: createForm.customerName, customerPhone: createForm.customerPhone, orderId: createForm.orderId || undefined, type: createForm.type, fileName: createForm.fileName, notes: createForm.notes } as any );
-          if ( doc ) { toast.success( 'Document record created' ); setShowCreate( false ); setCreateForm( { customerName: '', customerPhone: '', orderId: '', type: 'other', fileName: '', notes: '' } ); loadData(); }
-          else toast.error( 'Failed to create' );
-          setCreating( false );
-        } }>Create</Button></>
-      }>
+      <Modal
+        isOpen={ showCreate }
+        onClose={ () => { if ( !creating ) { setShowCreate( false ); resetCreate(); } } }
+        title="Add Document"
+        size="md"
+        footer={
+          <>
+            <Button variant="secondary" onClick={ () => { setShowCreate( false ); resetCreate(); } } disabled={ creating }>Cancel</Button>
+            <Button variant="primary" loading={ creating } onClick={ handleCreateDocument }>Upload document</Button>
+          </>
+        }
+      >
         <div style={ { display: 'flex', flexDirection: 'column', gap: 14 } }>
-          <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } }>
-            <label style={ { fontSize: 'var(--text-md)' } }>Customer Name<input type="text" value={ createForm.customerName } onChange={ e => setCreateForm( f => ( { ...f, customerName: e.target.value } ) ) } style={ inputStyle } /></label>
-            <label style={ { fontSize: 'var(--text-md)' } }>Phone<input type="tel" value={ createForm.customerPhone } onChange={ e => setCreateForm( f => ( { ...f, customerPhone: e.target.value } ) ) } placeholder="+91..." style={ inputStyle } /></label>
+          <div>
+            <label style={ { fontSize: 'var(--text-md)' } }>
+              Find customer
+              <input
+                type="search"
+                value={ contactQuery }
+                onChange={ e => setContactQuery( e.target.value ) }
+                placeholder="Search name or mobile"
+                style={ inputStyle }
+                disabled={ creating }
+              />
+            </label>
+            { contactSearching && <div style={ helperStyle }>Searching contacts…</div> }
+            { contactResults.length > 0 && (
+              <div style={ resultListStyle }>
+                { contactResults.map( contact => (
+                  <button
+                    key={ contact.contactId || contact.id }
+                    type="button"
+                    onClick={ () => selectContact( contact ) }
+                    style={ resultButtonStyle }
+                  >
+                    <strong>{ contact.name || [ contact.firstName, contact.lastName ].filter( Boolean ).join( ' ' ) || 'Unnamed contact' }</strong>
+                    <span style={ { color: 'var(--text-muted)' } }>{ contact.phone || 'No phone' }</span>
+                  </button>
+                ) ) }
+              </div>
+            ) }
           </div>
+
           <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } }>
-            { /* SHAPE (a), design 5.2 - the wrapping <label> is gone and Select owns the pair. */ }
-            <Select label="Document Type" value={ createForm.type }
-              onChange={ v => setCreateForm( f => ( { ...f, type: v } ) ) }
-              options={ TYPE_SELECT_OPTIONS } />
-            <label style={ { fontSize: 'var(--text-md)' } }>Order ID (optional)<input type="text" value={ createForm.orderId } onChange={ e => setCreateForm( f => ( { ...f, orderId: e.target.value } ) ) } placeholder="WD-ORD-..." style={ inputStyle } /></label>
+            <label style={ { fontSize: 'var(--text-md)' } }>
+              Customer Name
+              <input
+                type="text"
+                value={ createForm.customerName }
+                onChange={ e => setCreateForm( form => ( { ...form, customerName: e.target.value, contactId: '' } ) ) }
+                style={ inputStyle }
+                disabled={ creating }
+              />
+            </label>
+            <label style={ { fontSize: 'var(--text-md)' } }>
+              Phone
+              <input
+                type="tel"
+                value={ createForm.customerPhone }
+                onChange={ e => setCreateForm( form => ( { ...form, customerPhone: e.target.value, contactId: '', orderId: '' } ) ) }
+                placeholder="+91..."
+                style={ inputStyle }
+                disabled={ creating }
+              />
+            </label>
           </div>
-          <label style={ { fontSize: 'var(--text-md)' } }>File Name<input type="text" value={ createForm.fileName } onChange={ e => setCreateForm( f => ( { ...f, fileName: e.target.value } ) ) } placeholder="e.g. prescription_jan2026.pdf" style={ inputStyle } /></label>
-          <label style={ { fontSize: 'var(--text-md)' } }>Notes<textarea value={ createForm.notes } onChange={ e => setCreateForm( f => ( { ...f, notes: e.target.value } ) ) } rows={ 2 } placeholder="Any remarks about this document..." style={ { ...inputStyle, resize: 'vertical' } } /></label>
-          <div style={ { padding: 12, background: '#fef3c7', borderRadius: 8, fontSize: 'var(--text-sm)', color: '#92400e' } }>
-            This creates a document record. To attach the actual file, the customer can send it via WhatsApp or you can update the storage key later.
+
+          <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } }>
+            <Select
+              label="Document Type"
+              value={ createForm.type }
+              onChange={ value => setCreateForm( form => ( { ...form, type: value, typeLabel: value === 'other' ? form.typeLabel : '' } ) ) }
+              options={ TYPE_SELECT_OPTIONS }
+              disabled={ creating }
+            />
+            <Select
+              label="Order (optional)"
+              value={ createForm.orderId }
+              onChange={ value => setCreateForm( form => ( { ...form, orderId: value } ) ) }
+              options={ [
+                { value: '', label: ordersLoading ? 'Loading orders…' : 'No order / standalone document' },
+                ...customerOrders.map( order => ( {
+                  value: order.orderId,
+                  label: `${order.orderNumber || order.shortId || order.orderId} · ${order.paymentStatus || 'payment unknown'}`,
+                } ) ),
+              ] }
+              disabled={ creating || ordersLoading || !createForm.customerPhone }
+            />
+          </div>
+
+          { createForm.type === 'other' && (
+            <label style={ { fontSize: 'var(--text-md)' } }>
+              Document type/name
+              <input
+                type="text"
+                value={ createForm.typeLabel }
+                onChange={ e => setCreateForm( form => ( { ...form, typeLabel: e.target.value } ) ) }
+                placeholder="e.g. Trade licence, PAN card, agreement"
+                style={ inputStyle }
+                disabled={ creating }
+              />
+            </label>
+          ) }
+
+          <label style={ { fontSize: 'var(--text-md)' } }>
+            Choose file
+            <input
+              type="file"
+              onChange={ e => {
+                const next = e.target.files?.[ 0 ] || null;
+                setCreateFile( next );
+                setCreateForm( form => ( { ...form, fileName: next?.name || '' } ) );
+              } }
+              style={ inputStyle }
+              disabled={ creating }
+            />
+          </label>
+          { createFile && (
+            <div style={ helperStyle }>
+              { createFile.name } · { fmtSize( createFile.size ) } · { createFile.type || 'unknown type' }
+            </div>
+          ) }
+
+          <label style={ { fontSize: 'var(--text-md)' } }>
+            Notes
+            <textarea
+              value={ createForm.notes }
+              onChange={ e => setCreateForm( form => ( { ...form, notes: e.target.value } ) ) }
+              rows={ 2 }
+              placeholder="Any remarks about this document..."
+              style={ { ...inputStyle, resize: 'vertical' } }
+              disabled={ creating }
+            />
+          </label>
+
+          <div style={ { padding: 12, background: '#ecfccb', borderRadius: 8, fontSize: 'var(--text-sm)', color: '#365314' } }>
+            The file is uploaded into private Drop Docs storage and linked to the selected customer and, when chosen, their order.
           </div>
         </div>
       </Modal>
@@ -328,5 +576,8 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
 const labelStyle: React.CSSProperties = { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', display: 'block', marginBottom: 2 };
 const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 'var(--text-md)', marginTop: 4 };
 const actionBtnStyle: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', fontSize: 'var(--text-base)', padding: '2px 4px' };
+const helperStyle: React.CSSProperties = { fontSize: 'var(--text-sm)', color: 'var(--text-muted)', marginTop: 6 };
+const resultListStyle: React.CSSProperties = { marginTop: 6, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', maxHeight: 220, overflowY: 'auto' };
+const resultButtonStyle: React.CSSProperties = { width: '100%', display: 'flex', justifyContent: 'space-between', gap: 12, padding: '9px 12px', border: 0, borderBottom: '1px solid var(--border)', background: 'var(--bg-primary)', cursor: 'pointer', textAlign: 'left' };
 
 export default DocumentsPage;
