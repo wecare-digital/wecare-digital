@@ -6101,6 +6101,55 @@ export async function createDocument ( doc: Partial<Document> ): Promise<Documen
   } );
 }
 
+
+export interface DocumentUploadTicket {
+  documentId: string;
+  uploadUrl: string;
+  expiresInSeconds: number;
+  contentType: string;
+}
+
+/** Start a staff manual Drop Docs upload. The actual bytes go straight to S3. */
+export async function initDocumentUpload ( input: {
+  contactId?: string;
+  customerName?: string;
+  customerPhone?: string;
+  orderId?: string;
+  type: string;
+  typeLabel?: string;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  notes?: string;
+} ): Promise<ApiResult<DocumentUploadTicket>> {
+  return apiCallResult<DocumentUploadTicket>( `${DOCUMENTS_BASE}/upload-init`, {
+    method: 'POST',
+    body: JSON.stringify( input ),
+  } );
+}
+
+/** Upload document bytes to the private Drop Docs object using its presigned PUT. */
+export async function uploadDocumentBytes (
+  uploadUrl: string,
+  file: File,
+  contentType: string,
+): Promise<boolean> {
+  const response = await fetch( uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': contentType },
+    body: file,
+  } );
+  return response.ok;
+}
+
+/** Confirm a staff manual Drop Docs upload after S3 has the bytes. */
+export async function confirmDocumentUpload ( documentId: string ): Promise<ApiResult<Document>> {
+  return apiCallResult<Document>(
+    `${DOCUMENTS_BASE}/${encodeURIComponent( documentId )}/confirm`,
+    { method: 'POST' },
+  );
+}
+
 // ============================================================================
 // FAQ API
 // ============================================================================
