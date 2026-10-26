@@ -6055,6 +6055,8 @@ export interface Document {
   referenceIssuedAt?: number;
   referenceVersion?: number;
   originalFileName?: string;
+  vaultFileId?: string;
+  vaultPublishedAt?: number;
   customerPhone?: string;
   customerName?: string;
   contactId?: string;
@@ -6168,6 +6170,21 @@ export async function confirmDocumentUpload ( documentId: string ): Promise<ApiR
     `${DOCUMENTS_BASE}/${encodeURIComponent( documentId )}`,
     { method: 'PUT', body: JSON.stringify( { _action: 'confirm_upload' } ) },
   );
+}
+
+
+export async function publishDocumentToVault (
+  documentId: string,
+): Promise<ApiResult<{
+  fileId: string;
+  status: string;
+  deliverable: string;
+  created: boolean;
+}>> {
+  return apiCallResult( `${API_BASE}/secure-files/publish-document`, {
+    method: 'POST',
+    body: JSON.stringify( { documentId } ),
+  } );
 }
 
 
