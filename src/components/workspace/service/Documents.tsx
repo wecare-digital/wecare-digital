@@ -345,6 +345,28 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
     }
   };
 
+
+  const handlePublishToVault = async ( doc: api.Document ) => {
+    if ( actionLoading ) return;
+    setActionLoading( true );
+    try
+    {
+      const published = await api.publishDocumentToVault( doc.documentId );
+      if ( !published.ok )
+      {
+        toast.error( published.failure.message || 'Could not publish this document to Vault' );
+        return;
+      }
+      const next = { ...doc, vaultFileId: published.data.fileId, vaultPublishedAt: Date.now() / 1000 };
+      setSelected( next );
+      toast.success( published.data.created ? 'Published to Vault' : 'Already published to Vault' );
+      void loadData();
+    } finally
+    {
+      setActionLoading( false );
+    }
+  };
+
   const totalPages = Math.ceil( docs.length / PAGE_SIZE );
   const paged = docs.slice( ( page - 1 ) * PAGE_SIZE, page * PAGE_SIZE );
 
@@ -466,6 +488,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
               <div><span style={ labelStyle }>Customer</span><div>{ selected.customerName || '—' } ({ selected.customerPhone || '—' })</div></div>
               { selected.orderId && <div><span style={ labelStyle }>Order ID</span><div style={ { fontFamily: 'monospace', fontSize: 'var(--text-sm)' } }>{ selected.orderId }</div></div> }
               { selected.documentRef && <div><span style={ labelStyle }>Reference</span><div style={ { fontFamily: 'monospace', fontSize: 'var(--text-sm)' } }>{ selected.documentRef }</div></div> }
+              { selected.vaultFileId && <div><span style={ labelStyle }>Vault</span><div style={ { fontSize: 'var(--text-sm)' } }>Published · { selected.vaultFileId }</div></div> }
               { selected.mimeType && <div><span style={ labelStyle }>MIME Type</span><div style={ { fontSize: 'var(--text-sm)' } }>{ selected.mimeType }</div></div> }
               { selected.reviewedBy && <div><span style={ labelStyle }>Reviewed By</span><div>{ selected.reviewedBy } · { fmtDate( selected.reviewedAt ) }</div></div> }
             </div>
@@ -493,6 +516,14 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                 onClick={ () => handleRevalidateReference( selected ) }
               >
                 { referenceAgeSeconds( selected ) < 24 * 3600 ? 'Reference valid <24h' : 'Revalidate reference' }
+              </Button>
+              <Button
+                variant="secondary"
+                loading={ actionLoading }
+                disabled={ !selected.storageKey || !!selected.vaultFileId || ![ 'uploaded', 'approved' ].includes( selected.status ) }
+                onClick={ () => handlePublishToVault( selected ) }
+              >
+                { selected.vaultFileId ? 'Published to Vault' : 'Publish to Vault' }
               </Button>
               <Button variant="primary" loading={ actionLoading } onClick={ () => handleStatusAction( selected, 'approved', remarks ) }>Approve</Button>
               <Button variant="danger" loading={ actionLoading } onClick={ () => handleStatusAction( selected, 'rejected', remarks ) }>Reject</Button>
