@@ -2017,7 +2017,7 @@ def _handle_order_details_template_send(
         # per-item 'gstRate') causes error 100 "Unexpected key ...". Keep only the
         # keys Meta allows, then add India-compliance defaults.
         _ALLOWED_ITEM_KEYS = {
-            'retailer_id', 'name', 'amount', 'sale_amount', 'quantity',
+            'retailer_id', 'name', 'image', 'amount', 'sale_amount', 'quantity',
             'country_of_origin', 'importer_name', 'importer_address',
         }
         _sanitized_items = []
