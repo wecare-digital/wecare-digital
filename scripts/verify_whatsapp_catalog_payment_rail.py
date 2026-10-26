@@ -1340,11 +1340,11 @@ def run(root: Path) -> int:
                         for c in components)
         check("R17", "the invoice template carries the PNG IMAGE header and the FLOW button at index 0",
               header_ok and button_ok, [(c.get("type"), c.get("sub_type"), c.get("index")) for c in components])
-        check("R18", "the invoice does not claim a Meta fulfilment status",
-              bool(counts["invoices"]) and not counts["invoices"][0].get("waOrderStatus"),
+        check("R18", "the invoice records Meta's terminal payment-order status",
+              bool(counts["invoices"]) and counts["invoices"][0].get("waOrderStatus") == "completed",
               counts["invoices"][0].get("waOrderStatus") if counts["invoices"] else None)
-        check("R18", "payment capture starts the internal order at processing",
-              counts["orders"] and counts["orders"][0].get("orderStatus") == "processing",
+        check("R18", "the order payment-order projection reaches completed",
+              counts["orders"] and counts["orders"][0].get("orderStatus") == "completed",
               counts["orders"][0].get("orderStatus") if counts["orders"] else None)
         paid_order = counts["orders"][0] if counts["orders"] else {}
         check("ADDR", "the order records where it ships: the address and recipient frozen at checkout",
@@ -1524,10 +1524,10 @@ def run(root: Path) -> int:
               and charges.get("discountLabel") == "Delight", charges)
         # Payment and fulfilment are separate. Capture starts the internal fulfilment state at
         # processing; the customer order page reads that same OrderTable value.
-        check("PAGE", "...paid, placed on WhatsApp, and internal fulfilment is processing",
-              view.get("paymentStatus") == "captured" and view.get("fulfilmentStatus") == "processing"
+        check("PAGE", "...paid, placed on WhatsApp, and payment-order state is not mislabelled as fulfilment",
+              view.get("paymentStatus") == "captured" and view.get("fulfilmentStatus") == ""
               and view.get("channel") == "whatsapp"
-              and paid_order.get("orderStatus") == "processing",
+              and paid_order.get("orderStatus") == "completed",
               {k: view.get(k) for k in ("paymentStatus", "fulfilmentStatus", "channel")})
         delivery = view.get("delivery") or {}
         check("PAGE", "...and the delivery address frozen at checkout",
