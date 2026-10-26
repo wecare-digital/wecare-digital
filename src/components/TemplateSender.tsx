@@ -39,6 +39,15 @@ const SHARED_TEMPLATE_HEADER = 'https://wecare.digital/get/secure/d/public/whats
    (`url_button_component`: letters, digits, - and _), so anything else is refused here first. */
 const URL_BUTTON_SUFFIX = /^[A-Za-z0-9_-]{1,120}$/;
 
+/* How each Vault file reads in the download-template picker. */
+const VAULT_STATE_LABELS: Record<api.SecureFileAccessState, string> = {
+  UNPAID: 'unpaid',
+  OPEN: 'paid, window open',
+  READY: 'paid',
+  EXPIRED: 'renewal needed',
+  PAID_UNVERIFIED: 'paid, needs reconciling',
+};
+
 const GENERIC_SEND_BLOCKED_TEMPLATES = new Set( [
   PAYMENT_ORDER_DETAILS_TEMPLATE,
   INVOICE_TEMPLATE,
@@ -52,6 +61,7 @@ interface TemplateSenderProps {
   phoneNumberId: string;
   recipientBsuid?: string;
   recipientPhone?: string;    // Send to phone directly — auto-creates contact if needed
+  customerPhone?: string;     // The contact's known number; lists their Vault files for the download button
   enableManualRecipient?: boolean;  // Show a phone-number input (new / unsaved contact)
   onRequestPayment?: () => void;     // Open the authoritative commerce payment composer
   onClose: () => void;
@@ -71,6 +81,7 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
   phoneNumberId,
   recipientBsuid,
   recipientPhone,
+  customerPhone,
   enableManualRecipient,
   onRequestPayment,
   onClose,
@@ -119,8 +130,10 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
   // https://wecare.digital/vault/?file={{1}}; staff enter only the file id/suffix.
   const [ urlButtonIndex, setUrlButtonIndex ] = useState<number | null>( null );
   const [ urlButtonSuffix, setUrlButtonSuffix ] = useState( '' );
-  const [ vaultFiles, setVaultFiles ] = useState<api.SecureFile[]>( [] );
-  const [ vaultFilesLoading, setVaultFilesLoading ] = useState( false );
+  // Vault file picker for wecare_default_download: the button can carry only an ID returned
+  // from this customer's Vault list. There is deliberately no raw-ID escape hatch.
+  const [ vaultFiles, setVaultFiles ] = useState<api.SecureFile[] | null>( null );
+  const [ vaultFilesError, setVaultFilesError ] = useState( '' );
   // Media library (reusable wa-tpl/ files) — search, pick, permanently delete.
   const [ showLibrary, setShowLibrary ] = useState( false );
   const [ libraryItems, setLibraryItems ] = useState<any[]>( [] );
@@ -174,6 +187,44 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
     loadTemplates();
     setSelectedTemplate( null );
   }, [ phoneNumberId ] );
+
+  // The download template's button needs one of THIS customer's Vault file IDs. List them by
+  // number (the staff list is phone-keyed) so the ID is picked, not retyped. Settled from the
+  // promise callback, never synchronously in the effect body.
+  const isDownloadTemplate = selectedTemplate?.name.toLowerCase() === DOWNLOAD_TEMPLATE;
+  const vaultLookupPhone = ( customerPhone || recipientPhone || ( manualMode ? manualPhone : '' ) )
+    .replace( /\D/g, '' );
+  useEffect( () => {
+    if ( !isDownloadTemplate )
+    {
+      setVaultFiles( null );
+      setVaultFilesError( '' );
+      return undefined;
+    }
+    if ( vaultLookupPhone.length < 10 )
+    {
+      setVaultFiles( [] );
+      setVaultFilesError( 'Enter or open the customer phone number to load their Vault files.' );
+      return undefined;
+    }
+    let cancelled = false;
+    setVaultFiles( null );
+    setVaultFilesError( '' );
+    setUrlButtonSuffix( '' );
+    void api.listSecureFiles( vaultLookupPhone ).then( result => {
+      if ( cancelled ) return;
+      if ( result.ok )
+      {
+        setVaultFiles( ( result.data.files || [] ).filter( row => row.status === 'active' ) );
+        setVaultFilesError( '' );
+      } else
+      {
+        setVaultFiles( [] );
+        setVaultFilesError( result.failure.message || 'Could not load this customer\'s Vault files.' );
+      }
+    } );
+    return () => { cancelled = true; };
+  }, [ isDownloadTemplate, vaultLookupPhone ] );
 
   // Extract variables from template when selected
   useEffect( () => {
@@ -303,38 +354,6 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
     setVariables( vars );
     setCardVariables( cardVars );
   }, [ selectedTemplate, contactName ] );
-
-  useEffect( () => {
-    if ( selectedTemplate?.name.toLowerCase() !== DOWNLOAD_TEMPLATE )
-    {
-      setVaultFiles( [] );
-      return;
-    }
-    const phone = String( recipientPhone || '' ).trim();
-    if ( !phone )
-    {
-      setVaultFiles( [] );
-      return;
-    }
-    let active = true;
-    setVaultFilesLoading( true );
-    void api.listSecureFiles( phone ).then( result => {
-      if ( !active ) return;
-      if ( result.ok )
-      {
-        const files = ( result.data.files || [] ).filter(
-          file => file.status === 'active'
-            && !!( file.paidEntitlementId || file.paidGrantId )
-        );
-        setVaultFiles( files );
-        if ( files.length === 1 ) setUrlButtonSuffix( files[ 0 ].fileId );
-      } else
-      {
-        setVaultFiles( [] );
-      }
-    } ).finally( () => { if ( active ) setVaultFilesLoading( false ); } );
-    return () => { active = false; };
-  }, [ selectedTemplate, recipientPhone ] );
 
   const updateVariable = ( index: number, value: string ) => {
     setVariables( vars => vars.map( ( v, i ) => i === index ? { ...v, value } : v ) );
@@ -685,19 +704,13 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
     if ( urlButtonIndex !== null && !urlButtonSuffix.trim() )
     {
       onError( selectedTemplate.name.toLowerCase() === DOWNLOAD_TEMPLATE
-        ? 'Choose a paid Vault file for this customer.'
+        ? 'Enter the Vault file ID for the Access Vault button.'
         : 'Enter the dynamic URL value for this template.' );
       return;
     }
     if ( urlButtonIndex !== null && !URL_BUTTON_SUFFIX.test( urlButtonSuffix.trim() ) )
     {
       onError( 'The button value can use only letters, digits, - and _ (up to 120), not a file name or a full URL.' );
-      return;
-    }
-
-    if ( selectedTemplate.name.toLowerCase() === DOWNLOAD_TEMPLATE && manualMode )
-    {
-      onError( 'Open a saved customer conversation to send a Vault file. Vault links can only be sent after the file is matched to that customer.' );
       return;
     }
 
@@ -1100,31 +1113,34 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
 
             { urlButtonIndex !== null && (
               <div className="header-media-section">
-                { selectedTemplate.name.toLowerCase() === DOWNLOAD_TEMPLATE ? (
+                { isDownloadTemplate ? (
                   <>
                     <label>Choose Vault file<span className="required-tag">required</span></label>
-                    { !recipientPhone ? (
-                      <span className="manual-hint">Open this template from a saved customer conversation so Workspace can verify which Vault files belong to that customer.</span>
-                    ) : (
+                    { vaultFiles === null ? (
+                      <span className="manual-hint">Loading this customer&apos;s Vault files…</span>
+                    ) : vaultFiles.length > 0 ? (
                       <>
                         <select
                           className="header-url-input"
                           value={ urlButtonSuffix }
                           onChange={ ( e ) => setUrlButtonSuffix( e.target.value ) }
-                          disabled={ vaultFilesLoading }
+                          aria-label="Vault file for the Access Vault button"
                         >
-                          <option value="">{ vaultFilesLoading ? 'Loading Vault files…' : 'Choose a paid Vault file…' }</option>
-                          { vaultFiles.map( file => (
-                            <option key={ file.fileId } value={ file.fileId }>
-                              { file.displayName || file.originalFilename || file.fileId }
-                              { file.accessWindowStatus ? ` · ${file.accessWindowStatus}` : '' }
+                          <option value="">Choose this customer&apos;s Vault file…</option>
+                          { vaultFiles.map( row => (
+                            <option key={ row.fileId } value={ row.fileId }>
+                              { `${ row.displayName } · ${ VAULT_STATE_LABELS[ row.accessState || ( row.vaultPaymentStatus === 'PAID' ? 'READY' : 'UNPAID' ) ] }` }
                             </option>
                           ) ) }
                         </select>
                         <span className="manual-hint">
-                          Only active files owned by this customer with a paid Vault entitlement are shown. Workspace sends only the internal file ID to the approved Access Vault button.
+                          The file ID comes from this customer&apos;s Vault record automatically. Unpaid or expired files open the Vault payment path; paid files open/download according to their access state.
                         </span>
                       </>
+                    ) : (
+                      <span className="manual-hint">
+                        { vaultFilesError || 'No active Vault files are registered to this customer.' }
+                      </span>
                     ) }
                   </>
                 ) : (
