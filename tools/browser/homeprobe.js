@@ -48,6 +48,13 @@
  *    separating "matches a focusable selector" from "actually visible" from "inside
  *    <main>". The last number is the one that matters and it is currently 0.
  *
+ * SELECTORS FOLLOW RotatingPill (rp-*), NOT THE OLD home-* PILL. #420 moved the pill into
+ * src/components/RotatingPill.tsx and its classes became .rp-mark, .rp-mark-dot, .rp-cycle and
+ * .rp-cyc-word. This probe kept querying the home-* names, found no pill, and so could not see
+ * the regression #420 shipped: the export rendered phase 'armed', and with JavaScript off the
+ * white shutter covered the tint and the dot sat at scale(0). The mechanism notes in 1-3 above
+ * describe the original home-* implementation; the assertions are unchanged.
+ *
  * Run: node tools/browser/homeprobe.js   (needs out/ - see tools/browser/README.md)
  */
 
@@ -71,10 +78,10 @@ const scaleYOf = m => {
 };
 
 const pillState = () => {
-  const mark = document.querySelector( '.home-mark' );
-  const dot = document.querySelector( '.home-mark-dot' );
-  const cycle = document.querySelector( '.home-cycle' );
-  const word = document.querySelector( '.home-cyc-word.on' );
+  const mark = document.querySelector( '.rp-mark' );
+  const dot = document.querySelector( '.rp-mark-dot' );
+  const cycle = document.querySelector( '.rp-cycle' );
+  const word = document.querySelector( '.rp-cyc-word.on' );
   const head = document.querySelector( '.home-head' );
   if ( !mark || !cycle || !word ) return { error: 'hero pill not found' };
   return {
@@ -185,7 +192,7 @@ const pillState = () => {
       await ctx.addInitScript( () => {
         window.__w = [];
         const tick = () => {
-          const el = document.querySelector( '.home-cycle' );
+          const el = document.querySelector( '.rp-cycle' );
           if ( el ) window.__w.push( { t: +performance.now().toFixed( 1 ), w: +el.getBoundingClientRect().width.toFixed( 1 ) } );
           if ( window.__w.length < 240 ) requestAnimationFrame( tick );
         };
