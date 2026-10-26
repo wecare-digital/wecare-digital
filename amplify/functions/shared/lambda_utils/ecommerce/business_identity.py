@@ -17,8 +17,10 @@ EMAIL = "one@wecare.digital"
 PHONE = "+91 93309 94400"
 WEBSITE = "https://wecare.digital"
 
-ADDRESS_LINE1 = "The W.B.S.I.D.C. Building, Unit 1/20, 81/2/7, Phears Ln"
+ADDRESS_LINE1 = "The W.B.S.I.D.C. Building, Unit No. 1/20"
+ADDRESS_LINE2 = "81/2/7 Phears Lane"
 CITY = "Kolkata"
+STATE_NAME = "West Bengal"
 STATE_CODE = "WB"
 POSTAL_CODE = "700012"
 COUNTRY_CODE = "IN"
@@ -31,7 +33,7 @@ def invoice_identity() -> Dict[str, str]:
         "legal_name": LEGAL_NAME,
         "gstin": GSTIN,
         "pan": PAN,
-        "address": f"{ADDRESS_LINE1}, {CITY}, {STATE_CODE} {POSTAL_CODE}",
+        "address": f"{ADDRESS_LINE1}, {ADDRESS_LINE2}, {CITY}, {STATE_NAME} - {POSTAL_CODE}, {COUNTRY_NAME}",
         "email": EMAIL,
         "phone": PHONE,
         "website": WEBSITE,
@@ -44,7 +46,7 @@ def meta_importer_fields() -> Dict[str, Any]:
         "country_of_origin": COUNTRY_NAME,
         "importer_name": BRAND,
         "importer_address": {
-            "address_line1": ADDRESS_LINE1,
+            "address_line1": f"{ADDRESS_LINE1}, {ADDRESS_LINE2}",
             "city": CITY,
             "zone_code": STATE_CODE,
             "postal_code": POSTAL_CODE,
@@ -54,7 +56,7 @@ def meta_importer_fields() -> Dict[str, Any]:
 
 
 __all__ = [
-    "ADDRESS_LINE1", "BRAND", "CITY", "COUNTRY_CODE", "COUNTRY_NAME", "EMAIL", "GSTIN",
-    "LEGAL_NAME", "PAN", "PHONE", "POSTAL_CODE", "STATE_CODE", "WEBSITE",
+    "ADDRESS_LINE1", "ADDRESS_LINE2", "BRAND", "CITY", "COUNTRY_CODE", "COUNTRY_NAME", "EMAIL", "GSTIN",
+    "LEGAL_NAME", "PAN", "PHONE", "POSTAL_CODE", "STATE_CODE", "STATE_NAME", "WEBSITE",
     "invoice_identity", "meta_importer_fields",
 ]
