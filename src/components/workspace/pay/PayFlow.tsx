@@ -882,23 +882,18 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                        outside this branch, because a successful create clears the selected
                        customer and would otherwise unmount the one record of what was applied. */ }
                   <div className="pf-form-grid">
+                    { /* No Brand field (owner instruction 2026-10-25): every invoice is issued by
+                         WECARE.DIGITAL, the invoice header prints it, and `invForm.purpose` still
+                         carries DEFAULT_BRAND into the create request. */ }
+                    <div className="form-group"><label>Order ID</label><input type="text" value={ invForm.orderId } onChange={ e => setInvForm( { ...invForm, orderId: e.target.value } ) } placeholder="Optional" /></div>
+                  </div>
+                  <div className="pf-form-grid">
                     <div className="form-group">
                       { /* The `.form-group` captions on this page are UNASSOCIATED labels - no
                            `for`, no wrapped control - so they were never a name source and these
                            controls had no accessible name at all. Each caption stays where it is
                            and the control takes `ariaLabel`, which adds a name where there was
                            none and changes nothing on screen. */ }
-                      <label>Brand</label>
-                      { /* Fixed, not chosen: `purposes` is the single entry WECARE.DIGITAL, so a
-                           selector would offer one option and an empty placeholder. `invForm.purpose`
-                           already defaults to the brand and is what travels into the invoice request,
-                           so the displayed value and the submitted value are the same string. */ }
-                      <input aria-label="Brand" value={ DEFAULT_BRAND } readOnly />
-                    </div>
-                    <div className="form-group"><label>Order ID</label><input type="text" value={ invForm.orderId } onChange={ e => setInvForm( { ...invForm, orderId: e.target.value } ) } placeholder="Optional" /></div>
-                  </div>
-                  <div className="pf-form-grid">
-                    <div className="form-group">
                       <label>Send From</label>
                       <Select ariaLabel="Send from" value={ sendPhone }
                         onChange={ v => setSendPhone( v ) }
@@ -906,7 +901,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                     </div>
                     <div className="form-group">
                       <label>WhatsApp payment</label>
-                      <span>WECAREDIGITAL · Razorpay · ORDER_DETAILS template</span>
+                      <span>WECAREDIGITAL · ORDER_DETAILS template</span>
                     </div>
                     <div className="form-group">
                       <label>Goods Type</label>
@@ -980,7 +975,6 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                     <div className="pf-detail-row"><span className="label">Ref</span><span className="mono">{ selInvoice.referenceId || '\u2014' }</span></div>
                     <div className="pf-detail-row"><span className="label">Customer</span><span>{ selInvoice.customerName || '\u2014' }</span></div>
                     <div className="pf-detail-row"><span className="label">Phone</span><span>{ selInvoice.customerPhone || '\u2014' }</span></div>
-                    <div className="pf-detail-row"><span className="label">Brand</span><span>{ selInvoice.purpose || '\u2014' }</span></div>
                     <div className="pf-detail-row"><span className="label">Order</span><span>{ selInvoice.orderId || '\u2014' }</span></div>
                     { selInvoice.goodsType && <div className="pf-detail-row"><span className="label">Type</span><span style={ { padding: '2px 8px', borderRadius: 12, fontSize: 'var(--text-xs)', fontWeight: 500, background: selInvoice.goodsType === 'physical-goods' ? '#dbeafe' : '#f3e8ff', color: selInvoice.goodsType === 'physical-goods' ? '#1e40af' : '#6b21a8' } }>{ selInvoice.goodsType === 'physical-goods' ? 'Physical' : 'Digital' }</span></div> }
                     { selInvoice.shippingAddress && <div className="pf-detail-row" style={ { alignItems: 'flex-start' } }><span className="label">Delivery Address</span><span style={ { fontSize: 'var(--text-xs)', color: '#555', maxWidth: 200, wordBreak: 'break-word' } }>{ selInvoice.shippingAddress }</span></div> }
@@ -1152,12 +1146,8 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                    section removed with WECARE.DIGITAL hardcoded as the default, and
                    `loadSavedConfig` now pins `purposes` to DEF_CFG - so a textarea here would
                    have been an input whose value is discarded on the next load, which is worse
-                   than no control at all. */ }
-              <div className="form-group">
-                <label>Brand</label>
-                <input type="text" value={ DEFAULT_BRAND } readOnly aria-readonly="true" />
-                <p style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', margin: '4px 0 0' } }>Invoices are issued by WECARE.DIGITAL.</p>
-              </div>
+                   than no control at all. The read-only Brand field that replaced it is gone
+                   too (owner instruction 2026-10-25). */ }
               <Button variant="primary" size="sm" loading={ configSaving } onClick={ () => { setConfigSaving( true ); try { localStorage.setItem( CFG_KEY, JSON.stringify( config ) ); } catch { } setTimeout( () => { setConfigSaving( false ); showMsg( 'Config saved' ); }, 300 ); } }>Save Config</Button>
             </div>
           ) }
@@ -1178,18 +1168,9 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                   <div className="form-group"><label>Customer Name</label><input type="text" value={ editForm.customerName } onChange={ e => setEditForm( { ...editForm, customerName: e.target.value } ) } /></div>
                   <div className="form-group"><label>Phone</label><input type="tel" value={ editForm.customerPhone } onChange={ e => setEditForm( { ...editForm, customerPhone: e.target.value } ) } /></div>
                   <div className="form-group"><label>Email</label><input type="email" value={ editForm.customerEmail } onChange={ e => setEditForm( { ...editForm, customerEmail: e.target.value } ) } /></div>
-                  <div className="form-group"><label>Brand</label>
-                    { /* Fixed here too, and that RETIRES a layering hazard rather than ignoring
-                         one: the Select this replaces sat inside `.pf-modal-overlay`
-                         (position:fixed, z-index 9999), so its body-portalled Popover competed
-                         with the overlay in the ROOT stacking context at the default 1500 and
-                         lost - the menu painted under the veil and a click aimed at an option
-                         hit the overlay, whose onClick discards the edit. A plain input opens no
-                         popover, so there is nothing left to layer. `editForm.purpose` is
-                         deliberately left as loaded from the invoice, so editing an older
-                         record does not rewrite the brand it was raised under. */ }
-                    <input aria-label="Brand" value={ DEFAULT_BRAND } readOnly />
-                  </div>
+                  { /* No Brand field (owner instruction 2026-10-25). `editForm.purpose` is
+                       deliberately left as loaded from the invoice, so editing an older record
+                       does not rewrite the brand it was raised under. */ }
                   { /* The Express/Shipping and Manual adjustment inputs are REMOVED, not
                        disabled. `update_invoice` refuses either field on an issued invoice with
                        409 INVOICE_ISSUED_IMMUTABLE, so the control could only collect a figure
@@ -1230,7 +1211,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                 </div>
                 { remarkModal.type === 'refund' && (
                   <div className="msg-bar" style={ { marginBottom: 12 } }>
-                    This does not issue a refund. Refund in Razorpay first; after the webhook lands, enter the provider refund ID here to verify and reconcile the ledger.
+                    This does not issue a refund. Refund in the payment gateway dashboard first; after the webhook lands, enter the provider refund ID here to verify and reconcile the ledger.
                   </div>
                 ) }
                 { ( remarkModal.type === 'refund' || remarkModal.type === 'credit_note' ) && (
