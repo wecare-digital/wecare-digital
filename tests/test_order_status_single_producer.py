@@ -1,15 +1,8 @@
-"""Static guards for the disabled WhatsApp order-status rail. Standard library only.
+"""Static guards for the automatic WhatsApp payment-order status rail.
 
-Product policy (#1650): structured WhatsApp order-status messages are disabled and fulfilment
-status stays internal. These checks read source, so they also run in CI jobs that install
-nothing:
-
-* no runtime code builds an outbound `orderStatusDetails` payload (the inbound webhook's
-  kill-switched `canceled` sender, the last producer, is gone);
-* outbound-whatsapp refuses an order-status request with 410 before any template lookup or send;
-* the invoice engine's order-status route refuses without calling another Lambda;
-* the Razorpay webhook keeps none of the retired automatic or retried order-status machinery;
-* no code builds an interactive `order_status` message.
+The paid WhatsApp ORDER_DETAILS flow must emit exactly the payment-order lifecycle
+pending -> processing -> completed through the approved template wecare_order_status_v3.
+Shipment states are not part of this automatic payment rail.
 """
 from __future__ import annotations
 
@@ -22,12 +15,9 @@ ROOT = Path(__file__).resolve().parents[1]
 FUNCTIONS = ROOT / "amplify" / "functions"
 INVOICE_ENGINE = FUNCTIONS / "payments" / "invoice-engine" / "handler.py"
 OUTBOUND = FUNCTIONS / "messaging" / "outbound-whatsapp" / "handler.py"
-INBOUND = FUNCTIONS / "messaging" / "inbound-whatsapp-handler" / "handler.py"
 WEBHOOK = FUNCTIONS / "payments" / "razorpay-webhook" / "handler.py"
 WA_ORDER_STATUS = FUNCTIONS / "shared" / "lambda_utils" / "ecommerce" / "wa_order_status.py"
-
-#: `'orderStatusDetails': {...}` written as a dict key is a payload being BUILT for outbound.
-_PRODUCER = re.compile(r"""["']orderStatusDetails["']\s*:""")
+TEMPLATES = FUNCTIONS / "shared" / "lambda_utils" / "whatsapp_templates.py"
 
 
 def _function(path: Path, name: str) -> tuple[ast.FunctionDef, str]:
@@ -38,49 +28,47 @@ def _function(path: Path, name: str) -> tuple[ast.FunctionDef, str]:
     raise AssertionError(f"{name} not found in {path}")
 
 
-class NoProducerTests(unittest.TestCase):
-    def test_no_runtime_code_builds_an_order_status_payload(self):
-        producers = sorted(
-            str(path.relative_to(ROOT))
-            for path in FUNCTIONS.rglob("*.py")
-            if _PRODUCER.search(path.read_text(encoding="utf-8", errors="replace"))
-        )
-        self.assertEqual(producers, [])
+class AutomaticPaymentOrderStatusTests(unittest.TestCase):
+    def test_webhook_runs_processing_then_completed(self):
+        _node, source = _function(WEBHOOK, "_start_native_fulfilment")
+        processing = source.find("'processing'")
+        completed = source.find("'completed'")
+        self.assertGreater(processing, 0)
+        self.assertGreater(completed, processing)
+        self.assertIn("Payment received.", source)
+        self.assertIn("Payment complete.", source)
 
-    def test_inbound_has_no_order_status_sender(self):
-        source = INBOUND.read_text(encoding="utf-8")
-        for retired in ("_send_order_status_message", "_inbound_order_status_enabled",
-                        "whatsapp_inbound_order_status", "isOrderStatus"):
-            self.assertNotIn(retired, source)
+    def test_completed_is_blocked_until_processing_accepts(self):
+        _node, source = _function(WEBHOOK, "_start_native_fulfilment")
+        self.assertIn("processing_status == 200", source)
+        self.assertIn("ORDER_STATUS_UNCHANGED", source)
+        self.assertIn("order_status_completed_blocked", source)
 
-    def test_webhook_keeps_no_order_status_machinery(self):
-        source = WEBHOOK.read_text(encoding="utf-8")
-        for retired in ("def _send_order_status_processing", "def _start_native_fulfilment",
-                        "def _invoke_order_status", "/order-status"):
-            self.assertNotIn(retired, source)
-
-
-class DisabledChokepointTests(unittest.TestCase):
-    def test_outbound_refuses_order_status_before_any_lookup_or_send(self):
-        _node, source = _function(OUTBOUND, "handler")
-        refusal = source.find("'ORDER_STATUS_DISABLED'")
-        self.assertGreater(refusal, 0)
-        self.assertIn("410", source[max(0, refusal - 80):refusal])
-        for later in ("_approved_order_status_template(", "_handle_order_status_send("):
-            position = source.find(later)
-            if position != -1:
-                self.assertLess(refusal, position, later)
-
-    def test_invoice_engine_order_status_route_refuses_without_invoking(self):
+    def test_invoice_engine_owns_payment_only_state_machine(self):
         _node, source = _function(INVOICE_ENGINE, "send_order_status")
-        self.assertIn("ORDER_STATUS_DISABLED", source)
-        self.assertIn("410", source)
-        self.assertNotIn(".invoke(", source)
+        self.assertIn("PAYMENT_ORDER_TARGETS", source)
+        self.assertIn("payment_can_transition", source)
+        self.assertIn("waOrderStatus", source)
+        self.assertIn("orderStatusRetry", source)
+        self.assertNotIn("ORDER_STATUS_DISABLED", source)
 
-    def test_no_interactive_order_status_builder_exists(self):
+    def test_outbound_uses_single_approved_template_sender(self):
+        source = OUTBOUND.read_text(encoding="utf-8")
+        self.assertIn("def _approved_order_status_template", source)
+        self.assertIn("def _handle_order_status_send", source)
+        self.assertIn("WA_ORDER_STATUS_TEMPLATE", source)
+        self.assertIn("ORDER_STATUS_DEFERRED", source)
+        self.assertNotIn("ORDER_STATUS_DISABLED", source)
+
+    def test_registry_names_expected_template_once(self):
+        source = TEMPLATES.read_text(encoding="utf-8")
+        self.assertIn("wecare_order_status_v3", source)
+        self.assertNotIn("wecare_order_status_v3wecare_order_status_v3", source)
+
+    def test_no_interactive_fallback_builder(self):
         source = WA_ORDER_STATUS.read_text(encoding="utf-8")
+        self.assertIn("build_template_component", source)
         self.assertNotIn("build_interactive_payload", source)
-        self.assertNotIn("review_order", source)
 
 
 if __name__ == "__main__":
