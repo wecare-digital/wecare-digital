@@ -8,6 +8,8 @@ on:
       - "amplify/functions/messaging/whatsapp-business-api/**"
       - "amplify/functions/shared/lambda_utils/ecommerce/**"
       - "amplify/functions/shared/lambda_utils/template_media.py"
+      - "amplify/functions/shared/lambda_utils/whatsapp_templates.py"
+      - "amplify/functions/shared/lambda_utils/whatsapp_templates.py"
       - "amplify/functions/shared/lambda_utils/direct_send.py"
       - "config/lambda-env-manifest.json"
       - "scripts/env_manifest.py"
