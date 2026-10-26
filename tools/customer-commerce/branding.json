@@ -1,0 +1,8 @@
+{
+  "displayName": "WECARE.DIGITAL",
+  "description": "Shop approved products and manage your WECARE account and orders through conversation.",
+  "website": "https://wecare.digital/",
+  "logo": "assets/logo.svg",
+  "interaction": "conversation-only",
+  "status": "source implementation; hosting and host connection pending"
+}

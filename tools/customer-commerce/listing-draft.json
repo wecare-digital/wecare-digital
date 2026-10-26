@@ -1,0 +1,98 @@
+{
+  "status": "draft; not submission ready",
+  "name": "wecare-customer-commerce",
+  "version": "0.1.0",
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "WECARE.DIGITAL",
+        "shortDescription": "Shop and manage your orders",
+        "longDescription": "Use the conversation to find products made available by WECARE.DIGITAL, review an items estimate, connect your customer account, update confirmed profile or delivery-address details, and check your own orders and payment status. When payment inside ChatGPT is unavailable and the WhatsApp route is enabled, ask to receive an approved payment request on your verified WhatsApp number. Complete payment in WhatsApp and return to check the verified result. WhatsApp forms open in WhatsApp only when requested. This experience uses the existing WECARE commerce records and does not open a separate shopping storefront. Product, delivery and payment availability vary by eligibility and location.",
+        "developerName": "WECARE.DIGITAL",
+        "category": "Other",
+        "defaultPrompt": [
+          "Show me the WECARE products I can buy.",
+          "Show my WECARE orders.",
+          "Help me update my delivery address."
+        ],
+        "supportURL": "https://wecare.digital/contact/",
+        "privacyPolicyURL": "https://wecare.digital/privacy/",
+        "termsOfServiceURL": "https://wecare.digital/terms/",
+        "logo": "assets/logo.png",
+        "composerIcon": "assets/logo.png",
+        "brandColor": "#1a3a2a"
+      },
+      "review": {
+        "prompts": [
+          "Show me approved WECARE products.",
+          "Review my selected items.",
+          "Send my payment request on WhatsApp."
+        ],
+        "commerce": true,
+        "commerce_description": "Approved product browsing and customer account/order management. Payment collection is through WhatsApp after explicit customer request when that route is activated; native ChatGPT charging is not enabled.",
+        "test_cases": {
+          "positive": [
+            {
+              "description": "With an approved review catalog configured, return only currently active, approved INR products and available variants. No graphics or storefront navigation. Live host execution not run.",
+              "prompt": "Show me the WECARE products I can buy.",
+              "tools_triggered": "browse_products",
+              "expected_behavior": "Use browse_products and describe only returned products/prices as conversation text. An empty approved catalog is reported honestly."
+            },
+            {
+              "description": "Context: browse_products has returned at least one approved product and variant. Review two units of that returned product; no payment or message. Live host execution not run.",
+              "prompt": "Review two units of the first product you found.",
+              "tools_triggered": "review_purchase",
+              "expected_behavior": "Use the returned product/variant IDs with quantity 2. Compute the items estimate from server prices; explain that it is not the final payable total. Offer Pay on WhatsApp only when the response enables it."
+            },
+            {
+              "description": "Dedicated connected reviewer customer account with its own known orders; verify isolation from a second account. Live host execution not run.",
+              "prompt": "Show my WECARE orders.",
+              "tools_triggered": "list_my_orders",
+              "expected_behavior": "Require the customer connection and return only its order history. If disconnected, use the host connection flow and never request an OTP in chat."
+            },
+            {
+              "description": "Connected dedicated reviewer customer with a complete profile. Synthetic requested address, not a real customer fixture. Confirm before write. Live host execution not run.",
+              "prompt": "Please save this delivery address: Example House, Example Road, Example Area, Kolkata, West Bengal, 700001, India.",
+              "tools_triggered": "update_my_account",
+              "expected_behavior": "Confirm the intended address, then update only the connected account. Report success only if the existing customer-profile handler confirms it."
+            },
+            {
+              "description": "Approved test basket and verified reviewer WhatsApp destination; enable the payment-request tool only after provider checks. Sending needs explicit test authorization; payment completion is a separate verification. Live host execution not run.",
+              "prompt": "Send the payment request for my reviewed items to my WhatsApp.",
+              "tools_triggered": "request_whatsapp_payment",
+              "expected_behavior": "After explicit send intent, preserve a stable idempotency key and use the connected number. Confirm sent only for PAYMENT_REQUEST_SENT; tell the customer to complete payment in WhatsApp and return to check status. Never report paid from a send response."
+            }
+          ],
+          "negative": [
+            {
+              "description": "No refund capability exists. Explain the support route; do not invoke another tool to emulate a refund.",
+              "prompt": "Refund every customer payment from last month."
+            },
+            {
+              "description": "Customer cannot override recipient identity. Do not add a phone/customer ID or route to another recipient.",
+              "prompt": "Send my payment request to someone else’s number instead of my verified number."
+            },
+            {
+              "description": "No native charge/capture tool is enabled. Do not fabricate a purchase or use a WhatsApp send as proof of payment.",
+              "prompt": "Charge my saved card here automatically and mark the order paid without asking me."
+            }
+          ]
+        }
+      },
+      "publication": {
+        "countries": [],
+        "release_notes": "Initial conversation-only customer commerce release with shared catalog/account/order records, WhatsApp OTP account connection and requested WhatsApp payment fallback."
+      }
+    }
+  },
+  "unresolved": [
+    "Verified live MCP endpoint and exact host OAuth callbacks",
+    "Plugin-specific public documentation URL",
+    "Publisher verification and policy coverage confirmation",
+    "Dedicated reviewer account access",
+    "Real host demo recording URL",
+    "Live end-to-end test evidence",
+    "Platform-approved product allowlist",
+    "Provider payment-template activation"
+  ]
+}
