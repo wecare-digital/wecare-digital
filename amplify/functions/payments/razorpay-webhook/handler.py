@@ -1286,7 +1286,7 @@ def _quarantine_unverified_capture(reference_id: str, payment_id: str,
     }))
 
 
-def _handle_wallet_topup_captured(payment: Dict, request_id: str) -> None:
+def _handle_wallet_topup_captured(payment: Dict, request_id: str) -> Dict[str, Any]:
     """Credit a partner wallet for a customer-service top-up — bound, verified, and once.
 
     This used to trust the event body outright: it read the amount and the recipient WABA from
@@ -1309,6 +1309,8 @@ def _handle_wallet_topup_captured(payment: Dict, request_id: str) -> None:
          nothing.
 
     Never raises: a non-2xx makes Razorpay retry the whole event, and nothing here is worth that.
+    Returns a narrow authoritative settlement projection so the caller can persist the capture in
+    PaymentsTable without trusting the webhook body's amount or WABA attribution.
     """
     from decimal import Decimal
     from lambda_utils.ecommerce import order_keys
@@ -1324,7 +1326,7 @@ def _handle_wallet_topup_captured(payment: Dict, request_id: str) -> None:
     if not payment_id:
         logger.error(json.dumps({'event': 'partner_wallet_topup_no_payment_id',
                                  'stage': 'wallet_topup', 'requestId': request_id}))
-        return
+        return {'settled': False}
 
     try:
         table = dynamodb.Table(order_keys.commerce_keys_table_name())
@@ -1343,7 +1345,7 @@ def _handle_wallet_topup_captured(payment: Dict, request_id: str) -> None:
                 'requestId': request_id,
             }))
             _quarantine_unverified_capture(reference_id, payment_id, None, request_id)
-            return
+            return {'settled': False}
 
         try:
             intent_paise = positive_paise(intent.get('amountPaise'))
@@ -1352,7 +1354,7 @@ def _handle_wallet_topup_captured(payment: Dict, request_id: str) -> None:
                                      'paymentId': payment_id, 'referenceId': reference_id or None,
                                      'stage': 'wallet_topup', 'requestId': request_id}))
             _quarantine_unverified_capture(reference_id, payment_id, None, request_id)
-            return
+            return {'settled': False}
         intent_waba = str(intent.get('wabaId') or '')
         if not intent_waba or (waba_id and waba_id != intent_waba):
             # The event names a different WABA than the one the top-up was created for. Never let
@@ -1362,19 +1364,19 @@ def _handle_wallet_topup_captured(payment: Dict, request_id: str) -> None:
                                      'referenceId': reference_id or None, 'stage': 'wallet_topup',
                                      'requestId': request_id}))
             _quarantine_unverified_capture(reference_id, payment_id, None, request_id)
-            return
+            return {'settled': False}
 
         # Gate 2: authoritative provider verification of the captured amount. Never the event body.
         captured, provider_paise, provider_currency = razorpay_verify.payment_is_captured(
             payment_id)
         if not captured or str(provider_currency or '') != 'INR':
             _quarantine_unverified_capture(reference_id, payment_id, None, request_id)
-            return
+            return {'settled': False}
         try:
             provider_paise = positive_paise(provider_paise)
         except ValueError:
             _quarantine_unverified_capture(reference_id, payment_id, None, request_id)
-            return
+            return {'settled': False}
         if provider_paise != intent_paise:
             # Money moved, but not for the amount the top-up was created for. A human decides.
             logger.error(json.dumps({'event': 'partner_wallet_topup_amount_mismatch',
@@ -1382,7 +1384,7 @@ def _handle_wallet_topup_captured(payment: Dict, request_id: str) -> None:
                                      'referenceId': reference_id or None, 'stage': 'wallet_topup',
                                      'requestId': request_id}))
             _quarantine_unverified_capture(reference_id, payment_id, None, request_id)
-            return
+            return {'settled': False}
 
         # Gate 3: idempotency. Claim the credit BEFORE applying it, so a duplicate delivery that
         # loses the claim credits nothing. A lost claim is the normal duplicate case, not an error.
@@ -1392,7 +1394,8 @@ def _handle_wallet_topup_captured(payment: Dict, request_id: str) -> None:
             logger.info(json.dumps({'event': 'partner_wallet_topup_duplicate_skipped',
                                     'paymentId': payment_id, 'referenceId': reference_id or None,
                                     'stage': 'wallet_topup', 'requestId': request_id}))
-            return
+            return {'settled': True, 'duplicate': True, 'referenceId': reference_id,
+                    'amountPaise': intent_paise, 'currency': 'INR'}
 
         # Credit the amount from the STORED INTENT (verified equal to the provider's), in rupees
         # from exact integer paise - never from the event body's float.
@@ -1404,14 +1407,17 @@ def _handle_wallet_topup_captured(payment: Dict, request_id: str) -> None:
                                 'amountPaise': intent_paise, 'balance': r.get('balance'),
                                 'paymentId': payment_id, 'referenceId': reference_id or None,
                                 'stage': 'wallet_topup', 'requestId': request_id}, default=str))
+        return {'settled': True, 'duplicate': False, 'referenceId': reference_id,
+                'amountPaise': intent_paise, 'currency': 'INR'}
     except Exception as e:  # noqa: BLE001
         # Type only. A ClientError / provider error message can echo request content.
         logger.error(json.dumps({'event': 'partner_wallet_topup_error',
                                  'error': type(e).__name__, 'paymentId': payment_id,
                                  'stage': 'wallet_topup', 'requestId': request_id}))
+        return {'settled': False}
 
 
-def _handle_blog_contribution_captured(payment: Dict, request_id: str) -> None:
+def _handle_blog_contribution_captured(payment: Dict, request_id: str) -> Dict[str, Any]:
     """Settle a Section 5 voluntary blog contribution — bound, verified, once, and no order.
 
     Mirrors ``_handle_wallet_topup_captured`` exactly, for the BLOG_CONTRIBUTION purpose:
@@ -1447,11 +1453,17 @@ def _handle_blog_contribution_captured(payment: Dict, request_id: str) -> None:
         logger.info(json.dumps({'event': 'blog_contribution_capture_handled',
                                 'outcome': result.status, 'paymentId': payment_id,
                                 'stage': 'contribution', 'requestId': request_id}))
+        return {'settled': result.status in (blog_contribution.SETTLE_SETTLED,
+                                             blog_contribution.SETTLE_DUPLICATE),
+                'duplicate': result.status == blog_contribution.SETTLE_DUPLICATE,
+                'referenceId': result.contribution_id,
+                'amountPaise': int(result.amount_paise or 0), 'currency': 'INR'}
     except Exception as e:  # noqa: BLE001
         # Type only. A ClientError / provider error message can echo request content.
         logger.error(json.dumps({'event': 'blog_contribution_error',
                                  'error': type(e).__name__, 'paymentId': payment_id,
                                  'stage': 'contribution', 'requestId': request_id}))
+        return {'settled': False}
 
 
 _cloudwatch = None
@@ -1566,6 +1578,35 @@ def _notification_recipient(reference_id: str, provider_contact: str) -> str:
 
 
 
+def _store_verified_special_capture(payment: Dict, settlement: Dict[str, Any],
+                                    request_id: str, *, purpose: str) -> None:
+    """Persist a verified non-commerce capture in the common PaymentsTable ledger.
+
+    These are not purchase orders and must not consume a GST invoice number. The settlement helper
+    has already re-read the provider and the server-owned intent, so amount/currency/reference are
+    replaced with those authoritative values before the common ledger writer sees the record.
+    """
+    if not settlement.get('settled'):
+        return
+    verified = dict(payment)
+    verified['amount'] = int(settlement.get('amountPaise') or 0)
+    verified['currency'] = str(settlement.get('currency') or 'INR')
+    verified['captured'] = True
+    notes = dict(verified.get('notes') or {}) if isinstance(verified.get('notes'), dict) else {}
+    notes['purpose'] = purpose
+    reference_id = str(settlement.get('referenceId') or '')
+    if reference_id:
+        notes['referenceId'] = reference_id
+    verified['notes'] = notes
+    _store_payment_record(verified, 'captured', request_id)
+    logger.info(json.dumps({
+        'event': 'special_capture_ledgered', 'purpose': purpose,
+        'paymentId': str(verified.get('id') or ''), 'referenceId': reference_id or None,
+        'duplicateSettlement': bool(settlement.get('duplicate')), 'requestId': request_id,
+    }))
+
+
+
 def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
     """Handle payment.captured — the main success event. Store payment + mark invoice paid + trigger invoice."""
     payment = event_data.get('payment', {}).get('entity', {})
@@ -1590,28 +1631,35 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
     if not isinstance(notes, dict):
         notes = {}
 
-    # Partner prepaid wallet top-up (customer-service): if this payment was created for
-    # a wallet top-up, credit the tenant's wallet and stop (not an invoice payment).
+    # Partner prepaid wallet funding is not a customer purchase order and therefore must not burn
+    # a GST invoice number. It DOES belong in the common captured-payment ledger after the stored
+    # top-up intent and Razorpay readback prove the amount and tenant.
     if (notes or {}).get('purpose') == 'wallet_topup' and (notes or {}).get('wabaId'):
-        _handle_wallet_topup_captured(payment, request_id)
+        settlement = _handle_wallet_topup_captured(payment, request_id)
+        _store_verified_special_capture(
+            payment, settlement, request_id, purpose='wallet_topup')
         return
 
-    # Section 5 voluntary blog contribution (BLOG_CONTRIBUTION): settle the stored contribution
-    # record and stop. This is NOT an invoice payment and must NOT create a store product or
-    # order, so it must not fall through below. The amount is re-derived from the stored record,
-    # never from these notes - the notes are only a routing hint.
+    # Historical contribution captures are compatibility-only. New contributions are catalog
+    # products in the shared cart and therefore use the normal commerce order + receipt pipeline.
+    # A legitimate legacy capture remains settleable, and now also lands in PaymentsTable after
+    # the stored contribution + provider readback prove it.
     if (notes or {}).get('purpose') == 'BLOG_CONTRIBUTION':
-        _handle_blog_contribution_captured(payment, request_id)
+        settlement = _handle_blog_contribution_captured(payment, request_id)
+        _store_verified_special_capture(
+            payment, settlement, request_id, purpose='BLOG_CONTRIBUTION')
         return
 
-    # Paid secure-file download (wecare.digital/get): hand the order id to secure-files
-    # and stop. Not an invoice payment, so it must not fall through below.
+    # Historical paid secure-file download (wecare.digital/get): hand the order id to secure-files
+    # and stop. New initiation routes are retired; new Vault purchases use the catalog service rail.
     #
     # Note what is NOT passed: payment_id, amount, contact, notes. Nothing this event
     # claims is carried forward, because nothing this event claims is trusted. Only the
     # order id travels, and secure-files re-derives everything else from the grant and
     # from Razorpay's API.
     if (notes or {}).get('purpose') == 'secure_file_download' and order_id:
+        logger.warning(json.dumps({'event': 'legacy_secure_file_capture_compatibility',
+                                   'paymentId': payment_id, 'requestId': request_id}))
         _dispatch_download_grant_confirmation(order_id, request_id)
         return
 
