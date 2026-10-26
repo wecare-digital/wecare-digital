@@ -75,9 +75,9 @@ through unless the function replaces it.
     GET  /secure-files/{fileId}/download?grant=<id>  transport from the paid entitlement
 
 The payment-initiation routes `/whatsapp-pay` and `/order` were removed on 2026-10-22
-(bf90ff69a). Secure-file purchases go through the commerce checkout's PaymentAttempt; this
-function settles historical grants (`confirmAndDeliver`), keeps the durable entitlement and
-delivers.
+(bf90ff69a). Secure-file purchases go through the commerce checkout's PaymentAttempt from either
+the authenticated website Vault collection or WhatsApp catalog-service selection; this function
+settles historical grants (`confirmAndDeliver`), keeps the durable entitlement and delivers.
 
 ### When WhatsApp delivery fails
 
@@ -199,7 +199,7 @@ Review and Pay for that one file (server-priced, WABA1 only). There are three wa
 | Staff | Secure files → **Send ₹49 Vault message** (or the upload checkbox) → `POST /secure-files/{fileId}/request-payment` | business-api `catalogService.sendOffer` sends template `wecare_valut_49`: "Your *{document}* copy is ready! Pay ₹49…" with an **Unlock Vault** quick reply carrying an opaque offer token (`VAULTOFFER#<token>` in CommerceKeys, 7 days) |
 | Customer | Taps **Unlock Vault** | inbound routes the tap to `catalogService.unlock`; the tap is the identity evidence, and the offer's file gets one Review and Pay (or Access Vault if already paid). An unknown, expired or someone else's offer, or an "Unlock Vault" tap with no offer payload, gets the document list instead |
 | Customer | WhatsApp "Vault" (keyword or Vault catalog item) | `catalogService.start` lists their documents as unpaid, **Paid** (free link) or **Renew**; picking one sends one Review and Pay |
-| Customer | `/vault/?file=` or `/get/` | unpaid and expired files link to WhatsApp with "Vault" typed |
+| Customer | `/vault/?file=` or `/get/` | after WhatsApp-number verification, an unpaid/expired owned file creates a file-bound Vault service intent and enters the shared cart; `/checkout/` offers **Pay here** or **Pay on WhatsApp** |
 
 The offer charges nothing and needs no linked WhatsApp contact beforehand: commerce's identity
 bridge proves the customer from the tap, a signed inbound message, as it does for a cart. The

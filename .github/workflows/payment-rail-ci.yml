@@ -20,6 +20,13 @@ on:
       - "amplify/functions/ai/ai-generate-response/**"
       - "src/components/workspace/pay/**"
       - "src/api/client.ts"
+      - "amplify/functions/ecommerce/service-requests/**"
+      - "src/components/get/**"
+      - "src/components/ServiceBuyBox.tsx"
+      - "src/pages/vault.tsx"
+      - "src/lib/serviceRequests.ts"
+      - "src/lib/cart.ts"
+      - "src/lib/serviceEntry.ts"
       - "scripts/verify_whatsapp_catalog_payment_rail.py"
       - "scripts/commerce_release_audit.py"
       - ".github/workflows/payment-rail-ci.yml"
@@ -43,6 +50,13 @@ on:
       - "amplify/functions/ai/ai-generate-response/**"
       - "src/components/workspace/pay/**"
       - "src/api/client.ts"
+      - "amplify/functions/ecommerce/service-requests/**"
+      - "src/components/get/**"
+      - "src/components/ServiceBuyBox.tsx"
+      - "src/pages/vault.tsx"
+      - "src/lib/serviceRequests.ts"
+      - "src/lib/cart.ts"
+      - "src/lib/serviceEntry.ts"
       - "scripts/verify_whatsapp_catalog_payment_rail.py"
       - "scripts/commerce_release_audit.py"
       - ".github/workflows/payment-rail-ci.yml"
@@ -67,7 +81,7 @@ jobs:
 
       - name: Compile payment Python
         run: |
-          python -m compileall -q             amplify/functions/payments             amplify/functions/messaging/outbound-whatsapp             amplify/functions/messaging/whatsapp-business-api             amplify/functions/core/secure-files             amplify/functions/shared/lambda_utils/ecommerce             amplify/functions/shared/lambda_utils/template_media.py
+          python -m compileall -q             amplify/functions/payments             amplify/functions/messaging/outbound-whatsapp             amplify/functions/messaging/whatsapp-business-api             amplify/functions/ecommerce/service-requests             amplify/functions/core/secure-files             amplify/functions/shared/lambda_utils/ecommerce             amplify/functions/shared/lambda_utils/template_media.py
 
       - name: Verify WhatsApp payment rail
         run: python scripts/verify_whatsapp_catalog_payment_rail.py
