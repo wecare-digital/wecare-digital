@@ -749,7 +749,7 @@ const HomePage: React.FC = () => {
            - now lives in RotatingPill, which self-scopes its own rp-* CSS and is driven by
            the phase prop (armed -> shown via the shown flag). styled-jsx here cannot
            reach a child component's markup, which is why the pill owns its own styles. */
-        .home-head-line{display:block}
+        .home-head-line{display:block;text-wrap:balance}
 
         /* Foldable hinge progressive enhancement. Normal responsive widths cannot represent an
            occluded physical hinge. If a browser exposes two side-by-side viewport segments,

@@ -3537,8 +3537,12 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
         merged_items = regular_items + charge_items
         order_items = []
         subtotal_paise = 0
-        for i, entry in enumerate(merged_items):
-            entry['retailer_id'] = f'ITEM_{i+1}'
+        for entry in merged_items:
+            # This invoice/manual collection path is non-catalog. Meta permits a custom item
+            # image only when retailer_id/catalog_id are absent, so do not manufacture ITEM_n
+            # catalog identifiers. The small icon is intentionally separate from the large
+            # payment-template header.
+            entry['image'] = {'link': template_media.ORDER_ITEM_IMAGE}
             line_paise = entry['amount']['value'] * entry['quantity']
             subtotal_paise += line_paise
             order_items.append(entry)
@@ -3558,7 +3562,7 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
                 'name': 'Convenience Fee',
                 'amount': {'value': conv_paise, 'offset': 100},
                 'quantity': 1,
-                'retailer_id': f'ITEM_{len(order_items) + 1}',
+                'image': {'link': template_media.ORDER_ITEM_IMAGE},
             })
             subtotal_paise += conv_paise
         # Internally-consistent total, as an INTEGER SUM (Meta validates
@@ -3849,8 +3853,9 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
             'templateName': WA_PAY_TEMPLATE,
             'templateParams': [],  # native-pay template has no body variables
             'checkoutOrderDetails': order_details_obj,
-            # FIXED company-logo header on EVERY payment. Do not vary per order.
-            'headerImageUrl': template_media.ORDER_CATALOG_HEADER_IMAGE,
+            # FIXED wide brand header on EVERY payment. The small order item icon is carried
+            # separately in each order item as template_media.ORDER_ITEM_IMAGE.
+            'headerImageUrl': template_media.PAYMENT_TEMPLATE_HEADER,
         })
     }
 
@@ -4324,8 +4329,8 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
                            'code': 'ORDER_STATUS_SEND_UNCERTAIN'})
 
     # outbound returns its own body as a JSON string. Parse it once: a 200 carries
-    # `orderStatusChannel` ('interactive' | 'template'); a 409 carries
-    # `error: ORDER_STATUS_DEFERRED` when the 24h window is closed and no template is approved.
+    # `orderStatusChannel='template'`; a 409 carries `ORDER_STATUS_DEFERRED` when the single
+    # approved ORDER_STATUS template cannot be proven available. The 24-hour window is irrelevant.
     wa_body = {}
     raw_body = wa_result.get('body')
     if isinstance(raw_body, str):
@@ -4336,13 +4341,13 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
     elif isinstance(raw_body, dict):
         wa_body = raw_body
     if wa_status_code == 409 and str(wa_body.get('error') or '') == 'ORDER_STATUS_DEFERRED':
-        # The window is closed and no approved ORDER_STATUS template exists. This is NOT a
-        # rejection of the transition - record the requested status as a PENDING send on the
-        # invoice so staff can see one is owed, and pass the deferral through as a 409.
+        # The approved ORDER_STATUS template is unavailable. This is NOT a rejection of the
+        # transition - record the requested status as a PENDING send on the invoice so the
+        # scheduled retry can resume the same template-only lifecycle.
         #
         # `orderStatusRetry = 'PENDING'` puts the row in the sparse `orderStatusRetry-index`
         # (keyed by `pendingOrderStatusAt`), which the 5-minute razorpay-webhook schedule queries
-        # to retry the oldest few through this function; it re-decides the channel each time.
+        # to retry the oldest few through this function; every retry remains template-only.
         # `pendingOrderStatusSince` keeps the first deferral so the retry can give up after a week.
         now = int(time.time())
         try:
@@ -4365,7 +4370,7 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
             'event': 'order_status_deferred', 'invoiceId': invoice_id,
             'targetStatus': target, 'requestId': request_id,
         }))
-        # Nothing was sent, so a later attempt (window reopened, template approved) may send.
+        # Nothing was sent, so a later attempt may send once the approved template is available.
         _release_status_claim()
         return _resp(409, {
             'error': str(wa_body.get('message') or 'The order status update was deferred.'),

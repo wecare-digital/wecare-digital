@@ -8,7 +8,8 @@
     "stack-wecare-url-shortener": {
       "LINK_CLICKS_TABLE": "stack-wecare-digital-LinkClicksTable",
       "SHORT_LINKS_TABLE": "stack-wecare-digital-ShortLinksTable",
-      "SHORT_LINK_BASE": "wecare.digital/r"
+      "SHORT_LINK_BASE": "wecare.digital/r",
+      "ADMIN_MFA_REQUIRED": "true"
     },
     "wecare-agent-action-group": {
       "AWS_ACCOUNT_ID": "775261844268",
@@ -396,7 +397,7 @@
       "AWS_ACCOUNT_ID": "775261844268",
       "CDN_DOMAIN": "wecare.digital/get",
       "CONTACTS_TABLE": "stack-wecare-digital-ContactsTable",
-      "DIRECT_SEND_ENABLED_WABAS": "2094615664435155,2513394156072604",
+      "DIRECT_SEND_ENABLED_WABAS": "",
       "EXPECTED_CONFIGURATION_NAME": "WECAREDIGITAL",
       "EXPECTED_PROVIDER_MID": "acc_TTFSyolquKEZEy",
       "LOG_LEVEL": "INFO",
@@ -557,7 +558,8 @@
     "wecare-sms-aws": {
       "AWS_ACCOUNT_ID": "775261844268",
       "REGION": "us-east-1",
-      "S3_BUCKET": "wecare-digital-get"
+      "S3_BUCKET": "wecare-digital-get",
+      "ADMIN_MFA_REQUIRED": "true"
     },
     "wecare-system-cleanup": {
       "AWS_REGION_OVERRIDE": "us-east-1",
@@ -585,12 +587,14 @@
       "S3_BUCKET": "wecare-digital-get",
       "VOICE_AWS_TABLE": "stack-wecare-digital-VoiceAwsTable",
       "VOICE_ID": "RAVEENA",
-      "VOICE_ORIGINATION_IDENTITY": "+18444891209"
+      "VOICE_ORIGINATION_IDENTITY": "+18444891209",
+      "ADMIN_MFA_REQUIRED": "true"
     },
     "wecare-voice-cdr-read": {
       "AWS_ACCOUNT_ID": "775261844268",
       "REGION": "us-east-1",
-      "S3_BUCKET": "wecare-digital-get"
+      "S3_BUCKET": "wecare-digital-get",
+      "ADMIN_MFA_REQUIRED": "true"
     },
     "wecare-waba-management": {
       "ADMIN_MFA_REQUIRED": "true",
@@ -605,7 +609,7 @@
     "wecare-whatsapp-business-api": {
       "AUTH_SKIP_PATHS": "/wa-business/flow-data",
       "COMMERCE_KEYS_TABLE": "stack-wecare-digital-CommerceKeys",
-      "DIRECT_SEND_ENABLED_WABAS": "2094615664435155,2513394156072604",
+      "DIRECT_SEND_ENABLED_WABAS": "",
       "FLOW_LOGS_TABLE": "stack-wecare-digital-FlowLogTable",
       "FLOW_PRIVATE_KEY_PASSPHRASE": "",
       "FLOW_PRIVATE_KEY_SECRET": "wecare/flow-private-key",

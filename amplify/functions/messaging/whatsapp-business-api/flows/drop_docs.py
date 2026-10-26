@@ -101,9 +101,8 @@ def handle_review(data: Dict, flow_token: str, request_id: str) -> Dict:
             'orderId': order_id,
             'sourceType': 'flow',
             'documentType': data.get('doc_type', 'other'),
-            'verificationStatus': 'uploaded',
+            'verificationStatus': 'awaiting_upload',
             'remarks': data.get('description', ''),
-            'uploadedAt': Decimal(str(now)),
             'createdAt': Decimal(str(now)),
             'updatedAt': Decimal(str(now)),
         }.items() if v is not None and v != ''})

@@ -61,7 +61,10 @@ def render(invoice, items, *, company, font_path, ist_strftime, canonical_status
         return 'Rs' + format(Decimal(str(value or 0)), ',.2f')
 
     status = str(canonical_status(invoice.get('paymentStatus', 'pending'))).upper()
-    epoch = invoice.get('createdAt') or invoice.get('invoiceDate') or 0
+    # A PAID tax invoice should display when the money was captured, not when the draft/request
+    # was first created. Keep createdAt as the honest fallback for unpaid/legacy rows.
+    epoch = ((invoice.get('paidAt') if status == 'CAPTURED' else None)
+             or invoice.get('createdAt') or invoice.get('invoiceDate') or 0)
     text(company['legal_name'], title, 'center')
     text(company['name'], heading, 'center')
     text('GSTIN: ' + company['gstin'], small, 'center')
@@ -153,6 +156,8 @@ def render(invoice, items, *, company, font_path, ist_strftime, canonical_status
     text('https://wecare.digital', small, 'center')
 
     height = 2 * (pad + tear) + len(rows) * line
+    # Off-white paper, not a transparent surface (owner decision 2026-10-26): black text on a
+    # transparent PNG disappears on dark chat backgrounds and full-screen image viewers.
     paper = Image.new('RGB', (width, height), (252, 252, 250))
     draw = ImageDraw.Draw(paper)
     y = pad + tear

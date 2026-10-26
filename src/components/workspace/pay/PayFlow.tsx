@@ -13,7 +13,6 @@ import {
   ADDRESS_FIELDS, EMPTY_ADDRESS_FIELDS, addressPayload, addressFieldsFromContact,
   contactDeliveryAddress, formatAddress, type AddressFormFields,
 } from '../../../lib/address-format';
-import { orderStatusFailureText } from '../../../lib/orderFulfilment';
 
 interface PP { signOut?: () => void; user?: any; embedded?: boolean; mode?: 'collect' | 'invoices'; }
 interface FC { default_gst_rate: number; default_shipping: number; gstin: string; default_item_name: string; purposes: string[]; }
@@ -589,19 +588,6 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
     try { const r = await api.cancelInvoice( inv.invoiceId ); if ( r ) { showMsg( 'Invoice cancelled' ); setSelInvoice( null ); loadInvoices(); } else showMsg( 'Cancel failed', 'error' ); } catch ( e ) { showMsg( 'Cancel failed', 'error' ); }
     setActionLoading( '' );
   };
-  // Send a WhatsApp order_status fulfilment update (shipped / completed / …) for a PAID order.
-  // The server validates the transition against WhatsApp's rules, so an out-of-order move is
-  // refused with a named reason rather than silently failing at Meta.
-  const doSendOrderStatus = async ( inv: Invoice, target: api.OrderFulfilmentStatus ) => {
-    setActionLoading( `os-${target}` );
-    try
-    {
-      const r = await api.sendOrderStatus( inv.invoiceId, target );
-      if ( r.ok ) { showMsg( `Order marked ${target} and the customer was notified` ); loadInvoices(); }
-      else showMsg( orderStatusFailureText( r.failure ), 'error' );
-    } catch ( e ) { showMsg( 'Could not send the order status update', 'error' ); }
-    setActionLoading( '' );
-  };
   const doGenerateImage = async ( inv: Invoice ) => {
     setActionLoading( 'img' );
     try { await api.generateInvoiceImage( inv.invoiceId ); showMsg( 'Image generated' ); } catch ( e ) { showMsg( 'Failed', 'error' ); }
@@ -1057,19 +1043,13 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                         <>
                           <Button variant="secondary" size="sm" onClick={ () => openRemarkModal( selInvoice, 'refund' ) }>Reconcile Refund</Button>
                           <Button variant="secondary" size="sm" onClick={ () => openRemarkModal( selInvoice, 'credit_note' ) }>Record Credit Note</Button>
-                          { /* WhatsApp order_status fulfilment updates are a separate fulfilment
-                               workflow. Payment capture sends the invoice, then (WhatsApp orders only)
-                               one `processing` update; staff deliberately choose when to send the
-                               later fulfilment steps. The server validates the
-                               WhatsApp transition, so sending "shipped" before "processing" or
-                               after "completed" is refused with a reason. `partially-shipped` is
-                               available via the API but kept off the quick row to stay simple. */ }
                           <div style={ { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 4 } }>
                             <span style={ { fontSize: 'var(--text-xs)', fontWeight: 500 } }>
-                              Fulfilment{ selInvoice.orderStatus ? ` · ${selInvoice.orderStatus}` : '' }:
+                              WhatsApp payment order · { selInvoice.waOrderStatus || selInvoice.orderStatus || 'pending' }
                             </span>
-                            <Button variant="secondary" size="sm" loading={ actionLoading === 'os-shipped' } onClick={ () => doSendOrderStatus( selInvoice, 'shipped' ) }>Mark Shipped</Button>
-                            <Button variant="secondary" size="sm" loading={ actionLoading === 'os-completed' } onClick={ () => doSendOrderStatus( selInvoice, 'completed' ) }>Mark Completed</Button>
+                            <span style={ { fontSize: 'var(--text-xs)', color: '#777' } }>
+                              Payment capture advances this automatically to completed.
+                            </span>
                           </div>
                         </>
                       ) }

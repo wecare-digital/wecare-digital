@@ -150,7 +150,7 @@ MEDIA_ALLOWED_MIME = {
     'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     'text/plain',
 }
-INVOICE_ENGINE_FUNCTION = os.environ.get('INVOICE_ENGINE_FUNCTION', 'wecare-checkout:live')
+INVOICE_ENGINE_FUNCTION = os.environ.get('INVOICE_ENGINE_FUNCTION', 'wecare-commerce:live')
 META_CATALOG_SYNC_FUNCTION = os.environ.get(
     'META_CATALOG_SYNC_FUNCTION', 'wecare-meta-catalog-sync:live')
 # The shared stores (contacts, orders, flow responses, flow logs, status history) resolve in
@@ -1062,6 +1062,27 @@ def _direct_send(phone_id: str, body: Dict) -> Dict:
         return _resp(400, {'error': "category must be 'utility' or 'authentication'"})
     if not text:
         return _resp(400, {'error': 'text (message body) is required'})
+
+    # Direct Send eligibility is granted per WhatsApp Business Account. Keep this
+    # admin/diagnostic surface behind the exact same fail-closed allowlist as the
+    # production outbound sender so an operator cannot bypass a disabled account.
+    direct_send_waba = direct_send_util.waba_for_meta_phone(phone_id)
+    if not direct_send_waba:
+        logger.warning(json.dumps({
+            'event': 'direct_send_unknown_sender',
+            'metaPhoneId': phone_id,
+        }))
+        return _resp(400, {'error': 'Unknown Direct Send sender phoneId'})
+    if not direct_send_util.enabled_for_waba(direct_send_waba):
+        logger.warning(json.dumps({
+            'event': 'direct_send_disabled',
+            'metaPhoneId': phone_id,
+            'wabaId': direct_send_waba,
+        }))
+        return _resp(403, {
+            'error': 'Direct Send is disabled for this WhatsApp Business Account'
+        })
+
     # 1024 is OURS, not a verified Meta limit. The docs say Direct Send matches the
     # limits for business-initiated template messages, but that table does not render
     # in text extraction, so the specific number is unverified. The documented 1024s

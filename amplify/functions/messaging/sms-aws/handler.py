@@ -132,7 +132,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # lambda_utils.comms.notify keep working while the public route stops
         # being anonymous. This endpoint had NO auth at either layer.
         from lambda_utils.middleware import require_auth
-        _auth = require_auth(event)
+        required_role = 'Admin' if http_method == 'DELETE' else None
+        _auth = require_auth(event, required_role=required_role)
         if _auth is not None:
             return _auth
 

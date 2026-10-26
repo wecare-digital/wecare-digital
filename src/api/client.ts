@@ -4814,9 +4814,12 @@ export interface Invoice {
   entryPoint: string;
   status: string;
   paymentStatus: string;
-  /** WhatsApp order_status FULFILMENT lifecycle (pending/processing/shipped/completed/…), set as
-   *  staff send order_status updates. Distinct from `paymentStatus` (what the money did). */
+  /** Local projection of the WhatsApp payment-order lifecycle. Distinct from paymentStatus,
+   *  which records what the money did. The payment rail normally ends at completed. */
   orderStatus?: string;
+  /** Last order_status value Meta accepted for this invoice/reference. This is the transition
+   *  authority and must advance only after Meta accepts the corresponding template message. */
+  waOrderStatus?: string;
   contactId: string;
   customerName: string;
   customerPhone: string;
@@ -6111,6 +6114,55 @@ export async function createDocument ( doc: Partial<Document> ): Promise<Documen
     method: 'POST',
     body: JSON.stringify( doc ),
   } );
+}
+
+
+export interface DocumentUploadTicket {
+  documentId: string;
+  uploadUrl: string;
+  expiresInSeconds: number;
+  contentType: string;
+}
+
+/** Start a staff manual Drop Docs upload. The actual bytes go straight to S3. */
+export async function initDocumentUpload ( input: {
+  contactId?: string;
+  customerName?: string;
+  customerPhone?: string;
+  orderId?: string;
+  type: string;
+  typeLabel?: string;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  notes?: string;
+} ): Promise<ApiResult<DocumentUploadTicket>> {
+  return apiCallResult<DocumentUploadTicket>( DOCUMENTS_BASE, {
+    method: 'POST',
+    body: JSON.stringify( { _action: 'upload_init', ...input } ),
+  } );
+}
+
+/** Upload document bytes to the private Drop Docs object using its presigned PUT. */
+export async function uploadDocumentBytes (
+  uploadUrl: string,
+  file: File,
+  contentType: string,
+): Promise<boolean> {
+  const response = await fetch( uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': contentType },
+    body: file,
+  } );
+  return response.ok;
+}
+
+/** Confirm a staff manual Drop Docs upload after S3 has the bytes. */
+export async function confirmDocumentUpload ( documentId: string ): Promise<ApiResult<Document>> {
+  return apiCallResult<Document>(
+    `${DOCUMENTS_BASE}/${encodeURIComponent( documentId )}`,
+    { method: 'PUT', body: JSON.stringify( { _action: 'confirm_upload' } ) },
+  );
 }
 
 // ============================================================================

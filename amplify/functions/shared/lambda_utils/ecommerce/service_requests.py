@@ -58,12 +58,13 @@ quote carrying an integer unit price inside the rail.
 (`GET /ecommerce/service-prices`), so the price a page promises and the price the checkout
 charges come from one source and cannot drift.
 
-PRICING IS ORDINARY ORDER PRICING
----------------------------------
-Unlike a contribution, a service is NOT fee-exempt: the native quote prices the line and
-`checkout_pricing.compute_quote` adds the 2.5% convenience fee and 18% GST on that fee, exactly
-as for any single order. That is why every page says "a convenience fee is added at checkout"
-beside its amount.
+PRICING IS ORDINARY ORDER PRICING, EXCEPT VAULT
+------------------------------------------------
+The native quote always prices the service line from ProductsTable. Ordinary services then use
+the standard checkout convenience-fee policy. Vault is the one exact-price exception: its
+catalogue amount is the total price of one access window, so the shared checkout seam rebuilds
+that quote with `checkout_pricing.exempt_quote`. This keeps website and WhatsApp payment aligned
+without moving price authority out of ProductsTable or creating a second payment rail.
 
 Integer paise throughout. No float, no division, no rounding happens in this module.
 """

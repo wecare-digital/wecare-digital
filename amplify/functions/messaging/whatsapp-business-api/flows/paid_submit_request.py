@@ -102,7 +102,7 @@ def prepare_and_send(event, lambda_client, get_flow):
     payref = order_keys.resolve_payment_reference(keys, str(event.get('referenceId') or '')) or {}
     if payref.get('nativeCatalogService'):
         result = lambda_client.invoke(
-            FunctionName='wecare-checkout:live',
+            FunctionName='wecare-commerce:live',
             InvocationType='RequestResponse',
             Payload=json.dumps({
                 'internalAction': 'finalizeNativeCatalogService',
