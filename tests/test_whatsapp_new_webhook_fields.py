@@ -25,7 +25,7 @@ class WhatsAppNewWebhookFieldCaptureTests(TestCase):
         self.assertIn("record_system_event(", self.source)
 
     def test_meta_events_are_archived_for_analytics(self):
-        self.assertIn("analytics/whatsapp/meta-events/date=", self.source)
+        self.assertIn("secure/d/public/whatsapp/analytics/meta-events/date=", self.source)
         self.assertIn("ServerSideEncryption='AES256'", self.source)
 
     def test_history_is_structured_and_never_replayed_as_live_traffic(self):
