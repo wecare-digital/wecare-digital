@@ -12,7 +12,7 @@ from typing import Any, Dict, Mapping, Optional, Tuple
 from urllib.parse import urlparse
 
 from lambda_utils import payment_status as pay_status
-from lambda_utils.ecommerce import wa_order_status
+from lambda_utils.ecommerce import wa_order_status, wa_payment_request
 
 _STATUS_FIELDS = ("orderStatus", "status", "fulfillmentStatus")
 _TRACKING_FIELDS = ("carrierName", "trackingNumber", "trackingUrl")
@@ -122,6 +122,17 @@ def validate_order_patch(
 
     raw_targets = [body.get(field) for field in _STATUS_FIELDS if field in body]
     if raw_targets:
+        # A WhatsApp-paid order's status lives on WhatsApp, and this patch writes OrderTable
+        # alone. Accepting it told staff "completed" while the customer's Order summary stayed
+        # "Processing" (WD-ORD-C9BNW36T, 2026-10-26). The change goes through the invoice
+        # engine's order-status send instead, which moves this row only after Meta accepts.
+        # Tracking and notes stay editable here.
+        if str(current.get("checkoutMode") or "") in wa_payment_request.ORDER_DETAILS_CHECKOUT_MODES:
+            return None, {
+                "error": ("This order was paid on WhatsApp, so its status must be sent to "
+                          "WhatsApp. Nothing was changed."),
+                "errorCode": "ORDER_STATUS_WHATSAPP_REQUIRED",
+            }
         normalized = [wa_order_status.normalise(value) for value in raw_targets]
         if any(not wa_order_status.is_valid(value) for value in normalized):
             return None, {

@@ -53,15 +53,23 @@ STAFF_FULFILMENT_TARGETS: FrozenSet[str] = frozenset({
 })
 
 # ── Legal forward transitions. ────────────────────────────────────────────────────────────────
-#: Keyed on the CURRENT status, valued by the set of statuses it may move to. Mirrors Meta's
-#: lifecycle: pending -> processing (at capture); processing -> partially/shipped/completed;
-#: partially-shipped -> shipped/completed; shipped -> completed. `completed` and `canceled` are
-#: terminal. An order with no status recorded yet is treated as `pending` by the caller.
+#: Keyed on the CURRENT status, valued by the set of statuses it may move to. Meta's rules: an
+#: order opens as `pending`, which may move to ANY other status; `processing`, `partially-shipped`
+#: and `shipped` may move between one another or to a terminal status; `completed` and `canceled`
+#: are terminal. An order with no status recorded yet is treated as `pending` by the caller.
+#:
+#: `pending` therefore reaches every status. It used to reach only `processing`, so a paid order
+#: whose capture-time `processing` update never went out (skipped, failed, or deferred past its
+#: retry window) could never be marked shipped or completed: both were refused as out of order.
+#:
+#: Between the in-fulfilment states this table is deliberately stricter than Meta: forward only.
+#: A backward update would tell a customer whose order shipped that it is being prepared again,
+#: and the invoice engine sends each status at most once per order (its per-status claim).
 #:
 #: `canceled` is intentionally NOT a destination from any paid state here: Meta refuses it (2047),
 #: and the only legal cancel is on an unpaid order through the invoice cancel path.
 _TRANSITIONS: Dict[str, FrozenSet[str]] = {
-    PENDING: frozenset({PROCESSING, CANCELED}),
+    PENDING: frozenset({PROCESSING, PARTIALLY_SHIPPED, SHIPPED, COMPLETED, CANCELED}),
     PROCESSING: frozenset({PARTIALLY_SHIPPED, SHIPPED, COMPLETED}),
     PARTIALLY_SHIPPED: frozenset({SHIPPED, COMPLETED}),
     SHIPPED: frozenset({COMPLETED}),
