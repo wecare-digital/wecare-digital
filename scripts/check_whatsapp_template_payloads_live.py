@@ -16,6 +16,8 @@ message each sender builds is one Meta can accept, component by component:
     an OTP lifetime equal to the template's `code_expiration_minutes`;
   * the template's language, and a sender that resolves to WABA1's phone number.
 A send that fails any of these is refused by Meta (131008, 131009, 132000, 132012).
+Order-status messages are disabled by product policy (#1650), so the ORDER_STATUS case passes
+only when outbound refuses it with 410 ORDER_STATUS_DISABLED and builds no send.
 
 What runs for real, read-only
   * the live definitions: `wecare-whatsapp-template-management:live` (components) and
@@ -510,7 +512,8 @@ def main() -> int:
         _, _, _, buttons = _definition_parts(definitions.get(name, {}))
         return next((i for i, b in enumerate(buttons) if str(b.get("type")).upper() == "FLOW"), 0)
 
-    # (registry template, the caller whose request body this is, body, customer window open)
+    # (registry template, the caller whose request body this is, body, customer window open,
+    #  the refusal code expected instead of a send, or None when a send must be built)
     cases = [
         (whatsapp_templates.PAY, "invoice-engine send_payment_link -> outbound checkout path", {
             **person, "isCheckoutTemplate": True, "isTemplate": True,
@@ -523,33 +526,34 @@ def main() -> int:
                           "items": [{"retailer_id": "verify-item", "name": "Verification item",
                                      "amount": {"value": 4900, "offset": 100}, "quantity": 1}],
                           "subtotal": {"value": 4900, "offset": 100},
-                          "tax": {"value": 0, "offset": 100, "description": "GST"}}}}, False),
+                          "tax": {"value": 0, "offset": 100, "description": "GST"}}}}, False, None),
         (whatsapp_templates.INVOICE, "invoice-engine send_invoice_whatsapp (mirrored body)", {
             **person, "content": "", "isTemplate": True,
             "templateName": whatsapp_templates.INVOICE.name, "templateParams": [],
             "templateHeaderMedia": "secure/d/public/Invoice/customer_invoice/verify.png",
             "templateHeaderType": "image",
-            "templateFlowButton": {"index": 0, "flowToken": review_token.mint()}}, False),
-        (whatsapp_templates.ORDER_STATUS, "invoice-engine send_order_status, window closed", {
+            "templateFlowButton": {"index": 0, "flowToken": review_token.mint()}}, False, None),
+        (whatsapp_templates.ORDER_STATUS, "outbound order-status path, disabled by policy", {
             **person, "orderStatusDetails": {
                 "reference_id": REFERENCE, "order_status": "processing",
-                "description": wa_order_status.default_body("processing")}}, False),
+                "description": wa_order_status.default_body("processing")}}, False,
+         "ORDER_STATUS_DISABLED"),
         (whatsapp_templates.DOWNLOAD, "paid_vault / catalog_services via download_send_fields", {
             **person, "isTemplate": True, "templateParams": [],
-            **whatsapp_templates.download_send_fields(VAULT_FILE_ID)}, False),
+            **whatsapp_templates.download_send_fields(VAULT_FILE_ID)}, False, None),
         (whatsapp_templates.LEAVE_REVIEW, "Workspace TemplateSender (mirrored body)", {
             **person, "isTemplate": True, "templateName": whatsapp_templates.LEAVE_REVIEW.name,
             "templateParams": [], "headerType": "image",
             "headerMedia": template_media.fixed_image_header(whatsapp_templates.LEAVE_REVIEW.name),
-            "flowButton": {"index": flow_index(whatsapp_templates.LEAVE_REVIEW.name)}}, True),
+            "flowButton": {"index": flow_index(whatsapp_templates.LEAVE_REVIEW.name)}}, True, None),
         (whatsapp_templates.LOCATION_PIN, "Workspace TemplateSender (mirrored body)", {
             **person, "isTemplate": True, "templateName": whatsapp_templates.LOCATION_PIN.name,
             "templateParams": [], "headerType": "location",
             "headerLocation": {"latitude": "22.5726", "longitude": "88.3639",
-                               "name": "WECARE.DIGITAL", "address": "Kolkata"}}, True),
+                               "name": "WECARE.DIGITAL", "address": "Kolkata"}}, True, None),
         (whatsapp_templates.VAULT_OFFER, "business-api catalog_services sendOffer via vault_offer_send_fields", {
             **person, **whatsapp_templates.vault_offer_send_fields(
-                "Verification document", VAULT_OFFER_TOKEN)}, False),
+                "Verification document", VAULT_OFFER_TOKEN)}, False, None),
     ]
 
     problems = 0
@@ -569,7 +573,7 @@ def main() -> int:
                          f"[{c.get('index')}]" if c.get("type") == "button" else str(c.get("type"))
                          for c in components) or "(no components)"
 
-    for template, caller, body, window_open in cases:
+    for template, caller, body, window_open, refusal in cases:
         definition = definitions.get(template.name)
         if not definition:
             report(template, caller, ["no 'en' definition on WABA1"], "-")
@@ -579,6 +583,16 @@ def main() -> int:
             result = send_outbound(outbound, captured, body, window_open=window_open)
         except Exception as error:  # noqa: BLE001 - a crash is a failed construction
             report(template, caller, issues + [f"builder raised {type(error).__name__}: {error}"], "-")
+            continue
+        if refusal:
+            # A retired send: building one at all is the failure, whatever its shape.
+            refused = (not result["count"] and not result["send"] and result["status"] == 410
+                       and refusal in str(result.get("body") or ""))
+            if not refused:
+                issues.append(f"expected HTTP 410 {refusal} and no send, got HTTP "
+                              f"{result['status']} with {result['count']} send(s)")
+            report(template, caller, issues, f"none (refused {refusal}, as designed)" if refused
+                   else summary_of(result["send"]))
             continue
         if result["count"] != 1 or not result["send"]:
             detail = str(result.get("body") or "")[:160]
