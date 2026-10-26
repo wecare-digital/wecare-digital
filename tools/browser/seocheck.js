@@ -32,24 +32,13 @@
 
 const { launch, gotoStable } = require( './lib/browser' );
 const { target } = require( './lib/serve' );
+const { PUBLIC_ROUTES } = require( './lib/public-routes' );
+const routePath = route => route === '/' ? '/' : `${route}/`;
 
 const SITE = 'https://wecare.digital';
 
-/** Public marketing routes, in the same order typecheck.js uses. */
-const ROUTES = [
-  '/', '/grahak-os/', '/vayulok/', '/contact/', '/terms/', '/privacy/',
-  '/orders/', '/sehat/',
-  '/elsewhere/visa/', '/elsewhere/trip/', '/elsewhere/activities/',
-  '/ritual-guru/ritva/', '/ritual-guru/puja-guidance/', '/ritual-guru/diy-puja-kit/', '/expo-week/',
-  '/anew/', '/niji-setu/', '/hunar/kaushal/', '/hunar/prastuti/', '/shipments/track/',
-  // The Requests pages, added when the header's six labels stopped all resolving to
-  // /contact/. Same shape as the product pages: rotating hero plus one content section.
-  '/submit-request/', '/request-amendment/', '/drop-docs/', '/vault/',
-  // The clean-slate Shop currently exports only the listing. Product detail and pagination
-  // routes are generated only when fresh ProductsTable rows exist; do not pin retired fixtures
-  // back into the browser contract just to keep an old SEO probe alive.
-  '/shop/',
-];
+/** Every catalogue page must have a complete rendered head. */
+const ROUTES = PUBLIC_ROUTES.map( routePath );
 
 /**
  * Retired public URL spellings are intentionally absent from source. This harness therefore

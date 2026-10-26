@@ -31,35 +31,14 @@
 const { target } = require( './lib/serve' );
 const { launch, gotoStable } = require( './lib/browser' );
 const { installVisible } = require( './lib/visible' );
+const { PUBLIC_ROUTES } = require( './lib/public-routes' );
+const routePath = route => route === '/' ? '/' : `${route}/`;
 
 /**
- * The public routes, matching seocheck.js's list so the two cannot disagree about what
- * "public" means, plus the three index routes seocheck deliberately skips because they are
- * all 746 - they share a single template.
+ * Every generated public page, plus one concrete Shop detail page whose template is distinct
+ * from the catalogue index. The generated catalogue prevents route drift here.
  */
-const ROUTES = [
-  '/', '/grahak-os/', '/vayulok/', '/contact/', '/terms/', '/privacy/',
-  '/orders/', '/sehat/',
-  '/elsewhere/visa/', '/elsewhere/trip/', '/elsewhere/activities/',
-  '/dastavez/drafting/', '/dastavez/registration/', '/dastavez/legal-reference/',
-  '/ritual-guru/ritva/', '/ritual-guru/puja-guidance/', '/ritual-guru/diy-puja-kit/', '/expo-week/',
-  '/anew/', '/niji-setu/', '/hunar/kaushal/', '/hunar/prastuti/', '/shipments/track/',
-  // Staff-only commerce pages are intentionally outside this public-page harness.
-  '/blog/', '/get/',
-  // The Requests pages, added when the header's six labels stopped all resolving to
-  // /contact/. Same shape as the product pages: rotating hero plus one content section.
-  '/submit-request/', '/request-amendment/', '/drop-docs/', '/vault/',
-  // The catalogue. '/shop/' WAS HERE and was described as "a hero plus a card grid, like /blog/
-  // above it". THAT DESCRIPTION IS NO LONGER TRUE: the owner withdrew the index on 2026-10-04, so
-  // the route 301s to the home page and there is no hero and no grid to inspect. Removed rather
-  // than re-described, because a harness that loads a redirect audits home twice or fails.
-  //
-  // /shop/kiosk/ STAYS and is the whole catalogue coverage now. It is a slug rendered by
-  // src/pages/shop/[slug].tsx and it is the one public page that does NOT wrap itself in
-  // RotatingHero, so its band structure and header clearance are its own file's work rather than
-  // the shared shell's. That is exactly the case this harness exists for.
-  '/shop/kiosk/',
-];
+const ROUTES = [ ...new Set( [ ...PUBLIC_ROUTES.map( routePath ), '/shop/kiosk/' ] ) ];
 
 const inventory = async () => {
   const t = await target();

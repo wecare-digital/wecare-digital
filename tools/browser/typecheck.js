@@ -30,31 +30,16 @@
 
 const { launch, gotoStable } = require( './lib/browser' );
 const { target } = require( './lib/serve' );
+const { PUBLIC_ROUTES } = require( './lib/public-routes' );
+const routePath = route => route === '/' ? '/' : `${route}/`;
 
 /**
- * Every public route, from PUBLIC_PAGE_META in _app.tsx plus '/'. Kept in this order so
- * the four pages with hand-written heroes come first and the seven shared ProductPage
- * routes group together - if those seven ever disagree with each other, the shared
- * component is not as shared as it looks.
+ * The generated catalogue is the authority. Shop and Blog are excluded only from THIS ladder
+ * assertion because their h2 elements are card/article headings rather than section headings;
+ * they remain covered by devicecheck, sectioncheck, SEO and the page census.
  */
-const ROUTES = [
-  '/', '/grahak-os/', '/vayulok/', '/contact/', '/terms/', '/privacy/',
-  '/orders/', '/sehat/',
-  '/elsewhere/visa/', '/elsewhere/trip/', '/elsewhere/activities/',
-  '/dastavez/drafting/', '/dastavez/registration/', '/dastavez/legal-reference/',
-  '/ritual-guru/ritva/', '/ritual-guru/puja-guidance/', '/ritual-guru/diy-puja-kit/', '/expo-week/',
-  '/anew/', '/niji-setu/', '/hunar/kaushal/', '/hunar/prastuti/', '/shipments/track/', '/vault/',
-  // '/shop/' AND '/shop/<slug>/' ARE DELIBERATELY ABSENT, for the same reason '/blog/' is.
-  //
-  // This harness pins the SECTION-h2 rung at 40px/700 - the contract for a page shaped as one
-  // hero plus one content section, which is what every route above is. /shop/ is a card grid: its
-  // h2s are the seven card titles at the 22px/700 CARD rung, because the hero owns the h1 and
-  // there is no section heading between them, so h2 is the next rung with nothing skipped. Listing
-  // it here would report seven correct headings as off-ladder.
-  //
-  // That is not the same as leaving the pages unmeasured. seocheck, sectioncheck, devicecheck,
-  // lhcheck and pageaudit all carry them, and pageaudit's sweep discovers all eight.
-];
+const TYPE_EXCLUSIONS = new Set( [ '/shop', '/blog' ] );
+const ROUTES = PUBLIC_ROUTES.filter( route => !TYPE_EXCLUSIONS.has( route ) ).map( routePath );
 
 const WIDTHS = [ 1280, 900 ];
 
