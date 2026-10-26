@@ -3389,12 +3389,10 @@ def _invoke_order_status(invoice_id: str, target: str, phone_number_id: str, req
         return 0, ''
 
 
-#: Deferred fulfilment updates. The engine's `send_order_status` parks a status Meta could not
-#: take yet (the customer's 24-hour window closed and no ORDER_STATUS template approved) on the
-#: invoice with `orderStatusRetry='PENDING'`, which puts the row in this sparse index keyed by
-#: `pendingOrderStatusAt`. Each scheduled run retries the oldest few through the engine, which
-#: re-decides the channel: inside a reopened window it is the interactive message, outside it the
-#: template once approved, otherwise it defers again and refreshes `pendingOrderStatusAt`.
+#: Deferred payment-order updates. The engine parks a status when the approved ORDER_STATUS
+#: template cannot be proven available. `orderStatusRetry='PENDING'` puts the invoice in this
+#: sparse index keyed by `pendingOrderStatusAt`. Each scheduled run retries the same template-only
+#: transport; there is no 24-hour-window or interactive fallback.
 _ORDER_STATUS_RETRY_INDEX = 'orderStatusRetry-index'
 _ORDER_STATUS_RETRY_PENDING = 'PENDING'
 _ORDER_STATUS_RETRY_MIN_AGE_SECONDS = 15 * 60          # at most one retry per 15 minutes
