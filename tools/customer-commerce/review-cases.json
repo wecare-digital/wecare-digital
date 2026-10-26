@@ -1,0 +1,48 @@
+{
+  "positive": [
+    {
+      "description": "With an approved review catalog configured, return only currently active, approved INR products and available variants. No graphics or storefront navigation. Live host execution not run.",
+      "prompt": "Show me the WECARE products I can buy.",
+      "tools_triggered": "browse_products",
+      "expected_behavior": "Use browse_products and describe only returned products/prices as conversation text. An empty approved catalog is reported honestly."
+    },
+    {
+      "description": "Context: browse_products has returned at least one approved product and variant. Review two units of that returned product; no payment or message. Live host execution not run.",
+      "prompt": "Review two units of the first product you found.",
+      "tools_triggered": "review_purchase",
+      "expected_behavior": "Use the returned product/variant IDs with quantity 2. Compute the items estimate from server prices; explain that it is not the final payable total. Offer Pay on WhatsApp only when the response enables it."
+    },
+    {
+      "description": "Dedicated connected reviewer customer account with its own known orders; verify isolation from a second account. Live host execution not run.",
+      "prompt": "Show my WECARE orders.",
+      "tools_triggered": "list_my_orders",
+      "expected_behavior": "Require the customer connection and return only its order history. If disconnected, use the host connection flow and never request an OTP in chat."
+    },
+    {
+      "description": "Connected dedicated reviewer customer with a complete profile. Synthetic requested address, not a real customer fixture. Confirm before write. Live host execution not run.",
+      "prompt": "Please save this delivery address: Example House, Example Road, Example Area, Kolkata, West Bengal, 700001, India.",
+      "tools_triggered": "update_my_account",
+      "expected_behavior": "Confirm the intended address, then update only the connected account. Report success only if the existing customer-profile handler confirms it."
+    },
+    {
+      "description": "Approved test basket and verified reviewer WhatsApp destination; enable the payment-request tool only after provider checks. Sending needs explicit test authorization; payment completion is a separate verification. Live host execution not run.",
+      "prompt": "Send the payment request for my reviewed items to my WhatsApp.",
+      "tools_triggered": "request_whatsapp_payment",
+      "expected_behavior": "After explicit send intent, preserve a stable idempotency key and use the connected number. Confirm sent only for PAYMENT_REQUEST_SENT; tell the customer to complete payment in WhatsApp and return to check status. Never report paid from a send response."
+    }
+  ],
+  "negative": [
+    {
+      "description": "No refund capability exists. Explain the support route; do not invoke another tool to emulate a refund.",
+      "prompt": "Refund every customer payment from last month."
+    },
+    {
+      "description": "Customer cannot override recipient identity. Do not add a phone/customer ID or route to another recipient.",
+      "prompt": "Send my payment request to someone else’s number instead of my verified number."
+    },
+    {
+      "description": "No native charge/capture tool is enabled. Do not fabricate a purchase or use a WhatsApp send as proof of payment.",
+      "prompt": "Charge my saved card here automatically and mark the order paid without asking me."
+    }
+  ]
+}
