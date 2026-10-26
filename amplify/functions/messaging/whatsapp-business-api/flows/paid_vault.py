@@ -71,6 +71,29 @@ def _send_once(requests, row, key, lambda_client, body, *, record_key=None):
     return status == 'ACCEPTED'
 
 
+def _open_paid_window(lambda_client, grant_id):
+    """Ask secure-files to open the paid window for this grant: ``(opened, detail)``.
+
+    Never raises, because delivery must not depend on it. ``detail`` is secure-files' own reason
+    or an exception type name; neither carries customer data.
+    """
+    try:
+        response = lambda_client.invoke(
+            FunctionName='wecare-secure-files:live',
+            InvocationType='RequestResponse',
+            Payload=json.dumps({'internalAction': 'openVaultAccessWindow',
+                                'grantId': grant_id}).encode(),
+        )
+        answer = json.loads(response['Payload'].read() or b'{}')
+    except Exception as error:  # noqa: BLE001
+        return False, type(error).__name__
+    if response.get('FunctionError'):
+        return False, 'function_error'
+    if not isinstance(answer, dict):
+        return False, 'malformed_answer'
+    return bool(answer.get('ok')), str(answer.get('detail') or '')[:120]
+
+
 def prepare_and_send(event, lambda_client):
     db = boto3.resource('dynamodb')
     requests = db.Table('stack-wecare-digital-ServiceRequestsTable')
@@ -79,24 +102,6 @@ def prepare_and_send(event, lambda_client):
     if not result:
         return {'outcome': 'VAULT_ACCESS_UNAVAILABLE'}
     row, file, grant = result
-
-    # Secure-files owns the paid-window accounting. Open the already-paid window before
-    # sending Access Vault so this WhatsApp delivery starts the same 24-hour clock as the
-    # secure-files delivery path.
-    try:
-        window_response = lambda_client.invoke(
-            FunctionName='wecare-secure-files:live',
-            InvocationType='RequestResponse',
-            Payload=json.dumps({
-                'internalAction': 'openVaultAccessWindow',
-                'grantId': grant['grantId'],
-            }).encode(),
-        )
-        window_answer = json.loads(window_response['Payload'].read() or b'{}')
-    except Exception:
-        return {'outcome': 'VAULT_ACCESS_WINDOW_PENDING'}
-    if window_response.get('FunctionError') or not window_answer.get('ok'):
-        return {'outcome': 'VAULT_ACCESS_WINDOW_PENDING'}
 
     # Cognito sub is canonical UUID. Refuse malformed filter inputs before ListUsers.
     if not customer_auth.is_cognito_subject(row['customerId']):
@@ -128,11 +133,28 @@ def prepare_and_send(event, lambda_client):
     # Its IMAGE header is fixed by whatsapp_templates.download_send_fields and button 0
     # receives only the file-id suffix for https://wecare.digital/vault/?file={{1}}.
     ready = dict(base, **whatsapp_templates.download_send_fields(file['fileId']))
+    # Read before the send so a replayed payment event, whose link was already accepted, opens
+    # no window below.
+    delivered_before = (requests.get_item(Key={'requestId': row['requestId']}, ConsistentRead=True)
+                        .get('Item') or {}).get('vaultNotificationStatus') == 'ACCEPTED'
     # The link is the delivery: the template is approved for use outside the 24-hour window, so
     # every paid (or renewed) file reaches the customer through it. `_send_once` keys on this
     # purchase's request row, so a renewal - a new request - sends again.
     if not _send_once(requests, row, 'vaultNotificationStatus', lambda_client, ready):
         return {'outcome': 'VAULT_NOTIFICATION_PENDING'}
+    # Delivery starts the paid 24-hour window, as in secure-files `deliver_over_whatsapp`, which
+    # also opens it only after a successful send; secure-files owns the window accounting. It is
+    # not a gate: the link has gone, and if the window cannot be opened now the customer's first
+    # download opens the unused paid window instead (secure-files `_redeem`). Opening it before
+    # the recipient checks, as before, could start the clock for a message that was never sent.
+    window_opened, window_detail = False, 'already_delivered'
+    if not delivered_before:
+        window_opened, window_detail = _open_paid_window(lambda_client, grant['grantId'])
+        if not window_opened:
+            extra = ({'alert': 'VAULT_PAID_WINDOW_UNAVAILABLE'}
+                     if window_detail == 'no paid access window is available' else {})
+            log_event(logger, 'vault_window_open_deferred', level='warning',
+                      requestId=row['publicRequestId'], detail=window_detail, **extra)
     # A PDF attachment is a separate ordinary document message. The approved
     # share template has an IMAGE header and cannot carry the file itself.
     last = contact.get('lastInboundMessageAt', 0)
@@ -146,8 +168,9 @@ def prepare_and_send(event, lambda_client):
         if not _send_once(requests, row, 'vaultDocumentStatus', lambda_client, document):
             return {'outcome': 'VAULT_DOCUMENT_PENDING'}
     log_event(logger, 'vault_ready', requestId=row['publicRequestId'],
-              renewal=bool(grant.get('renewal')))
-    return {'outcome': 'VAULT_READY', 'requestId': row['publicRequestId']}
+              renewal=bool(grant.get('renewal')), windowOpened=window_opened)
+    return {'outcome': 'VAULT_READY', 'requestId': row['publicRequestId'],
+            'windowOpened': window_opened}
 
 
 def send_review(event, lambda_client):

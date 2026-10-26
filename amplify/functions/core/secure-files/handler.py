@@ -2142,6 +2142,18 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         )
         return {"ok": ok, "detail": detail}
 
+    # Every internal action is handled above, so an unrecognised one is refused here rather than
+    # falling through to the HTTP router. `require_auth` treats an event without an API Gateway
+    # context as an internal call and lets it pass, so a misspelt action, or a caller deployed
+    # ahead of this function, used to get the whole staff file list back as a 200. IAM still
+    # decides who may invoke this function; this decides what an unknown request gets: nothing.
+    if event.get("internalAction") and not event.get("requestContext"):
+        action = "".join(ch for ch in str(event.get("internalAction"))[:40]
+                         if ch.isascii() and (ch.isalnum() or ch == "_"))
+        logger.warning(json.dumps({"event": "secure_files_unknown_internal_action",
+                                   "action": action}))
+        return {"ok": False, "detail": "unknown internal action"}
+
     origin = extract_origin(event)
     rc = event.get("requestContext", {})
     method = (
