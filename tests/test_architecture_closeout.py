@@ -2,7 +2,7 @@
 
 Real handler code with in-process fakes: no network, no AWS account, no table outside memory.
 
-* the invoice engine's WhatsApp order-status route stays disabled (410, nothing read or sent);
+* the invoice engine's WhatsApp payment-order route accepts only processing/completed targets;
 * the invoice engine releases its `claiming` row when it refuses before consuming a GST number,
   so a retry numbers the invoice instead of answering 200 with an empty number;
 * a consumed number keeps its claim, so a retry cannot consume a second number;
@@ -131,6 +131,28 @@ class InvoiceClaimTests(unittest.TestCase):
         status, body = self.create()
         self.assertEqual((status, body.get("errorCode")), (503, "INVOICE_DEDUP_UNAVAILABLE"))
         self.assertEqual(table.writes, [])
+
+
+
+class PaymentArchitectureDriftTests(unittest.TestCase):
+    """Pin the production payment-order contract and its CI trigger surface."""
+
+    def test_payment_ci_triggers_on_whatsapp_template_registry(self):
+        workflow = (ROOT / ".github" / "workflows" / "payment-rail-ci.yml").read_text(
+            encoding="utf-8"
+        )
+        path = "amplify/functions/shared/lambda_utils/whatsapp_templates.py"
+        self.assertGreaterEqual(
+            workflow.count(path), 2,
+            "template registry must trigger payment CI for pull_request and push",
+        )
+
+    def test_webhook_comment_does_not_claim_structured_status_is_disabled(self):
+        webhook = (
+            ROOT / "amplify" / "functions" / "payments" / "razorpay-webhook" / "handler.py"
+        ).read_text(encoding="utf-8")
+        self.assertNotIn("Structured WhatsApp fulfilment-status sends are disabled", webhook)
+
 
 
 class AutomaticOrderStatusRouteTests(unittest.TestCase):
