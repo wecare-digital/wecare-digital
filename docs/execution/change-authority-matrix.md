@@ -3607,3 +3607,29 @@ Owner instruction: "yes go ahead fix deploy and push and check ceh build status"
   - Rollback: `aws lambda update-alias --function-name wecare-inbound-whatsapp --name live --function-version 150`. That also takes back #1605's inbound half.
 - Verified: on the export, rail 202/202, and both new address checks fail against the previous inbound. `check_deployed_source.py`: 174 files byte-identical to `52ce49720`. v151 Active and Successful. A no-op invoke of `live` answered 200 `{"processed": 0, "errors": 0}`. 05:23–05:30 UTC: 0 Lambda errors, 0 throttles, 0 error log lines, no alarm in ALARM. `/`, `/orders/` and `/shop/` answer 200.
 - Not verified: no real WhatsApp cart from a non-+91 number and no real Drop Docs upload has run on v151.
+
+## WhatsApp-paid order status through a WhatsApp send; fleet to origin; `.gitignore` restored — 2026-10-26 05:15–05:45 UTC
+
+Owner instruction: "yes go ahead fix deploy and push and check the build status", approving the open items of the previous report. No customer message, payment, template, Flow, IAM or environment change, and no secret read.
+
+- Code: the shared branch's `761f382eb` landed on origin as `512bd5d2f`, cherry-picked with plumbing so the shared index and working tree were untouched. Origin removed PayFlow's order-status sender in `f9337c1df`, so its PayFlow hunks were dropped; the Orders page carries the change.
+  - `order_patch` answers 409 `ORDER_STATUS_WHATSAPP_REQUIRED` to a status PATCH on an `order_details` checkout mode (`WHATSAPP_NATIVE_PG`, `WHATSAPP_NATIVE_CART`, `AWS_NATIVE`). The Orders page sends that change through the invoice engine's order-status route after a confirm, and shows the engine's named refusal.
+  - `pending` may move to any status, as Meta allows, so a paid order whose capture-time `processing` never went out can still be shipped or completed.
+  - The other approved commit, `b9fa86e66` (a late `payment.failed` cannot overwrite a captured invoice), reached origin from another session as `344729c98`.
+- Gates on `512bd5d2f`: rail 199/199, F001 59/59, F002 and Flow-writer checks, compileall, tsc and eslint 0 errors. `npm run build`, `checkout_release_check.py`, `sync_faq.py --check` and the bundle secret scan passed on `0f54cf40e`, the identical change on the previous base.
+- Released:
+  - Payment-rail CI run `40273426238` deployed the eight payment functions from `512bd5d2f` (all four jobs succeeded).
+  - `deploy_all_lambdas.py` from a `git archive` export of `52ce49720` (rail 202/202) uploaded the 50 non-CI functions that ship the changed shared modules and published 49. The parallel non-+91 release published inbound v151 from the same commit.
+  - `wecare-native-catalog-admin` v18→**v19**, code only: the package `provision_native_catalog_api.zip_code()` builds, uploaded with its RevisionId and published by `snapstart_publish.py --expect`. Its live environment already equals the provisioner's, so `--apply`'s environment rewrite was not needed.
+  - Rollback is the previous version on each `live` alias.
+- `.gitignore`: removed an uncommitted edit that re-added `.github/` and `.kiro/`, which `989e9e062` stopped ignoring. `.github/workflows/*` and `.kiro/steering/*.md` are tracked again.
+- Verified:
+  - `check_deployed_source.py` against `c5111885f`: 72 of 74 functions byte-identical. `wecare-seo-tools` differs only in `direct_send.py`, which it does not import. `wecare-blog-subscribe` was never provisioned.
+  - `post_deploy_health.py` split at 05:15: PASS, API 5xx 0. 0 alarms and every DLQ empty. Public probes 15/15, Flow registry pass, templates 7/7 APPROVED, commerce health GREEN.
+  - Payment-rail CI succeeded on `512bd5d2f`, `efe630132`, `52ce49720` and `c5111885f`. Amplify jobs 170–176 SUCCEED; job 172 built `efe630132`, which contains `512bd5d2f`.
+- Not changed (owner decisions):
+  - `wecare-seo-tools`: no `live` alias, and `deploy_seo_tools.py` rewrites its IAM policy on every run. The drift is behaviour-neutral.
+  - `wecare-blog-subscribe`: not created. No page calls `/blog/subscribe`, since the subscribe button opens WhatsApp, so provisioning would only add a public endpoint that sends OTP messages.
+  - Razorpay key and webhook-secret rotation needs new values from the Razorpay dashboard.
+- The temporary release runner (`wecare-native-wa-release` and its role) was already deleted at 05:08 UTC by another session; see `5a671692c`.
+- Not verified: no staff status change on a real WhatsApp-paid order has run on the new Orders page.
