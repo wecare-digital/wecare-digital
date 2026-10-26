@@ -312,8 +312,8 @@ renderers (approved PNG, legacy PNG, HTML). The gateway payment id prints as
 
 The drop shadow is removed. Every pixel outside the torn paper is alpha 0 and stores
 white underneath, so a viewer that drops alpha instead of compositing it shows white,
-not black. The paper stays `(252, 252, 250)` so black text remains readable on dark
-backgrounds.
+not black. As of 2026-10-26 the paper fill is removed too: new PNG renders keep all
+non-ink pixels alpha 0, so the invoice surface itself is transparent.
 
 Live since 2026-10-25 22:36 IST: `wecare-commerce` v15, `wecare-checkout` v134 and
 `wecare-invoice-engine` v125 match a dry-run package of `968e8980c`.
@@ -338,3 +338,15 @@ stays retrievable by its S3 VersionId:
 A re-render reads the stored invoice as it is now, so any value changed after the first
 render prints its current value. WD/2627/00006 (cancelled) has no stored image and was not
 rendered. To roll one back, copy its original VersionId over the base key.
+
+
+## 2026-10-26 fully transparent receipt surface
+
+The approved PNG renderer now draws the receipt onto an RGBA surface with no opaque paper fill.
+Only invoice text and separator rules are opaque; all other pixels have alpha 0 with white RGB
+underneath. The literal `Brand:` label remains removed, and the provider payment identifier stays
+provider-neutral as `Txn:` rather than naming Razorpay.
+
+This renderer source is packaged into `wecare-invoice-engine`, `wecare-checkout`, and
+`wecare-commerce`, so those three functions are released together for rendering parity. Issued
+invoice images are re-rendered after the live aliases move, using the stored invoice records.
