@@ -70,7 +70,7 @@ const MigrationPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
   const handleVerifyOTP = async () => {
     if (!otpCode) { toast.error('Enter code'); return; }
     setProcessing(true);
-    addLog(`Verifying code: ${otpCode}...`);
+    addLog('Verifying one-time code...');
     try {
       const ok = await api.verifyPhoneOTP(phoneId, otpCode);
       if (ok) { addLog('Verified'); toast.success('Phone verified'); }
