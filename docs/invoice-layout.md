@@ -313,7 +313,7 @@ renderers (approved PNG, legacy PNG, HTML). The gateway payment id prints as
 The drop shadow is removed. Every pixel outside the torn paper is alpha 0 and stores
 white underneath, so a viewer that drops alpha instead of compositing it shows white,
 not black. The paper stays `(252, 252, 250)` so black text remains readable on dark
-backgrounds.
+backgrounds (see the 2026-10-26 section below).
 
 Live since 2026-10-25 22:36 IST: `wecare-commerce` v15, `wecare-checkout` v134 and
 `wecare-invoice-engine` v125 match a dry-run package of `968e8980c`.
@@ -338,3 +338,20 @@ stays retrievable by its S3 VersionId:
 A re-render reads the stored invoice as it is now, so any value changed after the first
 render prints its current value. WD/2627/00006 (cancelled) has no stored image and was not
 rendered. To roll one back, copy its original VersionId over the base key.
+
+
+## 2026-10-26 fully transparent surface reverted
+
+`368d36950` removed the paper fill, so only text and rules were opaque, and another session's
+release put it live before 10:06 IST. The owner decided to keep the off-white paper,
+because black text on a transparent PNG disappears on dark chat backgrounds and in full-screen
+image viewers. `a2942fdd1` restores `(252, 252, 250)` and keeps the capture-time date that #1586
+added to the same file. Since 10:40 IST, `wecare-commerce`, `wecare-checkout` and
+`wecare-invoice-engine` serve packages identical, file by file, to `a2942fdd1`.
+
+One image was rendered while the transparent renderer was live: WD/2627/00011, rendered at
+10:06 IST and sent on WhatsApp at 10:06 IST, so that customer holds the
+transparent copy. Its stored image was re-rendered with paper (`image#v2`) and copied over the
+base key, the same way as the 2026-10-25 re-render, and its ink is identical row by row. The
+transparent rendition stays retrievable as VersionId `doU2lxdFkO_xPq6hC6cnZnxD_4_OZbn.`. The
+other issued images already had paper and were not touched.

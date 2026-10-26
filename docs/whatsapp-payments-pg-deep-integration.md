@@ -139,7 +139,9 @@ name; `WECAREDIGITAL` is now verified, so it is not a guess.
   `DELIVERY_CONFIRMATION_REQUIRED` and inbound sends the India Address Message, prefilled with the
   saved address (or marked where a saved address cannot settle). The customer's submission resumes
   the cart with `deliveryConfirmed`, and the name on the form is the order's recipient. Meta sends
-  that form to +91 numbers only, so any other number still pays against the address on file.
+  that form to +91 numbers only, so any other number still pays against the address on file, and
+  one with no usable address gets a website reply ("Open shop") instead of a form it cannot
+  receive; no cart is kept waiting for it.
 
 ### 6. Refunds (Step 8)
 - `POST /[PHONE_NUMBER_ID]/payments_refund` with `reference_id`, `speed`

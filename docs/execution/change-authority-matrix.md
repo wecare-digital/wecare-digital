@@ -3493,6 +3493,62 @@ Owner instruction: "fix all issued and deploy and. check build status". No custo
 - Verifiers brought up to the cutover (#1554), scripts only:
   - `provision_checkout.py`: `ROUTE_OWNER_FUNCTION = "wecare-commerce"`. `--verify` judges the five website checkout routes against `wecare-commerce:live`. `ensure_integration` reuses the route owner's integration (`reusing fduftck`) instead of creating one for wecare-checkout that no route uses.
   - `provision_commerce.py`: `--verify` no longer requires a shadow alias with no resource policy. It requires API Gateway invoke statements and fails on any statement that is not API Gateway on `zllr9lrg7j`; checked against a foreign principal, another API and an empty policy.
-  - `provision_commerce.py --verify` passes. `provision_checkout.py --verify` passes except the `ConditionCheckItem` verdict, a false positive since `21fa70b02` (2026-10-07): it flags any transaction in the import closure, but the commerce/checkout transactions are Put/Update only. The one ConditionCheck in the closure, `service_request_store.activate` on ServiceRequestsTable, runs only in wecare-service-requests and the business API, whose roles allow it (simulated). Not granted.
+  - `provision_commerce.py --verify` passes. `provision_checkout.py --verify` passes except the `ConditionCheckItem` verdict, a false positive: it flags any `TransactWriteItems` in the import closure (initiation, wa_payment_request, website_checkout, service_request_store), but the commerce/checkout transactions are Put/Update only. The one ConditionCheck in the closure, `service_request_store.activate` on ServiceRequestsTable, runs only in wecare-service-requests and the business API, whose roles allow it (simulated). Not granted.
 - Also checked at `5ef80fd7c`/`3117cc796`: 67/68 Lambdas byte-identical before the parallel Vault release began (blog-subscribe was never provisioned); env manifest 0 key differences; 7/7 templates APPROVED, including `wecare_order_status_v3`; commerce health GREEN; post-deploy health PASS; rail verifier 159/159; F001 59/59; Amplify job 141 SUCCEED; validation build `wecare-native-wa-release:7fb7e0f1` SUCCEEDED (package + 159/159).
 - Finding, not changed: `wecare-native-wa-release` and `wecare-native-wa-release-role` ("Temporary ... release runner", created 16:32 UTC for #1576) still exist. The role can update, publish, move aliases on and `DeleteFunction` four production functions. Deleting both is an owner decision.
+
+## WhatsApp late webhooks parked, Flow map matched to Meta, fleet release — 2026-10-25 23:10–23:25 UTC
+
+Owner instruction: "fix all issued and deploy and. check build status". No customer message, payment, template or Flow change, and no secret read.
+
+- Code `e101f909f` (on origin since `472288e2e`):
+  - `wecare-whatsapp-calling` no longer drops a webhook older than the 5-minute replay window. It still answers 200 and processes nothing, but parks each non-call entry in `stack-wecare-digital-inbound-dlq` (`error: stale_timestamp`, alarmed by `wecare-inbound-dlq-depth`) for replay through `POST /dlq/replay`. A stale call is still dropped.
+  - Canonical Flow map (`canonical_flows.py`, `canonicalFlows.ts`), from a live Meta read: Submit Request Flow `1107164111921876` is DEPRECATED, so it is no longer offered as published (a staff send answers 400 instead of failing at Meta). The Amend Request and Drop Docs drafts no longer exist on Meta (Graph 100/33), so those capabilities have no Flow. Their keyword doors already answered with the website link and still do.
+  - Workspace badges and menus follow the map. The business-api flow-payment logs mask the number and contact id, drop the customer's subject and keep error classes, and the confirmation no longer rewrites a subject containing `{flow_name}`. Inbound's uncalled `_send_submit_request_flow` is deleted.
+- Released from a `git archive` export of `e101f909f`:
+  - Guarded (probed before and after, published with CodeSha256 + RevisionId preconditions): `wecare-whatsapp-calling` v63→**v64** (`bJN2PUkR1tpiOPJOGgzSisaSj6pgkEmaUuTa66tPLZ0=`), `wecare-inbound-whatsapp` v146→**v147** (`/IoNvpsa5umDG4IYP8P9XkfruXKTu8TEiAzcdWYjqlE=`), `wecare-whatsapp-business-api` v228→**v229** (`a1ANrPHlqBnc7Rgo51g8g+s2dadJr1AgCoqpLJNf+sU=`), `wecare-ai-config-management` v38→**v39** (`0NhUAFbQglIoVwUxu8lneOhY/iOD92670F0tqegNCPI=`).
+  - `deploy_all_lambdas.py` for the rest of the fleet, because `canonical_flows.py` ships in every package: 56 published, 9 already current, 0 failed. Each moved one version; rollback is one version back on `live`.
+  - The parallel Vault release (#1584) then moved secure-files, checkout, commerce, service-requests, inbound (v148) and business-api (v230) to builds that contain this commit.
+- Verified:
+  - 61 of the 62 live packages that ship `lambda_utils` carry the corrected map. The other, `wecare-native-catalog-admin`, is deployed by its own provisioner and never imports the Flow modules.
+  - calling v64, business-api v230, inbound v148 and dlq-replay v36 carry the handler fixes.
+  - 23:10–00:52 UTC: 14,576 invocations, 0 Lambda errors or throttles, 0 AccessDenied/timeout/import log lines; no alarms; every queue and DLQ empty.
+  - On the export: rail 159/159, F001 59/59, F002 pass, stale-webhook harness 11/11, payload audit 7/7. Amplify 144 (`472288e2e`) SUCCEED, and the live site bundle carries the corrected map.
+- Not verified: no stale webhook has arrived since release, so the DLQ parking has only run in the harness.
+
+## Fleet brought to origin `c433d9da7` — 2026-10-26 01:20 UTC
+
+Owner instruction: "fix all issued and deploy and. check build status". No customer message, payment, template, Flow, IAM or environment change, and no secret read.
+
+- Before: `check_deployed_source.py` (whole account, #1582) at `c60156dbe` found 62 stale functions. The payment-rail CI (runs for `7c55e8e69` and `4071a8f2b`) then shipped its eight. The other 53 differed only in shared modules from after the 23:17 UTC fleet build: `service_requests.py` (#1593), `template_media.py` (#1586) and the three Vault modules (`7c50782fb`). inbound-whatsapp, service-requests, secure-files and whatsapp-template-management import them; the rest only carried the files.
+- Release: from a `git archive` export of `c433d9da7`, whose backend equals `c60156dbe` and origin `4d4428e80`. Gates on it: rail 166/166, F001 59/59, F002 and Flow-writer checks pass, compileall, tsc 0 errors, eslint 0 errors.
+  - `deploy_all_lambdas.py` on the 53 uploaded 51, found 1 unchanged and refused `wecare-product-image-gen` on its RevisionId precondition: a parallel fleet deploy from the same commit was uploading at the same moment. That deploy then moved 52 of the 53 `live` aliases (01:14–01:17 UTC).
+  - Before publishing, all 53 packages were rebuilt from this export and matched the live `$LATEST` byte for byte. `snapstart_publish.py --only-stale` with a per-function `--expect` published the one left, `wecare-meta-catalog-sync` v98→v100. Rollback is the previous version on each `live` alias.
+- Verified:
+  - `check_deployed_source.py`: 70 of 73 functions byte-identical to `c433d9da7`. The other three are `wecare-seo-tools` (no `live` alias, deployed by `deploy_seo_tools.py`; differs only in `canonical_flows.py` and `template_media.py`, which it does not import), `wecare-blog-subscribe` (never provisioned) and `wecare-customer-commerce-mcp` (not mapped to source in this repository).
+  - `post_deploy_health.py` split at 01:10: PASS, no new errors, API 5xx 0. 0 alarms and every DLQ empty. Public probes 15/15, Flow registry pass, templates 7/7 APPROVED, commerce health GREEN.
+  - Amplify jobs 146–149 failed: the logs read (147, 149) show the `TemplateSender.tsx` syntax error from #1584, which #1589 fixed. Jobs 150–156 SUCCEED.
+- Corrected the 2026-10-25 23:25 UTC entry: its `ConditionCheckItem` note wrongly dated the false positive to `21fa70b02`.
+## Order page and confirmed delivery address released (`c2041fbb0`) — 2026-10-26 02:59–03:11 UTC
+Owner instruction: "FIX ALL AND DEPLOY DEEP RRESEARCH". No IAM, environment, template or Flow change, no customer message or payment sent by the release, and no secret read.
+- Code `c2041fbb0`, one tree on top of `f4a48ba65`. It carries the shared branch's `9f84224ea`, `8b08f7fac`, `79e7e8cb4` and `f95adb4a2`, and none of its other unpushed commits (`761f382eb`, `b9fa86e66`, `9735b617b`, `70d1bf1be`).
+  - Order page `/orders/?o=<orderNumber>`: checkout action `order` returns one session-owned order (lines, breakdown, delivery address, payment and order status), with the same 404 for a missing order and someone else's. `/checkout/status/` opens it once paid; order history rows link to it.
+  - Delivery address: frozen on the PaymentAttempt at checkout and copied to the order by `accept_paid` (`order_delivery`). The website prepare refuses a physical basket without a payable address (409 `DELIVERY_DETAILS_REQUIRED`).
+  - WhatsApp: every +91 catalog cart confirms its address on a prefilled India Address Message before the payment request (`DELIVERY_CONFIRMATION_REQUIRED`), so returning buyers see one extra step. An address a payment cannot settle comes back with `validation_errors` on the bad field. The name on the form is the order's recipient.
+  - Website: a Razorpay payment whose verify reply is lost or unconfirmed goes to `/checkout/status/`, which empties the cart only when that attempt is reported paid. No session or a 401 shows a sign-in view; past the 5-minute poll ceiling the screen links the orders page.
+  - order_status is unchanged: template-only, "Payment received." / "Payment complete.", no link.
+- Released:
+  - `wecare-inbound-whatsapp` v149→**v150** (`wg2e7alSD43yLDclybpUpGhtv0zRJpdLY1hNqEw1eaw=`) first, from a `git archive` export of `c2041fbb0` with `deploy_all_lambdas.py`. CI does not deploy it, and the new inbound works with the commerce that was live.
+  - Push `f4a48ba65..c2041fbb0`, payment-rail CI run `40261927560` (rail 199/199, typecheck, package, OIDC deploy): outbound v120→**v121**, business-api v233→**v234**, commerce v21→**v22**, checkout v139→**v140**, invoice-engine v128→**v129**, service-api v108→**v109**, ai-generate-response v124→**v125**, razorpay-webhook v125→**v126**. Their CodeSha256 values are in the run's `manifest.json`, and the job checked each `live` alias against it.
+  - `wecare-whatsapp-template-management` v52→**v53** (`grtiHy1bIh8byELvDTD8nHCw1jmNQMHGnbpRExeYJrU=`) from the same export. The release audit lists it, and it ships the changed shared modules without importing them.
+  - Amplify job 160 SUCCEED at 03:05:54 UTC, after commerce v22 went live at 03:02:11 UTC.
+  - Rollback: move each `live` alias back to the version before the arrow above. The frontend's previous build is Amplify job 159 (`f4a48ba65`).
+- Verified:
+  - `check_deployed_source.py`: all 10 functions byte-identical to `c2041fbb0`. `commerce_release_audit.py` against the CI manifest: `release_complete` true (packages match, payment expectations match, payment, order-status and invoice templates APPROVED, payment configuration matches, smoke mode off, Amplify on `c2041fbb0`).
+  - On the export: rail 199/199, tsc, eslint 0 errors, `npm run build`, `checkout_release_check.py` 35 pages, `sync_faq.py --check`, public bundle secret scan PASS. Chromium and WebKit probes of the order page and of cart → status → order (lost verify, NOT_CAPTURED, VERIFIED_PAID, still in flight, another attempt's link, no session, 401, 503 then paid, poll ceiling) all pass.
+  - Live: the `order` action answers 401 with no session and with a bad bearer. The live `/checkout/status/`, `/orders/` and `/cart/` bundles carry the new code. `checkout_release_check.py --live` and `verify_deployed_headers.py` PASS. Inbound v150 answered a no-op invoke (processed 0, errors 0). 02:59–03:12 UTC: 0 Lambda errors and 0 error log lines on the 10 functions, no alarm in ALARM, over 13 invocations.
+- Not verified:
+  - No real WhatsApp cart, Address Message or payment has run on the new code. The address confirmation, prefill and `validation_errors` are proven in the hermetic rail and against Meta's documented shapes only.
+  - No real website Razorpay payment, and no signed-in order page read of a production order.
+  - Firefox (the probe harness cannot launch it here), physical devices and the WhatsApp in-app browser.
+- The shared local branch is behind origin and has diverged. Merging origin conflicts in `scripts/verify_whatsapp_catalog_payment_rail.py` (take this release's version for these sections) and in `PayFlow.tsx` (`761f382eb`, another session's change).

@@ -5289,7 +5289,7 @@ def _tool_get_invoice_list(params: Dict, request_id: str) -> Dict:
         }
         
         response = lambda_client.invoke(
-            FunctionName='wecare-checkout:live',
+            FunctionName='wecare-commerce:live',
             InvocationType='RequestResponse',
             Payload=json.dumps(payload)
         )
@@ -5343,7 +5343,7 @@ def _tool_create_invoice(params: Dict, request_id: str) -> Dict:
         }
         
         response = lambda_client.invoke(
-            FunctionName='wecare-checkout:live',
+            FunctionName='wecare-commerce:live',
             InvocationType='RequestResponse',
             Payload=json.dumps(payload)
         )

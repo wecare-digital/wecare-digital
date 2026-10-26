@@ -62,7 +62,7 @@ DOCUMENTS_TABLE = f'{TABLE_PREFIX}-DocumentTable'
 DOCUMENT_HISTORY_TABLE = f'{TABLE_PREFIX}-DocumentHistoryTable'
 FAQ_TABLE = f'{TABLE_PREFIX}-FaqTable'
 AUDIT_LOG_TABLE = f'{TABLE_PREFIX}-AuditLogsTable'
-INVOICE_ENGINE_FUNCTION = os.environ.get('INVOICE_ENGINE_FUNCTION', 'wecare-checkout:live')
+INVOICE_ENGINE_FUNCTION = os.environ.get('INVOICE_ENGINE_FUNCTION', 'wecare-commerce:live')
 
 # Documents ARE WhatsApp media: inbound-whatsapp writes the object and then records its
 # key as DocumentTable.storageKey, so both live in the one media bucket. There has never
@@ -74,6 +74,8 @@ INVOICE_ENGINE_FUNCTION = os.environ.get('INVOICE_ENGINE_FUNCTION', 'wecare-chec
 # and never contacts S3, so this endpoint kept returning 200 with a URL that only broke
 # when the browser followed it.
 DOCS_S3_BUCKET = os.environ.get('DOCS_S3_BUCKET', media_paths.BUCKET)
+DOCUMENT_UPLOAD_MAX_BYTES = int(os.environ.get('DOCUMENT_UPLOAD_MAX_BYTES', str(200 * 1024 * 1024)))
+DOCUMENT_UPLOAD_URL_TTL = int(os.environ.get('DOCUMENT_UPLOAD_URL_TTL_SECONDS', '900'))
 
 origin = '*'
 
@@ -763,6 +765,11 @@ def _list_documents(params: Dict) -> Dict:
         resp = table.scan()
 
     items = resp.get('Items', [])
+    # Historical inbound code mirrored every WhatsApp image/document into DocumentTable.
+    # Those rows are conversation attachments, not Drop Docs business records. Keep an
+    # explicit source=whatsapp diagnostic query, but exclude them from the normal workspace.
+    if not source:
+        items = [i for i in items if i.get('sourceType') != 'whatsapp']
     if doc_type:
         items = [i for i in items if i.get('documentType') == doc_type]
 
@@ -860,35 +867,158 @@ def _get_document_download_url(doc_id: str) -> Dict:
         return _resp(500, {'error': str(e)})
 
 
-def _create_document(body: Dict) -> Dict:
-    """Create a document record for admin manual upload."""
-    table = dynamodb.Table(DOCUMENTS_TABLE)
-    doc_id = f'WD-DOC-{_gen_id()}'
+def _document_record(body: Dict, *, doc_id: str, storage_key: str = '',
+                     status: str = 'uploaded') -> Dict:
+    """Build one staff-created DocumentTable row in the same shape as inbound documents."""
     now = _now()
+    phone = str(body.get('customerPhone') or '').strip()
+    if phone:
+        try:
+            phone = contact_store.canonical_phone(phone)
+        except Exception:
+            # Keep the operator's input visible rather than silently guessing a country.
+            phone = str(body.get('customerPhone') or '').strip()
+
     item = {
         'documentId': doc_id,
-        'customerPhone': body.get('customerPhone', ''),
-        'customerName': body.get('customerName', ''),
+        'contactId': str(body.get('contactId') or '').strip(),
+        'customerPhone': phone,
+        'customerName': str(body.get('customerName') or '').strip(),
         'orderId': body.get('orderId'),
         'sourceType': 'manual',
         'documentType': body.get('type', body.get('documentType', 'other')),
-        'fileName': body.get('fileName', ''),
-        'verificationStatus': body.get('status', 'uploaded'),
+        'documentTypeLabel': str(body.get('typeLabel') or body.get('documentTypeLabel') or '').strip(),
+        'fileName': str(body.get('fileName') or '').strip(),
+        'mimeType': str(body.get('mimeType') or body.get('contentType') or '').strip(),
+        'fileSize': int(body.get('fileSize') or body.get('sizeBytes') or 0),
+        'storageKey': storage_key,
+        's3Bucket': DOCS_S3_BUCKET if storage_key else '',
+        'verificationStatus': status,
         'remarks': body.get('notes', body.get('remarks', '')),
-        'uploadedAt': now,
         'createdAt': now,
         'updatedAt': now,
     }
-    item = {k: v for k, v in item.items() if v is not None and v != ''}
-    item.setdefault('verificationStatus', 'uploaded')
-    item.setdefault('sourceType', 'manual')
-    table.put_item(Item=item)
+    if status == 'uploaded':
+        item['uploadedAt'] = now
+    return {k: v for k, v in item.items() if v is not None and v != ''}
 
-    # Normalize for response
-    item['source'] = item.get('sourceType', 'manual')
-    item['type'] = item.get('documentType', 'other')
-    item['status'] = item.get('verificationStatus', 'uploaded')
-    return _resp(201, item)
+
+def _normalise_document(item: Dict) -> Dict:
+    """Frontend projection without mutating the row held by the caller."""
+    out = dict(item)
+    out['source'] = out.get('sourceType', out.get('source', 'manual'))
+    out['type'] = out.get('documentType', out.get('type', 'other'))
+    out['typeLabel'] = out.get('documentTypeLabel', out.get('typeLabel', ''))
+    out['status'] = out.get('verificationStatus', out.get('status', 'uploaded'))
+    out['notes'] = out.get('remarks', out.get('notes', ''))
+    out['fileSize'] = int(out.get('fileSize') or 0)
+    return out
+
+
+def _create_document(body: Dict) -> Dict:
+    """Create a metadata-only document record (legacy/manual fallback)."""
+    table = dynamodb.Table(DOCUMENTS_TABLE)
+    doc_id = f'WD-DOC-{_gen_id()}'
+    item = _document_record(body, doc_id=doc_id, status='uploaded')
+    table.put_item(Item=item)
+    return _resp(201, _normalise_document(item))
+
+
+def _init_document_upload(body: Dict) -> Dict:
+    """Create a pending manual document and return a private presigned PUT URL."""
+    file_name = str(body.get('fileName') or '').strip()
+    content_type = str(body.get('mimeType') or body.get('contentType') or 'application/octet-stream').strip()
+    try:
+        size = int(body.get('fileSize') or body.get('sizeBytes') or 0)
+    except (TypeError, ValueError):
+        size = 0
+
+    if not file_name:
+        return _resp(400, {'error': 'FILE_NAME_REQUIRED', 'message': 'Choose a file to upload.'})
+    if size <= 0:
+        return _resp(400, {'error': 'FILE_SIZE_REQUIRED', 'message': 'The selected file is empty.'})
+    if size > DOCUMENT_UPLOAD_MAX_BYTES:
+        return _resp(413, {
+            'error': 'FILE_TOO_LARGE',
+            'message': f'The selected file is larger than {DOCUMENT_UPLOAD_MAX_BYTES} bytes.',
+        })
+    if not (str(body.get('customerPhone') or '').strip() or str(body.get('contactId') or '').strip()):
+        return _resp(400, {
+            'error': 'CUSTOMER_REQUIRED',
+            'message': 'Select a customer or enter their mobile number.',
+        })
+
+    doc_id = f'WD-DOC-{_gen_id()}'
+    # Opaque key: customer names and original filenames never become S3 paths.
+    storage_key = media_paths.DROP_DOCS_UPLOAD_PREFIX + 'manual/' + uuid.uuid4().hex
+    item = _document_record(body, doc_id=doc_id, storage_key=storage_key, status='pending')
+    item['fileSize'] = size
+    item['mimeType'] = content_type
+    dynamodb.Table(DOCUMENTS_TABLE).put_item(Item=item)
+
+    try:
+        upload_url = s3_client.generate_presigned_url(
+            'put_object',
+            Params={'Bucket': DOCS_S3_BUCKET, 'Key': storage_key, 'ContentType': content_type},
+            ExpiresIn=DOCUMENT_UPLOAD_URL_TTL,
+        )
+    except Exception:
+        logger.exception('Could not create document upload URL')
+        return _resp(503, {'error': 'UPLOAD_URL_UNAVAILABLE', 'message': 'Could not start the upload.'})
+
+    return _resp(201, {
+        'documentId': doc_id,
+        'uploadUrl': upload_url,
+        'expiresInSeconds': DOCUMENT_UPLOAD_URL_TTL,
+        'contentType': content_type,
+    })
+
+
+def _confirm_document_upload(doc_id: str) -> Dict:
+    """Activate a pending manual document only after S3 proves the bytes exist."""
+    table = dynamodb.Table(DOCUMENTS_TABLE)
+    item = table.get_item(Key={'documentId': doc_id}, ConsistentRead=True).get('Item')
+    if not item:
+        return _resp(404, {'error': 'Document not found'})
+    if item.get('sourceType') != 'manual' or not item.get('storageKey'):
+        return _resp(409, {'error': 'DOCUMENT_NOT_UPLOADABLE',
+                           'message': 'This document was not created by the manual upload flow.'})
+    if item.get('verificationStatus') == 'uploaded':
+        return _resp(200, _normalise_document(item))
+    if item.get('verificationStatus') != 'pending':
+        return _resp(409, {'error': 'DOCUMENT_NOT_PENDING',
+                           'message': 'This document is not awaiting an upload.'})
+
+    storage_key = media_paths.canonical(item['storageKey'])
+    try:
+        head = s3_client.head_object(Bucket=DOCS_S3_BUCKET, Key=storage_key)
+    except ClientError:
+        return _resp(409, {'error': 'UPLOAD_NOT_FOUND',
+                           'message': 'The uploaded file was not found. Please upload it again.'})
+
+    size = int(head.get('ContentLength') or 0)
+    if size <= 0 or size > DOCUMENT_UPLOAD_MAX_BYTES:
+        return _resp(413, {'error': 'FILE_TOO_LARGE',
+                           'message': 'The stored file is empty or exceeds the upload limit.'})
+    mime_type = str(head.get('ContentType') or item.get('mimeType') or 'application/octet-stream')
+    now = _now()
+    table.update_item(
+        Key={'documentId': doc_id},
+        UpdateExpression='SET verificationStatus=:uploaded, fileSize=:size, mimeType=:mime, uploadedAt=:now, updatedAt=:now',
+        ConditionExpression='verificationStatus=:pending',
+        ExpressionAttributeValues={
+            ':uploaded': 'uploaded', ':pending': 'pending', ':size': size, ':mime': mime_type,
+            ':now': now,
+        },
+    )
+    item.update({
+        'verificationStatus': 'uploaded',
+        'fileSize': size,
+        'mimeType': mime_type,
+        'uploadedAt': now,
+        'updatedAt': now,
+    })
+    return _resp(200, _normalise_document(item))
 
 
 # ============================================================================
@@ -1195,11 +1325,15 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if method == 'GET':
                 return _get_document(doc_id)
             elif method in ('PUT', 'PATCH'):
+                if str(body.get('_action') or '').strip().lower() == 'confirm_upload':
+                    return _confirm_document_upload(doc_id)
                 return _update_document(doc_id, body)
         elif '/documents' in path:
             if method == 'GET':
                 return _list_documents(params)
             elif method == 'POST':
+                if str(body.get('_action') or '').strip().lower() == 'upload_init':
+                    return _init_document_upload(body)
                 return _create_document(body)
 
         # ── FAQ ──

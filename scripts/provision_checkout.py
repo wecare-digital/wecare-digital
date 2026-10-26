@@ -1204,21 +1204,66 @@ def import_closure(members: dict, entry: str = "handler.py") -> set:
 
 
 def _package_needs_transactions(members: dict) -> list:
-    """Reachable call sites that would require `dynamodb:ConditionCheckItem`.
+    """Reachable code that would require `dynamodb:ConditionCheckItem`.
 
-    `ConditionCheckItem` is only ever required inside `TransactWriteItems` / `TransactGetItems`;
-    a plain `put_item`/`update_item` carrying a `ConditionExpression` needs `PutItem`/`UpdateItem`
-    and nothing more. Conflating the two is what turns a working condition into a phantom
-    permission gap.
+    DynamoDB checks `ConditionCheckItem` for one thing only: a `ConditionCheck` element inside a
+    `TransactWriteItems` request, against the table that element names. A transaction built
+    solely of `Put`/`Update`/`Delete` elements is authorised by `PutItem`/`UpdateItem`/
+    `DeleteItem`, and a `ConditionExpression` on a plain `put_item`/`update_item` needs nothing
+    more either. So the evidence is a dict literal keyed `ConditionCheck` in a reachable module,
+    found by parsing rather than by substring: matching the words `TransactWriteItems` or
+    `transact_write_items` counted comments and Put/Update-only transactions, and failed
+    `--verify` with a phantom grant on three tables no `ConditionCheck` names. Each hit carries
+    its enclosing function and its `TableName` expression, so a real one says where it points.
+
+    The import closure is per MODULE, so a module checkout imports for one helper carries every
+    other function in it. A site inside a function nothing in the closure references by name
+    cannot run here (`service_request_store.activate`, called only by service-requests, Vault
+    and the Submit Request Flow), so it is left out; one that is referenced, or that sits at
+    module level, still counts.
     """
-    needles = ("transact_write_items", "TransactWriteItems",
-               "transact_get_items", "TransactGetItems", "ConditionCheckItem")
+    closure = sorted(import_closure(members))
+    referenced: set = set()
+    parsed: dict = {}
+    for arcname in closure:
+        try:
+            parsed[arcname] = ast.parse(members[arcname].decode("utf-8", "replace"),
+                                        filename=arcname)
+        except SyntaxError:
+            parsed[arcname] = None
+            continue
+        for node in ast.walk(parsed[arcname]):
+            if isinstance(node, ast.Name):
+                referenced.add(node.id)
+            elif isinstance(node, ast.Attribute):
+                referenced.add(node.attr)
     hits = []
-    for arcname in sorted(import_closure(members)):
-        text = members[arcname].decode("utf-8", "replace")
-        for needle in needles:
-            if needle in text:
-                hits.append(f"{arcname}: {needle}")
+    for arcname in closure:
+        tree = parsed[arcname]
+        if tree is None:
+            hits.append(f"{arcname}: unparseable, so ConditionCheck use could not be ruled out")
+            continue
+        enclosing: dict = {}
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                for child in ast.walk(node):
+                    enclosing.setdefault(child, node.name)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Dict):
+                continue
+            for key, value in zip(node.keys, node.values):
+                if not (isinstance(key, ast.Constant) and key.value == "ConditionCheck"):
+                    continue
+                function = enclosing.get(node, "<module>")
+                if function != "<module>" and function not in referenced:
+                    continue
+                table = "?"
+                if isinstance(value, ast.Dict):
+                    for inner_key, inner_value in zip(value.keys, value.values):
+                        if isinstance(inner_key, ast.Constant) and inner_key.value == "TableName":
+                            table = ast.unparse(inner_value)
+                hits.append(f"{arcname}:{node.lineno} {function}(): "
+                            f"ConditionCheck on TableName={table}")
     return hits
 
 
@@ -1350,9 +1395,9 @@ def report_required_grants(members: dict | None) -> list:
                 + "; ".join(needed_by_code))
             print("iam dynamodb:ConditionCheckItem: REQUIRED GRANT")
         else:
-            print("iam dynamodb:ConditionCheckItem: not required (no TransactWriteItems/"
-                  "TransactGetItems anywhere in the handler's import closure; a "
-                  "ConditionExpression on put_item/update_item needs PutItem/UpdateItem only)")
+            print("iam dynamodb:ConditionCheckItem: not required (no ConditionCheck transaction "
+                  "element in the handler's import closure; Put/Update-only transactions and "
+                  "conditional put_item/update_item need PutItem/UpdateItem only)")
 
     for line in problems:
         print(f"REQUIRED GRANT: {line}")

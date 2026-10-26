@@ -545,10 +545,9 @@ _NOT_READY_MESSAGE = 'WhatsApp payment is not ready. Nothing has been charged.'
 #: surface as META_UNAVAILABLE - the hardest state on this path to tell from a real outage.
 _PAYMENT_READ_FUNCTION = 'wecare-whatsapp-business-api:live'
 
-#: The approved Meta Order Status template, used for a fulfilment update sent OUTSIDE the 24-hour
-#: customer-service window. Inside the window the interactive `order_status` message is sent
-#: instead and needs no template (see `_handle_order_status_send`). Name/language come from the
-#: shared registry so the gate and the sender read one value; the registry preserves env override.
+#: The single approved Meta Order Status template used for EVERY payment/order-status update.
+#: The 24-hour service window never selects a different transport. Name/language come from the
+#: shared registry so the gate and sender read one value; the registry preserves env override.
 WA_ORDER_STATUS_TEMPLATE = whatsapp_templates.ORDER_STATUS.name
 WA_ORDER_STATUS_TEMPLATE_LANGUAGE = whatsapp_templates.ORDER_STATUS.language
 
@@ -1469,20 +1468,19 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return _outside_window_refusal(contact_id, bool(contact), request_id)
         
         # ── Order-status channel selection ──────────────────────────────────
-        # Inside the 24-hour window a fulfilment update goes out as the interactive
-        # `order_status` message and needs no template. Outside the window only the
-        # approved ORDER_STATUS template may carry it. When the window is closed AND no
-        # template is approved there is no legal channel, so defer and send nothing.
-        # `within_window` is the value computed above for this send (open iff the contact
-        # has a fresh enough `lastInboundMessageAt`; fails closed with no contact record).
+        # PAYMENT RAIL INVARIANT: order_status always uses the single APPROVED
+        # `wecare_order_status_v3` UTILITY/ORDER_STATUS template. Do not switch transport
+        # based on the 24-hour customer-service window: the whole point of this template is
+        # that payment confirmation remains deliverable outside that window and has one
+        # customer-visible shape. If Meta cannot prove the template APPROVED, defer.
         order_status_template_name = ''
-        if is_order_status and not within_window:
+        if is_order_status:
             order_status_template_name = _approved_order_status_template(
                 phone_number_id, request_id)
             if not order_status_template_name:
                 return _error_response(
                     409, 'ORDER_STATUS_DEFERRED',
-                    'This order update cannot be delivered right now. Nothing was sent.')
+                    'The approved order-status template is unavailable. Nothing was sent.')
 
         # Requirement 5.4: Validate text length (skip for reactions)
         if not is_reaction and content and len(content) > MAX_TEXT_LENGTH:
@@ -1793,43 +1791,30 @@ def _handle_order_status_send(message_id: str, contact_id: str, recipient_phone:
         formatted_phone = _normalize_phone_number(recipient_phone)
         whatsapp_phone = f"+{formatted_phone}"
 
-        # Pick the channel. Inside the window: interactive, no template. Outside the window: the
-        # approved template, which the caller has already read back as APPROVED. A closed window
-        # with no template was deferred before this function ran, but guard it anyway so the
-        # function never silently sends on the wrong channel.
-        if within_window:
-            channel = 'interactive'
-            interactive_object = _wa_os.build_interactive_payload(
-                reference_id, order_status, body_text=description)
-            order_status_payload = {
-                'messaging_product': 'whatsapp',
-                'recipient_type': 'individual',
-                'to': whatsapp_phone,
-                'type': 'interactive',
-                'interactive': interactive_object,
-            }
-        else:
-            channel = 'template'
-            if not template_name:
-                return _error_response(
-                    409, 'ORDER_STATUS_DEFERRED',
-                    'This order update cannot be delivered right now. Nothing was sent.')
-            order_status_component = _wa_os.build_template_component(
-                reference_id, order_status, description)
-            order_status_payload = {
-                'messaging_product': 'whatsapp',
-                'recipient_type': 'individual',
-                'to': whatsapp_phone,
-                'type': 'template',
-                'template': {
-                    'name': template_name,
-                    'language': {
-                        'policy': 'deterministic',
-                        'code': WA_ORDER_STATUS_TEMPLATE_LANGUAGE,
-                    },
-                    'components': [order_status_component],
+        # Payment/order status is TEMPLATE-ONLY. `within_window` is still logged for
+        # observability and may drive typing indicators elsewhere, but it never changes this
+        # transport. This prevents two customer experiences and removes the 24-hour dependency.
+        channel = 'template'
+        if not template_name:
+            return _error_response(
+                409, 'ORDER_STATUS_DEFERRED',
+                'The approved order-status template is unavailable. Nothing was sent.')
+        order_status_component = _wa_os.build_template_component(
+            reference_id, order_status, description)
+        order_status_payload = {
+            'messaging_product': 'whatsapp',
+            'recipient_type': 'individual',
+            'to': whatsapp_phone,
+            'type': 'template',
+            'template': {
+                'name': template_name,
+                'language': {
+                    'policy': 'deterministic',
+                    'code': WA_ORDER_STATUS_TEMPLATE_LANGUAGE,
                 },
-            }
+                'components': [order_status_component],
+            },
+        }
         is_template_send = channel == 'template'
 
         # Add BSUID recipient if available (per Meta BSUID docs)
@@ -2032,7 +2017,7 @@ def _handle_order_details_template_send(
         # per-item 'gstRate') causes error 100 "Unexpected key ...". Keep only the
         # keys Meta allows, then add India-compliance defaults.
         _ALLOWED_ITEM_KEYS = {
-            'retailer_id', 'name', 'amount', 'sale_amount', 'quantity',
+            'retailer_id', 'name', 'image', 'amount', 'sale_amount', 'quantity',
             'country_of_origin', 'importer_name', 'importer_address',
         }
         _sanitized_items = []

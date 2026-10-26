@@ -25,7 +25,7 @@ Four rules it enforces, each load-bearing
    session with `authorize_resource`, so one customer cannot read another's attempt (IDOR).
 2. **The amount is the server's, in integer paise.** `_native_quote` prices the basket's product
    and variant ids from ProductsTable (`native_checkout.quote_native_cart`) and
-   `checkout_pricing.compute_quote` adds the convenience fee and its GST. The browser sends
+   `checkout_pricing.compute_quote` adds the convenience fee and its GST for ordinary baskets; Vault access is fee-exempt at this same pricing seam. The browser sends
    identifiers and quantities only; a price it sends is never read.
 3. **Payments are readiness-gated on a live provider readback.** `payment_readiness.evaluate` must
    return `PAYMENT_READY` before an attempt is created; otherwise the CTA is refused with the
@@ -991,7 +991,7 @@ def _native_quote(identity: customer_auth.CustomerIdentity, line_items: list, no
     from lambda_utils.ecommerce import default_coupon, service_requests
     coupon_definition = (None if service_requests.has_service_line(line_items)
                          else default_coupon.delight_definition())
-    return native_checkout.quote_native_cart(
+    snapshot = native_checkout.quote_native_cart(
         ephemeral_cart,
         product_reader=reader,
         customer_id=identity.customer_id,
@@ -1001,6 +1001,31 @@ def _native_quote(identity: customer_auth.CustomerIdentity, line_items: list, no
         gst_bps=0,  # catalog prices are GST-inclusive today; no double-tax
         coupon_definition=coupon_definition,
     )
+
+    # Vault is sold as an exact-price access window: the catalogue amount is the total the
+    # customer pays. This exception lives here, at the ONE pricing seam shared by website and
+    # WhatsApp service checkout, rather than in either presentation layer. Other services keep
+    # the ordinary convenience-fee policy.
+    service_line = service_requests.service_line(line_items)
+    if service_line is not None and service_line.kind == service_requests.VAULT:
+        exact_quote = checkout_pricing.exempt_quote(
+            snapshot.quote.collection_before_convenience_paise,
+            currency=snapshot.quote.currency,
+        )
+        frozen = snapshot.frozen_data
+        return checkout_pricing.build_snapshot(
+            customer_id=snapshot.customer_id,
+            cart_id=snapshot.cart_id,
+            cart_revision=snapshot.cart_revision,
+            quote=exact_quote,
+            created_at=snapshot.created_at,
+            ttl_seconds=snapshot.expires_at - snapshot.created_at,
+            site=frozen.get("site"),
+            items=frozen.get("items"),
+            address=frozen.get("address"),
+            delivery=frozen.get("delivery"),
+        )
+    return snapshot
 
 
 def _website_snapshot(identity: customer_auth.CustomerIdentity, line_items: list, now: int):
