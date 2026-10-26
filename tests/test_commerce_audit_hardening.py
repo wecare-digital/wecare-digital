@@ -406,7 +406,8 @@ class PaymentOrderLifecycleTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn(template_media.ORDER_ITEM_IMAGE, runbook)
-        self.assertNotIn("wecare-catalog-icon.png", runbook)
+        self.assertIn("wecare-catalog-icon.png", runbook)
+        self.assertNotIn("wecare-order-item-v2.png", runbook)
 
 
 

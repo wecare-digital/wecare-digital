@@ -3,7 +3,7 @@
 Header contract
 ---------------
 * The large native payment-template header uses whatsapp-header.png.
-* The small non-catalog order/item thumbnail uses the square wecare-order-item-v2.png asset.
+* The small non-catalog order/item thumbnail uses the square wecare-catalog-icon.png asset.
 * Generic fixed image-header templates use whatsapp-header.png.
 * Paid invoices use neither fixed image; the generated invoice PNG is their header.
 """
@@ -13,7 +13,7 @@ SHARED_TEMPLATE_HEADER = (
 )
 PAYMENT_TEMPLATE_HEADER = SHARED_TEMPLATE_HEADER
 ORDER_ITEM_IMAGE = (
-    "https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/wecare-order-item-v2.png"
+    "https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/wecare-catalog-icon.png"
 )
 
 # Backwards-compatible names used by packaged Lambdas. They now intentionally mean the large
@@ -37,7 +37,7 @@ FIXED_IMAGE_HEADERS = {
 # Runtime dependencies, not disposable media-library uploads.
 RETAINED_MEDIA_KEYS = frozenset({
     "secure/d/public/whatsapp/wa-tpl/whatsapp-header.png",
-    "secure/d/public/whatsapp/wa-tpl/wecare-order-item-v2.png",
+    "secure/d/public/whatsapp/wa-tpl/wecare-catalog-icon.png",
 })
 
 
