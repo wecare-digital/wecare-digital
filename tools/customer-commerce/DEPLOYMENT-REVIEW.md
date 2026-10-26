@@ -3,8 +3,9 @@
 Prepared 25 October 2026. This is a reviewable build, not an executed deployment or public listing.
 
 Status, 26 October 2026: this review predates the deployment. The stack `wecare-customer-commerce-mcp`
-(HTTP API `mtx59syrt6`) is deployed. Its v4 (`shopping-chatgpt-20261026-v4`) runs with
-`WhatsAppPaymentsEnabled` `true`, the template default since `13f5ab6f4`.
+(HTTP API `mtx59syrt6`) is deployed. Its v9 (`shopping-brand-redirect-20261026-v9`) runs with
+`WhatsAppPaymentsEnabled` and `RegistrationEnabled` set to `true` and `ConnectOrigin` set to
+`https://connect.wecare.digital`, as parameter values; the template defaults stay off.
 `amplify/functions/ai/customer-commerce-mcp/README.md` has the current release steps.
 Owner direction: conversation-only customer experience; WhatsApp template payment fallback;
 all available listing countries; review/improve the build before publication.
@@ -47,14 +48,14 @@ Cognito access/refresh custody encrypted in the existing session store.
 
 ## Verification completed
 
-- 25 conversation-tool contract checks and 22 OAuth/security checks against readable source.
-- The same 47 checks pass against the exact single-file packaged Lambda runtime.
+- 25 conversation-tool contract checks and 28 OAuth/security checks against readable source.
+- The same 53 checks pass against the exact single-file packaged Lambda runtime.
 - Python compilation passes.
 - Package assembly compares Python ASTs to prove whitespace compaction changes no semantics.
 - Runtime ZIP is deterministic and contains only index.py.
 - AWS CloudFormation ValidateTemplate succeeded for the exact full generated template.
   It returned CAPABILITY_IAM and all eight expected parameters. No stack/change set was created.
-- The template is under the 51,200-byte inline limit; the builder refuses a larger template.
+- Branded releases can exceed the 51,200-byte inline limit and must use TemplateURL from the established private CDK assets bucket. The builder marks templateRequiresS3 and enforces the S3 template size limit.
 - Existing website production build passed earlier; no website source is modified by this release.
 - Existing repository-wide lint remains blocked by the unrelated /cart anchor in
   src/components/ElsewhereTravelAssistant.tsx:462. It is unchanged from HEAD.
