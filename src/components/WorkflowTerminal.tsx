@@ -987,9 +987,19 @@ const WorkflowTerminal: React.FC = () => {
           font:inherit;font-size:13px;letter-spacing:.02em;color:#f2efe9;
           cursor:pointer;
           border-top-right-radius:14px;
-          transition:background .2s cubic-bezier(.33,0,.24,1),color .2s cubic-bezier(.33,0,.24,1);
+          box-shadow:inset 0 -2px 0 transparent;
+          transition:background .2s cubic-bezier(.33,0,.24,1),color .2s cubic-bezier(.33,0,.24,1),box-shadow .2s cubic-bezier(.33,0,.24,1);
         }
-        .wt-play:hover,.wt-play:focus-visible{background:rgba(209,244,112,.16);color:#fff}
+        /* Same interaction language on desktop and mobile: the control gets a lime rail
+           underneath instead of relying only on a tinted rectangle. Desktop keeps the compact
+           one-row chrome because it has enough width; mobile still promotes this control to its
+           dedicated second row. */
+        .wt-play:hover,.wt-play:focus-visible{
+          background:rgba(209,244,112,.08);
+          color:#fff;
+          box-shadow:inset 0 -2px 0 #d1f470;
+        }
+        .wt-play.is-paused{box-shadow:inset 0 -2px 0 rgba(209,244,112,.72)}
         /* A real focus ring. The bar is dark, so the lime the rest of the site uses for focus
            reads clearly against it. */
         .wt-play:focus-visible{outline:2px solid #d1f470;outline-offset:-2px}
