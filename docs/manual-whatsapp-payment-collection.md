@@ -58,12 +58,11 @@ For a payment that needs review before send, use the two-step Pay Flow route abo
 - The generic template picker is not a payment composer: it does not reserve an invoice or
   construct the authoritative order_details action. Use Pay Flow, Inbox Request payment, or
   the Commerce bill composer for collection.
-- `wecare_whatapp_native_pay_template` requests payment. The approved
-  `wecare_order_status_v3` template carries every payment-order status update, inside or outside
-  the customer-service window. Approval must come from the actual provider inventory, not a local
-  template preset.
-- The payment-order lifecycle is `pending -> processing -> completed`; it does not expose
-  partially-shipped or shipped. Physical/service fulfilment is tracked separately.
+- `wecare_whatapp_native_pay_template` requests payment. After verified capture, the paid invoice
+  template is sent once. The historical `wecare_order_status_v3` template is retired and is not
+  a release prerequisite.
+- Capture starts the internal fulfilment state at `processing`. Staff manage fulfilment in
+  Commerce → Orders; Track Order reads the same state and no automatic WhatsApp status is sent.
 
 ## Release and go-live checks
 
@@ -75,7 +74,7 @@ This permission does not authorize a test message to a customer.
 Run `scripts/commerce_release_audit.py` with the deterministic release manifest and the
 expected merged website commit. It compares all seven live code hashes, payment expectations,
 QA mode, actual provider template/configuration readback and the hosting deployment. It reports
-payment readiness and outside-window status readiness separately. It never prints credentials.
+payment readiness and the hosted commit separately. It never prints credentials.
 
 CI checks run for pull requests, stack pushes and merge-queue candidates. At the owner's
 request, required status-check enforcement was removed from stack so running checks do not
