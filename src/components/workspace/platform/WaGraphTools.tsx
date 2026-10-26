@@ -472,7 +472,7 @@ function DirectSendTab ( { phoneId, wabaId, toast }: { phoneId: string; wabaId: 
             <textarea style={ { ...input, minHeight: 80 } } maxLength={ 1024 } value={ text } onChange={ e => setText( e.target.value ) } />
             <label style={ { ...label, marginTop: 12 } }>Business template name (optional, utility only — lowercase a-z 0-9 _)</label>
             <input style={ input } placeholder="order_shipment_update" value={ templateName } onChange={ e => setTemplateName( e.target.value ) } />
-            <label style={ { ...label, marginTop: 12 } }>TTL seconds (optional — utility 30–2592000, authentication 30–900)</label>
+            <label style={ { ...label, marginTop: 12 } }>TTL seconds (optional — utility 30–43200, authentication 30–900)</label>
             <input style={ input } type="number" placeholder="3600" value={ ttl } onChange={ e => setTtl( e.target.value ) } />
             <div style={ { marginTop: 12 } }>
                 <Button variant="primary" onClick={ send } loading={ sending }>Send</Button>

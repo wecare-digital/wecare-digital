@@ -142,23 +142,34 @@ def waba_for_meta_phone(meta_phone_id: Optional[str]) -> str:
 # TTL
 # ---------------------------------------------------------------------------
 #
-# These are the bounds for Direct Send's `ttl_seconds` request field.
+# These are the bounds for Direct Send's `ttl_seconds` request field, from Meta's
+# "Configure message time-to-live (TTL)" page (updated 2026-07-31):
+#
+#   category        default (field omitted)   explicit ttl_seconds
+#   utility         30 days                   30 .. 43200   (12 hours)
+#   authentication  600 s                     30 .. 900
+#
+# The utility maximum used to be 2592000 here, read off the 30-day default. Meta
+# refuses anything above 43200 with a 100 ("The time to live value must be lower
+# than or equal to 43200"), so a value between the two passed this check and then
+# failed at Meta. There is no service row: Meta answers a TTL on a message
+# without a Direct Send category with a 100 as well.
 #
 # They are deliberately NOT `lambda_utils.template_ttl.TTL_BOUNDS`. That module
 # owns a DIFFERENT field - the template's own `message_send_ttl_seconds` - with
 # different numbers (utility 30..43200, authentication 30..900, marketing
-# 43200..2592000). Sharing one table between the two would necessarily make one
-# of them wrong, and a TTL Meta refuses comes back as an unexplained 100.
+# 43200..2592000). Today the utility and authentication numbers happen to agree;
+# the fields are still different, and a TTL Meta refuses comes back as an
+# unexplained 100.
 TTL_BOUNDS: Dict[str, Tuple[int, int]] = {
-    "utility": (30, 2592000),        # up to 30 days
+    "utility": (30, 43200),          # 12 hours
     "authentication": (30, 900),     # 15 minutes, matching OTP expiry practice
-    "service": (30, 43200),          # 12 hours
 }
 
+# What Meta applies when `ttl_seconds` is omitted. Informational: nothing sends it.
 TTL_DEFAULTS: Dict[str, int] = {
     "utility": 2592000,      # 30 days
     "authentication": 600,   # 10 minutes
-    "service": 43200,        # 12 hours
 }
 
 
@@ -166,7 +177,7 @@ def validate_ttl_seconds(category: Optional[str], value) -> Optional[str]:
     """`None` when `value` is an acceptable `ttl_seconds` for `category`.
 
     Otherwise a human error string naming **that category's** maximum, so a 901
-    on `authentication` is told about 900 rather than about utility's 2592000.
+    on `authentication` is told about 900 rather than about utility's 43200.
     """
     cat = (category or "").strip().lower()
     bounds = TTL_BOUNDS.get(cat)
