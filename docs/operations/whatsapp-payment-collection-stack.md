@@ -354,7 +354,7 @@ For payment-rail pull requests, the workflow must pass:
    `scripts/deploy_all_lambdas.py::build_zip()`.
 
 On a push to `wecare.digital` that touches the payment rail, the same workflow reruns all checks,
-packages the tested tree, then deploys those exact packages to the eight payment-related Lambda
+packages the tested tree, then deploys those exact packages to the nine payment-related Lambda
 `live` aliases. Deployment uses short-lived GitHub OIDC credentials only; there are no static AWS
 keys in GitHub.
 
@@ -376,6 +376,8 @@ The deployment role is deliberately limited to Lambda read/code/version/alias op
 - `wecare-whatsapp-business-api`
 - `wecare-service-api`
 - `wecare-ai-generate-response`
+- `wecare-secure-files` (released last; it stays the separate secure-file entitlement rail of
+  section 5)
 
 The deploy job verifies each artifact's AWS `CodeSha256`, publishes an immutable version, moves
 `live`, and reads the alias hash back. A hash mismatch fails the release. Rollback-compatible
@@ -461,7 +463,7 @@ Before production promotion, prove:
 - [ ] new internal callers do not target rollback `wecare-checkout` or `wecare-invoice-engine`
 - [ ] payment CI/test/package jobs are green on the production commit
 - [ ] deploy job succeeded with GitHub OIDC (no static AWS keys)
-- [ ] all eight `live` aliases match the production artifact manifest `CodeSha256`
+- [ ] all nine `live` aliases match the production artifact manifest `CodeSha256`
 
 ## 14. Failure policy
 

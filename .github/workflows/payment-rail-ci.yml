@@ -204,11 +204,9 @@ jobs:
           set -euo pipefail
           cd dist/payment-lambdas
 
-          # wecare-secure-files is compiled and packaged above but NOT published here:
-          # wecare-payment-deploy-oidc has no rights on it (run 40305056349 stopped at its
-          # GetFunctionConfiguration with AccessDenied, leaving the two functions after it
-          # unpublished). Granting them is an IAM change awaiting the owner. Until then it is
-          # published with `python scripts/deploy_all_lambdas.py wecare-secure-files`.
+          # wecare-secure-files goes last: if its release ever fails, the payment functions
+          # before it are already published (run 40305056349 stopped at it and left the two
+          # functions after it unpublished).
           functions=(
             wecare-outbound-whatsapp
             wecare-whatsapp-business-api
@@ -218,6 +216,7 @@ jobs:
             wecare-service-api
             wecare-ai-generate-response
             wecare-razorpay-webhook
+            wecare-secure-files
           )
 
           for fn in "${functions[@]}"; do
