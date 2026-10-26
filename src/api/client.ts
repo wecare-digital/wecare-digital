@@ -6173,6 +6173,29 @@ export async function confirmDocumentUpload ( documentId: string ): Promise<ApiR
 }
 
 
+export async function initDocumentReplacement (
+  documentId: string,
+  input: { fileName: string; mimeType: string; fileSize: number },
+): Promise<ApiResult<DocumentUploadTicket>> {
+  return apiCallResult<DocumentUploadTicket>(
+    `${DOCUMENTS_BASE}/${encodeURIComponent( documentId )}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify( { _action: 'replace_upload_init', ...input } ),
+    },
+  );
+}
+
+export async function confirmDocumentReplacement (
+  documentId: string,
+): Promise<ApiResult<Document>> {
+  return apiCallResult<Document>(
+    `${DOCUMENTS_BASE}/${encodeURIComponent( documentId )}`,
+    { method: 'PUT', body: JSON.stringify( { _action: 'replace_upload_confirm' } ) },
+  );
+}
+
+
 export async function publishDocumentToVault (
   documentId: string,
 ): Promise<ApiResult<{
