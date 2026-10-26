@@ -295,8 +295,8 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
         .address-grid :global(.address-state .ui-field-label){
           margin-block-end:7px;font-size:12px;font-weight:700;color:#1a3a2a;
         }
-        /* ONE RULE FOR SIX CONTROLS - the India state select and five inputs (address line 1 and
-           2, city, PIN code and the read-only country field) - which is exactly why it is
+        /* ONE RULE FOR SIX CONTROLS - the India state select and five inputs (street address,
+           apartment/unit, city, postal code and the read-only country field) - which is exactly why it is
            rewritten onto the control tokens rather than left to be overridden. This component
            renders outside .layout .main-content, so none of the workspace important rules
            reaches it and these values are what actually paint. form-controls.css reaches the
