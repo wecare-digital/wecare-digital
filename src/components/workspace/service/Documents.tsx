@@ -93,6 +93,54 @@ function vaultMessageName ( raw?: string ): string {
     .slice( 0, 60 ).trim();
 }
 
+/* The published Vault file's own record, read from Secure files when a published document opens.
+   `unknown` covers "not read yet" and "no mobile to read it by". */
+type VaultFileView =
+  | { status: 'unknown' }
+  | { status: 'loading' }
+  | { status: 'error'; message: string }
+  | { status: 'ready'; file: api.SecureFile | null };
+
+/* Same fallback as Secure files for a list served by an older backend. */
+function vaultAccessState ( file: api.SecureFile ): api.SecureFileAccessState {
+  if ( file.accessState ) return file.accessState;
+  return file.vaultPaymentStatus === 'PAID' ? 'READY' : 'UNPAID';
+}
+
+const VAULT_ACCESS_LABELS: Record<api.SecureFileAccessState, string> = {
+  UNPAID: 'Not paid yet',
+  OPEN: 'Paid · access window open',
+  READY: 'Paid · window opens on first download',
+  EXPIRED: 'Paid · window used, ₹49 renewal needed',
+  PAID_UNVERIFIED: 'Paid · needs reconciling, do not charge again',
+};
+
+function vaultStateText ( view: VaultFileView ): string {
+  if ( view.status === 'loading' ) return 'Checking payment…';
+  if ( view.status === 'error' ) return view.message;
+  if ( view.status !== 'ready' ) return '';
+  if ( !view.file ) return 'Not found in this customer’s Vault';
+  if ( view.file.status !== 'active' ) return `Vault file ${ view.file.status }`;
+  const state = vaultAccessState( view.file );
+  return state === 'OPEN' && view.file.accessWindowStatus
+    ? `Paid · ${ view.file.accessWindowStatus }`
+    : VAULT_ACCESS_LABELS[ state ];
+}
+
+/* Which WhatsApp action fits the Vault file now: the ₹49 message while unpaid or used up, the
+   Access Vault link while paid, neither while a payment needs reconciling or the file is gone.
+   An unread state offers both; the server refuses the one that does not fit. */
+function vaultActionsFor ( view: VaultFileView ): { ask: boolean; resend: boolean; renewal: boolean } {
+  if ( view.status !== 'ready' ) return { ask: true, resend: true, renewal: false };
+  if ( !view.file || view.file.status !== 'active' ) return { ask: false, resend: false, renewal: false };
+  const state = vaultAccessState( view.file );
+  return {
+    ask: state === 'UNPAID' || state === 'EXPIRED',
+    resend: state === 'OPEN' || state === 'READY',
+    renewal: state === 'EXPIRED',
+  };
+}
+
 /* The Vault name to start from: the published one, else what Publish would derive (staff's
    label, then the customer's own file name; fileName is the generated reference). */
 function defaultVaultName ( doc: api.Document ): string {
@@ -137,6 +185,10 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
   const [ selected, setSelected ] = useState<api.Document | null>( null );
   // What staff typed for {{1}} of the Vault message, for the open document.
   const [ vaultName, setVaultName ] = useState( '' );
+  // The open document's Vault file (paid or not, window, revoked), and a guard so a slow read
+  // for a document staff already closed cannot overwrite the one they opened next.
+  const [ vaultFile, setVaultFile ] = useState<VaultFileView>( { status: 'unknown' } );
+  const vaultFileSeq = useRef( 0 );
   const [ actionLoading, setActionLoading ] = useState( false );
   const [ remarks, setRemarks ] = useState( '' );
   const [ showCreate, setShowCreate ] = useState( false );
@@ -369,11 +421,41 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
   };
 
 
+  /* Read the published file's state from Secure files (one customer's files, by mobile). */
+  const loadVaultFile = async ( doc: api.Document | null ) => {
+    const seq = ++vaultFileSeq.current;
+    if ( !doc?.vaultFileId || !doc.customerPhone )
+    {
+      setVaultFile( { status: 'unknown' } );
+      return;
+    }
+    setVaultFile( { status: 'loading' } );
+    const result = await api.listSecureFiles( doc.customerPhone );
+    if ( seq !== vaultFileSeq.current ) return;
+    if ( !result.ok )
+    {
+      setVaultFile( { status: 'error', message: result.failure.message || 'Could not read the Vault payment state.' } );
+      return;
+    }
+    setVaultFile( {
+      status: 'ready',
+      file: ( result.data.files || [] ).find( row => row.fileId === doc.vaultFileId ) || null,
+    } );
+  };
+
+  /* 202 means "may have been sent", which is not a success. Same rule as Secure files. */
+  const reportVaultAction = ( result: api.SecureFileActionResult ) => {
+    if ( result.ok && result.status !== 202 ) toast.success( result.message );
+    else if ( result.status === 202 || result.status === null ) toast.warning( result.message );
+    else toast.error( result.message );
+  };
+
   const openDocument = ( doc: api.Document ) => {
     setSelected( doc );
     setReplacementFile( null );
     setRemarks( '' );
     setVaultName( defaultVaultName( doc ) );
+    void loadVaultFile( doc );
   };
 
   /* Publish (or, when already published, rename) with the {{1}} staff typed. Returns the
@@ -396,6 +478,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
     setVaultName( vaultMessageName( next.vaultDisplayName ) );
     if ( published.data.created ) toast.success( `Published to Vault as “${ next.vaultDisplayName || 'Document' }”` );
     else if ( published.data.renamed ) toast.success( `Vault name saved: “${ next.vaultDisplayName }”` );
+    void loadVaultFile( next );
     return next;
   };
 
@@ -422,11 +505,24 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
       const name = vaultMessageName( vaultName );
       if ( name && name !== ( doc.vaultDisplayName || '' ) ) target = await publishVault( doc );
       if ( !target?.vaultFileId ) return;
-      const result = await api.requestSecureFilePayment( target.vaultFileId );
-      if ( result.ok && result.status !== 202 ) toast.success( result.message );
-      else if ( result.status === 202 || result.status === null ) toast.warning( result.message );
-      else toast.error( result.message );
+      reportVaultAction( await api.requestSecureFilePayment( target.vaultFileId ) );
+      // A refusal such as "already paid" means the state moved; re-read it so the right action shows.
+      void loadVaultFile( target );
       void loadData();
+    } finally
+    {
+      setActionLoading( false );
+    }
+  };
+
+  /* A paid file: send the Access Vault link again. Never charges and never opens a window. */
+  const handleSendVaultAccess = async ( doc: api.Document ) => {
+    if ( actionLoading || !doc.vaultFileId ) return;
+    setActionLoading( true );
+    try
+    {
+      reportVaultAction( await api.sendSecureFileAccess( doc.vaultFileId ) );
+      void loadVaultFile( doc );
     } finally
     {
       setActionLoading( false );
@@ -465,6 +561,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
       setReplacementFile( null );
       setSelected( confirmed.data );
       setVaultName( defaultVaultName( confirmed.data ) );
+      void loadVaultFile( confirmed.data );
       toast.success( `Replacement uploaded · new reference ${confirmed.data.documentRef || ''}`.trim() );
       void loadData();
     } finally
@@ -581,7 +678,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
       </div>
 
       {/* Detail Modal */ }
-      <Modal isOpen={ !!selected } onClose={ () => { setSelected( null ); setReplacementFile( null ); } } title="Document Details" size="lg">
+      <Modal isOpen={ !!selected } onClose={ () => { setSelected( null ); setReplacementFile( null ); void loadVaultFile( null ); } } title="Document Details" size="lg">
         { selected && (
           <div>
             <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 } }>
@@ -604,6 +701,9 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                 <div>
                   <span style={ labelStyle }>Vault</span>
                   <div style={ { fontSize: 'var(--text-sm)' } }>Published{ selected.vaultDisplayName ? ` as “${ selected.vaultDisplayName }”` : '' }</div>
+                  { vaultStateText( vaultFile ) && (
+                    <div role="status" style={ { fontSize: 'var(--text-sm)', fontWeight: 500 } }>{ vaultStateText( vaultFile ) }</div>
+                  ) }
                   <div style={ { fontFamily: 'monospace', fontSize: 'var(--text-xs)', color: 'var(--text-muted)', overflowWrap: 'anywhere' } }>{ selected.vaultFileId }</div>
                 </div>
               ) }
@@ -715,13 +815,24 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                   Publish to Vault
                 </Button>
               ) }
-              { selected.vaultFileId && (
+              { selected.vaultFileId && vaultActionsFor( vaultFile ).ask && (
                 <Button
                   variant="primary"
                   loading={ actionLoading }
+                  disabled={ vaultFile.status === 'loading' }
                   onClick={ () => handleSendVaultOffer( selected ) }
                 >
-                  Send ₹49 Vault message
+                  { vaultActionsFor( vaultFile ).renewal ? 'Send ₹49 renewal message' : 'Send ₹49 Vault message' }
+                </Button>
+              ) }
+              { selected.vaultFileId && vaultActionsFor( vaultFile ).resend && (
+                <Button
+                  variant="secondary"
+                  loading={ actionLoading }
+                  disabled={ vaultFile.status === 'loading' }
+                  onClick={ () => handleSendVaultAccess( selected ) }
+                >
+                  Resend Access Vault
                 </Button>
               ) }
               <Button variant="primary" loading={ actionLoading } onClick={ () => handleStatusAction( selected, 'approved', remarks ) }>Approve</Button>
