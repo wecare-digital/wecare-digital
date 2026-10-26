@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 
 import { serviceByKind, type ServiceChoice } from '../config/services';
 import {
-  fetchServicePrices, rupeesFromPaise, type ServicePrice,
+  fetchServicePrices, type ServicePrice,
 } from '../lib/servicePricing';
 import { getSession, restoreSession } from '../lib/customerAuth';
 import { postRequestIntent, fetchMyRequests, type ServiceRequestRow } from '../lib/serviceRequests';
@@ -51,17 +51,6 @@ interface ServiceBuyBoxProps {
   service: ServiceChoice;
 }
 
-/**
- * PLACEHOLDER DISPLAY PRICES, by service slug, for the time being (owner instruction). Used ONLY
- * when the live `service-prices` API returns no usable price for the slug. Today that is Request
- * Pickup at ₹550 — the backend does not yet price it, so this keeps its Checkout action live rather
- * than hidden. DISPLAY ONLY: the server re-prices on prepare. Remove a slug
- * here once the API returns its real price; a slug not listed and not priced stays hidden.
- */
-const PLACEHOLDER_SERVICE_PAISE: Readonly<Record<string, number>> = {
-  'request-pickup': 55000,
-};
-
 type Phase =
   | { kind: 'loading' }                    // price fetch in flight
   | { kind: 'unavailable' }                // no honest price → no pill
@@ -94,15 +83,10 @@ const ServiceBuyBox: React.FC<ServiceBuyBoxProps> = ( { service } ) => {
         setPhase( { kind: 'ready', price } );
         return;
       }
-      // PLACEHOLDER FALLBACK (owner instruction, time being). When the live API cannot price a
-      // service — today only Request Pickup, which the backend does not yet return — the button
-      // still shows at a placeholder figure so the format is live end to end, rather than being
-      // hidden. The server re-prices on prepare, so this is a DISPLAY figure only; it becomes the
-      // real live price automatically the moment the backend starts returning one for this slug.
-      const fallback = PLACEHOLDER_SERVICE_PAISE[ service.slug ];
-      setPhase( typeof fallback === 'number'
-        ? { kind: 'ready', price: { available: true, paise: fallback, rupees: rupeesFromPaise( fallback ) } }
-        : { kind: 'unavailable' } );
+      // No display fallback: ProductsTable is the price authority. If the live price cannot be
+      // read, checkout stays unavailable rather than showing a stale figure that the server will
+      // later re-price to something different.
+      setPhase( { kind: 'unavailable' } );
     } )();
     return () => { cancelled = true; };
   }, [ service.slug ] );
