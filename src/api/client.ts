@@ -6145,6 +6145,7 @@ export async function initDocumentUpload ( input: {
   orderId?: string;
   type: string;
   typeLabel?: string;
+  vaultDisplayName?: string;
   fileName: string;
   mimeType: string;
   fileSize: number;
@@ -6175,6 +6176,31 @@ export async function confirmDocumentUpload ( documentId: string ): Promise<ApiR
   return apiCallResult<Document>(
     `${DOCUMENTS_BASE}/${encodeURIComponent( documentId )}`,
     { method: 'PUT', body: JSON.stringify( { _action: 'confirm_upload' } ) },
+  );
+}
+
+
+/** Start a replacement for a document explicitly marked reupload_requested. */
+export async function initDocumentReplacement (
+  documentId: string,
+  input: { fileName: string; mimeType: string; fileSize: number },
+): Promise<ApiResult<DocumentUploadTicket>> {
+  return apiCallResult<DocumentUploadTicket>(
+    `${DOCUMENTS_BASE}/${encodeURIComponent( documentId )}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify( { _action: 'replace_upload_init', ...input } ),
+    },
+  );
+}
+
+/** Confirm the replacement only after S3 proves the new bytes exist. */
+export async function confirmDocumentReplacement (
+  documentId: string,
+): Promise<ApiResult<Document>> {
+  return apiCallResult<Document>(
+    `${DOCUMENTS_BASE}/${encodeURIComponent( documentId )}`,
+    { method: 'PUT', body: JSON.stringify( { _action: 'replace_upload_confirm' } ) },
   );
 }
 
