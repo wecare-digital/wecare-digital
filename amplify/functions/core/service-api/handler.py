@@ -764,6 +764,11 @@ def _list_documents(params: Dict) -> Dict:
         resp = table.scan()
 
     items = resp.get('Items', [])
+    # Historical inbound code mirrored every WhatsApp image/document into DocumentTable.
+    # Those rows are conversation attachments, not Drop Docs business records. Keep an
+    # explicit source=whatsapp diagnostic query, but exclude them from the normal workspace.
+    if not source:
+        items = [i for i in items if i.get('sourceType') != 'whatsapp']
     if doc_type:
         items = [i for i in items if i.get('documentType') == doc_type]
 
