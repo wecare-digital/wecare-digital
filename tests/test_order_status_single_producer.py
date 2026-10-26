@@ -25,6 +25,9 @@ OUTBOUND = FUNCTIONS / "messaging" / "outbound-whatsapp" / "handler.py"
 INBOUND = FUNCTIONS / "messaging" / "inbound-whatsapp-handler" / "handler.py"
 WEBHOOK = FUNCTIONS / "payments" / "razorpay-webhook" / "handler.py"
 WA_ORDER_STATUS = FUNCTIONS / "shared" / "lambda_utils" / "ecommerce" / "wa_order_status.py"
+RELEASE_AUDIT = ROOT / "scripts" / "commerce_release_audit.py"
+STATUS_TEMPLATE_PROVISIONER = ROOT / "scripts" / "provision_order_status_template.py"
+STATUS_RETRY_PROVISIONER = ROOT / "scripts" / "provision_order_status_retry_index.py"
 
 #: `'orderStatusDetails': {...}` written as a dict key is a payload being BUILT for outbound.
 _PRODUCER = re.compile(r"""["']orderStatusDetails["']\s*:""")
@@ -59,6 +62,29 @@ class NoProducerTests(unittest.TestCase):
                         "def _invoke_order_status", "/order-status"):
             self.assertNotIn(retired, source)
 
+    def test_outbound_has_no_retired_sender_or_template_gate(self):
+        source = OUTBOUND.read_text(encoding="utf-8")
+        for retired in ("WA_ORDER_STATUS_TEMPLATE", "def _approved_order_status_template",
+                        "def _handle_order_status_send", "ORDER_STATUS_DEFERRED"):
+            self.assertNotIn(retired, source)
+
+    def test_shared_vocabulary_builds_no_meta_payload(self):
+        source = WA_ORDER_STATUS.read_text(encoding="utf-8")
+        self.assertNotIn("def build_template_component", source)
+
+    def test_release_readiness_does_not_require_order_status_template(self):
+        source = RELEASE_AUDIT.read_text(encoding="utf-8")
+        self.assertNotIn("order_status_template_approved", source)
+        self.assertIn("order_status_messages_disabled", source)
+
+    def test_retired_provisioners_cannot_mutate_aws(self):
+        for path in (STATUS_TEMPLATE_PROVISIONER, STATUS_RETRY_PROVISIONER):
+            source = path.read_text(encoding="utf-8")
+            self.assertIn("RETIRED", source)
+            self.assertNotIn("import boto3", source)
+            self.assertNotIn(".update_", source)
+            self.assertNotIn(".invoke(", source)
+
 
 class DisabledChokepointTests(unittest.TestCase):
     def test_outbound_refuses_order_status_before_any_lookup_or_send(self):
@@ -66,10 +92,8 @@ class DisabledChokepointTests(unittest.TestCase):
         refusal = source.find("'ORDER_STATUS_DISABLED'")
         self.assertGreater(refusal, 0)
         self.assertIn("410", source[max(0, refusal - 80):refusal])
-        for later in ("_approved_order_status_template(", "_handle_order_status_send("):
-            position = source.find(later)
-            if position != -1:
-                self.assertLess(refusal, position, later)
+        self.assertNotIn("_approved_order_status_template(", source)
+        self.assertNotIn("_handle_order_status_send(", source)
 
     def test_invoice_engine_order_status_route_refuses_without_invoking(self):
         _node, source = _function(INVOICE_ENGINE, "send_order_status")
