@@ -22,7 +22,7 @@ The renderer is presentation-only. It MUST render stored invoice figures and MUS
 - Document title: **PAYMENT RECEIPT**
 - Paper: off-white `rgb(252,252,250)`
 - Pixels outside the torn paper: transparent
-- Torn/zig-zag edge: WECARE lime `#d1f470`
+- Four-sided scalloped/torn edge: WECARE lime `#d1f470`
 - Structural green: `#1a3a2a`
 - Lime is used for the receipt-title bar and Amount Paid bar.
 - Official WECARE.DIGITAL artwork is used from the S3 brand asset; never recreate the logo by hand.
@@ -52,7 +52,7 @@ Show when present:
 
 - Receipt Ref: the WECARE payment reference with `WD-PAY-` removed for display
 - paid/capture date and time in IST
-- payment status
+- payment status, with captured payments shown as a lime `PAID` pill
 - Channel
 - provider transaction id as `Txn` / `Txn ID` without naming the gateway
 - customer name, phone, email and address
