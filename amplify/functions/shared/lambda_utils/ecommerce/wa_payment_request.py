@@ -75,10 +75,9 @@ NATIVE_CHECKOUT_MODES = frozenset({WA_NATIVE_CHECKOUT_MODE, WA_NATIVE_CART_CHECK
 #: The in-WhatsApp catalog-service checkout (`ecommerce/checkout` CHECKOUT_MODE, also written by
 #: `initiation`). It collects through the same ORDER_DETAILS payment template.
 CATALOG_SERVICE_CHECKOUT_MODE = 'AWS_NATIVE'
-#: Every checkout mode whose payment was a Meta `order_details` message. Such an order's
-#: fulfilment status lives on WhatsApp: the customer's Order summary shows only the order_status
-#: messages Meta was sent, so the status may change only through a send (invoice-engine
-#: `send_order_status`), never through a database write alone.
+#: Every checkout mode whose payment was a Meta `order_details` message. Checkout mode describes
+#: how payment was requested only. Fulfilment always lives in OrderTable and is changed internally;
+#: no WhatsApp order-status message is sent when it changes.
 ORDER_DETAILS_CHECKOUT_MODES = frozenset(NATIVE_CHECKOUT_MODES | {CATALOG_SERVICE_CHECKOUT_MODE})
 
 #: WABA1's phone id, and the ONLY sender permitted to take a payment.
