@@ -3443,3 +3443,22 @@ Owner instruction: "fix all issued and deploy and. check build status". No custo
   - `provision_commerce.py --verify` passes. `provision_checkout.py --verify` passes except the `ConditionCheckItem` verdict, a false positive since `21fa70b02` (2026-10-07): it flags any transaction in the import closure, but the commerce/checkout transactions are Put/Update only. The one ConditionCheck in the closure, `service_request_store.activate` on ServiceRequestsTable, runs only in wecare-service-requests and the business API, whose roles allow it (simulated). Not granted.
 - Also checked at `5ef80fd7c`/`3117cc796`: 67/68 Lambdas byte-identical before the parallel Vault release began (blog-subscribe was never provisioned); env manifest 0 key differences; 7/7 templates APPROVED, including `wecare_order_status_v3`; commerce health GREEN; post-deploy health PASS; rail verifier 159/159; F001 59/59; Amplify job 141 SUCCEED; validation build `wecare-native-wa-release:7fb7e0f1` SUCCEEDED (package + 159/159).
 - Finding, not changed: `wecare-native-wa-release` and `wecare-native-wa-release-role` ("Temporary ... release runner", created 16:32 UTC for #1576) still exist. The role can update, publish, move aliases on and `DeleteFunction` four production functions. Deleting both is an owner decision.
+
+## WhatsApp late webhooks parked, Flow map matched to Meta, fleet release — 2026-10-25 23:10–23:25 UTC
+
+Owner instruction: "fix all issued and deploy and. check build status". No customer message, payment, template or Flow change, and no secret read.
+
+- Code `e101f909f` (on origin since `472288e2e`):
+  - `wecare-whatsapp-calling` no longer drops a webhook older than the 5-minute replay window. It still answers 200 and processes nothing, but parks each non-call entry in `stack-wecare-digital-inbound-dlq` (`error: stale_timestamp`, alarmed by `wecare-inbound-dlq-depth`) for replay through `POST /dlq/replay`. A stale call is still dropped.
+  - Canonical Flow map (`canonical_flows.py`, `canonicalFlows.ts`), from a live Meta read: Submit Request Flow `1107164111921876` is DEPRECATED, so it is no longer offered as published (a staff send answers 400 instead of failing at Meta). The Amend Request and Drop Docs drafts no longer exist on Meta (Graph 100/33), so those capabilities have no Flow. Their keyword doors already answered with the website link and still do.
+  - Workspace badges and menus follow the map. The business-api flow-payment logs mask the number and contact id, drop the customer's subject and keep error classes, and the confirmation no longer rewrites a subject containing `{flow_name}`. Inbound's uncalled `_send_submit_request_flow` is deleted.
+- Released from a `git archive` export of `e101f909f`:
+  - Guarded (probed before and after, published with CodeSha256 + RevisionId preconditions): `wecare-whatsapp-calling` v63→**v64** (`bJN2PUkR1tpiOPJOGgzSisaSj6pgkEmaUuTa66tPLZ0=`), `wecare-inbound-whatsapp` v146→**v147** (`/IoNvpsa5umDG4IYP8P9XkfruXKTu8TEiAzcdWYjqlE=`), `wecare-whatsapp-business-api` v228→**v229** (`a1ANrPHlqBnc7Rgo51g8g+s2dadJr1AgCoqpLJNf+sU=`), `wecare-ai-config-management` v38→**v39** (`0NhUAFbQglIoVwUxu8lneOhY/iOD92670F0tqegNCPI=`).
+  - `deploy_all_lambdas.py` for the rest of the fleet, because `canonical_flows.py` ships in every package: 56 published, 9 already current, 0 failed. Each moved one version; rollback is one version back on `live`.
+  - The parallel Vault release (#1584) then moved secure-files, checkout, commerce, service-requests, inbound (v148) and business-api (v230) to builds that contain this commit.
+- Verified:
+  - 61 of the 62 live packages that ship `lambda_utils` carry the corrected map. The other, `wecare-native-catalog-admin`, is deployed by its own provisioner and never imports the Flow modules.
+  - calling v64, business-api v230, inbound v148 and dlq-replay v36 carry the handler fixes.
+  - 23:10–00:52 UTC: 14,576 invocations, 0 Lambda errors or throttles, 0 AccessDenied/timeout/import log lines; no alarms; every queue and DLQ empty.
+  - On the export: rail 159/159, F001 59/59, F002 pass, stale-webhook harness 11/11, payload audit 7/7. Amplify 144 (`472288e2e`) SUCCEED, and the live site bundle carries the corrected map.
+- Not verified: no stale webhook has arrived since release, so the DLQ parking has only run in the harness.
