@@ -1,199 +1,420 @@
-"""Approved v6 receipt appearance. Renders stored invoice figures; never prices a payment."""
+"""WECARE.DIGITAL customer payment receipt v7.
+
+Presentation only: renders persisted invoice figures; never prices a payment.
+Internal statutory invoice numbers and order/customer UUIDs stay stored but are intentionally
+omitted from this customer-facing WhatsApp receipt.
+"""
 from __future__ import annotations
 
 import io
-import random
-import textwrap
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from PIL import Image, ImageDraw, ImageFont
+
+LIME = (209, 244, 112)       # #d1f470
+FOREST = (26, 58, 42)        # #1a3a2a
+INK = (20, 31, 38)
+MUTED = (83, 97, 105)
+PAPER = (252, 252, 250)
+PALE = (238, 245, 239)
+LINE = (210, 221, 214)
+PAID_GREEN = (13, 132, 58)
 
 
-def render(invoice, items, *, company, font_path, ist_strftime, canonical_status,
-           amount_in_words, customer_id, source_label):
-    scale = 3
-    font_path = Path(font_path)
-    fonts = [ImageFont.truetype(str(font_path), size * scale) for size in (19, 16, 26, 20)]
-    body, small, title, heading = fonts
-    measure = ImageDraw.Draw(Image.new('RGB', (1, 1)))
-    width = 46 * measure.textbbox((0, 0), 'M', font=body)[2] + 156
-    pad, line, tear, margin = 26 * scale, 34 * scale, 20 * scale, 40 * scale
-    black = (18, 18, 18)
-    rows = []
+def _money(value):
+    amount = Decimal(str(value if value is not None else 0)).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return "₹" + format(amount, ",.2f")
 
-    def fit(value, font, max_width):
-        value = str(value or '')
-        if value and measure.textbbox((0, 0), value, font=font)[2] <= max_width:
-            yield value
-            return
-        words = str(value or '').split()
-        current = ''
-        for word in words:
-            # Bound even a single long email, identifier or product name.
-            for part in textwrap.wrap(word, 46, break_long_words=True, break_on_hyphens=False) or ['']:
-                candidate = (current + ' ' + part).strip()
-                if current and measure.textbbox((0, 0), candidate, font=font)[2] > max_width:
-                    yield current
-                    current = part
-                else:
-                    current = candidate
-        if current:
-            yield current
 
-    def text(value, font=body, align='left'):
-        for value in fit(value, font, width - 2 * pad):
-            rows.append(('text', value, '', font, align))
+def _font(font_paths, role, size):
+    for choice in (font_paths.get(role), font_paths.get("regular")):
+        if not choice:
+            continue
+        try:
+            if isinstance(choice, (bytes, bytearray)):
+                return ImageFont.truetype(io.BytesIO(choice), size)
+            return ImageFont.truetype(str(Path(choice)), size)
+        except Exception:
+            pass
+    try:
+        return ImageFont.load_default(size=size)
+    except TypeError:
+        return ImageFont.load_default()
 
-    def pair(label, value, font=body):
-        value = str(value or '')
-        remaining = width - 2 * pad - measure.textbbox((0, 0), label, font=font)[2] - 20
-        if measure.textbbox((0, 0), value, font=font)[2] <= remaining:
-            rows.append(('pair', label, value, font, 'left'))
+
+def _fit(draw, value, font, max_width, max_lines=None):
+    value = str(value or "").strip()
+    if not value:
+        return []
+    lines, current = [], ""
+    for word in value.split():
+        candidate = (current + " " + word).strip()
+        if current and draw.textbbox((0, 0), candidate, font=font)[2] > max_width:
+            lines.append(current)
+            current = word
         else:
-            text(label, font)
-            text(value, font)
+            current = candidate
+    if current:
+        lines.append(current)
+    if max_lines and len(lines) > max_lines:
+        lines = lines[:max_lines]
+        last = lines[-1]
+        while last and draw.textbbox((0, 0), last + "…", font=font)[2] > max_width:
+            last = last[:-1]
+        lines[-1] = last.rstrip() + "…"
+    return lines
 
-    def sep(double=False):
-        rows.append(('double' if double else 'line', '', '', body, 'left'))
 
-    def money(value):
-        return 'Rs' + format(Decimal(str(value or 0)), ',.2f')
+def _strip_ref(value):
+    value = str(value or "").strip()
+    return value[7:] if value.startswith("WD-PAY-") else value
 
-    status = str(canonical_status(invoice.get('paymentStatus', 'pending'))).upper()
-    # A PAID tax invoice should display when the money was captured, not when the draft/request
-    # was first created. Keep createdAt as the honest fallback for unpaid/legacy rows.
-    epoch = ((invoice.get('paidAt') if status == 'CAPTURED' else None)
-             or invoice.get('createdAt') or invoice.get('invoiceDate') or 0)
-    text(company['legal_name'], title, 'center')
-    text(company['name'], heading, 'center')
-    text('GSTIN: ' + company['gstin'], small, 'center')
-    text('PAN: ' + company['pan'], small, 'center')
-    text('The W.B.S.I.D.C. Building, Unit 1/20,', small, 'center')
-    text('81/2/7, Phears Ln, Kolkata, WB 700012', small, 'center')
-    text('one@wecare.digital  |  +91 93309 94400', small, 'center')
-    sep(True)
-    text('TAX INVOICE', title, 'center')
-    sep()
-    pair('Order ID:', invoice.get('orderId') or invoice.get('referenceId') or '')
-    reference = str(invoice.get('referenceId') or '')
-    trace = reference[7:] if reference.startswith('WD-PAY-') else reference
-    if trace:
-        pair('Payment Ref:', trace, small)
-    gateway_payment = str(invoice.get('providerPaymentId') or invoice.get('paymentId') or '')
-    if gateway_payment:
-        # The id is printed; the gateway's name is not (owner instruction 2026-10-25).
-        pair('Txn:', gateway_payment, small)
-    pair('Date:', ist_strftime('%d-%m-%Y', epoch))
-    pair('Time:', ist_strftime('%H:%M IST', epoch))
-    pair('Status:', 'PAID' if status == 'CAPTURED' else status or 'PENDING', heading)
-    if customer_id:
-        pair('Customer ID:', customer_id, small)
-    pair('Channel:', source_label, small)
-    sep()
-    text('BILL TO:', heading)
-    text(invoice.get('customerName') or 'Customer')
-    text(invoice.get('customerPhone') or '')
-    text(invoice.get('customerEmail') or '')
-    address = invoice.get('shippingAddress') or invoice.get('billingAddress') or ''
-    if invoice.get('addressLine1'):
-        address = ', '.join(str(invoice.get(k) or '').strip() for k in
-                            ('addressLine1', 'addressLine2', 'city', 'state', 'postalCode')
-                            if invoice.get(k))
-    text(address)
-    sep()
-    pair('#  ITEM             QTY  RATE', 'AMOUNT', small)
-    quantity = 0
-    for index, item in enumerate(items, 1):
-        qty = int(item.get('quantity') or 1)
-        quantity += qty
-        name = str(item.get('name') or 'Item')
-        label = f'{index}  {name[:18]:<18} {qty}  {money(item.get("amount", 0))}'
-        if len(name) <= 18:
-            pair(label, money(Decimal(str(item.get('amount') or 0)) * qty), small)
-        else:
-            text(f'{index}  {name}', small)
-            pair(f'   {qty} x {money(item.get("amount", 0))}',
-                 money(Decimal(str(item.get('amount') or 0)) * qty), small)
-    sep()
-    pair('Subtotal', money(invoice.get('subtotal')))
-    discount = Decimal(str(invoice.get('discount') or 0))
-    if discount:
-        pair('Delight' if invoice.get('couponCode') == 'DELIGHT' else 'Discount', '-' + money(discount))
-    tax = Decimal(str(invoice.get('tax') or 0))
-    rate = Decimal(str(invoice.get('gstRate') or 0))
-    # The stored invoice owns tax. The renderer only displays its existing split.
-    cgst = (tax / 2).quantize(Decimal('.01'))
-    sgst = tax - cgst
-    if tax or rate:
-        pair(f'CGST @ {rate / 2:g}%', money(cgst))
-        pair(f'SGST @ {rate / 2:g}%', money(sgst))
-    for key, label in [('shipping', 'Shipping'), ('handling', 'Handling'),
-                       ('convenienceFee', 'Convenience Fee')]:
-        if invoice.get(key):
-            pair(label, money(invoice[key]))
-    sep(True)
-    pair(f'TOTAL ({quantity} ITEMS)', money(invoice.get('total')), title)
-    pair('AMOUNT PAYABLE', money(invoice.get('amountPayable')), heading)
-    for words in textwrap.wrap(amount_in_words(Decimal(str(invoice.get('total') or 0))), 38):
-        text(words, small)
-    sep(True)
-    text('GST SUMMARY', heading, 'center')
-    pair('Taxable Amount', money(Decimal(str(invoice.get('subtotal') or 0)) - discount))
-    pair(f'CGST @ {rate / 2:g}%', money(cgst))
-    pair(f'SGST @ {rate / 2:g}%', money(sgst))
-    pair('Total Tax', money(tax), heading)
-    sep()
-    if status == 'CAPTURED':
-        text('*  *  *   PAID   *  *  *', heading, 'center')
-        if invoice.get('paidAt'):
-            text('Paid on: ' + ist_strftime('%d-%m-%Y %H:%M IST', invoice['paidAt']), small, 'center')
-    else:
-        text('PAYMENT ' + (status or 'PENDING'), heading, 'center')
-    sep()
-    text('Thank You!', heading, 'center')
-    text('Visit Again!', body, 'center')
-    text('https://wecare.digital', small, 'center')
 
-    height = 2 * (pad + tear) + len(rows) * line
-    # Off-white paper, not a transparent surface (owner decision 2026-10-26): black text on a
-    # transparent PNG disappears on dark chat backgrounds and full-screen image viewers.
-    paper = Image.new('RGB', (width, height), (252, 252, 250))
+def _buyer_gstin(invoice, seller_gstin):
+    value = str(invoice.get("buyerGstin") or invoice.get("gstin") or "").strip().upper()
+    seller = str(seller_gstin or "").strip().upper()
+    return "" if not value or value == seller else value
+
+
+def _address(invoice):
+    structured = ", ".join(
+        str(invoice.get(k) or "").strip()
+        for k in ("addressLine1", "addressLine2", "city", "state", "postalCode")
+        if invoice.get(k)
+    )
+    return structured or str(
+        invoice.get("shippingAddress") or invoice.get("billingAddress") or "").strip()
+
+
+def _place(invoice):
+    state = str(invoice.get("state") or invoice.get("shippingState") or "").strip()
+    if state.casefold() in {"west bengal", "wb"}:
+        return "West Bengal (19)"
+    return state
+
+
+def _tear(width, base, amp, period, downward=True):
+    points = []
+    x = 0
+    while x <= width:
+        phase = (x % period) / period
+        tri = 1.0 - abs(phase * 2.0 - 1.0)
+        delta = round(amp * tri)
+        points.append((x, base + delta if downward else base - delta))
+        x += max(2, period // 4)
+    points.append((width, base))
+    return points
+
+
+def _logo(canvas, logo_bytes, box):
+    if not logo_bytes:
+        return False
+    try:
+        image = Image.open(io.BytesIO(logo_bytes)).convert("RGBA")
+        max_w, max_h = box[2] - box[0], box[3] - box[1]
+        ratio = min(max_w / image.width, max_h / image.height)
+        image = image.resize(
+            (max(1, round(image.width * ratio)), max(1, round(image.height * ratio))),
+            Image.Resampling.LANCZOS)
+        canvas.alpha_composite(
+            image,
+            (box[0] + (max_w - image.width) // 2,
+             box[1] + (max_h - image.height) // 2))
+        return True
+    except Exception:
+        return False
+
+
+def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
+           canonical_status, amount_in_words, source_label):
+    """Render the approved branded WhatsApp PAYMENT RECEIPT."""
+    scale = 2
+    width = 920 * scale
+    margin = 34 * scale
+    inner = 54 * scale
+    content_w = width - 2 * inner
+    paper_h = (1580 + max(0, len(items) - 2) * 90) * scale
+
+    regular = _font(font_paths, "regular", 17 * scale)
+    semibold = _font(font_paths, "semibold", 17 * scale)
+    bold = _font(font_paths, "bold", 20 * scale)
+    title = _font(font_paths, "bold", 30 * scale)
+    legal = _font(font_paths, "bold", 22 * scale)
+    small = _font(font_paths, "regular", 14 * scale)
+    small_bold = _font(font_paths, "semibold", 14 * scale)
+    total_font = _font(font_paths, "bold", 29 * scale)
+    footer_font = _font(font_paths, "bold", 24 * scale)
+
+    paper = Image.new("RGBA", (width, paper_h), PAPER + (255,))
     draw = ImageDraw.Draw(paper)
-    y = pad + tear
-    for kind, left, right, font, align in rows:
-        if kind in ('line', 'double'):
-            draw.line([(pad, y + 30), (width - pad, y + 30)], fill=black, width=3 if kind == 'line' else 6)
-            if kind == 'double':
-                draw.line([(pad, y + 45), (width - pad, y + 45)], fill=black, width=6)
-        else:
-            x = (width - draw.textbbox((0, 0), left, font=font)[2]) // 2 if align == 'center' else pad
-            draw.text((x, y), left, fill=black, font=font)
-            if kind == 'pair':
-                draw.text((width - pad - draw.textbbox((0, 0), right, font=font)[2], y), right, fill=black, font=font)
-        y += line
-    rng = random.Random(7)
+    y = 38 * scale
 
-    def edge(base):
-        points, x = [], 0
-        while x <= width:
-            points.append((x, base + rng.randint(-tear + 12, tear - 12) + rng.randint(-6, 6)))
-            x += 21 + rng.randint(-6, 9)
-        points.append((width, base))
-        return points
+    raw_status = str(canonical_status(invoice.get("paymentStatus", "pending")) or "pending").upper()
+    status = "PAID" if raw_status == "CAPTURED" else raw_status
+    epoch = ((invoice.get("paidAt") if status == "PAID" else None)
+             or invoice.get("createdAt") or invoice.get("invoiceDate") or 0)
+    date_str = ist_strftime("%d-%m-%Y", epoch) if epoch else ""
+    time_str = ist_strftime("%H:%M IST", epoch) if epoch else ""
+    ref = _strip_ref(invoice.get("referenceId"))
+    txn = str(invoice.get("providerPaymentId") or invoice.get("paymentId") or "").strip()
+    buyer_gstin = _buyer_gstin(invoice, company.get("gstin"))
+    place = _place(invoice)
+    address = _address(invoice)
 
-    mask = Image.new('L', paper.size, 0)
-    ImageDraw.Draw(mask).polygon(edge(tear) + list(reversed(edge(height - tear))), fill=255)
-    mask = mask.filter(ImageFilter.GaussianBlur(1.8))
-    # Only the paper is drawn. There is no drop shadow (owner instruction 2026-10-25): it read as
-    # a grey background, and without it every pixel outside the torn edge is alpha 0.
-    canvas = Image.new('RGBA', (width + 2 * margin, height + 2 * margin), (255, 255, 255, 0))
+    subtotal = Decimal(str(invoice.get("subtotal") or 0))
+    discount = Decimal(str(invoice.get("discount") or 0))
+    shipping = Decimal(str(invoice.get("shipping") or 0))
+    handling = Decimal(str(invoice.get("handling") or 0))
+    tax = Decimal(str(invoice.get("tax") or 0))
+    rate = Decimal(str(invoice.get("gstRate") or 0))
+    convenience = Decimal(str(invoice.get("convenienceFee") or 0))
+    total = Decimal(str(invoice.get("total") or 0))
+    taxable = subtotal - discount + shipping + handling
+
+    state = str(invoice.get("state") or invoice.get("shippingState") or "").strip().casefold()
+    intra_state = not state or state in {"west bengal", "wb"}
+    if intra_state:
+        sgst = (tax / 2).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        cgst = tax - sgst
+        tax_rows = [(f"CGST @ {rate / 2:g}%", cgst), (f"SGST @ {rate / 2:g}%", sgst)]
+    else:
+        tax_rows = [(f"IGST @ {rate:g}%", tax)]
+
+    def centered(value, font, fill=INK, gap=5):
+        nonlocal y
+        for line in _fit(draw, value, font, content_w, 2):
+            bb = draw.textbbox((0, 0), line, font=font)
+            draw.text(((width - (bb[2] - bb[0])) // 2, y), line, font=font, fill=fill)
+            y += (bb[3] - bb[1]) + gap * scale
+
+    def bar(value, font):
+        nonlocal y
+        h = 58 * scale
+        draw.rounded_rectangle(
+            (inner, y, width - inner, y + h), radius=12 * scale, fill=LIME)
+        bb = draw.textbbox((0, 0), value, font=font)
+        draw.text(((width - (bb[2] - bb[0])) // 2, y + (h - (bb[3] - bb[1])) // 2 - 3 * scale),
+                  value, font=font, fill=FOREST)
+        y += h + 15 * scale
+
+    logo_box = (width // 2 - 190 * scale, y, width // 2 + 190 * scale, y + 105 * scale)
+    if _logo(paper, logo_bytes, logo_box):
+        y += 112 * scale
+    else:
+        centered(company.get("name", "WECARE.DIGITAL"), title)
+    centered(company.get("legal_name", "WECARE.DIGITAL BHARATWORKS"), legal, FOREST, 2)
+    centered(company.get("name", "WECARE.DIGITAL"), semibold, INK, 3)
+    draw.line((width * .27, y + 2 * scale, width * .73, y + 2 * scale),
+              fill=LIME, width=4 * scale)
+    y += 16 * scale
+    centered(f"GSTIN: {company.get('gstin','')}   |   PAN: {company.get('pan','')}", small, INK, 2)
+    centered("The W.B.S.I.D.C. Building, Unit No. 1/20,", small, INK, 1)
+    centered("81/2/7 Phears Lane, Kolkata, West Bengal - 700012, India", small, INK, 1)
+    centered(f"{company.get('email','')}  |  {company.get('phone','')}  |  {company.get('website','')}",
+             small, INK, 1)
+    y += 9 * scale
+    bar("PAYMENT RECEIPT", title)
+
+    left_x = inner + 8 * scale
+    split_x = width // 2
+    right_x = split_x + 26 * scale
+    fact_line = 31 * scale
+    def fact(x, yy, label, value, strong=False):
+        draw.text((x, yy), label, font=small_bold, fill=MUTED)
+        draw.text((x + 132 * scale, yy), str(value or ""),
+                  font=semibold if strong else small, fill=INK)
+    facts_y = y
+    fact(left_x, facts_y, "Receipt Ref:", ref, True)
+    fact(left_x, facts_y + fact_line, "Date:", date_str)
+    fact(left_x, facts_y + 2 * fact_line, "Time:", time_str)
+    fact(right_x, facts_y, "Status:", status, True)
+    fact(right_x, facts_y + fact_line, "Channel:", source_label)
+    fact(right_x, facts_y + 2 * fact_line, "Txn:", txn)
+    draw.line((split_x, facts_y - 4 * scale, split_x, facts_y + 3 * fact_line),
+              fill=LINE, width=2 * scale)
+    y = facts_y + 3 * fact_line + 15 * scale
+
+    card_top = y
+    card_h = (55 + 29 * (3 + (1 if buyer_gstin or place else 0))) * scale
+    draw.rounded_rectangle((inner, card_top, width - inner, card_top + card_h),
+                           radius=12 * scale, fill=PALE)
+    draw.text((inner + 16 * scale, y + 10 * scale), "BILL TO", font=semibold, fill=FOREST)
+    y += 45 * scale
+    ly = y
+    for value, font in (
+        (invoice.get("customerName") or "Customer", semibold),
+        (invoice.get("customerPhone") or "", regular),
+        (invoice.get("customerEmail") or "", regular),
+    ):
+        if value:
+            for line in _fit(draw, value, font, int(content_w * .45), 1):
+                draw.text((inner + 16 * scale, ly), line, font=font, fill=INK)
+                ly += 27 * scale
+    ax, ay = width // 2 + 25 * scale, y
+    for line in _fit(draw, address, regular, width - inner - ax - 15 * scale, 3):
+        draw.text((ax, ay), line, font=regular, fill=INK)
+        ay += 27 * scale
+    if buyer_gstin:
+        draw.text((inner + 16 * scale, card_top + card_h - 34 * scale),
+                  f"Buyer GSTIN: {buyer_gstin}", font=small_bold, fill=INK)
+    if place:
+        value = f"Place of Supply: {place}"
+        bb = draw.textbbox((0, 0), value, font=small_bold)
+        draw.text((width - inner - 16 * scale - (bb[2] - bb[0]),
+                   card_top + card_h - 34 * scale), value, font=small_bold, fill=INK)
+    y = card_top + card_h + 18 * scale
+
+    header_h = 42 * scale
+    draw.rounded_rectangle((inner, y, width - inner, y + header_h),
+                           radius=9 * scale, fill=PALE)
+    x_no = inner + 14 * scale
+    x_desc = inner + 55 * scale
+    x_qty = width - inner - 315 * scale
+    x_rate = width - inner - 205 * scale
+    x_amount = width - inner - 12 * scale
+    for x, value in ((x_no, "#"), (x_desc, "DESCRIPTION"), (x_qty, "QTY"), (x_rate, "RATE")):
+        draw.text((x, y + 8 * scale), value, font=small_bold, fill=FOREST)
+    bb = draw.textbbox((0, 0), "AMOUNT", font=small_bold)
+    draw.text((x_amount - (bb[2] - bb[0]), y + 8 * scale),
+              "AMOUNT", font=small_bold, fill=FOREST)
+    y += header_h + 5 * scale
+
+    for index, item in enumerate(items, 1):
+        row_top = y
+        qty = int(item.get("quantity") or 1)
+        unit = Decimal(str(item.get("amount") or 0))
+        amount = unit * qty
+        draw.text((x_no, y + 9 * scale), str(index), font=regular, fill=INK)
+        name_lines = _fit(draw, item.get("name") or "Item", semibold,
+                          x_qty - x_desc - 20 * scale, 2)
+        for line in name_lines:
+            draw.text((x_desc, y + 4 * scale), line, font=semibold, fill=INK)
+            y += 24 * scale
+        if not name_lines:
+            y += 24 * scale
+        description = str(item.get("description") or item.get("variantName") or "").strip()
+        if description:
+            for line in _fit(draw, description, small, x_qty - x_desc - 20 * scale, 1):
+                draw.text((x_desc, y + scale), line, font=small, fill=MUTED)
+                y += 22 * scale
+        row_y = row_top + 10 * scale
+        draw.text((x_qty + 10 * scale, row_y), str(qty), font=regular, fill=INK)
+        rate_s = _money(unit)
+        rb = draw.textbbox((0, 0), rate_s, font=regular)
+        draw.text((x_rate + 60 * scale - (rb[2] - rb[0]), row_y),
+                  rate_s, font=regular, fill=INK)
+        amount_s = _money(amount)
+        ab = draw.textbbox((0, 0), amount_s, font=regular)
+        draw.text((x_amount - (ab[2] - ab[0]), row_y), amount_s, font=regular, fill=INK)
+        y = max(y + 7 * scale, row_top + 58 * scale)
+        draw.line((inner + 10 * scale, y, width - inner - 10 * scale, y),
+                  fill=LINE, width=scale)
+        y += 6 * scale
+
+    y += 5 * scale
+    totals_x, val_x = inner + 10 * scale, width - inner - 12 * scale
+    def total_row(label, value, font=regular, value_font=None, fill=INK, band=False, top_pad=0):
+        nonlocal y
+        y += top_pad * scale
+        if band:
+            draw.rounded_rectangle((inner, y - 3 * scale, width - inner, y + 31 * scale),
+                                   radius=8 * scale, fill=PALE)
+        draw.text((totals_x, y), label, font=font, fill=fill)
+        text_value = _money(value)
+        vf = value_font or font
+        bb = draw.textbbox((0, 0), text_value, font=vf)
+        draw.text((val_x - (bb[2] - bb[0]), y), text_value, font=vf, fill=fill)
+        y += 34 * scale
+
+    total_row("Subtotal", subtotal)
+    if discount:
+        total_row("Discount", -discount, fill=PAID_GREEN)
+    if shipping:
+        total_row("Shipping", shipping)
+    if handling:
+        total_row("Handling", handling)
+    total_row("Taxable Value", taxable, top_pad=4)
+    if tax or rate:
+        for label, value in tax_rows:
+            total_row(label, value)
+    if tax:
+        total_row("Total Tax", tax, semibold, semibold, band=True)
+    if convenience:
+        total_row("Convenience Fee", convenience)
+
+    hero_label = "AMOUNT PAID" if status == "PAID" else "AMOUNT PAYABLE"
+    hero_h = 62 * scale
+    draw.rounded_rectangle((inner, y, width - inner, y + hero_h),
+                           radius=11 * scale, fill=LIME)
+    draw.text((inner + 16 * scale, y + 10 * scale), hero_label, font=bold, fill=FOREST)
+    total_s = _money(total)
+    tb = draw.textbbox((0, 0), total_s, font=total_font)
+    draw.text((width - inner - 14 * scale - (tb[2] - tb[0]), y + 4 * scale),
+              total_s, font=total_font, fill=FOREST)
+    y += hero_h + 12 * scale
+
+    for line in _fit(draw, amount_in_words(total), regular, content_w - 12 * scale, 2):
+        draw.text((inner + 10 * scale, y), line, font=regular, fill=INK)
+        y += 27 * scale
+    y += 10 * scale
+
+    if status == "PAID":
+        stamp_w, stamp_h = 265 * scale, 92 * scale
+        stamp = Image.new("RGBA", (stamp_w, stamp_h), (0, 0, 0, 0))
+        sd = ImageDraw.Draw(stamp)
+        sd.rounded_rectangle((3 * scale, 3 * scale, stamp_w - 3 * scale, stamp_h - 3 * scale),
+                             radius=9 * scale, outline=PAID_GREEN, width=6 * scale)
+        cx, cy = 35 * scale, stamp_h // 2
+        sd.ellipse((cx - 22 * scale, cy - 22 * scale, cx + 22 * scale, cy + 22 * scale),
+                   fill=PAID_GREEN)
+        sd.line((cx - 10 * scale, cy, cx - 2 * scale, cy + 9 * scale,
+                 cx + 14 * scale, cy - 12 * scale), fill=(255, 255, 255), width=5 * scale)
+        sd.text((72 * scale, 20 * scale), "PAID", font=total_font, fill=PAID_GREEN)
+        paper.alpha_composite(
+            stamp.rotate(7, resample=Image.Resampling.BICUBIC, expand=True),
+            (inner + 50 * scale, y))
+
+    trace_x, trace_y = width // 2 + 18 * scale, y + 10 * scale
+    for label, value in (
+        ("Txn ID:", txn),
+        ("Receipt Ref:", ref),
+        ("Paid On:", (date_str + " " + time_str).strip()),
+    ):
+        if value:
+            draw.text((trace_x, trace_y), label, font=small, fill=MUTED)
+            draw.text((trace_x + 112 * scale, trace_y), value, font=small_bold, fill=INK)
+            trace_y += 28 * scale
+
+    y += 112 * scale
+    draw.line((inner, y, width - inner, y), fill=LIME, width=4 * scale)
+    y += 18 * scale
+    centered("Thank You!", footer_font, FOREST, 5)
+    y += 5 * scale
+    centered("VISIT AGAIN", small_bold, INK, 3)
+    y += 2 * scale
+    centered(company.get("website", "https://wecare.digital"), semibold, PAID_GREEN, 1)
+    y += 14 * scale
+
+    paper = paper.crop((0, 0, width, min(paper_h, y + 40 * scale)))
+    mask = Image.new("L", paper.size, 0)
+    md = ImageDraw.Draw(mask)
+    period, amp = 34 * scale, 11 * scale
+    top = _tear(width, 0, amp, period, True)
+    bottom = _tear(width, paper.height, amp, period, False)
+    md.polygon(top + list(reversed(bottom)), fill=255)
+
+    edge = ImageDraw.Draw(paper)
+    edge.line(top, fill=LIME, width=8 * scale, joint="curve")
+    edge.line(bottom, fill=LIME, width=8 * scale, joint="curve")
+    edge.line((inner, 22 * scale, width - inner, 22 * scale), fill=LIME, width=2 * scale)
+
+    canvas = Image.new("RGBA", (paper.width + 2 * margin, paper.height + 2 * margin),
+                       (255, 255, 255, 0))
     canvas.paste(paper, (margin, margin), mask)
-    canvas = canvas.resize((canvas.width * 2 // scale, canvas.height * 2 // scale), Image.Resampling.LANCZOS)
-    # The resize premultiplies alpha and leaves black under every fully transparent pixel. Put
-    # white back, so a viewer that drops alpha instead of compositing it shows white, not black.
-    clear = canvas.getchannel('A').point(lambda alpha: 255 if alpha else 0)
-    canvas = Image.composite(canvas, Image.new('RGBA', canvas.size, (255, 255, 255, 0)), clear)
+    canvas = canvas.resize((canvas.width // scale, canvas.height // scale),
+                           Image.Resampling.LANCZOS)
     output = io.BytesIO()
-    canvas.save(output, format='PNG')
+    canvas.save(output, format="PNG", optimize=True)
     return output.getvalue()
