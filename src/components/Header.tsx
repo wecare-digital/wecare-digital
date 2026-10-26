@@ -1179,7 +1179,7 @@ const Header: React.FC = () => {
         .nav-row-icon-material{fill:currentColor;stroke:none}
         .nav-sub-icon{width:17px;height:17px;flex:0 0 17px;stroke-width:1.8;opacity:.82}
         .nav-row-chevron{width:17px;height:17px;flex:0 0 17px;margin-inline-start:auto;stroke-width:1.9;opacity:.72}
-        .nav-item-label{min-width:0}
+        .nav-item-label{min-width:0;white-space:nowrap}
         /* ACTIVE AND HOVER MUST READ AS DIFFERENT STATES. They were both the same
            rgba(209,244,112,.22) pale tint, so the current page ("you are here") looked
            identical to whatever row the mouse was over - you could not tell which page
@@ -1250,7 +1250,16 @@ const Header: React.FC = () => {
            padding-inline is symmetric, so Lightning CSS emits a plain left/right pair with no
            :lang() specificity class - it cannot out-specify the 767px rule above it, which is the
            trap documented on .nav-menu. */
-        @media(max-width:340px){.hdr-in{padding-inline:10px}.logo-nav{gap:6px}}
+        @media(max-width:340px){
+          .hdr-in{padding-inline:10px}
+          .logo-nav{gap:6px}
+          /* Keep every destination on one line at the narrow Fold width. The row icon is
+             decorative; dropping it here returns the width to the label instead of wrapping
+             a navigation destination into two lines. 17px preserves the hierarchy while
+             fitting the longest current label. */
+          .nav-row-icon,.nav-sub-icon{display:none}
+          .nav-item,.nav-child{font-size:17px;padding-inline:10px}
+        }
 
         @media(prefers-reduced-motion:reduce){
           .nav-menu{transition:none}
