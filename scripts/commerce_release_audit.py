@@ -67,9 +67,9 @@ def audit_release(lam, hosting, manifest, expected_commit, *, app_id, branch='we
             and row.get('category') == 'UTILITY'
             and row.get('language') == 'en'
             for row in templates)
-        # Reported, not gating: the capture-time `processing` update goes out as the interactive
-        # order_status message inside the 24-hour window without any template. Outside it, a
-        # missing approval defers the update (ORDER_STATUS_DEFERRED) rather than blocking money.
+        # GATING: the payment rail is template-only after capture. If this template is not
+        # APPROVED/UTILITY/ORDER_STATUS/en, payment confirmation cannot complete consistently and
+        # the release must not advertise ordinary payment collection as ready.
         order_status_name = (outbound.get('WA_ORDER_STATUS_TEMPLATE')
                              or 'wecare_order_status_v3')
         provider['order_status_template_approved'] = any(
@@ -92,7 +92,10 @@ def audit_release(lam, hosting, manifest, expected_commit, *, app_id, branch='we
                'matches_expected_commit': job['status'] == 'SUCCEED' and job['commitId'] == expected_commit}
     ready = (all(row['package_matches'] and row['active']
                  and row.get('payment_expectations_match', True) for row in rows)
-             and not smoke_mode and provider['payment_template_approved']
+             and not smoke_mode
+             and provider['payment_template_approved']
+             and provider['order_status_template_approved']
+             and provider['invoice_template_approved']
              and provider['payment_configuration_matches'])
     return {'functions': rows, 'qa_only': smoke_mode, 'provider': provider, 'website': website,
             'ordinary_payment_collection_ready': ready,
