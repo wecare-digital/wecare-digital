@@ -8,6 +8,9 @@ on:
       - "amplify/functions/messaging/whatsapp-business-api/**"
       - "amplify/functions/shared/lambda_utils/ecommerce/**"
       - "amplify/functions/shared/lambda_utils/template_media.py"
+      - "amplify/functions/shared/lambda_utils/direct_send.py"
+      - "config/lambda-env-manifest.json"
+      - "tests/test_direct_send_dual_account_regression.py"
       - "amplify/functions/core/service-api/**"
       - "amplify/functions/ai/ai-generate-response/**"
       - "src/components/workspace/pay/**"
@@ -24,6 +27,9 @@ on:
       - "amplify/functions/messaging/whatsapp-business-api/**"
       - "amplify/functions/shared/lambda_utils/ecommerce/**"
       - "amplify/functions/shared/lambda_utils/template_media.py"
+      - "amplify/functions/shared/lambda_utils/direct_send.py"
+      - "config/lambda-env-manifest.json"
+      - "tests/test_direct_send_dual_account_regression.py"
       - "amplify/functions/core/service-api/**"
       - "amplify/functions/ai/ai-generate-response/**"
       - "src/components/workspace/pay/**"
@@ -56,6 +62,9 @@ jobs:
 
       - name: Verify WhatsApp payment rail
         run: python scripts/verify_whatsapp_catalog_payment_rail.py
+
+      - name: Verify Direct Send account/config gate
+        run: python -m unittest discover -s tests -p 'test_direct_send_dual_account_regression.py'
 
   workspace-typecheck:
     runs-on: ubuntu-latest
