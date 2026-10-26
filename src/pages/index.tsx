@@ -608,10 +608,9 @@ const HomePage: React.FC = () => {
 
         @media(max-width:1024px){
           .home-flow{grid-template-columns:minmax(0,1fr);gap:32px}
-          /* Copy first on a narrow screen: it introduces the panel, and a 650px black
-             box arriving with no context is the thing that felt overwhelming.
-             The position:static that used to be here went with the sticky it was undoing. */
-          .home-flow-copy{order:-1}
+          /* Runtime first on narrow screens. The DOM already renders .home-flow-panel before
+             .home-flow-copy, so keeping natural order puts the Platform Runtime trace above
+             "The part you don’t have to think about" and its three explanatory points. */
         }
 
         /* The font stack is declared here, not inherited. This is the same stack .page
