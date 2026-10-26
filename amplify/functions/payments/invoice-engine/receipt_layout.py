@@ -22,10 +22,22 @@ LINE = (210, 221, 214)
 PAID_GREEN = (13, 132, 58)
 
 
-def _money(value):
+def _money(value, symbol="₹"):
     amount = Decimal(str(value if value is not None else 0)).quantize(
         Decimal("0.01"), rounding=ROUND_HALF_UP)
-    return "₹" + format(amount, ",.2f")
+    return symbol + format(amount, ",.2f")
+
+
+def _draws(font, char):
+    """True when `font` has a glyph for `char` instead of drawing its missing-glyph box.
+
+    A missing character renders as the font's .notdef glyph, the same mask as U+FFFF, a
+    permanent noncharacter that no font maps.
+    """
+    try:
+        return bytes(font.getmask(char)) != bytes(font.getmask("\uffff"))
+    except Exception:
+        return False
 
 
 def _font(font_paths, role, size):
@@ -160,6 +172,9 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
     small_bold = _font(font_paths, "semibold", 14 * scale)
     total_font = _font(font_paths, "bold", 29 * scale)
     footer_font = _font(font_paths, "bold", 24 * scale)
+    # Inter (the S3 font prefix) has ₹; the packaged fallback does not, and would print its
+    # missing-glyph box in every amount. Say "Rs." in that case instead.
+    symbol = "₹" if _draws(regular, "₹") else "Rs."
 
     paper = Image.new("RGBA", (width, paper_h), PAPER + (255,))
     draw = ImageDraw.Draw(paper)
@@ -196,12 +211,14 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
     else:
         tax_rows = [(f"IGST @ {rate:g}%", tax)]
 
-    def centered(value, font, fill=INK, gap=5):
+    def centered(value, font, fill=INK, gap=5, clear_ink=False):
         nonlocal y
         for line in _fit(draw, value, font, content_w, 2):
             bb = draw.textbbox((0, 0), line, font=font)
             draw.text(((width - (bb[2] - bb[0])) // 2, y), line, font=font, fill=fill)
-            y += (bb[3] - bb[1]) + gap * scale
+            # The ink starts bb[1] below `y`, so advancing by ink height alone leaves the next
+            # line bb[1] too high. `clear_ink` advances past the real bottom of the ink.
+            y += (bb[3] if clear_ink else bb[3] - bb[1]) + gap * scale
 
     def bar(value, font):
         nonlocal y
@@ -218,8 +235,10 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
         y += 112 * scale
     else:
         centered(company.get("name", "WECARE.DIGITAL"), title)
-    centered(company.get("legal_name", "WECARE.DIGITAL BHARATWORKS"), legal, FOREST, 2)
-    centered(company.get("name", "WECARE.DIGITAL"), semibold, INK, 3)
+    # Both all-caps lines start well below `y`; without clear_ink the trade name ran into the
+    # legal name and the lime rule below cut through it.
+    centered(company.get("legal_name", "WECARE.DIGITAL BHARATWORKS"), legal, FOREST, 2, True)
+    centered(company.get("name", "WECARE.DIGITAL"), semibold, INK, 3, True)
     draw.line((width * .27, y + 2 * scale, width * .73, y + 2 * scale),
               fill=LIME, width=4 * scale)
     y += 16 * scale
@@ -324,11 +343,11 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
                 y += 22 * scale
         row_y = row_top + 10 * scale
         draw.text((x_qty + 10 * scale, row_y), str(qty), font=regular, fill=INK)
-        rate_s = _money(unit)
+        rate_s = _money(unit, symbol)
         rb = draw.textbbox((0, 0), rate_s, font=regular)
         draw.text((x_rate + 60 * scale - (rb[2] - rb[0]), row_y),
                   rate_s, font=regular, fill=INK)
-        amount_s = _money(amount)
+        amount_s = _money(amount, symbol)
         ab = draw.textbbox((0, 0), amount_s, font=regular)
         draw.text((x_amount - (ab[2] - ab[0]), row_y), amount_s, font=regular, fill=INK)
         y = max(y + 7 * scale, row_top + 58 * scale)
@@ -345,7 +364,7 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
             draw.rounded_rectangle((inner, y - 3 * scale, width - inner, y + 31 * scale),
                                    radius=8 * scale, fill=PALE)
         draw.text((totals_x, y), label, font=font, fill=fill)
-        text_value = _money(value)
+        text_value = _money(value, symbol)
         vf = value_font or font
         bb = draw.textbbox((0, 0), text_value, font=vf)
         draw.text((val_x - (bb[2] - bb[0]), y), text_value, font=vf, fill=fill)
@@ -372,7 +391,7 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
     draw.rounded_rectangle((inner, y, width - inner, y + hero_h),
                            radius=11 * scale, fill=LIME)
     draw.text((inner + 16 * scale, y + 10 * scale), hero_label, font=bold, fill=FOREST)
-    total_s = _money(total)
+    total_s = _money(total, symbol)
     tb = draw.textbbox((0, 0), total_s, font=total_font)
     draw.text((width - inner - 14 * scale - (tb[2] - tb[0]), y + 4 * scale),
               total_s, font=total_font, fill=FOREST)
@@ -446,6 +465,11 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
     canvas.alpha_composite(framed, (margin, margin))
     canvas = canvas.resize((canvas.width // scale, canvas.height // scale),
                            Image.Resampling.LANCZOS)
+    # The resize works on premultiplied alpha and leaves black under every fully transparent
+    # pixel. Keep them transparent but white, so a viewer that drops alpha (a JPEG conversion)
+    # shows white around the torn edge instead of a black frame.
+    clear = canvas.getchannel("A").point(lambda alpha: 255 if alpha else 0)
+    canvas = Image.composite(canvas, Image.new("RGBA", canvas.size, (255, 255, 255, 0)), clear)
     output = io.BytesIO()
     canvas.save(output, format="PNG", optimize=True)
     return output.getvalue()

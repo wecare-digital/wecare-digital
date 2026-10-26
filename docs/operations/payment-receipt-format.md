@@ -21,12 +21,12 @@ The renderer is presentation-only. It MUST render stored invoice figures and MUS
 
 - Document title: **PAYMENT RECEIPT**
 - Paper: off-white `rgb(252,252,250)`
-- Pixels outside the torn paper: transparent
+- Pixels outside the torn paper: transparent, stored as transparent white so a viewer that drops alpha (a JPEG conversion) shows white rather than a black frame
 - Four-sided scalloped/torn edge: WECARE lime `#d1f470`
 - Structural green: `#1a3a2a`
 - Lime is used for the receipt-title bar and Amount Paid bar.
 - Official WECARE.DIGITAL artwork is used from the S3 brand asset; never recreate the logo by hand.
-- Typography should use Inter when the invoice font assets are available. The renderer must retain a packaged-font fallback so a missing optional asset cannot prevent a paid receipt from being generated.
+- Typography should use Inter when the invoice font assets are available. The renderer must retain a packaged-font fallback so a missing optional asset cannot prevent a paid receipt from being generated. Inter 4.1 (SIL OFL 1.1, from the rsms/inter v4.1 release) is in the font prefix as `Inter-Regular.otf`, `Inter-SemiBold.otf` and `Inter-Bold.otf`, with its licence as `Inter-LICENSE.txt`. The packaged fallback has no ₹ glyph, so amounts print as `Rs.` whenever it is in use.
 - Keep the image compact and WhatsApp-readable; do not add a drop shadow.
 
 ## Seller identity
