@@ -1432,7 +1432,8 @@ def run(root: Path) -> int:
                                               "state": state, "postalCode": postal, "countryCode": "IN"}
             _table("ContactsTable").put_item(Item=row)
 
-        web = shop.customer(42, address=False, legacy_shipping=False)
+        # 62: 1-15, 40-42 and 61 belong to the other scenarios.
+        web = shop.customer(62, address=False, legacy_shipping=False)
         before = len(created_orders)
         missing = web_prepare(web, "hermetic-web-1")
         check("WEB", "a physical basket with no delivery address is refused 409 before any provider call",
@@ -1451,7 +1452,7 @@ def run(root: Path) -> int:
         check("WEB", "a payable address opens the payment and is frozen on the attempt",
               ready.get("status") == "CHECKOUT_OPTIONS_READY"
               and (web_attempt.get("deliveryAddress") or {}).get("postalCode") == "700020"
-              and web_attempt.get("deliveryRecipient") == "Buyer 42", ready.get("status"))
+              and web_attempt.get("deliveryRecipient") == "Buyer 62", ready.get("status"))
         set_address(web, "560001", "Bengaluru", "Karnataka")
         resumed = web_prepare(web, "hermetic-web-1")
         web_attempt = _table("PaymentAttemptsTable").get_item(
@@ -1481,7 +1482,7 @@ def run(root: Path) -> int:
             Key={"paymentAttemptId": web_attempt_id}).get("Item") or {}
         check("WEB", "...but once a capture is recorded the frozen address never moves",
               (web_attempt.get("deliveryAddress") or {}).get("postalCode") == "560001"
-              and web_attempt.get("deliveryRecipient") == "Buyer 42",
+              and web_attempt.get("deliveryRecipient") == "Buyer 62",
               (web_attempt.get("deliveryAddress") or {}).get("postalCode"))
         order_view = checkout._order_view(
             {"orderNumber": "WD-ORD-22222223", "currency": "INR", "amountPaise": Decimal(100),
