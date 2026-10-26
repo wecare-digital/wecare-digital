@@ -105,16 +105,20 @@ const PROBE = () => {
   // section and card rungs fluid on phones (clamp(28px,7.75vw,32px), clamp(22px,5.8vw,24px)), so
   // every correct page failed below ~413px. Resolving the token at this viewport keeps the check
   // meaningful whatever the rung's formula is: a page that drifts off the token still fails.
-  const tokenSize = name => {
+  // Resolved BESIDE the heading being checked, not on body, so a family that re-declares the
+  // token inside its own scope (.lgd, .pdp) is compared against the value it actually sees.
+  const tokenSize = ( name, near ) => {
+    const host = ( near && near.parentElement ) || document.body;
     const probe = document.createElement( 'span' );
     probe.style.cssText = `position:absolute;visibility:hidden;font-size:var(${name})`;
-    document.body.appendChild( probe );
+    host.appendChild( probe );
     const size = getComputedStyle( probe ).fontSize;
     probe.remove();
     return size;
   };
-  const sectionRung = vw <= 767 ? tokenSize( '--public-mobile-section-size' ) : null;
-  const cardRung = vw <= 767 ? tokenSize( '--public-mobile-card-size' ) : null;
+  const rungs = near => ( vw <= 767 && near
+    ? { section: tokenSize( '--public-mobile-section-size', near ), card: tokenSize( '--public-mobile-card-size', near ) }
+    : { section: null, card: null } );
   const legalFoundation = ( location.pathname === '/terms/' || location.pathname === '/privacy/' ) && vw <= 767
     ? ( () => {
       const tocLinks = Array.from( document.querySelectorAll( '.lgd-toc-link' ) )
@@ -127,6 +131,8 @@ const PROBE = () => {
         smallToc: tocLinks.filter( box => box.height < 44 ).map( box => Math.round( box.height ) ),
         h2: h2 ? getComputedStyle( h2 ).fontSize : null,
         h3: h3 ? getComputedStyle( h3 ).fontSize : null,
+        sectionRung: rungs( h2 ).section,
+        cardRung: rungs( h3 || h2 ).card,
         fontFamily: root ? getComputedStyle( root ).fontFamily : '',
       };
     } )()
@@ -141,6 +147,8 @@ const PROBE = () => {
       return {
         h2: h2 ? getComputedStyle( h2 ).fontSize : null,
         h3: h3 ? getComputedStyle( h3 ).fontSize : null,
+        sectionRung: rungs( h2 ).section,
+        cardRung: rungs( h3 || h2 ).card,
         cta: cta ? getComputedStyle( cta ).fontSize : null,
         ctaHeight: cta ? Math.round( r( cta ).height ) : null,
         body: body ? getComputedStyle( body ).fontSize : null,
@@ -227,8 +235,6 @@ const PROBE = () => {
     smallMainControls,
     legalFoundation,
     productFoundation,
-    sectionRung,
-    cardRung,
     vayuGlobeFoundation,
     vayuSmallTargets,
   };
@@ -333,13 +339,13 @@ const PROBE = () => {
           if ( x.smallMainControls.length ) problems.push( `main control<44: ${x.smallMainControls.join( ',' )}` );
           if ( x.legalFoundation ) {
             if ( x.legalFoundation.smallToc.length ) problems.push( `legal toc tap<44: ${x.legalFoundation.smallToc.join( ',' )}` );
-            if ( x.legalFoundation.h2 !== x.sectionRung ) problems.push( `legal h2 ${x.legalFoundation.h2} (section rung ${x.sectionRung})` );
-            if ( x.legalFoundation.h3 && x.legalFoundation.h3 !== x.cardRung ) problems.push( `legal h3 ${x.legalFoundation.h3} (card rung ${x.cardRung})` );
+            if ( x.legalFoundation.h2 !== x.legalFoundation.sectionRung ) problems.push( `legal h2 ${x.legalFoundation.h2} (section rung ${x.legalFoundation.sectionRung})` );
+            if ( x.legalFoundation.h3 && x.legalFoundation.h3 !== x.legalFoundation.cardRung ) problems.push( `legal h3 ${x.legalFoundation.h3} (card rung ${x.legalFoundation.cardRung})` );
             if ( !x.legalFoundation.fontFamily.toLowerCase().includes( 'inter' ) ) problems.push( `legal font ${x.legalFoundation.fontFamily}` );
           }
           if ( x.productFoundation ) {
-            if ( x.productFoundation.h2 !== x.sectionRung ) problems.push( `product h2 ${x.productFoundation.h2} (section rung ${x.sectionRung})` );
-            if ( x.productFoundation.h3 !== x.cardRung ) problems.push( `product h3 ${x.productFoundation.h3} (card rung ${x.cardRung})` );
+            if ( x.productFoundation.h2 !== x.productFoundation.sectionRung ) problems.push( `product h2 ${x.productFoundation.h2} (section rung ${x.productFoundation.sectionRung})` );
+            if ( x.productFoundation.h3 !== x.productFoundation.cardRung ) problems.push( `product h3 ${x.productFoundation.h3} (card rung ${x.productFoundation.cardRung})` );
             if ( x.productFoundation.cta && x.productFoundation.cta !== '18px' ) problems.push( `product cta ${x.productFoundation.cta}` );
             if ( x.productFoundation.ctaHeight !== null && x.productFoundation.ctaHeight < 44 ) problems.push( `product cta tap<44: ${x.productFoundation.ctaHeight}px` );
             if ( x.productFoundation.body && x.productFoundation.body !== '20px' ) problems.push( `product body ${x.productFoundation.body}` );
