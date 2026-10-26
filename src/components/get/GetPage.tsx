@@ -48,6 +48,11 @@ import { DEFAULT_DIAL_CODE } from '../../lib/dialCodes';
 import {
     requestOtp, submitOtp, getSession, restoreSession, clearSession, normaliseMobile, nextSessionFrom,
 } from '../../lib/customerAuth';
+import { postRequestIntent } from '../../lib/serviceRequests';
+import { serviceByKind } from '../../config/services';
+import { setServiceLine } from '../../lib/cart';
+import { CHECKOUT_PATH } from '../../lib/serviceEntry';
+import { useRouter } from 'next/router';
 
 function formatBytes ( bytes: number ): string {
     if ( !bytes ) return '0 B';
@@ -82,6 +87,7 @@ interface FilesPageProps {
 }
 
 export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
+    const router = useRouter();
     const [ stage, setStage ] = useState<Stage>( 'mobile' );
     // `mobile` holds the COMPOSED E.164 string, not raw keystrokes. The field itself is now the
     // divided PhoneField, which owns a dial-code segment and a national-number segment, so the two
@@ -153,6 +159,43 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
         } ).catch( () => setError( 'Sign-in is temporarily unavailable. Please try again.' ) );
     }, [ targetFileId ] );
 
+    const handleRenewAccess = async ( file: SecureFile ) => {
+        const sessionNow = getSession() || await restoreSession();
+        if ( !sessionNow )
+        {
+            setStage( 'mobile' );
+            setError( 'Verify your mobile number to renew Vault access.' );
+            return;
+        }
+        const service = serviceByKind( 'VAULT' );
+        if ( !service )
+        {
+            setError( 'Vault checkout is temporarily unavailable.' );
+            return;
+        }
+        setWorking( file.fileId );
+        setError( '' );
+        try
+        {
+            const outcome = await postRequestIntent( sessionNow.accessToken, 'VAULT', undefined, file.fileId );
+            if ( outcome.kind !== 'ok' )
+            {
+                setError( outcome.kind === 'refused'
+                    ? outcome.message
+                    : 'Could not start Vault renewal. Nothing has been charged.' );
+                return;
+            }
+            setServiceLine( service.variantId, outcome.intent.intentId, price );
+            await router.push( CHECKOUT_PATH );
+        } catch ( err: any )
+        {
+            setError( err?.message || 'Could not start Vault renewal. Nothing has been charged.' );
+        } finally
+        {
+            setWorking( '' );
+        }
+    };
+
     const handleDownload = async ( file: SecureFile ) => {
         const accessId = file.paidEntitlementId || file.paidGrantId;
         if ( !accessId )
@@ -169,7 +212,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
             {
                 setError(
                     result.failure.status === 403
-                        ? 'This paid access window is not available. If you already paid, do not pay again; contact support.'
+                        ? ( result.failure.message || 'This access window has ended. Renew access to download again.' )
                         : ( result.failure.message || 'Could not prepare the download.' )
                 );
                 return;
@@ -498,7 +541,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                                         amount is the thing being agreed to, and the action segment
                                         is the control's accessible name - so the button answers to
                                         "Pay ₹49 on WhatsApp", which is what it does. */}
-                                    { file.paidEntitlementId || file.paidGrantId ? (
+                                    { ( file.paidEntitlementId || file.paidGrantId ) && file.accessWindowOpen ? (
                                         <PillButton
                                             as="button"
                                             type="button"
@@ -510,9 +553,20 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                                             busy={ working === file.fileId }
                                         />
                                     ) : (
-                                        <p className="sf-fine">
-                                            Purchase access is handled through the main checkout flow.
-                                        </p>
+                                        <PillButton
+                                            as="button"
+                                            type="button"
+                                            label="Vault"
+                                            action={ working === file.fileId
+                                                ? 'Opening checkout…'
+                                                : ( file.accessWindowCount || 0 ) > 0
+                                                    ? `Renew access · ${rupees( price )}`
+                                                    : `Get access · ${rupees( price )}` }
+                                            block
+                                            onClick={ () => { void handleRenewAccess( file ); } }
+                                            disabled={ working === file.fileId }
+                                            busy={ working === file.fileId }
+                                        />
                                     ) }
 
                                 </div>
