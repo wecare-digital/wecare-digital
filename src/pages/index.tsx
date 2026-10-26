@@ -56,7 +56,7 @@ import ClosingBand from '../components/public/ClosingBand';
  * unscoped rules for generic names and styled-jsx does not shield a page from them.
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
 // next/link, not a bare <a>, for the one internal link on this page. The mega-menu and the
 // product CTAs still use <a> - they escape @next/next/no-html-link-for-pages only because
@@ -156,21 +156,24 @@ const CYCLE_WORDS = [
 ];
 
 const HomePage: React.FC = () => {
-  const [ shown, setShown ] = useState( false );
-
-  // The hero's entrance is armed through this node, for the same reason the closing band is
-  // armed inside ClosingBand: the class that hides the start state must be added by JavaScript,
-  // never shipped in the markup, or the pill is blank whenever the script does not run.
-  const layoutRef = useRef<HTMLDivElement | null>( null );
+  // 'final' FIRST, AND THAT IS THE NO-JS FIX. The static export renders this initial value, so
+  // the shipped HTML must carry the settled pill: tint showing, dot popped. Until 2026-10-26
+  // this page passed phase={ shown ? 'shown' : 'armed' }, so the export rendered 'armed' - the
+  // white shutter over the tint and the dot at scale(0) - permanently, for anyone whose
+  // JavaScript did not run: no-JS, a failed bundle, or a page caught mid-load by a deploy.
+  // That arrived with #420, which moved the pill into RotatingPill and deleted the
+  // .home-layout.is-armed CSS a classList call here used to drive, so the call did nothing.
+  const [ phase, setPhase ] = useState<'final' | 'armed' | 'shown'>( 'final' );
 
   useEffect( () => {
     // One-shot entrance, same 60ms beat as VayuLok. No observer: there is a single
     // block above the fold, so there is nothing to reveal on scroll.
     //
     // THE ENTRANCE IS OPT-IN, AND THAT IS THE WHOLE POINT - the same inversion the closing
-    // band already uses. The CSS now ships the FINISHED pill: shutter gone, dot popped. This
-    // effect adds .is-armed, which is what puts it back to the start state, and it only does
-    // so once it knows the animation can actually play. So the failure modes all degrade to
+    // band already uses. The CSS ships the FINISHED pill: shutter gone, dot popped. This
+    // effect moves the phase to 'armed' (RotatingPill then adds .is-armed), which is what puts
+    // it back to the start state, and it only does so once it knows the animation can actually
+    // play. So the failure modes all degrade to
     // "no animation" rather than "no content": without JavaScript, with a failed bundle, or
     // under reduced motion, the pill renders complete.
     //
@@ -178,25 +181,38 @@ const HomePage: React.FC = () => {
     // removing them - so anything that stopped .show arriving left the headline followed by a
     // blank white lozenge, permanently. Measured with scripting disabled.
     //
-    // classList rather than state, deliberately: this is a visual side-effect that changes
-    // nothing React renders, which is the case the react-hooks/set-state-in-effect rule
-    // exists to steer away from state. The closing band's reveal takes the same approach for
-    // the same reason.
-    const el = layoutRef.current;
-    if ( !el ) return undefined;
-    const reduce = typeof window.matchMedia === 'function'
-      && window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches;
-    // Leave the finished state alone - there is nothing to animate.
-    if ( reduce ) return undefined;
-    el.classList.add( 'is-armed' );
-    const id = window.setTimeout( () => setShown( true ), 60 );
-    return () => window.clearTimeout( id );
+    // THE SAME MACHINE AS RotatingHero, deliberately: final -> armed -> shown, each step in a
+    // timeout, because setting state in the effect body is the react-hooks/set-state-in-effect
+    // case and matchMedia is browser-only, so it must not run during the static export.
+    //
+    // NO VISIBLE WIPE, AND THAT IS PARITY RATHER THAN A LOSS. Measured live on 2026-10-26:
+    // /grahak-os/, /vayulok/ and /contact/ show the settled pill from first paint and the
+    // shutter never moves, because 'armed' lands after first paint and 'shown' arrives inside
+    // the shutter's .18s transition delay. Before #420 Home armed the same way (a classList
+    // call after first paint), so it had no visible wipe either. The wipe it showed after #420
+    // came from shipping 'armed' in the HTML - the defect above - not from a design. Making the
+    // entrance genuinely play is a RotatingPill change for all four heroes.
+    let cancelled = false;
+    let reveal = 0;
+    const start = window.setTimeout( () => {
+      if ( cancelled ) return;
+      const reduce = typeof window.matchMedia === 'function'
+        && window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches;
+      // Leave the finished state alone - there is nothing to animate.
+      if ( reduce ) return;
+      setPhase( 'armed' );
+      reveal = window.setTimeout( () => { if ( !cancelled ) setPhase( 'shown' ); }, 60 );
+    }, 0 );
+    return () => {
+      cancelled = true;
+      window.clearTimeout( start );
+      window.clearTimeout( reveal );
+    };
   }, [] );
 
-  // The hero's rotation, its width re-measure and all the pill CSS now live in
-  // RotatingPill. This page keeps only the one-shot `shown` flag (armed via layoutRef in
-  // the entrance effect above) that drives the shared pill's reveal through its `phase`
-  // prop. ClosingBand owns its separate scroll reveal.
+  // The hero's rotation, its width re-measure and all the pill CSS live in RotatingPill.
+  // This page owns only the one-shot entrance phase it hands the pill. ClosingBand owns its
+  // separate scroll reveal.
 
   return (
     <>
@@ -226,7 +242,7 @@ const HomePage: React.FC = () => {
           which is the only reason to name a landmark at all. A page with a single <main>
           and an <h1> needs no accessible name; the h1 already describes it. */}
       <main className="home-shell">
-        <div className={ `home-layout ${shown ? 'show' : ''}`.trim() } ref={ layoutRef }>
+        <div className={ `home-layout ${phase === 'shown' ? 'show' : ''}`.trim() }>
           <div className="home-hero">
             {/* THE LIME BRAND BADGE WAS HERE AND IT REPEATED THE HEADER.
                 It rendered the same bag mark at 18px plus WECARE.DIGITAL at 14px/600,
@@ -273,7 +289,7 @@ const HomePage: React.FC = () => {
                 and translates each separately, so a span would split the phrase it translates. */}
             <h1 className="home-head">
               <span className="home-head-line">Everyday AI, built&nbsp;for</span>
-              <RotatingPill words={ CYCLE_WORDS } phase={ shown ? 'shown' : 'armed' } />
+              <RotatingPill words={ CYCLE_WORDS } phase={ phase } />
             </h1>
 
             {/* The one body level the contract allows: 20px/400/1.4/-.125px at
@@ -747,7 +763,7 @@ const HomePage: React.FC = () => {
            markup: this is what stops the h1's height depending on which word is active.
            The pill itself - its lozenge, dot, width glide, word fade and one-shot entrance
            - now lives in RotatingPill, which self-scopes its own rp-* CSS and is driven by
-           the phase prop (armed -> shown via the shown flag). styled-jsx here cannot
+           the phase prop (final -> armed -> shown, owned by this page). styled-jsx here cannot
            reach a child component's markup, which is why the pill owns its own styles. */
         .home-head-line{display:block;text-wrap:balance}
 
@@ -756,8 +772,17 @@ const HomePage: React.FC = () => {
            keep Home's single-column reading surface wholly inside one pane rather than spanning
            critical copy/controls across the hinge. Unsupported browsers ignore this safely. */
         /* Home closing CTA is meaningful action copy, not metadata; keep the 18px app rung
-           on desktop/tablet as well as phones. */
-        :global(.home-close-cta){font-size:18px}
+           on desktop/tablet as well as phones.
+           THESE SELECTORS NAME THE BAND (.cb.home-close) BECAUSE THE BARE ONES NEVER APPLIED.
+           .home-close-cta is one class, and ClosingBand's own scoped .cb-cta.jsx-* rule is two,
+           so the scoped 17px won: measured 17px at every width on 2026-10-26, and the phone
+           rules below lost the same way (the closing heading stayed 28px under a 32px section
+           heading). Three classes outrank the scoped rules without !important and still match
+           only Home's band, so other routes stay untouched until their own migration.
+           The closing heading also balances at every width. The sitewide balance rule stops at
+           767px, so tablets and desktop got the greedy break, which left "today." alone. */
+        :global(.cb.home-close .home-close-cta){font-size:18px}
+        :global(.cb.home-close .home-close-title){text-wrap:balance}
 
         @media(horizontal-viewport-segments:2){
           .home-layout{
@@ -790,8 +815,8 @@ const HomePage: React.FC = () => {
           .home-flow-list strong{font-size:var(--public-mobile-card-size)}
           /* HOME-ONLY overrides for shared child components. They apply only while Home is
              mounted, so other public routes stay visually unchanged until their migration. */
-          :global(.home-close-title){font-size:var(--public-mobile-section-size)}
-          :global(.home-close-cta){font-size:var(--public-mobile-cta-font-size)}
+          :global(.cb.home-close .home-close-title){font-size:var(--public-mobile-section-size)}
+          :global(.cb.home-close .home-close-cta){font-size:var(--public-mobile-cta-font-size)}
           :global(.public-share .ps-menu-sub),
           :global(.public-share .ps-menu-note){font-size:15px}
         }
