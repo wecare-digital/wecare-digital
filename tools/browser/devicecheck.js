@@ -24,6 +24,8 @@
 const { target } = require( './lib/serve' );
 const { launch, gotoStable } = require( './lib/browser' );
 const { installVisible } = require( './lib/visible' );
+const { PUBLIC_ROUTES } = require( './lib/public-routes' );
+const routePath = route => route === '/' ? '/' : `${route}/`;
 
 /**
  * ENGINE SELECTION. Chromium is the default; `--firefox` and `--webkit` run the same matrix on
@@ -47,39 +49,16 @@ const launchEngine = async () => {
   return require( 'playwright-core' )[ ENGINE ].launch();
 };
 
-// A POST PAGE IS IN THIS LIST NOW, AND ITS ABSENCE COST A REAL DEFECT. The list held every
-// hand-written public route and no /post/<slug>/, on the reasonable-sounding grounds that one
-// template serves all of them. But a template with 939 instances is where the LONGEST content
-// lives, and length is exactly what breaks at 280px: the breadcrumb's current-page crumb was
-// capped by a character count rather than by the space left for it, and ran 38px past the
-// viewport on the folded Fold posture. rtlcheck caught it only incidentally, while checking
-// something else. One representative slug is enough - the template is shared - and it must be a
-// LONG-titled one, because a short title fits and would prove nothing.
-const ROUTES = [ '/', '/grahak-os/', '/vayulok/', '/sehat/', '/contact/', '/orders/',
-  '/terms/', '/privacy/', '/anew/', '/elsewhere/visa/', '/elsewhere/trip/', '/elsewhere/activities/',
-  '/dastavez/drafting/', '/dastavez/registration/', '/dastavez/legal-reference/',
-  '/ritual-guru/ritva/', '/ritual-guru/puja-guidance/', '/ritual-guru/diy-puja-kit/',
-  '/expo-week/', '/niji-setu/', '/hunar/kaushal/', '/hunar/prastuti/', '/shipments/track/', '/vault/', '/404/', '/blog/', '/get/',
-  // The catalogue. '/shop/' WAS HERE for the grid's three-to-two-to-one reflow and was removed on
-  // 2026-10-04: the owner withdrew the index, so it 301s to the home page, and a harness that
-  // loads a redirect either follows it and audits home a second time or reports a failure -
-  // neither is information. There is no grid left to reflow.
-  //
-  // /shop/kiosk/ STAYS, and now carries the coverage alone. It is a catalogue slug rendered by
-  // src/pages/shop/[slug].tsx - the component this change edits - and it is the one catalogue
-  // route whose band is not RotatingHero's: it uses components/PageTopBand, so that component's
-  // 108px/96px clearance and its h1 clamp are proved here across every device posture.
-  '/shop/kiosk/',
-  // THE TRANSACTIONAL ROUTES, AND THEIR ABSENCE WAS THE DEFECT. All four are public (registered in
-  // the isPublic chain in _app.tsx) and all four were invisible to this harness, which carries a
-  // hardcoded list. Two of them - /checkout/status/ and /checkout/success/ - shipped with NO header
-  // clearance at all: they centred a card inside min-height:100vh, so the heading painted under the
-  // 108px fixed header, and nothing here could see it. They share components/PageTopBand now, and
-  // this is where that is measured.
-  // The Shopping Bag is in the header on EVERY one of these routes, so the 44px tap-target
-  // assertion below now covers it at 280px, where the header has the least room.
+// PUBLIC ROUTES COME FROM THE GENERATED CATALOGUE. This used to be a hand-written list and
+// drifted behind the actual public surface: request-pickup and other customer-service pages could
+// ship without ever entering the device matrix. Keep only the non-catalogue public/transactional
+// surfaces explicit here, plus one deliberately long blog post and one concrete Shop detail page.
+const EXTRA_DEVICE_ROUTES = [
+  '/404/', '/get/', '/shop/kiosk/',
   '/cart/', '/account/sign-in/', '/checkout/status/', '/checkout/success/',
-  '/post/a-bad-event-and-a-catastrophic-forecast-are-not-the-same/' ];
+  '/post/a-bad-event-and-a-catastrophic-forecast-are-not-the-same/',
+];
+const ROUTES = [ ...new Set( [ ...PUBLIC_ROUTES.map( routePath ), ...EXTRA_DEVICE_ROUTES ] ) ];
 
 // CSS pixels. DevTools presets where one exists, marked approx where modelled.
 const PUBLIC_SHARE_PHONE_WIDTHS = new Set( [ 320, 360, 390, 412 ] );
@@ -195,6 +174,21 @@ const PROBE = () => {
         return `${cls}:${Math.round( x.b.height )}px`;
       } )
     : [];
+  const headingOutside = Array.from( document.querySelectorAll( 'h1,h2,h3' ) )
+    .filter( el => window.__visible( el ) )
+    .map( el => ( { el, b: r( el ) } ) )
+    .filter( x => x.b.left < -1 || x.b.right > vw + 1 )
+    .map( x => `${x.el.tagName.toLowerCase()}:${Math.round( x.b.left )}..${Math.round( x.b.right )}` );
+  const smallMainControls = Array.from( document.querySelectorAll(
+    'main button,main input:not([type=hidden]):not([type=checkbox]):not([type=radio]),main select,main textarea,main summary,main [role=button]'
+  ) )
+    .map( el => ( { el, b: r( el ) } ) )
+    .filter( x => window.__visible( x.el ) )
+    .filter( x => x.b.height < 44 || x.b.width < 44 )
+    .map( x => {
+      const cls = ( x.el.className || '' ).toString().split( /\\s+/ ).filter( c => c && !c.startsWith( 'jsx-' ) )[ 0 ] || x.el.tagName;
+      return `${cls}:${Math.round( x.b.width )}x${Math.round( x.b.height )}`;
+    } );
   return {
     overflow: document.documentElement.scrollWidth - vw,
     h1: h1 ? { w: Math.round( r( h1 ).width ), right: Math.round( r( h1 ).right ), top: Math.round( r( h1 ).top ) } : null,
@@ -216,6 +210,8 @@ const PROBE = () => {
       };
     } )() : null,
     smallTargets: small,
+    headingOutside,
+    smallMainControls,
     legalFoundation,
     productFoundation,
     vayuGlobeFoundation,
@@ -318,6 +314,8 @@ const PROBE = () => {
           if ( x.menu && x.menu.offBottom > 0 ) problems.push( `menu +${x.menu.offBottom}px off-bottom` );
           if ( x.grahakMobileOrder && !x.grahakMobileOrder.ok ) problems.push( `Grahak mobile order: ${x.grahakMobileOrder.detail}` );
           if ( x.smallTargets.length ) problems.push( `tap<44: ${x.smallTargets.join( ',' )}` );
+          if ( x.headingOutside.length ) problems.push( `heading outside viewport: ${x.headingOutside.join( ',' )}` );
+          if ( x.smallMainControls.length ) problems.push( `main control<44: ${x.smallMainControls.join( ',' )}` );
           if ( x.legalFoundation ) {
             if ( x.legalFoundation.smallToc.length ) problems.push( `legal toc tap<44: ${x.legalFoundation.smallToc.join( ',' )}` );
             if ( x.legalFoundation.h2 !== '32px' ) problems.push( `legal h2 ${x.legalFoundation.h2}` );
