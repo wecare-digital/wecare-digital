@@ -2354,13 +2354,172 @@ def _send_text(body: Dict) -> Dict:
     return _send_message(phone_id, message, body)
 
 
-def _send_template_msg(body: Dict) -> Dict:
+#: Budget for the Direct Send attempt on a sign-in code. Cognito gives its trigger 5 seconds
+#: and re-runs a slow one, which issues and sends a NEW code. A sign-in measured on
+#: 2026-10-17 already took 4.4 s end to end, and this function's cold start averages ~0.8 s,
+#: so the attempt has to leave room for the template fallback inside that window.
+_DIRECT_SEND_OTP_TIMEOUT_SECONDS = 2.0
+
+#: After a Direct Send attempt fails for a WABA, this container sends that WABA's codes as the
+#: template for this long without trying again. A WABA that is allowlisted but not onboarded
+#: otherwise pays a refused round trip on every sign-in, inside the same 5-second window.
+#: Skipping only ever costs Direct Send usage, never delivery: the template is today's path.
+_DIRECT_SEND_OTP_RETRY_AFTER_SECONDS = 900
+_direct_send_otp_paused_until: Dict[str, float] = {}
+
+
+def _pause_direct_send_otp(waba_id: str) -> None:
+    _direct_send_otp_paused_until[waba_id] = time.monotonic() + _DIRECT_SEND_OTP_RETRY_AFTER_SECONDS
+
+
+def _direct_send_otp(phone_id: str, body: Dict) -> Optional[Dict]:
+    """Deliver a sign-in code as a Direct Send authentication message, or return None.
+
+    None means "send the approved template exactly as before". That is the answer to every
+    case except a confirmed Meta acceptance: the WABA is not in
+    `DIRECT_SEND_AUTHENTICATION_ENABLED_WABAS`, a recent account-level failure paused
+    Direct Send for this WABA in this container, the request cannot make a valid
+    authentication message, smoke mode is on, Meta refuses it for any reason, or the
+    transport fails.
+
+    Falling back to the template on EVERY failure is deliberate, and it is the opposite of
+    the utility path in outbound-whatsapp, which never retries as a template. That rule
+    exists because guessing a template for free-form copy can send the customer a different
+    message. Here there is nothing to guess: the caller named the approved AUTHENTICATION
+    template that carries this same code. The worst case of falling back after an ambiguous
+    failure (a timeout Meta had in fact accepted) is the same code arriving twice. The
+    alternative is a customer locked out of sign-in, because no SMS fallback exists.
+    """
+    waba_id = direct_send_util.waba_for_meta_phone(phone_id)
+    if not waba_id:
+        logger.info(json.dumps({'event': 'direct_send_waba_unresolved',
+                                'category': direct_send_util.AUTHENTICATION,
+                                'phoneId': phone_id}))
+        return None
+    if not direct_send_util.enabled_for_waba(waba_id, direct_send_util.AUTHENTICATION):
+        return None
+    if time.monotonic() < _direct_send_otp_paused_until.get(waba_id, 0.0):
+        logger.info(json.dumps({'event': 'direct_send_otp_skipped', 'reason': 'paused_after_failure',
+                                'wabaId': waba_id, 'fallback': 'template'}))
+        return None
+
+    otp = str(body.get('otpCode') or '')
+    try:
+        payload = direct_send_util.build_authentication_otp_payload(
+            body.get('to'), otp,
+            direct_send_util.otp_expiration_minutes(body.get('otpExpiresInSeconds')))
+    except ValueError as exc:
+        # The builder's messages never echo the code or the number.
+        logger.warning(json.dumps({'event': 'direct_send_otp_skipped', 'reason': 'invalid_request',
+                                   'detail': str(exc), 'wabaId': waba_id, 'fallback': 'template'}))
+        return None
+
+    # The template route this falls back to has no smoke guard, so skipping Direct Send keeps
+    # smoke mode exactly as it is today rather than adding a second path past it.
+    allowed, smoke_reason = live_smoke.check_recipient(payload['to'])
+    if not allowed:
+        logger.warning(json.dumps({'event': 'direct_send_otp_skipped', 'reason': 'smoke_mode',
+                                   'smokeReason': smoke_reason, 'wabaId': waba_id,
+                                   'fallback': 'template'}))
+        return None
+
+    logger.info(json.dumps({'event': 'direct_send_attempt',
+                            'category': direct_send_util.AUTHENTICATION, 'wabaId': waba_id}))
+    try:
+        result = _graph_api(f'{phone_id}/messages', method='POST', payload=payload,
+                            phone_id=phone_id, timeout=_DIRECT_SEND_OTP_TIMEOUT_SECONDS)
+    except Exception as exc:  # noqa: BLE001 - timeout, DNS, TLS: the template still has to go
+        _pause_direct_send_otp(waba_id)
+        logger.warning(json.dumps({'event': 'direct_send_otp_fallback', 'reason': 'transport_error',
+                                   'errorType': type(exc).__name__, 'wabaId': waba_id,
+                                   'fallback': 'template'}))
+        return None
+
+    if not isinstance(result, dict):
+        logger.warning(json.dumps({'event': 'direct_send_otp_fallback',
+                                   'reason': 'unexpected_response', 'wabaId': waba_id,
+                                   'fallback': 'template'}))
+        return None
+    if 'error' not in result:
+        messages = result.get('messages')
+        first = messages[0] if isinstance(messages, list) and messages else {}
+        message_id = first.get('id', '') if isinstance(first, dict) else ''
+        if message_id:
+            logger.info(json.dumps({'event': 'direct_send_otp_sent',
+                                    'category': direct_send_util.AUTHENTICATION,
+                                    'wabaId': waba_id}))
+            return _resp(200, {'success': True, 'messageId': message_id,
+                               'deliveredVia': 'direct_send',
+                               'category': direct_send_util.AUTHENTICATION})
+        logger.warning(json.dumps({'event': 'direct_send_otp_fallback', 'reason': 'no_message_id',
+                                   'wabaId': waba_id, 'fallback': 'template'}))
+        return None
+
+    err = result.get('error') if isinstance(result.get('error'), dict) else {}
+    # `_graph_api` wraps Meta's whole envelope, so the Meta error is usually one level down.
+    inner = err.get('error') if isinstance(err.get('error'), dict) else err
+    meta_code = inner.get('code')
+    error_data = inner.get('error_data') if isinstance(inner.get('error_data'), dict) else {}
+    details = str(error_data.get('details') or '')
+    kind = direct_send_util.classify_error(meta_code, details)
+    # Classified on the raw text; logged without the code (a credential Meta may echo back)
+    # and with phone numbers redacted.
+    safe_details = redact_string(details.replace(otp, '[code]') if otp else details)[:200]
+    fields = {
+        'category': direct_send_util.AUTHENTICATION,
+        'wabaId': waba_id,
+        'metaCode': meta_code,
+        'metaSubcode': inner.get('error_subcode'),
+        'fbtraceId': inner.get('fbtrace_id'),
+        'metaDetails': safe_details,
+        'fallback': 'template',
+    }
+    # Pause only on the account-level outcomes, which will repeat for the next code too.
+    # Any other Meta error (an undeliverable number, a pair rate limit) is about this
+    # recipient, and the next customer should still get Direct Send.
+    if kind in (direct_send_util.NOT_ONBOARDED, direct_send_util.RESTRICTED,
+                direct_send_util.OTHER_100):
+        _pause_direct_send_otp(waba_id)
+    if kind == direct_send_util.NOT_ONBOARDED:
+        logger.warning(json.dumps({
+            'event': 'direct_send_not_onboarded',
+            'note': 'WABA is not onboarded to Direct Send authentication - clear it from '
+                    'DIRECT_SEND_AUTHENTICATION_ENABLED_WABAS or complete onboarding. The '
+                    'approved template was sent instead.',
+            **fields}))
+    elif kind == direct_send_util.RESTRICTED:
+        logger.error(json.dumps({
+            'event': 'direct_send_restricted',
+            'note': 'Direct Send access restricted or capped by Meta enforcement - investigate '
+                    'category misclassification. The approved template was sent instead.',
+            **fields}))
+    elif kind == direct_send_util.OTHER_100:
+        logger.error(json.dumps({
+            'event': 'direct_send_rejected',
+            'note': 'Direct Send authentication request rejected for an unclassified reason - '
+                    'treat as our defect. The approved template was sent instead.',
+            **fields}))
+    else:
+        logger.warning(json.dumps({'event': 'direct_send_otp_fallback', 'reason': 'meta_error',
+                                   **fields}))
+    return None
+
+
+def _send_template_msg(body: Dict, internal: bool = False) -> Dict:
     """Send a template by name with caller components. Never a payment request.
 
     `components` reach Meta verbatim, so an order details button action here would bill a
     customer from a caller-chosen sender with caller-chosen payment settings, past the gate
     `outbound-whatsapp` applies to the one approved payment template. Refused before any
     Meta call; payment requests go through Pay Flow, Inbox or Commerce.
+
+    `otpCode` (with optional `otpExpiresInSeconds`) marks the send as a sign-in code. It is
+    honoured only on an internal invoke, which is how customer-whatsapp-auth,
+    customer-registration and blog-subscribe call this route: there the code may go out as
+    a Direct Send authentication message instead (`_direct_send_otp`), and the template in
+    this body is the fallback. From API Gateway the field is ignored and the template is
+    sent as before. Either way the template message is built from the same fields as
+    always, so a fallback is byte-identical to a send that never tried Direct Send.
     """
     from lambda_utils import template_validation as tv
     if tv.send_components_request_payment(body.get('components')):
@@ -2374,6 +2533,10 @@ def _send_template_msg(body: Dict) -> Dict:
     if not name:
         return _resp(400, {'error': 'templateName is required'})
     phone_id = body.get('phoneId') or PHONE1_META_ID
+    if internal and body.get('otpCode'):
+        delivered = _direct_send_otp(phone_id, body)
+        if delivered is not None:
+            return delivered
     template = {'name': name, 'language': {'code': body.get('language', 'en')}}
     if body.get('components'):
         template['components'] = body['components']
@@ -2732,12 +2895,34 @@ def _send_product_msg(body: Dict) -> Dict:
     return _send_message(phone_id, {'type': 'interactive', 'interactive': interactive}, body)
 
 
-def _route_send_message(path: str, body: Dict, auth: Optional[Dict] = None) -> Dict:
-    """Dispatch /messages/send/{type}. `auth` is the caller's verified staff identity."""
+def _is_internal_invoke(event: Dict[str, Any]) -> bool:
+    """True for a Lambda-to-Lambda invoke, False for anything API Gateway delivered.
+
+    The same predicate `lambda_utils.middleware.require_auth` uses to exempt internal invokes
+    from staff auth: an API Gateway HTTP API always injects `apiId`, `domainName` and
+    `http.sourceIp`, and the events our own functions build carry none of them. Invoking this
+    function directly already requires IAM `lambda:InvokeFunction`. A malformed request
+    context counts as external, which only ever withholds a capability.
+    """
+    rc = event.get('requestContext') or {}
+    if not isinstance(rc, dict):
+        return False
+    http = rc.get('http') or {}
+    if not isinstance(http, dict):
+        return False
+    return not (rc.get('apiId') or rc.get('domainName') or http.get('sourceIp'))
+
+
+def _route_send_message(path: str, body: Dict, auth: Optional[Dict] = None,
+                        internal: bool = False) -> Dict:
+    """Dispatch /messages/send/{type}. `auth` is the caller's verified staff identity.
+
+    `internal` is `_is_internal_invoke(event)`. Only the template route reads it.
+    """
     if path.rstrip('/').endswith('/text'):
         return _send_text(body)
     if path.rstrip('/').endswith('/template'):
-        return _send_template_msg(body)
+        return _send_template_msg(body, internal=internal)
     if path.rstrip('/').endswith('/media'):
         return _send_media_msg(body)
     if path.rstrip('/').endswith('/interactive'):
@@ -6550,7 +6735,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         elif '/messages/send/' in path:
             if method == 'POST':
-                return _route_send_message(path, body, auth=event.get('_auth'))
+                return _route_send_message(path, body, auth=event.get('_auth'),
+                                           internal=_is_internal_invoke(event))
             return _resp(405, {'error': 'POST only'})
 
         elif '/template-ttl/rules' in path:

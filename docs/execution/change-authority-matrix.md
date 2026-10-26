@@ -6,6 +6,51 @@ listed in [the restoration record](wildcard-restoration-20261019.md). Older
 redirect targets, provider-property descriptions and before-snapshots are not
 current account links or recovery instructions.
 
+## 2026-10-26 — Direct Send authentication for sign-in codes (code ready, NOT deployed)
+
+Owner instruction: enable Direct Send utility and authentication on both WABAs.
+
+- **Utility: already on, unchanged.** Read on 2026-10-26 from the `live` aliases:
+  `wecare-outbound-whatsapp` v120 and `wecare-whatsapp-business-api` v233 both carry
+  `DIRECT_SEND_ENABLED_WABAS=2094615664435155,2513394156072604`. The retained outbound logs
+  hold no `direct_send_*` event and both Direct Send alarms are OK, so there is still no live
+  evidence that Meta onboarded either WABA.
+- **Authentication: A1_LOCAL only.**
+  - `lambda_utils/direct_send.py`: one allowlist per category. `DIRECT_SEND_ENABLED_WABAS`
+    keeps meaning utility; `DIRECT_SEND_AUTHENTICATION_ENABLED_WABAS` is new and empty by
+    default. Adds Meta's interactive OTP payload (one `otp` button, `copy_code`, code 4–10
+    ASCII alphanumerics standing alone in a server-fixed body, expiry 1–90 minutes).
+  - `whatsapp-business-api` `/messages/send/template`: on an internal invoke only, a body
+    with `otpCode` goes out as a Direct Send authentication message when the sender's WABA
+    is allowlisted. Every failure (not onboarded, restricted, other 100, other Meta error,
+    transport, 2.0 s timeout) falls back to the same template body, byte-identical to
+    today. Account-level failures pause the attempt for that WABA for 15 minutes per
+    container, because Cognito gives the trigger 5 s and one 2026-10-17 sign-in already
+    took 4.4 s.
+  - `customer-whatsapp-auth`, `customer-registration`, `blog-subscribe` add `otpCode` and
+    `otpExpiresInSeconds`. An older sender ignores them, so deploy order does not matter.
+  - `scripts/provision_direct_send_alarms.py` descriptions cover both categories. The
+    existing metric filters already match the business-api log lines.
+- Verification: `compileall`; ruff error rules; `verify_whatsapp_catalog_payment_rail.py`
+  193/193; an uncommitted hermetic run of the real handlers, 62/62, no network or AWS.
+- **Pending A3_PRODUCTION, owner-gated.** (1) Merge with origin and push, so
+  `payment-rail-ci` deploys `wecare-whatsapp-business-api`; this checkout was 19 commits
+  behind origin, so a local deploy of that function would regress live code. (2)
+  `scripts/set_lambda_env_flag.py --set
+  DIRECT_SEND_AUTHENTICATION_ENABLED_WABAS=2094615664435155,2513394156072604 --functions
+  wecare-whatsapp-business-api --apply`. (3) From the merged tree,
+  `scripts/deploy_all_lambdas.py wecare-customer-whatsapp-auth wecare-customer-registration
+  wecare-blog-subscribe`. (4)
+  Re-run `scripts/provision_direct_send_alarms.py`. (5) One QA sign-in: expect
+  `direct_send_otp_sent`, or `direct_send_not_onboarded` followed by the template.
+- Rollback: set `DIRECT_SEND_AUTHENTICATION_ENABLED_WABAS=` with the same script. Empty, the
+  sign-in path is today's template send.
+- Out of scope: customer sign-in codes still leave from WABA1 only (`OTP_WABA_MAP` loader,
+  provisioning script), so WABA2's authentication entry stays dormant until something sends
+  codes from WABA2's number.
+- Noted, not changed: `TTL_BOUNDS['utility']` allows 2592000 s, while Meta's TTL page gives
+  43200 s as the utility maximum. Only the admin `/direct-send` route reads it.
+
 ## 2026-10-09 — deep audit and permanent file ownership repair
 
 A0_READ: refreshed origin/stack53ed298e, isolated foreign dirty work, audited76Lambdas,

@@ -63,7 +63,7 @@ from typing import Any, Dict, Optional
 import boto3
 from boto3.dynamodb.conditions import Key
 
-from lambda_utils import contact_key, contact_store, customer_auth, customer_session, otp_throttle, shared_tables, identity_claims
+from lambda_utils import contact_key, contact_store, customer_auth, customer_session, otp_challenge, otp_throttle, shared_tables, identity_claims
 from lambda_utils.identity import customer as identity
 from lambda_utils.identity import registration
 from lambda_utils.identity import consent as consent_evidence
@@ -226,6 +226,11 @@ def _send_code(e164: str, code: str) -> None:
             {"type": "button", "sub_type": "url", "index": "0",
              "parameters": [{"type": "text", "text": code}]},
         ],
+        # Direct Send authentication when DIRECT_SEND_AUTHENTICATION_ENABLED_WABAS lists this
+        # sender's WABA; the template above otherwise and on any Direct Send failure. The
+        # lifetime is otp_challenge's default because `registration.begin` issues with it.
+        "otpCode": code,
+        "otpExpiresInSeconds": otp_challenge.DEFAULT_TTL_SECONDS,
     }
     invoke_event = {
         "httpMethod": "POST",
