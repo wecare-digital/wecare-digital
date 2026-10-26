@@ -61,6 +61,17 @@ If no Chromium is present at all:
 cd tools/browser && npx playwright install chromium
 ```
 
+**Three engines: `--webkit` and `--firefox`** on `devicecheck.js` and `rtlcheck.js`, both
+through `launchEngine()` in `lib/browser.js`. WebKit is Safari's engine and the one behind
+every browser on iOS. Firefox needed a workaround on macOS 27: Playwright's Firefox is branded
+`Name=Firefox`, so it keeps its bookkeeping in the real Firefox's
+`~/Library/Application Support/Firefox`, which macOS 27 protects, and from a terminal or editor
+without Full Disk Access it exits with "Could not find profile folder" before Playwright can
+connect ([microsoft/playwright#42768](https://github.com/microsoft/playwright/issues/42768)).
+`launchEngine( 'firefox' )` clones the cached bundle into the temp directory, gives the clone
+its own app name, and starts it through a two-line wrapper. Playwright's cache is never
+modified. Measured 2026-10-26 on macOS 27.0.1 with playwright-core 1.63 and firefox-1543.
+
 ## Running
 
 Both scripts are dual-mode via `lib/serve.js`. With no `BASE` they boot their own static

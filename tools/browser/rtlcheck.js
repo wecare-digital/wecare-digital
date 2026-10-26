@@ -45,7 +45,7 @@
  */
 
 const { target, OUT_DIR } = require( './lib/serve' );
-const { launch, gotoStable } = require( './lib/browser' );
+const { launch, launchEngine: launchNamedEngine, gotoStable } = require( './lib/browser' );
 const fs = require( 'fs' );
 const path = require( 'path' );
 
@@ -62,10 +62,8 @@ const path = require( 'path' );
  */
 const ENGINE = process.argv.includes( '--firefox' ) ? 'firefox'
   : process.argv.includes( '--webkit' ) ? 'webkit' : 'chromium';
-const launchEngine = async () => {
-  if ( ENGINE === 'chromium' ) return launch();
-  return require( 'playwright-core' )[ ENGINE ].launch();
-};
+// lib/browser.js owns engine launching, including the macOS 27 Firefox workaround.
+const launchEngine = async () => ( ENGINE === 'chromium' ? launch() : launchNamedEngine( ENGINE ) );
 
 /**
  * EVERY EXPORTED ROUTE, discovered rather than listed - public pages, inner pages and the

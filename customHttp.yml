@@ -156,6 +156,9 @@ customHeaders:
       #                airquality.googleapis.com                VayuLok readings and the map
       #   connect-src  api.open-meteo.com                       the weather line on /contact/
       #   frame-src    www.googletagmanager.com                 GTM's noscript iframe
+      #   img-src      connect.facebook.net                     the Meta Pixel library's own error
+      #                                                         beacon (//log/error), added after a
+      #                                                         second 37-page pass on /elsewhere/activities/
       # NOT exercised by that pass, so still unproven: checkout, the softphone, sign-in, map
       # interaction (pan, zoom, satellite tiles), and analytics after consent is granted (the
       # pass ran with the default denied). Review those before enforcing.
@@ -190,7 +193,8 @@ customHeaders:
           img-src 'self' data: blob:
           https://img.icons8.com https://*.cloudfront.net
           https://www.googletagmanager.com https://www.facebook.com
-          https://maps.googleapis.com https://maps.gstatic.com;
+          https://maps.googleapis.com https://maps.gstatic.com
+          https://connect.facebook.net;
           connect-src 'self' https://wecare.digital
           https://*.execute-api.us-east-1.amazonaws.com
           https://cognito-idp.us-east-1.amazonaws.com

@@ -22,7 +22,7 @@
  */
 
 const { target } = require( './lib/serve' );
-const { launch, gotoStable } = require( './lib/browser' );
+const { launch, launchEngine: launchNamedEngine, gotoStable } = require( './lib/browser' );
 const { installVisible } = require( './lib/visible' );
 
 /**
@@ -42,10 +42,8 @@ const { installVisible } = require( './lib/visible' );
  */
 const ENGINE = process.argv.includes( '--firefox' ) ? 'firefox'
   : process.argv.includes( '--webkit' ) ? 'webkit' : 'chromium';
-const launchEngine = async () => {
-  if ( ENGINE === 'chromium' ) return launch();
-  return require( 'playwright-core' )[ ENGINE ].launch();
-};
+// lib/browser.js owns engine launching, including the macOS 27 Firefox workaround.
+const launchEngine = async () => ( ENGINE === 'chromium' ? launch() : launchNamedEngine( ENGINE ) );
 
 // A POST PAGE IS IN THIS LIST NOW, AND ITS ABSENCE COST A REAL DEFECT. The list held every
 // hand-written public route and no /post/<slug>/, on the reasonable-sounding grounds that one
@@ -123,6 +121,21 @@ const PROBE = () => {
     const cls = ( x.el.className || '' ).toString().split( /\s+/ ).filter( c => c && !c.startsWith( 'jsx-' ) )[ 0 ] || x.el.tagName;
     return `${cls}:${Math.round( x.b.height )}px`;
   } );
+  // THE CONTRACT IS "USES THE SHARED MOBILE RUNG", NOT A FIXED PIXEL VALUE. These checks
+  // compared against literal 32px / 24px, the rungs' values when they were fixed. #1585 made the
+  // section and card rungs fluid on phones (clamp(28px,7.75vw,32px), clamp(22px,5.8vw,24px)), so
+  // every correct page failed below ~413px. Resolving the token at this viewport keeps the check
+  // meaningful whatever the rung's formula is: a page that drifts off the token still fails.
+  const tokenSize = name => {
+    const probe = document.createElement( 'span' );
+    probe.style.cssText = `position:absolute;visibility:hidden;font-size:var(${name})`;
+    document.body.appendChild( probe );
+    const size = getComputedStyle( probe ).fontSize;
+    probe.remove();
+    return size;
+  };
+  const sectionRung = vw <= 767 ? tokenSize( '--public-mobile-section-size' ) : null;
+  const cardRung = vw <= 767 ? tokenSize( '--public-mobile-card-size' ) : null;
   const legalFoundation = ( location.pathname === '/terms/' || location.pathname === '/privacy/' ) && vw <= 767
     ? ( () => {
       const tocLinks = Array.from( document.querySelectorAll( '.lgd-toc-link' ) )
@@ -218,6 +231,8 @@ const PROBE = () => {
     smallTargets: small,
     legalFoundation,
     productFoundation,
+    sectionRung,
+    cardRung,
     vayuGlobeFoundation,
     vayuSmallTargets,
   };
@@ -320,13 +335,13 @@ const PROBE = () => {
           if ( x.smallTargets.length ) problems.push( `tap<44: ${x.smallTargets.join( ',' )}` );
           if ( x.legalFoundation ) {
             if ( x.legalFoundation.smallToc.length ) problems.push( `legal toc tap<44: ${x.legalFoundation.smallToc.join( ',' )}` );
-            if ( x.legalFoundation.h2 !== '32px' ) problems.push( `legal h2 ${x.legalFoundation.h2}` );
-            if ( x.legalFoundation.h3 && x.legalFoundation.h3 !== '24px' ) problems.push( `legal h3 ${x.legalFoundation.h3}` );
+            if ( x.legalFoundation.h2 !== x.sectionRung ) problems.push( `legal h2 ${x.legalFoundation.h2} (section rung ${x.sectionRung})` );
+            if ( x.legalFoundation.h3 && x.legalFoundation.h3 !== x.cardRung ) problems.push( `legal h3 ${x.legalFoundation.h3} (card rung ${x.cardRung})` );
             if ( !x.legalFoundation.fontFamily.toLowerCase().includes( 'inter' ) ) problems.push( `legal font ${x.legalFoundation.fontFamily}` );
           }
           if ( x.productFoundation ) {
-            if ( x.productFoundation.h2 !== '32px' ) problems.push( `product h2 ${x.productFoundation.h2}` );
-            if ( x.productFoundation.h3 !== '24px' ) problems.push( `product h3 ${x.productFoundation.h3}` );
+            if ( x.productFoundation.h2 !== x.sectionRung ) problems.push( `product h2 ${x.productFoundation.h2} (section rung ${x.sectionRung})` );
+            if ( x.productFoundation.h3 !== x.cardRung ) problems.push( `product h3 ${x.productFoundation.h3} (card rung ${x.cardRung})` );
             if ( x.productFoundation.cta && x.productFoundation.cta !== '18px' ) problems.push( `product cta ${x.productFoundation.cta}` );
             if ( x.productFoundation.ctaHeight !== null && x.productFoundation.ctaHeight < 44 ) problems.push( `product cta tap<44: ${x.productFoundation.ctaHeight}px` );
             if ( x.productFoundation.body && x.productFoundation.body !== '20px' ) problems.push( `product body ${x.productFoundation.body}` );

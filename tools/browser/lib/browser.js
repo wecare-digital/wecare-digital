@@ -185,6 +185,95 @@ function resolveChrome() {
   );
 }
 
+/**
+ * The newest Playwright-cached Firefox bundle on macOS, as { app, rev }, or null.
+ */
+function macFirefoxBundle() {
+  for ( const root of playwrightCacheRoots() ) {
+    let entries;
+    try {
+      entries = fs.readdirSync( root );
+    } catch {
+      continue;
+    }
+    const revisions = entries
+      .map( name => /^firefox-(\d+)$/.exec( name ) )
+      .filter( Boolean )
+      .sort( ( a, b ) => Number( b[ 1 ] ) - Number( a[ 1 ] ) );
+    for ( const m of revisions ) {
+      const app = path.join( root, m[ 0 ], 'firefox', 'Nightly.app' );
+      if ( isExecutableFile( path.join( app, 'Contents', 'MacOS', 'firefox' ) ) ) return { app, rev: m[ 1 ] };
+    }
+  }
+  return null;
+}
+
+/**
+ * FIREFOX ON macOS 27 NEEDS AN APP NAME OF ITS OWN, or it cannot start.
+ *
+ * Playwright's bundled Firefox is branded Name=Firefox, so Gecko keeps its profiles.ini
+ * bookkeeping under ~/Library/Application Support/Firefox - the real Firefox's directory, which
+ * macOS 27 protects. Launched from a terminal or an editor without Full Disk Access, that lookup
+ * is denied and Firefox exits with "Could not find profile folder" before Playwright can talk to
+ * it (measured 2026-10-26: macOS 27.0.1, playwright-core 1.63, firefox-1543), whatever -profile
+ * says. Diagnosis and fix: https://github.com/microsoft/playwright/issues/42768 - start the same
+ * binary with -app pointing at a copy of application.ini whose Name and Vendor differ, so its
+ * app-data directory is its own.
+ *
+ * -app must be the FIRST argument, which launch() args cannot express, so a two-line wrapper
+ * script is the executablePath. The bundle is cloned into os.tmpdir() with `cp -c` (APFS
+ * clonefile, so no extra disk) and Playwright's shared cache is never modified. Built once per
+ * revision; a temporary directory renamed into place keeps two harness runs from racing.
+ * Returns undefined when no cached Firefox exists, so Playwright reports its own error.
+ */
+function macFirefoxExecutable() {
+  const found = macFirefoxBundle();
+  if ( !found ) return undefined;
+  const dir = path.join( os.tmpdir(), `wcd-harness-firefox-${found.rev}` );
+  const wrapper = path.join( dir, 'firefox' );
+  if ( isExecutableFile( wrapper ) ) return wrapper;
+  const { execFileSync } = require( 'child_process' );
+  const tmp = `${dir}.tmp-${process.pid}`;
+  fs.rmSync( tmp, { recursive: true, force: true } );
+  fs.mkdirSync( tmp, { recursive: true } );
+  try {
+    execFileSync( 'cp', [ '-cR', found.app, path.join( tmp, 'Nightly.app' ) ] );
+  } catch {
+    execFileSync( 'cp', [ '-R', found.app, path.join( tmp, 'Nightly.app' ) ] );
+  }
+  const resources = path.join( tmp, 'Nightly.app', 'Contents', 'Resources' );
+  const ini = fs.readFileSync( path.join( resources, 'application.ini' ), 'utf8' )
+    .replace( /^Vendor=.*$/m, 'Vendor=WecareHarness' )
+    .replace( /^Name=.*$/m, 'Name=WecareHarnessFirefox' );
+  fs.writeFileSync( path.join( resources, 'browser', 'application.ini' ), ini );
+  // The wrapper names the FINAL location, which is where it runs from after the rename.
+  const finalApp = path.join( dir, 'Nightly.app' );
+  fs.writeFileSync( path.join( tmp, 'firefox' ),
+    `#!/bin/sh\nexec "${path.join( finalApp, 'Contents', 'MacOS', 'firefox' )}" -app "${path.join( finalApp, 'Contents', 'Resources', 'browser', 'application.ini' )}" "$@"\n`,
+    { mode: 0o755 } );
+  try {
+    fs.renameSync( tmp, dir );
+  } catch ( e ) {
+    fs.rmSync( tmp, { recursive: true, force: true } );
+    if ( !isExecutableFile( wrapper ) ) throw e;
+  }
+  return wrapper;
+}
+
+/**
+ * Launch one of the three engines: 'chromium' (resolved as above), 'webkit', or 'firefox'
+ * (with the macOS 27 workaround). Callers own closing it.
+ */
+async function launchEngine( engine = 'chromium', opts = {} ) {
+  if ( engine === 'chromium' ) return launch( opts );
+  const pw = require( 'playwright-core' );
+  if ( engine === 'firefox' && process.platform === 'darwin' ) {
+    const executablePath = macFirefoxExecutable();
+    if ( executablePath ) return pw.firefox.launch( { executablePath, ...opts } );
+  }
+  return pw[ engine ].launch( opts );
+}
+
 /** Launch a headless Chromium. Callers own closing it. */
 async function launch( opts = {} ) {
   const { chromium } = require( 'playwright-core' );
@@ -241,4 +330,4 @@ async function gotoStable( page, url, opts = {} ) {
   return res;
 }
 
-module.exports = { resolveChrome, launch, gotoStable };
+module.exports = { resolveChrome, launch, launchEngine, gotoStable };
