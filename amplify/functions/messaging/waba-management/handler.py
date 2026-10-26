@@ -91,6 +91,33 @@ AWS_TO_META_WABA = {
 }
 META_WABA_DEFAULT = '2094615664435155'
 
+WECARE_META_APP_ID = os.environ.get('WECARE_META_APP_ID', '2238810740192680')
+WECARE_META_APP_NAME = os.environ.get('WECARE_META_APP_NAME', 'WECARE.DIGITAL')
+
+# Effective app relationship used by WECARE's backend. Meta business ownership and
+# runtime integration are separate concepts: Manish's WABA is owned by his business
+# portfolio but was migrated to the shared WECARE.DIGITAL app/token path.
+WABA_INTEGRATION_PROFILE = {
+    '2094615664435155': {
+        'businessId': '382642103987922',
+        'businessName': 'Wecare.Digital',
+        'appId': WECARE_META_APP_ID,
+        'appName': WECARE_META_APP_NAME,
+        'integrationMode': 'OWNED',
+        'integrationStatus': 'CONNECTED',
+        'developerAppConnected': True,
+    },
+    '2513394156072604': {
+        'businessId': '125951953587391',
+        'businessName': 'Manish Agarwal',
+        'appId': WECARE_META_APP_ID,
+        'appName': WECARE_META_APP_NAME,
+        'integrationMode': 'SHARED',
+        'integrationStatus': 'CONNECTED',
+        'developerAppConnected': True,
+    },
+}
+
 # AWS phone-number-id → Meta phone ID mapping
 AWS_PHONE_TO_META = {
     'phone-number-id-waba1-direct-1016149501586345': '1016149501586345',
@@ -415,6 +442,7 @@ def _list_wabas(request_id: str) -> Dict[str, Any]:
                 'requestId': request_id
             }))
             continue
+        integration = WABA_INTEGRATION_PROFILE.get(meta_id, {})
         wabas.append({
             'id': response.get('id', meta_id),
             'wabaId': aws_id,
@@ -428,7 +456,8 @@ def _list_wabas(request_id: str) -> Dict[str, Any]:
             'linkDate': '',
             'enableSending': True,
             'enableReceiving': True,
-            'eventDestinations': []
+            'eventDestinations': [],
+            **integration,
         })
 
     logger.info(json.dumps({'event': 'wabas_listed', 'count': len(wabas), 'requestId': request_id}))
@@ -470,6 +499,7 @@ def _get_waba_details(waba_id: str, request_id: str) -> Dict[str, Any]:
             'isOfficialBusinessAccount': phone.get('is_official_business_account', False),
         })
 
+    integration = WABA_INTEGRATION_PROFILE.get(meta_waba_id, {})
     waba_details = {
         'id': waba_id,
         'wabaId': account.get('id', ''),
@@ -485,7 +515,8 @@ def _get_waba_details(waba_id: str, request_id: str) -> Dict[str, Any]:
         'enableSending': True,
         'enableReceiving': True,
         'eventDestinations': [],
-        'phoneNumbers': phone_numbers
+        'phoneNumbers': phone_numbers,
+        **integration,
     }
 
     logger.info(json.dumps({
