@@ -156,6 +156,8 @@ def parse(value: str) -> dict:
 
 
 def validate_authorize(params: dict) -> dict:
+    # Hosts may send this display hint; it must not affect authorization or be reflected.
+    params = {k: v for k, v in params.items() if k != 'ui_locales'}
     required = {'client_id', 'redirect_uri', 'response_type', 'scope', 'state', 'resource', 'code_challenge', 'code_challenge_method'}
     if set(params) != required or params['response_type'] != 'code' or params['code_challenge_method'] != 'S256':
         raise AuthError('Invalid authorization request')

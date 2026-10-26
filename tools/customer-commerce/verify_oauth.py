@@ -67,6 +67,12 @@ class FakeCognito:
 
 
 class OAuthContract(unittest.TestCase):
+    def test_host_language_hint_does_not_change_authorization(self):
+        params = {**self.params, 'ui_locales': 'en-US'}
+        self.assertEqual(auth.validate_authorize(params), self.params)
+        with self.assertRaises(auth.AuthError):
+            auth.validate_authorize({**self.params, 'untrusted_option': 'ignored'})
+
     def test_connection_page_preserves_browser_origin_without_referrer_path(self):
         # Chromium sends Origin: null on navigation POSTs under no-referrer.
         # The connection form must retain its origin for the existing CSRF check.

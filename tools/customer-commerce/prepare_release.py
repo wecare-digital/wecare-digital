@@ -143,7 +143,7 @@ def template(code: str, source_hash: str) -> dict:
         'Properties': {'Action': 'lambda:InvokeFunction', 'FunctionName': ref('Live'), 'Principal': 'apigateway.amazonaws.com',
                        'SourceAccount': ref('AWS::AccountId'), 'SourceArn': sub('arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/*')}}
     return {'AWSTemplateFormatVersion': '2010-09-09',
-        'Description': 'WECARE conversation-only customer commerce MCP. Reuses customer identity, commerce tables and encrypted session custody; no storefront or provider credentials.',
+        'Description': 'WECARE customer commerce MCP. Existing identity, commerce and encrypted custody; no storefront.',
         'Metadata': {'AWSToolsMetrics': {'AWSAgentToolkit': 'aws-cloudformation@3'},
                      **context('Customer API reuses existing identity, data and custody.',
                                ['Verify 775261844268/us-east-1 before deploy.', 'No sends until approval and activation.'])},
