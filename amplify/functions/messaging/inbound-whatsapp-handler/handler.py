@@ -57,6 +57,7 @@ from lambda_utils.ecommerce import order_keys  # reference_id contract; never tr
 from lambda_utils.ecommerce import whatsapp_basket
 from lambda_utils import live_smoke  # the WA_LIVE_SMOKE_TEST lockdown applies to direct sends too
 from lambda_utils import thread_ownership  # Conversation Routing: derive ownership, never query it
+from lambda_utils.system_events import record_system_event
 from botocore.exceptions import ClientError
 try:
     from lambda_utils import partner_billing  # per-tenant prepaid metering (optional)
@@ -1140,6 +1141,120 @@ def _coexistence_ingest_enabled() -> bool:
         in ('1', 'true', 'yes', 'on')
 
 
+def _archive_meta_event(event_type: str, value: Dict, request_id: str,
+                        waba_id: str = '', phone_number_id: str = '') -> str:
+    """Archive one Meta webhook payload to partitioned JSON in the existing media bucket.
+
+    This is analytics/audit storage only. It never feeds the Inbox, automation, or sends.
+    Fail-open so an S3 outage cannot make Meta retry a webhook that was otherwise processed.
+    """
+    try:
+        day = time.strftime('%Y-%m-%d', time.gmtime())
+        key = (
+            f'analytics/whatsapp/meta-events/date={day}/event_type={event_type}/'
+            f'{int(time.time() * 1000)}-{uuid.uuid4().hex}.json'
+        )
+        payload = {
+            'eventType': event_type,
+            'receivedAt': int(time.time()),
+            'requestId': request_id,
+            'wabaId': waba_id,
+            'phoneNumberId': phone_number_id,
+            'payload': value,
+        }
+        s3.put_object(
+            Bucket=MEDIA_BUCKET,
+            Key=key,
+            Body=(json.dumps(payload, default=str, separators=(',', ':')) + '\n').encode('utf-8'),
+            ContentType='application/json',
+            ServerSideEncryption='AES256',
+        )
+        return key
+    except Exception as e:
+        logger.warning(json.dumps({
+            'event': 'meta_event_archive_failed',
+            'eventType': event_type,
+            'error': type(e).__name__,
+            'requestId': request_id,
+        }))
+        return ''
+
+
+def _record_meta_system_event(event_type: str, value: Dict, request_id: str,
+                              waba_id: str = '', phone_number_id: str = '') -> None:
+    """Persist a Meta system webhook in both dashboard ring-buffer and durable audit stores."""
+    _store_system_event(event_type, value, request_id)
+    archive_key = _archive_meta_event(
+        event_type, value, request_id, waba_id=waba_id,
+        phone_number_id=phone_number_id)
+    record_system_event(
+        f'whatsapp_{event_type}',
+        waba_id=waba_id or None,
+        phone_number_id=phone_number_id or None,
+        severity='info',
+        data={
+            'requestId': request_id,
+            'archiveKey': archive_key,
+            'payload': value,
+        },
+    )
+
+
+def _process_history_event(value: Dict, request_id: str, waba_id: str = '') -> None:
+    """Persist coexistence history chunks without replaying them as live customer traffic."""
+    phone_id = str((value.get('metadata') or {}).get('phone_number_id') or '')
+    history = value.get('history') or []
+    if not isinstance(history, list):
+        history = []
+    _record_meta_system_event('history', value, request_id, waba_id, phone_id)
+    for chunk in history:
+        if not isinstance(chunk, dict):
+            continue
+        meta = chunk.get('metadata') or {}
+        threads = chunk.get('threads') or []
+        if not isinstance(threads, list):
+            threads = []
+        message_count = sum(
+            len((thread or {}).get('messages') or [])
+            for thread in threads if isinstance(thread, dict)
+        )
+        record_system_event(
+            'whatsapp_history_chunk',
+            waba_id=waba_id or None,
+            phone_number_id=phone_id or None,
+            severity='info',
+            data={
+                'requestId': request_id,
+                'phase': meta.get('phase'),
+                'chunkOrder': meta.get('chunk_order'),
+                'progress': meta.get('progress'),
+                'threadCount': len(threads),
+                'messageCount': message_count,
+            },
+        )
+
+
+def _process_partner_solution_event(value: Dict, request_id: str, waba_id: str = '') -> None:
+    """Persist Multi-Partner Solution lifecycle changes as structured audit events."""
+    phone_id = str((value.get('metadata') or {}).get('phone_number_id') or '')
+    _record_meta_system_event('partner_solutions', value, request_id, waba_id, phone_id)
+    solution = value.get('partner_solution') or value.get('solution') or value
+    if not isinstance(solution, dict):
+        solution = {}
+    record_system_event(
+        'whatsapp_partner_solution_change',
+        waba_id=waba_id or None,
+        phone_number_id=phone_id or None,
+        severity='info',
+        data={
+            'requestId': request_id,
+            'solutionId': solution.get('id') or solution.get('solution_id'),
+            'partnerId': solution.get('partner_id') or solution.get('partner_business_id'),
+            'status': solution.get('status') or solution.get('event'),
+        },
+    )
+
+
 def _process_coexistence_event(field: str, value: Dict, request_id: str) -> None:
     """Audit and count a coexistence webhook. Writes NO message row and sends nothing.
 
@@ -1148,7 +1263,8 @@ def _process_coexistence_event(field: str, value: Dict, request_id: str) -> None
     `phone_number_id` is NOT a phone number and is logged in full; recipient phones go
     through `mask_phone`.
     """
-    _store_system_event(field, value, request_id)
+    phone_id = str((value.get('metadata') or {}).get('phone_number_id') or '')
+    _record_meta_system_event(field, value, request_id, phone_number_id=phone_id)
     if field == 'smb_message_echoes':
         echoes = value.get('message_echoes') or value.get('messages') or []
         if not isinstance(echoes, list):
@@ -1768,14 +1884,36 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 # These are informational/system-level events that we log to SystemEvent
                 # for audit trail and operational awareness.
                 # Ref: https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/components
+                if field == 'history':
+                    try:
+                        _process_history_event(
+                            value, request_id,
+                            meta_waba_ids[0] if meta_waba_ids else '')
+                    except Exception as e:
+                        logger.error(json.dumps({
+                            'event': 'webhook_history_error',
+                            'error': type(e).__name__,
+                            'requestId': request_id,
+                        }))
+
+                if field == 'partner_solutions':
+                    try:
+                        _process_partner_solution_event(
+                            value, request_id,
+                            meta_waba_ids[0] if meta_waba_ids else '')
+                    except Exception as e:
+                        logger.error(json.dumps({
+                            'event': 'webhook_partner_solutions_error',
+                            'error': type(e).__name__,
+                            'requestId': request_id,
+                        }))
+
                 _SYSTEM_EVENT_FIELDS = {
                     'account_alerts', 'account_review_update',
                     'automatic_events',
                     'business_capability_update', 'business_status_update',
-                    'history',
                     'message_template_components_update',
                     'message_template_quality_update',
-                    'partner_solutions',                      # Multi-Partner Solutions; audit only
                     'payment_configuration_update',
                     'phone_number_name_update', 'security',
                     'template_category_update',
@@ -1783,7 +1921,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 }
                 if field in _SYSTEM_EVENT_FIELDS:
                     try:
-                        _store_system_event(field, value, request_id)
+                        phone_id = str((value.get('metadata') or {}).get('phone_number_id') or '')
+                        _record_meta_system_event(
+                            field, value, request_id,
+                            meta_waba_ids[0] if meta_waba_ids else '',
+                            phone_id)
                         logger.info(json.dumps({
                             'event': f'webhook_{field}_stored',
                             'field': field,
@@ -1792,7 +1934,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     except Exception as e:
                         logger.error(json.dumps({
                             'event': f'webhook_{field}_error',
-                            'error': str(e),
+                            'error': type(e).__name__,
                             'requestId': request_id,
                         }))
                         
