@@ -214,6 +214,16 @@ const METRICS = () => {
     }
 
     if ( !harvest || !harvest.h1 ) throw new Error( 'failed to harvest from out/' );
+    // THIS REVIEW IS OF THE PRE-#420 PILL, SO IT STOPS RATHER THAN RENDER A FALSE PAGE.
+    // #420 moved the pill into RotatingPill (rp-* classes, its own styled-jsx hash), and the
+    // three fixes this page reviews are RotatingPill's base CSS now. Renaming the selectors
+    // would not revive it: the "before" panels would show no defect while their captions
+    // describe one, and the injected rules would carry the page's hash, not the pill's.
+    // It stays in the repo because other docs cite its harvest-from-the-export technique.
+    if ( !/\bhome-mark\b/.test( harvest.h1 ) ) {
+      throw new Error( 'homereview.js reviews the pre-#420 home-* pill; the page now uses RotatingPill (rp-*), '
+        + 'whose base CSS already contains the fixes reviewed here. Nothing to generate.' );
+    }
 
     // The styled-jsx scoping class, read off the harvested markup. Injected rules must
     // carry it or they lose the specificity contest against the page's own compiled rules

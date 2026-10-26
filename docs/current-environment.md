@@ -145,8 +145,10 @@ Two structural constraints that shape every customer-facing requirement in the b
   `getStaticPaths` or client-side fetch against API Gateway. A `trackingToken` can never be
   validated in the frontend.
 - **Redirects and headers live in Amplify `customRules`** (23 of them), not
-  `next.config.js`. The catch-all is `404-200`, which is why `_app.tsx` corrects the
-  address bar with `history.replaceState`.
+  `next.config.js`. The catch-all is `/<*>` -> `/404.html` at `404-200`, a not-found
+  rewrite: HTTP 404 with the 404 page, which then sends the visitor home. Plain `404` is
+  Amplify's not-found REDIRECT (a 302), which is what the rule had drifted to until
+  2026-10-26.
 
 Of the **23** public routes the brief lists in §34, **3 exist** (`/`, `/blog`, `/contact`),
 **1 exists at a different path** (`/blog/[slug]` is served as `/post/[slug]`), and **19 do

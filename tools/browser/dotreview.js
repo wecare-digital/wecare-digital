@@ -13,7 +13,7 @@
  *
  *   .wt-state-dot   on #3b271a  the brown title bar, beside "8 services · 1 foundation"
  *   .wt-foot-dot    on #000000  the black footer, beside "running" / "complete"
- *   .home-mark-dot  on a tint   inside the hero pill, already one hue per rotating word
+ *   .rp-mark-dot  on a tint   inside the hero pill, already one hue per rotating word
  *
  * Writes docs/dot-review.html, then docs/dot-mock/*.png and docs/dot-review.md via the same
  * render-to-PNG step the divider and accent mocks use, because a committed .html is served as
@@ -228,7 +228,7 @@ is changing nine.</p>
   </section>
 </div>
 
-<h2>A · <code>.home-mark-dot</code> — the hero pill</h2>
+<h2>A · <code>.rp-mark-dot</code> — the hero pill</h2>
 <div class="callout">
 <p><b>Already a colour system, and it is the one 3B borrowed from.</b> This dot takes a different
 hue for every rotating word, pairing the dot with a pale tint of the same hue:</p>
@@ -342,7 +342,7 @@ as the lime step markers inside the panel, where lime means *this service ran*. 
 footer now disagrees with the two lime step dots it is summarising. Doing it properly moves all
 nine markers, and then the panel has no state colour left.
 
-## A · \`.home-mark-dot\` — the hero pill
+## A · \`.rp-mark-dot\` — the hero pill
 
 | | |
 |---|---|

@@ -132,7 +132,9 @@ const PROBE = () => {
   // Anything sticking out past either edge. Reported with a selector so a failure names the
   // element rather than only the number.
   const strays = [];
-  for ( const el of document.querySelectorAll( 'header, footer, main, .wc-langbar, .nav-menu, section, .home-mark, .home-cycle' ) ) {
+  // .rp-mark / .rp-cycle are the hero pill since #420 moved it into RotatingPill. The old
+  // .home-mark / .home-cycle names matched nothing, so the pill was silently left out of this.
+  for ( const el of document.querySelectorAll( 'header, footer, main, .wc-langbar, .nav-menu, section, .rp-mark, .rp-cycle' ) ) {
     const cs = getComputedStyle( el );
     // Hidden menus still have geometry in Firefox/WebKit. They are not paintable or
     // interactive and must not count as viewport strays until opened.

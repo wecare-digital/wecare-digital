@@ -68,8 +68,11 @@ export default function ClosingBand( { id, eyebrow, title, lead, points, href, a
         .cb.is-armed .cb-rule{transform:scaleX(0)}
         .cb.is-armed.is-in .cb-rule{transform:scaleX(1)}
         .cb-points{margin:0;padding:0;max-width:62ch;list-style:none;display:flex;flex-direction:column;gap:12px}
+        /* overflow-wrap is zoom containment: at 200% zoom on a 320px phone (160px layout) a
+           point has about 42px of line, so words like remember ran past the viewport and were
+           clipped. They now break instead. No effect at normal widths, where every word fits. */
         .cb-points li{
-          position:relative;padding-inline-start:26px;
+          position:relative;padding-inline-start:26px;overflow-wrap:break-word;
           font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);letter-spacing:var(--public-body-tracking);color:var(--public-body);
           transition:opacity .5s ease,transform .5s ease;
         }
