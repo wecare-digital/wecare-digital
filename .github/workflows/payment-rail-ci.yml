@@ -15,6 +15,22 @@ on:
       - "scripts/verify_whatsapp_catalog_payment_rail.py"
       - "scripts/commerce_release_audit.py"
       - ".github/workflows/payment-rail-ci.yml"
+  push:
+    branches:
+      - "wecare.digital"
+    paths:
+      - "amplify/functions/payments/**"
+      - "amplify/functions/messaging/outbound-whatsapp/**"
+      - "amplify/functions/messaging/whatsapp-business-api/**"
+      - "amplify/functions/shared/lambda_utils/ecommerce/**"
+      - "amplify/functions/shared/lambda_utils/template_media.py"
+      - "amplify/functions/core/service-api/**"
+      - "amplify/functions/ai/ai-generate-response/**"
+      - "src/components/workspace/pay/**"
+      - "src/api/client.ts"
+      - "scripts/verify_whatsapp_catalog_payment_rail.py"
+      - "scripts/commerce_release_audit.py"
+      - ".github/workflows/payment-rail-ci.yml"
   workflow_dispatch:
 
 permissions:
@@ -57,3 +73,153 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
+
+
+  package-payment-lambdas:
+    needs: [payment-rail, workspace-typecheck]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install packaging dependency
+        run: python -m pip install --disable-pip-version-check boto3==1.43.116
+
+      - name: Build deterministic payment Lambda packages
+        run: |
+          python - <<'PY'
+          import base64
+          import hashlib
+          import importlib.util
+          import json
+          from pathlib import Path
+
+          script = Path("scripts/deploy_all_lambdas.py")
+          spec = importlib.util.spec_from_file_location("deploy_all_lambdas", script)
+          mod = importlib.util.module_from_spec(spec)
+          assert spec.loader is not None
+          spec.loader.exec_module(mod)
+
+          targets = [
+              "wecare-commerce",
+              "wecare-checkout",
+              "wecare-invoice-engine",
+              "wecare-razorpay-webhook",
+              "wecare-outbound-whatsapp",
+              "wecare-whatsapp-business-api",
+              "wecare-service-api",
+              "wecare-ai-generate-response",
+          ]
+          by_name = {s.name: s for s in mod.SPECS}
+          out = Path("dist/payment-lambdas")
+          out.mkdir(parents=True, exist_ok=True)
+          manifest = {}
+          for name in targets:
+              z, _members = mod.build_zip(by_name[name])
+              p = out / f"{name}.zip"
+              p.write_bytes(z)
+              digest = hashlib.sha256(z).digest()
+              manifest[name] = {
+                  "file": p.name,
+                  "sha256_hex": digest.hex(),
+                  "aws_code_sha256": base64.b64encode(digest).decode("ascii"),
+                  "bytes": len(z),
+              }
+          (out / "manifest.json").write_text(
+              json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          print(json.dumps(manifest, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload tested Lambda packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: payment-lambdas-${{ github.event.pull_request.head.sha || github.sha }}
+          path: dist/payment-lambdas/
+          if-no-files-found: error
+          retention-days: 7
+
+
+  deploy-payment-lambdas:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/wecare.digital'
+    needs: package-payment-lambdas
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Download tested Lambda packages
+        uses: actions/download-artifact@v4
+        with:
+          name: payment-lambdas-${{ github.sha }}
+          path: dist/payment-lambdas
+
+      - name: Configure short-lived AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::775261844268:role/wecare-payment-deploy-oidc
+          aws-region: us-east-1
+          allowed-account-ids: "775261844268"
+          role-session-name: payment-rail-${{ github.run_id }}
+
+      - name: Publish verified Lambda packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist/payment-lambdas
+
+          functions=(
+            wecare-outbound-whatsapp
+            wecare-whatsapp-business-api
+            wecare-commerce
+            wecare-checkout
+            wecare-invoice-engine
+            wecare-service-api
+            wecare-ai-generate-response
+            wecare-razorpay-webhook
+          )
+
+          for fn in "${functions[@]}"; do
+            echo "::group::Deploy ${fn}"
+            expected="$(jq -r --arg fn "${fn}" '.[$fn].aws_code_sha256' manifest.json)"
+            revision="$(aws lambda get-function-configuration               --function-name "${fn}" --query RevisionId --output text)"
+
+            aws lambda update-function-code               --function-name "${fn}"               --zip-file "fileb://${fn}.zip"               --revision-id "${revision}"               --no-publish >/dev/null
+
+            aws lambda wait function-updated-v2 --function-name "${fn}"
+
+            actual="$(aws lambda get-function-configuration               --function-name "${fn}" --query CodeSha256 --output text)"
+            if [[ "${actual}" != "${expected}" ]]; then
+              echo "Hash mismatch for ${fn}: expected ${expected}, got ${actual}" >&2
+              exit 1
+            fi
+
+            version="$(aws lambda publish-version               --function-name "${fn}"               --description "payment-rail ${GITHUB_SHA}"               --query Version --output text)"
+
+            snap="$(aws lambda get-function-configuration               --function-name "${fn}"               --qualifier "${version}"               --query 'SnapStart.ApplyOn' --output text 2>/dev/null || true)"
+            if [[ "${snap}" == "PublishedVersions" ]]; then
+              for _ in {1..60}; do
+                opt="$(aws lambda get-function-configuration                   --function-name "${fn}" --qualifier "${version}"                   --query 'SnapStart.OptimizationStatus' --output text)"
+                [[ "${opt}" == "On" ]] && break
+                [[ "${opt}" == "Failed" ]] && {
+                  echo "SnapStart optimization failed for ${fn}:${version}" >&2
+                  exit 1
+                }
+                sleep 5
+              done
+            fi
+
+            aws lambda update-alias               --function-name "${fn}"               --name live               --function-version "${version}" >/dev/null
+
+            live_sha="$(aws lambda get-function-configuration               --function-name "${fn}" --qualifier live               --query CodeSha256 --output text)"
+            if [[ "${live_sha}" != "${expected}" ]]; then
+              echo "Live alias hash mismatch for ${fn}: expected ${expected}, got ${live_sha}" >&2
+              exit 1
+            fi
+            echo "${fn} live -> v${version} ${live_sha}"
+            echo "::endgroup::"
+          done
