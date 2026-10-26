@@ -820,6 +820,22 @@ const HomePage: React.FC = () => {
           :global(.public-share .ps-menu-sub),
           :global(.public-share .ps-menu-note){font-size:15px}
         }
+
+        /* COMMON PHONE MEASURE. 320-399px phones used to choose different greedy line breaks
+           for the same Home copy because each device handed the heading a different full-width
+           measure. Keep the text node intact for translation, but cap the known short headings
+           to one shared 288px measure on that range. built&nbsp;for remains one unit, so the hero
+           breaks after "AI," rather than orphaning "for". The section heading stays on the same
+           28px rung across those phones, so its two-line composition no longer changes just
+           because a handset is 360 vs 390px wide. The 280px Fold is narrower than this measure
+           and still shrinks naturally rather than overflowing. */
+        @media(max-width:399px){
+          .home-head-line{max-width:min(288px,100%)}
+          .home-flow-title{font-size:28px;max-width:min(288px,100%);text-wrap:balance}
+        }
+        @media(max-width:300px){
+          .home-flow-title{font-size:26px}
+        }
       `}</style>
     </>
   );
