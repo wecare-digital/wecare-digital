@@ -1155,7 +1155,8 @@ def _coexistence_ingest_enabled() -> bool:
 def _replay_message_content(message: Dict) -> str:
     """Best-effort Inbox text for a Meta history/echo message, without side effects."""
     try:
-        content = _extract_content_v2(message)
+        msg_type = str(message.get('type') or 'unknown')
+        content = _extract_content_v2(message, msg_type)
         if isinstance(content, str):
             return content
     except Exception:
@@ -1180,6 +1181,33 @@ def _ingest_replay_message(message: Dict, user_phone: str, business_phone: str,
         return False
     wamid = str(message.get('id') or '').strip()
     if not wamid:
+        return False
+
+    # A history chunk can include messages already received live before coexistence was
+    # enabled. Deduplicate on Meta's global message id before choosing a new row id.
+    try:
+        existing = dynamodb.Table(UNIFIED_MESSAGES_TABLE).query(
+            IndexName='whatsappMessageId-index',
+            KeyConditionExpression='whatsappMessageId = :w',
+            ExpressionAttributeValues={':w': wamid},
+            Limit=1,
+        ).get('Items') or []
+        if existing:
+            logger.info(json.dumps({
+                'event': 'coexistence_replay_message_already_present',
+                'source': source,
+                'requestId': request_id,
+            }))
+            return True
+    except Exception as e:
+        # Fail closed on a dedup read failure: importing a duplicate is worse than deferring
+        # this historical projection, while the raw webhook remains archived for redrive.
+        logger.warning(json.dumps({
+            'event': 'coexistence_replay_dedup_failed',
+            'source': source,
+            'error': type(e).__name__,
+            'requestId': request_id,
+        }))
         return False
 
     try:
