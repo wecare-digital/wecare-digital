@@ -1505,9 +1505,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 # Meta only accepts read/typing markers on RECENT inbound messages, so
                 # cap freshness tightly (15 min). Typing is only meaningful right after
                 # the customer messages anyway; this avoids the stale-wamid 400 noise.
-                _last_wamid = _get_latest_inbound_wamid(recipient_phone, max_age_seconds=900)
+                _last_wamid = _get_latest_inbound_wamid(recipient_phone, max_age_seconds=900,
+                                                        phone_number_id=phone_number_id)
+                # None: the customer's latest message cannot carry a marker. The contact's
+                # cached lastInboundWamid is that same message, so there is no fallback.
+                if _last_wamid is None:
+                    _last_wamid = ''
                 # Only fall back to the cached contact wamid if it is also fresh.
-                if not _last_wamid:
+                elif not _last_wamid:
                     _li = (contact or {}).get('lastInboundMessageAt')
                     try:
                         _fresh = _li and (int(time.time()) - int(_li)) <= 900
@@ -4736,7 +4741,24 @@ def _error_response(status_code: int, error: str, message: str = None) -> Dict[s
     }
 
 
-def _get_latest_inbound_wamid(recipient_phone: str, max_age_seconds: int = 86400) -> str:
+#: Inbound message types whose WAMID Meta refuses as the target of a read/typing marker. Meta
+#: delivers a message the Cloud API cannot represent as `unsupported`, and answers a marker on
+#: its id with 400 code 100 "Message ID ... does not exist". From 2026-10-12 to 2026-10-26 all
+#: 6 refused typing indicators targeted an `unsupported` message received 1-3 s earlier; the 3
+#: accepted ones targeted `order` messages.
+_TYPING_UNMARKABLE_TYPES = frozenset({'unsupported', 'unknown'})
+
+
+def _meta_phone_or_raw(phone_id: str) -> str:
+    """The Meta phone id behind one of our phone ids, else the id itself (for comparing)."""
+    try:
+        return _resolve_meta_phone_id(phone_id)
+    except UnresolvedSenderPhone:
+        return phone_id
+
+
+def _get_latest_inbound_wamid(recipient_phone: str, max_age_seconds: int = 86400,
+                              phone_number_id: str = '') -> Optional[str]:
     """Fetch the freshest inbound WAMID for a recipient from the InboundTable.
 
     Meta's typing_indicator API requires the WAMID of the customer's MOST RECENT
@@ -4745,7 +4767,12 @@ def _get_latest_inbound_wamid(recipient_phone: str, max_age_seconds: int = 86400
     older sessions), so this queries the live InboundTable via the
     senderPhone-status-index GSI (senderPhone HASH + status RANGE) for
     status='received' messages, then returns the WAMID with the greatest timestamp
-    that is still within the 24h window. Returns '' if none found (never raises)."""
+    that is still within the 24h window. Returns '' if none found (never raises).
+
+    Returns None when that latest message cannot carry a marker: Meta delivered it as an
+    unsupported type, or it reached a different phone than `phone_number_id` (a marker from
+    the other number fails the same way, and would cross WABAs). The contact's cached
+    lastInboundWamid is the same message, so None tells the caller not to fall back to it."""
     try:
         digits = _normalize_phone_number(recipient_phone or '')
         if not digits:
@@ -4755,18 +4782,19 @@ def _get_latest_inbound_wamid(recipient_phone: str, max_age_seconds: int = 86400
         now = int(time.time())
         best_id = ''
         best_ts = 0
-        # The senderPhone-status-index projects the base key (id) + createdAt but
-        # NOT whatsappMessageId, so we pick the newest record here (by createdAt)
-        # then fetch its whatsappMessageId from the base table with a single get_item.
-        # senderPhone is stored as the Meta wa_id (digits only); also try the +E.164
-        # variant defensively in case older records used a different format.
+        best_type = ''
+        # The senderPhone-status-index projects the base key (id) + createdAt +
+        # messageType but NOT whatsappMessageId, so we pick the newest record here (by
+        # createdAt) then fetch its whatsappMessageId from the base table with a single
+        # get_item. senderPhone is stored as the Meta wa_id (digits only); also try the
+        # +E.164 variant defensively in case older records used a different format.
         for sp in (digits, f'+{digits}'):
             resp = inbound_table.query(
                 IndexName='senderPhone-status-index',
                 KeyConditionExpression='senderPhone = :sp AND #st = :rcv',
                 ExpressionAttributeNames={'#st': 'status'},
                 ExpressionAttributeValues={':sp': sp, ':rcv': 'received'},
-                ProjectionExpression='id, createdAt',
+                ProjectionExpression='id, createdAt, messageType',
             )
             for it in resp.get('Items', []):
                 rec_id = it.get('id') or ''
@@ -4777,12 +4805,27 @@ def _get_latest_inbound_wamid(recipient_phone: str, max_age_seconds: int = 86400
                 if rec_id and ts > best_ts:
                     best_ts = ts
                     best_id = rec_id
+                    best_type = str(it.get('messageType') or '')
             if best_id:
                 break
         # Freshness guard: only use it if within the typing-eligible window.
         if not best_id or (now - best_ts) > max_age_seconds:
             return ''
-        rec = inbound_table.get_item(Key={'id': best_id}, ProjectionExpression='whatsappMessageId').get('Item') or {}
+        if best_type in _TYPING_UNMARKABLE_TYPES:
+            logger.info(json.dumps({'event': 'typing_indicator_skipped',
+                                    'reason': 'latest_inbound_unsupported',
+                                    'messageType': best_type}))
+            return None
+        rec = inbound_table.get_item(
+            Key={'id': best_id},
+            ProjectionExpression='whatsappMessageId, awsPhoneNumberId').get('Item') or {}
+        received_on = str(rec.get('awsPhoneNumberId') or '')
+        if (phone_number_id and received_on
+                and _meta_phone_or_raw(received_on) != _meta_phone_or_raw(phone_number_id)):
+            logger.info(json.dumps({'event': 'typing_indicator_skipped',
+                                    'reason': 'latest_inbound_on_other_phone',
+                                    'phoneNumberId': phone_number_id}))
+            return None
         return rec.get('whatsappMessageId') or ''
     except Exception as e:
         logger.warning(json.dumps({'event': 'latest_inbound_wamid_error', 'error': str(e)}))
