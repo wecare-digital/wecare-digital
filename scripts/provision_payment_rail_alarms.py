@@ -115,9 +115,11 @@ SIGNALS = [
     # used to be log lines with no alarm behind them.
     {
         "logGroup": "/aws/lambda/wecare-razorpay-webhook",
+        # INVOICE_IMAGE_ENSURE_FAILED: the paid invoice has no customer PNG, so no receipt can go.
         "pattern": ('{ $.alert = "PAID_BUT_NO_ORDER" || $.alert = "PAID_BUT_NO_ORDER_RECORD" || '
                     '$.alert = "NEEDS_RECONCILIATION" || $.alert = "INVOICE_CREATE_FAILED" || '
-                    '$.alert = "RECEIPT_DELIVERY_EXHAUSTED" }'),
+                    '$.alert = "RECEIPT_DELIVERY_EXHAUSTED" || '
+                    '$.alert = "INVOICE_IMAGE_ENSURE_FAILED" }'),
         "filterName": "payment-paid-state-incomplete",
         "metricName": "PaymentPaidStateIncomplete",
         "alarmName": "wecare-payment-paid-state-incomplete",

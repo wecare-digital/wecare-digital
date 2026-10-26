@@ -2788,6 +2788,20 @@ def _post_payment_handler(payment_id: str, contact: str,
         logger.error(json.dumps({'event': 'invoice_create_empty', 'paymentId': payment_id,
                                  'requestId': request_id, 'alert': 'INVOICE_CREATE_FAILED'}))
         raise RuntimeError('invoice creation returned no invoice id for a verified capture')
+    if not invoice_number:
+        # An id with no GST number is an unfinished claim row (a concurrent create still running,
+        # or one that died before numbering), not an invoice. Rendering and sending it would give
+        # the customer an unnumbered receipt. Same handling as an empty id: quarantine and raise,
+        # so the redelivery finds the finished invoice.
+        order_keys.record_capture_quarantine(
+            dynamodb.Table(COMMERCE_KEYS_TABLE),
+            payment_id=payment_id, reference_id=reference_id,
+            outcome='INVOICE_CREATE_FAILED',
+            extra={'stage': 'UNNUMBERED_INVOICE', 'invoiceId': invoice_id})
+        logger.error(json.dumps({'event': 'invoice_create_unnumbered', 'paymentId': payment_id,
+                                 'invoiceId': invoice_id, 'requestId': request_id,
+                                 'alert': 'INVOICE_CREATE_FAILED'}))
+        raise RuntimeError('invoice creation returned an unnumbered invoice for a verified capture')
 
     # Guarantee the customer PNG even when invoice creation deduplicated onto a pre-payment
     # invoice. Deduplication proves invoice identity, not that a previous render succeeded.
@@ -3411,23 +3425,6 @@ def _fulfilment_lambda():
                           read_timeout=_FULFILMENT_INVOKE_READ_TIMEOUT_SECONDS,
                           retries={'total_max_attempts': 1}))
     return _fulfilment_client
-
-
-def _send_order_status_processing(invoice_id: str, phone_number_id: str,
-                                  request_id: str) -> None:
-    """Ask the invoice engine to send the buyer a fulfilment ORDER_STATUS of 'processing'.
-
-    BEST-EFFORT and native-only (`_start_native_fulfilment` gates the checkout mode): it never
-    raises. The engine owns idempotency and template-only transport: a 200 reports the accepted
-    template channel; a 409 ORDER_STATUS_UNCHANGED or ORDER_STATUS_IN_FLIGHT means another delivery
-    already sent or is sending it; ORDER_STATUS_DEFERRED (approved template unavailable) and
-    ORDER_STATUS_NOT_APPLICABLE are expected verdicts. All outcomes are logged WITHOUT PII -
-    only the invoice id, the engine code and the request id.
-    """
-    if not invoice_id:
-        return
-    _invoke_order_status(invoice_id, 'processing', phone_number_id, request_id,
-                         event_prefix='order_status_processing')
 
 
 def _invoke_order_status(invoice_id: str, target: str, phone_number_id: str, request_id: str,

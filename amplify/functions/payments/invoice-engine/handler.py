@@ -885,7 +885,46 @@ def _invoice_input_error(body: Dict) -> str:
 # ─── Create Invoice ───
 
 def create_invoice(body: Dict, request_id: str) -> Dict:
-    """Create a new invoice from direct input. Includes deduplication by referenceId/paymentId."""
+    """Create a new invoice from direct input. Includes deduplication by referenceId/paymentId.
+
+    A refusal after the atomic claim below must not leave its `claiming` row behind. A retry for
+    the same payment would dedup onto that row and answer 200 with an empty invoice number. So a
+    refusal or exception raised BEFORE a GST number is consumed releases this request's claim.
+    Once a number is consumed the claim stays, so a retry cannot consume a second number.
+    """
+    claim: Dict[str, Any] = {}
+    try:
+        result = _create_invoice(body, request_id, claim)
+    except Exception:
+        _release_unnumbered_claim(claim, request_id)
+        raise
+    if int(result.get('statusCode') or 0) >= 400:
+        _release_unnumbered_claim(claim, request_id)
+    return result
+
+
+def _release_unnumbered_claim(claim: Dict[str, Any], request_id: str) -> None:
+    """Delete this request's own `claiming` row when no GST number was consumed for it."""
+    invoice_id = claim.get('invoiceId')
+    if not invoice_id or claim.get('numbered'):
+        return
+    try:
+        # Conditional: only an unfinished claim is removed, never a real invoice row.
+        dynamodb.Table(INVOICES_TABLE).delete_item(
+            Key={'invoiceId': invoice_id},
+            ConditionExpression='#st = :claiming AND attribute_not_exists(invoiceNumber)',
+            ExpressionAttributeNames={'#st': 'status'},
+            ExpressionAttributeValues={':claiming': 'claiming'},
+        )
+        logger.info(json.dumps({'event': 'invoice_claim_released', 'invoiceId': invoice_id,
+                                'requestId': request_id}))
+    except Exception as err:  # noqa: BLE001 - the refusal already is the caller's answer
+        logger.error(json.dumps({'event': 'invoice_claim_release_failed', 'invoiceId': invoice_id,
+                                 'error': type(err).__name__, 'requestId': request_id}))
+
+
+def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
+    """`create_invoice` proper. Records its claim in `claim` so the wrapper can release it."""
     now = int(time.time())
 
     # ── Deduplication: check if invoice already exists for this referenceId or paymentId ──
@@ -1014,11 +1053,19 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
                     'deduplicated': True,
                 })
         except Exception as dedup_err:
-            logger.warning(json.dumps({
+            # Fail closed. Continuing would claim (referenceId, paymentId) without knowing
+            # whether an invoice for this reference already exists under another id, and that
+            # second invoice would consume a second GST number. Callers retry a 503.
+            logger.error(json.dumps({
                 'event': 'invoice_dedup_check_error',
-                'error': str(dedup_err),
+                'error': type(dedup_err).__name__,
                 'requestId': request_id,
             }))
+            return _resp(503, {
+                'error': 'Invoice lookup is temporarily unavailable',
+                'errorCode': 'INVOICE_DEDUP_UNAVAILABLE',
+                'retryable': True,
+            })
 
     # ── Atomic claim, so a racing duplicate cannot consume a GST invoice number ──
     #
@@ -1047,6 +1094,7 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
                 Item={'invoiceId': invoice_id, 'status': 'claiming', 'createdAt': now},
                 ConditionExpression='attribute_not_exists(invoiceId)',
             )
+            claim['invoiceId'] = invoice_id
         except Exception as claim_err:
             if not order_keys.is_conditional_failure(claim_err):
                 logger.error(json.dumps({
@@ -1375,6 +1423,7 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
     # series is worse than no invoice, because it cannot be reassigned once it has gone out.
     try:
         invoice_number = _get_next_invoice_number(body.get('fy'))
+        claim['numbered'] = True
     except InvoiceSequenceUnavailable as exc:
         # 503, not 500: the request is well-formed and will succeed once the
         # sequence counter is reachable again, so the caller should retry rather

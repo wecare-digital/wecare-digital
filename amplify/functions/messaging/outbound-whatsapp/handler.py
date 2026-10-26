@@ -1768,15 +1768,17 @@ def _handle_order_status_send(message_id: str, contact_id: str, recipient_phone:
                                recipient_bsuid: Optional[str] = None,
                                template_name: str = '',
                                within_window: bool = False) -> Dict[str, Any]:
-    """Send one Meta order_status fulfilment update; business semantics live in wa_order_status.
+    """Send one Meta payment-order status update as the approved ORDER_STATUS template.
 
-    Two channels carry the SAME fulfilment update and the choice is the service window, decided
-    by the caller: INSIDE the 24-hour customer-service window it is the free-form interactive
-    `order_status` message (no template, no approval needed); OUTSIDE the window it is the
-    approved ORDER_STATUS template. The caller only passes a `template_name` when the window is
-    closed and the template read back APPROVED, and already returned 409 ORDER_STATUS_DEFERRED
-    when the window is closed and no template is approved — so a closed window with no template
-    never reaches here. Storage, metrics and BSUID handling are identical on both channels.
+    The WhatsApp ORDER_DETAILS rail is payment-only: `pending -> processing -> completed`
+    (`wa_order_status.PAYMENT_ORDER_TARGETS`). Shipment states and `canceled` belong to physical
+    fulfilment, which never travels on this rail, so they are refused here with 400
+    ORDER_STATUS_NOT_ALLOWED before anything is sent. This backs up the invoice engine's own
+    transition check for any caller that reaches this Lambda directly.
+
+    Transport is the approved template on every send. `within_window` is logged only; it never
+    selects a channel. The caller resolves the approved template name, and a blank name is
+    refused with 409 ORDER_STATUS_DEFERRED so nothing goes out on another channel.
     """
     try:
         from lambda_utils.ecommerce import wa_order_status as _wa_os
@@ -1785,8 +1787,19 @@ def _handle_order_status_send(message_id: str, contact_id: str, recipient_phone:
             order_status_details.get('reference_id', ''))
         order_status = _wa_os.canonical_status(
             order_status_details.get('order_status', ''))
+        if order_status not in _wa_os.PAYMENT_ORDER_TARGETS:
+            logger.warning(json.dumps({
+                'event': 'order_status_refused_not_payment_lifecycle',
+                'referenceId': reference_id,
+                'orderStatus': order_status,
+                'requestId': request_id,
+            }))
+            return _error_response(
+                400, 'ORDER_STATUS_NOT_ALLOWED',
+                'The WhatsApp payment-order rail sends only processing and completed. '
+                'Nothing was sent.')
         description = (order_status_details.get('description') or '').strip() \
-            or _wa_os.default_body(order_status)
+            or _wa_os.payment_default_body(order_status)
 
         logger.info(json.dumps({
             'event': 'order_status_details_received',
@@ -1895,7 +1908,8 @@ def _handle_order_status_send(message_id: str, contact_id: str, recipient_phone:
             'error': error_msg,
             'requestId': request_id
         }))
-        _emit_delivery_metric('failed', is_template=not within_window)
+        # Template-only transport, so a failure is always a template failure.
+        _emit_delivery_metric('failed', is_template=True)
         return _error_response(500, f'Failed to send order status: {error_msg}')
 
 

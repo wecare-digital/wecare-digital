@@ -6,6 +6,7 @@ on:
       - "amplify/functions/messaging/inbound-whatsapp-handler/**"
       - "amplify/functions/shared/lambda_utils/**"
       - "tests/test_whatsapp_new_webhook_fields.py"
+      - "tests/test_order_status_single_producer.py"
       - "scripts/deploy_all_lambdas.py"
       - ".github/workflows/inbound-whatsapp-ci.yml"
   push:
@@ -15,6 +16,7 @@ on:
       - "amplify/functions/messaging/inbound-whatsapp-handler/**"
       - "amplify/functions/shared/lambda_utils/**"
       - "tests/test_whatsapp_new_webhook_fields.py"
+      - "tests/test_order_status_single_producer.py"
       - "scripts/deploy_all_lambdas.py"
       - ".github/workflows/inbound-whatsapp-ci.yml"
   workflow_dispatch:
@@ -39,6 +41,9 @@ jobs:
 
       - name: Verify newer WhatsApp webhook capture
         run: python -m unittest tests/test_whatsapp_new_webhook_fields.py
+
+      - name: Verify the invoice engine is the only order-status producer
+        run: python -m unittest tests/test_order_status_single_producer.py
 
   package:
     needs: test
