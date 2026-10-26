@@ -252,16 +252,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 logger.error(json.dumps({'event': 'scheduled_sweep_error',
                                          'error': type(sweep_error).__name__,
                                          'requestId': request_id}))
-            # And the deferred fulfilment updates, on the same schedule and the same terms.
-            order_status_retry = {}
-            try:
-                order_status_retry = _retry_deferred_order_status(request_id)
-            except Exception as retry_error:  # noqa: BLE001 - retry must not fail reconcile
-                logger.error(json.dumps({'event': 'order_status_retry_error',
-                                         'error': type(retry_error).__name__,
-                                         'requestId': request_id}))
-            return {'linkedOrders': metrics['promoted'], 'sweep': sweep,
-                    'orderStatusRetry': order_status_retry, **metrics}
+            # Fulfilment is internal-only. This schedule intentionally never retries or emits
+            # WhatsApp order_status messages.
+            return {'linkedOrders': metrics['promoted'], 'sweep': sweep, **metrics}
         return paid_invoice_order.materialize(
             invoices=dynamodb.Table(INVOICES_TABLE),
             items=dynamodb.Table(shared_tables.invoice_items_table_name()),
@@ -1796,13 +1789,10 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
     contact = _notification_recipient(reference_id, contact)
     originating_phone_id = _resolve_originating_phone(reference_id) or WABA1_PHONE_ID
 
-    # The owner-approved post-payment sequence (plan T7/D2), and nothing else:
-    #   1. PAYMENT_PAID -> OrderTable.orderStatus 'processing' (written by finalization above)
-    #   2. Meta order_status 'processing' for a WhatsApp-native order (`_start_native_fulfilment`)
-    #   3. the paid invoice template, once - the statutory receipt with the Leave Review button
-    # Steps 2 and 3 both run inside `_post_payment_handler`, because the engine keys an
-    # order_status on the invoice, so the invoice must exist first. Step 2 is bounded and can
-    # never raise, so the receipt never depends on it; see `_start_native_fulfilment`.
+    # Post-payment sequence:
+    #   1. PAYMENT_PAID -> OrderTable.orderStatus 'processing' (internal fulfilment state)
+    #   2. the paid invoice template, once - the statutory receipt with the Leave Review button
+    # No structured WhatsApp order_status message is emitted on capture or later staff changes.
     checkout_mode = str((outcome or {}).get('checkoutMode') or '')
     _post_payment_handler(payment_id, contact, email, description, notes, request_id,
                           channel=str((outcome or {}).get('channel') or ''),
@@ -2795,16 +2785,9 @@ def _post_payment_handler(payment_id: str, contact: str,
     # and renders only when none exists, so webhook replay cannot create a rendition storm.
     _ensure_invoice_asset(invoice_id, request_id)
 
-    # ── Step 3: finish the Meta payment-order lifecycle before the receipt ──
+    # ── Step 3: deliver the GST invoice to the customer's VERIFIED WhatsApp number ──
     #
-    # Payment-only invariant: pending -> processing -> completed. The chained helper sends the
-    # second transition ONLY when processing was accepted (or was already current), so Meta never
-    # receives completed out of order. Both sends are template-only in outbound-whatsapp.
-    _start_native_fulfilment(reference_id, checkout_mode, originating_phone_id, request_id,
-                             invoice_id=invoice_id)
-
-    # ── Step 4: deliver the GST invoice to the customer's VERIFIED WhatsApp number ──
-    #
+    # Fulfilment remains internal. Do not send processing/shipped/completed order_status messages.
     # UNIVERSAL FOR COMMERCE ORDERS: both Website and WhatsApp checkout authenticate the customer
     # through the same WhatsApp-OTP identity. Website checkout stores that proven phone on the
     # PaymentAttempt/PAYREF/order; _notification_recipient above resolves from those server-owned
@@ -2815,10 +2798,8 @@ def _post_payment_handler(payment_id: str, contact: str,
     # resolves empty unless existing server-owned invoice/reference evidence supplies it.
     #
     # It travels as the approved `wecare_default_invoice_image_template` (invoice PNG in its
-    # header). It does not depend on step 3: it goes out whether that update was sent, deferred,
-    # not applicable or unavailable. Later fulfilment updates (shipped / completed) stay a
-    # staff-driven workflow (`/invoices/{id}/order-status`). This template delivers the statutory
-    # receipt and its embedded Leave Review Flow button.
+    # header). Structured WhatsApp fulfilment-status sends are disabled. This template delivers
+    # the statutory receipt and its embedded Leave Review Flow button.
     #
     # Delivery is retried by REPLAY: a miss raises so the webhook lease lapses and Razorpay
     # redelivers the capture, and the delivery CLAIM inside `send_invoice_whatsapp` makes the
@@ -3342,275 +3323,9 @@ def _handle_invoice_event(event_type: str, event_data: Dict, request_id: str) ->
     }))
 
 
-def _start_native_fulfilment(reference_id: str, checkout_mode: str, phone_number_id: str,
-                             request_id: str, *, invoice_id: str = '') -> None:
-    """Finish the payment-only Meta lifecycle: pending -> processing -> completed.
-
-    Both transitions use the approved ORDER_STATUS template. The completed update is attempted
-    only after processing was accepted or the engine reports it is already current. This keeps
-    Meta's transition order valid and makes Razorpay webhook redelivery idempotent.
-    """
-    try:
-        from lambda_utils.ecommerce import wa_payment_request
-        if not reference_id or checkout_mode not in (
-                wa_payment_request.WA_NATIVE_CHECKOUT_MODE,
-                wa_payment_request.WA_NATIVE_CART_CHECKOUT_MODE, 'AWS_NATIVE'):
-            return
-        if not invoice_id:
-            items = dynamodb.Table(INVOICES_TABLE).query(
-                IndexName='referenceId-index', KeyConditionExpression='referenceId = :ref',
-                ExpressionAttributeValues={':ref': reference_id}, Limit=2).get('Items', [])
-            if len(items) == 1:
-                invoice_id = str(items[0].get('invoiceId') or '')
-        if not invoice_id:
-            logger.info(json.dumps({'event': 'payment_order_status_skipped',
-                                    'referenceId': reference_id, 'reason': 'NO_SINGLE_INVOICE',
-                                    'requestId': request_id}))
-            return
-
-        processing_status, processing_code = _invoke_order_status(
-            invoice_id, 'processing', phone_number_id, request_id,
-            event_prefix='order_status_processing',
-            description='Payment received.')
-        if not (processing_status == 200 or processing_code == 'ORDER_STATUS_UNCHANGED'):
-            logger.info(json.dumps({
-                'event': 'order_status_completed_blocked',
-                'invoiceId': invoice_id,
-                'processingStatusCode': processing_status,
-                'processingCode': processing_code,
-                'requestId': request_id,
-            }))
-            return
-
-        _invoke_order_status(
-            invoice_id, 'completed', phone_number_id, request_id,
-            event_prefix='order_status_completed',
-            description='Payment complete.')
-    except Exception as error:  # noqa: BLE001 - must never mask the receipt step's outcome
-        logger.warning(json.dumps({'event': 'payment_order_status_unavailable',
-                                   'referenceId': reference_id, 'error': type(error).__name__,
-                                   'requestId': request_id}))
-
-
-#: How long the order_status step may hold up the receipt. The engine's send is one Meta call
-#: (about a second); the webhook's own timeout is 60 s and the invoice create, render and send
-#: still follow. A timeout here is UNCERTAIN, not failed: the engine may still send, and its
-#: one-send claim keeps a redelivery from sending twice.
-_FULFILMENT_INVOKE_READ_TIMEOUT_SECONDS = 12
-_fulfilment_client = None
-
-
-def _fulfilment_lambda():
-    """A Lambda client for the order_status step: short read timeout, no client-side retry."""
-    global _fulfilment_client
-    if _fulfilment_client is None:
-        from botocore.config import Config
-        _fulfilment_client = boto3.client(
-            'lambda', region_name=os.environ.get('AWS_REGION', 'us-east-1'),
-            config=Config(connect_timeout=5,
-                          read_timeout=_FULFILMENT_INVOKE_READ_TIMEOUT_SECONDS,
-                          retries={'total_max_attempts': 1}))
-    return _fulfilment_client
-
-
-def _send_order_status_processing(invoice_id: str, phone_number_id: str,
-                                  request_id: str) -> None:
-    """Ask the invoice engine to send the buyer a fulfilment ORDER_STATUS of 'processing'.
-
-    BEST-EFFORT and native-only (`_start_native_fulfilment` gates the checkout mode): it never
-    raises. The engine owns idempotency and the 24h messaging window: a 200 reports the channel
-    it used; a 409 ORDER_STATUS_UNCHANGED or ORDER_STATUS_IN_FLIGHT means another delivery
-    already sent or is sending it; ORDER_STATUS_DEFERRED (window closed, no approved template)
-    and ORDER_STATUS_NOT_APPLICABLE are expected verdicts. All outcomes are logged WITHOUT PII -
-    only the invoice id, the engine code and the request id.
-    """
-    if not invoice_id:
-        return
-    _invoke_order_status(invoice_id, 'processing', phone_number_id, request_id,
-                         event_prefix='order_status_processing')
-
-
-def _invoke_order_status(invoice_id: str, target: str, phone_number_id: str, request_id: str,
-                         *, event_prefix: str, description: str = '') -> tuple[int, str]:
-    """One fulfilment ORDER_STATUS request to the engine. Returns (HTTP status, engine code).
-
-    Never raises: (0, '') means the engine could not be reached or answered with a function
-    error, so the caller cannot tell what happened and must not act on it.
-    """
-    try:
-        # The same commerce runtime the invoice create, render and delivery invokes use, so all
-        # post-capture work lands on one engine and one alias. A dedicated, bounded client: this
-        # call runs before the receipt, so it must not be able to spend the webhook's budget.
-        response = _fulfilment_lambda().invoke(
-            FunctionName=COMMERCE_FUNCTION, InvocationType='RequestResponse',
-            Payload=json.dumps({
-                'rawPath': f'/invoices/{invoice_id}/order-status',
-                'requestContext': {'http': {'method': 'POST'}},
-                'pathParameters': {'invoiceId': invoice_id},
-                'body': json.dumps({'invoiceId': invoice_id, 'orderStatus': target,
-                                    'description': description,
-                                    'phoneNumberId': phone_number_id or WABA1_PHONE_ID})}))
-        if response.get('FunctionError'):
-            logger.warning(json.dumps({'event': f'{event_prefix}_invoke_error',
-                                       'invoiceId': invoice_id, 'requestId': request_id}))
-            return 0, ''
-        result = json.loads(response['Payload'].read())
-        status_code = int(result.get('statusCode') or 0)
-        body = result.get('body') or {}
-        if isinstance(body, str):
-            try:
-                body = json.loads(body)
-            except (TypeError, ValueError):
-                body = {}
-        code = str(body.get('code') or body.get('status') or '')
-        logger.info(json.dumps({'event': f'{event_prefix}_result',
-                                'invoiceId': invoice_id, 'targetStatus': target,
-                                'statusCode': status_code, 'code': code,
-                                'requestId': request_id}))
-        return status_code, code
-    except Exception as error:  # noqa: BLE001 - fulfilment hint must not fail a settled capture
-        logger.warning(json.dumps({'event': f'{event_prefix}_unavailable',
-                                   'invoiceId': invoice_id, 'error': type(error).__name__,
-                                   'requestId': request_id}))
-        return 0, ''
-
-
-#: Deferred payment-order updates. The engine parks a status when the approved ORDER_STATUS
-#: template cannot be proven available. `orderStatusRetry='PENDING'` puts the invoice in this
-#: sparse index keyed by `pendingOrderStatusAt`. Each scheduled run retries the same template-only
-#: transport; there is no 24-hour-window or interactive fallback.
-_ORDER_STATUS_RETRY_INDEX = 'orderStatusRetry-index'
-_ORDER_STATUS_RETRY_PENDING = 'PENDING'
-_ORDER_STATUS_RETRY_MIN_AGE_SECONDS = 15 * 60          # at most one retry per 15 minutes
-_ORDER_STATUS_RETRY_MAX_AGE_SECONDS = 7 * 24 * 60 * 60  # after a week, leave it to staff
-_ORDER_STATUS_RETRY_LIMIT = 10                          # per run
-_ORDER_STATUS_RETRY_BUDGET_SECONDS = 15
-#: Engine verdicts that make a parked update moot: the order already has that status, can no
-#: longer move to it, or never had a Meta order. Retrying them would never succeed.
-_ORDER_STATUS_RETRY_MOOT = frozenset({
-    'ORDER_STATUS_UNCHANGED', 'ORDER_STATUS_TRANSITION_INVALID', 'ORDER_STATUS_NOT_APPLICABLE',
-    'ORDER_STATUS_NOT_ALLOWED', 'ORDER_NOT_PAID'})
-
-
-def _clear_order_status_retry(invoice_id: str, target: str, now: int, *, reason: str,
-                              request_id: str) -> bool:
-    """Take one invoice out of the retry index, only while it still waits on `target`."""
-    try:
-        dynamodb.Table(INVOICES_TABLE).update_item(
-            Key={'invoiceId': invoice_id},
-            UpdateExpression=('REMOVE orderStatusRetry '
-                              'SET pendingOrderStatusRetryEndedAt = :now, '
-                              'pendingOrderStatusRetryEndReason = :reason'),
-            ConditionExpression='orderStatusRetry = :pending AND pendingOrderStatus = :target',
-            ExpressionAttributeValues={':pending': _ORDER_STATUS_RETRY_PENDING, ':target': target,
-                                       ':now': now, ':reason': reason})
-        return True
-    except Exception as error:  # noqa: BLE001 - a lost race means someone else resolved it
-        if 'ConditionalCheckFailed' not in type(error).__name__ + str(error):
-            logger.warning(json.dumps({'event': 'order_status_retry_clear_failed',
-                                       'invoiceId': invoice_id, 'error': type(error).__name__,
-                                       'requestId': request_id}))
-        return False
-
-
-def _retry_deferred_order_status(request_id: str) -> Dict[str, Any]:
-    """Retry fulfilment updates the engine deferred. Bounded, scan-free and never raises."""
-    from boto3.dynamodb.conditions import Key
-
-    now = int(time.time())
-    deadline = time.time() + _ORDER_STATUS_RETRY_BUDGET_SECONDS
-    counts = {'candidates': 0, 'sent': 0, 'deferred': 0, 'moot': 0, 'abandoned': 0,
-              'unknown': 0, 'errors': 0}
-    try:
-        page = dynamodb.Table(INVOICES_TABLE).query(
-            IndexName=_ORDER_STATUS_RETRY_INDEX,
-            KeyConditionExpression=(
-                Key('orderStatusRetry').eq(_ORDER_STATUS_RETRY_PENDING)
-                & Key('pendingOrderStatusAt').lte(now - _ORDER_STATUS_RETRY_MIN_AGE_SECONDS)),
-            Limit=_ORDER_STATUS_RETRY_LIMIT)
-    except Exception as error:  # noqa: BLE001 - the index may not exist yet; nothing to retry
-        counts['errors'] += 1
-        logger.warning(json.dumps({'event': 'order_status_retry_query_failed',
-                                   'error': type(error).__name__, 'requestId': request_id}))
-        return counts
-    for row in page.get('Items') or []:
-        if time.time() > deadline:
-            break  # the rest wait for the next run
-        invoice_id = str(row.get('invoiceId') or '')
-        target = str(row.get('pendingOrderStatus') or '')
-        if not invoice_id or not target:
-            continue
-        counts['candidates'] += 1
-        since = int(row.get('pendingOrderStatusSince') or row.get('pendingOrderStatusAt') or now)
-        if now - since > _ORDER_STATUS_RETRY_MAX_AGE_SECONDS:
-            if _clear_order_status_retry(invoice_id, target, now, reason='expired',
-                                         request_id=request_id):
-                counts['abandoned'] += 1
-                # Kept visible: `pendingOrderStatus` stays on the invoice for staff.
-                logger.warning(json.dumps({'event': 'order_status_retry_abandoned',
-                                           'invoiceId': invoice_id, 'targetStatus': target,
-                                           'requestId': request_id}))
-            continue
-        description = ('Payment received.' if target == 'processing'
-                       else 'Payment complete.' if target == 'completed' else '')
-        status_code, code = _invoke_order_status(
-            invoice_id, target, WABA1_PHONE_ID, request_id,
-            event_prefix='order_status_retry', description=description)
-
-        # A deferred processing update belongs to the same payment-only state machine as the
-        # immediate capture path. Once processing is accepted (or was already current), continue
-        # to completed in the SAME retry pass. If completed must defer, the engine replaces the
-        # retry marker with pendingOrderStatus=completed, so the next scheduled run resumes there.
-        if target == 'processing' and (status_code == 200 or code == 'ORDER_STATUS_UNCHANGED'):
-            completed_status, completed_code = _invoke_order_status(
-                invoice_id, 'completed', WABA1_PHONE_ID, request_id,
-                event_prefix='order_status_retry_completed',
-                description='Payment complete.')
-            if completed_status == 200 or completed_code == 'ORDER_STATUS_UNCHANGED':
-                counts['sent'] += 1
-                if completed_code == 'ORDER_STATUS_UNCHANGED':
-                    _clear_order_status_retry(
-                        invoice_id, target, now, reason=completed_code, request_id=request_id)
-            elif completed_code == 'ORDER_STATUS_DEFERRED':
-                counts['deferred'] += 1
-            elif completed_code in _ORDER_STATUS_RETRY_MOOT:
-                counts['moot'] += 1
-                _clear_order_status_retry(
-                    invoice_id, target, now, reason=completed_code, request_id=request_id)
-            else:
-                counts['unknown'] += 1
-        elif status_code == 200:
-            counts['sent'] += 1  # the engine removed the retry markers itself
-        elif code == 'ORDER_STATUS_DEFERRED':
-            counts['deferred'] += 1  # re-parked by the engine with a fresh pendingOrderStatusAt
-        elif code in _ORDER_STATUS_RETRY_MOOT:
-            counts['moot'] += 1
-            _clear_order_status_retry(invoice_id, target, now, reason=code,
-                                      request_id=request_id)
-        else:
-            counts['unknown'] += 1  # in flight, rejected or unreachable: try again next run
-    logger.info(json.dumps({'event': 'order_status_retry_complete', 'requestId': request_id,
-                            **counts}))
-    return counts
-
-
-#: The stale-attempt sweep's bounds. A Razorpay webhook that never arrives (a provider delivery
-#: that was dropped before this function ever saw it) leaves an attempt stuck IN-FLIGHT with money
-#: possibly already captured at the gateway. The sweep is the safety net: it reconciles such
-#: attempts from the PROVIDER'S own API, never from any event body. Bounded so it cannot turn into
-#: a wide scan - a short window and a small page per status.
-_SWEEP_MIN_AGE_SECONDS = 120          # younger than this is still a live checkout; leave it alone
-_SWEEP_MAX_AGE_SECONDS = 24 * 60 * 60  # older than this is beyond the recovery horizon
-_SWEEP_PAGE_LIMIT = 25                 # per status, per run
-#: Wall-clock budget for one run. The function's timeout is 60 s and the sweep rides the same
-#: invocation as the customer-link reconcile, so it stops starting new provider lookups after this
-#: and leaves the rest for the next 5-minute run.
-_SWEEP_TIME_BUDGET_SECONDS = 30
-
-
-#: The in-flight statuses a capture can still be missing from. The invoice leg stays
-#: PAYMENT_READINESS_CHECKED after sending, so it is included.
-_RECONCILABLE_STATUSES = ('PAYMENT_REQUEST_SENT', 'PAYMENT_PENDING', 'PAYMENT_READINESS_CHECKED')
+# Structured WhatsApp fulfilment-status delivery was retired by owner policy on 2026-10-26.
+# Payment capture still materializes the internal order at `processing`; Workspace updates remain
+# internal and are surfaced by the customer Track Order page.
 
 
 def _reconcile_in_flight_attempt(attempt: Dict[str, Any], keys_table: Any,
