@@ -11,9 +11,10 @@ import {
  * The order page body: one of the signed-in customer's own orders, at /orders/?o=<orderNumber>.
  *
  * This is where both purchase channels end. A website purchase arrives here from
- * /checkout/status/ once the payment is confirmed; a WhatsApp catalog purchase is opened from the
- * order history (`/orders/`, which the WhatsApp `orders` reply links). Either way it shows what
- * was bought, where it ships, what was paid and the order's current status.
+ * /checkout/status/ once the payment is confirmed; a WhatsApp catalog purchase arrives from the
+ * "View your order" button sent after the paid invoice. Either way it shows what was bought,
+ * where it ships, what was paid and the order's current status. A WhatsApp-paid order has no
+ * fulfilment status to show (the server sends none: its row holds the payment-order state).
  *
  * ONE AUTHENTICATED READ. `POST /ecommerce/checkout/status` with `{action:'order', orderNumber}`
  * (checkout `_order_detail`). The server answers only for an order the session owns and returns

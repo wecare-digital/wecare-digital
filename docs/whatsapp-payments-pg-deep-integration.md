@@ -129,11 +129,14 @@ name; `WECAREDIGITAL` is now verified, so it is not a guess.
   lines, amounts, the delivery address and the payment and order status. It is session-gated:
   checkout's `order` action answers only for an order the WhatsApp-OTP session owns, with the same
   404 for a missing order and someone else's. The website rail lands there from
-  `/checkout/status/` once the attempt carries its order number; a WhatsApp buyer opens it from
-  `/orders/` (the WhatsApp `orders` reply's button). The order_status templates carry no link:
-  their wording is fixed by `docs/operations/whatsapp-payment-collection-stack.md`. The delivery
-  address shown is the one frozen on the PaymentAttempt at checkout and copied to the order by
-  `accept_paid` (`order_delivery`), never the contact's current address.
+  `/checkout/status/` once the attempt carries its order number. A WhatsApp cart or
+  catalog-service buyer gets one "View your order" `cta_url` message after the paid invoice
+  (invoice engine `_send_order_page_link`; inside the 24-hour window only, once per invoice); the
+  order_status templates themselves carry no link, and their wording is fixed by
+  `docs/operations/whatsapp-payment-collection-stack.md`. For a WhatsApp-paid order the page shows
+  no fulfilment status, because that row holds the payment-order state (`completed` at capture).
+  The delivery address shown is the one frozen on the PaymentAttempt at checkout and copied to
+  the order by `accept_paid` (`order_delivery`), never the contact's current address.
 - Delivery address (2026-10-26): every WhatsApp catalog cart confirms where it ships before the
   payment request. Once the cart prices and payments are ready, checkout answers
   `DELIVERY_CONFIRMATION_REQUIRED` and inbound sends the India Address Message, prefilled with the

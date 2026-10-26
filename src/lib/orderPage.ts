@@ -2,10 +2,10 @@
  * The order page: `/orders/?o=<orderNumber>`, one of the signed-in customer's own orders.
  *
  * Both purchase channels reach it once the payment is confirmed: the website's
- * /checkout/status/ screen hands off to it, and a WhatsApp buyer opens it from the order history
- * (`/orders/`, which the WhatsApp `orders` reply links). The WhatsApp rail's own order_status
- * updates carry no link: they are template-only with fixed wording
- * (docs/operations/whatsapp-payment-collection-stack.md).
+ * /checkout/status/ screen hands off to it, and a WhatsApp buyer gets a "View your order" button
+ * after the paid invoice (the invoice engine's `_send_order_page_link` builds the same
+ * `/orders/?o=<orderNumber>` shape). The order_status templates themselves carry no link: they
+ * are template-only with fixed wording (docs/operations/whatsapp-payment-collection-stack.md).
  *
  * THE NUMBER SELECTS, THE SESSION AUTHORISES. An order number is printed on receipts and read
  * aloud to support, so it is never a credential. The page reads the order through the checkout

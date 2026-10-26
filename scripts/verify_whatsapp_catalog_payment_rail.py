@@ -1288,10 +1288,30 @@ def run(root: Path) -> int:
         post_capture_kinds = [
             "invoice" if (s["payload"].get("template") or {}).get("name") == INVOICE_TEMPLATE
             else "order_status" if (s["payload"].get("template") or {}).get("name") == ORDER_STATUS_TEMPLATE
+            else "order_page" if (s["payload"].get("interactive") or {}).get("type") == "cta_url"
             else f"OTHER:{s['payload'].get('type')}:{(s['payload'].get('template') or {}).get('name', '')}"
             for s in capture_sends]
-        check("R17", "the capture sent only two status templates and one invoice template",
-              post_capture_kinds == ["order_status", "order_status", "invoice"], post_capture_kinds)
+        check("R17", "the capture sent two status templates, one invoice template, then the order page",
+              post_capture_kinds == ["order_status", "order_status", "invoice", "order_page"], post_capture_kinds)
+        # The last message: one "View your order" button to the buyer's own order page, after the
+        # invoice, never instead of it.
+        page_sends = [s["payload"] for s in capture_sends
+                      if (s["payload"].get("interactive") or {}).get("type") == "cta_url"]
+        page_action = (((page_sends[0].get("interactive") or {}).get("action") or {})
+                       .get("parameters") or {}) if page_sends else {}
+        page_number = str((counts["orders"][0] if counts["orders"] else {}).get("orderNumber") or "")
+        check("LINK", "the order page message opens the buyer's own order, sent to the buyer",
+              len(page_sends) == 1 and bool(page_number)
+              and page_action.get("url") == f"https://wecare.digital/orders/?o={page_number}"
+              and page_action.get("display_text") == "View your order"
+              and page_sends[0].get("to") == alice["phone"],
+              {"url": page_action.get("url"), "text": page_action.get("display_text")})
+        page_claim = _table("CommerceKeys").get_item(Key={
+            "orderId": f"INVOICEDELIVERY#{counts['invoices'][0]['invoiceId']}#order-page-link"
+        }).get("Item") if counts["invoices"] else None
+        check("LINK", "...and its delivery claim is recorded as delivered, so it is sent once",
+              bool(page_claim) and page_claim.get("deliveryStatus") == "DELIVERED",
+              (page_claim or {}).get("deliveryStatus"))
         invoice_template = (capture_sends[invoice_idx[0]]["payload"].get("template") or {}) if invoice_idx else {}
         components = invoice_template.get("components") or []
         header_ok = any(c.get("type") == "header" and any(p.get("type") == "image" for p in c.get("parameters") or [])
@@ -1347,6 +1367,49 @@ def run(root: Path) -> int:
                   "invoke:wecare-outbound-whatsapp", "invoke:wecare-outbound-whatsapp",
                   "meta:order_status_template", "meta:order_status_template"],
               replay_traffic)
+        page_after_replay = [s for s in W.since(mark, "meta_sends")
+                             if (s["payload"].get("interactive") or {}).get("type") == "cta_url"]
+        check("LINK", "...and the order page message is not sent again by a replay or reprocess",
+              len(page_after_replay) == 1, len(page_after_replay))
+        # Only a WhatsApp cart or catalog-service payment gets it: a website payment's buyer is
+        # already on the page, and an invoice-native payment has no order. Default deny.
+        keys = _table("CommerceKeys")
+        link_mark = W.mark()
+        outcomes = {}
+        for label, mode in (("website", "WEBSITE_RAZORPAY_STANDARD"), ("invoice-native", "WHATSAPP_NATIVE_PG"),
+                            ("unknown reference", None)):
+            ref = f"WD-PAY-HERMETICLINK{len(outcomes)}"
+            if mode:
+                keys.put_item(Item={"orderId": f"PAYREF#{ref}", "checkoutMode": mode})
+            invoice_id = f"inv-hermetic-link-{len(outcomes)}"
+            _table("InvoicesTable").put_item(Item={"invoiceId": invoice_id, "referenceId": ref,
+                                                   "orderNumber": "WD-ORD-22222226"})
+            outcomes[label] = invoice_engine._send_order_page_link(
+                invoice_id, alice["contactId"], alice["phone"], PHONE_ID_1, keys, "hermetic")
+        outcomes["repeat"] = invoice_engine._send_order_page_link(
+            counts["invoices"][0]["invoiceId"], alice["contactId"], alice["phone"], PHONE_ID_1,
+            keys, "hermetic") if counts["invoices"] else ""
+        check("LINK", "website, invoice-native and unknown payments get no order page message; a repeat is refused",
+              outcomes == {"website": "not_a_whatsapp_order", "invoice-native": "not_a_whatsapp_order",
+                           "unknown reference": "not_a_whatsapp_order", "repeat": "already_sent"}
+              and not W.since(link_mark, "meta_sends"), outcomes)
+        # Outside the 24-hour window the free-form message is refused by outbound and nothing
+        # reaches Meta; the claim stays, so it is not retried into a late duplicate.
+        contact_row = _table("ContactsTable").get_item(Key={"id": alice["contactId"]})["Item"]
+        _table("ContactsTable").put_item(Item={**contact_row, "lastInboundMessageAt": Decimal(1)})
+        keys.put_item(Item={"orderId": "PAYREF#WD-PAY-HERMETICLINKW", "checkoutMode": "WHATSAPP_NATIVE_CART"})
+        _table("InvoicesTable").put_item(Item={"invoiceId": "inv-hermetic-link-window",
+                                               "referenceId": "WD-PAY-HERMETICLINKW",
+                                               "orderNumber": "WD-ORD-22222227"})
+        window_mark = W.mark()
+        closed = invoice_engine._send_order_page_link(
+            "inv-hermetic-link-window", alice["contactId"], alice["phone"], PHONE_ID_1, keys, "hermetic")
+        again = invoice_engine._send_order_page_link(
+            "inv-hermetic-link-window", alice["contactId"], alice["phone"], PHONE_ID_1, keys, "hermetic")
+        _table("ContactsTable").put_item(Item=contact_row)
+        check("LINK", "outside the 24-hour window: refused by outbound, nothing sent, and not retried",
+              closed.startswith("not_sent_4") and again == "already_sent"
+              and not W.since(window_mark, "meta_sends"), (closed, again))
 
         # Terminal idempotency: asking for completed again is a local no-op and never reaches
         # outbound. Then model the real uncertain edge case separately by putting the invoice back
@@ -1431,10 +1494,12 @@ def run(root: Path) -> int:
               and charges.get("merchandisePaise") == 179700 and charges.get("discountPaise", 0) > 0
               and charges.get("discountLabel") == "Delight", charges)
         # The canonical rail ends a WhatsApp payment at Meta `completed` ("Payment complete."), and
-        # the order row carries that accepted state, so the page reads it back unchanged.
-        check("PAGE", "...paid, payment complete, placed on WhatsApp",
-              view.get("paymentStatus") == "captured" and view.get("fulfilmentStatus") == "completed"
-              and view.get("channel") == "whatsapp",
+        # the order row carries that accepted state. It is a payment-order state, not a shipment,
+        # so the page is given no fulfilment status for it rather than "Completed".
+        check("PAGE", "...paid, placed on WhatsApp, and no fulfilment claimed from the payment state",
+              view.get("paymentStatus") == "captured" and view.get("fulfilmentStatus") == ""
+              and view.get("channel") == "whatsapp"
+              and paid_order.get("orderStatus") == "completed",
               {k: view.get(k) for k in ("paymentStatus", "fulfilmentStatus", "channel")})
         delivery = view.get("delivery") or {}
         check("PAGE", "...and the delivery address frozen at checkout",
@@ -1562,6 +1627,19 @@ def run(root: Path) -> int:
               order_view["charges"] is None and order_view["delivery"] is None
               and order_view["items"][0]["totalPaise"] == 100 and order_view["fulfilmentStatus"] == "shipped",
               {k: order_view[k] for k in ("charges", "delivery", "fulfilmentStatus")})
+        # A website order's row is fulfilment, set by staff, so it is shown; the same word on a
+        # WhatsApp-paid row is the payment-order state and is not.
+        website_view = checkout._order_view(
+            {"orderNumber": "WD-ORD-22222224", "currency": "INR", "amountPaise": Decimal(100),
+             "paymentStatus": "PAYMENT_PAID", "orderStatus": "completed",
+             "checkoutMode": "WEBSITE_RAZORPAY_STANDARD", "createdAt": Decimal(1)}, {})
+        whatsapp_view = checkout._order_view(
+            {"orderNumber": "WD-ORD-22222225", "currency": "INR", "amountPaise": Decimal(100),
+             "paymentStatus": "PAYMENT_PAID", "orderStatus": "completed",
+             "checkoutMode": "WHATSAPP_NATIVE_CART", "createdAt": Decimal(1)}, {})
+        check("PAGE", "'completed' is fulfilment on a website order and not on a WhatsApp-paid one",
+              website_view["fulfilmentStatus"] == "completed" and whatsapp_view["fulfilmentStatus"] == "",
+              (website_view["fulfilmentStatus"], whatsapp_view["fulfilmentStatus"]))
     finally:
         checkout.razorpay_orders.create_order = real_create
         checkout.razorpay_orders.find_order_by_receipt = real_find

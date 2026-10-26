@@ -68,6 +68,10 @@ sequenceDiagram
     CO->>OW: wecare_default_invoice_image_template + invoice PNG + review token
     OW->>WA: invoice template
     WA->>C: Paid invoice + Leave Review Flow
+
+    CO->>OW: cta_url "View your order" -> /orders/?o=<orderNumber> (after the invoice is accepted)
+    OW->>WA: interactive cta_url (24-hour window only)
+    WA->>C: Order page link
 ```
 
 ### Hard ordering rule
@@ -91,6 +95,23 @@ The invoice template owns the **Leave Review** Flow button:
 - screen: `FEEDBACK`
 
 There is no separate review message in the payment rail.
+
+### Order page link (owner-approved 2026-10-26)
+
+After the paid invoice template is accepted, a WhatsApp cart or catalog-service buyer gets one
+free-form interactive `cta_url` message: "View your order", opening
+`https://wecare.digital/orders/?o=<orderNumber>`. The page is session-gated (checkout's `order`
+action answers only for the signed-in owner). Owner: invoice engine `_send_order_page_link`,
+called from `send_invoice_whatsapp`.
+
+- Never instead of the invoice, and never on a staff re-send (`force`).
+- Not sent for website payments (the buyer is already on the page) or invoice-native
+  `WHATSAPP_NATIVE_PG` payments (no order row).
+- At most once per invoice: delivery claim `INVOICEDELIVERY#<invoiceId>#order-page-link`, kept
+  on every outcome, so a failure is never retried into a duplicate.
+- Free-form, so inside the 24-hour customer-service window only. Outside it, outbound refuses it
+  and nothing else is sent. It is not a status message, so the template-only rule below is
+  unaffected.
 
 ### Status transport invariant
 
@@ -373,6 +394,7 @@ Before production promotion, prove:
 - [ ] OrderTable projection becomes completed
 - [ ] paid invoice Date/Time uses `paidAt`
 - [ ] exactly one invoice template is sent
+- [ ] after it, at most one "View your order" `cta_url` (WhatsApp cart/catalog-service only), never retried
 - [ ] invoice Flow token is bound to order/invoice and opens FEEDBACK
 - [ ] retry index remains ACTIVE and scheduled retry is working
 - [ ] `live` catalog alias is WABA1; `waba2` alias is WABA2

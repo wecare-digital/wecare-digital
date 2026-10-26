@@ -4111,6 +4111,91 @@ _ORDER_DETAILS_CHECKOUT_MODES = frozenset({
     'AWS_NATIVE',
 })
 
+#: The WhatsApp payments whose capture also writes the order row the customer's order page reads:
+#: the catalog cart and the catalog-service leg. An invoice-native payment (`WHATSAPP_NATIVE_PG`)
+#: settles an invoice and no order, and a website buyer is already looking at the page.
+_ORDER_PAGE_LINK_CHECKOUT_MODES = frozenset({
+    wa_payment_request.WA_NATIVE_CART_CHECKOUT_MODE,  # WHATSAPP_NATIVE_CART
+    'AWS_NATIVE',
+})
+#: The order page. Apex origin and trailing slash: the site is a static export with
+#: `trailingSlash`, so `/orders` would spend a redirect.
+_ORDER_PAGE_URL = 'https://wecare.digital/orders/'
+#: The delivery-claim channel for the one order-page message per paid invoice.
+_ORDER_PAGE_LINK_CHANNEL = 'order-page-link'
+
+
+def _send_order_page_link(invoice_id: str, contact_id: str, to_phone: str,
+                          phone_number_id: str, keys_table: Any, request_id: str) -> str:
+    """Send a WhatsApp buyer their order page once the paid invoice was accepted.
+
+    One interactive `cta_url` message, "View your order", opening
+    `https://wecare.digital/orders/?o=<orderNumber>`. The page is session-gated: it reads the order
+    through checkout's `order` action, which answers only for the signed-in owner, so the number
+    selects and never authorises. Added by owner approval on 2026-10-26 as the last message of the
+    WhatsApp payment sequence (docs/operations/whatsapp-payment-collection-stack.md, section 2).
+
+    It cannot touch the invoice or the money. It runs only after the invoice template was
+    accepted, it never raises, and it goes out at most once per invoice: the `order-page-link`
+    delivery claim is kept on every outcome, so a failure is never retried into a duplicate. It is
+    free-form, so it reaches the buyer only inside the 24-hour service window; outside it outbound
+    refuses it and nothing else is sent. Returns an outcome word for the log.
+    """
+    try:
+        invoice = dynamodb.Table(INVOICES_TABLE).get_item(
+            Key={'invoiceId': invoice_id}, ConsistentRead=True).get('Item') or {}
+        order_number = str(invoice.get('orderNumber') or '').strip()
+        if not order_keys.is_public_order_number(order_number):
+            return 'no_order_number'
+        reference_id = str(invoice.get('referenceId') or '')
+        if not reference_id:
+            return 'no_reference'
+        try:
+            payref = order_keys.resolve_payment_reference(keys_table, reference_id)
+        except order_keys.OrderIdentityUnavailable:
+            return 'reference_unavailable'
+        if str((payref or {}).get('checkoutMode') or '').strip() not in _ORDER_PAGE_LINK_CHECKOUT_MODES:
+            return 'not_a_whatsapp_order'
+        if not contact_id:
+            return 'no_contact'
+        try:
+            if not order_keys.claim_invoice_delivery(
+                    keys_table, invoice_id=invoice_id, channel=_ORDER_PAGE_LINK_CHANNEL,
+                    extra={'requestId': request_id}):
+                return 'already_sent'
+        except order_keys.OrderIdentityUnavailable:
+            return 'claim_unavailable'
+        payload = {'body': json.dumps({
+            'contactId': contact_id,
+            'recipientPhone': to_phone,
+            'phoneNumberId': phone_number_id,
+            'isInteractive': True,
+            'interactiveType': 'cta_url',
+            'interactiveData': {
+                'body': (f'Your order {order_number} is confirmed. Open your order page for the '
+                         'details and the latest status.'),
+                'buttonText': 'View your order',
+                'url': f'{_ORDER_PAGE_URL}?o={order_number}',
+                'footer': 'WECARE.DIGITAL',
+            },
+        })}
+        response = lambda_client.invoke(FunctionName='wecare-outbound-whatsapp:live',
+                                        InvocationType='RequestResponse',
+                                        Payload=json.dumps(payload))
+        result = json.loads(response['Payload'].read() or b'{}')
+        raw_body = result.get('body')
+        body = json.loads(raw_body) if isinstance(raw_body, str) and raw_body else {}
+        status = int(result.get('statusCode') or 0)
+        wa_message_id = str(body.get('whatsappMessageId') or '') if isinstance(body, dict) else ''
+        if response.get('FunctionError') or status >= 300 or not wa_message_id:
+            return f'not_sent_{status or "error"}'
+        order_keys.confirm_invoice_delivery(keys_table, invoice_id=invoice_id,
+                                            channel=_ORDER_PAGE_LINK_CHANNEL,
+                                            wa_message_id=wa_message_id)
+        return 'sent'
+    except Exception as error:  # noqa: BLE001 - must never fail the invoice delivery above it
+        return f'error_{type(error).__name__}'
+
 
 def _resolve_order_id(invoice: Dict, keys_table: Any, request_id: str) -> str:
     """The REAL Order id for an invoice, via the commerce claim, else `invoice.orderId`.
@@ -5874,6 +5959,14 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
         'waMessageId': wa_message_id, 'status': wa_status,
         'toNumber': mask_phone(to_phone), 'requestId': request_id,
     }))
+
+    # The buyer's order page, as the last message of a WhatsApp payment: only after the invoice
+    # was accepted, and not again on a staff re-send (`force`).
+    if delivered and not force:
+        link_outcome = _send_order_page_link(invoice_id, contact_id, to_phone, phone_number_id,
+                                             keys_table, request_id)
+        logger.info(json.dumps({'event': 'order_page_link', 'outcome': link_outcome,
+                                'invoiceId': invoice_id, 'requestId': request_id}))
 
     return _resp(200 if delivered else (502 if wa_status in ('failed', 'rejected') else 202), {
         'invoiceId': invoice_id,

@@ -2883,6 +2883,15 @@ def _order_view(order: Dict[str, Any], attempt: Dict[str, Any]) -> Dict[str, Any
     except (TypeError, ValueError):
         created_at = None
     fulfilment = wa_order_status.normalise(order.get("orderStatus") or order.get("status"))
+    if fulfilment not in wa_order_status.ALL_STATUSES:
+        fulfilment = ""
+    # A WhatsApp `order_details` payment's order row carries the PAYMENT-ORDER state Meta accepted
+    # (pending -> processing -> completed, docs/operations/whatsapp-payment-collection-stack.md),
+    # not a fulfilment state: capture moves it to `completed` within seconds. Shown as fulfilment,
+    # a physical order read "Paid · Completed" before it had shipped. The payment status already
+    # says paid, so these orders show no fulfilment status at all.
+    if str(order.get("checkoutMode") or "") in wa_payment_request.ORDER_DETAILS_CHECKOUT_MODES:
+        fulfilment = ""
     return {
         "orderNumber": str(order.get("orderNumber") or ""),
         "referenceId": str(order.get("referenceId") or ""),
@@ -2892,8 +2901,9 @@ def _order_view(order: Dict[str, Any], attempt: Dict[str, Any]) -> Dict[str, Any
         "amountPaise": amount,
         # What the MONEY did, in the one payment vocabulary `/orders` already reads.
         "paymentStatus": payment_status.canonical(order.get("paymentStatus")),
-        # What the FULFILMENT did, in Meta's order_status vocabulary ('' when unrecognised).
-        "fulfilmentStatus": fulfilment if fulfilment in wa_order_status.ALL_STATUSES else "",
+        # What the FULFILMENT did, in Meta's order_status vocabulary. '' when unrecognised, and
+        # for a WhatsApp-paid order, whose row holds the payment-order state instead.
+        "fulfilmentStatus": fulfilment,
         "items": items,
         "charges": charges,
         "delivery": order_delivery.from_order(order),
