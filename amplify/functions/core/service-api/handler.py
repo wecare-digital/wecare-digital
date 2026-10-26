@@ -1251,7 +1251,7 @@ def _confirm_document_reupload(doc_id: str) -> Dict:
             ':key': storage_key, ':name': new_name, ':original': original_name,
             ':mime': mime_type, ':size': size, ':ref': new_ref, ':uploaded': 'uploaded',
             ':requested': 'reupload_requested', ':expected': pending_key,
-            ':now': now, ':zero': 0,
+            ':now': now, ':zero': 0, ':one': 1,
         },
     )
     try:
