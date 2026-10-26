@@ -471,8 +471,8 @@ pending), `wd_call_permission` (created on demand by the calling `create_permiss
 action). Secure-files paid delivery sends `wecare_default_download` (e22243370).
 `postpay_request_v1`, `postpay_details_v1`, `wd_file_delivery`, `01_wecare_doc` and
 `wecare_order_status_v2` no longer exist on Meta (Meta holds the deleted `_v2` name, so the
-ORDER_STATUS template is `_v3`). The
-payment, invoice, order-status and OTP names live in one registry,
+ORDER_STATUS template is `_v3`). The historical name remains in the registry for inventory
+recognition only; runtime sending is disabled. Active payment, invoice and OTP names live in
 `amplify/functions/shared/lambda_utils/whatsapp_templates.py`.
 
 ---
