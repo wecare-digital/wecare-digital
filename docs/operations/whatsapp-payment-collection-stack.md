@@ -1,6 +1,6 @@
 # WhatsApp Payment Collection — Canonical Stack
 
-**Status:** source of truth for the WECARE.DIGITAL WhatsApp payment rail  
+**Status:** PRODUCTION SIGNED-OFF / FROZEN — source of truth for the WECARE.DIGITAL WhatsApp payment rail  
 **Last audited:** 2026-10-26  
 **Region:** `us-east-1`  
 **Primary payment WABA:** `2094615664435155`
@@ -8,6 +8,64 @@
 This document defines the canonical customer journey, runtime ownership, persistence, retry rules,
 templates, media, catalog aliases, and the files that must be updated together when the payment rail
 changes. Treat contradictions in older execution notes as historical snapshots.
+
+## 0. Production sign-off and freeze
+
+The payment rail was production signed-off on **2026-10-26** with a fresh real Razorpay payment:
+
+- reference: `WD-PAY-A18274BA`
+- invoice: `WD/2627/00012`
+- payment attempt: `01a1771f-3cf2-79ed-81aa-134d21866f12`
+- Razorpay payment: `pay_TsSVLCxB84eWvl`
+- amount: **INR 1.22**
+- order: `WD-ORD-88R23BNB`
+
+Observed production sequence:
+
+```text
+payment request accepted
+-> Razorpay payment.captured
+-> PaymentAttemptsTable PAYMENT_PAID
+-> invoice paymentStatus=captured + paidAt
+-> wecare_order_status_v3 processing (template channel)
+-> wecare_order_status_v3 completed (template channel)
+-> invoice waOrderStatus=completed
+-> OrderTable completed
+-> paid invoice image generated
+-> paid invoice sent on WhatsApp
+```
+
+The two order-status messages used the **template channel even with `withinWindow=true`**, proving
+the payment rail no longer depends on the 24-hour customer-service window for status transport.
+
+All six dedicated payment alarms remained `OK` after the real-money test:
+
+- `wecare-payment-order-status-deferred`
+- `wecare-payment-order-status-uncertain`
+- `wecare-payment-order-completed-blocked`
+- `wecare-payment-order-status-retry-error`
+- `wecare-payment-order-status-retry-query-failed`
+- `wecare-payment-invoice-delivery-failed`
+
+The first manual sign-off invocation intentionally hit the sender boundary with a bare Meta phone
+ID and was refused `WA_PAY_SENDER_NOT_PERMITTED`; retrying with the production Direct-API sender
+ID succeeded. This is evidence that the sender allowlist fails closed.
+
+### Freeze rule
+
+This architecture is now **frozen**. Do not change payment state semantics, template transport,
+payment sender identity, idempotency claims, table ownership, or canonical runtime routing during
+ordinary feature work.
+
+Unfreeze only for one of:
+
+1. a confirmed production incident,
+2. a Meta/Razorpay breaking change,
+3. a statutory/accounting requirement,
+4. an owner-approved architecture RFC with migration and rollback plans.
+
+Any unfreeze PR must run the payment CI, update this runbook, and include a fresh production
+sign-off plan before merge.
 
 ## 1. Product invariant
 
