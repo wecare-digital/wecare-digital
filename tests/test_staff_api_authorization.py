@@ -216,6 +216,16 @@ class AiConfigWriteFloorTests(unittest.TestCase):
     def test_internal_agent_config_write_needs_admin(self):
         self.assertEqual(self.call("PUT", "/ai/internal/config", "Operator", {"enabled": True}), 403)
 
+    def test_prompt_and_fallback_writes_accept_only_supported_languages(self):
+        # The Workspace sends the language in the body as well as the path.
+        for path, body in (("/ai/prompts/config", {"language": "config", "prompt": "x"}),
+                           ("/ai/fallbacks/config", {"language": "config", "fallback": "x"})):
+            self.assertEqual(self.call("PUT", path, "Operator", body), 400, path)
+        self.assertEqual(self.config_rows(), {})
+        self.assertEqual(self.call("PUT", "/ai/prompts/en", "Operator",
+                                   {"language": "en", "prompt": "x"}), 200)
+        self.assertIn("ai_prompt_en", self.config_rows())
+
 
 if __name__ == "__main__":
     unittest.main()

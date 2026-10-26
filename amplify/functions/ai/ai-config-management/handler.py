@@ -412,6 +412,8 @@ def _update_prompt(lang: str, body: Dict, request_id: str) -> Dict[str, Any]:
     """Update language-specific prompt."""
     if not lang:
         return _error_response(400, 'Language code is required')
+    if lang not in SUPPORTED_LANGUAGES:  # the key is `ai_prompt_{lang}`; no other row
+        return _error_response(400, 'Unsupported language')
 
     prompt = body.get('prompt', '')
     if not prompt:
@@ -475,6 +477,8 @@ def _update_fallback(lang: str, body: Dict, request_id: str) -> Dict[str, Any]:
     """Update language-specific fallback message."""
     if not lang:
         return _error_response(400, 'Language code is required')
+    if lang not in SUPPORTED_LANGUAGES:  # the key is `ai_fallback_{lang}`; no other row
+        return _error_response(400, 'Unsupported language')
 
     fallback = body.get('fallback', '')
     if not fallback:
