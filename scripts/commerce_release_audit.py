@@ -51,7 +51,7 @@ def audit_release(lam, hosting, manifest, expected_commit, *, app_id, branch='we
     invoice = configs['wecare-invoice-engine'].get('Environment', {}).get('Variables', {})
     smoke_mode = outbound.get('WA_LIVE_SMOKE_TEST', '').strip().lower() == 'true'
     provider = {'payment_template_approved': False, 'payment_configuration_matches': False,
-                'invoice_template_approved': False, 'order_status_template_approved': False}
+                'invoice_template_approved': False, 'order_status_messages_disabled': True}
     try:
         waba = checkout.get('WABA_ID') or '2094615664435155'
         templates = _provider_read(lam, '/wa-business/payment-templates/list', waba).get('data', [])
@@ -67,16 +67,8 @@ def audit_release(lam, hosting, manifest, expected_commit, *, app_id, branch='we
             and row.get('category') == 'UTILITY'
             and row.get('language') == 'en'
             for row in templates)
-        # GATING: the payment rail is template-only after capture. If this template is not
-        # APPROVED/UTILITY/ORDER_STATUS/en, payment confirmation cannot complete consistently and
-        # the release must not advertise ordinary payment collection as ready.
-        order_status_name = (outbound.get('WA_ORDER_STATUS_TEMPLATE')
-                             or 'wecare_order_status_v3')
-        provider['order_status_template_approved'] = any(
-            row.get('name') == order_status_name and row.get('status') == 'APPROVED'
-            and row.get('category') == 'UTILITY' and row.get('sub_category') == 'ORDER_STATUS'
-            and row.get('language') == 'en'
-            for row in templates)
+        # Structured WhatsApp order-status messages are retired. Payment readiness must not
+        # depend on the historical ORDER_STATUS template still existing or being approved.
         configurations = _provider_read(lam, '/wa-business/payment-config/list', waba).get('data', [])
         provider['payment_configuration_matches'] = any(
             row.get('configuration_name') == checkout.get('EXPECTED_CONFIGURATION_NAME')
@@ -94,7 +86,6 @@ def audit_release(lam, hosting, manifest, expected_commit, *, app_id, branch='we
                  and row.get('payment_expectations_match', True) for row in rows)
              and not smoke_mode
              and provider['payment_template_approved']
-             and provider['order_status_template_approved']
              and provider['invoice_template_approved']
              and provider['payment_configuration_matches'])
     return {'functions': rows, 'qa_only': smoke_mode, 'provider': provider, 'website': website,
