@@ -70,7 +70,9 @@ const rupees = ( paise: number ) => `₹${( ( paise || 0 ) / 100 ).toFixed( 0 )}
 /** The server's access state, or what an older backend's fields imply. */
 function accessStateOf ( file: SecureFile ): SecureFileAccessState {
     if ( file.accessState ) return file.accessState;
-    return file.paidEntitlementId || file.paidGrantId ? 'READY' : 'UNPAID';
+    // No server state: a paid id alone does not prove the file is ready to open, so say the
+    // payment is confirming (never offered checkout again) rather than READY.
+    return file.paidEntitlementId || file.paidGrantId ? 'PAID_UNVERIFIED' : 'UNPAID';
 }
 
 /** "26 Oct 2026, 4:30 pm" in the reader's locale, or '' when there is no window end. */

@@ -980,8 +980,8 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
                 clearCart();
                 window.sessionStorage.removeItem( CHECKOUT_REQUEST_KEY );
                 window.sessionStorage.removeItem( CHECKOUT_REQUEST_BASKET );
-                const paidAttempt = encodeURIComponent( String( verdict.paymentAttemptId || attemptId ) );
-                window.location.assign( `/checkout/status/?a=${ paidAttempt }` );
+                // The same hand-off as every other path: remember the attempt, then navigate.
+                goToCheckoutStatus( String( verdict.paymentAttemptId || attemptId ) );
                 return;
               }
               /*

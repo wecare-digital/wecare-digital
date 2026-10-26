@@ -5973,7 +5973,8 @@ export async function listOrders ( params?: {
 export async function getOrder ( orderId: string ): Promise<Order | null> {
   const order = await apiCall<Order>( `${ORDERS_BASE}/${orderId}` );
   if ( !order ) return null;
-  return { ...order, status: order.status || order.orderStatus || 'active',
+  // No invented status: an order with none stays blank rather than reading as 'active'.
+  return { ...order, status: order.status || order.orderStatus || '',
     paymentStatus: order.paymentStatus === 'PAYMENT_PAID' ? 'paid' : order.paymentStatus };
 }
 

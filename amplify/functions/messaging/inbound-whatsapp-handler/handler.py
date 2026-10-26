@@ -5413,6 +5413,9 @@ def _process_payment_status(status: Dict, request_id: str) -> None:
         # sweep finds it instead.
         _trigger_capture_reconcile(reference_id, request_id)
     elif effective_failed:
+        # Log only. The WhatsApp payment-order lifecycle is pending -> processing -> completed,
+        # sent solely by the invoice engine; a failed attempt leaves the order pending so the
+        # customer can pay again. The retired kill-switched `canceled` sender lived here.
         logger.info(json.dumps({
             'event': 'payment_effective_failure',
             'paymentStatus': payment_status,
@@ -5420,15 +5423,6 @@ def _process_payment_status(status: Dict, request_id: str) -> None:
             'referenceId': reference_id,
             'requestId': request_id,
         }))
-        _send_order_status_message(
-            recipient_id=recipient_id,
-            reference_id=reference_id,
-            order_status='canceled',
-            amount=0,
-            description=PAY_MSG['pay_failed'],
-            request_id=request_id,
-            phone_number_id=originating_phone_id
-        )
     elif payment_state == pay_status.PENDING:
         # Genuine pending (transaction still in progress)  -  log and wait
         logger.info(json.dumps({
@@ -5835,111 +5829,6 @@ def _lookup_payment_amount(reference_id: str, request_id: str) -> float:
             'requestId': request_id
         }))
         return 0.0
-
-
-def _inbound_order_status_enabled() -> bool:
-    """The Razorpay webhook is the authoritative payment path: in-WhatsApp payments are live
-    and it re-derives the paid state from a provider readback, then owns the order-status
-    confirmation. This inbound (Meta payment webhook) path is advisory, so sending an
-    order-status here would risk a SECOND, duplicate confirmation. Gated OFF by default to avoid
-    that; enable SystemConfig id='whatsapp_inbound_order_status' to restore."""
-    try:
-        item = dynamodb.Table(SYSTEM_CONFIG_TABLE).get_item(Key={'id': 'whatsapp_inbound_order_status'}).get('Item')
-        if item and 'configValue' in item:
-            return str(item.get('configValue')).lower() in ('true', '1', 'yes', 'on')
-    except Exception:
-        pass
-    return False
-
-
-def _send_order_status_message(recipient_id: str, reference_id: str, 
-                                order_status: str, amount: float, description: str,
-                                request_id: str, phone_number_id: str = None) -> None:
-    """
-    Send order_status interactive message to confirm payment status.
-    Uses the phone_number_id that received the original payment if available,
-    otherwise falls back to PHONE_NUMBER_ID_1.
-    """
-    if not _inbound_order_status_enabled():
-        logger.info(json.dumps({'event': 'order_status_skipped_dedup',
-                                'reason': 'razorpay-webhook is sole sender',
-                                'referenceId': reference_id, 'requestId': request_id}))
-        return
-    try:
-        # Find contact by phone number
-        contact = _get_contact_by_phone(recipient_id)
-        
-        if not contact:
-            logger.warning(json.dumps({
-                'event': 'order_status_no_contact',
-                'recipientId': mask_phone(recipient_id),
-                'referenceId': reference_id,
-                'requestId': request_id,
-                'note': 'Will try to send using phone number directly'
-            }))
-            # Create a minimal contact object with phone number
-            # Format phone for WhatsApp: +91XXXXXXXXXX
-            formatted_phone = f'+{recipient_id}' if not recipient_id.startswith('+') else recipient_id
-            contact = {'id': '', 'phone': formatted_phone}
-        
-        contact_id = contact.get('id', '')
-        contact_phone = contact.get('phone', f'+{recipient_id}')
-        
-        # Build order_status payload - send directly to outbound Lambda
-        # Use the phone number that received the original message, or fall back to default
-        sending_phone_id = phone_number_id or PHONE_NUMBER_ID_1
-        order_status_payload = {
-            'body': json.dumps({
-                'contactId': contact_id if contact_id else None,
-                'recipientPhone': contact_phone,  # Fallback to phone if no contactId
-                'phoneNumberId': sending_phone_id,
-                'isOrderStatus': True,
-                'orderStatusDetails': {
-                    'reference_id': reference_id,
-                    'order_status': order_status,
-                    'amount': amount,  # Amount in rupees for display
-                    'description': description
-                }
-            })
-        }
-        
-        logger.info(json.dumps({
-            'event': 'order_status_message_sending',
-            'contactId': mask_contact_id(contact_id),
-            'contactPhone': mask_phone(contact_phone),
-            'referenceId': reference_id,
-            'orderStatus': order_status,
-            'amount': amount,
-            'sendingPhoneId': sending_phone_id,
-            'requestId': request_id
-        }))
-        
-        # Invoke outbound Lambda to send order_status message
-        response = lambda_client.invoke(
-            FunctionName=OUTBOUND_WHATSAPP_FUNCTION,
-            InvocationType='Event',  # Async
-            Payload=json.dumps(order_status_payload)
-        )
-        
-        logger.info(json.dumps({
-            'event': 'order_status_message_triggered',
-            'contactId': mask_contact_id(contact_id),
-            'contactPhone': mask_phone(contact_phone),
-            'referenceId': reference_id,
-            'orderStatus': order_status,
-            'statusCode': response.get('StatusCode'),
-            'requestId': request_id
-        }))
-        
-    except Exception as e:
-        logger.error(json.dumps({
-            'event': 'order_status_message_error',
-            'recipientId': mask_phone(recipient_id),
-            'referenceId': reference_id,
-            # The class only: an exception message on this path can echo the phone number.
-            'error': type(e).__name__,
-            'requestId': request_id
-        }))
 
 
 def _send_to_dlq(record: Dict, error: str, request_id: str) -> None:
@@ -6979,9 +6868,8 @@ def _handoff_url(token: str) -> str:
 def _catalog_orders_enabled() -> bool:
     """The WhatsApp catalogue-order hand-off gate. DEFAULT OFF.
 
-    Same two-source shape as `_inbound_order_status_enabled` above - a SystemConfig row wins, the
-    env var is the default - so an owner can turn this on without a deploy and off again in one
-    write.
+    Two sources: a SystemConfig row wins and the env var is the default, so an owner can turn
+    this on without a deploy and off again in one write.
 
     OFF MEANS NOTHING HAPPENS AT ALL: no DynamoDB write, no outbound invoke, no reply. Not "reply
     with a shop link instead", because a silent no-op is the only state provably free of

@@ -1,9 +1,19 @@
+"""WhatsApp message-template management for the staff Workspace (wecare-whatsapp-template-management).
+
+Purpose: list, read, validate, create, edit and delete the business's Meta message templates,
+upload template and send-time media, and send one template as a test.
+
+Authority: a staff token (Viewer or above) for reads, validation and a status refresh. Every
+write to the Meta account (create, edit, delete, media upload) and every test send needs Admin
+and is audit-logged. Template ids are checked as numeric before any `/{id}` Graph request.
+"""
 import os
 import json
 import base64
 import uuid
 import hashlib
 import hmac
+from typing import Any, Dict
 import boto3
 from lambda_utils.template_media import FIXED_IMAGE_HEADERS, RETAINED_MEDIA_KEYS, fixed_image_header
 import urllib.request
@@ -443,13 +453,19 @@ def handler(event, context):
     if http_method == 'OPTIONS':
         return options_response(origin)
 
-    # Enforce auth. A test send is a real WhatsApp message sent straight to Meta, outside
-    # outbound-whatsapp's consent ledger and message log, to a number the caller types, so it
-    # is Admin-only; every other template route keeps the staff floor.
-    is_send_test = http_method == 'POST' and path.rstrip('/').endswith('/send-test')
-    auth_result = require_auth(event, required_role='Admin' if is_send_test else None)
+    # Enforce auth. Reads, validation and a status refresh keep the staff floor. Everything else
+    # writes to the business's Meta account (create, edit, delete, media upload) or, for
+    # send-test, sends a real WhatsApp message to a number the caller types, outside
+    # outbound-whatsapp's consent ledger and message log. Those are Admin-only.
+    stripped_path = path.rstrip('/')
+    is_staff_read = http_method == 'GET' or (
+        http_method == 'POST'
+        and ('/templates/validate' in path or stripped_path.endswith('/refresh')))
+    auth_result = require_auth(event, required_role=None if is_staff_read else 'Admin')
     if auth_result is not None:
         return auth_result
+    if not is_staff_read:
+        _audit_template_write(event, http_method, path, request_id)
 
     try:
         body = json.loads(event.get('body', '{}')) if event.get('body') else {}
@@ -525,6 +541,32 @@ def _extract_path_param(path: str, prefix: str) -> str:
     return remainder.split('/')[0].split('?')[0]
 
 
+def _meta_template_id(raw: Any) -> str:
+    """`raw` when it is a Meta message-template id, else ''.
+
+    Template ids are numeric. Every route that builds `{META_GRAPH_URL}/{template_id}` checks
+    this first, so a caller cannot point the system-user token at another Graph node or edge
+    (a phone number's `register`, a WABA's `subscribed_apps`, ...).
+    """
+    value = str(raw or '').strip()
+    return value if value.isdigit() and len(value) <= 32 else ''
+
+
+def _audit_template_write(event: Dict[str, Any], method: str, path: str, request_id: str) -> None:
+    """One structured line per Admin template write: who (pseudonymous), what, where."""
+    auth = event.get('_auth') or {}
+    actor = str(auth.get('username') or '')
+    logger.info(json.dumps({
+        'event': 'template_write_audit',
+        'method': method,
+        'path': path,
+        # A short hash, not the username: correlatable with the staff pool, not PII in logs.
+        'actor': hashlib.sha256(actor.encode('utf-8')).hexdigest()[:12] if actor else 'internal',
+        'groups': list(auth.get('groups') or []),
+        'requestId': request_id,
+    }))
+
+
 # ── LIST ──
 
 def _list_templates(waba_id, query_params):
@@ -589,6 +631,9 @@ def _list_template_library(waba_id, query_params):
 
 def _get_template_details(waba_id, template_id, query_params):
     try:
+        template_id = _meta_template_id(template_id)
+        if not template_id:
+            return _error_response(400, 'Template ID must be a numeric Meta template id')
         url = f'{META_GRAPH_URL}/{template_id}?fields=name,status,category,language,components,id'
         data = _meta_request(url)
         return {
@@ -658,8 +703,9 @@ def _validate_template_route(body):
 def _refresh_template(waba_id, template_id):
     """POST /templates/{id}/refresh — re-fetch a template's live status/category/quality from Meta."""
     try:
+        template_id = _meta_template_id(template_id)
         if not template_id:
-            return _error_response(400, 'Template ID required')
+            return _error_response(400, 'Template ID must be a numeric Meta template id')
         url = (f'{META_GRAPH_URL}/{template_id}'
                '?fields=name,status,category,language,components,id,quality_score,'
                'message_send_ttl_seconds,rejected_reason')
@@ -716,6 +762,7 @@ def _send_test_template(waba_id, template_id, body):
 
         template_name = body.get('templateName')
         language = body.get('language')
+        template_id = _meta_template_id(template_id)
         if (not template_name or not language) and template_id:
             detail = _meta_request(f'{META_GRAPH_URL}/{template_id}?fields=name,language')
             template_name = template_name or detail.get('name')
@@ -771,11 +818,11 @@ def _create_from_library(waba_id, body):
 
 def _update_template(waba_id, body, query_params, path):
     try:
-        template_id = _extract_path_param(path, '/templates/')
+        template_id = _meta_template_id(
+            _extract_path_param(path, '/templates/') or body.get('metaTemplateId', ''))
         if not template_id:
-            template_id = body.get('metaTemplateId', '')
-        if not template_id:
-            return _error_response(400, 'Template ID required (in path or body)')
+            return _error_response(
+                400, 'Template ID required (in path or body) as a numeric Meta template id')
 
         template_def = body.get('templateDefinition')
         if not template_def:
