@@ -16,7 +16,7 @@
   "Parameters": {
     "DeploymentRevision": {
       "Type": "String",
-      "Default": "f52852d9ad279d48",
+      "Default": "shopping-chatgpt-20261026-v4",
       "AllowedPattern": "[A-Za-z0-9-]{12,64}",
       "Description": "Change for every reviewed code or configuration update to publish a new live version."
     },
@@ -320,7 +320,7 @@
             "CUSTOMER_REGISTRATION_ENABLED": {
               "Ref": "RegistrationEnabled"
             },
-            "SOURCE_SHA256": "f52852d9ad279d4803405497779e2dff0f46b13b51ea92c6e7d98e1543c424d4",
+            "SOURCE_SHA256": "fa4c277b1c4ef389841559f5863a64a8c9f7e8eaab270f14e02bd71a00e054b3",
             "DEPLOYMENT_REVISION": {
               "Ref": "DeploymentRevision"
             }
@@ -346,7 +346,7 @@
           "Fn::Join": [
             "/",
             [
-              "f52852d9ad279d4803405497779e2dff0f46b13b51ea92c6e7d98e1543c424d4",
+              "fa4c277b1c4ef389841559f5863a64a8c9f7e8eaab270f14e02bd71a00e054b3",
               {
                 "Ref": "DeploymentRevision"
               }
