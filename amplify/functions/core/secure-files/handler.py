@@ -930,7 +930,11 @@ def _admin_list(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
                 entitlement = grants.get_item(Key={"grantId": eid}).get("Item")
             except ClientError:
                 entitlement = None
-        out.append(_public_file(i, admin=True, entitlement=entitlement, now=now))
+        view = _public_file(i, admin=True, entitlement=entitlement, now=now)
+        if entitlement:
+            view['paidEntitlementId'] = entitlement['grantId']
+            view['paidGrantId'] = entitlement['grantId']
+        out.append(view)
     return cors_response(200, {"files": out, "count": len(out)}, origin)
 
 
@@ -1133,14 +1137,15 @@ def _customer_list(identity: Dict[str, Any], origin: str) -> Dict[str, Any]:
         if (i.get('status') != 'active' or i.get('ownerPhone') != identity['phone']
                 or not identity.get('subject') or i.get('ownerCustomerId') != identity['subject']):
             continue
-        view = _public_file(i, admin=False)
+        entitlement = None
         access_id = str(i.get('vaultEntitlementId') or i.get('vaultAccessGrantId') or '')
         if access_id:
             entitlement = _active_entitlement(access_id, i['fileId'], identity)
-            if entitlement:
-                view['paidEntitlementId'] = entitlement['grantId']
-                view['paidGrantId'] = entitlement['grantId']  # old website bundles
-                view['deliveryStatus'] = 'READY'
+        view = _public_file(i, admin=False, entitlement=entitlement)
+        if entitlement:
+            view['paidEntitlementId'] = entitlement['grantId']
+            view['paidGrantId'] = entitlement['grantId']  # old website bundles
+            view['deliveryStatus'] = 'READY'
         items.append(view)
     return cors_response(
         200,
