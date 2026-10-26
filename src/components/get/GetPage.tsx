@@ -24,15 +24,18 @@
  *
  * The trust model, which is the whole point
  * -----------------------------------------
- * Razorpay Checkout's success callback fires in the browser and is therefore
- * forgeable - anyone can call it. So it is used only to stop showing the spinner.
- * Entitlement comes from the server: the redeem call succeeds only once the payment
- * is confirmed, either by the signature-verified webhook or by the backend asking
- * Razorpay directly. That is why this polls after checkout instead of downloading
- * straight from the callback.
+ * Nothing on this page can grant access. Payment happens in WhatsApp (Review and Pay, priced
+ * on the server for one named file) and the server decides access from the durable entitlement
+ * it wrote after verifying that payment. Each successful redeem mints a short-lived transport
+ * URL while a paid access window is open; ownership and window state are enforced server-side.
  *
- * Paid entitlement is durable. Each successful redeem mints a short-lived transport URL
- * while the paid access window remains open; ownership and window state are enforced server-side.
+ * Paying and renewing
+ * -------------------
+ * Each file carries `accessState`. UNPAID and EXPIRED files link to WhatsApp with "Vault"
+ * typed: the bot lists this customer's documents and sends one Review and Pay for the one they
+ * pick, then the Access Vault link once paid. That signed WhatsApp message is also what proves
+ * the customer for in-chat payment, which a website session cannot do. PAID_UNVERIFIED is never
+ * offered a payment: a recorded payment is reconciled, not sold again.
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
@@ -43,16 +46,12 @@ import PillButton from '../PillButton';
 import RotatingHero from '../RotatingHero';
 import type { CycleWord } from '../RotatingHero';
 import * as api from '../../api/client';
-import type { SecureFile } from '../../api/client';
+import type { SecureFile, SecureFileAccessState } from '../../api/client';
+import { whatsappKeywordLink } from '../../config/whatsappServiceEntries';
 import { DEFAULT_DIAL_CODE } from '../../lib/dialCodes';
 import {
     requestOtp, submitOtp, getSession, restoreSession, clearSession, normaliseMobile, nextSessionFrom,
 } from '../../lib/customerAuth';
-import { postRequestIntent } from '../../lib/serviceRequests';
-import { serviceByKind } from '../../config/services';
-import { setServiceLine } from '../../lib/cart';
-import { CHECKOUT_PATH } from '../../lib/serviceEntry';
-import { useRouter } from 'next/router';
 
 function formatBytes ( bytes: number ): string {
     if ( !bytes ) return '0 B';
@@ -62,6 +61,31 @@ function formatBytes ( bytes: number ): string {
 }
 
 const rupees = ( paise: number ) => `₹${( ( paise || 0 ) / 100 ).toFixed( 0 )}`;
+
+/**
+ * WhatsApp with "Vault" already typed, on the WECARE.DIGITAL number. The keyword, not a Meta
+ * short link: the bot matches the exact word, and a short link's prefilled text is set in Meta
+ * and could change without this page knowing.
+ */
+const VAULT_ON_WHATSAPP = whatsappKeywordLink( 'Vault' );
+
+/** The server's access state, or what an older backend's fields imply. */
+function accessStateOf ( file: SecureFile ): SecureFileAccessState {
+    if ( file.accessState ) return file.accessState;
+    return file.paidEntitlementId || file.paidGrantId ? 'READY' : 'UNPAID';
+}
+
+/** "26 Oct 2026, 4:30 pm" in the reader's locale, or '' when there is no window end. */
+function windowEndLabel ( epochSeconds?: number ): string {
+    if ( !epochSeconds ) return '';
+    try
+    {
+        return new Date( epochSeconds * 1000 ).toLocaleString( undefined, { dateStyle: 'medium', timeStyle: 'short' } );
+    } catch
+    {
+        return '';
+    }
+}
 
 /**
  * The hero's rotating nouns, TRUE OF THIS PAGE rather than borrowed from the home page's
@@ -87,7 +111,6 @@ interface FilesPageProps {
 }
 
 export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
-    const router = useRouter();
     const [ stage, setStage ] = useState<Stage>( 'mobile' );
     // `mobile` holds the COMPOSED E.164 string, not raw keystrokes. The field itself is now the
     // divided PhoneField, which owns a dial-code segment and a national-number segment, so the two
@@ -155,46 +178,13 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
             } else if ( result.failure.status === 401 )
             {
                 clearSession();
+            } else
+            {
+                // A resumed session whose list failed is not "signed out": say so.
+                setError( result.failure.message || 'Could not load your files. Please try again.' );
             }
         } ).catch( () => setError( 'Sign-in is temporarily unavailable. Please try again.' ) );
     }, [ targetFileId ] );
-
-    const handleRenewAccess = async ( file: SecureFile ) => {
-        const sessionNow = getSession() || await restoreSession();
-        if ( !sessionNow )
-        {
-            setStage( 'mobile' );
-            setError( 'Verify your mobile number to renew Vault access.' );
-            return;
-        }
-        const service = serviceByKind( 'VAULT' );
-        if ( !service )
-        {
-            setError( 'Vault checkout is temporarily unavailable.' );
-            return;
-        }
-        setWorking( file.fileId );
-        setError( '' );
-        try
-        {
-            const outcome = await postRequestIntent( sessionNow.accessToken, 'VAULT', undefined, file.fileId );
-            if ( outcome.kind !== 'ok' )
-            {
-                setError( outcome.kind === 'refused'
-                    ? outcome.message
-                    : 'Could not start Vault renewal. Nothing has been charged.' );
-                return;
-            }
-            setServiceLine( service.variantId, outcome.intent.intentId, price );
-            await router.push( CHECKOUT_PATH );
-        } catch ( err: any )
-        {
-            setError( err?.message || 'Could not start Vault renewal. Nothing has been charged.' );
-        } finally
-        {
-            setWorking( '' );
-        }
-    };
 
     const handleDownload = async ( file: SecureFile ) => {
         const accessId = file.paidEntitlementId || file.paidGrantId;
@@ -210,10 +200,31 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
             const result = await api.redeemSecureFileDownload( file.fileId, accessId );
             if ( !result.ok )
             {
+                const code = result.failure.code;
+                if ( result.failure.status === 401 )
+                {
+                    clearSession();
+                    setFiles( [] );
+                    setStage( 'mobile' );
+                    setError( 'Your secure access expired. Please verify again.' );
+                    return;
+                }
+                if ( code === 'ACCESS_WINDOW_CLOSED' )
+                {
+                    // Every paid window has been used. Show the renewal for this file instead of
+                    // telling a customer who paid to contact support.
+                    setFiles( current => current.map( row => row.fileId === file.fileId
+                        ? { ...row, accessState: 'EXPIRED', accessWindowOpen: false }
+                        : row ) );
+                    setError( 'Your access window for this file has ended. Renew on WhatsApp to download it again.' );
+                    return;
+                }
                 setError(
-                    result.failure.status === 403
-                        ? ( result.failure.message || 'This access window has ended. Renew access to download again.' )
-                        : ( result.failure.message || 'Could not prepare the download.' )
+                    code === 'NOT_REGISTERED'
+                        ? 'This file is not registered to your verified number.'
+                        : code === 'ACCESS_NOT_AUTHORIZED'
+                            ? 'We could not confirm a payment for this file. If you already paid, do not pay again; contact us and we will check it.'
+                            : ( result.failure.message || 'Could not prepare the download.' )
                 );
                 return;
             }
@@ -541,43 +552,72 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                                         amount is the thing being agreed to, and the action segment
                                         is the control's accessible name - so the button answers to
                                         "Pay ₹49 on WhatsApp", which is what it does. */}
-                                    { ( file.paidEntitlementId || file.paidGrantId ) && file.accessWindowOpen ? (
-                                        <PillButton
-                                            as="button"
-                                            type="button"
-                                            label="Vault"
-                                            action={ working === file.fileId ? 'Preparing…' : 'Download file' }
-                                            block
-                                            onClick={ () => { void handleDownload( file ); } }
-                                            disabled={ working === file.fileId }
-                                            busy={ working === file.fileId }
-                                        />
-                                    ) : (
-                                        <PillButton
-                                            as="button"
-                                            type="button"
-                                            label="Vault"
-                                            action={ working === file.fileId
-                                                ? 'Opening checkout…'
-                                                : ( file.accessWindowCount || 0 ) > 0
-                                                    ? `Renew access · ${rupees( price )}`
-                                                    : `Get access · ${rupees( price )}` }
-                                            block
-                                            onClick={ () => { void handleRenewAccess( file ); } }
-                                            disabled={ working === file.fileId }
-                                            busy={ working === file.fileId }
-                                        />
-                                    ) }
+                                    { ( () => {
+                                        const state = accessStateOf( file );
+                                        if ( state === 'OPEN' || state === 'READY' )
+                                        {
+                                            const ends = state === 'OPEN' ? windowEndLabel( file.accessWindowEndsAt ) : '';
+                                            return (
+                                                <>
+                                                    <PillButton
+                                                        as="button"
+                                                        type="button"
+                                                        label="Vault"
+                                                        action={ working === file.fileId ? 'Preparing…' : 'Download file' }
+                                                        block
+                                                        onClick={ () => { void handleDownload( file ); } }
+                                                        disabled={ working === file.fileId }
+                                                        busy={ working === file.fileId }
+                                                    />
+                                                    <p className="sf-fine">
+                                                        { state === 'OPEN'
+                                                            ? `Paid. Download again for free${ ends ? ` until ${ ends }` : ' while your access window is open' }.`
+                                                            : 'Paid. Your access window starts with your first download.' }
+                                                    </p>
+                                                </>
+                                            );
+                                        }
+                                        if ( state === 'PAID_UNVERIFIED' )
+                                        {
+                                            return (
+                                                <p className="sf-fine">
+                                                    Your payment is recorded and its access is being confirmed.
+                                                    Do not pay again. If this does not clear soon, contact us and we will check it.
+                                                </p>
+                                            );
+                                        }
+                                        return (
+                                            <>
+                                                <PillButton
+                                                    as="a"
+                                                    href={ VAULT_ON_WHATSAPP }
+                                                    label="Vault"
+                                                    action={ state === 'EXPIRED'
+                                                        ? `Renew for ${ rupees( price ) } on WhatsApp`
+                                                        : `Pay ${ rupees( price ) } on WhatsApp` }
+                                                    block
+                                                />
+                                                <p className="sf-fine">
+                                                    { state === 'EXPIRED'
+                                                        ? 'Your access window has ended. '
+                                                        : '' }
+                                                    WhatsApp opens with &ldquo;Vault&rdquo; typed. Send it, choose this
+                                                    document, and pay in the chat. WhatsApp shows the total, including the
+                                                    convenience fee, before you pay; the download link follows once paid.
+                                                </p>
+                                            </>
+                                        );
+                                    } )() }
 
                                 </div>
                             ) ) }
 
                             <p className="sf-fine">
-                                Secure-file delivery remains here; new purchases are created through checkout.
+                                Payments and renewals happen in WhatsApp; your downloads stay here.
                             </p>
                             <button
                                 className="sf-quiet"
-                                onClick={ () => { clearSession(); setStage( 'mobile' ); setFiles( [] ); } }
+                                onClick={ () => { clearSession(); setStage( 'mobile' ); setFiles( [] ); setError( '' ); setMessage( '' ); } }
                             >
                                 Sign out
                             </button>
