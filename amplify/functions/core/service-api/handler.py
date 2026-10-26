@@ -915,8 +915,8 @@ def _get_document_download_url(doc_id: str) -> Dict:
 
 
 def _public_document_ref() -> str:
-    """Short operator-facing reference. Not the canonical documentId."""
-    return 'wecare-digital-' + uuid.uuid4().hex[:6].lower()
+    """Six-digit operator-facing reference. The canonical documentId remains the unique key."""
+    return 'wecare-digital-' + f'{uuid.uuid4().int % 1000000:06d}'
 
 
 def _extension_for_upload(file_name: str, content_type: str) -> str:
@@ -976,6 +976,9 @@ def _document_record(body: Dict, *, doc_id: str, storage_key: str = '',
         'createdAt': now,
         'updatedAt': now,
     }
+    if item.get('documentRef'):
+        item['referenceIssuedAt'] = now
+        item['referenceVersion'] = 1
     if status == 'uploaded':
         item['uploadedAt'] = now
     return {k: v for k, v in item.items() if v is not None and v != ''}
