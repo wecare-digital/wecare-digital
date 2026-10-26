@@ -237,6 +237,55 @@ def map_meta_address(values: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+#: Which Address Message field shows each stored field: the inverse of `map_meta_address`.
+#: `addressLine2` is the unit detail that function folds out of house/floor/tower/building, so it
+#: goes back as `house_number`, which `map_meta_address` folds into `addressLine2` again whenever
+#: the `address` line is present. A prefilled form sent back unchanged stores the same address.
+_META_FIELD_BY_ATTRIBUTE = (
+    ("addressLine1", "address"),
+    ("addressLine2", "house_number"),
+    ("locality", "landmark_area"),
+    ("city", "city"),
+    ("state", "state"),
+    ("postalCode", "in_pin_code"),
+)
+
+#: Meta's length limit on the Address Message PIN field. A longer stored value is left out of the
+#: prefill rather than sent, so the form never carries a value Meta could refuse.
+_META_PIN_MAX = 6
+
+#: Meta sends the India Address Message only to India (+91) WhatsApp numbers. A request to any
+#: other number is refused, so no payment step may wait on that form for one.
+ADDRESS_MESSAGE_PHONE_PREFIX = "+91"
+
+
+def address_message_reaches(phone: Any) -> bool:
+    """True when Meta's India Address Message can be sent to this E.164 number."""
+    return str(phone or "").strip().startswith(ADDRESS_MESSAGE_PHONE_PREFIX)
+
+
+def to_meta_address_values(address: Optional[Dict[str, Any]]) -> Dict[str, str]:
+    """A stored India address as Address Message `values`, so the form opens filled in.
+
+    `{}` for no address or a non-India one: the form is India-only, and a foreign address would
+    only prefill fields the customer has to clear. Empty fields are left out, so the form shows
+    its own placeholders. Never raises.
+    """
+    if not isinstance(address, dict):
+        return {}
+    country_code = str(address.get("countryCode") or owned_address.DEFAULT_COUNTRY_CODE)
+    if country_code.strip().upper() != owned_address.DEFAULT_COUNTRY_CODE:
+        return {}
+    values: Dict[str, str] = {}
+    for attribute, meta_field in _META_FIELD_BY_ATTRIBUTE:
+        text = _text(address.get(attribute), limit=_RULES[attribute][1])
+        if attribute == "postalCode" and len(text) > _META_PIN_MAX:
+            continue
+        if text:
+            values[meta_field] = text
+    return values
+
+
 def contact_write_fields(address: Dict[str, Any], *, now: int) -> Dict[str, Any]:
     """The ContactsTable attributes to write for one normalised address: the canonical Map, its
     timestamp, AND the legacy flat columns derived from the SAME Map.
@@ -281,5 +330,8 @@ __all__ = [
     "from_contact",
     "payable_for",
     "map_meta_address",
+    "ADDRESS_MESSAGE_PHONE_PREFIX",
+    "address_message_reaches",
+    "to_meta_address_values",
     "contact_write_fields",
 ]

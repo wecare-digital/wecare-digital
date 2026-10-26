@@ -2489,6 +2489,21 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
             "message": "Payments are temporarily unavailable. No charge was made.",
         }, origin)
 
+    # 2b. EVERY WHATSAPP CART CONFIRMS WHERE IT SHIPS. The ORDER_DETAILS message below shows the
+    #     address on file but cannot change it, so a saved address is never assumed: a customer
+    #     who has moved would otherwise pay to ship to the old one. Asked LAST, once the cart has
+    #     priced and payments are ready, so a cart refused for another reason hears that reason
+    #     rather than being sent an address form first. `deliveryConfirmed` is set only by
+    #     inbound, when it resumes this cart from the customer's own Address Message submission
+    #     (`prepareNativeCart` refuses any HTTP envelope). Meta sends that form to +91 numbers
+    #     only, so any other number keeps paying against the address on file.
+    if (native_contact is not None and body.get("deliveryConfirmed") is not True
+            and contact_address.address_message_reaches(identity.phone)):
+        return cors_response(409, {
+            "error": "DELIVERY_CONFIRMATION_REQUIRED",
+            "message": "Confirm the delivery address for this order.",
+        }, origin)
+
     # 3. Reserve a canonical reference bound to a fresh attempt id, then build the attempt. The
     #    reference is minted and durably reserved BEFORE it is used, and never transformed after.
     attempt_id = payment_attempt.new_payment_attempt_id()
@@ -3254,7 +3269,9 @@ def _native_cart(event: Dict[str, Any], origin: str):
          the permanent customer identity. No browser sign-in or browser token is required.
     `_create`'s general-cart arm then refuses anything it cannot price (`_native_quote` raising ->
     no attempt, no order) and anything with no saved checkout profile/address, so an unpriceable
-    or unattributable cart leaves nothing behind.
+    or unattributable cart leaves nothing behind. Last, it answers DELIVERY_CONFIRMATION_REQUIRED
+    until the customer has confirmed the delivery address for this cart (`deliveryConfirmed`,
+    set by inbound from their Address Message submission).
 
     NO float money, no `item_price`, no hand-built `WD-PAY` reference: the amount is whatever
     `_native_quote` computes and the reference is whatever `order_keys.allocate_payment_reference`
@@ -3321,14 +3338,28 @@ def _native_cart(event: Dict[str, Any], origin: str):
         logger.info(json.dumps({'event': 'native_cart_already_requested'}))
         return {'outcome': 'NATIVE_CART_ALREADY_REQUESTED'}
 
+    # The customer confirmed the delivery address for THIS cart: inbound sets this only when it
+    # resumes the cart from their Address Message submission, which it saved to the contact read
+    # above. The name typed on that form is who the parcel goes to, so it is the recipient Meta
+    # is shown and the order records. It is display data, and it changes no stored row:
+    # `delivery_contact` is a copy for this one request.
+    create_body: Dict[str, Any] = {'lineItems': line_items}
+    delivery_contact = contact
+    if event.get('deliveryConfirmed') is True:
+        create_body['deliveryConfirmed'] = True
+        recipient = ' '.join(str(event.get('deliveryRecipient') or '').split())
+        if recipient:
+            delivery_contact = {**contact, 'name': recipient[:order_delivery.RECIPIENT_MAX]}
+
     # The general-cart arm of `_create` (catalog_session=None) owns the rest: it requires a saved
-    # checkout profile and address, prices via `_native_quote`, reserves ONE attempt + PAYREF#
-    # carrying contactId + customerUuid read from that profile, and sends `_cart_order_details`
-    # through `_send_order_details` with the approved template. Anything it cannot price or
-    # attribute is refused there with no attempt and no order.
+    # checkout profile and address, prices via `_native_quote`, asks for the address to be
+    # confirmed for this order (2b), reserves ONE attempt + PAYREF# carrying contactId +
+    # customerUuid read from that profile, and sends `_cart_order_details` through
+    # `_send_order_details` with the approved template. Anything it cannot price or attribute is
+    # refused there with no attempt and no order.
     try:
-        response = _create(identity, {'lineItems': line_items}, origin,
-                           native_contact=contact)
+        response = _create(identity, create_body, origin,
+                           native_contact=delivery_contact)
     except Exception:
         _release_wa_cart(live_key, token)
         raise

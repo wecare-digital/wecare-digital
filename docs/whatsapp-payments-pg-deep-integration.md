@@ -133,6 +133,12 @@ name; `WECAREDIGITAL` is now verified, so it is not a guess.
   `/checkout/status/` once the attempt carries its order number. The delivery address shown there
   is the one frozen on the PaymentAttempt at checkout and copied to the order by `accept_paid`
   (`order_delivery`), never the contact's current address.
+- Delivery address (2026-10-26): every WhatsApp catalog cart confirms where it ships before the
+  payment request. Once the cart prices and payments are ready, checkout answers
+  `DELIVERY_CONFIRMATION_REQUIRED` and inbound sends the India Address Message, prefilled with the
+  saved address (or marked where a saved address cannot settle). The customer's submission resumes
+  the cart with `deliveryConfirmed`, and the name on the form is the order's recipient. Meta sends
+  that form to +91 numbers only, so any other number still pays against the address on file.
 
 ### 6. Refunds (Step 8)
 - `POST /[PHONE_NUMBER_ID]/payments_refund` with `reference_id`, `speed`

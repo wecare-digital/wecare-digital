@@ -178,6 +178,14 @@ CART_REPLY_ADDRESS = ('To deliver your order, please share your delivery address
                       'request follows as soon as it is saved.')
 CART_REPLY_ADDRESS_UNUSABLE = ('We could not use that address. Please check it and share it '
                                'again. Nothing has been charged.')
+# The form opens on the address already on file, because every WhatsApp cart confirms where it
+# ships (checkout's DELIVERY_CONFIRMATION_REQUIRED): the payment request shows that address but
+# cannot change it.
+CART_REPLY_ADDRESS_CONFIRM = ('Please confirm the delivery address for this order. Your saved '
+                              'address is filled in: check it, change anything you need, then '
+                              'send it. Your payment request follows.')
+CART_REPLY_ADDRESS_FIX = ('We cannot deliver to the address we have on file. Please correct it '
+                          'and send it. Your payment request follows.')
 CART_REPLY_ALREADY_REQUESTED = ('We have already sent you a payment request for this cart. '
                                 'Please use that message to pay. Nothing new has been charged.')
 CART_REPLY_PARTIAL = ('Some items in this cart cannot be ordered on WhatsApp. Nothing has been '
@@ -195,9 +203,10 @@ CART_REPLY_NOT_HERE = ('Payment on WhatsApp is not available from this number. N
                        'charged. You can complete this order on wecare.digital.')
 CART_REPLY_TRY_LATER = ('We could not prepare a payment request for this cart right now. Nothing '
                         'has been charged. Please try again in a few minutes.')
-# A cart refused ONLY for a missing or unpayable delivery address waits here, so the India Address
-# Message submission resumes it instead of asking the customer to send the cart again. One row per
-# contact (the latest such cart wins); expiry is compared in code because CommerceKeys has no TTL.
+# A cart refused ONLY for its delivery address (missing, unpayable, or not yet confirmed for this
+# order) waits here, so the India Address Message submission resumes it instead of asking the
+# customer to send the cart again. One row per contact (the latest such cart wins); expiry is
+# compared in code because CommerceKeys has no TTL.
 CART_PENDING_PREFIX = 'WABASKETPENDING#'
 CART_PENDING_LIFETIME_SECONDS = 24 * 3600
 
@@ -6615,19 +6624,24 @@ _ADDRESS_FIELD_ERRORS = {
 
 
 def _request_shipping_address(contact_id: str, phone_number_id: str, sender_phone: str,
-                              request_id: str, body_text: str = CART_REPLY_ADDRESS, *,
+                              request_id: str, body_text: str = '', *,
                               submitted: Optional[Dict[str, Any]] = None,
                               bad_field: str = '') -> None:
     """Ask for a delivery address with the India Address Message. Never raises.
 
-    Called only AFTER checkout has answered DELIVERY_DETAILS_REQUIRED for a cart, so it always
-    asks: checkout's own address test (`contact_address.from_contact` on the verified checkout
-    profile, then `payment_address.assert_payable`) has already said the address on file is
-    missing or unusable for a WhatsApp payment. It used to run before checkout was invoked and
-    skip any contact holding a legacy `shippingAddress`, so an unverified customer was asked for
-    an address that could never make their cart payable, and a customer whose stored address was
-    unpayable was never asked at all. The submission comes back as `nfm_reply`/`address_message`,
-    is stored by `_handle_address_submission`, and resumes the waiting cart.
+    Called only AFTER checkout has refused a cart for its address: DELIVERY_DETAILS_REQUIRED
+    (checkout's own test, `contact_address.from_contact` on the verified checkout profile then
+    `payment_address.assert_payable`, found the address on file missing or unusable for a
+    WhatsApp payment) or DELIVERY_CONFIRMATION_REQUIRED (the address is fine but has not been
+    confirmed for this order). It used to run before checkout was invoked and skip any contact
+    holding a legacy `shippingAddress`, so an unverified customer was asked for an address that
+    could never make their cart payable, and a customer whose stored address was unpayable was
+    never asked at all. The submission comes back as `nfm_reply`/`address_message`, is stored by
+    `_handle_address_submission`, and resumes the waiting cart.
+
+    A FRESH ask (no `submitted`) opens on the address already on file, so a returning customer
+    confirms it in one tap instead of typing it again, and the copy says which case it is: confirm
+    a payable address, correct an unpayable one (its bad field marked), or share one.
 
     A RE-ASK after a refused submission passes `submitted` (the customer's own form values) and
     the canonical `bad_field`, so the form comes back filled in with the one field to fix marked,
@@ -6642,6 +6656,20 @@ def _request_shipping_address(contact_id: str, phone_number_id: str, sender_phon
         for key, value in (submitted or {}).items():
             if key in _ADDRESS_MESSAGE_FIELDS and isinstance(value, (str, int)) and str(value).strip():
                 values[key] = str(value).strip()[:200]
+        if submitted is None:
+            from lambda_utils.ecommerce import contact_address, payment_address
+            stored = contact_address.from_contact(contact)
+            prefill = contact_address.to_meta_address_values(stored)
+            if prefill:
+                values.update(prefill)
+                try:
+                    payment_address.assert_payable(
+                        stored, channel=payment_address.WHATSAPP_ORDER_DETAILS)
+                    body_text = body_text or CART_REPLY_ADDRESS_CONFIRM
+                except payment_address.UnpayableAddress as unpayable:
+                    body_text = body_text or CART_REPLY_ADDRESS_FIX
+                    bad_field = bad_field or unpayable.field
+        body_text = body_text or CART_REPLY_ADDRESS
         values['phone_number'] = '+' + str(sender_phone or '').lstrip('+')
         name = contact.get('contactBookName', '') or contact.get('name', '') or ''
         if name and not values.get('name'):
@@ -6825,8 +6853,14 @@ def _rollback_cart_order_index(keys, order_id: str, token: str, request_id: str)
 
 
 def _send_payment_request(basket, phone: str, contact_id: str, sender_phone: str,
-                          phone_number_id: str, request_id: str) -> None:
+                          phone_number_id: str, request_id: str, *,
+                          delivery_confirmed: bool = False,
+                          delivery_recipient: str = '') -> None:
     """Drive the native WhatsApp ORDER_DETAILS money leg for a general PRODUCT cart.
+
+    `delivery_confirmed` is True only when `_resume_pending_cart` re-enters here from the
+    customer's Address Message submission for this cart; `delivery_recipient` is the name they
+    typed on that form. Checkout asks for that confirmation on every cart it can otherwise pay.
 
     THE MONEY SENDER, REBUILT ON THE UNIFIED MACHINERY. The owner authorised rebuilding this
     function; it is deliberately NOT the self-contained calculator-and-sender that was deleted.
@@ -6877,10 +6911,18 @@ def _send_payment_request(basket, phone: str, contact_id: str, sender_phone: str
         }))
         return
 
-    # The delivery address is asked for only AFTER checkout says it is what is missing
-    # (DELIVERY_DETAILS_REQUIRED, below). Asking before the invoke prompted customers whose cart
-    # was going to be refused for another reason, and skipped those whose stored address was
-    # unpayable.
+    # The delivery address is asked for only AFTER checkout says it is what is missing or not yet
+    # confirmed for this order (DELIVERY_DETAILS_REQUIRED / DELIVERY_CONFIRMATION_REQUIRED, below).
+    # Asking before the invoke prompted customers whose cart was going to be refused for another
+    # reason, and skipped those whose stored address was unpayable.
+    prepare = {'internalAction': 'prepareNativeCart', 'lines': basket.lines,
+               'sourceMessageId': basket.message_id, 'contactId': contact_id,
+               'senderPhone': sender_phone, 'phoneNumberId': phone_number_id}
+    if delivery_confirmed:
+        prepare['deliveryConfirmed'] = True
+        recipient = ' '.join(str(delivery_recipient or '').split())[:120]
+        if recipient:
+            prepare['deliveryRecipient'] = recipient
 
     # THE ONE SEAM. `prepareNativeCart` resolves the verified customer from the contact, prices the
     # basket via `_native_quote`, reserves the single attempt + `PAYREF#` carrying contactId +
@@ -6907,10 +6949,7 @@ def _send_payment_request(basket, phone: str, contact_id: str, sender_phone: str
     try:
         response = _checkout_invoke_client().invoke(
             FunctionName=CHECKOUT_FUNCTION, InvocationType='RequestResponse',
-            Payload=json.dumps({'internalAction': 'prepareNativeCart', 'lines': basket.lines,
-                                'sourceMessageId': basket.message_id, 'contactId': contact_id,
-                                'senderPhone': sender_phone,
-                                'phoneNumberId': phone_number_id}).encode())
+            Payload=json.dumps(prepare).encode())
         raw = response['Payload'].read()
         result = json.loads(raw.decode('utf-8')) if raw else {}
         outcome = str(result.get('outcome') or '')
@@ -7001,7 +7040,7 @@ def _cart_refusal_kind(outcome: str, error: str) -> str:
         # fail-closed and recoverable by retry/support; website authentication remains on HTTP
         # checkout routes only.
         return 'try_later'
-    if error == 'DELIVERY_DETAILS_REQUIRED':
+    if error in ('DELIVERY_DETAILS_REQUIRED', 'DELIVERY_CONFIRMATION_REQUIRED'):
         return 'address'
     if outcome == 'NATIVE_CART_ALREADY_REQUESTED':
         return 'already_requested'
@@ -7094,7 +7133,7 @@ def _pending_cart(contact_id: str) -> Dict[str, Any]:
 
 
 def _resume_pending_cart(contact_id: str, sender_phone: str, phone_number_id: str,
-                         request_id: str) -> bool:
+                         request_id: str, *, recipient: str = '') -> bool:
     """Resume the cart that was waiting for this delivery address. True when one was resumed.
 
     The cart re-enters `_send_payment_request` exactly as the original message did - same lines,
@@ -7102,6 +7141,10 @@ def _resume_pending_cart(contact_id: str, sender_phone: str, phone_number_id: st
     checkout re-checks everything: rollout gate, verified customer, the address just saved, price.
     The pending row is CLAIMED by a token-conditional delete first, so two submissions of the
     address resume one cart, never two.
+
+    Only this path tells checkout the address is confirmed for the order (`delivery_confirmed`),
+    because only this path runs on the customer's own submission of it. `recipient` is the name
+    they typed on that form.
     """
     try:
         row = _pending_cart(contact_id)
@@ -7149,7 +7192,8 @@ def _resume_pending_cart(contact_id: str, sender_phone: str, phone_number_id: st
     logger.info(json.dumps({'event': 'cart_order_resumed_after_address',
                             'sourceMessageId': basket.message_id, 'lineCount': len(lines),
                             'contactId': mask_contact_id(contact_id), 'requestId': request_id}))
-    _send_payment_request(basket, phone, contact_id, sender_phone, phone_number_id, request_id)
+    _send_payment_request(basket, phone, contact_id, sender_phone, phone_number_id, request_id,
+                          delivery_confirmed=True, delivery_recipient=recipient)
     return True
 
 
@@ -7703,8 +7747,9 @@ def _handle_address_submission(nfm: Dict, contact_id: str, sender_phone: str,
                        ExpressionAttributeNames=expr_names, ExpressionAttributeValues=expr_vals)
         logger.info(json.dumps({'event': 'address_saved', 'contactId': mask_contact_id(contact_id), 'requestId': request_id}))
         # The cart that was refused for want of this address continues now, so the customer
-        # does not have to send it again.
-        _resume_pending_cart(contact_id, sender_phone, phone_number_id, request_id)
+        # does not have to send it again. The name on the form is who this order ships to.
+        _resume_pending_cart(contact_id, sender_phone, phone_number_id, request_id,
+                             recipient=name if isinstance(name, str) else '')
     except Exception as e:
         logger.error(json.dumps({'event': 'address_submission_error', 'error': type(e).__name__, 'requestId': request_id}))
 
