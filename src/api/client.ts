@@ -4826,11 +4826,10 @@ export interface Invoice {
   entryPoint: string;
   status: string;
   paymentStatus: string;
-  /** Local projection of the WhatsApp payment-order lifecycle. Distinct from paymentStatus,
-   *  which records what the money did. The payment rail normally ends at completed. */
+  /** Canonical internal fulfilment state. Distinct from paymentStatus, which records the money. */
   orderStatus?: string;
-  /** Last order_status value Meta accepted for this invoice/reference. This is the transition
-   *  authority and must advance only after Meta accepts the corresponding template message. */
+  /** Historical Meta order_status audit field on older invoices. New fulfilment writes do not
+   *  send WhatsApp status messages and must not advance this field. */
   waOrderStatus?: string;
   contactId: string;
   customerName: string;
