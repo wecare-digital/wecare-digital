@@ -79,6 +79,27 @@ def prepare_and_send(event, lambda_client):
     if not result:
         return {'outcome': 'VAULT_ACCESS_UNAVAILABLE'}
     row, file, grant = result
+
+    # A paid renewal reuses the durable entitlement but must open a NEW 24h window before the
+    # Access Vault link reaches the customer. Secure-files owns the window predicate/write, so
+    # invoke its guarded internal action instead of duplicating that financial-access rule here.
+    window_response = lambda_client.invoke(
+        FunctionName='wecare-secure-files:live',
+        InvocationType='RequestResponse',
+        Payload=json.dumps({
+            'internalAction': 'openVaultAccessWindow',
+            'grantId': grant['grantId'],
+        }).encode(),
+    )
+    if window_response.get('FunctionError'):
+        return {'outcome': 'VAULT_ACCESS_WINDOW_PENDING'}
+    try:
+        window_answer = json.loads(window_response['Payload'].read() or b'{}')
+    except Exception:
+        return {'outcome': 'VAULT_ACCESS_WINDOW_PENDING'}
+    if not window_answer.get('ok'):
+        return {'outcome': 'VAULT_ACCESS_WINDOW_PENDING'}
+
     # Cognito sub is canonical UUID. Refuse malformed filter inputs before ListUsers.
     if not customer_auth.is_cognito_subject(row['customerId']):
         return {'outcome': 'VERIFIED_RECIPIENT_UNAVAILABLE'}
