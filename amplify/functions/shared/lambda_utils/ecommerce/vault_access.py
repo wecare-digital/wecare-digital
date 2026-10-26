@@ -88,15 +88,52 @@ def grant_access(requests, keys, files, grants, event):
              'customerId': row['customerId'], 'orderId': oid, 'reference': ref,
              'requestId': row['requestId'], 'source': 'vault_purchase', 'paid': True,
              'consumed': False, 'entitlementId': entitlement_id, 'createdAt': now}
-    entitlement = {'grantId': entitlement_id, 'recordType': 'VAULT_ENTITLEMENT',
-                   'entitlementState': 'ACTIVE', 'customerId': row['customerId'],
-                   'fileId': file['fileId'], 'ownerPhone': file['ownerPhone'],
-                   'sourceGrantId': gid, 'orderId': oid, 'reference': ref,
-                   'requestId': row['requestId'], 'createdAt': now,
-                   'paidAt': int(row.get('paidAt') or now)}
+
+    # A renewal pays for a NEW access window on the SAME durable entitlement.
+    # Never try to insert a second entitlement row: the stable customer+file entitlement id is
+    # deliberately permanent. A later paid grant is new payment evidence and becomes the latest
+    # delivery source; delivery then re-opens the expired window and increments accessWindowCount.
+    prior_entitlement = grants.get_item(
+        Key={'grantId': entitlement_id}, ConsistentRead=True).get('Item') or {}
+    if prior_entitlement:
+        if (prior_entitlement.get('recordType') != 'VAULT_ENTITLEMENT'
+                or prior_entitlement.get('entitlementState') != 'ACTIVE'
+                or prior_entitlement.get('customerId') != row['customerId']
+                or prior_entitlement.get('fileId') != file['fileId']
+                or prior_entitlement.get('ownerPhone') != file['ownerPhone']):
+            raise ValueError('entitlement ownership mismatch')
+        entitlement = prior_entitlement
+    else:
+        entitlement = {'grantId': entitlement_id, 'recordType': 'VAULT_ENTITLEMENT',
+                       'entitlementState': 'ACTIVE', 'customerId': row['customerId'],
+                       'fileId': file['fileId'], 'ownerPhone': file['ownerPhone'],
+                       'sourceGrantId': gid, 'orderId': oid, 'reference': ref,
+                       'requestId': row['requestId'], 'createdAt': now,
+                       'paidAt': int(row.get('paidAt') or now)}
+
     # The original private file must still be active and owned at the grant commit.
-    items = [store._put(grants.name, grant, 'attribute_not_exists(grantId)'),
-        store._put(grants.name, entitlement, 'attribute_not_exists(grantId)'),
+    items = [store._put(grants.name, grant, 'attribute_not_exists(grantId)')]
+    if prior_entitlement:
+        items.append({'Update': {
+            'TableName': grants.name,
+            'Key': store._marshal_item({'grantId': entitlement_id}),
+            'UpdateExpression': (
+                'SET lastSourceGrantId=:g, lastOrderId=:o, lastReference=:ref, '
+                'lastRequestId=:request, lastPaidAt=:paidAt'
+            ),
+            'ConditionExpression': (
+                'recordType=:rt AND entitlementState=:active AND '
+                'customerId=:owner AND fileId=:file'
+            ),
+            'ExpressionAttributeValues': store._marshal_item({
+                ':g': gid, ':o': oid, ':ref': ref, ':request': row['requestId'],
+                ':paidAt': int(row.get('paidAt') or now), ':rt': 'VAULT_ENTITLEMENT',
+                ':active': 'ACTIVE', ':owner': row['customerId'], ':file': file['fileId'],
+            }),
+        }})
+    else:
+        items.append(store._put(grants.name, entitlement, 'attribute_not_exists(grantId)'))
+    items.extend([
         {'Update': {'TableName': files.name, 'Key': store._marshal_item({'fileId': file['fileId']}),
                     'UpdateExpression': 'SET vaultAccessGrantId=:g, vaultEntitlementId=:e, vaultPaymentStatus=:paid, vaultOrderNumber=:number, vaultRequestNumber=:request',
                     'ConditionExpression': 'ownerCustomerId=:owner AND #s=:active',
@@ -105,7 +142,8 @@ def grant_access(requests, keys, files, grants, event):
         {'Update': {'TableName': requests.name, 'Key': store._marshal_item({'requestId': row['requestId']}),
                     'UpdateExpression': 'SET vaultStatus=:ready, vaultGrantId=:g',
                     'ConditionExpression': 'customerId=:owner AND orderId=:o',
-                    'ExpressionAttributeValues': store._marshal_item({':ready': 'READY', ':g': gid, ':owner': row['customerId'], ':o': oid})}}]
+                    'ExpressionAttributeValues': store._marshal_item({':ready': 'READY', ':g': gid, ':owner': row['customerId'], ':o': oid})}}
+    ])
     try:
         store._transact(requests, items)
     except Exception:
