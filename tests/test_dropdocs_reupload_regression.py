@@ -59,6 +59,7 @@ class DropDocsReuploadRegressionTest(unittest.TestCase):
     def test_success_response_does_not_return_pending_replacement_fields(self):
         fn = self._function("_confirm_document_reupload")
         text = ast.get_source_segment(self.source, fn) or ""
+        self.assertIn("item.pop(field, None)", text)
         for field in (
             "replacementStorageKey",
             "replacementFileName",
@@ -68,7 +69,7 @@ class DropDocsReuploadRegressionTest(unittest.TestCase):
             "replacementDocumentRef",
             "replacementRequestedAt",
         ):
-            self.assertIn(f"item.pop('{field}', None)", text)
+            self.assertIn(repr(field), text)
 
 
 if __name__ == "__main__":
