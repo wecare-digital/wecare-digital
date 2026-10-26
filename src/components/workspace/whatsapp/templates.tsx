@@ -102,7 +102,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const TEMPLATE_OPERATION_PATHS: Record<string, string> = {
-  wecare_order_status_v3: 'Payments · Order status',
+  wecare_order_status_v3: 'Retired · no sends',
   wecare_default_invoice_image_template: 'Payments · Send invoice',
   wecare_leave_review: 'Inbox · Send template',
   wecare_whatapp_native_pay_template: 'Payments · Request payment',
