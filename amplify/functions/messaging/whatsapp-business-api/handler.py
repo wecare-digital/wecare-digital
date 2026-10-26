@@ -150,7 +150,7 @@ MEDIA_ALLOWED_MIME = {
     'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     'text/plain',
 }
-INVOICE_ENGINE_FUNCTION = os.environ.get('INVOICE_ENGINE_FUNCTION', 'wecare-checkout:live')
+INVOICE_ENGINE_FUNCTION = os.environ.get('INVOICE_ENGINE_FUNCTION', 'wecare-commerce:live')
 META_CATALOG_SYNC_FUNCTION = os.environ.get(
     'META_CATALOG_SYNC_FUNCTION', 'wecare-meta-catalog-sync:live')
 # The shared stores (contacts, orders, flow responses, flow logs, status history) resolve in

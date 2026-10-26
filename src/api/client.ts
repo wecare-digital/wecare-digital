@@ -4814,9 +4814,12 @@ export interface Invoice {
   entryPoint: string;
   status: string;
   paymentStatus: string;
-  /** WhatsApp order_status FULFILMENT lifecycle (pending/processing/shipped/completed/…), set as
-   *  staff send order_status updates. Distinct from `paymentStatus` (what the money did). */
+  /** Local projection of the WhatsApp payment-order lifecycle. Distinct from paymentStatus,
+   *  which records what the money did. The payment rail normally ends at completed. */
   orderStatus?: string;
+  /** Last order_status value Meta accepted for this invoice/reference. This is the transition
+   *  authority and must advance only after Meta accepts the corresponding template message. */
+  waOrderStatus?: string;
   contactId: string;
   customerName: string;
   customerPhone: string;

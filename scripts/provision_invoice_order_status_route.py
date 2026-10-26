@@ -15,7 +15,7 @@ REGION = "us-east-1"
 API_ID = "zllr9lrg7j"
 ROUTE_KEY = "POST /invoices/{invoiceId}/order-status"
 INTEGRATION_URI = (
-    "arn:aws:lambda:us-east-1:775261844268:function:wecare-invoice-engine:live"
+    "arn:aws:lambda:us-east-1:775261844268:function:wecare-commerce:live"
 )
 
 

@@ -62,7 +62,7 @@ DOCUMENTS_TABLE = f'{TABLE_PREFIX}-DocumentTable'
 DOCUMENT_HISTORY_TABLE = f'{TABLE_PREFIX}-DocumentHistoryTable'
 FAQ_TABLE = f'{TABLE_PREFIX}-FaqTable'
 AUDIT_LOG_TABLE = f'{TABLE_PREFIX}-AuditLogsTable'
-INVOICE_ENGINE_FUNCTION = os.environ.get('INVOICE_ENGINE_FUNCTION', 'wecare-checkout:live')
+INVOICE_ENGINE_FUNCTION = os.environ.get('INVOICE_ENGINE_FUNCTION', 'wecare-commerce:live')
 
 # Documents ARE WhatsApp media: inbound-whatsapp writes the object and then records its
 # key as DocumentTable.storageKey, so both live in the one media bucket. There has never
