@@ -2535,12 +2535,36 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
     if transparent:
         from pathlib import Path
         import receipt_layout
+
+        # Receipt v7 uses the site's Inter typography when an Inter face is available in the
+        # invoice font prefix. Existing deployments remain safe: each role falls back to the
+        # packaged DotGothic face instead of failing a paid receipt because an optional font
+        # object is missing.
+        font_cache = getattr(_generate_receipt_png, '_receipt_v7_font_cache', {})
+        _generate_receipt_png._receipt_v7_font_cache = font_cache
+
+        def _receipt_font(role, filename):
+            if role in font_cache:
+                return font_cache[role]
+            s3_key = media_paths.INVOICE_FONT_PREFIX + filename
+            try:
+                obj = s3.get_object(Bucket=MEDIA_BUCKET, Key=s3_key)
+                font_cache[role] = obj['Body'].read()
+            except Exception as error:  # noqa: BLE001
+                logger.debug(f"Receipt font load failed ({s3_key}): {type(error).__name__}")
+                font_cache[role] = str(Path(__file__).parent / 'fonts' / 'DotGothic16-Regular.ttf')
+            return font_cache[role]
+
+        font_paths = {
+            'regular': _receipt_font('regular', 'Inter-Regular.otf'),
+            'semibold': _receipt_font('semibold', 'Inter-SemiBold.otf'),
+            'bold': _receipt_font('bold', 'Inter-Bold.otf'),
+        }
         return receipt_layout.render(
             invoice, items, company=COMPANY,
-            font_path=Path(__file__).parent / 'fonts' / 'DotGothic16-Regular.ttf',
+            font_paths=font_paths, logo_bytes=_load_logo_bytes(),
             ist_strftime=_ist_strftime, canonical_status=pay_status.canonical,
-            amount_in_words=_amount_in_words, customer_id=_customer_id(invoice),
-            source_label=_source_label(invoice))
+            amount_in_words=_amount_in_words, source_label=_source_label(invoice))
 
     # ── Font setup (monospace — download DejaVu Sans Mono from S3 on Lambda) ──
     _font_cache = getattr(_generate_receipt_png, '_font_cache', {})
