@@ -1326,7 +1326,7 @@ const WorkflowTerminal: React.FC = () => {
           .wt-bar-state{display:flex;font-size:13px;gap:6px}
           .wt-play{
             top:47px;left:10px;right:10px;
-            width:auto;height:37px;
+            width:auto;height:44px;
             justify-content:flex-end;
             padding:0 4px;
             border-radius:0;
