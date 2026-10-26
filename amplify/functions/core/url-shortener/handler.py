@@ -204,7 +204,8 @@ def handler(event, context):
             # management is neither.
             from lambda_utils.middleware import require_auth
 
-            auth_failure = require_auth(event)
+            required_role = 'Admin' if method == 'DELETE' else None
+            auth_failure = require_auth(event, required_role=required_role)
             if auth_failure is not None:
                 return auth_failure
 
