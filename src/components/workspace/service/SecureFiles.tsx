@@ -334,7 +334,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
 
                         <div className="sf-field">
                             <label className="sf-label" htmlFor="sf-display">
-                                File name shown to the customer
+                                Vault message name <span className="sf-label-opt">({ '{{1}}' } in wecare_valut_49)</span>
                             </label>
                             <input
                                 id="sf-display"
@@ -342,8 +342,13 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                 value={ displayName }
                                 onChange={ e => setDisplayName( e.target.value ) }
                                 placeholder={ file?.name || 'Trade Licence 2026' }
+                                maxLength={ 60 }
                                 disabled={ uploading }
                             />
+                            <p className="sf-hint">
+                                Shown to the customer as &ldquo;Your { displayName.trim() || file?.name || 'document' } copy
+                                is ready!&rdquo; and in their Vault. Empty uses the file name.
+                            </p>
                         </div>
 
                         <div className="sf-field">

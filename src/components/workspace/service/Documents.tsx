@@ -81,6 +81,25 @@ function fileExtension ( name?: string ): string {
   return match ? match[ 0 ].toLowerCase() : '';
 }
 
+/* {{1}} of the ₹49 Vault message (wecare_valut_49), cleaned the way the server cleans it: one
+   line, at most 60 characters, no * _ ~ marks (the body wraps {{1}} in *bold*). So the preview
+   below is the text the customer receives. */
+function vaultMessageName ( raw?: string ): string {
+  return String( raw || '' )
+    .replace( /[\u0000-\u001f\u007f]/g, ' ' )
+    .replace( /[*~]/g, '' )
+    .replace( /_/g, ' ' )
+    .split( /\s+/ ).filter( Boolean ).join( ' ' )
+    .slice( 0, 60 ).trim();
+}
+
+/* The Vault name to start from: the published one, else what Publish would derive (staff's
+   label, then the customer's own file name; fileName is the generated reference). */
+function defaultVaultName ( doc: api.Document ): string {
+  return vaultMessageName( doc.vaultDisplayName || doc.documentTypeLabel || doc.originalFileName
+    || doc.fileName || '' );
+}
+
 function referenceAgeSeconds ( doc: api.Document ): number {
   const base = doc.referenceIssuedAt || doc.createdAt || 0;
   if ( !base ) return Number.POSITIVE_INFINITY;
@@ -116,6 +135,8 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
   const [ typeFilter, setTypeFilter ] = useState( '' );
   const [ page, setPage ] = useState( 1 );
   const [ selected, setSelected ] = useState<api.Document | null>( null );
+  // What staff typed for {{1}} of the Vault message, for the open document.
+  const [ vaultName, setVaultName ] = useState( '' );
   const [ actionLoading, setActionLoading ] = useState( false );
   const [ remarks, setRemarks ] = useState( '' );
   const [ showCreate, setShowCreate ] = useState( false );
@@ -346,37 +367,63 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
   };
 
 
+  const openDocument = ( doc: api.Document ) => {
+    setSelected( doc );
+    setRemarks( '' );
+    setVaultName( defaultVaultName( doc ) );
+  };
+
+  /* Publish (or, when already published, rename) with the {{1}} staff typed. Returns the
+     updated document, or null after reporting why it failed. */
+  const publishVault = async ( doc: api.Document ): Promise<api.Document | null> => {
+    const name = vaultMessageName( vaultName );
+    const published = await api.publishDocumentToVault( doc.documentId, name || undefined );
+    if ( !published.ok )
+    {
+      toast.error( published.failure.message || 'Could not publish this document to Vault' );
+      return null;
+    }
+    const next = {
+      ...doc,
+      vaultFileId: published.data.fileId,
+      vaultPublishedAt: doc.vaultPublishedAt || Date.now() / 1000,
+      vaultDisplayName: published.data.displayName || name || doc.vaultDisplayName,
+    };
+    setSelected( next );
+    setVaultName( vaultMessageName( next.vaultDisplayName ) );
+    if ( published.data.created ) toast.success( `Published to Vault as “${ next.vaultDisplayName || 'Document' }”` );
+    else if ( published.data.renamed ) toast.success( `Vault name saved: “${ next.vaultDisplayName }”` );
+    return next;
+  };
+
   const handlePublishToVault = async ( doc: api.Document ) => {
     if ( actionLoading ) return;
     setActionLoading( true );
     try
     {
-      const published = await api.publishDocumentToVault( doc.documentId );
-      if ( !published.ok )
-      {
-        toast.error( published.failure.message || 'Could not publish this document to Vault' );
-        return;
-      }
-      const next = { ...doc, vaultFileId: published.data.fileId, vaultPublishedAt: Date.now() / 1000 };
-      setSelected( next );
-      toast.success( published.data.created ? 'Published to Vault' : 'Already published to Vault' );
-      void loadData();
+      if ( await publishVault( doc ) ) void loadData();
     } finally
     {
       setActionLoading( false );
     }
   };
 
-
   const handleSendVaultOffer = async ( doc: api.Document ) => {
     if ( actionLoading || !doc.vaultFileId ) return;
     setActionLoading( true );
     try
     {
-      const result = await api.requestSecureFilePayment( doc.vaultFileId );
+      // A name edited but not saved would otherwise go out as the old one: save it first, so
+      // the message says exactly what the preview shows.
+      let target: api.Document | null = doc;
+      const name = vaultMessageName( vaultName );
+      if ( name && name !== ( doc.vaultDisplayName || '' ) ) target = await publishVault( doc );
+      if ( !target?.vaultFileId ) return;
+      const result = await api.requestSecureFilePayment( target.vaultFileId );
       if ( result.ok && result.status !== 202 ) toast.success( result.message );
       else if ( result.status === 202 || result.status === null ) toast.warning( result.message );
       else toast.error( result.message );
+      void loadData();
     } finally
     {
       setActionLoading( false );
@@ -403,7 +450,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
     },
     {
       key: 'fileName', header: 'Document', render: ( d: api.Document ) => (
-        <button onClick={ () => { setSelected( d ); setRemarks( '' ); } } style={ { background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' } }>
+        <button onClick={ () => openDocument( d ) } style={ { background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' } }>
           <div style={ { fontWeight: 500, fontSize: 'var(--text-md)', color: 'var(--accent)', textDecoration: 'underline' } }>{ d.fileName || 'Untitled' }</div>
           <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>{ d.type } · { fmtSize( d.fileSize ) }</div>
         </button>
@@ -415,8 +462,8 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
       )
     },
     {
-      key: 'orderId', header: 'Order', width: '100px', render: ( d: api.Document ) => d.orderId ? (
-        <span style={ { fontSize: 'var(--text-xs)', fontFamily: 'monospace', color: 'var(--accent)' } }>{ d.orderId.split( '-' ).pop() }</span>
+      key: 'orderId', header: 'Order', width: '120px', render: ( d: api.Document ) => d.orderId ? (
+        <span title={ d.orderId } style={ { fontSize: 'var(--text-xs)', fontFamily: 'monospace', color: 'var(--accent)' } }>{ d.orderNumber || d.orderId.split( '-' ).pop() }</span>
       ) : <span style={ { color: '#9ca3af' } }>—</span>
     },
     { key: 'status', header: 'Status', width: '140px', render: ( d: api.Document ) => <StatusBadge status={ d.status } /> },
@@ -496,15 +543,27 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
           <div>
             <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 } }>
               <div><span style={ labelStyle }>File Name</span><div style={ { fontWeight: 500 } }>{ selected.fileName || 'Untitled' }</div></div>
-              <div><span style={ labelStyle }>Type</span><div>{ selected.type }</div></div>
+              <div><span style={ labelStyle }>Type</span><div>{ selected.type }{ selected.documentTypeLabel ? ` · ${ selected.documentTypeLabel }` : '' }</div></div>
               <div><span style={ labelStyle }>Source</span><div>{ SOURCE_ICONS[ selected.source ] || '📄' } { selected.source }</div></div>
               <div><span style={ labelStyle }>Size</span><div>{ fmtSize( selected.fileSize ) }</div></div>
               <div><span style={ labelStyle }>Status</span><div><StatusBadge status={ selected.status } /></div></div>
               <div><span style={ labelStyle }>Uploaded</span><div>{ fmtDate( selected.createdAt ) }</div></div>
               <div><span style={ labelStyle }>Customer</span><div>{ selected.customerName || '—' } ({ selected.customerPhone || '—' })</div></div>
-              { selected.orderId && <div><span style={ labelStyle }>Order ID</span><div style={ { fontFamily: 'monospace', fontSize: 'var(--text-sm)' } }>{ selected.orderId }</div></div> }
+              { selected.orderId && (
+                <div>
+                  <span style={ labelStyle }>Order</span>
+                  { selected.orderNumber && <div style={ { fontWeight: 500, fontFamily: 'monospace' } }>{ selected.orderNumber }</div> }
+                  <div style={ { fontFamily: 'monospace', fontSize: 'var(--text-xs)', color: 'var(--text-muted)', overflowWrap: 'anywhere' } }>{ selected.orderId }</div>
+                </div>
+              ) }
               { selected.documentRef && <div><span style={ labelStyle }>Reference</span><div style={ { fontFamily: 'monospace', fontSize: 'var(--text-sm)' } }>{ selected.documentRef }</div></div> }
-              { selected.vaultFileId && <div><span style={ labelStyle }>Vault</span><div style={ { fontSize: 'var(--text-sm)' } }>Published · { selected.vaultFileId }</div></div> }
+              { selected.vaultFileId && (
+                <div>
+                  <span style={ labelStyle }>Vault</span>
+                  <div style={ { fontSize: 'var(--text-sm)' } }>Published{ selected.vaultDisplayName ? ` as “${ selected.vaultDisplayName }”` : '' }</div>
+                  <div style={ { fontFamily: 'monospace', fontSize: 'var(--text-xs)', color: 'var(--text-muted)', overflowWrap: 'anywhere' } }>{ selected.vaultFileId }</div>
+                </div>
+              ) }
               { selected.mimeType && <div><span style={ labelStyle }>MIME Type</span><div style={ { fontSize: 'var(--text-sm)' } }>{ selected.mimeType }</div></div> }
               { selected.reviewedBy && <div><span style={ labelStyle }>Reviewed By</span><div>{ selected.reviewedBy } · { fmtDate( selected.reviewedAt ) }</div></div> }
             </div>
@@ -523,6 +582,33 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
               </label>
             </div>
 
+            {/* The ₹49 Vault message. Shown for a document that is, or can be, in the Vault. */ }
+            { ( selected.vaultFileId || ( selected.storageKey && [ 'uploaded', 'approved' ].includes( selected.status ) ) ) && (
+              <div style={ vaultBoxStyle }>
+                <label style={ { fontSize: 'var(--text-md)', fontWeight: 500 } }>
+                  Vault message name <span style={ { fontWeight: 400, color: 'var(--text-muted)' } }>({ '{{1}}' } in wecare_valut_49)</span>
+                  <input
+                    type="text"
+                    value={ vaultName }
+                    maxLength={ 60 }
+                    onChange={ e => setVaultName( e.target.value ) }
+                    placeholder="e.g. Trade licence, PAN card, Medical report"
+                    style={ inputStyle }
+                    disabled={ actionLoading }
+                  />
+                </label>
+                <div style={ helperStyle }>
+                  The customer gets: “Your <strong>{ vaultMessageName( vaultName ) || defaultVaultName( selected ) || 'document' }</strong> copy is ready!
+                  Pay <strong>₹49</strong> for instant and secure access to download it.” with an <strong>Unlock Vault</strong> button.
+                </div>
+              </div>
+            ) }
+            { !selected.vaultFileId && selected.storageKey && ![ 'uploaded', 'approved' ].includes( selected.status ) && (
+              <div style={ { ...helperStyle, marginTop: 0, marginBottom: 16 } }>
+                Approve this document to publish it to the customer&apos;s Vault.
+              </div>
+            ) }
+
             <div style={ { display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' } }>
               <Button variant="secondary" onClick={ () => handleDownload( selected ) }>Download</Button>
               <Button
@@ -533,14 +619,25 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
               >
                 { referenceAgeSeconds( selected ) < 24 * 3600 ? 'Reference valid <24h' : 'Revalidate reference' }
               </Button>
-              <Button
-                variant="secondary"
-                loading={ actionLoading }
-                disabled={ !selected.storageKey || !!selected.vaultFileId || ![ 'uploaded', 'approved' ].includes( selected.status ) }
-                onClick={ () => handlePublishToVault( selected ) }
-              >
-                { selected.vaultFileId ? 'Published to Vault' : 'Publish to Vault' }
-              </Button>
+              { selected.vaultFileId ? (
+                <Button
+                  variant="secondary"
+                  loading={ actionLoading }
+                  disabled={ !vaultMessageName( vaultName ) || vaultMessageName( vaultName ) === ( selected.vaultDisplayName || '' ) }
+                  onClick={ () => handlePublishToVault( selected ) }
+                >
+                  Save Vault name
+                </Button>
+              ) : (
+                <Button
+                  variant="secondary"
+                  loading={ actionLoading }
+                  disabled={ !selected.storageKey || ![ 'uploaded', 'approved' ].includes( selected.status ) }
+                  onClick={ () => handlePublishToVault( selected ) }
+                >
+                  Publish to Vault
+                </Button>
+              ) }
               { selected.vaultFileId && (
                 <Button
                   variant="primary"
@@ -721,6 +818,7 @@ const labelStyle: React.CSSProperties = { fontSize: 'var(--text-xs)', color: 'va
 const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 'var(--text-md)', marginTop: 4 };
 const actionBtnStyle: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', fontSize: 'var(--text-base)', padding: '2px 4px' };
 const helperStyle: React.CSSProperties = { fontSize: 'var(--text-sm)', color: 'var(--text-muted)', marginTop: 6 };
+const vaultBoxStyle: React.CSSProperties = { marginBottom: 16, padding: 12, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-secondary)' };
 const resultListStyle: React.CSSProperties = { marginTop: 6, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', maxHeight: 220, overflowY: 'auto' };
 const resultButtonStyle: React.CSSProperties = { width: '100%', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', gap: 12, padding: '10px 12px', border: 0, borderBottom: '1px solid var(--border)', background: 'var(--bg-primary)', cursor: 'pointer', textAlign: 'left' };
 

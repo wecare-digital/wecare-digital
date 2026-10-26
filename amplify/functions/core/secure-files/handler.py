@@ -66,7 +66,7 @@ from typing import Any, Dict, Optional, Tuple
 import boto3
 from botocore.exceptions import ClientError
 
-from lambda_utils import customer_auth, media_paths
+from lambda_utils import customer_auth, media_paths, whatsapp_templates
 from lambda_utils.direct_send import META_PHONE_TO_WABA, waba_for_meta_phone
 from lambda_utils.ecommerce import document_errors, dropdocs_storage, service_request_store
 from lambda_utils.ecommerce import vault_window
@@ -999,13 +999,30 @@ def _vault_file_id_for_document(document_id: str) -> str:
     return "doc-" + digest
 
 
+def _vault_message_name(raw: Any) -> str:
+    """Staff's text for {{1}} of `wecare_valut_49`, cleaned exactly as the send cleans it, or ''.
+
+    "Your *{{1}}* copy is ready! Pay *₹49*…" goes out with the stored `displayName`, so storing
+    the cleaned form makes the Workspace preview the message itself. '' means staff gave no
+    usable name (blank, or only emphasis marks) and the caller derives one instead.
+    """
+    if not "".join(ch for ch in str(raw or "") if ch.isprintable() and ch not in "*_~").strip():
+        return ""
+    return whatsapp_templates.vault_offer_document_name(raw)
+
+
 def _admin_publish_document(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
-    """Promote one staff Drop Docs record into the customer Vault without re-uploading bytes."""
+    """Promote one staff Drop Docs record into the customer Vault without re-uploading bytes.
+
+    Optional ``displayName`` is the Vault message's {{1}}. On a document already published it
+    renames that Vault file instead, so staff can correct the name before sending the message.
+    """
     body = json.loads(event.get("body") or "{}")
     document_id = str(body.get("documentId") or "").strip()
     if not document_id:
         return cors_response(400, {"error": "DOCUMENT_ID_REQUIRED",
                                    "message": "Choose a document to publish."}, origin)
+    requested_name = _vault_message_name(body.get("displayName"))
 
     document = _table(DOCUMENTS_TABLE).get_item(
         Key={"documentId": document_id}, ConsistentRead=True).get("Item") or {}
@@ -1053,18 +1070,41 @@ def _admin_publish_document(event: Dict[str, Any], origin: str) -> Dict[str, Any
                 or str(existing.get("ownerCustomerId") or "") != owner_customer_id
                 or str(existing.get("ownerPhone") or "") != phone):
             return cors_response(409, {"error": "VAULT_FILE_CONFLICT"}, origin)
+        display_name = str(existing.get("displayName") or "")
+        renamed = False
+        if requested_name and requested_name != display_name:
+            # Conditional on the same document and owner the checks above just proved, so a
+            # rename can never land on a file that changed hands in between.
+            try:
+                files.update_item(
+                    Key={"fileId": file_id},
+                    UpdateExpression="SET displayName=:n",
+                    ConditionExpression="sourceDocumentId=:doc AND ownerCustomerId=:owner",
+                    ExpressionAttributeValues={":n": requested_name, ":doc": document_id,
+                                               ":owner": owner_customer_id},
+                )
+            except ClientError as exc:
+                if exc.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
+                    raise
+                return cors_response(409, {"error": "VAULT_FILE_CONFLICT"}, origin)
+            display_name, renamed = requested_name, True
         try:
             _table(DOCUMENTS_TABLE).update_item(
                 Key={"documentId": document_id},
-                UpdateExpression="SET vaultFileId=:f, vaultPublishedAt=if_not_exists(vaultPublishedAt,:now)",
-                ExpressionAttributeValues={":f": file_id, ":now": int(time.time())},
+                UpdateExpression=("SET vaultFileId=:f, vaultDisplayName=:n, "
+                                  "vaultPublishedAt=if_not_exists(vaultPublishedAt,:now)"),
+                ExpressionAttributeValues={":f": file_id, ":n": display_name,
+                                           ":now": int(time.time())},
             )
         except ClientError:
             pass
+        if renamed:
+            logger.info(json.dumps({"event": "vault_file_renamed", "documentId": document_id,
+                                    "fileId": file_id}))
         return cors_response(200, _decimal_safe({
             "fileId": file_id, "status": existing.get("status"),
             "deliverable": existing.get("deliverable", "unknown"),
-            "created": False,
+            "displayName": display_name, "renamed": renamed, "created": False,
         }), origin)
 
     try:
@@ -1080,11 +1120,12 @@ def _admin_publish_document(event: Dict[str, Any], origin: str) -> Dict[str, Any
                        or "application/octet-stream")
     deliverable = _classify_delivery(content_type, size)
     original_name = str(document.get("originalFileName") or document.get("fileName") or document_id)
-    # The Vault message reads "Your *<name>* copy is ready!": staff's label first, then the
-    # customer's own file name. `fileName` on a current upload is the generated reference
-    # (wecare-digital-NNNNNN.pdf), which means nothing to the customer, so it comes last.
-    display_name = str(document.get("documentTypeLabel") or document.get("originalFileName")
-                       or document.get("fileName") or "Document")
+    # The Vault message reads "Your *<name>* copy is ready!": the name staff typed, else their
+    # label, then the customer's own file name. `fileName` on a current upload is the generated
+    # reference (wecare-digital-NNNNNN.pdf), which means nothing to the customer, so it is last.
+    display_name = requested_name or str(document.get("documentTypeLabel")
+                                         or document.get("originalFileName")
+                                         or document.get("fileName") or "Document")
     delivery_key = ""
     if deliverable in ("pdf", "image"):
         delivery_key = DELIVER_PREFIX + "vault-" + file_id + _safe_extension(original_name)
@@ -1133,17 +1174,18 @@ def _admin_publish_document(event: Dict[str, Any], origin: str) -> Dict[str, Any
                 or str(item.get("ownerCustomerId") or "") != owner_customer_id):
             return cors_response(409, {"error": "VAULT_FILE_CONFLICT"}, origin)
 
+    display_name = str(item.get("displayName") or display_name)
     _table(DOCUMENTS_TABLE).update_item(
         Key={"documentId": document_id},
-        UpdateExpression="SET vaultFileId=:f, vaultPublishedAt=:now, updatedAt=:now",
-        ExpressionAttributeValues={":f": file_id, ":now": int(time.time())},
+        UpdateExpression="SET vaultFileId=:f, vaultDisplayName=:n, vaultPublishedAt=:now, updatedAt=:now",
+        ExpressionAttributeValues={":f": file_id, ":n": display_name, ":now": int(time.time())},
     )
     logger.info(json.dumps({"event": "dropdocs_published_to_vault",
                             "documentId": document_id, "fileId": file_id,
                             "deliverable": deliverable}))
     return cors_response(201, _decimal_safe({
         "fileId": file_id, "status": "active", "deliverable": deliverable,
-        "created": True,
+        "displayName": display_name, "created": True,
     }), origin)
 
 

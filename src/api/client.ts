@@ -6055,12 +6055,18 @@ export interface Document {
   referenceIssuedAt?: number;
   referenceVersion?: number;
   originalFileName?: string;
+  /** Staff's label when the type is "other", e.g. "Trade licence". */
+  documentTypeLabel?: string;
   vaultFileId?: string;
   vaultPublishedAt?: number;
+  /** The Vault file's name: {{1}} of the ₹49 Vault message (wecare_valut_49). */
+  vaultDisplayName?: string;
   customerPhone?: string;
   customerName?: string;
   contactId?: string;
   orderId?: string;
+  /** The linked order's WD-ORD number, resolved by the list. */
+  orderNumber?: string;
   source: string; // whatsapp, upload, manual
   type: string; // prescription, id_proof, invoice, photo, other
   status: string; // pending, uploaded, approved, rejected, reupload_requested
@@ -6173,17 +6179,22 @@ export async function confirmDocumentUpload ( documentId: string ): Promise<ApiR
 }
 
 
+/** Publish one Drop Docs document to the customer's Vault. `displayName` is the Vault message's
+ *  {{1}}; on a document already published it renames that Vault file. Idempotent. */
 export async function publishDocumentToVault (
   documentId: string,
+  displayName?: string,
 ): Promise<ApiResult<{
   fileId: string;
   status: string;
   deliverable: string;
   created: boolean;
+  displayName?: string;
+  renamed?: boolean;
 }>> {
   return apiCallResult( `${API_BASE}/secure-files/publish-document`, {
     method: 'POST',
-    body: JSON.stringify( { documentId } ),
+    body: JSON.stringify( displayName ? { documentId, displayName } : { documentId } ),
   } );
 }
 

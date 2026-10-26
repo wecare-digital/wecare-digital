@@ -782,7 +782,45 @@ def _list_documents(params: Dict) -> Dict:
         item['fileSize'] = item.get('fileSize', 0)
 
     items.sort(key=lambda x: x.get('createdAt', 0), reverse=True)
+    _attach_order_numbers(items)
     return _resp(200, {'documents': items, 'count': len(items)})
+
+
+#: At most this many distinct orders are resolved per list (three 100-key batch reads).
+_ORDER_NUMBER_LOOKUP_LIMIT = 300
+
+
+def _attach_order_numbers(items: list) -> None:
+    """Show the WD-ORD number staff picked, not the order's internal UUID.
+
+    A document stores only `orderId` (a UUID), so the list used to show its last segment.
+    One bounded BatchGetItem per 100 distinct orders reads `orderNumber`; any failure leaves
+    the rows as they were, because a missing label must never fail the document list.
+    """
+    wanted = []
+    for item in items:
+        order_id = item.get('orderId')
+        if isinstance(order_id, str) and order_id and not item.get('orderNumber') and order_id not in wanted:
+            wanted.append(order_id)
+    wanted = wanted[:_ORDER_NUMBER_LOOKUP_LIMIT]
+    numbers: Dict[str, str] = {}
+    try:
+        for start in range(0, len(wanted), 100):
+            resp = dynamodb.batch_get_item(RequestItems={ORDERS_TABLE: {
+                'Keys': [{'orderId': oid} for oid in wanted[start:start + 100]],
+                'ProjectionExpression': 'orderId, orderNumber, shortId',
+            }})
+            for row in (resp.get('Responses') or {}).get(ORDERS_TABLE, []):
+                label = str(row.get('orderNumber') or row.get('shortId') or '')
+                if label:
+                    numbers[str(row.get('orderId'))] = label
+    except Exception as exc:  # noqa: BLE001 - labels are optional
+        logger.warning(json.dumps({'event': 'document_order_numbers_unavailable',
+                                   'error': type(exc).__name__}))
+    for item in items:
+        label = numbers.get(str(item.get('orderId') or ''))
+        if label and not item.get('orderNumber'):
+            item['orderNumber'] = label
 
 
 def _get_document(doc_id: str) -> Dict:
