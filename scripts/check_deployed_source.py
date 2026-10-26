@@ -199,6 +199,15 @@ def delegated_specs(dal) -> dict:
             expected=("handler.py",),
             edge=True,
         ),
+        # Deployed by its own CloudFormation stack with the code inline (`ZipFile`), which
+        # CloudFormation packages as `index.py`. The directory holds the template and that code.
+        "wecare-customer-commerce-mcp": DelegatedSpec(
+            "wecare-customer-commerce-mcp",
+            functions / "ai" / "customer-commerce-mcp",
+            [],
+            "CloudFormation stack wecare-customer-commerce-mcp",
+            expected=("index.py",),
+        ),
     }
 
 
