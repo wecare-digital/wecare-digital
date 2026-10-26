@@ -34,7 +34,7 @@ import { countryCodeForName, countryNameForCode } from '../config/countryOptions
  * cannot loosen storage.
  *
  * `src/components/AddressFields.tsx` is a different thing and stays as it is: a rendered
- * India-only CUSTOMER checkout form over five collected fields. This module is the field
+ * India-only CUSTOMER checkout form over the same seven visible F001 concepts, with Country fixed to India. This module is the field
  * contract and the composition, shared by the two STAFF forms, which are international (storage
  * became international in FEAT-003 and payability moved to `payment_address`, asked at pay time).
  */
@@ -100,7 +100,7 @@ const trimmed = ( fields: Partial<AddressFormFields>, key: AddressFieldKey ): st
   String( fields[ key ] ?? '' ).trim();
 
 /**
- * The one human-readable address string, composed from the eight fields in `ADDRESS_FIELDS`
+ * The one human-readable address string, composed from the seven visible fields in `ADDRESS_FIELDS`
  * order. Empty fields are skipped, so a partial address reads as a partial address rather than
  * as a row of commas.
  *
@@ -219,8 +219,9 @@ export function addressFieldsFromContact ( contact: ContactAddressSource ): Addr
 
   const rawCode = String( canonical.countryCode ?? meta.country_code ?? '' ).trim().toUpperCase();
   const rawCountry = String( canonical.country ?? contact.country ?? '' ).trim();
-  const country = countryNameForCode( rawCode ) || rawCountry || DEFAULT_ADDRESS_COUNTRY;
-  const countryCode = countryCodeForName( country ) || rawCode || DEFAULT_ADDRESS_COUNTRY_CODE;
+  const legacyCountryCode = rawCountry.length === 2 ? rawCountry.toUpperCase() : '';
+  const country = countryNameForCode( rawCode ) || countryNameForCode( legacyCountryCode ) || rawCountry || DEFAULT_ADDRESS_COUNTRY;
+  const countryCode = countryCodeForName( country ) || rawCode || legacyCountryCode || DEFAULT_ADDRESS_COUNTRY_CODE;
 
   return {
     addressLine1: String( canonical.addressLine1 ?? meta.address ?? contact.addressLine1 ?? '' ).trim(),
