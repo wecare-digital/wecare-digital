@@ -704,7 +704,7 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
     if ( urlButtonIndex !== null && !urlButtonSuffix.trim() )
     {
       onError( selectedTemplate.name.toLowerCase() === DOWNLOAD_TEMPLATE
-        ? 'Enter the Vault file ID for the Access Vault button.'
+        ? 'Choose a Vault file for this customer.'
         : 'Enter the dynamic URL value for this template.' );
       return;
     }
@@ -1153,7 +1153,7 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
                       onChange={ ( e ) => setUrlButtonSuffix( e.target.value ) }
                       placeholder="Dynamic URL suffix"
                     />
-                    <span className="manual-hint">Enter only the value that replaces {{1}} in the approved button URL.</span>
+                    <span className="manual-hint">Enter only the value that replaces { '{{1}}' } in the approved button URL.</span>
                   </>
                 ) }
               </div>
