@@ -141,13 +141,16 @@ fbq('track', 'PageView');
  *   - only until the window load event, which ends it even with no interaction at all
  *   - once per tab session (sessionStorage); a clean load clears the flag, and if storage is
  *     unavailable it does nothing at all
- * DOES THE RELOAD DOUBLE-COUNT A PAGE VIEW? Measured, not assumed, on 2026-10-26: 48 simulated
- * mid-deploy loads of the live home page across Chromium, WebKit and Firefox, cold and warm cache.
- * The first build file failed 290-610ms in, every time before either tracker had sent anything:
- * the Meta Pixel's PageView went out only after its library loaded, later than that, and GA4 sent
- * nothing at all on these loads. With this guard active, every tab recorded at most one Meta
- * PageView and never two. A duplicate would need the page view to beat a same-origin 404, which
- * did not happen once; no suppression code is warranted for it.
+ * DOES THE RELOAD DOUBLE-COUNT A PAGE VIEW? Measured, not assumed, on 2026-10-26 and -27:
+ * simulated mid-deploy loads of the live home page in Chromium, WebKit and Firefox, cold and warm
+ * cache, plus 12 in a Chromium with an ordinary user agent and no automation flags (default
+ * headless Chromium never fired the Pixel at all). The first build file failed 290-610ms in, every
+ * time before either tracker had sent anything: the Meta Pixel's PageView went out at 647-905ms,
+ * after its library loaded. GA4 sent nothing at all: Google's tag server answers 404 for the
+ * container's GA4 measurement ID (docs/execution/change-authority-matrix.md, 2026-10-27).
+ * With this guard active no tab sent two page views. A duplicate would need a page view to beat a
+ * same-origin 404, which never happened, so no suppression code is warranted. When GA4 is
+ * reconnected, re-measure: its timing has never been observed on this site.
  * Resource errors do not bubble, so the listener is on the capture phase. This is the first
  * script in the head. Next's three stylesheet preload hints are emitted above it, but a fetch
  * fails asynchronously, after this inline script has run, and the stylesheet and script tags
