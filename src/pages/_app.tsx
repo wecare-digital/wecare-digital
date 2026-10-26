@@ -1055,9 +1055,8 @@ export default function App ( { Component, pageProps }: AppProps ) {
             Public-only: authenticated Workspace typography stays unchanged. On narrow phones,
             the canonical public display rungs scale fluidly instead of forcing fixed 40/32/24px
             sizes into smaller effective viewports. Balanced wrapping prevents short headings
-            from leaving orphan words. Body copy remains selectable. On coarse-pointer phones,
-            headings suppress long-press selection/callouts so Android does not open a dictionary
-            sheet while a visitor is trying to scroll. */}
+            from leaving orphan words. Headings and body copy remain selectable: long-press
+            selection is native browser behavior and must not be disabled sitewide. */}
         <style jsx global>{`
           @media(max-width:767px){
             :root{
@@ -1066,13 +1065,6 @@ export default function App ( { Component, pageProps }: AppProps ) {
               --public-mobile-card-size:clamp(22px,5.8vw,24px);
             }
             h1,h2,h3{text-wrap:balance}
-          }
-          @media(max-width:767px) and (pointer:coarse){
-            h1,h2,h3{
-              -webkit-user-select:none;
-              user-select:none;
-              -webkit-touch-callout:none;
-            }
           }
         `}</style>
         <Header />
