@@ -276,6 +276,28 @@ def _cognito_client():
     return _cognito
 
 
+_lambda = None
+
+
+def _lambda_client():
+    """The client for the payment-request invoke: ONE attempt, and an answer inside our timeout.
+
+    A payment request ends in a WhatsApp send, so botocore must not retry a read timeout (that
+    would be a second Review and Pay), and the read timeout sits below this function's 30 s so
+    an ambiguous call is reported as "check the chat" rather than killing the request.
+    """
+    global _lambda
+    if _lambda is None:
+        from botocore.config import Config
+
+        _lambda = boto3.client(
+            "lambda", region_name=REGION,
+            config=Config(connect_timeout=5, read_timeout=24,
+                          retries={"total_max_attempts": 1, "mode": "standard"}),
+        )
+    return _lambda
+
+
 def _dropdocs_attach_enabled() -> bool:
     """Whether the Drop Docs attach route answers at all. Defaults OFF.
 
@@ -401,6 +423,22 @@ def _not_registered(origin: str) -> Dict[str, Any]:
     )
 
 
+def _window_closed(entitlement: Optional[Dict[str, Any]], origin: str) -> Dict[str, Any]:
+    """Every paid window on this file has been used. Distinct from not-paid and not-yours, so
+    the Vault page can offer the renewal instead of telling a paying customer to contact
+    support."""
+    return cors_response(
+        403,
+        {
+            "error": "ACCESS_WINDOW_CLOSED",
+            "message": "Your access window has ended. Renew access on WhatsApp to download again.",
+            "windowCount": vault_window.window_count(entitlement),
+            "renewable": True,
+        },
+        origin,
+    )
+
+
 def _decimal_safe(obj: Any) -> Any:
     """DynamoDB hands back Decimal; JSON does not want it."""
     if isinstance(obj, Decimal):
@@ -410,6 +448,24 @@ def _decimal_safe(obj: Any) -> Any:
     if isinstance(obj, list):
         return [_decimal_safe(v) for v in obj]
     return obj
+
+
+def _paid_marks(item: Dict[str, Any]) -> bool:
+    """Whether the file row records a purchase at all, whatever state its entitlement is in."""
+    return bool(item.get("vaultPaymentStatus") == "PAID" or item.get("vaultEntitlementId")
+                or item.get("vaultAccessGrantId"))
+
+
+def _access_state(item: Dict[str, Any], entitlement: Optional[Dict[str, Any]], now: int) -> str:
+    """`vault_window.access_state`, plus one state the window math cannot see.
+
+    ``PAID_UNVERIFIED``: the row records a purchase but no active entitlement could be read for
+    this caller. It is kept apart from ``UNPAID`` on purpose - showing it as unpaid is how a
+    paid customer gets asked for ₹49 again. The answer for it is reconciliation, not a sale.
+    """
+    if entitlement:
+        return vault_window.access_state(entitlement, now)
+    return "PAID_UNVERIFIED" if _paid_marks(item) else "UNPAID"
 
 
 def _public_file(item: Dict[str, Any], *, admin: bool,
@@ -441,6 +497,7 @@ def _public_file(item: Dict[str, Any], *, admin: bool,
         "accessWindowOpen": vault_window.window_open(entitlement, now),
         "accessWindowEndsAt": vault_window.window_ends_at(entitlement),
         "accessWindowCount": vault_window.window_count(entitlement),
+        "accessState": _access_state(item, entitlement, now),
         # "pdf" / "image" arrive as a WhatsApp attachment; "link" goes out as a URL.
         "deliverable": item.get("deliverable", "unknown"),
     }
@@ -829,9 +886,23 @@ def _upload_confirm(file_id: str, origin: str) -> Dict[str, Any]:
     That copy is server-side, so the bytes never travel through this function.
     """
     table = _table(FILES_TABLE)
-    item = table.get_item(Key={"fileId": file_id}).get("Item")
+    item = table.get_item(Key={"fileId": file_id}, ConsistentRead=True).get("Item")
     if not item:
         return cors_response(404, {"error": "Unknown fileId"}, origin)
+    status = item.get("status")
+    if status == "active":
+        # A retried confirm (the browser lost the first answer) is success, not a second write.
+        return cors_response(
+            200,
+            _decimal_safe({"fileId": file_id, "status": "active", "sizeBytes": item.get("sizeBytes"),
+                           "deliverable": item.get("deliverable", "unknown")}),
+            origin,
+        )
+    if status != "pending":
+        # Only an upload in progress can be confirmed. Without this a confirm call quietly
+        # turned a REVOKED file back into an active, downloadable one.
+        return cors_response(409, {"error": "FILE_NOT_PENDING",
+                                   "message": "This file is not awaiting an upload."}, origin)
 
     upload_key = item["s3Key"]
     try:
@@ -842,6 +913,23 @@ def _upload_confirm(file_id: str, origin: str) -> Dict[str, Any]:
         )
 
     size = int(head["ContentLength"])
+    if size <= 0 or size > MAX_UPLOAD_BYTES:
+        # upload-init checked the size the browser declared; a presigned PUT does not bind
+        # Content-Length, so the stored object is measured here. The object stays private under
+        # secure/ (this role cannot delete), and the row can never become active or sellable.
+        table.update_item(
+            Key={"fileId": file_id},
+            UpdateExpression="SET #s = :rejected, sizeBytes = :size, rejectedReason = :why",
+            ConditionExpression="#s = :pending",
+            ExpressionAttributeNames={"#s": "status"},
+            ExpressionAttributeValues={":rejected": "rejected", ":pending": "pending",
+                                       ":size": size, ":why": "SIZE_LIMIT"},
+        )
+        logger.warning(json.dumps({"event": "secure_file_rejected_size", "fileId": file_id,
+                                   "sizeBytes": size}))
+        return cors_response(
+            413, {"error": "FILE_TOO_LARGE",
+                  "message": f"The uploaded file is larger than {MAX_UPLOAD_BYTES} bytes."}, origin)
     # Prefer what S3 recorded over what the browser asserted at upload-init.
     content_type = head.get("ContentType") or item.get("contentType") or ""
     deliverable = _classify_delivery(content_type, size)
@@ -866,18 +954,26 @@ def _upload_confirm(file_id: str, origin: str) -> Dict[str, Any]:
             )
             deliverable, delivery_key = "link", ""
 
-    table.update_item(
-        Key={"fileId": file_id},
-        UpdateExpression=(
-            "SET #s = :active, sizeBytes = :size, contentType = :ct, "
-            "deliverable = :d, deliveryKey = :dk"
-        ),
-        ExpressionAttributeNames={"#s": "status"},
-        ExpressionAttributeValues={
-            ":active": "active", ":size": size, ":ct": content_type,
-            ":d": deliverable, ":dk": delivery_key,
-        },
-    )
+    try:
+        table.update_item(
+            Key={"fileId": file_id},
+            UpdateExpression=(
+                "SET #s = :active, sizeBytes = :size, contentType = :ct, "
+                "deliverable = :d, deliveryKey = :dk"
+            ),
+            ConditionExpression="#s = :pending",
+            ExpressionAttributeNames={"#s": "status"},
+            ExpressionAttributeValues={
+                ":active": "active", ":pending": "pending", ":size": size, ":ct": content_type,
+                ":d": deliverable, ":dk": delivery_key,
+            },
+        )
+    except ClientError as exc:
+        if exc.response["Error"]["Code"] != "ConditionalCheckFailedException":
+            raise
+        # Revoked (or confirmed) while this request was measuring the object.
+        return cors_response(409, {"error": "FILE_NOT_PENDING",
+                                   "message": "This file is not awaiting an upload."}, origin)
     logger.info(
         json.dumps({"event": "secure_file_active", "fileId": file_id,
                     "deliverable": deliverable, "sizeBytes": size})
@@ -890,8 +986,14 @@ def _upload_confirm(file_id: str, origin: str) -> Dict[str, Any]:
     )
 
 
+#: Upper bound on one admin listing. Each read is one DynamoDB page, so the list is complete up
+#: to this many rows and says so (`truncated`) beyond it, instead of an arbitrary first 100.
+ADMIN_LIST_MAX_ITEMS = 1000
+_ADMIN_LIST_MAX_PAGES = 20
+
+
 def _admin_list(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
-    """Every file, or one customer's, depending on ?mobile=."""
+    """Every file, or one customer's, depending on ?mobile=. Newest first, bounded."""
     params = event.get("queryStringParameters") or {}
     table = _table(FILES_TABLE)
 
@@ -902,19 +1004,34 @@ def _admin_list(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
         except ValueError:
             return cors_response(400, {"error": "Invalid mobile number"}, origin)
         # the GSI is the whole point: one customer's files without a scan
-        result = table.query(
+        read = lambda **page: table.query(  # noqa: E731 - one call shape for both readers
             IndexName="owner-created-index",
             KeyConditionExpression="ownerPhone = :p",
             ExpressionAttributeValues={":p": phone},
             ScanIndexForward=False,
-            Limit=100,
+            **page,
         )
     else:
-        result = table.scan(Limit=100)
+        read = lambda **page: table.scan(**page)  # noqa: E731
+
+    collected: list = []
+    start_key = None
+    truncated = False
+    for _page in range(_ADMIN_LIST_MAX_PAGES):
+        kwargs: Dict[str, Any] = {"Limit": 200}
+        if start_key:
+            kwargs["ExclusiveStartKey"] = start_key
+        result = read(**kwargs)
+        collected.extend(result.get("Items", []))
+        start_key = result.get("LastEvaluatedKey")
+        if not start_key or len(collected) >= ADMIN_LIST_MAX_ITEMS:
+            break
+    if start_key or len(collected) > ADMIN_LIST_MAX_ITEMS:
+        truncated = True
 
     items = sorted(
-        result.get("Items", []), key=lambda i: str(i.get("createdAt", "")), reverse=True
-    )
+        collected, key=lambda i: str(i.get("createdAt", "")), reverse=True
+    )[:ADMIN_LIST_MAX_ITEMS]
     # Enrich only paid files with their durable entitlement, so the window status is accurate
     # without a read for files that never sold. The pointer (vaultEntitlementId) is stamped on
     # the file row at payment; a missing/failed read degrades to "Awaiting purchase" rather than
@@ -925,34 +1042,177 @@ def _admin_list(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
     for i in items:
         entitlement = None
         eid = str(i.get("vaultEntitlementId") or "")
-        if eid:
-            try:
+        try:
+            if eid:
                 entitlement = grants.get_item(Key={"grantId": eid}).get("Item")
-            except ClientError:
-                entitlement = None
-        view = _public_file(i, admin=True, entitlement=entitlement, now=now)
-        if entitlement:
-            view['paidEntitlementId'] = entitlement['grantId']
-            view['paidGrantId'] = entitlement['grantId']
-        out.append(view)
-    return cors_response(200, {"files": out, "count": len(out)}, origin)
+            elif _paid_marks(i) and i.get("ownerCustomerId"):
+                # A purchase whose pointer write failed still has its deterministic entitlement.
+                entitlement = _entitlement_for_file(str(i["ownerCustomerId"]), str(i["fileId"]))
+        except ClientError:
+            entitlement = None
+        out.append(_public_file(i, admin=True, entitlement=entitlement, now=now))
+    return cors_response(200, {"files": out, "count": len(out), "truncated": truncated}, origin)
 
 
-def _admin_revoke(file_id: str, origin: str) -> Dict[str, Any]:
+def _admin_revoke(file_id: str, event: Dict[str, Any], origin: str) -> Dict[str, Any]:
     """Revoke rather than delete: the audit trail of who was charged survives."""
     try:
         _table(FILES_TABLE).update_item(
             Key={"fileId": file_id},
-            UpdateExpression="SET #s = :revoked",
+            UpdateExpression="SET #s = :revoked, revokedAt = :now, revokedBy = :by",
             ExpressionAttributeNames={"#s": "status"},
-            ExpressionAttributeValues={":revoked": "revoked"},
+            ExpressionAttributeValues={
+                ":revoked": "revoked",
+                ":now": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                ":by": str((event.get("_auth") or {}).get("username", ""))[:128],
+            },
             ConditionExpression="attribute_exists(fileId)",
         )
     except ClientError as exc:
         if exc.response["Error"]["Code"] == "ConditionalCheckFailedException":
             return cors_response(404, {"error": "Unknown fileId"}, origin)
         raise
+    logger.info(json.dumps({"event": "secure_file_revoked", "fileId": file_id}))
     return cors_response(200, {"fileId": file_id, "status": "revoked"}, origin)
+
+
+# ── admin: ask for ₹49, or resend the Access Vault link ──────────────────────
+
+BUSINESS_API_FUNCTION = os.environ.get(
+    "VAULT_PAYMENT_FUNCTION", "wecare-whatsapp-business-api:live")
+
+#: What staff are told for each answer of the WhatsApp payment request. Every sentence says
+#: whether anything reached the customer, because that is what decides the next step.
+_PAYMENT_REQUEST_REPLIES: Dict[str, Tuple[int, str]] = {
+    "PAYMENT_REQUEST_SENT": (200, "Review and Pay was sent to the customer on WhatsApp."),
+    "PAYMENT_REQUEST_UNCONFIRMED": (
+        202, "The payment request may have been sent. Check the chat before trying again."),
+    "NATIVE_SERVICE_PAYMENT_ALREADY_IN_PROGRESS": (
+        409, "This customer already has a payment request open. It expires within an hour."),
+    "CATALOG_SERVICE_ALREADY_PREPARING": (
+        409, "A payment request for this customer is being prepared. Try again in a minute."),
+    "VAULT_ACCESS_ACTIVE": (
+        409, "This file is paid and can be downloaded. Send the Access Vault link instead."),
+    "NATIVE_SERVICE_ROLLOUT_DISABLED": (
+        503, "WhatsApp Vault payments are switched off. Nothing was sent."),
+    "NATIVE_SERVICE_META_NOT_READY": (
+        503, "The WhatsApp payment templates are not ready. Nothing was sent."),
+}
+
+
+def _owned_file_for_admin(file_id: str) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """The active, owner-bound file row, or (None, refusal code)."""
+    item = _table(FILES_TABLE).get_item(Key={"fileId": file_id}, ConsistentRead=True).get("Item")
+    if not item:
+        return None, "UNKNOWN_FILE"
+    if item.get("status") != "active":
+        return None, "FILE_NOT_ACTIVE"
+    if not item.get("ownerCustomerId") or not item.get("ownerPhone"):
+        # A legacy ownerless file: a matching phone must never establish its owner.
+        return None, "FILE_OWNER_UNBOUND"
+    return item, None
+
+
+def _admin_access_state(item: Dict[str, Any], now: int) -> str:
+    eid = str(item.get("vaultEntitlementId") or "")
+    entitlement = None
+    if eid:
+        row = _table(GRANTS_TABLE).get_item(Key={"grantId": eid}, ConsistentRead=True).get("Item") or {}
+        if (row.get("recordType") == "VAULT_ENTITLEMENT" and row.get("entitlementState") == "ACTIVE"
+                and row.get("customerId") == item.get("ownerCustomerId")
+                and row.get("fileId") == item.get("fileId")):
+            entitlement = row
+    if entitlement is None and _paid_marks(item):
+        entitlement = _entitlement_for_file(str(item["ownerCustomerId"]), str(item["fileId"]))
+    return _access_state(item, entitlement, now)
+
+
+def _admin_request_payment(file_id: str, event: Dict[str, Any], origin: str) -> Dict[str, Any]:
+    """Ask the file's owner for ₹49 on WhatsApp: Review and Pay, or the Access Vault link.
+
+    The payment itself is only ever the commerce Review and Pay for THIS file, built by
+    business-api `catalogService.requestPayment`, so the amount stays server-priced and the
+    payment unlocks exactly this file. That needs the customer's WhatsApp contact already linked
+    to the file's owner. When it is not, the Access Vault link goes instead (approved for use
+    outside the 24-hour window): the customer verifies on the Vault page, which sends them to
+    the WhatsApp Vault list, whose signed message links the contact.
+    """
+    item, refusal = _owned_file_for_admin(file_id)
+    if refusal:
+        return cors_response(409 if refusal != "UNKNOWN_FILE" else 404, {"error": refusal}, origin)
+    state = _admin_access_state(item, int(time.time()))
+    if state in ("OPEN", "READY"):
+        code, message = _PAYMENT_REQUEST_REPLIES["VAULT_ACCESS_ACTIVE"]
+        return cors_response(code, {"error": "VAULT_ACCESS_ACTIVE", "message": message}, origin)
+    if state == "PAID_UNVERIFIED":
+        return cors_response(409, {"error": "PAID_UNVERIFIED",
+                                   "message": "A payment is recorded for this file but its access "
+                                              "could not be read. Reconcile it; do not charge again."},
+                             origin)
+
+    try:
+        response = _lambda_client().invoke(
+            FunctionName=BUSINESS_API_FUNCTION,
+            InvocationType="RequestResponse",
+            Payload=json.dumps({
+                "internalAction": "catalogService", "action": "requestPayment",
+                "fileId": file_id, "ownerCustomerId": item["ownerCustomerId"],
+                "ownerPhone": item["ownerPhone"],
+                "requestedBy": str((event.get("_auth") or {}).get("username", ""))[:64],
+            }).encode("utf-8"),
+        )
+        answer = json.loads(response["Payload"].read() or b"{}")
+        if response.get("FunctionError"):
+            answer = {"outcome": "PAYMENT_REQUEST_UNCONFIRMED"}
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(json.dumps({"event": "vault_payment_request_invoke_failed",
+                                   "error": type(exc).__name__}))
+        answer = {"outcome": "PAYMENT_REQUEST_UNCONFIRMED"}
+    outcome = str(answer.get("outcome") or "PAYMENT_REQUEST_UNCONFIRMED")
+    logger.info(json.dumps({"event": "vault_payment_requested", "fileId": file_id,
+                            "outcome": outcome, "renewal": state == "EXPIRED"}))
+
+    if outcome == "CONTACT_LINK_REQUIRED":
+        from whatsapp_delivery import send_vault_link
+
+        ok, detail = send_vault_link(phone=str(item["ownerPhone"]), file_row=item)
+        if not ok:
+            return cors_response(502, {"error": "VAULT_LINK_NOT_SENT", "outcome": outcome,
+                                       "message": "Nothing could be sent: " + detail}, origin)
+        return cors_response(200, {
+            "outcome": "VAULT_LINK_SENT", "fileId": file_id,
+            "message": ("The customer's WhatsApp is not linked for in-chat payment yet, so the "
+                        "Access Vault link was sent. They verify there and pay ₹49 on WhatsApp."),
+        }, origin)
+    code, message = _PAYMENT_REQUEST_REPLIES.get(
+        outcome, (502, "The payment request was not sent (" + outcome + ")."))
+    body = {"outcome": outcome, "fileId": file_id, "message": message,
+            "renewal": state == "EXPIRED"}
+    if code >= 400:
+        body["error"] = outcome
+    return cors_response(code, body, origin)
+
+
+def _admin_send_access(file_id: str, origin: str) -> Dict[str, Any]:
+    """Resend the Access Vault link for a paid file. Never charges and never opens a window."""
+    item, refusal = _owned_file_for_admin(file_id)
+    if refusal:
+        return cors_response(409 if refusal != "UNKNOWN_FILE" else 404, {"error": refusal}, origin)
+    state = _admin_access_state(item, int(time.time()))
+    if state == "UNPAID":
+        return cors_response(409, {"error": "NOT_PAID",
+                                   "message": "This file has not been paid for. Request ₹49 instead."},
+                             origin)
+    from whatsapp_delivery import send_vault_link
+
+    ok, detail = send_vault_link(phone=str(item["ownerPhone"]), file_row=item)
+    logger.info(json.dumps({"event": "vault_access_link_resent", "fileId": file_id, "ok": ok}))
+    if not ok:
+        return cors_response(502, {"error": "VAULT_LINK_NOT_SENT", "outcome": "VAULT_LINK_NOT_SENT",
+                                   "message": "Nothing could be sent: " + detail}, origin)
+    return cors_response(200, {"outcome": "VAULT_LINK_SENT", "fileId": file_id,
+                               "accessState": state,
+                               "message": "The Access Vault link was sent on WhatsApp."}, origin)
 
 
 # ── durable paid entitlement + renewable transport sessions ──────────────────
@@ -1132,16 +1392,23 @@ def _customer_list(identity: Dict[str, Any], origin: str) -> Dict[str, Any]:
         Limit=100,
     )
     items = []
+    now = int(time.time())
     for projected in result.get('Items', []):
         i = _table(FILES_TABLE).get_item(Key={'fileId': projected['fileId']}, ConsistentRead=True).get('Item') or {}
         if (i.get('status') != 'active' or i.get('ownerPhone') != identity['phone']
                 or not identity.get('subject') or i.get('ownerCustomerId') != identity['subject']):
             continue
-        entitlement = None
         access_id = str(i.get('vaultEntitlementId') or i.get('vaultAccessGrantId') or '')
-        if access_id:
-            entitlement = _active_entitlement(access_id, i['fileId'], identity)
-        view = _public_file(i, admin=False, entitlement=entitlement)
+        entitlement = _active_entitlement(access_id, i['fileId'], identity) if access_id else None
+        if entitlement is None and _paid_marks(i):
+            # The pointer write after payment is best effort; the deterministic entitlement is
+            # the durable record, so a lost pointer must not make a paid file look unpaid.
+            fallback = _entitlement_for_file(str(identity['subject']), str(i['fileId']))
+            if fallback and fallback.get('ownerPhone') == identity['phone']:
+                entitlement = fallback
+        # The window view is the customer's own now, so the page can say "open until …",
+        # "opens on first download" or "renew" instead of guessing from a failed download.
+        view = _public_file(i, admin=False, entitlement=entitlement, now=now)
         if entitlement:
             view['paidEntitlementId'] = entitlement['grantId']
             view['paidGrantId'] = entitlement['grantId']  # old website bundles
@@ -1377,11 +1644,13 @@ def _redeem_after_reconcile(
     entitlement = _active_entitlement(entitlement["grantId"], file_id, identity)
     if not entitlement:
         return _not_registered(origin)
-    # A reconcile means a fresh payment just confirmed, so this opens (or renews) the window —
-    # the same delivery-starts-the-clock rule as the main redeem path.
+    # A reconcile means a fresh payment just confirmed, so this opens its window — the same
+    # delivery-starts-the-clock rule as the main redeem path, and the same paid-window rule.
     now = int(time.time())
     if not vault_window.window_open(entitlement, now):
         entitlement = _open_access_window(entitlement, now)
+    if not vault_window.window_open(entitlement, now):
+        return _window_closed(entitlement, origin)
     payload = _issue_download_session(entitlement, item)
     payload["accessWindowEndsAt"] = vault_window.window_ends_at(entitlement)
     payload["accessWindowCount"] = vault_window.window_count(entitlement)
@@ -1408,35 +1677,39 @@ def _download_url(item: Dict[str, Any], ttl: Optional[int] = None) -> str:
 
 
 def open_vault_access_window(grant_id: str) -> Tuple[bool, str]:
-    """Open/re-open the paid file's 24h window without sending another message.
+    """Open the next already-paid Vault window without sending a second message.
 
-    Internal-only callers use this when another domain already owns the customer notification.
-    It re-derives the file and durable entitlement from the paid grant, never from caller-supplied
-    customer/file fields, and reuses the same idempotent window writer as web redemption and
-    secure-files' own WhatsApp delivery.
+    The caller supplies only a grant id. Ownership, file identity and the durable entitlement
+    are re-derived here, and the shared window writer refuses to open anything unless an unused
+    paid window exists. The paid WhatsApp service flow calls this immediately before sending
+    the approved Access Vault template, so delivery starts the same 24-hour clock as the
+    secure-files WhatsApp delivery path.
     """
     grant = _table(GRANTS_TABLE).get_item(
         Key={"grantId": grant_id}, ConsistentRead=True).get("Item") or {}
     if not grant or not grant.get("paid"):
         return False, "grant is not paid"
+
+    file_id = str(grant.get("fileId") or "")
     item = _table(FILES_TABLE).get_item(
-        Key={"fileId": str(grant.get("fileId") or "")}, ConsistentRead=True).get("Item") or {}
+        Key={"fileId": file_id}, ConsistentRead=True).get("Item") or {}
     if (not item or item.get("status") != "active"
             or item.get("ownerPhone") != grant.get("ownerPhone")
             or not grant.get("customerId")
             or item.get("ownerCustomerId") != grant.get("customerId")):
         return False, "grant and file ownership do not match"
+
     entitlement = _ensure_entitlement(grant)
     if not entitlement:
         return False, "paid entitlement could not be established"
     if item.get("vaultEntitlementId") != entitlement["grantId"]:
         _point_file_at_entitlement(grant, entitlement)
-    current_count = vault_window.window_count(entitlement)
+
+    before = vault_window.window_count(entitlement)
     refreshed = _open_access_window(entitlement)
-    return True, (
-        "window_open:" + str(vault_window.window_count(refreshed))
-        if vault_window.window_count(refreshed) >= current_count else "window_open"
-    )
+    if not vault_window.window_open(refreshed, int(time.time())):
+        return False, "no paid access window is available"
+    return True, "window_open:" + str(max(before, vault_window.window_count(refreshed)))
 
 
 def deliver_over_whatsapp(grant_id: str) -> Tuple[bool, str]:
@@ -1537,18 +1810,11 @@ def _redeem(file_id: str, event: Dict[str, Any], identity: Dict[str, Any], origi
     now = int(time.time())
     if vault_window.window_open(entitlement, now):
         pass  # inside an open window — free re-download
-    elif vault_window.window_count(entitlement) <= 0:
-        entitlement = _open_access_window(entitlement, now)  # first delivery opens the window
-    else:
-        return cors_response(
-            403,
-            {
-                "error": "ACCESS_WINDOW_CLOSED",
-                "message": "Your 24-hour access window has ended. Renew access to download again.",
-                "windowCount": vault_window.window_count(entitlement),
-            },
-            origin,
-        )
+    elif vault_window.unused_paid_windows(entitlement) > 0:
+        # A paid window not opened yet (the first purchase, or a renewal): this download opens it.
+        entitlement = _open_access_window(entitlement, now)
+    if not vault_window.window_open(entitlement, now):
+        return _window_closed(entitlement, origin)
 
     payload = _issue_download_session(entitlement, item)
     payload["accessWindowEndsAt"] = vault_window.window_ends_at(entitlement)
@@ -1940,7 +2206,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if len(tail) == 2 and tail[1] == "confirm" and method == "POST":
             return _upload_confirm(tail[0], origin)
         if len(tail) == 2 and tail[1] == "revoke" and method == "POST":
-            return _admin_revoke(tail[0], origin)
+            return _admin_revoke(tail[0], event, origin)
+        if len(tail) == 2 and tail[1] == "request-payment" and method == "POST":
+            return _admin_request_payment(tail[0], event, origin)
+        if len(tail) == 2 and tail[1] == "send-access" and method == "POST":
+            return _admin_send_access(tail[0], origin)
 
         return cors_response(404, {"error": f"Unknown route {path}"}, origin)
 
