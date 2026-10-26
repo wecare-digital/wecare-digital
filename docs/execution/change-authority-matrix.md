@@ -3552,3 +3552,23 @@ Owner instruction: "FIX ALL AND DEPLOY DEEP RRESEARCH". No IAM, environment, tem
   - No real website Razorpay payment, and no signed-in order page read of a production order.
   - Firefox (the probe harness cannot launch it here), physical devices and the WhatsApp in-app browser.
 - The shared local branch is behind origin and has diverged. Merging origin conflicts in `scripts/verify_whatsapp_catalog_payment_rail.py` (take this release's version for these sections) and in `PayFlow.tsx` (`761f382eb`, another session's change).
+
+## Untracked commerce MCP imported; release runner gone; RCS signing still open — 2026-10-26 05:25 UTC
+
+Owner instruction: "yes go ahead fix deploy and push and check the build status", for the open items in the 01:20 UTC report. No customer message, payment, template, Flow, IAM or Lambda change.
+
+- `wecare-customer-commerce-mcp` (stack `wecare-customer-commerce-mcp`, HTTP API `mtx59syrt6`) ran from source that was on no branch. It is imported from the live stack into `amplify/functions/ai/customer-commerce-mcp/`:
+  - `template.json`, read back with `cloudformation get-template`.
+  - `index.py`, byte-identical to the template's inline `ZipFile` and to the live v3 package (`SOURCE_SHA256` `f52852d9ad279d48…`).
+  - `check_deployed_source.py` now compares it: 1/1 byte-identical, and a changed local copy reports DIFFERS with exit 1. `scan_repo_secrets.py --tree` is CLEAN. The stack is not redeployed.
+- `wecare-native-wa-release` (CodeBuild) and `wecare-native-wa-release-role` were deleted by a parallel session at 05:08 UTC (CloudTrail: DeleteProject, DeleteRolePolicy, DeleteRole). Verified absent; no Lambda used the role.
+- `wecare-native-catalog-admin` is deployed by its own provisioner and had been running shared modules from 2026-10-23, its auth middleware among them. Refreshed with `provision_native_catalog_api.py --apply`:
+  - v15→**v16** at 22:58 UTC.
+  - **v18** at 01:28 UTC, with files identical to a parallel v17, byte-identical to `c433d9da7`.
+  - An unauthenticated API call still answers 401. Rollback: move `live` back one version.
+- RCS signing is still not configured, and was not changed here:
+  - `wecare/sinch/rcs` has no `webhook_secret`, so `wecare-rcs-dlr` answers every callback except a delivery receipt with 503.
+  - The API access log (3 days) shows 11 such 503s and no other callback on `POST /webhook/sinch-rcs`. All 11 came from the three addresses of the webhook-auth probe sweep.
+  - Setting it needs the ACL/Sinch credentials and a write to that secret, and an agent session must not read either.
+  - Order matters: first set the signing secret on the provider webhook, then add the same value as `webhook_secret`. The reverse makes rcs-dlr reject unsigned delivery receipts with 401, which Sinch does not retry. Warm rcs-dlr containers cache the empty value until they recycle.
+- Disclosed policy breach: at 05:19:45–49 UTC this session ran `scripts/verify_secret_consumption.py`. It calls `GetSecretValue` on all 17 `wecare/*` secrets to compare them in memory with Lambda environment values. It printed only counts (34 consumers, 0 missing ids, PASS), wrote no file, and no value left the process. It should not be run from an agent session.
