@@ -163,6 +163,18 @@ customHeaders:
       # interaction (pan, zoom, satellite tiles), and analytics after consent is granted (the
       # pass ran with the default denied). Review those before enforcing.
       #
+      # THIRD PASS 2026-10-27, IN FIREFOX AND WEBKIT. The passes above ran in headless Chromium,
+      # where the Meta Pixel never runs, so they could not see its traffic. In Firefox and WebKit
+      # the only violations left, on all 33 routes, are connect-src to the two hosts the Pixel's
+      # own config (served by Meta for pixel 3411484995761247) posts every event to:
+      #   https://fh-118116076e9a4c2a96a99fbb70bea2a0.ecs.us-west-2.on.aws
+      #   https://vwdb33u4tj1q.cloud.run
+      # They are deliberately NOT allowed here. Neither is in this repo or in this AWS account,
+      # and this list is what enforcement would let through. Add them once the owner confirms they
+      # are this business's Conversions API or Signals Gateway. GA4's collection hosts are missing
+      # too: GA4 sends nothing today, so add them when it is reconnected. Both are recorded in
+      # docs/execution/change-authority-matrix.md, 2026-10-27.
+      #
       # ⚠ EVERY LINE BELOW MUST BE INDENTED EXACTLY THE SAME AMOUNT. ⚠
       #
       # This is a YAML folded block scalar (`>-`), and folding has a rule that is easy

@@ -241,8 +241,18 @@ function macFirefoxExecutable() {
   } catch {
     execFileSync( 'cp', [ '-R', found.app, path.join( tmp, 'Nightly.app' ) ] );
   }
+  // READ FROM Resources/, WRITE TO Resources/browser/, deliberately. Resources/application.ini is
+  // the file carrying the branding (Vendor=Mozilla, Name=Firefox in firefox-1543), under a comment
+  // saying it is unused unless copied into browser/ and named with -app, which is exactly what this
+  // does. If a future bundle moves or drops those keys, refuse rather than silently launching with
+  // the original branding, which would bring the "Could not find profile folder" exit back.
   const resources = path.join( tmp, 'Nightly.app', 'Contents', 'Resources' );
-  const ini = fs.readFileSync( path.join( resources, 'application.ini' ), 'utf8' )
+  const source = fs.readFileSync( path.join( resources, 'application.ini' ), 'utf8' );
+  if ( !/^Vendor=.*$/m.test( source ) || !/^Name=.*$/m.test( source ) ) {
+    fs.rmSync( tmp, { recursive: true, force: true } );
+    throw new Error( `Firefox ${found.rev}: Resources/application.ini has no Vendor=/Name= line to rebrand` );
+  }
+  const ini = source
     .replace( /^Vendor=.*$/m, 'Vendor=WecareHarness' )
     .replace( /^Name=.*$/m, 'Name=WecareHarnessFirefox' );
   fs.writeFileSync( path.join( resources, 'browser', 'application.ini' ), ini );
