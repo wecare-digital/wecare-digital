@@ -155,6 +155,11 @@ jobs:
   deploy-payment-lambdas:
     if: github.event_name == 'push' && github.ref == 'refs/heads/wecare.digital'
     needs: package-payment-lambdas
+    # One payment release at a time. Pushes land in bursts; parallel deploy jobs would trip each
+    # other's preconditions below. A queued deploy waits, and a newer push supersedes it.
+    concurrency:
+      group: payment-lambda-deploy
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -196,18 +201,24 @@ jobs:
             echo "::group::Deploy ${fn}"
             expected="$(jq -r --arg fn "${fn}" '.[$fn].aws_code_sha256' manifest.json)"
             revision="$(aws lambda get-function-configuration               --function-name "${fn}" --query RevisionId --output text)"
+            # Every write below is conditional, as in scripts/snapstart_publish.py: if another
+            # deployer changes this function or moves `live` during the release, the step fails
+            # instead of publishing their code or moving production back onto older code.
+            alias_revision="$(aws lambda get-alias --function-name "${fn}" --name live --query RevisionId --output text)"
 
             aws lambda update-function-code               --function-name "${fn}"               --zip-file "fileb://${fn}.zip"               --revision-id "${revision}"               --no-publish >/dev/null
 
             aws lambda wait function-updated-v2 --function-name "${fn}"
 
-            actual="$(aws lambda get-function-configuration               --function-name "${fn}" --query CodeSha256 --output text)"
+            latest="$(aws lambda get-function-configuration               --function-name "${fn}" --query '{sha: CodeSha256, revision: RevisionId}' --output json)"
+            actual="$(jq -r .sha <<<"${latest}")"
+            latest_revision="$(jq -r .revision <<<"${latest}")"
             if [[ "${actual}" != "${expected}" ]]; then
               echo "Hash mismatch for ${fn}: expected ${expected}, got ${actual}" >&2
               exit 1
             fi
 
-            version="$(aws lambda publish-version               --function-name "${fn}"               --description "payment-rail ${GITHUB_SHA}"               --query Version --output text)"
+            version="$(aws lambda publish-version               --function-name "${fn}"               --description "payment-rail ${GITHUB_SHA}" --code-sha256 "${expected}" --revision-id "${latest_revision}"               --query Version --output text)"
 
             snap="$(aws lambda get-function-configuration               --function-name "${fn}"               --qualifier "${version}"               --query 'SnapStart.ApplyOn' --output text 2>/dev/null || true)"
             if [[ "${snap}" == "PublishedVersions" ]]; then
@@ -222,7 +233,7 @@ jobs:
               done
             fi
 
-            aws lambda update-alias               --function-name "${fn}"               --name live               --function-version "${version}" >/dev/null
+            aws lambda update-alias               --function-name "${fn}"               --name live               --function-version "${version}" --revision-id "${alias_revision}" >/dev/null
 
             live_sha="$(aws lambda get-function-configuration               --function-name "${fn}" --qualifier live               --query CodeSha256 --output text)"
             if [[ "${live_sha}" != "${expected}" ]]; then
