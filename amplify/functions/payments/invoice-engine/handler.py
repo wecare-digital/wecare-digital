@@ -3537,8 +3537,12 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
         merged_items = regular_items + charge_items
         order_items = []
         subtotal_paise = 0
-        for i, entry in enumerate(merged_items):
-            entry['retailer_id'] = f'ITEM_{i+1}'
+        for entry in merged_items:
+            # This invoice/manual collection path is non-catalog. Meta permits a custom item
+            # image only when retailer_id/catalog_id are absent, so do not manufacture ITEM_n
+            # catalog identifiers. The small icon is intentionally separate from the large
+            # payment-template header.
+            entry['image'] = {'link': template_media.ORDER_ITEM_IMAGE}
             line_paise = entry['amount']['value'] * entry['quantity']
             subtotal_paise += line_paise
             order_items.append(entry)
@@ -3558,7 +3562,7 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
                 'name': 'Convenience Fee',
                 'amount': {'value': conv_paise, 'offset': 100},
                 'quantity': 1,
-                'retailer_id': f'ITEM_{len(order_items) + 1}',
+                'image': {'link': template_media.ORDER_ITEM_IMAGE},
             })
             subtotal_paise += conv_paise
         # Internally-consistent total, as an INTEGER SUM (Meta validates
@@ -3849,8 +3853,9 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
             'templateName': WA_PAY_TEMPLATE,
             'templateParams': [],  # native-pay template has no body variables
             'checkoutOrderDetails': order_details_obj,
-            # FIXED company-logo header on EVERY payment. Do not vary per order.
-            'headerImageUrl': template_media.ORDER_CATALOG_HEADER_IMAGE,
+            # FIXED wide brand header on EVERY payment. The small order item icon is carried
+            # separately in each order item as template_media.ORDER_ITEM_IMAGE.
+            'headerImageUrl': template_media.PAYMENT_TEMPLATE_HEADER,
         })
     }
 
