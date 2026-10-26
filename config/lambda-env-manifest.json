@@ -501,6 +501,7 @@
     "wecare-secure-files": {
       "COGNITO_USER_POOL_ID": "us-east-1_cSx0RHCIR",
       "CUSTOMER_USER_POOL_ID": "us-east-1_46ULYuukt",
+      "DOCUMENTS_TABLE": "stack-wecare-digital-DocumentTable",
       "DOWNLOAD_GRANTS_TABLE": "stack-wecare-digital-DownloadGrantsTable",
       "DOWNLOAD_URL_TTL_SECONDS": "60",
       "DROPDOCS_ATTACH_ENABLED": "false",
