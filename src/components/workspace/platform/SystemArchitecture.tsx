@@ -519,7 +519,7 @@ interface CodeAsset { id: string; category: string; name: string; description: s
 const CODE_ASSETS: CodeAsset[] = [
   // WhatsApp Flows
   { id: 'flow-sr', category: 'WhatsApp Flows', name: 'WD_SR_PAY — Submit Request', description: 'Multi-screen flow for order service requests with ₹49 payment.', path: 'amplify/functions/messaging/whatsapp-business-api/flows/submit-request-flow.json', type: 'Flow JSON', status: 'Published' },
-  { id: 'flow-sub', category: 'WhatsApp Flows', name: 'WD Subscribe', description: 'Subscription flow collecting name, phone, email, company, shipping + billing address.', path: 'amplify/functions/messaging/whatsapp-business-api/flows/subscribe-flow.json', type: 'Flow JSON', status: 'Published' },
+  { id: 'flow-sub', category: 'WhatsApp Flows', name: 'F001 · Subscribe', description: 'Canonical profile Flow: full name, optional WhatsApp username, organization, job title, then one structured address.', path: 'amplify/functions/messaging/whatsapp-business-api/flows/design-drafts/subscribe.json', type: 'Flow JSON', status: 'Published' },
   // Customer Service Flows (9 WhatsApp Flows triggered from interactive list)
   { id: 'ss-submit', category: 'Customer Service Flows', name: '📋 Submit Request', description: 'Start a new support request. The Flow is deprecated on Meta; the keyword answers with the website link.', path: `Flow ID: ${canonicalFlowId('submit_request')}`, type: 'WA Flow', status: 'Deprecated' },
   // Track has no canonical Flow — served by the order tracking API + /orders/.
