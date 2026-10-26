@@ -2,7 +2,8 @@
 
 This function is deliberately isolated from the normal outbound messaging Lambda.
 It generates/verifies Cognito custom challenges and invokes the existing
-wecare-whatsapp-business-api:live Lambda only for Meta template delivery.
+wecare-whatsapp-business-api:live Lambda only to deliver the code: the approved
+template, or a Direct Send authentication message when that is enabled for the WABA.
 
 Security invariants:
 - never log the OTP or the complete destination phone number
@@ -363,7 +364,7 @@ def _mask_phone(phone: str) -> str:
     return ("*" * max(0, len(digits) - 4)) + digits[-4:]
 
 
-def _send_otp(phone: str, otp: str, route: dict) -> None:
+def _send_otp(phone: str, otp: str, route: dict) -> str:
     """Invoke the existing Meta Graph sender through its internal Lambda path.
 
     `route` is a resolved entry from `WABA_ROUTES` and is required, not optional. Making
@@ -373,6 +374,9 @@ def _send_otp(phone: str, otp: str, route: dict) -> None:
 
     The sender (`wecare-whatsapp-business-api:live`) picks the right Meta token from the
     `phoneId` it is given, so routing per WABA needs nothing more than the mapped id.
+
+    Returns how the sender delivered the code: `"direct_send"` (a Direct Send
+    authentication message) or `"template"` (the approved template in this body).
     """
     body = {
         "to": _normalise_phone(phone),
@@ -404,6 +408,13 @@ def _send_otp(phone: str, otp: str, route: dict) -> None:
                 "parameters": [{"type": "text", "text": otp}],
             },
         ],
+        # Direct Send authentication. The sender delivers the code as a Direct Send
+        # authentication message when DIRECT_SEND_AUTHENTICATION_ENABLED_WABAS lists this
+        # route's WABA, and sends the template above unchanged otherwise or on any Direct
+        # Send failure. A sender that predates these fields ignores them, so the deploy
+        # order of the two functions does not matter.
+        "otpCode": otp,
+        "otpExpiresInSeconds": OTP_TTL_SECONDS,
     }
     event = {
         "httpMethod": "POST",
@@ -427,6 +438,24 @@ def _send_otp(phone: str, otp: str, route: dict) -> None:
         raise RuntimeError(
             f"internal WhatsApp sender returned HTTP {status}"
         )
+    return _delivered_via(result)
+
+
+def _delivered_via(result: dict) -> str:
+    """`"direct_send"` when the sender reports a Direct Send delivery, else `"template"`.
+
+    Read for the log line only. A sender that predates Direct Send authentication returns
+    no `deliveredVia`, and what it sent was the template.
+    """
+    body = result.get("body")
+    if isinstance(body, str):
+        try:
+            parsed = json.loads(body)
+        except ValueError:
+            parsed = None
+        if isinstance(parsed, dict) and parsed.get("deliveredVia") == "direct_send":
+            return "direct_send"
+    return "template"
 
 
 def _meta_error_code(result: dict):
@@ -612,7 +641,7 @@ def _create_auth_challenge(event: dict) -> dict:
                           "reason": "rate_limited"}))
         return event
 
-    _send_otp(phone, otp, route)
+    delivered_via = _send_otp(phone, otp, route)
 
     # Metadata only. Do not log the OTP or unmasked number.
     print(
@@ -622,6 +651,7 @@ def _create_auth_challenge(event: dict) -> dict:
                 "wabaId": route["waba_id"],
                 "template": route["template_name"],
                 "senderPhoneId": route["phone_number_id"],
+                "deliveredVia": delivered_via,
             }
         )
     )

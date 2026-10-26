@@ -130,7 +130,8 @@ def _action(event: Dict[str, Any], body: Dict[str, Any]) -> str:
     return explicit if explicit in allowed else ""
 
 
-def _send_phone_code(e164: str, code: str) -> None:
+def _send_phone_code(e164: str, code: str,
+                     ttl_seconds: int = otp_challenge.DEFAULT_TTL_SECONDS) -> None:
     body = {
         "to": "".join(ch for ch in e164 if ch.isdigit()),
         "phoneId": META_PHONE_NUMBER_ID,
@@ -141,6 +142,10 @@ def _send_phone_code(e164: str, code: str) -> None:
             {"type": "button", "sub_type": "url", "index": "0",
              "parameters": [{"type": "text", "text": code}]},
         ],
+        # Direct Send authentication when DIRECT_SEND_AUTHENTICATION_ENABLED_WABAS lists this
+        # sender's WABA; the template above otherwise and on any Direct Send failure.
+        "otpCode": code,
+        "otpExpiresInSeconds": ttl_seconds,
     }
     invoke_event = {
         "httpMethod": "POST",
@@ -217,7 +222,7 @@ def _request_phone(event: Dict[str, Any], body: Dict[str, Any], origin: str) -> 
     try:
         issued = otp_challenge.issue(
             _otp_table(), purpose=PHONE_PURPOSE, subject=phone, pepper=_pepper())
-        _send_phone_code(phone, issued.code)
+        _send_phone_code(phone, issued.code, issued.ttl_seconds)
     except otp_challenge.ResendTooSoon as exc:
         return _no_store(cors_response(
             429, {"error": "RESEND_TOO_SOON", "retryAfterSeconds": exc.retry_after_seconds}, origin))
