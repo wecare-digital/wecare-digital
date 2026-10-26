@@ -54,6 +54,7 @@ verified and delivered; no HTTP route in this Lambda can create a new payment.
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import os
 import secrets as pysecrets
@@ -107,6 +108,7 @@ DELIVERABLE_TYPES = {
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
 MAX_DOCUMENT_BYTES = 100 * 1024 * 1024
 FILES_TABLE = os.environ.get("SECURE_FILES_TABLE", "stack-wecare-digital-SecureFilesTable")
+DOCUMENTS_TABLE = os.environ.get("DOCUMENTS_TABLE", "stack-wecare-digital-DocumentTable")
 GRANTS_TABLE = os.environ.get("DOWNLOAD_GRANTS_TABLE", "stack-wecare-digital-DownloadGrantsTable")
 # The Phase O-1 request store. Drop Docs documents are registered against a REQ# row that
 # lives there, not in SecureFilesTable: a Drop Docs document belongs to a paid request,
@@ -984,6 +986,162 @@ def _upload_confirm(file_id: str, origin: str) -> Dict[str, Any]:
          "deliverable": deliverable},
         origin,
     )
+
+
+
+def _vault_file_id_for_document(document_id: str) -> str:
+    """Stable Vault file id for one Drop Docs document.
+
+    The deterministic id makes publish idempotent: retries and double-clicks resolve to the
+    same SecureFilesTable row and can never mint two separately billable Vault products.
+    """
+    digest = hashlib.sha256(str(document_id).encode("utf-8")).hexdigest()[:32]
+    return "doc-" + digest
+
+
+def _admin_publish_document(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
+    """Promote one staff Drop Docs record into the customer Vault without re-uploading bytes."""
+    body = json.loads(event.get("body") or "{}")
+    document_id = str(body.get("documentId") or "").strip()
+    if not document_id:
+        return cors_response(400, {"error": "DOCUMENT_ID_REQUIRED",
+                                   "message": "Choose a document to publish."}, origin)
+
+    document = _table(DOCUMENTS_TABLE).get_item(
+        Key={"documentId": document_id}, ConsistentRead=True).get("Item") or {}
+    if not document:
+        return cors_response(404, {"error": "DOCUMENT_NOT_FOUND"}, origin)
+    if str(document.get("verificationStatus") or "") not in ("uploaded", "approved"):
+        return cors_response(409, {"error": "DOCUMENT_NOT_READY",
+                                   "message": "Only an uploaded or approved document can be published."},
+                             origin)
+
+    source_key = str(document.get("storageKey") or "").strip()
+    if not source_key.startswith(DROPDOCS_PREFIX):
+        return cors_response(409, {"error": "DOCUMENT_SOURCE_NOT_PRIVATE",
+                                   "message": "This document is not in private Drop Docs storage."},
+                             origin)
+
+    try:
+        phone = normalise_phone(document.get("customerPhone"))
+    except ValueError:
+        return cors_response(409, {"error": "CUSTOMER_PHONE_REQUIRED",
+                                   "message": "Link this document to a valid customer mobile number first."},
+                             origin)
+    name = str(document.get("customerName") or "Customer").strip() or "Customer"
+
+    try:
+        username = _ensure_customer_user(phone, name)
+        customer = _cognito_client().admin_get_user(
+            UserPoolId=CUSTOMER_POOL_ID, Username=username)
+        attrs = {a["Name"]: a["Value"] for a in customer.get("UserAttributes", [])}
+        owner_customer_id = str(attrs.get("sub") or "")
+        if (not owner_customer_id or not customer.get("Enabled", True)
+                or normalise_phone(attrs.get("phone_number")) != phone):
+            raise ValueError("customer ownership unavailable")
+    except Exception as exc:
+        logger.warning(json.dumps({"event": "vault_publish_customer_unavailable",
+                                   "error": type(exc).__name__}))
+        return cors_response(503, {"error": "CUSTOMER_PROVISIONING_UNAVAILABLE",
+                                   "message": "Customer ownership could not be verified."}, origin)
+
+    file_id = _vault_file_id_for_document(document_id)
+    files = _table(FILES_TABLE)
+    existing = files.get_item(Key={"fileId": file_id}, ConsistentRead=True).get("Item") or {}
+    if existing:
+        if (str(existing.get("sourceDocumentId") or "") != document_id
+                or str(existing.get("ownerCustomerId") or "") != owner_customer_id
+                or str(existing.get("ownerPhone") or "") != phone):
+            return cors_response(409, {"error": "VAULT_FILE_CONFLICT"}, origin)
+        try:
+            _table(DOCUMENTS_TABLE).update_item(
+                Key={"documentId": document_id},
+                UpdateExpression="SET vaultFileId=:f, vaultPublishedAt=if_not_exists(vaultPublishedAt,:now)",
+                ExpressionAttributeValues={":f": file_id, ":now": int(time.time())},
+            )
+        except ClientError:
+            pass
+        return cors_response(200, _decimal_safe({
+            "fileId": file_id, "status": existing.get("status"),
+            "deliverable": existing.get("deliverable", "unknown"),
+            "created": False,
+        }), origin)
+
+    try:
+        head = _s3_client().head_object(Bucket=BUCKET, Key=source_key)
+    except ClientError:
+        return cors_response(409, {"error": "DOCUMENT_OBJECT_MISSING",
+                                   "message": "The uploaded document is not present in storage."}, origin)
+
+    size = int(head.get("ContentLength") or 0)
+    if size <= 0 or size > MAX_UPLOAD_BYTES:
+        return cors_response(413, {"error": "FILE_TOO_LARGE"}, origin)
+    content_type = str(head.get("ContentType") or document.get("mimeType")
+                       or "application/octet-stream")
+    deliverable = _classify_delivery(content_type, size)
+    original_name = str(document.get("originalFileName") or document.get("fileName") or document_id)
+    display_name = str(document.get("documentTypeLabel") or document.get("fileName")
+                       or original_name or "Document")
+    delivery_key = ""
+    if deliverable in ("pdf", "image"):
+        delivery_key = DELIVER_PREFIX + "vault-" + file_id + _safe_extension(original_name)
+        try:
+            _s3_client().copy_object(
+                Bucket=BUCKET, Key=delivery_key,
+                CopySource={"Bucket": BUCKET, "Key": source_key},
+                ContentType=content_type, MetadataDirective="REPLACE",
+            )
+        except ClientError as exc:
+            logger.warning(json.dumps({"event": "vault_publish_delivery_copy_failed",
+                                       "fileId": file_id,
+                                       "error": exc.response.get("Error", {}).get("Code")}))
+            deliverable, delivery_key = "link", ""
+
+    now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    item = {
+        "fileId": file_id,
+        "sourceDocumentId": document_id,
+        "sourceOrderId": str(document.get("orderId") or ""),
+        "s3Key": source_key,
+        "ownerPhone": phone,
+        "ownerCustomerId": owner_customer_id,
+        "ownerName": name,
+        "cognitoUsername": username,
+        "displayName": display_name,
+        "tag": str(document.get("documentTypeLabel") or document.get("documentType") or "")[:60],
+        "originalFilename": original_name,
+        "contentType": content_type,
+        "sizeBytes": size,
+        "pricePaise": PRICE_PAISE,
+        "deliverable": deliverable,
+        "deliveryKey": delivery_key,
+        "status": "active",
+        "downloadCount": 0,
+        "uploadedBy": str((event.get("_auth") or {}).get("username", "")),
+        "createdAt": now_iso,
+    }
+    try:
+        files.put_item(Item=item, ConditionExpression="attribute_not_exists(fileId)")
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
+            raise
+        item = files.get_item(Key={"fileId": file_id}, ConsistentRead=True).get("Item") or {}
+        if (str(item.get("sourceDocumentId") or "") != document_id
+                or str(item.get("ownerCustomerId") or "") != owner_customer_id):
+            return cors_response(409, {"error": "VAULT_FILE_CONFLICT"}, origin)
+
+    _table(DOCUMENTS_TABLE).update_item(
+        Key={"documentId": document_id},
+        UpdateExpression="SET vaultFileId=:f, vaultPublishedAt=:now, updatedAt=:now",
+        ExpressionAttributeValues={":f": file_id, ":now": int(time.time())},
+    )
+    logger.info(json.dumps({"event": "dropdocs_published_to_vault",
+                            "documentId": document_id, "fileId": file_id,
+                            "deliverable": deliverable}))
+    return cors_response(201, _decimal_safe({
+        "fileId": file_id, "status": "active", "deliverable": deliverable,
+        "created": True,
+    }), origin)
 
 
 #: Upper bound on one admin listing. Each read is one DynamoDB page, so the list is complete up
@@ -2206,6 +2364,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return _admin_list(event, origin)
             return cors_response(405, {"error": "Method not allowed"}, origin)
 
+        if tail == ["publish-document"] and method == "POST":
+            return _admin_publish_document(event, origin)
         if tail == ["upload-init"] and method == "POST":
             return _upload_init(event, origin)
         if len(tail) == 2 and tail[1] == "confirm" and method == "POST":
