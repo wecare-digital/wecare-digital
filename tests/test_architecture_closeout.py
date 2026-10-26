@@ -233,6 +233,20 @@ class WebhookUnnumberedInvoiceTests(unittest.TestCase):
 
 
 class PaidStateAlarmTests(unittest.TestCase):
+    def test_every_alarm_signal_is_still_emitted_by_the_code(self):
+        """An alarm on an event no code emits can never fire; it reads as coverage it is not."""
+        import re
+        alarms = _load("payment_rail_alarms_emitted", ROOT / "scripts" / "provision_payment_rail_alarms.py")
+        source = "\n".join(p.read_text(encoding="utf-8", errors="replace")
+                           for p in FUNCTIONS.rglob("*.py"))
+        for signal in alarms.SIGNALS:
+            tokens = [signal["event"]] if signal.get("event") else re.findall(
+                r'\$\.(?:event|alert)\s*=\s*"([^"]+)"', signal.get("pattern", ""))
+            self.assertTrue(tokens, signal["alarmName"])
+            for token in tokens:
+                self.assertTrue(f"'{token}'" in source or f'"{token}"' in source,
+                                f"{signal['alarmName']}: {token} is not emitted")
+
     def test_missing_invoice_image_raises_the_paid_state_alarm(self):
         alarms = _load("payment_rail_alarms_closeout",
                        ROOT / "scripts" / "provision_payment_rail_alarms.py")

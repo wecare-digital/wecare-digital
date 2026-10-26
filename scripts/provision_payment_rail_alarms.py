@@ -29,51 +29,10 @@ NAMESPACE = "WECARE.DIGITAL"
 SNS_ARN = "arn:aws:sns:us-east-1:775261844268:wecare-alarm-notifications"
 
 SIGNALS = [
-    {
-        "logGroup": "/aws/lambda/wecare-commerce",
-        "event": "order_status_deferred",
-        "filterName": "payment-order-status-deferred",
-        "metricName": "PaymentOrderStatusDeferred",
-        "alarmName": "wecare-payment-order-status-deferred",
-        "threshold": 0.0,
-        "description": "Approved WhatsApp ORDER_STATUS template unavailable; payment order update was deferred.",
-    },
-    {
-        "logGroup": "/aws/lambda/wecare-commerce",
-        "event": "order_status_outbound_function_error",
-        "filterName": "payment-order-status-uncertain",
-        "metricName": "PaymentOrderStatusUncertain",
-        "alarmName": "wecare-payment-order-status-uncertain",
-        "threshold": 0.0,
-        "description": "Payment order-status outbound Lambda failed after invocation; Meta delivery is uncertain.",
-    },
-    {
-        "logGroup": "/aws/lambda/wecare-razorpay-webhook",
-        "event": "order_status_completed_blocked",
-        "filterName": "payment-order-completed-blocked",
-        "metricName": "PaymentOrderCompletedBlocked",
-        "alarmName": "wecare-payment-order-completed-blocked",
-        "threshold": 0.0,
-        "description": "Payment capture could not advance from processing to completed.",
-    },
-    {
-        "logGroup": "/aws/lambda/wecare-razorpay-webhook",
-        "event": "order_status_retry_error",
-        "filterName": "payment-order-status-retry-error",
-        "metricName": "PaymentOrderStatusRetryError",
-        "alarmName": "wecare-payment-order-status-retry-error",
-        "threshold": 0.0,
-        "description": "Scheduled retry of a deferred payment order-status update failed.",
-    },
-    {
-        "logGroup": "/aws/lambda/wecare-razorpay-webhook",
-        "event": "order_status_retry_query_failed",
-        "filterName": "payment-order-status-retry-query-failed",
-        "metricName": "PaymentOrderStatusRetryQueryFailed",
-        "alarmName": "wecare-payment-order-status-retry-query-failed",
-        "threshold": 0.0,
-        "description": "Payment order-status retry index could not be queried.",
-    },
+    # The five order-status signals (deferred, uncertain, completed-blocked, retry-error,
+    # retry-query-failed) were retired with WhatsApp order-status sends (#1650): their events
+    # are no longer emitted, so their alarms could never fire. Their alarms and filters were
+    # deleted on 2026-10-26; tests/test_architecture_closeout.py keeps every signal live.
     {
         "logGroup": "/aws/lambda/wecare-commerce",
         "event": "invoice_delivery_failed_claim_released",
