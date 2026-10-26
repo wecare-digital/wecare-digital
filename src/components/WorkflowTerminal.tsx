@@ -1291,32 +1291,34 @@ const WorkflowTerminal: React.FC = () => {
              second and tracks the visible viewport, so a browser without dvh keeps the vh value.
              The 560px ceiling keeps the panel from dominating a tall phone. */
           .wt-window{height:min(560px,100vh);height:min(560px,100dvh);border-radius:12px}
-          .wt-space{padding:23px 18px 60px}
-          /* APP-FIRST PHONE TYPE. The desktop terminal deliberately stays dense; on a phone the
-             panel is a primary reading surface, so meaningful lines move into a 15-18px band and
-             only true metadata stays at 14px. Larger type is allowed to scroll inside the panel
-             rather than being shrunk to show more lines at once. */
-          /* Keep the whole title bar useful on phones instead of hiding live trace.
-             The Pause control is compacted, the chrome gets a smaller rung, and the bar
-             reserves only the control's measured footprint. */
-          .wt-play{font-size:12px;gap:5px;padding:0 10px}
-          .wt-bar{padding:0 72px 0 10px;gap:5px}
+          /* Give machine output more usable width than prose. The previous 18px side padding,
+             combined with 17px monospace calls, made almost every meaningful line look clipped
+             on a 360-390px phone. */
+          .wt-space{padding:20px 12px 48px}
+          /* MOBILE TERMINAL TYPE IS CODE-SCALE, NOT BODY-SCALE. The 15-18px pass made this
+             illustration read like a second prose section and forced constant horizontal
+             swiping. Keep metadata compact, calls legible, and preserve nowrap machine syntax. */
+          .wt-play{font-size:11px;gap:5px;padding:0 9px}
+          .wt-bar{padding:0 68px 0 10px;gap:5px}
           .wt-light{width:8px;height:8px}
-          .wt-bar-title{margin-left:2px;font-size:12px}
-          .wt-bar-state{display:flex;font-size:11.5px;gap:5px}
-          .wt-request{font-size:18px}
-          .wt-call-text{font-size:17px}
-          .wt-time{font-size:14px}
-          .wt-return .wt-line-text{font-size:16px}
-          .wt-note .wt-line-text,.wt-sub .wt-line-text{font-size:15px}
-          .wt-error .wt-line-text{font-size:16px}
-          .wt-ai-tag{font-size:14px}
-          .wt-ai-text{font-size:16px}
-          .wt-rollup-item{font-size:15px}
-          .wt-lane-name{font-size:16px}
-          .wt-lane-detail{font-size:15px}
-          .wt-foot{font-size:15px}
-          .wt-step{padding-left:29px}
+          .wt-bar-title{margin-left:2px;font-size:11.5px}
+          .wt-bar-state{display:flex;font-size:10.5px;gap:4px}
+          .wt-request{font-size:15px;line-height:1.5}
+          .wt-line{line-height:1.45;gap:7px}
+          .wt-code{gap:4px}
+          .wt-call-text{font-size:14px}
+          .wt-time{font-size:12px}
+          .wt-return .wt-line-text{font-size:13.5px}
+          .wt-note .wt-line-text,.wt-sub .wt-line-text{font-size:13px}
+          .wt-error .wt-line-text{font-size:13.5px}
+          .wt-ai-tag{font-size:12px}
+          .wt-ai-text{font-size:13.5px}
+          .wt-rollup-item{font-size:13px}
+          .wt-lane-name{font-size:14px}
+          .wt-lane-detail{font-size:13px}
+          .wt-foot{font-size:13px}
+          .wt-step{padding-left:25px;padding-bottom:22px}
+          .wt-code::after{width:22px}
           /* ONE LANE PER ROW ON PHONES. Five across only fits where the panel is full width
              (>=768px). On a phone the five-across default would shrink each track below its
              content; a single column gives each of the five lanes a clean full-width row with
@@ -1328,15 +1330,15 @@ const WorkflowTerminal: React.FC = () => {
           .wt-call{flex-direction:row;align-items:baseline;gap:12px}
           .wt-time{margin-left:auto}
         }
-        @media(max-width:340px){
-          /* At the Fold width the decorative traffic lights are the expendable chrome.
-             Removing them leaves enough room for both "platform · runtime" and "live trace"
-             plus the Pause control without wrapping or overlap. */
-          .wt-bar{padding-right:64px}
+        @media(max-width:399px){
+          /* On common 360/375/390px phones the traffic lights spend width without conveying
+             state. The live-state dot already does. Remove decorative chrome here so
+             platform · runtime, live trace and Pause all fit as one clean row. */
+          .wt-bar{padding-right:62px}
           .wt-light{display:none}
           .wt-bar-title{margin-left:0;font-size:11px}
-          .wt-bar-state{font-size:10.5px}
-          .wt-play{font-size:11px;padding-inline:8px}
+          .wt-bar-state{font-size:10px}
+          .wt-play{font-size:10.5px;padding-inline:8px}
         }
 
         /* Reduced motion starts on the finished state with the loop paused, so by default this
