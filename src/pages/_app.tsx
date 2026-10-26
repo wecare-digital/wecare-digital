@@ -1051,6 +1051,30 @@ export default function App ( { Component, pageProps }: AppProps ) {
             the static HTML and could not be found by grepping the export - only a
             request log shows it. tagcheck.js now asserts the container loads once and
             no direct gtag.js accompanies it. */}
+        {/* PUBLIC MOBILE TYPOGRAPHY GUARD.
+            Public-only: authenticated Workspace typography stays unchanged. On narrow phones,
+            the canonical public display rungs scale fluidly instead of forcing fixed 40/32/24px
+            sizes into smaller effective viewports. Balanced wrapping prevents short headings
+            from leaving orphan words. Body copy remains selectable. On coarse-pointer phones,
+            headings suppress long-press selection/callouts so Android does not open a dictionary
+            sheet while a visitor is trying to scroll. */}
+        <style jsx global>{`
+          @media(max-width:767px){
+            :root{
+              --public-mobile-hero-size:clamp(34px,9.75vw,40px);
+              --public-mobile-section-size:clamp(28px,7.75vw,32px);
+              --public-mobile-card-size:clamp(22px,5.8vw,24px);
+            }
+            h1,h2,h3{text-wrap:balance}
+          }
+          @media(max-width:767px) and (pointer:coarse){
+            h1,h2,h3{
+              -webkit-user-select:none;
+              user-select:none;
+              -webkit-touch-callout:none;
+            }
+          }
+        `}</style>
         <Header />
         <Component { ...pageProps } />
         <PublicPolicyDetails />
