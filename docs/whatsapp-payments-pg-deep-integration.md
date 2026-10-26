@@ -113,18 +113,17 @@ name; `WECAREDIGITAL` is now verified, so it is not a guess.
 - Response `status` ∈ `pending|captured`; `transactions[]` present once attempted; at
   most one `success`. This is the source of truth, not the webhook.
 
-### 5. Order status updates (Step 6) — mandatory after any transaction update
-- `status` ∈ `pending|processing|partially_shipped|shipped|completed|canceled`.
-- Transition rules: `pending` → any; `processing/shipped/partially_shipped` interchange
-  or → terminal; `completed`/`canceled` terminal. Errors `2046` (bad transition),
-  `2047` (cannot cancel a paid order). The order page in-chat only reflects
-  `order_status` messages, so one MUST be sent after every PG transaction update.
-- Live behaviour (2026-10-25): after a verified capture the Razorpay webhook sends one
-  `processing` order_status for the WhatsApp-rail order (interactive inside the 24-hour window,
-  `wecare_order_status_v3` outside it, otherwise recorded as `pendingOrderStatus`), then the
-  approved `wecare_default_invoice_image_template` once, from
-  `s3://wecare-digital-get/secure/d/public/Invoice/customer_invoice/`. Later fulfilment updates
-  (shipped, completed) never re-send the invoice.
+### 5. Payment-order status updates (Step 6)
+- The WhatsApp payment rail intentionally uses only `pending -> processing -> completed`.
+- After verified capture, the Razorpay webhook automatically sends `processing`, then
+  `completed`, on the same payment reference. Workspace does not provide a manual sender.
+- Both updates use the approved `wecare_order_status_v3` ORDER_STATUS template regardless of
+  the 24-hour customer-service window. There is no interactive/free-form fallback.
+- A deferred/uncertain send is recorded and retried idempotently; an invoice still delivers even
+  when the status transport is temporarily unavailable.
+- The approved `wecare_default_invoice_image_template` is sent after the two status steps.
+  Physical/service fulfilment (`partially-shipped`, `shipped`, etc.) is a separate domain and
+  is not exposed as this WhatsApp payment-order lifecycle.
 - Order page (2026-10-26): `https://wecare.digital/orders/?o=<orderNumber>` shows one order:
   lines, amounts, the delivery address and the payment and order status. It is session-gated:
   checkout's `order` action answers only for an order the WhatsApp-OTP session owns, with the same
