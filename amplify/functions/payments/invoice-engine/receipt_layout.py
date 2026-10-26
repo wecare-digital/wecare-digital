@@ -153,7 +153,9 @@ def render(invoice, items, *, company, font_path, ist_strftime, canonical_status
     text('https://wecare.digital', small, 'center')
 
     height = 2 * (pad + tear) + len(rows) * line
-    paper = Image.new('RGB', (width, height), (252, 252, 250))
+    # Fully transparent receipt surface: only ink/rules are opaque. Keep white RGB under
+    # transparent pixels so alpha-dropping consumers fall back to white instead of black.
+    paper = Image.new('RGBA', (width, height), (255, 255, 255, 0))
     draw = ImageDraw.Draw(paper)
     y = pad + tear
     for kind, left, right, font, align in rows:
