@@ -142,13 +142,36 @@ class PaymentArchitectureDriftTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertNotIn("ORDER_STATUS_DISABLED", checker)
-        self.assertIn("automatic payment-order status -> outbound template", checker)
+        self.assertIn("Payment-order status is automatic after verified capture", checker)
+        self.assertIn("wecare_order_status_v3", checker)
+        self.assertIn("must not select an interactive fallback", checker)
+        self.assertIn("outbound automatic payment-order status path", checker)
 
     def test_experience_docs_pin_template_only_processing_completed(self):
         doc = (ROOT / "docs" / "whatsapp-experience-structure.md").read_text(encoding="utf-8")
         self.assertNotIn("WhatsApp order-status messages are disabled", doc)
-        self.assertIn("pending -> processing -> completed", doc)
-        self.assertIn("Workspace has no manual WhatsApp payment-status control", doc)
+        self.assertIn("automatically sends exactly two", doc)
+        self.assertIn("wecare_order_status_v3", doc)
+        self.assertIn("processing", doc)
+        self.assertIn("completed", doc)
+        self.assertIn("There is no interactive", doc)
+        self.assertIn("Workspace has no manual payment-order status sender", doc)
+
+    def test_payment_ci_triggers_on_template_registry_for_pr_and_push(self):
+        workflow = (ROOT / ".github" / "workflows" / "payment-rail-ci.yml").read_text(
+            encoding="utf-8"
+        )
+        path = '      - "amplify/functions/shared/lambda_utils/whatsapp_templates.py"'
+        pull_request, remainder = workflow.split("  push:", 1)
+        push, _dispatch = remainder.split("  workflow_dispatch:", 1)
+        self.assertEqual(
+            pull_request.count(path), 1,
+            "template registry must trigger Payment Rail CI exactly once for pull_request",
+        )
+        self.assertEqual(
+            push.count(path), 1,
+            "template registry must trigger Payment Rail CI exactly once for wecare.digital push",
+        )
 
 
 
