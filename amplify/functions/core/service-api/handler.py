@@ -1311,11 +1311,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return _delete_draft(flow_code)
 
         # ── DOCUMENTS ──
-        elif '/documents/upload-init' in path and method == 'POST':
-            return _init_document_upload(body)
-        elif '/documents/' in path and '/confirm' in path and method == 'POST':
-            doc_id = _extract_path_param(path, 'documents')
-            return _confirm_document_upload(doc_id)
         elif '/documents/' in path and '/download' in path:
             doc_id = _extract_path_param(path, 'documents')
             return _get_document_download_url(doc_id)
@@ -1324,11 +1319,15 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if method == 'GET':
                 return _get_document(doc_id)
             elif method in ('PUT', 'PATCH'):
+                if str(body.get('_action') or '').strip().lower() == 'confirm_upload':
+                    return _confirm_document_upload(doc_id)
                 return _update_document(doc_id, body)
         elif '/documents' in path:
             if method == 'GET':
                 return _list_documents(params)
             elif method == 'POST':
+                if str(body.get('_action') or '').strip().lower() == 'upload_init':
+                    return _init_document_upload(body)
                 return _create_document(body)
 
         # ── FAQ ──
