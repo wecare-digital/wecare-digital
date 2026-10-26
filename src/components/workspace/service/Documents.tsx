@@ -148,9 +148,10 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
   const [ customerOrders, setCustomerOrders ] = useState<api.Order[]>( [] );
   const [ ordersLoading, setOrdersLoading ] = useState( false );
   const [ createFile, setCreateFile ] = useState<File | null>( null );
+  const [ replacementFile, setReplacementFile ] = useState<File | null>( null );
   const [ createForm, setCreateForm ] = useState( {
     contactId: '', customerName: '', customerPhone: '', orderId: '',
-    type: '', typeLabel: '', fileName: '', notes: '',
+    type: '', typeLabel: '', fileName: '', vaultDisplayName: '', notes: '',
   } );
 
   const loadData = useCallback( async () => {
@@ -223,7 +224,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
   const resetCreate = () => {
     setCreateForm( {
       contactId: '', customerName: '', customerPhone: '', orderId: '',
-      type: '', typeLabel: '', fileName: '', notes: '',
+      type: '', typeLabel: '', fileName: '', vaultDisplayName: '', notes: '',
     } );
     setContactQuery( '' );
     setContactResults( [] );
@@ -276,6 +277,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
         orderId: createForm.orderId || undefined,
         type: createForm.type,
         typeLabel: createForm.type === 'other' ? createForm.typeLabel.trim() : undefined,
+        vaultDisplayName: vaultMessageName( createForm.vaultDisplayName ) || undefined,
         fileName: createFile.name,
         mimeType,
         fileSize: createFile.size,
@@ -369,6 +371,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
 
   const openDocument = ( doc: api.Document ) => {
     setSelected( doc );
+    setReplacementFile( null );
     setRemarks( '' );
     setVaultName( defaultVaultName( doc ) );
   };
@@ -423,6 +426,46 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
       if ( result.ok && result.status !== 202 ) toast.success( result.message );
       else if ( result.status === 202 || result.status === null ) toast.warning( result.message );
       else toast.error( result.message );
+      void loadData();
+    } finally
+    {
+      setActionLoading( false );
+    }
+  };
+
+  const handleReplacementUpload = async ( doc: api.Document ) => {
+    if ( actionLoading || !replacementFile ) return;
+    setActionLoading( true );
+    try
+    {
+      const mimeType = replacementFile.type || 'application/octet-stream';
+      const ticket = await api.initDocumentReplacement( doc.documentId, {
+        fileName: replacementFile.name,
+        mimeType,
+        fileSize: replacementFile.size,
+      } );
+      if ( !ticket.ok )
+      {
+        toast.error( ticket.failure.message || 'Could not start replacement upload' );
+        return;
+      }
+      const uploaded = await api.uploadDocumentBytes(
+        ticket.data.uploadUrl, replacementFile, ticket.data.contentType || mimeType );
+      if ( !uploaded )
+      {
+        toast.error( 'Replacement upload failed. The current document was not changed.' );
+        return;
+      }
+      const confirmed = await api.confirmDocumentReplacement( doc.documentId );
+      if ( !confirmed.ok )
+      {
+        toast.error( confirmed.failure.message || 'Replacement could not be confirmed' );
+        return;
+      }
+      setReplacementFile( null );
+      setSelected( confirmed.data );
+      setVaultName( defaultVaultName( confirmed.data ) );
+      toast.success( `Replacement uploaded · new reference ${confirmed.data.documentRef || ''}`.trim() );
       void loadData();
     } finally
     {
@@ -538,7 +581,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
       </div>
 
       {/* Detail Modal */ }
-      <Modal isOpen={ !!selected } onClose={ () => setSelected( null ) } title="Document Details" size="lg">
+      <Modal isOpen={ !!selected } onClose={ () => { setSelected( null ); setReplacementFile( null ); } } title="Document Details" size="lg">
         { selected && (
           <div>
             <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 } }>
@@ -606,6 +649,40 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
             { !selected.vaultFileId && selected.storageKey && ![ 'uploaded', 'approved' ].includes( selected.status ) && (
               <div style={ { ...helperStyle, marginTop: 0, marginBottom: 16 } }>
                 Approve this document to publish it to the customer&apos;s Vault.
+              </div>
+            ) }
+
+            { selected.status === 'reupload_requested' && (
+              <div style={ { ...vaultBoxStyle, borderColor: '#a855f7' } }>
+                <label style={ { fontSize: 'var(--text-md)', fontWeight: 500 } }>
+                  Replacement file
+                  <input
+                    type="file"
+                    onChange={ e => setReplacementFile( e.target.files?.[ 0 ] || null ) }
+                    style={ inputStyle }
+                    disabled={ actionLoading }
+                  />
+                </label>
+                <div style={ helperStyle }>
+                  The current file stays unchanged until the replacement is fully uploaded and confirmed.
+                  Confirming the replacement rotates the document reference; the next Vault publish uses a new
+                  Vault file ID so an older paid entitlement cannot unlock the new bytes.
+                </div>
+                <div style={ { marginTop: 10 } }>
+                  <Button
+                    variant="primary"
+                    loading={ actionLoading }
+                    disabled={ !replacementFile || !!selected.vaultFileId }
+                    onClick={ () => handleReplacementUpload( selected ) }
+                  >
+                    Upload replacement
+                  </Button>
+                  { selected.vaultFileId && (
+                    <div style={ { ...helperStyle, color: '#991b1b' } }>
+                      Revoke the published Vault file first, then upload the replacement.
+                    </div>
+                  ) }
+                </div>
               </div>
             ) }
 
@@ -770,6 +847,22 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
               />
             </label>
           ) }
+
+          <label style={ { fontSize: 'var(--text-md)' } }>
+            WhatsApp Vault title <span style={ { color: 'var(--text-muted)' } }>({ '{{1}}' } in wecare_valut_49)</span>
+            <input
+              type="text"
+              value={ createForm.vaultDisplayName }
+              maxLength={ 60 }
+              onChange={ e => setCreateForm( form => ( { ...form, vaultDisplayName: e.target.value } ) ) }
+              placeholder={ createForm.typeLabel || createFile?.name || 'e.g. Trade licence, PAN card, Medical report' }
+              style={ inputStyle }
+              disabled={ creating }
+            />
+            <div style={ helperStyle }>
+              Preview: “Your <strong>{ vaultMessageName( createForm.vaultDisplayName ) || createForm.typeLabel || createFile?.name || 'document' }</strong> copy is ready! Pay <strong>₹49</strong>…”
+            </div>
+          </label>
 
           <label style={ { fontSize: 'var(--text-md)' } }>
             Choose file

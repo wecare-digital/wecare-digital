@@ -989,13 +989,15 @@ def _upload_confirm(file_id: str, origin: str) -> Dict[str, Any]:
 
 
 
-def _vault_file_id_for_document(document_id: str) -> str:
-    """Stable Vault file id for one Drop Docs document.
+def _vault_file_id_for_document(document_id: str, version: int = 1) -> str:
+    """Stable Vault id for one immutable Drop Docs version.
 
-    The deterministic id makes publish idempotent: retries and double-clicks resolve to the
-    same SecureFilesTable row and can never mint two separately billable Vault products.
+    Version 1 preserves the historical id exactly. A confirmed replacement increments
+    referenceVersion, and its next publish gets a new file id so an old paid entitlement can
+    never unlock different bytes.
     """
-    digest = hashlib.sha256(str(document_id).encode("utf-8")).hexdigest()[:32]
+    seed = str(document_id) if int(version or 1) <= 1 else f"{document_id}:v{int(version)}"
+    digest = hashlib.sha256(seed.encode("utf-8")).hexdigest()[:32]
     return "doc-" + digest
 
 
@@ -1062,7 +1064,11 @@ def _admin_publish_document(event: Dict[str, Any], origin: str) -> Dict[str, Any
         return cors_response(503, {"error": "CUSTOMER_PROVISIONING_UNAVAILABLE",
                                    "message": "Customer ownership could not be verified."}, origin)
 
-    file_id = _vault_file_id_for_document(document_id)
+    try:
+        document_version = int(document.get("referenceVersion") or 1)
+    except (TypeError, ValueError):
+        document_version = 1
+    file_id = _vault_file_id_for_document(document_id, document_version)
     files = _table(FILES_TABLE)
     existing = files.get_item(Key={"fileId": file_id}, ConsistentRead=True).get("Item") or {}
     if existing:
@@ -1070,6 +1076,11 @@ def _admin_publish_document(event: Dict[str, Any], origin: str) -> Dict[str, Any
                 or str(existing.get("ownerCustomerId") or "") != owner_customer_id
                 or str(existing.get("ownerPhone") or "") != phone):
             return cors_response(409, {"error": "VAULT_FILE_CONFLICT"}, origin)
+        if existing.get("status") != "active":
+            return cors_response(409, {
+                "error": "VAULT_VERSION_REVOKED",
+                "message": "This document version was revoked. Upload the replacement before publishing again.",
+            }, origin)
         display_name = str(existing.get("displayName") or "")
         renamed = False
         if requested_name and requested_name != display_name:
@@ -1145,6 +1156,7 @@ def _admin_publish_document(event: Dict[str, Any], origin: str) -> Dict[str, Any
     item = {
         "fileId": file_id,
         "sourceDocumentId": document_id,
+        "sourceDocumentVersion": document_version,
         "sourceOrderId": str(document.get("orderId") or ""),
         "s3Key": source_key,
         "ownerPhone": phone,
@@ -1275,7 +1287,22 @@ def _admin_revoke(file_id: str, event: Dict[str, Any], origin: str) -> Dict[str,
         if exc.response["Error"]["Code"] == "ConditionalCheckFailedException":
             return cors_response(404, {"error": "Unknown fileId"}, origin)
         raise
-    logger.info(json.dumps({"event": "secure_file_revoked", "fileId": file_id}))
+    item = _table(FILES_TABLE).get_item(
+        Key={"fileId": file_id}, ConsistentRead=True).get("Item") or {}
+    source_document_id = str(item.get("sourceDocumentId") or "")
+    if source_document_id:
+        try:
+            _table(DOCUMENTS_TABLE).update_item(
+                Key={"documentId": source_document_id},
+                UpdateExpression="REMOVE vaultFileId, vaultPublishedAt SET updatedAt=:now",
+                ConditionExpression="vaultFileId=:file",
+                ExpressionAttributeValues={":file": file_id, ":now": int(time.time())},
+            )
+        except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
+                raise
+    logger.info(json.dumps({"event": "secure_file_revoked", "fileId": file_id,
+                            "sourceDocumentId": source_document_id}))
     return cors_response(200, {"fileId": file_id, "status": "revoked"}, origin)
 
 
