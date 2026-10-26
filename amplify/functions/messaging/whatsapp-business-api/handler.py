@@ -1609,6 +1609,17 @@ def _send_marketing_message(phone_id: str, body: Dict) -> Dict:
     language = body.get('language') or 'en'
     params = body.get('params') or []
     activity_sharing = body.get('messageActivitySharing')
+    product_policy = (
+        body.get('productPolicy')
+        if body.get('productPolicy') is not None
+        else body.get('product_policy')
+    )
+    if product_policy is not None:
+        product_policy = str(product_policy).strip().upper()
+        if product_policy not in ('CLOUD_API_FALLBACK', 'STRICT'):
+            return _resp(400, {
+                'error': 'productPolicy must be CLOUD_API_FALLBACK or STRICT'
+            })
 
     if not to:
         return _resp(400, {'error': 'to (recipient phone) is required'})
@@ -1629,6 +1640,8 @@ def _send_marketing_message(phone_id: str, body: Dict) -> Dict:
         'type': 'template',
         'template': template_obj,
     }
+    if product_policy is not None:
+        payload['product_policy'] = product_policy
     if activity_sharing is not None:
         payload['message_activity_sharing'] = bool(activity_sharing)
 
