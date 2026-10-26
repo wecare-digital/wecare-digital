@@ -1070,6 +1070,18 @@ def _admin_publish_document(event: Dict[str, Any], origin: str) -> Dict[str, Any
         document_version = 1
     file_id = _vault_file_id_for_document(document_id, document_version)
     files = _table(FILES_TABLE)
+    linked_id = str(document.get("vaultFileId") or "")
+    if linked_id and linked_id != file_id:
+        # `referenceVersion` also moves on a reference revalidation, which changes no bytes. The
+        # Vault row already serving THESE bytes stays the one product, so a rename or a ₹49
+        # request after revalidating can never mint a second, unpaid copy of a file the customer
+        # may already own. A replacement upload changes `storageKey` and requires the old row to
+        # be revoked first, so it still gets a new id.
+        linked = files.get_item(Key={"fileId": linked_id}, ConsistentRead=True).get("Item") or {}
+        if (linked.get("status") == "active"
+                and str(linked.get("sourceDocumentId") or "") == document_id
+                and str(linked.get("s3Key") or "") == source_key):
+            file_id = linked_id
     existing = files.get_item(Key={"fileId": file_id}, ConsistentRead=True).get("Item") or {}
     if existing:
         if (str(existing.get("sourceDocumentId") or "") != document_id
@@ -1651,9 +1663,10 @@ def _customer_list(identity: Dict[str, Any], origin: str) -> Dict[str, Any]:
 def _owned_active_file(file_id: str, identity: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """The record, but only if this caller owns it and it is active.
 
-    Every failure mode returns None so callers cannot tell them apart.
+    Every failure mode returns None so callers cannot tell them apart. Strongly consistent, so a
+    file revoked a moment ago cannot still be signed for download from a stale replica.
     """
-    item = _table(FILES_TABLE).get_item(Key={"fileId": file_id}).get("Item")
+    item = _table(FILES_TABLE).get_item(Key={"fileId": file_id}, ConsistentRead=True).get("Item")
     if not item or item.get("status") != "active":
         return None
     if item.get("ownerPhone") != identity["phone"]:
@@ -1942,11 +1955,12 @@ def deliver_over_whatsapp(grant_id: str) -> Tuple[bool, str]:
     next to the data that defines them. The webhook calls it by grant id and nothing
     else, so there is no path by which a caller can name a file directly.
     """
-    grant = _table(GRANTS_TABLE).get_item(Key={"grantId": grant_id}).get("Item")
+    grant = _table(GRANTS_TABLE).get_item(Key={"grantId": grant_id}, ConsistentRead=True).get("Item")
     if not grant or not grant.get("paid"):
         return False, "grant is not paid"
 
-    item = _table(FILES_TABLE).get_item(Key={"fileId": grant["fileId"]}).get("Item")
+    item = _table(FILES_TABLE).get_item(
+        Key={"fileId": grant["fileId"]}, ConsistentRead=True).get("Item")
     if not item or item.get("status") != "active":
         return False, "file is not active"
     if item.get("ownerPhone") != grant.get("ownerPhone"):
