@@ -3432,6 +3432,18 @@ export async function verifyPhoneOTP ( phoneNumberId: string, code: string ): Pr
 }
 
 /**
+ * Set or change WhatsApp two-step verification for a business phone number.
+ * Meta accepts exactly six digits. The PIN is sent only to the Admin API and is never stored.
+ */
+export async function setPhoneTwoStepPin ( phoneNumberId: string, pin: string ): Promise<boolean> {
+  const data = await apiCall<any>( `${API_BASE}/waba/two-step-pin`, {
+    method: 'POST',
+    body: JSON.stringify( { phoneNumberId, pin } ),
+  } );
+  return data?.success === true;
+}
+
+/**
  * Register a phone number with optional PIN
  */
 export async function registerPhone ( phoneNumberId: string, pin?: string ): Promise<boolean> {
