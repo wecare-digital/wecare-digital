@@ -588,9 +588,15 @@ def _webhook_shape(body: Any) -> Dict[str, Any]:
 
 def _handle_webhook_event(body: Dict, request_id: str) -> Dict[str, Any]:
     """Process incoming WhatsApp webhook events."""
-    # Replay protection: reject events older than 5 minutes
+    # Replay protection: an event older than 5 minutes is not processed. It is not thrown away
+    # either: Meta delivers late, and redelivers for up to 7 days after a 503, with the original
+    # timestamp, so a delayed template, Flow or account alert used to vanish here. Its non-call
+    # entries are parked in the inbound DLQ (alarmed by `wecare-inbound-dlq-depth`) for a person
+    # to replay through `POST /dlq/replay`. A stale call is over and is not kept.
     if not _validate_webhook_timestamp(body, request_id):
-        logger.warning(json.dumps({'event': 'webhook_replay_rejected', 'requestId': request_id}))
+        parked = _park_stale_entries(body, request_id)
+        logger.warning(json.dumps({'event': 'webhook_replay_rejected', 'parkedEntries': parked,
+                                   'requestId': request_id}))
         return _response(200, {'status': 'rejected', 'reason': 'stale_timestamp'})
 
     logger.info(json.dumps({'event': 'webhook_received', 'requestId': request_id,
@@ -793,25 +799,26 @@ def _inbound_event(entry: Dict, waba_id: str, request_id: str) -> Dict:
 
 
 def _park_failed_forward(entry: Dict, waba_id: str, request_id: str, *,
-                         meta_retries: bool) -> None:
+                         meta_retries: bool,
+                         error: str = 'forward_to_inbound_handler_failed') -> None:
     """Put a webhook entry the inbound worker never received into the inbound DLQ. Never raises.
 
     The record has the shape the worker's own `_send_to_dlq` writes: `originalRecord` is the
     typed event, which `wecare-dlq-replay` invokes the worker with. `meta_retries` says whether
-    Meta was answered 503 and so still holds a copy.
+    Meta was answered 503 and so still holds a copy; `error` says why the entry is parked.
     """
     try:
         sqs_client.send_message(
             QueueUrl=wa_internal_event.inbound_dlq_url(),
             MessageBody=json.dumps({
                 'originalRecord': _inbound_event(entry, waba_id, request_id),
-                'error': 'forward_to_inbound_handler_failed',
+                'error': error,
                 'timestamp': int(time.time()),
                 'requestId': request_id,
             }, default=str),
         )
         logger.warning(json.dumps({
-            'event': 'forward_parked_in_dlq', 'wabaId': waba_id,
+            'event': 'forward_parked_in_dlq', 'wabaId': waba_id, 'reason': error,
             'metaRetries': meta_retries, 'requestId': request_id,
         }))
     except Exception as dlq_error:  # noqa: BLE001 - the last resort must not raise
@@ -824,6 +831,31 @@ def _park_failed_forward(entry: Dict, waba_id: str, request_id: str, *,
             'metaRetries': meta_retries,
             'requestId': request_id,
         }))
+
+
+def _park_stale_entries(body: Any, request_id: str) -> int:
+    """Park every entry of a stale payload that carries a non-call change. Returns the count.
+
+    Only a `whatsapp_business_account` payload of readable entries is parked: anything else is
+    not a WhatsApp event the worker could process. An entry whose only changes are `calls` is
+    skipped, because the call it describes has ended; the worker ignores `calls` changes, so a
+    mixed entry is safe to park whole.
+    """
+    if not isinstance(body, dict) or body.get('object') != 'whatsapp_business_account':
+        return 0
+    entries = body.get('entry') if isinstance(body.get('entry'), list) else []
+    parked = 0
+    for entry in entries:
+        if not isinstance(entry, dict) or not isinstance(entry.get('changes'), list):
+            continue
+        fields = {change.get('field') for change in entry['changes'] if isinstance(change, dict)}
+        if not fields - {'calls'}:
+            continue
+        # Meta was answered 200, so the DLQ copy is the only one.
+        _park_failed_forward(entry, str(entry.get('id') or ''), request_id,
+                             meta_retries=False, error='stale_timestamp')
+        parked += 1
+    return parked
 
 
 def _handle_call_event(waba_id: str, call: Dict, metadata: Dict, contacts: list, request_id: str) -> None:

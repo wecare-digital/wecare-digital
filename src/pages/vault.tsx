@@ -1,10 +1,40 @@
 import React from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
 import ProductPage from '../components/ProductPage';
 import GetPage from '../components/get/GetPage';
-import ServiceBuyBox from '../components/ServiceBuyBox';
+import PillButton from '../components/PillButton';
 import { customerserviceBySlug } from '../content/customerservice';
-import { serviceByKind } from '../config/services';
+import { whatsappKeywordLink } from '../config/whatsappServiceEntries';
+
+/**
+ * Vault is bought per DOCUMENT, so this page carries no ServiceBuyBox. That box asks "which
+ * order is this for?", and a Vault payment bound to an order has no file to unlock: the backend
+ * now refuses it before payment (VAULT_FILE_REQUIRED). The purchase starts in WhatsApp, where
+ * "Vault" lists the customer's own documents and each one gets its own Review and Pay; documents
+ * already shared open in the collection page.
+ */
+const VaultActions: React.FC = () => (
+  <div className="vault-actions">
+    <PillButton
+      as="a"
+      href={ whatsappKeywordLink( 'Vault' ) }
+      label="Vault"
+      action="Unlock a document on WhatsApp"
+      block
+    />
+    <p className="vault-fine">
+      Send &ldquo;Vault&rdquo;, choose your document and pay in the chat for a 24-hour download
+      window. Already received a link? <Link href="/get/">Open your documents</Link>.
+    </p>
+    <style jsx>{ `
+      .vault-actions{display:flex;flex-direction:column;gap:12px;max-width:460px}
+      .vault-fine{margin:0;font-size:var(--text-md);line-height:1.45;color:rgba(26,58,42,.78)}
+      .vault-fine :global(a){color:var(--accent);font-weight:600;text-decoration:underline;
+        text-underline-offset:3px;display:inline-block;min-height:var(--tap-min,44px);line-height:44px}
+    ` }</style>
+  </div>
+);
 
 /**
  * /vault — asking for a copy of a document held against one of your requests.
@@ -52,13 +82,12 @@ const VaultPage: React.FC = () => {
     return <GetPage targetFileId={ targetFileId } />;
   }
 
-  const service = serviceByKind( 'VAULT' );
   const product = customerserviceBySlug( 'vault' );
   return (
     <ProductPage
       product={ product }
       crumbs={ [ { label: 'Home', href: '/' }, { label: product.name } ] }
-      belowCta={ service ? <ServiceBuyBox service={ service } /> : null }
+      belowCta={ <VaultActions /> }
     />
   );
 };

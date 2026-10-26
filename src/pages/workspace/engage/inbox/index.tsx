@@ -1730,6 +1730,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                     contactName={ selectedConv?.name || '' }
                     phoneNumberId={ selectedWaba }
                     recipientPhone={ !replyTarget.contactId ? ( replyTarget.phone || undefined ) : undefined }
+                    customerPhone={ replyTarget.phone || undefined }
                     enableManualRecipient
                     onRequestPayment={ () => {
                         setShowTemplateSender( false );

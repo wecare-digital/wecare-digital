@@ -59,7 +59,7 @@ from decimal import Decimal
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from lambda_utils import customer_auth, media_paths
-from lambda_utils.ecommerce import order_keys
+from lambda_utils.ecommerce import order_keys, vault_window
 from lambda_utils.ecommerce.document_errors import (
     DocumentLimitReached, DocumentNotPrivate, DocumentRejected)
 from lambda_utils.ecommerce.service_requests import (
@@ -67,7 +67,8 @@ from lambda_utils.ecommerce.service_requests import (
     PUBLIC_REQUEST_ID_ENTROPY, PUBLIC_REQUEST_ID_PREFIX, PUBLIC_REQUEST_ID_RE,
     REQUEST_AMENDMENT, SERVICE_CURRENCY, SERVICE_KIND_BY_VARIANT, SERVICE_LINE_MAX_PAISE,
     SERVICE_LINE_MIN_PAISE, SERVICE_NOT_OFFERED, SERVICE_UNKNOWN_CHOICE,
-    SERVICE_VARIANT_BY_KIND, SUBMIT_REQUEST, TARGET_REQUIRED_KINDS, VAULT, ServiceRejected)
+    SERVICE_VARIANT_BY_KIND, SUBMIT_REQUEST, TARGET_REQUIRED_KINDS, VAULT,
+    VAULT_ACCESS_ACTIVE, VAULT_FILE_REQUIRED, ServiceRejected)
 from lambda_utils.identifiers import new_uuid7
 
 logger = logging.getLogger(__name__)
@@ -329,6 +330,7 @@ def request_intent(table: Any, identity: customer_auth.CustomerIdentity, kind: A
                    clock: Optional[Callable[[], float]] = None,
                    new_id: Callable[[], str] = new_uuid7,
                    vault_file: Optional[Dict[str, Any]] = None,
+                   vault_entitlement: Optional[Dict[str, Any]] = None,
                    original_order: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Resolve the caller's one open intent for this service, or mint one. Never charges anything.
 
@@ -338,6 +340,12 @@ def request_intent(table: Any, identity: customer_auth.CustomerIdentity, kind: A
 
     Every kind in ``TARGET_REQUIRED_KINDS`` -- amendment, Drop Docs and Vault -- takes a target
     through the SAME branch, so none of them can acquire a different ownership rule by accident.
+
+    Vault is sold per FILE, so a Vault intent without ``vault_file`` is refused
+    (``VAULT_FILE_REQUIRED``): `vault_access.grant_access` could never unlock what it paid for. A
+    file that was paid before is a RENEWAL, minted only when ``vault_entitlement`` is that file's
+    durable entitlement and every paid window on it has been used. Callers that cannot read the
+    entitlement (the service-requests role has no grants-table access) get ``VAULT_ALREADY_PAID``.
     """
     kind = str(kind or "").strip().upper()
     if kind in NOT_OFFERED_KINDS:
@@ -365,12 +373,24 @@ def request_intent(table: Any, identity: customer_auth.CustomerIdentity, kind: A
         if (kind != VAULT or target_public_id or vault_file.get('ownerCustomerId') != owner
                 or vault_file.get('status') != 'active' or not vault_file.get('fileId')):
             raise customer_auth.CustomerNotAuthorized('resource does not exist or is not yours')
-        if vault_file.get('vaultPaymentStatus') == 'PAID' or vault_file.get('vaultAccessGrantId'):
-            raise ServiceRejected('VAULT_ALREADY_PAID')
+        if (vault_file.get('vaultPaymentStatus') == 'PAID' or vault_file.get('vaultAccessGrantId')
+                or vault_file.get('vaultEntitlementId')):
+            entitlement = vault_entitlement or {}
+            if (entitlement.get('recordType') != 'VAULT_ENTITLEMENT'
+                    or entitlement.get('entitlementState') != 'ACTIVE'
+                    or entitlement.get('customerId') != owner
+                    or entitlement.get('fileId') != vault_file.get('fileId')):
+                raise ServiceRejected('VAULT_ALREADY_PAID')
+            if vault_window.access_state(entitlement, _now(clock)) != 'EXPIRED':
+                # An open window, or a paid one not opened yet: charging again would sell
+                # access the customer already has.
+                raise ServiceRejected(VAULT_ACCESS_ACTIVE)
         target = {KEY_ATTR: 'FILE#' + str(vault_file['fileId']),
                   'vaultFileId': str(vault_file['fileId']),
                   'vaultFileName': str(vault_file.get('displayName') or 'Document'),
                   'vaultOwnerPhone': str(vault_file.get('ownerPhone') or '')}
+    elif kind == VAULT:
+        raise ServiceRejected(VAULT_FILE_REQUIRED)
     elif kind in TARGET_REQUIRED_KINDS:
         if not target_public_id:
             raise ServiceRejected("SERVICE_TARGET_REQUIRED")

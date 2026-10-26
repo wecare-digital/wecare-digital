@@ -313,5 +313,28 @@ renderers (approved PNG, legacy PNG, HTML). The gateway payment id prints as
 The drop shadow is removed. Every pixel outside the torn paper is alpha 0 and stores
 white underneath, so a viewer that drops alpha instead of compositing it shows white,
 not black. The paper stays `(252, 252, 250)` so black text remains readable on dark
-backgrounds. Issued S3 assets are not rewritten; new renders pick this up once the
-engine is deployed.
+backgrounds.
+
+Live since 2026-10-25 22:36 IST: `wecare-commerce` v15, `wecare-checkout` v134 and
+`wecare-invoice-engine` v125 match a dry-run package of `968e8980c`.
+
+### Issued invoices re-rendered in place (owner instruction 2026-10-25)
+
+This overrides the 2026-10-20 rule that issued assets are never rewritten. Each issued
+invoice with a stored image was re-rendered by `wecare-commerce:live` (internal invoke of
+`POST /invoices/{id}/generate-image`), which wrote an `image#v2` row and a `-v2.png`
+object. Each `-v2.png` was then copied over its base key with the base object's metadata,
+because customer downloads (`ecommerce/customer-invoice`) and the WhatsApp invoice-copy flow
+read only the base `image` row. The bucket is versioned, so every first-issued rendition
+stays retrievable by its S3 VersionId:
+
+| Invoice | Original VersionId | Rows changed besides the header and Txn label |
+|---|---|---|
+| WD/2627/00010 | `w.F73GLkAYxm4p5UBZGeglQIBTNjvDF8` | none |
+| WD/2627/00008 | `WJ5vrTQwMk8hqLbcquiZuGVNCjWayZSb` | status PENDING -> CANCELLED (stored status) |
+| WD/2627/00007 | `KsHCoU2_G7dTp.92DmTUukhadEKz_uOO` | Channel Website -> WhatsApp (stored channel) |
+| WD/2627/00009 | `fkWG0YW7LCJ_uBTflhveYzzY463Z7THf` | Order ID and Payment Ref rows, Channel label (QA invoice, first rendered as a draft) |
+
+A re-render reads the stored invoice as it is now, so any value changed after the first
+render prints its current value. WD/2627/00006 (cancelled) has no stored image and was not
+rendered. To roll one back, copy its original VersionId over the base key.

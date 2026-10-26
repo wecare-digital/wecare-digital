@@ -22,7 +22,7 @@
  */
 import { REVIEW_ENTRY_KEYWORDS, REVIEW_FLOW_ID } from './reviewEntry';
 
-export type FlowStatus = 'PUBLISHED' | 'DRAFT' | 'NONE';
+export type FlowStatus = 'PUBLISHED' | 'DRAFT' | 'DEPRECATED' | 'NONE';
 
 export interface CanonicalFlow {
   /** Capability key, matching DEFAULT_FLOW_TRIGGERS keys in the inbound handler. */
@@ -31,7 +31,7 @@ export interface CanonicalFlow {
   readonly label: string;
   /** The retained Meta Flow id on WABA 1, or null when the capability has no Flow. */
   readonly flowId: string | null;
-  /** Meta lifecycle state per the 2026-10-09 readback. */
+  /** Meta lifecycle state per the 2026-10-09 readback, corrected by the 2026-10-25 live read. */
   readonly status: FlowStatus;
   /** The Meta Flow name per the readback, for staff display and reconciliation. */
   readonly metaName: string | null;
@@ -46,17 +46,22 @@ export const CANONICAL_FLOWS: Record<string, CanonicalFlow> = {
     capability: 'orders', label: 'Orders',
     flowId: '2167802357142172', status: 'DRAFT', metaName: 'WD_Orders_Design_v1',
   },
+  // DEPRECATED on Meta (live read 2026-10-25): it cannot be sent. The id stays as the identity
+  // of past paid submissions; paid requests start on the website.
   submit_request: {
     capability: 'submit_request', label: 'Submit Request',
-    flowId: '1107164111921876', status: 'PUBLISHED', metaName: 'WD_Submit_Request_Paid_v1',
+    flowId: '1107164111921876', status: 'DEPRECATED', metaName: 'WD_Submit_Request_Paid_v1',
   },
+  // The former drafts 03.WD_Amend_Request and WD_Drop_Documents no longer exist on Meta
+  // (Graph error 100/33, 2026-10-25), so neither capability has a Flow; both keyword doors
+  // answer with their website link.
   amend_request: {
     capability: 'amend_request', label: 'Request Amendment',
-    flowId: '3678132465672138', status: 'DRAFT', metaName: '03.WD_Amend_Request',
+    flowId: null, status: 'NONE', metaName: null,
   },
   drop_docs: {
     capability: 'drop_docs', label: 'Drop Docs',
-    flowId: '1211063631104445', status: 'DRAFT', metaName: 'WD_Drop_Documents',
+    flowId: null, status: 'NONE', metaName: null,
   },
   shipments: {
     capability: 'shipments', label: 'Shipments',

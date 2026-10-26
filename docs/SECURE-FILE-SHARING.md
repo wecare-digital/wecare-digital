@@ -189,6 +189,31 @@ it is absent from the Lambda runtime, and the Orders API is a single POST.
 config a caller actually sees and `update_function_configuration` alone changes nothing.
 It reported "verified" once against a stale alias; it now fails and names the fix.
 
+## Asking for ₹49, and renewals (2026-10-26)
+
+A file is sold per document, one access window at a time, and every payment is the commerce
+Review and Pay for that one file (server-priced, WABA1 only). There are three ways in:
+
+| Who | Where | What happens |
+|---|---|---|
+| Staff | Secure files → **Request ₹49** (or the upload checkbox) → `POST /secure-files/{fileId}/request-payment` | business-api `catalogService.requestPayment` sends Review and Pay when the owner's WhatsApp contact is already linked to the file's owner; otherwise secure-files sends the Access Vault link instead |
+| Customer | WhatsApp "Vault" (keyword or Vault catalog item) | `catalogService.start` lists their documents as unpaid, **Paid** (free link) or **Renew**; picking one sends one Review and Pay |
+| Customer | `/vault/?file=` or `/get/` | unpaid and expired files link to WhatsApp with "Vault" typed |
+
+Staff can also **Send Access Vault** (`POST /secure-files/{fileId}/send-access`) for a paid file; it
+never charges and never opens a window.
+
+Windows are paid for one at a time. The durable entitlement counts `paidWindowCount` (a missing
+counter is the one original purchase) and `accessWindowCount`; a window opens on the first download
+against an unused paid one. A renewal adds one to `paidWindowCount` on the same entitlement
+(`vault_access.grant_access`), and is sold only once every paid window has been used
+(`service_request_store.request_intent`, `VAULT_ACCESS_ACTIVE` otherwise). A Vault intent with no
+file is refused (`VAULT_FILE_REQUIRED`), because a payment bound to an order has nothing to unlock.
+
+Every file carries `accessState`: `UNPAID`, `OPEN`, `READY` (paid, not opened), `EXPIRED` or
+`PAID_UNVERIFIED` (a purchase is recorded but its entitlement could not be read: reconcile, never
+charge again).
+
 ## Paid downloads have no switch
 
 `SECURE_FILES_PAYMENT_ENABLED` and the provisioner's `--enable-payment`/`--disable-payment`

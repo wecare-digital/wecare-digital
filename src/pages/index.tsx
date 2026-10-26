@@ -261,8 +261,18 @@ const HomePage: React.FC = () => {
                 always split the line for the long word and not the short one.
                 Giving the pill its own block makes line count independent of word
                 width, so the glide is free to be as wide as it likes. */}
+            {/* "built&nbsp;for" IS ONE UNIT ON PURPOSE. At the 40px mobile rung the frame line
+                needs ~367px, so phones narrower than ~399px wrap it, and the greedy break left
+                "for" alone on its own line on the commonest widths - 360px Android and 375-393px
+                iPhone. Keeping the pair together makes those widths break after "AI," instead,
+                which is what 320px already showed; from 320px up the line count and h1 height
+                are unchanged, and 412px and up still fit one line. The one cost is a 200%-zoom
+                reflow on a 320px phone (160px layout): "built for" runs ~8px into the hero's
+                existing clip, beside the 40px "Everyday" already loses there; no page scroll.
+                A text character rather than a nowrap span: the site translator walks text nodes
+                and translates each separately, so a span would split the phrase it translates. */}
             <h1 className="home-head">
-              <span className="home-head-line">Everyday AI, built for</span>
+              <span className="home-head-line">Everyday AI, built&nbsp;for</span>
               <RotatingPill words={ CYCLE_WORDS } phase={ shown ? 'shown' : 'armed' } />
             </h1>
 

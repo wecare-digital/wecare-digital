@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Provision the shadow wecare-commerce runtime without moving production traffic.
+"""Provision and verify the wecare-commerce runtime.
 
-The commerce strangler deliberately starts as the exact proven checkout+invoice package.
-This script reuses provision_checkout's package, IAM and environment contracts, but gives the
-runtime its own function/role/log group and creates NO API Gateway routes or invoke permission.
+wecare-commerce runs the exact checkout+invoice package wecare-checkout runs. This script reuses
+provision_checkout's package, IAM and environment contracts, but gives the runtime its own
+function/role/log group. It creates NO API Gateway routes or invoke permissions.
 
-Razorpay settlement verification remains in wecare-razorpay-webhook. This runtime owns checkout
-intent + invoice/order orchestration only until a later reviewed cutover.
+Since the commerce cutover (#1554, 2026-10-25) the checkout and invoice integrations target
+`wecare-commerce:live`, so `--verify` requires the alias to be invocable by this API's routes and
+by nothing else. Razorpay settlement verification remains in wecare-razorpay-webhook.
 
 Usage:
     python scripts/provision_commerce.py --dry-run
@@ -31,8 +32,8 @@ def _retag_role_description() -> None:
     return None
 
 
-def verify_shadow(members=None, source_note: str = "") -> int:
-    """Read back only the shadow-runtime facts; it must have no API Gateway resource policy."""
+def verify_runtime(members=None, source_note: str = "") -> int:
+    """Read back the commerce runtime; its `live` alias must be invocable by this API only."""
     problems = []
 
     if not checkout.function_exists():
@@ -62,15 +63,27 @@ def verify_shadow(members=None, source_note: str = "") -> int:
     else:
         print(f"live alias: -> v{live.get('FunctionVersion')}")
 
-    # Shadow means unreachable from API Gateway. Any resource policy on :live is unexpected.
+    # The cut-over routes need API Gateway to invoke :live. Any other grant on the alias is a
+    # caller nobody provisioned, so it is reported rather than tolerated.
     statements = checkout.live_policy_statements()
-    if statements:
-        problems.append(
-            "shadow live alias has invoke/resource-policy statements; no production caller "
-            "should be able to reach it before cutover"
-        )
+    api_prefix = f"arn:aws:execute-api:{checkout.REGION}:{checkout.account_id()}:{checkout.API_ID}/"
+
+    def _from_this_api(statement: dict) -> bool:
+        principal = statement.get("Principal")
+        service = principal.get("Service") if isinstance(principal, dict) else principal
+        return (statement.get("Effect") == "Allow"
+                and service == "apigateway.amazonaws.com"
+                and statement.get("Action") == "lambda:InvokeFunction"
+                and checkout._statement_source_arn(statement).startswith(api_prefix))
+
+    foreign = sorted(str(s.get("Sid") or "?") for s in statements if not _from_this_api(s))
+    if not statements:
+        problems.append("live alias has no API Gateway invoke permission, so the cut-over "
+                        "checkout and invoice routes cannot reach it")
+    elif foreign:
+        problems.append(f"live alias grants invoke beyond {checkout.API_ID}'s routes: {foreign}")
     else:
-        print("invoke policy: none (shadow-only, expected)")
+        print(f"invoke policy: {len(statements)} statement(s), API Gateway {checkout.API_ID} only")
 
     if members is not None:
         errors, warnings = checkout.validate_members(members, checkout.ROOT)
@@ -87,7 +100,7 @@ def verify_shadow(members=None, source_note: str = "") -> int:
             print(f"  - {problem}")
         return 1
 
-    print("\ncommerce shadow provisioning verified")
+    print("\ncommerce runtime verified")
     return 0
 
 
@@ -106,15 +119,15 @@ def main(argv=None) -> int:
     except Exception as exc:
         if args.verify:
             print(f"note: comparison package unavailable: {type(exc).__name__}")
-            return verify_shadow(None, source_note=why)
+            return verify_runtime(None, source_note=why)
         raise
 
     if args.verify:
-        return verify_shadow(members, source_note=why)
+        return verify_runtime(members, source_note=why)
 
     print(f"region: {checkout.REGION}")
     print(f"source root: {why}")
-    print("mode: SHADOW (no API Gateway routes, no API invoke permission)")
+    print("mode: route owner since #1554; this script creates no routes or invoke permissions")
     print(f"dry run: {args.dry_run}\n")
 
     if checkout.report_package(zip_bytes, members, errors, warnings):

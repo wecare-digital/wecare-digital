@@ -111,6 +111,12 @@ ROUTE_KEYS = (
     "GET /ecommerce/service-prices",
 )
 
+#: The function those routes reach. The commerce cutover (#1554, 2026-10-25) moved the checkout
+#: and invoice integrations to `wecare-commerce:live`, so the routes are expected there whichever
+#: runtime this module provisions. `wecare-checkout` runs the same package and keeps its own
+#: per-route invoke permissions, so pointing the integrations back at it is the whole rollback.
+ROUTE_OWNER_FUNCTION = "wecare-commerce"
+
 #: The one anonymous route, and the per-route throttle that bounds what it can cost.
 #:
 #: WHY A THROTTLE EXISTS ON THIS ROUTE AND NOT THE OTHERS. Every other route key above requires a
@@ -251,6 +257,11 @@ def route_statement_id(route_key: str) -> str:
 def function_arn(*, qualified: bool = True) -> str:
     arn = f"arn:aws:lambda:{REGION}:{account_id()}:function:{FUNCTION_NAME}"
     return f"{arn}:{LIVE_ALIAS}" if qualified else arn
+
+
+def route_owner_arn() -> str:
+    """The `live` alias the ROUTE_KEYS integrations target since the commerce cutover."""
+    return f"arn:aws:lambda:{REGION}:{account_id()}:function:{ROUTE_OWNER_FUNCTION}:{LIVE_ALIAS}"
 
 
 def _not_found(exc: ClientError, *codes: str) -> bool:
@@ -990,8 +1001,12 @@ def find_integration(uri: str) -> str:
 
 
 def ensure_integration(dry_run: bool) -> tuple:
-    """Reuse-or-create ONE AWS_PROXY integration pointing at the alias. Never modifies another."""
-    uri = function_arn(qualified=True)
+    """Reuse-or-create ONE AWS_PROXY integration pointing at the route owner's alias.
+
+    Never modifies another. Since the cutover that is `wecare-commerce:live`; creating one for
+    `wecare-checkout` here would only leave an integration that no route uses.
+    """
+    uri = route_owner_arn()
     existing = find_integration(uri)
     if existing:
         return existing, f"reusing {existing}"
@@ -1395,7 +1410,8 @@ def verify(members: dict | None = None, source_note: str = "") -> int:
     # payment_readiness confirms the live Meta configuration matches these expectations.
 
     # Routes + integration: the half that turns a deployed function into a reachable endpoint.
-    want_uri = function_arn(qualified=True)
+    # Judged against the route owner (ROUTE_OWNER_FUNCTION), not the function being verified.
+    want_uri = route_owner_arn()
     integrations = {i["IntegrationId"]: i.get("IntegrationUri", "")
                     for i in _all_items("get_integrations")}
     routes = {r["RouteKey"]: r for r in _all_items("get_routes")}

@@ -1089,9 +1089,6 @@ PAY_MSG = {
 # Phone number ID that handles payments (Phone 1: +919330994400 / WECARE.DIGITAL)
 PAYMENT_PHONE_NUMBER_ID = 'phone-number-id-waba1-direct-1016149501586345'
 
-# WhatsApp Flow IDs
-SUBMIT_REQUEST_FLOW_ID = os.environ.get('SUBMIT_REQUEST_FLOW_ID', '1235100738173254')
-
 
 # ── Coexistence: the owner running the WhatsApp Business APP on the same number as the
 # Cloud API. NOT adopted on this deployment. Both fields are audited and counted and
@@ -2933,6 +2930,32 @@ def _process_message(
         # Non-form service doors reuse secure website experiences. No second payment path.
         if _content_plain in {'vault', 'my vault', 'request amendment', 'drop docs',
                               'shipments', 'submit request'}:
+            if (_content_plain in {'vault', 'my vault'} and whatsapp_message_id
+                    and aws_phone_number_id == PHONE_NUMBER_ID_1
+                    and os.environ.get('WHATSAPP_CATALOG_SERVICES_ENABLED', 'false').lower() == 'true'):
+                # The keyword is a signed inbound message, so it opens the same document list a
+                # Vault catalog cart opens (business-api `catalogService.start`): commerce proves
+                # the customer from this message id, and each document is offered as Paid (free
+                # link), Renew or unpaid (one server-priced Review and Pay). WABA1 only, because
+                # only WABA1 may take a payment; anything else keeps the website door below.
+                try:
+                    from lambda_utils.ecommerce import service_requests as _services
+                    _vault_variant = _services.SERVICE_VARIANT_BY_KIND[_services.VAULT]
+                    if _may_send('vault_keyword'):
+                        lambda_client.invoke(
+                            FunctionName='wecare-whatsapp-business-api:live', InvocationType='Event',
+                            Payload=json.dumps({
+                                'internalAction': 'catalogService', 'action': 'start',
+                                'lines': [{'productId': _services.SERVICE_PRODUCT_BY_VARIANT[_vault_variant],
+                                           'variantId': _vault_variant, 'quantity': 1}],
+                                'sourceMessageId': whatsapp_message_id, 'contactId': contact_id,
+                                'senderPhone': sender_phone,
+                                'phoneNumberId': aws_phone_number_id}).encode())
+                    return
+                except Exception as error:  # noqa: BLE001 - fall back to the website door
+                    logger.warning(json.dumps({'event': 'vault_keyword_list_unavailable',
+                                               'errorType': type(error).__name__,
+                                               'requestId': request_id}))
             service_doors = {
                 'vault': ('Vault', '/vault/', 'Access documents linked to your verified account.'),
                 'my vault': ('Vault', '/vault/', 'Access documents linked to your verified account.'),
@@ -5687,69 +5710,9 @@ def _send_unreadable_hint(contact_id: str, phone_number_id: str, now: int,
     return True
 
 
-def _send_submit_request_flow(contact_id: str, phone_number_id: str, sender_phone: str, request_id: str, flow_config: Dict = None) -> None:
-    """
-    Send the Submit Request WhatsApp Flow to the user.
-    Passes sender's phone number so the endpoint can fetch their orders.
-    Message content is configurable via flow_config (from SystemConfigTable).
-    """
-    try:
-        # Resolve flow ID: config override > env var
-        flow_id = (flow_config or {}).get('flowId', '') or SUBMIT_REQUEST_FLOW_ID
-        msg = (flow_config or {}).get('message', {})
-
-        # Encode phone in flow_token so the flow-data endpoint can extract it
-        # during INIT (data_exchange mode doesn't pass custom data in the message)
-        # Format: {prefix}-{uuid}-waba-{phone_number_id_suffix}-ph-{sender_phone}
-        # The waba segment tells the flow-data endpoint which WABA phone sent this flow
-        _waba_suffix = '1' if phone_number_id == PHONE_NUMBER_ID_1 else '2'
-        flow_token = f'sr-{uuid.uuid4()}-waba-{_waba_suffix}-ph-{sender_phone}'
-        interactive_data = {
-            'body': msg.get('body', '\U0001f447Please use the customer-service option below. Once we receive it, we\u2019ll review it and follow up if needed.'),
-            'footer': msg.get('footer', 'WECARE.DIGITAL'),
-            'flowId': flow_id,
-            'flowCta': msg.get('flowCta', 'Submit Request'),
-            'flowAction': 'data_exchange',
-            'flowToken': flow_token,
-        }
-        # Only include header if explicitly set in config
-        header_val = msg.get('header', '')
-        if header_val:
-            interactive_data['header'] = header_val
-
-        payload = {
-            'body': json.dumps({
-                'contactId': contact_id,
-                'phoneNumberId': phone_number_id,
-                'isInteractive': True,
-                'interactiveType': 'flow',
-                'interactiveData': interactive_data,
-            })
-        }
-
-        response = lambda_client.invoke(
-            FunctionName=OUTBOUND_WHATSAPP_FUNCTION,
-            InvocationType='Event',
-            Payload=json.dumps(payload)
-        )
-
-        logger.info(json.dumps({
-            'event': 'submit_request_flow_sent',
-            'contactId': mask_contact_id(contact_id),
-            'senderPhone': mask_phone(sender_phone),
-            'flowId': flow_id,
-            'flowToken': mask_flow_token(flow_token),
-            'statusCode': response.get('StatusCode'),
-            'requestId': request_id
-        }))
-
-    except Exception as e:
-        logger.error(json.dumps({
-            'event': 'submit_request_flow_error',
-            'contactId': mask_contact_id(contact_id),
-            'error': str(e),
-            'requestId': request_id
-        }))
+# `_send_submit_request_flow` was removed on 2026-10-26. It had no caller (the keyword door uses
+# `_send_generic_flow`, and Submit Request answers with its website link), and its default Flow
+# 1235100738173254 was an unused legacy draft.
 
 
 F001_CONTRACT = canonical_contract('subscribe')
@@ -7192,10 +7155,10 @@ DEFAULT_FLOW_TRIGGERS = {
             # Row title in the one menu
             '\U0001f4cb new request',
         ],
-        # Canonical: WD_Submit_Request_Paid_v1, PUBLISHED on WABA 1 per the 2026-10-09 readback.
-        # The previous literal pointed at an unused DRAFT (01.WD_SR_v3) whose "PUBLISHED" comment
-        # was wrong, so this door opened the wrong flow. Now resolved from canonical_flows.
-        # Phone 2 (WABA 2) cannot send WABA 1 flows — it uses CTA URL fallback automatically.
+        # Canonical: WD_Submit_Request_Paid_v1, DEPRECATED on Meta since 2026-10-25. It has no
+        # PUBLISHED FlowRegistry row, so `flow_launch.meta_liveness` answers this door with the
+        # website link instead of a Flow Meta would refuse. Phone 2 (WABA 2) cannot send WABA 1
+        # flows — it uses the same CTA URL fallback.
         'flowId': canonical_flow_id('submit_request'),
         'entryMode': 'keyword_interactive',
         'message': {
@@ -7237,7 +7200,8 @@ DEFAULT_FLOW_TRIGGERS = {
             # Row title in the one menu
             'change a request', '\u270f\ufe0f change a request',
         ],
-        # Canonical: 03.WD_Amend_Request (3678132465672138), DRAFT (retained) on WABA 1.
+        # No Flow: the former draft 03.WD_Amend_Request no longer exists on Meta, so
+        # canonical_flow_id('amend_request') is None and this door answers with its website link.
         'flowId': canonical_flow_id('amend_request'),
         'entryMode': 'keyword_interactive',
         'message': {
@@ -7294,8 +7258,8 @@ DEFAULT_FLOW_TRIGGERS = {
             # Row title in the one menu
             'send documents', '\U0001f4c4 send documents',
         ],
-        # Canonical: WD_Drop_Documents, DRAFT (retained) on WABA 1. The staff menu previously
-        # showed WD_Drop_Docs_Design_v1 (an unused design-duplicate draft) — not canonical.
+        # No Flow: the former draft WD_Drop_Documents no longer exists on Meta, so
+        # canonical_flow_id('drop_docs') is None and this door answers with its website link.
         'flowId': canonical_flow_id('drop_docs'),
         'entryMode': 'keyword_interactive',
         'message': {
