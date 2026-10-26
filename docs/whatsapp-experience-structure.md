@@ -181,7 +181,7 @@ flows on WABA2, or accept that the menu degrades to links there. Do not paper ov
 | Catalog cart | native checkout | `order` | `_handle_cart_order` (`:5154`) |
 | New-thread open | `request_welcome` webhook | `request_welcome` | main menu — **currently never fires**, `enable_welcome_message: false` on both numbers |
 | Brand-new contact | first ever text/media | any | main menu, once, then `welcomeSent` |
-| Post-payment | Razorpay `payment.captured` | order_status `processing` (WhatsApp rail), then `wecare_default_invoice_image_template` | the invoice's Leave Review FLOW button (F002) |
+| Post-payment | Razorpay `payment.captured` | paid `wecare_default_invoice_image_template` (plus optional View Order CTA in-window) | invoice receipt + Leave Review FLOW button; fulfilment stays internal |
 
 ---
 
@@ -381,18 +381,15 @@ Four entry points converge on one pipeline:
                                        └─► razorpay-webhook  payment.captured
                                              • HMAC verify + provider readback, fails closed
                                              • ONE order, ONE paid GST invoice (wecare-commerce)
-                                             • Meta order_status `processing` (WhatsApp-rail
-                                               orders only): interactive inside the 24-hour
-                                               window, wecare_order_status_v3 outside it, else
-                                               deferred as pendingOrderStatus on the invoice;
-                                               bounded, so it never holds back the receipt
+                                             • internal OrderTable fulfilment starts at processing
+                                               (no WhatsApp order-status message or retry)
                                              • then wecare_default_invoice_image_template, once:
                                                the PNG header + Leave Review FLOW button carrying
                                                an order-bound review token (REVIEWTOKEN#)
 ```
 
-Website (Razorpay Standard Checkout) orders get the same invoice template on the verified number;
-they get no order_status, because they never had a Meta order_details message. One basket can
+Website and WhatsApp-paid orders use the same internal fulfilment projection. Neither rail sends
+WhatsApp order-status messages. One basket can
 hold only one live payment across both rails (shared CARTPAYMENT#/CARTBASKET#/CARTNARROW# rows).
 A dropped capture webhook is recovered by the stale-attempt sweep on the 5-minute
 `wecare-commerce-customer-links` schedule.
@@ -458,7 +455,7 @@ Meta's three `sample_*` templates and no business template):
 |---|---|---|
 | `wecare_whatapp_native_pay_template` | UTILITY, `ORDER_DETAILS` button | checkout, invoice-engine, outbound (`WA_PAY_TEMPLATE`) |
 | `wecare_default_invoice_image_template` | UTILITY, invoice image header, Leave Review Flow button | invoice-engine, checkout (`WA_INVOICE_TEMPLATE`) |
-| `wecare_order_status_v3` | UTILITY / `ORDER_STATUS` (approved 2026-10-25) | outbound, order_status outside the 24-hour window |
+| `wecare_order_status_v3` | UTILITY / `ORDER_STATUS` (historical) | **retired; runtime refuses with ORDER_STATUS_DISABLED** |
 | `wecare_leave_review` | UTILITY, Leave Review Flow button | manual Inbox send only; never after a payment |
 | `wecare_default_download` | UTILITY, URL button to `/vault/?file=` | outbound download link |
 | `wecare_location_share_pin` | UTILITY, LOCATION header | outbound location share |
