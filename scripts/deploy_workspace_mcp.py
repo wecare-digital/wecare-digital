@@ -43,7 +43,8 @@ def main():
     if hashlib.sha256(archive.read_bytes()).hexdigest() != manifest["sha256"]: raise SystemExit("Bundle checksum mismatch")
     # A clean feature tree is buildable, but activation belongs to the later merge.
     session.client("s3").upload_file(str(archive), manifest["s3Bucket"], manifest["s3Key"])
-    template = template_bytes.decode()
+    # Compact transport only; the manifest still binds the exact source bytes.
+    template = json.dumps(json.loads(template_bytes), separators=(',', ':'))
     cloudformation.validate_template(TemplateBody=template)
     exists = True
     previous_parameters = set()
@@ -54,7 +55,9 @@ def main():
         if "does not exist" not in str(exc): raise
         exists = False
     parameters = [{"ParameterKey": k, "ParameterValue": v} for k, v in manifest["parameters"].items()]
-    for name in ("ChatRedirectUri", "ChatDiscoveryEnabled"):
+    for name in ("ChatRedirectUri", "ChatDiscoveryEnabled", "SeparateProvidersEnabled",
+            'GoogleCloudRedirectUri', 'GoogleAdsRedirectUri', 'PlivoRedirectUri', 'SinchIndiaRedirectUri',
+            'ProviderConfigRevision'):
         if name not in manifest["parameters"] and name in previous_parameters:
             parameters.append({"ParameterKey": name, "UsePreviousValue": True})
     cloudformation.create_change_set(StackName=manifest["stack"], ChangeSetName=change_set,

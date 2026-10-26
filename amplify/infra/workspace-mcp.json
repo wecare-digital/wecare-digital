@@ -33,6 +33,49 @@
         "true"
       ],
       "Description": "Provision public OAuth metadata before exact ChatGPT callback setup; no anonymous tools."
+    },
+    "SeparateProvidersEnabled": {
+      "Type": "String",
+      "Default": "false",
+      "AllowedValues": [
+        "false",
+        "true"
+      ],
+      "Description": "Expose separate provider endpoints with fixed provider tools and resource-bound OAuth."
+    },
+    "GoogleCloudRedirectUri": {
+      "Type": "String",
+      "Default": "",
+      "MaxLength": 256,
+      "AllowedPattern": "^$|^https://chatgpt\\.com/connector/oauth/[A-Za-z0-9_-]{1,256}$",
+      "Description": "Exact ChatGPT callback for the separate google-cloud plugin; empty keeps its OAuth disabled."
+    },
+    "GoogleAdsRedirectUri": {
+      "Type": "String",
+      "Default": "",
+      "MaxLength": 256,
+      "AllowedPattern": "^$|^https://chatgpt\\.com/connector/oauth/[A-Za-z0-9_-]{1,256}$",
+      "Description": "Exact ChatGPT callback for the separate google-ads plugin; empty keeps its OAuth disabled."
+    },
+    "PlivoRedirectUri": {
+      "Type": "String",
+      "Default": "",
+      "MaxLength": 256,
+      "AllowedPattern": "^$|^https://chatgpt\\.com/connector/oauth/[A-Za-z0-9_-]{1,256}$",
+      "Description": "Exact ChatGPT callback for the separate plivo plugin; empty keeps its OAuth disabled."
+    },
+    "SinchIndiaRedirectUri": {
+      "Type": "String",
+      "Default": "",
+      "MaxLength": 256,
+      "AllowedPattern": "^$|^https://chatgpt\\.com/connector/oauth/[A-Za-z0-9_-]{1,256}$",
+      "Description": "Exact ChatGPT callback for the separate sinch plugin; empty keeps its OAuth disabled."
+    },
+    "ProviderConfigRevision": {
+      "Type": "String",
+      "Default": "",
+      "AllowedPattern": "^$|^[a-f0-9]{64}$",
+      "Description": "Builder checksum of separate-provider callback configuration; forces immutable Lambda version replacement."
     }
   },
   "Resources": {
@@ -302,6 +345,15 @@
                 },
                 ""
               ]
+            },
+            "PROVIDER_CHAT_ENDPOINTS": {
+              "Fn::If": [
+                "SeparateProvidersProvisioned",
+                {
+                  "Fn::Sub": "{\"google-cloud\":{\"apiId\":\"${GoogleCloudApi}\",\"base\":\"${GoogleCloudApi.ApiEndpoint}\",\"callback\":\"${GoogleCloudRedirectUri}\"},\"google-ads\":{\"apiId\":\"${GoogleAdsApi}\",\"base\":\"${GoogleAdsApi.ApiEndpoint}\",\"callback\":\"${GoogleAdsRedirectUri}\"},\"plivo\":{\"apiId\":\"${PlivoApi}\",\"base\":\"${PlivoApi.ApiEndpoint}\",\"callback\":\"${PlivoRedirectUri}\"},\"sinch\":{\"apiId\":\"${SinchIndiaApi}\",\"base\":\"${SinchIndiaApi.ApiEndpoint}\",\"callback\":\"${SinchIndiaRedirectUri}\"}}"
+                },
+                "{}"
+              ]
             }
           }
         }
@@ -319,14 +371,27 @@
           "Ref": "CodeSha256"
         },
         "Description": {
-          "Fn::If": [
-            "ChatEnabled",
-            {
-              "Ref": "ChatRedirectUri"
-            },
-            {
-              "Fn::Sub": "Administrative MCP; Chat discovery ${ChatDiscoveryEnabled}"
-            }
+          "Fn::Join": [
+            "|",
+            [
+              {
+                "Fn::If": [
+                  "ChatEnabled",
+                  {
+                    "Ref": "ChatRedirectUri"
+                  },
+                  {
+                    "Fn::Sub": "Administrative MCP; Chat discovery ${ChatDiscoveryEnabled}"
+                  }
+                ]
+              },
+              {
+                "Ref": "SeparateProvidersEnabled"
+              },
+              {
+                "Ref": "ProviderConfigRevision"
+              }
+            ]
           ]
         }
       }
@@ -547,6 +612,50 @@
         "CallbackURLs": [
           {
             "Ref": "ChatRedirectUri"
+          },
+          {
+            "Fn::If": [
+              "GoogleCloudCallbackConfigured",
+              {
+                "Ref": "GoogleCloudRedirectUri"
+              },
+              {
+                "Ref": "AWS::NoValue"
+              }
+            ]
+          },
+          {
+            "Fn::If": [
+              "GoogleAdsCallbackConfigured",
+              {
+                "Ref": "GoogleAdsRedirectUri"
+              },
+              {
+                "Ref": "AWS::NoValue"
+              }
+            ]
+          },
+          {
+            "Fn::If": [
+              "PlivoCallbackConfigured",
+              {
+                "Ref": "PlivoRedirectUri"
+              },
+              {
+                "Ref": "AWS::NoValue"
+              }
+            ]
+          },
+          {
+            "Fn::If": [
+              "SinchIndiaCallbackConfigured",
+              {
+                "Ref": "SinchIndiaRedirectUri"
+              },
+              {
+                "Ref": "AWS::NoValue"
+              }
+            ]
           }
         ],
         "EnableTokenRevocation": true,
@@ -788,6 +897,938 @@
           "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ChatApi}/$default/*/mcp"
         }
       }
+    },
+    "GoogleCloudApi": {
+      "Type": "AWS::ApiGatewayV2::Api",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "Name": "wecare-google-cloud-mcp",
+        "ProtocolType": "HTTP"
+      }
+    },
+    "GoogleCloudStage": {
+      "Type": "AWS::ApiGatewayV2::Stage",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "GoogleCloudApi"
+        },
+        "StageName": "$default",
+        "AutoDeploy": true,
+        "DefaultRouteSettings": {
+          "ThrottlingBurstLimit": 5,
+          "ThrottlingRateLimit": 2
+        }
+      }
+    },
+    "GoogleCloudIntegration": {
+      "Type": "AWS::ApiGatewayV2::Integration",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "GoogleCloudApi"
+        },
+        "IntegrationType": "AWS_PROXY",
+        "IntegrationUri": {
+          "Ref": "Alias"
+        },
+        "PayloadFormatVersion": "2.0",
+        "TimeoutInMillis": 29000
+      }
+    },
+    "GoogleCloudResourceMetadataRoute": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "GoogleCloudApi"
+        },
+        "RouteKey": "GET /.well-known/oauth-protected-resource",
+        "AuthorizationType": "NONE",
+        "Target": {
+          "Fn::Join": [
+            "",
+            [
+              "integrations/",
+              {
+                "Ref": "GoogleCloudIntegration"
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "GoogleCloudResourceMetadataPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "Alias"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${GoogleCloudApi}/$default/GET/.well-known/oauth-protected-resource"
+        }
+      }
+    },
+    "GoogleCloudServerMetadataRoute": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "GoogleCloudApi"
+        },
+        "RouteKey": "GET /.well-known/oauth-authorization-server",
+        "AuthorizationType": "NONE",
+        "Target": {
+          "Fn::Join": [
+            "",
+            [
+              "integrations/",
+              {
+                "Ref": "GoogleCloudIntegration"
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "GoogleCloudServerMetadataPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "Alias"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${GoogleCloudApi}/$default/GET/.well-known/oauth-authorization-server"
+        }
+      }
+    },
+    "GoogleCloudAuthorizeRoute": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "GoogleCloudApi"
+        },
+        "RouteKey": "GET /authorize",
+        "AuthorizationType": "NONE",
+        "Target": {
+          "Fn::Join": [
+            "",
+            [
+              "integrations/",
+              {
+                "Ref": "GoogleCloudIntegration"
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "GoogleCloudAuthorizePermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "Alias"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${GoogleCloudApi}/$default/GET/authorize"
+        }
+      }
+    },
+    "GoogleCloudTokenRoute": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "GoogleCloudApi"
+        },
+        "RouteKey": "POST /token",
+        "AuthorizationType": "NONE",
+        "Target": {
+          "Fn::Join": [
+            "",
+            [
+              "integrations/",
+              {
+                "Ref": "GoogleCloudIntegration"
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "GoogleCloudTokenPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "Alias"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${GoogleCloudApi}/$default/POST/token"
+        }
+      }
+    },
+    "GoogleCloudMcpRoute": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "GoogleCloudApi"
+        },
+        "RouteKey": "ANY /mcp",
+        "AuthorizationType": "NONE",
+        "Target": {
+          "Fn::Join": [
+            "",
+            [
+              "integrations/",
+              {
+                "Ref": "GoogleCloudIntegration"
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "GoogleCloudMcpPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "Alias"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${GoogleCloudApi}/$default/*/mcp"
+        }
+      }
+    },
+    "GoogleAdsApi": {
+      "Type": "AWS::ApiGatewayV2::Api",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "Name": "wecare-google-ads-mcp",
+        "ProtocolType": "HTTP"
+      }
+    },
+    "GoogleAdsStage": {
+      "Type": "AWS::ApiGatewayV2::Stage",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "GoogleAdsApi"
+        },
+        "StageName": "$default",
+        "AutoDeploy": true,
+        "DefaultRouteSettings": {
+          "ThrottlingBurstLimit": 5,
+          "ThrottlingRateLimit": 2
+        }
+      }
+    },
+    "GoogleAdsIntegration": {
+      "Type": "AWS::ApiGatewayV2::Integration",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "GoogleAdsApi"
+        },
+        "IntegrationType": "AWS_PROXY",
+        "IntegrationUri": {
+          "Ref": "Alias"
+        },
+        "PayloadFormatVersion": "2.0",
+        "TimeoutInMillis": 29000
+      }
+    },
+    "GoogleAdsResourceMetadataRoute": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "GoogleAdsApi"
+        },
+        "RouteKey": "GET /.well-known/oauth-protected-resource",
+        "AuthorizationType": "NONE",
+        "Target": {
+          "Fn::Join": [
+            "",
+            [
+              "integrations/",
+              {
+                "Ref": "GoogleAdsIntegration"
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "GoogleAdsResourceMetadataPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "Alias"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${GoogleAdsApi}/$default/GET/.well-known/oauth-protected-resource"
+        }
+      }
+    },
+    "GoogleAdsServerMetadataRoute": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "GoogleAdsApi"
+        },
+        "RouteKey": "GET /.well-known/oauth-authorization-server",
+        "AuthorizationType": "NONE",
+        "Target": {
+          "Fn::Join": [
+            "",
+            [
+              "integrations/",
+              {
+                "Ref": "GoogleAdsIntegration"
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "GoogleAdsServerMetadataPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "Alias"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${GoogleAdsApi}/$default/GET/.well-known/oauth-authorization-server"
+        }
+      }
+    },
+    "GoogleAdsAuthorizeRoute": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "GoogleAdsApi"
+        },
+        "RouteKey": "GET /authorize",
+        "AuthorizationType": "NONE",
+        "Target": {
+          "Fn::Join": [
+            "",
+            [
+              "integrations/",
+              {
+                "Ref": "GoogleAdsIntegration"
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "GoogleAdsAuthorizePermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "Alias"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${GoogleAdsApi}/$default/GET/authorize"
+        }
+      }
+    },
+    "GoogleAdsTokenRoute": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "GoogleAdsApi"
+        },
+        "RouteKey": "POST /token",
+        "AuthorizationType": "NONE",
+        "Target": {
+          "Fn::Join": [
+            "",
+            [
+              "integrations/",
+              {
+                "Ref": "GoogleAdsIntegration"
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "GoogleAdsTokenPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "Alias"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${GoogleAdsApi}/$default/POST/token"
+        }
+      }
+    },
+    "GoogleAdsMcpRoute": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "GoogleAdsApi"
+        },
+        "RouteKey": "ANY /mcp",
+        "AuthorizationType": "NONE",
+        "Target": {
+          "Fn::Join": [
+            "",
+            [
+              "integrations/",
+              {
+                "Ref": "GoogleAdsIntegration"
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "GoogleAdsMcpPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "Alias"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${GoogleAdsApi}/$default/*/mcp"
+        }
+      }
+    },
+    "PlivoApi": {
+      "Type": "AWS::ApiGatewayV2::Api",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "Name": "wecare-plivo-mcp",
+        "ProtocolType": "HTTP"
+      }
+    },
+    "PlivoStage": {
+      "Type": "AWS::ApiGatewayV2::Stage",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "PlivoApi"
+        },
+        "StageName": "$default",
+        "AutoDeploy": true,
+        "DefaultRouteSettings": {
+          "ThrottlingBurstLimit": 5,
+          "ThrottlingRateLimit": 2
+        }
+      }
+    },
+    "PlivoIntegration": {
+      "Type": "AWS::ApiGatewayV2::Integration",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "PlivoApi"
+        },
+        "IntegrationType": "AWS_PROXY",
+        "IntegrationUri": {
+          "Ref": "Alias"
+        },
+        "PayloadFormatVersion": "2.0",
+        "TimeoutInMillis": 29000
+      }
+    },
+    "PlivoResourceMetadataRoute": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "PlivoApi"
+        },
+        "RouteKey": "GET /.well-known/oauth-protected-resource",
+        "AuthorizationType": "NONE",
+        "Target": {
+          "Fn::Join": [
+            "",
+            [
+              "integrations/",
+              {
+                "Ref": "PlivoIntegration"
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "PlivoResourceMetadataPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "Alias"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PlivoApi}/$default/GET/.well-known/oauth-protected-resource"
+        }
+      }
+    },
+    "PlivoServerMetadataRoute": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "PlivoApi"
+        },
+        "RouteKey": "GET /.well-known/oauth-authorization-server",
+        "AuthorizationType": "NONE",
+        "Target": {
+          "Fn::Join": [
+            "",
+            [
+              "integrations/",
+              {
+                "Ref": "PlivoIntegration"
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "PlivoServerMetadataPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "Alias"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PlivoApi}/$default/GET/.well-known/oauth-authorization-server"
+        }
+      }
+    },
+    "PlivoAuthorizeRoute": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "PlivoApi"
+        },
+        "RouteKey": "GET /authorize",
+        "AuthorizationType": "NONE",
+        "Target": {
+          "Fn::Join": [
+            "",
+            [
+              "integrations/",
+              {
+                "Ref": "PlivoIntegration"
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "PlivoAuthorizePermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "Alias"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PlivoApi}/$default/GET/authorize"
+        }
+      }
+    },
+    "PlivoTokenRoute": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "PlivoApi"
+        },
+        "RouteKey": "POST /token",
+        "AuthorizationType": "NONE",
+        "Target": {
+          "Fn::Join": [
+            "",
+            [
+              "integrations/",
+              {
+                "Ref": "PlivoIntegration"
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "PlivoTokenPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "Alias"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PlivoApi}/$default/POST/token"
+        }
+      }
+    },
+    "PlivoMcpRoute": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "PlivoApi"
+        },
+        "RouteKey": "ANY /mcp",
+        "AuthorizationType": "NONE",
+        "Target": {
+          "Fn::Join": [
+            "",
+            [
+              "integrations/",
+              {
+                "Ref": "PlivoIntegration"
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "PlivoMcpPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "Alias"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PlivoApi}/$default/*/mcp"
+        }
+      }
+    },
+    "SinchIndiaApi": {
+      "Type": "AWS::ApiGatewayV2::Api",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "Name": "wecare-sinch-mcp",
+        "ProtocolType": "HTTP"
+      }
+    },
+    "SinchIndiaStage": {
+      "Type": "AWS::ApiGatewayV2::Stage",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "SinchIndiaApi"
+        },
+        "StageName": "$default",
+        "AutoDeploy": true,
+        "DefaultRouteSettings": {
+          "ThrottlingBurstLimit": 5,
+          "ThrottlingRateLimit": 2
+        }
+      }
+    },
+    "SinchIndiaIntegration": {
+      "Type": "AWS::ApiGatewayV2::Integration",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "SinchIndiaApi"
+        },
+        "IntegrationType": "AWS_PROXY",
+        "IntegrationUri": {
+          "Ref": "Alias"
+        },
+        "PayloadFormatVersion": "2.0",
+        "TimeoutInMillis": 29000
+      }
+    },
+    "SinchIndiaResourceMetadataRoute": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "SinchIndiaApi"
+        },
+        "RouteKey": "GET /.well-known/oauth-protected-resource",
+        "AuthorizationType": "NONE",
+        "Target": {
+          "Fn::Join": [
+            "",
+            [
+              "integrations/",
+              {
+                "Ref": "SinchIndiaIntegration"
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "SinchIndiaResourceMetadataPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "Alias"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SinchIndiaApi}/$default/GET/.well-known/oauth-protected-resource"
+        }
+      }
+    },
+    "SinchIndiaServerMetadataRoute": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "SinchIndiaApi"
+        },
+        "RouteKey": "GET /.well-known/oauth-authorization-server",
+        "AuthorizationType": "NONE",
+        "Target": {
+          "Fn::Join": [
+            "",
+            [
+              "integrations/",
+              {
+                "Ref": "SinchIndiaIntegration"
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "SinchIndiaServerMetadataPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "Alias"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SinchIndiaApi}/$default/GET/.well-known/oauth-authorization-server"
+        }
+      }
+    },
+    "SinchIndiaAuthorizeRoute": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "SinchIndiaApi"
+        },
+        "RouteKey": "GET /authorize",
+        "AuthorizationType": "NONE",
+        "Target": {
+          "Fn::Join": [
+            "",
+            [
+              "integrations/",
+              {
+                "Ref": "SinchIndiaIntegration"
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "SinchIndiaAuthorizePermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "Alias"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SinchIndiaApi}/$default/GET/authorize"
+        }
+      }
+    },
+    "SinchIndiaTokenRoute": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "SinchIndiaApi"
+        },
+        "RouteKey": "POST /token",
+        "AuthorizationType": "NONE",
+        "Target": {
+          "Fn::Join": [
+            "",
+            [
+              "integrations/",
+              {
+                "Ref": "SinchIndiaIntegration"
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "SinchIndiaTokenPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "Alias"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SinchIndiaApi}/$default/POST/token"
+        }
+      }
+    },
+    "SinchIndiaMcpRoute": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "ApiId": {
+          "Ref": "SinchIndiaApi"
+        },
+        "RouteKey": "ANY /mcp",
+        "AuthorizationType": "NONE",
+        "Target": {
+          "Fn::Join": [
+            "",
+            [
+              "integrations/",
+              {
+                "Ref": "SinchIndiaIntegration"
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "SinchIndiaMcpPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Condition": "SeparateProvidersProvisioned",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "Alias"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SinchIndiaApi}/$default/*/mcp"
+        }
+      }
     }
   },
   "Outputs": {
@@ -830,6 +1871,30 @@
     "ChatScope": {
       "Condition": "ChatEnabled",
       "Value": "aws.cognito.signin.user.admin"
+    },
+    "GoogleCloudEndpoint": {
+      "Condition": "SeparateProvidersProvisioned",
+      "Value": {
+        "Fn::Sub": "${GoogleCloudApi.ApiEndpoint}/mcp"
+      }
+    },
+    "GoogleAdsEndpoint": {
+      "Condition": "SeparateProvidersProvisioned",
+      "Value": {
+        "Fn::Sub": "${GoogleAdsApi.ApiEndpoint}/mcp"
+      }
+    },
+    "PlivoEndpoint": {
+      "Condition": "SeparateProvidersProvisioned",
+      "Value": {
+        "Fn::Sub": "${PlivoApi.ApiEndpoint}/mcp"
+      }
+    },
+    "SinchIndiaEndpoint": {
+      "Condition": "SeparateProvidersProvisioned",
+      "Value": {
+        "Fn::Sub": "${SinchIndiaApi.ApiEndpoint}/mcp"
+      }
     }
   },
   "Metadata": {
@@ -869,6 +1934,97 @@
               "Ref": "ChatDiscoveryEnabled"
             },
             "true"
+          ]
+        }
+      ]
+    },
+    "SeparateProvidersProvisioned": {
+      "Fn::And": [
+        {
+          "Condition": "ChatEnabled"
+        },
+        {
+          "Fn::Equals": [
+            {
+              "Ref": "SeparateProvidersEnabled"
+            },
+            "true"
+          ]
+        }
+      ]
+    },
+    "GoogleCloudCallbackConfigured": {
+      "Fn::And": [
+        {
+          "Condition": "SeparateProvidersProvisioned"
+        },
+        {
+          "Fn::Not": [
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "GoogleCloudRedirectUri"
+                },
+                ""
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "GoogleAdsCallbackConfigured": {
+      "Fn::And": [
+        {
+          "Condition": "SeparateProvidersProvisioned"
+        },
+        {
+          "Fn::Not": [
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "GoogleAdsRedirectUri"
+                },
+                ""
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "PlivoCallbackConfigured": {
+      "Fn::And": [
+        {
+          "Condition": "SeparateProvidersProvisioned"
+        },
+        {
+          "Fn::Not": [
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "PlivoRedirectUri"
+                },
+                ""
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "SinchIndiaCallbackConfigured": {
+      "Fn::And": [
+        {
+          "Condition": "SeparateProvidersProvisioned"
+        },
+        {
+          "Fn::Not": [
+            {
+              "Fn::Equals": [
+                {
+                  "Ref": "SinchIndiaRedirectUri"
+                },
+                ""
+              ]
+            }
           ]
         }
       ]
