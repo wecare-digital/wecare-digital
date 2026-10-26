@@ -8,10 +8,9 @@
     with `deliveryConfirmed` -> ONE PaymentAttempt + PAYREF# -> wecare-outbound-whatsapp
     -> `wecare_whatapp_native_pay_template` (button sub_type order_details, payment_gateway /
     Razorpay / WECAREDIGITAL) -> Razorpay `payment.captured` -> wecare-razorpay-webhook
-    -> ONE order + ONE paid invoice
-    -> `wecare_order_status_v3` processing, then completed (template-only, ordered/idempotent)
+    -> ONE order (internal fulfilment starts at processing) + ONE paid invoice
+    -> ZERO structured WhatsApp order_status messages
     -> `wecare_default_invoice_image_template` (its FLOW button carries an order-bound review token).
-    Invoice delivery never depends on an order_status send succeeding.
     -> the order page (`/orders/?o=<orderNumber>`, checkout's `order` action): the delivery address
     frozen at checkout, the reviewed lines and the paid status, to the order's owner only.
     Section 9d covers the website prepare's own address gate.
@@ -517,7 +516,7 @@ def run(root: Path) -> int:
     os.environ["CUSTOMER_POOL_ID"] = pool_id
     _create_tables()
 
-    from lambda_utils import contact_key, wa_internal_event  # noqa: E402
+    from lambda_utils import contact_key, template_media, wa_internal_event  # noqa: E402
     from lambda_utils.ecommerce import checkout_pricing, default_coupon, meta_catalog_sync as mcs
     from lambda_utils.ecommerce import whatsapp_basket
     from lambda_utils.integrations import meta_payment_binding, razorpay_verify
@@ -535,6 +534,14 @@ def run(root: Path) -> int:
     # `import invoice_engine` resolves to it and the seam patched below is the one that runs.
     invoice_engine = _load("invoice_engine",
                            functions / "payments" / "invoice-engine" / "handler.py")
+
+    check("HDR", "large payment header and small item image use separate approved assets",
+          template_media.PAYMENT_TEMPLATE_HEADER.endswith(
+              "secure/d/public/whatsapp/wa-tpl/whatsapp-header.png")
+          and template_media.ORDER_ITEM_IMAGE.endswith(
+              "secure/d/public/whatsapp/wa-tpl/wecare-catalog-icon.png"),
+          {"header": template_media.PAYMENT_TEMPLATE_HEADER,
+           "item": template_media.ORDER_ITEM_IMAGE})
 
     # wecare-commerce and wecare-checkout are two functions running ONE package (the checkout
     # handler + its packaged invoice engine). Production callers address them by name: inbound's
@@ -1261,47 +1268,22 @@ def run(root: Path) -> int:
             check("INV", "the invoice template went to the buyer's number", delivered_to == [alice["phone"]], delivered_to)
         check("R17", "exactly ONE wecare_default_invoice_image_template send",
               len(counts["invoice_sends"]) - sends_before == 1, len(counts["invoice_sends"]) - sends_before)
-        # R18: payment collection is a template-only ordered chain:
-        # pending -> processing ("Payment received.") -> completed ("Payment complete.") -> invoice.
+        # R18: payment capture never emits a structured WhatsApp fulfilment status. The
+        # customer receives the statutory invoice and (for this cart flow) one order-page link.
         capture_sends = W.since(mark, "meta_sends")
-        status_idx = [i for i, s in enumerate(capture_sends)
-                      if (s["payload"].get("template") or {}).get("name") == ORDER_STATUS_TEMPLATE]
-        invoice_idx = [i for i, s in enumerate(capture_sends)
-                       if (s["payload"].get("template") or {}).get("name") == INVOICE_TEMPLATE]
+        invoice_idx = [i for i, send in enumerate(capture_sends)
+                       if (send["payload"].get("template") or {}).get("name") == INVOICE_TEMPLATE]
         status_traffic = _order_status_traffic(W.since(mark, "invocations"), capture_sends)
-        check("R18", "payment completion sent exactly TWO order-status templates",
-              status_traffic.count("meta:order_status_template") == 2
-              and status_traffic.count("meta:interactive_order_status") == 0,
-              status_traffic)
-
-        status_values = []
-        status_refs = []
-        for i in status_idx:
-            tpl = capture_sends[i]["payload"].get("template") or {}
-            for comp in tpl.get("components") or []:
-                if comp.get("type") != "order_status":
-                    continue
-                for param in comp.get("parameters") or []:
-                    osd = param.get("order_status") or {}
-                    status_values.append(((osd.get("order") or {}).get("status")))
-                    status_refs.append(osd.get("reference_id"))
-        check("R18", "status templates are ordered processing -> completed on the same reference",
-              status_values == ["processing", "completed"]
-              and status_refs == [reference, reference],
-              {"statuses": status_values, "refs": status_refs})
-        check("R18", "both order-status templates went out BEFORE the invoice template",
-              len(status_idx) == 2 and bool(invoice_idx)
-              and status_idx[0] < status_idx[1] < invoice_idx[0],
-              {"order_status": status_idx, "invoice": invoice_idx})
+        check("R18", "payment completion sent ZERO order-status messages",
+              status_traffic == [], status_traffic)
 
         post_capture_kinds = [
-            "invoice" if (s["payload"].get("template") or {}).get("name") == INVOICE_TEMPLATE
-            else "order_status" if (s["payload"].get("template") or {}).get("name") == ORDER_STATUS_TEMPLATE
-            else "order_page" if (s["payload"].get("interactive") or {}).get("type") == "cta_url"
-            else f"OTHER:{s['payload'].get('type')}:{(s['payload'].get('template') or {}).get('name', '')}"
-            for s in capture_sends]
-        check("R17", "the capture sent two status templates, one invoice template, then the order page",
-              post_capture_kinds == ["order_status", "order_status", "invoice", "order_page"], post_capture_kinds)
+            "invoice" if (send["payload"].get("template") or {}).get("name") == INVOICE_TEMPLATE
+            else "order_page" if (send["payload"].get("interactive") or {}).get("type") == "cta_url"
+            else f"OTHER:{send['payload'].get('type')}:{(send['payload'].get('template') or {}).get('name', '')}"
+            for send in capture_sends]
+        check("R17", "the capture sent one invoice template, then the order page",
+              post_capture_kinds == ["invoice", "order_page"], post_capture_kinds)
         # The last message: one "View your order" button to the buyer's own order page, after the
         # invoice, never instead of it.
         page_sends = [s["payload"] for s in capture_sends
@@ -1329,11 +1311,12 @@ def run(root: Path) -> int:
                         for c in components)
         check("R17", "the invoice template carries the PNG IMAGE header and the FLOW button at index 0",
               header_ok and button_ok, [(c.get("type"), c.get("sub_type"), c.get("index")) for c in components])
-        check("R18", "the invoice records Meta's terminal payment-order status",
-              bool(counts["invoices"]) and counts["invoices"][0].get("waOrderStatus") == "completed",
+        check("R18", "the invoice does not claim a Meta fulfilment status",
+              bool(counts["invoices"]) and not counts["invoices"][0].get("waOrderStatus"),
               counts["invoices"][0].get("waOrderStatus") if counts["invoices"] else None)
-        check("R18", "the order's status is completed",
-              counts["orders"] and counts["orders"][0].get("orderStatus") == "completed")
+        check("R18", "payment capture starts the internal order at processing",
+              counts["orders"] and counts["orders"][0].get("orderStatus") == "processing",
+              counts["orders"][0].get("orderStatus") if counts["orders"] else None)
         paid_order = counts["orders"][0] if counts["orders"] else {}
         check("ADDR", "the order records where it ships: the address and recipient frozen at checkout",
               (paid_order.get("checkoutDeliveryAddress") or {}).get("postalCode") == "700001"
@@ -1376,14 +1359,10 @@ def run(root: Path) -> int:
             check("RETRY", "...and ensure-image reuses the existing PNG instead of creating a new rendition",
                   len(replay_assets) == first_asset_count,
                   [(a.get("assetType"), a.get("s3Key")) for a in replay_assets])
-        # Replaying the provider event must not create any third/fourth status message: the
-        # terminal Meta state is already completed, so only the original two sends exist.
+        # Replaying/reprocessing the provider event must never emit fulfilment-status traffic.
         replay_traffic = _order_status_traffic(W.since(mark, "invocations"), W.since(mark, "meta_sends"))
-        check("R18", "...and replay/reprocess still leave exactly the original TWO status templates",
-              sorted(replay_traffic) == [
-                  "invoke:wecare-outbound-whatsapp", "invoke:wecare-outbound-whatsapp",
-                  "meta:order_status_template", "meta:order_status_template"],
-              replay_traffic)
+        check("R18", "...and replay/reprocess still emit ZERO order-status messages",
+              replay_traffic == [], replay_traffic)
         page_after_replay = [s for s in W.since(mark, "meta_sends")
                              if (s["payload"].get("interactive") or {}).get("type") == "cta_url"]
         check("LINK", "...and the order page message is not sent again by a replay or reprocess",
@@ -1428,54 +1407,17 @@ def run(root: Path) -> int:
               closed.startswith("not_sent_4") and again == "already_sent"
               and not W.since(window_mark, "meta_sends"), (closed, again))
 
-        # Terminal idempotency: asking for completed again is a local no-op and never reaches
-        # outbound. Then model the real uncertain edge case separately by putting the invoice back
-        # at its legitimate intermediate state (processing) and crashing the completed transport.
+        # The legacy endpoint is retained only as a fail-closed compatibility boundary.
         alice_invoice = counts["invoices"][0]["invoiceId"] if counts["invoices"] else ""
         if alice_invoice:
-            repeat = invoice_engine.send_order_status(
+            status_mark = W.mark()
+            refused = invoice_engine.send_order_status(
                 alice_invoice, "completed", "", PHONE_ID_1, "hermetic")
-            check("R18", "a repeat 'completed' is refused before outbound (ORDER_STATUS_UNCHANGED)",
-                  repeat["statusCode"] == 409 and "ORDER_STATUS_UNCHANGED" in repeat["body"],
-                  repeat.get("body"))
-
-            _table("InvoicesTable").update_item(
-                Key={"invoiceId": alice_invoice},
-                UpdateExpression="SET orderStatus = :p, waOrderStatus = :p",
-                ExpressionAttributeValues={":p": "processing"})
-            # The happy path already confirmed the completed delivery claim. Remove only that
-            # hermetic claim so this isolated scenario can model the first completed attempt
-            # crashing after processing was accepted.
-            _table("CommerceKeys").delete_item(
-                Key={"orderId": f"INVOICEDELIVERY#{alice_invoice}#order-status:completed"})
-            real_outbound = W.handlers["wecare-outbound-whatsapp"]
-
-            def crashing_outbound(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
-                if "orderStatusDetails" in str(event.get("body") or ""):
-                    raise RuntimeError("simulated outbound crash")
-                return real_outbound(event, context)
-
-            W.handlers["wecare-outbound-whatsapp"] = crashing_outbound
-            crash_mark = W.mark()
-            try:
-                first = invoice_engine.send_order_status(
-                    alice_invoice, "completed", "Payment complete.", PHONE_ID_1, "hermetic")
-                second = invoice_engine.send_order_status(
-                    alice_invoice, "completed", "Payment complete.", PHONE_ID_1, "hermetic")
-            finally:
-                W.handlers["wecare-outbound-whatsapp"] = real_outbound
-                # The crash is injected on purpose; keep the global NET check about everything else.
-                W.unexpected_http[:] = [u for u in W.unexpected_http if "simulated outbound crash" not in u]
-            row = _table("InvoicesTable").get_item(Key={"invoiceId": alice_invoice}).get("Item") or {}
-            check("R18", "a completed-send crash is UNCERTAIN: 502, and waOrderStatus stays processing",
-                  first["statusCode"] == 502 and "ORDER_STATUS_SEND_UNCERTAIN" in first["body"]
-                  and row.get("waOrderStatus") == "processing",
-                  (first.get("body"), row.get("waOrderStatus")))
-            outbound_calls = [call for call in W.since(crash_mark, "invocations")
+            outbound_calls = [call for call in W.since(status_mark, "invocations")
                               if call["function"] == "wecare-outbound-whatsapp"]
-            check("R18", "...and the held completed claim blocks a duplicate before outbound",
-                  second["statusCode"] == 409 and "ORDER_STATUS_IN_FLIGHT" in second["body"]
-                  and len(outbound_calls) == 1, (second.get("body"), len(outbound_calls)))
+            check("R18", "legacy order-status endpoint is disabled before outbound",
+                  refused["statusCode"] == 410 and "ORDER_STATUS_DISABLED" in refused["body"]
+                  and not outbound_calls, (refused.get("body"), len(outbound_calls)))
         hints = [c for c in W.since(mark, "invocations") if c["function"] in ("wecare-service-requests", "wecare-whatsapp-business-api")
                  and c["event"].get("internalAction") in ("activateServiceRequest", "preparePaidSubmitRequest")]
         check("INFO", "activation hint is re-sent per verified delivery (receiver is idempotent; not exercised here)",
@@ -1510,13 +1452,12 @@ def run(root: Path) -> int:
               charges.get("totalPaise") == amount == view.get("amountPaise")
               and charges.get("merchandisePaise") == 179700 and charges.get("discountPaise", 0) > 0
               and charges.get("discountLabel") == "Delight", charges)
-        # The canonical rail ends a WhatsApp payment at Meta `completed` ("Payment complete."), and
-        # the order row carries that accepted state. It is a payment-order state, not a shipment,
-        # so the page is given no fulfilment status for it rather than "Completed".
-        check("PAGE", "...paid, placed on WhatsApp, and no fulfilment claimed from the payment state",
-              view.get("paymentStatus") == "captured" and view.get("fulfilmentStatus") == ""
+        # Payment and fulfilment are separate. Capture starts the internal fulfilment state at
+        # processing; the customer order page reads that same OrderTable value.
+        check("PAGE", "...paid, placed on WhatsApp, and internal fulfilment is processing",
+              view.get("paymentStatus") == "captured" and view.get("fulfilmentStatus") == "processing"
               and view.get("channel") == "whatsapp"
-              and paid_order.get("orderStatus") == "completed",
+              and paid_order.get("orderStatus") == "processing",
               {k: view.get(k) for k in ("paymentStatus", "fulfilmentStatus", "channel")})
         delivery = view.get("delivery") or {}
         check("PAGE", "...and the delivery address frozen at checkout",
@@ -1729,120 +1670,67 @@ def run(root: Path) -> int:
               and len(done["invoices"]) == 1 and len(jay_sends) == 1,
               f"orders={len(done['orders'])} invoices={len(done['invoices'])} sends={len(jay_sends)}")
 
-    # ── 10b. the order_status step failing never blocks or repeats the invoice ──────────────────
-    print("\n== 10b. order_status outage is isolated from invoice delivery")
-    lea = shop.customer(40)  # numbers 1-14 belong to the other scenarios
+    # ── 10b. payment capture has no order_status step ────────────────────────────────────────
+    print("\n== 10b. payment capture emits no structured order status")
+    lea = shop.customer(40)
     mark = W.mark()
-    deliver(order_event(build, lea["digits"], "wamid.HERMETIC.LEA.1", [{"product_retailer_id": kit, "quantity": 1}]))
+    deliver(order_event(build, lea["digits"], "wamid.HERMETIC.LEA.1",
+                        [{"product_retailer_id": kit, "quantity": 1}]))
     confirm_prefilled(lea, "wamid.HERMETIC.LEA.ADDR1")
     lea_refs = _payrefs_for(lea["sub"])
     check("ISO", "setup: the buyer's cart produced a payment reference", bool(lea_refs))
     if lea_refs:
         reference = lea_refs[0]["referenceId"]
         lea_attempt = _attempts_for(lea["sub"])[0]
-        real_outbound = W.handlers["wecare-outbound-whatsapp"]
-
-        def outbound_order_status_down(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
-            if "orderStatusDetails" in str(event.get("body") or ""):
-                raise RuntimeError("simulated order_status outage")
-            return real_outbound(event, context)
-
-        W.handlers["wecare-outbound-whatsapp"] = outbound_order_status_down
-        try:
-            event = capture(reference, int(lea_attempt["amountPaise"]), "pay_HERMETIC3", "order_HERMETIC3",
-                            lea["phone"])
-            settled = webhook.handler(json.loads(json.dumps(event)), FakeContext("wecare-razorpay-webhook"))
-        finally:
-            W.handlers["wecare-outbound-whatsapp"] = real_outbound
-            W.unexpected_http[:] = [u for u in W.unexpected_http if "simulated order_status outage" not in u]
+        event = capture(reference, int(lea_attempt["amountPaise"]), "pay_HERMETIC3",
+                        "order_HERMETIC3", lea["phone"])
+        settled = webhook.handler(json.loads(json.dumps(event)),
+                                  FakeContext("wecare-razorpay-webhook"))
         lea_sends = W.since(mark, "meta_sends")
-        lea_invoice_sends = [s for s in lea_sends if (s["payload"].get("template") or {}).get("name") == INVOICE_TEMPLATE]
-        check("ISO", "order_status outage: the capture still settles with 200 (no forced replay)",
-              settled.get("statusCode") == 200, settled.get("body"))
-        check("ISO", "...the invoice template still went out exactly once, to the buyer",
-              [s["payload"].get("to") for s in lea_invoice_sends] == [lea["phone"]], len(lea_invoice_sends))
-        check("ISO", "...no order_status reached Meta",
-              not [s for s in lea_sends
-                   if (s["payload"].get("template") or {}).get("name") == ORDER_STATUS_TEMPLATE
-                   or (s["payload"].get("interactive") or {}).get("type") == "order_status"])
-        routes = [str(c["event"].get("rawPath") or "") for c in W.since(mark, "invocations")
-                  if c["function"] in COMMERCE_FUNCTIONS]
-        send_at = [i for i, r in enumerate(routes) if r.endswith("/send-whatsapp")]
-        status_at = [i for i, r in enumerate(routes) if r.endswith("/order-status")]
-        check("ISO", "...the order_status step ran once, BEFORE the invoice send, and did not stop it",
-              len(status_at) == 1 and bool(send_at) and status_at[0] < send_at[0],
-              {"send": send_at, "status": status_at})
-        lea_invoice = post_payment_counts(reference, lea_attempt["paymentAttemptId"])["invoices"]
-        check("ISO", "...and the invoice does not claim Meta accepted any status",
-              bool(lea_invoice) and not lea_invoice[0].get("waOrderStatus"),
-              lea_invoice[0].get("waOrderStatus") if lea_invoice else None)
+        lea_invoice_sends = [send for send in lea_sends
+                             if (send["payload"].get("template") or {}).get("name") == INVOICE_TEMPLATE]
+        check("ISO", "capture settles with 200 and invoice goes out exactly once",
+              settled.get("statusCode") == 200
+              and [send["payload"].get("to") for send in lea_invoice_sends] == [lea["phone"]],
+              settled.get("body"))
+        check("ISO", "...and no order_status reaches Meta or the commerce engine",
+              _order_status_traffic(W.since(mark, "invocations"), lea_sends) == [],
+              _order_status_traffic(W.since(mark, "invocations"), lea_sends))
+        lea_rows = post_payment_counts(reference, lea_attempt["paymentAttemptId"])
+        check("ISO", "...the internal order starts processing while invoice Meta status stays empty",
+              bool(lea_rows["orders"]) and lea_rows["orders"][0].get("orderStatus") == "processing"
+              and bool(lea_rows["invoices"]) and not lea_rows["invoices"][0].get("waOrderStatus"),
+              {"order": (lea_rows["orders"][0].get("orderStatus") if lea_rows["orders"] else None),
+               "wa": (lea_rows["invoices"][0].get("waOrderStatus") if lea_rows["invoices"] else None)})
 
-    # ── 10b2. approved status template unavailable -> scheduled retry completes the chain ─────
-    print("\n== 10b2. deferred processing retry -> processing -> completed")
-    ria = shop.customer(42)
-    mark = W.mark()
-    deliver(order_event(build, ria["digits"], "wamid.HERMETIC.RIA.1",
-                        [{"product_retailer_id": kit, "quantity": 1}]))
-    # Every WhatsApp cart confirms its delivery address before the payment request.
-    confirm_prefilled(ria, "wamid.HERMETIC.RIA.ADDR1")
-    ria_refs = _payrefs_for(ria["sub"])
-    check("RETRY", "setup: deferred-status buyer produced a payment reference", bool(ria_refs))
-    if ria_refs:
-        reference = ria_refs[0]["referenceId"]
-        ria_attempt = _attempts_for(ria["sub"])[0]
-        saved_templates = list(W.templates)
-        W.templates = [t for t in W.templates if t.get("name") != ORDER_STATUS_TEMPLATE]
-        try:
-            event = capture(reference, int(ria_attempt["amountPaise"]), "pay_HERMETIC_RETRY",
-                            "order_HERMETIC_RETRY", ria["phone"])
-            settled = webhook.handler(json.loads(json.dumps(event)),
-                                      FakeContext("wecare-razorpay-webhook"))
-        finally:
-            W.templates = saved_templates
-
-        ria_rows = post_payment_counts(reference, ria_attempt["paymentAttemptId"])["invoices"]
-        check("RETRY", "capture still settled and invoice was delivered while status template was unavailable",
-              settled.get("statusCode") == 200 and bool(ria_rows), settled.get("body"))
-        if ria_rows:
-            ria_invoice = ria_rows[0]
-            check("RETRY", "processing was parked in the sparse retry index",
-                  ria_invoice.get("pendingOrderStatus") == "processing"
-                  and ria_invoice.get("orderStatusRetry") == "PENDING",
-                  {k: ria_invoice.get(k) for k in ("pendingOrderStatus", "orderStatusRetry")})
-
+    # ── 10b2. historical retry markers are ignored by reconciliation ─────────────────────────
+    print("\n== 10b2. legacy order-status retry marker is never sent")
+    if lea_refs:
+        lea_rows = post_payment_counts(reference, lea_attempt["paymentAttemptId"])
+        if lea_rows["invoices"]:
+            legacy_invoice = lea_rows["invoices"][0]
             old = int(time.time()) - 16 * 60
             _table("InvoicesTable").update_item(
-                Key={"invoiceId": ria_invoice["invoiceId"]},
-                UpdateExpression="SET pendingOrderStatusAt = :old, pendingOrderStatusSince = :old",
-                ExpressionAttributeValues={":old": old})
-
+                Key={"invoiceId": legacy_invoice["invoiceId"]},
+                UpdateExpression=("SET pendingOrderStatus = :target, orderStatusRetry = :pending, "
+                                  "pendingOrderStatusAt = :old, pendingOrderStatusSince = :old"),
+                ExpressionAttributeValues={
+                    ":target": "completed", ":pending": "PENDING", ":old": old})
             retry_mark = W.mark()
             result = webhook.handler(
                 {"internalAction": "reconcileCustomerOrderLinks"},
                 FakeContext("wecare-razorpay-webhook"))
-            retry_sends = W.since(retry_mark, "meta_sends")
-            retry_statuses = []
-            for send in retry_sends:
-                tpl = send["payload"].get("template") or {}
-                if tpl.get("name") != ORDER_STATUS_TEMPLATE:
-                    continue
-                for comp in tpl.get("components") or []:
-                    if comp.get("type") != "order_status":
-                        continue
-                    for param in comp.get("parameters") or []:
-                        retry_statuses.append(
-                            (((param.get("order_status") or {}).get("order") or {}).get("status")))
-            check("RETRY", "scheduled retry preserved processing -> completed ordering",
-                  retry_statuses == ["processing", "completed"],
-                  {"statuses": retry_statuses, "result": result.get("orderStatusRetry")})
+            retry_traffic = _order_status_traffic(
+                W.since(retry_mark, "invocations"), W.since(retry_mark, "meta_sends"))
             final_invoice = _table("InvoicesTable").get_item(
-                Key={"invoiceId": ria_invoice["invoiceId"]}).get("Item") or {}
-            check("RETRY", "retry finished at terminal Meta status and cleared retry marker",
-                  final_invoice.get("waOrderStatus") == "completed"
-                  and not final_invoice.get("orderStatusRetry")
-                  and not final_invoice.get("pendingOrderStatus"),
-                  {k: final_invoice.get(k) for k in
-                   ("waOrderStatus", "orderStatusRetry", "pendingOrderStatus")})
+                Key={"invoiceId": legacy_invoice["invoiceId"]}).get("Item") or {}
+            check("RETRY", "reconciliation ignores historical order-status retry markers",
+                  retry_traffic == [] and "orderStatusRetry" not in result
+                  and final_invoice.get("orderStatusRetry") == "PENDING"
+                  and final_invoice.get("pendingOrderStatus") == "completed",
+                  {"traffic": retry_traffic, "resultKeys": sorted(result),
+                   "retry": final_invoice.get("orderStatusRetry"),
+                   "pending": final_invoice.get("pendingOrderStatus")})
 
     # ── 10c. Razorpay never delivers; Meta's payment status asks the webhook to settle ─────────
     print("\n== 10c. Meta payment status -> reconcileReference -> ONE order, ONE invoice")
