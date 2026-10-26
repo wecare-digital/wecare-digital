@@ -262,9 +262,46 @@ Both stream mappings and both schedules must target aliases. Never target unqual
 
 ## 11. Release gates
 
-The default branch carries `.github/workflows/payment-rail-ci.yml`. Any PR touching the payment
-rail must pass its hermetic Python payment simulation and Workspace TypeScript typecheck before
-merge.
+The default branch carries `.github/workflows/payment-rail-ci.yml`.
+
+### CI and production deployment
+
+For payment-rail pull requests, the workflow must pass:
+
+1. Python compile checks for payment/messaging/shared modules.
+2. The hermetic WhatsApp payment-rail simulation.
+3. Workspace TypeScript typecheck.
+4. Deterministic Lambda package creation through the repository's own
+   `scripts/deploy_all_lambdas.py::build_zip()`.
+
+On a push to `wecare.digital` that touches the payment rail, the same workflow reruns all checks,
+packages the tested tree, then deploys those exact packages to the eight payment-related Lambda
+`live` aliases. Deployment uses short-lived GitHub OIDC credentials only; there are no static AWS
+keys in GitHub.
+
+AWS trust:
+
+- OIDC provider: `arn:aws:iam::775261844268:oidc-provider/token.actions.githubusercontent.com`
+- deployment role: `arn:aws:iam::775261844268:role/wecare-payment-deploy-oidc`
+- trusted subject:
+  `repo:wecare-digital@319896805/wecare-digital@1342943014:ref:refs/heads/wecare.digital`
+- audience: `sts.amazonaws.com`
+
+The deployment role is deliberately limited to Lambda read/code/version/alias operations on:
+
+- `wecare-commerce`
+- `wecare-checkout`
+- `wecare-invoice-engine`
+- `wecare-razorpay-webhook`
+- `wecare-outbound-whatsapp`
+- `wecare-whatsapp-business-api`
+- `wecare-service-api`
+- `wecare-ai-generate-response`
+
+The deploy job verifies each artifact's AWS `CodeSha256`, publishes an immutable version, moves
+`live`, and reads the alias hash back. A hash mismatch fails the release. Rollback-compatible
+`wecare-checkout` and `wecare-invoice-engine` stay package-compatible even though new callers use
+`wecare-commerce:live`.
 
 A payment release is not ready unless all are true:
 
@@ -342,6 +379,9 @@ Before production promotion, prove:
 - [ ] no catalog production trigger targets `$LATEST`
 - [ ] public payment write routes point at `wecare-commerce:live`
 - [ ] new internal callers do not target rollback `wecare-checkout` or `wecare-invoice-engine`
+- [ ] payment CI/test/package jobs are green on the production commit
+- [ ] deploy job succeeded with GitHub OIDC (no static AWS keys)
+- [ ] all eight `live` aliases match the production artifact manifest `CodeSha256`
 
 ## 14. Failure policy
 
