@@ -5112,6 +5112,44 @@ export async function cancelInvoice ( invoiceId: string, reason?: string ): Prom
   } );
 }
 
+/**
+ * The WhatsApp order_status fulfilment vocabulary a staff member may drive on a PAID order.
+ *
+ * This is a FULFILMENT lifecycle, not a payment state: it tells a customer who already paid what
+ * happened to their order next. `pending` is the opening state (never a target) and a cancel of an
+ * UNPAID order goes through `cancelInvoice`, so neither appears here. The server validates the
+ * transition against WhatsApp's rules and refuses an out-of-order move (2046) or a cancel after
+ * payment (2047); these are the forward targets.
+ */
+export type OrderFulfilmentStatus = 'processing' | 'partially-shipped' | 'shipped' | 'completed';
+
+/** The engine's answer once WhatsApp accepted an order_status update. */
+export interface SendOrderStatusResult {
+  invoiceId: string;
+  referenceId: string;
+  orderStatus: string;
+  waOrderStatus: string;
+  previousStatus: string;
+  channel: string;
+  status: string;
+}
+
+// Send a WhatsApp order_status update (shipped / completed / …) for a PAID order. A result, not
+// `null` on failure: the engine names each refusal (already that status, out of order, not a
+// WhatsApp order, deferred), and staff need that sentence to know whether anything was sent.
+export async function sendOrderStatus (
+  invoiceId: string,
+  orderStatus: OrderFulfilmentStatus,
+  description?: string,
+  phoneNumberId?: string,
+): Promise<ApiResult<SendOrderStatusResult>> {
+  return apiCallResult<SendOrderStatusResult>(
+    `${INVOICE_BASE}/${invoiceId}/order-status`, {
+      method: 'POST',
+      body: JSON.stringify( { invoiceId, orderStatus, description, phoneNumberId } ),
+    } );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // CHECKOUT BUTTON TEMPLATE — Send via outbound-whatsapp Lambda
 // Per Meta docs: Checkout button templates use order_details button with
