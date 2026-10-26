@@ -1532,6 +1532,40 @@ def run(root: Path) -> int:
     nora = shop.customer(14)
     vault_variant = service_requests.SERVICE_VARIANT_BY_KIND[service_requests.VAULT]
     vault_product = service_requests.SERVICE_PRODUCT_BY_VARIANT[vault_variant]
+
+    # Vault is the exact-price exception at the single shared checkout seam. Pin the customer-
+    # visible contract here: a 4900-paise catalogue line must remain a 4900-paise payable, while
+    # an ordinary service at the same catalogue amount still receives the standard fee policy.
+    original_reader = checkout._native_product_reader
+    try:
+        submit_variant = service_requests.SERVICE_VARIANT_BY_KIND[service_requests.SUBMIT_REQUEST]
+        submit_product = service_requests.SERVICE_PRODUCT_BY_VARIANT[submit_variant]
+        products = {
+            vault_product: {"status": "active", "variants": [{"sku": vault_variant, "priceMinor": 4900}]},
+            submit_product: {"status": "active", "variants": [{"sku": submit_variant, "priceMinor": 4900}]},
+        }
+        checkout._native_product_reader = lambda: (lambda product_id: products.get(product_id))
+        identity = type("CheckoutIdentity", (), {"customer_id": nora["sub"]})()
+        vault_quote = checkout._native_quote(identity, [{
+            "catalogReference": {"catalogItemId": vault_product, "options": {"variantId": vault_variant}},
+            "quantity": 1,
+        }], int(time.time())).quote
+        ordinary_quote = checkout._native_quote(identity, [{
+            "catalogReference": {"catalogItemId": submit_product, "options": {"variantId": submit_variant}},
+            "quantity": 1,
+        }], int(time.time())).quote
+        check("SVC", "Vault catalogue price is the exact payable: 4900 paise, zero fee and zero fee GST",
+              vault_quote.total_payable_paise == 4900
+              and vault_quote.convenience_fee_paise == 0
+              and vault_quote.convenience_gst_paise == 0,
+              vault_quote.components())
+        check("SVC", "the Vault exception does not remove the standard fee from other services",
+              ordinary_quote.total_payable_paise > 4900
+              and ordinary_quote.convenience_fee_paise > 0,
+              ordinary_quote.components())
+    finally:
+        checkout._native_product_reader = original_reader
+
     lock_key = {"orderId": "NATIVESERVICEACTIVE#" + nora["sub"]}
     stubbed = {"calls": 0}
 
