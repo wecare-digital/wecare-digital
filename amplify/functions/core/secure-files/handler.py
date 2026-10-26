@@ -1407,6 +1407,38 @@ def _download_url(item: Dict[str, Any], ttl: Optional[int] = None) -> str:
     )
 
 
+def open_vault_access_window(grant_id: str) -> Tuple[bool, str]:
+    """Open/re-open the paid file's 24h window without sending another message.
+
+    Internal-only callers use this when another domain already owns the customer notification.
+    It re-derives the file and durable entitlement from the paid grant, never from caller-supplied
+    customer/file fields, and reuses the same idempotent window writer as web redemption and
+    secure-files' own WhatsApp delivery.
+    """
+    grant = _table(GRANTS_TABLE).get_item(
+        Key={"grantId": grant_id}, ConsistentRead=True).get("Item") or {}
+    if not grant or not grant.get("paid"):
+        return False, "grant is not paid"
+    item = _table(FILES_TABLE).get_item(
+        Key={"fileId": str(grant.get("fileId") or "")}, ConsistentRead=True).get("Item") or {}
+    if (not item or item.get("status") != "active"
+            or item.get("ownerPhone") != grant.get("ownerPhone")
+            or not grant.get("customerId")
+            or item.get("ownerCustomerId") != grant.get("customerId")):
+        return False, "grant and file ownership do not match"
+    entitlement = _ensure_entitlement(grant)
+    if not entitlement:
+        return False, "paid entitlement could not be established"
+    if item.get("vaultEntitlementId") != entitlement["grantId"]:
+        _point_file_at_entitlement(grant, entitlement)
+    current_count = vault_window.window_count(entitlement)
+    refreshed = _open_access_window(entitlement)
+    return True, (
+        "window_open:" + str(vault_window.window_count(refreshed))
+        if vault_window.window_count(refreshed) >= current_count else "window_open"
+    )
+
+
 def deliver_over_whatsapp(grant_id: str) -> Tuple[bool, str]:
     """Send the paid file to the customer on WhatsApp. Called only after payment.
 
@@ -1799,6 +1831,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # anything else and keyed on a field API Gateway cannot produce, so no HTTP caller
     # can reach it: an event arriving through the API always carries a requestContext,
     # and this branch requires its absence.
+    if event.get("internalAction") == "openVaultAccessWindow" and not event.get("requestContext"):
+        grant_id = str(event.get("grantId") or "")
+        ok, detail = open_vault_access_window(grant_id) if grant_id else (False, "no grantId")
+        logger.info(
+            json.dumps({"event": "vault_window_open_result", "ok": ok, "detail": detail})
+        )
+        return {"ok": ok, "detail": detail}
+
     if event.get("internalAction") == "deliverOverWhatsApp" and not event.get("requestContext"):
         grant_id = str(event.get("grantId") or "")
         ok, detail = deliver_over_whatsapp(grant_id) if grant_id else (False, "no grantId")
