@@ -158,8 +158,8 @@ The fee is charged on the discounted collection, never on the pre-coupon subtota
 **Current (2026-10-25).** `send_invoice_whatsapp` sends the PNG above once per invoice as the
 approved UTILITY template `wecare_default_invoice_image_template`: the newest `image#vN` render
 in the IMAGE header and the Leave Review FLOW button at index 0, carrying an order-bound review
-token. No caption is sent (the unsent caption code was deleted). For a WhatsApp-rail order the
-Meta order_status `processing` goes out just before it. The PNG has a paper-tear zigzag top and
+token. No caption is sent (the unsent caption code was deleted). Fulfilment starts internally at
+`processing`; no WhatsApp order-status message is sent before the invoice. The PNG has a paper-tear zigzag top and
 bottom; the approved transparent background (4.1) is ON by default. The mock and caption below
 are the earlier free-form design and are kept for the layout record only.
 
