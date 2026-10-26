@@ -2835,10 +2835,10 @@ def _send_location_msg(body: Dict) -> Dict:
 
 _PRODUCT_CAROUSEL_MIN_CARDS = 2
 _PRODUCT_CAROUSEL_MAX_CARDS = 10
-# The action key that carries the cards. Unverified against a live send -- this is the
-# single place to correct it, and the payload test reads the constant rather than a
-# literal so a correction here does not touch the test.
-_PRODUCT_CAROUSEL_ITEMS_KEY = 'product_carousel_items'
+# Meta's current service-message contract (v25 docs, updated 2026-06-18):
+# interactive.type = "carousel", action.cards[], each card has card_index, type="product"
+# and its own {catalog_id, product_retailer_id}. Header/footer/buttons are not allowed.
+_PRODUCT_CAROUSEL_TYPE = 'carousel'
 
 
 def _send_product_msg(body: Dict) -> Dict:
@@ -2869,27 +2869,35 @@ def _send_product_msg(body: Dict) -> Dict:
         if not (_PRODUCT_CAROUSEL_MIN_CARDS <= len(cards) <= _PRODUCT_CAROUSEL_MAX_CARDS):
             return _resp(400, {'error': f'product_carousel needs {_PRODUCT_CAROUSEL_MIN_CARDS}-'
                                         f'{_PRODUCT_CAROUSEL_MAX_CARDS} cards'})
-        items = []
-        for i, c in enumerate(cards):
-            rid = (c.get('productRetailerId') or c.get('product_retailer_id') or '') \
-                if isinstance(c, dict) else str(c or '')
+        built_cards = []
+        for i, card in enumerate(cards):
+            rid = (card.get('productRetailerId') or card.get('product_retailer_id') or '') \
+                if isinstance(card, dict) else str(card or '')
             if not rid:
                 return _resp(400, {'error': f'card {i} is missing productRetailerId'})
-            items.append({'product_retailer_id': str(rid)})
+            built_cards.append({
+                'card_index': i,
+                'type': 'product',
+                'action': {
+                    'product_retailer_id': str(rid),
+                    'catalog_id': str(catalog_id),
+                },
+            })
         body_text = body.get('bodyText')
         if not body_text:
             return _resp(400, {'error': 'bodyText is required for a product carousel'})
+        if body.get('headerText') or body.get('footerText') or body.get('buttons'):
+            return _resp(400, {
+                'error': 'Interactive product carousel messages support body text and product cards only; '
+                         'header, footer and buttons are not allowed'
+            })
         interactive = {
-            'type': 'product_carousel',
+            'type': _PRODUCT_CAROUSEL_TYPE,
             'body': {'text': str(body_text)[:1024]},
-            'action': {'catalog_id': catalog_id, _PRODUCT_CAROUSEL_ITEMS_KEY: items},
+            'action': {'cards': built_cards},
         }
-        if body.get('headerText'):
-            interactive['header'] = {'type': 'text', 'text': str(body['headerText'])[:60]}
-        if body.get('footerText'):
-            interactive['footer'] = {'text': str(body['footerText'])[:60]}
         logger.info(json.dumps({'event': 'product_carousel_built', 'catalogId': catalog_id,
-                                'cardCount': len(items), 'supersededShape': superseded}))
+                                'cardCount': len(built_cards), 'supersededShape': superseded}))
         return _send_message(phone_id, {'type': 'interactive', 'interactive': interactive}, body)
     if body.get('catalogMessage') or body.get('viewCatalog'):
         # Full catalog message — opens the whole catalog with a "View catalog"
