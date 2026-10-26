@@ -6833,7 +6833,7 @@ export async function upsertCatalogFlowMap (
 
 export async function sendMarketingMessage (
   phoneId: string,
-  payload: { to: string; templateName: string; language?: string; params?: string[]; messageActivitySharing?: boolean }
+  payload: { to: string; templateName: string; language?: string; params?: string[]; messageActivitySharing?: boolean; productPolicy?: 'CLOUD_API_FALLBACK' | 'STRICT' }
 ): Promise<{ success: boolean; error?: string }> {
   const data = await apiCall<any>( `${WA_BIZ_BASE}/marketing-message`, {
     method: 'POST',
