@@ -48,12 +48,18 @@
  *    separating "matches a focusable selector" from "actually visible" from "inside
  *    <main>". The last number is the one that matters and it is currently 0.
  *
+ * HISTORY VS CURRENT STATE. Sections 1-3 record the defects this probe was written against, in
+ * the original home-* pill. They are not how the pill works now. Today the pill ships SETTLED:
+ * index.tsx starts RotatingPill at phase 'final', so the exported HTML already has the shutter
+ * at scaleX(0) and the dot at scale(1), and JavaScript only moves it to 'armed' then 'shown'
+ * once motion is allowed. The no-JS assertions therefore pass because nothing has to be lifted.
+ * The assertions themselves are unchanged.
+ *
  * SELECTORS FOLLOW RotatingPill (rp-*), NOT THE OLD home-* PILL. #420 moved the pill into
  * src/components/RotatingPill.tsx and its classes became .rp-mark, .rp-mark-dot, .rp-cycle and
  * .rp-cyc-word. This probe kept querying the home-* names, found no pill, and so could not see
  * the regression #420 shipped: the export rendered phase 'armed', and with JavaScript off the
- * white shutter covered the tint and the dot sat at scale(0). The mechanism notes in 1-3 above
- * describe the original home-* implementation; the assertions are unchanged.
+ * white shutter covered the tint and the dot sat at scale(0).
  *
  * Run: node tools/browser/homeprobe.js   (needs out/ - see tools/browser/README.md)
  */
@@ -83,7 +89,8 @@ const pillState = () => {
   const cycle = document.querySelector( '.rp-cycle' );
   const word = document.querySelector( '.rp-cyc-word.on' );
   const head = document.querySelector( '.home-head' );
-  if ( !mark || !cycle || !word ) return { error: 'hero pill not found' };
+  // head is read below for its font size, so a missing h1 must report rather than throw.
+  if ( !mark || !cycle || !word || !head ) return { error: 'hero pill not found' };
   return {
     hasShow: !!document.querySelector( '.home-layout.show' ),
     shutter: getComputedStyle( mark, '::before' ).transform,
