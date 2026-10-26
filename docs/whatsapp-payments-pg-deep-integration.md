@@ -114,29 +114,18 @@ name; `WECAREDIGITAL` is now verified, so it is not a guess.
   most one `success`. This is the source of truth, not the webhook.
 
 ### 5. Order status updates (Step 6) — mandatory after any transaction update
-- `status` ∈ `pending|processing|partially_shipped|shipped|completed|canceled`.
-- Transition rules: `pending` → any; `processing/shipped/partially_shipped` interchange
-  or → terminal; `completed`/`canceled` terminal. Errors `2046` (bad transition),
-  `2047` (cannot cancel a paid order). The order page in-chat only reflects
-  `order_status` messages, so one MUST be sent after every PG transaction update.
-- Live behaviour (2026-10-25): after a verified capture the Razorpay webhook sends one
-  `processing` order_status for the WhatsApp-rail order (interactive inside the 24-hour window,
-  `wecare_order_status_v3` outside it, otherwise recorded as `pendingOrderStatus`), then the
-  approved `wecare_default_invoice_image_template` once, from
-  `s3://wecare-digital-get/secure/d/public/Invoice/customer_invoice/`. Later fulfilment updates
-  (shipped, completed) never re-send the invoice.
+- Fulfilment states remain `pending|processing|partially-shipped|shipped|completed|canceled`,
+  but they are internal commerce state, not Meta delivery state.
+- Since 2026-10-26 no PG transaction or staff fulfilment change sends a WhatsApp
+  `order_status` message. Capture starts OrderTable at `processing`; Commerce → Orders advances
+  it, and Track Order reads the same value.
+- The paid `wecare_default_invoice_image_template` is still sent once from
+  `s3://wecare-digital-get/secure/d/public/Invoice/customer_invoice/`. A WhatsApp cart or
+  catalog-service buyer may then get one "View your order" `cta_url` inside the 24-hour window.
 - Order page (2026-10-26): `https://wecare.digital/orders/?o=<orderNumber>` shows one order:
-  lines, amounts, the delivery address and the payment and order status. It is session-gated:
-  checkout's `order` action answers only for an order the WhatsApp-OTP session owns, with the same
-  404 for a missing order and someone else's. The website rail lands there from
-  `/checkout/status/` once the attempt carries its order number. A WhatsApp cart or
-  catalog-service buyer gets one "View your order" `cta_url` message after the paid invoice
-  (invoice engine `_send_order_page_link`; inside the 24-hour window only, once per invoice); the
-  order_status templates themselves carry no link, and their wording is fixed by
-  `docs/operations/whatsapp-payment-collection-stack.md`. For a WhatsApp-paid order the page shows
-  no fulfilment status, because that row holds the payment-order state (`completed` at capture).
-  The delivery address shown is the one frozen on the PaymentAttempt at checkout and copied to
-  the order by `accept_paid` (`order_delivery`), never the contact's current address.
+  lines, amounts, the frozen delivery address, payment status, and the internal fulfilment status.
+  It is session-gated: checkout's `order` action answers only for an order the WhatsApp-OTP
+  session owns. The website rail lands there from `/checkout/status/`; WhatsApp uses the CTA.
 - Delivery address (2026-10-26): every WhatsApp catalog cart confirms where it ships before the
   payment request. Once the cart prices and payments are ready, checkout answers
   `DELIVERY_CONFIRMATION_REQUIRED` and inbound sends the India Address Message, prefilled with the
