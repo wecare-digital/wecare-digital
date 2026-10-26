@@ -1272,7 +1272,14 @@ def _confirm_document_reupload(doc_id: str) -> Dict:
         'mimeType': mime_type, 'fileSize': size, 'documentRef': new_ref,
         'verificationStatus': 'uploaded', 'uploadedAt': now, 'updatedAt': now,
         'referenceIssuedAt': now,
+        'referenceVersion': int(item.get('referenceVersion') or 0) + 1,
     })
+    for field in (
+        'replacementStorageKey', 'replacementFileName', 'replacementOriginalFileName',
+        'replacementMimeType', 'replacementFileSize', 'replacementDocumentRef',
+        'replacementRequestedAt',
+    ):
+        item.pop(field, None)
     return _resp(200, _normalise_document(item))
 
 
