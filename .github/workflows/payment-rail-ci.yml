@@ -11,6 +11,7 @@ on:
       - "amplify/functions/shared/lambda_utils/direct_send.py"
       - "config/lambda-env-manifest.json"
       - "tests/test_direct_send_dual_account_regression.py"
+      - "tests/test_whatsapp_marketing_policy.py"
       - "amplify/functions/core/service-api/**"
       - "amplify/functions/ai/ai-generate-response/**"
       - "src/components/workspace/pay/**"
@@ -65,6 +66,9 @@ jobs:
 
       - name: Verify Direct Send account/config gate
         run: python -m unittest discover -s tests -p 'test_direct_send_dual_account_regression.py'
+
+      - name: Verify Marketing Messages product policy
+        run: python -m unittest discover -s tests -p 'test_whatsapp_marketing_policy.py'
 
   workspace-typecheck:
     runs-on: ubuntu-latest

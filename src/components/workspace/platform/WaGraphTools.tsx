@@ -589,6 +589,7 @@ function MarketingTab ( { phoneId, wabaId, toast }: { phoneId: string; wabaId: s
     const [ language, setLanguage ] = useState( 'en' );
     const [ paramsText, setParamsText ] = useState( '' );
     const [ sharing, setSharing ] = useState( true );
+    const [ productPolicy, setProductPolicy ] = useState<'CLOUD_API_FALLBACK' | 'STRICT'>( 'CLOUD_API_FALLBACK' );
     const [ sending, setSending ] = useState( false );
     const [ mm, setMm ] = useState<{ onboardingStatus: string; time: string } | null>( null );
 
@@ -604,7 +605,7 @@ function MarketingTab ( { phoneId, wabaId, toast }: { phoneId: string; wabaId: s
         try
         {
             const params = paramsText.split( ',' ).map( p => p.trim() ).filter( Boolean );
-            const r = await api.sendMarketingMessage( phoneId, { to, templateName, language, params, messageActivitySharing: sharing } );
+            const r = await api.sendMarketingMessage( phoneId, { to, templateName, language, params, messageActivitySharing: sharing, productPolicy } );
             r.success ? toast.success( 'Marketing message sent' ) : toast.error( r.error || 'Failed' );
         } finally { setSending( false ); }
     };
@@ -625,6 +626,11 @@ function MarketingTab ( { phoneId, wabaId, toast }: { phoneId: string; wabaId: s
             <input style={ input } placeholder="en or en_US" value={ language } onChange={ e => setLanguage( e.target.value ) } />
             <label style={ { ...label, marginTop: 12 } }>Body parameters (comma-separated, optional)</label>
             <input style={ input } placeholder="John, 30%, WD-123" value={ paramsText } onChange={ e => setParamsText( e.target.value ) } />
+            <label style={ { ...label, marginTop: 12 } }>Fallback policy</label>
+            <select style={ input } value={ productPolicy } onChange={ e => setProductPolicy( e.target.value as 'CLOUD_API_FALLBACK' | 'STRICT' ) }>
+                <option value="CLOUD_API_FALLBACK">Cloud API fallback</option>
+                <option value="STRICT">Strict — no Cloud API fallback</option>
+            </select>
             <label style={ { display: 'flex', gap: 8, alignItems: 'center', marginTop: 12 } }>
                 <input type="checkbox" checked={ sharing } onChange={ e => setSharing( e.target.checked ) } /> Share message activity with Meta (optimizes delivery)
             </label>
