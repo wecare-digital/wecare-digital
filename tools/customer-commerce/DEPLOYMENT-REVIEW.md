@@ -42,14 +42,14 @@ Cognito access/refresh custody encrypted in the existing session store.
 
 ## Verification completed
 
-- 25 conversation-tool contract checks and 24 OAuth/security checks against readable source.
-- The same 49 checks pass against the exact single-file packaged Lambda runtime.
+- 25 conversation-tool contract checks and 28 OAuth/security checks against readable source.
+- The same 53 checks pass against the exact single-file packaged Lambda runtime.
 - Python compilation passes.
 - Package assembly compares Python ASTs to prove whitespace compaction changes no semantics.
 - Runtime ZIP is deterministic and contains only index.py.
 - AWS CloudFormation ValidateTemplate succeeded for the exact full generated template.
   It returned CAPABILITY_IAM and all eight expected parameters. No stack/change set was created.
-- The template is under the 51,200-byte inline limit; the builder refuses a larger template.
+- Branded releases can exceed the 51,200-byte inline limit and must use TemplateURL from the established private CDK assets bucket. The builder marks templateRequiresS3 and enforces the S3 template size limit.
 - Existing website production build passed earlier; no website source is modified by this release.
 - Existing repository-wide lint remains blocked by the unrelated /cart anchor in
   src/components/ElsewhereTravelAssistant.tsx:462. It is unchanged from HEAD.

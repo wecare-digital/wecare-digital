@@ -17,6 +17,7 @@ import re
 import secrets
 import time
 from urllib.parse import parse_qsl, urlencode, urlparse
+from connection_assets import BRAND_LOGO, DIAL_COUNTRIES
 
 PREFIX = 'mcp:commerce:'
 COOKIE = '__Host-wecare-connect'
@@ -40,6 +41,31 @@ def origin() -> str:
 
 def resource() -> str:
     return origin() + '/mcp'
+
+
+def connect_origin() -> str:
+    value = os.environ.get('CUSTOMER_CONNECT_ORIGIN', '').rstrip('/')
+    # Only the deployed, owner-controlled sign-in alias is permitted. The issuer
+    # and token audience remain stable for existing host registrations.
+    if value and value != 'https://connect.wecare.digital':
+        raise AuthError('Connection origin unavailable')
+    return value or origin()
+
+
+def normalized_phone(params: dict) -> str:
+    if set(params) == {'csrf', 'phone'}:
+        number = params['phone']  # Existing secure forms may still be open.
+    elif set(params) == {'csrf', 'country', 'phone'}:
+        country, national = params['country'], params['phone']
+        rule = next((lengths for code, _, lengths in DIAL_COUNTRIES if code == country), None)
+        if rule is None or not re.fullmatch(r'[0-9]+', national) or (rule and len(national) not in rule):
+            raise AuthError('Invalid national number')
+        number = country + national
+    else:
+        raise AuthError('Invalid phone fields')
+    if not re.fullmatch(r'\+[1-9][0-9]{7,14}', number):
+        raise AuthError('Invalid international number')
+    return number
 
 
 def digest(value: str) -> str:
@@ -174,7 +200,7 @@ def validate_authorize(params: dict) -> dict:
 
 def auth_metadata() -> dict:
     base = origin()
-    return {'issuer': base, 'authorization_endpoint': base + '/oauth/authorize',
+    return {'issuer': base, 'authorization_endpoint': connect_origin() + '/oauth/authorize',
             'token_endpoint': base + '/oauth/token', 'revocation_endpoint': base + '/oauth/revoke',
             'response_types_supported': ['code'], 'grant_types_supported': ['authorization_code', 'refresh_token'],
             'token_endpoint_auth_methods_supported': ['none'], 'code_challenge_methods_supported': ['S256'],
@@ -311,20 +337,24 @@ def customer_event(event: dict, scope: str) -> dict:
 def form(row: dict, csrf: str, message: str = '') -> dict:
     login = uncapsule(row['cipher'], row['client'], row['sidHash'])
     phase = login.get('phase', 'phone')
-    title = 'Connect your WECARE account'
-    field = '<label>WhatsApp number, including country code<input name="phone" type="tel" autocomplete="tel" required placeholder="+91…"></label>' if phase == 'phone' else '<label>WhatsApp verification code<input name="code" type="password" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></label>'
-    description = ('Enter your WhatsApp number to receive a verification code.' if phase == 'phone' else
-                   'Enter the code delivered to WhatsApp. This code stays out of the chat conversation.')
+    title = 'Connect your WECARE account.' if phase == 'phone' else 'Check your WhatsApp.'
+    options = ''.join('<option value="' + html.escape(code, quote=True) + '">' + html.escape(country + ' (' + code + ')') + '</option>' for code, country, _ in DIAL_COUNTRIES)
+    field = ('<div class="phone-fields"><label for="country">Country code<select id="country" name="country" autocomplete="tel-country-code">' + options + '</select></label>'
+             '<label for="phone">WhatsApp number<input id="phone" name="phone" type="tel" inputmode="numeric" autocomplete="tel-national" pattern="[0-9]{5,14}" maxlength="14" required placeholder="Your mobile number" aria-describedby="phone-help"></label></div>'
+             '<p class="hint" id="phone-help">Enter your number without the country code or a leading zero.</p>') if phase == 'phone' else '<label for="code">WhatsApp verification code<input id="code" name="code" type="password" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required placeholder="6-digit code"></label>'
+    description = ('Sign in or create an account with your WhatsApp number.' if phase == 'phone' else
+                   'Enter the 6-digit code we sent you. Keep the code on this secure page.')
     if phase == 'registration':
         description = 'Verify your WhatsApp number to create your account. A separate sign-in code will follow.'
-    page = ('<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Connect WECARE</title>'
-            '<style>body{font:16px system-ui;max-width:420px;margin:48px auto;padding:20px;color:#1a1a1a}h1{font-size:24px}p{line-height:1.6}input,button{display:block;box-sizing:border-box;width:100%;padding:14px;margin:12px 0 24px;font:inherit}button{background:#1a3a2a;color:white;border:0;border-radius:8px}small{line-height:1.6;display:block}a{color:inherit}</style>'
-            '<h1>' + title + '</h1><p>Connect to ' + html.escape(client(row['client'])['name']) + '.</p><p>' + html.escape(description) + '</p>'
-            + ('<p role="alert">' + html.escape(message) + '</p>' if message else '')
+    page = ('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Connect WECARE</title>'
+            '<style>*{box-sizing:border-box}body{margin:0;background:#f8faf5;color:#1a3a2a;font:16px/1.55 system-ui,-apple-system,sans-serif}a{color:inherit}header{max-width:1100px;margin:auto;padding:24px 28px;display:flex;align-items:center;justify-content:space-between;gap:16px}.brand{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:750;letter-spacing:.04em;text-decoration:none}.brand svg{width:40px;height:40px}header>a:last-child{font-size:13px;text-underline-offset:4px}main{width:min(520px,calc(100% - 32px));margin:40px auto 56px;background:#fff;border:1px solid #e5e7eb;border-radius:24px;padding:36px}.eyebrow{display:inline-block;padding:6px 12px;background:#d1f470;border-radius:24px;font-size:12px;font-weight:700;letter-spacing:.05em}h1{font-size:clamp(28px,5vw,36px);line-height:1.15;letter-spacing:-.04em;margin:24px 0 14px;max-width:350px}p{margin:0 0 22px}.destination{font-size:14px;padding-bottom:20px;border-bottom:1px solid #e5e7eb}label{display:block;font-size:13px;font-weight:650}input,select,button{width:100%;font:inherit;min-height:52px;border-radius:12px}input,select{display:block;margin-top:8px;padding:12px;border:1px solid #d9ded7;background:#fff;color:#1a3a2a;min-width:0}input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}.phone-fields{display:grid;grid-template-columns:1fr 1.2fr;gap:12px}.hint{font-size:12px;margin:10px 0 24px;color:#526052}button{margin-top:24px;padding:14px;background:#d1f470;color:#1a3a2a;border:0;font-weight:750;cursor:pointer}button:hover{background:#c5e85f}.consent{font-size:12px;color:#526052;margin:20px 0 0}.footer{font-size:12px;text-align:center;color:#526052;margin:24px 0 0}.footer a{text-underline-offset:3px}.alert{border:1px solid #b45309;border-radius:10px;padding:12px;font-size:14px}@media(max-width:480px){header{padding:18px 20px}main{margin:20px auto;padding:26px 22px;border-radius:20px}.phone-fields{grid-template-columns:1fr}header>a:last-child{font-size:12px}}</style></head><body>'
+            '<header><a class="brand" href="https://wecare.digital/" aria-label="WECARE.DIGITAL home">' + BRAND_LOGO + '<span>WECARE.DIGITAL</span></a><a href="https://wecare.digital/">Visit our website</a></header>'
+            '<main><span class="eyebrow">WECARE SHOPPING</span><h1>' + title + '</h1><p>' + html.escape(description) + '</p><p class="destination">Connecting to <strong>' + html.escape(client(row['client'])['name']) + '</strong></p>'
+            + ('<p class="alert" role="alert">' + html.escape(message) + '</p>' if message else '')
             + '<form method="post" action="/oauth/authorize"><input type="hidden" name="csrf" value="' + html.escape(csrf, quote=True) + '">' + field
-            + '<small>Connecting allows this client to access the WECARE account and order information you authorize, and make requested changes. '
-              'Verification messages are delivered through WhatsApp. <a href="https://wecare.digital/privacy/">Privacy</a> · <a href="https://wecare.digital/terms/">Terms</a></small>'
-            + '<button type="submit">' + ('Send code' if phase == 'phone' else 'Verify and connect') + '</button></form></html>')
+            + '<button type="submit">' + ('Send WhatsApp code' if phase == 'phone' else 'Verify and connect') + '</button>'
+            + '<p class="consent">Connect your profile, addresses and orders to this app. It can make changes and request a WhatsApp payment only when you ask. Verification messages arrive on WhatsApp.</p></form>'
+            + '<p class="footer"><a href="https://wecare.digital/privacy/">Privacy</a> &nbsp;·&nbsp; <a href="https://wecare.digital/terms/">Terms</a></p></main></body></html>')
     result = response(200, page, page=True)
     # Browsers apply form-action to the post-login redirect chain too. Permit only
     # this registered client's callback origin, never a caller-selected destination.
@@ -356,7 +386,7 @@ def authorize_get(params: dict) -> dict:
 
 def authorize_post(params: dict, event: dict) -> dict:
     headers = {str(k).lower(): str(v) for k, v in (event.get('headers') or {}).items()}
-    if headers.get('origin') != origin():
+    if headers.get('origin') not in {origin(), connect_origin()}:
         raise AuthError('Authorization origin required')
     cookies = SimpleCookie()
     cookies.load('; '.join(event.get('cookies') or [headers.get('cookie', '')]))
@@ -371,8 +401,10 @@ def authorize_post(params: dict, event: dict) -> dict:
         raise AuthError('Authorization step already used')
     try:
         if login.get('phase') == 'phone':
-            if set(params) != {'csrf', 'phone'} or not re.fullmatch(r'\+[1-9][0-9]{7,14}', params['phone']):
-                return save_pending(row, {'phase': 'phone'}, 'Enter a valid number with its country code.')
+            try:
+                params = {'csrf': params['csrf'], 'phone': normalized_phone(params)}
+            except (AuthError, KeyError):
+                return save_pending(row, {'phase': 'phone'}, 'Check your country code and WhatsApp number. Enter the number without the country code or a leading zero.')
             result = aws('cognito-idp').initiate_auth(ClientId=CUSTOMER_CLIENT, AuthFlow='CUSTOM_AUTH', AuthParameters={'USERNAME': params['phone']})
             challenge = result.get('ChallengeParameters', {})
             if challenge.get('registered') == 'false':
@@ -428,7 +460,17 @@ def route(event: dict) -> dict | None:
         if path == '/.well-known/oauth-authorization-server' and method == 'GET':
             return response(200, auth_metadata())
         if path == '/oauth/authorize' and method == 'GET':
-            return authorize_get(parse(event.get('rawQueryString', '')))
+            params = parse(event.get('rawQueryString', ''))
+            target = connect_origin()
+            # Hosts cache discovery. Redirect the initial GET before creating a
+            # session so cookies and the subsequent POST stay on the branded host.
+            # requestContext.domainName comes from API Gateway, never the caller.
+            if target != origin() and (event.get('requestContext') or {}).get('domainName') == urlparse(origin()).netloc:
+                validate_authorize(params)
+                result = response(302, '')
+                result['headers']['Location'] = target + '/oauth/authorize?' + urlencode(params)
+                return result
+            return authorize_get(params)
         if method != 'POST':
             return response(405, {'error': 'invalid_request'})
         headers = {str(k).lower(): str(v) for k, v in (event.get('headers') or {}).items()}

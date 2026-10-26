@@ -14,6 +14,7 @@ import io
 from pathlib import Path
 import tokenize
 import zipfile
+import runpy
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / 'amplify/functions/ecommerce/customer-commerce-mcp'
@@ -32,6 +33,9 @@ class RemoveDocstrings(ast.NodeTransformer):
 
 def runtime_source() -> str:
     oauth = ast.parse((SOURCE / 'customer_oauth.py').read_text())
+    assets = runpy.run_path(str(SOURCE / 'connection_assets.py'))
+    oauth.body = [node for node in oauth.body if not (isinstance(node, ast.ImportFrom) and node.module == 'connection_assets')]
+    oauth.body.extend(ast.parse('BRAND_LOGO = ' + repr(assets['BRAND_LOGO']) + '\nDIAL_COUNTRIES = ' + repr(assets['DIAL_COUNTRIES'])).body)
     main = ast.parse((SOURCE / 'handler.py').read_text())
     definitions = lambda tree: {node.name for node in tree.body if isinstance(node, (ast.FunctionDef, ast.ClassDef))}
     if definitions(oauth) & definitions(main):
@@ -111,6 +115,7 @@ def template(code: str, source_hash: str) -> dict:
             'Role': get('Role', 'Arn'), 'Timeout': 30, 'MemorySize': 256, 'ReservedConcurrentExecutions': 5,
             'LoggingConfig': {'LogGroup': ref('FunctionLogs')}, 'Code': {'ZipFile': code},
             'Environment': {'Variables': {'CUSTOMER_COMMERCE_ORIGIN': get('Api', 'ApiEndpoint'),
+                'CUSTOMER_CONNECT_ORIGIN': ref('ConnectOrigin'),
                 'CUSTOMER_OAUTH_CLIENTS': ref('CustomerClients'), 'PRODUCTS_TABLE': ref('ProductsTable'),
                 'CUSTOMER_SESSIONS_TABLE': ref('SessionsTable'), 'CUSTOMER_SESSION_KMS_KEY_ID': ref('CustodyKeyArn'),
                 'CHATGPT_APPROVED_PRODUCT_IDS': ref('ApprovedProductIds'),
@@ -138,6 +143,16 @@ def template(code: str, source_hash: str) -> dict:
             'DefaultRouteSettings': {'ThrottlingBurstLimit': 10, 'ThrottlingRateLimit': 5},
             'AccessLogSettings': {'DestinationArn': get('ApiLogs', 'Arn'),
                 'Format': '{"requestId":"$context.requestId","route":"$context.routeKey","status":"$context.status"}'}}}
+    resources['ConnectDomain'] = {'Type': 'AWS::ApiGatewayV2::DomainName', 'Condition': 'EnableConnectDomain',
+        'Properties': {'DomainName': 'connect.wecare.digital', 'DomainNameConfigurations': [{
+            'CertificateArn': 'arn:aws:acm:us-east-1:775261844268:certificate/f75d0db0-d476-443a-b787-96c4931862d2',
+            'EndpointType': 'REGIONAL', 'SecurityPolicy': 'TLS_1_2'}]}}
+    resources['ConnectMapping'] = {'Type': 'AWS::ApiGatewayV2::ApiMapping', 'Condition': 'EnableConnectDomain',
+        'Properties': {'DomainName': ref('ConnectDomain'), 'ApiId': ref('Api'), 'Stage': ref('Stage')}}
+    resources['ConnectDns'] = {'Type': 'AWS::Route53::RecordSet', 'Condition': 'EnableConnectDomain',
+        'Properties': {'HostedZoneId': 'Z03939753QJGZ6ZD6BXO8', 'Name': 'connect.wecare.digital', 'Type': 'A',
+            'AliasTarget': {'DNSName': get('ConnectDomain', 'RegionalDomainName'),
+                'HostedZoneId': get('ConnectDomain', 'RegionalHostedZoneId'), 'EvaluateTargetHealth': False}}}
     resources['InvokePermission'] = {'Type': 'AWS::Lambda::Permission',
         'Metadata': context('API-only invocation.', ['Bind exact account and API.']),
         'Properties': {'Action': 'lambda:InvokeFunction', 'FunctionName': ref('Live'), 'Principal': 'apigateway.amazonaws.com',
@@ -157,7 +172,9 @@ def template(code: str, source_hash: str) -> dict:
             'ApprovedProductIds': {'Type': 'String', 'Default': '[]', 'MaxLength': 8000, 'Description': 'Only platform-approved saleable product IDs; empty publishes no products.'},
             'WhatsAppPaymentsEnabled': {'Type': 'String', 'Default': 'false', 'AllowedValues': ['false', 'true']},
             'RegistrationEnabled': {'Type': 'String', 'Default': 'false', 'AllowedValues': ['false', 'true'], 'Description': 'Enable only after restoring/verifying the established customer-registration service.'},
-        }, 'Conditions': {'EnableRegistration': {'Fn::Equals': [ref('RegistrationEnabled'), 'true']}},
+            'ConnectOrigin': {'Type': 'String', 'Default': '', 'AllowedValues': ['', 'https://connect.wecare.digital'], 'Description': 'Optional owner-controlled secure sign-in origin; issuer and audience are unchanged.'},
+        }, 'Conditions': {'EnableRegistration': {'Fn::Equals': [ref('RegistrationEnabled'), 'true']},
+                         'EnableConnectDomain': {'Fn::Equals': [ref('ConnectOrigin'), 'https://connect.wecare.digital']}},
         'Resources': resources, 'Outputs': {
             'McpUrl': {'Value': {'Fn::Join': ['', [get('Api', 'ApiEndpoint'), '/mcp']]}},
             'AuthorizationServer': {'Value': get('Api', 'ApiEndpoint')},
@@ -174,8 +191,8 @@ def main() -> None:
     digest = hashlib.sha256(code.encode()).hexdigest()
     compiled = template(code, digest)
     serialized = json.dumps(compiled, separators=(',', ':'))
-    if len(serialized.encode()) > 51200:
-        raise ValueError('Inline template exceeds AWS 51,200-byte limit; do not deploy inline')
+    if len(serialized.encode()) > 1000000:
+        raise ValueError('Template exceeds AWS S3 template limit')
     (args.output / 'customer-commerce-stack.json').write_text(serialized + '\n')
     (args.output / 'index.py').write_text(code)
     with zipfile.ZipFile(args.output / 'customer-commerce-runtime.zip', 'w', zipfile.ZIP_DEFLATED) as archive:
@@ -184,6 +201,7 @@ def main() -> None:
         info.external_attr = 0o644 << 16
         archive.writestr(info, code)
     manifest = {'sourceSha256': digest, 'runtimeBytes': len(code.encode()), 'templateBytes': len(serialized.encode()),
+                'templateRequiresS3': len(serialized.encode()) > 51200,
                 'expectedAccount': '775261844268', 'expectedRegion': 'us-east-1', 'providerWrites': False,
                 'deploymentExecuted': False, 'publicSubmissionReady': False,
                 'countries': [], 'countriesMeaning': 'All available countries, per owner; fulfillment still validated separately.'}
