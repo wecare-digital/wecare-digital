@@ -3328,6 +3328,15 @@ def _handle_invoice_event(event_type: str, event_data: Dict, request_id: str) ->
 # internal and are surfaced by the customer Track Order page.
 
 
+# The stale-payment-attempt sweep remains active. It recovers captured money when a provider
+# webhook is dropped; it is unrelated to the retired WhatsApp order-status retry machinery.
+_SWEEP_MIN_AGE_SECONDS = 120
+_SWEEP_MAX_AGE_SECONDS = 24 * 60 * 60
+_SWEEP_PAGE_LIMIT = 25
+_SWEEP_TIME_BUDGET_SECONDS = 30
+_RECONCILABLE_STATUSES = ('PAYMENT_REQUEST_SENT', 'PAYMENT_PENDING', 'PAYMENT_READINESS_CHECKED')
+
+
 def _reconcile_in_flight_attempt(attempt: Dict[str, Any], keys_table: Any,
                                  request_id: str) -> str:
     """Settle ONE in-flight attempt from the provider's own records. Never raises.
