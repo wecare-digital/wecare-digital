@@ -22,7 +22,7 @@ the production code and checks it against these live definitions:
     PAY            wecare_whatapp_native_pay_template     UTILITY, IMAGE header, ORDER_DETAILS button
     INVOICE        wecare_default_invoice_image_template  UTILITY, IMAGE header, FLOW button index 0
                                                           (NAVIGATE to FEEDBACK of Flow 993862443003108)
-    ORDER_STATUS   wecare_order_status_v3                 UTILITY / ORDER_STATUS, order_status component
+    ORDER_STATUS   wecare_order_status_v3                 HISTORICAL ONLY; runtime sends are disabled
     OTP            wecare_otp                             AUTHENTICATION, copy-code URL button index 0
     LEAVE_REVIEW   wecare_leave_review                    IMAGE header, FLOW button index 0 (same Flow);
                                                           manual only: never sent by automation
@@ -37,16 +37,9 @@ the production code and checks it against these live definitions:
 
 The post-payment contract
 -------------------------
-After a verified payment the customer receives, in order and nothing else:
-
-    1. Meta order_status `processing` (WhatsApp-rail orders only; interactive inside the 24-hour
-       window, the ORDER_STATUS template outside it, otherwise deferred). Bounded and
-       best-effort: the invoice never depends on it succeeding.
-    2. INVOICE, once, with the paid-invoice PNG in its header and an order-bound review token on
-       its FLOW button.
-
-    That is the owner-approved order (audit plan T7/D2). Later fulfilment updates are
-    staff-driven.
+After a verified payment, WhatsApp automation sends the paid INVOICE once (plus the optional
+View Order CTA inside the customer-service window). Fulfilment status remains internal and no
+ORDER_STATUS message is sent.
 
 `POST_PAYMENT_FORBIDDEN` lists templates no post-payment automation may send.
 """
@@ -83,9 +76,8 @@ INVOICE = Template(
     name=os.environ.get("WA_INVOICE_TEMPLATE", "wecare_default_invoice_image_template"),
     language="en", category="UTILITY", header="image", buttons=("flow",))
 
-#: Fulfilment updates outside the customer-service window. Inside the window the interactive
-#: `order_status` message is used instead and needs no template. `_v3` because Meta still holds
-#: the deleted `_v2` name (error_subcode 2388023 refuses new English content under it).
+#: Historical Meta template retained as an identifier for old inventory/UI rows. Product policy
+#: disables every runtime order-status send; this definition is intentionally NOT in ALL below.
 ORDER_STATUS = Template(
     name=os.environ.get("WA_ORDER_STATUS_TEMPLATE", "wecare_order_status_v3"),
     language="en", category="UTILITY", sub_category="ORDER_STATUS")
@@ -110,7 +102,7 @@ LOCATION_PIN = Template(name="wecare_location_share_pin", language="en", categor
 VAULT_OFFER = Template(name="wecare_valut_49", language="en", category="UTILITY",
                        header="image", buttons=("quick_reply",))
 
-ALL: Tuple[Template, ...] = (PAY, INVOICE, ORDER_STATUS, OTP, LEAVE_REVIEW, DOWNLOAD,
+ALL: Tuple[Template, ...] = (PAY, INVOICE, OTP, LEAVE_REVIEW, DOWNLOAD,
                              LOCATION_PIN, VAULT_OFFER)
 
 #: Templates no post-payment automation may send. The invoice's own FLOW button is the only
