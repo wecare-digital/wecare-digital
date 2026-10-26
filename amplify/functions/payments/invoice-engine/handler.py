@@ -22,6 +22,7 @@ Prefix: secure/d/public/Invoice/customer_invoice/  (GATED - moved off the public
 """
 
 import os
+import sys
 import json
 import uuid
 import time
@@ -456,8 +457,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return _resp(405, {'error': 'Method not allowed'})
 
     except Exception as e:
-        logger.error(json.dumps({'event': 'invoice_engine_error', 'error': str(e), 'requestId': request_id}))
-        return _resp(500, {'error': str(e)})
+        return _internal_error(e, request_id)
 
 
 # ─── Invoice Sequencing (GST-compliant, internal only) ───
@@ -644,7 +644,7 @@ def get_next_sequence_preview(body: Dict, request_id: str) -> Dict:
             'reservationProbeExhausted': probes >= _INVOICE_NUMBER_ATTEMPTS,
         })
     except Exception as e:
-        return _resp(500, {'error': str(e)})
+        return _internal_error(e, request_id)
 
 
 def _rupees_to_paise(value, *, code: str = 'AMOUNT_MISMATCH') -> int:
@@ -1684,7 +1684,7 @@ def create_invoice_from_payment(body: Dict, request_id: str) -> Dict:
             return _resp(404, {'error': f'Payment {payment_id} not found'})
         payment = items[0]
     except Exception as e:
-        return _resp(500, {'error': f'Payment lookup failed: {e}'})
+        return _internal_error(e, request_id)
 
     # ── The captured amount, read as the authoritative INTEGER paise ──
     #
@@ -2006,7 +2006,7 @@ def update_invoice(invoice_id: str, body: Dict, request_id: str) -> Dict:
 
         return _resp(200, {'invoiceId': invoice_id, 'updated': True})
     except Exception as e:
-        return _resp(500, {'error': str(e)})
+        return _internal_error(e, request_id)
 
 
 def get_invoice(invoice_id: str, request_id: str) -> Dict:
@@ -3221,8 +3221,7 @@ def send_pending_by_phone(body: Dict, request_id: str) -> Dict:
             else:
                 break
     except Exception as e:
-        logger.error(json.dumps({'event': 'send_pending_scan_error', 'error': str(e), 'requestId': request_id}))
-        return _resp(500, {'error': f'Failed to query invoices: {e}'})
+        return _internal_error(e, request_id)
 
     if not all_pending:
         return _resp(200, {'sent': 0, 'total': 0, 'message': 'No pending invoices', 'invoices': []})
@@ -4673,7 +4672,7 @@ def cancel_invoice(invoice_id: str, reason: str, request_id: str) -> Dict:
             )
         except Exception as exc:  # noqa: BLE001
             if not order_keys.is_conditional_failure(exc):
-                return _resp(500, {'error': str(exc)})
+                return _internal_error(exc, request_id)
 
             # The row changed after our verified read. Re-read before deciding whether that means
             # another cancel already won, a payment capture won, or a harmless edit requires retry.
@@ -4844,7 +4843,7 @@ def _delete_invoice_withdrawn(invoice_id: str, body: Dict, request_id: str) -> D
     try:
         table.delete_item(Key={'invoiceId': invoice_id})
     except Exception as e:
-        return _resp(500, {'error': str(e)})
+        return _internal_error(e, request_id)
 
     # Adjust sequence counter if requested
     adjust_seq = body.get('adjustSequence', False)
@@ -5648,7 +5647,7 @@ def add_remark(invoice_id: str, body: Dict, request_id: str,
             ExpressionAttributeValues=expr_values,
         )
     except Exception as e:
-        return _resp(500, {'error': str(e)})
+        return _internal_error(e, request_id)
 
     logger.info(json.dumps({
         'event': f'invoice_{remark_type}_added', 'invoiceId': invoice_id,
@@ -6129,10 +6128,58 @@ def _dec(value) -> Decimal:
     return Decimal(str(round(float(value), 2)))
 
 
-def _resp(status_code: int, body: Dict) -> Dict[str, Any]:
-    """Return HTTP response with CORS headers."""
+def _loggable_code(value: Any) -> str:
+    """`value` when it is a short machine code (`INVOICE_TOTAL_MISMATCH`), else ''."""
+    text = value if isinstance(value, str) else ''
+    plain = text.replace('_', '').replace('-', '').replace('.', '')
+    return text if 0 < len(text) <= 64 and plain.isascii() and plain.isalnum() else ''
+
+
+def _resp(status_code: int, body: Dict, *, logged: bool = False) -> Dict[str, Any]:
+    """Return HTTP response with CORS headers.
+
+    Every 4xx/5xx is logged as `invoice_engine_refused` with the status, the body's machine code
+    and the function and line that refused (`logged=True`: the caller already logged it). Never
+    the message: several interpolate request values or an exception. Before this a refusal left
+    no trace at all; six `POST /invoices` 400s on 2026-10-25 09:51-09:53 UTC cannot be tied to
+    the check that refused them.
+    """
+    if status_code >= 400 and not logged:
+        caller = sys._getframe(1)  # the refusing function; CPython, which Lambda runs
+        code = (body.get('code') or body.get('errorCode')) if isinstance(body, dict) else ''
+        (logger.error if status_code >= 500 else logger.warning)(json.dumps({
+            'event': 'invoice_engine_refused', 'status': status_code,
+            'code': _loggable_code(code),
+            'site': f'{caller.f_code.co_name}:{caller.f_lineno}',
+        }))
     return {
         'statusCode': status_code,
         'headers': cors_headers(origin),
         'body': json.dumps(body, default=str),
     }
+
+
+def _internal_error(error: BaseException, request_id: str) -> Dict[str, Any]:
+    """The 500 for an unexpected exception: its class and origin in the log, nothing in the body.
+
+    These sites used to return `str(error)`, which hands the browser the AWS operation, table and
+    key names of a boto error, or the input value a parse rejected, and most of them logged
+    nothing. The request id in the message is what support needs to find this log line.
+    """
+    response = getattr(error, 'response', None)
+    aws_code = str(((response.get('Error') or {}).get('Code') or '')) if isinstance(response, dict) else ''
+    # The innermost frame in THIS module: where our code failed, rather than a botocore frame.
+    raised_at, tb = '', error.__traceback__
+    while tb is not None:
+        if tb.tb_frame.f_code.co_filename == __file__:
+            raised_at = f'{tb.tb_frame.f_code.co_name}:{tb.tb_lineno}'
+        tb = tb.tb_next
+    caller = sys._getframe(1)
+    logger.error(json.dumps({'event': 'invoice_engine_internal_error', 'status': 500,
+                             'errorType': type(error).__name__, 'awsErrorCode': aws_code,
+                             'raisedAt': raised_at,
+                             'site': f'{caller.f_code.co_name}:{caller.f_lineno}',
+                             'requestId': request_id}))
+    # `errorCode`, not `code`: it is the field the Workspace invoice client reads and shows.
+    return _resp(500, {'error': f'Internal error. Report request id {request_id}.',
+                       'errorCode': 'INTERNAL_ERROR', 'requestId': request_id}, logged=True)
