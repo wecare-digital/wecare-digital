@@ -45,12 +45,27 @@ ALL_STATUSES: FrozenSet[str] = frozenset({
     PENDING, PROCESSING, PARTIALLY_SHIPPED, SHIPPED, COMPLETED, CANCELED,
 })
 
-#: The statuses a STAFF member may drive from the workspace on a PAID order. `pending` is never a
-#: target (it is the opening state), and `canceled` is excluded here because cancelling a paid
-#: order is refused by Meta — the unpaid-cancel path is handled by `cancel_invoice`, not this one.
+#: Physical/service fulfilment statuses. These are deliberately NOT the payment-only WhatsApp
+#: order lifecycle. Callers that manage a genuine shipment may use this broader vocabulary.
 STAFF_FULFILMENT_TARGETS: FrozenSet[str] = frozenset({
     PROCESSING, PARTIALLY_SHIPPED, SHIPPED, COMPLETED,
 })
+
+#: The WhatsApp ORDER_DETAILS payment rail is intentionally collapsed. It proves payment progress,
+#: not physical shipment: pending -> processing -> completed. The invoice engine MUST use this set
+#: rather than STAFF_FULFILMENT_TARGETS so Workspace can never mark a payment-only order shipped.
+PAYMENT_ORDER_TARGETS: FrozenSet[str] = frozenset({PROCESSING, COMPLETED})
+
+_PAYMENT_ORDER_TRANSITIONS: Dict[str, FrozenSet[str]] = {
+    PENDING: frozenset({PROCESSING}),
+    PROCESSING: frozenset({COMPLETED}),
+    COMPLETED: frozenset(),
+}
+
+PAYMENT_DEFAULT_BODY_TEXT: Dict[str, str] = {
+    PROCESSING: "Payment received.",
+    COMPLETED: "Payment complete.",
+}
 
 # ── Legal forward transitions. ────────────────────────────────────────────────────────────────
 #: Keyed on the CURRENT status, valued by the set of statuses it may move to. Meta's rules: an
@@ -96,18 +111,25 @@ def is_valid(status: str) -> bool:
 
 
 def can_transition(current: str, target: str) -> bool:
-    """True when moving an order from `current` to `target` is a legal Meta transition.
+    """True when moving a physical/service fulfilment order forward is legal.
 
-    A blank/unknown `current` is treated as `pending` (the state an order_details message opens
-    in), so the first staff action after capture — `processing` — is always legal. A target that
-    equals the current status is NOT a transition and returns False: re-sending the same status is
-    a no-op Meta would reject as 2046.
+    This is the broad Meta vocabulary. Payment-only ORDER_DETAILS callers must use
+    payment_can_transition() instead.
     """
     cur = normalise(current) or PENDING
     tgt = normalise(target)
     if cur not in _TRANSITIONS or tgt not in ALL_STATUSES:
         return False
     return tgt in _TRANSITIONS[cur]
+
+
+def payment_can_transition(current: str, target: str) -> bool:
+    """True only for the frozen payment-order lifecycle: pending -> processing -> completed."""
+    cur = normalise(current) or PENDING
+    tgt = normalise(target)
+    if cur not in _PAYMENT_ORDER_TRANSITIONS or tgt not in PAYMENT_ORDER_TARGETS:
+        return False
+    return tgt in _PAYMENT_ORDER_TRANSITIONS[cur]
 
 
 #: Default customer-facing body text per fulfilment status, used when the caller supplies none.
@@ -122,8 +144,13 @@ DEFAULT_BODY_TEXT: Dict[str, str] = {
 
 
 def default_body(status: str) -> str:
-    """The default customer-facing line for a status, or a generic update line."""
+    """The default customer-facing line for a physical/service fulfilment status."""
     return DEFAULT_BODY_TEXT.get(normalise(status), "Your order status has been updated.")
+
+
+def payment_default_body(status: str) -> str:
+    """Customer wording for the payment-only WhatsApp order lifecycle."""
+    return PAYMENT_DEFAULT_BODY_TEXT.get(normalise(status), "Your payment status has been updated.")
 
 
 
@@ -174,43 +201,10 @@ def build_template_component(reference_id: str, status: str, description: str = 
     }
 
 
-def build_interactive_payload(reference_id: str, status: str, description: str = "",
-                              body_text: str = "") -> dict:
-    """Build the canonical Meta interactive `order_status` message object.
-
-    This is the inside-the-window twin of `build_template_component`: inside the 24-hour
-    customer-service window a fulfilment update may be sent as a free-form interactive
-    message (Meta `review_order` action) with no approved template. The outbound Lambda wraps
-    this object in the message envelope (`messaging_product`, `to`, `type: interactive`) and
-    owns transport/persistence; the business shape lives here.
-
-    `reference_id` and `status` fail closed through the same canonical helpers the template
-    builder uses. `body_text` is the visible customer line (defaults to `default_body(status)`);
-    `description` is the order's optional detail line, trimmed to Meta's 120-char ceiling.
-    """
-    ref = canonical_reference(reference_id)
-    wire_status = canonical_status(status)
-    body = str(body_text or "").strip() or default_body(wire_status)
-    order = {"status": wire_status}
-    detail = str(description or "").strip()[:MAX_DESCRIPTION_LENGTH]
-    if detail:
-        order["description"] = detail
-    return {
-        "type": "order_status",
-        "body": {"text": body},
-        "action": {
-            "name": "review_order",
-            "parameters": {
-                "reference_id": ref,
-                "order": order,
-            },
-        },
-    }
-
-
 __all__ = [
     "PENDING", "PROCESSING", "PARTIALLY_SHIPPED", "SHIPPED", "COMPLETED", "CANCELED",
-    "ALL_STATUSES", "STAFF_FULFILMENT_TARGETS", "DEFAULT_BODY_TEXT", "MAX_DESCRIPTION_LENGTH",
-    "normalise", "is_valid", "can_transition", "default_body", "canonical_reference",
-    "canonical_status", "build_template_component", "build_interactive_payload",
+    "ALL_STATUSES", "STAFF_FULFILMENT_TARGETS", "PAYMENT_ORDER_TARGETS",
+    "DEFAULT_BODY_TEXT", "PAYMENT_DEFAULT_BODY_TEXT", "MAX_DESCRIPTION_LENGTH",
+    "normalise", "is_valid", "can_transition", "payment_can_transition", "default_body",
+    "payment_default_body", "canonical_reference", "canonical_status", "build_template_component",
 ]

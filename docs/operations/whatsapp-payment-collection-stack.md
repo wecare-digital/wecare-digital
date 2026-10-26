@@ -182,7 +182,7 @@ and retried; it is not silently changed into a different message type.
 | Surface | Asset |
 | --- | --- |
 | Large payment-template header | `https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/whatsapp-header.png` |
-| Small non-catalog/manual order item image | `https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/wecare-catalog-icon.png` |
+| Small non-catalog/manual order item image | `https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/wecare-order-item-v2.png` |
 | Paid invoice template header | Generated invoice PNG under `secure/d/public/Invoice/customer_invoice/` |
 
 Meta does not allow custom item `image` together with `retailer_id` / `catalog_id`. Therefore:
@@ -190,7 +190,7 @@ Meta does not allow custom item `image` together with `retailer_id` / `catalog_i
 - **non-catalog/manual invoice collection:** no synthetic `ITEM_n` retailer IDs; use the fixed small icon.
 - **true catalog checkout:** preserve the real catalog identity and catalog-managed product image.
 
-Do not use `wecare-catalog-icon.png` as the large payment header.
+Do not use the small item thumbnail as the large payment header.
 
 ## 5. Canonical runtimes
 

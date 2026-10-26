@@ -2816,8 +2816,8 @@ def _post_payment_handler(payment_id: str, contact: str,
     #
     # It travels as the approved `wecare_default_invoice_image_template` (invoice PNG in its
     # header). It does not depend on step 3: it goes out whether that update was sent, deferred,
-    # not applicable or unavailable. Later fulfilment updates (shipped / completed) stay a
-    # staff-driven workflow (`/invoices/{id}/order-status`). This template delivers the statutory
+    # not applicable or unavailable. Physical/service fulfilment is tracked separately and never
+    # reopens the payment-only Meta lifecycle. This template delivers the statutory
     # receipt and its embedded Leave Review Flow button.
     #
     # Delivery is retried by REPLAY: a miss raises so the webhook lease lapses and Razorpay
@@ -3418,10 +3418,10 @@ def _send_order_status_processing(invoice_id: str, phone_number_id: str,
     """Ask the invoice engine to send the buyer a fulfilment ORDER_STATUS of 'processing'.
 
     BEST-EFFORT and native-only (`_start_native_fulfilment` gates the checkout mode): it never
-    raises. The engine owns idempotency and the 24h messaging window: a 200 reports the channel
-    it used; a 409 ORDER_STATUS_UNCHANGED or ORDER_STATUS_IN_FLIGHT means another delivery
-    already sent or is sending it; ORDER_STATUS_DEFERRED (window closed, no approved template)
-    and ORDER_STATUS_NOT_APPLICABLE are expected verdicts. All outcomes are logged WITHOUT PII -
+    raises. The engine owns idempotency and template-only transport: a 200 reports the accepted
+    template channel; a 409 ORDER_STATUS_UNCHANGED or ORDER_STATUS_IN_FLIGHT means another delivery
+    already sent or is sending it; ORDER_STATUS_DEFERRED (approved template unavailable) and
+    ORDER_STATUS_NOT_APPLICABLE are expected verdicts. All outcomes are logged WITHOUT PII -
     only the invoice id, the engine code and the request id.
     """
     if not invoice_id:

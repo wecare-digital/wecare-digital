@@ -380,6 +380,36 @@ class OrderDetailsLineTests(unittest.TestCase):
             self.assertNotIn("wecare-convenience-fee", path.read_text(encoding="utf-8"), path)
 
 
+
+class PaymentOrderLifecycleTests(unittest.TestCase):
+    def test_payment_order_targets_exclude_shipping_states(self):
+        from lambda_utils.ecommerce import wa_order_status
+        self.assertEqual(
+            wa_order_status.PAYMENT_ORDER_TARGETS,
+            frozenset({wa_order_status.PROCESSING, wa_order_status.COMPLETED}),
+        )
+        self.assertTrue(wa_order_status.payment_can_transition("pending", "processing"))
+        self.assertTrue(wa_order_status.payment_can_transition("processing", "completed"))
+        self.assertFalse(wa_order_status.payment_can_transition("pending", "completed"))
+        self.assertFalse(wa_order_status.payment_can_transition("processing", "shipped"))
+        self.assertFalse(wa_order_status.payment_can_transition("processing", "partially-shipped"))
+        self.assertEqual(wa_order_status.payment_default_body("processing"), "Payment received.")
+        self.assertEqual(wa_order_status.payment_default_body("completed"), "Payment complete.")
+
+    def test_payment_order_module_has_no_interactive_status_builder(self):
+        from lambda_utils.ecommerce import wa_order_status
+        self.assertFalse(hasattr(wa_order_status, "build_interactive_payload"))
+
+    def test_payment_runbook_matches_runtime_item_thumbnail(self):
+        from lambda_utils import template_media
+        runbook = (ROOT / "docs" / "operations" / "whatsapp-payment-collection-stack.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(template_media.ORDER_ITEM_IMAGE, runbook)
+        self.assertNotIn("wecare-catalog-icon.png", runbook)
+
+
+
 class AlarmSignalTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
