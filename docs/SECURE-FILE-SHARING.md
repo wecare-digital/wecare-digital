@@ -209,9 +209,14 @@ token that ties its button to a document.
 Staff can also **Send Access Vault** (`POST /secure-files/{fileId}/send-access`) for a paid file; it
 never charges and never opens a window.
 
-Drop Docs (Service → Documents → **Add Document**) is a different store: documents a customer sends
-in, kept in `DocumentTable`. A file added there is not in the Vault and is never offered for ₹49.
-Vault documents are added in **Secure files**.
+Drop Docs (Service → Documents → **Add Document**) is a different store: managed document
+records live in `DocumentTable` and are not billable merely because they exist there. Staff can
+explicitly **Publish to Vault**, which verifies the customer identity and private object, creates an
+owner-bound `SecureFilesTable` row for that immutable document version, and writes the resulting
+`vaultFileId` back to the document. Repeating Publish for the same version is idempotent. A
+confirmed replacement increments the document version and the next Publish gets a different Vault
+file id, so an older paid entitlement can never authorize replacement bytes. Direct uploads through
+**Secure files** remain the other supported Vault intake path.
 
 Windows are paid for one at a time. The durable entitlement counts `paidWindowCount` (a missing
 counter is the one original purchase) and `accessWindowCount`. A window opens against an unused paid

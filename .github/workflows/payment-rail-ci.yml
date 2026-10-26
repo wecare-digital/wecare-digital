@@ -97,6 +97,9 @@ jobs:
           python -m py_compile scripts/env_manifest.py scripts/provision_payment_rail_alarms.py
           python -m unittest discover -s tests -p 'test_env_manifest_aliases.py'
 
+      - name: Verify Drop Docs replacement invariants
+        run: python -m unittest discover -s tests -p 'test_dropdocs_reupload_regression.py'
+
   workspace-typecheck:
     runs-on: ubuntu-latest
     timeout-minutes: 15
