@@ -1080,8 +1080,11 @@ def _admin_publish_document(event: Dict[str, Any], origin: str) -> Dict[str, Any
                        or "application/octet-stream")
     deliverable = _classify_delivery(content_type, size)
     original_name = str(document.get("originalFileName") or document.get("fileName") or document_id)
-    display_name = str(document.get("documentTypeLabel") or document.get("fileName")
-                       or original_name or "Document")
+    # The Vault message reads "Your *<name>* copy is ready!": staff's label first, then the
+    # customer's own file name. `fileName` on a current upload is the generated reference
+    # (wecare-digital-NNNNNN.pdf), which means nothing to the customer, so it comes last.
+    display_name = str(document.get("documentTypeLabel") or document.get("originalFileName")
+                       or document.get("fileName") or "Document")
     delivery_key = ""
     if deliverable in ("pdf", "image"):
         delivery_key = DELIVER_PREFIX + "vault-" + file_id + _safe_extension(original_name)
