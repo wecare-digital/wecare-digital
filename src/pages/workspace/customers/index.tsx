@@ -14,6 +14,7 @@ import { useToastContext } from '../../../contexts/ToastContext';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 import * as api from '../../../api/client';
 import { DIAL_CODES } from '../../../lib/dialCodes';
+import { COUNTRY_OPTIONS, countryCodeForName } from '../../../config/countryOptions';
 import {
   ADDRESS_FIELDS, EMPTY_ADDRESS_FIELDS, addressPayload, formatAddress,
   type AddressFormFields,
@@ -1036,17 +1037,37 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           {ADDRESS_FIELDS.map(spec => (
             <div key={spec.key}>
-              <label htmlFor={`contact-${spec.key}`} style={S.label}>{spec.label}</label>
-              <input
-                id={`contact-${spec.key}`}
-                style={S.input}
-                value={formAddress[spec.key]}
-                maxLength={spec.maxLength}
-                placeholder={spec.placeholder}
-                onChange={e => setFormAddress({ ...formAddress, [spec.key]: e.target.value })}
-                onFocus={focusStyle}
-                onBlur={blurStyle}
-              />
+              <label htmlFor={`contact-${spec.key}`} style={S.label}>
+                {spec.label}
+                {!spec.required && <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)', marginLeft: 5 }}>Optional</span>}
+              </label>
+              {spec.key === 'country' ? (
+                <select
+                  id={`contact-${spec.key}`}
+                  style={S.input}
+                  value={formAddress.country}
+                  onChange={e => setFormAddress({
+                    ...formAddress,
+                    country: e.target.value,
+                    countryCode: countryCodeForName(e.target.value),
+                  })}
+                  onFocus={focusStyle}
+                  onBlur={blurStyle}
+                >
+                  {COUNTRY_OPTIONS.map(option => <option key={option.code} value={option.name}>{option.name}</option>)}
+                </select>
+              ) : (
+                <input
+                  id={`contact-${spec.key}`}
+                  style={S.input}
+                  value={formAddress[spec.key]}
+                  maxLength={spec.maxLength}
+                  placeholder={spec.placeholder}
+                  onChange={e => setFormAddress({ ...formAddress, [spec.key]: e.target.value })}
+                  onFocus={focusStyle}
+                  onBlur={blurStyle}
+                />
+              )}
             </div>
           ))}
         </div>
