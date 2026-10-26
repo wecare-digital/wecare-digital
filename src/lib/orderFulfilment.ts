@@ -23,6 +23,14 @@ const NEXT: Record<FulfilmentStatus, FulfilmentStatus[]> = {
   canceled: [],
 };
 
+// WhatsApp ORDER_DETAILS is a payment-order lifecycle, not physical fulfilment.
+// Keep this intentionally smaller than NEXT and mirror wa_order_status.payment_can_transition.
+const PAYMENT_ORDER_NEXT: Partial<Record<FulfilmentStatus, FulfilmentStatus[]>> = {
+  pending: [ 'processing' ],
+  processing: [ 'completed' ],
+  completed: [],
+};
+
 export function canonicalFulfilmentStatus (
   raw: string | undefined,
   paymentStatus?: string,
@@ -48,6 +56,15 @@ export function allowedFulfilmentTargets (
   return NEXT[ current ];
 }
 
+export function allowedPaymentOrderTargets (
+  rawStatus: string | undefined,
+  paymentStatus?: string,
+): FulfilmentStatus[] {
+  const current = canonicalFulfilmentStatus( rawStatus, paymentStatus );
+  if ( current === 'pending' && !PAID.has( String( paymentStatus || '' ) ) ) return [];
+  return PAYMENT_ORDER_NEXT[ current ] || [];
+}
+
 export function fulfilmentLabel ( value: string ): string {
   return String( value || '' )
     .replace( /[-_]/g, ' ' )
@@ -70,9 +87,18 @@ const SENDABLE_STATUSES: ReadonlySet<string> = new Set<OrderFulfilmentStatus>( [
   'processing', 'partially-shipped', 'shipped', 'completed',
 ] );
 
-/** True when `value` is a status the invoice engine can send to WhatsApp. */
+const SENDABLE_PAYMENT_ORDER_STATUSES: ReadonlySet<string> = new Set<OrderFulfilmentStatus>( [
+  'processing', 'completed',
+] );
+
+/** True when `value` is a physical/service fulfilment status. */
 export function isSendableFulfilmentStatus ( value: string ): value is OrderFulfilmentStatus {
   return SENDABLE_STATUSES.has( value );
+}
+
+/** True only for the frozen WhatsApp payment-order lifecycle. */
+export function isSendablePaymentOrderStatus ( value: string ): value is OrderFulfilmentStatus {
+  return SENDABLE_PAYMENT_ORDER_STATUSES.has( value );
 }
 
 /**
