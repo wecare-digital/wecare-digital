@@ -255,6 +255,14 @@ def classify_error(code, details: Optional[str] = "") -> str:
     requires Direct Send, which isn't enabled for this account. Use an approved
     message template instead." - and both tokens match it. That is still the
     documentation, not a captured response.
+
+    The interactive authentication OTP is refused differently, and this one IS a
+    captured response (WABA 2094615664435155, 2026-10-26 08:39 UTC): code
+    **131009**, details "The otp button type is only supported for Direct Send
+    authentication messages." Meta did not treat the message as Direct Send at
+    all, so the account is not enabled for the category, and the documented 100
+    never arrived. Any other 131009 is an ordinary invalid parameter and keeps
+    today's handling.
     """
     key = str(code) if code is not None else ""
     if key in ("139200", "131064"):
@@ -264,6 +272,10 @@ def classify_error(code, details: Optional[str] = "") -> str:
         if "direct send" in blob and "categor" in blob:
             return NOT_ONBOARDED
         return OTHER_100
+    if key == "131009":
+        if "only supported for direct send" in str(details or "").lower():
+            return NOT_ONBOARDED
+        return ""
     return ""
 
 

@@ -6,9 +6,10 @@ listed in [the restoration record](wildcard-restoration-20261019.md). Older
 redirect targets, provider-property descriptions and before-snapshots are not
 current account links or recovery instructions.
 
-## 2026-10-26 — Direct Send authentication for sign-in codes (shipped OFF)
+## 2026-10-26 — Direct Send authentication for sign-in codes (ON; Meta refuses it, the template delivers)
 
-Owner instructions: "enable both for both WABAs", then "go ahead, fix, deploy and push".
+Owner instructions: "enable both for both WABAs", then "go ahead, fix, deploy and push",
+then "yes turn on" (14:07 IST).
 
 - **The utility state changed during this work.** At 06:40 IST both `live` aliases carried
   `DIRECT_SEND_ENABLED_WABAS=2094615664435155,2513394156072604`. At 09:11 IST #1600
@@ -18,10 +19,11 @@ Owner instructions: "enable both for both WABAs", then "go ahead, fix, deploy an
   `wecare-outbound-whatsapp` v125 and `wecare-whatsapp-business-api` v238 both `""`. No
   retained log holds a `direct_send_*` event, so there is no live evidence that Meta
   onboarded either WABA for either category.
-- **The authentication allowlist is left EMPTY.** The approved rollout plan was written
-  before #1600 and set it to both WABAs. Setting it now would contradict #1600's
-  fail-closed rule, and while Meta has not onboarded a WABA every sign-in would only pay a
-  refused round trip before the template. It waits for an explicit owner decision.
+- **The authentication allowlist shipped EMPTY, then the owner turned it on.** The
+  approved rollout plan was written before #1600, so the code shipped with the allowlist
+  empty and the owner was asked. At 14:07 IST the owner said "yes turn on", knowing Meta
+  might refuse it, which overrides #1600's fail-closed rule for the authentication category
+  only. Utility stays empty.
 - **Authentication code (this change).**
   - `lambda_utils/direct_send.py`: one allowlist per category. `DIRECT_SEND_ENABLED_WABAS`
     keeps meaning utility; `DIRECT_SEND_AUTHENTICATION_ENABLED_WABAS` is new and empty by
@@ -72,11 +74,33 @@ Owner instructions: "enable both for both WABAs", then "go ahead, fix, deploy an
     then `delivered` for `918****0044`.
   - Flags afterwards: `DIRECT_SEND_ENABLED_WABAS=""` on both functions;
     `DIRECT_SEND_AUTHENTICATION_ENABLED_WABAS` not set.
-- To turn authentication on later: `scripts/set_lambda_env_flag.py --set
-  DIRECT_SEND_AUTHENTICATION_ENABLED_WABAS=2094615664435155,2513394156072604 --functions
-  wecare-whatsapp-business-api --apply`, then one QA sign-in: expect `direct_send_otp_sent`,
-  or `direct_send_not_onboarded` followed by the template. Off again: the same script with
-  `DIRECT_SEND_AUTHENTICATION_ENABLED_WABAS=`.
+- **Turned on (A3_PRODUCTION), 14:08 IST.**
+  - Pre-flight: no CI run in progress; `$LATEST` code and env identical to `live` v249
+    (`Lpj3drDO…`, built by CI from `55743912b`, which contains this change); env scanned
+    for credential-shaped values by shape only, none.
+  - `scripts/set_lambda_env_flag.py --set
+    DIRECT_SEND_AUTHENTICATION_ENABLED_WABAS=2094615664435155,2513394156072604 --functions
+    wecare-whatsapp-business-api --apply`: live v249 → v250, same CodeSha256, 19 existing
+    variables preserved with identical values, one added. Snapshot:
+    `docs/execution/snapshots/lambda-env-before-direct_send_authentication_enabled_wabas-20261026T083814Z.json`.
+    `config/lambda-env-manifest.json` records the new key (`_variables` 513 → 514; the file
+    already counted 4 fewer variables than it lists).
+  - QA sign-in to the QA number (08:39:04Z): business-api logged `direct_send_attempt`
+    (authentication, WABA1), and Meta answered **131009** "(#131009) Parameter value is not
+    valid" with details "The otp button type is only supported for Direct Send
+    authentication messages." The template fallback delivered the code
+    (`customer_whatsapp_otp_sent`, `deliveredVia: template`). CreateAuthChallenge took 4.1 s
+    in one invocation, with a cold business-api (init 0.7 s) and the refused attempt
+    (0.55 s): inside Cognito's 5 s, with less room than before.
+  - **Classifier fix.** That refusal is the not-onboarded signal for an interactive OTP, not
+    the documented 100, so it was logged as a plain `meta_error`: no pause and no alarm.
+    `classify_error` now maps 131009 whose details say "only supported for Direct Send" to
+    `not_onboarded`, so the WABA pauses for 15 minutes per container and
+    `wecare-direct-send-not-onboarded` fires. Any other 131009 is unchanged.
+  - Meanwhile WABA1 is evidently not enabled for Direct Send authentication. Once Meta
+    enables it, sign-ins switch to Direct Send with no change here. Off again:
+    `scripts/set_lambda_env_flag.py --set DIRECT_SEND_AUTHENTICATION_ENABLED_WABAS=
+    --functions wecare-whatsapp-business-api --apply`, or point `live` back at v249.
 - Out of scope: customer sign-in codes still leave from WABA1 only (`OTP_WABA_MAP` loader,
   provisioning script), so a WABA2 authentication entry stays dormant until something sends
   codes from WABA2's number.
