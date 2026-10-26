@@ -34,7 +34,7 @@ from lambda_utils.audit import record_audit
 # prepended - measured, `+6591234567` became `+916591234567`. This surface uses
 # `customer_identity.normalize_phone_preserving_country` instead; see `_e164_or_error`.
 from lambda_utils.validation import sanitize_html, sanitize_dict
-from lambda_utils import contact_key, identity_claims  # canonical key + strong-identity registry
+from lambda_utils import contact_key, contact_store, identity_claims  # canonical key + strong-identity registry
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
 from lambda_utils.privacy import mask_phone, mask_contact_id  # sensitive identifiers are masked in logs
 from lambda_utils.identity import customer as customer_identity
@@ -1011,13 +1011,54 @@ def _list_all(params: Dict[str, str], request_id: str, origin: str = '') -> Dict
 # ─── SEARCH ─────────────────────────────────────────────────────────────────
 
 def _search(params: Dict[str, str], request_id: str, origin: str = '') -> Dict[str, Any]:
-    """Fix #3: Scan all pages so search doesn't miss results from later pages."""
-    query = (params.get('q') or '').strip().lower()
+    """Search contacts, with an indexed exact-phone fast path.
+
+    Mobile lookup is the hot path in staff selectors. The old implementation scanned every
+    ContactsTable page on every keypress, which made a simple number lookup slow and allowed
+    stale responses to race in the UI. A complete phone-shaped query now goes through the
+    existing phone-index resolver first. Name/email/tag search keeps the broader bounded result
+    contract and the frontend still ignores stale requests.
+    """
+    query_raw = (params.get('q') or '').strip()
+    query = query_raw.lower()
     limit = min(int(params.get('limit', DEFAULT_SEARCH_LIMIT)), MAX_SEARCH_LIMIT)
-
     table = dynamodb.Table(CONTACTS_TABLE)
-    filt = _active_contact_filter()
 
+    # Search-only phone detection. We never infer a country code here; a caller can paste the
+    # stored E.164 number or any exact historical spelling and contact_store will query every
+    # known spelling through phone-index. Keeping search country-neutral avoids linking a file
+    # to the wrong customer merely because a national number happened to be 10 digits.
+    digits_only = re.sub(r'\D+', '', query_raw)
+    phone_shaped = bool(query_raw) and bool(re.fullmatch(r'[+0-9() .-]+', query_raw))
+    if phone_shaped and 7 <= len(digits_only) <= 15:
+        try:
+            exact = contact_store.find_by_phone(table, query_raw)
+        except contact_store.IdentityConflict:
+            return cors_response(409, {
+                'error': 'Multiple live contacts claim this phone number',
+                'errorCode': 'CONTACT_IDENTITY_CONFLICT',
+            }, origin)
+        if exact:
+            contact = _from_dynamo(exact)
+            log_event(logger, 'contacts_search', query='phone_exact', count=1,
+                      requestId=request_id)
+            return cors_response(200, {
+                'contacts': [contact],
+                'count': 1,
+                'matchMode': 'phone_exact',
+            }, origin)
+        # A country-coded full number that has no exact owner is a definitive miss. Do not
+        # fall through to a full-table substring scan.
+        if query_raw.startswith('+') or query_raw.startswith('00') or len(digits_only) >= 11:
+            log_event(logger, 'contacts_search', query='phone_exact', count=0,
+                      requestId=request_id)
+            return cors_response(200, {
+                'contacts': [],
+                'count': 0,
+                'matchMode': 'phone_exact',
+            }, origin)
+
+    filt = _active_contact_filter()
     scan_kwargs: Dict[str, Any] = {'FilterExpression': filt}
 
     all_items: List[Dict] = []
@@ -1034,8 +1075,12 @@ def _search(params: Dict[str, str], request_id: str, origin: str = '') -> Dict[s
     items = all_items[:limit]
     contacts = [_from_dynamo(i) for i in items]
 
-    log_event(logger, 'contacts_search', query=query, count=len(contacts), requestId=request_id)
-    return cors_response(200, {'contacts': contacts, 'count': len(contacts)}, origin)
+    log_event(logger, 'contacts_search', query='broad', count=len(contacts), requestId=request_id)
+    return cors_response(200, {
+        'contacts': contacts,
+        'count': len(contacts),
+        'matchMode': 'broad',
+    }, origin)
 
 
 def _merged_alias_mutation_refusal(
