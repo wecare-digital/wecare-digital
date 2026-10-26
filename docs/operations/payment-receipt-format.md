@@ -46,6 +46,10 @@ Print:
 
 Change seller identity only in `business_identity.py`; do not duplicate a second legal identity in the renderer.
 
+## Purchase-surface invariant
+
+There is one customer receipt renderer for website checkout, WhatsApp catalog/cart, staff Pay, Inbox/manual collection, paid WhatsApp Flows, modern paid-service/Vault checkout, and the ChatGPT connector's guarded Pay on WhatsApp handoff. Entry-point UIs and connectors must not implement their own receipt arithmetic or alternate layout. After provider-verified capture, the payment webhook asks the canonical invoice engine to `ensure-image`: reuse the newest recorded PNG when present, otherwise render it once. Website/customer download remains read-only.
+
 ## Customer-visible fields
 
 Show when present:
