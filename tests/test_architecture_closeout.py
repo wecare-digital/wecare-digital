@@ -2,7 +2,7 @@
 
 Real handler code with in-process fakes: no network, no AWS account, no table outside memory.
 
-* the invoice engine's WhatsApp order-status route stays disabled (410, nothing read or sent);
+* the invoice engine's WhatsApp payment-order route accepts only processing/completed targets;
 * the invoice engine releases its `claiming` row when it refuses before consuming a GST number,
   so a retry numbers the invoice instead of answering 200 with an empty number;
 * a consumed number keeps its claim, so a retry cannot consume a second number;
