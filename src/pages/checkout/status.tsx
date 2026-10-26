@@ -14,6 +14,11 @@
  *   done (PAID + order number)                                        -> "Payment received", in place
  *   failed / cancelled / expired                                      -> "Payment wasn't completed"
  *   disabled (initiation off) / unknown                               -> a neutral holding message
+ *   no session, or a 401 for this attempt                             -> "Sign in to see this payment"
+ *
+ * A paid attempt also empties the browser cart that handed it off (`lib/checkoutHandoff`): only
+ * when this tab's /cart/ recorded THIS attempt, so an older status link never clears a newer cart.
+ * The poll stops after POLL_CEILING_MS; past that, a settling payment points at /orders/.
  *
  * The paid state is rendered HERE, and it used to redirect
  * ---------------------------------------------------------
@@ -27,6 +32,15 @@
  * Both halves are fixed: the endpoint now returns the number it already holds, and the paid
  * state renders in place with the order number and the amount captured. One authenticated read,
  * one screen, no hop that can fail between the money and the confirmation.
+ *
+ * Then the order page, and the confirmation still comes first
+ * -----------------------------------------------------------
+ * A paid checkout ends on the customer's order page, /orders/?o=<orderNumber>, which shows what
+ * was bought, where it ships and where it is now. The hand-off happens only AFTER the paid view
+ * above has rendered from the authenticated read, so the confirmation never depends on it, and
+ * it is a client-side replace: nothing unloads under the purchase event just recorded, and Back
+ * does not return to a screen that would only forward again. If the navigation fails, the paid
+ * view stays, and its primary action is the same link.
  *
  * `finalizationStage` is NOT consulted, and that is the point
  * ----------------------------------------------------------
@@ -74,10 +88,13 @@
 
 import Head from 'next/head';
 import Link from 'next/link';
-import React, { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import RotatingHero from '../../components/RotatingHero';
 import { getSession, restoreSession } from '../../lib/customerAuth';
+import { orderPagePath } from '../../lib/orderPage';
+import { settlePaidCheckout } from '../../lib/checkoutHandoff';
 import { amountLabel, isInFlight, isOrderNumber, isPaid, isRetryable } from '../../lib/paymentVocabulary';
 import { trackMetaPurchase, type PaidCatalogEvent } from '../../lib/metaPixel';
 
@@ -94,7 +111,8 @@ type View =
   | 'paid'
   | 'finalizing'
   | 'failed'
-  | 'unavailable';
+  | 'unavailable'
+  | 'signin';
 
 interface AttemptView {
   status?: string;
@@ -172,6 +190,12 @@ const COPY: Record<View, { title: string; body: string }> = {
     title: 'Nothing to show here',
     body: 'We could not find a payment to confirm. If you have just paid, check WhatsApp for your confirmation.',
   },
+  // No session, or the server would not show this payment to the one this tab holds. Only a
+  // sign-in can answer either, so the screen asks for it and claims nothing about the payment.
+  signin: {
+    title: 'Sign in to see this payment',
+    body: 'Sign in on the WhatsApp number you checked out with to see this payment and your order.',
+  },
 };
 
 export default function CheckoutStatus (): React.ReactElement {
@@ -182,15 +206,20 @@ export default function CheckoutStatus (): React.ReactElement {
   // value comes from the URL: the URL carries the opaque attempt id and nothing else.
   const [ orderNumber, setOrderNumber ] = useState<string>( '' );
   const [ amount, setAmount ] = useState<string>( '' );
+  const router = useRouter();
+  const handedOffRef = useRef( false );
+  // The bounded poll gave up while the payment was still settling. Not a payment state.
+  const [ stalled, setStalled ] = useState( false );
 
   const poll = useCallback( async ( attemptId: string ): Promise<boolean> => {
     let session;
     try { session = getSession() || await restoreSession(); } catch { return false; }
     if ( !session )
     {
-      // No session: the screen cannot prove ownership, so it says so rather than guessing.
-      setView( 'unavailable' );
-      return true; // stop polling
+      // No session: the screen cannot prove ownership, so it asks for a sign-in rather than
+      // guessing, and stops polling.
+      setView( 'signin' );
+      return true;
     }
     try
     {
@@ -202,14 +231,27 @@ export default function CheckoutStatus (): React.ReactElement {
         },
         body: JSON.stringify( { action: 'status', paymentAttemptId: attemptId } ),
       } );
+      if ( response.status === 401 )
+      {
+        // Terminal here: the token expired, or this attempt is not this session's. A sign-in on
+        // the right number answers both.
+        setView( 'signin' );
+        return true;
+      }
       if ( !response.ok )
       {
         setView( 'unavailable' );
-        return response.status === 401; // 401 is terminal here (verify again); others we retry
+        return false; // a 5xx or a throttle is transient; keep asking
       }
       const data = ( await response.json() ) as { attempt?: AttemptView; status?: string };
       const attempt = data.attempt || {};
       const nextView = viewFor( attempt.status, attempt.orderNumber );
+      if ( isPaid( attempt.status ) )
+      {
+        // The server says THIS attempt is paid. If this tab's cart handed it off, the basket is
+        // bought: empty it, so the next visit to /cart/ does not offer it again.
+        settlePaidCheckout( attemptId );
+      }
       if ( nextView === 'paid' )
       {
         // The two facts a paying customer needs, both from the server. The amount is the paise
@@ -245,7 +287,11 @@ export default function CheckoutStatus (): React.ReactElement {
       if ( stopped ) return;
       const done = await poll( attemptId );
       if ( stopped || done ) return;
-      if ( Date.now() - startedAt > POLL_CEILING_MS ) return;
+      if ( Date.now() - startedAt > POLL_CEILING_MS )
+      {
+        setStalled( true );
+        return;
+      }
       timer = setTimeout( tick, POLL_INTERVAL_MS );
     };
     void tick();
@@ -255,6 +301,19 @@ export default function CheckoutStatus (): React.ReactElement {
       if ( timer ) clearTimeout( timer );
     };
   }, [ poll ] );
+
+  // THE ORDER PAGE, once the paid view has rendered from the authenticated read (see the module
+  // docblock). Only a paid attempt WITH a server order number gets here, which is exactly when
+  // the order row exists for the order page to read.
+  useEffect( () => {
+    // Once: the router object can change identity while its own navigation is in flight.
+    if ( view !== 'paid' || !orderNumber || handedOffRef.current ) return;
+    handedOffRef.current = true;
+    void ( async () => {
+      try { await router.replace( orderPagePath( orderNumber ) ); }
+      catch { /* The paid view stays, and its primary action is the same link. */ }
+    } )();
+  }, [ view, orderNumber, router ] );
 
   const copy = COPY[ view ];
 
@@ -305,13 +364,37 @@ export default function CheckoutStatus (): React.ReactElement {
           {view === 'paid' && (
             <div className="co-actions">
               {/* No retry here, and nothing that starts a second payment. */}
-              <Link className="co-btn co-btn-primary" href="/orders/">View my orders</Link>
+              <Link className="co-btn co-btn-primary" href={ orderPagePath( orderNumber ) }>View your order</Link>
               <Link className="co-btn co-btn-quiet" href="/shop/">Continue shopping</Link>
             </div>
           )}
 
-          {view === 'finalizing' && (
+          {view === 'finalizing' && !stalled && (
             <p className="co-note">Keep this page open. It usually takes a few seconds.</p>
+          )}
+
+          {/* THE POLL CEILING WAS REACHED while the payment was still settling. Polling stops
+              (it is bounded on purpose) but the customer is no longer left on a spinner: the
+              orders page reads the same server state whenever it settles. Nothing here says a
+              charge was or was not made, and "Do not pay again" stays in the finalizing copy. */}
+          {stalled && ( view === 'confirming' || view === 'finalizing' ) && (
+            <>
+              <p className="co-note">
+                This is taking longer than usual. Your orders page shows the latest status.
+              </p>
+              <div className="co-actions">
+                <Link className="co-btn co-btn-primary" href="/orders/">Check your orders</Link>
+              </div>
+            </>
+          )}
+
+          {view === 'signin' && (
+            <div className="co-actions">
+              {/* Back to the orders page after sign-in: the sign-in return path cannot carry this
+                  page's `?a=`, and the orders page lists this payment's order once it is paid. */}
+              <Link className="co-btn co-btn-primary" href="/account/sign-in/?return=/orders/">Sign in</Link>
+              <Link className="co-btn co-btn-quiet" href="/shop/">Return to the store</Link>
+            </div>
           )}
 
           {view === 'failed' && (
@@ -372,7 +455,8 @@ export default function CheckoutStatus (): React.ReactElement {
              site's own alpha: the heading above states the outcome, so the disc is a position
              marker and not the message. */
           .co-mark-failed,
-          .co-mark-unavailable{background:rgba(0,0,0,.06)}
+          .co-mark-unavailable,
+          .co-mark-signin{background:rgba(0,0,0,.06)}
 
           /* The order number and the amount, on the same two rungs /checkout/success gives the
              order number: a 14px/700 uppercase label at the dim rung, and the 22px/700/-.25px

@@ -3,13 +3,18 @@
 """Hermetic end-to-end verification of the ONE WhatsApp payment rail.
 
     WhatsApp Catalog order -> wecare-inbound-whatsapp -> wecare-commerce `prepareNativeCart`
-    -> ProductsTable pricing -> ONE PaymentAttempt + PAYREF# -> wecare-outbound-whatsapp
+    -> ProductsTable pricing -> the India Address Message, opened on the saved address, which the
+    customer sends back to confirm (or change) where THIS order ships -> `prepareNativeCart` again
+    with `deliveryConfirmed` -> ONE PaymentAttempt + PAYREF# -> wecare-outbound-whatsapp
     -> `wecare_whatapp_native_pay_template` (button sub_type order_details, payment_gateway /
     Razorpay / WECAREDIGITAL) -> Razorpay `payment.captured` -> wecare-razorpay-webhook
     -> ONE order + ONE paid invoice
     -> `wecare_order_status_v3` processing, then completed (template-only, ordered/idempotent)
     -> `wecare_default_invoice_image_template` (its FLOW button carries an order-bound review token).
     Invoice delivery never depends on an order_status send succeeding.
+    -> the order page (`/orders/?o=<orderNumber>`, checkout's `order` action): the delivery address
+    frozen at checkout, the reviewed lines and the paid status, to the order's owner only.
+    Section 9d covers the website prepare's own address gate.
 
 WHAT RUNS FOR REAL
 ------------------
@@ -583,6 +588,35 @@ def run(root: Path) -> int:
     def deliver(event: Dict[str, Any]) -> Dict[str, Any]:
         return inbound.handler(event, FakeContext("wecare-inbound-whatsapp"))
 
+    def address_forms(customer: Dict[str, str], since: Optional[Dict[str, int]] = None) -> List[Dict[str, Any]]:
+        """The India Address Message forms Meta was asked to show this customer."""
+        sends = W.since(since, "meta_sends") if since else W.meta_sends
+        return [s["payload"] for s in sends if s["payload"].get("to") == customer["phone"]
+                and (s["payload"].get("interactive") or {}).get("type") == "address_message"]
+
+    def form_parameters(form: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        return (((form or {}).get("interactive") or {}).get("action") or {}).get("parameters") or {}
+
+    def address_reply(customer: Dict[str, str], wamid_in: str, values: Dict[str, Any]) -> Dict[str, Any]:
+        """The customer's Address Message submission, as Meta delivers it (nfm_reply)."""
+        message = {"from": customer["digits"], "id": wamid_in, "timestamp": str(int(time.time())),
+                   "type": "interactive", "interactive": {"type": "nfm_reply", "nfm_reply": {
+                       "name": "address_message", "body": "Sent",
+                       "response_json": json.dumps({"values": values})}}}
+        entry = {"id": WABA1, "changes": [{"field": "messages", "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {"display_phone_number": "919330994400", "phone_number_id": META_PHONE_1},
+            "contacts": [{"wa_id": customer["digits"], "profile": {"name": "Hermetic Buyer"}}],
+            "messages": [message]}}]}
+        return build(entry=entry, waba_id=WABA1, meta_phone_number_ids=[META_PHONE_1],
+                     request_id=str(uuid.uuid4()))
+
+    def confirm_prefilled(customer: Dict[str, str], wamid_in: str) -> Dict[str, Any]:
+        """The customer sends back the address form they were just shown, without changing it."""
+        forms = address_forms(customer)
+        return deliver(address_reply(customer, wamid_in,
+                                     dict(form_parameters(forms[-1] if forms else None).get("values") or {})))
+
     # ── 1. parser and retailer-id contract (pure) ────────────────────────────────────────────
     print("\n== 1. retailer id contract and Meta order parsing")
     for pid, vid in ((shop.tee, "TEE-M"), (shop.kit, "KIT1"),
@@ -616,9 +650,25 @@ def run(root: Path) -> int:
     check("R3", "an all-foreign cart parses to nothing payable",
           whatsapp_basket.parse_order_message({"order": {"product_items": [
               {"product_retailer_id": "SKU-1", "quantity": 1}]}}) is None)
+    from lambda_utils.ecommerce import contact_address
+    saved = contact_address.normalize_for_storage({
+        "addressLine1": "12 Hermetic Street", "addressLine2": "Flat 3B", "locality": "Park Street",
+        "city": "Kolkata", "state": "West Bengal", "postalCode": "700001", "countryCode": "IN"})
+    prefill = contact_address.to_meta_address_values(saved)
+    check("ADDR", "a saved address prefills Meta's form fields, and the form sent back unchanged stores it as it was",
+          prefill == {"address": "12 Hermetic Street", "house_number": "Flat 3B",
+                      "landmark_area": "Park Street", "city": "Kolkata", "state": "West Bengal",
+                      "in_pin_code": "700001"}
+          and contact_address.normalize_for_storage(contact_address.map_meta_address(prefill)) == saved,
+          prefill)
+    check("ADDR", "...a foreign address prefills nothing, and only +91 numbers are sent the form",
+          contact_address.to_meta_address_values({**saved, "countryCode": "US"}) == {}
+          and contact_address.address_message_reaches("+919876500001")
+          and not contact_address.address_message_reaches("+14155550123"))
 
-    # ── 2. happy path: catalog cart -> ONE attempt -> the ONE approved template ─────────────────
-    print("\n== 2. catalog cart -> prepareNativeCart -> ONE attempt -> approved ORDER_DETAILS template")
+    # ── 2. happy path: catalog cart -> address confirmed -> ONE attempt -> the ONE approved template
+    print("\n== 2. catalog cart -> delivery address confirmed for this order -> prepareNativeCart -> "
+          "ONE attempt -> approved ORDER_DETAILS template")
     alice = shop.customer(1)
     mark = W.mark()
     wamid = "wamid.HERMETIC.ALICE.1"
@@ -626,13 +676,41 @@ def run(root: Path) -> int:
              {"product_retailer_id": tee, "quantity": 1, "item_price": 499, "currency": "USD"}]
     deliver(order_event(build, alice["digits"], wamid, items))
     calls = W.since(mark, "invocations")
+    asked_after = [i for i, c in enumerate(calls) if c["function"] == "wecare-outbound-whatsapp"]
+    priced_at = [i for i, c in enumerate(calls) if c["function"] in COMMERCE_FUNCTIONS
+                 and c["event"].get("internalAction") == "prepareNativeCart"]
+    forms = address_forms(alice, mark)
+    form = forms[0] if forms else {}
+    prefill = form_parameters(form).get("values") or {}
+    check("ADDR", "a buyer with a saved address is asked to confirm it before any payment: one form, nothing reserved",
+          len(forms) == 1 and len(asked_after) == 1 and not _pay_sends(W.since(mark, "meta_sends"))
+          and not _attempts_for(alice["sub"]) and not _payrefs_for(alice["sub"]),
+          {"forms": len(forms), "outbound": len(asked_after)})
+    check("ADDR", "...only after checkout priced the cart and found payments ready",
+          len(priced_at) == 1 and asked_after and priced_at[0] < asked_after[0], {"prepare": priced_at, "ask": asked_after})
+    check("ADDR", "...the form opens on the saved address in Meta's fields, with nothing marked",
+          prefill.get("address") == "12 Hermetic Street" and prefill.get("city") == "Kolkata"
+          and prefill.get("state") == "West Bengal" and prefill.get("in_pin_code") == "700001"
+          and prefill.get("name") == "Buyer 1" and not form_parameters(form).get("validation_errors"), prefill)
+    check("ADDR", "...and says what to do: confirm it, change it if needed, then the payment request follows",
+          "confirm the delivery address for this order"
+          in str(((form.get("interactive") or {}).get("body") or {}).get("text") or "").lower(),
+          ((form.get("interactive") or {}).get("body") or {}).get("text"))
+    mark = W.mark()
+    confirm_prefilled(alice, "wamid.HERMETIC.ALICE.ADDR1")
+    calls = W.since(mark, "invocations")
     prepares = _checkout_invokes(calls)
-    check("R10", "inbound invoked wecare-checkout prepareNativeCart exactly once", len(prepares) == 1, len(prepares))
+    check("R10", "sending the form back resumed the cart: prepareNativeCart exactly once", len(prepares) == 1, len(prepares))
     if prepares:
         payload = prepares[0]["event"]
         check("R1", "prepareNativeCart payload carries no money/payment field",
-              set(payload) <= {"internalAction", "lines", "sourceMessageId", "contactId", "senderPhone", "phoneNumberId"}
+              set(payload) <= {"internalAction", "lines", "sourceMessageId", "contactId", "senderPhone", "phoneNumberId",
+                               "deliveryConfirmed", "deliveryRecipient"}
               and all(set(l) == {"productId", "variantId", "quantity"} for l in payload["lines"]), sorted(payload))
+        check("ADDR", "...it says the address was confirmed for this cart, and who the parcel is for",
+              payload.get("deliveryConfirmed") is True and payload.get("deliveryRecipient") == "Buyer 1"
+              and payload.get("sourceMessageId") == wamid,
+              {k: payload.get(k) for k in ("deliveryConfirmed", "deliveryRecipient", "sourceMessageId")})
         check("R10", "lines = exact ProductsTable identity + integer quantity",
               payload["lines"] == [{"productId": shop.tee, "variantId": "TEE-M", "quantity": 3}], payload["lines"])
         check("R16", "prepareNativeCart sent the WABA1 sender id", payload["phoneNumberId"] == PHONE_ID_1)
@@ -687,6 +765,14 @@ def run(root: Path) -> int:
               (attempt.get("invoiceLines") or {}).get("lines"))
         check("PHY", "physical goods carry a complete shipping address",
               action["type"] == "physical-goods" and action["shipping_info"]["addresses"][0]["in_pin_code"] == "700001")
+        frozen_address = attempt.get("deliveryAddress") or {}
+        check("ADDR", "the attempt freezes the address and recipient Meta was shown",
+              frozen_address.get("postalCode") == "700001"
+              and frozen_address.get("addressLine1") == "12 Hermetic Street"
+              and attempt.get("deliveryRecipient") == "Buyer 1"
+              == action["shipping_info"]["addresses"][0]["name"],
+              {"postalCode": frozen_address.get("postalCode"),
+               "recipient": attempt.get("deliveryRecipient")})
         wire = json.dumps(msg)
         check("R13", "no payment link anywhere in the Meta request", "payment_link" not in wire)
         check("R14", "no UPI intent anywhere in the Meta request", "upi_intent" not in wire and "preferred_upi_app" not in wire)
@@ -751,9 +837,11 @@ def run(root: Path) -> int:
     bob = shop.customer(2)
     mark = W.mark()
     deliver(order_event(build, bob["digits"], None, [{"product_retailer_id": kit, "quantity": 1}]))
+    confirm_prefilled(bob, "wamid.HERMETIC.BOB.ADDR1")
+    prepared = W.mark()
     deliver(order_event(build, bob["digits"], None, [{"product_retailer_id": kit, "quantity": 1}]))
-    check("R7", "two identical wamid-less carts invoked checkout once",
-          len(_checkout_invokes(W.since(mark, "invocations"))) == 1)
+    check("R7", "the same wamid-less cart, redelivered once its payment request is out, never reaches checkout",
+          len(_checkout_invokes(W.since(prepared, "invocations"))) == 0)
     check("R7", "exactly ONE attempt and ONE payment template",
           len(_attempts_for(bob["sub"])) == 1 and len(_pay_sends(W.since(mark, "meta_sends"))) == 1)
 
@@ -768,12 +856,15 @@ def run(root: Path) -> int:
     index = _table("CommerceKeys").get_item(Key={"orderId": "WABASKETMSG#wamid.HERMETIC.CARA.1"}).get("Item")
     check("R8", "its dedupe index was rolled back", index is None)
     deliver(order_event(build, cara["digits"], "wamid.HERMETIC.CARA.2", [{"product_retailer_id": kit, "quantity": 2}]))
+    confirm_prefilled(cara, "wamid.HERMETIC.CARA.ADDR1")
     check("R8", "the customer's retry produced exactly ONE attempt and ONE payment template",
           len(_attempts_for(cara["sub"])) == 1 and len(_pay_sends(W.since(mark, "meta_sends"))) == 1)
     dan = shop.customer(4)
     mark = W.mark()
-    W.faults[cart_function] = ["timeout_after_run"]
     deliver(order_event(build, dan["digits"], None, [{"product_retailer_id": kit, "quantity": 1}]))
+    # The prepare that times out is the one that pays: the confirmed resume, not the first ask.
+    W.faults[cart_function] = ["timeout_after_run"]
+    confirm_prefilled(dan, "wamid.HERMETIC.DAN.ADDR1")
     deliver(order_event(build, dan["digits"], None, [{"product_retailer_id": kit, "quantity": 1}]))
     check("R8", "an ambiguous (timed-out) prepare keeps the dedupe key: still ONE attempt, ONE template",
           len(_attempts_for(dan["sub"])) == 1 and len(_pay_sends(W.since(mark, "meta_sends"))) == 1,
@@ -796,8 +887,16 @@ def run(root: Path) -> int:
     _table("SystemConfigTable").delete_item(Key={"id": "whatsapp_catalog_orders"})
     check("R9", "inbound SystemConfig override off: no checkout invoke at all",
           not _checkout_invokes(W.since(mark, "invocations")))
-    ok = checkout.handler(dict(direct), FakeContext("wecare-checkout"))
-    check("R10", "gate on + prerequisites met: NATIVE_CART_PREPARED", ok.get("outcome") == "NATIVE_CART_PREPARED", ok)
+    for label, extra in (("not confirmed for this cart", {}),
+                         ("'confirmed' sent as a string", {"deliveryConfirmed": "true"})):
+        unconfirmed = checkout.handler({**direct, **extra}, FakeContext("wecare-checkout"))
+        check("ADDR", f"gate on + prerequisites met, address {label}: DELIVERY_CONFIRMATION_REQUIRED, nothing reserved",
+              unconfirmed.get("outcome") == "NATIVE_CART_NOT_PREPARED"
+              and unconfirmed.get("error") == "DELIVERY_CONFIRMATION_REQUIRED"
+              and len(_attempts_for(erin["sub"])) == 0, unconfirmed)
+    ok = checkout.handler({**direct, "deliveryConfirmed": True}, FakeContext("wecare-checkout"))
+    check("R10", "gate on + prerequisites met + address confirmed: NATIVE_CART_PREPARED",
+          ok.get("outcome") == "NATIVE_CART_PREPARED", ok)
     http = checkout.handler({**direct, "requestContext": {"http": {"method": "POST"}}, "rawPath": "/checkout"},
                             FakeContext("wecare-checkout"))
     check("AUTH", "prepareNativeCart over an HTTP envelope is refused 403", http.get("statusCode") == 403)
@@ -847,6 +946,11 @@ def run(root: Path) -> int:
           not _pay_sends(W.since(mark, "meta_sends")) and len(asks) == 1
           and all(b.get("interactiveType") == "address_message" for b in asks),
           [b.get("interactiveType") or b.get("templateName") for b in asks])
+    ask_data = (asks[0].get("interactiveData") or {}) if asks else {}
+    check("ADDR", "...with nothing on file, the form asks for an address and prefills only the name and number",
+          set(ask_data.get("values") or {}) <= {"name", "phone_number"}
+          and "please share your delivery address" in str(ask_data.get("body") or "").lower(),
+          sorted(ask_data.get("values") or {}))
     order_at = [i for i, c in enumerate(W.since(mark, "invocations"))
                 if c["function"] in COMMERCE_FUNCTIONS and c["event"].get("internalAction") == "prepareNativeCart"]
     ask_at = [i for i, c in enumerate(W.since(mark, "invocations"))
@@ -859,10 +963,10 @@ def run(root: Path) -> int:
           == [{"productId": shop.tee, "variantId": "TEE-M", "quantity": 1}]
           and not any(k in pending for k in ("amountPaise", "price", "total")), pending and pending.get("lines"))
 
-    def address_event(digits: str, wamid_in: str) -> Dict[str, Any]:
+    def address_event(digits: str, wamid_in: str, pin: str = "700016") -> Dict[str, Any]:
         values = {"name": "Buyer Six", "phone_number": "+" + digits, "address": "7 Resume Road",
                   "landmark_area": "Park Street", "city": "Kolkata", "state": "West Bengal",
-                  "in_pin_code": "700016"}
+                  "in_pin_code": pin}
         message = {"from": digits, "id": wamid_in, "timestamp": str(int(time.time())), "type": "interactive",
                    "interactive": {"type": "nfm_reply", "nfm_reply": {
                        "name": "address_message", "body": "Sent", "response_json": json.dumps({"values": values})}}}
@@ -874,6 +978,33 @@ def run(root: Path) -> int:
         return build(entry=entry, waba_id=WABA1, meta_phone_number_ids=[META_PHONE_1],
                      request_id=str(uuid.uuid4()))
 
+    # A five-digit PIN passes storage (international) but cannot settle a WhatsApp payment.
+    mark = W.mark()
+    deliver(address_event(frank["digits"], "wamid.HERMETIC.FRANK.ADDR0", pin="70001"))
+    reasks = [_outbound_body(c) for c in W.since(mark, "invocations")
+              if c["function"] == "wecare-outbound-whatsapp"]
+    reask_data = (reasks[0].get("interactiveData") or {}) if reasks else {}
+    frank_row = _table("ContactsTable").get_item(Key={"id": frank["contactId"]}).get("Item") or {}
+    check("ADDR", "an address WhatsApp payment cannot settle is sent back, filled in, with the PIN marked",
+          not _pay_sends(W.since(mark, "meta_sends")) and len(reasks) == 1
+          and reasks[0].get("interactiveType") == "address_message"
+          and "in_pin_code" in (reask_data.get("validationErrors") or {})
+          and (reask_data.get("values") or {}).get("address") == "7 Resume Road"
+          and "could not use that address" in str(reask_data.get("body")),
+          reask_data.get("validationErrors"))
+    reask_wire = [s["payload"] for s in W.since(mark, "meta_sends")
+                  if (s["payload"].get("interactive") or {}).get("type") == "address_message"]
+    wire_params = (((reask_wire[0].get("interactive") or {}).get("action") or {})
+                   .get("parameters") or {}) if reask_wire else {}
+    check("ADDR", "...and Meta receives the values and validation_errors on the address form",
+          len(reask_wire) == 1 and "in_pin_code" in (wire_params.get("validation_errors") or {})
+          and (wire_params.get("values") or {}).get("in_pin_code") == "70001"
+          and wire_params.get("country") == "IN", sorted(wire_params))
+    check("ADDR", "...it is not saved, and the cart keeps waiting for a usable one",
+          not frank_row.get("checkoutDeliveryAddress")
+          and bool(_table("CommerceKeys").get_item(
+              Key={"orderId": "WABASKETPENDING#" + frank["contactId"]}).get("Item")),
+          frank_row.get("checkoutDeliveryAddress"))
     mark = W.mark()
     deliver(address_event(frank["digits"], "wamid.HERMETIC.FRANK.ADDR1"))
     frank_attempts = _attempts_for(frank["sub"])
@@ -885,6 +1016,11 @@ def run(root: Path) -> int:
         shipped = [c for c in resumed[0]["payload"]["template"]["components"] if c.get("type") == "button"][0]
         info = shipped["parameters"][0]["action"]["order_details"]["shipping_info"]["addresses"][0]
         check("UX", "...addressed to the address just submitted", info.get("in_pin_code") == "700016", info)
+        check("ADDR", "...and to the name typed on the form, which the attempt keeps for the order",
+              info.get("name") == "Buyer Six" and bool(frank_attempts)
+              and frank_attempts[0].get("deliveryRecipient") == "Buyer Six",
+              {"meta": info.get("name"),
+               "attempt": frank_attempts[0].get("deliveryRecipient") if frank_attempts else None})
     check("UX", "...and the waiting cart is consumed",
           not _table("CommerceKeys").get_item(Key={"orderId": "WABASKETPENDING#" + frank["contactId"]}).get("Item"))
     mark = W.mark()
@@ -900,6 +1036,9 @@ def run(root: Path) -> int:
     mark = W.mark()
     deliver(order_event(build, gina["digits"], "wamid.HERMETIC.GINA.1",
                         [{"product_retailer_id": kit, "quantity": 1}]))
+    # The cart's own message proved the handset; the confirmed address then resumes the cart
+    # against the identity that first pass created.
+    confirm_prefilled(gina, "wamid.HERMETIC.GINA.ADDR1")
     gina_contact = _table("ContactsTable").get_item(
         Key={"id": gina["contactId"]}, ConsistentRead=True).get("Item") or {}
     gina_owner = str(gina_contact.get("checkoutCustomerId") or "")
@@ -917,6 +1056,37 @@ def run(root: Path) -> int:
     check("AUTH", "...the bridge created one verified customer-pool identity for later website use",
           len(users) == 1 and any(a.get("Name") == "phone_number_verified" and a.get("Value") == "true"
                                   for a in users[0].get("Attributes", [])), len(users))
+    # A saved address WhatsApp payment cannot settle (a five-digit PIN, which storage accepts): the
+    # form opens on it with the PIN marked, and the corrected form resumes the cart.
+    omar = shop.customer(61)  # 1-15 and 40-42 belong to the other scenarios
+    omar_row = _table("ContactsTable").get_item(Key={"id": omar["contactId"]})["Item"]
+    _table("ContactsTable").put_item(Item={**omar_row, "checkoutDeliveryAddress": {
+        **omar_row["checkoutDeliveryAddress"], "postalCode": "70001"}})
+    mark = W.mark()
+    deliver(order_event(build, omar["digits"], "wamid.HERMETIC.OMAR.1",
+                        [{"product_retailer_id": kit, "quantity": 1}]))
+    omar_forms = address_forms(omar, mark)
+    omar_form = omar_forms[0] if omar_forms else {}
+    omar_params = form_parameters(omar_form)
+    omar_text = str(((omar_form.get("interactive") or {}).get("body") or {}).get("text") or "")
+    check("ADDR", "an address on file WhatsApp cannot settle: the form opens on it, PIN marked, nothing payable",
+          len(omar_forms) == 1 and not _pay_sends(W.since(mark, "meta_sends"))
+          and not _attempts_for(omar["sub"])
+          and (omar_params.get("values") or {}).get("address") == "12 Hermetic Street"
+          and (omar_params.get("values") or {}).get("in_pin_code") == "70001"
+          and "in_pin_code" in (omar_params.get("validation_errors") or {})
+          and "cannot deliver to the address we have on file" in omar_text.lower(),
+          {"errors": omar_params.get("validation_errors"), "text": omar_text[:60]})
+    mark = W.mark()
+    deliver(address_reply(omar, "wamid.HERMETIC.OMAR.ADDR1",
+                          dict(omar_params.get("values") or {}, in_pin_code="700001")))
+    omar_attempts = _attempts_for(omar["sub"])
+    check("ADDR", "...the corrected form resumes the cart: ONE attempt and ONE payment template, to the new PIN",
+          len(omar_attempts) == 1 and len(_pay_sends(W.since(mark, "meta_sends"))) == 1
+          and (omar_attempts[0].get("deliveryAddress") or {}).get("postalCode") == "700001",
+          {"attempts": len(omar_attempts),
+           "pin": (omar_attempts[0].get("deliveryAddress") or {}).get("postalCode") if omar_attempts else None})
+
     mark = W.mark()
     ivy = shop.customer(9)
     deliver(order_event(build, ivy["digits"], "wamid.HERMETIC.IVY.1", [{"product_retailer_id": kit, "quantity": 1}],
@@ -1107,6 +1277,12 @@ def run(root: Path) -> int:
               counts["invoices"][0].get("waOrderStatus") if counts["invoices"] else None)
         check("R18", "the order's status is completed",
               counts["orders"] and counts["orders"][0].get("orderStatus") == "completed")
+        paid_order = counts["orders"][0] if counts["orders"] else {}
+        check("ADDR", "the order records where it ships: the address and recipient frozen at checkout",
+              (paid_order.get("checkoutDeliveryAddress") or {}).get("postalCode") == "700001"
+              and str(paid_order.get("shippingAddress") or "").startswith("12 Hermetic Street, Kolkata")
+              and paid_order.get("deliveryRecipient") == "Buyer 1",
+              {k: paid_order.get(k) for k in ("shippingAddress", "deliveryRecipient")})
         # F002: the invoice's Leave Review FLOW button carries an order-bound review token, so a
         # review written from it can be tied to this order and invoice.
         flow_tokens = [((param.get("action") or {}).get("flow_token"))
@@ -1198,9 +1374,169 @@ def run(root: Path) -> int:
               True, f"{len(hints)} hint invoke(s) over 2 processed deliveries")
         mark = W.mark()
         deliver(order_event(build, alice["digits"], "wamid.HERMETIC.ALICE.3", items))
+        confirm_prefilled(alice, "wamid.HERMETIC.ALICE.ADDR3")
         check("DUP", "once the request is PAID, the same basket can be requested again (a new purchase)",
               len(_attempts_for(alice["sub"])) == 2 and len(_pay_sends(W.since(mark, "meta_sends"))) == 1,
               f"attempts={len(_attempts_for(alice['sub']))}")
+
+        # ── 9c. the order page: the owner reads the order; nobody else can ─────────────────────
+        print("\n== 9c. order page: /orders/?o=<orderNumber> -> checkout action 'order'")
+        from lambda_utils import customer_auth
+        origin = "https://wecare.digital"
+        number = str(paid_order.get("orderNumber") or "")
+        owner = customer_auth.CustomerIdentity(customer_id=alice["sub"], subject=alice["sub"],
+                                               phone=alice["phone"])
+        page = checkout._order_detail(owner, {"orderNumber": number}, origin)
+        page_body = json.loads(page.get("body") or "{}")
+        view = page_body.get("order") or {}
+        check("PAGE", "the owner gets the order: 200 ORDER_READY, never cached",
+              page.get("statusCode") == 200 and page_body.get("status") == "ORDER_READY"
+              and view.get("orderNumber") == number
+              and "no-store" in json.dumps(page.get("headers") or {}).lower(),
+              (page.get("statusCode"), page_body.get("status")))
+        check("PAGE", "...with the lines the buyer reviewed (name, quantity, integer paise)",
+              view.get("items") == [{"name": "Hermetic Tee", "quantity": 3, "unitPricePaise": 59900,
+                                     "totalPaise": 179700}], view.get("items"))
+        charges = view.get("charges") or {}
+        check("PAGE", "...a breakdown that closes to the amount paid, with Delight named",
+              charges.get("totalPaise") == amount == view.get("amountPaise")
+              and charges.get("merchandisePaise") == 179700 and charges.get("discountPaise", 0) > 0
+              and charges.get("discountLabel") == "Delight", charges)
+        # The canonical rail ends a WhatsApp payment at Meta `completed` ("Payment complete."), and
+        # the order row carries that accepted state, so the page reads it back unchanged.
+        check("PAGE", "...paid, payment complete, placed on WhatsApp",
+              view.get("paymentStatus") == "captured" and view.get("fulfilmentStatus") == "completed"
+              and view.get("channel") == "whatsapp",
+              {k: view.get(k) for k in ("paymentStatus", "fulfilmentStatus", "channel")})
+        delivery = view.get("delivery") or {}
+        check("PAGE", "...and the delivery address frozen at checkout",
+              (delivery.get("address") or {}).get("postalCode") == "700001"
+              and delivery.get("recipient") == "Buyer 1", delivery.get("recipient"))
+        contact_row = _table("ContactsTable").get_item(Key={"id": alice["contactId"]})["Item"]
+        _table("ContactsTable").put_item(Item={**contact_row, "checkoutDeliveryAddress": {
+            "addressLine1": "9 Moved Lane", "city": "Bengaluru", "state": "Karnataka",
+            "postalCode": "560001", "countryCode": "IN"}})
+        moved = json.loads(checkout._order_detail(owner, {"orderNumber": number}, origin)["body"])
+        _table("ContactsTable").put_item(Item=contact_row)
+        check("PAGE", "a profile address edited AFTER payment does not move the order",
+              ((moved.get("order") or {}).get("delivery") or {}).get("address", {}).get("postalCode")
+              == "700001", ((moved.get("order") or {}).get("delivery") or {}).get("address"))
+        stranger = customer_auth.CustomerIdentity(customer_id=bob["sub"], subject=bob["sub"],
+                                                  phone=bob["phone"])
+        foreign = checkout._order_detail(stranger, {"orderNumber": number}, origin)
+        absent = checkout._order_detail(owner, {"orderNumber": "WD-ORD-22222222"}, origin)
+        check("PAGE", "another customer's order and a non-existent order answer the identical 404",
+              foreign.get("statusCode") == absent.get("statusCode") == 404
+              and foreign.get("body") == absent.get("body"),
+              (foreign.get("statusCode"), absent.get("statusCode")))
+        malformed = checkout._order_detail(owner, {"orderNumber": "WD-ORD-../../x"}, origin)
+        check("PAGE", "a malformed order number is refused 400 before any read",
+              malformed.get("statusCode") == 400, malformed.get("statusCode"))
+        anonymous = checkout.handler(
+            {"requestContext": {"http": {"method": "POST", "path": "/ecommerce/checkout/status"}},
+             "rawPath": "/ecommerce/checkout/status", "headers": {},
+             "body": json.dumps({"action": "order", "orderNumber": number})},
+            FakeContext("wecare-checkout"))
+        check("PAGE", "the order action requires the customer session (401 without one)",
+              anonymous.get("statusCode") == 401, anonymous.get("statusCode"))
+
+    # ── 9d. website checkout: the server asks for the address and freezes the one confirmed ───
+    print("\n== 9d. website prepare: delivery address enforced server-side and frozen on the attempt")
+    from lambda_utils import customer_auth as _customer_auth
+    created_orders: List[Dict[str, Any]] = []
+
+    def fake_create_order(*, amount_paise: int, receipt: str, notes: Any = None) -> Dict[str, Any]:
+        order = {"id": f"order_WEB{len(created_orders) + 1:03d}", "key_id": "rzp_test_hermetic",
+                 "amount": amount_paise, "currency": "INR", "receipt": receipt, "notes": notes or {}}
+        created_orders.append(order)
+        return order
+
+    real_create, real_find = checkout.razorpay_orders.create_order, checkout.razorpay_orders.find_order_by_receipt
+    checkout.razorpay_orders.create_order = fake_create_order
+    checkout.razorpay_orders.find_order_by_receipt = lambda receipt: None
+    try:
+        web_basket = [{"catalogReference": {"catalogItemId": shop.kit, "options": {"variantId": "KIT1"}},
+                       "quantity": 1}]
+
+        def web_prepare(customer: Dict[str, str], key: str) -> Dict[str, Any]:
+            who = _customer_auth.CustomerIdentity(customer_id=customer["sub"], subject=customer["sub"],
+                                                  phone=customer["phone"])
+            result = checkout._website_prepare(who, {"action": "prepare", "lineItems": web_basket,
+                                                     "requestKey": key}, "https://wecare.digital")
+            return {"statusCode": result.get("statusCode"), **json.loads(result.get("body") or "{}")}
+
+        def set_address(customer: Dict[str, str], postal: str, city: str, state: str) -> None:
+            row = _table("ContactsTable").get_item(Key={"id": customer["contactId"]})["Item"]
+            row["checkoutDeliveryAddress"] = {"addressLine1": f"{postal} Web Street", "city": city,
+                                              "state": state, "postalCode": postal, "countryCode": "IN"}
+            _table("ContactsTable").put_item(Item=row)
+
+        # 62: 1-15, 40-42 and 61 belong to the other scenarios.
+        web = shop.customer(62, address=False, legacy_shipping=False)
+        before = len(created_orders)
+        missing = web_prepare(web, "hermetic-web-1")
+        check("WEB", "a physical basket with no delivery address is refused 409 before any provider call",
+              missing["statusCode"] == 409 and missing.get("error") == "DELIVERY_DETAILS_REQUIRED"
+              and len(created_orders) == before and not _attempts_for(web["sub"]), missing)
+        set_address(web, "12345", "Kolkata", "West Bengal")
+        unpayable = web_prepare(web, "hermetic-web-1")
+        check("WEB", "...and so is an address the website channel cannot settle (5-digit PIN)",
+              unpayable["statusCode"] == 409 and unpayable.get("error") == "DELIVERY_DETAILS_REQUIRED"
+              and len(created_orders) == before, unpayable)
+        set_address(web, "700020", "Kolkata", "West Bengal")
+        ready = web_prepare(web, "hermetic-web-1")
+        web_attempt_id = str(ready.get("paymentAttemptId") or "")
+        web_attempt = _table("PaymentAttemptsTable").get_item(
+            Key={"paymentAttemptId": web_attempt_id}).get("Item") or {} if web_attempt_id else {}
+        check("WEB", "a payable address opens the payment and is frozen on the attempt",
+              ready.get("status") == "CHECKOUT_OPTIONS_READY"
+              and (web_attempt.get("deliveryAddress") or {}).get("postalCode") == "700020"
+              and web_attempt.get("deliveryRecipient") == "Buyer 62", ready.get("status"))
+        set_address(web, "560001", "Bengaluru", "Karnataka")
+        resumed = web_prepare(web, "hermetic-web-1")
+        web_attempt = _table("PaymentAttemptsTable").get_item(
+            Key={"paymentAttemptId": web_attempt_id}).get("Item") or {}
+        check("WEB", "a resumed prepare after an address change re-stamps the unpaid attempt",
+              resumed.get("status") == "CHECKOUT_OPTIONS_READY"
+              and resumed.get("paymentAttemptId") == web_attempt_id
+              and (web_attempt.get("deliveryAddress") or {}).get("postalCode") == "560001"
+              and len(created_orders) == before + 1,
+              {"status": resumed.get("status"), "orders": len(created_orders) - before})
+        # Exactly the attributes the browser verify's `_record_verified_capture` writes (it does NOT
+        # write `verifiedProviderPaymentId`; `record_paid` does that later, inside finalization).
+        _table("PaymentAttemptsTable").update_item(
+            Key={"paymentAttemptId": web_attempt_id},
+            UpdateExpression="SET paidAt = :t, providerPaymentId = :p, verifiedCapturedPaise = :v",
+            ExpressionAttributeValues={":t": int(time.time()), ":p": "pay_HERMETICWEB",
+                                       ":v": int(web_attempt.get("amountPaise") or 0)})
+        from lambda_utils.ecommerce import order_delivery as _order_delivery
+        web_who = _customer_auth.CustomerIdentity(customer_id=web["sub"], subject=web["sub"],
+                                                  phone=web["phone"])
+        checkout._refresh_attempt_delivery(web_attempt_id, web_who, _order_delivery.attempt_fields(
+            {"addressLine1": "1 Late Lane", "city": "New Delhi", "state": "Delhi",
+             "postalCode": "110001", "countryCode": "IN"}, {"name": "Someone Else"}))
+        set_address(web, "110001", "New Delhi", "Delhi")
+        web_prepare(web, "hermetic-web-1")
+        web_attempt = _table("PaymentAttemptsTable").get_item(
+            Key={"paymentAttemptId": web_attempt_id}).get("Item") or {}
+        check("WEB", "...but once a capture is recorded the frozen address never moves",
+              (web_attempt.get("deliveryAddress") or {}).get("postalCode") == "560001"
+              and web_attempt.get("deliveryRecipient") == "Buyer 62",
+              (web_attempt.get("deliveryAddress") or {}).get("postalCode"))
+        order_view = checkout._order_view(
+            {"orderNumber": "WD-ORD-22222223", "currency": "INR", "amountPaise": Decimal(100),
+             "paymentStatus": "PAYMENT_PAID", "orderStatus": "shipped", "createdAt": Decimal(1),
+             "checkoutDeliveryAddress": {"addressLine1": "x"}},
+            {"invoiceLines": {"lines": [{"name": "A", "quantity": 1, "unitPricePaise": 100}],
+                              "deliveryPaise": 0, "discountPaise": 0, "convenienceFeePaise": 1,
+                              "convenienceGstPaise": 0, "totalPaise": 101}})
+        check("PAGE", "an unreconciled breakdown or an unusable stored address is omitted, not shown",
+              order_view["charges"] is None and order_view["delivery"] is None
+              and order_view["items"][0]["totalPaise"] == 100 and order_view["fulfilmentStatus"] == "shipped",
+              {k: order_view[k] for k in ("charges", "delivery", "fulfilmentStatus")})
+    finally:
+        checkout.razorpay_orders.create_order = real_create
+        checkout.razorpay_orders.find_order_by_receipt = real_find
 
     # ── 9b. status webhooks are logged without the customer's number ──────────────────────────
     print("\n== 9b. PII in inbound status logs")
@@ -1234,6 +1570,7 @@ def run(root: Path) -> int:
     jay = shop.customer(10)
     mark = W.mark()
     deliver(order_event(build, jay["digits"], "wamid.HERMETIC.JAY.1", [{"product_retailer_id": kit, "quantity": 1}]))
+    confirm_prefilled(jay, "wamid.HERMETIC.JAY.ADDR1")
     jay_refs = _payrefs_for(jay["sub"])
     if jay_refs:
         reference = jay_refs[0]["referenceId"]
@@ -1274,6 +1611,7 @@ def run(root: Path) -> int:
     lea = shop.customer(40)  # numbers 1-14 belong to the other scenarios
     mark = W.mark()
     deliver(order_event(build, lea["digits"], "wamid.HERMETIC.LEA.1", [{"product_retailer_id": kit, "quantity": 1}]))
+    confirm_prefilled(lea, "wamid.HERMETIC.LEA.ADDR1")
     lea_refs = _payrefs_for(lea["sub"])
     check("ISO", "setup: the buyer's cart produced a payment reference", bool(lea_refs))
     if lea_refs:
@@ -1322,6 +1660,8 @@ def run(root: Path) -> int:
     mark = W.mark()
     deliver(order_event(build, ria["digits"], "wamid.HERMETIC.RIA.1",
                         [{"product_retailer_id": kit, "quantity": 1}]))
+    # Every WhatsApp cart confirms its delivery address before the payment request.
+    confirm_prefilled(ria, "wamid.HERMETIC.RIA.ADDR1")
     ria_refs = _payrefs_for(ria["sub"])
     check("RETRY", "setup: deferred-status buyer produced a payment reference", bool(ria_refs))
     if ria_refs:
@@ -1386,6 +1726,7 @@ def run(root: Path) -> int:
     moe = shop.customer(41)
     mark = W.mark()
     deliver(order_event(build, moe["digits"], "wamid.HERMETIC.MOE.1", [{"product_retailer_id": kit, "quantity": 1}]))
+    confirm_prefilled(moe, "wamid.HERMETIC.MOE.ADDR1")
     moe_refs = _payrefs_for(moe["sub"])
     check("META", "setup: the buyer's cart produced a payment reference", bool(moe_refs))
     if moe_refs:

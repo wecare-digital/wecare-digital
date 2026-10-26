@@ -18,8 +18,13 @@ import { type StoredAddress } from '../AddressFields';
 import { featureFlags } from '../../config/featureFlags';
 import { clearSession, getSession, restoreSession } from '../../lib/customerAuth';
 import { formatPaiseINR } from '../../lib/money';
+import { PAYMENT_STATUS_LABEL, PAYMENT_STATUS_NOTE } from '../../lib/orderStatusLabels';
+import {
+  isPublicOrderNumber, orderNumberFromUrl, orderPagePath, stashPendingOrder, takePendingOrder,
+} from '../../lib/orderPage';
 import { isCarriableReference, reviewWaLink } from '../../lib/reviewLink';
 import { whatsappServiceLink } from '../../config/whatsappServiceEntries';
+import OrderDetail from './OrderDetail';
 
 /**
  * /orders — what a customer has bought from us, and what each payment is doing.
@@ -58,6 +63,15 @@ import { whatsappServiceLink } from '../../config/whatsappServiceEntries';
  * says so rather than asserting that nothing was bought - a captured payment can leave no order
  * row at all (finalization stages PURCHASED_SNAPSHOT_MISSING and returns before the order write),
  * and no later writer creates one. Phase 3 cannot repair that; the repair is on the money path.
+ *
+ * THE ORDER PAGE IS THIS PAGE WITH `?o=<orderNumber>`. Both purchase channels end there: the
+ * website's /checkout/status/ hands off to it once the payment is confirmed, and each history
+ * row's panel links to it, which is how a WhatsApp buyer arrives (the WhatsApp `orders` reply
+ * opens this page; the rail's order_status templates carry no link). OrderDetail renders
+ * it, from one session-gated read of one order. It is a client-side view of the same static
+ * route, so the export, the canonical and the signed-out first render above are unchanged. A
+ * number opened while signed out is kept in sessionStorage (`lib/orderPage`) and reopened once
+ * the sign-in returns here, because the return path may carry no query string.
  */
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api';
@@ -132,7 +146,12 @@ interface OrdersResponse {
   profile?: ProfilePayload | null;
 }
 
-type View = 'signedOut' | 'loading' | 'ready' | 'empty' | 'error';
+/**
+ * `focus` is the order page: `/orders/?o=<orderNumber>` for a signed-in customer, rendered by
+ * OrderDetail INSTEAD of the history. It is entered only from the mount effect, so the static
+ * export still renders `signedOut` first and the indexed page is unchanged.
+ */
+type View = 'signedOut' | 'loading' | 'ready' | 'empty' | 'error' | 'focus';
 type Failure = 'rate' | 'unavailable';
 
 type Outcome =
@@ -142,29 +161,14 @@ type Outcome =
   | { kind: 'unavailable' };
 
 /**
- * The §3.6 map, keyed on the CANONICAL word and nothing else. A lookup rather than a chain of
- * comparisons, which is the shape that cannot drift: the mapping from 'PAYMENT_PAID', 'paid' and
- * 'completed' happened once, on the server, in payment_status. Re-introducing any of those
- * spellings here would be the frontend starting a sixth vocabulary.
+ * The §3.6 map, keyed on the CANONICAL word and nothing else, now shared with the order page
+ * from `lib/orderStatusLabels` so the two screens cannot word one payment state two ways. The
+ * mapping from 'PAYMENT_PAID', 'paid' and 'completed' happened once, on the server, in
+ * payment_status. Re-introducing any of those spellings here would be the frontend starting a
+ * sixth vocabulary.
  */
-const STATUS_LABEL: Record<string, string> = {
-  captured: 'Paid',
-  authorized: 'Payment held',
-  pending: 'Payment confirming',
-  created: 'Started',
-  failed: 'Not paid',
-  refunded: 'Refunded',
-  disputed: 'Under review',
-};
-
-const STATUS_NOTE: Record<string, string> = {
-  authorized: 'We are confirming this with the bank.',
-  pending: 'This usually settles within a few minutes.',
-  created: 'This order was started but not paid.',
-  failed: 'No money was taken.',
-  refunded: 'The amount has been returned.',
-  disputed: 'We are looking into this payment with the bank.',
-};
+const STATUS_LABEL = PAYMENT_STATUS_LABEL;
+const STATUS_NOTE = PAYMENT_STATUS_NOTE;
 
 /** The two states that read as firm rather than advisory. A weight step, never a hue. */
 const STATUS_FIRM = new Set( [ 'captured', 'refunded' ] );
@@ -389,6 +393,12 @@ export default function OrdersPage (): React.ReactElement {
   const [ moreFailed, setMoreFailed ] = useState( false );
   const [ showProfile, setShowProfile ] = useState( false );
   const [ profileMode, setProfileMode ] = useState<CheckoutProfileMode>( 'name' );
+  /**
+   * The one order this visit asked for, from `?o=` or from a link opened before a sign-in round
+   * trip. '' for the ordinary history view. Set only in the mount effect, never during render,
+   * so the server-rendered shell and the first client paint agree.
+   */
+  const [ focusOrder, setFocusOrder ] = useState( '' );
 
   /** Which detail panels are open. Many at once, deliberately - see `toggleRow`. */
   const [ openRows, setOpenRows ] = useState<Record<string, boolean>>( {} );
@@ -547,6 +557,12 @@ export default function OrdersPage (): React.ReactElement {
   useEffect( () => {
     let live = true;
     ( async () => {
+      // THE ORDER PAGE. `?o=` wins; otherwise a link opened while signed out, carried through
+      // the sign-in round trip out of band because the return path may not carry a query.
+      // Both read on every visit, so a stale stash is consumed even when the URL names an order.
+      const fromUrl = orderNumberFromUrl();
+      const pending = takePendingOrder();
+      const requested = fromUrl || pending;
       let session = getSession();
       if ( !session )
       {
@@ -554,8 +570,19 @@ export default function OrdersPage (): React.ReactElement {
         catch { /* stay signedOut */ }
       }
       if ( !live ) return;
-      if ( !session ) return;
+      if ( requested ) setFocusOrder( requested );
+      if ( !session )
+      {
+        if ( requested ) stashPendingOrder( requested );
+        return;
+      }
       setToken( session.accessToken );
+      if ( requested )
+      {
+        // OrderDetail owns the one read; the history is not fetched for this visit.
+        setView( 'focus' );
+        return;
+      }
       setView( 'loading' );
       const outcome = await fetchOrders( session.accessToken, '' );
       if ( !live ) return;
@@ -656,11 +683,15 @@ export default function OrdersPage (): React.ReactElement {
         description="Sign in on WhatsApp to see what you have bought from WECARE.DIGITAL, each order's payment status, and the details we have on file."
         path="/orders/"
       />
+      { /* PageMeta is the SAME for the order page: `?o=` is a client-side view of /orders/, whose
+           canonical, title and description stay the history's. Only the visible band changes. */ }
       <RotatingHero
         frame="Your"
-        words={ [ { word: 'orders', tint: '#e0f7c8', dot: '#3da35a' } ] }
-        sub="What you have bought from us, and what each payment is doing."
-        ariaLabel="Your orders"
+        words={ [ { word: focusOrder ? 'order' : 'orders', tint: '#e0f7c8', dot: '#3da35a' } ] }
+        sub={ focusOrder
+          ? 'What you bought, where it ships, and where it is now.'
+          : 'What you have bought from us, and what each payment is doing.' }
+        ariaLabel={ focusOrder ? 'Your order' : 'Your orders' }
       >
         { /* The band owns the h1, the <main>, both header clearances, the measure, the gutters
              and the 'Inter' stack. Nothing below re-declares any of them, and nothing
@@ -679,7 +710,11 @@ export default function OrdersPage (): React.ReactElement {
                   Your sign-in has expired. Sign in again to see your orders.
                 </p>
               ) }
-              <p className="ord-p">Sign in on your WhatsApp number to see your orders.</p>
+              <p className="ord-p">
+                { focusOrder
+                  ? <>Sign in on your WhatsApp number to see order <span data-wc-no-translate>{ focusOrder }</span>.</>
+                  : 'Sign in on your WhatsApp number to see your orders.' }
+              </p>
               { /* TWO WAYS IN, and each label says where it goes. "Sign in here" NAVIGATES to the
                    on-site form (/account/sign-in/) where the shopper enters their number and the
                    code is delivered over WhatsApp - it opens the form, it does not send a code, so
@@ -702,6 +737,10 @@ export default function OrdersPage (): React.ReactElement {
 
           { view === 'loading' && (
             <p className="ord-p" role="status">Loading your orders…</p>
+          ) }
+
+          { view === 'focus' && focusOrder && token && (
+            <OrderDetail accessToken={ token } orderNumber={ focusOrder } onExpired={ expire } />
           ) }
 
           { view === 'error' && (
@@ -1147,12 +1186,26 @@ export default function OrdersPage (): React.ReactElement {
                                     <dt>Status</dt>
                                     <dd>{ note ? `${ label } — ${ note }` : label }</dd>
                                     <dt>Items</dt>
-                                    { /* Stated once per opened panel rather than omitted: the
-                                         owner asked for items, `items` cannot reach this wire
-                                         without deleting and recreating a production GSI, and a
-                                         silent absence reads as a bug. This is the slot the data
-                                         lands in if that projection ever changes. */ }
-                                    <dd>Item details are not available for this order.</dd>
+                                    { /* The items still cannot ride THIS wire (the history reads a
+                                         GSI whose projection carries no lines), so the slot links
+                                         the order page, which reads the one order and shows its
+                                         lines, delivery address and fulfilment status. A plain
+                                         anchor, not next/link: `/orders/?o=` is this same page, and
+                                         only a full load re-runs the mount effect that opens it.
+                                         The sentence stays for a row with no usable number. */ }
+                                    <dd>
+                                      { isPublicOrderNumber( order.orderNumber )
+                                        ? (
+                                          <a
+                                            className="ord-view"
+                                            href={ orderPagePath( order.orderNumber ) }
+                                            aria-label={ `View items and delivery for order ${ order.orderNumber }` }
+                                          >
+                                            View items and delivery
+                                          </a>
+                                        )
+                                        : 'Item details are not available for this order.' }
+                                    </dd>
                                     { !!panelInvoice && (
                                       <>
                                         <dt>Invoice</dt>
@@ -1325,7 +1378,14 @@ export default function OrdersPage (): React.ReactElement {
             width:100%;border-collapse:collapse;
             font-family:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
           }
-          .ord-tablewrap{overflow-x:auto;border:1px solid var(--public-hairline);border-radius:16px;background:#fff}
+          /* max-inline-size:100% IS WHAT MAKES THE SCROLL CONTAINER SCROLL. .ord-list lays its
+             children out with align-items:flex-start, so without a cap this wrapper is
+             fit-content wide, which for a five-column table is its min-content (about 670px), and
+             the overflow lands on the DOCUMENT instead of in here. Measured signed in at 375px:
+             188px of sideways page scroll with every panel closed, 309px with one open. Capped,
+             the wrapper is never wider than its column, and at desktop widths, where the table
+             fits, nothing changes. */
+          .ord-tablewrap{overflow-x:auto;max-inline-size:100%;border:1px solid var(--public-hairline);border-radius:16px;background:#fff}
           .ord-tablewrap:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
 
           /* 1px and static: these borders never change. The row's hover is a background tint
@@ -1448,19 +1508,21 @@ export default function OrdersPage (): React.ReactElement {
              "Show more orders" at rest. align-self:flex-start comes along from this body and is
              inert inside a <td>, which is not a flex container - noted so it is not read as a
              mistake. */
-          .ord-quiet,.ord-inv,.ord-copy{
+          .ord-quiet,.ord-inv,.ord-copy,.ord-view{
             align-self:flex-start;display:inline-flex;align-items:center;justify-content:center;
             min-height:44px;padding:0 24px;border:2px solid #d1f470;border-radius:50px;
             background:#fff;color:var(--public-brand-green);font:inherit;font-size:17px;font-weight:600;cursor:pointer;
           }
-          .ord-quiet:hover:not(:disabled),.ord-inv:hover:not(:disabled),.ord-copy:hover:not(:disabled){background:var(--public-lime-tint)}
-          .ord-quiet:focus-visible,.ord-inv:focus-visible,.ord-copy:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
+          .ord-quiet:hover:not(:disabled),.ord-inv:hover:not(:disabled),.ord-copy:hover:not(:disabled),.ord-view:hover{background:var(--public-lime-tint)}
+          .ord-quiet:focus-visible,.ord-inv:focus-visible,.ord-copy:focus-visible,.ord-view:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
           .ord-quiet:disabled,.ord-inv:disabled,.ord-copy:disabled{opacity:.55;cursor:default}
 
           /* The only differences, as overrides AFTER the shared body. font-size has to be
              re-stated because that body sets font:inherit, a shorthand that resets it. */
           .ord-inv{font-size:15px;padding:0 16px}
           .ord-copy{font-size:14px;padding:0 12px;margin-inline-start:12px}
+          /* An anchor in the button's clothes: no underline, and it may wrap at 200% text size. */
+          .ord-view{font-size:15px;padding:0 16px;text-decoration:none;text-align:center}
 
           .ord-list,.ord-empty{display:flex;flex-direction:column;align-items:flex-start;gap:18px}
           .ord-list .ord-h2,.ord-empty .ord-h2{margin:0}
