@@ -133,12 +133,19 @@ fbq('track', 'PageView');
  * fix rather than Amplify's skew protection, which pins a browser to the deployment it first
  * loaded - the stale-after-deploy behaviour PR #1467 removed the cache layer to get rid of.
  *
- * BOUNDED THREE WAYS, so it can never loop or cost anyone their work:
+ * BOUNDED FOUR WAYS, so it can never loop or cost anyone their work:
  *   - only files under this origin's /_next/static/ count; a third-party failure never reloads
- *   - only until the window load event: a lazy chunk failing later, perhaps mid-form in the
- *     Workspace, is left to the app rather than reloading over unsaved input
+ *   - only before the visitor's first interaction (pointer, key, touch, input or change, which
+ *     also covers autofill): once anyone has started using the page, nothing reloads it, so no
+ *     typed input can be thrown away
+ *   - only until the window load event, which ends it even with no interaction at all
  *   - once per tab session (sessionStorage); a clean load clears the flag, and if storage is
  *     unavailable it does nothing at all
+ * KNOWN COST: if GTM or the Meta Pixel had already sent their page view before the first build
+ * file failed, the reload sends a second one. The first failure normally arrives before either
+ * third-party library has downloaded, and the alternative is a page that does not work, so that
+ * rare duplicate for a visitor caught mid-deploy is accepted. Suppressing GTM's page view on the
+ * reload would need a container change.
  * Resource errors do not bubble, so the listener is on the capture phase. This is the first
  * script in the head. Next's three stylesheet preload hints are emitted above it, but a fetch
  * fails asynchronously, after this inline script has run, and the stylesheet and script tags
@@ -146,17 +153,22 @@ fbq('track', 'PageView');
  */
 const deploySkewGuard = `
 (function(){
-  var KEY='wc-build-reload',failed=false,base=location.origin+'/_next/static/';
+  var KEY='wc-build-reload',failed=false,used=false,base=location.origin+'/_next/static/';
+  var INTERACT=['pointerdown','keydown','touchstart','input','change'];
+  function onUse(){used=true;}
   function onError(e){
     var t=e.target,u=t&&(t.tagName==='SCRIPT'?t.src:(t.tagName==='LINK'?t.href:''));
     if(!u||u.indexOf(base)!==0)return;
     failed=true;
+    if(used)return;
     try{if(sessionStorage.getItem(KEY))return;sessionStorage.setItem(KEY,'1');}catch(x){return;}
     location.reload();
   }
   window.addEventListener('error',onError,true);
+  for(var i=0;i<INTERACT.length;i++)window.addEventListener(INTERACT[i],onUse,true);
   window.addEventListener('load',function(){
     window.removeEventListener('error',onError,true);
+    for(var j=0;j<INTERACT.length;j++)window.removeEventListener(INTERACT[j],onUse,true);
     if(!failed){try{sessionStorage.removeItem(KEY);}catch(x){}}
   });
 })();
