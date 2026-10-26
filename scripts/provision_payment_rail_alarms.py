@@ -6,6 +6,9 @@ Signals are intentionally event-specific rather than generic Lambda Errors:
 - completed transition blocked after capture
 - scheduled order-status retry error/query failure
 - paid-invoice WhatsApp delivery failure
+- Vault send/payment/runtime failures
+- catalog synchronization failures
+- Flow validation/health failures
 
 Every filter/alarm is idempotent and sends to the standard WECARE alarm topic.
 """
@@ -75,6 +78,33 @@ SIGNALS = [
         "threshold": 0.0,
         "description": "Paid invoice WhatsApp delivery failed and its idempotency claim was released for retry.",
     },
+    {
+        "logGroup": "/aws/lambda/wecare-secure-files",
+        "pattern": '{ $.event = "vault_offer_invoke_failed" || $.event = "payment_not_confirmed" || $.event = "secure_files_error" }',
+        "filterName": "wecare-vault-operation-failure",
+        "metricName": "VaultOperationFailure",
+        "alarmName": "wecare-vault-operation-failure",
+        "threshold": 0.0,
+        "description": "Vault offer invocation, payment confirmation, or secure-files runtime failed.",
+    },
+    {
+        "logGroup": "/aws/lambda/wecare-meta-catalog-sync",
+        "pattern": '{ $.event = "meta_catalog_sync_read_failed" || $.event = "meta_catalog_batch_rejected" || $.event = "meta_catalog_sync_unconfigured" }',
+        "filterName": "wecare-catalog-sync-failure",
+        "metricName": "CatalogSyncFailure",
+        "alarmName": "wecare-catalog-sync-failure",
+        "threshold": 0.0,
+        "description": "Meta catalog sync could not read, was rejected, or was unconfigured.",
+    },
+    {
+        "logGroup": "/aws/lambda/wecare-whatsapp-business-api",
+        "pattern": '{ $.event = "flow_health_blocked" || $.event = "flow_validation_error" }',
+        "filterName": "wecare-flow-health-failure",
+        "metricName": "FlowHealthFailure",
+        "alarmName": "wecare-flow-health-failure",
+        "threshold": 0.0,
+        "description": "A WhatsApp Flow reported validation errors or blocked health.",
+    },
 ]
 
 
@@ -99,13 +129,14 @@ def main() -> int:
             ok = False
             continue
         if not args.apply:
-            print(f'would set {sig["alarmName"]} from {sig["event"]}')
+            source = sig.get("event") or sig.get("pattern")
+            print(f'would set {sig["alarmName"]} from {source}')
             continue
 
         logs.put_metric_filter(
             logGroupName=sig["logGroup"],
             filterName=sig["filterName"],
-            filterPattern=f'"{sig["event"]}"',
+            filterPattern=sig.get("pattern") or f'"{sig["event"]}"',
             metricTransformations=[{
                 "metricName": sig["metricName"],
                 "metricNamespace": NAMESPACE,
@@ -148,7 +179,7 @@ def main() -> int:
         a = alarms.get(sig["alarmName"])
         good = (
             f is not None
-            and f["filterPattern"] == f'"{sig["event"]}"'
+            and f["filterPattern"] == (sig.get("pattern") or f'"{sig["event"]}"')
             and a is not None
             and a["MetricName"] == sig["metricName"]
             and a["Namespace"] == NAMESPACE
