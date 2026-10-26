@@ -141,10 +141,16 @@ class PaymentArchitectureDriftTests(unittest.TestCase):
         workflow = (ROOT / ".github" / "workflows" / "payment-rail-ci.yml").read_text(
             encoding="utf-8"
         )
-        path = "amplify/functions/shared/lambda_utils/whatsapp_templates.py"
-        self.assertGreaterEqual(
-            workflow.count(path), 2,
-            "template registry must trigger payment CI for pull_request and push",
+        path = '      - "amplify/functions/shared/lambda_utils/whatsapp_templates.py"'
+        pull_request, remainder = workflow.split("  push:", 1)
+        push, _dispatch = remainder.split("  workflow_dispatch:", 1)
+        self.assertEqual(
+            pull_request.count(path), 1,
+            "template registry must trigger Payment Rail CI exactly once for pull_request",
+        )
+        self.assertEqual(
+            push.count(path), 1,
+            "template registry must trigger Payment Rail CI exactly once for wecare.digital push",
         )
 
     def test_webhook_comment_does_not_claim_structured_status_is_disabled(self):
