@@ -12,6 +12,7 @@ on:
       - "config/lambda-env-manifest.json"
       - "tests/test_direct_send_dual_account_regression.py"
       - "amplify/functions/core/service-api/**"
+      - "amplify/functions/core/secure-files/**"
       - "amplify/functions/ai/ai-generate-response/**"
       - "src/components/workspace/pay/**"
       - "src/api/client.ts"
@@ -31,6 +32,7 @@ on:
       - "config/lambda-env-manifest.json"
       - "tests/test_direct_send_dual_account_regression.py"
       - "amplify/functions/core/service-api/**"
+      - "amplify/functions/core/secure-files/**"
       - "amplify/functions/ai/ai-generate-response/**"
       - "src/components/workspace/pay/**"
       - "src/api/client.ts"
@@ -58,7 +60,7 @@ jobs:
 
       - name: Compile payment Python
         run: |
-          python -m compileall -q             amplify/functions/payments             amplify/functions/messaging/outbound-whatsapp             amplify/functions/messaging/whatsapp-business-api             amplify/functions/shared/lambda_utils/ecommerce             amplify/functions/shared/lambda_utils/template_media.py
+          python -m compileall -q             amplify/functions/payments             amplify/functions/messaging/outbound-whatsapp             amplify/functions/messaging/whatsapp-business-api             amplify/functions/core/secure-files             amplify/functions/shared/lambda_utils/ecommerce             amplify/functions/shared/lambda_utils/template_media.py
 
       - name: Verify WhatsApp payment rail
         run: python scripts/verify_whatsapp_catalog_payment_rail.py
@@ -121,6 +123,7 @@ jobs:
               "wecare-outbound-whatsapp",
               "wecare-whatsapp-business-api",
               "wecare-service-api",
+              "wecare-secure-files",
               "wecare-ai-generate-response",
           ]
           by_name = {s.name: s for s in mod.SPECS}
@@ -193,6 +196,7 @@ jobs:
             wecare-checkout
             wecare-invoice-engine
             wecare-service-api
+            wecare-secure-files
             wecare-ai-generate-response
             wecare-razorpay-webhook
           )
