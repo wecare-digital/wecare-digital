@@ -305,6 +305,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
   const [formEmail, setFormEmail] = useState('');
   const [formBsuid, setFormBsuid] = useState('');
   const [formUsername, setFormUsername] = useState('');
+  const [formProfileUsername, setFormProfileUsername] = useState('');
   const [formContactBookName, setFormContactBookName] = useState('');
   /*
    * THE ADDRESS, as ONE piece of state over the eight `contact_address._RULES` fields.
@@ -478,7 +479,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
 
   const resetForm = () => {
     setFormName(''); setFormPhone(''); setFormEmail('');
-    setFormBsuid(''); setFormUsername(''); setFormContactBookName('');
+    setFormBsuid(''); setFormUsername(''); setFormProfileUsername(''); setFormContactBookName('');
     setFormShippingAddress(''); setFormCountryCode('+91');
     setFormAddress({ ...EMPTY_ADDRESS_FIELDS });
     setFormGstin('');
@@ -595,7 +596,8 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
   };
 
   const handleCreate = async () => {
-    if (formName.trim().length > 500) { toast.warning('Name is too long (max 500 characters)'); return; }
+    if (formName.trim().length > 200) { toast.warning('Full name is too long (max 200 characters)'); return; }
+    if (formProfileUsername.trim().length > 50) { toast.warning('WhatsApp username is too long (max 50 characters)'); return; }
     if (!formPhone && !formEmail) { toast.warning('Phone or email is required'); return; }
     if (formPhone && !isValidPhone(formPhone.startsWith('+') ? formPhone : `${formCountryCode}${formPhone.replace(/^0+/, '')}`)) {
       toast.warning('Invalid phone number format'); return;
@@ -610,7 +612,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
     try {
       const result = await api.createContact({
         name: formName, phone: fullPhone || undefined, email: formEmail || undefined,
-        bsuid: formBsuid || undefined, username: formUsername || undefined, contactBookName: formContactBookName || undefined,
+        bsuid: formBsuid || undefined, username: formUsername || undefined, profileUsername: formProfileUsername || undefined, contactBookName: formContactBookName || undefined,
         ...addressFieldsForPayload(),
         gstin: formGstin || undefined,
         companyName: formCompanyName || undefined,
@@ -646,7 +648,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
     setFormCountryCode(matchedCode);
     setFormPhone(phoneNumber);
     setFormEmail(contact.email || '');
-    setFormBsuid(contact.bsuid || ''); setFormUsername(contact.username || ''); setFormContactBookName(contact.contactBookName || '');
+    setFormBsuid(contact.bsuid || ''); setFormUsername(contact.username || ''); setFormProfileUsername(contact.profileUsername || ''); setFormContactBookName(contact.contactBookName || '');
     setFormShippingAddress(contact.shippingAddress || '');
     /*
      * PRE-FILL INTO THE EIGHT CANONICAL FIELDS, and MIGRATE two historical mistakes while doing
@@ -684,7 +686,8 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
   };
 
   const handleUpdate = async () => {
-    if (formName.trim().length > 500) { toast.warning('Name is too long (max 500 characters)'); return; }
+    if (formName.trim().length > 200) { toast.warning('Full name is too long (max 200 characters)'); return; }
+    if (formProfileUsername.trim().length > 50) { toast.warning('WhatsApp username is too long (max 50 characters)'); return; }
     if (!editingContact || (!formPhone && !formEmail)) { toast.warning('Phone or email is required'); return; }
     if (formPhone && !isValidPhone(formPhone.startsWith('+') ? formPhone : `${formCountryCode}${formPhone.replace(/^0+/, '')}`)) {
       toast.warning('Invalid phone number format'); return;
@@ -699,7 +702,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
     try {
       const result = await api.updateContact(editingContact.contactId, {
         name: formName, phone: fullPhone || undefined, email: formEmail || undefined,
-        bsuid: formBsuid || undefined, username: formUsername || undefined, contactBookName: formContactBookName || undefined,
+        bsuid: formBsuid || undefined, username: formUsername || undefined, profileUsername: formProfileUsername || undefined, contactBookName: formContactBookName || undefined,
         ...addressFieldsForPayload(),
         gstin: formGstin || undefined,
         companyName: formCompanyName || undefined,
@@ -938,107 +941,36 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
 
   const renderContactForm = (isEdit: boolean) => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '20px 24px' }}>
-      {/* Name */}
       <div>
-        <label htmlFor="contact-name" style={S.label}>Name</label>
-        <input id="contact-name" style={S.input} value={formName} onChange={e => setFormName(e.target.value)} placeholder="Full name" maxLength={500} onFocus={focusStyle} onBlur={blurStyle} />
-      </div>
-      {/* Phone */}
-      <div>
-        <label htmlFor="contact-phone" style={S.label}>Phone</label>
-        <div style={{ display: 'flex', gap: 6 }}>
-          {/* Searchable Country Code Dropdown */}
-          <div style={{ position: 'relative', width: 120, flexShrink: 0 }}>
-            <input
-              type="text"
-              value={showCountryDropdown ? countrySearch : formCountryCode}
-              onChange={e => { setCountrySearch(e.target.value); setShowCountryDropdown(true); }}
-              onFocus={() => { setShowCountryDropdown(true); setCountrySearch(''); }}
-              onBlur={(e) => {
-                // Fix #13: Use relatedTarget check instead of fragile setTimeout
-                const dropdown = e.currentTarget.parentElement?.querySelector('[data-country-dropdown]');
-                if (dropdown && dropdown.contains(e.relatedTarget as Node)) return;
-                setShowCountryDropdown(false);
-              }}
-              placeholder="Code"
-              style={{ width: '100%', padding: '8px 8px', border: '2px solid #f3f4f6', borderRadius: 13, fontSize: 'var(--text-md)', outline: 'none', transition: 'border-color 0.15s, box-shadow 0.15s', background: '#fff', color: '#374151', cursor: 'pointer' }}
-              onFocusCapture={focusStyle}
-              onBlurCapture={blurStyle}
-            />
-            {showCountryDropdown && (
-              <div data-country-dropdown tabIndex={-1} style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, maxHeight: 200, overflowY: 'auto', background: '#fff', border: '2px solid #f3f4f6', borderRadius: 13, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 1000 }}>
-                {COUNTRY_CODES
-                  .filter(cc => 
-                    cc.code.includes(countrySearch) || 
-                    cc.country.toLowerCase().includes(countrySearch.toLowerCase())
-                  )
-                  .map(cc => (
-                    <div
-                      key={cc.code}
-                      tabIndex={-1}
-                      onMouseDown={() => { setFormCountryCode(cc.code); setShowCountryDropdown(false); setCountrySearch(''); }}
-                      style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 'var(--text-sm)', color: '#374151', transition: 'background 0.15s' }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
-                      onMouseLeave={e => e.currentTarget.style.background = '#fff'}
-                    >
-                      {cc.code} {cc.country}
-                    </div>
-                  ))}
-              </div>
-            )}
-          </div>
-          <input id="contact-phone" style={S.input} value={formPhone} onChange={e => setFormPhone(e.target.value)} placeholder="[Phone]" maxLength={20} onFocus={focusStyle} onBlur={blurStyle} />
-        </div>
-        <p style={S.hint}>Include country code</p>
-      </div>
-      {/* Email */}
-      <div>
-        <label htmlFor="contact-email" style={S.label}>Email</label>
-        <input id="contact-email" style={S.input} type="email" value={formEmail} onChange={e => setFormEmail(e.target.value)} placeholder="[email]" onFocus={focusStyle} onBlur={blurStyle} />
-      </div>
-      {/* WhatsApp Identity row — BSUID, Username, Contact Book Name */}
-      <div style={S.row}>
-        <div>
-          <label htmlFor="contact-bsuid" style={S.label}>BSUID <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>(auto-filled)</span></label>
-          <input id="contact-bsuid" style={{ ...S.input, background: 'var(--bg-secondary)', color: 'var(--text-muted)' }} value={formBsuid} onChange={e => setFormBsuid(e.target.value)} placeholder="e.g. IN.13491208655302741918" onFocus={focusStyle} onBlur={blurStyle} />
-        </div>
-        <div>
-          <label htmlFor="contact-username" style={S.label}>Username <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>(auto-filled)</span></label>
-          <input id="contact-username" style={{ ...S.input, background: 'var(--bg-secondary)', color: 'var(--text-muted)' }} value={formUsername} onChange={e => setFormUsername(e.target.value)} placeholder="e.g. @pablomorales" onFocus={focusStyle} onBlur={blurStyle} />
-        </div>
+        <p style={{ ...S.label, marginBottom: 2 }}>F001 Subscribe profile</p>
+        <p style={S.hint}>Same customer-entered profile fields as the WhatsApp Subscribe form.</p>
       </div>
       <div>
-        <label htmlFor="contact-book-name" style={S.label}>Contact Book Name <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>(auto from Meta)</span></label>
-        <input id="contact-book-name" style={{ ...S.input, background: 'var(--bg-secondary)', color: 'var(--text-muted)' }} value={formContactBookName} onChange={e => setFormContactBookName(e.target.value)} placeholder="Enter company name" onFocus={focusStyle} onBlur={blurStyle} />
+        <label htmlFor="contact-name" style={S.label}>Full name *</label>
+        <input id="contact-name" style={S.input} value={formName} onChange={e => setFormName(e.target.value)} placeholder="Full name" maxLength={200} onFocus={focusStyle} onBlur={blurStyle} />
+      </div>
+      <div>
+        <label htmlFor="contact-profile-username" style={S.label}>WhatsApp username <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>Optional</span></label>
+        <input id="contact-profile-username" style={S.input} value={formProfileUsername} onChange={e => setFormProfileUsername(e.target.value)} placeholder="Optional — for the WECARE.DIGITAL profile" maxLength={50} onFocus={focusStyle} onBlur={blurStyle} />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <div>
-          <label style={S.label}>Organization</label>
-          <input style={S.input} value={formCompanyName} onChange={e => setFormCompanyName(e.target.value)} placeholder="Enter organization name" onFocus={focusStyle} onBlur={blurStyle} />
+          <label htmlFor="contact-company-name" style={S.label}>Organization <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>Optional</span></label>
+          <input id="contact-company-name" style={S.input} value={formCompanyName} onChange={e => setFormCompanyName(e.target.value)} placeholder="Optional" maxLength={200} onFocus={focusStyle} onBlur={blurStyle} />
         </div>
         <div>
-          <label style={S.label}>Job Title</label>
-          <input style={S.input} value={formDesignation} onChange={e => setFormDesignation(e.target.value)} placeholder="Enter role or job title" onFocus={focusStyle} onBlur={blurStyle} />
+          <label htmlFor="contact-designation" style={S.label}>Job title <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>Optional</span></label>
+          <input id="contact-designation" style={S.input} value={formDesignation} onChange={e => setFormDesignation(e.target.value)} placeholder="Optional" maxLength={200} onFocus={focusStyle} onBlur={blurStyle} />
         </div>
       </div>
-      {/*
-        * THE ONE ADDRESS INPUT GROUP. Eight fields, rendered from `ADDRESS_FIELDS` so this form
-        * and the Pay Flow forms cannot hold different field sets, and ONE read-only composed
-        * preview where the free-text "Delivery Address" textarea used to be. The textarea was an
-        * INPUT, which is what let a staff member type one address there and a different one into
-        * the fields below with nothing reconciling them.
-        *
-        * Every input carries an `id` and its label an `htmlFor`: the old structured block used
-        * bare `<label>` elements with no association at all, so none of those fields had an
-        * accessible name and none could be found by label in a test either.
-        */}
+
       <div>
-        <p style={{ ...S.label, marginBottom: 8 }}>Delivery Address <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>(used for billing too)</span></p>
+        <p style={{ ...S.label, marginBottom: 8 }}>Address</p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           {ADDRESS_FIELDS.map(spec => (
             <div key={spec.key}>
               <label htmlFor={`contact-${spec.key}`} style={S.label}>
-                {spec.label}
+                {spec.label}{spec.required ? ' *' : ''}
                 {!spec.required && <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)', marginLeft: 5 }}>Optional</span>}
               </label>
               {spec.key === 'country' ? (
@@ -1080,6 +1012,75 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
           {formatAddress(formAddress) || formShippingAddress || '\u2014'}
         </div>
       </div>
+
+      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+        <p style={{ ...S.label, marginBottom: 2 }}>Contact &amp; system identity</p>
+        <p style={S.hint}>These fields are separate from the customer-entered F001 Subscribe profile.</p>
+      </div>
+      <div>
+        <label htmlFor="contact-phone" style={S.label}>Phone</label>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ position: 'relative', width: 120, flexShrink: 0 }}>
+            <input
+              type="text"
+              value={showCountryDropdown ? countrySearch : formCountryCode}
+              onChange={e => { setCountrySearch(e.target.value); setShowCountryDropdown(true); }}
+              onFocus={() => { setShowCountryDropdown(true); setCountrySearch(''); }}
+              onBlur={(e) => {
+                const dropdown = e.currentTarget.parentElement?.querySelector('[data-country-dropdown]');
+                if (dropdown && dropdown.contains(e.relatedTarget as Node)) return;
+                setShowCountryDropdown(false);
+              }}
+              placeholder="Code"
+              aria-label="Phone country code"
+              style={{ width: '100%', padding: '8px 8px', border: '2px solid #f3f4f6', borderRadius: 13, fontSize: 'var(--text-md)', outline: 'none', transition: 'border-color 0.15s, box-shadow 0.15s', background: '#fff', color: '#374151', cursor: 'pointer' }}
+              onFocusCapture={focusStyle}
+              onBlurCapture={blurStyle}
+            />
+            {showCountryDropdown && (
+              <div data-country-dropdown tabIndex={-1} style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, maxHeight: 200, overflowY: 'auto', background: '#fff', border: '2px solid #f3f4f6', borderRadius: 13, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 1000 }}>
+                {COUNTRY_CODES
+                  .filter(cc =>
+                    cc.code.includes(countrySearch) ||
+                    cc.country.toLowerCase().includes(countrySearch.toLowerCase())
+                  )
+                  .map(cc => (
+                    <div
+                      key={cc.code}
+                      tabIndex={-1}
+                      onMouseDown={() => { setFormCountryCode(cc.code); setShowCountryDropdown(false); setCountrySearch(''); }}
+                      style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 'var(--text-sm)', color: '#374151', transition: 'background 0.15s' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
+                      onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+                    >
+                      {cc.code} {cc.country}
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+          <input id="contact-phone" style={S.input} value={formPhone} onChange={e => setFormPhone(e.target.value)} placeholder="[Phone]" maxLength={20} onFocus={focusStyle} onBlur={blurStyle} />
+        </div>
+        <p style={S.hint}>Include country code</p>
+      </div>
+      <div>
+        <label htmlFor="contact-email" style={S.label}>Email</label>
+        <input id="contact-email" style={S.input} type="email" value={formEmail} onChange={e => setFormEmail(e.target.value)} placeholder="[email]" onFocus={focusStyle} onBlur={blurStyle} />
+      </div>
+      <div style={S.row}>
+        <div>
+          <label htmlFor="contact-bsuid" style={S.label}>WhatsApp BSUID <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>(Meta)</span></label>
+          <input id="contact-bsuid" style={{ ...S.input, background: 'var(--bg-secondary)', color: 'var(--text-muted)' }} value={formBsuid} onChange={e => setFormBsuid(e.target.value)} placeholder="e.g. IN.13491208655302741918" onFocus={focusStyle} onBlur={blurStyle} />
+        </div>
+        <div>
+          <label htmlFor="contact-username" style={S.label}>Meta WhatsApp username <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>(Meta)</span></label>
+          <input id="contact-username" style={{ ...S.input, background: 'var(--bg-secondary)', color: 'var(--text-muted)' }} value={formUsername} onChange={e => setFormUsername(e.target.value)} placeholder="Meta profile username" onFocus={focusStyle} onBlur={blurStyle} />
+        </div>
+      </div>
+      <div>
+        <label htmlFor="contact-book-name" style={S.label}>Contact Book Name <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 'var(--text-xs)' }}>(Meta)</span></label>
+        <input id="contact-book-name" style={{ ...S.input, background: 'var(--bg-secondary)', color: 'var(--text-muted)' }} value={formContactBookName} onChange={e => setFormContactBookName(e.target.value)} placeholder="Meta contact book name" onFocus={focusStyle} onBlur={blurStyle} />
+      </div>
     </div>
   );
 
@@ -1090,7 +1091,7 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
         <header className="workspace-page-head">
           <p className="workspace-page-eyebrow">Workspace</p>
           <h1>Customers</h1>
-          <p>Identity, address and customer history in one canonical record.</p>
+          <p>F001 Subscribe profile, canonical address, identity and customer history in one record.</p>
         </header>
 
         {/* Toolbar */}
@@ -1434,9 +1435,9 @@ const Customers: React.FC<PageProps> = ({ signOut, user }) => {
                   { label: 'Protection', value: detailContact.locked ? `Locked (${detailContact.lockedReason || 'protected'})` : 'Unlocked' },
                   { label: 'Email', value: detailContact.email },
                   { label: 'Organization', value: detailContact.companyName },
-                  { label: 'Job Title', value: detailContact.designation },
-                  { label: 'WECARE.DIGITAL Profile Name', value: detailContact.profileUsername },
-                  { label: 'Meta WhatsApp Username', value: detailContact.username },
+                  { label: 'Job title', value: detailContact.designation },
+                  { label: 'WhatsApp username', value: detailContact.profileUsername },
+                  { label: 'Meta WhatsApp username', value: detailContact.username },
                   // One operator-facing delivery address. Canonical checkoutDeliveryAddress wins;
                   // the legacy string is display-only fallback until an edit migrates the row.
                   { label: 'Delivery Address', value: formatCheckoutAddressDetail(detailContact) || detailContact.shippingAddress },

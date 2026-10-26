@@ -28,7 +28,7 @@ const CODE_ASSETS: CodeAsset[] = [
   // ── WhatsApp Flows ──
   { id: 'flow-sr', category: 'WhatsApp Flows', name: '01.WD_SR_PAY — Submit Request', description: 'Multi-screen flow for order service requests with ₹49 payment. Screens: Order Select → Request Form → Terms → Review → Thank You.', path: 'amplify/functions/messaging/whatsapp-business-api/flows/submit-request-flow.json', type: 'flow_json', status: 'Published' },
   { id: 'flow-sr-v2', category: 'WhatsApp Flows', name: '01.WD_SR_PAY v2', description: 'Updated submit request flow with v7.3 format, data_api 4.0, improved UX.', path: 'amplify/functions/messaging/whatsapp-business-api/flows/submit-request-flow-v2.json', type: 'flow_json', status: 'Published' },
-  { id: 'flow-sub', category: 'WhatsApp Flows', name: '02.WD_Profile — Subscribe', description: 'Profile/subscription flow collecting name, phone, email, company, job title, delivery address. Single address (billing = delivery). Updates contact with subscriber ID.', path: 'amplify/functions/messaging/whatsapp-business-api/flows/profile-flow.json', type: 'flow_json', status: 'Published' },
+  { id: 'flow-sub', category: 'WhatsApp Flows', name: 'F001 · Subscribe', description: 'Canonical customer profile Flow: full name, optional WhatsApp username, organization, job title, then one structured address.', path: 'amplify/functions/messaging/whatsapp-business-api/flows/design-drafts/subscribe.json', type: 'flow_json', status: 'Published' },
 
   // ── Core Lambdas ──
   { id: 'lambda-auth', category: 'Core Lambdas', name: 'Auth Middleware', description: 'Cognito JWT validation, API Gateway authorizer.', path: 'amplify/functions/core/auth-middleware/handler.py', type: 'lambda' },
