@@ -78,6 +78,7 @@ PUBLIC_WHATSAPP_INCOMING_PREFIX = "secure/d/public/whatsapp/incoming/"
 FILES_TABLE = "stack-wecare-digital-SecureFilesTable"
 GRANTS_TABLE = "stack-wecare-digital-DownloadGrantsTable"
 REQUESTS_TABLE = "stack-wecare-digital-ServiceRequestsTable"
+DOCUMENTS_TABLE = "stack-wecare-digital-DocumentTable"
 CUSTOMER_POOL_ID = "us-east-1_46ULYuukt"
 ADMIN_POOL_ID = "us-east-1_cSx0RHCIR"
 META_WABA_ID = "2094615664435155"
@@ -92,6 +93,7 @@ ROUTES = [
     # admin surface (authorised inside the handler via require_auth Operator)
     ("GET", "/secure-files"),
     ("POST", "/secure-files/upload-init"),
+    ("POST", "/secure-files/publish-document"),
     ("POST", "/secure-files/{fileId}/confirm"),
     ("POST", "/secure-files/{fileId}/revoke"),
     # Ask the owner for ₹49 on WhatsApp (Review and Pay, or the Access Vault link when their
@@ -168,6 +170,12 @@ def policy_document() -> dict:
                 # request table beyond what the attach transaction needs.
                 "Action": ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"],
                 "Resource": f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/{REQUESTS_TABLE}",
+            },
+            {
+                "Sid": "DropDocsDocumentBridge",
+                "Effect": "Allow",
+                "Action": ["dynamodb:GetItem", "dynamodb:UpdateItem"],
+                "Resource": f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/{DOCUMENTS_TABLE}",
             },
             {
                 "Sid": "Catalogue",
@@ -333,6 +341,7 @@ def environment() -> dict:
     return {
         "SECURE_FILES_BUCKET": BUCKET,
         "SECURE_FILES_TABLE": FILES_TABLE,
+        "DOCUMENTS_TABLE": DOCUMENTS_TABLE,
         "DOWNLOAD_GRANTS_TABLE": GRANTS_TABLE,
         "CUSTOMER_USER_POOL_ID": CUSTOMER_POOL_ID,
         "COGNITO_USER_POOL_ID": ADMIN_POOL_ID,  # require_auth resolves admins here
