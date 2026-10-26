@@ -1912,8 +1912,8 @@ const WorkflowTerminal: React.FC = () => {
               const last = i === STEPS.length - 1;
               return (
                 /* KEY IS THE INDEX, NOT step.service. The service label is no longer unique:
-                   both WhatsApp beats (wa.pay, wa.order_status) carry service: 'whatsapp', so
-                   keying on the name would collide. The list is a fixed, ordered sequence that
+                   service labels are presentation data and may repeat, so keying on the name
+                   would be unsafe. The list is a fixed, ordered sequence that
                    is never reordered or filtered - only sliced from the front by `shown` - so
                    the positional index is a stable, correct key here. */
                 <div key={ i } className={ `wt-step ${state} ${last ? 'is-last' : ''}`.trim() }>
