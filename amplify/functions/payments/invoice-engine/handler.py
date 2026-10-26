@@ -367,7 +367,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if method == 'POST' and 'next-sequence' in path:
             return get_next_sequence_preview(body, request_id)
 
-        # POST /invoices/{id}/generate-image
+        # POST /invoices/{id}/ensure-image — idempotently guarantee a customer PNG exists.
+        # Used by the verified-capture path, including deduplicated pre-created invoices.
+        if method == 'POST' and 'ensure-image' in path:
+            inv_id = path_params.get('invoiceId') or body.get('invoiceId')
+            return ensure_invoice_image(inv_id, request_id)
+
+        # POST /invoices/{id}/generate-image — explicit re-render/version request.
         if method == 'POST' and 'generate-image' in path:
             inv_id = path_params.get('invoiceId') or body.get('invoiceId')
             return generate_invoice_image(inv_id, request_id)
@@ -2406,6 +2412,72 @@ def _asset_target(invoice: Dict, *, invoice_id: str, asset_type: str, stem: str,
 
 # ─── Generate Invoice Image (PNG) ───
 # Image is the sole newly-generated customer invoice asset; PDF generation is retired.
+
+def _latest_image_asset(invoice_id: str) -> Optional[Dict]:
+    """Newest stored invoice image row, or None.
+
+    This is deliberately a READ helper. A verified capture may deduplicate onto an invoice that
+    was created before payment, and deduplication proves invoice identity — it does NOT prove the
+    PNG was rendered successfully. The post-payment path therefore asks ensure_invoice_image
+    to guarantee the artifact without creating a new rendition on every webhook replay.
+    """
+    rows = dynamodb.Table(INVOICE_ASSETS_TABLE).query(
+        KeyConditionExpression=boto3.dynamodb.conditions.Key('invoiceId').eq(invoice_id)
+    ).get('Items', [])
+    latest = None
+    best = 0
+    prefix = f'image{_ASSET_VERSION_SEPARATOR}'
+    for row in rows:
+        stored = str(row.get('assetType') or '')
+        if not row.get('s3Key'):
+            continue
+        if stored == 'image':
+            version = 1
+        elif stored.startswith(prefix) and stored[len(prefix):].isdigit():
+            version = int(stored[len(prefix):])
+        else:
+            continue
+        if version > best:
+            best, latest = version, row
+    return latest
+
+
+def ensure_invoice_image(invoice_id: str, request_id: str) -> Dict:
+    """Return the existing PNG, or render one when none is recorded.
+
+    The customer-invoice download Lambda remains read-only. This mutation stays inside the invoice
+    engine and is called from the provider-verified capture path, so website, WhatsApp, staff and
+    Flow purchases all converge on the same artifact guarantee.
+    """
+    if not invoice_id:
+        return _resp(400, {'error': 'invoiceId required'})
+    try:
+        asset = _latest_image_asset(invoice_id)
+    except Exception as error:  # noqa: BLE001
+        logger.warning(json.dumps({
+            'event': 'invoice_asset_lookup_failed', 'invoiceId': invoice_id,
+            'error': type(error).__name__, 'requestId': request_id,
+        }))
+        return _resp(503, {'error': 'Invoice image state is temporarily unavailable'})
+    if asset:
+        s3_key = str(asset.get('s3Key') or '')
+        return _resp(200, {
+            'invoiceId': invoice_id,
+            'imageUrl': _signed_invoice_url(s3_key, invoice_id, request_id),
+            's3Key': s3_key,
+            'reused': True,
+        })
+    result = generate_invoice_image(invoice_id, request_id)
+    if result.get('statusCode') == 200:
+        try:
+            response_body = json.loads(result.get('body') or '{}')
+        except (ValueError, TypeError):
+            response_body = {}
+        if isinstance(response_body, dict):
+            response_body['reused'] = False
+            result = {**result, 'body': json.dumps(response_body, default=_json_default)}
+    return result
+
 
 def generate_invoice_image(invoice_id: str, request_id: str) -> Dict:
     """Render invoice as POS receipt PNG using PIL, upload to S3."""
