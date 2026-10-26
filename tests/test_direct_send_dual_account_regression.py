@@ -72,6 +72,20 @@ class DirectSendDualAccountRegressionTests(TestCase):
         self.assertIn("if direct_send_category:", source)
         self.assertIn("payload['category'] = direct_send_category", source)
 
+    def test_admin_direct_send_uses_same_fail_closed_account_gate(self):
+        admin_source = (
+            ROOT / "amplify/functions/messaging/whatsapp-business-api/handler.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            "direct_send_waba = direct_send_util.waba_for_meta_phone(phone_id)",
+            admin_source,
+        )
+        self.assertIn(
+            "if not direct_send_util.enabled_for_waba(direct_send_waba):",
+            admin_source,
+        )
+        self.assertIn("return _resp(403", admin_source)
+
     def test_live_env_manifest_pins_both_accounts_on_both_senders(self):
         functions = self.manifest["functions"]
         for function_name in ("wecare-outbound-whatsapp", "wecare-whatsapp-business-api"):
