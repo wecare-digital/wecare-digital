@@ -29,7 +29,7 @@ Legend: ✅ built · 🟡 partial / gated · ❌ not built · ⛔ intentionally 
 | Send image / video / document | ✅ | `outbound-whatsapp` (`image`/`video`/`document`) |
 | Send audio / sticker | 🟡 | media pipeline exists (`/media` ×51); audio/sticker not explicit send types |
 | Send location | ✅ | `type: location` |
-| Send contacts | ❌ | not emitted |
+| Send contacts | ✅ | `outbound-whatsapp` contact-card payload + business API contacts send route |
 | Reactions | ✅ | `type: reaction` (auto-thumb) |
 | Typing indicator | ✅ | `_send_typing_indicator` (fresh inbound wamid) |
 | Template messages | ✅ | `type: template`; `whatsapp-template-management`, `whatsapp-templates` |
