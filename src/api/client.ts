@@ -6122,9 +6122,9 @@ export async function initDocumentUpload ( input: {
   fileSize: number;
   notes?: string;
 } ): Promise<ApiResult<DocumentUploadTicket>> {
-  return apiCallResult<DocumentUploadTicket>( `${DOCUMENTS_BASE}/upload-init`, {
+  return apiCallResult<DocumentUploadTicket>( DOCUMENTS_BASE, {
     method: 'POST',
-    body: JSON.stringify( input ),
+    body: JSON.stringify( { _action: 'upload_init', ...input } ),
   } );
 }
 
@@ -6145,8 +6145,8 @@ export async function uploadDocumentBytes (
 /** Confirm a staff manual Drop Docs upload after S3 has the bytes. */
 export async function confirmDocumentUpload ( documentId: string ): Promise<ApiResult<Document>> {
   return apiCallResult<Document>(
-    `${DOCUMENTS_BASE}/${encodeURIComponent( documentId )}/confirm`,
-    { method: 'POST' },
+    `${DOCUMENTS_BASE}/${encodeURIComponent( documentId )}`,
+    { method: 'PUT', body: JSON.stringify( { _action: 'confirm_upload' } ) },
   );
 }
 
