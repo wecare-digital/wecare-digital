@@ -67,6 +67,51 @@ class FakeCognito:
 
 
 class OAuthContract(unittest.TestCase):
+    def test_cached_host_authorization_link_redirects_only_to_configured_brand_origin(self):
+        with patch.dict(os.environ, {'CUSTOMER_CONNECT_ORIGIN': 'https://connect.wecare.digital'}):
+            event = {'rawPath': '/oauth/authorize', 'rawQueryString': urlencode(self.params),
+                     'requestContext': {'domainName': 'commerce.example.com', 'http': {'method': 'GET'}}}
+            result = auth.route(event)
+            self.assertEqual(result['statusCode'], 302)
+            self.assertEqual(result['headers']['Location'], 'https://connect.wecare.digital/oauth/authorize?' + urlencode(self.params))
+            self.assertEqual(self.store.rows, {})
+            event['requestContext']['domainName'] = 'connect.wecare.digital'
+            self.assertEqual(auth.route(event)['statusCode'], 200)
+
+    def test_country_selection_normalizes_before_cognito(self):
+        cookie, csrf = self.begin()
+        with patch.object(self.cognito, 'initiate_auth', wraps=self.cognito.initiate_auth) as call:
+            result = self.post(cookie, {'csrf': csrf, 'country': '+91', 'phone': '9876543210'})
+        self.assertIn('WhatsApp verification code', result['body'])
+        self.assertEqual(call.call_args.kwargs['AuthParameters']['USERNAME'], '+919876543210')
+
+    def test_invalid_country_or_national_length_never_sends(self):
+        for country, number in [('+999', '9876543210'), ('+91', '12345'), ('+91', '+919876543210')]:
+            cookie, csrf = self.begin()
+            result = self.post(cookie, {'csrf': csrf, 'country': country, 'phone': number})
+            self.assertIn('Check your country code and WhatsApp number', result['body'])
+        self.assertEqual(self.cognito.sends, 0)
+
+    def test_branded_authorization_origin_keeps_resource_binding(self):
+        with patch.dict(os.environ, {'CUSTOMER_CONNECT_ORIGIN': 'https://connect.wecare.digital'}):
+            self.assertEqual(auth.auth_metadata()['authorization_endpoint'], 'https://connect.wecare.digital/oauth/authorize')
+            self.assertEqual(auth.auth_metadata()['issuer'], BASE)
+            cookie, csrf = self.begin()
+            result = self.post(cookie, {'csrf': csrf, 'phone': '+447700900123'}, 'https://connect.wecare.digital')
+            self.assertIn('WhatsApp verification code', result['body'])
+
+    def test_host_language_hint_does_not_change_authorization(self):
+        params = {**self.params, 'ui_locales': 'en-US'}
+        self.assertEqual(auth.validate_authorize(params), self.params)
+        with self.assertRaises(auth.AuthError):
+            auth.validate_authorize({**self.params, 'untrusted_option': 'ignored'})
+
+    def test_connection_page_preserves_browser_origin_without_referrer_path(self):
+        # Chromium sends Origin: null on navigation POSTs under no-referrer.
+        # The connection form must retain its origin for the existing CSRF check.
+        self.assertEqual(auth.response(200, '', page=True)['headers']['Referrer-Policy'], 'strict-origin')
+        self.assertEqual(auth.response(200, {})['headers']['Referrer-Policy'], 'no-referrer')
+
     def setUp(self):
         self.store, self.cognito = FakeStore(), FakeCognito()
         env = patch.dict(os.environ, {'CUSTOMER_COMMERCE_ORIGIN': BASE,
