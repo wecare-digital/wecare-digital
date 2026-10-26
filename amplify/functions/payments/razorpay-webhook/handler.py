@@ -2843,8 +2843,9 @@ def _post_payment_handler(payment_id: str, contact: str,
     # resolves empty unless existing server-owned invoice/reference evidence supplies it.
     #
     # It travels as the approved `wecare_default_invoice_image_template` (invoice PNG in its
-    # header). Structured WhatsApp fulfilment-status sends are disabled. This template delivers
-    # the statutory receipt and its embedded Leave Review Flow button.
+    # header). The automatic payment-order status pair has already run above; physical/service
+    # fulfilment remains separate. This template delivers the statutory receipt and its embedded
+    # Leave Review Flow button.
     #
     # Delivery is retried by REPLAY: a miss raises so the webhook lease lapses and Razorpay
     # redelivers the capture, and the delivery CLAIM inside `send_invoice_whatsapp` makes the

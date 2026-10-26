@@ -2,7 +2,7 @@
 
 Real handler code with in-process fakes: no network, no AWS account, no table outside memory.
 
-* the invoice engine's WhatsApp order-status route stays disabled (410, nothing read or sent);
+* the invoice engine's WhatsApp payment-order route accepts only processing/completed targets;
 * the invoice engine releases its `claiming` row when it refuses before consuming a GST number,
   so a retry numbers the invoice instead of answering 200 with an empty number;
 * a consumed number keeps its claim, so a retry cannot consume a second number;
@@ -131,6 +131,25 @@ class InvoiceClaimTests(unittest.TestCase):
         status, body = self.create()
         self.assertEqual((status, body.get("errorCode")), (503, "INVOICE_DEDUP_UNAVAILABLE"))
         self.assertEqual(table.writes, [])
+
+
+
+class PaymentArchitectureDriftTests(unittest.TestCase):
+    """Secondary docs/audit tooling must not re-introduce the superseded #1650 contract."""
+
+    def test_live_template_checker_expects_active_order_status_send(self):
+        checker = (ROOT / "scripts" / "check_whatsapp_template_payloads_live.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("ORDER_STATUS_DISABLED", checker)
+        self.assertIn("automatic payment-order status -> outbound template", checker)
+
+    def test_experience_docs_pin_template_only_processing_completed(self):
+        doc = (ROOT / "docs" / "whatsapp-experience-structure.md").read_text(encoding="utf-8")
+        self.assertNotIn("WhatsApp order-status messages are disabled", doc)
+        self.assertIn("pending -> processing -> completed", doc)
+        self.assertIn("Workspace has no manual WhatsApp payment-status control", doc)
+
 
 
 class AutomaticOrderStatusRouteTests(unittest.TestCase):

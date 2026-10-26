@@ -402,6 +402,7 @@ A dropped capture webhook is recovered by the stale-attempt sweep on the 5-minut
 |---|---|
 | Gateway | Razorpay only. PayU removed from both WABAs 2026-08-23 |
 | Payment configs | `WECAREDIGITAL` (PG) and `WECAREUPI` (VPA) — identical names on both WABAs |
+| Automatic ORDER_DETAILS rail | **WABA1 / WECARE.DIGITAL only**; the secondary Manish sender does not use the native automatic payment rail and falls back to the web payment path |
 | Razorpay MID / MCC / purpose | `acc_TTFSyolquKEZEy` / `7392` / `03` |
 | GSTIN | `19AAFFW7196L1Z8` (PAN `AAFFW7196L`, WB) |
 | Convenience fee | 2.5% of the authoritative post-discount collection + 18% GST on the fee, shown as a line item |
