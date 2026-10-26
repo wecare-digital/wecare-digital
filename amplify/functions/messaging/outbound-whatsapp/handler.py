@@ -1470,19 +1470,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             else:
                 return _outside_window_refusal(contact_id, bool(contact), request_id)
         
-        # Structured fulfilment-status messages are disabled by product policy. Keep this guard at
-        # the final outbound chokepoint so stale callers cannot reach Meta even if they bypass the
-        # invoice engine or an old retry path reappears.
-        if is_order_status:
-            logger.info(json.dumps({
-                'event': 'order_status_send_disabled',
-                'contactId': mask_contact_id(contact_id),
-                'requestId': request_id,
-            }))
-            return _error_response(
-                410, 'ORDER_STATUS_DISABLED',
-                'WhatsApp order-status messages are disabled. Nothing was sent.')
-
         # ── Order-status channel selection ──────────────────────────────────
         # PAYMENT RAIL INVARIANT: order_status always uses the single APPROVED
         # `wecare_order_status_v3` UTILITY/ORDER_STATUS template. Do not switch transport
