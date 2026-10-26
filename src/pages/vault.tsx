@@ -5,27 +5,25 @@ import ProductPage from '../components/ProductPage';
 import GetPage from '../components/get/GetPage';
 import PillButton from '../components/PillButton';
 import { customerserviceBySlug } from '../content/customerservice';
-import { whatsappKeywordLink } from '../config/whatsappServiceEntries';
 
 /**
- * Vault is bought per DOCUMENT, so this page carries no ServiceBuyBox. That box asks "which
- * order is this for?", and a Vault payment bound to an order has no file to unlock: the backend
- * now refuses it before payment (VAULT_FILE_REQUIRED). The purchase starts in WhatsApp, where
- * "Vault" lists the customer's own documents and each one gets its own Review and Pay; documents
- * already shared open in the collection page.
+ * Vault is bought per DOCUMENT, so the public service page does not mint a generic service intent.
+ * The authenticated Vault collection owns the file picker. Once the customer selects an owned
+ * file, it creates a file-bound service intent and hands that exact document to the shared cart;
+ * /checkout/ then offers Pay here or Pay on WhatsApp.
  */
 const VaultActions: React.FC = () => (
   <div className="vault-actions">
     <PillButton
       as="a"
-      href={ whatsappKeywordLink( 'Vault' ) }
+      href="/get/"
       label="Vault"
-      action="Unlock a document on WhatsApp"
+      action="Open your documents"
       block
     />
     <p className="vault-fine">
-      Send &ldquo;Vault&rdquo;, choose your document and pay in the chat for a 24-hour download
-      window. Already received a link? <Link href="/get/">Open your documents</Link>.
+      Verify your WhatsApp number, choose your document, then use the shared checkout to pay here
+      or on WhatsApp. Already received an Access Vault link? <Link href="/get/">Open your documents</Link>.
     </p>
     <style jsx>{ `
       .vault-actions{display:flex;flex-direction:column;gap:12px;max-width:460px}
@@ -54,12 +52,9 @@ const VaultActions: React.FC = () => (
  * This page is the part that CAN sit in a menu: what is kept, for how long, and how a copy is
  * released.
  *
- * ITS CTA OPENS THE VAULT WHATSAPP CONVERSATION (whatsappServiceLink('vault')), NOT /get/, the
- * same way each sibling opens its own service conversation. /get/ only has
- * something to show once files have actually been shared with you; a visitor whose document
- * was never put there would land on an empty collection screen, which is a worse answer than
- * being asked. The third point below describes the mechanism without linking to it, because
- * describing it is accurate and linking it would only work for some readers.
+ * ITS CTA OPENS /get/, the authenticated Vault collection. That collection is the only website
+ * surface that can safely choose an exact customer-owned file before payment. A visitor with no
+ * shared files sees an empty owned collection and cannot create a payable Vault intent.
  *
  * PUBLIC, AND NOT /workspace/*. The authenticated file surfaces read a Cognito session and
  * render the dashboard Layout; a public row pointing there shows an anonymous visitor a login
