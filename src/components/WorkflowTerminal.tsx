@@ -1295,14 +1295,44 @@ const WorkflowTerminal: React.FC = () => {
              combined with 17px monospace calls, made almost every meaningful line look clipped
              on a 360-390px phone. */
           .wt-space{padding:20px 12px 48px}
-          /* MOBILE TERMINAL TYPE IS CODE-SCALE, NOT BODY-SCALE. The 15-18px pass made this
-             illustration read like a second prose section and forced constant horizontal
-             swiping. Keep metadata compact, calls legible, and preserve nowrap machine syntax. */
-          .wt-play{font-size:11px;gap:5px;padding:0 9px}
-          .wt-bar{padding:0 68px 0 10px;gap:5px}
-          .wt-light{width:8px;height:8px}
-          .wt-bar-title{margin-left:2px;font-size:11.5px}
-          .wt-bar-state{display:flex;font-size:10.5px;gap:4px}
+          /* MOBILE TITLE BAR IS A TWO-ROW RAIL, NOT A SQUEEZED DESKTOP ROW.
+             Row 1 keeps the real chrome hierarchy at readable sizes: window lights,
+             platform · runtime, then live trace. Row 2 belongs to the Pause/Play control.
+             Splitting the jobs lets the labels keep their normal 14/13.5px scale instead
+             of shrinking to 10-11px just to satisfy one-line geometry. */
+          .wt-bar{
+            box-sizing:border-box;
+            height:84px;
+            padding:0 12px 37px;
+            gap:7px;
+          }
+          .wt-light{width:9px;height:9px}
+          .wt-bar-title{margin-left:3px;font-size:14px}
+          .wt-bar-state{display:flex;font-size:13px;gap:6px}
+          .wt-play{
+            top:47px;left:10px;right:10px;
+            width:auto;height:37px;
+            justify-content:flex-end;
+            padding:0 4px;
+            border-radius:0;
+            font-size:13px;
+            gap:7px;
+            background:transparent;
+            box-shadow:inset 0 -2px 0 transparent;
+          }
+          .wt-play:hover{
+            background:transparent;
+            color:#fff;
+            box-shadow:inset 0 -2px 0 #d1f470;
+          }
+          .wt-play:focus-visible{
+            background:transparent;
+            color:#fff;
+            outline:2px solid #d1f470;
+            outline-offset:-2px;
+            box-shadow:inset 0 -2px 0 #d1f470;
+          }
+          .wt-play.is-paused{box-shadow:inset 0 -2px 0 rgba(209,244,112,.72)}
           .wt-request{font-size:15px;line-height:1.5}
           .wt-line{line-height:1.45;gap:7px}
           .wt-code{gap:4px}
@@ -1330,15 +1360,13 @@ const WorkflowTerminal: React.FC = () => {
           .wt-call{flex-direction:row;align-items:baseline;gap:12px}
           .wt-time{margin-left:auto}
         }
-        @media(max-width:399px){
-          /* On common 360/375/390px phones the traffic lights spend width without conveying
-             state. The live-state dot already does. Remove decorative chrome here so
-             platform · runtime, live trace and Pause all fit as one clean row. */
-          .wt-bar{padding-right:62px}
+        @media(max-width:340px){
+          /* At Fold width, remove only decorative traffic lights. The two-row rail means
+             the actual labels do not need a smaller typography rung. */
           .wt-light{display:none}
-          .wt-bar-title{margin-left:0;font-size:11px}
-          .wt-bar-state{font-size:10px}
-          .wt-play{font-size:10.5px;padding-inline:8px}
+          .wt-bar-title{margin-left:0;font-size:13px}
+          .wt-bar-state{font-size:12px}
+          .wt-play{font-size:13px}
         }
 
         /* Reduced motion starts on the finished state with the loop paused, so by default this
