@@ -254,10 +254,15 @@ def main() -> None:
     client = template['Resources']['ChatClient']['Properties']
     check(client['GenerateSecret'] is False and client['AllowedOAuthFlows'] == ['code'], 'Public code-only client')
     check(client['EnableTokenRevocation'] is True, 'Revocation enabled')
-    check(client['CallbackURLs'] == [{'Ref': 'ChatRedirectUri'}], 'Exact callback')
+    check(client['CallbackURLs'][0] == {'Ref': 'ChatRedirectUri'}, 'Existing exact callback preserved')
+    for title in ('GoogleCloud', 'GoogleAds', 'Plivo', 'SinchIndia'):
+        check({'Fn::If': [title + 'CallbackConfigured', {'Ref': title + 'RedirectUri'},
+            {'Ref': 'AWS::NoValue'}]} in client['CallbackURLs'], 'Separate exact callback: ' + title)
     check(template['Parameters']['ChatRedirectUri']['Default'] == '', 'Disabled by default')
-    check(template['Resources']['Version']['Properties']['Description']['Fn::If'][1] ==
-        {'Ref': 'ChatRedirectUri'}, 'Callback configuration publishes a new immutable Lambda version')
+    description = template['Resources']['Version']['Properties']['Description']['Fn::Join'][1]
+    check(description[0]['Fn::If'][1] == {'Ref': 'ChatRedirectUri'}, 'Original callback version trigger preserved')
+    check({'Ref': 'ProviderConfigRevision'} in description,
+        'Bounded callback configuration checksum publishes immutable Lambda version')
     for name, value in template['Resources'].items():
         if name.startswith('Chat'):
             expected_condition = 'ChatEnabled' if name in {'ChatClient', 'ChatBranding'} else 'ChatProvisioned'

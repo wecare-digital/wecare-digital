@@ -459,9 +459,11 @@ def redact(value):
     return value
 
 
-def registry(owner):
+def registry(owner, provider=None):
     answer = []
     for name, config in POLICY["connections"].items():
+        if provider is not None and name != provider:
+            continue
         stored = row("connection:" + owner + ":" + name)
         status = stored.get("status", "consent_required") if config["kind"] in {'remote-mcp', 'oauth-sdk'} else stored.get('status', config["kind"])
         if config.get('credentialSource') == 'workspace-admin-runtime' and status in {'sdk', 'documentation_verified'}:
@@ -593,6 +595,28 @@ def run_tool(owner, name, args):
     raise Refusal("Unknown tool")
 
 
+def provider_tools(provider: str) -> list:
+    """Expose only fixed reads and this provider's consent; no provider selector."""
+    if provider not in {'google-cloud', 'google-ads', 'plivo', 'sinch'}:
+        raise Refusal('Provider endpoint is not enabled')
+    tools = [
+        ('connection_status', 'Read connection status for ' + provider + '.', schema({}, [])),
+        ('connection_verify', 'Verify a read-only ' + provider + ' account connection.', schema({}, [])),
+    ]
+    if provider in {'google-cloud', 'google-ads'}:
+        tools.append(('connection_authorize', 'Start your own ' + provider + ' consent.', schema({}, [])))
+    return tools
+
+
+def run_provider_tool(owner: str, provider: str, name: str, args: dict) -> dict:
+    """Enforce provider isolation before any registry, secret or upstream access."""
+    if name not in {entry[0] for entry in provider_tools(provider)} or not isinstance(args, dict) or args:
+        raise Refusal('Unknown provider tool or invalid arguments')
+    if name == 'connection_status':
+        return registry(owner, provider)
+    return run_tool(owner, name, {'provider': provider})
+
+
 def response(status, body, extra=None):
     return {"statusCode": status, "headers": {"Content-Type": "application/json", "Cache-Control": "no-store",
         "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer", **(extra or {})},
@@ -603,8 +627,12 @@ def handler(event, context):
     headers = {k.lower(): v for k, v in (event.get("headers") or {}).items()}
     rc = event.get("requestContext", {})
     allowed_origins = (None, "https://wecare.digital")
-    chat_api = os.environ.get("CHAT_API_ID", "")
-    if chat_api and rc.get("apiId") == chat_api:
+    from chat_oauth import connection_settings, InvalidRequest
+    try:
+        chat_settings = connection_settings(event)
+    except (InvalidRequest, ValueError, TypeError):
+        return response(503, {"error": "Chat connection configuration is incomplete"})
+    if chat_settings is not None:
         allowed_origins += ("https://chatgpt.com",)
     if headers.get("origin") not in allowed_origins:
         return response(403, {"error": "Origin refused"})
@@ -615,7 +643,8 @@ def handler(event, context):
         except Refusal as exc: return response(400, {"error": str(exc)})
         except Exception: return response(502, {"error": "Authorization could not be saved"})
     from chat_oauth import dispatch
-    chat_response = dispatch(event, client, lambda request, principal: rpc_request(request, principal, True), http)
+    provider = chat_settings.get('provider') if chat_settings else None
+    chat_response = dispatch(event, client, lambda request, principal: rpc_request(request, principal, True, provider), http)
     if chat_response is not None:
         return chat_response
     try:
@@ -625,7 +654,7 @@ def handler(event, context):
     return rpc_request(event, owner)
 
 
-def rpc_request(event: dict, owner: str, oauth: bool = False) -> dict:
+def rpc_request(event: dict, owner: str, oauth: bool = False, provider: str | None = None) -> dict:
     headers = {k.lower(): v for k, v in (event.get("headers") or {}).items()}
     method = event.get("requestContext", {}).get("http", {}).get("method", "")
     if method != "POST":
@@ -652,10 +681,11 @@ def rpc_request(event: dict, owner: str, oauth: bool = False) -> dict:
         if method == "initialize":
             version = params.get("protocolVersion")
             result = {"protocolVersion": version if version in PROTOCOLS else "2025-11-25",
-                "capabilities": {"tools": {"listChanged": False}}, "serverInfo": {"name": "wecare-workspace-mcp", "version": "1.0.0"}}
+                "capabilities": {"tools": {"listChanged": False}}, "serverInfo": {"name": 'wecare-' + provider if provider else "wecare-workspace-mcp", "version": "1.1.0"}}
         elif method == "ping": result = {}
         elif method == "tools/list":
-            tools = [{"name": n, "description": d, "inputSchema": s} for n, d, s in TOOLS]
+            tools = [{"name": n, "description": d, "inputSchema": s}
+                for n, d, s in (provider_tools(provider) if provider else TOOLS)]
             if oauth:
                 from chat_oauth import SCOPE
                 for tool in tools:
@@ -668,7 +698,8 @@ def rpc_request(event: dict, owner: str, oauth: bool = False) -> dict:
             audit_name = tool_name if tool_name in {entry[0] for entry in TOOLS} else "unknown"
             audit_detail = None
             try:
-                value = run_tool(owner, params.get("name"), params.get("arguments", {}))
+                value = (run_provider_tool(owner, provider, params.get('name'), params.get('arguments', {}))
+                    if provider else run_tool(owner, params.get("name"), params.get("arguments", {})))
                 result = {"content": [{"type": "text", "text": json.dumps(value, default=int)}], "isError": False}
             except Refusal as exc:
                 result = {"content": [{"type": "text", "text": str(exc)}], "isError": True}

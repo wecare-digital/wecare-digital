@@ -161,14 +161,35 @@ def token_exchange(event: dict, headers: dict, client_id: str, callback: str,
     return reply(200, {key: value for key, value in data.items() if key in fields})
 
 
+def connection_settings(event: dict) -> dict | None:
+    """Select authority from a deployed API ID, never a caller-supplied provider."""
+    api_id = (event.get('requestContext') or {}).get('apiId')
+    configured = json.loads(os.environ.get('PROVIDER_CHAT_ENDPOINTS', '{}'))
+    if not isinstance(configured, dict):
+        raise InvalidRequest()
+    for provider, endpoint in configured.items():
+        if provider not in {'google-cloud', 'google-ads', 'plivo', 'sinch'} or not isinstance(endpoint, dict):
+            raise InvalidRequest()
+        if api_id and api_id == endpoint.get('apiId'):
+            return {**endpoint, 'provider': provider}
+    legacy_id = os.environ.get('CHAT_API_ID', '')
+    if legacy_id and api_id == legacy_id:
+        return {'base': os.environ.get('CHAT_API_BASE', ''),
+            'callback': os.environ.get('CHAT_REDIRECT_URI', ''), 'provider': None}
+    return None
+
+
 def dispatch(event: dict, client: Callable, rpc: Callable, exchange: Callable) -> dict | None:
-    api_id = os.environ.get('CHAT_API_ID', '')
-    base = os.environ.get('CHAT_API_BASE', '').rstrip('/')
-    client_id = os.environ.get('CHAT_CLIENT_ID', '')
-    callback = os.environ.get('CHAT_REDIRECT_URI', '')
-    rc = event.get('requestContext') or {}
-    if not api_id or rc.get('apiId') != api_id:
+    try:
+        settings = connection_settings(event)
+    except (InvalidRequest, ValueError, TypeError):
+        return reply(503, {'error': 'Chat connection configuration is incomplete'})
+    if settings is None:
         return None
+    base = settings.get('base', '').rstrip('/')
+    client_id = os.environ.get('CHAT_CLIENT_ID', '')
+    callback = settings.get('callback', '')
+    rc = event.get('requestContext') or {}
     if not base:
         return reply(503, {'error': 'Chat connection configuration is incomplete'})
     resource = base + '/mcp'
