@@ -1,3 +1,5 @@
+import { countryCodeForName, countryNameForCode } from '../config/countryOptions';
+
 /**
  * THE ONE ADDRESS FORMAT, as the browser sees it.
  *
@@ -32,12 +34,12 @@
  * cannot loosen storage.
  *
  * `src/components/AddressFields.tsx` is a different thing and stays as it is: a rendered
- * India-only CUSTOMER checkout form over five collected fields. This module is the field
+ * India-only CUSTOMER checkout form over the same seven visible F001 concepts, with Country fixed to India. This module is the field
  * contract and the composition, shared by the two STAFF forms, which are international (storage
  * became international in FEAT-003 and payability moved to `payment_address`, asked at pay time).
  */
 
-/** The eight `contact_address._RULES` keys, and nothing else. */
+/** The eight stored `contact_address._RULES` keys, including derived `countryCode`. */
 export type AddressFieldKey =
   | 'addressLine1'
   | 'addressLine2'
@@ -49,7 +51,8 @@ export type AddressFieldKey =
   | 'countryCode';
 
 export interface AddressFieldSpec {
-  key: AddressFieldKey;
+  /** Customer-visible F001 field; countryCode is derived and therefore excluded. */
+  key: Exclude<AddressFieldKey, 'countryCode'>;
   /** The visible caption. Both forms use it verbatim, so one rename moves both. */
   label: string;
   /** Mirrors the `required` column of `contact_address._RULES`. */
@@ -73,10 +76,9 @@ export const ADDRESS_FIELDS: readonly AddressFieldSpec[] = [
   { key: 'state', label: 'State / region', required: true, maxLength: 100, placeholder: 'State / region' },
   { key: 'postalCode', label: 'Postal code', required: true, maxLength: 100, placeholder: 'Postal code' },
   { key: 'country', label: 'Country', required: true, maxLength: 100, placeholder: 'India' },
-  { key: 'countryCode', label: 'Country code', required: false, maxLength: 2, placeholder: 'IN' },
 ];
 
-/** What the eight inputs hold. Always strings, because an input value is always a string. */
+/** The seven visible F001 fields plus derived `countryCode`, all held as strings. */
 export type AddressFormFields = Record<AddressFieldKey, string>;
 
 /** `identity.address.DEFAULT_COUNTRY` / `DEFAULT_COUNTRY_CODE`, mirrored. */
@@ -98,7 +100,7 @@ const trimmed = ( fields: Partial<AddressFormFields>, key: AddressFieldKey ): st
   String( fields[ key ] ?? '' ).trim();
 
 /**
- * The one human-readable address string, composed from the eight fields in `ADDRESS_FIELDS`
+ * The one human-readable address string, composed from the seven visible fields in `ADDRESS_FIELDS`
  * order. Empty fields are skipped, so a partial address reads as a partial address rather than
  * as a row of commas.
  *
@@ -113,7 +115,7 @@ const trimmed = ( fields: Partial<AddressFormFields>, key: AddressFieldKey ): st
 export function formatAddress ( fields: Partial<AddressFormFields> ): string {
   // Default country fields alone are not an address. Preserve the saved legacy fallback.
   if ( !ADDRESS_FIELDS.some( spec =>
-    spec.key !== 'country' && spec.key !== 'countryCode' && trimmed( fields, spec.key ) ) ) return '';
+    spec.key !== 'country' && trimmed( fields, spec.key ) ) ) return '';
   const statePin = [ trimmed( fields, 'state' ), trimmed( fields, 'postalCode' ) ]
     .filter( Boolean )
     .join( ' ' );
@@ -133,9 +135,12 @@ export function formatAddress ( fields: Partial<AddressFormFields> ): string {
  * form sends the structured `address` object at all.
  */
 export function addressComplete ( fields: Partial<AddressFormFields> ): boolean {
-  return ADDRESS_FIELDS
+  if ( !ADDRESS_FIELDS
     .filter( spec => spec.required )
-    .every( spec => trimmed( fields, spec.key ).length > 0 );
+    .every( spec => trimmed( fields, spec.key ).length > 0 ) ) return false;
+  const country = trimmed( fields, 'country' );
+  const code = trimmed( fields, 'countryCode' ).toUpperCase();
+  return Boolean( countryCodeForName( country ) || countryNameForCode( code ) );
 }
 
 /**
@@ -152,12 +157,17 @@ export function addressPayload (
   fields: Partial<AddressFormFields>,
 ): Partial<AddressFormFields> | undefined {
   if ( !addressComplete( fields ) ) return undefined;
+  const country = trimmed( fields, 'country' );
+  const suppliedCode = trimmed( fields, 'countryCode' ).toUpperCase();
+  const countryCode = countryCodeForName( country ) || suppliedCode;
+  const canonicalCountry = countryNameForCode( countryCode ) || country;
   const out: Partial<AddressFormFields> = {};
   for ( const spec of ADDRESS_FIELDS )
   {
-    const value = trimmed( fields, spec.key );
+    const value = spec.key === 'country' ? canonicalCountry : trimmed( fields, spec.key );
     if ( value || spec.required ) out[ spec.key ] = value;
   }
+  out.countryCode = countryCode;
   return out;
 }
 
@@ -207,6 +217,12 @@ export function addressFieldsFromContact ( contact: ContactAddressSource ): Addr
     meta.house_number, meta.building_name, meta.tower_number, meta.floor_number,
   ].map( v => String( v ?? '' ).trim() ).filter( ( v, i, all ) => v && all.indexOf( v ) === i ).join( ', ' );
 
+  const rawCode = String( canonical.countryCode ?? meta.country_code ?? '' ).trim().toUpperCase();
+  const rawCountry = String( canonical.country ?? contact.country ?? '' ).trim();
+  const legacyCountryCode = rawCountry.length === 2 ? rawCountry.toUpperCase() : '';
+  const country = countryNameForCode( rawCode ) || countryNameForCode( legacyCountryCode ) || rawCountry || DEFAULT_ADDRESS_COUNTRY;
+  const countryCode = countryCodeForName( country ) || rawCode || legacyCountryCode || DEFAULT_ADDRESS_COUNTRY_CODE;
+
   return {
     addressLine1: String( canonical.addressLine1 ?? meta.address ?? contact.addressLine1 ?? '' ).trim(),
     addressLine2: String( canonical.addressLine2 ?? contact.addressLine2 ?? line2Legacy ?? '' ).trim(),
@@ -214,8 +230,8 @@ export function addressFieldsFromContact ( contact: ContactAddressSource ): Addr
     city: String( canonical.city ?? meta.city ?? contact.city ?? '' ).trim(),
     state: String( canonical.state ?? meta.state ?? contact.state ?? '' ).trim(),
     postalCode: String( canonical.postalCode ?? meta.in_pin_code ?? meta.postal_code ?? contact.postalCode ?? '' ).trim(),
-    country: String( canonical.country ?? contact.country ?? DEFAULT_ADDRESS_COUNTRY ).trim() || DEFAULT_ADDRESS_COUNTRY,
-    countryCode: String( canonical.countryCode ?? meta.country_code ?? DEFAULT_ADDRESS_COUNTRY_CODE ).trim().toUpperCase() || DEFAULT_ADDRESS_COUNTRY_CODE,
+    country,
+    countryCode,
   };
 }
 
