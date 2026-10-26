@@ -894,8 +894,8 @@ def _update_document(doc_id: str, body: Dict) -> Dict:
 
     if 'status' in body:
         updates['verificationStatus'] = body['status']
-    if 'vaultMessageTitle' in body:
-        updates['vaultMessageTitle'] = str(body.get('vaultMessageTitle') or '').strip()[:60]
+    if 'vaultDisplayName' in body:
+        updates['vaultDisplayName'] = str(body.get('vaultDisplayName') or '').strip()[:60]
     if 'notes' in body or 'remarks' in body:
         updates['remarks'] = body.get('notes', body.get('remarks', ''))
     if 'reviewedBy' in body:
@@ -1014,7 +1014,7 @@ def _document_record(body: Dict, *, doc_id: str, storage_key: str = '',
         'sourceType': 'manual',
         'documentType': body.get('type', body.get('documentType', 'other')),
         'documentTypeLabel': str(body.get('typeLabel') or body.get('documentTypeLabel') or '').strip(),
-        'vaultMessageTitle': str(body.get('vaultMessageTitle') or '').strip()[:60],
+        'vaultDisplayName': str(body.get('vaultDisplayName') or '').strip()[:60],
         'fileName': str(body.get('fileName') or '').strip(),
         'mimeType': str(body.get('mimeType') or body.get('contentType') or '').strip(),
         'fileSize': int(body.get('fileSize') or body.get('sizeBytes') or 0),
