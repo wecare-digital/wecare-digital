@@ -897,7 +897,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
             if ( payGoodsType === 'physical-goods'
                 && [ addr.addressLine1, addr.city, addr.state, addr.postalCode ].some( v => !String( v || '' ).trim() ) )
             {
-                toast.error( 'This contact needs address line 1, city, state and postal code before a physical payment can be raised.' );
+                toast.error( 'This contact needs Street address, City, State / region, Postal code and Country before a physical payment can be raised.' );
                 return;
             }
 
