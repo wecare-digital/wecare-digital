@@ -215,9 +215,9 @@
       "CUSTOMER_REGISTRATION_ENABLED": "true",
       "CUSTOMER_SESSIONS_TABLE": "stack-wecare-digital-CustomerSessionsTable",
       "CUSTOMER_SESSION_KMS_KEY_ID": "arn:aws:kms:us-east-1:775261844268:key/b749509f-f93f-4451-9015-60ec29c4b9c1",
-      "DEPLOYMENT_REVISION": "sha256:34339f6e5b56",
+      "DEPLOYMENT_REVISION": "sha256:aca0100cda51",
       "PRODUCTS_TABLE": "stack-wecare-digital-ProductsTable",
-      "SOURCE_SHA256": "sha256:dd61c4d5b86f",
+      "SOURCE_SHA256": "sha256:4ef484be3141",
       "WHATSAPP_PAYMENT_REQUESTS_ENABLED": "true"
     },
     "wecare-customer-invoice": {
