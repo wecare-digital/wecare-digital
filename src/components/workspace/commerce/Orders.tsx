@@ -20,8 +20,12 @@ import type { ApiFailure } from '../../../api/client';
 import ErrorState from '../../../components/ErrorState';
 import {
   allowedFulfilmentTargets,
+  allowedPaymentOrderTargets,
   canonicalFulfilmentStatus,
   fulfilmentLabel,
+  isSendablePaymentOrderStatus,
+  isWhatsAppOrder,
+  orderStatusFailureText,
 } from '../../../lib/orderFulfilment';
 import { openExternal } from '../../../lib/capacitor';
 
@@ -113,7 +117,9 @@ function orderFulfilment ( order: api.Order ): string {
 
 function allowedOrderTargets ( order: api.Order ) {
   const current = orderFulfilment( order );
-  return allowedFulfilmentTargets( current, order.paymentStatus );
+  return isWhatsAppOrder( order.checkoutMode )
+    ? allowedPaymentOrderTargets( current, order.paymentStatus )
+    : allowedFulfilmentTargets( current, order.paymentStatus );
 }
 
 function fulfilmentOptions ( order: api.Order ): SelectOption[] {
@@ -313,11 +319,36 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
 
   // ── Actions ──
 
-  // Fulfilment is internal-only for every checkout mode. The customer Track Order page reads
-  // the same OrderTable state; changing it here never emits a WhatsApp order_status message.
+  // A WhatsApp-paid order's status lives on WhatsApp: the customer's Order summary shows only the
+  // updates Meta was sent. So it changes through the invoice engine's send, which moves this order
+  // once Meta accepts. `updateOrder` writes our row alone, and the server refuses it for these.
   const handleOrderStatusUpdate = async ( order: api.Order, status: string ) => {
+    if ( isWhatsAppOrder( order.checkoutMode ) )
+    {
+      if ( !order.invoiceId )
+      {
+        toast.error( 'This WhatsApp order has no linked invoice, so its status cannot be sent. Nothing was changed.' );
+        return;
+      }
+      if ( !isSendablePaymentOrderStatus( status ) )
+      {
+        toast.error( `${ fulfilmentLabel( status ) } cannot be sent to WhatsApp. Nothing was changed.` );
+        return;
+      }
+      const label = fulfilmentLabel( status );
+      const confirmed = await confirm( {
+        title: 'Send WhatsApp order update',
+        message: `Send “${ label }” to the customer on WhatsApp? Their WhatsApp order page updates to match, and a sent update cannot be withdrawn.`,
+        confirmText: `Send ${ label }`,
+      } );
+      if ( !confirmed ) return;
+      const result = await api.sendOrderStatus( order.invoiceId, status );
+      if ( result.ok ) { toast.success( `Order → ${ label }. The customer was notified on WhatsApp.` ); loadOrders(); }
+      else toast.error( orderStatusFailureText( result.failure ) );
+      return;
+    }
     const ok = await api.updateOrder( order.orderId, { status } );
-    if ( ok ) { toast.success( `Order → ${ fulfilmentLabel( status ) }` ); loadOrders(); }
+    if ( ok ) { toast.success( `Order → ${status}` ); loadOrders(); }
     else toast.error( 'Update failed' );
   };
 
@@ -775,7 +806,7 @@ const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoad
         {/* Status controls */ }
         <div style={ { display: 'flex', gap: 12, padding: 12, background: 'var(--bg-secondary)', borderRadius: 8, flexWrap: 'wrap' } }>
           { /* SHAPE (a) - wrapping <label> deleted, label passed. */ }
-          <Select label="Fulfilment"
+          <Select label={ isWhatsAppOrder( order.checkoutMode ) ? 'Payment order' : 'Fulfilment' }
             value={ orderFulfilment( order ) }
             onChange={ v => onStatusUpdate( order, v ) }
             options={ fulfilmentOptions( order ) }

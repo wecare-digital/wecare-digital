@@ -35,10 +35,8 @@ payment request accepted
 -> paid invoice sent on WhatsApp
 ```
 
-That sequence is retained as historical sign-off evidence only. **Owner policy changed later on
-2026-10-26:** structured WhatsApp order-status messages are now disabled. Payment capture starts
-the internal OrderTable fulfilment state at `processing`; later Workspace changes stay internal
-and are visible on Track Order. No capture-time, staff-driven, or retry order-status message is sent.
+The two order-status messages used the **template channel even with `withinWindow=true`**, proving
+the payment rail no longer depends on the 24-hour customer-service window for status transport.
 
 All six dedicated payment alarms remained `OK` after the real-money test:
 
@@ -71,21 +69,22 @@ sign-off plan before merge.
 
 ## 1. Product invariant
 
-This rail collects payment. Fulfilment is an internal commerce lifecycle.
+This rail collects payment. It is not a shipping/fulfilment workflow.
 
-For every checkout mode, including WhatsApp `ORDER_DETAILS`:
+For a WhatsApp `ORDER_DETAILS` payment, the Meta order lifecycle is deliberately collapsed to:
 
 ```text
-Razorpay captured -> OrderTable processing
-Workspace -> processing / partially-shipped / shipped / completed
-Track Order -> reads the same OrderTable state
-WhatsApp -> no automatic order_status message
+pending -> processing -> completed
 ```
 
-Payment requests and paid invoice/receipt delivery remain on WhatsApp. Structured
-`order_status` messages are disabled at both invoice-engine and outbound boundaries. Historical
-`waOrderStatus` / retry fields may remain on old rows as audit evidence; they are not mirrored
-forward and are not retried.
+Customer wording:
+
+- `processing`: **Payment received.**
+- `completed`: **Payment complete.**
+
+Do not introduce `partially-shipped` or `shipped` into this payment-only rail. Operational/service
+work may have its own internal states, but those states must not reopen or mutate the terminal Meta
+payment order.
 
 ## 2. Customer-visible sequence
 
@@ -96,32 +95,55 @@ sequenceDiagram
     participant CO as wecare-commerce:live
     participant RZ as Razorpay
     participant WH as wecare-razorpay-webhook:live
+    participant OW as wecare-outbound-whatsapp:live
     participant DDB as DynamoDB
     participant S3 as wecare-digital-get
 
-    CO->>WA: wecare_whatapp_native_pay_template + ORDER_DETAILS
+    CO->>OW: wecare_whatapp_native_pay_template
+    OW->>WA: ORDER_DETAILS + Review and Pay
     WA->>C: Payment request
     C->>WA: Pay
     WA->>RZ: Payment gateway flow
     RZ->>WH: signed payment.captured webhook
     WH->>RZ: authoritative provider readback
-    WH->>DDB: payment captured + internal OrderTable processing
-    CO->>S3: render/store paid invoice PNG
-    CO->>WA: wecare_default_invoice_image_template + invoice PNG + review token
+    WH->>WA: payment binding / status verification
+    WH->>DDB: persist captured payment + paidAt + final order/invoice
+
+    WH->>CO: order_status processing, "Payment received."
+    CO->>OW: wecare_order_status_v3
+    OW->>WA: template ORDER_STATUS processing
+    WA-->>OW: accepted
+    CO->>DDB: waOrderStatus=processing
+
+    WH->>CO: order_status completed, "Payment complete."
+    CO->>OW: wecare_order_status_v3
+    OW->>WA: template ORDER_STATUS completed
+    WA-->>OW: accepted
+    CO->>DDB: waOrderStatus=completed; OrderTable completed
+
+    CO->>S3: render/store paid invoice PNG using paidAt
+    WH->>CO: send invoice
+    CO->>OW: wecare_default_invoice_image_template + invoice PNG + review token
+    OW->>WA: invoice template
     WA->>C: Paid invoice + Leave Review Flow
-    CO->>WA: optional cta_url "View your order" within customer-service window
-    WA->>C: Track Order link
+
+    CO->>OW: cta_url "View your order" -> /orders/?o=<orderNumber> (after the invoice is accepted)
+    OW->>WA: interactive cta_url (24-hour window only)
+    WA->>C: Order page link
 ```
 
-There is deliberately no `processing`, `shipped`, or `completed` WhatsApp status message in
-this sequence. Workspace fulfilment changes update the internal order only.
+### Hard ordering rule
+
+`completed` may be sent only after `processing` was accepted or is already the recorded Meta
+state. Never fire both blindly in parallel. This prevents Meta error 2046 and makes webhook
+redelivery idempotent.
 
 ## 3. Approved templates
 
 | Role | Template | Meta ID | Category / subcategory | Usage |
 | --- | --- | ---: | --- | --- |
 | Payment request | `wecare_whatapp_native_pay_template` | `2714938845570815` | UTILITY / ORDER_DETAILS | One send before payment |
-| Legacy order state (disabled) | `wecare_order_status_v3` | `1754227779211208` | UTILITY / ORDER_STATUS | Retained in Meta/history; normal runtime never sends it |
+| Payment order state | `wecare_order_status_v3` | `1754227779211208` | UTILITY / ORDER_STATUS | Reused for processing and completed |
 | Paid invoice | `wecare_default_invoice_image_template` | `1782246473079550` | UTILITY / CUSTOM | One send after terminal status |
 
 The invoice template owns the **Leave Review** Flow button:
@@ -149,12 +171,11 @@ called from `send_invoice_whatsapp`.
   and nothing else is sent. It is not a status message, so the template-only rule below is
   unaffected.
 
-### Status-message invariant
+### Status transport invariant
 
-Structured WhatsApp `order_status` delivery is disabled. The invoice-engine compatibility
-endpoint returns `410 ORDER_STATUS_DISABLED`, and outbound-whatsapp independently refuses any
-stale structured order-status payload before Meta is called. Historical deferred/retry markers
-are not processed.
+Order-status delivery is **template-only**. The 24-hour customer-service window does not select an
+interactive fallback. If `wecare_order_status_v3` cannot be proven APPROVED, the update is deferred
+and retried; it is not silently changed into a different message type.
 
 ## 4. Media contract
 
@@ -177,8 +198,8 @@ Do not use the small item thumbnail as the large payment header.
 
 | Runtime | Canonical responsibility |
 | --- | --- |
-| `wecare-commerce:live` | Checkout, invoice engine surface, payment request construction, internal fulfilment projection, invoice send |
-| `wecare-razorpay-webhook:live` | Signed webhook verification, provider readback, capture reconciliation, post-payment orchestration; no order-status retry |
+| `wecare-commerce:live` | Checkout, invoice engine surface, payment request construction, order-status state machine, invoice send |
+| `wecare-razorpay-webhook:live` | Signed webhook verification, provider readback, capture reconciliation, post-payment orchestration, retry sweep |
 | `wecare-outbound-whatsapp:live` | Final Meta payload construction and send boundary; live template approval gate |
 | `wecare-whatsapp-business-api:live` | Meta payment/config/template/status reads and WhatsApp business APIs |
 | `wecare-inbound-whatsapp:live` | Meta inbound webhook ingestion, carts/payment-status signals |
@@ -208,7 +229,7 @@ All genuine commerce purchases converge on the same invoice engine and post-capt
 | Entry point | Invoice behavior |
 | --- | --- |
 | Website checkout | Verified Razorpay capture creates/deduplicates the fiscal invoice and guarantees a PNG; the owner can download it through `/ecommerce/my-invoice`, and a verified WhatsApp recipient may also receive the invoice template. |
-| WhatsApp catalog/cart checkout | Verified capture creates/deduplicates the invoice, guarantees the PNG, starts internal fulfilment at processing, and delivers the invoice template once. |
+| WhatsApp catalog/cart checkout | Verified capture creates/deduplicates the invoice, guarantees the PNG, advances the payment-order state, and delivers the invoice template once. |
 | Workspace Pay / Inbox / Commerce manual collection | A numbered invoice may be raised before payment so the payment request can be sent; verified capture settles that same invoice and guarantees its paid PNG. |
 | Paid WhatsApp Flows / Submit Request | The Flow creates the invoice through `wecare-commerce:live`; verified capture settles it and guarantees the same customer PNG. |
 | ChatGPT customer-commerce connector | When the guarded Pay on WhatsApp option is enabled, it delegates to `wecare-commerce:live`; ChatGPT does not collect money itself. Verified Razorpay capture remains the only route to a paid invoice. |
@@ -230,7 +251,7 @@ Important payment routes:
 | `POST /ecommerce/prepare-checkout` | `wecare-commerce:live` |
 | `POST /ecommerce/checkout/status` | `wecare-commerce:live` |
 | `POST /invoices/from-payment` | `wecare-commerce:live` |
-| `POST /invoices/{invoiceId}/order-status` | `wecare-commerce:live` (compatibility route; returns `410 ORDER_STATUS_DISABLED`) |
+| `POST /invoices/{invoiceId}/order-status` | `wecare-commerce:live` |
 | `POST /invoices/{invoiceId}/send-whatsapp` | `wecare-commerce:live` |
 | `POST /invoices/{invoiceId}/generate-image` | `wecare-commerce:live` |
 | `POST /razorpay-webhook` | `wecare-razorpay-webhook:live` |
@@ -248,8 +269,8 @@ the release audit in the same change.
 | `stack-wecare-digital-CommerceKeys` | PK `orderId` | Idempotency/identity claims: PAYREF, delivery claims, order binding |
 | `stack-wecare-digital-PaymentAttemptsTable` | PK `paymentAttemptId`; `referenceId-index`; `status-index` | Payment attempt lifecycle and expected money |
 | `stack-wecare-digital-PaymentsTable` | PK `id`; `paymentId-index`; `orderId-index` | Provider transaction projection |
-| `stack-wecare-digital-OrderTable` | PK `orderId`; `orderStatus` index | Canonical internal fulfilment state shown in Workspace and Track Order |
-| `stack-wecare-digital-InvoicesTable` | PK `invoiceId`; `referenceId-index`; legacy `orderStatusRetry-index` | Invoice header/payment state; historical Meta status/retry fields are audit-only |
+| `stack-wecare-digital-OrderTable` | PK `orderId`; `orderStatus` index | Customer-facing order/payment-order projection |
+| `stack-wecare-digital-InvoicesTable` | PK `invoiceId`; `referenceId-index`; `orderStatusRetry-index` | Invoice header, payment state, last accepted Meta status, deferred status |
 | `stack-wecare-digital-InvoiceItemsTable` | PK `invoiceId` + SK `itemIndex` | Fiscal invoice lines |
 | `stack-wecare-digital-InvoiceAssetsTable` | PK `invoiceId` + SK `assetType` | Generated PNG/PDF assets |
 | `stack-wecare-digital-InvoiceSequenceTable` | PK `fy` | Statutory invoice sequence |
@@ -280,14 +301,19 @@ paidAt:               authoritative capture timestamp
 A paid invoice displays `paidAt` as its prominent Date/Time. `createdAt` remains the creation
 timestamp and fallback for unpaid/legacy rows.
 
-### Fulfilment
+### Meta payment order
 
-`OrderTable.orderStatus` / `status` is the internal fulfilment authority. Capture starts a paid
-order at `processing`. Workspace may advance the canonical fulfilment lifecycle, and Track Order
-shows the same value. These writes never send a WhatsApp status message.
+```text
+pending -> processing -> completed
+```
 
-Historical `InvoicesTable.waOrderStatus`, `pendingOrderStatus`, and `orderStatusRetry` values
-are not current fulfilment truth and must not be back-filled to imply a Meta send that did not occur.
+`InvoicesTable.waOrderStatus` is the last status accepted by Meta and is the authority used to
+validate the next transition. It advances only after a successful Meta send.
+
+`OrderTable.orderStatus` / `status` is updated to the same accepted state after Meta accepts.
+
+Workspace operational/service statuses are separate and must not be used to invent a Meta
+fulfilment transition.
 
 ## 9. Idempotency and retry
 
@@ -298,14 +324,25 @@ Razorpay webhooks are deduplicated through `WebhookDedup` and provider/payment c
 
 ### Order-status sends
 
-Disabled. No capture path, Workspace action, or scheduled reconciliation may emit or retry a
-structured WhatsApp order-status message. Defense in depth exists in invoice-engine and
-outbound-whatsapp.
+Each `(invoiceId, targetStatus)` has a delivery claim in `CommerceKeys`.
+
+If the approved ORDER_STATUS template is unavailable:
+
+1. invoice stores `pendingOrderStatus`
+2. invoice stores `orderStatusRetry=PENDING`
+3. row appears in `orderStatusRetry-index`
+4. the 5-minute `wecare-commerce-customer-links` EventBridge run invokes
+   `wecare-razorpay-webhook:live`
+5. its reconciliation action calls the deferred order-status retry
+6. retry remains template-only
+
+Do not create another scheduler for this retry unless the existing shared 5-minute reconciler is
+intentionally decomposed.
 
 ### Invoice delivery
 
-Invoice delivery is idempotent and independent from internal fulfilment. Fulfilment updates must
-not charge twice, create a second invoice, or emit a WhatsApp order-status message.
+Invoice delivery is idempotent and independent from status delivery. A temporary Meta status
+failure must not charge twice or create a second invoice. The status retry can complete later.
 
 ## 10. Catalog synchronization
 
@@ -367,6 +404,7 @@ The deploy job verifies each artifact's AWS `CodeSha256`, publishes an immutable
 A payment release is not ready unless all are true:
 
 - payment template is APPROVED, UTILITY, ORDER_DETAILS, English
+- order-status template is APPROVED, UTILITY, ORDER_STATUS, English
 - invoice template is APPROVED, UTILITY, English
 - WABA payment configuration is active and matches expected Razorpay provider MID
 - packaged Lambda hashes match the release manifest
@@ -426,16 +464,16 @@ Before production promotion, prove:
 - [ ] large header is `whatsapp-header.png`
 - [ ] manual/non-catalog item image is `wecare-catalog-icon.png` with no synthetic retailer ID
 - [ ] true catalog items retain catalog identity/image
-- [ ] capture sends zero structured WhatsApp order-status messages
-- [ ] Workspace fulfilment changes update OrderTable only
-- [ ] Track Order reads the same internal fulfilment state
-- [ ] legacy invoice order-status endpoint returns `410 ORDER_STATUS_DISABLED`
-- [ ] outbound blocks stale order-status payloads before Meta
+- [ ] capture sends status template `processing` then `completed`
+- [ ] zero interactive order-status messages are used
+- [ ] `completed` is never attempted before `processing` acceptance/already-current
+- [ ] invoice `waOrderStatus=completed`
+- [ ] OrderTable projection becomes completed
 - [ ] paid invoice Date/Time uses `paidAt`
 - [ ] exactly one invoice template is sent
 - [ ] after it, at most one "View your order" `cta_url` (WhatsApp cart/catalog-service only), never retried
 - [ ] invoice Flow token is bound to order/invoice and opens FEEDBACK
-- [ ] historical retry markers are ignored and never sent
+- [ ] retry index remains ACTIVE and scheduled retry is working
 - [ ] `live` catalog alias is WABA1; `waba2` alias is WABA2
 - [ ] no catalog production trigger targets `$LATEST`
 - [ ] public payment write routes point at `wecare-commerce:live`
@@ -452,6 +490,7 @@ Fail closed on:
 - payment configuration mismatch
 - reference/payment binding mismatch
 - amount mismatch
+- invalid Meta status transition
 - ambiguous invoice/reference resolution
 - duplicate delivery claim
 

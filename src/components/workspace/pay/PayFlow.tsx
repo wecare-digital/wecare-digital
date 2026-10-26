@@ -1062,10 +1062,10 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                           <Button variant="secondary" size="sm" onClick={ () => openRemarkModal( selInvoice, 'credit_note' ) }>Record Credit Note</Button>
                           <div style={ { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 4 } }>
                             <span style={ { fontSize: 'var(--text-xs)', fontWeight: 500 } }>
-                              Fulfilment is managed in Commerce → Orders.
+                              WhatsApp payment order · { selInvoice.waOrderStatus || selInvoice.orderStatus || 'pending' }
                             </span>
                             <span style={ { fontSize: 'var(--text-xs)', color: '#777' } }>
-                              Status changes are internal and do not send automatic WhatsApp updates.
+                              Payment capture advances this automatically to completed.
                             </span>
                           </div>
                         </>
