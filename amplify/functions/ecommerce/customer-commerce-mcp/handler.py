@@ -298,16 +298,16 @@ def call_tool(name: str, args: dict, event: dict) -> dict:
                             'paymentOptions': payment_options, 'customerMessage': message},
                            message + ' The items total is an estimate; the final amount is confirmed in the payment request.')
     if name == 'get_my_account':
-        return customer_call('wecare-checkout:live', {'action': 'profile'}, event, '/ecommerce/prepare-checkout')
+        return customer_call('wecare-commerce:live', {'action': 'profile'}, event, '/ecommerce/prepare-checkout')
     if name == 'update_my_account':
         return customer_call('wecare-customer-profile:live', args, event, '/customer/profile')
     if name == 'list_my_orders':
         return customer_call('wecare-customer-orders:live', args, event, '/ecommerce/my-orders')
     if name == 'check_my_payment':
-        return customer_call('wecare-checkout:live', {**args, 'action': 'status'}, event, '/ecommerce/checkout/status')
+        return customer_call('wecare-commerce:live', {**args, 'action': 'status'}, event, '/ecommerce/checkout/status')
     if name == 'request_whatsapp_payment':
         _, lines, _ = checked_lines(args['items'])
-        result = customer_call('wecare-checkout:live', {'action': 'create', 'lineItems': lines,
+        result = customer_call('wecare-commerce:live', {'action': 'create', 'lineItems': lines,
                                'requestKey': args['idempotencyKey']}, event, '/ecommerce/checkout')
         if result['isError']:
             return result

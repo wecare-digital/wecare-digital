@@ -42,8 +42,8 @@ Cognito access/refresh custody encrypted in the existing session store.
 
 ## Verification completed
 
-- 25 conversation-tool contract checks and 22 OAuth/security checks against readable source.
-- The same 47 checks pass against the exact single-file packaged Lambda runtime.
+- 25 conversation-tool contract checks and 23 OAuth/security checks against readable source.
+- The same 48 checks pass against the exact single-file packaged Lambda runtime.
 - Python compilation passes.
 - Package assembly compares Python ASTs to prove whitespace compaction changes no semantics.
 - Runtime ZIP is deterministic and contains only index.py.

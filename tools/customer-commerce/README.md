@@ -85,7 +85,7 @@ listing restrictions; it does not change customer, product or provider eligibili
 
 ## Verification and remaining gates
 
-25 conversation checks plus 22 OAuth checks pass against readable source. The same 47 checks pass
+25 conversation checks plus 23 OAuth checks pass against readable source. The same 48 checks pass
 against the exact packaged runtime. Python compilation and CloudFormation ValidateTemplate pass.
 No production deployment or live host case has run. The unchanged website build passed earlier;
 repository-wide lint still has the existing unrelated internal /cart anchor error at

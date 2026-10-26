@@ -67,6 +67,12 @@ class FakeCognito:
 
 
 class OAuthContract(unittest.TestCase):
+    def test_connection_page_preserves_browser_origin_without_referrer_path(self):
+        # Chromium sends Origin: null on navigation POSTs under no-referrer.
+        # The connection form must retain its origin for the existing CSRF check.
+        self.assertEqual(auth.response(200, '', page=True)['headers']['Referrer-Policy'], 'strict-origin')
+        self.assertEqual(auth.response(200, {})['headers']['Referrer-Policy'], 'no-referrer')
+
     def setUp(self):
         self.store, self.cognito = FakeStore(), FakeCognito()
         env = patch.dict(os.environ, {'CUSTOMER_COMMERCE_ORIGIN': BASE,

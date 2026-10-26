@@ -138,7 +138,9 @@ def uncapsule(cipher: str, client_id: str, key: str) -> dict:
 def response(status: int, data, *, page: bool = False) -> dict:
     return {'statusCode': status, 'headers': {
         'Content-Type': 'text/html; charset=utf-8' if page else 'application/json',
-        'Cache-Control': 'no-store', 'Pragma': 'no-cache', 'Referrer-Policy': 'no-referrer',
+        'Cache-Control': 'no-store', 'Pragma': 'no-cache',
+        # Navigation POSTs under no-referrer lose Origin in Chromium and fail CSRF.
+        'Referrer-Policy': 'strict-origin' if page else 'no-referrer',
         'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY',
         'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
     }, 'body': data if page or isinstance(data, str) else json.dumps(data)}

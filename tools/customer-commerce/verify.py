@@ -99,7 +99,7 @@ class ConversationContract(unittest.TestCase):
             result = call('get_my_account', token='Bearer test')
             self.assertFalse(result['isError'])
             function, body, original, path = delegate.call_args.args
-            self.assertEqual(function, 'wecare-checkout:live')
+            self.assertEqual(function, 'wecare-commerce:live')
             self.assertEqual(body, {'action': 'profile'})
             self.assertEqual(original['headers']['authorization'], 'Bearer test')
 
