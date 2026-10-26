@@ -222,6 +222,23 @@ Do not use `wecare-catalog-icon.png` as the large payment header.
 packages, but new source defaults and internal calls must point at `wecare-commerce:live`.
 Do not add new callers to rollback runtimes.
 
+### Invoice coverage across purchase entry points
+
+All genuine commerce purchases converge on the same invoice engine and post-capture receipt guarantee:
+
+| Entry point | Invoice behavior |
+| --- | --- |
+| Website checkout | Verified Razorpay capture creates/deduplicates the fiscal invoice and guarantees a PNG; the owner can download it through `/ecommerce/my-invoice`, and a verified WhatsApp recipient may also receive the invoice template. |
+| WhatsApp catalog/cart checkout | Verified capture creates/deduplicates the invoice, guarantees the PNG, advances the payment-order state, and delivers the invoice template once. |
+| Workspace Pay / Inbox / Commerce manual collection | A numbered invoice may be raised before payment so the payment request can be sent; verified capture settles that same invoice and guarantees its paid PNG. |
+| Paid WhatsApp Flows / Submit Request | The Flow creates the invoice through `wecare-commerce:live`; verified capture settles it and guarantees the same customer PNG. |
+| ChatGPT customer-commerce connector | When the guarded Pay on WhatsApp option is enabled, it delegates to `wecare-commerce:live`; ChatGPT does not collect money itself. Verified Razorpay capture remains the only route to a paid invoice. |
+| Modern Vault / paid service checkout | Uses the canonical commerce PaymentAttempt/service-intent path and therefore receives the normal fiscal invoice after verified capture. |
+
+The `secure_file_download` early return in the Razorpay webhook is retained only for historical legacy secure-file gateway orders that predate canonical commerce checkout. Wallet top-ups and voluntary blog contributions are also intentionally non-invoice commerce exceptions.
+
+A verified paid commerce invoice must have at least one `image` / `image#vN` asset even if WhatsApp delivery is unavailable. The webhook calls the invoice engine's internal `ensure-image` action on every verified capture. That action reuses an existing image and renders only when no image exists, so webhook replay does not create duplicate renditions. The customer-invoice download service remains read-only and never advances the GST sequence.
+
 ## 6. Public API routes
 
 Canonical API: `wecare-digital-api` (`zllr9lrg7j`).
