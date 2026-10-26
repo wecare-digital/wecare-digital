@@ -9,8 +9,13 @@ Signals are intentionally event-specific rather than generic Lambda Errors:
 - Vault send/payment/runtime failures
 - catalog synchronization failures
 - Flow validation/health failures
+- a captured payment whose order, invoice or receipt did not complete (paid state incomplete)
+- a paid Vault file with no entitlement, or whose Access Vault link did not go out
+- the live payment-readiness readback refusing WhatsApp payment requests
+- the WhatsApp catalogs drifting from ProductsTable across two scheduled syncs
 
-Every filter/alarm is idempotent and sends to the standard WECARE alarm topic.
+Every filter/alarm is idempotent and sends to the standard WECARE alarm topic. Several log groups
+may feed one alarm: each such signal names the same metric and alarm, with its own filter.
 """
 from __future__ import annotations
 
@@ -105,6 +110,82 @@ SIGNALS = [
         "threshold": 0.0,
         "description": "A WhatsApp Flow reported validation errors or blocked health.",
     },
+    # Money moved, but the order, invoice or receipt did not complete. The webhook parks the
+    # capture (CommerceKeys quarantine row) and the website callback logs the same alerts; both
+    # used to be log lines with no alarm behind them.
+    {
+        "logGroup": "/aws/lambda/wecare-razorpay-webhook",
+        "pattern": ('{ $.alert = "PAID_BUT_NO_ORDER" || $.alert = "PAID_BUT_NO_ORDER_RECORD" || '
+                    '$.alert = "NEEDS_RECONCILIATION" || $.alert = "INVOICE_CREATE_FAILED" || '
+                    '$.alert = "RECEIPT_DELIVERY_EXHAUSTED" }'),
+        "filterName": "payment-paid-state-incomplete",
+        "metricName": "PaymentPaidStateIncomplete",
+        "alarmName": "wecare-payment-paid-state-incomplete",
+        "threshold": 0.0,
+        "description": ("A captured payment has no final order, invoice or receipt. Read the alert and "
+                        "referenceId on the log line; quarantined captures are listed by "
+                        "scripts/reconcile_captures.py. Do not charge again."),
+    },
+    {
+        "logGroup": "/aws/lambda/wecare-commerce",
+        "pattern": '{ $.alert = "PAID_BUT_NO_ORDER" || $.alert = "PAID_BUT_NO_ORDER_RECORD" }',
+        "filterName": "payment-paid-state-incomplete",
+        "metricName": "PaymentPaidStateIncomplete",
+        "alarmName": "wecare-payment-paid-state-incomplete",
+        "threshold": 0.0,
+        "description": ("A captured payment has no final order, invoice or receipt. Read the alert and "
+                        "referenceId on the log line; quarantined captures are listed by "
+                        "scripts/reconcile_captures.py. Do not charge again."),
+    },
+    {
+        "logGroup": "/aws/lambda/wecare-whatsapp-business-api",
+        "pattern": ('{ $.alert = "PAID_VAULT_UNFULFILLED" || $.alert = "VAULT_DELIVERY_UNSENT" || '
+                    '$.alert = "VAULT_PAID_WINDOW_UNAVAILABLE" }'),
+        "filterName": "vault-paid-delivery-incomplete",
+        "metricName": "VaultPaidDeliveryIncomplete",
+        "alarmName": "wecare-vault-paid-delivery-incomplete",
+        "threshold": 0.0,
+        "description": ("A paid Vault file has no entitlement, or its Access Vault link was not sent. "
+                        "Reconcile the entitlement or use Send access; never request payment again."),
+    },
+    # The live readiness readback refused a WhatsApp payment request, so no payment request is
+    # going out. Transient Meta/Razorpay outages also land here; the log line names the state.
+    {
+        "logGroup": "/aws/lambda/wecare-commerce",
+        "pattern": '{ $.event = "wa_payment_readiness_refused" || $.event = "checkout_not_ready" }',
+        "filterName": "payment-readiness-refused",
+        "metricName": "PaymentReadinessRefused",
+        "alarmName": "wecare-payment-readiness-refused",
+        "threshold": 0.0,
+        "description": ("Payment readiness refused a WhatsApp payment request; nothing was charged. Read "
+                        "the readiness state on the log line before treating it as an outage."),
+    },
+    {
+        "logGroup": "/aws/lambda/wecare-outbound-whatsapp",
+        "pattern": '{ $.event = "wa_payment_readiness_refused" }',
+        "filterName": "payment-readiness-refused",
+        "metricName": "PaymentReadinessRefused",
+        "alarmName": "wecare-payment-readiness-refused",
+        "threshold": 0.0,
+        "description": ("Payment readiness refused a WhatsApp payment request; nothing was charged. Read "
+                        "the readiness state on the log line before treating it as an outage."),
+    },
+    # A scheduled sync that still finds create/update/retire work: the WhatsApp catalog shows
+    # names or prices ProductsTable no longer has, and stays that way until the exact plan is
+    # approved and applied. Two consecutive six-hourly runs, so a fresh product edit is not paged.
+    {
+        "logGroup": "/aws/lambda/wecare-meta-catalog-sync",
+        "pattern": ('{ $.event = "meta_catalog_sync_planned" && $.source = "schedule" && '
+                    '($.create > 0 || $.update > 0 || $.retire > 0) }'),
+        "filterName": "catalog-sync-drift",
+        "metricName": "CatalogSyncDrift",
+        "alarmName": "wecare-catalog-sync-drift",
+        "threshold": 0.0,
+        "period": 21600,
+        "evaluationPeriods": 2,
+        "description": ("The WhatsApp catalog has differed from ProductsTable for two scheduled syncs. "
+                        "Review and approve the exact plan in Catalog sync, or correct the product."),
+    },
 ]
 
 
@@ -150,8 +231,8 @@ def main() -> int:
             Namespace=NAMESPACE,
             MetricName=sig["metricName"],
             Statistic="Sum",
-            Period=300,
-            EvaluationPeriods=1,
+            Period=int(sig.get("period", 300)),
+            EvaluationPeriods=int(sig.get("evaluationPeriods", 1)),
             Threshold=sig["threshold"],
             ComparisonOperator="GreaterThanThreshold",
             TreatMissingData="notBreaching",
@@ -172,7 +253,8 @@ def main() -> int:
             }
     alarms = {
         a["AlarmName"]: a
-        for a in cw.describe_alarms(AlarmNames=[s["alarmName"] for s in SIGNALS])["MetricAlarms"]
+        for a in cw.describe_alarms(
+            AlarmNames=sorted({s["alarmName"] for s in SIGNALS}))["MetricAlarms"]
     }
     for sig in SIGNALS:
         f = filters_by_group[sig["logGroup"]].get(sig["filterName"])
@@ -184,8 +266,10 @@ def main() -> int:
             and a["MetricName"] == sig["metricName"]
             and a["Namespace"] == NAMESPACE
             and a["AlarmActions"] == [SNS_ARN]
+            and a["Period"] == int(sig.get("period", 300))
+            and a["EvaluationPeriods"] == int(sig.get("evaluationPeriods", 1))
         )
-        print(f'verify: {sig["alarmName"]} {"OK" if good else "MISMATCH"}')
+        print(f'verify: {sig["alarmName"]} {sig["logGroup"]} {"OK" if good else "MISMATCH"}')
         ok &= good
     return 0 if ok else 1
 

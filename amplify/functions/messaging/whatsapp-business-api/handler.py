@@ -42,7 +42,7 @@ Routes:
   GET       /wa-business/payment-config → Get payment configuration for phone
   GET       /wa-business/payment-config/check → Check payment gateway status via Meta API
   GET       /wa-business/payment-lookup → Meta Payment Lookup API (verify payment status)
-  POST      /wa-business/payment-refund → Meta Refund API (initiate refund via WhatsApp)
+  POST      /wa-business/payment-refund → 410: retired; refunds are owner-only (see the arm)
   POST      /wa-business/flow-data     → WhatsApp Flow data_exchange endpoint
   POST      /wa-business/checkout-data → Checkout Button Template data_exchange (legacy action refusals)
 """
@@ -4177,38 +4177,6 @@ def _payment_lookup(phone_number_id: str, config_name: str, reference_id: str) -
     return _resp(200, {'paymentLookup': result})
 
 
-def _payment_refund(phone_number_id: str, reference_id: str, config_name: str,
-                    amount_paise: int, speed: str = 'normal') -> Dict:
-    """Meta Refund API — initiate refund via WhatsApp.
-    POST /<PHONE_NUMBER_ID>/payments_refund"""
-    if not phone_number_id or not reference_id or not config_name:
-        return _resp(400, {'error': 'phone_number_id, reference_id, and config_name are required'})
-    if amount_paise <= 0:
-        return _resp(400, {'error': 'amount must be positive'})
-    if speed not in ('normal', 'instant'):
-        speed = 'normal'
-
-    payload = {
-        'reference_id': reference_id,
-        'speed': speed,
-        'payment_config_id': config_name,
-        'amount': {
-            'currency': 'INR',
-            'value': str(amount_paise),
-            'offset': '100',
-        },
-    }
-    result = _graph_api(
-        f'{phone_number_id}/payments_refund',
-        method='POST',
-        payload=payload,
-        phone_id=phone_number_id,
-    )
-    if 'error' in result:
-        return _resp(result.get('error', {}).get('code', 500), {'error': result['error']})
-    return _resp(200, {'refund': result})
-
-
 # ============================================================================
 # FLOW ENCRYPTION / DECRYPTION (WhatsApp Flows require E2E encryption)
 # ============================================================================
@@ -6663,6 +6631,27 @@ def _require_operator(event: Dict[str, Any], path: str):
     return require_auth(event, required_role='Operator')
 
 
+#: Route fragments whose writes change customer-visible commerce or account access at Meta
+#: directly, so they need Admin rather than the Viewer floor. Measured 2026-10-26: any Viewer
+#: could create, reprice or delete Meta catalog items, schedule a feed import from any https
+#: URL, switch the cart or catalog off on either number, repoint the catalog -> Flow map, or
+#: grant a business user tasks on a WABA. Catalog writes otherwise go through ProductsTable and
+#: the Admin-approved exact plan (`/catalog-sync`); these arms bypassed both. Reads stay at the
+#: floor. Same substring test as the dispatch below, so any path that reaches one of these arms
+#: is gated here.
+ADMIN_WRITE_PATH_FRAGMENTS = ('/catalog-products', '/catalog-feed', '/commerce-settings',
+                              '/catalog-flow-map', '/assigned-users')
+
+
+def _require_admin_write(event: Dict[str, Any], path: str, method: str):
+    """Admin refusal for a write on an `ADMIN_WRITE_PATH_FRAGMENTS` arm, or None to proceed."""
+    if str(method or '').upper() in ('GET', 'HEAD', 'OPTIONS'):
+        return None
+    if not any(fragment in path for fragment in ADMIN_WRITE_PATH_FRAGMENTS):
+        return None
+    return require_auth(event, required_role='Admin')
+
+
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     request_id = context.aws_request_id if context else 'local'
     global origin
@@ -6759,6 +6748,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     operator_denied = _require_operator(event, path)
     if operator_denied is not None:
         return operator_denied
+    admin_denied = _require_admin_write(event, path, method)
+    if admin_denied is not None:
+        return admin_denied
 
     # Note: WhatsApp Flows data_exchange is encrypted (RSA + AES-GCM) for confidentiality
     # and also signed by Meta with `X-Hub-Signature-256`, like webhooks. `/flow-data`
@@ -7154,12 +7146,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return _payment_lookup(phone_id, config_name, reference_id)
 
         elif '/payment-refund' in path:
-            phone_id = body.get('phoneId', '')
-            reference_id = body.get('referenceId', '')
-            config_name = body.get('configName', '')
-            amount_paise = int(body.get('amountPaise', 0))
-            speed = body.get('speed', 'normal')
-            return _payment_refund(phone_id, reference_id, config_name, amount_paise, speed)
+            # 410 and no Graph call, for every caller. This arm sent Meta `payments_refund` for a
+            # caller-chosen reference, configuration and amount at the Viewer floor, with no
+            # REFUND_INITIATION_ENABLED gate, no binding to a captured attempt and no caller in
+            # this repository. Refunds are owner-only and default off; the one dormant boundary
+            # is `lambda_utils.integrations.razorpay_refund`. Kept as an explicit 410 rather than
+            # deleted because dispatch matches substrings and must not fall through elsewhere.
+            return _resp(410, {'error': 'REFUND_ROUTE_RETIRED',
+                               'message': 'Refunds are not initiated from this API. Nothing was sent.'})
 
         elif path.rstrip('/').endswith('/payment-config/raw'):
             # Retired diagnostics must not fall through to phone-level settings.

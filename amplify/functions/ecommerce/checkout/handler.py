@@ -785,8 +785,9 @@ def _cart_order_details(snapshot, reference_id: str, profile: Dict[str, Any],
 
     subtotal_paise = merchandise_paise
     if quote.convenience_fee_paise:
+        # A non-catalog line: no retailer_id. `retailer_id` names a catalog content id, and this
+        # fee is not in any catalog, so a made-up one would be a synthetic catalog identity.
         items.append({
-            "retailer_id": "wecare-convenience-fee",
             "name": "Convenience fee",
             "quantity": 1,
             "amount": {"value": int(quote.convenience_fee_paise), "offset": 100},

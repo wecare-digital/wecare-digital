@@ -94,7 +94,35 @@ def _open_paid_window(lambda_client, grant_id):
     return bool(answer.get('ok')), str(answer.get('detail') or '')[:120]
 
 
+#: Outcomes after which a captured Vault payment has not reached its customer. This module runs
+#: only from the paid-capture dispatch, so money has already moved; each outcome used to return
+#: silently into an asynchronous invoke nobody reads. They are logged with an alert so staff can
+#: reconcile (Access Vault resend, or the entitlement itself). Nothing here charges again.
+#:   PAID_VAULT_UNFULFILLED  no entitlement was granted for the payment.
+#:   VAULT_DELIVERY_UNSENT   the entitlement exists, but the Access Vault link did not go out.
+_UNDELIVERED_ALERTS = {
+    'VAULT_ACCESS_UNAVAILABLE': 'PAID_VAULT_UNFULFILLED',
+    'VERIFIED_RECIPIENT_UNAVAILABLE': 'VAULT_DELIVERY_UNSENT',
+    'CONTACT_LINK_UNAVAILABLE': 'VAULT_DELIVERY_UNSENT',
+    'VAULT_NOTIFICATION_PENDING': 'VAULT_DELIVERY_UNSENT',
+}
+
+
 def prepare_and_send(event, lambda_client):
+    """Grant the paid Vault entitlement and send its Access Vault link; alert when either fails."""
+    result = _prepare_and_send(event, lambda_client)
+    outcome = str((result or {}).get('outcome') or '')
+    alert = _UNDELIVERED_ALERTS.get(outcome)
+    if alert:
+        # Correlation ids only: the reference, the attempt and the order. No phone, no file name.
+        log_event(logger, 'paid_vault_not_delivered', level='error', alert=alert, outcome=outcome,
+                  referenceId=str(event.get('referenceId') or ''),
+                  paymentAttemptId=str(event.get('paymentAttemptId') or ''),
+                  orderId=str(event.get('orderId') or ''))
+    return result
+
+
+def _prepare_and_send(event, lambda_client):
     db = boto3.resource('dynamodb')
     requests = db.Table('stack-wecare-digital-ServiceRequestsTable')
     result = vault_access.grant_access(requests, db.Table('stack-wecare-digital-CommerceKeys'),

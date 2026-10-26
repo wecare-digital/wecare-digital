@@ -15,6 +15,8 @@ on:
       - "tests/test_env_manifest_aliases.py"
       - "tests/test_direct_send_dual_account_regression.py"
       - "tests/test_whatsapp_marketing_policy.py"
+      - "tests/test_commerce_audit_hardening.py"
+      - "amplify/functions/ecommerce/checkout/**"
       - "amplify/functions/core/service-api/**"
       - "amplify/functions/core/secure-files/**"
       - "amplify/functions/ai/ai-generate-response/**"
@@ -45,6 +47,10 @@ on:
       - "scripts/provision_payment_rail_alarms.py"
       - "tests/test_env_manifest_aliases.py"
       - "tests/test_direct_send_dual_account_regression.py"
+      - "tests/test_commerce_audit_hardening.py"
+      # wecare-commerce and wecare-checkout are built from this source; a change to it alone
+      # must still test and deploy the canonical commerce writer.
+      - "amplify/functions/ecommerce/checkout/**"
       - "amplify/functions/core/service-api/**"
       - "amplify/functions/core/secure-files/**"
       - "amplify/functions/ai/ai-generate-response/**"
@@ -82,6 +88,9 @@ jobs:
       - name: Compile payment Python
         run: |
           python -m compileall -q             amplify/functions/payments             amplify/functions/messaging/outbound-whatsapp             amplify/functions/messaging/whatsapp-business-api             amplify/functions/ecommerce/service-requests             amplify/functions/core/secure-files             amplify/functions/shared/lambda_utils/ecommerce             amplify/functions/shared/lambda_utils/template_media.py
+
+      - name: Verify commerce audit hardening
+        run: python -m unittest discover -s tests -p 'test_commerce_audit_hardening.py'
 
       - name: Verify WhatsApp payment rail
         run: python scripts/verify_whatsapp_catalog_payment_rail.py

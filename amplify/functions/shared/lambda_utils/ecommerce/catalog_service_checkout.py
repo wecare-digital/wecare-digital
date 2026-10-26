@@ -123,7 +123,8 @@ def payment_details(row: dict, quote: Any, reference_id: str, configuration: str
               'name': label, 'quantity': 1,
               'amount': {'value': quote.collection_before_convenience_paise, 'offset': 100}}]
     if quote.convenience_fee_paise:
-        items.append({'retailer_id': 'wecare-convenience-fee', 'name': 'Convenience fee', 'quantity': 1,
+        # Non-catalog line: no synthetic retailer_id (Vault is fee-exempt; kept for safety).
+        items.append({'name': 'Convenience fee', 'quantity': 1,
                       'amount': {'value': quote.convenience_fee_paise, 'offset': 100}})
     return {'reference_id': reference_id, 'type': 'digital-goods', 'currency': 'INR',
         # The RESOLVER owns `payment_settings` (Mode 3). The inline block that used to be here
