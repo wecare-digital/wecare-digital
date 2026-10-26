@@ -836,6 +836,14 @@ def _update_document(doc_id: str, body: Dict) -> Dict:
     table = dynamodb.Table(DOCUMENTS_TABLE)
     now = _now()
 
+    if str(body.get('status') or '').strip() == 'reupload_requested':
+        current = table.get_item(Key={'documentId': doc_id}, ConsistentRead=True).get('Item') or {}
+        if current.get('vaultFileId'):
+            return _resp(409, {
+                'error': 'VAULT_FILE_ACTIVE',
+                'message': 'Revoke the published Vault file before requesting a replacement.',
+            })
+
     if str(body.get('_action') or '').strip().lower() == 'revalidate_reference':
         current = table.get_item(Key={'documentId': doc_id}, ConsistentRead=True).get('Item') or {}
         if not current:
@@ -886,6 +894,8 @@ def _update_document(doc_id: str, body: Dict) -> Dict:
 
     if 'status' in body:
         updates['verificationStatus'] = body['status']
+    if 'vaultMessageTitle' in body:
+        updates['vaultMessageTitle'] = str(body.get('vaultMessageTitle') or '').strip()[:60]
     if 'notes' in body or 'remarks' in body:
         updates['remarks'] = body.get('notes', body.get('remarks', ''))
     if 'reviewedBy' in body:
@@ -1004,6 +1014,7 @@ def _document_record(body: Dict, *, doc_id: str, storage_key: str = '',
         'sourceType': 'manual',
         'documentType': body.get('type', body.get('documentType', 'other')),
         'documentTypeLabel': str(body.get('typeLabel') or body.get('documentTypeLabel') or '').strip(),
+        'vaultMessageTitle': str(body.get('vaultMessageTitle') or '').strip()[:60],
         'fileName': str(body.get('fileName') or '').strip(),
         'mimeType': str(body.get('mimeType') or body.get('contentType') or '').strip(),
         'fileSize': int(body.get('fileSize') or body.get('sizeBytes') or 0),
@@ -1099,6 +1110,169 @@ def _init_document_upload(body: Dict) -> Dict:
         'expiresInSeconds': DOCUMENT_UPLOAD_URL_TTL,
         'contentType': content_type,
     })
+
+
+
+def _init_document_reupload(doc_id: str, body: Dict) -> Dict:
+    """Create a fresh private replacement target for a manual document awaiting reupload.
+
+    The current object stays untouched until confirm succeeds, so an interrupted replacement
+    never destroys the last good copy. A published Vault document must be revoked first.
+    """
+    table = dynamodb.Table(DOCUMENTS_TABLE)
+    item = table.get_item(Key={'documentId': doc_id}, ConsistentRead=True).get('Item') or {}
+    if not item:
+        return _resp(404, {'error': 'Document not found'})
+    if item.get('vaultFileId'):
+        return _resp(409, {
+            'error': 'VAULT_FILE_ACTIVE',
+            'message': 'Revoke the published Vault file before replacing this document.',
+        })
+    if item.get('sourceType') != 'manual' or item.get('verificationStatus') != 'reupload_requested':
+        return _resp(409, {
+            'error': 'DOCUMENT_NOT_AWAITING_REUPLOAD',
+            'message': 'This document is not awaiting a replacement upload.',
+        })
+
+    file_name = str(body.get('fileName') or '').strip()
+    content_type = str(body.get('mimeType') or body.get('contentType')
+                       or 'application/octet-stream').strip()
+    try:
+        size = int(body.get('fileSize') or body.get('sizeBytes') or 0)
+    except (TypeError, ValueError):
+        size = 0
+    if not file_name:
+        return _resp(400, {'error': 'FILE_NAME_REQUIRED', 'message': 'Choose a replacement file.'})
+    if size <= 0:
+        return _resp(400, {'error': 'FILE_SIZE_REQUIRED', 'message': 'The selected file is empty.'})
+    if size > DOCUMENT_UPLOAD_MAX_BYTES:
+        return _resp(413, {
+            'error': 'FILE_TOO_LARGE',
+            'message': f'The selected file is larger than {DOCUMENT_UPLOAD_MAX_BYTES} bytes.',
+        })
+
+    new_ref = _public_document_ref()
+    generated_name = _generated_document_name(file_name, content_type, new_ref)
+    replacement_key = media_paths.DROP_DOCS_UPLOAD_PREFIX + 'manual/' + uuid.uuid4().hex
+    now = _now()
+    table.update_item(
+        Key={'documentId': doc_id},
+        UpdateExpression=(
+            'SET replacementStorageKey=:key, replacementFileName=:name, '
+            'replacementOriginalFileName=:original, replacementMimeType=:mime, '
+            'replacementFileSize=:size, replacementDocumentRef=:ref, '
+            'replacementRequestedAt=:now, updatedAt=:now'
+        ),
+        ConditionExpression='verificationStatus=:requested AND sourceType=:manual '
+                            'AND attribute_not_exists(vaultFileId)',
+        ExpressionAttributeValues={
+            ':key': replacement_key, ':name': generated_name,
+            ':original': os.path.basename(file_name), ':mime': content_type,
+            ':size': size, ':ref': new_ref, ':now': now,
+            ':requested': 'reupload_requested', ':manual': 'manual',
+        },
+    )
+    try:
+        upload_url = s3_client.generate_presigned_url(
+            'put_object',
+            Params={'Bucket': DOCS_S3_BUCKET, 'Key': replacement_key, 'ContentType': content_type},
+            ExpiresIn=DOCUMENT_UPLOAD_URL_TTL,
+        )
+    except Exception:
+        logger.exception('Could not create replacement document upload URL')
+        return _resp(503, {'error': 'UPLOAD_URL_UNAVAILABLE',
+                           'message': 'Could not start the replacement upload.'})
+
+    return _resp(201, {
+        'documentId': doc_id,
+        'documentRef': new_ref,
+        'fileName': generated_name,
+        'uploadUrl': upload_url,
+        'expiresInSeconds': DOCUMENT_UPLOAD_URL_TTL,
+        'contentType': content_type,
+    })
+
+
+def _confirm_document_reupload(doc_id: str) -> Dict:
+    """Atomically swap in a successfully stored replacement and rotate the short reference."""
+    table = dynamodb.Table(DOCUMENTS_TABLE)
+    item = table.get_item(Key={'documentId': doc_id}, ConsistentRead=True).get('Item') or {}
+    if not item:
+        return _resp(404, {'error': 'Document not found'})
+    if item.get('vaultFileId'):
+        return _resp(409, {
+            'error': 'VAULT_FILE_ACTIVE',
+            'message': 'Revoke the published Vault file before replacing this document.',
+        })
+    if item.get('sourceType') != 'manual' or item.get('verificationStatus') != 'reupload_requested':
+        return _resp(409, {
+            'error': 'DOCUMENT_NOT_AWAITING_REUPLOAD',
+            'message': 'This document is not awaiting a replacement upload.',
+        })
+
+    pending_key = str(item.get('replacementStorageKey') or '')
+    if not pending_key:
+        return _resp(409, {'error': 'REPLACEMENT_UPLOAD_NOT_STARTED',
+                           'message': 'Choose and upload the replacement file first.'})
+    storage_key = media_paths.canonical(pending_key)
+    try:
+        head = s3_client.head_object(Bucket=DOCS_S3_BUCKET, Key=storage_key)
+    except ClientError:
+        return _resp(409, {'error': 'UPLOAD_NOT_FOUND',
+                           'message': 'The replacement file was not found. Please upload it again.'})
+
+    size = int(head.get('ContentLength') or 0)
+    if size <= 0 or size > DOCUMENT_UPLOAD_MAX_BYTES:
+        return _resp(413, {'error': 'FILE_TOO_LARGE',
+                           'message': 'The stored replacement is empty or exceeds the upload limit.'})
+    mime_type = str(head.get('ContentType') or item.get('replacementMimeType')
+                    or 'application/octet-stream')
+    now = _now()
+    new_ref = str(item.get('replacementDocumentRef') or _public_document_ref())
+    new_name = str(item.get('replacementFileName')
+                   or _generated_document_name(item.get('replacementOriginalFileName', ''),
+                                               mime_type, new_ref))
+    original_name = str(item.get('replacementOriginalFileName') or new_name)
+
+    table.update_item(
+        Key={'documentId': doc_id},
+        UpdateExpression=(
+            'SET storageKey=:key, fileName=:name, originalFileName=:original, '
+            'mimeType=:mime, fileSize=:size, documentRef=:ref, '
+            'verificationStatus=:uploaded, uploadedAt=:now, updatedAt=:now, '
+            'referenceIssuedAt=:now, referenceVersion=if_not_exists(referenceVersion,:zero)+:one '
+            'REMOVE replacementStorageKey, replacementFileName, replacementOriginalFileName, '
+            'replacementMimeType, replacementFileSize, replacementDocumentRef, replacementRequestedAt'
+        ),
+        ConditionExpression='verificationStatus=:requested AND replacementStorageKey=:expected '
+                            'AND attribute_not_exists(vaultFileId)',
+        ExpressionAttributeValues={
+            ':key': storage_key, ':name': new_name, ':original': original_name,
+            ':mime': mime_type, ':size': size, ':ref': new_ref, ':uploaded': 'uploaded',
+            ':requested': 'reupload_requested', ':expected': pending_key,
+            ':now': now, ':zero': 0,
+        },
+    )
+    try:
+        dynamodb.Table(DOCUMENT_HISTORY_TABLE).put_item(Item={
+            'historyId': str(uuid.uuid4()),
+            'documentId': doc_id,
+            'action': 'reuploaded',
+            'actorType': 'admin',
+            'actorId': 'admin',
+            'remarks': original_name,
+            'createdAt': now,
+        })
+    except Exception:
+        pass
+
+    item.update({
+        'storageKey': storage_key, 'fileName': new_name, 'originalFileName': original_name,
+        'mimeType': mime_type, 'fileSize': size, 'documentRef': new_ref,
+        'verificationStatus': 'uploaded', 'uploadedAt': now, 'updatedAt': now,
+        'referenceIssuedAt': now,
+    })
+    return _resp(200, _normalise_document(item))
 
 
 def _confirm_document_upload(doc_id: str) -> Dict:
@@ -1452,8 +1626,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if method == 'GET':
                 return _get_document(doc_id)
             elif method in ('PUT', 'PATCH'):
-                if str(body.get('_action') or '').strip().lower() == 'confirm_upload':
+                action = str(body.get('_action') or '').strip().lower()
+                if action == 'confirm_upload':
                     return _confirm_document_upload(doc_id)
+                if action == 'replace_upload_init':
+                    return _init_document_reupload(doc_id, body)
+                if action == 'replace_upload_confirm':
+                    return _confirm_document_reupload(doc_id)
                 return _update_document(doc_id, body)
         elif '/documents' in path:
             if method == 'GET':
