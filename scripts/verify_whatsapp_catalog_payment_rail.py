@@ -1218,8 +1218,17 @@ def run(root: Path) -> int:
               and stored.get("verifiedProviderPaymentId") == "pay_HERMETIC1")
         check("R17", "exactly ONE paid invoice for the reference",
               len(counts["invoices"]) == 1 and counts["invoices"][0].get("status") == "paid", len(counts["invoices"]))
+        first_asset_count = 0
         if counts["invoices"]:
             invoice = counts["invoices"][0]
+            invoice_assets = [a for a in _scan("InvoiceAssetsTable")
+                              if a.get("invoiceId") == invoice["invoiceId"]
+                              and str(a.get("assetType") or "").startswith("image")
+                              and a.get("s3Key")]
+            first_asset_count = len(invoice_assets)
+            check("INV", "verified capture guarantees at least one customer invoice PNG",
+                  first_asset_count >= 1,
+                  [(a.get("assetType"), a.get("s3Key")) for a in invoice_assets])
             from boto3.dynamodb.conditions import Key as _Key
             rows = sorted((_table("InvoiceItemsTable").query(
                 KeyConditionExpression=_Key("invoiceId").eq(invoice["invoiceId"]))
@@ -1359,6 +1368,14 @@ def run(root: Path) -> int:
               reprocess.get("statusCode") == 200 and len(again["orders"]) == 1 and len(again["invoices"]) == 1
               and len(again["invoice_sends"]) - sends_before == 1,
               f"orders={len(again['orders'])} invoices={len(again['invoices'])} sends={len(again['invoice_sends']) - sends_before}")
+        if again["invoices"]:
+            replay_assets = [a for a in _scan("InvoiceAssetsTable")
+                             if a.get("invoiceId") == again["invoices"][0]["invoiceId"]
+                             and str(a.get("assetType") or "").startswith("image")
+                             and a.get("s3Key")]
+            check("RETRY", "...and ensure-image reuses the existing PNG instead of creating a new rendition",
+                  len(replay_assets) == first_asset_count,
+                  [(a.get("assetType"), a.get("s3Key")) for a in replay_assets])
         # Replaying the provider event must not create any third/fourth status message: the
         # terminal Meta state is already completed, so only the original two sends exist.
         replay_traffic = _order_status_traffic(W.since(mark, "invocations"), W.since(mark, "meta_sends"))
