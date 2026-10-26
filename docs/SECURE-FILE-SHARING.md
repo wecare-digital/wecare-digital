@@ -204,11 +204,18 @@ Staff can also **Send Access Vault** (`POST /secure-files/{fileId}/send-access`)
 never charges and never opens a window.
 
 Windows are paid for one at a time. The durable entitlement counts `paidWindowCount` (a missing
-counter is the one original purchase) and `accessWindowCount`; a window opens on the first download
-against an unused paid one. A renewal adds one to `paidWindowCount` on the same entitlement
+counter is the one original purchase) and `accessWindowCount`. A window opens against an unused paid
+one as soon as the Access Vault message is accepted (business-api `paid_vault`, after the send,
+through secure-files `openVaultAccessWindow`), or on the first download if that call failed. Opening
+it never holds back the message. A renewal adds one to `paidWindowCount` on the same entitlement
 (`vault_access.grant_access`), and is sold only once every paid window has been used
 (`service_request_store.request_intent`, `VAULT_ACCESS_ACTIVE` otherwise). A Vault intent with no
 file is refused (`VAULT_FILE_REQUIRED`), because a payment bound to an order has nothing to unlock.
+
+Internal invokes of `wecare-secure-files` name one of four actions: `openVaultAccessWindow`,
+`deliverOverWhatsApp`, `confirmAndDeliver` and `provisionCustomerLogin`. Any other `internalAction`
+gets `{"ok": false}`. It used to fall through to the HTTP router, where `require_auth` treats an
+event with no API Gateway context as internal, and came back with the staff file list.
 
 Every file carries `accessState`: `UNPAID`, `OPEN`, `READY` (paid, not opened), `EXPIRED` or
 `PAID_UNVERIFIED` (a purchase is recorded but its entitlement could not be read: reconcile, never
