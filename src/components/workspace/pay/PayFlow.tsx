@@ -9,6 +9,7 @@ import * as api from '../../../api/client';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 import type { Invoice, InvoiceDeliveryLog, Contact, CreateInvoiceEngineRequest, CreateInvoiceEngineResult, ApiResult, SendPaymentLinkResult } from '../../../api/client';
 import { DEFAULT_GSTIN } from '../../../config/constants';
+import { COUNTRY_OPTIONS, countryCodeForName } from '../../../config/countryOptions';
 import {
   ADDRESS_FIELDS, EMPTY_ADDRESS_FIELDS, addressPayload, addressFieldsFromContact,
   contactDeliveryAddress, formatAddress, type AddressFormFields,
@@ -104,7 +105,7 @@ const DUES_PHONE_SELECT_STYLE: React.CSSProperties = { flex: '0 0 180px' };
 const badgeClass = ( inv: Invoice ) => inv.status === 'paid' || inv.paymentStatus === 'captured' ? 'success' : inv.status === 'cancelled' ? 'danger' : 'muted';
 const hasPayableDeliveryAddress = ( contact: Contact ): boolean => {
   const a = addressFieldsFromContact( contact );
-  return [ a.addressLine1, a.city, a.state, a.postalCode ].every( v => String( v || '' ).trim().length > 0 );
+  return [ a.addressLine1, a.city, a.state, a.postalCode, a.country ].every( v => String( v || '' ).trim().length > 0 );
 };
 
 const fmtDate = ( ts: number ) => {
@@ -255,15 +256,31 @@ const AddressFieldGroup: React.FC<{
       <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 } }>
         { ADDRESS_FIELDS.map( spec => (
           <div className="form-group" key={ spec.key }>
-            <label htmlFor={ `${idPrefix}-${spec.key}` }>{ spec.label }</label>
-            <input
-              id={ `${idPrefix}-${spec.key}` }
-              type="text"
-              value={ value[ spec.key ] }
-              maxLength={ spec.maxLength }
-              placeholder={ spec.placeholder }
-              onChange={ e => onChange( { ...value, [ spec.key ]: e.target.value } ) }
-            />
+            <label htmlFor={ `${idPrefix}-${spec.key}` }>
+              { spec.label }{ !spec.required && <span style={ { color: '#8a9490', fontWeight: 400, marginLeft: 5 } }>Optional</span> }
+            </label>
+            { spec.key === 'country' ? (
+              <select
+                id={ `${idPrefix}-${spec.key}` }
+                value={ value.country }
+                onChange={ e => onChange( {
+                  ...value,
+                  country: e.target.value,
+                  countryCode: countryCodeForName( e.target.value ),
+                } ) }
+              >
+                { COUNTRY_OPTIONS.map( option => <option key={ option.code } value={ option.name }>{ option.name }</option> ) }
+              </select>
+            ) : (
+              <input
+                id={ `${idPrefix}-${spec.key}` }
+                type="text"
+                value={ value[ spec.key ] }
+                maxLength={ spec.maxLength }
+                placeholder={ spec.placeholder }
+                onChange={ e => onChange( { ...value, [ spec.key ]: e.target.value } ) }
+              />
+            ) }
           </div>
         ) ) }
       </div>
@@ -447,7 +464,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
     if ( invoiceCreateInFlight.current ) return;
     if ( !selCustomer ) { showMsg( 'Select a customer first', 'error' ); return; }
     if ( !hasPayableDeliveryAddress( selCustomer ) ) {
-      showMsg( 'Add a complete structured delivery address (address line 1, city, state and postal code) before creating the invoice.', 'error' );
+      showMsg( 'Complete Street address, City, State / region, Postal code and Country before creating the invoice.', 'error' );
       openEditCust( selCustomer );
       return;
     }
