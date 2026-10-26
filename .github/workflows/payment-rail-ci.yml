@@ -35,6 +35,7 @@ on:
       - "src/lib/serviceEntry.ts"
       - "scripts/verify_whatsapp_catalog_payment_rail.py"
       - "scripts/commerce_release_audit.py"
+      - "docs/operations/whatsapp-payment-collection-stack.md"
       - ".github/workflows/payment-rail-ci.yml"
   push:
     branches:
@@ -71,6 +72,7 @@ on:
       - "src/lib/serviceEntry.ts"
       - "scripts/verify_whatsapp_catalog_payment_rail.py"
       - "scripts/commerce_release_audit.py"
+      - "docs/operations/whatsapp-payment-collection-stack.md"
       - ".github/workflows/payment-rail-ci.yml"
   workflow_dispatch:
 

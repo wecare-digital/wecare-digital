@@ -462,7 +462,7 @@ Before production promotion, prove:
 
 - [ ] payment request is `wecare_whatapp_native_pay_template`
 - [ ] large header is `whatsapp-header.png`
-- [ ] manual/non-catalog item image is `wecare-catalog-icon.png` with no synthetic retailer ID
+- [ ] manual/non-catalog item image is `wecare-order-item-v2.png` with no synthetic retailer ID
 - [ ] true catalog items retain catalog identity/image
 - [ ] capture sends status template `processing` then `completed`
 - [ ] zero interactive order-status messages are used
