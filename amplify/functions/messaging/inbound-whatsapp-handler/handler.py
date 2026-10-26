@@ -1151,7 +1151,7 @@ def _archive_meta_event(event_type: str, value: Dict, request_id: str,
     try:
         day = time.strftime('%Y-%m-%d', time.gmtime())
         key = (
-            f'analytics/whatsapp/meta-events/date={day}/event_type={event_type}/'
+            f'secure/d/public/whatsapp/analytics/meta-events/date={day}/event_type={event_type}/'
             f'{int(time.time() * 1000)}-{uuid.uuid4().hex}.json'
         )
         payload = {
