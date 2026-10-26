@@ -1595,8 +1595,9 @@ def run(root: Path) -> int:
             {"orderNumber": "WD-ORD-22222225", "currency": "INR", "amountPaise": Decimal(100),
              "paymentStatus": "PAYMENT_PAID", "orderStatus": "completed",
              "checkoutMode": "WHATSAPP_NATIVE_CART", "createdAt": Decimal(1)}, {})
-        check("PAGE", "'completed' is fulfilment on a website order and not on a WhatsApp-paid one",
-              website_view["fulfilmentStatus"] == "completed" and whatsapp_view["fulfilmentStatus"] == "",
+        check("PAGE", "'completed' is internal fulfilment for both website and WhatsApp-paid orders",
+              website_view["fulfilmentStatus"] == "completed"
+              and whatsapp_view["fulfilmentStatus"] == "completed",
               (website_view["fulfilmentStatus"], whatsapp_view["fulfilmentStatus"]))
     finally:
         checkout.razorpay_orders.create_order = real_create
