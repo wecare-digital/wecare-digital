@@ -84,6 +84,28 @@ RETIRED = {"CHECKOUT_INITIATION_ENABLED"}
 PLAINTEXT_EXPECTATION_KEYS = {"EXPECTED_PROVIDER_MID", "EXPECTED_CONFIGURATION_NAME"}
 
 
+# Published aliases can intentionally carry immutable configuration that differs from $LATEST.
+# Track only the alias-scoped keys whose difference is part of the deployment contract. This keeps
+# the manifest honest for dual-catalog publication without snapshotting every alias environment.
+TRACKED_ALIAS_KEYS = {
+    "wecare-meta-catalog-sync": {
+        "live": ("META_CATALOG_ID", "META_TOKEN_FIELD"),
+        "waba2": ("META_CATALOG_ID", "META_TOKEN_FIELD"),
+    },
+}
+
+
+def live_alias_env(lam) -> dict[str, dict[str, str]]:
+    """Return the tracked environment slice for immutable published aliases."""
+    out: dict[str, dict[str, str]] = {}
+    for fn, aliases in TRACKED_ALIAS_KEYS.items():
+        for alias, keys in aliases.items():
+            cfg = lam.get_function_configuration(FunctionName=fn, Qualifier=alias)
+            env = (cfg.get("Environment") or {}).get("Variables") or {}
+            out[f"{fn}:{alias}"] = {k: env.get(k, "") for k in keys}
+    return dict(sorted(out.items()))
+
+
 def fp(v: str) -> str:
     return "sha256:" + hashlib.sha256(v.encode()).hexdigest()[:12]
 
@@ -169,16 +191,31 @@ def build(lam, sm) -> tuple[dict, list[str]]:
                 fingerprinted += 1
             row[k] = stored
         manifest[fn] = row
+    aliases: dict[str, dict[str, str]] = {}
+    for target, env in live_alias_env(lam).items():
+        row = {}
+        for k, v in env.items():
+            stored, refuse = classify(v, creds, every, key=k)
+            if refuse:
+                refusals.append(f"{target} -> {k}: {refuse}")
+            if stored != v:
+                fingerprinted += 1
+            row[k] = stored
+        aliases[target] = row
+
     doc = {
         "_comment": (
-            "Recorded state of live Lambda environment variables. Not deployed by "
-            "anything - this is the source of truth to diff against. Regenerate "
-            "with scripts/env_manifest.py --export; verify with no arguments."
+            "Recorded state of live Lambda environment variables, including tracked immutable "
+            "alias configuration. Not deployed by anything - this is the source of truth to diff "
+            "against. Regenerate with scripts/env_manifest.py --export; verify with no arguments."
         ),
         "_region": REGION,
         "_functions": len(manifest),
         "_variables": sum(len(v) for v in manifest.values()),
+        "_aliases": len(aliases),
+        "_alias_variables": sum(len(v) for v in aliases.values()),
         "_fingerprinted": fingerprinted,
+        "aliases": aliases,
         "functions": manifest,
     }
     return doc, refusals
@@ -207,8 +244,11 @@ def keys_only_drift(lam) -> int:
         print(f"no manifest at {MANIFEST.relative_to(ROOT)} - run --export first")
         return 1
 
-    recorded = json.loads(MANIFEST.read_text())["functions"]
+    recorded_doc = json.loads(MANIFEST.read_text())
+    recorded = recorded_doc["functions"]
     current = live_env(lam)
+    recorded_aliases = recorded_doc.get("aliases", {})
+    current_aliases = live_alias_env(lam)
 
     added_fns = sorted(set(current) - set(recorded))
     removed_fns = sorted(set(recorded) - set(current))
@@ -242,8 +282,18 @@ def keys_only_drift(lam) -> int:
         for fn, k in extra_keys:
             print(f"    {fn}.{k}")
 
-    total = len(added_fns) + len(removed_fns) + len(missing_keys) + len(extra_keys)
-    print(f"\n  key-level differences: {total}")
+    alias_key_drift = 0
+    for target in sorted(set(recorded_aliases) | set(current_aliases)):
+        rec = recorded_aliases.get(target, {})
+        cur = current_aliases.get(target, {})
+        alias_key_drift += len(set(rec) ^ set(cur))
+        if target not in recorded_aliases or target not in current_aliases:
+            alias_key_drift += 1
+
+    total = (len(added_fns) + len(removed_fns) + len(missing_keys) + len(extra_keys)
+             + alias_key_drift)
+    print(f"\n  tracked alias key differences: {alias_key_drift}")
+    print(f"  key-level differences: {total}")
     if total:
         print("  A full `--export` is needed to resolve these, and that reads Secrets")
         print("  Manager to fingerprint credential-shaped values before writing.")
@@ -290,8 +340,11 @@ def main() -> int:
         print(f"no manifest at {MANIFEST.relative_to(ROOT)} - run --export first")
         return 1
 
-    recorded = json.loads(MANIFEST.read_text())["functions"]
+    recorded_doc = json.loads(MANIFEST.read_text())
+    recorded = recorded_doc["functions"]
     current = doc["functions"]
+    recorded_aliases = recorded_doc.get("aliases", {})
+    current_aliases = doc.get("aliases", {})
 
     added_fns = sorted(set(current) - set(recorded))
     removed_fns = sorted(set(recorded) - set(current))
@@ -318,7 +371,28 @@ def main() -> int:
         print(f"  GONE from live, still in the manifest:  {fn}")
     for fn, k, what in drift:
         print(f"  {fn:38s} {k:26s} {what}")
-    total = len(added_fns) + len(removed_fns) + len(drift)
+
+    alias_drift: list[tuple[str, str, str]] = []
+    for target in sorted(set(recorded_aliases) | set(current_aliases)):
+        cur, rec = current_aliases.get(target, {}), recorded_aliases.get(target, {})
+        if target not in recorded_aliases:
+            alias_drift.append((target, "*", "tracked alias added live, absent from manifest"))
+            continue
+        if target not in current_aliases:
+            alias_drift.append((target, "*", "tracked alias missing live"))
+            continue
+        for k in sorted(set(cur) | set(rec)):
+            if k not in rec:
+                alias_drift.append((target, k, "added live, absent from manifest"))
+            elif k not in cur:
+                alias_drift.append((target, k, "in manifest, missing live"))
+            elif cur[k] != rec[k]:
+                shown = "value changed" if not rec[k].startswith("sha256:") else "fingerprint changed"
+                alias_drift.append((target, k, shown))
+    for target, k, what in alias_drift:
+        print(f"  {target:38s} {k:26s} {what}")
+
+    total = len(added_fns) + len(removed_fns) + len(drift) + len(alias_drift)
     print("\n" + "=" * 74)
     print(f"differences: {total}")
     print(f"RESULT: {'IN SYNC' if total == 0 else 'DRIFT'}")
@@ -326,7 +400,9 @@ def main() -> int:
     if args.json:
         print(json.dumps({"added_functions": added_fns, "removed_functions": removed_fns,
                           "drift": [{"function": f, "var": k, "what": w}
-                                    for f, k, w in drift]}, indent=2))
+                                    for f, k, w in drift],
+                          "alias_drift": [{"target": t, "var": k, "what": w}
+                                          for t, k, w in alias_drift]}, indent=2))
     return 0 if total == 0 else 1
 
 
