@@ -13,13 +13,17 @@
     -> `wecare_default_invoice_image_template` (its FLOW button carries an order-bound review token).
     -> the order page (`/orders/?o=<orderNumber>`, checkout's `order` action): the delivery address
     frozen at checkout, the reviewed lines and the paid status, to the order's owner only.
-    Section 9d covers the website prepare's own address gate.
+    Section 9d covers the website prepare's own address gate. Section 13 runs one ₹49 Vault
+    purchase the same way: the `wecare_valut_49` offer, the Unlock Vault tap, Review and Pay, the
+    capture, the durable entitlement, the Access Vault link, the customer's Vault list and
+    download, replays, a not-yet-linked WhatsApp contact, and a renewal.
 
 WHAT RUNS FOR REAL
 ------------------
 The production handlers, imported from the tree under test: the inbound worker (driven through
 its real internal-event entry point), checkout and its packaged invoice engine, outbound, and
-the Razorpay webhook. Every DynamoDB and Cognito call is served by moto with real conditional-
+the Razorpay webhook; for the Vault, also business-api's catalog-service and paid-delivery flows,
+secure-files and service-requests. Every DynamoDB and Cognito call is served by moto with real conditional-
 expression semantics, so "exactly one attempt / order / invoice / send" is enforced by the same
 conditional writes production uses. Lambda-to-Lambda invokes are routed in-process to those
 handlers, and the Lambda client configuration each caller asks for is recorded.
@@ -1988,6 +1992,226 @@ def run(root: Path) -> int:
           fourth.get("outcome") == "VAULT_FILE_SELECTION_UNAVAILABLE" and stubbed["calls"] == 2
           and not _table("CommerceKeys").get_item(Key=lock_key).get("Item"), fourth)
     W.handlers["wecare-commerce"] = checkout.handler
+
+    # ── 13. one ₹49 Vault purchase end to end ────────────────────────────────────────────────────
+    # Section 12 proves the leg up to Review and Pay; nothing else here paid for, granted or
+    # delivered a Vault file. This drives the whole purchase through the production handlers:
+    # business-api (offer, tap, paid delivery), commerce (Review and Pay, finalization), the
+    # Razorpay webhook, service-requests (activation), secure-files (window, the customer's Vault
+    # list, the download) and outbound, with the real service-request store on moto.
+    print("\n== 13. Vault ₹49 end to end: offer -> Unlock Vault -> pay -> entitlement -> Access Vault"
+          " -> download -> renewal")
+    sys.path.insert(0, str(functions / "messaging" / "whatsapp-business-api"))
+    sys.path.insert(0, str(functions / "core" / "secure-files"))
+    paid_service = importlib.import_module("flows.paid_submit_request")
+    activation = _load("h_service_requests", functions / "ecommerce" / "service-requests" / "handler.py")
+    vault_files = _load("h_secure_files", functions / "core" / "secure-files" / "handler.py")
+
+    def business_api_vault(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+        if event.get("internalAction") == "preparePaidSubmitRequest":
+            return paid_service.prepare_and_send(event, FakeLambda(), None)
+        return business_api_with_services(event, context)
+
+    W.handlers.update({"wecare-whatsapp-business-api": business_api_vault,
+                       "wecare-service-requests": activation.handler,
+                       "wecare-secure-files": vault_files.handler})
+    saved_reader, saved_templates = checkout._native_product_reader, list(W.templates)
+    vault_catalogue = {vault_product: {"status": "active",
+                                       "variants": [{"sku": vault_variant, "priceMinor": 4900}]}}
+    checkout._native_product_reader = lambda: (lambda product_id: vault_catalogue.get(product_id))
+    # Outbound proves a template's live category before it sends (the 2026-10-26 readback).
+    W.templates = saved_templates + [{"name": "wecare_valut_49", "status": "APPROVED",
+                                      "category": "UTILITY", "sub_category": None, "language": "en"}]
+
+    def unlock_tap(customer: Dict[str, str], wamid: str, payload: str) -> Dict[str, Any]:
+        """A tap on the offer's Unlock Vault quick reply, as Meta delivers it."""
+        message = {"from": customer["digits"], "id": wamid, "timestamp": str(int(time.time())),
+                   "type": "button", "button": {"payload": payload, "text": "Unlock Vault"},
+                   "context": {"from": "919330994400", "id": "wamid.HERMETIC.VAULTOFFER"}}
+        entry = {"id": WABA1, "changes": [{"field": "messages", "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {"display_phone_number": "919330994400", "phone_number_id": META_PHONE_1},
+            "contacts": [{"wa_id": customer["digits"], "profile": {"name": "Hermetic Buyer"}}],
+            "messages": [message]}}]}
+        return build(entry=entry, waba_id=WABA1, meta_phone_number_ids=[META_PHONE_1],
+                     request_id=str(uuid.uuid4()))
+
+    def sends_of(since: Dict[str, int], template: str) -> List[Dict[str, Any]]:
+        return [s["payload"] for s in W.since(since, "meta_sends")
+                if (s["payload"].get("template") or {}).get("name") == template]
+
+    def component_value(payload: Dict[str, Any], kind: str, sub_type: str = "") -> str:
+        """The first parameter of the template's body, or of its button of `sub_type`."""
+        for component in (payload.get("template") or {}).get("components") or []:
+            if component.get("type") == kind and (not sub_type or component.get("sub_type") == sub_type):
+                parameter = (component.get("parameters") or [{}])[0]
+                return str(parameter.get("text") or parameter.get("payload") or "")
+        return ""
+
+    def send_offer(customer: Dict[str, str], file_id: str) -> Dict[str, Any]:
+        """Staff "Send ₹49 Vault message", as secure-files invokes it."""
+        return catalog_services.handle({"internalAction": "catalogService", "action": "sendOffer",
+                                        "fileId": file_id, "ownerCustomerId": customer["sub"],
+                                        "ownerPhone": customer["digits"], "requestedBy": "hermetic"},
+                                       FakeLambda())
+
+    def offer_tokens(file_id: str) -> set:
+        return {str(row["orderId"]).split("#", 1)[1] for row in _scan("CommerceKeys")
+                if str(row.get("orderId", "")).startswith("VAULTOFFER#") and row.get("fileId") == file_id}
+
+    def register_vault_file(customer: Dict[str, str], file_id: str, name: str) -> None:
+        _table("SecureFilesTable").put_item(Item={
+            "fileId": file_id, "ownerPhone": customer["digits"], "ownerCustomerId": customer["sub"],
+            "status": "active", "createdAt": str(int(time.time())), "displayName": name,
+            "originalFilename": "hermetic.pdf", "s3Key": "secure/u/" + file_id + ".pdf",
+            "deliverable": "pdf", "deliveryKey": "secure/d/" + file_id + ".pdf",
+            "contentType": "application/pdf", "sizeBytes": 1000, "pricePaise": 4900})
+
+    def pay(attempt: Dict[str, Any], payment_id: str, phone: str) -> Dict[str, Any]:
+        event = capture(attempt["referenceId"], int(attempt["amountPaise"]), payment_id,
+                        "order_" + payment_id, phone)
+        return webhook.handler(json.loads(json.dumps(event)), FakeContext("wecare-razorpay-webhook"))
+
+    # A WhatsApp-only customer: no email, no address, no shipping profile (the QA number's shape).
+    vera = shop.customer(70, email=False, address=False, legacy_shipping=False)
+    vera_file = "file-hermetic-vault-e2e"
+    register_vault_file(vera, vera_file, "Hermetic report.pdf")
+    vera_vault = {"username": vera["phone"], "phone": vera["digits"], "subject": vera["sub"]}
+    entitlement_id = "vault-entitlement#" + vera["sub"] + "#" + vera_file
+
+    mark = W.mark()
+    offered = send_offer(vera, vera_file)
+    tokens = offer_tokens(vera_file)
+    offer_sends = sends_of(mark, "wecare_valut_49")
+    token = next(iter(tokens), "")
+    check("VLT", "staff Send ₹49 Vault message: ONE wecare_valut_49 naming the file, its Unlock Vault tied to one offer",
+          offered.get("outcome") == "VAULT_OFFER_SENT" and len(offer_sends) == 1 and len(tokens) == 1
+          and component_value(offer_sends[0], "body") == "Hermetic report.pdf"
+          and component_value(offer_sends[0], "button", "quick_reply") == "vaultoffer:" + token,
+          {"outcome": offered, "sends": len(offer_sends), "offers": len(tokens)})
+
+    mark = W.mark()
+    deliver(unlock_tap(vera, "wamid.HERMETIC.VAULT.TAP1", "vaultoffer:" + token))
+    attempts = _attempts_for(vera["sub"])
+    intents = [r for r in _scan("ServiceRequestsTable")
+               if str(r.get("requestId", "")).startswith("INTENT#") and r.get("vaultFileId") == vera_file]
+    check("VLT", "Unlock Vault records a real Vault intent and sends ONE Review and Pay for 4900 paise",
+          len(intents) == 1 and len(sends_of(mark, PAY_TEMPLATE)) == 1 and len(attempts) == 1
+          and int(attempts[0].get("amountPaise") or 0) == 4900,
+          {"intents": len(intents), "attempts": [{k: a.get(k) for k in ("status", "amountPaise")} for a in attempts]})
+    mark = W.mark()
+    deliver(unlock_tap(vera, "wamid.HERMETIC.VAULT.TAP1", "vaultoffer:" + token))
+    check("VLT", "a replayed tap reserves and sends nothing new",
+          not sends_of(mark, PAY_TEMPLATE) and len(_attempts_for(vera["sub"])) == 1,
+          len(_attempts_for(vera["sub"])))
+
+    if attempts:
+        purchase = attempts[0]
+        mark = W.mark()
+        answer = pay(purchase, "pay_HERMETIC_VAULT1", vera["phone"])
+        orders = [o for o in _scan("OrderTable") if o.get("paymentAttemptId") == purchase["paymentAttemptId"]]
+        check("VLT", "the capture finalizes ONE paid order",
+              answer.get("statusCode") == 200 and len(orders) == 1
+              and orders[0].get("finalizationStage") == "ORDER_FINALIZED"
+              and orders[0].get("paymentStatus") == "PAYMENT_PAID",
+              [(o.get("orderNumber"), o.get("finalizationStage"), o.get("paymentStatus")) for o in orders])
+        entitlement = _table("DownloadGrantsTable").get_item(Key={"grantId": entitlement_id}).get("Item") or {}
+        paid_file = _table("SecureFilesTable").get_item(Key={"fileId": vera_file}).get("Item") or {}
+        vault_requests = [r for r in _scan("ServiceRequestsTable")
+                          if str(r.get("requestId", "")).startswith("REQ#") and r.get("vaultFileId") == vera_file]
+        check("VLT", "payment activates ONE Vault request, writes ONE durable entitlement and marks the file PAID",
+              len(vault_requests) == 1 and bool(vault_requests[0].get("paidAt"))
+              and entitlement.get("recordType") == "VAULT_ENTITLEMENT"
+              and entitlement.get("entitlementState") == "ACTIVE"
+              and int(entitlement.get("paidWindowCount") or 0) == 1
+              and paid_file.get("vaultPaymentStatus") == "PAID"
+              and paid_file.get("vaultEntitlementId") == entitlement_id,
+              {"requests": len(vault_requests),
+               "entitlement": {k: entitlement.get(k) for k in ("recordType", "entitlementState", "paidWindowCount")},
+               "file": {k: paid_file.get(k) for k in ("vaultPaymentStatus", "vaultEntitlementId")}})
+        access_sends = sends_of(mark, "wecare_default_download")
+        check("VLT", "ONE Access Vault link whose button carries the file id, and the paid 24-hour window opens",
+              len(access_sends) == 1 and component_value(access_sends[0], "button", "url") == vera_file
+              and int(entitlement.get("accessWindowCount") or 0) == 1
+              and int(entitlement.get("accessWindowEndsAt") or 0) > time.time(),
+              {"sends": len(access_sends),
+               "window": {k: entitlement.get(k) for k in ("accessWindowCount", "accessWindowEndsAt")}})
+        listed = json.loads(vault_files._customer_list(vera_vault, "https://wecare.digital")["body"])
+        vault_row = next((f for f in listed.get("files") or [] if f.get("fileId") == vera_file), {})
+        download = vault_files._redeem(vera_file, {"queryStringParameters": {"grant": vault_row.get("paidEntitlementId") or ""}},
+                                       vera_vault, "https://wecare.digital")
+        download_body = json.loads(download["body"])
+        check("VLT", "the customer's Vault lists the file OPEN and issues a short-lived download",
+              vault_row.get("accessState") == "OPEN" and download["statusCode"] == 200
+              and str(download_body.get("downloadUrl") or "").startswith("https://")
+              and 0 < int(download_body.get("expiresInSeconds") or 0) <= 300,
+              {"accessState": vault_row.get("accessState"), "status": download["statusCode"],
+               "keys": sorted(download_body)})
+        _table("WebhookDedup").delete_item(Key={"eventId": "pay_HERMETIC_VAULT1:payment.captured"})
+        mark = W.mark()
+        pay(purchase, "pay_HERMETIC_VAULT1", vera["phone"])
+        replayed = _table("DownloadGrantsTable").get_item(Key={"grantId": entitlement_id}).get("Item") or {}
+        check("VLT", "a reprocessed capture grants, charges and sends nothing new",
+              not sends_of(mark, "wecare_default_download") and not sends_of(mark, PAY_TEMPLATE)
+              and int(replayed.get("paidWindowCount") or 0) == 1 and int(replayed.get("accessWindowCount") or 0) == 1,
+              {k: replayed.get(k) for k in ("paidWindowCount", "accessWindowCount")})
+
+        # The window closes; staff ask again; the customer pays; the SAME entitlement gains a window.
+        _table("DownloadGrantsTable").update_item(
+            Key={"grantId": entitlement_id}, UpdateExpression="SET accessWindowEndsAt = :past",
+            ExpressionAttributeValues={":past": int(time.time()) - 7 * 86400})
+        listed = json.loads(vault_files._customer_list(vera_vault, "https://wecare.digital")["body"])
+        expired_state = next((f.get("accessState") for f in listed.get("files") or []
+                              if f.get("fileId") == vera_file), None)
+        # The per-file guard refuses a second offer within 60 s, and this run is faster than that.
+        _table("CommerceKeys").delete_item(Key={"orderId": "VAULTOFFERFILE#" + vera_file})
+        renewal_offer = send_offer(vera, vera_file)
+        new_tokens = offer_tokens(vera_file) - tokens
+        check("VLT", "once the window closes the file reads EXPIRED and staff send a renewal offer",
+              expired_state == "EXPIRED" and renewal_offer.get("outcome") == "VAULT_OFFER_SENT"
+              and renewal_offer.get("renewal") is True and len(new_tokens) == 1,
+              {"state": expired_state, "offer": renewal_offer})
+        mark = W.mark()
+        deliver(unlock_tap(vera, "wamid.HERMETIC.VAULT.TAP2", "vaultoffer:" + next(iter(new_tokens), "")))
+        renewals = [a for a in _attempts_for(vera["sub"]) if a["paymentAttemptId"] != purchase["paymentAttemptId"]]
+        check("VLT", "the renewal tap sends ONE more Review and Pay for 4900 paise",
+              len(sends_of(mark, PAY_TEMPLATE)) == 1 and len(renewals) == 1
+              and int(renewals[0].get("amountPaise") or 0) == 4900,
+              [{k: a.get(k) for k in ("status", "amountPaise")} for a in renewals])
+        if renewals:
+            mark = W.mark()
+            pay(renewals[0], "pay_HERMETIC_VAULT2", vera["phone"])
+            renewed = _table("DownloadGrantsTable").get_item(Key={"grantId": entitlement_id}).get("Item") or {}
+            again = vault_files._redeem(vera_file, {"queryStringParameters": {"grant": entitlement_id}},
+                                        vera_vault, "https://wecare.digital")
+            check("VLT", "renewal adds a second paid window to the SAME entitlement, opens it, sends ONE Access"
+                  " Vault and the download works again",
+                  int(renewed.get("paidWindowCount") or 0) == 2 and int(renewed.get("accessWindowCount") or 0) == 2
+                  and int(renewed.get("accessWindowEndsAt") or 0) > time.time()
+                  and len(sends_of(mark, "wecare_default_download")) == 1 and again["statusCode"] == 200,
+                  {"entitlement": {k: renewed.get(k) for k in ("paidWindowCount", "accessWindowCount")},
+                   "access_sends": len(sends_of(mark, "wecare_default_download")), "download": again["statusCode"]})
+
+    # A Vault customer whose WhatsApp contact was never linked to their account, the usual state for
+    # a file registered under Secure files: the tap is itself the signed message the identity bridge
+    # links them from, so Review and Pay needs no website sign-in first.
+    wren = shop.customer(71, email=False, address=False, legacy_shipping=False)
+    _table("ContactsTable").update_item(Key={"id": wren["contactId"]}, UpdateExpression="REMOVE checkoutCustomerId")
+    wren_file = "file-hermetic-vault-unlinked"
+    register_vault_file(wren, wren_file, "Unlinked report.pdf")
+    send_offer(wren, wren_file)
+    mark = W.mark()
+    deliver(unlock_tap(wren, "wamid.HERMETIC.VAULT.UNLINKED", "vaultoffer:" + next(iter(offer_tokens(wren_file)), "")))
+    linked = (_table("ContactsTable").get_item(Key={"id": wren["contactId"]}).get("Item") or {}).get("checkoutCustomerId")
+    check("VLT", "an unlinked WhatsApp contact is linked by the tap itself and gets ONE Review and Pay",
+          linked == wren["sub"] and len(sends_of(mark, PAY_TEMPLATE)) == 1 and len(_attempts_for(wren["sub"])) == 1,
+          {"linked": linked == wren["sub"], "pays": len(sends_of(mark, PAY_TEMPLATE)),
+           "attempts": len(_attempts_for(wren["sub"]))})
+
+    checkout._native_product_reader = saved_reader
+    W.templates = saved_templates
+    W.handlers.pop("wecare-service-requests", None)
+    W.handlers.pop("wecare-secure-files", None)
     W.handlers.pop("wecare-whatsapp-business-api", None)
     # Paid Vault delivery and the invoice copy reach the customer through outbound, which resolves
     # only our Direct-API sender ids and refuses the bare Meta phone id they used to send with.
