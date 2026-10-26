@@ -29,19 +29,24 @@ Owner instruction: enable Direct Send utility and authentication on both WABAs.
     took 4.4 s.
   - `customer-whatsapp-auth`, `customer-registration`, `blog-subscribe` add `otpCode` and
     `otpExpiresInSeconds`. An older sender ignores them, so deploy order does not matter.
+    `wecare-blog-subscribe` is not provisioned in AWS, so its change has no live effect.
   - `scripts/provision_direct_send_alarms.py` descriptions cover both categories. The
     existing metric filters already match the business-api log lines.
 - Verification: `compileall`; ruff error rules; `verify_whatsapp_catalog_payment_rail.py`
-  193/193; an uncommitted hermetic run of the real handlers, 62/62, no network or AWS.
-- **Pending A3_PRODUCTION, owner-gated.** (1) Merge with origin and push, so
-  `payment-rail-ci` deploys `wecare-whatsapp-business-api`; this checkout was 19 commits
-  behind origin, so a local deploy of that function would regress live code. (2)
+  193/193 on this checkout and 166/166 on origin's head plus this commit (which applies
+  without conflict); an uncommitted hermetic run of the real handlers, 62/62 on both trees,
+  no network or AWS. Read-only `deploy_all_lambdas.py --dry-run`: live
+  `wecare-whatsapp-business-api` and `wecare-customer-registration` match origin's head,
+  and live `wecare-customer-whatsapp-auth` matches the commit before this one.
+- **Pending A3_PRODUCTION, owner-gated.** (1) Put this commit on origin's head alone (the
+  local branch also carries other sessions' unpushed commits) and push, so
+  `payment-rail-ci` deploys `wecare-whatsapp-business-api`. A deploy from this checkout
+  would regress live code: it was 22 commits behind origin. (2)
   `scripts/set_lambda_env_flag.py --set
   DIRECT_SEND_AUTHENTICATION_ENABLED_WABAS=2094615664435155,2513394156072604 --functions
-  wecare-whatsapp-business-api --apply`. (3) From the merged tree,
-  `scripts/deploy_all_lambdas.py wecare-customer-whatsapp-auth wecare-customer-registration
-  wecare-blog-subscribe`. (4)
-  Re-run `scripts/provision_direct_send_alarms.py`. (5) One QA sign-in: expect
+  wecare-whatsapp-business-api --apply`. (3) From that same tree,
+  `scripts/deploy_all_lambdas.py wecare-customer-whatsapp-auth wecare-customer-registration`.
+  (4) Re-run `scripts/provision_direct_send_alarms.py`. (5) One QA sign-in: expect
   `direct_send_otp_sent`, or `direct_send_not_onboarded` followed by the template.
 - Rollback: set `DIRECT_SEND_AUTHENTICATION_ENABLED_WABAS=` with the same script. Empty, the
   sign-in path is today's template send.
