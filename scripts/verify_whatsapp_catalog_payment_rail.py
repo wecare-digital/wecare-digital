@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# CI contract: .github/workflows/payment-rail-ci.yml runs this script for payment-rail PRs.
 """Hermetic end-to-end verification of the ONE WhatsApp payment rail.
 
     WhatsApp Catalog order -> wecare-inbound-whatsapp -> wecare-commerce `prepareNativeCart`
