@@ -381,11 +381,12 @@ Four entry points converge on one pipeline:
                                        └─► razorpay-webhook  payment.captured
                                              • HMAC verify + provider readback, fails closed
                                              • ONE order, ONE paid GST invoice (wecare-commerce)
-                                             • Meta payment-order status `processing` then
-                                               `completed` (WhatsApp payment-rail orders only),
-                                               both through approved wecare_order_status_v3;
-                                               template-only, window-independent, deferred/retried
-                                               if approval/send cannot be proven
+                                             • wecare_order_status_v3 `processing` then
+                                               `completed` (WhatsApp ORDER_DETAILS orders only),
+                                               always through the approved template channel;
+                                               if temporarily unavailable the requested state is
+                                               deferred/retried, while invoice delivery remains
+                                               independently recoverable and idempotent
                                              • then wecare_default_invoice_image_template, once:
                                                the PNG header + Leave Review FLOW button carrying
                                                an order-bound review token (REVIEWTOKEN#)
@@ -400,7 +401,8 @@ A dropped capture webhook is recovered by the stale-attempt sweep on the 5-minut
 | Fact | Value |
 |---|---|
 | Gateway | Razorpay only. PayU removed from both WABAs 2026-08-23 |
-| Payment rail | WECARE.DIGITAL/WABA1 only for automatic ORDER_DETAILS payment collection; secondary Manish sender is not permitted on this rail |
+| Payment configs | `WECAREDIGITAL` (PG) and `WECAREUPI` (VPA) — identical names on both WABAs |
+| Automatic ORDER_DETAILS rail | **WABA1 / WECARE.DIGITAL only**; the secondary Manish sender does not use the native automatic payment rail and falls back to the web payment path |
 | Razorpay MID / MCC / purpose | `acc_TTFSyolquKEZEy` / `7392` / `03` |
 | GSTIN | `19AAFFW7196L1Z8` (PAN `AAFFW7196L`, WB) |
 | Convenience fee | 2.5% of the authoritative post-discount collection + 18% GST on the fee, shown as a line item |
@@ -414,13 +416,14 @@ Customer-visible payment copy (`PAY_MSG`, `:538`): `👀 Pulling your pending in
 `⚠️ Something went wrong. Please try again.`
 
 Kill switch, **default OFF**: `whatsapp_auto_next_due` (post-payment next-invoice nag). The old
-`whatsapp_inbound_order_status` switch and the inbound `canceled` order-status sender behind it
-were deleted on 2026-10-26. The surviving payment-order state machine is automatic and narrow:
-`pending -> processing -> completed`. Both customer-visible status updates use the approved
-`wecare_order_status_v3` template; Workspace has no manual WhatsApp payment-status control.
-Physical/service fulfilment remains a separate internal lifecycle. There is no post-payment
-`wecare_leave_review` send or free-form confirmation: the invoice template's own FLOW button is
-the only review entry point after a payment.
+`whatsapp_inbound_order_status` switch and inbound `canceled` sender remain deleted. For a
+verified WhatsApp ORDER_DETAILS capture, the payment rail automatically sends exactly two
+`wecare_order_status_v3` template updates — `processing` ("Payment received.") followed by
+`completed` ("Payment complete.") — before the paid invoice template. There is no interactive
+order_status fallback and Workspace has no manual payment-order status sender. Operational
+shipment fulfilment remains a separate OrderTable / Track Order concern. There is no separate
+post-payment `wecare_leave_review` message: the invoice template's own FLOW button is the only
+review entry point after payment.
 
 ---
 
@@ -459,7 +462,7 @@ Meta's three `sample_*` templates and no business template):
 |---|---|---|
 | `wecare_whatapp_native_pay_template` | UTILITY, `ORDER_DETAILS` button | checkout, invoice-engine, outbound (`WA_PAY_TEMPLATE`) |
 | `wecare_default_invoice_image_template` | UTILITY, invoice image header, Leave Review Flow button | invoice-engine, checkout (`WA_INVOICE_TEMPLATE`) |
-| `wecare_order_status_v3` | UTILITY / `ORDER_STATUS` | automatic payment rail: `processing` then `completed`, template-only in or out of the 24-hour window |
+| `wecare_order_status_v3` | UTILITY / `ORDER_STATUS` (approved 2026-10-25) | automatic payment-order `processing` then `completed`; template channel only |
 | `wecare_leave_review` | UTILITY, Leave Review Flow button | manual Inbox send only; never after a payment |
 | `wecare_default_download` | UTILITY, URL button to `/vault/?file=` | outbound download link |
 | `wecare_location_share_pin` | UTILITY, LOCATION header | outbound location share |
