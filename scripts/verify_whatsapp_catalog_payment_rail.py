@@ -2042,10 +2042,11 @@ def run(root: Path) -> int:
                                         "phoneNumberId": PHONE_ID_1}, FakeLambda())
 
     W.handlers["wecare-commerce"] = checkout_not_ready
-    # moto 5.2.4 cancels the intent store's TransactWriteItems with an internal TypeError
-    # ("unhashable type: 'dict'"), so the intent is stubbed here; these checks are about the lock.
-    real_request_intent = catalog_services.store.request_intent
-    catalog_services.store.request_intent = lambda *a, **k: {"intentId": str(uuid.uuid4())}
+    # The REAL intent store runs here. It used to be stubbed with a comment blaming moto for
+    # TransactWriteItems failing with "unhashable type: 'dict'", but that error was the
+    # production defect itself: `_transact` marshalled values a second time, DynamoDB refused
+    # every service transaction, and no Vault intent or grant was ever written (35f67be75).
+    # The stub hid exactly that from this verifier.
     now_s = int(time.time())
     _table("CommerceKeys").put_item(Item={**lock_key, "status": "ACTIVE", "sessionKey": "CATALOGSERVICE#abandoned"})
     token_a = "A" * 24
@@ -2080,7 +2081,6 @@ def run(root: Path) -> int:
     check("SVC", "an ownerless legacy file is refused at selection without a crash or a lock",
           fourth.get("outcome") == "VAULT_FILE_SELECTION_UNAVAILABLE" and stubbed["calls"] == 2
           and not _table("CommerceKeys").get_item(Key=lock_key).get("Item"), fourth)
-    catalog_services.store.request_intent = real_request_intent
     W.handlers["wecare-commerce"] = checkout.handler
     W.handlers.pop("wecare-whatsapp-business-api", None)
     # Paid Vault delivery and the invoice copy reach the customer through outbound, which resolves
