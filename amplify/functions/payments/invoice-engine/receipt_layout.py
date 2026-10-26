@@ -95,17 +95,31 @@ def _place(invoice):
     return state
 
 
-def _tear(width, base, amp, period, downward=True):
-    points = []
-    x = 0
-    while x <= width:
-        phase = (x % period) / period
-        tri = 1.0 - abs(phase * 2.0 - 1.0)
-        delta = round(amp * tri)
-        points.append((x, base + delta if downward else base - delta))
-        x += max(2, period // 4)
-    points.append((width, base))
-    return points
+def _scalloped_mask(size, inset, radius, step):
+    """Return a deterministic four-sided receipt edge mask.
+
+    The approved mock has a lime scallop around all four sides, not only a torn top/bottom.
+    Build the paper body as a rectangle and bite identical semicircular notches out of every
+    edge.  Keeping it deterministic makes a re-render of one issued invoice visually stable.
+    """
+    width, height = size
+    mask = Image.new("L", size, 0)
+    draw = ImageDraw.Draw(mask)
+    draw.rectangle((inset, inset, width - inset, height - inset), fill=255)
+    d = radius * 2
+    x = inset + radius
+    while x <= width - inset - radius:
+        draw.ellipse((x - radius, inset - radius, x + radius, inset + radius), fill=0)
+        draw.ellipse((x - radius, height - inset - radius,
+                      x + radius, height - inset + radius), fill=0)
+        x += step
+    y = inset + radius
+    while y <= height - inset - radius:
+        draw.ellipse((inset - radius, y - radius, inset + radius, y + radius), fill=0)
+        draw.ellipse((width - inset - radius, y - radius,
+                      width - inset + radius, y + radius), fill=0)
+        y += step
+    return mask
 
 
 def _logo(canvas, logo_bytes, box):
@@ -229,7 +243,16 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
     fact(left_x, facts_y, "Receipt Ref:", ref, True)
     fact(left_x, facts_y + fact_line, "Date:", date_str)
     fact(left_x, facts_y + 2 * fact_line, "Time:", time_str)
-    fact(right_x, facts_y, "Status:", status, True)
+    draw.text((right_x, facts_y), "Status:", font=small_bold, fill=MUTED)
+    status_x = right_x + 132 * scale
+    status_w = 118 * scale
+    status_h = 28 * scale
+    draw.rounded_rectangle(
+        (status_x, facts_y - 2 * scale, status_x + status_w, facts_y + status_h),
+        radius=12 * scale, fill=LIME if status == "PAID" else PALE)
+    sb = draw.textbbox((0, 0), status, font=semibold)
+    draw.text((status_x + (status_w - (sb[2] - sb[0])) // 2, facts_y),
+              status, font=semibold, fill=FOREST)
     fact(right_x, facts_y + fact_line, "Channel:", source_label)
     fact(right_x, facts_y + 2 * fact_line, "Txn:", txn)
     draw.line((split_x, facts_y - 4 * scale, split_x, facts_y + 3 * fact_line),
@@ -335,14 +358,14 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
         total_row("Shipping", shipping)
     if handling:
         total_row("Handling", handling)
+    if convenience:
+        total_row("Convenience Fee", convenience)
     total_row("Taxable Value", taxable, top_pad=4)
     if tax or rate:
         for label, value in tax_rows:
             total_row(label, value)
     if tax:
         total_row("Total Tax", tax, semibold, semibold, band=True)
-    if convenience:
-        total_row("Convenience Fee", convenience)
 
     hero_label = "AMOUNT PAID" if status == "PAID" else "AMOUNT PAYABLE"
     hero_h = 62 * scale
@@ -398,21 +421,29 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
     y += 14 * scale
 
     paper = paper.crop((0, 0, width, min(paper_h, y + 40 * scale)))
-    mask = Image.new("L", paper.size, 0)
-    md = ImageDraw.Draw(mask)
-    period, amp = 34 * scale, 11 * scale
-    top = _tear(width, 0, amp, period, True)
-    bottom = _tear(width, paper.height, amp, period, False)
-    md.polygon(top + list(reversed(bottom)), fill=255)
 
-    edge = ImageDraw.Draw(paper)
-    edge.line(top, fill=LIME, width=8 * scale, joint="curve")
-    edge.line(bottom, fill=LIME, width=8 * scale, joint="curve")
-    edge.line((inner, 22 * scale, width - inner, 22 * scale), fill=LIME, width=2 * scale)
+    # Four-sided lime scallop from the approved final mock.  The outer silhouette and the
+    # inset paper use the same rhythm, leaving a continuous lime frame rather than a straight
+    # side with only top/bottom tears.
+    frame_inset = 4 * scale
+    frame_radius = 10 * scale
+    frame_step = 27 * scale
+    outer_mask = _scalloped_mask(paper.size, frame_inset, frame_radius, frame_step)
+    inner_mask = _scalloped_mask(
+        paper.size, frame_inset + 9 * scale, frame_radius, frame_step)
 
-    canvas = Image.new("RGBA", (paper.width + 2 * margin, paper.height + 2 * margin),
+    framed = Image.new("RGBA", paper.size, LIME + (255,))
+    framed.putalpha(outer_mask)
+    inner_paper = paper.copy()
+    inner_paper.putalpha(inner_mask)
+    framed.alpha_composite(inner_paper)
+    frame_draw = ImageDraw.Draw(framed)
+    frame_draw.line((inner, 22 * scale, width - inner, 22 * scale),
+                    fill=LIME, width=2 * scale)
+
+    canvas = Image.new("RGBA", (framed.width + 2 * margin, framed.height + 2 * margin),
                        (255, 255, 255, 0))
-    canvas.paste(paper, (margin, margin), mask)
+    canvas.alpha_composite(framed, (margin, margin))
     canvas = canvas.resize((canvas.width // scale, canvas.height // scale),
                            Image.Resampling.LANCZOS)
     output = io.BytesIO()
