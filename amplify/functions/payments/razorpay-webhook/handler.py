@@ -2789,21 +2789,11 @@ def _post_payment_handler(payment_id: str, contact: str,
                                  'requestId': request_id, 'alert': 'INVOICE_CREATE_FAILED'}))
         raise RuntimeError('invoice creation returned no invoice id for a verified capture')
 
-    # If deduplicated (WhatsApp path already created it), the receipt image already exists —
-    # skip the render step only.
-    #
-    # This used to `return`, and with delivery added below that would skip delivery for exactly
-    # the case where the invoice already existed - which is the COMMON case on the native leg,
-    # because `send_payment_link` wrote `referenceId` onto the invoice, so
-    # `create_invoice_from_payment` dedups onto it and reports `deduplicated: True` on the very
-    # first capture. The delivery CLAIM is the idempotency control for step 4, and a claim is
-    # strictly better than inferring delivery from invoice novelty.
-    if not deduplicated:
-        _generate_invoice_assets(invoice_id, request_id)
-    else:
-        logger.info(json.dumps({'event': 'post_payment_dedup_skip_assets',
-                                'paymentId': payment_id, 'invoiceId': invoice_id,
-                                'requestId': request_id}))
+    # Guarantee the customer PNG even when invoice creation deduplicated onto a pre-payment
+    # invoice. Deduplication proves invoice identity, not that a previous render succeeded.
+    # The engine's ensure-image route is idempotent: it reuses the newest existing image row
+    # and renders only when none exists, so webhook replay cannot create a rendition storm.
+    _ensure_invoice_asset(invoice_id, request_id)
 
     # ── Step 3: finish the Meta payment-order lifecycle before the receipt ──
     #
@@ -2867,8 +2857,36 @@ def _post_payment_handler(payment_id: str, contact: str,
                             'path': 'webhook_backup', 'requestId': request_id}))
 
 
-def _generate_invoice_assets(invoice_id: str, request_id: str) -> None:
-    """Render the invoice PNG used for customer delivery.
+def _ensure_invoice_asset(invoice_id: str, request_id: str) -> None:
+    """Idempotently guarantee the paid customer PNG exists through the invoice engine."""
+    try:
+        payload = {
+            'rawPath': f'/invoices/{invoice_id}/ensure-image',
+            'requestContext': {'http': {'method': 'POST'}},
+            'pathParameters': {'invoiceId': invoice_id},
+            'body': json.dumps({'invoiceId': invoice_id}),
+        }
+        response = lambda_client.invoke(
+            FunctionName=COMMERCE_FUNCTION, InvocationType='RequestResponse',
+            Payload=json.dumps(payload))
+        result = json.loads(response['Payload'].read())
+        body = json.loads(result.get('body', '{}'))
+        if int(result.get('statusCode') or 0) != 200 or not body.get('s3Key'):
+            raise RuntimeError('invoice image unavailable after verified capture')
+        logger.info(json.dumps({
+            'event': 'invoice_image_ensured', 'invoiceId': invoice_id,
+            'reused': bool(body.get('reused')), 'requestId': request_id,
+        }))
+    except Exception as error:
+        logger.error(json.dumps({
+            'event': 'invoice_image_ensure_failed', 'invoiceId': invoice_id,
+            'error': type(error).__name__, 'requestId': request_id,
+            'alert': 'INVOICE_IMAGE_ENSURE_FAILED',
+        }))
+        raise
+
+
+def _generate_invoice_assets(invoice_id: str, request_id: str) -> None:    """Render the invoice PNG used for customer delivery.
 
     Invoice PDF generation is intentionally retired. The WhatsApp customer receives one
     rendered image, and all post-payment automation depends only on that image asset.
