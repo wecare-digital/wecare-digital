@@ -34,6 +34,15 @@ class WhatsAppAuditCloseoutContracts(unittest.TestCase):
         self.assertIn("action='phone.two_step_pin_set'", self.waba)
         self.assertNotIn("'metaPhoneId': meta_phone_id, 'pin': pin", self.waba)
 
+    def test_manisha_waba_reports_shared_wecare_app(self):
+        self.assertIn("WECARE_META_APP_ID = os.environ.get('WECARE_META_APP_ID', '2238810740192680')", self.waba)
+        self.assertIn("'2513394156072604': {", self.waba)
+        self.assertIn("'businessId': '125951953587391'", self.waba)
+        self.assertIn("'businessName': 'Manish Agarwal'", self.waba)
+        self.assertIn("'integrationMode': 'SHARED'", self.waba)
+        self.assertIn("'integrationStatus': 'CONNECTED'", self.waba)
+        self.assertIn("'developerAppConnected': True", self.waba)
+
     def test_history_replay_never_enters_live_message_loop(self):
         self.assertIn("_AUDIT_ONLY_REPLAY_FIELDS = _COEXISTENCE_FIELDS | {'history'}", self.inbound)
         self.assertIn("_inbound_messages = [] if _coexistence_change", self.inbound)
