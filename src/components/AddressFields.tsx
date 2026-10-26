@@ -18,12 +18,12 @@ import Select from './ui/Select';
  * only reads an address, and the cart page only passes one through, so a shared `src/types`
  * module would be a third file nobody owns.
  *
- * NINE STORED KEYS, SIX RENDERED INPUTS, AND THE TYPE IS THE WIRE SHAPE
+ * NINE STORED KEYS, SIX EDITABLE FIELDS PLUS COUNTRY, AND THE TYPE IS THE WIRE SHAPE
  * --------------------------------------------------------------------
  * `StoredAddress` mirrors what `lambda_utils.ecommerce.contact_address.normalize_for_storage`
  * emits, exactly - including the three fields this form never collects:
  *
- *   - `locality` is always "" from here, carried because `normalize_address` emits it;
+ *   - `addressLine2` and `locality` are customer-editable but optional, matching F001 Subscribe;
  *   - `country` / `countryCode` are fixed to India by this form, and the server defaults them;
  *   - `fullAddress` is SERVER-DERIVED and the identity card renders it verbatim.
  *
@@ -32,7 +32,7 @@ import Select from './ui/Select';
  *
  * WHAT THIS FORM POSTS, AND WHAT IT DELIBERATELY OMITS
  * ---------------------------------------------------
- * `addressPayload` emits the five collected fields only. It does NOT send `countryCode`, because
+ * `addressPayload` emits the six collected fields only. It does NOT send `countryCode`, because
  * `normalize_for_storage` defaults it to IN locally at its step 2 - before the PIN rule runs -
  * so an India address with no country code is the path that is actually tested server-side.
  * Sending a value the server is about to default would add a field with no reader.
@@ -63,7 +63,7 @@ export interface StoredAddress {
   fullAddress: string;
 }
 
-/** What the six inputs hold. The five fields this form actually collects. */
+/** What the six editable inputs hold. */
 export interface AddressDraft {
   addressLine1: string;
   addressLine2: string;
@@ -104,14 +104,12 @@ export function draftFromStored ( address: StoredAddress | null | undefined ): A
 /** The required-field and PIN mirrors, in one place so every mode asks the same question. */
 export function addressDraftValid ( draft: AddressDraft ): boolean {
   return draft.addressLine1.trim().length > 0
-    && draft.addressLine2.trim().length > 0
-    && draft.locality.trim().length > 0
     && draft.city.trim().length > 0
     && draft.state.trim().length > 0
     && INDIA_PIN_RE.test( draft.postalCode.trim() );
 }
 
-/** The `address` object to post. Five collected fields; the server defaults the rest. */
+/** The `address` object to post. Six collected fields; the server defaults the rest. */
 export function addressPayload ( draft: AddressDraft ): Record<string, string> {
   return {
     addressLine1: draft.addressLine1.trim(),
@@ -155,7 +153,7 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
 
       <div className="address-grid">
         <label className="span-2">
-          <span>Address line 1</span>
+          <span>Street address</span>
           <input
             value={ value.addressLine1 }
             onChange={ event => patch( 'addressLine1', event.target.value ) }
@@ -167,7 +165,7 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
         </label>
 
         <label className="span-2">
-          <span>Address line 2</span>
+          <span>Apartment / suite / unit <em className="optional">Optional</em></span>
           <input
             value={ value.addressLine2 }
             onChange={ event => patch( 'addressLine2', event.target.value ) }
@@ -179,7 +177,7 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
         </label>
 
         <label className="span-2">
-          <span>Landmark / locality</span>
+          <span>Landmark / neighborhood <em className="optional">Optional</em></span>
           <input
             value={ value.locality }
             onChange={ event => patch( 'locality', event.target.value ) }
@@ -231,7 +229,7 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
           */}
         <Select
           className="address-state"
-          label="State"
+          label="State / region"
           value={ value.state }
           onChange={ next => patch( 'state', next ) }
           invalid={ invalidField === 'state' }
@@ -242,7 +240,7 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
         />
 
         <label>
-          <span>PIN code</span>
+          <span>Postal code</span>
           <input
             value={ value.postalCode }
             onChange={ event => patch( 'postalCode', event.target.value.replace( /\D/g, '' ).slice( 0, 6 ) ) }
@@ -285,6 +283,7 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
         .span-2{grid-column:1 / -1}
         label{display:flex;flex-direction:column;gap:7px;min-inline-size:0}
         label>span{font-size:12px;font-weight:700;color:#1a3a2a}
+        .optional{font-style:normal;font-weight:400;color:rgba(0,0,0,.55);margin-left:6px}
         /* THE STATE FIELD, which is no longer a <label> wrapping a <select> but a Select of our
            own (batch 2f). These two rules are the label-and-control stack the <label> above gave
            it: the same grid cell, the same 7px gap, the same 12px bold dark-green caption.

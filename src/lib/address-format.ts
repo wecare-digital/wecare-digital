@@ -66,13 +66,13 @@ export interface AddressFieldSpec {
  * in - so the preview a staff member sees is the fields they just typed, top to bottom.
  */
 export const ADDRESS_FIELDS: readonly AddressFieldSpec[] = [
-  { key: 'addressLine1', label: 'Address line 1', required: true, maxLength: 200, placeholder: 'Flat or house, building, street' },
-  { key: 'addressLine2', label: 'Address line 2 (House / Unit)', required: true, maxLength: 200, placeholder: 'House or unit number, floor, tower' },
-  { key: 'locality', label: 'Landmark / Locality', required: true, maxLength: 100, placeholder: 'Nearby landmark or area' },
+  { key: 'addressLine1', label: 'Street address', required: true, maxLength: 200, placeholder: 'Street address' },
+  { key: 'addressLine2', label: 'Apartment / suite / unit', required: false, maxLength: 200, placeholder: 'Optional' },
+  { key: 'locality', label: 'Landmark / neighborhood', required: false, maxLength: 100, placeholder: 'Optional' },
   { key: 'city', label: 'City', required: true, maxLength: 100, placeholder: 'e.g. Mumbai' },
-  { key: 'state', label: 'State', required: true, maxLength: 100, placeholder: 'e.g. Maharashtra' },
-  { key: 'postalCode', label: 'Postal Code', required: true, maxLength: 100, placeholder: 'e.g. 400051' },
-  { key: 'country', label: 'Country', required: false, maxLength: 100, placeholder: 'India' },
+  { key: 'state', label: 'State / region', required: true, maxLength: 100, placeholder: 'State / region' },
+  { key: 'postalCode', label: 'Postal code', required: true, maxLength: 100, placeholder: 'Postal code' },
+  { key: 'country', label: 'Country', required: true, maxLength: 100, placeholder: 'India' },
   { key: 'countryCode', label: 'Country code', required: false, maxLength: 2, placeholder: 'IN' },
 ];
 
