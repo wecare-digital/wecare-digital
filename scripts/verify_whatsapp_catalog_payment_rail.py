@@ -8,10 +8,9 @@
     with `deliveryConfirmed` -> ONE PaymentAttempt + PAYREF# -> wecare-outbound-whatsapp
     -> `wecare_whatapp_native_pay_template` (button sub_type order_details, payment_gateway /
     Razorpay / WECAREDIGITAL) -> Razorpay `payment.captured` -> wecare-razorpay-webhook
-    -> ONE order + ONE paid invoice
-    -> `wecare_order_status_v3` processing, then completed (template-only, ordered/idempotent)
+    -> ONE order (internal fulfilment starts at processing) + ONE paid invoice
+    -> ZERO structured WhatsApp order_status messages
     -> `wecare_default_invoice_image_template` (its FLOW button carries an order-bound review token).
-    Invoice delivery never depends on an order_status send succeeding.
     -> the order page (`/orders/?o=<orderNumber>`, checkout's `order` action): the delivery address
     frozen at checkout, the reviewed lines and the paid status, to the order's owner only.
     Section 9d covers the website prepare's own address gate.
@@ -517,7 +516,7 @@ def run(root: Path) -> int:
     os.environ["CUSTOMER_POOL_ID"] = pool_id
     _create_tables()
 
-    from lambda_utils import contact_key, wa_internal_event  # noqa: E402
+    from lambda_utils import contact_key, template_media, wa_internal_event  # noqa: E402
     from lambda_utils.ecommerce import checkout_pricing, default_coupon, meta_catalog_sync as mcs
     from lambda_utils.ecommerce import whatsapp_basket
     from lambda_utils.integrations import meta_payment_binding, razorpay_verify
@@ -535,6 +534,14 @@ def run(root: Path) -> int:
     # `import invoice_engine` resolves to it and the seam patched below is the one that runs.
     invoice_engine = _load("invoice_engine",
                            functions / "payments" / "invoice-engine" / "handler.py")
+
+    check("HDR", "large payment header and small item image use separate approved assets",
+          template_media.PAYMENT_TEMPLATE_HEADER.endswith(
+              "secure/d/public/whatsapp/wa-tpl/whatsapp-header.png")
+          and template_media.ORDER_ITEM_IMAGE.endswith(
+              "secure/d/public/whatsapp/wa-tpl/wecare-catalog-icon.png"),
+          {"header": template_media.PAYMENT_TEMPLATE_HEADER,
+           "item": template_media.ORDER_ITEM_IMAGE})
 
     # wecare-commerce and wecare-checkout are two functions running ONE package (the checkout
     # handler + its packaged invoice engine). Production callers address them by name: inbound's
