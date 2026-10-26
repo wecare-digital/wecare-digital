@@ -11,6 +11,7 @@ on:
       - "amplify/functions/shared/lambda_utils/direct_send.py"
       - "config/lambda-env-manifest.json"
       - "scripts/env_manifest.py"
+      - "scripts/provision_payment_rail_alarms.py"
       - "tests/test_env_manifest_aliases.py"
       - "tests/test_direct_send_dual_account_regression.py"
       - "tests/test_whatsapp_marketing_policy.py"
@@ -34,6 +35,7 @@ on:
       - "amplify/functions/shared/lambda_utils/direct_send.py"
       - "config/lambda-env-manifest.json"
       - "scripts/env_manifest.py"
+      - "scripts/provision_payment_rail_alarms.py"
       - "tests/test_env_manifest_aliases.py"
       - "tests/test_direct_send_dual_account_regression.py"
       - "amplify/functions/core/service-api/**"
@@ -76,8 +78,10 @@ jobs:
       - name: Verify Marketing Messages product policy
         run: python -m unittest discover -s tests -p 'test_whatsapp_marketing_policy.py'
 
-      - name: Verify alias-aware environment audit
-        run: python -m unittest discover -s tests -p 'test_env_manifest_aliases.py'
+      - name: Verify audit and alarm provisioning scripts
+        run: |
+          python -m py_compile scripts/env_manifest.py scripts/provision_payment_rail_alarms.py
+          python -m unittest discover -s tests -p 'test_env_manifest_aliases.py'
 
   workspace-typecheck:
     runs-on: ubuntu-latest
