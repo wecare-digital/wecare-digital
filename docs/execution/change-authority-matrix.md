@@ -3714,3 +3714,27 @@ Owner instruction: "yes fix and eploy", approving the two items left open at 12:
   - `wecare-customer-commerce-mcp` live is **v6** (`shopping-origin-fix-20261026-v6`, stack update 14:06:59 UTC by another session). Its `index.py` sends `Referrer-Policy: strict-origin` on the OAuth page. That code is on no branch, so a stack update from the repo (v4) would revert it. It belongs in `customer_oauth.py`, followed by a regenerated `index.py` and `template.json`.
   - `d6b6f4ca1` glued a docstring onto a `def` in `razorpay-webhook/handler.py`. Six payment-CI runs (13:44–13:58 UTC) failed at "Compile payment Python" and deployed nothing until #1643 restored the newline. The live webhook was never on the broken code.
 - Not verified: no real secure-files download or Vault purchase on v70/v71, and no ChatGPT host session against the MCP.
+
+## Commerce MCP source brought to live v9; template checker; fleet to `1e7254271` — 2026-10-26 15:22–16:20 UTC
+
+Owner instruction: "fix and deploy", following the 14:25 UTC entry's open item (MCP live from code on no branch). No IAM, template or Flow change, no customer message or payment sent, and no secret read.
+
+- Commerce MCP (#1652, `e267aed99`): live `wecare-customer-commerce-mcp` had reached **v9** (`shopping-brand-redirect-20261026-v9`, 15:12:34 UTC), deployed from the unpushed Codex branch `cleanup/aws-drift-reconciliation-20261025`. Its commits `b895b11` (sign-in page `Referrer-Policy: strict-origin`), `230dabf` (OAuth `ui_locales` ignored) and `f7215b0` (branded sign-in on `connect.wecare.digital`, country-code field, `ConnectOrigin` domain resources) are now in `amplify/functions/ai/customer-commerce-mcp/` and `tools/customer-commerce/`.
+  - Rebuilt from the readable source, `index.py` equals the live v9 package byte for byte, and the generated template equals the deployed one (`get-template`, Original). verify 25/25, OAuth 28/28, packaged 53/53.
+  - The env manifest records v9 (`CUSTOMER_CONNECT_ORIGIN`, the `DEPLOYMENT_REVISION` and `SOURCE_SHA256` fingerprints; `_variables` recounted to 520). `env_manifest.py --keys-only`: 0 differences.
+  - Not redeployed: live already runs this code.
+- Checker (#1654, `1e7254271`): `check_whatsapp_template_payloads_live.py` still required an order-status send, which #1650 disabled (outbound answers `410 ORDER_STATUS_DISABLED`). That case now passes only on the refusal: 8/8 on `e267aed99`, and the case fails on `5f7c69bd4`, where order status was still sent.
+- Fleet, `deploy_all_lambdas.py` from `git archive` exports:
+  - 46 non-CI functions that bundle the shared modules changed by #1647 and #1650 (`wa_order_status.py`, `order_patch.py`, `template_media.py`), from `e267aed99`. 45 `live` aliases moved; `wecare-partner-token-refresh` has no alias. `wecare-meta-catalog-sync:live` v105 kept WABA1 (`1457045652952851`, `access_token`) and `$LATEST` was restored to WABA2. `:waba2` stays v99: none of the modules it loads changed since.
+  - `wecare-whatsapp-template-management` v58→**v59** and `wecare-ai-config-management` v45→**v46**, from `1e7254271`: #1653's staff-API authorization (Admin for template writes, Operator for settings writes, settings-key allowlist). Staff API CI's deploy job is off until the owner creates `wecare-staff-api-deploy-oidc` (docs/operations/staff-api-deploy.md), so they went out by the operator path. Every key the Workspace reads or writes is in the new allowlist.
+  - Code only: `wecare-native-catalog-admin` v22→**v23**; `wecare-seo-tools` `$LATEST` (no alias).
+  - Gates on the exports: rail 201/201, F001 59/59, F002, Flow JSON 26/26, template payloads 8/8, `test_staff_api_authorization`, `test_architecture_closeout`, `test_order_status_single_producer`. Rollback: the previous version on each `live` alias, printed per function.
+- Verified:
+  - `check_deployed_source.py`: 73 of 73 functions byte-identical to `1e7254271`. `f71618b26` (#1655) changes no Lambda source.
+  - 15:30–16:15 UTC: 0 Lambda errors and 0 throttles over 7,394 invocations; no alarm in ALARM; every DLQ empty. `post_deploy_health.py` PASS, API 5xx 0; `commerce_health.py` GREEN; Amplify jobs 220–225 SUCCEED.
+  - Probes: public pages 200; checkout, `secure-files/mine`, `GET`/`PUT /ai/config` and `POST /whatsapp/templates` 401 without a token; MCP discovery, `connect.wecare.digital` metadata and `tools/list` 200.
+  - The 2026-10-25 template audit's six suggested fixes are all in the code at `1e7254271` (download header, `wd_file_delivery` retired, Meta error body kept, payment template refused on the generic path, no `body_preview`, header-upload failure refused locally).
+- Open (owner):
+  - MCP v6–v9 were deployed by the account **root** user through the AWS MCP server (CloudTrail `CreateChangeSet`/`ExecuteChangeSet`, `userIdentity` Root), at the times of the Codex branch's commits. That agent should push to this repository and deploy with a scoped role, not root.
+  - Create `wecare-staff-api-deploy-oidc` and set `STAFF_API_DEPLOY_ENABLED`, or keep releasing those two functions by hand.
+- Not verified: no ChatGPT host sign-in through `connect.wecare.digital`, and no staff user below Admin exercised the new role floors.
