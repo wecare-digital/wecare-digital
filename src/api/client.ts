@@ -5108,14 +5108,27 @@ export async function cancelInvoice ( invoiceId: string, reason?: string ): Prom
  */
 export type OrderFulfilmentStatus = 'processing' | 'partially-shipped' | 'shipped' | 'completed';
 
-// Send a WhatsApp order_status update (shipped / completed / …) for a PAID order.
+/** The engine's answer once WhatsApp accepted an order_status update. */
+export interface SendOrderStatusResult {
+  invoiceId: string;
+  referenceId: string;
+  orderStatus: string;
+  waOrderStatus: string;
+  previousStatus: string;
+  channel: string;
+  status: string;
+}
+
+// Send a WhatsApp order_status update (shipped / completed / …) for a PAID order. A result, not
+// `null` on failure: the engine names each refusal (already that status, out of order, not a
+// WhatsApp order, deferred), and staff need that sentence to know whether anything was sent.
 export async function sendOrderStatus (
   invoiceId: string,
   orderStatus: OrderFulfilmentStatus,
   description?: string,
   phoneNumberId?: string,
-): Promise<{ invoiceId: string; orderStatus: string; previousStatus: string; status: string } | null> {
-  return apiCall<{ invoiceId: string; orderStatus: string; previousStatus: string; status: string }>(
+): Promise<ApiResult<SendOrderStatusResult>> {
+  return apiCallResult<SendOrderStatusResult>(
     `${INVOICE_BASE}/${invoiceId}/order-status`, {
       method: 'POST',
       body: JSON.stringify( { invoiceId, orderStatus, description, phoneNumberId } ),
@@ -5938,6 +5951,8 @@ export interface Order {
   notes?: string;
   adminNotes?: string;
   invoiceId?: string;
+  /** How the order was paid. WhatsApp `order_details` modes take status updates by send only. */
+  checkoutMode?: string;
   /** Operator-entered shipment metadata. No courier/provider sync is implied. */
   carrierName?: string;
   trackingNumber?: string;

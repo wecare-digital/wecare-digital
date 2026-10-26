@@ -461,6 +461,7 @@ def _update_order(order_id: str, body: Dict, auth: Optional[Dict] = None,
             'ORDER_STATUS_TRANSITION_INVALID',
             'ORDER_PAYMENT_NOT_CAPTURED',
             'ORDER_CANCEL_REQUIRES_WORKFLOW',
+            'ORDER_STATUS_WHATSAPP_REQUIRED',
         }
         return _resp(409 if error.get('errorCode') in conflict_codes else 400, error)
 

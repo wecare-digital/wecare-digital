@@ -72,6 +72,14 @@ WA_NATIVE_CHECKOUT_MODE = 'WHATSAPP_NATIVE_PG'
 #: provides the gateway binding.
 WA_NATIVE_CART_CHECKOUT_MODE = 'WHATSAPP_NATIVE_CART'
 NATIVE_CHECKOUT_MODES = frozenset({WA_NATIVE_CHECKOUT_MODE, WA_NATIVE_CART_CHECKOUT_MODE})
+#: The in-WhatsApp catalog-service checkout (`ecommerce/checkout` CHECKOUT_MODE, also written by
+#: `initiation`). It collects through the same ORDER_DETAILS payment template.
+CATALOG_SERVICE_CHECKOUT_MODE = 'AWS_NATIVE'
+#: Every checkout mode whose payment was a Meta `order_details` message. Such an order's
+#: fulfilment status lives on WhatsApp: the customer's Order summary shows only the order_status
+#: messages Meta was sent, so the status may change only through a send (invoice-engine
+#: `send_order_status`), never through a database write alone.
+ORDER_DETAILS_CHECKOUT_MODES = frozenset(NATIVE_CHECKOUT_MODES | {CATALOG_SERVICE_CHECKOUT_MODE})
 
 #: WABA1's phone id, and the ONLY sender permitted to take a payment.
 #:
@@ -665,6 +673,8 @@ def record_sent(attempts_table: Any, *, payment_attempt_id: str, now: int) -> bo
 
 __all__ = [
     'WA_NATIVE_CHECKOUT_MODE',
+    'CATALOG_SERVICE_CHECKOUT_MODE',
+    'ORDER_DETAILS_CHECKOUT_MODES',
     'PAYMENT_SENDERS',
     'PHONE_NUMBER_ID_1',
     'PHONE_ID_TO_WABA',

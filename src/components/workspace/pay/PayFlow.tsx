@@ -13,6 +13,7 @@ import {
   ADDRESS_FIELDS, EMPTY_ADDRESS_FIELDS, addressPayload, addressFieldsFromContact,
   contactDeliveryAddress, formatAddress, type AddressFormFields,
 } from '../../../lib/address-format';
+import { orderStatusFailureText } from '../../../lib/orderFulfilment';
 
 interface PP { signOut?: () => void; user?: any; embedded?: boolean; mode?: 'collect' | 'invoices'; }
 interface FC { default_gst_rate: number; default_shipping: number; gstin: string; default_item_name: string; purposes: string[]; }
@@ -596,8 +597,8 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
     try
     {
       const r = await api.sendOrderStatus( inv.invoiceId, target );
-      if ( r ) { showMsg( `Order marked ${target} and the customer was notified` ); loadInvoices(); }
-      else showMsg( 'Could not send the order status update', 'error' );
+      if ( r.ok ) { showMsg( `Order marked ${target} and the customer was notified` ); loadInvoices(); }
+      else showMsg( orderStatusFailureText( r.failure ), 'error' );
     } catch ( e ) { showMsg( 'Could not send the order status update', 'error' ); }
     setActionLoading( '' );
   };
