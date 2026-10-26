@@ -26,8 +26,8 @@ import { openExternal } from '../../../lib/capacitor';
 import ServiceDataState from '../../../components/service/ServiceDataState';
 
 const PAGE_SIZE = 20;
-const STATUS_OPTIONS = [ 'uploaded', 'under_review', 'approved', 'rejected', 'reupload_requested' ];
-const SOURCE_OPTIONS = [ 'whatsapp', 'flow', 'upload', 'manual' ];
+const STATUS_OPTIONS = [ 'awaiting_upload', 'uploaded', 'under_review', 'approved', 'rejected', 'reupload_requested' ];
+const SOURCE_OPTIONS = [ 'flow', 'manual', 'web' ];
 const TYPE_OPTIONS = [ 'prescription', 'id_proof', 'address_proof', 'invoice', 'photo', 'other' ];
 
 /* The option lists, hoisted. Same order, same values, same visible text as the rows they
@@ -67,6 +67,7 @@ function fmtSize ( bytes?: number ): string {
 }
 
 const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
+  awaiting_upload: { bg: '#fef3c7', fg: '#92400e' },
   uploaded: { bg: '#dbeafe', fg: '#1e40af' },
   under_review: { bg: '#e0e7ff', fg: '#3730a3' },
   approved: { bg: 'var(--lime)', fg: 'var(--accent)' },
