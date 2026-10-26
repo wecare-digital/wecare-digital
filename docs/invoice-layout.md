@@ -1,3 +1,8 @@
+> **Current customer PNG contract (2026-10-26):** see
+> [`docs/operations/payment-receipt-format.md`](operations/payment-receipt-format.md).
+> That v7 PAYMENT RECEIPT contract supersedes older appearance notes in this historical file when
+> they conflict.
+
 # Invoice layout - website and WhatsApp
 
 What a WECARE.DIGITAL invoice looks like when it is SHOWN on the website (Download receipt,
