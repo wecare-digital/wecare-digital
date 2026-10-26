@@ -459,7 +459,7 @@ Meta's three `sample_*` templates and no business template):
 | `wecare_leave_review` | UTILITY, Leave Review Flow button | manual Inbox send only; never after a payment |
 | `wecare_default_download` | UTILITY, URL button to `/vault/?file=` | outbound download link |
 | `wecare_location_share_pin` | UTILITY, LOCATION header | outbound location share |
-| `wecare_otp` | AUTHENTICATION, copy code | customer-whatsapp-auth, blog-subscribe, customer-registration |
+| `wecare_otp` | AUTHENTICATION, copy code | customer-whatsapp-auth, customer-registration |
 
 No template opens F001 Subscribe: its only entry is the exact keyword. `feedback_survey_form_1`,
 which opened the F001 Flow with NAVIGATE (no INIT, no session), was deleted on 2026-10-25; its

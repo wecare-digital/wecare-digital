@@ -28,7 +28,6 @@ ROLES = (
     "wecare-digital-lambda-role",
     "wecare-customer-profile-role",
     "wecare-customer-registration-role",
-    "wecare-blog-subscribe-role",
 )
 POLICY_NAME = "CustomerIdentityClaimsRegistry"
 MANAGED_POLICY_NAME = "wecare-customer-identity-claims"

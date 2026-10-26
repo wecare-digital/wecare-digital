@@ -67,6 +67,11 @@ Scope corrections, 2026-10-26
    content") was also passing `ANY /mcp` on the staff Chat API, which is the
    administrative workspace MCP.
 
+6. A function whose code ships inline in a CloudFormation template keeps it in
+   `index.py`, the name Lambda gives `Code.ZipFile`, so a directory holding only
+   `index.py` was never read: the seven routes of `wecare-customer-commerce-mcp`
+   (ai/customer-commerce-mcp) could only ever be UNRESOLVED.
+
 Marker strength
 ---------------
 Some MARKERS are weak: `Authorization`, `api_key`/`API_KEY` and `verify_token`
@@ -138,6 +143,9 @@ STRONG_MARKERS = (
     # The workspace MCP checks its own callers: issuer, staff client, access-token use, the
     # Admin group and expiry, then a live Cognito recheck of the session.
     "owner_identity(event)",
+    # The customer commerce MCP's private tools: a `wca_` bearer bound to this resource and
+    # scope, its stored session, then a live Cognito recheck of the customer.
+    "customer_oauth.customer_event(",
 )
 
 # Markers that only prove a handler can CALL OUT with a credential, never that it
@@ -185,7 +193,6 @@ EXPECTED_PUBLIC_ROUTES = {
     # The endpoint whose job is to validate a token cannot require a valid token.
     "POST /auth/validate": "token validation endpoint; authenticating it would be circular",
     "POST /auth/email-verification": "public email-ownership OTP door; it returns only a short-lived email-bound proof and performs no customer or contact write",
-    "POST /blog/subscribe": "public subscription front door; caller has no session yet and must prove phone plus email OTP before any contact write",
     "POST /vayulok/environment": "anonymous public environmental read proxy; no customer session exists, and the handler restricts origin, India bounds, fixed operations and provider fan-out before any metered call",
     # Provider webhooks authenticate by signature over the raw body, which cannot
     # be expressed as an API Gateway authorizer. Verified in the handler.
@@ -233,6 +240,16 @@ EXPECTED_PUBLIC_BY_FUNCTION = {
         "GET /authorize": "OAuth authorization endpoint for a public client: exact client_id, redirect_uri and resource, PKCE S256 only, then a 302 to the Cognito hosted UI where staff sign in; it issues nothing itself",
         "POST /token": "OAuth token endpoint for a public client: form-encoded, exact client_id, redirect_uri and resource, PKCE verifier required for a code; it relays Cognito's token only when that token is bound to this client and resource",
     },
+    # The customer commerce MCP is its own OAuth server; customers sign in on its form with a
+    # WhatsApp code. `POST /mcp` is absent: it keeps passing on its bearer check.
+    "wecare-customer-commerce-mcp": {
+        "GET /.well-known/oauth-protected-resource": "RFC 9728 protected-resource metadata; a fixed discovery document that reads no request input",
+        "GET /.well-known/oauth-authorization-server": "RFC 8414 authorization-server metadata; a fixed discovery document that reads no request input",
+        "GET /oauth/authorize": "OAuth authorize for a registered public client: exact parameter set, a registered redirect_uri, this resource, PKCE S256; it only opens a 10-minute sign-in form bound to an HttpOnly cookie and a CSRF hash",
+        "POST /oauth/authorize": "the sign-in form post: same origin, the session cookie and a one-use CSRF hash; the customer proves the WhatsApp number with a Cognito CUSTOM_AUTH code before a two-minute PKCE-bound code is issued",
+        "POST /oauth/token": "OAuth token endpoint for a public client: a one-use code with its PKCE S256 verifier and exact redirect, or a one-use refresh token; each grant rechecks the customer's Cognito session",
+        "POST /oauth/revoke": "OAuth revocation: exact client and resource; it can delete only the session rows of the token presented",
+    },
 }
 
 
@@ -264,7 +281,11 @@ def packaged_sources() -> dict[str, list[pathlib.Path]]:
 def handler_sources() -> dict[str, str]:
     """Map candidate deployed function name -> concatenated source of its dir."""
     out: dict[str, str] = {}
-    for handler in FUNCTIONS_ROOT.rglob("handler.py"):
+    # `index.py` is the entry file when the code ships inline in a CloudFormation template.
+    entries = list(FUNCTIONS_ROOT.rglob("handler.py"))
+    with_handler = {p.parent for p in entries}
+    entries += [p for p in FUNCTIONS_ROOT.rglob("index.py") if p.parent not in with_handler]
+    for handler in entries:
         if "__pycache__" in str(handler):
             continue
         # amplify/functions/messaging/outbound-sms/handler.py -> outbound-sms

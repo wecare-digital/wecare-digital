@@ -221,11 +221,6 @@ SPECS: List[Spec] = [
         "auth/customer-profile",
         provisioned_by="python scripts/provision_customer_profile.py",
     ),
-    Spec(
-        "wecare-blog-subscribe",
-        "auth/blog-subscribe",
-        provisioned_by="python scripts/provision_blog_subscribe.py",
-    ),
     # Customer registration front door. The HTTP route that proves a phone by WhatsApp OTP and
     # then provisions the Cognito login administratively, so the browser never calls SignUp on a
     # pool that is AllowAdminCreateUserOnly=true. Owns the per-IP throttle that a CUSTOM_AUTH
@@ -465,6 +460,8 @@ DELEGATED = {
     "wecare-mcp": "scripts/deploy_mcp_server.py",
     # Bundles its own pinned SDK and policy; generic packaging would omit both.
     "wecare-workspace-mcp": "scripts/build_workspace_mcp.py + scripts/deploy_workspace_mcp.py (CloudFormation, after merge)",
+    # Inline in its own template; see amplify/functions/ai/customer-commerce-mcp/README.md.
+    "wecare-customer-commerce-mcp": "CloudFormation stack wecare-customer-commerce-mcp (amplify/functions/ai/customer-commerce-mcp/template.json)",
 }
 SKIPPED = {"wecare-docs-scraper": "PackageType=Image; deploy separately from the zip Lambda fleet"}
 
