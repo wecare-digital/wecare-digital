@@ -367,6 +367,22 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
     }
   };
 
+
+  const handleSendVaultOffer = async ( doc: api.Document ) => {
+    if ( actionLoading || !doc.vaultFileId ) return;
+    setActionLoading( true );
+    try
+    {
+      const result = await api.requestSecureFilePayment( doc.vaultFileId );
+      if ( result.ok && result.status !== 202 ) toast.success( result.message );
+      else if ( result.status === 202 || result.status === null ) toast.warning( result.message );
+      else toast.error( result.message );
+    } finally
+    {
+      setActionLoading( false );
+    }
+  };
+
   const totalPages = Math.ceil( docs.length / PAGE_SIZE );
   const paged = docs.slice( ( page - 1 ) * PAGE_SIZE, page * PAGE_SIZE );
 
@@ -525,6 +541,15 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
               >
                 { selected.vaultFileId ? 'Published to Vault' : 'Publish to Vault' }
               </Button>
+              { selected.vaultFileId && (
+                <Button
+                  variant="primary"
+                  loading={ actionLoading }
+                  onClick={ () => handleSendVaultOffer( selected ) }
+                >
+                  Send ₹49 Vault message
+                </Button>
+              ) }
               <Button variant="primary" loading={ actionLoading } onClick={ () => handleStatusAction( selected, 'approved', remarks ) }>Approve</Button>
               <Button variant="danger" loading={ actionLoading } onClick={ () => handleStatusAction( selected, 'rejected', remarks ) }>Reject</Button>
               <Button variant="secondary" loading={ actionLoading } onClick={ () => handleStatusAction( selected, 'reupload_requested', remarks ) }>Request Reupload</Button>
