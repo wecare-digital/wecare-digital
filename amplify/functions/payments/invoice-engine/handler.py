@@ -4337,20 +4337,16 @@ ORDER_STATUS_RETRY_PENDING = 'PENDING'
 
 def send_order_status(invoice_id: str, target_status: str, description: str,
                       phone_number_id: str, request_id: str) -> Dict:
-    """Send a WhatsApp order_status fulfilment update (shipped / completed / …) for a PAID order.
+    """Send a WhatsApp payment-order status update for a PAID ORDER_DETAILS order.
 
-    Separate from the payment path on purpose. `send_payment_link` asks the customer to PAY;
-    this one tells a customer who ALREADY PAID what happened to their order next. Meta owns the
-    order's real lifecycle, so this validates the requested transition against the status this
-    invoice last recorded (`wa_order_status.can_transition`) and refuses locally what Meta would
-    refuse with 2046/2047 — keeping a bad request off the wire and giving staff a named reason —
-    then invokes `outbound-whatsapp` with the canonical `orderStatusDetails` contract.
+    This endpoint owns the frozen payment-only lifecycle: pending -> processing -> completed.
+    Physical/service fulfilment is a separate domain and must never send partially-shipped or
+    shipped through this payment rail. Meta's last accepted payment-order state lives in
+    `waOrderStatus`; transitions are validated with `wa_order_status.payment_can_transition`.
 
     Guards, in order:
-      * the invoice must exist and be PAID. A fulfilment update on an unpaid order is meaningless,
-        and `canceled` on a paid order is Meta error 2047 — the unpaid-cancel path is
-        `cancel_invoice`, never this one.
-      * the target must be a staff-drivable fulfilment status (`wa_order_status.STAFF_FULFILMENT_TARGETS`).
+      * the invoice must exist and be PAID.
+      * the target must be one of `wa_order_status.PAYMENT_ORDER_TARGETS`.
       * the payment must have been an ORDER_DETAILS payment (native checkout mode); a website
         Razorpay order has no Meta order to update and is refused with ORDER_STATUS_NOT_APPLICABLE.
       * the transition from the status Meta last accepted (`waOrderStatus`, defaulting to
@@ -4362,11 +4358,11 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
         return _resp(400, {'error': 'invoiceId required'})
 
     target = wa_order_status.normalise(target_status)
-    if target not in wa_order_status.STAFF_FULFILMENT_TARGETS:
+    if target not in wa_order_status.PAYMENT_ORDER_TARGETS:
         return _resp(400, {
-            'error': ('That is not a fulfilment status staff can send. Allowed: '
-                      + ', '.join(sorted(wa_order_status.STAFF_FULFILMENT_TARGETS))
-                      + '. A cancellation of an unpaid order is done through Cancel Invoice.'),
+            'error': ('That is not a payment-order status this rail can send. Allowed: '
+                      + ', '.join(sorted(wa_order_status.PAYMENT_ORDER_TARGETS))
+                      + '. Shipment/fulfilment states are tracked separately.'),
             'code': 'ORDER_STATUS_NOT_ALLOWED',
         })
 
@@ -4432,10 +4428,10 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
             'code': 'ORDER_STATUS_UNCHANGED',
             'orderStatus': current_status,
         })
-    if not wa_order_status.can_transition(current_status, target):
+    if not wa_order_status.payment_can_transition(current_status, target):
         return _resp(409, {
-            'error': (f'An order that is {current_status} cannot move to {target}. '
-                      'WhatsApp refuses an out-of-order fulfilment transition.'),
+            'error': (f'A payment order that is {current_status} cannot move to {target}. '
+                      'The payment rail allows only pending -> processing -> completed.'),
             'code': 'ORDER_STATUS_TRANSITION_INVALID',
             'orderStatus': current_status,
         })
@@ -4470,7 +4466,7 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
                                      'invoiceId': invoice_id, 'targetStatus': target,
                                      'requestId': request_id}))
 
-    body_text = (description or '').strip() or wa_order_status.default_body(target)
+    body_text = (description or '').strip() or wa_order_status.payment_default_body(target)
     contact = _lookup_contact_by_phone(customer_phone)
     contact_id = (contact.get('contactId') or contact.get('id', '')) if contact else ''
 
