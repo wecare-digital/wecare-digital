@@ -11,7 +11,7 @@ message each sender builds is one Meta can accept, component by component:
   * a parameter for every dynamic URL button, at that button's index;
   * a `flow` component carrying a `flow_token` for a FLOW button;
   * the `order_details` action (reference, goods type, INR, Razorpay payment_settings, order,
-    total) for the ORDER_DETAILS button, and an `order_status` component for ORDER_STATUS;
+    total) for the ORDER_DETAILS button;
   * the AUTHENTICATION copy-code shape: the code as the body variable and as URL button 0, and
     an OTP lifetime equal to the template's `code_expiration_minutes`;
   * the template's language, and a sender that resolves to WABA1's phone number.
@@ -23,8 +23,8 @@ What runs for real, read-only
   * the live definitions: `wecare-whatsapp-template-management:live` (components) and
     `wecare-whatsapp-business-api:live` `/wa-business/payment-templates/list` (status,
     sub_category);
-  * the reads outbound's own gates make (template category, ORDER_STATUS approval, payment
-    readiness), through `wecare-whatsapp-business-api:live`;
+  * the reads outbound's active payment-readiness gates make through
+    `wecare-whatsapp-business-api:live`;
   * the production builders from this tree: `outbound-whatsapp`'s handler for every outbound
     template, fed the request bodies the real callers compose, and `customer-whatsapp-auth` into
     `whatsapp-business-api`'s send route for the OTP.
@@ -574,11 +574,14 @@ def main() -> int:
                          for c in components) or "(no components)"
 
     for template, caller, body, window_open, refusal in cases:
+        # Retired sends prove only that runtime refuses before any Meta/template dependency.
         definition = definitions.get(template.name)
-        if not definition:
-            report(template, caller, ["no 'en' definition on WABA1"], "-")
-            continue
-        issues = check_registry(template, definition)
+        issues = []
+        if not refusal:
+            if not definition:
+                report(template, caller, ["no 'en' definition on WABA1"], "-")
+                continue
+            issues = check_registry(template, definition)
         try:
             result = send_outbound(outbound, captured, body, window_open=window_open)
         except Exception as error:  # noqa: BLE001 - a crash is a failed construction
