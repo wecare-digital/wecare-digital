@@ -16,9 +16,9 @@ message each sender builds is one Meta can accept, component by component:
     an OTP lifetime equal to the template's `code_expiration_minutes`;
   * the template's language, and a sender that resolves to WABA1's phone number.
 A send that fails any of these is refused by Meta (131008, 131009, 132000, 132012).
-Order-status messages are part of the automatic payment rail. The ORDER_STATUS case must build
-the approved `wecare_order_status_v3` template payload; there is no interactive/free-form
-fallback based on the 24-hour customer-service window.
+Payment-order status is automatic after verified capture. The ORDER_STATUS case therefore passes
+only when outbound builds the approved wecare_order_status_v3 template payload; the 24-hour
+customer-service window must not select an interactive fallback.
 
 What runs for real, read-only
   * the live definitions: `wecare-whatsapp-template-management:live` (components) and
@@ -534,7 +534,7 @@ def main() -> int:
             "templateHeaderMedia": "secure/d/public/Invoice/customer_invoice/verify.png",
             "templateHeaderType": "image",
             "templateFlowButton": {"index": 0, "flowToken": review_token.mint()}}, False, None),
-        (whatsapp_templates.ORDER_STATUS, "automatic payment-order status -> outbound template", {
+        (whatsapp_templates.ORDER_STATUS, "outbound automatic payment-order status path", {
             **person, "orderStatusDetails": {
                 "reference_id": REFERENCE, "order_status": "processing",
                 "description": wa_order_status.default_body("processing")}}, False, None),
