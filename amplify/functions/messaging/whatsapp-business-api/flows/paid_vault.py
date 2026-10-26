@@ -79,6 +79,25 @@ def prepare_and_send(event, lambda_client):
     if not result:
         return {'outcome': 'VAULT_ACCESS_UNAVAILABLE'}
     row, file, grant = result
+
+    # Secure-files owns the paid-window accounting. Open the already-paid window before
+    # sending Access Vault so this WhatsApp delivery starts the same 24-hour clock as the
+    # secure-files delivery path.
+    try:
+        window_response = lambda_client.invoke(
+            FunctionName='wecare-secure-files:live',
+            InvocationType='RequestResponse',
+            Payload=json.dumps({
+                'internalAction': 'openVaultAccessWindow',
+                'grantId': grant['grantId'],
+            }).encode(),
+        )
+        window_answer = json.loads(window_response['Payload'].read() or b'{}')
+    except Exception:
+        return {'outcome': 'VAULT_ACCESS_WINDOW_PENDING'}
+    if window_response.get('FunctionError') or not window_answer.get('ok'):
+        return {'outcome': 'VAULT_ACCESS_WINDOW_PENDING'}
+
     # Cognito sub is canonical UUID. Refuse malformed filter inputs before ListUsers.
     if not customer_auth.is_cognito_subject(row['customerId']):
         return {'outcome': 'VERIFIED_RECIPIENT_UNAVAILABLE'}

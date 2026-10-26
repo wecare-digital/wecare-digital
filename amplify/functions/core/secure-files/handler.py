@@ -1676,6 +1676,42 @@ def _download_url(item: Dict[str, Any], ttl: Optional[int] = None) -> str:
     )
 
 
+def open_vault_access_window(grant_id: str) -> Tuple[bool, str]:
+    """Open the next already-paid Vault window without sending a second message.
+
+    The caller supplies only a grant id. Ownership, file identity and the durable entitlement
+    are re-derived here, and the shared window writer refuses to open anything unless an unused
+    paid window exists. The paid WhatsApp service flow calls this immediately before sending
+    the approved Access Vault template, so delivery starts the same 24-hour clock as the
+    secure-files WhatsApp delivery path.
+    """
+    grant = _table(GRANTS_TABLE).get_item(
+        Key={"grantId": grant_id}, ConsistentRead=True).get("Item") or {}
+    if not grant or not grant.get("paid"):
+        return False, "grant is not paid"
+
+    file_id = str(grant.get("fileId") or "")
+    item = _table(FILES_TABLE).get_item(
+        Key={"fileId": file_id}, ConsistentRead=True).get("Item") or {}
+    if (not item or item.get("status") != "active"
+            or item.get("ownerPhone") != grant.get("ownerPhone")
+            or not grant.get("customerId")
+            or item.get("ownerCustomerId") != grant.get("customerId")):
+        return False, "grant and file ownership do not match"
+
+    entitlement = _ensure_entitlement(grant)
+    if not entitlement:
+        return False, "paid entitlement could not be established"
+    if item.get("vaultEntitlementId") != entitlement["grantId"]:
+        _point_file_at_entitlement(grant, entitlement)
+
+    before = vault_window.window_count(entitlement)
+    refreshed = _open_access_window(entitlement)
+    if not vault_window.window_open(refreshed, int(time.time())):
+        return False, "no paid access window is available"
+    return True, "window_open:" + str(max(before, vault_window.window_count(refreshed)))
+
+
 def deliver_over_whatsapp(grant_id: str) -> Tuple[bool, str]:
     """Send the paid file to the customer on WhatsApp. Called only after payment.
 
@@ -2061,6 +2097,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # anything else and keyed on a field API Gateway cannot produce, so no HTTP caller
     # can reach it: an event arriving through the API always carries a requestContext,
     # and this branch requires its absence.
+    if event.get("internalAction") == "openVaultAccessWindow" and not event.get("requestContext"):
+        grant_id = str(event.get("grantId") or "")
+        ok, detail = open_vault_access_window(grant_id) if grant_id else (False, "no grantId")
+        logger.info(
+            json.dumps({"event": "vault_window_open_result", "ok": ok, "detail": detail})
+        )
+        return {"ok": ok, "detail": detail}
+
     if event.get("internalAction") == "deliverOverWhatsApp" and not event.get("requestContext"):
         grant_id = str(event.get("grantId") or "")
         ok, detail = deliver_over_whatsapp(grant_id) if grant_id else (False, "no grantId")
