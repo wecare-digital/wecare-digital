@@ -49,7 +49,7 @@ import urllib.parse
 import urllib.request
 
 SITE = "https://wecare.digital"
-WWW = "https://wecare.digital"
+WWW = "https://www.wecare.digital"
 UA = "wecare-url-host-matrix-probe/1"
 MAX_HOPS = 5
 
@@ -87,11 +87,19 @@ def matrix() -> list[dict]:
 
     # ── hosts ────────────────────────────────────────────────────────────────────────
     rows.append(_row("host", f"{SITE}/", 200, "the canonical home"))
-    # The owner kept www excluded when restoring the wildcard on 2026-10-19. These are
-    # negative HTTP checks against the excluded host, not probes of the canonical apex.
-    rows.append(_row("host", f"{WWW}/", 0, "retired www host has no HTTP service"))
-    rows.append(_row("host", f"{WWW}/contact/", 0, "retired www path must not redirect to the apex"))
-    rows.append(_row("host", f"{WWW}/blog/", 0, "retired www path, second sample"))
+    # www IS A RETIRED NAMED HOST CAUGHT BY THE WILDCARD HOME FALLBACK. The owner excluded www
+    # when restoring the wildcard on 2026-10-19, and e6fead218 (2026-10-24, "Keep only the apex
+    # plus intentional mta-sts and sip service hosts") removed the fallback exclusions. Since then
+    # www, like every unused subdomain, gets CloudFront E1IY68ICLQP3PY's fixed 302 to the apex
+    # home, for every path. That commit also set WWW to the apex here, which turned these rows
+    # into "the apex has no HTTP service" - five failures on a correct site. WWW is the www host
+    # again, and the rows assert the fallback: every www URL ends at the bare apex home.
+    rows.append(_row("host", f"{WWW}/", 200, "retired www lands on the apex home via the wildcard fallback",
+                     terminal_url=f"{SITE}/"))
+    rows.append(_row("host", f"{WWW}/contact/", 200, "a www path also lands on the apex HOME, not a page",
+                     terminal_url=f"{SITE}/"))
+    rows.append(_row("host", f"{WWW}/blog/", 200, "retired www path, second sample",
+                     terminal_url=f"{SITE}/"))
     rows.append(_row("host", f"http://{SITE.split('://')[1]}/", 200,
                      "http apex reaches https apex", terminal_url=f"{SITE}/"))
     # The apex is the Cognito OAuth redirect URI:
@@ -102,8 +110,11 @@ def matrix() -> list[dict]:
     # invalid - nothing is exchanged, the probe only measures the HTTP response.
     rows.append(_row("host", f"{SITE}/?code=zzztest&state=zzz", 200,
                      "the Cognito OAuth redirect URI itself (_app.tsx redirectSignIn)"))
-    rows.append(_row("host", f"{WWW}/?code=zzztest&state=zzz", 0,
-                     "retired www has no OAuth landing route"))
+    # The fallback's Location is a fixed https://wecare.digital/, so the query is dropped: the
+    # exact terminal URL proves an OAuth code sent to www is never carried to the apex.
+    rows.append(_row("host", f"{WWW}/?code=zzztest&state=zzz", 200,
+                     "retired www has no OAuth landing route; the code is dropped",
+                     terminal_url=f"{SITE}/"))
 
     # ── the 404 fallback ─────────────────────────────────────────────────────────────
     # 404 is load-bearing and must never become 200: a non-404 status on /<*> matches
@@ -133,17 +144,19 @@ def matrix() -> list[dict]:
     # add-to-cart. /shop/ itself is in PUBLIC_PAGES above, so it already has a terminal-200-at-self
     # row.
     #
-    # THE OTHER TWO SPELLINGS terminate at the slashed /shop/, not at home. `/shop` 301s to
-    # `/shop/` under next.config trailingSlash, and `/shop/index.html` is the file Amplify serves
-    # for the directory - `output: 'export'` writes out/shop/index.html again now the page is back.
-    # `follow()` walks the chain and judges hops[-1], so `expect 200` with `terminal_url` on
-    # /shop/ asserts both that the landing resolves and that it is the listing rather than home.
+    # THE OTHER TWO SPELLINGS reach the catalogue, not home. `/shop` 301s to `/shop/` under
+    # next.config trailingSlash, so its terminal URL is the slashed /shop/. `/shop/index.html` is
+    # the file itself, which Amplify serves at 200 WITHOUT redirecting - as it does every
+    # directory's index.html (measured 2026-10-26 on /, /contact/ and /blog/ too). Expecting it
+    # to end at /shop/ failed this row on a correct site, so it is judged on its body instead:
+    # the catalogue page's canonical names /shop/, which also proves it is not the home page.
     rows.append(_row("public", f"{SITE}/shop", 200,
                      "unslashed /shop reaches the catalogue index at /shop/",
                      terminal_url=f"{SITE}/shop/"))
     rows.append(_row("public", f"{SITE}/shop/index.html", 200,
-                     "the index.html file resolves to the catalogue index",
-                     terminal_url=f"{SITE}/shop/"))
+                     "the index.html file serves the catalogue index, canonical to /shop/",
+                     terminal_url=f"{SITE}/shop/index.html",
+                     body_contains=('<link rel="canonical" href="https://wecare.digital/shop/"',)))
     # The product page still resolves at itself, proving no /shop/<*> wildcard swept it up - the
     # live counterpart of the no-wildcard assertion in test_url_host_routing_rules.py.
     rows.append(_row("public", f"{SITE}/shop/file-assist/", 200,

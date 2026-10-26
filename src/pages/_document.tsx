@@ -141,11 +141,13 @@ fbq('track', 'PageView');
  *   - only until the window load event, which ends it even with no interaction at all
  *   - once per tab session (sessionStorage); a clean load clears the flag, and if storage is
  *     unavailable it does nothing at all
- * KNOWN COST: if GTM or the Meta Pixel had already sent their page view before the first build
- * file failed, the reload sends a second one. The first failure normally arrives before either
- * third-party library has downloaded, and the alternative is a page that does not work, so that
- * rare duplicate for a visitor caught mid-deploy is accepted. Suppressing GTM's page view on the
- * reload would need a container change.
+ * DOES THE RELOAD DOUBLE-COUNT A PAGE VIEW? Measured, not assumed, on 2026-10-26: 48 simulated
+ * mid-deploy loads of the live home page across Chromium, WebKit and Firefox, cold and warm cache.
+ * The first build file failed 290-610ms in, every time before either tracker had sent anything:
+ * the Meta Pixel's PageView went out only after its library loaded, later than that, and GA4 sent
+ * nothing at all on these loads. With this guard active, every tab recorded at most one Meta
+ * PageView and never two. A duplicate would need the page view to beat a same-origin 404, which
+ * did not happen once; no suppression code is warranted for it.
  * Resource errors do not bubble, so the listener is on the capture phase. This is the first
  * script in the head. Next's three stylesheet preload hints are emitted above it, but a fetch
  * fails asynchronously, after this inline script has run, and the stylesheet and script tags

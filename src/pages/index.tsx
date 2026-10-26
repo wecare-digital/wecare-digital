@@ -286,9 +286,16 @@ const HomePage: React.FC = () => {
                 reflow on a 320px phone (160px layout): "built for" runs ~8px into the hero's
                 existing clip, beside the 40px "Everyday" already loses there; no page scroll.
                 A text character rather than a nowrap span: the site translator walks text nodes
-                and translates each separately, so a span would split the phrase it translates. */}
+                and translates each separately, so a span would split the phrase it translates.
+                "Everyday&nbsp;AI" IS THE SECOND UNIT, and it is what makes the break land after the
+                comma. #1613 capped this line at 288px below 400px and expected that break, but the
+                balanced wrapping on headings (#1585) chose the more even "Everyday" / "AI, built
+                for" instead, splitting the product's name on every phone from 320 to 393px
+                (measured in Chromium, WebKit and Firefox on 2026-10-26). With both pairs joined,
+                the comma is the only break left. "Everyday AI," still fits at a 160px layout
+                because the hero size shrinks there. */}
             <h1 className="home-head">
-              <span className="home-head-line">Everyday AI, built&nbsp;for</span>
+              <span className="home-head-line">Everyday&nbsp;AI, built&nbsp;for</span>
               <RotatingPill words={ CYCLE_WORDS } phase={ phase } />
             </h1>
 
