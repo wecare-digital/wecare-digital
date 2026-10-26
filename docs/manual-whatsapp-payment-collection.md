@@ -58,10 +58,12 @@ For a payment that needs review before send, use the two-step Pay Flow route abo
 - The generic template picker is not a payment composer: it does not reserve an invoice or
   construct the authoritative order_details action. Use Pay Flow, Inbox Request payment, or
   the Commerce bill composer for collection.
-- `wecare_whatapp_native_pay_template` requests payment. A separate approved ORDER_STATUS template is required for
-  structured order-status notifications outside the customer-service window. Approval must
-  come from the actual provider inventory, not a local template preset.
-- Capture receipt maps to processing; completed must be an explicit fulfillment update.
+- `wecare_whatapp_native_pay_template` requests payment. The approved
+  `wecare_order_status_v3` template carries every payment-order status update, inside or outside
+  the customer-service window. Approval must come from the actual provider inventory, not a local
+  template preset.
+- The payment-order lifecycle is `pending -> processing -> completed`; it does not expose
+  partially-shipped or shipped. Physical/service fulfilment is tracked separately.
 
 ## Release and go-live checks
 
