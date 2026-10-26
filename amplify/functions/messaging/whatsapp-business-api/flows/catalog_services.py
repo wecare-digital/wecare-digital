@@ -10,9 +10,14 @@ Entry points
 * ``select`` - the customer's pick from that list. A paid file with access left gets the Access
   Vault link again at no charge; an unpaid file, or a paid one whose every window has been used,
   gets ONE priced Review and Pay.
-* ``requestPayment`` - secure-files, when staff press "Request ₹49" for one file. There is no
-  inbound message to prove the customer from, so it proceeds only for a contact the bridge has
-  already linked to the file's owner and answers CONTACT_LINK_REQUIRED otherwise.
+* ``sendOffer`` - secure-files, when staff press "Send ₹49 Vault message" for one file. Sends the
+  approved offer `wecare_valut_49` ("Your <document> copy is ready! Pay ₹49…") whose "Unlock
+  Vault" quick reply carries an opaque offer token. It charges nothing and needs no linked
+  contact: the customer is proven from the tap.
+* ``unlock`` - the inbound worker, for a tap on "Unlock Vault". The tap is a signed inbound
+  message, so commerce's bridge proves the customer from it exactly as for a cart. The offer's
+  file gets ONE Review and Pay (or the Access Vault link if already paid). An unknown, expired or
+  someone else's offer falls back to ``start``: the customer's own document list.
 
 It never prices, reserves or sends a payment itself: it hands ONE session to `wecare-commerce`
 `prepareNativeCatalogService`. See `catalog_service_checkout.ALLOWED` for why only Vault is sold
@@ -45,6 +50,18 @@ _NOT_SENT = _NOT_PREPARED | {'PAYMENT_REQUEST_NOT_SENT', 'PAYMENT_REQUEST_REFUSE
                              'PAYMENT_INITIATION_DISABLED'}
 
 _TITLE_PREFIX = {'OPEN': 'Paid · ', 'READY': 'Paid · ', 'EXPIRED': 'Renew · ', 'UNPAID': ''}
+
+#: One Vault offer per row, keyed by its token. The token is what the quick reply returns; the
+#: row binds it to one file, its owner and the number it was sent to.
+OFFER_PREFIX = 'VAULTOFFER#'
+#: Per-file guard row, so a double click does not send the same customer two offers in a row.
+OFFER_FILE_PREFIX = 'VAULTOFFERFILE#'
+#: An offer older than this is answered with the document list instead, which is still a path to
+#: the same Review and Pay.
+OFFER_TTL_SECONDS = 7 * 24 * 3600
+OFFER_RESEND_GUARD_SECONDS = 60
+OFFER_FILE_GONE = ('This document is no longer available. Nothing has been charged. '
+                   'Send "Vault" to see your documents.')
 
 
 def _invoke(client, function, payload):
@@ -168,8 +185,8 @@ def handle(event, client):
     now = int(time.time())
     action = event.get('action', 'start')
 
-    if action == 'requestPayment':
-        return _request_payment(event, client, db, keys, contacts, now)
+    if action == 'sendOffer':
+        return _send_offer(event, client, db, keys, contacts, now)
 
     contact = contacts.get_item(Key={'id': event.get('contactId', '')}, ConsistentRead=True).get('Item') or {}
     # Outbound resolves only our Direct-API sender ids; the bare Meta phone id is refused.
@@ -233,6 +250,14 @@ def handle(event, client):
         if str(contact.get('checkoutCustomerId') or '') != owner:
             _send(client, sender, content=IDENTITY_NOT_READY)
             return {'outcome': 'WHATSAPP_IDENTITY_REQUIRED'}
+
+    if action == 'unlock':
+        offer = _live_offer(keys, event.get('offerToken'), identity, now)
+        if offer:
+            return _unlock(event, client, db, keys, contact, identity, offer, now)
+        # An unknown, expired or someone else's offer: this customer's own document list, exactly
+        # as the "Vault" keyword gives. Nothing is charged either way.
+        action = 'start'
 
     if action == 'start':
         choice = catalog.service_from_lines(event.get('lines') or [])
@@ -316,8 +341,104 @@ def handle(event, client):
     return _prepare_payment(client, db, keys, row, identity, state, notify=True)
 
 
-def _request_payment(event, client, db, keys, contacts, now):
-    """Staff asked for ₹49 for one file. Answers an outcome; never messages a refusal."""
+def _conditional_failed(error):
+    return getattr(error, 'response', {}).get('Error', {}).get('Code') == 'ConditionalCheckFailedException'
+
+
+def _vault_session(event, identity, contact, file_id, now):
+    """A one-file SELECTING session for the tapped offer, in the shape `_prepare_payment` and
+    commerce's prepare read. `sourceMessageId` is the tap, so commerce re-proves the customer
+    from the same signed message."""
+    variant = service_requests.SERVICE_VARIANT_BY_KIND[service_requests.VAULT]
+    token = secrets.token_urlsafe(24)
+    return {'orderId': catalog.SESSION_PREFIX + token, 'token': token, 'kind': service_requests.VAULT,
+            'variantId': variant, 'productId': service_requests.SERVICE_PRODUCT_BY_VARIANT[variant],
+            'contactId': contact['id'], 'phone': identity.phone, 'customerId': identity.customer_id,
+            'phoneNumberId': event['phoneNumberId'], 'sourceMessageId': event['sourceMessageId'],
+            'createdAt': now, 'expiresAt': now + 3600, 'status': 'SELECTING',
+            'fileChoices': [file_id], 'origin': 'VAULT_OFFER'}
+
+
+def _live_offer(keys, token, identity, now):
+    """The offer this tap names, or None when it is unknown, expired or not this customer's."""
+    token = str(token or '')
+    if not catalog.OFFER_TOKEN_RE.fullmatch(token):
+        return None
+    offer = keys.get_item(Key={'orderId': OFFER_PREFIX + token}, ConsistentRead=True).get('Item') or {}
+    if (offer.get('kind') != 'VAULT_OFFER' or int(offer.get('expiresAt') or 0) <= now
+            or offer.get('ownerCustomerId') != identity.customer_id
+            or offer.get('phone') != identity.phone):
+        return None
+    return offer
+
+
+def _unlock(event, client, db, keys, contact, identity, offer, now):
+    """"Unlock Vault" on one offer: Review and Pay for its file, or the link if already paid."""
+    if not event.get('sourceMessageId') or not event.get('phoneNumberId'):
+        return {'outcome': 'CATALOG_SERVICE_UNAVAILABLE'}
+    # The tap owns exactly one session. A replayed webhook never creates a second payment.
+    try:
+        keys.put_item(Item={'orderId': 'CATALOGSERVICEMSG#' + event['sourceMessageId'],
+                            'offerKey': offer['orderId']},
+                      ConditionExpression='attribute_not_exists(orderId)')
+    except Exception as error:
+        if _conditional_failed(error):
+            return {'outcome': 'CATALOG_SERVICE_REPLAY'}
+        raise
+    row = _vault_session(event, identity, contact, offer['fileId'], now)
+    row['offerKey'] = offer['orderId']
+    try:
+        file = vault.bind_file(db.Table(vault.FILES_TABLE), identity, offer['fileId'])
+    except customer_auth.CustomerNotAuthorized:
+        # Revoked or reassigned since the offer went out.
+        row['status'] = 'FILE_UNAVAILABLE'
+        keys.put_item(Item=row, ConditionExpression='attribute_not_exists(orderId)')
+        _send(client, row, content=OFFER_FILE_GONE)
+        return {'outcome': 'VAULT_FILE_SELECTION_UNAVAILABLE'}
+    # Decided now, not when the offer was sent: it may have been paid (or a window may have
+    # closed) in between.
+    state = _file_state(db, file, identity.customer_id, now)
+    row['fileChoiceStates'] = [state]
+    keys.put_item(Item=row, ConditionExpression='attribute_not_exists(orderId)')
+    if state in ('OPEN', 'READY'):
+        return _send_access(client, row, file['fileId'])
+    if state not in ('UNPAID', 'EXPIRED'):
+        _send(client, row, content=NOT_REQUESTED)
+        return {'outcome': 'VAULT_FILE_SELECTION_UNAVAILABLE'}
+    row['vaultFileId'] = file['fileId']
+    return _prepare_payment(client, db, keys, row, identity, state, notify=True)
+
+
+def _offer_send_outcome(response):
+    """``(outcome, detail)`` for one offer send. ``detail`` carries no customer data."""
+    if not isinstance(response, dict):
+        return 'VAULT_OFFER_UNCONFIRMED', 'no answer from the sender'
+    code = int(response.get('statusCode') or 0)
+    try:
+        body = json.loads(response.get('body') or '{}')
+    except (TypeError, ValueError):
+        body = {}
+    body = body if isinstance(body, dict) else {}
+    if 200 <= code < 300:
+        if body.get('status') == 'dry_run' or body.get('mode') == 'DRY_RUN':
+            return 'VAULT_OFFER_NOT_SENT', 'the sender is in dry-run mode'
+        return 'VAULT_OFFER_SENT', 'sent'
+    reason = str(body.get('error') or body.get('message') or '')[:120]
+    if 400 <= code < 500:
+        # Refused before or by Meta: nothing reached the customer.
+        return 'VAULT_OFFER_NOT_SENT', ('HTTP %d %s' % (code, reason)).strip()
+    # A 5xx or a timeout can follow an accepted send, so it is never reported as "not sent".
+    return 'VAULT_OFFER_UNCONFIRMED', 'HTTP %d' % code
+
+
+def _send_offer(event, client, db, keys, contacts, now):
+    """Staff asked for ₹49 for one file: send the Vault offer (wecare_valut_49). Never charges.
+
+    The offer names the document and carries an opaque token in its "Unlock Vault" quick reply.
+    The tap, a signed inbound message, is what proves the customer and opens Review and Pay
+    (`unlock`), so no linked contact is needed here. Answers an outcome and never messages the
+    customer a refusal.
+    """
     file_id = str(event.get('fileId') or '')
     owner = str(event.get('ownerCustomerId') or '')
     owner_phone = ''.join(c for c in str(event.get('ownerPhone') or '') if c in '0123456789')
@@ -336,26 +457,48 @@ def _request_payment(event, client, db, keys, contacts, now):
     try:
         contact = contact_store.find_by_phone(contacts, phone)
     except contact_store.IdentityConflict:
-        return {'outcome': 'CONTACT_LINK_REQUIRED', 'reason': 'AMBIGUOUS_CONTACT'}
-    # Only an ownership edge the identity bridge already proved (a signed WhatsApp message or a
-    # website sign-in); this path creates none, so commerce's own identity check will agree.
-    if not contact or str(contact.get('checkoutCustomerId') or '') != owner:
-        return {'outcome': 'CONTACT_LINK_REQUIRED'}
+        # The tap would fail closed on the same ambiguity, so the offer would be a dead end.
+        return {'outcome': 'CONTACT_AMBIGUOUS'}
+    try:
+        keys.update_item(Key={'orderId': OFFER_FILE_PREFIX + file_id},
+                         UpdateExpression='SET lastOfferAt=:now',
+                         ConditionExpression='attribute_not_exists(lastOfferAt) OR lastOfferAt < :recent',
+                         ExpressionAttributeValues={':now': now,
+                                                    ':recent': now - OFFER_RESEND_GUARD_SECONDS})
+    except Exception as error:
+        if _conditional_failed(error):
+            return {'outcome': 'VAULT_OFFER_RECENT'}
+        raise
     from lambda_utils.ecommerce import wa_payment_request
-    identity = customer_auth.CustomerIdentity(
-        customer_id=owner, subject=owner, phone=phone, phone_verified=True)
-    variant = service_requests.SERVICE_VARIANT_BY_KIND[service_requests.VAULT]
     token = secrets.token_urlsafe(24)
-    row = {'orderId': catalog.SESSION_PREFIX + token, 'token': token, 'kind': service_requests.VAULT,
-           'variantId': variant, 'productId': service_requests.SERVICE_PRODUCT_BY_VARIANT[variant],
-           'contactId': contact_key.resolve(contact), 'phone': phone, 'customerId': owner,
-           'phoneNumberId': wa_payment_request.PHONE_NUMBER_ID_1, 'sourceMessageId': '',
-           'createdAt': now, 'expiresAt': now + 3600, 'status': 'SELECTING',
-           'fileChoices': [file_id], 'fileChoiceStates': [state],
-           'origin': 'VAULT_PAYMENT_REQUEST', 'requestedBy': str(event.get('requestedBy') or 'staff')[:64]}
-    keys.put_item(Item=row, ConditionExpression='attribute_not_exists(orderId)')
-    row['vaultFileId'] = file_id
-    return _prepare_payment(client, db, keys, row, identity, state, notify=False)
+    contact_id = contact_key.resolve(contact) if contact else ''
+    offer = {'orderId': OFFER_PREFIX + token, 'kind': 'VAULT_OFFER', 'fileId': file_id,
+             'ownerCustomerId': owner, 'phone': phone, 'contactId': contact_id,
+             'createdAt': now, 'expiresAt': now + OFFER_TTL_SECONDS, 'fileState': state,
+             'status': 'SENDING', 'requestedBy': str(event.get('requestedBy') or 'staff')[:64]}
+    keys.put_item(Item=offer, ConditionExpression='attribute_not_exists(orderId)')
+    # No contact id is fine: outbound resolves or creates the contact from the number.
+    recipient = {'contactId': contact_id, 'phone': phone,
+                 'phoneNumberId': wa_payment_request.PHONE_NUMBER_ID_1}
+    try:
+        response = _send(client, recipient, **whatsapp_templates.vault_offer_send_fields(
+            file.get('displayName') or file.get('originalFilename'), token))
+    except Exception:  # noqa: BLE001 - an invoke failure may follow an accepted send
+        response = None
+    outcome, detail = _offer_send_outcome(response)
+    keys.update_item(Key={'orderId': offer['orderId']}, UpdateExpression='SET #s=:s, sendDetail=:d',
+                     ExpressionAttributeNames={'#s': 'status'},
+                     ExpressionAttributeValues={':s': outcome, ':d': detail})
+    if outcome == 'VAULT_OFFER_NOT_SENT':
+        # Nothing reached the customer, so staff may try again straight away.
+        try:
+            keys.update_item(Key={'orderId': OFFER_FILE_PREFIX + file_id},
+                             UpdateExpression='REMOVE lastOfferAt',
+                             ConditionExpression='lastOfferAt = :now',
+                             ExpressionAttributeValues={':now': now})
+        except Exception:  # noqa: BLE001 - a newer offer owns the guard now
+            pass
+    return {'outcome': outcome, 'fileId': file_id, 'renewal': state == 'EXPIRED', 'detail': detail}
 
 
 def _prepare_payment(client, db, keys, row, identity, state, *, notify):

@@ -72,6 +72,7 @@ RECIPIENT = "+919876500099"
 CONTACT_ID = "wa919876500099"
 REFERENCE = "WD-PAY-VERIFYPAYLOAD01"
 VAULT_FILE_ID = "verify-file-0001"
+VAULT_OFFER_TOKEN = "verifyOfferToken0123456789abcdef"
 OTP_CODE = "482913"
 
 VARIABLE = re.compile(r"\{\{\s*([^{}]+?)\s*\}\}")
@@ -281,6 +282,15 @@ def check_send(captured: Dict[str, Any], definition: Dict[str, Any]) -> List[str
             needed.add(index)
             if not component or component.get("sub_type") != "copy_code":
                 issues.append(f"button {index} (COPY_CODE) has no copy_code component")
+        elif kind == "QUICK_REPLY" and component is not None:
+            # Optional for Meta (a tap then returns the button text); when sent it must be one
+            # non-empty payload, which is how the Vault offer names its document.
+            needed.add(index)
+            values = component.get("parameters") or []
+            if component.get("sub_type") != "quick_reply":
+                issues.append(f"button {index} (QUICK_REPLY) component is not sub_type quick_reply")
+            elif len(values) != 1 or values[0].get("type") != "payload" or not values[0].get("payload"):
+                issues.append(f"button {index} quick_reply parameter is not one non-empty payload")
     unexpected = sorted(set(buttons) - needed)
     if unexpected:
         issues.append(f"button component(s) at index {unexpected} the template does not take")
@@ -537,6 +547,9 @@ def main() -> int:
             "templateParams": [], "headerType": "location",
             "headerLocation": {"latitude": "22.5726", "longitude": "88.3639",
                                "name": "WECARE.DIGITAL", "address": "Kolkata"}}, True),
+        (whatsapp_templates.VAULT_OFFER, "business-api catalog_services sendOffer via vault_offer_send_fields", {
+            **person, **whatsapp_templates.vault_offer_send_fields(
+                "Verification document", VAULT_OFFER_TOKEN)}, False),
     ]
 
     problems = 0

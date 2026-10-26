@@ -1216,6 +1216,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # template definition and passes {index, flowToken?, flowActionData?}.
         template_flow_button = body.get('flowButton') or body.get('templateFlowButton')
         template_url_button = body.get('templateUrlButton')
+        # The Vault offer's QUICK_REPLY payload ({index, payload}); the builder accepts it for that
+        # one template only.
+        template_quick_reply_button = body.get('templateQuickReplyButton')
 
         # Checkout button template support (order_details button with sale_amount + shipping_info)
         is_checkout_template = body.get('isCheckoutTemplate', False)
@@ -1584,6 +1587,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             template_header_location=template_header_location,
             template_flow_button=template_flow_button,
             template_url_button=template_url_button,
+            template_quick_reply_button=template_quick_reply_button,
             context_message_id=context_message_id,
             direct_send_category=direct_send_category,
             direct_send_waba=direct_send_waba,
@@ -2457,7 +2461,8 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
                       is_lto_template: bool = False,
                       lto_expiration_ms: Optional[int] = None,
                       lto_offer_code: Optional[str] = None,
-                      lto_copy_code_index: int = 0) -> Dict[str, Any]:
+                      lto_copy_code_index: int = 0,
+                      template_quick_reply_button: Optional[Dict] = None) -> Dict[str, Any]:
     """
     Handle LIVE mode - call Meta Graph API (Direct API).
     Requirements: 5.2, 5.5, 5.6, 5.7, 5.8, 5.10, 5.11
@@ -2537,6 +2542,7 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
             template_header_location=template_header_location,
             template_flow_button=template_flow_button,
             template_url_button=template_url_button,
+            template_quick_reply_button=template_quick_reply_button,
             context_message_id=context_message_id,
             direct_send_category=direct_send_category,
             is_lto_template=is_lto_template,
@@ -3757,7 +3763,8 @@ def _build_message_payload(recipient_phone: str, content: str, media_type: Optio
                            is_lto_template: bool = False,
                            lto_expiration_ms: Optional[int] = None,
                            lto_offer_code: Optional[str] = None,
-                           lto_copy_code_index: int = 0) -> Dict[str, Any]:
+                           lto_copy_code_index: int = 0,
+                           template_quick_reply_button: Optional[Dict] = None) -> Dict[str, Any]:
     """Build WhatsApp Cloud API message payload. Supports BSUID recipient.
 
     `direct_send_category` is keyword-only and defaults to None, so every existing
@@ -3952,6 +3959,17 @@ def _build_message_payload(recipient_phone: str, content: str, media_type: Optio
                     or template_name != 'wecare_default_download'):
                 raise ValueError('incompatible dynamic download template')
             payload['template']['components'].append(url_button_component(template_url_button))
+
+        # The Vault offer's "Unlock Vault" QUICK_REPLY carries an opaque offer token, which Meta
+        # returns with the tap. Accepted for that template only, so no other send can mint a
+        # button the inbound worker would route to a payment.
+        if template_quick_reply_button is not None:
+            from lambda_utils.ecommerce.catalog_service_checkout import quick_reply_component
+            if (is_otp_template or template_flow_button or template_url_button is not None
+                    or template_name != whatsapp_templates.VAULT_OFFER.name):
+                raise ValueError('incompatible quick reply template')
+            payload['template']['components'].append(
+                quick_reply_component(template_quick_reply_button))
 
         # Flow button component — REQUIRED by Meta when the template contains a
         # FLOW button, otherwise Meta rejects the send with error 131008/131009

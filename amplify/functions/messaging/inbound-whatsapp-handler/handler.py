@@ -2868,6 +2868,12 @@ def _process_message(
             'senderPhone': mask_phone(sender_phone),
             'requestId': request_id,
         }))
+        # "Unlock Vault" on the ₹49 Vault offer (wecare_valut_49). Its payload names the offer,
+        # so the tap opens Review and Pay for exactly that document; a tap with no offer payload
+        # opens the customer's document list, as the "Vault" keyword does.
+        if _route_vault_offer_tap(message, button_text_lower, contact_id, sender_phone,
+                                  aws_phone_number_id, whatsapp_message_id, request_id):
+            return
         # Map common button texts to the site menu.
         # `customerservice` is here because the the legacy customer-service label ice breaker is live on
         # both numbers and can arrive as `button` rather than `text`. The text
@@ -3462,6 +3468,49 @@ def _process_message(
         # Unmatched messages are stored but no reply is sent.
         # The admin can see all messages in the dashboard inbox and reply manually.
         pass
+
+
+def _route_vault_offer_tap(message: Dict, button_text_lower: str, contact_id: str,
+                           sender_phone: str, aws_phone_number_id: str,
+                           whatsapp_message_id: Optional[str], request_id: str) -> bool:
+    """Hand an "Unlock Vault" tap to business-api `catalogService`. True when handled.
+
+    The tap is a signed inbound message, so its message id is the identity evidence commerce's
+    bridge checks, exactly as for a Vault catalog cart. WABA1 only, because only WABA1 may take a
+    payment, and only while WHATSAPP_CATALOG_SERVICES_ENABLED is on; otherwise the tap falls
+    through to the ordinary button handling. The payload is never trusted for anything but the
+    lookup of the offer it names: business-api re-proves the customer and the file.
+    """
+    from lambda_utils import whatsapp_templates
+    payload = str((message.get('button') or {}).get('payload') or '')
+    prefix = whatsapp_templates.VAULT_OFFER_PAYLOAD_PREFIX
+    if not payload.startswith(prefix) and button_text_lower != 'unlock vault':
+        return False
+    if (not whatsapp_message_id or aws_phone_number_id != PHONE_NUMBER_ID_1
+            or os.environ.get('WHATSAPP_CATALOG_SERVICES_ENABLED', 'false').lower() != 'true'):
+        return False
+    from lambda_utils.ecommerce import service_requests as services
+    variant = services.SERVICE_VARIANT_BY_KIND[services.VAULT]
+    token = payload[len(prefix):] if payload.startswith(prefix) else ''
+    if _may_send('vault_offer_tap'):
+        try:
+            lambda_client.invoke(
+                FunctionName='wecare-whatsapp-business-api:live', InvocationType='Event',
+                Payload=json.dumps({
+                    'internalAction': 'catalogService', 'action': 'unlock' if token else 'start',
+                    'offerToken': token,
+                    'lines': [{'productId': services.SERVICE_PRODUCT_BY_VARIANT[variant],
+                               'variantId': variant, 'quantity': 1}],
+                    'sourceMessageId': whatsapp_message_id, 'contactId': contact_id,
+                    'senderPhone': sender_phone, 'phoneNumberId': aws_phone_number_id}).encode())
+        except Exception as error:  # noqa: BLE001 - logged; the tap must not crash the worker
+            logger.warning(json.dumps({'event': 'vault_offer_tap_unrouted',
+                                       'errorType': type(error).__name__,
+                                       'requestId': request_id}))
+            return False
+    logger.info(json.dumps({'event': 'vault_offer_tap_routed', 'withOffer': bool(token),
+                            'contactId': mask_contact_id(contact_id), 'requestId': request_id}))
+    return True
 
 
 def _extract_content(message: Dict, msg_type: str) -> str:

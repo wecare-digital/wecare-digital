@@ -244,7 +244,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
             toast.success( `${displayName.trim() || file.name} registered to ${name.trim()}` );
             if ( requestAfterUpload )
             {
-                setStep( 'Sending the ₹49 request on WhatsApp…' );
+                setStep( 'Sending the ₹49 Vault message on WhatsApp…' );
                 reportAction( await api.requestSecureFilePayment( ticket.data.fileId ) );
             }
             resetForm();
@@ -389,11 +389,12 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                     onChange={ e => setRequestAfterUpload( e.target.checked ) }
                                     disabled={ uploading }
                                 />
-                                <span>Ask the customer for { rupees( 4900 ) } on WhatsApp after upload</span>
+                                <span>Send the { rupees( 4900 ) } Vault message on WhatsApp after upload</span>
                             </label>
                             <p className="sf-hint">
-                                Sends Review and Pay for this file. If their WhatsApp is not linked
-                                yet, the Access Vault link goes instead and they pay from there.
+                                The customer gets &ldquo;Your { displayName.trim() || file?.name || 'document' } copy
+                                is ready! Pay { rupees( 4900 ) }…&rdquo; with an Unlock Vault button. Tapping it opens
+                                Review and Pay for this file; Access Vault follows once paid.
                             </p>
                         </div>
                     </div>
@@ -524,8 +525,8 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                                                 { acting === row.fileId
                                                                     ? 'Sending…'
                                                                     : accessStateOf( row ) === 'EXPIRED'
-                                                                        ? `Request ${ rupees( 4900 ) } renewal`
-                                                                        : `Request ${ rupees( 4900 ) }` }
+                                                                        ? `Send ${ rupees( 4900 ) } renewal message`
+                                                                        : `Send ${ rupees( 4900 ) } Vault message` }
                                                             </button>
                                                         ) }
                                                         { row.status === 'active' && ( accessStateOf( row ) === 'OPEN' || accessStateOf( row ) === 'READY' ) && (

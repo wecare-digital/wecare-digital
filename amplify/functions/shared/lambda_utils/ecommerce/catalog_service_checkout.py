@@ -94,6 +94,27 @@ def url_button_component(button: dict) -> dict:
             'parameters': [{'type': 'text', 'text': suffix}]}
 
 
+#: An offer token: what `catalogService.sendOffer` mints (`secrets.token_urlsafe(24)`).
+OFFER_TOKEN_RE = re.compile(r'[A-Za-z0-9_-]{20,80}')
+
+
+def quick_reply_component(button: dict) -> dict:
+    """The send-time payload of the Vault offer's QUICK_REPLY button.
+
+    Meta returns the payload with the customer's tap. It is only ever `vaultoffer:` and an
+    opaque offer token, never a file id, phone number or amount: the token is looked up
+    server-side and the tap is then re-proven against the verified sender.
+    """
+    payload, index = button.get('payload'), button.get('index', 0)
+    prefix = 'vaultoffer:'
+    if (not isinstance(payload, str) or not payload.startswith(prefix)
+            or not OFFER_TOKEN_RE.fullmatch(payload[len(prefix):])
+            or type(index) is not int or not 0 <= index <= 9):
+        raise ValueError('invalid quick reply button')
+    return {'type': 'button', 'sub_type': 'quick_reply', 'index': str(index),
+            'parameters': [{'type': 'payload', 'payload': payload}]}
+
+
 def payment_details(row: dict, quote: Any, reference_id: str, configuration: str, now: int) -> dict:
     if not re.fullmatch(r'[A-Za-z0-9._-]{1,35}', reference_id or '') or not configuration:
         raise ValueError('verified payment configuration and canonical reference required')

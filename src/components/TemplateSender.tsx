@@ -34,6 +34,9 @@ const INVOICE_TEMPLATE = 'wecare_default_invoice_image_template';
 const ORDER_STATUS_TEMPLATE = 'wecare_order_status_v3';
 const OTP_TEMPLATE = 'wecare_otp';
 const DOWNLOAD_TEMPLATE = 'wecare_default_download';
+/* The ₹49 Vault offer. Its Unlock Vault button must carry the document's offer token, which
+   only Secure files mints, so a generic send would be a button tied to no document. */
+const VAULT_OFFER_TEMPLATE = 'wecare_valut_49';
 const SHARED_TEMPLATE_HEADER = 'https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/whatsapp-header.png';
 /* The value that replaces {{1}} in a dynamic URL button. Outbound accepts identifiers only
    (`url_button_component`: letters, digits, - and _), so anything else is refused here first. */
@@ -53,6 +56,7 @@ const GENERIC_SEND_BLOCKED_TEMPLATES = new Set( [
   INVOICE_TEMPLATE,
   ORDER_STATUS_TEMPLATE,
   OTP_TEMPLATE,
+  VAULT_OFFER_TEMPLATE,
 ] );
 
 interface TemplateSenderProps {
@@ -675,7 +679,9 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
           ? 'Send invoices from Payments / Invoices so the generated invoice image and review token are attached.'
           : name === ORDER_STATUS_TEMPLATE
             ? 'Send order status from Payments / the paid invoice so the authoritative order state is included.'
-            : 'OTP is sent only by the customer verification/sign-in flow; staff cannot generate authentication codes here.';
+            : name === VAULT_OFFER_TEMPLATE
+              ? 'Send the ₹49 Vault message from Service → Documents → Secure files, so its Unlock Vault button opens payment for that document.'
+              : 'OTP is sent only by the customer verification/sign-in flow; staff cannot generate authentication codes here.';
       onError( message );
       return;
     }

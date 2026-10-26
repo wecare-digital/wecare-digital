@@ -196,12 +196,22 @@ Review and Pay for that one file (server-priced, WABA1 only). There are three wa
 
 | Who | Where | What happens |
 |---|---|---|
-| Staff | Secure files → **Request ₹49** (or the upload checkbox) → `POST /secure-files/{fileId}/request-payment` | business-api `catalogService.requestPayment` sends Review and Pay when the owner's WhatsApp contact is already linked to the file's owner; otherwise secure-files sends the Access Vault link instead |
+| Staff | Secure files → **Send ₹49 Vault message** (or the upload checkbox) → `POST /secure-files/{fileId}/request-payment` | business-api `catalogService.sendOffer` sends template `wecare_valut_49`: "Your *{document}* copy is ready! Pay ₹49…" with an **Unlock Vault** quick reply carrying an opaque offer token (`VAULTOFFER#<token>` in CommerceKeys, 7 days) |
+| Customer | Taps **Unlock Vault** | inbound routes the tap to `catalogService.unlock`; the tap is the identity evidence, and the offer's file gets one Review and Pay (or Access Vault if already paid). An unknown, expired or someone else's offer, or an "Unlock Vault" tap with no offer payload, gets the document list instead |
 | Customer | WhatsApp "Vault" (keyword or Vault catalog item) | `catalogService.start` lists their documents as unpaid, **Paid** (free link) or **Renew**; picking one sends one Review and Pay |
 | Customer | `/vault/?file=` or `/get/` | unpaid and expired files link to WhatsApp with "Vault" typed |
 
+The offer charges nothing and needs no linked WhatsApp contact beforehand: commerce's identity
+bridge proves the customer from the tap, a signed inbound message, as it does for a cart. The
+offer template is blocked in the Inbox template sender, because only Secure files can mint the
+token that ties its button to a document.
+
 Staff can also **Send Access Vault** (`POST /secure-files/{fileId}/send-access`) for a paid file; it
 never charges and never opens a window.
+
+Drop Docs (Service → Documents → **Add Document**) is a different store: documents a customer sends
+in, kept in `DocumentTable`. A file added there is not in the Vault and is never offered for ₹49.
+Vault documents are added in **Secure files**.
 
 Windows are paid for one at a time. The durable entitlement counts `paidWindowCount` (a missing
 counter is the one original purchase) and `accessWindowCount`. A window opens against an unused paid

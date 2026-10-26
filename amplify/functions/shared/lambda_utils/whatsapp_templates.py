@@ -14,8 +14,9 @@ Meta is the authority on whether a template is APPROVED. This module is the auth
 template each business step uses and what components that step must supply. Senders still prove
 approval with a live readback before a money-path send; nothing here can enable a send on its own.
 
-The live set (WABA1 `2094615664435155`, verified by the owner and the 2026-10-25 readback; all
-seven APPROVED, `en`). `scripts/check_whatsapp_template_payloads_live.py` builds each send with
+The live set (WABA1 `2094615664435155`, verified by the owner and the 2026-10-25 readback, plus
+`wecare_valut_49` read back APPROVED on 2026-10-26; all eight `en`).
+`scripts/check_whatsapp_template_payloads_live.py` builds each send with
 the production code and checks it against these live definitions:
 
     PAY            wecare_whatapp_native_pay_template     UTILITY, IMAGE header, ORDER_DETAILS button
@@ -28,6 +29,9 @@ the production code and checks it against these live definitions:
     DOWNLOAD       wecare_default_download                IMAGE header, URL button index 0
                                                           (`/vault/?file={{1}}`, Vault digital delivery)
     LOCATION_PIN   wecare_location_share_pin              LOCATION header, manual only
+    VAULT_OFFER    wecare_valut_49                        IMAGE header, body {{1}} (document name),
+                                                          QUICK_REPLY "Unlock Vault" index 0 (added
+                                                          2026-10-26: the ₹49 offer for one file)
 
 `wecare_whatapp_native_pay_template` is the real approved spelling ("whatapp"); do not "fix" it.
 
@@ -99,9 +103,15 @@ DOWNLOAD = Template(name="wecare_default_download", language="en", category="UTI
                     header="image", buttons=("url",))
 LOCATION_PIN = Template(name="wecare_location_share_pin", language="en", category="UTILITY",
                         header="location", automated=False)
+#: The ₹49 Vault offer for one document that is unpaid or whose paid windows are used up. IMAGE
+#: header, the document name as body {{1}}, and QUICK_REPLY button 0 "Unlock Vault" whose
+#: send-time payload names the offer, so a tap opens Review and Pay for exactly that file. Sent
+#: only by business-api `catalogService.sendOffer`; "valut" is the approved spelling.
+VAULT_OFFER = Template(name="wecare_valut_49", language="en", category="UTILITY",
+                       header="image", buttons=("quick_reply",))
 
 ALL: Tuple[Template, ...] = (PAY, INVOICE, ORDER_STATUS, OTP, LEAVE_REVIEW, DOWNLOAD,
-                             LOCATION_PIN)
+                             LOCATION_PIN, VAULT_OFFER)
 
 #: Templates no post-payment automation may send. The invoice's own FLOW button is the only
 #: review entry point, and there is no separate confirmation or review follow-up.
@@ -134,6 +144,37 @@ def download_send_fields(file_id: str) -> dict:
             "templateUrlButton": {"index": 0, "suffix": file_id}}
 
 
+#: What a tap on the offer's "Unlock Vault" button sends back as `button.payload`. The inbound
+#: worker routes only this prefix to `catalogService.unlock`.
+VAULT_OFFER_PAYLOAD_PREFIX = "vaultoffer:"
+
+
+def vault_offer_document_name(raw: object) -> str:
+    """The document name as the offer's body {{1}}: one line, at most 60 characters.
+
+    Meta refuses a text parameter holding a newline, a tab or more than four spaces in a row
+    (132018), and the body wraps {{1}} in *bold*, so emphasis marks would break it.
+    """
+    text = "".join(ch if ch.isprintable() else " " for ch in str(raw or ""))
+    text = " ".join(text.replace("*", "").replace("_", " ").replace("~", "").split())
+    return text[:60].rstrip() or "Your document"
+
+
+def vault_offer_send_fields(document_name: str, offer_token: str) -> dict:
+    """The outbound-whatsapp request fields for one VAULT_OFFER send.
+
+    `templateParams` leads with the language because outbound reads a short first parameter as
+    the language code: a two-letter document name such as "ID" would otherwise be swallowed.
+    The fixed IMAGE header and the quick-reply payload travel with every send.
+    """
+    return {"isTemplate": True, "templateName": VAULT_OFFER.name,
+            "templateParams": [VAULT_OFFER.language, vault_offer_document_name(document_name)],
+            "templateHeaderMedia": VAULT_HEADER_IMAGE, "templateHeaderType": "image",
+            "templateQuickReplyButton": {"index": 0,
+                                         "payload": VAULT_OFFER_PAYLOAD_PREFIX + offer_token}}
+
+
 __all__ = ["Template", "PAY", "INVOICE", "ORDER_STATUS", "OTP", "LEAVE_REVIEW", "DOWNLOAD",
-           "LOCATION_PIN", "ALL", "POST_PAYMENT_FORBIDDEN", "by_name", "VAULT_HEADER_IMAGE",
-           "download_send_fields"]
+           "LOCATION_PIN", "VAULT_OFFER", "ALL", "POST_PAYMENT_FORBIDDEN", "by_name",
+           "VAULT_HEADER_IMAGE", "VAULT_OFFER_PAYLOAD_PREFIX", "download_send_fields",
+           "vault_offer_document_name", "vault_offer_send_fields"]

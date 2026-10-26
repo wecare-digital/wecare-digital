@@ -1081,22 +1081,26 @@ def _admin_revoke(file_id: str, event: Dict[str, Any], origin: str) -> Dict[str,
 BUSINESS_API_FUNCTION = os.environ.get(
     "VAULT_PAYMENT_FUNCTION", "wecare-whatsapp-business-api:live")
 
-#: What staff are told for each answer of the WhatsApp payment request. Every sentence says
-#: whether anything reached the customer, because that is what decides the next step.
+#: What staff are told for each answer of the ₹49 Vault message. Every sentence says whether
+#: anything reached the customer, because that is what decides the next step.
 _PAYMENT_REQUEST_REPLIES: Dict[str, Tuple[int, str]] = {
-    "PAYMENT_REQUEST_SENT": (200, "Review and Pay was sent to the customer on WhatsApp."),
-    "PAYMENT_REQUEST_UNCONFIRMED": (
-        202, "The payment request may have been sent. Check the chat before trying again."),
-    "NATIVE_SERVICE_PAYMENT_ALREADY_IN_PROGRESS": (
-        409, "This customer already has a payment request open. It expires within an hour."),
-    "CATALOG_SERVICE_ALREADY_PREPARING": (
-        409, "A payment request for this customer is being prepared. Try again in a minute."),
+    "VAULT_OFFER_SENT": (
+        200, "The ₹49 Vault message was sent on WhatsApp. When the customer taps Unlock Vault, "
+             "they get Review and Pay for this file, then Access Vault once paid."),
+    "VAULT_OFFER_UNCONFIRMED": (
+        202, "The Vault message may have been sent. Check the chat before sending it again."),
+    "VAULT_OFFER_NOT_SENT": (502, "The Vault message was not sent."),
+    "VAULT_OFFER_RECENT": (
+        409, "A Vault message for this file went out less than a minute ago. Nothing was sent."),
+    "CONTACT_AMBIGUOUS": (
+        409, "This number belongs to more than one contact. Merge them in Contacts, then send "
+             "again. Nothing was sent."),
+    "VAULT_FILE_UNAVAILABLE": (
+        409, "This file cannot be offered: it is not active or not bound to its customer."),
     "VAULT_ACCESS_ACTIVE": (
         409, "This file is paid and can be downloaded. Send the Access Vault link instead."),
     "NATIVE_SERVICE_ROLLOUT_DISABLED": (
         503, "WhatsApp Vault payments are switched off. Nothing was sent."),
-    "NATIVE_SERVICE_META_NOT_READY": (
-        503, "The WhatsApp payment templates are not ready. Nothing was sent."),
 }
 
 
@@ -1128,14 +1132,13 @@ def _admin_access_state(item: Dict[str, Any], now: int) -> str:
 
 
 def _admin_request_payment(file_id: str, event: Dict[str, Any], origin: str) -> Dict[str, Any]:
-    """Ask the file's owner for ₹49 on WhatsApp: Review and Pay, or the Access Vault link.
+    """Send the file's owner the ₹49 Vault message on WhatsApp (template wecare_valut_49).
 
-    The payment itself is only ever the commerce Review and Pay for THIS file, built by
-    business-api `catalogService.requestPayment`, so the amount stays server-priced and the
-    payment unlocks exactly this file. That needs the customer's WhatsApp contact already linked
-    to the file's owner. When it is not, the Access Vault link goes instead (approved for use
-    outside the 24-hour window): the customer verifies on the Vault page, which sends them to
-    the WhatsApp Vault list, whose signed message links the contact.
+    business-api `catalogService.sendOffer` sends "Your <document> copy is ready! Pay ₹49…" with
+    an "Unlock Vault" button tied to THIS file. Nothing is charged here. The customer's tap opens
+    the commerce Review and Pay for exactly this file, server-priced, and payment then sends the
+    Access Vault link. The tap also proves the customer, so no linked WhatsApp contact is needed
+    beforehand.
     """
     item, refusal = _owned_file_for_admin(file_id)
     if refusal:
@@ -1155,7 +1158,7 @@ def _admin_request_payment(file_id: str, event: Dict[str, Any], origin: str) -> 
             FunctionName=BUSINESS_API_FUNCTION,
             InvocationType="RequestResponse",
             Payload=json.dumps({
-                "internalAction": "catalogService", "action": "requestPayment",
+                "internalAction": "catalogService", "action": "sendOffer",
                 "fileId": file_id, "ownerCustomerId": item["ownerCustomerId"],
                 "ownerPhone": item["ownerPhone"],
                 "requestedBy": str((event.get("_auth") or {}).get("username", ""))[:64],
@@ -1163,29 +1166,19 @@ def _admin_request_payment(file_id: str, event: Dict[str, Any], origin: str) -> 
         )
         answer = json.loads(response["Payload"].read() or b"{}")
         if response.get("FunctionError"):
-            answer = {"outcome": "PAYMENT_REQUEST_UNCONFIRMED"}
+            answer = {"outcome": "VAULT_OFFER_UNCONFIRMED"}
     except Exception as exc:  # noqa: BLE001
-        logger.warning(json.dumps({"event": "vault_payment_request_invoke_failed",
+        logger.warning(json.dumps({"event": "vault_offer_invoke_failed",
                                    "error": type(exc).__name__}))
-        answer = {"outcome": "PAYMENT_REQUEST_UNCONFIRMED"}
-    outcome = str(answer.get("outcome") or "PAYMENT_REQUEST_UNCONFIRMED")
-    logger.info(json.dumps({"event": "vault_payment_requested", "fileId": file_id,
+        answer = {"outcome": "VAULT_OFFER_UNCONFIRMED"}
+    outcome = str(answer.get("outcome") or "VAULT_OFFER_UNCONFIRMED")
+    logger.info(json.dumps({"event": "vault_offer_requested", "fileId": file_id,
                             "outcome": outcome, "renewal": state == "EXPIRED"}))
-
-    if outcome == "CONTACT_LINK_REQUIRED":
-        from whatsapp_delivery import send_vault_link
-
-        ok, detail = send_vault_link(phone=str(item["ownerPhone"]), file_row=item)
-        if not ok:
-            return cors_response(502, {"error": "VAULT_LINK_NOT_SENT", "outcome": outcome,
-                                       "message": "Nothing could be sent: " + detail}, origin)
-        return cors_response(200, {
-            "outcome": "VAULT_LINK_SENT", "fileId": file_id,
-            "message": ("The customer's WhatsApp is not linked for in-chat payment yet, so the "
-                        "Access Vault link was sent. They verify there and pay ₹49 on WhatsApp."),
-        }, origin)
     code, message = _PAYMENT_REQUEST_REPLIES.get(
-        outcome, (502, "The payment request was not sent (" + outcome + ")."))
+        outcome, (502, "The Vault message was not sent (" + outcome + ")."))
+    detail = str(answer.get("detail") or "")[:120]
+    if outcome == "VAULT_OFFER_NOT_SENT" and detail:
+        message = message + " " + detail[:1].upper() + detail[1:] + "."
     body = {"outcome": outcome, "fileId": file_id, "message": message,
             "renewal": state == "EXPIRED"}
     if code >= 400:
