@@ -320,7 +320,9 @@ const PublicShare: React.FC<PublicShareProps> = ( {
           border-radius:999px;background:var(--public-brand-lime);color:var(--public-brand-green);
           font-size:17px;font-weight:700;line-height:1;
         }
-        .ps-row{display:flex;align-items:center;gap:12px;width:max-content;max-width:100%}
+        /* flex-wrap only takes effect when three 48px buttons cannot fit, which is a 200%-zoom
+           layout on a 320px phone (128px of row): the third button sat 16px off-screen. */
+        .ps-row{display:flex;flex-wrap:wrap;align-items:center;gap:12px;width:max-content;max-width:100%}
         .contribute{margin:0;padding:0;border:0;position:static}
         .ps-action{
           position:relative;width:48px;height:48px;box-sizing:border-box;border-radius:50%;

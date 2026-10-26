@@ -1069,7 +1069,9 @@ const WorkflowTerminal: React.FC = () => {
            toward a solidly-legible muted white by OPACITY ONLY (no new hex): title .88, state
            .86. Both stay BELOW the solid-#fff step content so the content lines remain the
            loudest glyphs. .88/.86 on #000 clear AA comfortably (~18:1 / ~17:1). */
-        .wt-bar-title{margin-left:8px;color:rgba(255,255,255,.88);font-size:14px;white-space:nowrap}
+        /* min-width/overflow/ellipsis: when the bar has no room, which only happens at 200% zoom
+           on a phone, the title truncates with an ellipsis instead of being cut mid-letter. */
+        .wt-bar-title{margin-left:8px;color:rgba(255,255,255,.88);font-size:14px;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
         .wt-bar-state{margin-left:auto;display:flex;align-items:center;gap:7px;color:rgba(255,255,255,.86);font-size:13.5px;white-space:nowrap}
         /* GREEN "live trace" dot. #3da35a is the third light's own value, so no new colour
            enters, and green for a live status is the one hue here that already means
@@ -1097,7 +1099,10 @@ const WorkflowTerminal: React.FC = () => {
            tech, not a visible label competing with the request line. clamp() scales the request
            fluidly between phone and desktop rather than being stepped down on mobile, per
            .kiro/steering/00-common.md which favours clamp() over fixed sizes. */
-        .wt-request{margin-bottom:28px;display:flex;gap:10px;color:#fff;font-size:clamp(16px,1.1vw + 14px,18px);line-height:1.7}
+        /* overflow-wrap:anywhere, not break-word, because the sentence is a flex item and only
+           anywhere lowers its min-content width. At 200% zoom on a phone, Superintelligence is
+           wider than the panel and was clipped by 41-97px; it now breaks. No effect when it fits. */
+        .wt-request{margin-bottom:28px;display:flex;gap:10px;color:#fff;font-size:clamp(16px,1.1vw + 14px,18px);line-height:1.7;overflow-wrap:anywhere}
         .wt-caret{color:#d1f470}
 
         /* Each step fades up as it arrives. The connector is a ::before rule so it

@@ -119,10 +119,55 @@ fbq('track', 'PageView');
  * color-scheme instead of letting a browser infer one. Asserted by rtlcheck.js, which reads
  * the exported index.html before any script has run.
  */
+/**
+ * DEPLOY-SKEW GUARD: one reload when the page's own build files fail to load.
+ *
+ * Every Amplify deploy replaces the whole export, so the previous build's /_next/static/ files
+ * stop existing the moment it lands. A visitor whose HTML arrived just before that then asks
+ * for files that are gone, the scripts fail, and the page stays un-hydrated: no menu, no
+ * language panel, no checkout. This was caught live on 2026-10-26, when a deploy landed
+ * mid-audit and both Chromium and WebKit refused the old _buildManifest.js. This branch
+ * deploys many times an hour, so the window keeps reopening.
+ *
+ * Reloading fetches fresh HTML (the site is no-store) that names the new files. That is the
+ * fix rather than Amplify's skew protection, which pins a browser to the deployment it first
+ * loaded - the stale-after-deploy behaviour PR #1467 removed the cache layer to get rid of.
+ *
+ * BOUNDED THREE WAYS, so it can never loop or cost anyone their work:
+ *   - only files under this origin's /_next/static/ count; a third-party failure never reloads
+ *   - only until the window load event: a lazy chunk failing later, perhaps mid-form in the
+ *     Workspace, is left to the app rather than reloading over unsaved input
+ *   - once per tab session (sessionStorage); a clean load clears the flag, and if storage is
+ *     unavailable it does nothing at all
+ * Resource errors do not bubble, so the listener is on the capture phase. This is the first
+ * script in the head. Next's three stylesheet preload hints are emitted above it, but a fetch
+ * fails asynchronously, after this inline script has run, and the stylesheet and script tags
+ * those hints point at all come after it in the document anyway.
+ */
+const deploySkewGuard = `
+(function(){
+  var KEY='wc-build-reload',failed=false,base=location.origin+'/_next/static/';
+  function onError(e){
+    var t=e.target,u=t&&(t.tagName==='SCRIPT'?t.src:(t.tagName==='LINK'?t.href:''));
+    if(!u||u.indexOf(base)!==0)return;
+    failed=true;
+    try{if(sessionStorage.getItem(KEY))return;sessionStorage.setItem(KEY,'1');}catch(x){return;}
+    location.reload();
+  }
+  window.addEventListener('error',onError,true);
+  window.addEventListener('load',function(){
+    window.removeEventListener('error',onError,true);
+    if(!failed){try{sessionStorage.removeItem(KEY);}catch(x){}}
+  });
+})();
+`.trim();
+
 export default function Document () {
   return (
     <Html lang="en" dir="ltr">
       <Head>
+        {/* First script in the head, so it is listening before any build file can fail. */}
+        <script dangerouslySetInnerHTML={ { __html: deploySkewGuard } } />
         <meta httpEquiv="X-Content-Type-Options" content="nosniff" />
         {/* THERE IS DELIBERATELY NO X-Frame-Options META TAG HERE. Browsers honour XFO
             only as an HTTP header and ignore the meta form entirely, so it provided zero

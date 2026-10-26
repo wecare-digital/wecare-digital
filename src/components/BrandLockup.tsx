@@ -171,6 +171,19 @@ const BrandLockup: React.FC<BrandLockupProps> = ( { className = '', compact = fa
         .brand-lockup.public-header img{height:54px}
         .brand-lockup.public-header .brand-copy>span{font-size:21px}
       }
+      /* 200%-ZOOM FALLBACK, below the narrowest device that ships (the 280px Galaxy Fold
+         cover), so only a zoomed layout reaches it. Under 275px the wordmark no longer fits
+         beside the 46px menu trigger and the 44px bag: measured on the built header, it ran
+         under both, and the trigger and the bag overlapped each other by up to 26px at 160px,
+         so a tap could land on the wrong control. The header keeps the mark alone there - the
+         home link's aria-label still names the site - and under 170px the mark steps down to
+         the 44px tap floor so the three controls still fit side by side. */
+      @media(max-width:274px){
+        .brand-lockup.public-header .brand-copy{display:none}
+      }
+      @media(max-width:169px){
+        .brand-lockup.public-header img{height:44px}
+      }
     ` }</style>
   </span>
 );

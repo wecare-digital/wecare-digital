@@ -695,9 +695,9 @@ export default function App ( { Component, pageProps }: AppProps ) {
   // THERE IS NO 404 PAGE: src/pages/404.tsx redirects to the home page. The file exists
   // because deleting it does not remove a 404 page, it restores Next's built-in one - 6.8KB
   // reading "404 This page could not be found", with no header, no footer, no widget and
-  // ZERO links, which is what shipped before. Amplify's `/<*>` -> `/index.html` 404-200 rule
-  // already sends mistyped PATHS to the home page; this covers a direct request for /404/
-  // and any shell that resolves its own not-found document.
+  // ZERO links, which is what shipped before. Amplify's terminal `/<*>` -> `/404.html` rule at
+  // `404-200` serves this page, with a real HTTP 404, for every mistyped path, and the page then
+  // sends the visitor home. It also covers a direct request for /404/.
   //
   // NOT in PUBLIC_PAGE_META, because entries there acquire WebPage structured data and a
   // sitemap entry, and advertising a redirect stub to a crawler is the opposite of the
@@ -740,7 +740,11 @@ export default function App ( { Component, pageProps }: AppProps ) {
   /**
    * A MISTYPED ADDRESS LANDS ON THE HOME PAGE, and the address bar says so.
    *
-   * Amplify's last custom rule is `/<*>` -> `/index.html` with status `404-200`. Despite
+   * CURRENT RULE (2026-10-26): `/<*>` -> `/404.html` at `404-200`, so a mistyped path renders
+   * src/pages/404.tsx, which redirects home itself. This effect only matters if a rule ever
+   * serves index.html for a non-root path again, which is what the history below describes.
+   *
+   * Amplify's last custom rule was `/<*>` -> `/index.html` with status `404-200`. Despite
    * the name that is NOT "rewrite to 200" — the CDK enum calls it `NOT_FOUND_REWRITE`,
    * "Not found rewrite (404)". Measured on the live site: an unknown path returns HTTP
    * 404 with a body byte-identical to `/index.html`.
@@ -1056,11 +1060,20 @@ export default function App ( { Component, pageProps }: AppProps ) {
             the canonical public display rungs scale fluidly instead of forcing fixed 40/32/24px
             sizes into smaller effective viewports. Balanced wrapping prevents short headings
             from leaving orphan words. Headings and body copy remain selectable: long-press
-            selection is native browser behavior and must not be disabled sitewide. */}
+            selection is native browser behavior and must not be disabled sitewide.
+            THE HERO FLOOR FITS THE WIDTH BELOW 262px, AND ONLY THERE. A fixed 34px floor
+            clipped the hero at 200% zoom on a phone (a 160-215px layout): "enterprises" lost
+            50px at 180px and "climate tech" lost 81px at 160px. The floor is now the smaller of
+            34px and the content width divided by 6.75. Home's longest pill, "frontier tech"
+            with its dot and padding, measures 6.5em in Chromium and WebKit, so 6.75 leaves a
+            quarter-em of air. From 262px up the floor is still 34px, so every real device,
+            the 280px Galaxy Fold included, renders exactly as before; only a zoomed layout
+            narrower than that shrinks the heading rather than cutting text. Measured
+            2026-10-26. */}
         <style jsx global>{`
           @media(max-width:767px){
             :root{
-              --public-mobile-hero-size:clamp(34px,9.75vw,40px);
+              --public-mobile-hero-size:clamp(min(34px,calc((100vw - 2 * var(--public-mobile-page-gutter)) / 6.75)),9.75vw,40px);
               --public-mobile-section-size:clamp(28px,7.75vw,32px);
               --public-mobile-card-size:clamp(22px,5.8vw,24px);
             }

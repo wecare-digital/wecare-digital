@@ -144,6 +144,21 @@ customHeaders:
       # review pass across the public pages, the checkout and the softphone, and it
       # avoids standing up a collector for a policy that is not enforcing yet. Add
       # `report-to` and a Reporting-Endpoints header when the tightening pass starts.
+      # Safari logs a "does not specify a report-to" warning on every load until then;
+      # that warning is expected and is not a violation.
+      #
+      # REVIEW PASS 2026-10-26, from the console. 33 public routes loaded live in Chromium
+      # (desktop, phone, and no-JS for /, /contact/ and /cart/). Every violation came from an
+      # origin the site really uses, so each was added here rather than left as noise:
+      #   script-src   maps.googleapis.com                      Maps JS on /contact/ and /vayulok/
+      #   img-src      maps.googleapis.com, maps.gstatic.com    the map on /contact/
+      #   connect-src  maps.googleapis.com, weather.googleapis.com,
+      #                airquality.googleapis.com                VayuLok readings and the map
+      #   connect-src  api.open-meteo.com                       the weather line on /contact/
+      #   frame-src    www.googletagmanager.com                 GTM's noscript iframe
+      # NOT exercised by that pass, so still unproven: checkout, the softphone, sign-in, map
+      # interaction (pan, zoom, satellite tiles), and analytics after consent is granted (the
+      # pass ran with the default denied). Review those before enforcing.
       #
       # ⚠ EVERY LINE BELOW MUST BE INDENTED EXACTLY THE SAME AMOUNT. ⚠
       #
@@ -168,12 +183,14 @@ customHeaders:
           script-src 'self' 'unsafe-inline' 'unsafe-eval'
           https://checkout.razorpay.com https://api.razorpay.com
           https://*.plivo.com https://www.googletagmanager.com
-          https://connect.facebook.net;
+          https://connect.facebook.net
+          https://maps.googleapis.com;
           style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
           font-src 'self' data: https://fonts.gstatic.com;
           img-src 'self' data: blob:
           https://img.icons8.com https://*.cloudfront.net
-          https://www.googletagmanager.com https://www.facebook.com;
+          https://www.googletagmanager.com https://www.facebook.com
+          https://maps.googleapis.com https://maps.gstatic.com;
           connect-src 'self' https://wecare.digital
           https://*.execute-api.us-east-1.amazonaws.com
           https://cognito-idp.us-east-1.amazonaws.com
@@ -181,9 +198,12 @@ customHeaders:
           https://api.razorpay.com https://lumberjack.razorpay.com
           https://*.plivo.com wss://*.plivo.com
           https://*.cloudfront.net https://www.googletagmanager.com
-          https://www.facebook.com https://api.frankfurter.dev;
+          https://www.facebook.com https://api.frankfurter.dev
+          https://maps.googleapis.com https://weather.googleapis.com
+          https://airquality.googleapis.com https://api.open-meteo.com;
           media-src 'self' blob: https://*.cloudfront.net;
-          frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com;
+          frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com
+          https://www.googletagmanager.com;
           worker-src 'self' blob:;
           manifest-src 'self';
           object-src 'none';
