@@ -32,14 +32,14 @@ FOOTER = 'WECARE.DIGITAL'
 
 DEFAULTS: Dict[str, Dict[str, str]] = {
     NEW_CUSTOMER: {
-        'body': 'Welcome to WECARE.DIGITAL. Add your name, WhatsApp username, and address to complete your customer profile.',
+        'body': 'Welcome to WECARE.DIGITAL. Add your full name, optional WhatsApp username, organization and job title, then your address.',
         'flowCta': 'Subscribe',
-        'confirmation': 'Your details have been saved.',
+        'confirmation': 'Your WECARE.DIGITAL profile and address have been saved.',
     },
     RETURNING_CUSTOMER: {
-        'body': 'Welcome back to WECARE.DIGITAL. Review your saved details and update your WhatsApp username or address whenever needed.',
+        'body': 'Welcome back to WECARE.DIGITAL. Review the same profile and address fields, then update anything that has changed.',
         'flowCta': 'Update details',
-        'confirmation': 'Your details have been updated.',
+        'confirmation': 'Your WECARE.DIGITAL profile and address have been updated.',
     },
 }
 
