@@ -1770,13 +1770,16 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 # Ref: https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/components
                 _SYSTEM_EVENT_FIELDS = {
                     'account_alerts', 'account_review_update',
-                    'business_capability_update', 'history',
+                    'automatic_events',
+                    'business_capability_update', 'business_status_update',
+                    'history',
                     'message_template_components_update',
                     'message_template_quality_update',
                     'partner_solutions',                      # Multi-Partner Solutions; audit only
                     'payment_configuration_update',
                     'phone_number_name_update', 'security',
                     'template_category_update',
+                    'tracking_events',
                 }
                 if field in _SYSTEM_EVENT_FIELDS:
                     try:
