@@ -51,3 +51,13 @@ export function fulfilmentLabel ( value: string ): string {
     .replace( /[-_]/g, ' ' )
     .replace( /\b\w/g, letter => letter.toUpperCase() );
 }
+
+// WhatsApp ORDER_DETAILS checkout modes. Used only to hide manual payment-status controls;
+// the backend owns the automatic processing -> completed sequence.
+const WHATSAPP_ORDER_CHECKOUT_MODES: ReadonlySet<string> = new Set( [
+  'WHATSAPP_NATIVE_PG', 'WHATSAPP_NATIVE_CART', 'AWS_NATIVE',
+] );
+
+export function isWhatsAppOrder ( checkoutMode: string | undefined ): boolean {
+  return WHATSAPP_ORDER_CHECKOUT_MODES.has( String( checkoutMode || '' ) );
+}
