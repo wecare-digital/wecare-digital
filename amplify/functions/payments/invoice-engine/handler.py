@@ -2475,7 +2475,7 @@ def ensure_invoice_image(invoice_id: str, request_id: str) -> Dict:
             response_body = {}
         if isinstance(response_body, dict):
             response_body['reused'] = False
-            result = {**result, 'body': json.dumps(response_body, default=_json_default)}
+            result = {**result, 'body': json.dumps(response_body)}
     return result
 
 
