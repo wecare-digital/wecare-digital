@@ -16,8 +16,9 @@ message each sender builds is one Meta can accept, component by component:
     an OTP lifetime equal to the template's `code_expiration_minutes`;
   * the template's language, and a sender that resolves to WABA1's phone number.
 A send that fails any of these is refused by Meta (131008, 131009, 132000, 132012).
-Order-status messages are disabled by product policy (#1650), so the ORDER_STATUS case passes
-only when outbound refuses it with 410 ORDER_STATUS_DISABLED and builds no send.
+Order-status messages are part of the automatic payment rail. The ORDER_STATUS case must build
+the approved `wecare_order_status_v3` template payload; there is no interactive/free-form
+fallback based on the 24-hour customer-service window.
 
 What runs for real, read-only
   * the live definitions: `wecare-whatsapp-template-management:live` (components) and
@@ -533,11 +534,10 @@ def main() -> int:
             "templateHeaderMedia": "secure/d/public/Invoice/customer_invoice/verify.png",
             "templateHeaderType": "image",
             "templateFlowButton": {"index": 0, "flowToken": review_token.mint()}}, False, None),
-        (whatsapp_templates.ORDER_STATUS, "outbound order-status path, disabled by policy", {
+        (whatsapp_templates.ORDER_STATUS, "automatic payment-order status -> outbound template", {
             **person, "orderStatusDetails": {
                 "reference_id": REFERENCE, "order_status": "processing",
-                "description": wa_order_status.default_body("processing")}}, False,
-         "ORDER_STATUS_DISABLED"),
+                "description": wa_order_status.default_body("processing")}}, False, None),
         (whatsapp_templates.DOWNLOAD, "paid_vault / catalog_services via download_send_fields", {
             **person, "isTemplate": True, "templateParams": [],
             **whatsapp_templates.download_send_fields(VAULT_FILE_ID)}, False, None),
