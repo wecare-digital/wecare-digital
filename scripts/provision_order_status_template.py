@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-"""Submit the WhatsApp Order Status template used for fulfilment updates outside the window.
+"""Submit the WhatsApp Order Status template used by the payment-only ORDER_DETAILS rail.
 
 Why this template exists
 ------------------------
-A verified WhatsApp-rail capture sends the paid invoice template first and then, as a separate
-finalization step, Meta order_status `processing`; staff drive a paid order forward from the
-workspace (Pay Flow → "Mark Shipped" / "Mark Completed"). Inside the 24-hour customer-service window those updates go out as the interactive
-`order_status` message and need no template. Outside the window only this approved ORDER_STATUS
-template may carry them; without it the update is deferred (409 ORDER_STATUS_DEFERRED, recorded
-as `pendingOrderStatus` on the invoice). This provisions that one template and verifies Meta
-approval.
+A verified WhatsApp-rail capture completes the frozen Meta payment-order lifecycle
+`pending -> processing -> completed`. Both updates always use this approved ORDER_STATUS
+template, regardless of the 24-hour customer-service window. If approval cannot be proven, the
+update is deferred (409 ORDER_STATUS_DEFERRED, recorded as `pendingOrderStatus` on the invoice)
+and retried with the same template-only transport. This script provisions that template and
+verifies Meta approval.
 
 Why `_v3`
 ---------
