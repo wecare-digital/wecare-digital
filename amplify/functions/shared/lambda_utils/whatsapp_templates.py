@@ -37,16 +37,19 @@ the production code and checks it against these live definitions:
 
 The post-payment contract
 -------------------------
-After a verified payment the customer receives, in order and nothing else:
+After a verified WhatsApp ORDER_DETAILS payment the customer receives, in order:
 
-    1. Meta order_status `processing` (WhatsApp-rail orders only; interactive inside the 24-hour
-       window, the ORDER_STATUS template outside it, otherwise deferred). Bounded and
-       best-effort: the invoice never depends on it succeeding.
-    2. INVOICE, once, with the paid-invoice PNG in its header and an order-bound review token on
+    1. ORDER_STATUS `processing` ("Payment received.") through the approved
+       wecare_order_status_v3 template.
+    2. ORDER_STATUS `completed` ("Payment complete.") through the same template, only after
+       processing was accepted or already recorded.
+    3. INVOICE, once, with the paid-invoice PNG in its header and an order-bound review token on
        its FLOW button.
 
-    That is the owner-approved order (audit plan T7/D2). Later fulfilment updates are
-    staff-driven.
+    There is no interactive order_status fallback. Temporary template unavailability is deferred
+    and retried by the payment rail; invoice delivery remains independently idempotent. Workspace
+    does not manually send these payment-order states. Shipment/service fulfilment is a separate
+    OrderTable / Track Order concern.
 
 `POST_PAYMENT_FORBIDDEN` lists templates no post-payment automation may send.
 """
