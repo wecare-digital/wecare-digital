@@ -808,7 +808,7 @@ def _() -> None:
                      profile_revision='stale', updated_at='stale')
     response = flow_call('data_exchange', 'REVIEW', data, replay_token)
     expect(response['body'].get('screen') == 'COMPLETE', f'retry should complete: {response}')
-    expect(response['body']['data']['message'] == 'Your details have been saved.', 'retry keeps new-customer copy')
+    expect(response['body']['data']['message'] == 'Your WECARE.DIGITAL profile and address have been saved.', 'retry keeps new-customer copy')
     expect(contacts().writes() == contact_writes, 'retry repeated the contact mutation')
     expect(len(submissions().items) == history_rows, 'retry created a second history row')
 
@@ -842,7 +842,7 @@ def _() -> None:
                           phone_number=f'+{PHONE_B}', customer_id='C-FORGEDFORGED', country_code='IN')
     response = flow_call('data_exchange', 'REVIEW', submitted, token)
     expect(response['body'].get('screen') == 'COMPLETE', f'returning save: {response}')
-    expect(response['body']['data']['message'] == 'Your details have been updated.', 'returning copy')
+    expect(response['body']['data']['message'] == 'Your WECARE.DIGITAL profile and address have been updated.', 'returning copy')
     saved = contacts().items[f'wa{PHONE_A}']
     for key, value in protected.items():
         expect(saved.get(key) == value, f'protected field {key} changed')
