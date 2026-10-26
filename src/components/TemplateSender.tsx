@@ -678,7 +678,7 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
         : name === INVOICE_TEMPLATE
           ? 'Send invoices from Payments / Invoices so the generated invoice image and review token are attached.'
           : name === ORDER_STATUS_TEMPLATE
-            ? 'Send order status from Payments / the paid invoice so the authoritative order state is included.'
+            ? 'This legacy order-status template is retired. Update fulfilment in Commerce → Orders; no WhatsApp status message is sent.'
             : name === VAULT_OFFER_TEMPLATE
               ? 'Send the ₹49 Vault message from Service → Documents → Secure files, so its Unlock Vault button opens payment for that document.'
               : 'OTP is sent only by the customer verification/sign-in flow; staff cannot generate authentication codes here.';
