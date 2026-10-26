@@ -1,10 +1,17 @@
-"""Bind one private file to one verified Vault purchase; never charge."""
+"""Bind one private file to one verified Vault purchase; never charge.
+
+A purchase is one ₹49 access window for one file. The first purchase creates the durable
+VAULT_ENTITLEMENT; a later purchase of the same file (a renewal, sold only once every paid window
+has been used) adds one to that entitlement's `paidWindowCount` instead of creating a second row.
+"""
 import hashlib
 import time
 from lambda_utils import customer_auth
-from lambda_utils.ecommerce import order_keys, service_request_store as store
+from lambda_utils.ecommerce import order_keys, service_requests, service_request_store as store
 
-VARIANT_ID = ''
+#: Derived from the one catalogue map. #712 blanked a hand-copied literal here, after which
+#: `grant_access` refused every real Vault payment: paid, but no entitlement and no download.
+VARIANT_ID = service_requests.SERVICE_VARIANT_BY_KIND[service_requests.VAULT]
 FILES_TABLE = 'stack-wecare-digital-SecureFilesTable'
 GRANTS_TABLE = 'stack-wecare-digital-DownloadGrantsTable'
 
@@ -71,7 +78,7 @@ def grant_access(requests, keys, files, grants, event):
                 'fileId': file['fileId'], 'ownerPhone': file['ownerPhone'],
                 'sourceGrantId': existing['grantId'], 'orderId': oid, 'reference': ref,
                 'requestId': row['requestId'], 'createdAt': int(time.time()),
-                'paidAt': int(row.get('paidAt') or time.time()),
+                'paidAt': int(row.get('paidAt') or time.time()), 'paidWindowCount': 1,
             }
             try:
                 grants.put_item(Item=entitlement, ConditionExpression='attribute_not_exists(grantId)')
@@ -84,56 +91,42 @@ def grant_access(requests, keys, files, grants, event):
         return row, file, existing
     now = int(time.time())
     entitlement_id = 'vault-entitlement#' + row['customerId'] + '#' + file['fileId']
+    current = grants.get_item(Key={'grantId': entitlement_id}, ConsistentRead=True).get('Item') or {}
+    renewal = bool(current)
+    if renewal and (current.get('recordType') != 'VAULT_ENTITLEMENT'
+                    or current.get('entitlementState') != 'ACTIVE'
+                    or current.get('customerId') != row['customerId']
+                    or current.get('fileId') != file['fileId']):
+        raise ValueError('entitlement unavailable')
     grant = {'grantId': gid, 'fileId': file['fileId'], 'ownerPhone': file['ownerPhone'],
              'customerId': row['customerId'], 'orderId': oid, 'reference': ref,
              'requestId': row['requestId'], 'source': 'vault_purchase', 'paid': True,
-             'consumed': False, 'entitlementId': entitlement_id, 'createdAt': now}
-
-    # A renewal pays for a NEW access window on the SAME durable entitlement.
-    # Never try to insert a second entitlement row: the stable customer+file entitlement id is
-    # deliberately permanent. A later paid grant is new payment evidence and becomes the latest
-    # delivery source; delivery then re-opens the expired window and increments accessWindowCount.
-    prior_entitlement = grants.get_item(
-        Key={'grantId': entitlement_id}, ConsistentRead=True).get('Item') or {}
-    if prior_entitlement:
-        if (prior_entitlement.get('recordType') != 'VAULT_ENTITLEMENT'
-                or prior_entitlement.get('entitlementState') != 'ACTIVE'
-                or prior_entitlement.get('customerId') != row['customerId']
-                or prior_entitlement.get('fileId') != file['fileId']
-                or prior_entitlement.get('ownerPhone') != file['ownerPhone']):
-            raise ValueError('entitlement ownership mismatch')
-        entitlement = prior_entitlement
+             'consumed': False, 'entitlementId': entitlement_id, 'createdAt': now,
+             'renewal': renewal}
+    if renewal:
+        # One more paid window on the SAME entitlement. The grant Put below is conditional on its
+        # own absence in the same transaction, so a replayed payment cannot add a second window.
+        # A missing counter is the one original purchase, hence if_not_exists(..., 1) + 1.
+        entitlement_write = {'Update': {
+            'TableName': grants.name, 'Key': store._marshal_item({'grantId': entitlement_id}),
+            'UpdateExpression': ('SET paidWindowCount = if_not_exists(paidWindowCount, :one) + :one, '
+                                 'lastGrantId = :g, renewedAt = :now'),
+            'ConditionExpression': ('recordType = :type AND entitlementState = :active '
+                                    'AND customerId = :owner AND fileId = :file'),
+            'ExpressionAttributeValues': store._marshal_item({
+                ':one': 1, ':g': gid, ':now': now, ':type': 'VAULT_ENTITLEMENT',
+                ':active': 'ACTIVE', ':owner': row['customerId'], ':file': file['fileId']})}}
     else:
         entitlement = {'grantId': entitlement_id, 'recordType': 'VAULT_ENTITLEMENT',
                        'entitlementState': 'ACTIVE', 'customerId': row['customerId'],
                        'fileId': file['fileId'], 'ownerPhone': file['ownerPhone'],
                        'sourceGrantId': gid, 'orderId': oid, 'reference': ref,
                        'requestId': row['requestId'], 'createdAt': now,
-                       'paidAt': int(row.get('paidAt') or now)}
-
+                       'paidAt': int(row.get('paidAt') or now), 'paidWindowCount': 1}
+        entitlement_write = store._put(grants.name, entitlement, 'attribute_not_exists(grantId)')
     # The original private file must still be active and owned at the grant commit.
-    items = [store._put(grants.name, grant, 'attribute_not_exists(grantId)')]
-    if prior_entitlement:
-        items.append({'Update': {
-            'TableName': grants.name,
-            'Key': store._marshal_item({'grantId': entitlement_id}),
-            'UpdateExpression': (
-                'SET lastSourceGrantId=:g, lastOrderId=:o, lastReference=:ref, '
-                'lastRequestId=:request, lastPaidAt=:paidAt'
-            ),
-            'ConditionExpression': (
-                'recordType=:rt AND entitlementState=:active AND '
-                'customerId=:owner AND fileId=:file'
-            ),
-            'ExpressionAttributeValues': store._marshal_item({
-                ':g': gid, ':o': oid, ':ref': ref, ':request': row['requestId'],
-                ':paidAt': int(row.get('paidAt') or now), ':rt': 'VAULT_ENTITLEMENT',
-                ':active': 'ACTIVE', ':owner': row['customerId'], ':file': file['fileId'],
-            }),
-        }})
-    else:
-        items.append(store._put(grants.name, entitlement, 'attribute_not_exists(grantId)'))
-    items.extend([
+    items = [store._put(grants.name, grant, 'attribute_not_exists(grantId)'),
+        entitlement_write,
         {'Update': {'TableName': files.name, 'Key': store._marshal_item({'fileId': file['fileId']}),
                     'UpdateExpression': 'SET vaultAccessGrantId=:g, vaultEntitlementId=:e, vaultPaymentStatus=:paid, vaultOrderNumber=:number, vaultRequestNumber=:request',
                     'ConditionExpression': 'ownerCustomerId=:owner AND #s=:active',
@@ -142,8 +135,7 @@ def grant_access(requests, keys, files, grants, event):
         {'Update': {'TableName': requests.name, 'Key': store._marshal_item({'requestId': row['requestId']}),
                     'UpdateExpression': 'SET vaultStatus=:ready, vaultGrantId=:g',
                     'ConditionExpression': 'customerId=:owner AND orderId=:o',
-                    'ExpressionAttributeValues': store._marshal_item({':ready': 'READY', ':g': gid, ':owner': row['customerId'], ':o': oid})}}
-    ])
+                    'ExpressionAttributeValues': store._marshal_item({':ready': 'READY', ':g': gid, ':owner': row['customerId'], ':o': oid})}}]
     try:
         store._transact(requests, items)
     except Exception:
