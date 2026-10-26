@@ -810,8 +810,17 @@ const HomePage: React.FC = () => {
           /* APP-FIRST HOME REFERENCE. These values now come from the shared mobile foundation,
              making Home the locked reference consumer rather than a bag of one-off literals. */
           .home-head{font-size:var(--public-mobile-hero-size);line-height:1.1}
+          /* The Runtime and its explanation are two beats of the same mobile section, but the
+             old 32px tablet gap made them read as one crowded block. Reuse the canonical 64px
+             mobile section rhythm here so the terminal hands off cleanly to the heading below. */
+          .home-flow{gap:var(--public-mobile-section-gap)}
           .home-flow-title{font-size:var(--public-mobile-section-size)}
           .home-flow-list strong{font-size:var(--public-mobile-card-size)}
+          /* Equal-height rows are useful beside the desktop terminal, where matching colour
+             rails read as a set. On a phone the first benefit has substantially more copy, so
+             forcing all three rows to its height creates large dead gaps around the shorter
+             points. Let mobile rows size to content and use one explicit inter-point rhythm. */
+          .home-flow-list{grid-auto-rows:auto;gap:28px}
           /* HOME-ONLY overrides for shared child components. They apply only while Home is
              mounted, so other public routes stay visually unchanged until their migration. */
           :global(.cb.home-close .home-close-title){font-size:var(--public-mobile-section-size)}
