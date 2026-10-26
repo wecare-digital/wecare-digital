@@ -1135,18 +1135,30 @@ def run(root: Path) -> int:
               reprocess.get("statusCode") == 200 and len(again["orders"]) == 1 and len(again["invoices"]) == 1
               and len(again["invoice_sends"]) - sends_before == 1,
               f"orders={len(again['orders'])} invoices={len(again['invoices'])} sends={len(again['invoice_sends']) - sends_before}")
-        # The replay and the reprocess find `waOrderStatus` already `processing`, so the engine
-        # refuses the repeat (ORDER_STATUS_UNCHANGED) before anything reaches outbound or Meta.
+        # Replaying the provider event must not create any third/fourth status message: the
+        # terminal Meta state is already completed, so only the original two sends exist.
         replay_traffic = _order_status_traffic(W.since(mark, "invocations"), W.since(mark, "meta_sends"))
-        check("R18", "...and still exactly ONE order_status after the replay and the reprocess",
-              sorted(replay_traffic) == ["invoke:wecare-outbound-whatsapp", "meta:interactive_order_status"],
+        check("R18", "...and replay/reprocess still leave exactly the original TWO status templates",
+              sorted(replay_traffic) == [
+                  "invoke:wecare-outbound-whatsapp", "invoke:wecare-outbound-whatsapp",
+                  "meta:order_status_template", "meta:order_status_template"],
               replay_traffic)
-        # The one order_status sender keeps ONE send per (invoice, target), whoever calls it.
+
+        # Terminal idempotency: asking for completed again is a local no-op and never reaches
+        # outbound. Then model the real uncertain edge case separately by putting the invoice back
+        # at its legitimate intermediate state (processing) and crashing the completed transport.
         alice_invoice = counts["invoices"][0]["invoiceId"] if counts["invoices"] else ""
         if alice_invoice:
-            repeat = invoice_engine.send_order_status(alice_invoice, "processing", "", PHONE_ID_1, "hermetic")
-            check("R18", "a repeat 'processing' is refused before outbound (ORDER_STATUS_UNCHANGED)",
-                  repeat["statusCode"] == 409 and "ORDER_STATUS_UNCHANGED" in repeat["body"], repeat.get("body"))
+            repeat = invoice_engine.send_order_status(
+                alice_invoice, "completed", "", PHONE_ID_1, "hermetic")
+            check("R18", "a repeat 'completed' is refused before outbound (ORDER_STATUS_UNCHANGED)",
+                  repeat["statusCode"] == 409 and "ORDER_STATUS_UNCHANGED" in repeat["body"],
+                  repeat.get("body"))
+
+            _table("InvoicesTable").update_item(
+                Key={"invoiceId": alice_invoice},
+                UpdateExpression="SET orderStatus = :p, waOrderStatus = :p",
+                ExpressionAttributeValues={":p": "processing"})
             real_outbound = W.handlers["wecare-outbound-whatsapp"]
 
             def crashing_outbound(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -1157,19 +1169,22 @@ def run(root: Path) -> int:
             W.handlers["wecare-outbound-whatsapp"] = crashing_outbound
             crash_mark = W.mark()
             try:
-                first = invoice_engine.send_order_status(alice_invoice, "shipped", "", PHONE_ID_1, "hermetic")
-                second = invoice_engine.send_order_status(alice_invoice, "shipped", "", PHONE_ID_1, "hermetic")
+                first = invoice_engine.send_order_status(
+                    alice_invoice, "completed", "Payment complete.", PHONE_ID_1, "hermetic")
+                second = invoice_engine.send_order_status(
+                    alice_invoice, "completed", "Payment complete.", PHONE_ID_1, "hermetic")
             finally:
                 W.handlers["wecare-outbound-whatsapp"] = real_outbound
                 # The crash is injected on purpose; keep the global NET check about everything else.
                 W.unexpected_http[:] = [u for u in W.unexpected_http if "simulated outbound crash" not in u]
             row = _table("InvoicesTable").get_item(Key={"invoiceId": alice_invoice}).get("Item") or {}
-            check("R18", "an outbound crash is UNCERTAIN: 502, and waOrderStatus is not advanced",
+            check("R18", "a completed-send crash is UNCERTAIN: 502, and waOrderStatus stays processing",
                   first["statusCode"] == 502 and "ORDER_STATUS_SEND_UNCERTAIN" in first["body"]
-                  and row.get("waOrderStatus") == "processing", (first.get("body"), row.get("waOrderStatus")))
-            outbound_calls = [c for c in W.since(crash_mark, "invocations")
-                              if c["function"] == "wecare-outbound-whatsapp"]
-            check("R18", "...and the held claim stops a second 'shipped' before it reaches outbound",
+                  and row.get("waOrderStatus") == "processing",
+                  (first.get("body"), row.get("waOrderStatus")))
+            outbound_calls = [call for call in W.since(crash_mark, "invocations")
+                              if call["function"] == "wecare-outbound-whatsapp"]
+            check("R18", "...and the held completed claim blocks a duplicate before outbound",
                   second["statusCode"] == 409 and "ORDER_STATUS_IN_FLIGHT" in second["body"]
                   and len(outbound_calls) == 1, (second.get("body"), len(outbound_calls)))
         hints = [c for c in W.since(mark, "invocations") if c["function"] in ("wecare-service-requests", "wecare-whatsapp-business-api")
