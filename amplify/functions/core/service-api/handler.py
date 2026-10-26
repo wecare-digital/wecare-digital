@@ -797,6 +797,53 @@ def _get_document(doc_id: str) -> Dict:
 def _update_document(doc_id: str, body: Dict) -> Dict:
     table = dynamodb.Table(DOCUMENTS_TABLE)
     now = _now()
+
+    if str(body.get('_action') or '').strip().lower() == 'revalidate_reference':
+        current = table.get_item(Key={'documentId': doc_id}, ConsistentRead=True).get('Item') or {}
+        if not current:
+            return _resp(404, {'error': 'Document not found'})
+        base_time = int(current.get('referenceIssuedAt') or current.get('uploadedAt')
+                        or current.get('createdAt') or 0)
+        if base_time and now - base_time < 24 * 3600:
+            return _resp(409, {
+                'error': 'REFERENCE_STILL_VALID',
+                'message': 'A new document reference can be issued after 24 hours.',
+                'retryAfterSeconds': max(1, 24 * 3600 - (now - base_time)),
+            })
+        old_ref = str(current.get('documentRef') or '').strip()
+        new_ref = _public_document_ref()
+        current_name = str(current.get('fileName') or current.get('originalFileName') or '')
+        ext = os.path.splitext(current_name)[1].lower()
+        new_name = new_ref + ext
+        table.update_item(
+            Key={'documentId': doc_id},
+            UpdateExpression=('SET documentRef=:ref, fileName=:name, referenceIssuedAt=:now, '
+                              'referenceVersion=if_not_exists(referenceVersion,:zero)+:one, updatedAt=:now'),
+            ConditionExpression='attribute_exists(documentId)',
+            ExpressionAttributeValues={
+                ':ref': new_ref, ':name': new_name, ':now': now, ':zero': 0, ':one': 1,
+            },
+        )
+        try:
+            dynamodb.Table(DOCUMENT_HISTORY_TABLE).put_item(Item={
+                'historyId': str(uuid.uuid4()),
+                'documentId': doc_id,
+                'action': 'reference_revalidated',
+                'actorType': 'admin',
+                'actorId': body.get('reviewedBy', 'admin'),
+                'remarks': f'{old_ref} -> {new_ref}' if old_ref else new_ref,
+                'createdAt': now,
+            })
+        except Exception:
+            pass
+        return _resp(200, {
+            'updated': True,
+            'documentId': doc_id,
+            'documentRef': new_ref,
+            'fileName': new_name,
+            'referenceIssuedAt': now,
+        })
+
     updates = {'updatedAt': now}
 
     if 'status' in body:
@@ -867,6 +914,36 @@ def _get_document_download_url(doc_id: str) -> Dict:
         return _resp(500, {'error': str(e)})
 
 
+def _public_document_ref() -> str:
+    """Short operator-facing reference. Not the canonical documentId."""
+    return 'wecare-digital-' + uuid.uuid4().hex[:6].lower()
+
+
+def _extension_for_upload(file_name: str, content_type: str) -> str:
+    """Keep a harmless extension for operator recognition; never trust it for MIME/auth."""
+    name = os.path.basename(str(file_name or '').strip())
+    ext = os.path.splitext(name)[1].lower()
+    if re.fullmatch(r'\.[a-z0-9]{1,10}', ext or ''):
+        return ext
+    by_mime = {
+        'application/pdf': '.pdf',
+        'image/jpeg': '.jpg',
+        'image/png': '.png',
+        'text/plain': '.txt',
+        'application/msword': '.doc',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+        'application/vnd.ms-excel': '.xls',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+        'application/vnd.ms-powerpoint': '.ppt',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
+    }
+    return by_mime.get(str(content_type or '').lower(), '')
+
+
+def _generated_document_name(original_name: str, content_type: str, ref: str) -> str:
+    return ref + _extension_for_upload(original_name, content_type)
+
+
 def _document_record(body: Dict, *, doc_id: str, storage_key: str = '',
                      status: str = 'uploaded') -> Dict:
     """Build one staff-created DocumentTable row in the same shape as inbound documents."""
@@ -881,6 +958,7 @@ def _document_record(body: Dict, *, doc_id: str, storage_key: str = '',
 
     item = {
         'documentId': doc_id,
+        'documentRef': str(body.get('documentRef') or '').strip(),
         'contactId': str(body.get('contactId') or '').strip(),
         'customerPhone': phone,
         'customerName': str(body.get('customerName') or '').strip(),
@@ -949,9 +1027,15 @@ def _init_document_upload(body: Dict) -> Dict:
         })
 
     doc_id = f'WD-DOC-{_gen_id()}'
+    document_ref = _public_document_ref()
+    generated_name = _generated_document_name(file_name, content_type, document_ref)
     # Opaque key: customer names and original filenames never become S3 paths.
     storage_key = media_paths.DROP_DOCS_UPLOAD_PREFIX + 'manual/' + uuid.uuid4().hex
-    item = _document_record(body, doc_id=doc_id, storage_key=storage_key, status='pending')
+    record_body = dict(body)
+    record_body['documentRef'] = document_ref
+    record_body['fileName'] = generated_name
+    item = _document_record(record_body, doc_id=doc_id, storage_key=storage_key, status='pending')
+    item['originalFileName'] = os.path.basename(file_name)
     item['fileSize'] = size
     item['mimeType'] = content_type
     dynamodb.Table(DOCUMENTS_TABLE).put_item(Item=item)
@@ -968,6 +1052,8 @@ def _init_document_upload(body: Dict) -> Dict:
 
     return _resp(201, {
         'documentId': doc_id,
+        'documentRef': document_ref,
+        'fileName': generated_name,
         'uploadUrl': upload_url,
         'expiresInSeconds': DOCUMENT_UPLOAD_URL_TTL,
         'contentType': content_type,
