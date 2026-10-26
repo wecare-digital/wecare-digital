@@ -54,6 +54,19 @@ Three defects in the original version made its "0 findings" untrustworthy:
    route left pointing at a deleted function is reported as DANGLING rather than
    hiding inside UNRESOLVED.
 
+Scope corrections, 2026-10-26
+-----------------------------
+4. Function names now resolve through `deploy_all_lambdas.SPECS` before the
+   directory guess. No directory is named after `wecare-commerce`, which ships
+   `ecommerce/checkout` plus the invoice engine, so once the invoice and checkout
+   routes moved to it they were all UNRESOLVED: 22 routes, `DELETE
+   /invoices/clear-all` among them, that this audit had stopped checking.
+
+5. An allowlisted route key no longer covers every API that reuses it. The reason
+   written for `ANY /mcp` on `wecare-mcp` ("read-only MCP server over public
+   content") was also passing `ANY /mcp` on the staff Chat API, which is the
+   administrative workspace MCP.
+
 Marker strength
 ---------------
 Some MARKERS are weak: `Authorization`, `api_key`/`API_KEY` and `verify_token`
@@ -122,6 +135,9 @@ STRONG_MARKERS = (
     # Match the call, not a module import or an outbound Authorization header.
     "customer_auth.require_customer(",
     "customer_auth.authenticate(",
+    # The workspace MCP checks its own callers: issuer, staff client, access-token use, the
+    # Admin group and expiry, then a live Cognito recheck of the session.
+    "owner_identity(event)",
 )
 
 # Markers that only prove a handler can CALL OUT with a credential, never that it
@@ -201,6 +217,49 @@ EXPECTED_PUBLIC_ROUTES = {
     "GET /ecommerce/service-prices": "anonymous public price read. There is no customer identity to authenticate on a public service page; the arm accepts no path, query or body input, returns only live AWS-native catalog prices in integer paise, cannot mutate anything, and is edge-cached for 60 seconds",
 }
 
+# Route keys are reused across APIs, and a reason written for one handler says nothing about
+# another. A key listed here is allowlisted only when its route targets one of these functions.
+PUBLIC_ROUTE_TARGETS = {
+    "ANY /mcp": {"wecare-mcp"},
+}
+
+# Public by protocol on one function only. The Chat API fronts the staff workspace MCP with
+# OAuth for a public client, so discovery, authorize and token must be reachable before sign-in.
+# Its `ANY /mcp` is deliberately absent: it must keep passing on its own caller check.
+EXPECTED_PUBLIC_BY_FUNCTION = {
+    "wecare-workspace-mcp": {
+        "GET /.well-known/oauth-protected-resource": "RFC 9728 protected-resource metadata; a fixed discovery document that reads no request input",
+        "GET /.well-known/oauth-authorization-server": "RFC 8414 authorization-server metadata; a fixed discovery document that reads no request input",
+        "GET /authorize": "OAuth authorization endpoint for a public client: exact client_id, redirect_uri and resource, PKCE S256 only, then a 302 to the Cognito hosted UI where staff sign in; it issues nothing itself",
+        "POST /token": "OAuth token endpoint for a public client: form-encoded, exact client_id, redirect_uri and resource, PKCE verifier required for a code; it relays Cognito's token only when that token is bound to this client and resource",
+    },
+}
+
+
+def packaged_sources() -> dict[str, list[pathlib.Path]]:
+    """Function name -> the .py files its package is built from, per the deploy map.
+
+    `deploy_all_lambdas.SPECS` is the authority on which directory a function ships, so the
+    directory-name guess in `handler_sources` is only the fallback for functions it does not
+    own (the delegated MCP, SEO and blog readers).
+    """
+    sys.path.insert(0, str(REPO / "scripts"))
+    import deploy_all_lambdas as dal  # noqa: PLC0415
+
+    out: dict[str, list[pathlib.Path]] = {}
+    for spec in dal.SPECS:
+        if spec.standalone:
+            files = [spec.handler_file]
+        else:
+            files = [f for f in spec.source.rglob("*.py")
+                     if not set(f.relative_to(spec.source).parts) & dal.EXCLUDE_DIRS]
+            files += [dal.FUNCTIONS / source for source, _ in spec.external_files
+                      if source.endswith(".py")]
+        files = sorted(f for f in files if f.is_file())
+        if files:
+            out[spec.name] = files
+    return out
+
 
 def handler_sources() -> dict[str, str]:
     """Map candidate deployed function name -> concatenated source of its dir."""
@@ -236,6 +295,18 @@ def handler_sources() -> dict[str, str]:
         for key in keys:
             out.setdefault(key, "")
             out[key] += text
+
+    # The deploy map overrides the guess. No directory is named after `wecare-commerce`, which
+    # ships ecommerce/checkout plus the invoice engine, so without this its routes resolve to
+    # nothing and are filed UNRESOLVED instead of being checked.
+    for name, files in packaged_sources().items():
+        text = ""
+        for f in files:
+            try:
+                text += f.read_text(errors="replace")
+            except OSError:
+                pass
+        out[name] = text
     return out
 
 
@@ -270,9 +341,6 @@ def classify(routes, integrations, sources, live_functions, markers):
             continue
         if method in EXPECTED_PUBLIC_METHODS:
             continue
-        if key in EXPECTED_PUBLIC_ROUTES:
-            expected_public.append((key, EXPECTED_PUBLIC_ROUTES[key]))
-            continue
 
         target = (rt.get("Target") or "").split("/")[-1]
         uri = integrations.get(target, "")
@@ -280,6 +348,16 @@ def classify(routes, integrations, sources, live_functions, markers):
         m = re.search(r"function:([A-Za-z0-9\-_]+)", uri)
         if m:
             fn = m.group(1)
+
+        reason = EXPECTED_PUBLIC_ROUTES.get(key)
+        allowed_targets = PUBLIC_ROUTE_TARGETS.get(key)
+        if reason and allowed_targets is not None and fn not in allowed_targets:
+            reason = None
+        if not reason:
+            reason = EXPECTED_PUBLIC_BY_FUNCTION.get(fn, {}).get(key)
+        if reason:
+            expected_public.append((key, reason))
+            continue
 
         # A route whose target function does not exist is retirement residue,
         # not an authentication question. Report it separately.
