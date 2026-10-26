@@ -57,3 +57,68 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
+
+
+  package-payment-lambdas:
+    needs: [payment-rail, workspace-typecheck]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build deterministic payment Lambda packages
+        run: |
+          python - <<'PY'
+          import base64
+          import hashlib
+          import importlib.util
+          import json
+          from pathlib import Path
+
+          script = Path("scripts/deploy_all_lambdas.py")
+          spec = importlib.util.spec_from_file_location("deploy_all_lambdas", script)
+          mod = importlib.util.module_from_spec(spec)
+          assert spec.loader is not None
+          spec.loader.exec_module(mod)
+
+          targets = [
+              "wecare-commerce",
+              "wecare-checkout",
+              "wecare-invoice-engine",
+              "wecare-razorpay-webhook",
+              "wecare-outbound-whatsapp",
+              "wecare-whatsapp-business-api",
+              "wecare-service-api",
+              "wecare-ai-generate-response",
+          ]
+          by_name = {s.name: s for s in mod.SPECS}
+          out = Path("dist/payment-lambdas")
+          out.mkdir(parents=True, exist_ok=True)
+          manifest = {}
+          for name in targets:
+              z, _members = mod.build_zip(by_name[name])
+              p = out / f"{name}.zip"
+              p.write_bytes(z)
+              digest = hashlib.sha256(z).digest()
+              manifest[name] = {
+                  "file": p.name,
+                  "sha256_hex": digest.hex(),
+                  "aws_code_sha256": base64.b64encode(digest).decode("ascii"),
+                  "bytes": len(z),
+              }
+          (out / "manifest.json").write_text(
+              json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          print(json.dumps(manifest, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload tested Lambda packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: payment-lambdas-${{ github.event.pull_request.head.sha || github.sha }}
+          path: dist/payment-lambdas/
+          if-no-files-found: error
+          retention-days: 7
