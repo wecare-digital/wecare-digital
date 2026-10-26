@@ -6051,7 +6051,10 @@ export async function getOrderSubmissions ( orderId: string ): Promise<FlowSubmi
 
 export interface Document {
   documentId: string;
-  documentRef?: string; // WD-DOC-XXXXXXXX
+  documentRef?: string;
+  referenceIssuedAt?: number;
+  referenceVersion?: number;
+  originalFileName?: string;
   customerPhone?: string;
   customerName?: string;
   contactId?: string;
@@ -6119,6 +6122,8 @@ export async function createDocument ( doc: Partial<Document> ): Promise<Documen
 
 export interface DocumentUploadTicket {
   documentId: string;
+  documentRef: string;
+  fileName: string;
   uploadUrl: string;
   expiresInSeconds: number;
   contentType: string;
@@ -6162,6 +6167,22 @@ export async function confirmDocumentUpload ( documentId: string ): Promise<ApiR
   return apiCallResult<Document>(
     `${DOCUMENTS_BASE}/${encodeURIComponent( documentId )}`,
     { method: 'PUT', body: JSON.stringify( { _action: 'confirm_upload' } ) },
+  );
+}
+
+
+export async function revalidateDocumentReference (
+  documentId: string,
+): Promise<ApiResult<{
+  updated: boolean;
+  documentId: string;
+  documentRef: string;
+  fileName: string;
+  referenceIssuedAt: number;
+}>> {
+  return apiCallResult(
+    `${DOCUMENTS_BASE}/${encodeURIComponent( documentId )}`,
+    { method: 'PUT', body: JSON.stringify( { _action: 'revalidate_reference' } ) },
   );
 }
 

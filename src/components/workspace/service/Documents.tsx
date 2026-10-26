@@ -10,7 +10,7 @@
  * - Document history/audit trail in detail panel
  * - WhatsApp-uploaded documents auto-reflect here
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import MaybeLayout from '../../../components/MaybeLayout';
 import SEO, { PAGE_SEO } from '../../../components/SEO';
 import Table from '../../../components/ui/Table';
@@ -66,6 +66,28 @@ function fmtSize ( bytes?: number ): string {
   return `${( bytes / 1048576 ).toFixed( 1 )} MB`;
 }
 
+
+function fmtOrderLabel ( order: api.Order ): string {
+  const id = order.orderNumber || order.shortId || order.orderId;
+  const when = fmtDate( order.createdAt );
+  const payment = order.paymentStatus || 'payment unknown';
+  const amount = ( order.paymentAmount ?? order.totalAmount );
+  return [ id, when, amount !== undefined ? `₹${amount}` : '', payment, order.source || '' ].filter( Boolean ).join( ' · ' );
+}
+
+function fileExtension ( name?: string ): string {
+  const value = String( name || '' );
+  const match = value.match( /\.[a-z0-9]{1,10}$/i );
+  return match ? match[ 0 ].toLowerCase() : '';
+}
+
+function referenceAgeSeconds ( doc: api.Document ): number {
+  const base = doc.referenceIssuedAt || doc.createdAt || 0;
+  if ( !base ) return Number.POSITIVE_INFINITY;
+  const ms = base < 1e12 ? base * 1000 : base;
+  return Math.max( 0, Math.floor( ( Date.now() - ms ) / 1000 ) );
+}
+
 const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
   awaiting_upload: { bg: '#fef3c7', fg: '#92400e' },
   uploaded: { bg: '#dbeafe', fg: '#1e40af' },
@@ -101,6 +123,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
   const [ contactQuery, setContactQuery ] = useState( '' );
   const [ contactResults, setContactResults ] = useState<api.Contact[]>( [] );
   const [ contactSearching, setContactSearching ] = useState( false );
+  const contactSearchSeq = useRef( 0 );
   const [ customerOrders, setCustomerOrders ] = useState<api.Order[]>( [] );
   const [ ordersLoading, setOrdersLoading ] = useState( false );
   const [ createFile, setCreateFile ] = useState<File | null>( null );
@@ -128,21 +151,37 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
   useEffect( () => {
     if ( !showCreate )
     {
+      contactSearchSeq.current += 1;
       setContactResults( [] );
+      setContactSearching( false );
       return;
     }
+
     const q = contactQuery.trim();
-    if ( q.length < 2 )
+    const digits = q.replace( /\D/g, '' );
+    const looksNumeric = q.length > 0 && /^[+0-9() .-]+$/.test( q );
+    // Do not full-scan ContactsTable for each digit typed. Number searches become useful
+    // only once enough digits exist to distinguish a customer; name searches can start at 2.
+    const ready = looksNumeric ? ( q.startsWith( '+' ) || q.startsWith( '00' ) ? digits.length >= 7 : digits.length >= 10 ) : q.length >= 2;
+    if ( !ready )
     {
+      contactSearchSeq.current += 1;
       setContactResults( [] );
+      setContactSearching( false );
       return;
     }
+
     const timer = window.setTimeout( () => {
+      const seq = ++contactSearchSeq.current;
       setContactSearching( true );
       void api.searchContactsResult( q, 8 ).then( result => {
+        if ( seq !== contactSearchSeq.current ) return;
         setContactResults( result.ok ? result.data : [] );
-      } ).finally( () => setContactSearching( false ) );
-    }, 250 );
+      } ).finally( () => {
+        if ( seq === contactSearchSeq.current ) setContactSearching( false );
+      } );
+    }, looksNumeric ? 120 : 220 );
+
     return () => window.clearTimeout( timer );
   }, [ contactQuery, showCreate ] );
 
@@ -280,6 +319,32 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
     else toast.error( 'Download not available' );
   };
 
+
+  const handleRevalidateReference = async ( doc: api.Document ) => {
+    setActionLoading( true );
+    try
+    {
+      const result = await api.revalidateDocumentReference( doc.documentId );
+      if ( !result.ok )
+      {
+        toast.error( result.failure.message || 'Reference cannot be revalidated yet' );
+        return;
+      }
+      const updated = {
+        ...doc,
+        documentRef: result.data.documentRef,
+        fileName: result.data.fileName,
+        referenceIssuedAt: result.data.referenceIssuedAt,
+      };
+      setSelected( updated );
+      toast.success( `New reference issued: ${result.data.documentRef}` );
+      void loadData();
+    } finally
+    {
+      setActionLoading( false );
+    }
+  };
+
   const totalPages = Math.ceil( docs.length / PAGE_SIZE );
   const paged = docs.slice( ( page - 1 ) * PAGE_SIZE, page * PAGE_SIZE );
 
@@ -400,6 +465,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
               <div><span style={ labelStyle }>Uploaded</span><div>{ fmtDate( selected.createdAt ) }</div></div>
               <div><span style={ labelStyle }>Customer</span><div>{ selected.customerName || '—' } ({ selected.customerPhone || '—' })</div></div>
               { selected.orderId && <div><span style={ labelStyle }>Order ID</span><div style={ { fontFamily: 'monospace', fontSize: 'var(--text-sm)' } }>{ selected.orderId }</div></div> }
+              { selected.documentRef && <div><span style={ labelStyle }>Reference</span><div style={ { fontFamily: 'monospace', fontSize: 'var(--text-sm)' } }>{ selected.documentRef }</div></div> }
               { selected.mimeType && <div><span style={ labelStyle }>MIME Type</span><div style={ { fontSize: 'var(--text-sm)' } }>{ selected.mimeType }</div></div> }
               { selected.reviewedBy && <div><span style={ labelStyle }>Reviewed By</span><div>{ selected.reviewedBy } · { fmtDate( selected.reviewedAt ) }</div></div> }
             </div>
@@ -418,8 +484,16 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
               </label>
             </div>
 
-            <div style={ { display: 'flex', gap: 8, justifyContent: 'flex-end' } }>
+            <div style={ { display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' } }>
               <Button variant="secondary" onClick={ () => handleDownload( selected ) }>Download</Button>
+              <Button
+                variant="secondary"
+                loading={ actionLoading }
+                disabled={ referenceAgeSeconds( selected ) < 24 * 3600 }
+                onClick={ () => handleRevalidateReference( selected ) }
+              >
+                { referenceAgeSeconds( selected ) < 24 * 3600 ? 'Reference valid <24h' : 'Revalidate reference' }
+              </Button>
               <Button variant="primary" loading={ actionLoading } onClick={ () => handleStatusAction( selected, 'approved', remarks ) }>Approve</Button>
               <Button variant="danger" loading={ actionLoading } onClick={ () => handleStatusAction( selected, 'rejected', remarks ) }>Reject</Button>
               <Button variant="secondary" loading={ actionLoading } onClick={ () => handleStatusAction( selected, 'reupload_requested', remarks ) }>Request Reupload</Button>
@@ -433,7 +507,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
         isOpen={ showCreate }
         onClose={ () => { if ( !creating ) { setShowCreate( false ); resetCreate(); } } }
         title="Add Document"
-        size="md"
+        size="lg"
         footer={
           <>
             <Button variant="secondary" onClick={ () => { setShowCreate( false ); resetCreate(); } } disabled={ creating }>Cancel</Button>
@@ -455,6 +529,17 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
               />
             </label>
             { contactSearching && <div style={ helperStyle }>Searching contacts…</div> }
+            { !contactSearching && /^[+0-9() .-]+$/.test( contactQuery.trim() ) && contactQuery.replace( /\D/g, '' ).length > 0 && (
+              ( contactQuery.trim().startsWith( '+' ) || contactQuery.trim().startsWith( '00' ) )
+                ? contactQuery.replace( /\D/g, '' ).length < 7
+                : contactQuery.replace( /\D/g, '' ).length < 10
+            ) && (
+              <div style={ helperStyle }>
+                { contactQuery.trim().startsWith( '+' ) || contactQuery.trim().startsWith( '00' )
+                  ? 'Enter more of the international number to search.'
+                  : 'Enter the full 10-digit mobile number to search.' }
+              </div>
+            ) }
             { contactResults.length > 0 && (
               <div style={ resultListStyle }>
                 { contactResults.map( contact => (
@@ -512,7 +597,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                 { value: '', label: ordersLoading ? 'Loading orders…' : 'No order / standalone document' },
                 ...customerOrders.map( order => ( {
                   value: order.orderId,
-                  label: `${order.orderNumber || order.shortId || order.orderId} · ${order.paymentStatus || 'payment unknown'}`,
+                  label: fmtOrderLabel( order ),
                 } ) ),
               ] }
               disabled={ creating || ordersLoading || !createForm.customerPhone }
@@ -547,8 +632,10 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
             />
           </label>
           { createFile && (
-            <div style={ helperStyle }>
-              { createFile.name } · { fmtSize( createFile.size ) } · { createFile.type || 'unknown type' }
+            <div style={ { ...helperStyle, display: 'grid', gap: 3 } }>
+              <div><strong>Selected:</strong> { createFile.name } · { fmtSize( createFile.size ) } · { createFile.type || 'unknown type' }</div>
+              <div><strong>Saved as:</strong> <span style={ { fontFamily: 'monospace' } }>wecare-digital-######{ fileExtension( createFile.name ) }</span></div>
+              <div>The six-digit reference is generated by the server when upload starts.</div>
             </div>
           ) }
 
@@ -579,6 +666,6 @@ const inputStyle: React.CSSProperties = { display: 'block', width: '100%', paddi
 const actionBtnStyle: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', fontSize: 'var(--text-base)', padding: '2px 4px' };
 const helperStyle: React.CSSProperties = { fontSize: 'var(--text-sm)', color: 'var(--text-muted)', marginTop: 6 };
 const resultListStyle: React.CSSProperties = { marginTop: 6, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', maxHeight: 220, overflowY: 'auto' };
-const resultButtonStyle: React.CSSProperties = { width: '100%', display: 'flex', justifyContent: 'space-between', gap: 12, padding: '9px 12px', border: 0, borderBottom: '1px solid var(--border)', background: 'var(--bg-primary)', cursor: 'pointer', textAlign: 'left' };
+const resultButtonStyle: React.CSSProperties = { width: '100%', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', gap: 12, padding: '10px 12px', border: 0, borderBottom: '1px solid var(--border)', background: 'var(--bg-primary)', cursor: 'pointer', textAlign: 'left' };
 
 export default DocumentsPage;
