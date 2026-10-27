@@ -15,13 +15,14 @@ import boto3
 REGION = 'us-east-1'
 ACCOUNT = '775261844268'
 PREFIX = 'stack-wecare-digital-'
+EXPLICIT_TABLES = {'wecare-workspace-mcp'}
 
 
 def protect(client, *, apply=False):
     rows = []
     for page in client.get_paginator('list_tables').paginate():
         for name in page['TableNames']:
-            if not name.startswith(PREFIX):
+            if not name.startswith(PREFIX) and name not in EXPLICIT_TABLES:
                 continue
             table = client.describe_table(TableName=name)['Table']
             before = table.get('DeletionProtectionEnabled', False)
