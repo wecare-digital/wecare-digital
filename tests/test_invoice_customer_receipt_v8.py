@@ -68,6 +68,8 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
 
         coupon = DEFAULT_COUPON.read_text(encoding="utf-8")
         self.assertIn('DELIGHT_TAX_TREATMENT = "POST_TAX_COMMERCIAL_DISCOUNT"', coupon)
+        self.assertIn("'buyerGstin': buyer_gstin or ''", source)
+        self.assertIn("checkout_pricing.validate_buyer_gstin", source)
 
     def test_gst_workpaper_refuses_to_guess_classification_or_portal_schema(self):
         source = ENGINE.read_text(encoding="utf-8")
@@ -144,6 +146,13 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
         self.assertEqual(alpha.getpixel((0, 0)), 0)
         self.assertEqual(alpha.getpixel((image.width - 1, image.height - 1)), 0)
         self.assertGreater(max(alpha.getdata()), 0)
+        self.assertEqual(image.width, 1024)
+        source = RECEIPT.read_text(encoding="utf-8")
+        self.assertIn("_gradient_roundrect", source)
+        self.assertIn('"BILL TO"', source)
+        self.assertIn("divider_x = width // 2", source)
+        self.assertIn('total_row("Items Subtotal", subtotal)', source)
+        self.assertIn('total_row(str(company.get("gstin") or ""), total_gst', source)
 
     def test_existing_png_media_keeps_png_display_extension(self):
         source = OUTBOUND.read_text(encoding="utf-8")
