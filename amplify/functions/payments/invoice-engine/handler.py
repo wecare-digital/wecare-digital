@@ -3739,11 +3739,10 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
         order_items = []
         subtotal_paise = 0
         for entry in merged_items:
-            # This invoice/manual collection path is non-catalog. Meta permits a custom item
-            # image only when retailer_id/catalog_id are absent, so do not manufacture ITEM_n
-            # catalog identifiers. The small icon is intentionally separate from the large
-            # payment-template header.
-            entry['image'] = {'link': template_media.ORDER_ITEM_IMAGE}
+            # Manual/service lines intentionally carry no thumbnail. Repeating the same corporate
+            # icon made unrelated services and fees look like one product and WhatsApp resampled
+            # it poorly. True catalog items use the catalog checkout path and retain their real
+            # product identity/image there.
             line_paise = entry['amount']['value'] * entry['quantity']
             subtotal_paise += line_paise
             order_items.append(entry)
@@ -3754,21 +3753,34 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
         # checkout-template send path does NOT recompute them, so we MUST populate the
         # order_details here — otherwise the customer sees only the bare item price
         # (missing GST + convenience fee, and a total that mismatches the invoice).
-        gst_paise = _paise(invoice.get('tax', 0))
-        conv_paise = _paise(invoice.get('convenienceFee', 0))
-        # Meta's order_details has no dedicated fee field, so add the convenience fee as
-        # a transparent line item (its own GST is already baked into convenienceFee).
-        if conv_paise > 0:
+        supply_gst_paise = _paise(invoice.get('tax', 0))
+        conv_net_paise = _paise(invoice.get('convenienceFeeNet', invoice.get('convenienceFee', 0)))
+        conv_gst_paise = _paise(invoice.get('convenienceFeeGst', 0))
+        # Meta has no dedicated fee field, so the NET convenience fee is a non-catalog line item.
+        # Its GST belongs in the native tax row, not hidden inside the fee line.
+        if conv_net_paise > 0:
             order_items.append({
                 'name': 'Convenience Fee',
-                'amount': {'value': conv_paise, 'offset': 100},
+                'amount': {'value': conv_net_paise, 'offset': 100},
                 'quantity': 1,
-                'image': {'link': template_media.ORDER_ITEM_IMAGE},
             })
-            subtotal_paise += conv_paise
-        # Internally-consistent total, as an INTEGER SUM (Meta validates
-        # total == subtotal + tax + shipping - discount).
-        total_paise = subtotal_paise + gst_paise + shipping_paise - discount_paise
+            subtotal_paise += conv_net_paise
+        total_gst_paise = supply_gst_paise + conv_gst_paise
+        # Meta validates total == subtotal + tax + shipping - discount.
+        total_paise = subtotal_paise + total_gst_paise + shipping_paise - discount_paise
+        invoice_total_paise = _paise(invoice.get('total', 0))
+        if invoice_total_paise and total_paise != invoice_total_paise:
+            logger.error(json.dumps({
+                'event': 'payment_link_total_reconciliation_failed',
+                'invoiceId': invoice_id,
+                'computedPaise': total_paise,
+                'storedPaise': invoice_total_paise,
+                'requestId': request_id,
+            }))
+            return _resp(409, {
+                'error': 'WhatsApp order details do not reconcile to the stored invoice total',
+                'code': 'ORDER_TOTAL_MISMATCH',
+            })
     except wa_payment_request.PaymentRequestRefused as refused:
         # The FIELD NAME and the invoice id, never the value. An invoice total that cannot be
         # expressed in exact paise has to be corrected before it can be collected against.
@@ -4033,7 +4045,7 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
                                          if invoice.get('couponCode') == default_coupon.DELIGHT_CODE
                                          else 'Discount')},
             'shipping': {'value': shipping_paise, 'offset': 100, 'description': 'Express'},
-            'tax': {'value': gst_paise, 'offset': 100, 'description': f'GSTIN: {COMPANY["gstin"]}'},
+            'tax': {'value': total_gst_paise, 'offset': 100, 'description': COMPANY["gstin"]},
         },
     }
 
@@ -4054,8 +4066,8 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
             'templateName': WA_PAY_TEMPLATE,
             'templateParams': [],  # native-pay template has no body variables
             'checkoutOrderDetails': order_details_obj,
-            # FIXED wide brand header on EVERY payment. The small order item icon is carried
-            # separately in each order item as template_media.ORDER_ITEM_IMAGE.
+            # Fixed wide brand header on every payment. Manual/service rows intentionally carry
+            # no repeated thumbnail; catalog checkout keeps real catalog product imagery.
             'headerImageUrl': template_media.PAYMENT_TEMPLATE_HEADER,
             'idempotencyKey': f'payment-request:{reference_id}',
         })
