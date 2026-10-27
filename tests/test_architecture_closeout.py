@@ -256,7 +256,9 @@ class MessageHistoryAuditTests(unittest.TestCase):
         self.assertIn("def _stable_outbound_message_id", outbound)
         self.assertIn("'event': 'idempotent_skip'", outbound)
         self.assertIn("'MESSAGE_SEND_IN_FLIGHT'", outbound)
-        self.assertIn("'idempotent_retry_after_definite_failure'", outbound)
+        self.assertIn("def _claim_keyed_outbound_send", outbound)
+        self.assertIn("attribute_not_exists(id) OR #s = :failed OR #s = :rejected", outbound)
+        self.assertIn("max_retries = 0 if keyed_send else 3", outbound)
 
     def test_wamid_history_reconciliation_is_read_only_secondary_evidence(self):
         source = (
