@@ -6895,7 +6895,10 @@ def _reconcile_unknown_deliveries(event: Dict[str, Any]) -> Dict[str, Any]:
                     unified.update_item(
                         Key={'id': message_id},
                         UpdateExpression='SET #s = :status, statusUpdatedAt = :ts, statusRank = :rank',
-                        ConditionExpression='attribute_exists(id)',
+                        ConditionExpression=(
+                            'attribute_exists(id) AND ('
+                            + wa_status.condition_expression() + ')'
+                        ),
                         ExpressionAttributeNames={'#s': 'status'},
                         ExpressionAttributeValues={':status': final, ':ts': ts,
                                                    ':rank': Decimal(str(wa_status.rank(final)))},
