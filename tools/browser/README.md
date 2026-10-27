@@ -104,21 +104,20 @@ see locally.
 | `lib/serve.js` | Static server over `out/`, resolves `trailingSlash`, or honours `BASE` |
 | `animcheck.js` | Rotating-headline reflow at 21 viewports (320–1920) on all four rotating surfaces, animation-family transition parity, console errors |
 | `contactcheck.js` | Card and `#cl-title` vs the fixed header at 4 viewports, map imagery and coordinates, clickable attribution and conclusive hit tests; keyless Google controls are diagnostics |
-| `seocheck.js` | The document head of all 15 public routes plus the 4 retired stubs: singleton tags, og/twitter derived from the page's own title and description, uniqueness, lengths, canonical and `og:url`, JSON-LD parse and `@id` conflicts, and that a real browser actually lands on `/contact/` from every retired URL |
-| `typecheck.js` | Every visible `h1`/`h2`/`h3` on all 15 public routes at 2 widths; per-page consistency, the de-facto 40px rung, and the gap to the design contract |
+| `seocheck.js` | The rendered document head of every route in the generated public catalogue, plus representative fresh-catalog detail/pagination routes: singleton tags, og/twitter correctness, canonical/`og:url`, JSON-LD parsing and uniqueness |
+| `typecheck.js` | Every visible `h1`/`h2`/`h3` on catalogue public routes at desktop/tablet and 390/320/280px phone widths; per-page consistency and shared-rung conformance |
 | `uicheck.js` | Header lockup centring, and the two floating widgets: equal diameter, shared centre line, even gap, and that the open language panel clears the un-coverable WhatsApp button — 4 viewports |
 | `homeprobe.js` | The home hero **off** the happy path: no-JS degradation, a viewport that changes after paint under reduced motion, the reduced-motion resting state, Tab stops that land on invisible controls, and whether anything above the fold is actionable |
 
 ## Current state
 
-Re-measured 2026-09-26 against `out/`. The `seocheck` and `uicheck` figures previously
-recorded here (12/12 and 28/28) were stale — both suites have grown since.
+Coverage is catalogue-driven: `tools/browser/lib/public-routes.js` reads `config/public-pages.json`, so adding or removing a public route automatically changes the browser audit surface. Do not record fixed route counts here; they become stale as soon as the public catalogue changes.
 
 | Script | Result |
 |---|---|
 | `animcheck.js` | **18/18** |
-| `seocheck.js` | **11/11** |
-| `typecheck.js` | **3/3** |
+| `seocheck.js` | catalogue-driven; current run must be green |
+| `typecheck.js` | catalogue-driven; desktop + phone widths must be green |
 | `uicheck.js` | **96/96** |
 | `contactcheck.js` | 12 assertions on the keyless path; reachable provider controls are reported separately (updated 2026-10-19) |
 | `homeprobe.js` | **11/11** — was 5/12 with seven open defects; re-measured 2026-09-29 |
@@ -536,3 +535,15 @@ with a comment on it.
 Lighthouse is in this directory's `package.json`, not the app's, for the same reason
 `playwright-core` is: the app's dependency tree and its fragile lockfile stay untouched, and the
 browser is resolved through `lib/browser.js` rather than downloaded.
+
+
+## CI enforcement
+
+`.github/workflows/public-ui-compliance.yml` is the enforcement layer for these harnesses.
+
+- Pull requests and pushes that touch the public UI run the complete Chromium public-device matrix, typography, SEO, section structure and menu contracts.
+- Firefox and WebKit run the Home regression contract and cross-browser menu contract on every relevant change.
+- A scheduled/workflow-dispatch job runs the expanded-copy phone stress matrix to catch long localisation/copy pressure without making normal wording changes brittle.
+- The device matrix includes foldables, portrait/landscape, common Android/iPhone widths, tablets, desktops, touch-capable contexts and short phone viewports that model browser-chrome/keyboard pressure.
+- Home has explicit regression assertions for the one-line hero frame, one-row Platform Runtime chrome, single-line Runtime request/code rows, Runtime-before-copy order and mobile section/benefit spacing.
+- Button-like links/CTAs in main content are included in the 44px interaction-target audit; ordinary inline prose links are intentionally excluded.
