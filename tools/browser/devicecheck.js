@@ -44,6 +44,7 @@ const routePath = route => route === '/' ? '/' : `${route}/`;
  */
 const ENGINE = process.argv.includes( '--firefox' ) ? 'firefox'
   : process.argv.includes( '--webkit' ) ? 'webkit' : 'chromium';
+const STRESS_COPY = process.argv.includes( '--stress-copy' );
 // lib/browser.js owns engine launching, including the macOS 27 Firefox workaround.
 const launchEngine = async () => ( ENGINE === 'chromium' ? launch() : launchNamedEngine( ENGINE ) );
 
@@ -78,6 +79,10 @@ const DEVICES = [
   { n: 'phone 390',          w: 390,  h: 844 },
   { n: 'phone 412',          w: 412,  h: 915 },
   { n: 'phone 430',          w: 430,  h: 932 },
+  /* Short visible viewports model the browser chrome / on-screen-keyboard pressure that
+     width-only presets miss. They deliberately keep the same phone width. */
+  { n: 'phone keyboard 390', w: 390,  h: 500 },
+  { n: 'phone keyboard 430', w: 430,  h: 520 },
   { n: 'tablet 768',         w: 768,  h: 1024 },
   { n: 'tablet 1024',        w: 1024, h: 768 },
   { n: 'desktop 1280',       w: 1280, h: 900 },
@@ -200,9 +205,16 @@ const PROBE = () => {
     .map( el => ( { el, b: r( el ) } ) )
     .filter( x => x.b.left < -1 || x.b.right > vw + 1 )
     .map( x => `${x.el.tagName.toLowerCase()}:${Math.round( x.b.left )}..${Math.round( x.b.right )}` );
+  const buttonLikeLink = el => {
+    if ( el.tagName !== 'A' ) return true;
+    const cls = ( el.className || '' ).toString();
+    const role = el.getAttribute( 'role' ) || '';
+    return role === 'button' || /(^|[-_])(cta|btn|button|action|checkout|submit|pill)([-_]|$)/i.test( cls );
+  };
   const smallMainControls = Array.from( document.querySelectorAll(
-    'main button,main input:not([type=hidden]):not([type=checkbox]):not([type=radio]),main select,main textarea,main summary,main [role=button]'
+    'main button,main input:not([type=hidden]):not([type=checkbox]):not([type=radio]),main select,main textarea,main summary,main [role=button],main a[href]'
   ) )
+    .filter( buttonLikeLink )
     .map( el => ( { el, b: r( el ) } ) )
     .filter( x => window.__visible( x.el ) )
     .filter( x => x.b.height < 44 || x.b.width < 44 )
@@ -210,6 +222,53 @@ const PROBE = () => {
       const cls = ( x.el.className || '' ).toString().split( /\\s+/ ).filter( c => c && !c.startsWith( 'jsx-' ) )[ 0 ] || x.el.tagName;
       return `${cls}:${Math.round( x.b.width )}x${Math.round( x.b.height )}`;
     } );
+  const lineCount = el => {
+    if ( !el ) return null;
+    const range = document.createRange();
+    range.selectNodeContents( el );
+    const tops = new Set( Array.from( range.getClientRects() )
+      .filter( box => box.width > 0 && box.height > 0 )
+      .map( box => Math.round( box.top * 2 ) / 2 ) );
+    return tops.size;
+  };
+  const homeContract = location.pathname === '/'
+    ? ( () => {
+      const heroFrame = document.querySelector( '.home-head-line' );
+      const flow = document.querySelector( '.home-flow' );
+      const panel = document.querySelector( '.home-flow-panel' );
+      const copy = document.querySelector( '.home-flow-copy' );
+      const list = document.querySelector( '.home-flow-list' );
+      const bar = document.querySelector( '.wt-bar' );
+      const title = document.querySelector( '.wt-bar-title' );
+      const state = document.querySelector( '.wt-bar-state' );
+      const play = document.querySelector( '.wt-play' );
+      const request = document.querySelector( '.wt-request' );
+      const firstCodeLine = document.querySelector( '.wt-code .wt-line' );
+      const tokenProbe = document.createElement( 'span' );
+      tokenProbe.style.cssText = 'position:absolute;visibility:hidden;width:var(--public-mobile-section-gap)';
+      document.body.appendChild( tokenProbe );
+      const mobileSectionGap = parseFloat( getComputedStyle( tokenProbe ).width ) || null;
+      tokenProbe.remove();
+      const centerY = el => el ? ( r( el ).top + r( el ).bottom ) / 2 : null;
+      return {
+        heroLines: lineCount( heroFrame ),
+        heroFrameWhiteSpace: heroFrame ? getComputedStyle( heroFrame ).whiteSpace : null,
+        runtimeRowDelta: title && state && play
+          ? Math.max( centerY( title ), centerY( state ), centerY( play ) )
+            - Math.min( centerY( title ), centerY( state ), centerY( play ) )
+          : null,
+        runtimeBarHeight: bar ? Math.round( r( bar ).height ) : null,
+        requestWhiteSpace: request ? getComputedStyle( request ).whiteSpace : null,
+        requestLines: lineCount( request ),
+        codeWhiteSpace: firstCodeLine ? getComputedStyle( firstCodeLine ).whiteSpace : null,
+        panelBeforeCopy: panel && copy ? r( panel ).top < r( copy ).top : null,
+        flowGap: flow ? parseFloat( getComputedStyle( flow ).rowGap || getComputedStyle( flow ).gap ) : null,
+        mobileSectionGap,
+        benefitRows: list ? getComputedStyle( list ).gridAutoRows : null,
+        benefitGap: list ? parseFloat( getComputedStyle( list ).rowGap || getComputedStyle( list ).gap ) : null,
+      };
+    } )()
+    : null;
   return {
     overflow: document.documentElement.scrollWidth - vw,
     h1: h1 ? { w: Math.round( r( h1 ).width ), right: Math.round( r( h1 ).right ), top: Math.round( r( h1 ).top ) } : null,
@@ -233,6 +292,7 @@ const PROBE = () => {
     smallTargets: small,
     headingOutside,
     smallMainControls,
+    homeContract,
     legalFoundation,
     productFoundation,
     vayuGlobeFoundation,
@@ -243,21 +303,49 @@ const PROBE = () => {
 ( async () => {
   const args = process.argv.slice( 2 ).filter( a => a.startsWith( '/' ) );
   const routes = args.length ? args : ROUTES;
+  const devices = STRESS_COPY
+    ? DEVICES.filter( d => [ 280, 320, 390, 430 ].includes( d.w ) && d.h >= 500 )
+    : DEVICES;
   const t = await target();
   const browser = await launchEngine();
   let fail = 0, checks = 0;
   const failures = [];
 
   try {
-    console.log( `devicecheck [${ENGINE}] - ${routes.length} routes × ${DEVICES.length} postures = ${routes.length * DEVICES.length} combinations\n` );
-    for ( const d of DEVICES ) {
-      const ctx = await browser.newContext( { viewport: { width: d.w, height: d.h } } );
+    console.log( `devicecheck [${ENGINE}${STRESS_COPY ? ' stress-copy' : ''}] - ${routes.length} routes × ${devices.length} postures = ${routes.length * devices.length} combinations\n` );
+    for ( const d of devices ) {
+      const ctx = await browser.newContext( {
+        viewport: { width: d.w, height: d.h },
+        hasTouch: d.w <= 1024,
+        deviceScaleFactor: d.w <= 540 ? 2 : 1,
+      } );
       const page = await ctx.newPage();
       await installVisible( page );
       const bad = [];
       for ( const route of routes ) {
         try {
           await gotoStable( page, `${t.base}${route}`, { settle: 120 } );
+          if ( STRESS_COPY ) {
+            /* Pseudo-localisation pressure: expand only layout-bearing labels/headings/CTAs.
+               This is a scheduled stress gate, not a copy test. It preserves word boundaries
+               while making each meaningful word about 35% longer, which approximates a verbose
+               locale without changing DOM structure or body-paragraph length. */
+            await page.evaluate( () => {
+              const nodes = document.querySelectorAll(
+                'h1,h2,h3,.nav-item-label,.nav-child,.home-close-cta,.pdp-cta,[class*="cta"],[class*="btn"]'
+              );
+              const expand = text => text.replace( /[A-Za-z]{4,}/g, word =>
+                word + 'x'.repeat( Math.max( 1, Math.ceil( word.length * .35 ) ) ) );
+              nodes.forEach( el => {
+                for ( const node of el.childNodes ) {
+                  if ( node.nodeType === Node.TEXT_NODE && node.textContent?.trim() ) {
+                    node.textContent = expand( node.textContent );
+                  }
+                }
+              } );
+            } );
+            await page.waitForTimeout( 30 );
+          }
           // open the menu where there is one - the wide-and-short failure needs it open
           await page.click( '.nav-trigger', { timeout: 1200 } ).catch( () => {} );
           await page.waitForTimeout( 160 );
@@ -337,6 +425,20 @@ const PROBE = () => {
           if ( x.smallTargets.length ) problems.push( `tap<44: ${x.smallTargets.join( ',' )}` );
           if ( x.headingOutside.length ) problems.push( `heading outside viewport: ${x.headingOutside.join( ',' )}` );
           if ( x.smallMainControls.length ) problems.push( `main control<44: ${x.smallMainControls.join( ',' )}` );
+          if ( x.homeContract && !STRESS_COPY ) {
+            const h = x.homeContract;
+            if ( d.w >= 280 && d.w <= 399 && h.heroLines !== 1 ) problems.push( `Home hero frame lines ${h.heroLines}` );
+            if ( d.w >= 280 && d.w <= 399 && h.heroFrameWhiteSpace !== 'nowrap' ) problems.push( `Home hero white-space ${h.heroFrameWhiteSpace}` );
+            if ( d.w <= 767 && h.runtimeRowDelta !== null && h.runtimeRowDelta > 4 ) problems.push( `Runtime chrome row delta ${Math.round( h.runtimeRowDelta )}px` );
+            if ( d.w <= 767 && h.runtimeBarHeight !== 47 ) problems.push( `Runtime bar height ${h.runtimeBarHeight}px` );
+            if ( d.w <= 767 && h.requestWhiteSpace !== 'nowrap' ) problems.push( `Runtime request white-space ${h.requestWhiteSpace}` );
+            if ( d.w <= 767 && h.requestLines !== 1 ) problems.push( `Runtime request lines ${h.requestLines}` );
+            if ( d.w <= 767 && h.codeWhiteSpace !== 'nowrap' ) problems.push( `Runtime code white-space ${h.codeWhiteSpace}` );
+            if ( d.w <= 1024 && h.panelBeforeCopy === false ) problems.push( 'Home Runtime must precede explanatory copy' );
+            if ( d.w <= 767 && h.mobileSectionGap && Math.abs( h.flowGap - h.mobileSectionGap ) > 1 ) problems.push( `Home flow gap ${h.flowGap}px expected ${h.mobileSectionGap}px` );
+            if ( d.w <= 767 && h.benefitRows !== 'auto' ) problems.push( `Home benefit rows ${h.benefitRows}` );
+            if ( d.w <= 767 && Math.abs( h.benefitGap - 28 ) > 1 ) problems.push( `Home benefit gap ${h.benefitGap}px` );
+          }
           if ( x.legalFoundation ) {
             if ( x.legalFoundation.smallToc.length ) problems.push( `legal toc tap<44: ${x.legalFoundation.smallToc.join( ',' )}` );
             if ( x.legalFoundation.h2 !== x.legalFoundation.sectionRung ) problems.push( `legal h2 ${x.legalFoundation.h2} (section rung ${x.legalFoundation.sectionRung})` );
