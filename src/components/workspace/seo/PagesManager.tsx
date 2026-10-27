@@ -55,7 +55,7 @@ const productAuditPath = ( product: ProductPage ): string => {
 };
 
 const SYSTEM_PAGES: SitePage[] = [
-  { path: '/account/sign-in/', name: 'Customer Sign In', type: 'system', url: `${BASE}/account/sign-in/`, title: 'Customer Sign In', metaDescription: '', keywords: [], jsonLdTypes: [], hasJsonLd: false, canonical: '' },
+  { path: '/auth', name: 'Customer Sign In', type: 'system', url: `${BASE}/auth`, title: 'Customer Sign In', metaDescription: '', keywords: [], jsonLdTypes: [], hasJsonLd: false, canonical: '' },
   { path: '/orders/', name: 'Orders', type: 'system', url: `${BASE}/orders/`, title: 'Orders', metaDescription: '', keywords: [], jsonLdTypes: [], hasJsonLd: false, canonical: '' },
 ];
 
