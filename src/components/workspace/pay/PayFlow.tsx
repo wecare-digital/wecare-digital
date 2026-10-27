@@ -17,7 +17,7 @@ import {
 
 interface PP { signOut?: () => void; user?: any; embedded?: boolean; mode?: 'collect' | 'invoices'; }
 interface FC { default_gst_rate: number; default_shipping: number; gstin: string; default_item_name: string; purposes: string[]; }
-interface IR { name: string; unitPrice: string; quantity: string; gstRate: string; }
+interface IR { name: string; unitPrice: string; quantity: string; gstRate: string; hsnSac: string; }
 
 /*
  * ONE ADDRESS FIELD SET, shared with the Contacts form through src/lib/address-format.ts.
@@ -35,7 +35,7 @@ const EMPTY_FORM = {
   name: '', phone: '', email: '', shippingAddress: '', billingAddress: '', gstin: '',
   ...EMPTY_ADDRESS_FIELDS,
 };
-const NEW_ITEM = (): IR => ( { name: '', unitPrice: '', quantity: '1', gstRate: '18' } );
+const NEW_ITEM = (): IR => ( { name: '', unitPrice: '', quantity: '1', gstRate: '18', hsnSac: '' } );
 /*
  * THE ONE BRAND, hardcoded. The owner asked for the brand section removed with WECARE.DIGITAL as
  * the default, so the nine-entry list (BNB Club, No Fault, Expo Week, Ritual Guru, Legal Champ,
@@ -492,7 +492,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
           };
         })(),
         goodsType: goodsType,
-        items: invForm.items.map( it => ( { name: it.name || config.default_item_name, amount: parseFloat( it.unitPrice ) || 0, quantity: parseInt( it.quantity ) || 1, gstRate: it.gstRate.trim() === '' ? config.default_gst_rate : Number( it.gstRate ) } ) ),
+        items: invForm.items.map( it => ( { name: it.name || config.default_item_name, amount: parseFloat( it.unitPrice ) || 0, quantity: parseInt( it.quantity ) || 1, gstRate: it.gstRate.trim() === '' ? config.default_gst_rate : Number( it.gstRate ), hsnSac: it.hsnSac.trim() } ) ),
         shipping: parseFloat( invForm.shipping ) || 0,
         gstRate: config.default_gst_rate,
         purpose: DEFAULT_BRAND, orderId: invForm.orderId, gstin: config.gstin,
@@ -886,7 +886,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                   <h3 style={ { margin: '0 0 12px', fontSize: 'var(--text-xl)' } }>Step 2 { '\u2014' } Invoice Details</h3>
                   <div className="table-container" style={ { marginBottom: 16 } }>
                     <table className="inner-table">
-                      <thead><tr><th>#</th><th>Item Name</th><th>Unit amount ({ '\u20B9' })</th><th>Qty</th><th>GST %</th><th></th></tr></thead>
+                      <thead><tr><th>#</th><th>Item Name</th><th>Unit amount ({ '\u20B9' })</th><th>Qty</th><th>GST %</th><th>HSN/SAC</th><th></th></tr></thead>
                       <tbody>
                         { invForm.items.map( ( it, i ) => {
                           return (
@@ -896,6 +896,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                               <td><input type="number" value={ it.unitPrice } onChange={ e => updateItem( i, 'unitPrice', e.target.value ) } className="pf-num-input" /></td>
                               <td><input type="number" value={ it.quantity } onChange={ e => updateItem( i, 'quantity', e.target.value ) } className="pf-num-input-sm" /></td>
                               <td><input type="number" value={ it.gstRate } onChange={ e => updateItem( i, 'gstRate', e.target.value ) } className="pf-num-input-sm" /></td>
+                              <td><input type="text" inputMode="numeric" value={ it.hsnSac } onChange={ e => updateItem( i, 'hsnSac', e.target.value.replace( /\D/g, '' ).slice( 0, 8 ) ) } placeholder="Internal" className="pf-num-input" /></td>
                               <td>{ invForm.items.length > 1 && <button onClick={ () => removeItem( i ) } className="pf-remove-btn">{ '\u2715' }</button> }</td>
                             </tr>
                           );
@@ -1061,7 +1062,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                         <div className="pf-section-title">Items</div>
                         { selInvoice.items.map( ( it, i ) => (
                           <div key={ i } style={ { display: 'flex', justifyContent: 'space-between', fontSize: 'var(--text-xs)', marginBottom: 4 } }>
-                            <span>{ it.name } { '\u00D7' }{ it.quantity }{ typeof it.gstRate === 'number' ? ` · GST ${it.gstRate}%` : '' }</span><span>{ fmtMoney( it.amount * it.quantity ) }</span>
+                            <span>{ it.name } { '\u00D7' }{ it.quantity }{ typeof it.gstRate === 'number' ? ` · GST ${it.gstRate}%` : '' }{ it.hsnSac ? ` · HSN/SAC ${it.hsnSac}` : '' }</span><span>{ fmtMoney( it.amount * it.quantity ) }</span>
                           </div>
                         ) ) }
                       </div>
