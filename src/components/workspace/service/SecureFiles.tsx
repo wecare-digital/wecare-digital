@@ -48,8 +48,6 @@ function formatBytes ( bytes: number ): string {
     return `${( bytes / Math.pow( 1024, exponent ) ).toFixed( exponent === 0 ? 0 : 1 )} ${units[ exponent ]}`;
 }
 
-const rupees = ( paise: number ) => `₹${( ( paise || 0 ) / 100 ).toFixed( 0 )}`;
-
 /** The backend's access state, or a fallback for a list served by an older backend. */
 function accessStateOf ( row: SecureFile ): SecureFileAccessState {
     if ( row.accessState ) return row.accessState;
