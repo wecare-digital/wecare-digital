@@ -159,6 +159,35 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
         self.assertIn("actual_ext = os.path.splitext(s3_key)[1].lower()", source)
         self.assertIn('display_filename = f"wecare-digital-{short_id}{actual_ext}"', source)
 
+    def test_receipt_uses_dedicated_immutable_masthead_asset(self):
+        source = ENGINE.read_text(encoding="utf-8")
+        self.assertIn(
+            "secure/d/public/Invoice/brand/wecare-digital-receipt-masthead-v1.png",
+            source,
+        )
+        self.assertIn("'logo_s3_key': RECEIPT_MASTHEAD_KEY", source)
+        self.assertNotIn(
+            "'logo_s3_key': media_paths.public('stream/media/m/wecare-digital.png')",
+            source,
+        )
+
+    def test_media_trace_id_never_collapses_to_wa_idem_prefix(self):
+        source = OUTBOUND.read_text(encoding="utf-8")
+        self.assertIn("def _media_trace_id(message_id: str) -> str:", source)
+        self.assertIn("short_id = _media_trace_id(message_id)", source)
+        self.assertNotIn("short_id = message_id[:8]", source)
+
+        start = source.index("def _media_trace_id")
+        end = source.index("\ndef _upload_media", start)
+        namespace = {"hashlib": __import__("hashlib")}
+        exec(source[start:end], namespace)
+        trace = namespace["_media_trace_id"](
+            "wa-idem-invoice-WD-PAY-7A6F2104BEF148D4"
+        )
+        self.assertEqual(len(trace), 10)
+        self.assertNotEqual(trace, "waidem")
+        self.assertNotIn("wa-idem-", f"wecare-digital-{trace}.png")
+
 
 if __name__ == "__main__":
     unittest.main()
