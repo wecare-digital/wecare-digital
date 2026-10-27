@@ -342,11 +342,11 @@ def website_finish(row:dict,login:dict,auth:dict,event:dict)->dict:
   raise AuthError('Website session unavailable')
  body=json.loads(reply.get('body')or'{}')
  csrf,expires_at=(body.get('csrfToken'),body.get('expiresAt'))
- if not isinstance(csrf,str)or not csrf or not isinstance(expires_at,(int,float)):
+ if not isinstance(csrf,str)or not csrf or(not isinstance(expires_at,(int,float))):
   raise AuthError('Website session unavailable')
  destination=website_return(row.get('return',''))
  nonce=secrets.token_urlsafe(24)
- script="const hint={csrfToken:"+json.dumps(csrf)+",expiresAt:"+str(int(expires_at))+",persistent:true};localStorage.setItem('wecare.customer.sessionHint',JSON.stringify(hint));fetch('/api/ecommerce/customer-session',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-Customer-CSRF':hint.csrfToken},body:JSON.stringify({action:'refresh'})}).then(r=>{if(!r.ok)throw new Error('refresh');return r.json()}).then(async s=>{sessionStorage.setItem('wecare.customer.accessToken',s.accessToken);sessionStorage.setItem('wecare.customer.expiresAt',String(s.expiresAt));try{await fetch('/api/customer/profile',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+s.accessToken},body:'{}'})}catch(e){}location.replace("+json.dumps(destination)+")}).catch(()=>{document.getElementById('status').textContent='Sign-in completed, but the website session could not be restored. Please try again.'})"
+ script='const hint={csrfToken:'+json.dumps(csrf)+',expiresAt:'+str(int(expires_at))+",persistent:true};localStorage.setItem('wecare.customer.sessionHint',JSON.stringify(hint));fetch('/api/ecommerce/customer-session',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-Customer-CSRF':hint.csrfToken},body:JSON.stringify({action:'refresh'})}).then(r=>{if(!r.ok)throw new Error('refresh');return r.json()}).then(async s=>{sessionStorage.setItem('wecare.customer.accessToken',s.accessToken);sessionStorage.setItem('wecare.customer.expiresAt',String(s.expiresAt));try{await fetch('/api/customer/profile',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+s.accessToken},body:'{}'})}catch(e){}location.replace("+json.dumps(destination)+")}).catch(()=>{document.getElementById('status').textContent='Sign-in completed, but the website session could not be restored. Please try again.'})"
  page='<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="robots" content="noindex,nofollow,noarchive"><title>WECARE.DIGITAL · Signing in</title></head><body><main id="status" style="max-width:520px;margin:15vh auto;padding:24px;font:16px/1.5 system-ui;color:#1a3a2a">Completing your secure sign-in…</main><script nonce="'+html.escape(nonce,quote=True)+'">'+script+'</script></body></html>'
  result=response(200,page,page=True)
  result['cookies']=list(reply.get('cookies')or[])+[f'{COOKIE}=; Secure; HttpOnly; SameSite=Lax; Path=/; Max-Age=0']
@@ -440,7 +440,7 @@ def route(event:dict)->dict|None:
    return response(200,auth_metadata())
   if path in{'/auth','/oauth/authorize'}and method=='GET':
    params=parse(event.get('rawQueryString',''))
-   if path=='/auth'and not {'client_id','redirect_uri','response_type','scope','state','resource','code_challenge','code_challenge_method'}.intersection(params):
+   if path=='/auth'and(not{'client_id','redirect_uri','response_type','scope','state','resource','code_challenge','code_challenge_method'}.intersection(params)):
     return website_get(params)
    target=connect_origin()
    if target!=origin()and path=='/oauth/authorize':
