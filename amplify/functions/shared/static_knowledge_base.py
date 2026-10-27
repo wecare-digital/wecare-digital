@@ -89,8 +89,8 @@ FAQ_CONFIG = {'brand': {'name': 'WECARE.DIGITAL',
            'keywords': ['account', 'login', 'register', 'signup', 'password', 'profile'],
            'category': 'general',
            'question': 'How do I create an account?',
-           'answer': 'Verify your WhatsApp number at https://wecare.digital/auth to '
-                     'continue to your cart or orders.',
+           'answer': 'Verify your WhatsApp number at https://wecare.digital/auth to continue to '
+                     'your cart or orders.',
            'shortAnswer': 'Verify your WhatsApp number at wecare.digital/auth'},
           {'id': 'convenience-fee',
            'keywords': ['convenience fee', 'extra charge', 'additional fee', 'why charge'],
