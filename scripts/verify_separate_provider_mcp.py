@@ -120,7 +120,11 @@ def main() -> None:
     assert template['Resources']['Function']['Properties']['ReservedConcurrentExecutions'] >= 5
     for resource in ('PlivoAuthorizeRoute', 'PlivoAuthorizePermission', 'PlivoTokenRoute', 'PlivoTokenPermission',
             'SinchIndiaAuthorizeRoute', 'SinchIndiaAuthorizePermission', 'SinchIndiaTokenRoute', 'SinchIndiaTokenPermission'):
-        assert resource not in template['Resources']
+        assert resource in template['Resources']
+    assert template['Resources']['PlivoAuthorizeRoute']['Condition'] == 'PlivoCallbackConfigured'
+    assert template['Resources']['PlivoTokenRoute']['Condition'] == 'PlivoCallbackConfigured'
+    assert template['Resources']['SinchIndiaAuthorizeRoute']['Condition'] == 'SinchIndiaCallbackConfigured'
+    assert template['Resources']['SinchIndiaTokenRoute']['Condition'] == 'SinchIndiaCallbackConfigured'
     provider_request = {'requestContext': {'apiId': endpoints['plivo']['apiId'],
         'routeKey': 'ANY /mcp', 'http': {'method': 'POST', 'path': '/mcp'}},
         'headers': {'origin': 'https://chatgpt.com'},
