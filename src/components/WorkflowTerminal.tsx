@@ -1117,12 +1117,9 @@ const WorkflowTerminal: React.FC = () => {
           color:#fff;
           font-size:clamp(16px,1.1vw + 14px,18px);
           line-height:1.7;
-          scrollbar-width:thin;
-          scrollbar-color:rgba(255,255,255,.28) transparent;
+          scrollbar-width:none;
         }
-        .wt-request::-webkit-scrollbar{height:4px}
-        .wt-request::-webkit-scrollbar-thumb{background:rgba(255,255,255,.28);border-radius:10px}
-        .wt-request::-webkit-scrollbar-track{background:transparent}
+        .wt-request::-webkit-scrollbar{display:none}
         .wt-request > span:last-child{flex:0 0 auto}
         .wt-caret{color:#d1f470;flex:0 0 auto}
 
@@ -1210,7 +1207,8 @@ const WorkflowTerminal: React.FC = () => {
            straight back up to .wt-space and the window. With min-width:0 the block can be
            narrower than its lines, and overflow-x:auto then scrolls them horizontally inside it.
            -webkit-overflow-scrolling:touch keeps the swipe momentum-smooth on iOS WebKit. */
-        .wt-code{position:relative;margin-top:1px;padding:3px 0 0;min-width:0;overflow-x:auto;-webkit-overflow-scrolling:touch;display:grid;gap:5px}
+        .wt-code{position:relative;margin-top:1px;padding:3px 0 0;min-width:0;overflow-x:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x;scrollbar-width:none;display:grid;gap:5px}
+        .wt-code::-webkit-scrollbar{display:none}
         /* THE SWIPE AFFORDANCE. A right-edge fade that hints "there is more ->" so a phone reader
            knows an over-long line continues past the panel edge. It is a sticky pseudo pinned to
            the scroller's right edge: when a line overflows it floats over the trailing text and
@@ -1338,26 +1336,23 @@ const WorkflowTerminal: React.FC = () => {
           .wt-bar{
             box-sizing:border-box;
             height:47px;
-            padding:0 84px 0 12px;
-            gap:7px;
+            padding:0 76px 0 10px;
+            gap:5px;
             overflow-x:auto;
             overflow-y:hidden;
             -webkit-overflow-scrolling:touch;
             touch-action:pan-x;
-            scrollbar-width:thin;
-            scrollbar-color:rgba(209,244,112,.72) rgba(255,255,255,.10);
+            scrollbar-width:none;
             white-space:nowrap;
           }
-          /* The title rail is horizontally scrollable only when a very narrow viewport needs it.
-             Show a real 3px lime thumb rather than hiding the scrollbar: this is the visual cue
-             that the row continues, and it uses colours already present in the terminal. */
-          .wt-bar::-webkit-scrollbar{height:3px}
-          .wt-bar::-webkit-scrollbar-track{background:rgba(255,255,255,.10)}
-          .wt-bar::-webkit-scrollbar-thumb{background:rgba(209,244,112,.72);border-radius:8px}
-          .wt-light{width:9px;height:9px}
+          /* Horizontal swipe is still available on exceptionally narrow widths, but scrollbar
+             chrome is intentionally hidden. The machine trace already carries a subtle edge fade,
+             so bright lime bars no longer read like underlined code. */
+          .wt-bar::-webkit-scrollbar{display:none}
+          .wt-light{width:8px;height:8px}
           .wt-bar-title{
-            margin-left:3px;
-            font-size:14px;
+            margin-left:2px;
+            font-size:13px;
             flex:0 0 auto;
             overflow:visible;
             text-overflow:clip;
@@ -1366,34 +1361,35 @@ const WorkflowTerminal: React.FC = () => {
             display:flex;
             flex:0 0 auto;
             margin-left:0;
-            font-size:13px;
-            gap:6px;
+            font-size:12px;
+            gap:5px;
           }
           .wt-play{
             top:0;left:auto;right:0;
-            width:auto;height:44px;
+            width:72px;height:44px;
             justify-content:center;
-            padding:0 10px;
+            padding:0 8px;
             border-radius:0 12px 0 0;
-            font-size:13px;
-            gap:7px;
+            font-size:12px;
+            gap:6px;
             background:#3b271a;
-            box-shadow:inset 2px 0 0 rgba(209,244,112,.22),inset 0 -2px 0 transparent;
+            border-left:1px solid rgba(255,255,255,.12);
+            box-shadow:inset 0 -2px 0 transparent;
           }
           .wt-play:hover{
             background:#3b271a;
             color:#fff;
-            box-shadow:inset 2px 0 0 rgba(209,244,112,.22),inset 0 -2px 0 #d1f470;
+            box-shadow:inset 0 -2px 0 #d1f470;
           }
           .wt-play:focus-visible{
             background:#3b271a;
             color:#fff;
             outline:2px solid #d1f470;
             outline-offset:-2px;
-            box-shadow:inset 2px 0 0 rgba(209,244,112,.22),inset 0 -2px 0 #d1f470;
+            box-shadow:inset 0 -2px 0 #d1f470;
           }
           .wt-play.is-paused{
-            box-shadow:inset 2px 0 0 rgba(209,244,112,.22),inset 0 -2px 0 rgba(209,244,112,.72)
+            box-shadow:inset 0 -2px 0 rgba(209,244,112,.72)
           }
           .wt-request{font-size:15px;line-height:1.5}
           .wt-line{line-height:1.45;gap:7px}
@@ -1423,12 +1419,13 @@ const WorkflowTerminal: React.FC = () => {
           .wt-time{margin-left:auto}
         }
         @media(max-width:340px){
-          /* At Fold width, remove only decorative traffic lights. The title bar remains
-             one scrollable row and the actual labels keep their readable typography. */
+          /* At Fold width, decorative traffic lights yield first. The title/state rail remains
+             horizontally swipeable if needed, while Pause stays pinned and fully tappable. */
           .wt-light{display:none}
-          .wt-bar-title{margin-left:0;font-size:13px}
-          .wt-bar-state{font-size:12px}
-          .wt-play{font-size:13px}
+          .wt-bar{padding-left:10px}
+          .wt-bar-title{margin-left:0;font-size:12px}
+          .wt-bar-state{font-size:11.5px}
+          .wt-play{width:70px;font-size:12px}
         }
 
         /* Reduced motion starts on the finished state with the loop paused, so by default this
