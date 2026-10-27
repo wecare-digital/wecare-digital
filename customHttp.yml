@@ -41,27 +41,19 @@
 # were already live. Deleting a line here is a live header removal, not a revert to
 # the console value.
 #
-# `Cache-Control` IS NOW SET TO `no-store, max-age=0, must-revalidate` EVERYWHERE - on the
-# sitewide `**/*` block AND on `/_next/static/**/*` AND on the VayuLok patterns. The site
-# caching layer was removed wholesale (PR #1467, "Remove site cache layer completely"); the
-# whole point is that NO surface is cached by the browser or the edge anymore, so there is no
-# longer a distinction between HTML and hashed assets to state.
+# `Cache-Control` stays conservative on stable URLs: the sitewide `**/*` block and the
+# VayuLok HTML/globe patterns remain `no-store, max-age=0, must-revalidate` so a successful
+# deployment is not masked by stale HTML or a stable iframe URL.
 #
-#   WHY no-store EVERYWHERE, INCLUDING HASHED ASSETS. VayuLok kept showing an older
-#   document/globe after successful Amplify deploys - stale UI that a long browser/edge TTL
-#   plus a now-removed Service Worker kept alive. The remedy chosen was to stop caching the
-#   site at all: every response revalidates against the origin, so a successful deployment is
-#   always what a visitor sees. This is deliberately NOT performance-optimal.
+# The one safe exception is `/_next/static/**/*`. Next writes those assets with a content hash
+# in the filename, so a different build produces a different URL. The bytes at an existing
+# hashed URL are immutable by construction; caching them for one year cannot strand a visitor
+# on an old deployment because new HTML references new hashes. Keeping these assets on no-store
+# only adds conditional requests and transfer overhead to every repeat visit.
 #
-#   WHAT WAS GIVEN UP, STATED PLAINLY. `/_next/static/*` filenames are content-hashed by the
-#   build, so their bytes at a given URL can never change and they COULD safely carry a
-#   one-year `public, max-age=31536000, immutable`. That is exactly what this file used to set
-#   here, and `no-store` replaces it: a returning visitor now sends a conditional request for
-#   each hashed asset on every navigation and gets a 304 back every time - round trips that
-#   cannot produce a different answer, and the precise thing Lighthouse's cache-insight audit
-#   flags. The staleness cure was judged to outweigh that cost. If the cache is ever restored,
-#   it is `/_next/static/**/*` -> `public, max-age=31536000, immutable` that is safe to bring
-#   back first, because the hash in the filename makes it strand-proof; HTML is not.
+# Therefore hashed Next assets use `public, max-age=31536000, immutable` while HTML and stable
+# asset URLs continue to revalidate. This restores the performance-safe part of the old cache
+# layer without reintroducing the VayuLok stale-document failure that motivated PR #1467.
 #
 # Amplify documents customHttp.yml's Cache-Control as taking precedence over its own
 # default (userguide/managing-cache-configuration.html), and it clears the CDN cache on
@@ -296,14 +288,9 @@ customHeaders:
   #
   # EVERY HEADER HERE IS RESTATED ON PURPOSE - none is special to this block anymore.
   #
-  # This pattern once existed to give hashed assets a DIFFERENT Cache-Control from the rest
-  # of the site (`public, max-age=31536000, immutable`). The site cache layer was removed
-  # (PR #1467), so the Cache-Control below is now the SAME `no-store, max-age=0,
-  # must-revalidate` the sitewide `**/*` block already sets. The block is kept only to make
-  # sure the security headers stay live on JS/CSS responses under either Amplify
-  # pattern-merge semantics (see the next paragraph); it no longer carves out a caching
-  # exception. See the long note at the top of this file for the why and for what it would
-  # take to safely restore a long TTL here.
+  # This pattern gives content-hashed Next assets a DIFFERENT Cache-Control from stable URLs:
+  # `public, max-age=31536000, immutable`. The filename hash changes when bytes change, so this
+  # cannot strand a visitor on an old build. HTML and the stable VayuLok URLs remain no-store.
   #
   # AWS documents that customHttp.yml overrides the console header set, and it documents
   # `pattern` as a glob, but it does NOT document whether two matching patterns MERGE or
@@ -321,19 +308,14 @@ customHeaders:
   # how the inert-amplify.yml problem started.
   #
   # The pattern is `/_next/static/**/*` and NOT `**/*.js`. Only files under
-  # /_next/static/ carry a content hash in the name. That distinction no longer changes
-  # the Cache-Control (everything is `no-store` now), but the pattern is kept precise so
-  # that if a long immutable TTL is ever restored here it lands only on the hashed assets
-  # it is safe for - never on a stable filename like `/vendor/amplify-ui.css`, where an
-  # immutable year would be a stale asset waiting for a visitor who does not hard-refresh.
+  # /_next/static/ carry a content hash in the name. Stable filenames such as
+  # `/vendor/amplify-ui.css` intentionally stay under the sitewide no-store policy.
   - pattern: "/_next/static/**/*"
     headers:
-      # Same `no-store` as the sitewide block. The bytes at a hashed URL cannot change, so
-      # these assets COULD safely carry `public, max-age=31536000, immutable`; they used to,
-      # and it was removed with the rest of the site cache (PR #1467) so that a deploy is
-      # never masked by a cached asset. See the long note at the top for the trade-off.
+      # Content-hashed assets are immutable by URL. Cache them aggressively; new deploys
+      # reference new hashes, while stable HTML remains no-store above.
       - key: Cache-Control
-        value: "no-store, max-age=0, must-revalidate"
+        value: "public, max-age=31536000, immutable"
       - key: X-Frame-Options
         value: SAMEORIGIN
       - key: X-Content-Type-Options
