@@ -215,6 +215,36 @@ class PaymentArchitectureDriftTests(unittest.TestCase):
         self.assertIn('"ReservedConcurrentExecutions": 10', infra)
         self.assertIn('"Mode": "Active"', infra)
 
+    def test_aged_unknown_whatsapp_reconciliation_never_resends(self):
+        business = (ROOT / "amplify" / "functions" / "messaging" / "whatsapp-business-api" / "handler.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("def _reconcile_unknown_deliveries(", business)
+        self.assertIn("internalAction') == 'reconcileUnknownDeliveries'", business)
+        self.assertIn("Meta Message History can only be queried when the WAMID is known", business)
+        self.assertIn("whatsapp_unknown_delivery_aged", business)
+        self.assertNotIn("reconcileUnknownDeliveries') == 'send'", business)
+
+    def test_whatsapp_reconciliation_schedule_and_alarms_are_tracked(self):
+        schedule = (ROOT / "scripts" / "provision_whatsapp_delivery_reconciliation.py").read_text(
+            encoding="utf-8"
+        )
+        alarms = (ROOT / "scripts" / "provision_payment_rail_alarms.py").read_text(encoding="utf-8")
+        smoke = (ROOT / "scripts" / "smoke_whatsapp_backend_live.py").read_text(encoding="utf-8")
+        self.assertIn('SCHEDULE = "rate(10 minutes)"', schedule)
+        self.assertIn('"internalAction": "reconcileUnknownDeliveries"', schedule)
+        self.assertIn('"wecare-whatsapp-delivery-outcome-unknown"', alarms)
+        self.assertIn('"wecare-whatsapp-delivery-reconciliation-stuck"', alarms)
+        self.assertIn('"mutationFree": True', smoke)
+
+    def test_workspace_deploy_verifies_live_operational_config(self):
+        workflow = (ROOT / ".github" / "workflows" / "workspace-mcp-ci.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('live_tracing="$(jq -r .tracing', workflow)
+        self.assertIn('live_concurrency="$(aws lambda get-function-concurrency', workflow)
+        self.assertIn('if [[ "$live_concurrency" != "10" ]]', workflow)
+
     def test_payment_ci_triggers_on_template_registry_for_pr_and_push(self):
         workflow = (ROOT / ".github" / "workflows" / "payment-rail-ci.yml").read_text(
             encoding="utf-8"

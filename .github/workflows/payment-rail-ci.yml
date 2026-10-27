@@ -13,6 +13,8 @@ on:
       - "config/lambda-env-manifest.json"
       - "scripts/env_manifest.py"
       - "scripts/provision_payment_rail_alarms.py"
+      - "scripts/provision_whatsapp_delivery_reconciliation.py"
+      - "scripts/smoke_whatsapp_backend_live.py"
       - "scripts/provision_order_status_template.py"
       - "tests/test_env_manifest_aliases.py"
       - "tests/test_direct_send_dual_account_regression.py"
@@ -56,6 +58,8 @@ on:
       - "config/lambda-env-manifest.json"
       - "scripts/env_manifest.py"
       - "scripts/provision_payment_rail_alarms.py"
+      - "scripts/provision_whatsapp_delivery_reconciliation.py"
+      - "scripts/smoke_whatsapp_backend_live.py"
       - "tests/test_env_manifest_aliases.py"
       - "tests/test_direct_send_dual_account_regression.py"
       - "tests/test_commerce_audit_hardening.py"
@@ -131,7 +135,7 @@ jobs:
 
       - name: Verify audit and alarm provisioning scripts
         run: |
-          python -m py_compile scripts/env_manifest.py scripts/provision_payment_rail_alarms.py scripts/audit_whatsapp_message_history.py
+          python -m py_compile scripts/env_manifest.py scripts/provision_payment_rail_alarms.py scripts/provision_whatsapp_delivery_reconciliation.py scripts/audit_whatsapp_message_history.py scripts/smoke_whatsapp_backend_live.py
           python -m unittest discover -s tests -p 'test_env_manifest_aliases.py'
 
       - name: Verify Drop Docs replacement invariants

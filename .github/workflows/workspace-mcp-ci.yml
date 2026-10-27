@@ -194,12 +194,25 @@ jobs:
             --function-version "$version" \
             --revision-id "$alias_revision" >/dev/null
 
-          live_sha="$(aws lambda get-function-configuration \
+          live_cfg="$(aws lambda get-function-configuration \
             --function-name "$fn" --qualifier live \
-            --query CodeSha256 --output text)"
+            --query '{sha:CodeSha256,tracing:TracingConfig.Mode,status:LastUpdateStatus}' --output json)"
+          live_sha="$(jq -r .sha <<<"$live_cfg")"
+          live_tracing="$(jq -r .tracing <<<"$live_cfg")"
+          live_status="$(jq -r .status <<<"$live_cfg")"
+          live_concurrency="$(aws lambda get-function-concurrency \
+            --function-name "$fn" --query ReservedConcurrentExecutions --output text)"
           if [[ "$live_sha" != "$expected" ]]; then
             echo "Live alias hash mismatch: expected $expected, got $live_sha" >&2
             exit 1
           fi
-          echo "$fn live -> v$version $live_sha"
+          if [[ "$live_tracing" != "Active" || "$live_status" != "Successful" ]]; then
+            echo "Live alias config mismatch: tracing=$live_tracing status=$live_status" >&2
+            exit 1
+          fi
+          if [[ "$live_concurrency" != "10" ]]; then
+            echo "Reserved concurrency mismatch: expected 10, got $live_concurrency" >&2
+            exit 1
+          fi
+          echo "$fn live -> v$version $live_sha tracing=$live_tracing concurrency=$live_concurrency"
 

@@ -95,6 +95,7 @@ from lambda_utils import flow_completion as flow_responses  # channel vocabulary
 from lambda_utils import flow_launch  # one entry-policy validator for registry writes and launches
 from lambda_utils import flow_sessions  # server-issued Flow tokens; unknown tokens answer 427
 from lambda_utils import flow_funnel  # per-day Flow funnel counters (no customer data)
+from lambda_utils import wa_status
 from lambda_utils.privacy import redact_string  # exception text can carry a phone number
 META_TOKEN_SECRET = os.environ.get('META_TOKEN_SECRET', 'wecare/meta-system-user-token')
 GRAPH_BASE = f'https://graph.facebook.com/{META_API_VERSION}'
@@ -6812,6 +6813,121 @@ def _workspace_count(table_name: str, *, max_pages: int = 20,
     return {'count': total, 'complete': False}
 
 
+def _meta_phone_for_outbound_row(row: Dict[str, Any]) -> str:
+    raw = str(row.get('awsPhoneNumberId') or '').strip()
+    if raw in {PHONE1_META_ID, PHONE2_META_ID}:
+        return raw
+    for candidate in (PHONE1_META_ID, PHONE2_META_ID):
+        if raw.endswith(candidate):
+            return candidate
+    return ''
+
+
+def _reconcile_unknown_deliveries(event: Dict[str, Any]) -> Dict[str, Any]:
+    """Reconcile aged ambiguous sends without ever resending.
+
+    Meta Message History can only be queried when the WAMID is known. Rows without a WAMID
+    remain unknown and are surfaced as aged/stuck evidence for alarm/operator review.
+    """
+    try:
+        grace = int(event.get('graceSeconds') or 900)
+        max_pages = int(event.get('maxPages') or 5)
+        page_limit = int(event.get('pageLimit') or 50)
+    except (TypeError, ValueError):
+        return {'error': 'INVALID_RECONCILIATION_LIMIT'}
+    if not 300 <= grace <= 86400 or not 1 <= max_pages <= 20 or not 1 <= page_limit <= 100:
+        return {'error': 'INVALID_RECONCILIATION_LIMIT'}
+
+    now = int(time.time())
+    cutoff = Decimal(str(now - grace))
+    table_name = os.environ.get('OUTBOUND_TABLE', 'stack-wecare-digital-WhatsAppOutboundTable')
+    table = dynamodb.Table(table_name)
+    unified = dynamodb.Table(os.environ.get('MESSAGES_TABLE', 'stack-wecare-digital-MessagesTable'))
+    start = None
+    stats = {'scanned': 0, 'aged': 0, 'resolved': 0, 'failed': 0,
+             'missingWamid': 0, 'historyUnavailable': 0}
+
+    rank_order = {'ACCEPTED': 'accepted', 'SENT': 'sent', 'FAILED': 'failed',
+                  'DELIVERED': 'delivered', 'READ': 'read'}
+    for _ in range(max_pages):
+        args = {
+            'Limit': page_limit,
+            'FilterExpression': Attr('status').eq('unknown') & Attr('createdAt').lte(cutoff),
+        }
+        if start:
+            args['ExclusiveStartKey'] = start
+        page = table.scan(**args)
+        stats['scanned'] += int(page.get('ScannedCount') or 0)
+        for row in page.get('Items') or []:
+            stats['aged'] += 1
+            message_id = str(row.get('id') or row.get('messageId') or '').strip()
+            wamid = str(row.get('whatsappMessageId') or '').strip()
+            phone_id = _meta_phone_for_outbound_row(row)
+            if not message_id or not wamid or not phone_id:
+                stats['missingWamid'] += 1
+                continue
+            evidence = _message_history_for_wamid(phone_id, wamid)
+            if evidence.get('error'):
+                stats['historyUnavailable'] += 1
+                continue
+            events = evidence.get('events') or []
+            statuses = [str(x.get('deliveryStatus') or '').upper()
+                        for x in events if isinstance(x, dict)]
+            final = ''
+            for candidate in ('READ', 'DELIVERED', 'FAILED', 'SENT', 'ACCEPTED'):
+                if candidate in statuses:
+                    final = rank_order[candidate]
+                    break
+            if not final:
+                continue
+            ts = Decimal(str(now))
+            values = {':unknown': 'unknown', ':status': final, ':ts': ts,
+                      ':rank': Decimal(str(wa_status.rank(final)))}
+            try:
+                table.update_item(
+                    Key={'id': message_id},
+                    UpdateExpression='SET #s = :status, statusUpdatedAt = :ts, statusRank = :rank',
+                    ConditionExpression='#s = :unknown',
+                    ExpressionAttributeNames={'#s': 'status'},
+                    ExpressionAttributeValues=values,
+                )
+                try:
+                    unified.update_item(
+                        Key={'id': message_id},
+                        UpdateExpression='SET #s = :status, statusUpdatedAt = :ts, statusRank = :rank',
+                        ConditionExpression='attribute_exists(id)',
+                        ExpressionAttributeNames={'#s': 'status'},
+                        ExpressionAttributeValues={':status': final, ':ts': ts,
+                                                   ':rank': Decimal(str(wa_status.rank(final)))},
+                    )
+                except Exception:
+                    pass
+                stats['resolved'] += 1
+                if final == 'failed':
+                    stats['failed'] += 1
+            except Exception:
+                continue
+        start = page.get('LastEvaluatedKey')
+        if not start:
+            break
+
+    logger.warning(json.dumps({
+        'event': 'whatsapp_unknown_delivery_reconciliation',
+        **stats,
+        'graceSeconds': grace,
+    }))
+    if stats['aged'] - stats['resolved'] > 0:
+        logger.error(json.dumps({
+            'event': 'whatsapp_unknown_delivery_aged',
+            'aged': stats['aged'],
+            'resolved': stats['resolved'],
+            'remaining': stats['aged'] - stats['resolved'],
+            'missingWamid': stats['missingWamid'],
+            'historyUnavailable': stats['historyUnavailable'],
+        }))
+    return stats
+
+
 def _workspace_read(event: Dict[str, Any]) -> Dict[str, Any]:
     """Bounded read-only operational surface for the Workspace MCP.
 
@@ -6875,6 +6991,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     request_id = context.aws_request_id if context else 'local'
     global origin
     origin = extract_origin(event)
+
+    if event.get('internalAction') == 'reconcileUnknownDeliveries':
+        if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
+            return _resp(403, {'error': 'Internal invocation required'})
+        return _reconcile_unknown_deliveries(event)
 
     if event.get('internalAction') == 'workspaceRead':
         if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
