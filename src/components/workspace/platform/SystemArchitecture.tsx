@@ -354,8 +354,11 @@ const ENV_VARS: EnvVar[] = [
   // EXCLUSIVELY by the GTM container GTM-TXZ8JT78 — there is no direct gtag and
   // NEXT_PUBLIC_GA_MEASUREMENT_ID is unset by design. The previously-recorded container id
   // G-GNRPFFBXMF and the long-retired G-S3G6REP6Q7 are both superseded by G-6GW8JXKKT7.
-  // (At last measurement the live container JS still served G-GNRPFFBXMF; pointing it at
-  // G-6GW8JXKKT7 is a Tag-Manager-side action, out of this repo.)
+  // MEASURED 2026-10-27: G-6GW8JXKKT7 is a destination of the Google tag AW-18396505964, so the
+  // container's ONE Google tag sends both Google Ads and GA4. Container version 11 removed the
+  // extra GA4 tags that version 10 had pointed at G-6GW8JXKKT7, which sent 5 page_views per
+  // load. GA4 still receives nothing while all four consent signals stay denied (see the
+  // change-authority-matrix entry of 2026-10-27).
   //
   // This row originally read `G-S3G6REP6Q7` and presented it as live config on a staff
   // dashboard — a value that was not live and was in no container. That id was real once:
@@ -363,7 +366,7 @@ const ENV_VARS: EnvVar[] = [
   // double-counting every pageview; the snippet was removed and the id went with it. The
   // lesson stands: a dashboard must not present stale ids as live — a reader trusts it
   // instead of measuring, and then looks for analytics data in a property that receives none.
-  { key: 'NEXT_PUBLIC_GA_MEASUREMENT_ID', value: '(unset — GA4 is fired by GTM-TXZ8JT78; authoritative Measurement ID G-6GW8JXKKT7)', sensitive: false, category: 'Analytics', risk: 'Was listed as G-S3G6REP6Q7 (retired, in no container); container last measured serving G-GNRPFFBXMF, superseded by G-6GW8JXKKT7' },
+  { key: 'NEXT_PUBLIC_GA_MEASUREMENT_ID', value: '(unset — GA4 is fired by GTM-TXZ8JT78; authoritative Measurement ID G-6GW8JXKKT7)', sensitive: false, category: 'Analytics', risk: 'Was listed as G-S3G6REP6Q7 (retired, in no container). G-6GW8JXKKT7 is sent by the Google tag AW-18396505964 (container v11); nothing is collected while consent stays denied, and there is no consent UI' },
   { key: 'NEXT_PUBLIC_FB_APP_ID', value: '(empty — SDK still loads)', sensitive: false, category: 'Analytics', risk: 'FB SDK loads but sends no data' },
   // Payment identifiers — env-sourced (RAZORPAY_MID / RAZORPAY_UPI_ID), not secrets. A merchant
   // id and a UPI payee address are public by construction (they appear in every deep link and QR).
