@@ -276,31 +276,47 @@ def _audit_actor() -> str:
 # characters 3-12, so the two MUST stay consistent:
 #   19 AAFFW7196L 1 Z 8  ->  state 19 (West Bengal), PAN AAFFW7196L
 # Env vars allow override without a redeploy.
+RECEIPT_BRAND_MARK_KEY = (
+    'secure/d/public/Invoice/brand/wecare-digital-receipt-mark-v2.png'
+)
+
 COMPANY = {
     **business_identity.invoice_identity(),
-    'logo_s3_key': media_paths.public('stream/media/m/wecare-digital.png'),
+    # Dedicated immutable receipt brand mark. Do not point this at the generic site/media logo:
+    # changing a website asset must not silently change a statutory/customer receipt rendition.
+    'logo_s3_key': RECEIPT_BRAND_MARK_KEY,
 }
 
 
+_RECEIPT_LOGO_BYTES: Optional[bytes] = None
+
+
 def _load_logo_bytes() -> Optional[bytes]:
-    """Load company logo from S3 with /tmp cache for Lambda warm starts."""
-    cache_path = '/tmp/_logo_cache.png'
+    """Load the immutable receipt masthead once per warm execution environment."""
+    global _RECEIPT_LOGO_BYTES
+    if _RECEIPT_LOGO_BYTES is not None:
+        return _RECEIPT_LOGO_BYTES
+
+    cache_path = '/tmp/_receipt_brand_mark_v2.png'
     try:
-        with open(cache_path, 'rb') as f:
-            return f.read()
+        with open(cache_path, 'rb') as cached:
+            _RECEIPT_LOGO_BYTES = cached.read()
+            return _RECEIPT_LOGO_BYTES
     except FileNotFoundError:
         pass
+
     try:
         obj = s3.get_object(Bucket=MEDIA_BUCKET, Key=COMPANY['logo_s3_key'])
         data = obj['Body'].read()
+        _RECEIPT_LOGO_BYTES = data
         try:
-            with open(cache_path, 'wb') as f:
-                f.write(data)
-        except Exception as _e:
-            logger.debug(f"Logo cache write failed: {_e}")
+            with open(cache_path, 'wb') as cached:
+                cached.write(data)
+        except Exception as error:  # noqa: BLE001
+            logger.debug(f"Receipt brand-mark cache write failed: {type(error).__name__}")
         return data
-    except Exception as e:
-        logger.warning(f"Logo load error: {e}")
+    except Exception as error:  # noqa: BLE001
+        logger.warning(f"Receipt brand-mark load error: {type(error).__name__}")
         return None
 
 
@@ -337,6 +353,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         body = {}
 
     try:
+        # POST /invoices with _action=preview — authoritative pre-issue quote.
+        # This deliberately returns before invoice numbering/storage; the browser gets exact
+        # server pricing without creating a statutory document or duplicating arithmetic.
+        if method == 'POST' and body.get('_action') == 'preview':
+            return preview_invoice(body, request_id)
+
         # POST /invoices with _action=initiate-refund — irreversible provider command.
         # Uses the existing authenticated invoice collection route so shipping this dormant
         # capability does not create an unaudited API-Gateway route. The feature flag is false
@@ -886,6 +908,21 @@ def _invoice_input_error(body: Dict) -> str:
 
 
 # ─── Create Invoice ───
+
+def preview_invoice(body: Dict, request_id: str) -> Dict:
+    """Return the canonical invoice quote without issuing or persisting an invoice."""
+    preview_body = dict(body or {})
+    preview_body.pop('_action', None)
+    # A preview may never claim a dedupe identity or mutate a captured-payment invoice.
+    preview_body['referenceId'] = ''
+    preview_body['paymentId'] = ''
+    preview_body['previewOnly'] = True
+    preview_body['status'] = 'created'
+    preview_body['paymentStatus'] = 'pending'
+    preview_body.pop('amountIsTaxInclusive', None)
+    preview_body.pop('expectedTotalPaise', None)
+    return _create_invoice(preview_body, request_id, {})
+
 
 def create_invoice(body: Dict, request_id: str) -> Dict:
     """Create a new invoice from direct input. Includes deduplication by referenceId/paymentId.
@@ -1462,6 +1499,72 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
                 'expectedTotalPaise': expected_total_paise,
                 'computedTotalPaise': computed_total_paise,
             })
+    if body.get('previewOnly'):
+        preview = {
+            'preview': True,
+            'subtotal': _money_display(subtotal),
+            'discount': _money_display(discount),
+            'shipping': _money_display(shipping),
+            'tax': _money_display(tax),
+            'convenienceFee': _money_display(convenience_fee),
+            'convenienceFeeNet': _money_display(convenience_fee_net),
+            'convenienceFeeGst': _money_display(convenience_fee_gst),
+            'totalGst': _money_display(tax + convenience_fee_gst),
+            'total': _money_display(total),
+            'couponCode': stored_coupon_code or None,
+            'couponDiscount': _money_display(coupon_discount_rupees),
+            'goodsType': body.get('goodsType') or 'physical-goods',
+            'sellerGstin': body.get('gstin') or COMPANY['gstin'],
+            'pricingAuthority': 'invoice-engine',
+        }
+
+        # Optional visual preview: use the SAME receipt renderer as the paid document, but keep
+        # everything in memory. No invoice number, DynamoDB row, S3 object or asset row is minted.
+        # The browser therefore previews presentation, while all monetary facts still come from
+        # this function's canonical pricing path.
+        if body.get('renderPreview'):
+            preview_invoice_row = {
+                'invoiceId': '',
+                'invoiceNumber': '',
+                'referenceId': 'PREVIEW',
+                'entryPoint': body.get('entryPoint', 'pay_flow'),
+                'channel': order_channel.canonical(body.get('channel')),
+                'status': 'created',
+                'paymentStatus': 'pending',
+                'customerName': body.get('customerName', ''),
+                'customerPhone': body.get('customerPhone', ''),
+                'customerEmail': body.get('customerEmail', ''),
+                'shippingAddress': body.get('shippingAddress', ''),
+                'billingAddress': body.get('billingAddress', ''),
+                'addressLine1': body.get('addressLine1', ''),
+                'addressLine2': body.get('addressLine2', ''),
+                'city': body.get('city', ''),
+                'state': body.get('state', ''),
+                'postalCode': body.get('postalCode', ''),
+                'buyerGstin': buyer_gstin or '',
+                'subtotal': _dec(subtotal),
+                'discount': _dec(discount),
+                'shipping': _dec(shipping),
+                'handling': _dec(handling),
+                'tax': _dec(tax),
+                'convenienceFee': _dec(convenience_fee),
+                'convenienceFeeNet': _dec(convenience_fee_net),
+                'convenienceFeeGst': _dec(convenience_fee_gst),
+                'total': _dec(total),
+                'createdAt': now,
+            }
+            preview_png = _generate_receipt_png(preview_invoice_row, list(items))
+            preview['previewImageBase64'] = base64.b64encode(preview_png).decode('ascii')
+            preview['previewImageContentType'] = 'image/png'
+
+        logger.info(json.dumps({
+            'event': 'invoice_preview_rendered' if body.get('renderPreview') else 'invoice_preview_quoted',
+            'itemCount': len(items),
+            'rendered': bool(body.get('renderPreview')),
+            'requestId': request_id,
+        }))
+        return _resp(200, preview)
+
     # ── Only now is a GST invoice number consumed ──
     #
     # Every refusal above has already answered. This is the last thing that can fail, and it is

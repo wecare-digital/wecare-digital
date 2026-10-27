@@ -1,19 +1,19 @@
 # WhatsApp Business Platform live feature matrix
 
-**Checked:** 2026-10-26  
+**Checked:** 2026-10-27  
 **Scope:** WECARE.DIGITAL and Manish Agarwal production WhatsApp businesses  
 **State vocabulary:** AVAILABLE = provider + account + deployed code can support the capability; BUILT_GATED = implementation exists but provider/account access is missing or intentionally disabled; PARTIAL = some code/event coverage exists but the end-to-end capability is incomplete; MISSING = no production implementation found; OWNER_ACTION = requires business/app administration outside AWS code.
 
 | Capability | WECARE.DIGITAL (+91 93309 94400) | Manish Agarwal (+91 99033 00044) | WECARE implementation | Next action |
 |---|---|---|---|---|
-| Core Cloud API messaging | AVAILABLE | PARTIAL | Built | Manish needs an administered WhatsApp developer app for complete app/webhook parity |
+| Core Cloud API messaging | AVAILABLE | AVAILABLE | Built | Both production accounts are subscribed to the shared WECARE.DIGITAL app and both registered senders are live |
 | Business verification | AVAILABLE | AVAILABLE | Provider state | None |
 | Registered production phone | AVAILABLE | AVAILABLE | Provider state | Use the linked/registered Manish sender only; ignore the older migrated record |
 | Payment method | AVAILABLE | AVAILABLE | Provider state | None |
-| Developer app | AVAILABLE | OWNER_ACTION | External | Connect/admin a WhatsApp-enabled developer app on Manish Agarwal |
-| App published | AVAILABLE | OWNER_ACTION | External | Publish the Manish app after it is connected |
-| Webhook callback | AVAILABLE | OWNER_ACTION | Built | Configure callback after Manish app connection |
-| Account-to-app webhook subscription | AVAILABLE | OWNER_ACTION | Built | Subscribe the Manish account after app connection |
+| Developer app | AVAILABLE | AVAILABLE | Shared integration | Both production accounts use the published WECARE.DIGITAL app `2238810740192680`; do not create a duplicate app |
+| App published | AVAILABLE | AVAILABLE | Shared integration | WECARE.DIGITAL app is published and serves both accounts |
+| Webhook callback | AVAILABLE | AVAILABLE | Built | Shared production callback is configured on the WECARE.DIGITAL app |
+| Account-to-app webhook subscription | AVAILABLE | AVAILABLE | Built/live verified | Both production accounts list WECARE.DIGITAL app `2238810740192680` in subscribed apps |
 | Direct Send utility | BUILT_GATED | BUILT_GATED | Built and fail-closed | Meta returned error #100: Direct Send is not enabled on either account; keep allowlist empty |
 | Direct Send authentication | BUILT_GATED | BUILT_GATED | Built with approved-template fallback; production allowlist is empty after live Meta refusal | Keep fail-closed until Meta explicitly enables authentication Direct Send |
 | WhatsApp Marketing Messages API | AVAILABLE | AVAILABLE | Live onboarding readback is ONBOARDED for both WABAs | Keep normal consent/policy gates; this is distinct from Meta Marketing API Full Access |
@@ -22,15 +22,15 @@
 | Marketing product fallback policy | BUILT_GATED | OWNER_ACTION | `product_policy` supports `CLOUD_API_FALLBACK` / `STRICT` with regression tests | Enable only after Marketing API entitlement |
 | Catalog management | BUILT_GATED | OWNER_ACTION | Significant code exists | WECARE app review shows catalog_management not live/rejected; complete review evidence |
 | Catalog/product messages | PARTIAL | OWNER_ACTION | Built | Provider entitlement/catalog connection required |
-| WhatsApp Flows | BUILT_GATED | OWNER_ACTION | Strong implementation | Live verification/asset readiness still required per flow |
+| WhatsApp Flows | AVAILABLE | AVAILABLE via canonical handoff | F001 Subscribe and F002 Leave Review are PUBLISHED; remaining Flow assets are intentionally DRAFT | Publish additional drafts only when the corresponding customer journey is approved |
 | Calling API | AVAILABLE | AVAILABLE | Live settings show calling ENABLED with SIP enabled on both production numbers | Preserve SIP/call-permission safeguards; handset acceptance QA remains operational testing, not an entitlement gap |
 | Groups API | AVAILABLE | AVAILABLE | Live list endpoint succeeds on both WABAs; WECARE currently has the `Bharat Stack` group | No provider eligibility action required |
-| Business username | AVAILABLE in code | OWNER_ACTION | Built | Verify live read/write before any mutation |
+| Business username | AVAILABLE | AVAILABLE | Live read verified: `wecare.digital` and `manishagarwal` are reserved | Mutations remain explicit Admin actions |
 | Official business account status | AVAILABLE | AVAILABLE | Both production phone numbers read back as Official Business Accounts with GREEN quality | None |
-| Messaging limit / quality read | AVAILABLE in code | PARTIAL | Built/read-only | Use this for Direct Send eligibility diagnostics |
-| Template lifecycle/quality | AVAILABLE | PARTIAL | Built | Manish app parity required for full webhook lifecycle |
+| Messaging limit / quality read | AVAILABLE | AVAILABLE | Phone settings + live OBA/quality read; both production numbers are GREEN | Keep as diagnostics; do not auto-change provider limits |
+| Template lifecycle/quality | AVAILABLE | AVAILABLE | Live template inventories verified: primary has approved utility/auth templates; secondary has approved marketing templates | Continue normal Meta review/quality monitoring |
 | Template library create | AVAILABLE through connector | AVAILABLE through connector | Repo support varies | Prefer library entries for ordinary utility/auth use cases |
-| Limited-time-offer templates | PARTIAL | PARTIAL | Partial/template-builder references | Add only if business need justifies it |
+| Limited-time-offer templates | BUILT_GATED | BUILT_GATED | Send-time LIMITED_TIME_OFFER payload support exists | Activate only with an approved LTO template and a real campaign requirement |
 | Media/product carousels | BUILT_GATED | BUILT_GATED | Media/template carousels exist; interactive product carousel now follows Meta `carousel` + `action.cards[]` (2–10 cards) | Controlled live send still requires provider/catalog readiness |
 | Coexistence with WhatsApp Business app | AVAILABLE | AVAILABLE | Raw events are archived and the no-automation Inbox replay lane is deployed; production `whatsapp_coexistence_ingest=true` | Monitor replay/dedup metrics; no automation or service-window mutation occurs on imported events |
 | Message history synchronization | AVAILABLE | AVAILABLE | History phase/chunk/progress is archived and deduplicated into the canonical Inbox without replaying automation; production ingestion is enabled | Monitor imported-history volume and dedup outcomes |
@@ -39,10 +39,10 @@
 | Tracking Events | AVAILABLE after 2026-10-26 patch | OWNER_ACTION | Durable system-event capture | Feed into marketing attribution after entitlement |
 | Business status update webhook | AVAILABLE after 2026-10-26 patch | OWNER_ACTION | Durable system-event capture | Surface operational alerts as needed |
 | Business capability update webhook | AVAILABLE | OWNER_ACTION | Durable system-event capture | Use to refresh feature readiness dynamically |
-| Two-step verification management | AVAILABLE in code | PARTIAL | Admin set/change PIN route + Workspace control; PIN is never persisted | Live use requires an owner-selected 6-digit PIN; disabling remains WhatsApp Manager-only per Meta |
-| Pre-verified phone onboarding | MISSING | MISSING | Not found | Add only for partner onboarding at scale |
-| Business compliance information API | MISSING | MISSING | Not found | Add read-only support if compliance operations need it |
-| Business encryption management API | PARTIAL | PARTIAL | Flow crypto exists; account encryption API is separate | Add only if provider/account encryption management is required |
+| Two-step verification management | AVAILABLE | AVAILABLE | Admin set/change PIN route + Workspace control; PIN is never persisted | A new PIN value is owner-secret input, not an implementation gap |
+| Pre-verified phone onboarding | AVAILABLE read-only | AVAILABLE read-only | New inventory diagnostic reads Meta pre-verified-number availability without claiming/sharing numbers | Claim/share only when a partner onboarding workflow is intentionally approved |
+| Business compliance information API | PROVIDER_LIMITED | PROVIDER_LIMITED | Meta v25 reference exposes the India compliance child resource but currently documents no direct read/create/update/delete operation on that edge | Use WhatsApp Manager/provider-supported surfaces; do not invent an unsupported Graph operation |
+| Business encryption management API | AVAILABLE diagnostic | AVAILABLE diagnostic | Flow crypto exists and Workspace now reads configured/signature status from `/whatsapp_business_encryption` without exposing key material | Key replacement remains an explicit security operation; do not rotate automatically |
 | Analytics lake / Athena catalog | MISSING | MISSING | No WhatsApp Glue table found in us-east-1 | Create curated event/delivery/attribution tables if long-term analytics is a priority |
 
 ## Provider blockers confirmed live

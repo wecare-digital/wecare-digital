@@ -51,7 +51,7 @@ frontend:
         #
         # `rm -rf node_modules/.cache` went with the switch: `npm ci` removes node_modules
         # wholesale before installing, so the line could not have any effect.
-        - npm ci --no-audit --no-fund
+        - npm ci --cache .npm --prefer-offline --no-audit --no-fund
         # DEPLOY GATE. Type-check the production source before building.
         - npx tsc --noEmit
     build:
@@ -77,19 +77,22 @@ frontend:
     baseDirectory: out
     files:
       - "**/*"
-  # NO `cache:` BLOCK, deliberately (2026-10-27).
-  #
-  # The last cached path was `node_modules/**/*`, and `npm ci` deletes node_modules before it
-  # installs, so the restored copy was thrown away unread. Measured on jobs 276-278: retrieving and
-  # extracting it took ~13 s and creating plus uploading it again took ~30 s, about 43 s of every
-  # ~250 s BUILD step, for nothing - while `npm ci` itself downloads the whole tree in ~10 s. The
-  # npm tarball cache (`.npm/**/*` + `npm ci --cache .npm --prefer-offline`) was considered and not
-  # adopted: it can save at most part of those 10 s and would pay the same create/upload toll.
-  #
-  # .next/cache STAYS OUT, for the reason recorded when it was removed on 2026-10-03: a stale restore
-  # served OLD compiled output for a changed file (src/components/VayuLokLive.tsx never reached
-  # production across many builds). If a cache is ever re-added, key it on the commit SHA so a changed
-  # source file cannot hit a stale entry, and measure that it pays for its own upload.
+  cache:
+    paths:
+      # Cache npm's download cache, not node_modules. Amplify restores this before preBuild
+      # and npm ci --cache .npm --prefer-offline can reuse it directly. Caching node_modules
+      # was pure transfer/compression overhead because npm ci deletes node_modules before install.
+      # Keep .next/cache intentionally absent: this repo previously proved stale compiled output
+      # could survive across deploys when that cache was restored.
+      - .npm/**/*
+      # .next/cache REMOVED 2026-10-03. It holds Next's incremental compiler cache,
+      # and a stale restore was serving OLD compiled output for changed files: a fix
+      # committed to src/components/VayuLokLive.tsx (the map's waitForHost init) never
+      # reached production across many builds while edits to other files did, because
+      # Next reused the cached chunk for the "unchanged" file. Dropping this cache
+      # forces a full recompile every build (slower, but correct), ending the
+      # pushed-but-not-live drift. If re-added later, pair it with a cache key that
+      # includes the commit SHA so a changed source file cannot hit a stale entry.
 # ── RESPONSE HEADERS LIVE IN customHttp.yml, NOT HERE ───────────────────────────
 #
 # A `customHeaders:` block used to sit at this point in the file. It was INERT for

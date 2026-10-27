@@ -3328,6 +3328,22 @@ _media_id_cache: Dict[str, Tuple[str, str, str, float]] = {}
 MEDIA_ID_CACHE_TTL = 600  # 10 minutes
 
 
+def _media_trace_id(message_id: str) -> str:
+    """Stable, non-empty short id for media filenames and S3 keys.
+
+    Keyed payment sends use ids beginning with wa-idem-. Taking the first eight
+    characters therefore collapsed every one of them to the literal wa-idem-,
+    producing filenames such as wecare-digital-wa-idem-.png. Keep the useful
+    tail when available and fall back to a deterministic hash so operational media
+    records always carry a differentiating suffix without inventing randomness.
+    """
+    raw = ''.join(ch for ch in str(message_id or '') if ch.isalnum())
+    if len(raw) >= 10:
+        return raw[-10:].lower()
+    if raw:
+        return (raw + hashlib.sha256(raw.encode('utf-8')).hexdigest())[:10].lower()
+    return hashlib.sha256(b'wecare-media').hexdigest()[:10]
+
 def _upload_media(media_file: str, media_type: str, message_id: str, phone_number_id: str, request_id: str, filename: Optional[str] = None) -> Tuple[Optional[str], Optional[str], Optional[str]]:
     """
     Upload media to S3 and register with WhatsApp.
@@ -3351,7 +3367,7 @@ def _upload_media(media_file: str, media_type: str, message_id: str, phone_numbe
         extension = _get_media_extension(media_type)
         
         # S3 key: short format wecare-digital-{8char_uuid}{ext}
-        short_id = message_id[:8]
+        short_id = _media_trace_id(message_id)
         s3_key = f"{MEDIA_PREFIX}wecare-digital-{short_id}{extension}"
         
         # Display filename for WhatsApp (max 240 chars) - use original name if valid

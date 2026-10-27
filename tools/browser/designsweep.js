@@ -13,7 +13,7 @@
  *     every WebView, because four stylesheets declared it and the winning one carried !important
  *   - PillButton's label was font-weight:700 where every other primary on the site is 600
  *   - /blog/'s search box was the only field on the site at 12px radius instead of a full pill
- *   - /account/sign-in/ and /get/ had no way at all to ask for another OTP
+ *   - /get/ had no way at all to ask for another OTP
  *
  * All five are cross-page facts. A per-page assertion cannot see any of them, which is the
  * argument for a harness that holds one standard and sweeps.
@@ -44,7 +44,7 @@ const ARGS = process.argv.slice( 2 ).filter( a => !a.startsWith( '--' ) );
  * it supplies the standard and is never judged against it.
  */
 const ROUTES = ARGS.length ? ARGS : [
-  '/cart/', '/orders/', '/account/sign-in/', '/checkout/status/', '/checkout/success/',
+  '/cart/', '/orders/', '/checkout/status/', '/checkout/success/',
   '/get/', '/shop/kiosk/', '/blog/', '/contact/', '/vayulok/',
 '/submit-request/', '/request-amendment/',
   '/drop-docs/', '/terms/', '/privacy/', '/404/',

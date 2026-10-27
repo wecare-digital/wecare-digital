@@ -25,6 +25,8 @@ Routes:
   POST      /wa-business/messages/send/text|template|media|flow → Send test messages
   POST      /wa-business/messages/send/interactive → REMOVED 2026-10-02, answers 410
   GET       /wa-business/message-history/events → Read Meta delivery-history events (audit only)
+  GET       /wa-business/flow-encryption-status → Read Flow public-key signature readiness
+  GET       /wa-business/preverified-numbers → Read pre-verified phone inventory (diagnostic only)
   GET       /wa-business/webhooks      → Get webhook subscriptions
   POST      /wa-business/webhooks      → Subscribe to webhook fields
   DELETE    /wa-business/webhooks      → Unsubscribe webhook fields
@@ -3734,6 +3736,56 @@ def _get_username(phone_id: str) -> Dict:
     return _resp(200, result)
 
 
+def _get_flow_encryption_status(phone_id: str) -> Dict:
+    """Read WhatsApp Flows business-public-key readiness without returning key material."""
+    if not phone_id:
+        return _resp(400, {'error': 'phoneId required'})
+    result = _graph_api(f'{phone_id}/whatsapp_business_encryption', phone_id=phone_id)
+    if 'error' in result:
+        return _resp(400, result)
+    rows = result.get('data') if isinstance(result, dict) else None
+    record = rows[0] if isinstance(rows, list) and rows and isinstance(rows[0], dict) else result
+    return _resp(200, {
+        'phoneId': phone_id,
+        'configured': bool(record.get('business_public_key')),
+        'signatureStatus': record.get('business_public_key_signature_status') or 'UNKNOWN',
+    })
+
+
+def _list_preverified_numbers(business_id: str, params: Dict) -> Dict:
+    """Read Meta's pre-verified-number inventory for partner/onboarding diagnostics.
+
+    This is deliberately read-only. Claiming, sharing, requesting codes, or registering a
+    number remains an explicit onboarding operation with its existing authorization and
+    confirmation boundaries.
+    """
+    if not business_id:
+        return _resp(400, {'error': 'businessId required'})
+    try:
+        limit = max(1, min(int(params.get('limit') or 25), 100))
+    except (TypeError, ValueError):
+        return _resp(400, {'error': 'limit must be an integer between 1 and 100'})
+    graph_params = {
+        'fields': (
+            'id,display_phone_number,country_prefix,verification_status,'
+            'availability_status,country_code,region'
+        ),
+        'limit': limit,
+        'after': params.get('after'),
+        'verification_status': params.get('verificationStatus'),
+        'availability_status': params.get('availabilityStatus'),
+        'country_code': params.get('countryCode'),
+    }
+    result = _graph_api(f'{business_id}/preverified_numbers', params=graph_params)
+    if 'error' in result:
+        return _resp(400, result)
+    return _resp(200, {
+        'businessId': business_id,
+        'numbers': result.get('data') or [],
+        'paging': result.get('paging') or {},
+    })
+
+
 def _get_username_suggestions(phone_id: str) -> Dict:
     """Get reserved username suggestions for a phone number."""
     result = _graph_api(f'{phone_id}/username_suggestions', phone_id=phone_id)
@@ -4279,7 +4331,7 @@ from base64 import b64decode, b64encode
 from cryptography.hazmat.primitives.asymmetric.padding import OAEP, MGF1
 from cryptography.hazmat.primitives.asymmetric.padding import hashes as asym_hashes
 from cryptography.hazmat.primitives.ciphers import Cipher as AESCipher, algorithms, modes
-from cryptography.hazmat.primitives.serialization import load_pem_private_key
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat, load_pem_private_key
 
 FLOW_PRIVATE_KEY_SECRET = os.environ.get('FLOW_PRIVATE_KEY_SECRET', 'wecare/flow-private-key')
 FLOW_PRIVATE_KEY_PASSPHRASE = os.environ.get('FLOW_PRIVATE_KEY_PASSPHRASE', '')
@@ -4300,6 +4352,77 @@ def _get_flow_private_key():
     except Exception as e:
         logger.error(f'Failed to load flow private key: {e}')
         return None
+
+
+def _ensure_primary_flow_encryption_binding(phone_id: str) -> Dict[str, Any]:
+    """Bind the existing WECARE Flow RSA public key to the primary published-Flow sender.
+
+    Internal invocation only. The private key never leaves Lambda and the derived public key is
+    never returned or logged. The secondary business account is deliberately refused: Meta
+    recommends separate keypairs when independently managed accounts use Flow data exchange.
+    """
+    phone_id = str(phone_id or '').strip()
+    if phone_id != PHONE1_META_ID:
+        return {'error': 'FLOW_ENCRYPTION_BINDING_NOT_APPROVED_FOR_PHONE'}
+
+    private_key = _get_flow_private_key()
+    if not private_key:
+        return {'error': 'FLOW_PRIVATE_KEY_UNAVAILABLE'}
+    try:
+        public_pem = private_key.public_key().public_bytes(
+            encoding=Encoding.PEM,
+            format=PublicFormat.SubjectPublicKeyInfo,
+        ).decode('utf-8')
+    except Exception:
+        return {'error': 'FLOW_PUBLIC_KEY_DERIVATION_FAILED'}
+
+    token = _get_meta_token(phone_id=phone_id)
+    app_secret = _get_app_secret(phone_id=phone_id)
+    params = {}
+    if app_secret:
+        params['appsecret_proof'] = hmac.new(
+            app_secret.encode('utf-8'), token.encode('utf-8'), hashlib.sha256
+        ).hexdigest()
+    url = f'{GRAPH_BASE}/{phone_id}/whatsapp_business_encryption'
+    if params:
+        url += '?' + urllib.parse.urlencode(params)
+    data = urllib.parse.urlencode({'business_public_key': public_pem}).encode('utf-8')
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers={
+            'Authorization': f'Bearer {token}',
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        method='POST',
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            result = json.loads(resp.read().decode('utf-8'))
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode('utf-8') if exc.fp else ''
+        try:
+            parsed = json.loads(body)
+            err = parsed.get('error') if isinstance(parsed, dict) else {}
+        except Exception:
+            err = {}
+        logger.error(json.dumps({
+            'event': 'flow_encryption_binding_failed',
+            'phoneId': phone_id,
+            'httpCode': exc.code,
+            'metaCode': err.get('code') if isinstance(err, dict) else None,
+            'metaSubcode': err.get('error_subcode') if isinstance(err, dict) else None,
+            'fbtraceId': err.get('fbtrace_id') if isinstance(err, dict) else None,
+        }))
+        return {'error': 'FLOW_ENCRYPTION_BINDING_FAILED', 'httpCode': exc.code}
+
+    success = bool(result.get('success'))
+    logger.info(json.dumps({
+        'event': 'flow_encryption_binding_completed',
+        'phoneId': phone_id,
+        'success': success,
+    }))
+    return {'success': success, 'phoneId': phone_id}
 
 
 def _decrypt_flow_request(encrypted_flow_data_b64: str, encrypted_aes_key_b64: str, initial_vector_b64: str):
@@ -6995,6 +7118,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     global origin
     origin = extract_origin(event)
 
+    if event.get('internalAction') == 'ensurePrimaryFlowEncryption':
+        if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
+            return _resp(403, {'error': 'Internal invocation required'})
+        return _ensure_primary_flow_encryption_binding(str(event.get('phoneId') or ''))
+
     if event.get('internalAction') == 'reconcileUnknownDeliveries':
         if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
             return _resp(403, {'error': 'Internal invocation required'})
@@ -7549,6 +7677,18 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if not phone_id:
                 return _resp(400, {'error': 'phoneId required'})
             return _get_username_suggestions(phone_id)
+
+        elif '/flow-encryption-status' in path:
+            phone_id = params.get('phoneId') or body.get('phoneId')
+            if method != 'GET':
+                return _resp(405, {'error': 'GET only'})
+            return _get_flow_encryption_status(phone_id or '')
+
+        elif '/preverified-numbers' in path:
+            if method != 'GET':
+                return _resp(405, {'error': 'GET only'})
+            business_id = params.get('businessId') or body.get('businessId')
+            return _list_preverified_numbers(business_id or '', params)
 
         elif '/username' in path:
             phone_id = params.get('phoneId') or body.get('phoneId')

@@ -154,10 +154,80 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
         self.assertIn('total_row("Items Subtotal", subtotal)', source)
         self.assertIn('total_row(str(company.get("gstin") or ""), total_gst', source)
 
+    def test_preissue_preview_is_server_rendered_before_invoice_numbering(self):
+        source = ENGINE.read_text(encoding="utf-8")
+        self.assertIn("def preview_invoice(body: Dict, request_id: str) -> Dict:", source)
+        self.assertIn("preview_body['previewOnly'] = True", source)
+        self.assertIn("preview_png = _generate_receipt_png(preview_invoice_row, list(items))", source)
+        self.assertIn("'previewImageBase64'", source)
+        self.assertIn("'pricingAuthority': 'invoice-engine'", source)
+
+        preview_guard = source.index("if body.get('previewOnly'):")
+        numbering = source.index("invoice_number = _get_next_invoice_number", preview_guard)
+        put_invoice = source.index("table.put_item(", numbering)
+        self.assertLess(preview_guard, numbering)
+        self.assertLess(numbering, put_invoice)
+
+    def test_workspace_preview_uses_backend_and_keeps_hsn_advanced(self):
+        payflow = (ROOT / "src/components/workspace/pay/PayFlow.tsx").read_text(encoding="utf-8")
+        client = (ROOT / "src/api/client.ts").read_text(encoding="utf-8")
+        self.assertIn("previewInvoiceEngine( request, true )", payflow)
+        self.assertIn("Server authoritative", payflow)
+        self.assertIn("No invoice number or record is created while previewing.", payflow)
+        self.assertIn("Advanced tax details", payflow)
+        self.assertIn('Express ({', payflow)
+        self.assertIn("_action: 'preview'", client)
+
     def test_existing_png_media_keeps_png_display_extension(self):
         source = OUTBOUND.read_text(encoding="utf-8")
         self.assertIn("actual_ext = os.path.splitext(s3_key)[1].lower()", source)
         self.assertIn('display_filename = f"wecare-digital-{short_id}{actual_ext}"', source)
+
+    def test_receipt_uses_dedicated_immutable_brand_mark_and_wordmark(self):
+        engine = ENGINE.read_text(encoding="utf-8")
+        receipt = RECEIPT.read_text(encoding="utf-8")
+        self.assertIn(
+            "secure/d/public/Invoice/brand/wecare-digital-receipt-mark-v2.png",
+            engine,
+        )
+        self.assertIn("'logo_s3_key': RECEIPT_BRAND_MARK_KEY", engine)
+        self.assertNotIn(
+            "'logo_s3_key': media_paths.public('stream/media/m/wecare-digital.png')",
+            engine,
+        )
+        self.assertIn('wecare_text, digital_text = "WECARE", "DIGITAL"', receipt)
+        self.assertIn('fill=(255, 0, 64)', receipt)
+
+
+    def test_payment_template_header_uses_single_square_thumbnail(self):
+        media = (ROOT / "amplify/functions/shared/lambda_utils/template_media.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            '"https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/wecare-catalog-icon.png"',
+            media,
+        )
+        self.assertIn('"wecare_whatapp_native_pay_template": PAYMENT_TEMPLATE_HEADER', media)
+        source = ENGINE.read_text(encoding="utf-8")
+        self.assertNotIn("entry['image'] = {'link': template_media.ORDER_ITEM_IMAGE}", source)
+
+
+    def test_media_trace_id_never_collapses_to_wa_idem_prefix(self):
+        source = OUTBOUND.read_text(encoding="utf-8")
+        self.assertIn("def _media_trace_id(message_id: str) -> str:", source)
+        self.assertIn("short_id = _media_trace_id(message_id)", source)
+        self.assertNotIn("short_id = message_id[:8]", source)
+
+        start = source.index("def _media_trace_id")
+        end = source.index("\ndef _upload_media", start)
+        namespace = {"hashlib": __import__("hashlib")}
+        exec(source[start:end], namespace)
+        trace = namespace["_media_trace_id"](
+            "wa-idem-invoice-WD-PAY-7A6F2104BEF148D4"
+        )
+        self.assertEqual(len(trace), 10)
+        self.assertNotEqual(trace, "waidem")
+        self.assertNotIn("wa-idem-", f"wecare-digital-{trace}.png")
 
 
 if __name__ == "__main__":

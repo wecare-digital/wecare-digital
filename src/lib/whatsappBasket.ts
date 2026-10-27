@@ -80,7 +80,7 @@ function claimedLines ( value: unknown ): ClaimedLine[] {
  * Where the token waits while the customer signs in. ONE key, overwritten rather than queued.
  *
  * WHY IT IS NEEDED AT ALL. A WhatsApp link opened in the in-app browser usually has no session, so
- * the cart sends the customer to `/account/sign-in/?return=...` first. That `return` value is
+ * the cart sends the customer to `/auth?return=...` first. That `return` value is
  * validated by `safeLocalReturnPath` (`src/lib/safeReturnPath.ts`), which REJECTS any value
  * carrying a query string and re-emits the normalised allowlist member -- so the path that survives
  * sign-in is a bare `/cart/` and `?basket=` is gone by the time the customer arrives back. That

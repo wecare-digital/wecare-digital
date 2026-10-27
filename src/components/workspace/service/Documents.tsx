@@ -20,6 +20,7 @@ import Pagination from '../../../components/ui/Pagination';
 import EmptyState from '../../../components/ui/EmptyState';
 import Select, { type SelectOption } from '../../../components/ui/Select';
 import { useToastContext } from '../../../contexts/ToastContext';
+import { useConfirm } from '../../../contexts/ConfirmContext';
 import * as api from '../../../api/client';
 import type { ApiFailure } from '../../../api/client';
 import { openExternal } from '../../../lib/capacitor';
@@ -75,13 +76,7 @@ function fmtOrderLabel ( order: api.Order ): string {
   return [ id, when, amount !== undefined ? `₹${amount}` : '', payment, order.source || '' ].filter( Boolean ).join( ' · ' );
 }
 
-function fileExtension ( name?: string ): string {
-  const value = String( name || '' );
-  const match = value.match( /\.[a-z0-9]{1,10}$/i );
-  return match ? match[ 0 ].toLowerCase() : '';
-}
-
-/* {{1}} of the ₹49 Vault message (wecare_valut_49), cleaned the way the server cleans it: one
+/* {{1}} of the Vault offer (wecare_valut_49), cleaned the way the server cleans it: one
    line, at most 60 characters, no * _ ~ marks (the body wraps {{1}} in *bold*). So the preview
    below is the text the customer receives. */
 function vaultMessageName ( raw?: string ): string {
@@ -111,7 +106,7 @@ const VAULT_ACCESS_LABELS: Record<api.SecureFileAccessState, string> = {
   UNPAID: 'Not paid yet',
   OPEN: 'Paid · access window open',
   READY: 'Paid · window opens on first download',
-  EXPIRED: 'Paid · window used, ₹49 renewal needed',
+  EXPIRED: 'Paid · window used · renewal needed',
   PAID_UNVERIFIED: 'Paid · needs reconciling, do not charge again',
 };
 
@@ -127,7 +122,7 @@ function vaultStateText ( view: VaultFileView ): string {
     : VAULT_ACCESS_LABELS[ state ];
 }
 
-/* Which WhatsApp action fits the Vault file now: the ₹49 message while unpaid or used up, the
+/* Which WhatsApp action fits the Vault file now: the Vault offer while unpaid or used up, the
    Access Vault link while paid, neither while a payment needs reconciling or the file is gone.
    An unread state offers both; the server refuses the one that does not fit. */
 function vaultActionsFor ( view: VaultFileView ): { ask: boolean; resend: boolean; renewal: boolean } {
@@ -175,12 +170,14 @@ interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => {
   const toast = useToastContext();
+  const confirm = useConfirm();
   const [ docs, setDocs ] = useState<api.Document[]>( [] );
   const [ loading, setLoading ] = useState( true );
   const [ failure, setFailure ] = useState<ApiFailure | null>( null );
   const [ statusFilter, setStatusFilter ] = useState( '' );
   const [ sourceFilter, setSourceFilter ] = useState( '' );
   const [ typeFilter, setTypeFilter ] = useState( '' );
+  const [ recordFilter, setRecordFilter ] = useState<'active' | 'archived' | 'all'>( 'active' );
   const [ page, setPage ] = useState( 1 );
   const [ selected, setSelected ] = useState<api.Document | null>( null );
   // What staff typed for {{1}} of the Vault message, for the open document.
@@ -203,7 +200,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
   const [ replacementFile, setReplacementFile ] = useState<File | null>( null );
   const [ createForm, setCreateForm ] = useState( {
     contactId: '', customerName: '', customerPhone: '', orderId: '',
-    type: '', typeLabel: '', fileName: '', vaultDisplayName: '', notes: '',
+    type: '', typeLabel: '', notes: '',
   } );
 
   const loadData = useCallback( async () => {
@@ -276,7 +273,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
   const resetCreate = () => {
     setCreateForm( {
       contactId: '', customerName: '', customerPhone: '', orderId: '',
-      type: '', typeLabel: '', fileName: '', vaultDisplayName: '', notes: '',
+      type: '', typeLabel: '', notes: '',
     } );
     setContactQuery( '' );
     setContactResults( [] );
@@ -296,7 +293,18 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
     setContactResults( [] );
   };
 
-  const handleCreateDocument = async () => {
+  const createCustomerReady = Boolean( createForm.contactId || createForm.customerPhone.trim() );
+  const createTypeReady = Boolean( createForm.type
+    && ( createForm.type !== 'other' || createForm.typeLabel.trim() ) );
+  const createReady = createCustomerReady && createTypeReady && Boolean( createFile );
+
+  const closeCreate = () => {
+    if ( creating ) return;
+    setShowCreate( false );
+    resetCreate();
+  };
+
+  const handleCreateDocument = async ( sendAfterUpload = false ) => {
     if ( !createForm.customerPhone && !createForm.contactId )
     {
       toast.error( 'Select a customer or enter their mobile number' );
@@ -329,7 +337,6 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
         orderId: createForm.orderId || undefined,
         type: createForm.type,
         typeLabel: createForm.type === 'other' ? createForm.typeLabel.trim() : undefined,
-        vaultDisplayName: vaultMessageName( createForm.vaultDisplayName ) || undefined,
         fileName: createFile.name,
         mimeType,
         fileSize: createFile.size,
@@ -356,7 +363,22 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
         return;
       }
 
-      toast.success( 'Document uploaded' );
+      if ( sendAfterUpload )
+      {
+        const name = defaultVaultName( confirmed.data );
+        const published = await api.publishDocumentToVault( confirmed.data.documentId, name || undefined );
+        if ( !published.ok )
+        {
+          toast.warning( 'Document uploaded, but it could not be published to Vault. Open the document and try Publish & send.' );
+        }
+        else
+        {
+          const sent = await api.requestSecureFilePayment( published.data.fileId );
+          reportVaultAction( sent );
+        }
+      }
+      else toast.success( 'Document uploaded to Drop Docs' );
+
       setShowCreate( false );
       resetCreate();
       void loadData();
@@ -529,6 +551,80 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
     }
   };
 
+  const handlePublishAndSend = async ( doc: api.Document ) => {
+    if ( actionLoading || doc.archivedAt ) return;
+    setActionLoading( true );
+    try
+    {
+      let fileId = doc.vaultFileId || '';
+      if ( !fileId )
+      {
+        const name = defaultVaultName( doc );
+        const published = await api.publishDocumentToVault( doc.documentId, name || undefined );
+        if ( !published.ok )
+        {
+          toast.error( published.failure.message || 'Could not publish this document to Vault' );
+          return;
+        }
+        fileId = published.data.fileId;
+      }
+      const sent = await api.requestSecureFilePayment( fileId );
+      reportVaultAction( sent );
+      void loadData();
+      if ( selected?.documentId === doc.documentId )
+      {
+        const next = { ...doc, vaultFileId: fileId, vaultPublishedAt: doc.vaultPublishedAt || Date.now() / 1000 };
+        setSelected( next );
+        void loadVaultFile( next );
+      }
+    } finally
+    {
+      setActionLoading( false );
+    }
+  };
+
+  const handleArchive = async ( doc: api.Document ) => {
+    if ( actionLoading ) return;
+    const ok = await confirm( {
+      title: `Archive "${doc.fileName || 'document'}"?`,
+      message: 'This removes it from the active list but keeps the private file, audit history, and any Vault/payment evidence. You can restore it later.',
+      confirmText: 'Archive',
+      danger: true,
+    } );
+    if ( !ok ) return;
+    setActionLoading( true );
+    try
+    {
+      if ( await api.archiveDocument( doc.documentId ) )
+      {
+        toast.success( 'Document archived' );
+        if ( selected?.documentId === doc.documentId ) setSelected( null );
+        void loadData();
+      }
+      else toast.error( 'Could not archive this document' );
+    } finally
+    {
+      setActionLoading( false );
+    }
+  };
+
+  const handleRestore = async ( doc: api.Document ) => {
+    if ( actionLoading ) return;
+    setActionLoading( true );
+    try
+    {
+      if ( await api.restoreArchivedDocument( doc.documentId ) )
+      {
+        toast.success( 'Document restored to Active' );
+        void loadData();
+      }
+      else toast.error( 'Could not restore this document' );
+    } finally
+    {
+      setActionLoading( false );
+    }
+  };
+
   const handleReplacementUpload = async ( doc: api.Document ) => {
     if ( actionLoading || !replacementFile ) return;
     setActionLoading( true );
@@ -570,51 +666,74 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
     }
   };
 
-  const totalPages = Math.ceil( docs.length / PAGE_SIZE );
-  const paged = docs.slice( ( page - 1 ) * PAGE_SIZE, page * PAGE_SIZE );
+  const activeDocs = docs.filter( d => !d.archivedAt );
+  const archivedDocs = docs.filter( d => !!d.archivedAt );
+  const visibleDocs = recordFilter === 'all' ? docs : recordFilter === 'archived' ? archivedDocs : activeDocs;
+  const totalPages = Math.max( 1, Math.ceil( visibleDocs.length / PAGE_SIZE ) );
+  const paged = visibleDocs.slice( ( page - 1 ) * PAGE_SIZE, page * PAGE_SIZE );
 
-  // Stats
   const stats = {
-    total: docs.length,
-    uploaded: docs.filter( d => d.status === 'uploaded' ).length,
-    underReview: docs.filter( d => d.status === 'under_review' ).length,
-    approved: docs.filter( d => d.status === 'approved' ).length,
-    rejected: docs.filter( d => d.status === 'rejected' ).length,
+    active: activeDocs.length,
+    archived: archivedDocs.length,
+    inVault: activeDocs.filter( d => !!d.vaultFileId ).length,
+    needsVault: activeDocs.filter( d => !d.vaultFileId && !!d.storageKey && [ 'uploaded', 'approved' ].includes( d.status ) ).length,
   };
 
   const columns = [
     {
-      key: 'source', header: 'Src', width: '40px', render: ( d: api.Document ) => (
-        <span title={ d.source } style={ { fontSize: 'var(--text-base)' } }>{ SOURCE_ICONS[ d.source ] || '📄' }</span>
-      )
-    },
-    {
       key: 'fileName', header: 'Document', render: ( d: api.Document ) => (
-        <button onClick={ () => openDocument( d ) } style={ { background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' } }>
-          <div style={ { fontWeight: 500, fontSize: 'var(--text-md)', color: 'var(--accent)', textDecoration: 'underline' } }>{ d.fileName || 'Untitled' }</div>
-          <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>{ d.type } · { fmtSize( d.fileSize ) }</div>
+        <button onClick={ () => openDocument( d ) } style={ documentLinkStyle }>
+          <div style={ { fontWeight: 650, fontSize: 'var(--text-md)' } }>{ d.fileName || 'Untitled' }</div>
+          <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>
+            { d.documentTypeLabel || d.type } · { fmtSize( d.fileSize ) } · { fmtDate( d.createdAt ) }
+          </div>
         </button>
       )
     },
     {
-      key: 'customer', header: 'Customer', width: '140px', render: ( d: api.Document ) => (
-        <div><div style={ { fontWeight: 500, fontSize: 'var(--text-sm)' } }>{ d.customerName || '—' }</div><div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>{ d.customerPhone }</div></div>
+      key: 'customer', header: 'Customer', width: '170px', render: ( d: api.Document ) => (
+        <div><div style={ { fontWeight: 600, fontSize: 'var(--text-sm)' } }>{ d.customerName || '—' }</div><div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>{ d.customerPhone }</div></div>
       )
     },
     {
-      key: 'orderId', header: 'Order', width: '120px', render: ( d: api.Document ) => d.orderId ? (
-        <span title={ d.orderId } style={ { fontSize: 'var(--text-xs)', fontFamily: 'monospace', color: 'var(--accent)' } }>{ d.orderNumber || d.orderId.split( '-' ).pop() }</span>
-      ) : <span style={ { color: '#9ca3af' } }>—</span>
+      key: 'workflow', header: 'Review', width: '135px', render: ( d: api.Document ) => <StatusBadge status={ d.status } />
     },
-    { key: 'status', header: 'Status', width: '140px', render: ( d: api.Document ) => <StatusBadge status={ d.status } /> },
-    { key: 'createdAt', header: 'Uploaded', width: '130px', render: ( d: api.Document ) => fmtDate( d.createdAt ) },
     {
-      key: 'actions', header: '', width: '120px', render: ( d: api.Document ) => (
-        <div style={ { display: 'flex', gap: 4 } }>
-          { d.status !== 'approved' && <button onClick={ () => handleStatusAction( d, 'approved' ) } title="Approve" style={ actionBtnStyle }>✅</button> }
-          { d.status !== 'rejected' && <button onClick={ () => handleStatusAction( d, 'rejected' ) } title="Reject" style={ actionBtnStyle }>❌</button> }
-          { d.status !== 'reupload_requested' && <button onClick={ () => handleStatusAction( d, 'reupload_requested' ) } title="Request Reupload" style={ actionBtnStyle }>🔄</button> }
-          <button onClick={ () => handleDownload( d ) } title="Download" style={ actionBtnStyle }>⬇️</button>
+      key: 'delivery', header: 'Vault delivery', width: '190px', render: ( d: api.Document ) => (
+        <div>
+          <div style={ { fontWeight: 600, fontSize: 'var(--text-sm)' } }>
+            { d.vaultFileId ? 'Published to Vault' : 'Not in Vault' }
+          </div>
+          <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>
+            { d.vaultFileId ? 'Open to see payment/access state' : 'No WhatsApp Vault offer has been created' }
+          </div>
+        </div>
+      )
+    },
+    {
+      key: 'record', header: 'Record', width: '110px', render: ( d: api.Document ) => (
+        <span style={ d.archivedAt ? archivedPillStyle : activePillStyle }>{ d.archivedAt ? 'Archived' : 'Active' }</span>
+      )
+    },
+    {
+      key: 'actions', header: 'Next action', width: '280px', render: ( d: api.Document ) => (
+        <div style={ { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } }>
+          { d.archivedAt ? (
+            <button className="dd-action dd-action-primary" onClick={ () => { void handleRestore( d ); } } disabled={ actionLoading }>Restore</button>
+          ) : (
+            <>
+              { !d.vaultFileId && d.storageKey && [ 'uploaded', 'approved' ].includes( d.status ) && (
+                <button className="dd-action dd-action-primary" onClick={ () => { void handlePublishAndSend( d ); } } disabled={ actionLoading }>
+                  Publish & send
+                </button>
+              ) }
+              { d.vaultFileId && (
+                <button className="dd-action dd-action-primary" onClick={ () => openDocument( d ) }>Open Vault status</button>
+              ) }
+              <button className="dd-action" onClick={ () => { void handleDownload( d ); } }>Download</button>
+              <button className="dd-action dd-action-muted" onClick={ () => { void handleArchive( d ); } } disabled={ actionLoading }>Archive</button>
+            </>
+          ) }
         </div>
       )
     },
@@ -623,52 +742,73 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
   return (
     <MaybeLayout embedded={ embedded } user={ user } onSignOut={ signOut }>
       <SEO { ...PAGE_SEO.documents } />
-      <div style={ { padding: '24px 32px', maxWidth: 1400 } }>
-        <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } }>
+      <div style={ pageStyle }>
+        <div style={ pageHeaderStyle }>
           <div>
-            <h1 style={ { fontSize: 'var(--text-3xl)', fontWeight: 700, color: 'var(--accent)', margin: 0 } }>Drop Docs</h1>
-            <p style={ { fontSize: 'var(--text-md)', color: 'var(--text-muted)', margin: '4px 0 0' } }>Document management — all sources</p>
+            <div style={ eyebrowStyle }>Service · Documents</div>
+            <h1 style={ pageTitleStyle }>Drop Docs</h1>
+            <p style={ pageLeadStyle }>Upload documents first. Publish to Vault only when the customer should receive a downloadable copy.</p>
           </div>
-          <div style={ { display: 'flex', gap: 8 } }>
+          <div style={ { display: 'flex', gap: 8, flexWrap: 'wrap' } }>
             <Button variant="secondary" icon="refresh" onClick={ loadData }>Refresh</Button>
-            <Button variant="primary" icon="create" onClick={ () => setShowCreate( true ) }>Add Document</Button>
+            <Button variant="primary" icon="create" onClick={ () => setShowCreate( true ) }>Upload document</Button>
           </div>
         </div>
 
-        {/* Stats */ }
-        <div style={ { display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 20 } }>
-          { [
-            { label: 'Total', value: stats.total, bg: 'var(--bg-secondary)' },
-            { label: 'Uploaded', value: stats.uploaded, bg: '#dbeafe' },
-            { label: 'Under Review', value: stats.underReview, bg: '#e0e7ff' },
-            { label: 'Approved', value: stats.approved, bg: '#d1fae5' },
-            { label: 'Rejected', value: stats.rejected, bg: '#fee2e2' },
-          ].map( s => (
-            <div key={ s.label } style={ { padding: '12px 16px', background: s.bg, borderRadius: 10, border: '2px solid #f3f4f6' } }>
-              <div style={ { fontSize: 22, fontWeight: 700, color: 'var(--accent)' } }>{ s.value }</div>
-              <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>{ s.label }</div>
-            </div>
-          ) ) }
+        <div className="dd-summary" style={ summaryStripStyle }>
+          <div><strong>{ stats.active }</strong><span>Active</span></div>
+          <div><strong>{ stats.needsVault }</strong><span>Ready to publish</span></div>
+          <div><strong>{ stats.inVault }</strong><span>In Vault</span></div>
+          <div><strong>{ stats.archived }</strong><span>Archived</span></div>
         </div>
 
-        {/* Filters */ }
-        <div style={ { display: 'flex', gap: 12, marginBottom: 16 } }>
-          <Select ariaLabel="Document status" value={ statusFilter }
-            onChange={ v => { setStatusFilter( v ); setPage( 1 ); } }
-            options={ STATUS_FILTER_OPTIONS } style={ FILTER_STYLE } />
-          <Select ariaLabel="Source" value={ sourceFilter }
-            onChange={ v => { setSourceFilter( v ); setPage( 1 ); } }
-            options={ SOURCE_FILTER_OPTIONS } style={ FILTER_STYLE } />
-          <Select ariaLabel="Document type" value={ typeFilter }
-            onChange={ v => { setTypeFilter( v ); setPage( 1 ); } }
-            options={ TYPE_FILTER_OPTIONS } style={ FILTER_STYLE } />
+        <section className="dd-journey" aria-label="Vault WhatsApp journey">
+          <div className="dd-journey-head">
+            <div>
+              <strong>Vault WhatsApp journey</strong>
+              <span>What the customer receives, in order</span>
+            </div>
+            <span className="dd-journey-note">Receipt image is the only intentional image message.</span>
+          </div>
+          <div className="dd-journey-grid">
+            <div><span>1</span><strong>Vault offer</strong><small>wecare_valut_49 · Unlock Vault</small></div>
+            <div><span>2</span><strong>Review & Pay</strong><small>wecare_whatapp_native_pay_template</small></div>
+            <div><span>3</span><strong>Access Vault</strong><small>wecare_default_download</small></div>
+            <div><span>4</span><strong>Receipt</strong><small>wecare_default_invoice_image_template</small></div>
+          </div>
+        </section>
+
+        <div style={ toolbarStyle }>
+          <div style={ segmentedStyle } aria-label="Record visibility">
+            { ( [ [ 'active', 'Active' ], [ 'archived', 'Archived' ], [ 'all', 'All' ] ] as const ).map( ( [ value, label ] ) => (
+              <button
+                key={ value }
+                type="button"
+                onClick={ () => { setRecordFilter( value ); setPage( 1 ); } }
+                style={ recordFilter === value ? segmentActiveStyle : segmentStyle }
+              >
+                { label }
+              </button>
+            ) ) }
+          </div>
+          <div style={ { display: 'flex', gap: 8, flexWrap: 'wrap' } }>
+            <Select ariaLabel="Document status" value={ statusFilter }
+              onChange={ v => { setStatusFilter( v ); setPage( 1 ); } }
+              options={ STATUS_FILTER_OPTIONS } style={ FILTER_STYLE } />
+            <Select ariaLabel="Source" value={ sourceFilter }
+              onChange={ v => { setSourceFilter( v ); setPage( 1 ); } }
+              options={ SOURCE_FILTER_OPTIONS } style={ FILTER_STYLE } />
+            <Select ariaLabel="Document type" value={ typeFilter }
+              onChange={ v => { setTypeFilter( v ); setPage( 1 ); } }
+              options={ TYPE_FILTER_OPTIONS } style={ FILTER_STYLE } />
+          </div>
         </div>
 
         <ServiceDataState
           loading={ loading }
           failure={ failure }
-          empty={ docs.length === 0 }
-          emptyLabel="No documents"
+          empty={ visibleDocs.length === 0 }
+          emptyLabel={ recordFilter === 'archived' ? 'No archived documents' : 'No documents here' }
           emptyIcon="default"
           onRetry={ loadData }
         >
@@ -686,7 +826,8 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
               <div><span style={ labelStyle }>Type</span><div>{ selected.type }{ selected.documentTypeLabel ? ` · ${ selected.documentTypeLabel }` : '' }</div></div>
               <div><span style={ labelStyle }>Source</span><div>{ SOURCE_ICONS[ selected.source ] || '📄' } { selected.source }</div></div>
               <div><span style={ labelStyle }>Size</span><div>{ fmtSize( selected.fileSize ) }</div></div>
-              <div><span style={ labelStyle }>Status</span><div><StatusBadge status={ selected.status } /></div></div>
+              <div><span style={ labelStyle }>Review status</span><div><StatusBadge status={ selected.status } /></div></div>
+              <div><span style={ labelStyle }>Record</span><div><span style={ selected.archivedAt ? archivedPillStyle : activePillStyle }>{ selected.archivedAt ? 'Archived' : 'Active' }</span></div></div>
               <div><span style={ labelStyle }>Uploaded</span><div>{ fmtDate( selected.createdAt ) }</div></div>
               <div><span style={ labelStyle }>Customer</span><div>{ selected.customerName || '—' } ({ selected.customerPhone || '—' })</div></div>
               { selected.orderId && (
@@ -725,7 +866,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
               </label>
             </div>
 
-            {/* The ₹49 Vault message. Shown for a document that is, or can be, in the Vault. */ }
+            {/* The Vault offer. Shown for a document that is, or can be, in the Vault. */ }
             { ( selected.vaultFileId || ( selected.storageKey && [ 'uploaded', 'approved' ].includes( selected.status ) ) ) && (
               <div style={ vaultBoxStyle }>
                 <label style={ { fontSize: 'var(--text-md)', fontWeight: 500 } }>
@@ -741,8 +882,8 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                   />
                 </label>
                 <div style={ helperStyle }>
-                  The customer gets: “Your <strong>{ vaultMessageName( vaultName ) || defaultVaultName( selected ) || 'document' }</strong> copy is ready!
-                  Pay <strong>₹49</strong> for instant and secure access to download it.” with an <strong>Unlock Vault</strong> button.
+                  Offer preview: “Your <strong>{ vaultMessageName( vaultName ) || defaultVaultName( selected ) || 'document' }</strong> is ready in Vault.
+                  Tap below to unlock secure access.” with an <strong>Unlock Vault</strong> button.
                 </div>
               </div>
             ) }
@@ -796,7 +937,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
               >
                 { referenceAgeSeconds( selected ) < 24 * 3600 ? 'Reference valid <24h' : 'Revalidate reference' }
               </Button>
-              { selected.vaultFileId ? (
+              { !selected.archivedAt && ( selected.vaultFileId ? (
                 <Button
                   variant="secondary"
                   loading={ actionLoading }
@@ -814,18 +955,23 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                 >
                   Publish to Vault
                 </Button>
+              ) ) }
+              { !selected.archivedAt && !selected.vaultFileId && selected.storageKey && [ 'uploaded', 'approved' ].includes( selected.status ) && (
+                <Button variant="primary" loading={ actionLoading } onClick={ () => handlePublishAndSend( selected ) }>
+                  Publish & send WhatsApp
+                </Button>
               ) }
-              { selected.vaultFileId && vaultActionsFor( vaultFile ).ask && (
+              { !selected.archivedAt && selected.vaultFileId && vaultActionsFor( vaultFile ).ask && (
                 <Button
                   variant="primary"
                   loading={ actionLoading }
                   disabled={ vaultFile.status === 'loading' }
                   onClick={ () => handleSendVaultOffer( selected ) }
                 >
-                  { vaultActionsFor( vaultFile ).renewal ? 'Send ₹49 renewal message' : 'Send ₹49 Vault message' }
+                  { vaultActionsFor( vaultFile ).renewal ? 'Send renewal offer' : 'Send Vault offer' }
                 </Button>
               ) }
-              { selected.vaultFileId && vaultActionsFor( vaultFile ).resend && (
+              { !selected.archivedAt && selected.vaultFileId && vaultActionsFor( vaultFile ).resend && (
                 <Button
                   variant="secondary"
                   loading={ actionLoading }
@@ -835,184 +981,272 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                   Resend Access Vault
                 </Button>
               ) }
-              <Button variant="primary" loading={ actionLoading } onClick={ () => handleStatusAction( selected, 'approved', remarks ) }>Approve</Button>
-              <Button variant="danger" loading={ actionLoading } onClick={ () => handleStatusAction( selected, 'rejected', remarks ) }>Reject</Button>
-              <Button variant="secondary" loading={ actionLoading } onClick={ () => handleStatusAction( selected, 'reupload_requested', remarks ) }>Request Reupload</Button>
+              { selected.archivedAt ? (
+                <Button variant="primary" loading={ actionLoading } onClick={ () => { void handleRestore( selected ); } }>Restore</Button>
+              ) : (
+                <>
+                  <Button variant="primary" loading={ actionLoading } onClick={ () => handleStatusAction( selected, 'approved', remarks ) }>Approve</Button>
+                  <Button variant="danger" loading={ actionLoading } onClick={ () => handleStatusAction( selected, 'rejected', remarks ) }>Reject</Button>
+                  <Button variant="secondary" loading={ actionLoading } onClick={ () => handleStatusAction( selected, 'reupload_requested', remarks ) }>Request Reupload</Button>
+                  <Button variant="secondary" loading={ actionLoading } onClick={ () => { void handleArchive( selected ); } }>Archive</Button>
+                </>
+              ) }
             </div>
           </div>
         ) }
       </Modal>
 
-      {/* Create Document Modal */ }
+      {/* Create Document Modal
+          Task modal: no accidental overlay/Escape/top-right dismissal. Cancel is explicit. */ }
       <Modal
         isOpen={ showCreate }
-        onClose={ () => { if ( !creating ) { setShowCreate( false ); resetCreate(); } } }
-        title="Add Document"
+        onClose={ closeCreate }
+        title="Upload to Drop Docs"
         size="lg"
+        closeOnOverlay={ false }
+        closeOnEsc={ false }
+        showCloseButton={ false }
         footer={
           <>
-            <Button variant="secondary" onClick={ () => { setShowCreate( false ); resetCreate(); } } disabled={ creating }>Cancel</Button>
-            <Button variant="primary" loading={ creating } onClick={ handleCreateDocument }>Upload document</Button>
+            <Button variant="secondary" onClick={ closeCreate } disabled={ creating }>Cancel</Button>
+            <Button
+              variant="secondary"
+              disabled={ creating || !createReady }
+              onClick={ () => { void handleCreateDocument( false ); } }
+            >
+              Upload only
+            </Button>
+            <Button
+              variant="primary"
+              loading={ creating }
+              disabled={ creating || !createReady }
+              onClick={ () => { void handleCreateDocument( true ); } }
+            >
+              Upload & send WhatsApp
+            </Button>
           </>
         }
       >
-        <div style={ { display: 'flex', flexDirection: 'column', gap: 14 } }>
-          <div>
-            <label style={ { fontSize: 'var(--text-md)' } }>
-              Find customer
-              <input
-                type="search"
-                value={ contactQuery }
-                onChange={ e => setContactQuery( e.target.value ) }
-                placeholder="Search name or mobile"
-                style={ inputStyle }
-                disabled={ creating }
-              />
-            </label>
-            { contactSearching && <div style={ helperStyle }>Searching contacts…</div> }
-            { !contactSearching && /^[+0-9() .-]+$/.test( contactQuery.trim() ) && contactQuery.replace( /\D/g, '' ).length > 0 && (
-              ( contactQuery.trim().startsWith( '+' ) || contactQuery.trim().startsWith( '00' ) )
-                ? contactQuery.replace( /\D/g, '' ).length < 7
-                : contactQuery.replace( /\D/g, '' ).length < 10
-            ) && (
-              <div style={ helperStyle }>
-                { contactQuery.trim().startsWith( '+' ) || contactQuery.trim().startsWith( '00' )
-                  ? 'Enter more of the international number to search.'
-                  : 'Enter the full 10-digit mobile number to search.' }
+        <div style={ { display: 'flex', flexDirection: 'column', gap: 18 } }>
+          <div style={ uploadIntroStyle }>
+            Add a document to private Drop Docs storage. Choose <strong>Upload only</strong> for intake, or <strong>Upload & send WhatsApp</strong> to publish it to Vault and send the customer the Unlock Vault offer immediately.
+          </div>
+
+          <section style={ sectionStyle }>
+            <div style={ sectionHeadingStyle }>
+              <strong>1. Customer</strong>
+              <span style={ sectionHintStyle }>Required</span>
+            </div>
+
+            { createForm.contactId ? (
+              <div style={ selectedCustomerStyle }>
+                <div style={ { minWidth: 0 } }>
+                  <div style={ { fontWeight: 650 } }>{ createForm.customerName || 'Customer' }</div>
+                  <div style={ helperStyle }>{ createForm.customerPhone || 'Customer record selected' }</div>
+                </div>
+                <Button
+                  variant="secondary"
+                  onClick={ () => {
+                    setCreateForm( form => ( {
+                      ...form,
+                      contactId: '', customerName: '', customerPhone: '', orderId: '',
+                    } ) );
+                    setContactQuery( '' );
+                    setCustomerOrders( [] );
+                  } }
+                  disabled={ creating }
+                >
+                  Change
+                </Button>
+              </div>
+            ) : (
+              <div>
+                <label style={ fieldLabelStyle }>
+                  Search customer
+                  <input
+                    type="text"
+                    value={ contactQuery }
+                    onChange={ e => setContactQuery( e.target.value ) }
+                    placeholder="Name or mobile number"
+                    autoComplete="off"
+                    style={ inputStyle }
+                    disabled={ creating }
+                  />
+                </label>
+                { contactSearching && <div style={ helperStyle }>Searching contacts…</div> }
+                { !contactSearching && /^[+0-9() .-]+$/.test( contactQuery.trim() ) && contactQuery.replace( /\D/g, '' ).length > 0 && (
+                  ( contactQuery.trim().startsWith( '+' ) || contactQuery.trim().startsWith( '00' ) )
+                    ? contactQuery.replace( /\D/g, '' ).length < 7
+                    : contactQuery.replace( /\D/g, '' ).length < 10
+                ) && (
+                  <div style={ helperStyle }>
+                    { contactQuery.trim().startsWith( '+' ) || contactQuery.trim().startsWith( '00' )
+                      ? 'Enter more of the international number to search.'
+                      : 'Enter the full 10-digit mobile number to search.' }
+                  </div>
+                ) }
+                { contactResults.length > 0 && (
+                  <div style={ resultListStyle }>
+                    { contactResults.map( contact => (
+                      <button
+                        key={ contact.contactId || contact.id }
+                        type="button"
+                        onClick={ () => selectContact( contact ) }
+                        style={ resultButtonStyle }
+                      >
+                        <strong>{ contact.name || [ contact.firstName, contact.lastName ].filter( Boolean ).join( ' ' ) || 'Unnamed contact' }</strong>
+                        <span style={ { color: 'var(--text-muted)' } }>{ contact.phone || 'No phone' }</span>
+                      </button>
+                    ) ) }
+                  </div>
+                ) }
+                { !contactSearching && contactQuery.trim() && contactResults.length === 0 && (
+                  <div style={ manualCustomerStyle }>
+                    <div style={ { fontWeight: 600 } }>Customer not listed?</div>
+                    <div style={ helperStyle }>You can enter a mobile number directly. Name is optional.</div>
+                    <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10, marginTop: 10 } }>
+                      <label style={ fieldLabelStyle }>
+                        Mobile
+                        <input
+                          type="tel"
+                          value={ createForm.customerPhone }
+                          onChange={ e => setCreateForm( form => ( { ...form, customerPhone: e.target.value, contactId: '', orderId: '' } ) ) }
+                          placeholder="+91…"
+                          style={ inputStyle }
+                          disabled={ creating }
+                        />
+                      </label>
+                      <label style={ fieldLabelStyle }>
+                        Name <span style={ sectionHintStyle }>(optional)</span>
+                        <input
+                          type="text"
+                          value={ createForm.customerName }
+                          onChange={ e => setCreateForm( form => ( { ...form, customerName: e.target.value, contactId: '' } ) ) }
+                          placeholder="Customer name"
+                          style={ inputStyle }
+                          disabled={ creating }
+                        />
+                      </label>
+                    </div>
+                  </div>
+                ) }
               </div>
             ) }
-            { contactResults.length > 0 && (
-              <div style={ resultListStyle }>
-                { contactResults.map( contact => (
-                  <button
-                    key={ contact.contactId || contact.id }
-                    type="button"
-                    onClick={ () => selectContact( contact ) }
-                    style={ resultButtonStyle }
-                  >
-                    <strong>{ contact.name || [ contact.firstName, contact.lastName ].filter( Boolean ).join( ' ' ) || 'Unnamed contact' }</strong>
-                    <span style={ { color: 'var(--text-muted)' } }>{ contact.phone || 'No phone' }</span>
-                  </button>
-                ) ) }
+          </section>
+
+          <section style={ sectionStyle }>
+            <div style={ sectionHeadingStyle }>
+              <strong>2. Document</strong>
+              <span style={ sectionHintStyle }>Required</span>
+            </div>
+
+            <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 } }>
+              <Select
+                label="Document type"
+                value={ createForm.type }
+                onChange={ value => setCreateForm( form => ( { ...form, type: value, typeLabel: value === 'other' ? form.typeLabel : '' } ) ) }
+                options={ TYPE_SELECT_OPTIONS }
+                disabled={ creating }
+              />
+              <Select
+                label="Order (optional)"
+                value={ createForm.orderId }
+                onChange={ value => setCreateForm( form => ( { ...form, orderId: value } ) ) }
+                options={ [
+                  { value: '', label: ordersLoading ? 'Loading orders…' : 'No linked order' },
+                  ...customerOrders.map( order => ( {
+                    value: order.orderId,
+                    label: fmtOrderLabel( order ),
+                  } ) ),
+                ] }
+                disabled={ creating || ordersLoading || !createForm.customerPhone }
+              />
+            </div>
+
+            { createForm.type === 'other' && (
+              <label style={ fieldLabelStyle }>
+                Document name
+                <input
+                  type="text"
+                  value={ createForm.typeLabel }
+                  onChange={ e => setCreateForm( form => ( { ...form, typeLabel: e.target.value } ) ) }
+                  placeholder="e.g. Trade licence, PAN card, agreement"
+                  style={ inputStyle }
+                  disabled={ creating }
+                />
+              </label>
+            ) }
+
+            <label style={ fieldLabelStyle }>
+              File
+              <input
+                type="file"
+                onChange={ e => setCreateFile( e.target.files?.[ 0 ] || null ) }
+                style={ inputStyle }
+                disabled={ creating }
+              />
+            </label>
+            { createFile && (
+              <div style={ fileSummaryStyle }>
+                <div style={ { fontWeight: 600, overflowWrap: 'anywhere' } }>{ createFile.name }</div>
+                <div style={ helperStyle }>{ fmtSize( createFile.size ) } · { createFile.type || 'File' }</div>
+                <div style={ helperStyle }>Private upload. A six-digit WECARE reference is generated automatically.</div>
               </div>
             ) }
-          </div>
+          </section>
 
-          <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } }>
-            <label style={ { fontSize: 'var(--text-md)' } }>
-              Customer Name
-              <input
-                type="text"
-                value={ createForm.customerName }
-                onChange={ e => setCreateForm( form => ( { ...form, customerName: e.target.value, contactId: '' } ) ) }
-                style={ inputStyle }
-                disabled={ creating }
-              />
-            </label>
-            <label style={ { fontSize: 'var(--text-md)' } }>
-              Phone
-              <input
-                type="tel"
-                value={ createForm.customerPhone }
-                onChange={ e => setCreateForm( form => ( { ...form, customerPhone: e.target.value, contactId: '', orderId: '' } ) ) }
-                placeholder="+91..."
-                style={ inputStyle }
-                disabled={ creating }
-              />
-            </label>
-          </div>
-
-          <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } }>
-            <Select
-              label="Document Type"
-              value={ createForm.type }
-              onChange={ value => setCreateForm( form => ( { ...form, type: value, typeLabel: value === 'other' ? form.typeLabel : '' } ) ) }
-              options={ TYPE_SELECT_OPTIONS }
-              disabled={ creating }
-            />
-            <Select
-              label="Order (optional)"
-              value={ createForm.orderId }
-              onChange={ value => setCreateForm( form => ( { ...form, orderId: value } ) ) }
-              options={ [
-                { value: '', label: ordersLoading ? 'Loading orders…' : 'No order / standalone document' },
-                ...customerOrders.map( order => ( {
-                  value: order.orderId,
-                  label: fmtOrderLabel( order ),
-                } ) ),
-              ] }
-              disabled={ creating || ordersLoading || !createForm.customerPhone }
-            />
-          </div>
-
-          { createForm.type === 'other' && (
-            <label style={ { fontSize: 'var(--text-md)' } }>
-              Document type/name
-              <input
-                type="text"
-                value={ createForm.typeLabel }
-                onChange={ e => setCreateForm( form => ( { ...form, typeLabel: e.target.value } ) ) }
-                placeholder="e.g. Trade licence, PAN card, agreement"
-                style={ inputStyle }
-                disabled={ creating }
-              />
-            </label>
-          ) }
-
-          <label style={ { fontSize: 'var(--text-md)' } }>
-            WhatsApp Vault title <span style={ { color: 'var(--text-muted)' } }>({ '{{1}}' } in wecare_valut_49)</span>
-            <input
-              type="text"
-              value={ createForm.vaultDisplayName }
-              maxLength={ 60 }
-              onChange={ e => setCreateForm( form => ( { ...form, vaultDisplayName: e.target.value } ) ) }
-              placeholder={ createForm.typeLabel || createFile?.name || 'e.g. Trade licence, PAN card, Medical report' }
-              style={ inputStyle }
-              disabled={ creating }
-            />
-            <div style={ helperStyle }>
-              Preview: “Your <strong>{ vaultMessageName( createForm.vaultDisplayName ) || createForm.typeLabel || createFile?.name || 'document' }</strong> copy is ready! Pay <strong>₹49</strong>…”
+          <section style={ sectionStyle }>
+            <div style={ sectionHeadingStyle }>
+              <strong>3. Note</strong>
+              <span style={ sectionHintStyle }>Optional</span>
             </div>
-          </label>
-
-          <label style={ { fontSize: 'var(--text-md)' } }>
-            Choose file
-            <input
-              type="file"
-              onChange={ e => {
-                const next = e.target.files?.[ 0 ] || null;
-                setCreateFile( next );
-                setCreateForm( form => ( { ...form, fileName: next?.name || '' } ) );
-              } }
-              style={ inputStyle }
-              disabled={ creating }
-            />
-          </label>
-          { createFile && (
-            <div style={ { ...helperStyle, display: 'grid', gap: 3 } }>
-              <div><strong>Selected:</strong> { createFile.name } · { fmtSize( createFile.size ) } · { createFile.type || 'unknown type' }</div>
-              <div><strong>Saved as:</strong> <span style={ { fontFamily: 'monospace' } }>wecare-digital-######{ fileExtension( createFile.name ) }</span></div>
-              <div>The six-digit reference is generated by the server when upload starts.</div>
-            </div>
-          ) }
-
-          <label style={ { fontSize: 'var(--text-md)' } }>
-            Notes
             <textarea
+              aria-label="Internal note"
               value={ createForm.notes }
               onChange={ e => setCreateForm( form => ( { ...form, notes: e.target.value } ) ) }
               rows={ 2 }
-              placeholder="Any remarks about this document..."
-              style={ { ...inputStyle, resize: 'vertical' } }
+              placeholder="Internal note about this upload"
+              style={ { ...inputStyle, resize: 'vertical', marginTop: 0 } }
               disabled={ creating }
             />
-          </label>
+          </section>
 
-          <div style={ { padding: 12, background: '#ecfccb', borderRadius: 8, fontSize: 'var(--text-sm)', color: '#365314' } }>
-            The file is uploaded into private Drop Docs storage and linked to the selected customer and, when chosen, their order.
+          <div style={ uploadFooterNoteStyle }>
+            <strong>Upload only</strong> keeps this as intake. <strong>Upload & send WhatsApp</strong> publishes the same document to Vault and sends the customer the offer; payment happens only after the customer taps Unlock Vault.
           </div>
         </div>
       </Modal>
+      <style jsx global>{`
+        .dd-summary > div{background:var(--bg-primary);padding:14px 16px;display:grid;gap:3px}
+        .dd-journey{margin:0 0 16px;padding:16px;border:1px solid var(--border);border-radius:12px;background:var(--bg-primary)}
+        .dd-journey-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-end;margin-bottom:12px}
+        .dd-journey-head>div{display:grid;gap:3px}
+        .dd-journey-head span,.dd-journey-note{font-size:var(--text-xs);color:var(--text-muted)}
+        .dd-journey-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}
+        .dd-journey-grid>div{display:grid;grid-template-columns:28px 1fr;grid-template-areas:"n t" "n s";column-gap:8px;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:9px;background:var(--bg-secondary)}
+        .dd-journey-grid>div>span{grid-area:n;width:26px;height:26px;border-radius:999px;display:grid;place-items:center;background:var(--accent);color:#fff;font-size:var(--text-xs);font-weight:700}
+        .dd-journey-grid strong{grid-area:t;font-size:var(--text-sm)}
+        .dd-journey-grid small{grid-area:s;color:var(--text-muted);overflow-wrap:anywhere}
+        .dd-summary strong{font-size:22px;color:var(--accent)}
+        .dd-summary span{font-size:var(--text-xs);color:var(--text-muted)}
+        .dd-action{
+          min-height:34px;
+          border:1px solid var(--border);
+          background:var(--bg-primary);
+          color:var(--accent);
+          border-radius:8px;
+          padding:6px 10px;
+          font-size:var(--text-sm);
+          font-weight:600;
+          cursor:pointer;
+        }
+        .dd-action:hover{background:var(--bg-secondary)}
+        .dd-action:disabled{opacity:.55;cursor:not-allowed}
+        .dd-action-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+        .dd-action-primary:hover{filter:brightness(.96);background:var(--accent)}
+        .dd-action-muted{color:var(--text-muted)}
+        .dd-action-danger{color:#991b1b}
+      `}</style>
     </MaybeLayout>
   );
 };
@@ -1022,6 +1256,28 @@ const labelStyle: React.CSSProperties = { fontSize: 'var(--text-xs)', color: 'va
 const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 'var(--text-md)', marginTop: 4 };
 const actionBtnStyle: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', fontSize: 'var(--text-base)', padding: '2px 4px' };
 const helperStyle: React.CSSProperties = { fontSize: 'var(--text-sm)', color: 'var(--text-muted)', marginTop: 6 };
+const fieldLabelStyle: React.CSSProperties = { fontSize: 'var(--text-md)', display: 'block' };
+const sectionStyle: React.CSSProperties = { display: 'grid', gap: 12, padding: 14, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--bg-primary)' };
+const sectionHeadingStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 };
+const sectionHintStyle: React.CSSProperties = { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 500 };
+const selectedCustomerStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px', borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border)' };
+const manualCustomerStyle: React.CSSProperties = { marginTop: 10, padding: 12, border: '1px dashed var(--border)', borderRadius: 10, background: 'var(--bg-secondary)' };
+const fileSummaryStyle: React.CSSProperties = { padding: '10px 12px', borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border)' };
+const uploadIntroStyle: React.CSSProperties = { fontSize: 'var(--text-sm)', lineHeight: 1.5, color: 'var(--text-muted)' };
+const uploadFooterNoteStyle: React.CSSProperties = { padding: 12, borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border)', fontSize: 'var(--text-sm)', lineHeight: 1.5 };
+const pageStyle: React.CSSProperties = { padding: '28px 32px', maxWidth: 1480 };
+const pageHeaderStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 24, marginBottom: 22 };
+const eyebrowStyle: React.CSSProperties = { fontSize: 'var(--text-xs)', fontWeight: 650, color: 'var(--text-muted)', letterSpacing: '.04em', textTransform: 'uppercase', marginBottom: 6 };
+const pageTitleStyle: React.CSSProperties = { fontSize: 'var(--text-3xl)', lineHeight: 1.1, fontWeight: 720, color: 'var(--accent)', margin: 0, letterSpacing: '-.02em' };
+const pageLeadStyle: React.CSSProperties = { maxWidth: 720, fontSize: 'var(--text-md)', lineHeight: 1.5, color: 'var(--text-muted)', margin: '7px 0 0' };
+const summaryStripStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 1, overflow: 'hidden', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--border)', marginBottom: 16 };
+const toolbarStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 14 };
+const segmentedStyle: React.CSSProperties = { display: 'inline-flex', padding: 3, gap: 2, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 10 };
+const segmentStyle: React.CSSProperties = { border: 0, background: 'transparent', color: 'var(--text-muted)', padding: '7px 12px', borderRadius: 7, cursor: 'pointer', fontWeight: 600 };
+const segmentActiveStyle: React.CSSProperties = { ...segmentStyle, background: 'var(--bg-primary)', color: 'var(--accent)', boxShadow: '0 1px 2px rgba(0,0,0,.08)' };
+const documentLinkStyle: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', color: 'var(--accent)' };
+const activePillStyle: React.CSSProperties = { display: 'inline-flex', padding: '4px 8px', borderRadius: 999, background: '#dcfce7', color: '#166534', fontSize: 'var(--text-xs)', fontWeight: 650 };
+const archivedPillStyle: React.CSSProperties = { display: 'inline-flex', padding: '4px 8px', borderRadius: 999, background: '#f3f4f6', color: '#6b7280', fontSize: 'var(--text-xs)', fontWeight: 650 };
 const vaultBoxStyle: React.CSSProperties = { marginBottom: 16, padding: 12, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-secondary)' };
 const resultListStyle: React.CSSProperties = { marginTop: 6, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', maxHeight: 220, overflowY: 'auto' };
 const resultButtonStyle: React.CSSProperties = { width: '100%', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', gap: 12, padding: '10px 12px', border: 0, borderBottom: '1px solid var(--border)', background: 'var(--bg-primary)', cursor: 'pointer', textAlign: 'left' };

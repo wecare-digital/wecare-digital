@@ -14,7 +14,7 @@
 > current nav. The **built / not-built** column is verified against THIS repo's
 > code (file paths cited), which is the authoritative half of this document.
 >
-> Updated: 2026-10-20. Repo evidence from `amplify/functions/messaging/*`,
+> Updated: 2026-10-27. Repo evidence from `amplify/functions/messaging/*`,
 > `amplify/functions/ecommerce/*`, `amplify/functions/shared/lambda_utils/*`.
 
 Legend: ✅ built · 🟡 partial / gated · ❌ not built · ⛔ intentionally retired
@@ -39,7 +39,7 @@ Legend: ✅ built · 🟡 partial / gated · ❌ not built · ⛔ intentionally 
 | Interactive — address message | ✅ | `address_message` |
 | Interactive — **Flow** | ✅ | `flow` (see §4) |
 | Interactive — **product / product_list** | ✅ | `product`, `product_list` (catalog §5) |
-| **order_details** (WhatsApp Pay / native checkout) | 🟡 gated | `order_details`; native in-chat pay is **not live** (`CHECKOUT_INITIATION_ENABLED` off; website Razorpay is the money path) |
+| **order_details** (WhatsApp Pay / native checkout) | ✅ live | Approved native-pay template + live payment-readiness gate; the historical `CHECKOUT_INITIATION_ENABLED` switch is retired |
 | **order status** (post-pay fulfilment) | ✅ | Local fulfilment state + `wecare_default_invoice_image_template` using the issued invoice PNG |
 | Mark as read | 🟡 | inbound handler tracks read; verify explicit read-receipt POST |
 | Media upload / download / resumable | ✅ | `/media` edge, `meta_client.upload_multipart`/`download_file` |
@@ -60,8 +60,8 @@ messaging limits & quality rating, conversation-based pricing.
 | Phone-number list / settings | ✅ | `/phone_numbers`; `waba-management` |
 | Business profile read/update | ✅ | `/whatsapp_business_profile` |
 | Subscribed apps (webhook subscribe) | ✅ | `/subscribed_apps` ×14 |
-| Two-step PIN | ❌ | not managed in code |
-| Display-name / quality / messaging tier | 🟡 | quality surfaced; tier management partial |
+| Two-step PIN | ✅ | Admin set/change route + Workspace control; PIN is never persisted |
+| Display-name / quality / messaging tier | ✅ read | phone settings + Official Business Account/quality diagnostics; provider limits remain provider-controlled |
 
 **Canonical next links:** Phone Numbers, Register Phone, Business Profile,
 Two-Step Verification, Display Name, Quality Rating & Messaging Limits.
@@ -102,7 +102,7 @@ per-use-case modules + published Flow JSON:
 | Data-exchange encryption (RSA/AES) | ✅ | router decrypts request / encrypts response |
 | Preview | ✅ | Flows preview in `whatsapp-business-api` |
 | Flow metrics / submissions | ✅ | submission registry + stats + export |
-| Health-check / ping | 🟡 | data-exchange present; explicit `ping`/health_check action — verify |
+| Health-check / ping | ✅ | `flows/router.py` returns `{data:{status:'active'}}` for `action == 'ping'` |
 | Error codes | ✅ | handled in router/common |
 | Versioning / changelog | 🟡 | tracked informally |
 
@@ -143,7 +143,7 @@ Single/Multi-Product Messages, Order Details / Payments (India), Cart.
 | Inbound messages webhook | ✅ | `inbound-whatsapp-handler` (SNS/Meta) |
 | Message status (sent/delivered/read/failed) | ✅ | `value.statuses[]` processing |
 | **Payment status webhook** (plural `transactions[]`) | ✅ | `_process_payment_status` / `_select_payment_transaction` (fixed #1076) |
-| Template status / quality webhooks | 🟡 | partial |
+| Template status / quality webhooks | ✅ | status/quality/component/category events are subscribed and durably captured |
 | Account / phone / BSUID system events | ✅ | `user_changed_user_id` handling |
 | Signature verification (X-Hub-Signature-256) | ✅ | canonical `/whatsapp` ingress |
 
@@ -160,7 +160,7 @@ Payload Reference, Security.
 | WhatsApp Calling API | ✅ | `whatsapp-calling` (`/calls` ×12), `whatsapp-voice`, `voice-aws`, `voice-cdr-read` |
 | Conversational automation / ice-breakers / commands | ✅ | `/conversational_automation` ×4 |
 | Block users | ✅ | `/block_users` ×10 |
-| Groups | 🟡 | referenced "where usable"; not a core surface |
+| Groups | ✅ | live list endpoint verified on both production accounts; full group management/send routes exist |
 
 **Canonical next links:** Calling API, Conversational Components (ice-breakers,
 commands), Block Users, Typing Indicators.
@@ -182,20 +182,15 @@ Business Management API, System Users & Tokens.
 
 ---
 
-## Gaps worth a decision (not yet built / gated)
+## Gaps worth a decision (external or intentionally gated)
 
-1. **Native WhatsApp Pay (order_details)** — ✅ live (corrected 2026-10-25). The approved
-   `wecare_whatapp_native_pay_template` collects through WECAREDIGITAL / Razorpay on WABA1;
-   `CHECKOUT_INITIATION_ENABLED=true` live. Open item: one owner-authorised real purchase as the
-   final end-to-end proof.
-2. **Native catalog `order` inbound** — ✅ live (`WA_CATALOG_ORDERS_ENABLED=true` on inbound
-   and checkout, no SystemConfig override; verified 2026-10-25). Hermetic proof:
-   `scripts/verify_whatsapp_catalog_payment_rail.py`.
-3. **Send contacts message** — ❌.
-4. **Authentication/OTP templates** (one-tap autofill / copy-code) — 🟡 verify.
-5. **Advanced template types** (carousel, LTO, MPM) — 🟡 not confirmed.
-6. **Two-step PIN management**, **messaging-tier automation** — 🟡/❌.
-7. **Flows health-check/ping action** and formal **version/changelog tracking** — 🟡.
+1. **One real owner-authorised catalog purchase** remains the final human end-to-end proof. Do not manufacture a payment in CI.
+2. **Meta App Review** still needs a genuine catalog-management screencast.
+3. **Meta Marketing API Full Access** requires Meta's legitimate-usage precheck; do not generate artificial traffic to qualify.
+4. **Direct Send** stays fail-closed until Meta explicitly enables it.
+5. **Additional DRAFT Flows** remain intentionally unpublished until their customer journeys are approved.
+6. **Multi-Partner Solutions** and pre-verified-number sharing remain business-model decisions, not missing core-commerce code.
+7. **Long-term Athena/Glue analytics** needs an explicitly selected querying principal and retention/access design before provisioning.
 
 ## How to complete the link scrape properly (next step if you want the full href list)
 

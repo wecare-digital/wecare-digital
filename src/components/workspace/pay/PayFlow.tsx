@@ -312,6 +312,11 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
   const [ custSaving, setCustSaving ] = useState( false );
   const [ selCustomer, setSelCustomer ] = useState<Contact | null>( null );
   const [ invForm, setInvForm ] = useState( { ...EMPTY_INV } );
+  const [ showAdvancedTax, setShowAdvancedTax ] = useState( false );
+  const [ invoicePreview, setInvoicePreview ] = useState<api.InvoiceEnginePreview | null>( null );
+  const [ previewLoading, setPreviewLoading ] = useState( false );
+  const [ previewError, setPreviewError ] = useState( '' );
+  const previewRequestSeq = useRef( 0 );
   const [ creating, setCreating ] = useState( false );
   const [ invoices, setInvoices ] = useState<Invoice[]>( [] );
   const [ invLoading, setInvLoading ] = useState( false );
@@ -455,6 +460,82 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
   };
 
   /* Invoice form handlers */
+  const buildInvoiceRequest = useCallback( ( referenceId?: string ): CreateInvoiceEngineRequest | null => {
+    if ( !selCustomer ) return null;
+    const a = addressFieldsFromContact( selCustomer );
+    const req: CreateInvoiceEngineRequest = {
+      customerPhone: selCustomer.phone,
+      customerEmail: selCustomer.email || '',
+      customerName: selCustomer.name,
+      contactId: selCustomer.id,
+      shippingAddress: contactDeliveryAddress( selCustomer ),
+      billingAddress: contactDeliveryAddress( selCustomer ) || selCustomer.billingAddress || '',
+      addressLine1: a.addressLine1,
+      addressLine2: a.addressLine2,
+      city: a.city,
+      state: a.state,
+      postalCode: a.postalCode,
+      landmark: a.locality,
+      countryCode: a.countryCode || countryCodeForName( a.country ),
+      goodsType,
+      items: invForm.items.map( it => ( {
+        name: it.name || config.default_item_name,
+        amount: parseFloat( it.unitPrice ) || 0,
+        quantity: parseInt( it.quantity ) || 1,
+        gstRate: it.gstRate.trim() === '' ? config.default_gst_rate : Number( it.gstRate ),
+        hsnSac: it.hsnSac.trim(),
+      } ) ),
+      shipping: parseFloat( invForm.shipping ) || 0,
+      gstRate: config.default_gst_rate,
+      purpose: DEFAULT_BRAND,
+      orderId: invForm.orderId,
+      gstin: config.gstin,
+      buyerGstin: ( selCustomer as Contact & { gstin?: string } ).gstin || undefined,
+      entryPoint: 'pay_flow',
+    };
+    if ( referenceId ) req.referenceId = referenceId;
+    return req;
+  }, [ selCustomer, invForm, config.default_item_name, config.default_gst_rate, config.gstin ] );
+
+  useEffect( () => {
+    if ( !selCustomer || !hasPayableDeliveryAddress( selCustomer )
+      || !invForm.items.some( it => parseFloat( it.unitPrice ) > 0 ) ) {
+      previewRequestSeq.current += 1;
+      setInvoicePreview( null );
+      setPreviewLoading( false );
+      setPreviewError( '' );
+      return;
+    }
+
+    const request = buildInvoiceRequest();
+    if ( !request ) return;
+    const seq = ++previewRequestSeq.current;
+    setPreviewLoading( true );
+    setPreviewError( '' );
+
+    const timer = window.setTimeout( async () => {
+      try {
+        const result = await api.previewInvoiceEngine( request, true );
+        if ( seq !== previewRequestSeq.current ) return;
+        if ( result ) {
+          setInvoicePreview( result );
+          setPreviewError( '' );
+        } else {
+          setInvoicePreview( null );
+          setPreviewError( 'Preview unavailable. The invoice can still be created from server pricing.' );
+        }
+      } catch {
+        if ( seq !== previewRequestSeq.current ) return;
+        setInvoicePreview( null );
+        setPreviewError( 'Preview unavailable. The invoice can still be created from server pricing.' );
+      } finally {
+        if ( seq === previewRequestSeq.current ) setPreviewLoading( false );
+      }
+    }, 750 );
+
+    return () => window.clearTimeout( timer );
+  }, [ buildInvoiceRequest, selCustomer, invForm.items ] );
+
   const updateItem = ( idx: number, field: keyof IR, val: string ) => {
     const items = [ ...invForm.items ]; items[ idx ] = { ...items[ idx ], [ field ]: val }; setInvForm( { ...invForm, items } );
   };
@@ -473,34 +554,13 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
     setCreating( true );
     try
     {
-      const req: CreateInvoiceEngineRequest = {
-        referenceId: 'WD-PAY-' + crypto.randomUUID().replace( /-/g, '' ).slice( 0, 16 ).toUpperCase(),
-        customerPhone: selCustomer.phone, customerEmail: selCustomer.email || '',
-        customerName: selCustomer.name, contactId: selCustomer.id,
-        shippingAddress: contactDeliveryAddress( selCustomer ),
-        billingAddress: contactDeliveryAddress( selCustomer ) || selCustomer.billingAddress || '',
-        // One canonical contact-address projection feeds Meta shipping_info too.
-        ...(() => {
-          const a = addressFieldsFromContact( selCustomer );
-          return {
-            addressLine1: a.addressLine1,
-            addressLine2: a.addressLine2,
-            city: a.city,
-            state: a.state,
-            postalCode: a.postalCode,
-            landmark: a.locality,
-          };
-        })(),
-        goodsType: goodsType,
-        items: invForm.items.map( it => ( { name: it.name || config.default_item_name, amount: parseFloat( it.unitPrice ) || 0, quantity: parseInt( it.quantity ) || 1, gstRate: it.gstRate.trim() === '' ? config.default_gst_rate : Number( it.gstRate ), hsnSac: it.hsnSac.trim() } ) ),
-        shipping: parseFloat( invForm.shipping ) || 0,
-        gstRate: config.default_gst_rate,
-        purpose: DEFAULT_BRAND, orderId: invForm.orderId, gstin: config.gstin,
-        buyerGstin: ( selCustomer as Contact & { gstin?: string } ).gstin || undefined,
-        // No discount is sent: the invoice engine auto-applies the standalone Delight policy
-        // (0.5% up to Rs50) server-side. There is no coupon code and no manual adjustment to pass.
-      };
-      req.entryPoint = 'pay_flow';
+      const req = buildInvoiceRequest(
+        'WD-PAY-' + crypto.randomUUID().replace( /-/g, '' ).slice( 0, 16 ).toUpperCase()
+      );
+      if ( !req ) {
+        showMsg( 'Select a customer first', 'error' );
+        return;
+      }
       // The result wrapper keeps the server's refusal, so the banner can say WHY a create was
       // refused instead of "Create failed". The success body carries the applied Delight figure
       // for the preview below.
@@ -514,6 +574,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
         setCreatedDelivery( 'saved' );
         setCreatedDeliveryMessage( '' );
         setInvForm( { ...EMPTY_INV, items: [ NEW_ITEM() ] } );
+        setShowAdvancedTax( false );
         setSelCustomer( null );
         if ( sendAfterCreate ) {
           setCreatedDelivery( 'sending' );
@@ -544,7 +605,20 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
             showMsg( 'Sending is not confirmed. Open this saved invoice and check its status before retrying.', 'error' );
           }
         }
-        loadInvoices();
+        // Avoid an immediate full invoice-list reload after create. One detail read gives us the
+        // authoritative stored row and lets the existing list update in place; this removes a
+        // redundant list scan from the hottest staff collection path.
+        try {
+          const createdInvoice = await api.getInvoiceEngine( r.invoiceId );
+          if ( createdInvoice ) {
+            setInvoices( current => [
+              createdInvoice,
+              ...current.filter( row => row.invoiceId !== createdInvoice.invoiceId ),
+            ] );
+          }
+        } catch {
+          // The create itself succeeded; a failed enrichment read must not turn success into error.
+        }
       }
       else
       {
@@ -844,11 +918,19 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                  * produces a discount.
                  */ }
               { redemption && (
-                <div className="inner-card" style={ { marginBottom: 16, maxWidth: 500, padding: '10px 14px' } }>
-                  <h4 style={ { margin: '0 0 6px', fontSize: 13, color: '#1a3a2a' } }>Invoice { redemption.invoiceNumber } created</h4>
-                  <p>{ createdDelivery === 'sent' ? ( createdDeliveryMessage || 'WhatsApp payment request sent.' ) : createdDelivery === 'sending' ? 'Sending the WhatsApp payment request…' : createdDelivery === 'unconfirmed' ? `${createdDeliveryMessage || 'Sending is not confirmed.'} Open this saved invoice and check its status before retrying.` : 'Invoice saved without sending a WhatsApp payment request.' }</p>
-                  <p>{ redemption.referenceId } { '\u2014' } { fmtMoney( redemption.total ) }</p>
-                  <Button variant="primary" size="sm" loading={ openingCreated } onClick={ openCreatedInvoice }>{ createdDelivery === 'saved' ? 'Review and send payment request' : 'View invoice and delivery status' }</Button>
+                <div className="inner-card pf-created-card">
+                  <div className="pf-created-head">
+                    <div>
+                      <div className="pf-created-kicker">Invoice created</div>
+                      <h4>{ redemption.invoiceNumber }</h4>
+                      <div className="pf-created-ref">{ redemption.referenceId }</div>
+                    </div>
+                    <div className="pf-created-amount">{ fmtMoney( redemption.total ) }</div>
+                  </div>
+                  <div className={ `pf-created-state ${createdDelivery}` }>
+                    { createdDelivery === 'sent' ? ( createdDeliveryMessage || 'WhatsApp payment request sent.' ) : createdDelivery === 'sending' ? 'Sending the WhatsApp payment request…' : createdDelivery === 'unconfirmed' ? `${createdDeliveryMessage || 'Sending is not confirmed.'} Open this saved invoice and check its status before retrying.` : 'Invoice saved without sending a WhatsApp payment request.' }
+                  </div>
+                  <Button variant="primary" size="sm" loading={ openingCreated } onClick={ openCreatedInvoice }>{ createdDelivery === 'saved' ? 'Review and send payment request' : 'View payment request' }</Button>
                   { typeof redemption.couponDiscount === 'number' && redemption.couponDiscount > 0 && (
                     <>
                       <p>Applied on the last invoice</p>
@@ -879,7 +961,8 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                   </div>
                 </div>
               ) : (
-                <div>
+                <div className="pf-create-layout">
+                  <div className="pf-composer-main">
                   <div className="info-banner" style={ { marginBottom: 16 } }>
                     <div style={ { flex: 1 } }><strong>{ selCustomer.name }</strong> { '\u2014' } { selCustomer.phone } { selCustomer.email ? ` \u00B7 ${selCustomer.email}` : '' }</div>
                     <Button variant="ghost" size="sm" onClick={ () => setSelCustomer( null ) }>Change</Button>
@@ -897,33 +980,73 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                       </div>
                     </div>
                   ) }
-                  <h3 style={ { margin: '0 0 12px', fontSize: 'var(--text-xl)' } }>Step 2 { '\u2014' } Invoice Details</h3>
-                  <div className="table-container" style={ { marginBottom: 16 } }>
-                    <table className="inner-table">
-                      <thead><tr><th>#</th><th>Item Name</th><th>Unit amount ({ '\u20B9' })</th><th>Qty</th><th>GST %</th><th>HSN/SAC</th><th></th></tr></thead>
-                      <tbody>
-                        { invForm.items.map( ( it, i ) => {
-                          return (
-                            <tr key={ i }>
-                              <td>{ i + 1 }</td>
-                              <td><input type="text" value={ it.name } onChange={ e => updateItem( i, 'name', e.target.value ) } placeholder={ config.default_item_name } className="pf-inline-input" /></td>
-                              <td><input type="number" value={ it.unitPrice } onChange={ e => updateItem( i, 'unitPrice', e.target.value ) } className="pf-num-input" /></td>
-                              <td><input type="number" value={ it.quantity } onChange={ e => updateItem( i, 'quantity', e.target.value ) } className="pf-num-input-sm" /></td>
-                              <td><input type="number" value={ it.gstRate } onChange={ e => updateItem( i, 'gstRate', e.target.value ) } className="pf-num-input-sm" /></td>
-                              <td><input type="text" inputMode="numeric" value={ it.hsnSac } onChange={ e => updateItem( i, 'hsnSac', e.target.value.replace( /\D/g, '' ).slice( 0, 8 ) ) } placeholder="Internal" className="pf-num-input" /></td>
-                              <td>{ invForm.items.length > 1 && <button onClick={ () => removeItem( i ) } className="pf-remove-btn">{ '\u2715' }</button> }</td>
-                            </tr>
-                          );
-                        } ) }
-                      </tbody>
-                    </table>
+                  <div className="pf-composer-heading">
+                    <div>
+                      <div className="pf-composer-kicker">Step 2</div>
+                      <h3>Invoice composer</h3>
+                      <p>Add the goods being collected for. Pricing, Delight, GST, convenience fee and the final payable remain server-authoritative.</p>
+                    </div>
                   </div>
-                  <Button variant="secondary" size="sm" onClick={ addItem } style={ { marginBottom: 4 } }>+ Add Item</Button>
-                  { ' ' }
 
-                  <h4 style={ { margin: '12px 0 8px', fontSize: 'var(--text-md)' } }>Additional Charges</h4>
-                  <div className="pf-form-grid">
-                    <div className="form-group"><label htmlFor="pf-shipping">Shipping input ({ '\u20B9' })</label><input id="pf-shipping" type="number" value={ invForm.shipping } onChange={ e => setInvForm( { ...invForm, shipping: e.target.value } ) } /></div>
+                  <div className="pf-composer-card">
+                    <div className="pf-composer-card-head">
+                      <div>
+                        <h4>Items</h4>
+                        <p>Use one card per line. HSN/SAC stays under Advanced tax details.</p>
+                      </div>
+                      <Button variant="secondary" size="sm" onClick={ addItem }>+ Add item</Button>
+                    </div>
+                    <div className="pf-item-card-list">
+                      { invForm.items.map( ( it, i ) => (
+                        <div className="pf-item-card" key={ i }>
+                          <div className="pf-item-card-top">
+                            <span className="pf-item-index">Item { i + 1 }</span>
+                            { invForm.items.length > 1 && <button type="button" onClick={ () => removeItem( i ) } className="pf-remove-btn" aria-label={ `Remove item ${i + 1}` }>{ '\u2715' }</button> }
+                          </div>
+                          <div className="form-group pf-item-name">
+                            <label htmlFor={ `pf-item-name-${i}` }>Description</label>
+                            <input id={ `pf-item-name-${i}` } type="text" value={ it.name } onChange={ e => updateItem( i, 'name', e.target.value ) } placeholder={ config.default_item_name } />
+                          </div>
+                          <div className="pf-item-fields">
+                            <div className="form-group">
+                              <label htmlFor={ `pf-item-price-${i}` }>Unit amount ({ '\u20B9' })</label>
+                              <input id={ `pf-item-price-${i}` } type="number" min="0" step="0.01" value={ it.unitPrice } onChange={ e => updateItem( i, 'unitPrice', e.target.value ) } />
+                            </div>
+                            <div className="form-group">
+                              <label htmlFor={ `pf-item-qty-${i}` }>Qty</label>
+                              <input id={ `pf-item-qty-${i}` } type="number" min="1" step="1" value={ it.quantity } onChange={ e => updateItem( i, 'quantity', e.target.value ) } />
+                            </div>
+                            <div className="form-group">
+                              <label htmlFor={ `pf-item-gst-${i}` }>GST %</label>
+                              <input id={ `pf-item-gst-${i}` } type="number" min="0" max="100" step="0.01" value={ it.gstRate } onChange={ e => updateItem( i, 'gstRate', e.target.value ) } />
+                            </div>
+                          </div>
+                          { showAdvancedTax && (
+                            <div className="pf-advanced-tax">
+                              <div className="form-group">
+                                <label htmlFor={ `pf-item-hsn-${i}` }>HSN/SAC <span>internal accounting</span></label>
+                                <input id={ `pf-item-hsn-${i}` } type="text" inputMode="numeric" value={ it.hsnSac } onChange={ e => updateItem( i, 'hsnSac', e.target.value.replace( /\D/g, '' ).slice( 0, 8 ) ) } placeholder="4, 6 or 8 digits" />
+                              </div>
+                            </div>
+                          ) }
+                        </div>
+                      ) ) }
+                    </div>
+                    <button type="button" className="pf-advanced-toggle" onClick={ () => setShowAdvancedTax( value => !value ) } aria-expanded={ showAdvancedTax }>
+                      { showAdvancedTax ? 'Hide advanced tax details' : 'Advanced tax details' }
+                    </button>
+                  </div>
+
+                  <div className="pf-composer-card">
+                    <div className="pf-composer-card-head">
+                      <div>
+                        <h4>Delivery</h4>
+                        <p>Physical-goods collection stays mandatory-address. Express is the customer-facing delivery charge.</p>
+                      </div>
+                    </div>
+                    <div className="pf-form-grid">
+                      <div className="form-group"><label htmlFor="pf-shipping">Express ({ '\u20B9' })</label><input id="pf-shipping" type="number" min="0" step="0.01" value={ invForm.shipping } onChange={ e => setInvForm( { ...invForm, shipping: e.target.value } ) } /><span className="pf-field-help">Delivery / shipping charge shown to the customer as Express.</span></div>
+                    </div>
                   </div>
                   {/* No coupon field and no manual-adjustment field: there is no coupon system and
                       manual discount entry is retired. The always-on Delight discount (0.5% up to
@@ -965,8 +1088,48 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                     Convenience fee and final total are calculated by the server when the invoice is created. The stored invoice is the authority for subtotal, tax, Delight and total.
                   </div>
 
-                  <Button variant="primary" size="md" loading={ creating } disabled={ creating } onClick={ () => submitInvoice( true ) }>Create and send payment request</Button>
-                  <Button variant="secondary" size="md" disabled={ creating } onClick={ () => submitInvoice( false ) }>Save invoice for review</Button>
+                  <div className="pf-composer-actions">
+                    <Button variant="primary" size="md" loading={ creating } disabled={ creating } onClick={ () => submitInvoice( true ) }>Create and send payment request</Button>
+                    <Button variant="secondary" size="md" disabled={ creating } onClick={ () => submitInvoice( false ) }>Save invoice for review</Button>
+                  </div>
+                  </div>
+
+                  <aside className="pf-live-preview" aria-live="polite">
+                    <div className="pf-live-preview-head">
+                      <div>
+                        <div className="pf-composer-kicker">Live preview</div>
+                        <h4>Customer receipt</h4>
+                      </div>
+                      <span className="pf-authority-badge">Server authoritative</span>
+                    </div>
+                    <p className="pf-live-preview-note">No invoice number or record is created while previewing.</p>
+
+                    { previewLoading && <div className="pf-preview-loading">Updating server preview…</div> }
+                    { previewError && !previewLoading && <div className="pf-preview-error">{ previewError }</div> }
+                    { invoicePreview && (
+                      <>
+                        { invoicePreview.previewImageBase64 && (
+                          <div className="pf-preview-image-shell">
+                            <img
+                              src={ `data:${invoicePreview.previewImageContentType || 'image/png'};base64,${invoicePreview.previewImageBase64}` }
+                              alt="Server-rendered customer receipt preview"
+                            />
+                          </div>
+                        ) }
+                        <div className="pf-preview-totals">
+                          <div><span>Items Subtotal</span><strong>{ fmtMoney( Number( invoicePreview.subtotal ) ) }</strong></div>
+                          { Number( invoicePreview.couponDiscount || invoicePreview.discount ) > 0 && <div><span>Delight</span><strong>−{ fmtMoney( Number( invoicePreview.couponDiscount || invoicePreview.discount ) ) }</strong></div> }
+                          { Number( invoicePreview.shipping ) > 0 && <div><span>Express</span><strong>{ fmtMoney( Number( invoicePreview.shipping ) ) }</strong></div> }
+                          { Number( invoicePreview.convenienceFeeNet ) > 0 && <div><span>Convenience Fee</span><strong>{ fmtMoney( Number( invoicePreview.convenienceFeeNet ) ) }</strong></div> }
+                          <div><span>{ invoicePreview.sellerGstin }</span><strong>{ fmtMoney( Number( invoicePreview.totalGst ) ) }</strong></div>
+                          <div className="pf-preview-total"><span>Amount Payable</span><strong>{ fmtMoney( Number( invoicePreview.total ) ) }</strong></div>
+                        </div>
+                      </>
+                    ) }
+                    { !invoicePreview && !previewLoading && !previewError && (
+                      <div className="pf-preview-empty">Enter a positive item amount to generate the server preview.</div>
+                    ) }
+                  </aside>
                 </div>
               ) }
             </div>

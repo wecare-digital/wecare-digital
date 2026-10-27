@@ -4685,6 +4685,42 @@ export async function getPhoneSettings ( phoneId: string ): Promise<any> {
   return data?.settings || null;
 }
 
+
+export interface WhatsAppFlowEncryptionStatus {
+  phoneId: string;
+  configured: boolean;
+  signatureStatus: string;
+}
+
+export async function getWhatsAppFlowEncryptionStatus ( phoneId: string ): Promise<WhatsAppFlowEncryptionStatus | null> {
+  return apiCall<WhatsAppFlowEncryptionStatus>(
+    `${API_BASE}/wa-business/flow-encryption-status?phoneId=${encodeURIComponent( phoneId )}`
+  );
+}
+
+export interface WhatsAppPreverifiedNumber {
+  id?: string;
+  display_phone_number?: string;
+  country_prefix?: string;
+  verification_status?: string;
+  availability_status?: string;
+  country_code?: string;
+  region?: string;
+}
+
+export async function listWhatsAppPreverifiedNumbers (
+  businessId: string,
+  options: { countryCode?: string; verificationStatus?: string; availabilityStatus?: string; limit?: number } = {},
+): Promise<WhatsAppPreverifiedNumber[]> {
+  const qs = new URLSearchParams( { businessId } );
+  if ( options.countryCode ) qs.set( 'countryCode', options.countryCode );
+  if ( options.verificationStatus ) qs.set( 'verificationStatus', options.verificationStatus );
+  if ( options.availabilityStatus ) qs.set( 'availabilityStatus', options.availabilityStatus );
+  if ( options.limit ) qs.set( 'limit', String( options.limit ) );
+  const data = await apiCall<any>( `${API_BASE}/wa-business/preverified-numbers?${qs.toString()}` );
+  return Array.isArray( data?.numbers ) ? data.numbers : [];
+}
+
 // Official Business Account status, rolled up per WABA. READ-ONLY: the green tick is
 // granted by a Meta review started in Business Suite and there is no API to request it.
 // The rollup is four-valued — UNKNOWN is not NOT_OFFICIAL.
@@ -4977,6 +5013,43 @@ export interface CreateInvoiceEngineResponse {
   couponCode?: string;
   /** Rupees Delight took off, server-computed. */
   couponDiscount?: number;
+}
+
+/** Pre-issue quote from the invoice engine. No invoice row/number is created. */
+export interface InvoiceEnginePreview {
+  preview: true;
+  subtotal: string;
+  discount: string;
+  shipping: string;
+  tax: string;
+  convenienceFee: string;
+  convenienceFeeNet: string;
+  convenienceFeeGst: string;
+  totalGst: string;
+  total: string;
+  couponCode?: string | null;
+  couponDiscount: string;
+  goodsType: 'digital-goods' | 'physical-goods';
+  sellerGstin: string;
+  pricingAuthority: 'invoice-engine';
+  previewImageBase64?: string;
+  previewImageContentType?: 'image/png';
+}
+
+export async function previewInvoiceEngine (
+  request: CreateInvoiceEngineRequest,
+  renderPreview = true,
+): Promise<InvoiceEnginePreview | null> {
+  return apiCall<InvoiceEnginePreview>( INVOICE_BASE, {
+    method: 'POST',
+    body: JSON.stringify( {
+      ...request,
+      referenceId: undefined,
+      paymentId: undefined,
+      _action: 'preview',
+      renderPreview,
+    } ),
+  } );
 }
 
 // Create invoice directly
@@ -6087,6 +6160,8 @@ export interface Document {
   notes?: string;
   reviewedBy?: string;
   reviewedAt?: number;
+  archivedAt?: number;
+  archivedBy?: string;
   createdAt: number;
   updatedAt?: number;
 }
@@ -6123,6 +6198,22 @@ export async function updateDocument ( documentId: string, updates: Partial<Docu
   return !!data;
 }
 
+export async function archiveDocument ( documentId: string ): Promise<boolean> {
+  const data = await apiCall<any>( `${DOCUMENTS_BASE}/${documentId}`, {
+    method: 'PUT',
+    body: JSON.stringify( { _action: 'archive' } ),
+  } );
+  return data?.updated === true;
+}
+
+export async function restoreArchivedDocument ( documentId: string ): Promise<boolean> {
+  const data = await apiCall<any>( `${DOCUMENTS_BASE}/${documentId}`, {
+    method: 'PUT',
+    body: JSON.stringify( { _action: 'restore_archive' } ),
+  } );
+  return data?.updated === true;
+}
+
 export async function getDocumentDownloadUrl ( documentId: string ): Promise<string | null> {
   const data = await apiCall<any>( `${DOCUMENTS_BASE}/${documentId}/download` );
   return data?.url || null;
@@ -6153,7 +6244,6 @@ export async function initDocumentUpload ( input: {
   orderId?: string;
   type: string;
   typeLabel?: string;
-  vaultDisplayName?: string;
   fileName: string;
   mimeType: string;
   fileSize: number;

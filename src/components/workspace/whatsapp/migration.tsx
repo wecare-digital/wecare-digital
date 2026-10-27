@@ -32,6 +32,8 @@ const MigrationPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
   const [pin, setPin] = useState('');
   const [processing, setProcessing] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
+  const [preverified, setPreverified] = useState<api.WhatsAppPreverifiedNumber[]>([]);
+  const [preverifiedLoading, setPreverifiedLoading] = useState(false);
 
   const addLog = (msg: string) => setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
 
@@ -54,6 +56,17 @@ const MigrationPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
   }, []);
 
   useEffect(() => { loadWabas(); }, [loadWabas]);
+
+  const loadPreverified = async () => {
+    setPreverifiedLoading(true);
+    try {
+      setPreverified(await api.listWhatsAppPreverifiedNumbers('382642103987922', { limit: 100 }));
+    } catch {
+      toast.error('Could not read pre-verified phone inventory');
+    }
+    setPreverifiedLoading(false);
+  };
+
 
   const handleRequestOTP = async () => {
     if (!phoneId) { toast.error('Enter phone number ID'); return; }
@@ -158,6 +171,30 @@ const MigrationPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
               <span style={{ marginLeft: 8, fontSize: 'var(--text-xs)', color: '#16a34a' }}>+91 93309 94400 — GREEN</span>
             </div>
           </div>
+        )}
+      </div>
+
+      <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 10, padding: 16, marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 10 }}>
+          <div>
+            <div style={{ fontSize: 'var(--text-md)', fontWeight: 600 }}>Pre-verified phone inventory</div>
+            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 3 }}>Read-only Meta inventory for partner/onboarding readiness. This does not claim, share, verify, register, or migrate any number.</div>
+          </div>
+          <Button onClick={loadPreverified} disabled={preverifiedLoading}>{preverifiedLoading ? 'Checking…' : 'Check inventory'}</Button>
+        </div>
+        {preverified.length > 0 ? (
+          <div style={{ display: 'grid', gap: 8 }}>
+            {preverified.map((n, i) => (
+              <div key={n.id || i} style={{ padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 6, fontSize: 'var(--text-xs)' }}>
+                <strong>{n.display_phone_number || n.id || 'Number'}</strong>
+                <span style={{ marginLeft: 8 }}>verification: {n.verification_status || 'unknown'}</span>
+                <span style={{ marginLeft: 8 }}>availability: {n.availability_status || 'unknown'}</span>
+                {n.country_code && <span style={{ marginLeft: 8 }}>{n.country_code}</span>}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{preverifiedLoading ? 'Loading…' : 'No inventory loaded.'}</div>
         )}
       </div>
 

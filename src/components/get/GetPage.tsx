@@ -305,7 +305,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
     /**
      * The divided field's contents, as the E.164 string the backend keys the customer on.
      *
-     * LIFTED FROM /account/sign-in's composeE164 DELIBERATELY, not re-derived. That page already
+     * LIFTED FROM the retired customer sign-in composeE164 DELIBERATELY, not re-derived. That page already
      * solved this and the two must agree byte for byte, because both hand the result to the same
      * customerAuth.requestOtp and the same Cognito pool. Re-inventing the rule here is how the two
      * sign-in surfaces would drift apart on numbers that are rare enough not to be noticed quickly.
@@ -423,7 +423,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
 
             {/* THE HOME PAGE'S TOP SECTION, on owner instruction. This page previously opened
                 straight into a bordered panel with no hero, which is why it read as a different
-                site from /account/sign-in - that page already sits on RotatingHero. The hero is
+                site from the former customer sign-in page, which already sat on RotatingHero. The hero is
                 the shared component rather than a copy of its markup, so the "animate as one
                 family" guarantee holds (tools/browser/animcheck.js asserts the family shares one
                 computed transition set) and this surface cannot drift from the other fifteen.

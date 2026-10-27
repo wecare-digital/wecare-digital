@@ -2,8 +2,8 @@
 
 Header contract
 ---------------
-* The large native payment-template header uses whatsapp-header.png.
-* The small non-catalog order/item thumbnail uses the square wecare-catalog-icon.png asset.
+* The native payment-template header uses the square WECARE bag asset. Meta renders this header
+  as the order-details message thumbnail; manual/service item rows themselves carry no image.
 * Generic fixed image-header templates use whatsapp-header.png.
 * Paid invoices use neither fixed image; the generated invoice PNG is their header.
 """
@@ -11,13 +11,15 @@ Header contract
 SHARED_TEMPLATE_HEADER = (
     "https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/whatsapp-header.png"
 )
-PAYMENT_TEMPLATE_HEADER = SHARED_TEMPLATE_HEADER
-ORDER_ITEM_IMAGE = (
+PAYMENT_TEMPLATE_HEADER = (
     "https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/wecare-catalog-icon.png"
 )
+# Backwards compatibility only. Manual/service rows no longer use this image; true catalog
+# products keep their catalog-managed imagery.
+ORDER_ITEM_IMAGE = PAYMENT_TEMPLATE_HEADER
 
-# Backwards-compatible names used by packaged Lambdas. They now intentionally mean the large
-# payment-template header; the small item image has its own explicit ORDER_ITEM_IMAGE constant.
+# Backwards-compatible names used by packaged Lambdas. ORDER_CATALOG_HEADER now resolves to the
+# single square payment-message thumbnail; generic fixed-header templates stay on the wide art.
 DEFAULT_HEADER_IMAGE = SHARED_TEMPLATE_HEADER
 ORDER_CATALOG_HEADER = PAYMENT_TEMPLATE_HEADER
 ORDER_CATALOG_HEADER_IMAGE = PAYMENT_TEMPLATE_HEADER

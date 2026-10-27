@@ -539,13 +539,13 @@ def run(root: Path) -> int:
     invoice_engine = _load("invoice_engine",
                            functions / "payments" / "invoice-engine" / "handler.py")
 
-    check("HDR", "large payment header and small item image use separate approved assets",
+    check("HDR", "payment request uses the approved square order thumbnail while generic templates keep wide art",
           template_media.PAYMENT_TEMPLATE_HEADER.endswith(
-              "secure/d/public/whatsapp/wa-tpl/whatsapp-header.png")
-          and template_media.ORDER_ITEM_IMAGE.endswith(
-              "secure/d/public/whatsapp/wa-tpl/wecare-catalog-icon.png"),
-          {"header": template_media.PAYMENT_TEMPLATE_HEADER,
-           "item": template_media.ORDER_ITEM_IMAGE})
+              "secure/d/public/whatsapp/wa-tpl/wecare-catalog-icon.png")
+          and template_media.SHARED_TEMPLATE_HEADER.endswith(
+              "secure/d/public/whatsapp/wa-tpl/whatsapp-header.png"),
+          {"paymentHeader": template_media.PAYMENT_TEMPLATE_HEADER,
+           "sharedHeader": template_media.SHARED_TEMPLATE_HEADER})
 
     # wecare-commerce and wecare-checkout are two functions running ONE package (the checkout
     # handler + its packaged invoice engine). Production callers address them by name: inbound's
@@ -790,8 +790,8 @@ def run(root: Path) -> int:
         check("R14", "no UPI intent anywhere in the Meta request", "upi_intent" not in wire and "preferred_upi_app" not in wire)
         check("R15", "message is a template, not an interactive order_details", msg["type"] == "template" and "interactive" not in msg)
         header = [c for c in template["components"] if c.get("type") == "header"][0]
-        check("HDR", "fixed wide payment header", header["parameters"][0]["image"]["link"].endswith(
-            "secure/d/public/whatsapp/wa-tpl/whatsapp-header.png"), header["parameters"][0]["image"])
+        check("HDR", "fixed square payment order thumbnail", header["parameters"][0]["image"]["link"].endswith(
+            "secure/d/public/whatsapp/wa-tpl/wecare-catalog-icon.png"), header["parameters"][0]["image"])
         send_calls = [c for c in calls if c["function"] == "wecare-outbound-whatsapp"]
         bodies = [_outbound_body(c) for c in send_calls]
         check("R11", "checkout's only outbound call uses isCheckoutTemplate + the approved template",

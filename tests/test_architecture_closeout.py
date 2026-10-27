@@ -236,6 +236,8 @@ class PaymentArchitectureDriftTests(unittest.TestCase):
         self.assertIn('"wecare-whatsapp-delivery-outcome-unknown"', alarms)
         self.assertIn('"wecare-whatsapp-delivery-reconciliation-stuck"', alarms)
         self.assertIn('"mutationFree": True', smoke)
+        self.assertIn('"wecare-commerce": "Active"', smoke)
+        self.assertIn('"wecare-checkout": "Active"', smoke)
 
     def test_workspace_deploy_verifies_live_operational_config(self):
         workflow = (ROOT / ".github" / "workflows" / "workspace-mcp-ci.yml").read_text(
@@ -311,6 +313,108 @@ class VaultPriceAuthorityTests(unittest.TestCase):
         self.assertNotIn("serverPricePaise", page)
         self.assertIn("/ecommerce/service-prices", pricing)
         self.assertIn("ProductsTable", pricing)
+
+
+
+class DropDocsUploadUxContractTests(unittest.TestCase):
+    """Drop Docs intake stays distinct from Vault delivery and cannot be dismissed accidentally."""
+
+    def test_add_document_is_a_protected_task_modal(self):
+        source = (ROOT / "src" / "components" / "workspace" / "service" / "Documents.tsx").read_text(
+            encoding="utf-8"
+        )
+        start = source.index("{/* Create Document Modal")
+        end = source.index("</Modal>", start)
+        modal = source[start:end]
+        self.assertIn('title="Upload to Drop Docs"', modal)
+        self.assertIn("closeOnOverlay={ false }", modal)
+        self.assertIn("closeOnEsc={ false }", modal)
+        self.assertIn("showCloseButton={ false }", modal)
+        self.assertIn(">Cancel</Button>", modal)
+        self.assertNotIn('type="search"', modal)
+
+    def test_drop_docs_upload_does_not_collect_vault_delivery_metadata(self):
+        source = (ROOT / "src" / "components" / "workspace" / "service" / "Documents.tsx").read_text(
+            encoding="utf-8"
+        )
+        start = source.index("{/* Create Document Modal")
+        end = source.index("</Modal>", start)
+        modal = source[start:end]
+        self.assertNotIn("WhatsApp Vault title", modal)
+        self.assertNotIn("wecare_valut_49", modal)
+        self.assertIn("Upload & send WhatsApp", modal)
+        self.assertIn("Order (optional)", modal)
+        self.assertIn("Document type", modal)
+        self.assertIn("File", modal)
+
+        client = (ROOT / "src" / "api" / "client.ts").read_text(encoding="utf-8")
+        start = client.index("/** Start a staff manual Drop Docs upload.")
+        end = client.index("/** Upload document bytes", start)
+        upload_contract = client[start:end]
+        self.assertNotIn("vaultDisplayName", upload_contract)
+        self.assertIn("customerPhone?: string", upload_contract)
+        self.assertIn("orderId?: string", upload_contract)
+        self.assertIn("type: string", upload_contract)
+        self.assertIn("fileName: string", upload_contract)
+
+    def test_shared_modal_can_hide_the_close_control_without_changing_other_modals(self):
+        source = (ROOT / "src" / "components" / "ui" / "Modal.tsx").read_text(encoding="utf-8")
+        self.assertIn("showCloseButton?: boolean", source)
+        self.assertIn("showCloseButton = true", source)
+        self.assertIn("{showCloseButton &&", source)
+
+
+    def test_drop_docs_has_explicit_publish_send_and_archive_workflow(self):
+        source = (ROOT / "src" / "components" / "workspace" / "service" / "Documents.tsx").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Upload & send WhatsApp", source)
+        self.assertIn("Publish & send", source)
+        self.assertIn("recordFilter", source)
+        self.assertIn("Archived", source)
+        self.assertIn("handleArchive", source)
+        self.assertIn("handleRestore", source)
+        self.assertIn("No WhatsApp Vault offer has been created", source)
+
+    def test_document_archive_is_metadata_only_and_preserves_verification_status(self):
+        service = (FUNCTIONS / "core" / "service-api" / "handler.py").read_text(encoding="utf-8")
+        self.assertIn("document_action in ('archive', 'restore_archive')", service)
+        self.assertIn("SET archivedAt=:now, archivedBy=:by, updatedAt=:now", service)
+        self.assertIn("REMOVE archivedAt, archivedBy SET updatedAt=:now", service)
+        archive_block = service[service.index("document_action in ('archive', 'restore_archive')"):]
+        archive_block = archive_block[:archive_block.index("if str(body.get('_action') or '').strip().lower() == 'revalidate_reference'")]
+        self.assertNotIn("delete_item", archive_block)
+        self.assertNotIn("verificationStatus=:archived", archive_block)
+
+
+
+class VaultWorkspaceMessagingUxTests(unittest.TestCase):
+    """Workspace surfaces describe the real Vault template journey and never invent a price."""
+
+    def test_documents_page_shows_the_vault_message_journey(self):
+        source = (ROOT / "src" / "components" / "workspace" / "service" / "Documents.tsx").read_text(
+            encoding="utf-8"
+        )
+        for name in (
+            "wecare_valut_49",
+            "wecare_whatapp_native_pay_template",
+            "wecare_default_download",
+            "wecare_default_invoice_image_template",
+        ):
+            self.assertIn(name, source)
+        self.assertIn("Vault WhatsApp journey", source)
+        self.assertIn("Receipt image is the only intentional image message.", source)
+        self.assertNotIn("Send ₹49 Vault message", source)
+        self.assertNotIn("Send ₹49 renewal message", source)
+
+    def test_secure_files_ui_has_no_hard_coded_vault_price(self):
+        source = (ROOT / "src" / "components" / "workspace" / "service" / "SecureFiles.tsx").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Send the Vault offer on WhatsApp after upload", source)
+        self.assertIn("Price comes from the live catalog.", source)
+        self.assertNotIn("rupees( 4900 )", source)
+        self.assertNotIn("₹49", source)
 
 
 
