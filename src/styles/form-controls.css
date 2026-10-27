@@ -28,7 +28,7 @@
 
 /* The controls this file owns. ELEMENT-LEVEL AND THEREFORE GLOBAL, deliberately: the public
    branch of _app.tsx renders no wrapper element, so a `.layout`-scoped rule reaches nothing on
-   /cart/, /shop/<slug>/ or /account/sign-in/ - which is how 162 selects came to carry 101
+   /cart/, /shop/<slug>/ or /auth - which is how 162 selects came to carry 101
    private inline styles in the first place.
 
    THE FOUR :not()s ARE LOAD-BEARING, and not only as opt-outs:
