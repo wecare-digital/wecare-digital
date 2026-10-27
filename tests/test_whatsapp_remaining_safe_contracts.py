@@ -31,6 +31,11 @@ class WhatsAppRemainingSafeContracts(unittest.TestCase):
         self.assertIn("Username Status:", PROFILE)
         self.assertIn("Flow Encryption:", PROFILE)
 
+    def test_flow_encryption_status_accepts_meta_data_array_shape(self):
+        self.assertIn("rows = result.get('data')", BIZ)
+        self.assertIn("record = rows[0]", BIZ)
+        self.assertIn("record.get('business_public_key_signature_status')", BIZ)
+
     def test_primary_flow_encryption_binding_is_internal_and_scoped(self):
         self.assertIn("internalAction') == 'ensurePrimaryFlowEncryption'", BIZ)
         self.assertIn("if phone_id != PHONE1_META_ID", BIZ)
