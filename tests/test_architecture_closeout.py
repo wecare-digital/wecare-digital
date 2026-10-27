@@ -266,11 +266,20 @@ class PaymentArchitectureDriftTests(unittest.TestCase):
             encoding="utf-8"
         )
         path = '      - "amplify/functions/shared/lambda_utils/whatsapp_templates.py"'
-        pull_request, remainder = workflow.split("  push:", 1)
+        triggers, jobs = workflow.split("\njobs:", 1)
+        pull_request, remainder = triggers.split("  push:", 1)
         push, _dispatch = remainder.split("  workflow_dispatch:", 1)
-        self.assertEqual(
-            pull_request.count(path), 1,
-            "template registry must trigger Payment Rail CI exactly once for pull_request",
+        # pull_request is deliberately unfiltered so the ruleset's required checks report on every
+        # PR (#1633); the payment-rail-changes job decides whether the rail runs.
+        self.assertNotIn("paths:", pull_request, "pull_request must not be path-filtered")
+        pattern_line = next(
+            line for line in jobs.splitlines() if line.strip().startswith("PATTERN:")
+        )
+        import re  # noqa: PLC0415 - only this test needs it
+        pattern = pattern_line.split(":", 1)[1].strip().strip("'")
+        self.assertTrue(
+            re.search(pattern, "amplify/functions/shared/lambda_utils/whatsapp_templates.py"),
+            "template registry must make payment-rail-changes run the rail for pull_request",
         )
         self.assertEqual(
             push.count(path), 1,
