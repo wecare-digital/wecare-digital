@@ -33,13 +33,12 @@ Four rules it enforces, each load-bearing
 4. **The reference is minted once, reserved, and sent byte-for-byte.** `order_keys` mints and
    reserves it under `PAYREF#`; it is never transformed after reservation.
 
-Initiation is disabled by default
-----------------------------------
-`CHECKOUT_INITIATION_ENABLED` gates the actual WhatsApp order_details send. Off (the default), the
-handler does everything up to and including reserving the attempt, and returns the attempt in a
-`PAYMENT_INITIATION_DISABLED` state instead of sending a payable message: the plumbing is
-exercised end to end, but no live payment request goes out until someone deliberately turns it
-on. It can only be turned on, never made permissive by a value that also disables readiness.
+Initiation is live but provider-readiness gated
+------------------------------------------
+The historical `CHECKOUT_INITIATION_ENABLED` switch is retired. Initiation is hard-enabled in
+code; safety comes from `payment_readiness.evaluate`, which reads the live Meta payment
+configuration and requires the expected configuration/provider identity before any payable
+message is created. A stale environment value cannot enable or disable this path.
 
 Nothing plaintext is logged
 ---------------------------
@@ -47,28 +46,18 @@ No full phone number, no customer id in a form that identifies a person beyond i
 no amount tied to a person, no exception text that could echo request content. Event names, opaque
 ids, states and counts only.
 
-Two coexisting flows: the retained in-chat path and the additive website contract (section 8)
----------------------------------------------------------------------------------------------
-This handler's `_create` returns ``PAYMENT_REQUEST_SENT`` for the IN-WHATSAPP flow above. That is
-a RETAINED legacy response: callers still consume it, and it is NOT removed until they are migrated.
-The in-WhatsApp vs website decision is an owner decision flagged in
-``.agents/tasks/checkout-audit-2026-10-01/findings.md`` (the repo spec records "pay inside
-WhatsApp" / "WhatsApp-only receipts"; the task asks for a website Razorpay Standard Checkout). Both
-paths coexist behind the SAME ``CHECKOUT_INITIATION_ENABLED`` gate, default off.
+Two coexisting payment presentations, one verified payment rail
+--------------------------------------------------------------
+The in-WhatsApp path returns ``PAYMENT_REQUEST_SENT`` after the server has priced the basket,
+verified live payment readiness, reserved the immutable payment reference, and handed the customer
+to the approved WhatsApp payment experience.
 
-The ADDITIVE website path lives in
-``lambda_utils/ecommerce/website_checkout.py`` + ``lambda_utils/integrations/razorpay_orders.py``.
-Its documented contract, which replaces ``PAYMENT_REQUEST_SENT`` for the website without deleting
-it for the in-chat path, is:
-
-    create  (gate off, the default)  -> ``PAYMENT_INITIATION_DISABLED``
-            {paymentAttemptId}                 no gateway order, no payable attempt
-    create  (gate on)                -> ``CHECKOUT_OPTIONS_READY``
-            {keyId, orderId, amountPaise, currency, prefill, paymentAttemptId}
-                                               ONLY these fields; keyId is the PUBLIC key id,
-                                               orderId is the SERVER-STORED Razorpay gateway order
-                                               id, amountPaise is the FEAT-001 calculator total
-                                               (collection+fee+GST), never the raw collection.
+The website path lives in
+``lambda_utils/ecommerce/website_checkout.py`` + ``lambda_utils/integrations/razorpay_orders.py``
+and returns ``CHECKOUT_OPTIONS_READY`` with only the server-created Razorpay order fields:
+``{keyId, orderId, amountPaise, currency, prefill, paymentAttemptId}``. Both presentations converge
+on the same capture-verification/finalization boundary; neither browser nor WhatsApp response can
+mark an order paid.
     create  (ownership/snapshot/intent fails) -> ``CHECKOUT_REJECTED`` (no order created)
     create  (provider timeout/save ambiguity) -> ``CHECKOUT_AMBIGUOUS`` (never a 2nd payable order)
 
