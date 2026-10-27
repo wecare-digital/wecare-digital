@@ -16,6 +16,13 @@ from verify_chat_mcp_auth import Cognito, token
 
 def main() -> None:
     providers = ('google-cloud', 'google-ads', 'plivo', 'sinch')
+    policy = json.loads((ROOT / 'config/workspace-mcp.json').read_text())
+    assert policy['connections']['plivo']['kind'] == 'provider-native-mcp'
+    assert policy['connections']['plivo']['sourceRepository'] == 'https://github.com/plivo/mcp'
+    assert policy['connections']['sinch']['kind'] == 'provider-native-mcp'
+    assert policy['connections']['sinch']['sourceRepository'] == 'https://github.com/sinch/sinch-mcp-server'
+    assert policy['connections']['sinch']['upstreamTransport'] == 'streamable-http'
+    assert policy['connections']['sinch']['toolTags'] == ['rcs']
     endpoints = {name: {'apiId': name + '-api', 'base': 'https://' + name + '.example.com',
         'callback': 'https://chatgpt.com/connector/oauth/' + name} for name in providers}
     env = {'PROVIDER_CHAT_ENDPOINTS': json.dumps(endpoints), 'CHAT_API_ID': 'legacy-api',
@@ -99,7 +106,7 @@ def main() -> None:
         assert response['statusCode'] == 200
         audit_payload = json.loads(audit.call_args.args[0])
         assert audit_payload['tool'] == 'connection_status' and audit_payload['outcome'] == 'completed'
-    print('PASS: four provider routes, anonymous denial, fixed tool schemas and cross-provider call rejection')
+    print('PASS: four control-plane routes, provider-native Plivo/Sinch policy, anonymous denial, fixed schemas and cross-provider rejection')
 
 
 if __name__ == '__main__':
