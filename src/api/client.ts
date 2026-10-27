@@ -4791,7 +4791,10 @@ export interface InvoiceItem {
   name: string;
   amount: number;
   quantity: number;
+  gstRate?: number;
+  taxAmount?: number;
   productId?: string;
+  isCharge?: boolean;
 }
 
 export interface InvoiceAsset {
@@ -4856,7 +4859,24 @@ export interface Invoice {
   shipping: number;
   gstRate: number;
   tax: number;
+  /** Historical combined convenience amount (net fee + GST), retained for compatibility. */
   convenienceFee: number;
+  /** Canonical net convenience fee for new invoices. */
+  convenienceFeeNet?: number;
+  /** GST charged on the convenience fee. */
+  convenienceFeeGst?: number;
+  /** Canonical combined convenience amount. */
+  convenienceFeeTotal?: number;
+  /** Supply GST + convenience-fee GST. */
+  totalGst?: number;
+  /** Internal filing/reconciliation facts; not a customer-receipt presentation contract. */
+  gstAccounting?: {
+    supplyTax: number;
+    convenienceFeeGst: number;
+    totalGst: number;
+    sellerGstin: string;
+    delightTaxTreatment: string;
+  };
   total: number;
   currency: string;
   gstin: string;
@@ -4940,6 +4960,9 @@ export interface CreateInvoiceEngineResponse {
   referenceId?: string;
   total: number;
   convenienceFee?: number;
+  convenienceFeeNet?: number;
+  convenienceFeeGst?: number;
+  totalGst?: number;
   /** The fixed `DELIGHT` code, present only when the always-on Delight discount applied. */
   couponCode?: string;
   /** Rupees Delight took off, server-computed. */
