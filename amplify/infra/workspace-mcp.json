@@ -86,6 +86,7 @@
       "Properties": {
         "TableName": "wecare-workspace-mcp",
         "BillingMode": "PAY_PER_REQUEST",
+        "DeletionProtectionEnabled": true,
         "AttributeDefinitions": [
           {
             "AttributeName": "pk",

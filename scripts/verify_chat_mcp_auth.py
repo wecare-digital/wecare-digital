@@ -253,8 +253,14 @@ def main() -> None:
         ['xray:PutTraceSegments', 'xray:PutTelemetryRecords'],
     )]
     check(role == baseline['Resources']['Role'], 'All other role permissions unchanged')
+    registry = json.loads(json.dumps(template['Resources']['Registry']))
+    check(registry['Properties'].get('DeletionProtectionEnabled') is True,
+        'Registry deletion protection enabled')
+    registry['Properties'].pop('DeletionProtectionEnabled', None)
+    check(registry == baseline['Resources']['Registry'],
+        'Registry unchanged apart from deletion protection')
     for name in ('Authorizer', 'StaffRoute', 'IamRoute', 'CallbackRoute',
-            'StaffPermission', 'IamPermission', 'CallbackPermission', 'Registry', 'TokenKey'):
+            'StaffPermission', 'IamPermission', 'CallbackPermission', 'TokenKey'):
         check(template['Resources'][name] == baseline['Resources'][name], name + ' unchanged')
     client = template['Resources']['ChatClient']['Properties']
     check(client['GenerateSecret'] is False and client['AllowedOAuthFlows'] == ['code'], 'Public code-only client')
