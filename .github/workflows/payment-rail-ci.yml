@@ -37,6 +37,8 @@ on:
       - "src/lib/serviceRequests.ts"
       - "src/lib/cart.ts"
       - "src/lib/serviceEntry.ts"
+      - "amplify/functions/ai/customer-commerce-mcp/**"
+      - "tools/customer-commerce/**"
       - "scripts/verify_whatsapp_catalog_payment_rail.py"
       - "scripts/audit_whatsapp_message_history.py"
       - "scripts/commerce_release_audit.py"
@@ -80,6 +82,8 @@ on:
       - "src/lib/serviceRequests.ts"
       - "src/lib/cart.ts"
       - "src/lib/serviceEntry.ts"
+      - "amplify/functions/ai/customer-commerce-mcp/**"
+      - "tools/customer-commerce/**"
       - "scripts/verify_whatsapp_catalog_payment_rail.py"
       - "scripts/audit_whatsapp_message_history.py"
       - "scripts/commerce_release_audit.py"
@@ -107,6 +111,14 @@ jobs:
       - name: Compile payment Python
         run: |
           python -m compileall -q             amplify/functions/payments             amplify/functions/messaging/outbound-whatsapp             amplify/functions/messaging/whatsapp-business-api             amplify/functions/ecommerce/service-requests             amplify/functions/core/secure-files             amplify/functions/shared/lambda_utils/ecommerce             amplify/functions/shared/lambda_utils/template_media.py
+
+      - name: Verify customer commerce auth contract
+        run: |
+          python -m compileall -q amplify/functions/ai/customer-commerce-mcp tools/customer-commerce
+          python tools/customer-commerce/verify.py
+          python tools/customer-commerce/verify_oauth.py
+          python tools/customer-commerce/prepare_release.py --output /tmp/customer-commerce-release
+          python tools/customer-commerce/verify_release.py /tmp/customer-commerce-release/index.py
 
       - name: Verify commerce audit hardening
         run: python -m unittest discover -s tests -p 'test_commerce_audit_hardening.py'
