@@ -12,7 +12,7 @@ import io
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 LIME = (209, 244, 112)       # #d1f470
 FOREST = (26, 58, 42)        # #1a3a2a
@@ -156,16 +156,16 @@ def _logo(canvas, logo_bytes, box):
 
 
 def _gradient_roundrect(canvas, box, left, right, radius):
-    """Draw a horizontal brand gradient clipped to a rounded rectangle."""
+    """Draw a horizontal brand gradient clipped to a rounded rectangle.
+
+    Pillow's native gradient/colorize path replaces the former Python nested pixel loop.
+    On Lambda that loop ran hundreds of thousands of Python assignments per receipt and was
+    a disproportionate part of the ~5 second render path.
+    """
     x0, y0, x1, y1 = [int(v) for v in box]
     w, h = max(1, x1 - x0), max(1, y1 - y0)
-    band = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    pixels = band.load()
-    for x in range(w):
-        t = x / max(1, w - 1)
-        color = tuple(round(left[i] * (1 - t) + right[i] * t) for i in range(3)) + (255,)
-        for y in range(h):
-            pixels[x, y] = color
+    ramp = Image.linear_gradient("L").rotate(90, expand=True).resize((w, h))
+    band = ImageOps.colorize(ramp, black=left, white=right).convert("RGBA")
     mask = Image.new("L", (w, h), 0)
     ImageDraw.Draw(mask).rounded_rectangle((0, 0, w - 1, h - 1), radius=radius, fill=255)
     band.putalpha(mask)
