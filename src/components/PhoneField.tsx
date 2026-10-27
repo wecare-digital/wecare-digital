@@ -153,7 +153,7 @@ const PhoneField: React.FC<PhoneFieldProps> = ( {
    * onto JSX that appears in the same return tree as the <style jsx> element, so the child's
    * <input className="pf-code"> shipped as class="pf-code" with NO hash while every rule for
    * it compiled to `.pf-code.jsx-972b1368ee20e676{...}` - a selector that can never match.
-   * Measured in the built export at out/account/sign-in/index.html, where .pf-num carried the
+   * Measured in the built export at the retired static sign-in export, where .pf-num carried the
    * hash and .pf-code did not.
    *
    * Everything the segment declares was therefore dead, and the browser fell through to the
@@ -162,7 +162,7 @@ const PhoneField: React.FC<PhoneFieldProps> = ( {
    * type instead of 17px, no min-inline-size, and no `::-webkit-search-cancel-button{display:none}`
    * so the native clear glyph showed inside the field. The "one field, divided" control the
    * owner asked for rendered as TWO BOXES of different heights and different corner radii, on
-   * /account/sign-in/, /get/, /cart/ and the blog subscribe block. That is the reported
+   * /auth, /get/, /cart/ and the blog subscribe block. That is the reported
    * "phone field does not match home design".
    *
    * THIS REPO HAD ALREADY PAID FOR THIS LESSON TWICE. PillButton's docblock records the same
