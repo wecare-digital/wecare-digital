@@ -68,11 +68,8 @@ const ALLOWED_NOINDEX = {
     + 'WhatsApp against the customer pool before anything renders, so there is no content to '
     + 'index - only an authentication step. Indexing it would put a login gate in search '
     + 'results. Public so it needs no staff sign-in; not marketing, so no sitemap entry.',
-  // The customer-session screens. src/pages/_app.tsx lists each in its isPublic chain with the
-  // same reasoning: public chrome, robots noindex set by the page itself, and deliberately out of
-  // PUBLIC_PAGE_META, the sitemap and the AI manifest.
-  '/account/sign-in/': 'the customer OTP sign-in step in front of checkout - an authentication '
-    + 'gate with no content of its own. Indexing it would put a login form in search results.',
+  // Static customer-session screens stay out of PUBLIC_PAGE_META, the sitemap and the AI manifest.
+  // Customer sign-in is not static anymore: /auth is the backend-routed, noindex canonical entry.
   '/cart/': 'one visitor\'s cart - session state, empty for anyone arriving from search.',
   '/checkout/': 'the payment-method step of a checkout already in progress - session state.',
   '/checkout/status/': 'the payment-confirmation screen a customer returns to from an in-chat '
