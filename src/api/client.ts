@@ -4793,6 +4793,7 @@ export interface InvoiceItem {
   quantity: number;
   gstRate?: number;
   taxAmount?: number;
+  hsnSac?: string;
   productId?: string;
   isCharge?: boolean;
 }
@@ -4875,6 +4876,9 @@ export interface Invoice {
     convenienceFeeGst: number;
     totalGst: number;
     sellerGstin: string;
+    state?: string;
+    gstStateCode?: string;
+    isoSubdivision?: string;
     delightTaxTreatment: string;
   };
   total: number;
@@ -4921,7 +4925,7 @@ export interface CreateInvoiceEngineRequest {
   customerName?: string;
   contactId?: string;
   goodsType?: 'digital-goods' | 'physical-goods';
-  items: { name: string; amount: number; quantity: number; productId?: string; gstRate?: number }[];
+  items: { name: string; amount: number; quantity: number; productId?: string; gstRate?: number; hsnSac?: string }[];
   discount?: number;
   shipping?: number;
   gstRate?: number;       // Fallback global GST rate (used if items don't have per-item rates)
