@@ -305,7 +305,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
     /**
      * The divided field's contents, as the E.164 string the backend keys the customer on.
      *
-     * LIFTED FROM /account/sign-in's composeE164 DELIBERATELY, not re-derived. That page already
+     * LIFTED FROM /auth's composeE164 DELIBERATELY, not re-derived. That page already
      * solved this and the two must agree byte for byte, because both hand the result to the same
      * customerAuth.requestOtp and the same Cognito pool. Re-inventing the rule here is how the two
      * sign-in surfaces would drift apart on numbers that are rare enough not to be noticed quickly.
@@ -423,7 +423,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
 
             {/* THE HOME PAGE'S TOP SECTION, on owner instruction. This page previously opened
                 straight into a bordered panel with no hero, which is why it read as a different
-                site from /account/sign-in - that page already sits on RotatingHero. The hero is
+                site from /auth - that page already sits on RotatingHero. The hero is
                 the shared component rather than a copy of its markup, so the "animate as one
                 family" guarantee holds (tools/browser/animcheck.js asserts the family shares one
                 computed transition set) and this surface cannot drift from the other fifteen.
@@ -460,7 +460,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                         +28px margin) pushed the submit control ~115px down the page, and
                         tools/browser/foldprobe.js measured the pill bottom at 845px against a
                         728px limit at 1366x768 - below the fold on a page whose only job is the
-                        form. /account/sign-in carries no h2 either.
+                        form. /auth carries no h2 either.
                         On the 'files' stage it stays: there the hero still says "Collect your",
                         the list below genuinely needs a heading, and there is no submit control
                         racing the fold. */}
@@ -484,7 +484,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
 
                     { stage === 'mobile' && (
                         <div className="sf-form">
-                            {/* THE SAME DIVIDED FIELD AS /account/sign-in, on owner instruction: the
+                            {/* THE SAME DIVIDED FIELD AS /auth, on owner instruction: the
                                 two sign-in surfaces were showing a different phone input and a
                                 different button, and this one was the odd one out. PhoneField owns
                                 the anatomy and its own CSS (styled-jsx cannot scope a capitalised
@@ -511,7 +511,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                                 Pick your country code, then the number WhatsApp is on.
                             </p>
                             {/* THE TWO-SEGMENT PILL (PillButton), the home-page phone-number
-                                treatment and the same control /account/sign-in and /cart/ use. The
+                                treatment and the same control /auth and /cart/ use. The
                                 LEFT segment is the static label; the RIGHT segment is the action and
                                 is also the control's accessible name, so it still answers to "Send
                                 code". Semantics unchanged: a real button running handleRequestOtp,
@@ -566,7 +566,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                             {/* THE WAY OUT OF A CODE THAT NEVER ARRIVED, which this stage did
                                 not have: "Use a different number" below is a way to start over,
                                 not a way to try the same number again. Same shared control as
-                                /account/sign-in/, so the two sign-in surfaces cannot drift
+                                /auth/, so the two sign-in surfaces cannot drift
                                 apart on the resend the way they did on the send.
                                 handleRequestOtp is reused verbatim - it already re-issues the
                                 challenge and re-enters this stage, so a resend is the same call
@@ -704,14 +704,14 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                    wraps every public route in <Header/> + page + <Footer/>, so claiming the whole
                    viewport pushed the shared footer a full screen down. */
 
-                /* A PLAIN CARD, matching .si-card on /account/sign-in exactly:
+                /* A PLAIN CARD, matching .si-card on /auth exactly:
                    width:100%;max-width:460px;margin:0. Nothing else.
 
                    THE TINTED PANEL IS GONE, and dropping it is two fixes at once.
                    It was .home-close-panel's treatment - 2px lime border, 14px radius, the lime
                    tint at .22 alpha - which is the CLOSING-BAND treatment. At the top of a page,
                    directly under the hero, it competed with the hero for the eye, and
-                   /account/sign-in (the other half of this same journey) has no panel at all.
+                   /auth (the other half of this same journey) has no panel at all.
 
                    It was also paying for the fold. THE FOLD HERE IS MEASURED, NOT ASSUMED: before
                    the hero, this page's submit control sat at 540px bottom at 1366x768, because
@@ -745,13 +745,13 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
 
                 .sf-form{display:block}
 
-                /* Matched to .si-label on /account/sign-in: 14px/700. Was weight 600 here, which
+                /* Matched to .si-label on /auth: 14px/700. Was weight 600 here, which
                    is a rung this site does not use for a field label. */
                 .sf-label{
                   display:block;margin:0 0 8px;font-size:14px;font-weight:700;
                   letter-spacing:-.1px;color:var(--public-brand-green);
                 }
-                /* Matched to .si-hint on /account/sign-in, so the one line of guidance under the
+                /* Matched to .si-hint on /auth, so the one line of guidance under the
                    number field reads the same on both sign-in surfaces. */
                 .sf-hint{
                   margin:0 0 20px;font-size:16px;line-height:1.55;color:var(--public-muted);
@@ -778,13 +778,13 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                 /* NO .sf-input-code RULE ANY MORE. The code field had bespoke 22px/600/centred
                    type tracked out at .34em, which made the second stage look like a different
                    control from the first - half of exactly what the owner reported. The reference
-                   surface settles it: /account/sign-in's code field is a plain .si-input, so plain
+                   surface settles it: /auth's code field is a plain .si-input, so plain
                    is both the consistent answer AND the site-matching one. The onChange digit-strip
                    and slice(0,6) stay - that is input hygiene, not styling. */
 
 
                 /* NO .sf-cta RULE ANY MORE. The primary action on both stages is PillButton - the
-                   home-page two-segment pill, and the same control /account/sign-in and /cart/
+                   home-page two-segment pill, and the same control /auth and /cart/
                    render - so the component owns the shape, colours, focus ring and reduced-motion
                    handling. Two things died with this rule and both were defects:
                      1. border:2px solid #d1f470 - a LIME border on the .22-alpha lime panel, which
@@ -798,7 +798,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                 /* The resend stacks under the verify button rather than sitting beside it: at
                    280px two 52px pills cannot share a row without wrapping mid-label, and a
                    wrapped button row reads as a layout fault. Stacked is the same at every
-                   width, and it matches /account/sign-in/. */
+                   width, and it matches /auth/. */
                 .sf-resend{margin-top:12px}
                 /* min-height:44px, NOT padding alone. padding:10px on a 15px line measured 38px
                    tall in the built export - under the 44px floor this site holds everything
@@ -838,7 +838,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                   margin:0 0 20px;padding:14px 16px;border-radius:999px;
                   font-size:16px;line-height:1.5;
                 }
-                /* NO RED, matching .si-error on /account/sign-in, which the owner had already
+                /* NO RED, matching .si-error on /auth, which the owner had already
                    stripped of red. This was #fee2e2 on #ef4444 with #7f1d1d text - three colours
                    the home design does not contain, on a site whose only red is the full stop in
                    the wordmark. It is now the lime state tint behind a 4px #d1f470 inline-start
