@@ -6187,7 +6187,6 @@ export async function initDocumentUpload ( input: {
   orderId?: string;
   type: string;
   typeLabel?: string;
-  vaultDisplayName?: string;
   fileName: string;
   mimeType: string;
   fileSize: number;
