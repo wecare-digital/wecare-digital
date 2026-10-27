@@ -2834,10 +2834,10 @@ export async function getCorsStatus (): Promise<CorsStatus | null> {
   return apiCall<CorsStatus>( `${API_BASE}/waba?action=cors-status` );
 }
 
-export async function applyCors ( request: { allowAll?: boolean; origins?: string[] } ): Promise<{ success: boolean; allowOrigins: string[] } | null> {
+export async function applyCors ( request: { origins: string[] } ): Promise<{ success: boolean; allowOrigins: string[] } | null> {
   return apiCall<{ success: boolean; allowOrigins: string[] }>( `${API_BASE}/waba`, {
     method: 'POST',
-    body: JSON.stringify( { action: 'cors-apply', allowAll: request.allowAll, origins: request.origins } ),
+    body: JSON.stringify( { action: 'cors-apply', origins: request.origins } ),
   } );
 }
 

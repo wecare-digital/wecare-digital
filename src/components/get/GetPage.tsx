@@ -67,6 +67,11 @@ function formatBytes ( bytes: number ): string {
 
 const rupees = ( paise: number ) => `₹${( ( paise || 0 ) / 100 ).toFixed( 0 )}`;
 
+/** A server price in paise, or null. No figure is invented on this page. */
+function serverPricePaise ( value: unknown ): number | null {
+    return typeof value === 'number' && Number.isSafeInteger( value ) && value > 0 ? value : null;
+}
+
 /** The server's access state, or what an older backend's fields imply. */
 function accessStateOf ( file: SecureFile ): SecureFileAccessState {
     if ( file.accessState ) return file.accessState;
@@ -129,7 +134,9 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
     const [ error, setError ] = useState( '' );
 
     const [ files, setFiles ] = useState<SecureFile[]>( [] );
-    const [ price, setPrice ] = useState( 4900 );
+    // The list's server price. Null until the server sends one: a checkout label never shows a
+    // number the server did not supply, and checkout does not start without one.
+    const [ price, setPrice ] = useState<number | null>( null );
     const [ working, setWorking ] = useState<string>( '' );
 
     const loadFiles = useCallback( async () => {
@@ -141,7 +148,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                 ? ownedFiles.filter( file => file.fileId === targetFileId )
                 : ownedFiles;
             setFiles( visibleFiles );
-            setPrice( result.data.pricePaise || 4900 );
+            setPrice( serverPricePaise( result.data.pricePaise ) );
             setStage( 'files' );
             setError(
                 targetFileId && visibleFiles.length === 0
@@ -170,7 +177,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                     ? ownedFiles.filter( file => file.fileId === targetFileId )
                     : ownedFiles;
                 setFiles( visibleFiles );
-                setPrice( result.data.pricePaise || 4900 );
+                setPrice( serverPricePaise( result.data.pricePaise ) );
                 setStage( 'files' );
                 if ( targetFileId && visibleFiles.length === 0 )
                 {
@@ -257,6 +264,11 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
             return;
         }
         const service = serviceByKind( 'VAULT' );
+        const displayPaise = serverPricePaise( file.pricePaise ) ?? price;
+        if ( !displayPaise ) {
+            setError( 'The Vault price could not be confirmed. Nothing has been charged. Please refresh and try again.' );
+            return;
+        }
         if ( !service ) {
             setError( 'Vault checkout is temporarily unavailable. Nothing has been charged.' );
             return;
@@ -281,7 +293,6 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                 else setError( 'We could not start Vault checkout. Nothing has been charged. Please try again.' );
                 return;
             }
-            const displayPaise = file.pricePaise || price;
             setServiceLine( service.variantId, outcome.intent.intentId, displayPaise );
             await router.push( CHECKOUT_PATH );
         } catch {
@@ -638,11 +649,13 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                                                     as="button"
                                                     type="button"
                                                     label="Vault"
-                                                    action={ working === file.fileId
-                                                        ? 'Preparing checkout…'
-                                                        : state === 'EXPIRED'
-                                                            ? `Renew for ${ rupees( file.pricePaise || price ) }`
-                                                            : `Checkout ${ rupees( file.pricePaise || price ) }` }
+                                                    action={ ( () => {
+                                                        if ( working === file.fileId ) return 'Preparing checkout…';
+                                                        const shown = serverPricePaise( file.pricePaise ) ?? price;
+                                                        const verb = state === 'EXPIRED' ? 'Renew' : 'Checkout';
+                                                        if ( !shown ) return verb;
+                                                        return state === 'EXPIRED' ? `Renew for ${ rupees( shown ) }` : `Checkout ${ rupees( shown ) }`;
+                                                    } )() }
                                                     block
                                                     onClick={ () => { void handleVaultCheckout( file ); } }
                                                     disabled={ working === file.fileId }

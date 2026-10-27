@@ -26,6 +26,7 @@ https://developers.facebook.com/docs/whatsapp/business-management-api
 
 import os
 import json
+import re
 import boto3
 from typing import Dict, Any, Optional
 from decimal import Decimal
@@ -76,6 +77,12 @@ CORS_RECOMMENDED_ORIGINS = CORS_CORE_ORIGINS + [
     'ionic://localhost',
     'http://localhost:3000',
 ]
+#: An exact origin: https with a lowercase host and optional port, the two native app schemes on
+#: localhost, or plain http on localhost for development. Never a wildcard or a path.
+_CORS_ORIGIN_RE = re.compile(
+    r'(?:https://[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?(?::\d{1,5})?'
+    r'|(?:capacitor|ionic)://localhost'
+    r'|http://localhost(?::\d{1,5})?)')
 CORS_ALLOW_HEADERS = ['content-type', 'authorization', 'x-amz-date', 'x-api-key', 'x-amz-security-token']
 CORS_ALLOW_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']
 
@@ -273,7 +280,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return _list_wabas(request_id)
 
         elif http_method == 'POST':
-            if body.get('action') == 'cors-apply':
+            # Only on the collection route the CORS Manager posts to, never as a body flag that
+            # rides along on any other POST.
+            if body.get('action') == 'cors-apply' and path.rstrip('/').endswith('/waba'):
                 return _apply_cors(body, request_id)
             if '/subscribe-sns' in path:
                 waba_id = path_params.get('wabaId') or path.split('/waba/')[-1].split('/')[0]
@@ -386,19 +395,22 @@ def _get_cors_status(request_id: str) -> Dict[str, Any]:
 def _apply_cors(body: Dict[str, Any], request_id: str) -> Dict[str, Any]:
     """Apply a CORS allowlist to all managed HTTP APIs.
 
-    body: { allowAll?: bool, origins?: [str] }
-    - allowAll=True  → AllowOrigins=['*']
-    - otherwise      → the provided origins, with CORE origins force-merged so an
-      admin can never lock the dashboard/native app out.
+    body: { origins?: [str] }. The provided origins, with CORE origins force-merged so an admin
+    can never lock the dashboard/native app out. A wildcard (`allowAll` or a `*` origin) is
+    refused: it would let any website script call these APIs. Every origin must be an exact
+    scheme://host[:port] (https, the native app schemes, or http://localhost for development).
+    The change is audit-logged with its origin list.
     """
-    allow_all = bool(body.get('allowAll'))
-    if allow_all:
-        allow_origins = ['*']
-    else:
-        provided = [o.strip() for o in (body.get('origins') or []) if isinstance(o, str) and o.strip()]
-        merged = CORS_CORE_ORIGINS + [o for o in provided if o not in CORS_CORE_ORIGINS]
-        seen = set()
-        allow_origins = [o for o in merged if not (o in seen or seen.add(o))]
+    if body.get('allowAll'):
+        return _error_response(400, 'Allowing every origin (*) is not permitted. List the origins instead.')
+    provided = [o.strip() for o in (body.get('origins') or []) if isinstance(o, str) and o.strip()]
+    invalid = [o for o in provided if not _CORS_ORIGIN_RE.fullmatch(o)]
+    if invalid:
+        return _error_response(400, f'{len(invalid)} origin(s) are not exact scheme://host[:port] values')
+    merged = CORS_CORE_ORIGINS + [o for o in provided if o not in CORS_CORE_ORIGINS]
+    seen = set()
+    allow_origins = [o for o in merged if not (o in seen or seen.add(o))]
+    allow_all = False
 
     cors_cfg = {
         'AllowOrigins': allow_origins,
@@ -417,6 +429,8 @@ def _apply_cors(body: Dict[str, Any], request_id: str) -> Dict[str, Any]:
             logger.error(json.dumps({'event': 'cors_apply_error', 'apiId': api_id, 'error': str(e), 'requestId': request_id}))
             results.append({'apiId': api_id, 'applied': False, 'error': str(e)})
 
+    record_audit(action='cors.apply', actor=_actor, resource_type='api',
+                 resource_id=','.join(CORS_API_IDS), details={'allowOrigins': allow_origins})
     logger.info(json.dumps({'event': 'cors_applied', 'allowAll': allow_all, 'originCount': len(allow_origins), 'requestId': request_id}))
     return {
         'statusCode': 200,

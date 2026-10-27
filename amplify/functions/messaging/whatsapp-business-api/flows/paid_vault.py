@@ -110,7 +110,19 @@ _UNDELIVERED_ALERTS = {
 
 def prepare_and_send(event, lambda_client):
     """Grant the paid Vault entitlement and send its Access Vault link; alert when either fails."""
-    result = _prepare_and_send(event, lambda_client)
+    try:
+        result = _prepare_and_send(event, lambda_client)
+    except Exception as error:
+        # A table, Cognito or invoke failure raised before any outcome existed. This runs in an
+        # asynchronous invoke whose retries end silently, after money has moved, so every failed
+        # attempt is alerted like an ungranted entitlement. Re-raised so Lambda still retries.
+        log_event(logger, 'paid_vault_not_delivered', level='error',
+                  alert='PAID_VAULT_UNFULFILLED', outcome='VAULT_ACCESS_ERROR',
+                  error=type(error).__name__,
+                  referenceId=str(event.get('referenceId') or ''),
+                  paymentAttemptId=str(event.get('paymentAttemptId') or ''),
+                  orderId=str(event.get('orderId') or ''))
+        raise
     outcome = str((result or {}).get('outcome') or '')
     alert = _UNDELIVERED_ALERTS.get(outcome)
     if alert:

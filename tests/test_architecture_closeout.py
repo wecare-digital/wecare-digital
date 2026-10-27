@@ -11,7 +11,10 @@ Real handler code with in-process fakes: no network, no AWS account, no table ou
 * the paid-state alarm covers a missing invoice image and a paid order the sweep found with no
   invoice;
 * both customer invoice readers serve the newest (paid) rendition, never the pre-payment one;
-* two invoices matching one payment settle neither and consume no number.
+* two invoices matching one payment settle neither and consume no number;
+* staff 'Send Access Vault' sends only for OPEN or READY access;
+* a paid Vault fulfilment that raises is alerted and still retried;
+* the two WhatsApp catalogs keep separate sync approvals for the same plan.
 """
 from __future__ import annotations
 
@@ -498,6 +501,108 @@ class AmbiguousInvoiceDedupTests(unittest.TestCase):
             result = self.engine.create_invoice(copy.deepcopy(INVOICE_BODY), "req-test")
         self.assertNotEqual(int(result["statusCode"]), 409, result.get("body"))
         self.assertIn("inv-a", result.get("body", ""))
+
+
+# ── Vault access resend, paid Vault failure alert, per-catalog sync approvals ────────────────
+
+class VaultAccessResendTests(unittest.TestCase):
+    """Staff 'Send Access Vault' sends only when the link opens the file (OPEN or READY)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.files = _load("secure_files_send_access_under_test",
+                          FUNCTIONS / "core" / "secure-files" / "handler.py")
+
+    def send(self, state):
+        sent: list = []
+        fake_delivery = type(sys)("whatsapp_delivery")
+        fake_delivery.send_vault_link = lambda **kw: sent.append(kw) or (True, "")
+        item = {"fileId": "vault-1", "ownerPhone": "919999900001", "status": "active"}
+        with patch.dict(sys.modules, {"whatsapp_delivery": fake_delivery}), \
+                patch.object(self.files, "_owned_file_for_admin", lambda _file_id: (item, None)), \
+                patch.object(self.files, "_admin_access_state", lambda _item, _now: state):
+            result = self.files._admin_send_access("vault-1", "https://wecare.digital")
+        return int(result["statusCode"]), json.loads(result["body"]), sent
+
+    def test_expired_and_unverified_access_get_no_link(self):
+        for state, code in (("EXPIRED", "WINDOW_EXPIRED"), ("PAID_UNVERIFIED", "PAID_UNVERIFIED"),
+                            ("UNPAID", "NOT_PAID")):
+            status, body, sent = self.send(state)
+            self.assertEqual((status, body.get("error")), (409, code), state)
+            self.assertEqual(sent, [], state)
+
+    def test_open_and_ready_access_still_get_the_link(self):
+        for state in ("OPEN", "READY"):
+            status, body, sent = self.send(state)
+            self.assertEqual((status, body.get("outcome")), (200, "VAULT_LINK_SENT"), state)
+            self.assertEqual(len(sent), 1, state)
+
+
+class PaidVaultFailureAlertTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        flows_dir = FUNCTIONS / "messaging" / "whatsapp-business-api"
+        if str(flows_dir) not in sys.path:
+            sys.path.insert(0, str(flows_dir))
+        from flows import paid_vault
+        cls.paid_vault = paid_vault
+
+    def test_an_exception_is_alerted_and_still_raised_for_the_retry(self):
+        logged: list = []
+
+        def down(*_args, **_kwargs):
+            raise RuntimeError("table unavailable")
+
+        event = {"referenceId": "WD-PAY-CLOSEOUT1", "paymentAttemptId": "attempt-1",
+                 "orderId": "order-1"}
+        with patch.object(self.paid_vault, "_prepare_and_send", down), \
+                patch.object(self.paid_vault, "log_event",
+                             lambda _logger, name, **fields: logged.append((name, fields))):
+            with self.assertRaises(RuntimeError):
+                self.paid_vault.prepare_and_send(event, None)
+        self.assertEqual([name for name, _ in logged], ["paid_vault_not_delivered"])
+        self.assertEqual((logged[0][1]["alert"], logged[0][1]["outcome"]),
+                         ("PAID_VAULT_UNFULFILLED", "VAULT_ACCESS_ERROR"))
+        self.assertEqual(logged[0][1]["referenceId"], "WD-PAY-CLOSEOUT1")
+
+
+class CatalogApprovalPerCatalogTests(unittest.TestCase):
+    """One ProductsTable change gives both WhatsApp catalogs the same plan fingerprint."""
+
+    WABA1, WABA2 = "1457045652952851", "1317472650427643"
+
+    @classmethod
+    def setUpClass(cls):
+        cls.sync = _load("meta_catalog_sync_approvals_under_test",
+                         FUNCTIONS / "ecommerce" / "meta-catalog-sync" / "handler.py")
+
+    def test_identical_plans_get_independent_approvals(self):
+        import boto3
+        from moto import mock_aws
+
+        with mock_aws():
+            table = boto3.resource("dynamodb", region_name="us-east-1").create_table(
+                TableName="approvals", BillingMode="PAY_PER_REQUEST",
+                KeySchema=[{"AttributeName": "planHash", "KeyType": "HASH"}],
+                AttributeDefinitions=[{"AttributeName": "planHash", "AttributeType": "S"}])
+            store = self.sync._DynamoCatalogApprovalStore(table_name="approvals", table=table)
+            plan = "ab" * 32
+            common = {"plan_hash": plan, "counts": {"update": 1}, "blocked": [],
+                      "desired_items": []}
+            first = store.propose(catalog_id=self.WABA1, **common)
+            second = store.propose(catalog_id=self.WABA2, **common)
+            self.assertEqual((first["catalogId"], second["catalogId"]), (self.WABA1, self.WABA2))
+            self.assertIsNotNone(store.approve(plan_hash=plan, catalog_id=self.WABA2,
+                                               approved_by="staff-admin"))
+            self.assertEqual(store.get(plan, self.WABA1)["status"], "PROPOSED")
+            self.assertEqual(store.get(plan, self.WABA2)["status"], "APPROVED")
+            # An approval on one catalog never lets the other apply.
+            self.assertIsNone(store.claim_apply(plan_hash=plan, catalog_id=self.WABA1))
+            self.assertIsNotNone(store.claim_apply(plan_hash=plan, catalog_id=self.WABA2))
+            store.record_readback(plan_hash=plan, catalog_id=self.WABA2, current_plan_hash=plan,
+                                  counts={}, verified=True)
+            self.assertEqual(store.get(plan, self.WABA1)["status"], "PROPOSED")
+            self.assertEqual(store.get(plan, self.WABA2)["status"], "APPLIED")
 
 
 if __name__ == "__main__":

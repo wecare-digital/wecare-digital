@@ -11,6 +11,8 @@ network, no AWS account. Each write that used to sit at the Viewer floor is driv
   readable or writable; clear-logs needs Admin and has no body-flag side door.
 * outbound-whatsapp: every customer message, reaction, typing indicator, block change and
   upload URL needs Operator; listing blocked users stays a Viewer read; payment stays Admin.
+* waba-management CORS apply: no wildcard, exact origins only, only on its own route, audited.
+* whatsapp-calling: terminate and config changes are audited; clear-logs refuses unaudited.
 """
 from __future__ import annotations
 
@@ -268,6 +270,116 @@ class OutboundSendFloorTests(unittest.TestCase):
 
     def test_payment_request_still_needs_admin(self):
         self.assertEqual(self.role_for({"isCheckoutTemplate": True}), "Admin")
+
+
+class CorsApplyTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.api = _load("waba_management_cors_under_test",
+                        FUNCTIONS / "messaging" / "waba-management" / "handler.py")
+
+    def setUp(self):
+        self.updates: list = []
+        self.audits: list = []
+        test = self
+
+        class FakeApiGateway:
+            def update_api(self, ApiId, CorsConfiguration):  # noqa: N803 - boto3 spelling
+                test.updates.append((ApiId, CorsConfiguration["AllowOrigins"]))
+                return {}
+
+        for p in (patch.object(self.api, "require_auth", fake_require_auth),
+                  patch.object(self.api, "apigw_client", FakeApiGateway()),
+                  patch.object(self.api, "record_audit",
+                               lambda **kw: self.audits.append(kw) or "log-1")):
+            p.start()
+            self.addCleanup(p.stop)
+
+    def call(self, path, body):
+        return self.api.handler(api_event("POST", path, role="Admin", body=body),
+                                SimpleNamespace(aws_request_id="test"))
+
+    def test_wildcards_and_inexact_origins_are_refused(self):
+        for body in ({"action": "cors-apply", "allowAll": True},
+                     {"action": "cors-apply", "origins": ["*"]},
+                     {"action": "cors-apply", "origins": ["https://partner.example/app"]},
+                     {"action": "cors-apply", "origins": ["http://partner.example"]},
+                     {"action": "cors-apply", "origins": ["https://*.example"]}):
+            self.assertEqual(_status(self.call("/waba", body)), 400, body)
+        self.assertEqual(self.updates, [])
+        self.assertEqual(self.audits, [])
+
+    def test_exact_origins_apply_with_core_origins_and_an_audit_record(self):
+        result = self.call("/waba", {"action": "cors-apply", "origins": ["https://partner.example"]})
+        self.assertEqual(_status(result), 200)
+        self.assertTrue(self.updates)
+        origins = self.updates[0][1]
+        self.assertIn("https://partner.example", origins)
+        self.assertIn("https://wecare.digital", origins)
+        self.assertNotIn("*", origins)
+        self.assertEqual([a["action"] for a in self.audits], ["cors.apply"])
+        self.assertEqual(self.audits[0]["actor"], "staff-admin")
+
+    def test_the_action_flag_on_another_route_changes_nothing(self):
+        self.call("/waba/media", {"action": "cors-apply", "origins": ["https://partner.example"]})
+        self.assertEqual(self.updates, [])
+
+
+class CallingAuditTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.api = _load("calling_audit_under_test",
+                        FUNCTIONS / "messaging" / "whatsapp-calling" / "handler.py")
+
+    def event(self, body=None):
+        return {"_auth": {"username": "staff-admin", "groups": ["Admin"]},
+                "body": json.dumps(body or {})}
+
+    def test_clear_logs_refuses_when_the_audit_record_cannot_be_written(self):
+        deleted: list = []
+
+        class FakeTable:
+            def scan(self, **_kw):
+                return {"Items": [{"id": "call-1"}]}
+
+            def batch_writer(self):
+                class Writer:
+                    def __enter__(self):
+                        return self
+
+                    def __exit__(self, *exc):
+                        return False
+
+                    def delete_item(self, Key):  # noqa: N803 - boto3 spelling
+                        deleted.append(Key)
+                return Writer()
+
+        fake = SimpleNamespace(Table=lambda _name: FakeTable())
+        with patch.object(self.api, "dynamodb", fake), \
+                patch.object(self.api, "record_audit", lambda **_kw: None):
+            refused = self.api._clear_logs(self.event(), "req-test")
+        self.assertEqual(_status(refused), 503)
+        self.assertEqual(deleted, [])
+        audits: list = []
+        with patch.object(self.api, "dynamodb", fake), \
+                patch.object(self.api, "record_audit", lambda **kw: audits.append(kw) or "log-1"):
+            done = self.api._clear_logs(self.event(), "req-test")
+        self.assertEqual(_status(done), 200)
+        self.assertEqual(deleted, [{"id": "call-1"}])
+        self.assertEqual((audits[0]["action"], audits[0]["actor"]), ("calling.clear_logs", "staff-admin"))
+
+    def test_terminate_and_config_changes_are_audited(self):
+        audits: list = []
+        with patch.object(self.api, "_meta_api_call", lambda *_a, **_k: {"success": True}), \
+                patch.object(self.api, "_update_call_status", lambda *_a, **_k: None), \
+                patch.object(self.api, "record_audit", lambda **kw: audits.append(kw) or "log-1"):
+            self.api._terminate_call(self.event({"callId": "wacid.X", "phoneNumberId": "1016149501586345"}),
+                                     "req-test")
+        with patch.object(self.api, "dynamodb", FakeResource({})), \
+                patch.object(self.api, "record_audit", lambda **kw: audits.append(kw) or "log-1"):
+            self.api._update_config(self.event({"autoPickup": False}), "req-test")
+        self.assertEqual([a["action"] for a in audits], ["calling.terminate", "calling.config_update"])
+        self.assertEqual(audits[1]["details"], {"autoPickup": False})
 
 
 if __name__ == "__main__":

@@ -48,6 +48,7 @@ from lambda_utils.masking import meta_error_summary  # Meta writes recipients in
 from lambda_utils import graph_errors  # log-safe fields of a Graph error, never the raw body
 from lambda_utils.message_store import put_call_breadcrumb
 from lambda_utils.middleware import require_auth  # unified timeline breadcrumb
+from lambda_utils.audit import record_audit
 from lambda_utils import wa_internal_event  # typed ingress -> worker contract
 
 logger = get_logger(__name__)
@@ -316,7 +317,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if http_method == 'POST' and normalized_path == '/whatsapp/outbound':
             return _outbound_call(event, request_id)
         if http_method == 'DELETE' and normalized_path == '/whatsapp':
-            return _clear_logs(request_id)
+            return _clear_logs(event, request_id)
         return _response(404, {'error': 'Route not found'})
     except Exception as e:
         logger.error(json.dumps({'event': 'handler_error', 'error': str(e), 'method': http_method,
@@ -1476,6 +1477,9 @@ def _terminate_call(event: Dict, request_id: str) -> Dict[str, Any]:
     }, phone_number_id=phone_number_id)
 
     _update_call_status(call_id, 'terminated')
+    record_audit(action='calling.terminate', actor=_actor(event), resource_type='call',
+                 resource_id=call_id, details={'phoneNumberId': phone_number_id,
+                                               'success': not result.get('error')})
 
     return _response(200, {
         'success': not result.get('error'),
@@ -1613,6 +1617,9 @@ def _outbound_call(event: Dict, request_id: str) -> Dict[str, Any]:
         if recipient_bsuid:
             payload['recipient'] = recipient_bsuid
         result = _meta_api_call(f"{phone_number_id}/calls", 'POST', payload, phone_number_id=phone_number_id)
+        # Who placed the call. The recipient number stays in the call log, not in the audit record.
+        record_audit(action='calling.outbound', actor=_actor(event), resource_type='call',
+                     resource_id=phone_number_id, details={'success': not result.get('error')})
         return _response(200, {'success': not result.get('error'), 'action': 'connect', 'result': result})
 
     return _response(400, {'error': f'Unknown action: {action}'})
@@ -2338,6 +2345,12 @@ def _update_config(event: Dict, request_id: str) -> Dict[str, Any]:
             logger.error(f"Failed to update auto_thumb config: {e}")
             return _response(500, {'error': str(e)})
 
+    record_audit(action='calling.config_update', actor=_actor(event), resource_type='config',
+                 resource_id='whatsapp_calling',
+                 details={key: value for key, value in (('autoPickup', enabled), ('ivrUrl', ivr_url),
+                                                        ('smsOnCall', sms_on_call),
+                                                        ('autoThumb', auto_thumb))
+                          if value is not None})
     return _response(200, {'success': True, 'autoPickup': enabled, 'ivrUrl': ivr_url, 'autoPickupMode': 'ivr', 'smsOnCall': sms_on_call, 'postCallWa': post_call_wa, 'autoThumb': auto_thumb})
 
 # ─── Storage Helpers ─────────────────────────────────────────────────
@@ -2461,8 +2474,16 @@ def _list_logs(params: Dict, request_id: str) -> Dict[str, Any]:
         return _response(200, {'logs': [], 'count': 0, 'error': str(e)})
 
 
-def _clear_logs(request_id: str) -> Dict[str, Any]:
-    """Clear all call logs (paginated to handle large tables)."""
+def _clear_logs(event: Dict, request_id: str) -> Dict[str, Any]:
+    """Clear all call logs (paginated to handle large tables).
+
+    An irreversible bulk delete, so it is recorded FIRST and refused when the record cannot be
+    written (the fail-closed rule in `lambda_utils.audit`).
+    """
+    if not record_audit(action='calling.clear_logs', actor=_actor(event), resource_type='table',
+                        resource_id=CALL_LOG_TABLE, details={'requestId': request_id}):
+        return _response(503, {'success': False,
+                               'error': 'The audit record could not be written. Nothing was deleted.'})
     try:
         table = dynamodb.Table(CALL_LOG_TABLE)
         deleted = 0
@@ -2482,6 +2503,11 @@ def _clear_logs(request_id: str) -> Dict[str, Any]:
         return _response(200, {'success': True, 'deletedCount': deleted})
     except Exception as e:
         return _response(200, {'success': False, 'error': str(e)})
+
+
+def _actor(event: Dict) -> str:
+    """The authenticated staff username for the audit record ('system' for an internal invoke)."""
+    return str((event.get('_auth') or {}).get('username') or 'system')
 
 
 def _response(status_code: int, body: Dict, resp_origin: str = '') -> Dict[str, Any]:
