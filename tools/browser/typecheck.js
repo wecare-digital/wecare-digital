@@ -41,7 +41,8 @@ const routePath = route => route === '/' ? '/' : `${route}/`;
 const TYPE_EXCLUSIONS = new Set( [ '/shop', '/blog' ] );
 const ROUTES = PUBLIC_ROUTES.filter( route => !TYPE_EXCLUSIONS.has( route ) ).map( routePath );
 
-const WIDTHS = [ 1280, 900 ];
+const WIDTHS = [ 1280, 900, 390, 320, 280 ];
+const MOBILE_WIDTHS = [ 390, 320, 280 ];
 
 /**
  * The contract's section-h2 rung, resolved per width.
@@ -231,6 +232,38 @@ async function main() {
     record( inconsistentPages.length === 0,
       'no single page carries two different section-h2 sizes',
       inconsistentPages.length ? inconsistentPages.join( '; ' ) : 'every page internally consistent' );
+
+    /* MOBILE CONSISTENCY. The phone foundation is fluid and some page families intentionally
+       opt into different variables, so this does not force one magic pixel size. It enforces
+       the two things that are architectural: one page must not use two sizes for the same
+       section-heading job, and a shared heading class must resolve identically wherever it is
+       reused at the same phone width. */
+    for ( const width of MOBILE_WIDTHS ) {
+      const pageDrift = [];
+      const byClassMobile = new Map();
+      for ( const route of ROUTES ) {
+        const sectionH2 = ( ( all[ route ] || {} )[ width ] || [] )
+          .filter( h => h.tag === 'h2' && !NON_SECTION.test( h.cls ) );
+        const sizes = new Set( sectionH2.map( h => h.size ) );
+        if ( sizes.size > 1 ) pageDrift.push( `${route}=${[ ...sizes ].join( '/' )}px` );
+        for ( const h of sectionH2 ) {
+          if ( !h.cls ) continue;
+          if ( !byClassMobile.has( h.cls ) ) byClassMobile.set( h.cls, [] );
+          byClassMobile.get( h.cls ).push( { route, size: h.size, weight: h.weight } );
+        }
+      }
+      const sharedDrift = [];
+      for ( const [ cls, rows ] of byClassMobile ) {
+        const routes = new Set( rows.map( row => row.route ) );
+        if ( routes.size < 2 ) continue;
+        const values = new Set( rows.map( row => `${row.size}/${row.weight}` ) );
+        if ( values.size > 1 ) sharedDrift.push( `.${cls}=${[ ...values ].join( ' vs ' )}` );
+      }
+      record( pageDrift.length === 0, `mobile section-h2 per-page consistency @${width}`,
+        pageDrift.length ? pageDrift.join( '; ' ) : 'consistent' );
+      record( sharedDrift.length === 0, `shared mobile section-h2 classes agree @${width}`,
+        sharedDrift.length ? sharedDrift.join( '; ' ) : 'consistent' );
+    }
 
     /**
      * THE DE-FACTO RUNG IS ONE DECLARATION, not a coincidence. clamp(28px,3.2vw,40px)
