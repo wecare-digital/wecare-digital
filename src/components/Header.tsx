@@ -489,12 +489,10 @@ const Header: React.FC = () => {
     return link.match ? router.pathname === link.match : destination === currentPath;
   };
 
-  // When the current page is low in the capped desktop Products rail, opening the menu now
-  // reveals it immediately. Mobile deliberately has one outer scroll surface, so this is a
-  // desktop/tablet-only adjustment of the inner Products scrollTop.
+  // When the current page is low in the capped Products rail, opening the menu reveals it
+  // immediately on every viewport. Desktop and mobile both show seven product rows now.
   useEffect( () => {
     if ( !open || searching || typeof window === 'undefined' ) return;
-    if ( !window.matchMedia( '(min-width: 768px)' ).matches ) return;
     const scroller = rootRef.current?.querySelector<HTMLElement>( '.nav-products-scroll' );
     const active = scroller?.querySelector<HTMLElement>( '.nav-item.active' );
     if ( !scroller || !active ) return;
@@ -504,22 +502,16 @@ const Header: React.FC = () => {
     else if ( row.bottom > box.bottom ) scroller.scrollTop += row.bottom - box.bottom;
   }, [ currentPath, open, searching ] );
 
-  // The desktop Products rail is intentionally capped at five rows. A scrollbar alone is
-  // easy to miss inside a compact mega-menu, so expose one small icon-only continuation cue
-  // while content remains below the fold. The cue is derived from real scroll geometry, not
-  // product count, so it stays correct if row heights or the catalogue hierarchy change.
+  // The Products rail is intentionally capped at seven rows on desktop and mobile. A scrollbar
+  // alone is easy to miss inside the menu, so expose one small icon-only continuation cue while
+  // content remains below the fold. The cue is derived from real scroll geometry, not product
+  // count, so it stays correct if row heights or the catalogue hierarchy change.
   useEffect( () => {
     if ( !open || searching || typeof window === 'undefined' ) {
       setShowProductsMore( false );
       setProductsOverflowing( false );
       return undefined;
     }
-    if ( !window.matchMedia( '(min-width: 768px)' ).matches ) {
-      setShowProductsMore( false );
-      setProductsOverflowing( false );
-      return undefined;
-    }
-
     const scroller = rootRef.current?.querySelector<HTMLElement>( '.nav-products-scroll' );
     if ( !scroller ) {
       setShowProductsMore( false );
@@ -550,8 +542,9 @@ const Header: React.FC = () => {
 
     const reduceMotion = typeof window.matchMedia === 'function'
       && window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches;
+    const rowHeight = window.matchMedia( '(max-width: 767px)' ).matches ? 52 : 46;
     scroller.scrollBy( {
-      top: Math.max( 46, scroller.clientHeight - 46 ),
+      top: Math.max( rowHeight, scroller.clientHeight - rowHeight ),
       behavior: reduceMotion ? 'auto' : 'smooth',
     } );
   }, [] );
@@ -1134,11 +1127,15 @@ const Header: React.FC = () => {
            bright green clashed with the palette), weight 700, UPPERCASE, with a
            touch more tracking so the caps stay legible. */
         .nav-group-label{display:flex;align-items:center;gap:7px;padding:6px 12px 4px;font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--public-brand-green);text-transform:uppercase}
-        .nav-section-icon{width:17px;height:17px;flex:0 0 17px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+        /* One optical heading-icon rung. Custom SVGs fill their viewBox more tightly than
+           Material Symbols, so both reserve 18px while the symbol itself renders at 20px.
+           This makes neurology read at the same visual weight as Products, Request, Extras,
+           Contact and Legal Stuff instead of looking undersized beside the label. */
+        .nav-section-icon{width:18px;height:18px;flex:0 0 18px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
         .nav-section-icon-material{fill:currentColor;stroke:none}
         .nav-section-material-symbol{
-          width:17px;height:17px;flex:0 0 17px;display:inline-flex;align-items:center;justify-content:center;
-          font-family:'Material Symbols Rounded';font-size:18px;font-weight:400;line-height:1;
+          width:18px;height:18px;flex:0 0 18px;display:inline-flex;align-items:center;justify-content:center;
+          font-family:'Material Symbols Rounded';font-size:20px;font-weight:400;line-height:1;
           letter-spacing:normal;text-transform:none;white-space:nowrap;
           font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 20;
         }
@@ -1147,8 +1144,8 @@ const Header: React.FC = () => {
            entries, so its list is capped and scrolls rather than making the whole panel
            grow past the viewport. With today's ~10 products it never scrolls - max-height
            is a ceiling, not a fixed height - so nothing changes until the list is long.
-           Desktop shows 7 rows (7 x 46px = 322px) before the dedicated Products scroller
-           takes over; mobile removes that inner cap and uses the menu's outer scroll surface. */
+           Desktop shows 7 rows (7 x 46px = 322px) and mobile shows 7 rows
+           (7 x 52px = 364px) before the dedicated Products scroller takes over. */
         .nav-group-products{min-height:0}
         /* The heading stays PINNED above its own scrolling list. Sticky against the
            scroll container's top; the #fcfdfb backer stops list rows showing through the
@@ -1156,10 +1153,9 @@ const Header: React.FC = () => {
         .nav-group-products .nav-group-label{position:sticky;top:0;z-index:2;background:#fcfdfb}
         .nav-products-scroll{
           /* 7 rows. The right column gained the With AI group, so Products gets two
-             more visible rows to keep the three-column desktop menu visually balanced while
-             still preserving a dedicated product scroller for the long catalogue. Mobile
-             remains uncapped below 768px and shows the full product list in the menu's single
-             outer scroll surface. */
+             more visible rows to keep the menu visually balanced while preserving a dedicated
+             product scroller for the long catalogue. Desktop uses 46px rows; the mobile
+             override below uses its 52px touch rows and therefore a 364px ceiling. */
           max-height:322px;
           overflow-y:auto;
           -webkit-overflow-scrolling:touch;
@@ -1295,7 +1291,7 @@ const Header: React.FC = () => {
            variable - symmetric, therefore direction-neutral, therefore no rtl override
            needed. It still has to beat the base rule's compiled :lang() selector, which the
            extra .hdr-in ancestor class does. */
-        @media(max-width:767px){.hdr-in{height:96px;padding:14px 16px}.logo-nav{gap:8px}.hdr-in .nav-menu{position:fixed;top:100px;left:max(16px,var(--safe-left));right:max(16px,var(--safe-right));width:auto;max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px - var(--safe-bottom))}.nav-cols,.nav-results{grid-template-columns:minmax(0,1fr)}.nav-item,.nav-child{font-size:19px;font-weight:600;min-height:52px}.nav-products-scroll{max-height:none;overflow:visible;overscroll-behavior:auto;background:transparent;padding:0;border-radius:0}.nav-products-cue-row{display:none}.nav-products-more{display:none}}
+        @media(max-width:767px){.hdr-in{height:96px;padding:14px 16px}.logo-nav{gap:8px}.hdr-in .nav-menu{position:fixed;top:100px;left:max(16px,var(--safe-left));right:max(16px,var(--safe-right));width:auto;max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px - var(--safe-bottom))}.nav-cols,.nav-results{grid-template-columns:minmax(0,1fr)}.nav-item,.nav-child{font-size:19px;font-weight:600;min-height:52px}.nav-products-scroll{max-height:364px;overflow-y:auto;overscroll-behavior:contain}.nav-products-cue-row{height:44px;flex-basis:44px;margin-top:4px}.nav-products-more{width:44px;height:44px;min-width:44px;min-height:44px}}
 
         /* ROOM FOR THE SHOPPING BAG ON THE NARROWEST DEVICE THAT SHIPS, derived rather than
            nudged. Measured on the built header at 280px (Galaxy Fold, folded) before the bag
