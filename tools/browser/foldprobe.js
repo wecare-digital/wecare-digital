@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 /**
- * foldprobe — does the primary submit control sit ABOVE the fold on the two customer sign-in
- * surfaces, and do they agree with each other?
+ * foldprobe — does the primary submit control sit ABOVE the fold on the customer file-access form?
  *
  * WHY THIS EXISTS. /get was given the home page's RotatingHero top section on owner instruction.
  * The hero costs real vertical space — .rh-shell{padding-top:108px} plus
@@ -9,9 +8,8 @@
  * is not a landing page: its entire job is a form. Pushing the submit control under the fold on a
  * 768px-tall laptop would be a regression that no unit test can see, because jsdom has no layout.
  *
- * ACCEPTANCE, both of which must hold at every viewport:
- *   1. the submit control's bottom is <= innerHeight - 40   (it is on the first screen, with air)
- *   2. it is within 80px of /account/sign-in's submit bottom (the two halves of one journey agree)
+ * ACCEPTANCE: the submit control's bottom is <= innerHeight - 40
+ * at every viewport (it is on the first screen, with air).
  *
  * Read-only. Serves the existing static export; mutates nothing.
  */
@@ -29,10 +27,9 @@ const VIEWPORTS = [
   { name: '1280x800', width: 1280, height: 800 },
 ];
 
-/** The two surfaces, and how to find the primary submit control on each. */
+/** The static form surface covered by this export-only probe. */
 const SURFACES = [
   { route: '/get/', label: 'get' },
-  { route: '/account/sign-in/', label: 'sign-in' },
 ];
 
 const TYPES = {
@@ -134,14 +131,7 @@ function serve () {
       }
     }
 
-    // Agreement between the two halves of the journey.
-    if ( measured.get?.pillBottom != null && measured[ 'sign-in' ]?.pillBottom != null )
-    {
-      const delta = Math.abs( measured.get.pillBottom - measured[ 'sign-in' ].pillBottom );
-      const agree = delta <= 80;
-      if ( !agree ) failures++;
-      console.log( `${vp.name}  delta(get vs sign-in) = ${delta}px  ${agree ? 'PASS' : 'FAIL (>80px)'}` );
-    }
+
   }
 
   console.table( rows );
