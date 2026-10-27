@@ -1165,7 +1165,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'Raw order_details payments have been removed. Use checkoutOrderDetails with the approved template.')
 
     payment_action = bool(body.get('isCheckoutTemplate')) or isinstance(body.get('orderStatusDetails'), dict)
-    auth_result = require_auth(event, required_role='Admin' if payment_action else None)
+    # Viewers read; they do not message customers. Every send, reaction, typing indicator, block
+    # change and media-upload URL is an Operator action, and a payment request is Admin. Listing
+    # blocked users is the one read this route serves. Internal invokes skip auth as before.
+    read_only = body.get('blockAction') == 'list'
+    required_role = 'Admin' if payment_action else (None if read_only else 'Operator')
+    auth_result = require_auth(event, required_role=required_role)
     if auth_result is not None:
         return auth_result
 

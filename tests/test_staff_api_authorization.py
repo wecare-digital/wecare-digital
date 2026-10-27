@@ -9,6 +9,8 @@ network, no AWS account. Each write that used to sit at the Viewer floor is driv
   ids must be numeric, so no caller can point the system-user token at another Graph edge.
 * ai-config-management: settings writes need Operator and only the Workspace settings rows are
   readable or writable; clear-logs needs Admin and has no body-flag side door.
+* outbound-whatsapp: every customer message, reaction, typing indicator, block change and
+  upload URL needs Operator; listing blocked users stays a Viewer read; payment stays Admin.
 """
 from __future__ import annotations
 
@@ -225,6 +227,47 @@ class AiConfigWriteFloorTests(unittest.TestCase):
         self.assertEqual(self.call("PUT", "/ai/prompts/en", "Operator",
                                    {"language": "en", "prompt": "x"}), 200)
         self.assertIn("ai_prompt_en", self.config_rows())
+
+
+class _RoleRecorder:
+    """Stand-in for `require_auth` that records the role asked for and stops the request."""
+
+    def __init__(self):
+        self.roles: list = []
+
+    def __call__(self, event, required_role=None):
+        self.roles.append(required_role)
+        return {"statusCode": 499, "body": "{}"}
+
+
+class OutboundSendFloorTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.api = _load("outbound_floor_under_test",
+                        FUNCTIONS / "messaging" / "outbound-whatsapp" / "handler.py")
+
+    def role_for(self, body):
+        recorder = _RoleRecorder()
+        with patch.object(self.api, "require_auth", recorder):
+            result = self.api.handler(api_event("POST", "/whatsapp/send", role="Viewer", body=body),
+                                      SimpleNamespace(aws_request_id="test"))
+        self.assertEqual(_status(result), 499, body)
+        return recorder.roles[-1]
+
+    def test_customer_messages_need_operator(self):
+        for body in ({"contactId": "c1", "content": "hello"},
+                     {"contactId": "c1", "isTemplate": True, "templateName": "wecare_leave_review"},
+                     {"isReaction": True, "reactionMessageId": "wamid.X", "reactionEmoji": "👍"},
+                     {"isTypingIndicator": True, "messageId": "wamid.X"},
+                     {"blockAction": "block", "blockUsers": ["919999900001"]},
+                     {"action": "getUploadUrl", "mediaType": "image", "filename": "a.png"}):
+            self.assertEqual(self.role_for(body), "Operator", body)
+
+    def test_listing_blocked_users_keeps_the_viewer_floor(self):
+        self.assertIsNone(self.role_for({"blockAction": "list"}))
+
+    def test_payment_request_still_needs_admin(self):
+        self.assertEqual(self.role_for({"isCheckoutTemplate": True}), "Admin")
 
 
 if __name__ == "__main__":

@@ -8,7 +8,10 @@ Real handler code with in-process fakes: no network, no AWS account, no table ou
 * a consumed number keeps its claim, so a retry cannot consume a second number;
 * a failed dedup lookup refuses (503) instead of claiming a possible second invoice;
 * the Razorpay webhook never renders or sends a receipt for an unnumbered invoice;
-* the paid-state alarm covers a missing invoice image.
+* the paid-state alarm covers a missing invoice image and a paid order the sweep found with no
+  invoice;
+* both customer invoice readers serve the newest (paid) rendition, never the pre-payment one;
+* two invoices matching one payment settle neither and consume no number.
 """
 from __future__ import annotations
 
@@ -389,6 +392,112 @@ class PaidStateAlarmTests(unittest.TestCase):
         source = (FUNCTIONS / "payments" / "razorpay-webhook" / "handler.py").read_text(
             encoding="utf-8")
         self.assertIn("'alert': 'INVOICE_IMAGE_ENSURE_FAILED'", source)
+
+    def test_paid_order_without_invoice_raises_the_paid_state_alarm(self):
+        alarms = _load("payment_rail_alarms_paid_without_invoice",
+                       ROOT / "scripts" / "provision_payment_rail_alarms.py")
+        webhook_signal = next(s for s in alarms.SIGNALS
+                              if s["logGroup"] == "/aws/lambda/wecare-razorpay-webhook"
+                              and s["filterName"] == "payment-paid-state-incomplete")
+        self.assertIn('"PAID_WITHOUT_INVOICE"', webhook_signal["pattern"])
+        source = (FUNCTIONS / "payments" / "razorpay-webhook" / "handler.py").read_text(
+            encoding="utf-8")
+        self.assertIn("'alert': 'PAID_WITHOUT_INVOICE'", source)
+
+
+# ── Newest invoice rendition (D4) and ambiguous dedup (D6) ───────────────────────────────────
+
+class AssetTable:
+    """InvoiceAssets fake: composite (invoiceId, assetType) key, get_item only."""
+
+    def __init__(self, rows):
+        self.rows = {(r["invoiceId"], r["assetType"]): dict(r) for r in rows}
+        self.reads: list = []
+
+    def get_item(self, Key, **_kw):  # noqa: N803 - boto3 spelling
+        self.reads.append(Key["assetType"])
+        row = self.rows.get((Key["invoiceId"], Key["assetType"]))
+        return {"Item": dict(row)} if row else {}
+
+
+PREFIX = "secure/d/public/Invoice/customer_invoice/"
+STEM = PREFIX + "wecare-digital-WD-2026-27-00042__WD-PAY-CLOSEOUT1"
+PAID_INVOICE = {"invoiceId": "inv-1", "invoiceNumber": "WD/2026-27/00042",
+                "referenceId": "WD-PAY-CLOSEOUT1"}
+
+
+class NewestInvoiceRenditionTests(unittest.TestCase):
+    """The base `image` row is the pre-payment preview; the paid receipt is `image#v2`."""
+
+    ROWS = [{"invoiceId": "inv-1", "assetType": "image", "s3Key": STEM + ".png"},
+            {"invoiceId": "inv-1", "assetType": "image#v2", "s3Key": STEM + "-v2.png"}]
+
+    @classmethod
+    def setUpClass(cls):
+        cls.customer_invoice = _load("customer_invoice_rendition_under_test",
+                                     FUNCTIONS / "ecommerce" / "customer-invoice" / "handler.py")
+        flows_dir = FUNCTIONS / "messaging" / "whatsapp-business-api"
+        if str(flows_dir) not in sys.path:
+            sys.path.insert(0, str(flows_dir))
+        from flows import customer_invoice as flow_invoice
+        cls.flow_invoice = flow_invoice
+
+    def download_key(self, rows):
+        table = AssetTable(rows)
+        with patch.object(self.customer_invoice, "_table", lambda _name: table):
+            return self.customer_invoice._asset_key("inv-1", "png"), table.reads
+
+    def test_customer_download_serves_the_paid_rendition(self):
+        key, reads = self.download_key(self.ROWS)
+        self.assertEqual(key, STEM + "-v2.png")
+        self.assertEqual(reads, ["image", "image#v2", "image#v3"])
+
+    def test_customer_download_with_one_rendition_is_unchanged(self):
+        self.assertEqual(self.download_key(self.ROWS[:1])[0], STEM + ".png")
+        self.assertEqual(self.download_key([])[0], "")
+
+    def test_whatsapp_invoice_copy_serves_the_paid_rendition(self):
+        table = AssetTable(self.ROWS)
+        self.assertEqual(self.flow_invoice.newest_invoice_image(
+            table, "inv-1", PAID_INVOICE, "WD-PAY-CLOSEOUT1"), STEM + "-v2.png")
+
+    def test_whatsapp_invoice_copy_refuses_a_key_for_another_order(self):
+        rows = [self.ROWS[0], {"invoiceId": "inv-1", "assetType": "image#v2",
+                               "s3Key": PREFIX + "wecare-digital-SOMEONE-ELSE-v2.png"}]
+        self.assertEqual(self.flow_invoice.newest_invoice_image(
+            AssetTable(rows), "inv-1", PAID_INVOICE, "WD-PAY-CLOSEOUT1"), STEM + ".png")
+
+
+class AmbiguousInvoiceDedupTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.engine = _load("invoice_engine_ambiguous_under_test",
+                           FUNCTIONS / "payments" / "invoice-engine" / "handler.py")
+
+    def test_two_matching_invoices_settle_neither(self):
+        table = InvoiceTable(self.engine.INVOICES_TABLE)
+        for invoice_id in ("inv-a", "inv-b"):
+            table.rows[invoice_id] = {"invoiceId": invoice_id, "referenceId": "WD-PAY-CLOSEOUT1",
+                                      "invoiceNumber": f"WD/2026-27/{invoice_id}", "status": "sent"}
+        with patch.object(self.engine, "dynamodb", FakeResource({self.engine.INVOICES_TABLE: table})), \
+                patch.object(self.engine, "_get_next_invoice_number",
+                             lambda _fy=None: self.fail("a number was consumed")):
+            result = self.engine.create_invoice(copy.deepcopy(INVOICE_BODY), "req-test")
+        self.assertEqual((int(result["statusCode"]), json.loads(result["body"]).get("errorCode")),
+                         (409, "INVOICE_REFERENCE_AMBIGUOUS"))
+        self.assertEqual(table.writes, [])
+        self.assertTrue(all(row["status"] == "sent" for row in table.rows.values()))
+
+    def test_one_matching_invoice_is_still_adopted(self):
+        table = InvoiceTable(self.engine.INVOICES_TABLE)
+        table.rows["inv-a"] = {"invoiceId": "inv-a", "referenceId": "WD-PAY-CLOSEOUT1",
+                               "invoiceNumber": "WD/2026-27/00042", "status": "paid"}
+        with patch.object(self.engine, "dynamodb", FakeResource({self.engine.INVOICES_TABLE: table})), \
+                patch.object(self.engine, "_get_next_invoice_number",
+                             lambda _fy=None: self.fail("a number was consumed")):
+            result = self.engine.create_invoice(copy.deepcopy(INVOICE_BODY), "req-test")
+        self.assertNotEqual(int(result["statusCode"]), 409, result.get("body"))
+        self.assertIn("inv-a", result.get("body", ""))
 
 
 if __name__ == "__main__":
