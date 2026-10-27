@@ -189,5 +189,22 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
         self.assertNotIn("wa-idem-", f"wecare-digital-{trace}.png")
 
 
+    def test_receipt_gradient_avoids_python_pixel_loop(self):
+        source = RECEIPT.read_text(encoding="utf-8")
+        self.assertIn('Image.linear_gradient("L")', source)
+        self.assertNotIn("pixels = band.load()", source)
+
+    def test_preview_returns_before_invoice_number_is_consumed(self):
+        source = ENGINE.read_text(encoding="utf-8")
+        route = source.index("body.get('_action') == 'preview'")
+        preview_return = source.index("if body.get('previewOnly'):")
+        number = source.index("# ── Only now is a GST invoice number consumed")
+        self.assertLess(route, number)
+        self.assertLess(preview_return, number)
+        block = source[preview_return:number]
+        self.assertIn("'pricingAuthority': 'invoice-engine'", block)
+        self.assertNotIn("_get_next_invoice_number", block)
+
+
 if __name__ == "__main__":
     unittest.main()
