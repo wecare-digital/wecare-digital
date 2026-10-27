@@ -182,6 +182,39 @@ class PaymentArchitectureDriftTests(unittest.TestCase):
         self.assertIn("DELIVERY_OUTCOME_UNKNOWN", source)
         self.assertIn("status=stored_status", source)
 
+    def test_whatsapp_keyed_send_correlates_status_webhook(self):
+        outbound = (ROOT / "amplify" / "functions" / "messaging" / "outbound-whatsapp" / "handler.py").read_text(
+            encoding="utf-8"
+        )
+        inbound = (ROOT / "amplify" / "functions" / "messaging" / "inbound-whatsapp-handler" / "handler.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("biz_opaque_callback_data", outbound)
+        self.assertIn("message_id.startswith('wa-idem-')", outbound)
+        self.assertIn("opaque_message_id = str(status.get('biz_opaque_callback_data')", inbound)
+        self.assertIn("whatsappMessageId = :wmid", inbound)
+
+    def test_workspace_whatsapp_reads_are_bounded_and_internal(self):
+        workspace = (ROOT / "amplify" / "functions" / "ai" / "workspace-mcp" / "handler.py").read_text(
+            encoding="utf-8"
+        )
+        business = (ROOT / "amplify" / "functions" / "messaging" / "whatsapp-business-api" / "handler.py").read_text(
+            encoding="utf-8"
+        )
+        service = (ROOT / "amplify" / "functions" / "core" / "service-api" / "handler.py").read_text(
+            encoding="utf-8"
+        )
+        infra = (ROOT / "amplify" / "infra" / "workspace-mcp.json").read_text(encoding="utf-8")
+        self.assertIn('"whatsapp_snapshot"', workspace)
+        self.assertIn('"whatsapp_unknown_deliveries"', workspace)
+        self.assertIn("internalAction\": \"workspaceRead", workspace)
+        self.assertIn("internalAction\": \"workspaceOrders", workspace)
+        self.assertIn("if event.get('internalAction') == 'workspaceRead':", business)
+        self.assertIn("if event.get('internalAction') == 'workspaceOrders':", service)
+        self.assertIn("filter_expression='#s = :unknown'", business)
+        self.assertIn('"ReservedConcurrentExecutions": 10', infra)
+        self.assertIn('"Mode": "Active"', infra)
+
     def test_payment_ci_triggers_on_template_registry_for_pr_and_push(self):
         workflow = (ROOT / ".github" / "workflows" / "payment-rail-ci.yml").read_text(
             encoding="utf-8"
