@@ -134,7 +134,10 @@ def matrix() -> list[dict]:
     rows.append(_row("staff", f"{SITE}/workspace/access/", 200, "staff sign-in, unchanged"))
 
     # ── customer auth and public pages ──────────────────────────────────────────────
-    rows.append(_row("public", f"{SITE}/account/sign-in/", 200, "the CUSTOMER auth flow"))
+    rows.append(_row("public", f"{SITE}/auth", 200, "the canonical CUSTOMER auth flow",
+                     body_contains=("WECARE.DIGITAL", "Sign in to WECARE.DIGITAL")))
+    rows.append(_row("fallback", f"{SITE}/account/sign-in/", 404,
+                     "retired customer sign-in URL is removed; /auth is the only sign-in URL"))
     for path in PUBLIC_PAGES:
         rows.append(_row("public", f"{SITE}{path}", 200, "a live public page"))
 
