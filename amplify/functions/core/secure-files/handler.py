@@ -237,7 +237,6 @@ def _sender_waba() -> str:
         return ""
     return derived
 
-PRICE_PAISE = int(os.environ.get("SECURE_FILE_PRICE_PAISE", "4900"))  # Rs. 49
 UPLOAD_URL_TTL = int(os.environ.get("UPLOAD_URL_TTL_SECONDS", "900"))
 # Web redeem: the browser follows this immediately, so it can be very short. It is the only
 # presigned link this function issues; WhatsApp delivery sends a Vault page link instead.
@@ -487,7 +486,6 @@ def _public_file(item: Dict[str, Any], *, admin: bool,
         "originalFilename": item.get("originalFilename"),
         "contentType": item.get("contentType"),
         "sizeBytes": item.get("sizeBytes"),
-        "pricePaise": item.get("pricePaise"),
         "status": item.get("status"),
         "createdAt": item.get("createdAt"),
         "downloadCount": item.get("downloadCount", 0),
@@ -822,7 +820,6 @@ def _upload_init(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
             "originalFilename": filename,
             "contentType": content_type,
             "sizeBytes": size,
-            "pricePaise": PRICE_PAISE,
             # Decided at confirm time, once the real object is measured rather than
             # trusted from the browser: "pdf", "image", or "link" when the type
             # cannot be opened inline on WhatsApp.
@@ -1180,7 +1177,6 @@ def _admin_publish_document(event: Dict[str, Any], origin: str) -> Dict[str, Any
         "originalFilename": original_name,
         "contentType": content_type,
         "sizeBytes": size,
-        "pricePaise": PRICE_PAISE,
         "deliverable": deliverable,
         "deliveryKey": delivery_key,
         "status": "active",
@@ -1654,7 +1650,6 @@ def _customer_list(identity: Dict[str, Any], origin: str) -> Dict[str, Any]:
         {
             "files": items,
             "count": len(items),
-            "pricePaise": PRICE_PAISE,
         },
         origin,
     )
