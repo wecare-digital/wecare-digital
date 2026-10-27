@@ -616,6 +616,19 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
     } catch ( e ) { showMsg( 'Image generation failed', 'error' ); }
     setActionLoading( '' );
   };
+  const downloadGstWorkpaper = ( inv: Invoice ) => {
+    if ( !inv.gstWorkpaper ) { showMsg( 'GST workpaper is unavailable for this invoice', 'error' ); return; }
+    const blob = new Blob( [ JSON.stringify( inv.gstWorkpaper, null, 2 ) + '\n' ], { type: 'application/json' } );
+    const url = URL.createObjectURL( blob );
+    const link = document.createElement( 'a' );
+    link.href = url;
+    link.download = `wecare-gst-workpaper-${inv.referenceId || inv.invoiceNumber || inv.invoiceId}.json`;
+    document.body.appendChild( link );
+    link.click();
+    link.remove();
+    URL.revokeObjectURL( url );
+  };
+
   const openRemarkModal = ( inv: Invoice, type: 'remark' | 'refund' | 'credit_note' ) => {
     setRemarkModal( { inv, type } );
     setRemarkText( '' );
@@ -1032,6 +1045,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                           <div style={ { display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' } }>
                             <a className="btn btn-secondary btn-sm" href={ imageAsset.url } target="_blank" rel="noreferrer">Open receipt</a>
                             <a className="btn btn-secondary btn-sm" href={ imageAsset.url } download>Download PNG</a>
+                            { selInvoice.gstWorkpaper && <Button variant="secondary" size="sm" onClick={ () => downloadGstWorkpaper( selInvoice ) }>Download GST JSON</Button> }
                           </div>
                         </div>
                       ) : null;
