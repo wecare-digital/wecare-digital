@@ -22,7 +22,11 @@ ROOT = Path(__file__).resolve().parents[1]
 # config/public-pages.json, whose own '/shop' entry is turned straight back into '/shop/' by the
 # rstrip-then-append. Cleaning only one of the two leaves the page in the probe set, so both were
 # cleaned together.
-CUSTOMER_PAGES = ('/cart/', '/checkout/', '/auth', '/orders/',
+# /auth is intentionally NOT a static-export page. Amplify rewrites it to the
+# customer-commerce authorization backend, and scripts/probe_url_host_matrix.py
+# owns its live contract. Requiring out/auth/index.html would make every valid
+# static production build fail.
+CUSTOMER_PAGES = ('/cart/', '/checkout/', '/orders/',
                   '/checkout/status/', '/checkout/success/')
 RETIRED_HOSTS = {'bnbclub.in', 'legalchamp.in', 'nofault.in', 'ritualguru.in', 'swdhya.in'}
 
