@@ -313,6 +313,8 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
   const [ selCustomer, setSelCustomer ] = useState<Contact | null>( null );
   const [ invForm, setInvForm ] = useState( { ...EMPTY_INV } );
   const [ showAdvancedTax, setShowAdvancedTax ] = useState( false );
+  const [ previewQuote, setPreviewQuote ] = useState<api.InvoiceEnginePreview | null>( null );
+  const [ previewLoading, setPreviewLoading ] = useState( false );
   const [ creating, setCreating ] = useState( false );
   const [ invoices, setInvoices ] = useState<Invoice[]>( [] );
   const [ invLoading, setInvLoading ] = useState( false );
@@ -389,6 +391,64 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
     try { const r = await api.getInvoiceDeliveryLog( id ); setDeliveryLogs( r.deliveryLogs || [] ); } catch ( e ) { console.error( e ); }
   }, [] );
   useEffect( () => { loadCustomers(); loadInvoices(); }, [ loadCustomers, loadInvoices ] );
+
+  // Debounced authoritative quote. This sends only draft inputs; the invoice engine returns
+  // before numbering, persistence or asset generation. React never reproduces payment maths.
+  useEffect( () => {
+    if ( !selCustomer || !hasPayableDeliveryAddress( selCustomer )
+      || !invForm.items.some( item => parseFloat( item.unitPrice ) > 0 ) ) {
+      setPreviewQuote( null );
+      setPreviewLoading( false );
+      return;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout( async () => {
+      setPreviewLoading( true );
+      const address = addressFieldsFromContact( selCustomer );
+      const request: CreateInvoiceEngineRequest = {
+        customerPhone: selCustomer.phone,
+        customerEmail: selCustomer.email || '',
+        customerName: selCustomer.name,
+        contactId: selCustomer.id,
+        shippingAddress: contactDeliveryAddress( selCustomer ),
+        billingAddress: contactDeliveryAddress( selCustomer ) || selCustomer.billingAddress || '',
+        addressLine1: address.addressLine1,
+        addressLine2: address.addressLine2,
+        city: address.city,
+        state: address.state,
+        postalCode: address.postalCode,
+        landmark: address.locality,
+        countryCode: address.countryCode,
+        goodsType,
+        items: invForm.items.map( item => ( {
+          name: item.name || config.default_item_name,
+          amount: parseFloat( item.unitPrice ) || 0,
+          quantity: parseInt( item.quantity ) || 1,
+          gstRate: item.gstRate.trim() === '' ? config.default_gst_rate : Number( item.gstRate ),
+          hsnSac: item.hsnSac.trim(),
+        } ) ),
+        shipping: parseFloat( invForm.shipping ) || 0,
+        gstRate: config.default_gst_rate,
+        purpose: DEFAULT_BRAND,
+        orderId: invForm.orderId,
+        gstin: config.gstin,
+        buyerGstin: ( selCustomer as Contact & { gstin?: string } ).gstin || undefined,
+        entryPoint: 'pay_flow',
+      };
+      try {
+        const quote = await api.previewInvoiceEngine( request );
+        if ( !cancelled ) setPreviewQuote( quote );
+      } catch {
+        if ( !cancelled ) setPreviewQuote( null );
+      } finally {
+        if ( !cancelled ) setPreviewLoading( false );
+      }
+    }, 450 );
+    return () => {
+      cancelled = true;
+      window.clearTimeout( timer );
+    };
+  }, [ selCustomer, invForm, config.default_gst_rate, config.default_item_name, config.gstin ] );
 
   /* Customer handlers */
   const openEditCust = ( c: Contact ) => {
@@ -902,7 +962,8 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                   </div>
                 </div>
               ) : (
-                <div>
+                <div className="pf-collect-layout">
+                  <div className="pf-collect-main">
                   <div className="info-banner" style={ { marginBottom: 16 } }>
                     <div style={ { flex: 1 } }><strong>{ selCustomer.name }</strong> { '\u2014' } { selCustomer.phone } { selCustomer.email ? ` \u00B7 ${selCustomer.email}` : '' }</div>
                     <Button variant="ghost" size="sm" onClick={ () => setSelCustomer( null ) }>Change</Button>
@@ -1028,8 +1089,42 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                     Convenience fee and final total are calculated by the server when the invoice is created. The stored invoice is the authority for subtotal, tax, Delight and total.
                   </div>
 
-                  <Button variant="primary" size="md" loading={ creating } disabled={ creating } onClick={ () => submitInvoice( true ) }>Create and send payment request</Button>
-                  <Button variant="secondary" size="md" disabled={ creating } onClick={ () => submitInvoice( false ) }>Save invoice for review</Button>
+                  <div className="pf-collect-actions">
+                    <Button variant="primary" size="md" loading={ creating } disabled={ creating } onClick={ () => submitInvoice( true ) }>Create and send payment request</Button>
+                    <Button variant="secondary" size="md" disabled={ creating } onClick={ () => submitInvoice( false ) }>Save invoice for review</Button>
+                  </div>
+                  </div>
+
+                  <aside className="pf-live-preview" aria-live="polite">
+                    <div className="pf-live-preview-head">
+                      <div>
+                        <div className="pf-composer-kicker">Live preview</div>
+                        <h4>Server quote</h4>
+                      </div>
+                      <span className="pf-authority-badge">{ previewLoading ? 'Updating…' : 'Invoice engine' }</span>
+                    </div>
+                    { previewQuote ? (
+                      <>
+                        <div className="pf-preview-customer">
+                          <strong>{ selCustomer.name || 'Customer' }</strong>
+                          <span>{ formatAddress( addressFieldsFromContact( selCustomer ) ) }</span>
+                        </div>
+                        <div className="pf-preview-lines">
+                          <div><span>Items Subtotal</span><strong>{ fmtMoney( previewQuote.subtotal ) }</strong></div>
+                          { previewQuote.discount > 0 && <div><span>Delight</span><strong>−{ fmtMoney( previewQuote.discount ) }</strong></div> }
+                          { previewQuote.shipping > 0 && <div><span>Express</span><strong>{ fmtMoney( previewQuote.shipping ) }</strong></div> }
+                          { previewQuote.convenienceFeeNet > 0 && <div><span>Convenience Fee</span><strong>{ fmtMoney( previewQuote.convenienceFeeNet ) }</strong></div> }
+                          <div><span>{ config.gstin }</span><strong>{ fmtMoney( previewQuote.totalGst ) }</strong></div>
+                        </div>
+                        <div className="pf-preview-total"><span>Amount payable</span><strong>{ fmtMoney( previewQuote.total ) }</strong></div>
+                        <p className="pf-preview-note">This is a non-issuing server quote. The final receipt uses the same invoice engine after issuance; no invoice number is consumed here.</p>
+                      </>
+                    ) : (
+                      <div className="pf-preview-empty">
+                        { previewLoading ? 'Calculating with the invoice engine…' : 'Add a priced item and a complete delivery address to see the authoritative quote.' }
+                      </div>
+                    ) }
+                  </aside>
                 </div>
               ) }
             </div>
