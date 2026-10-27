@@ -6,6 +6,7 @@ import VoiceSearchMic from './VoiceSearchMic';
 import { SUBSCRIBE_CTA_HREF } from '../content/subscribe';
 import { REVIEW_ENTRY_URL } from '../lib/reviewEntry';
 import { PLAY_STORE } from '../config/analytics';
+import type { MaterialSymbol } from '../config/materialSymbols';
 
 /**
  * No props.
@@ -282,10 +283,12 @@ const SECTION_ICON_PATHS: Record<string, string> = {
   Contact: 'M3 6h18v12H3Zm0 1 9 6 9-6',
   'Legal Stuff': 'M12 3 19 6v5c0 4.7-2.8 8.2-7 10-4.2-1.8-7-5.3-7-10V6Z',
 };
-const NAV_MATERIAL_SYMBOLS: Record<string, string> = {
+// Typed as MaterialSymbol so `tsc` refuses a ligature the subset font in config/materialSymbols.ts
+// does not ship; an unlisted name would render as its literal text instead of an icon.
+const NAV_MATERIAL_SYMBOLS: Partial<Record<string, MaterialSymbol>> = {
   Gemini: 'diamond',
 };
-const SECTION_MATERIAL_SYMBOLS: Record<string, string> = {
+const SECTION_MATERIAL_SYMBOLS: Partial<Record<string, MaterialSymbol>> = {
   'With AI': 'neurology',
 };
 

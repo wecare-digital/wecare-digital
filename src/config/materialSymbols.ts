@@ -5,7 +5,7 @@
  * every glyph, every axis. Measured 2026-10-27 with a mobile Chrome user agent:
  *
  *   full family request              3,124,872 bytes of woff2
- *   the same axes + icon_names below    15,788 bytes
+ *   the same axes + icon_names below    15,788 bytes (17 icons; 20,692 with the 19 listed now)
  *
  * The browser only downloads an icon font once some element on the page renders text in it, and
  * PublicShare does that on every public route. So every first visit to every public page paid
@@ -28,6 +28,7 @@ export const MATERIAL_SYMBOLS = [
   'chevron_right',
   'close',
   'currency_rupee',
+  'diamond',
   'directions_bus',
   'directions_car',
   'flight',
@@ -35,6 +36,7 @@ export const MATERIAL_SYMBOLS = [
   'ios_share',
   'link',
   'local_activity',
+  'neurology',
   'notifications_active',
   'redeem',
   'share',
