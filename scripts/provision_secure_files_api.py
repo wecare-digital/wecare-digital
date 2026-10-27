@@ -359,7 +359,6 @@ def environment() -> dict:
         # link TTL is configured here. `wd_file_delivery` is not on WABA1 (readback 2026-10-25).
         # The `live` alias, never $LATEST's unpublished code.
         "WA_SENDER_FUNCTION": f"{WA_SENDER}:live",
-        "SECURE_FILE_PRICE_PAISE": "4900",
         # Web redeem: a browser follows it instantly. The only presigned link issued.
         "DOWNLOAD_URL_TTL_SECONDS": "60",
         # OTP_PROBE_* deliberately absent. The enumeration budget is enforced in
