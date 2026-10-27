@@ -14,6 +14,8 @@ import SEO from '../../../components/SEO';
 import Button from '../../../components/ui/Button';
 import { useToastContext } from '../../../contexts/ToastContext';
 import Select, { type SelectOption } from '../../../components/ui/Select';
+// Configures Amplify before this module's first Auth call; see lib/amplifyConfig.ts.
+import '../../../lib/amplifyConfig';
 import { fetchAuthSession } from 'aws-amplify/auth';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }

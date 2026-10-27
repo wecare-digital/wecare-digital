@@ -63,6 +63,8 @@
  * could win.
  */
 import React, { useCallback, useEffect, useState } from 'react';
+// Configures Amplify before this module's first Auth call; see lib/amplifyConfig.ts.
+import '../../lib/amplifyConfig';
 import {
   setUpTOTP,
   verifyTOTPSetup,

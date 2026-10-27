@@ -15,6 +15,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { useToastContext } from '../contexts/ToastContext';
 import { API_BASE } from '../config/constants';
+// Configures Amplify before this module's first Auth call; see lib/amplifyConfig.ts.
+import '../lib/amplifyConfig';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { randomToken } from '../lib/randomToken';
 import { scrollToEnd } from '../lib/scroll-to-end';

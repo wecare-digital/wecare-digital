@@ -7,6 +7,8 @@
  */
 
 import { API_BASE, RETRY_CONFIG, DEFAULT_GSTIN } from '../config/constants';
+// Configures Amplify before this module's first Auth call; see lib/amplifyConfig.ts.
+import '../lib/amplifyConfig';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { validateWaMediaSize } from '../lib/wa-media';
 

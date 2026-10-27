@@ -6,6 +6,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import * as api from '../../../api/client';
 import { API_BASE } from '../../../config/constants';
+// Configures Amplify before this module's first Auth call; see lib/amplifyConfig.ts.
+import '../../../lib/amplifyConfig';
 import { fetchAuthSession } from 'aws-amplify/auth';
 
 // ─── Types ──────────────────────────────────────────────────────────

@@ -10,9 +10,9 @@ import Script from 'next/script';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
-import { Amplify } from 'aws-amplify';
-// I18n lives in aws-amplify/utils in v6, not on the root export.
-import { I18n } from 'aws-amplify/utils';
+/* NO aws-amplify IMPORT IN THIS FILE (2026-10-27). Amplify.configure and the MFA vocabulary live in
+   lib/amplifyConfig.ts, imported for its side effect by AuthShell, the API client and every direct
+   Auth caller - see that file. Importing aws-amplify here is what put it on every public page. */
 /* THE AUTHENTICATED SHELL IS LAZY, AND @aws-amplify/ui-react IS NO LONGER IMPORTED HERE.
    `Authenticator`, `ThemeProvider`, `Theme` and `useAuthenticator` used to be imported at
    this line, which put the library's 450 kB client chunk in the shared bundle and therefore
@@ -52,10 +52,16 @@ import { I18n } from 'aws-amplify/utils';
    src/test/PublicBundleWeight.test.ts now fails the change.
    The perf win is untouched: the public branch still never renders this module, so no public
    page downloads the 450 kB chunk. `ssr: false` splits it at least as aggressively.
-   `aws-amplify` itself (Amplify.configure, I18n, fetchAuthSession) stays a static import:
-   the configuration must be in place before any route runs, `src/pages/get.tsx` is a public
-   route that calls the API client, and the auth core is a fraction of the UI library's size. */
+   `aws-amplify` itself used to stay a static import here, on the reasoning that the configuration
+   must be in place before any route runs and that /get calls the API client. Both are still
+   true and neither needs _app: the API client and AuthShell import lib/amplifyConfig.ts
+   themselves, so whichever route needs Amplify configures it first, and /get does so through
+   the client it already imports. */
 const AuthShell = dynamic( () => import( '../components/AuthShell' ), { ssr: false } );
+/* FloatingAgent is authenticated-only (it calls fetchAuthSession) and renders inside AuthShell,
+   which is already client-only, so `ssr: false` changes nothing it renders. Statically imported,
+   it kept aws-amplify/auth in the shared bundle of every public page. */
+const FloatingAgent = dynamic( () => import( '../components/FloatingAgent' ), { ssr: false } );
 /* `@aws-amplify/ui-react/styles.css` WAS IMPORTED HERE AND IS NOT ANY MORE.
    A global CSS import in the pages router is unconditional - it joins the `data-n-g` bundle
    on every route - and the built file is 310 kB minified, which made it the largest single
@@ -83,7 +89,6 @@ import '../styles/workspace.css';
    including Layout.css's own @import of tokens.css and workspace.css - or a per-page select rule
    that ties it on specificity would win on source order. Nothing goes below this line. */
 import '../styles/form-controls.css';
-import FloatingAgent from '../components/FloatingAgent';
 // Was LanguageBar. Renamed because it no longer only chooses a language: it is the single
 // floating widget holding BOTH the WhatsApp contact button and the translate control. The
 // external wecare-wa-widget.js that used to inject the WhatsApp button is retired with it.
@@ -95,82 +100,26 @@ import PublicShare from '../components/PublicShare';
 import PublicPolicyDetails from '../components/public/PublicPolicyDetails';
 import { ToastProvider } from '../contexts/ToastContext';
 import { ConfirmProvider } from '../contexts/ConfirmContext';
-import { initCapacitor, isNative } from '../lib/capacitor';
-import { registerPushToken } from '../lib/pushRegistration';
 import { VERIFICATION } from '../config/analytics';
 import { ORGANIZATION, WEBSITE, ld } from '../lib/schema';
 
-/**
- * Plain-English labels for the MFA chooser.
- *
- * The user's preferred MFA factor is deliberately UNSET in Cognito, because the
- * API reference says: "If multiple options are activated and no preference is
- * set, a challenge to choose an MFA option will be returned during sign-in."
- * That challenge is what gives a choice of destination at sign-in instead of one
- * hardcoded channel - which matters here because the registered mobile is a
- * WhatsApp Business API number and SMS to it is the least dependable of the
- * three.
- *
- * Amplify renders it as a radio group (SelectMfaType), and its stock labels are
- * "Email Message", "Text Message" and "Authenticator App" - nouns that name a
- * technology rather than saying what is about to happen. These say what happens.
- *
- * They deliberately do NOT include the destination address or number. At this
- * point in the flow the password has been accepted, so it is not a secret from
- * the person typing - but it is rendered pre-authentication, and a masked hint
- * adds nothing a person choosing their own factor does not already know.
- *
- * Overridden through I18n rather than by replacing the component, because
- * getMfaTypeLabelByValue passes every label through translate(); swapping the
- * component would mean owning its form wiring and losing the state machine's
- * submit handling.
- */
-I18n.putVocabularies( {
-  en: {
-    'Select MFA Type': 'How should we send your code?',
-    'Email Message': 'Email me a code',
-    'Text Message': 'Text me a code (SMS)',
-    'Authenticator App': 'Use my authenticator app',
-  },
-} );
+/* The MFA-chooser vocabulary and Amplify.configure moved to lib/amplifyConfig.ts, unchanged. */
 
-// Configure Amplify — all secrets from env vars
-Amplify.configure( {
-  Auth: {
-    Cognito: {
-      userPoolId: process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID || '',
-      userPoolClientId: process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID || '',
-      identityPoolId: process.env.NEXT_PUBLIC_COGNITO_IDENTITY_POOL_ID || '',
-      loginWith: {
-        oauth: {
-          domain: process.env.NEXT_PUBLIC_COGNITO_OAUTH_DOMAIN || '',
-          scopes: [ 'openid', 'email', 'profile' ],
-          // The apex. This is an OAuth redirect URI, which Cognito validates against a
-          // registered allowlist - an unregistered host fails with redirect_mismatch and
-          // sign-in stops working - so this fallback must name a REGISTERED URI.
-          // https://wecare.digital/ is registered on the stack-wecare-digital-web client
-          // as both a callback and a logout URL, verified against the live pool.
-          //
-          // This used to say retired legacy frontend host, on the reasoning that the apex was
-          // only the public marketing host while the app was served from the subdomain.
-          // That distinction no longer exists: Amplify maps the apex to this same branch
-          // and 301s retired legacy frontend host to it, so the subdomain served nothing of its
-          // own and has been retired. A redirecting host is a bad OAuth redirect URI in
-          // any case - it works only as long as the 301 preserves the ?code=.
-          redirectSignIn: [
-            process.env.NEXT_PUBLIC_APP_URL || 'https://wecare.digital/',
-          ],
-          redirectSignOut: [
-            process.env.NEXT_PUBLIC_APP_URL || 'https://wecare.digital/',
-          ],
-          responseType: 'code' as const
-        },
-        username: true,
-        email: true
-      }
-    }
-  }
-} );
+/**
+ * The Capacitor native shells, detected the way @capacitor/core detects them (androidBridge on
+ * Android, the webkit `bridge` message handler on iOS), WITHOUT importing @capacitor/core. That
+ * import, and the seven plugins lib/capacitor.ts pulls in with it, used to load on every web page
+ * view only for initCapacitor to return immediately; now they load only inside a native shell.
+ */
+type NativeBridgeWindow = Window & {
+  androidBridge?: unknown;
+  webkit?: { messageHandlers?: { bridge?: unknown } };
+  Capacitor?: { isNativePlatform?: () => boolean };
+};
+const isNativeShell = (): boolean => {
+  const w = window as NativeBridgeWindow;
+  return Boolean( w.androidBridge || w.webkit?.messageHandlers?.bridge || w.Capacitor?.isNativePlatform?.() );
+};
 
 /**
  * BRAND ASSETS, all from s3://wecare-digital-get/o/stream/media/m/ — served as
@@ -789,17 +738,28 @@ export default function App ( { Component, pageProps }: AppProps ) {
         .then( ( keys ) => Promise.all( keys.map( ( k ) => caches.delete( k ) ) ) )
         .catch( () => { } );
     }
-    // Init Capacitor native plugins. onPushToken arms push registration (OS permission prompt
-    // + SNS endpoint via POST /push/register); it is a no-op on the web, where initCapacitor
-    // returns early.
-    initCapacitor( {
-      push: ( p ) => router.push( p ),
-      back: () => router.back(),
-      onPushToken: ( token, platform ) => { void registerPushToken( token, platform ); },
-      // Public app shell is white with dark status icons; internal Stack CRM keeps its
-      // established green Android status bar through initCapacitor's default.
-      statusBarBackground: isPublic ? '#ffffff' : '#1a3a2a',
-    } );
+    // Init Capacitor native plugins - inside a native shell only, and loaded on demand there. On
+    // the web nothing below runs and none of the plugin code is downloaded (see isNativeShell).
+    // onPushToken arms push registration (SNS endpoint via POST /push/register); the API client it
+    // needs is imported only when a token actually arrives, so it never joins the shared bundle.
+    if ( !isNativeShell() ) return;
+    const statusBarBackground = isPublic ? '#ffffff' : '#1a3a2a';
+    void ( async () => {
+      const { initCapacitor } = await import( '../lib/capacitor' );
+      await initCapacitor( {
+        push: ( p ) => router.push( p ),
+        back: () => router.back(),
+        onPushToken: ( token, platform ) => {
+          void ( async () => {
+            const { registerPushToken } = await import( '../lib/pushRegistration' );
+            await registerPushToken( token, platform );
+          } )();
+        },
+        // Public app shell is white with dark status icons; internal Stack CRM keeps its
+        // established green Android status bar through initCapacitor's default.
+        statusBarBackground,
+      } );
+    } )();
   }, [] );
 
   // NO client-mount gate here, deliberately.

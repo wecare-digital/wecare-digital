@@ -6,6 +6,8 @@
  * Partner                → onboarded business customer (limited: own account only).
  */
 import { useEffect, useState } from 'react';
+// Configures Amplify before this module's first Auth call; see lib/amplifyConfig.ts.
+import '../lib/amplifyConfig';
 import { fetchAuthSession } from 'aws-amplify/auth';
 
 export type AppRole = 'Admin' | 'Operator' | 'Viewer' | 'Partner' | 'unknown';

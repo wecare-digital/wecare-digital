@@ -43,6 +43,8 @@
  */
 
 import type React from 'react';
+// Configures Amplify before this module's first Auth call; see lib/amplifyConfig.ts.
+import '../lib/amplifyConfig';
 import { Authenticator, ThemeProvider, type Theme, useAuthenticator } from '@aws-amplify/ui-react';
 import AuthBrandHeader from './AuthBrand';
 import Header from './Header';
