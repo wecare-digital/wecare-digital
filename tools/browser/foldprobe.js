@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * foldprobe — does the primary submit control sit ABOVE the fold on the two customer sign-in
- * surfaces, and do they agree with each other?
+ * surface?
  *
  * WHY THIS EXISTS. /get was given the home page's RotatingHero top section on owner instruction.
  * The hero costs real vertical space — .rh-shell{padding-top:108px} plus
@@ -11,7 +11,6 @@
  *
  * ACCEPTANCE, both of which must hold at every viewport:
  *   1. the submit control's bottom is <= innerHeight - 40   (it is on the first screen, with air)
- *   2. it is within 80px of /account/sign-in's submit bottom (the two halves of one journey agree)
  *
  * Read-only. Serves the existing static export; mutates nothing.
  */
@@ -29,10 +28,9 @@ const VIEWPORTS = [
   { name: '1280x800', width: 1280, height: 800 },
 ];
 
-/** The two surfaces, and how to find the primary submit control on each. */
+/** Static-export surface covered by this probe. Customer sign-in is backend-routed at /auth. */
 const SURFACES = [
   { route: '/get/', label: 'get' },
-  { route: '/account/sign-in/', label: 'sign-in' },
 ];
 
 const TYPES = {
@@ -91,7 +89,7 @@ function serve () {
     {
       const page = await browser.newPage( { viewport: { width: vp.width, height: vp.height } } );
       await page.goto( base + surface.route, { waitUntil: 'networkidle' } );
-      // The primary action on both surfaces is PillButton. Measure its bottom edge.
+      // The primary action is PillButton. Measure its bottom edge.
       const data = await page.evaluate( () => {
         const pill = document.querySelector( '.pill' );
         const field = document.querySelector( '.pf-num' ) || document.querySelector( 'input' );
