@@ -44,9 +44,13 @@ const GTM_ID = process.env.NEXT_PUBLIC_GTM_ID ?? 'GTM-TXZ8JT78';
 const GTM_GATEWAY_PATH = ( process.env.NEXT_PUBLIC_GTM_GATEWAY_PATH ?? '' ).replace( /\/+$/, '' );
 
 /**
- * Google Consent Mode v2 defaults. Denied-by-default means GA4 and Ads send
- * only cookieless pings until consent is granted, so analytics never loads
- * ahead of a consent decision. Grant it by calling, from your consent UI:
+ * Google Consent Mode v2 defaults, denied for every signal.
+ *
+ * MEASURED 2026-10-27: while all four signals are denied, the container's Google
+ * tag (AW-18396505964, which also carries GA4 G-6GW8JXKKT7) sends NOTHING, not
+ * even cookieless pings. Granting any one signal makes it send. The site has no
+ * consent UI, so today GA4 and Google Ads receive no data from any visitor.
+ * Grant it by calling, from your consent UI:
  *
  *   gtag('consent', 'update', { analytics_storage: 'granted', ... })
  *

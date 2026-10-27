@@ -200,10 +200,21 @@ const PROBE = () => {
         return `${cls}:${Math.round( x.b.height )}px`;
       } )
     : [];
+  // A heading parked off-screen inside a horizontal rail the reader can scroll (a carousel,
+  // /anew/'s .pbp-track) is reachable, not clipped. Exempt it only when that rail itself sits
+  // inside the viewport: a rail wider than the page still fails the `overflow` check.
+  const inScrollableRail = el => {
+    for ( let a = el.parentElement; a && a !== document.body; a = a.parentElement ) {
+      if ( !/(auto|scroll)/.test( getComputedStyle( a ).overflowX ) || a.scrollWidth <= a.clientWidth + 1 ) continue;
+      const ab = r( a );
+      return ab.left >= -1 && ab.right <= vw + 1;
+    }
+    return false;
+  };
   const headingOutside = Array.from( document.querySelectorAll( 'h1,h2,h3' ) )
     .filter( el => window.__visible( el ) )
     .map( el => ( { el, b: r( el ) } ) )
-    .filter( x => x.b.left < -1 || x.b.right > vw + 1 )
+    .filter( x => ( x.b.left < -1 || x.b.right > vw + 1 ) && !inScrollableRail( x.el ) )
     .map( x => `${x.el.tagName.toLowerCase()}:${Math.round( x.b.left )}..${Math.round( x.b.right )}` );
   const buttonLikeLink = el => {
     if ( el.tagName !== 'A' ) return true;
