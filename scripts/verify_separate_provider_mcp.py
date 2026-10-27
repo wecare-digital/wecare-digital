@@ -80,6 +80,25 @@ def main() -> None:
             status = gateway.run_provider_tool('fixture-owner', provider, 'connection_status', {})
             assert [item['provider'] for item in status['connections']] == [provider]
             row.assert_called_once_with('connection:fixture-owner:' + provider)
+    template = json.loads((ROOT / 'amplify/infra/workspace-mcp.json').read_text())
+    assert template['Parameters']['ChatRedirectUri']['MaxLength'] <= 185
+    assert template['Resources']['Function']['Properties']['ReservedConcurrentExecutions'] >= 5
+    for resource in ('PlivoAuthorizeRoute', 'PlivoAuthorizePermission', 'PlivoTokenRoute', 'PlivoTokenPermission',
+            'SinchIndiaAuthorizeRoute', 'SinchIndiaAuthorizePermission', 'SinchIndiaTokenRoute', 'SinchIndiaTokenPermission'):
+        assert resource not in template['Resources']
+    provider_request = {'requestContext': {'apiId': endpoints['plivo']['apiId'],
+        'routeKey': 'ANY /mcp', 'http': {'method': 'POST', 'path': '/mcp'}},
+        'headers': {'origin': 'https://chatgpt.com'},
+        'body': json.dumps({'jsonrpc': '2.0', 'id': 2, 'method': 'tools/call',
+            'params': {'name': 'connection_status', 'arguments': {}}})}
+    with patch.dict(os.environ, env), patch.object(gateway, 'client', return_value=Cognito()), \
+            patch.object(gateway, 'row', return_value={}), patch.object(gateway.LOGGER, 'info') as audit:
+        provider_request['headers']['authorization'] = 'Bearer ' + token(
+            client_id='public-client', aud=endpoints['plivo']['base'] + '/mcp')
+        response = gateway.handler(provider_request, None)
+        assert response['statusCode'] == 200
+        audit_payload = json.loads(audit.call_args.args[0])
+        assert audit_payload['tool'] == 'connection_status' and audit_payload['outcome'] == 'completed'
     print('PASS: four provider routes, anonymous denial, fixed tool schemas and cross-provider call rejection')
 
 

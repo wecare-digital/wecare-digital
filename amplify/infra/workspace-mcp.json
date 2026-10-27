@@ -21,7 +21,7 @@
     "ChatRedirectUri": {
       "Type": "String",
       "Default": "",
-      "MaxLength": 256,
+      "MaxLength": 185,
       "AllowedPattern": "^$|^https://chatgpt\\.com/connector/oauth/[A-Za-z0-9_-]{1,256}$",
       "Description": "Exact callback from ChatGPT setup; empty disables the dedicated Chat endpoint."
     },
@@ -1533,84 +1533,6 @@
         }
       }
     },
-    "PlivoAuthorizeRoute": {
-      "Type": "AWS::ApiGatewayV2::Route",
-      "Condition": "SeparateProvidersProvisioned",
-      "Properties": {
-        "ApiId": {
-          "Ref": "PlivoApi"
-        },
-        "RouteKey": "GET /authorize",
-        "AuthorizationType": "NONE",
-        "Target": {
-          "Fn::Join": [
-            "",
-            [
-              "integrations/",
-              {
-                "Ref": "PlivoIntegration"
-              }
-            ]
-          ]
-        }
-      }
-    },
-    "PlivoAuthorizePermission": {
-      "Type": "AWS::Lambda::Permission",
-      "Condition": "SeparateProvidersProvisioned",
-      "Properties": {
-        "Action": "lambda:InvokeFunction",
-        "FunctionName": {
-          "Ref": "Alias"
-        },
-        "Principal": "apigateway.amazonaws.com",
-        "SourceAccount": {
-          "Ref": "AWS::AccountId"
-        },
-        "SourceArn": {
-          "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PlivoApi}/$default/GET/authorize"
-        }
-      }
-    },
-    "PlivoTokenRoute": {
-      "Type": "AWS::ApiGatewayV2::Route",
-      "Condition": "SeparateProvidersProvisioned",
-      "Properties": {
-        "ApiId": {
-          "Ref": "PlivoApi"
-        },
-        "RouteKey": "POST /token",
-        "AuthorizationType": "NONE",
-        "Target": {
-          "Fn::Join": [
-            "",
-            [
-              "integrations/",
-              {
-                "Ref": "PlivoIntegration"
-              }
-            ]
-          ]
-        }
-      }
-    },
-    "PlivoTokenPermission": {
-      "Type": "AWS::Lambda::Permission",
-      "Condition": "SeparateProvidersProvisioned",
-      "Properties": {
-        "Action": "lambda:InvokeFunction",
-        "FunctionName": {
-          "Ref": "Alias"
-        },
-        "Principal": "apigateway.amazonaws.com",
-        "SourceAccount": {
-          "Ref": "AWS::AccountId"
-        },
-        "SourceArn": {
-          "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PlivoApi}/$default/POST/token"
-        }
-      }
-    },
     "PlivoMcpRoute": {
       "Type": "AWS::ApiGatewayV2::Route",
       "Condition": "SeparateProvidersProvisioned",
@@ -1763,84 +1685,6 @@
         },
         "SourceArn": {
           "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SinchIndiaApi}/$default/GET/.well-known/oauth-authorization-server"
-        }
-      }
-    },
-    "SinchIndiaAuthorizeRoute": {
-      "Type": "AWS::ApiGatewayV2::Route",
-      "Condition": "SeparateProvidersProvisioned",
-      "Properties": {
-        "ApiId": {
-          "Ref": "SinchIndiaApi"
-        },
-        "RouteKey": "GET /authorize",
-        "AuthorizationType": "NONE",
-        "Target": {
-          "Fn::Join": [
-            "",
-            [
-              "integrations/",
-              {
-                "Ref": "SinchIndiaIntegration"
-              }
-            ]
-          ]
-        }
-      }
-    },
-    "SinchIndiaAuthorizePermission": {
-      "Type": "AWS::Lambda::Permission",
-      "Condition": "SeparateProvidersProvisioned",
-      "Properties": {
-        "Action": "lambda:InvokeFunction",
-        "FunctionName": {
-          "Ref": "Alias"
-        },
-        "Principal": "apigateway.amazonaws.com",
-        "SourceAccount": {
-          "Ref": "AWS::AccountId"
-        },
-        "SourceArn": {
-          "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SinchIndiaApi}/$default/GET/authorize"
-        }
-      }
-    },
-    "SinchIndiaTokenRoute": {
-      "Type": "AWS::ApiGatewayV2::Route",
-      "Condition": "SeparateProvidersProvisioned",
-      "Properties": {
-        "ApiId": {
-          "Ref": "SinchIndiaApi"
-        },
-        "RouteKey": "POST /token",
-        "AuthorizationType": "NONE",
-        "Target": {
-          "Fn::Join": [
-            "",
-            [
-              "integrations/",
-              {
-                "Ref": "SinchIndiaIntegration"
-              }
-            ]
-          ]
-        }
-      }
-    },
-    "SinchIndiaTokenPermission": {
-      "Type": "AWS::Lambda::Permission",
-      "Condition": "SeparateProvidersProvisioned",
-      "Properties": {
-        "Action": "lambda:InvokeFunction",
-        "FunctionName": {
-          "Ref": "Alias"
-        },
-        "Principal": "apigateway.amazonaws.com",
-        "SourceAccount": {
-          "Ref": "AWS::AccountId"
-        },
-        "SourceArn": {
-          "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${SinchIndiaApi}/$default/POST/token"
         }
       }
     },
