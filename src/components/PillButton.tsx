@@ -91,8 +91,8 @@ export interface PillButtonProps {
    * what is read aloud and what is on screen are now the same string instead of two.
    * It is deliberately NOT rendered as visually-hidden text: this repo has explicitly rejected
    * hidden text for naming elsewhere (see the note in PhoneField about the country select), and
-   * the surrounding page already supplies the context the label used to carry - /account/sign-in
-   * is headed "Sign in to check out", and /get is headed "Collect your files".
+   * the surrounding page already supplies the context the label used to carry; customer sign-in
+   * now lives only at the backend-routed /auth endpoint, while /get is headed "Collect your files".
    * Optional so new call sites need not pass it. There is NO name-override prop to reach for
    * either: `ariaLabel` was removed upstream so a caller cannot reopen the 2.5.3 failure by
    * setting a name that disagrees with the screen. If the visible action does not read as the
@@ -142,8 +142,7 @@ const PillButton: React.FC<PillButtonProps> = ( {
    * stamped correctly, which is why the pill had its shape, its 2px edge and its dark fill but
    * NEITHER segment had its own background or colour: it rendered as one dark slab with the label
    * and the action jammed together, "Sign inSend code", with white-on-dark text falling back to
-   * near-black. Measured in the built export AND on the live site at /account/sign-in/ before this
-   * fix.
+   * near-black. Measured in the retired static customer sign-in export before this fix.
    *
    * THIS REPO ALREADY KNEW THIS FAILURE MODE. RotatingHero's docblock records it costing "a full
    * debugging round on the mega menu, where a renderLink() helper left the rules behind and every
