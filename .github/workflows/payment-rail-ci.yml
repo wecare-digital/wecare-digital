@@ -2,50 +2,6 @@ name: Payment rail CI
 
 on:
   pull_request:
-    paths:
-      - "amplify/functions/payments/**"
-      - "amplify/functions/messaging/outbound-whatsapp/**"
-      - "amplify/functions/messaging/whatsapp-business-api/**"
-      - "amplify/functions/shared/lambda_utils/ecommerce/**"
-      - "amplify/functions/shared/lambda_utils/template_media.py"
-      - "amplify/functions/shared/lambda_utils/whatsapp_templates.py"
-      - "amplify/functions/shared/lambda_utils/direct_send.py"
-      - "config/lambda-env-manifest.json"
-      - "scripts/env_manifest.py"
-      - "scripts/provision_payment_rail_alarms.py"
-      - "scripts/provision_whatsapp_delivery_reconciliation.py"
-      - "scripts/smoke_whatsapp_backend_live.py"
-      - "scripts/provision_order_status_template.py"
-      - "tests/test_env_manifest_aliases.py"
-      - "tests/test_direct_send_dual_account_regression.py"
-      - "tests/test_whatsapp_marketing_policy.py"
-      - "tests/test_commerce_audit_hardening.py"
-      - "tests/test_invoice_customer_receipt_v8.py"
-      - "tests/test_architecture_closeout.py"
-      - "tests/test_order_status_single_producer.py"
-      - "tests/test_staff_api_authorization.py"
-      - "amplify/functions/ecommerce/checkout/**"
-      - "amplify/functions/core/service-api/**"
-      - "amplify/functions/core/secure-files/**"
-      - "amplify/functions/ai/ai-generate-response/**"
-      - "src/components/workspace/pay/**"
-      - "src/components/workspace/commerce/Orders.tsx"
-      - "src/lib/orderFulfilment.ts"
-      - "src/api/client.ts"
-      - "amplify/functions/ecommerce/service-requests/**"
-      - "src/components/get/**"
-      - "src/components/ServiceBuyBox.tsx"
-      - "src/pages/vault.tsx"
-      - "src/lib/serviceRequests.ts"
-      - "src/lib/cart.ts"
-      - "src/lib/serviceEntry.ts"
-      - "amplify/functions/ai/customer-commerce-mcp/**"
-      - "tools/customer-commerce/**"
-      - "scripts/verify_whatsapp_catalog_payment_rail.py"
-      - "scripts/audit_whatsapp_message_history.py"
-      - "scripts/commerce_release_audit.py"
-      - "docs/operations/whatsapp-payment-collection-stack.md"
-      - ".github/workflows/payment-rail-ci.yml"
   push:
     branches:
       - "wecare.digital"
@@ -99,7 +55,42 @@ permissions:
   contents: read
 
 jobs:
+  # Decides whether a PR touches the payment rail. pull_request has no paths filter on purpose:
+  # a path-filtered workflow never reports its checks on other PRs, and the wecare.digital ruleset
+  # requires this job, payment-rail, workspace-typecheck and package-payment-lambdas on every PR
+  # (#1633). Jobs skipped by `if:` report success, so unrelated PRs pass quickly. This job is itself
+  # required, so a detection failure blocks the merge rather than skipping the rail, and a diff or
+  # pattern error runs the full rail. PATTERN is the former pull_request paths list (the push list
+  # below plus two PR-only files); keep the two in step.
+  payment-rail-changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      payment: ${{ steps.detect.outputs.payment }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - id: detect
+        env:
+          EVENT: ${{ github.event_name }}
+          PATTERN: '^amplify/functions/payments/|^amplify/functions/messaging/outbound-whatsapp/|^amplify/functions/messaging/whatsapp-business-api/|^amplify/functions/shared/lambda_utils/ecommerce/|^amplify/functions/shared/lambda_utils/template_media\.py$|^amplify/functions/shared/lambda_utils/whatsapp_templates\.py$|^amplify/functions/shared/lambda_utils/direct_send\.py$|^config/lambda-env-manifest\.json$|^scripts/env_manifest\.py$|^scripts/provision_payment_rail_alarms\.py$|^scripts/provision_whatsapp_delivery_reconciliation\.py$|^scripts/smoke_whatsapp_backend_live\.py$|^scripts/provision_order_status_template\.py$|^tests/test_env_manifest_aliases\.py$|^tests/test_direct_send_dual_account_regression\.py$|^tests/test_whatsapp_marketing_policy\.py$|^tests/test_commerce_audit_hardening\.py$|^tests/test_invoice_customer_receipt_v8\.py$|^tests/test_architecture_closeout\.py$|^tests/test_order_status_single_producer\.py$|^tests/test_staff_api_authorization\.py$|^amplify/functions/ecommerce/checkout/|^amplify/functions/core/service-api/|^amplify/functions/core/secure-files/|^amplify/functions/ai/ai-generate-response/|^src/components/workspace/pay/|^src/components/workspace/commerce/Orders\.tsx$|^src/lib/orderFulfilment\.ts$|^src/api/client\.ts$|^amplify/functions/ecommerce/service-requests/|^src/components/get/|^src/components/ServiceBuyBox\.tsx$|^src/pages/vault\.tsx$|^src/lib/serviceRequests\.ts$|^src/lib/cart\.ts$|^src/lib/serviceEntry\.ts$|^amplify/functions/ai/customer-commerce-mcp/|^tools/customer-commerce/|^scripts/verify_whatsapp_catalog_payment_rail\.py$|^scripts/audit_whatsapp_message_history\.py$|^scripts/commerce_release_audit\.py$|^docs/operations/whatsapp-payment-collection-stack\.md$|^\.github/workflows/payment-rail-ci\.yml$'
+        run: |
+          payment=true
+          if [ "$EVENT" = "pull_request" ]; then
+            # The PR merge ref: its first parent is the base tip, so this is what the PR changes.
+            if files="$(git diff --name-only HEAD^1 HEAD)"; then
+              set +e; printf '%s\n' "$files" | grep -qE "$PATTERN"; rc=$?; set -e
+              if [ "$rc" -eq 1 ]; then payment=false; elif [ "$rc" -ne 0 ]; then echo "pattern error: running the full rail"; fi
+            else
+              echo "diff failed: running the full rail"
+            fi
+          fi
+          echo "payment=$payment" >> "$GITHUB_OUTPUT"
+          echo "payment rail affected: $payment"
   payment-rail:
+    needs: payment-rail-changes
+    if: needs.payment-rail-changes.outputs.payment == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -172,6 +163,8 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_dropdocs_reupload_regression.py'
 
   workspace-typecheck:
+    needs: payment-rail-changes
+    if: needs.payment-rail-changes.outputs.payment == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
