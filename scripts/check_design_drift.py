@@ -177,7 +177,6 @@ PUBLIC_TOKEN_CONSUMERS = {
     SRC / "components/get/GetPage.tsx": ("--public-section-size", "--public-body-size"),
     SRC / "components/orders/OrdersPage.tsx": ("--public-section-size", "--public-body-size"),
     SRC / "components/cart/CartPage.tsx": ("--public-body-size", "--public-card-size", "--public-brand-green"),
-    SRC / "components/account/SignInPage.tsx": ("--public-body-size", "--public-cta-height", "--public-hairline"),
     SRC / "pages/checkout/status.tsx": ("--public-card-size", "--public-cta-height", "--public-muted"),
     SRC / "pages/checkout/success.tsx": ("--public-card-size", "--public-cta-height", "--public-muted"),
     SRC / "components/CheckoutAction.tsx": (

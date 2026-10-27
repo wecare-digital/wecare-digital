@@ -147,7 +147,7 @@ const ServiceBuyBox: React.FC<ServiceBuyBoxProps> = ( { service } ) => {
     setError( null );
 
     // Signed out: hand to the one WhatsApp login, returning here. `goToServiceAction` stashes the
-    // pending action and routes to /account/sign-in?return=<this page>.
+    // pending action and routes to /auth?return=<this page>.
     if ( !signedIn ) {
       await goToServiceAction( router, {
         destination: service.path,
