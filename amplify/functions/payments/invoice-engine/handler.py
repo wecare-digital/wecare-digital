@@ -75,7 +75,7 @@ from lambda_utils.integrations import razorpay_refund
 # Map a contact carries (with a legacy flat-column fallback) rather than re-deriving the address
 # shape here — the same convergence `customer_orders.update_profile` and the WhatsApp Address
 # Message writer are on.
-from lambda_utils.ecommerce import contact_address, payment_address
+from lambda_utils.ecommerce import contact_address, payment_address, india_address
 # The PUBLIC customer id, and the validator that keeps a junk one off a tax invoice. Only
 # `is_customer_uuid` and `ATTRIBUTE` are used here: the engine NEVER mints one, the same rule
 # that stops a renderer minting an invoice number.
@@ -1204,6 +1204,12 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
             return _resp(400, {'error': f'Item {idx_v+1} amount cannot be negative'})
         if int(it_v.get('quantity', 1)) < 1:
             return _resp(400, {'error': f'Item {idx_v+1} quantity must be at least 1'})
+        hsn_sac = str(it_v.get('hsnSac') or '').strip()
+        if hsn_sac and (not hsn_sac.isdigit() or len(hsn_sac) not in (4, 6, 8)):
+            return _resp(400, {
+                'error': f'Item {idx_v+1} HSN/SAC must be blank or a 4, 6 or 8 digit code',
+                'errorCode': 'INVALID_HSN_SAC',
+            })
 
     # ── Tax-inclusive mode (opt-in): the figure given is ALREADY the total ──
     #
@@ -1531,6 +1537,7 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
             'convenienceFeeGst': _dec(convenience_fee_gst),
             'totalGst': _dec(tax + convenience_fee_gst),
             'sellerGstin': body.get('gstin', COMPANY['gstin']),
+            **_gst_place_of_supply(body.get('state') or body.get('shippingState')),
             'delightTaxTreatment': default_coupon.DELIGHT_TAX_TREATMENT,
         },
         'total': _dec(total),
@@ -1600,6 +1607,7 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
                 'quantity': item_quantity,
                 'gstRate': item_gst_rate,
                 'taxAmount': item_tax,
+                'hsnSac': str(item.get('hsnSac') or '').strip(),
                 'productId': item.get('productId', ''),
                 'isCharge': item.get('isCharge', False),
             })
@@ -6293,6 +6301,9 @@ def _normalize_invoice(item: Dict) -> Dict:
             'convenienceFeeGst': float((item.get('gstAccounting') or {}).get('convenienceFeeGst', item.get('convenienceFeeGst', 0))),
             'totalGst': float((item.get('gstAccounting') or {}).get('totalGst', item.get('tax', 0))),
             'sellerGstin': (item.get('gstAccounting') or {}).get('sellerGstin', item.get('gstin', '')),
+            'state': (item.get('gstAccounting') or {}).get('state', item.get('state', '')),
+            'gstStateCode': (item.get('gstAccounting') or {}).get('gstStateCode', ''),
+            'isoSubdivision': (item.get('gstAccounting') or {}).get('isoSubdivision', ''),
             'delightTaxTreatment': (item.get('gstAccounting') or {}).get('delightTaxTreatment', ''),
         },
         'total': float(item.get('total', 0)),
@@ -6316,6 +6327,7 @@ def _normalize_item(item: Dict) -> Dict:
         'quantity': int(item.get('quantity', 1)),
         'gstRate': float(item.get('gstRate', 0)),
         'taxAmount': float(item.get('taxAmount', 0)),
+        'hsnSac': item.get('hsnSac', ''),
         'productId': item.get('productId', ''),
         'isCharge': bool(item.get('isCharge', False)),
     }
@@ -6347,6 +6359,22 @@ def _normalize_asset(item: Dict) -> Dict:
         'version': int(item.get('version', 0)),
         'generatedAt': int(item.get('generatedAt', 0)),
     }
+
+
+def _gst_place_of_supply(state: Any) -> Dict[str, str]:
+    """Internal GST filing projection from the canonical India subdivision table.
+
+    This never guesses. A legacy/imported invoice with no resolvable state remains blank and the
+    filing/export layer can flag it for review instead of receiving a plausible wrong state code.
+    """
+    raw = str(state or '').strip()
+    if not raw:
+        return {'state': '', 'gstStateCode': '', 'isoSubdivision': ''}
+    try:
+        iso, gst_code = india_address.india_subdivision(raw)
+        return {'state': raw, 'gstStateCode': gst_code, 'isoSubdivision': iso}
+    except india_address.UnmappableAddress:
+        return {'state': raw, 'gstStateCode': '', 'isoSubdivision': ''}
 
 
 def _dec(value) -> Decimal:
