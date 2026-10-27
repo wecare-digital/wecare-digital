@@ -155,6 +155,20 @@ reconciles. Raising BatchSize to 100 with a 30-60 s window coalesces bursts; eac
 reconciles the whole catalog anyway, so no record is lost. Cost impact is negligible ($0.10/month);
 the value is fewer Meta Graph reads.
 
+### C10. CI builds against the production blog API (workstream decision)
+
+| | |
+|---|---|
+| Current state | The Public UI compliance workflow runs `npm run build` in two jobs per run; each build fetches ~1,430 blog URLs through the Amplify `/api` proxy |
+| Live evidence | Access logs: GitHub Actions runners made 67k-94k blog requests an hour in sampled hours (Amplify builds 7k-17k); build-time blog fetches were about half of sampled Amplify egress; a CI build failed on HTTP 429 |
+| Monthly cost | ~$10-13 across Amplify egress, API Gateway, Lambda and DynamoDB (ESTIMATE) |
+| Proposed state | Build once per run and share `out/` with the test jobs; cache the blog corpus in CI per hour; later, a paginated bulk endpoint so any build makes ~6 requests |
+| Expected saving | ~$5-10/month (ESTIMATE), plus no more 429 build failures |
+| Risk | Low for the workflow change; the corpus cache must never be used by the Amplify production build |
+| Rollback | Revert the workflow change |
+| Validation | Access logs show one corpus fetch per CI run; no 429 in build logs |
+| Owner approval | Workflow change: no AWS approval, but the harness and workflow are another workstream's active files, so agree it with them. Bulk endpoint: Lambda deploy |
+
 ### C9. Items reviewed and deliberately left alone
 
 | Resource | Why it stays |
@@ -175,4 +189,5 @@ the value is fewer Meta Graph reads.
 3. Path-filtered builds: OIDC role + `enableAutoBuild=false` (C2).
 4. Derivative image upload and `catalog-media` deploy (C4).
 5. Alarm consolidation (C5), secret merges (C6), ECR lifecycle (C7), ESM batching (C8).
+5a. CI build-once and corpus caching (C10), agreed with the harness workstream.
 6. Create an AWS Budget (none exists) so a credit lapse or a build storm is noticed.

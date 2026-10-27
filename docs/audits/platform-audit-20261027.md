@@ -42,6 +42,8 @@ P2 = meaningful reliability, UX or maintenance. P3 = cleanup.
 | 12 | P2 | Sinch RCS delivery webhook accepts unsigned `MESSAGE_DELIVERY` callbacks until a webhook secret exists | Code | Owner action (Sinch console) |
 | 13 | P3 | Structured-data and metadata defects (Organization `geo`, hard-coded `InStock`, latent FAQPage, sitemap had no noindex filter, contradictory `googlebot` meta, 46-character `/blog/` description) | Code, Local | Fixed on branch |
 | 14 | P3 | No AWS Budget exists in the account | Cloud-read | Owner decision |
+| 15 | P1 | The Public UI compliance workflow has not passed in its last 200 runs, and its builds load the production blog API: GitHub Actions runners made 67k-94k blog requests an hour in sampled hours, and some CI builds fail on HTTP 429 from that API | Cloud-read | Recommendation; the harness is another workstream's active work |
+| 16 | P2 | Bulk queue: visibility 2.5x the worker timeout (AWS guidance is at least 6x), maxReceiveCount 3 (guidance at least 5), and the worker swallows per-record errors, so its dead-letter queue can never receive a message | Cloud-read, Code | Owner decision (queue config + code together) |
 
 ## 1. Architecture map
 
@@ -293,9 +295,15 @@ alone retires nothing. 63 KEEP, 10 OPTIMIZE, 1 RETIRE CANDIDATE, 0 MERGE.
   `razorpay-webhook:2526`, `inbound-whatsapp:5225`, `checkout:292`, `meta-catalog-sync:537`,
   `invoice-engine` ×5. Tables are tiny today (largest 9.5 MB), so this is latency and future risk,
   not current cost.
-- **Secrets**: a TTL cache exists (`lambda_utils/secrets_access.py`, `JsonSecretCache`) but only the
-  Razorpay integrations use it; `razorpay-webhook`, `plivo-answer`, `workspace-mcp`,
-  `ai-generate-response`, `partner-onboarding` fetch per call.
+- **Secrets** (corrected 2026-10-27 after re-reading the code): `razorpay-webhook` and
+  `plivo-answer` do NOT fetch per call; both cache their signing secrets for the life of the
+  execution environment once a lookup succeeds. The trade-off is rotation: a rotated secret takes
+  effect only as warm environments recycle, which the shared `JsonSecretCache`
+  (`lambda_utils/secrets_access.py`, 120 s TTL) would bound. Per-call reads remain in
+  `workspace-mcp` (deliberate, documented for rotation), `ai-generate-response`'s template tool and
+  `partner-onboarding`'s Razorpay credential lookup, all at low volume. The `razorpay-webhook`
+  docstring says the function runs with SnapStart; the live configuration has SnapStart off on
+  every function.
 - **Clients per invocation**: 53 boto3 client constructions run on every call (for example
   `customer-session/handler.py:34-36`).
 - **HTTP**: all 64 `urlopen` calls pass a timeout; no `requests` library is used.
@@ -303,9 +311,72 @@ alone retires nothing. 63 KEEP, 10 OPTIMIZE, 1 RETIRE CANDIDATE, 0 MERGE.
   `commerce`, `invoice-engine`, `product-image-gen`), `cryptography` (`whatsapp-business-api`) and
   the docs-scraper image need arm64 layers or images first. Lambda compute is ~$1.3/month, so the
   20% GB-second saving is about $0.25/month; low priority.
-- **Logging**: no whole-event dumps; default INFO. `whatsapp-calling:1112` logs `str(event)[:300]`.
+- **Logging**: no whole-event dumps; default INFO. `whatsapp-calling` logged `str(event)[:300]` on a
+  bad cert-check payload and the first 20 characters of a mismatched signature header; both now log
+  shape only (commit on the audit branch).
   All 74 functions use the Text log format, so the platform `START/END/REPORT` lines (about 3 per
   invocation) cannot be filtered by level.
+
+## 7a. CI, queues and other operational findings (Cloud-read, Code)
+
+**The Public UI compliance workflow is red on every run.** None of its last 200 runs succeeded.
+In the last 30 runs the failing steps were `Full public device matrix` (all 30),
+`Firefox Home and menu regression contract` (26) and `Build static public export` (3). The device
+matrix fails on the Home "Runtime" request line wrapping on phones; that contract was added on
+2026-10-27 (`4fc1f23aa`) on the same day as `#1700` "maximize mobile Platform Runtime readability",
+so the CSS and the harness disagree and someone has to decide which one is right. A gate that is
+always red cannot show a new regression. These files belong to another active workstream, so this
+audit did not change them.
+
+**CI builds load the production blog API.** Each `npm run build` fetches 1,424 posts plus about
+five listing requests through `https://wecare.digital/api`, and the workflow builds twice per run
+(two jobs). Classified by published IP ranges, in sampled hours:
+
+| Hour (UTC) | GitHub Actions requests | MB | Amplify-build requests | MB |
+|---|---:|---:|---:|---:|
+| 10-19 15:00 | 66,993 | 261.7 | 7,192 | 28.2 |
+| 10-20 07:00 | 94,404 | 365.8 | 14,432 | 56.5 |
+| 10-21 10:00 | 91,843 | 359.1 | 17,231 | 67.6 |
+| 10-26 14:00 | 0 | 0 | 14,327 | 59.5 |
+
+Across eleven sampled hours, build-time blog fetches were about half of the Amplify data transfer
+(1,913 of 3,873 MB); three of those hours were among the month's busiest, so the monthly share is
+probably lower. They also drive most API Gateway requests, `wecare-blog-public` invocations
+and SeoToolsTable reads, roughly $10-13 a month all told (ESTIMATE). When CI and Amplify builds
+overlap, the stage's default route throttle (100 requests/second, burst 200) answers 429, the build gives up after six
+attempts, and the run fails (seen in CI run `40473775811`; none of October's 17 failed Amplify
+builds were 429s). Options, in order of effort: build once per CI run and share `out/` between
+jobs (halves the fetches); cache the corpus in CI per hour; add a paginated bulk endpoint to
+`wecare-blog-public` so a build makes about six requests instead of about 1,430.
+
+**Failed Amplify builds**: 17 of the 274 October jobs failed, 9 on TypeScript errors and 3 on
+`npm error code EUSAGE`, which means commits reached the production branch without passing
+`tsc`. They cost 41.4 build-minutes ($0.41).
+
+**SQS** (AWS guidance: visibility at least 6x the function timeout, maxReceiveCount at least 5):
+
+| Queue | Consumer timeout | Visibility | Ratio | maxReceiveCount | Partial batch failures |
+|---|---:|---:|---:|---:|---|
+| `stack-wecare-digital-bulk-queue` | 120 s | 300 s | 2.5x | 3 | not enabled |
+| `stack-wecare-digital-notification-queue` (mapping Disabled) | 120 s | 300 s | 2.5x | 3 | enabled |
+
+`bulk-worker` catches every per-record exception and returns success, so a failed record is
+deleted rather than retried and the bulk DLQ can never receive anything. Enabling
+`ReportBatchItemFailures` must ship together with code that returns `batchItemFailures`; either
+alone is wrong (without the code nothing changes; without the mapping setting, returned failures
+are ignored).
+
+**Compute Optimizer** is active and has 19 Lambda findings, all `MemoryOverprovisioned` on old
+published versions, each with an estimated saving of $0.00. Cost Optimization Hub has none.
+
+**S3**: three versioned buckets have no lifecycle rule, so noncurrent versions accumulate:
+`wecare-digital-get-replica-usw2` (1.40 GB), `wecare-maintenance-reports-…` (12 MB) and
+`wecare-credential-backups-…` (139 KB). The cost is cents a month; for the replica, keeping
+noncurrent versions may be deliberate protection, so it is an owner decision.
+
+**Corrected recommendation, `site-language`**: in the sampled hour, 12,501 of 12,827
+`/api/site-language` requests (97%) came from headless test browsers. Real-user volume is too
+small for client-side caching of the language list to matter, so it was not changed.
 
 ## 8. Security findings (Code)
 
@@ -392,8 +463,12 @@ Branch `audit/platform-performance-cost-seo-20261027`, seven commits on `2f7ca29
    Operator floor, plus tests.
 6. `fix(security)`: invoice HTML escaping.
 7. `perf(build)`: Amplify `nvm --skip-default-packages`, Node ≥ 24 assertion, cache removed.
+8. `docs(audit)`: this document and the cost plan.
+9. `fix(privacy)`: `whatsapp-calling` logs payload and signature shape only.
+10. `docs(audit)`: CI, queue, S3 and Compute Optimizer findings; corrected secret-caching and
+    `site-language` claims.
 
-Plus this document and `docs/audits/aws-cost-reduction-plan-20261027.md`.
+
 
 ## 13. Research references
 
@@ -417,7 +492,7 @@ Costs are estimated from 30-day invocations × average duration × memory at us-
 |---|---|---|---|---|---:|---:|---|---:|---|
 | `wecare-blog-public` | `operations/blog-public` | API | x86_64 | 512 MB / 30 s | 2,291,364 | 1 | 18 / 37 / 653 | 1.69 | **OPTIMIZE** - 2.29M calls/30 d, almost all build-time fetches (Amplify + CI + local builds). Cut by path-filtered builds; 90-day log retention vs 30 elsewhere. |
 | `wecare-seo-tools` | `operations/seo-tools` | API, Sched:ENABLED | x86_64 | 512 MB / 120 s | 1,738,588 | 0 | 40 / 896 / 14189 | 8.20 | **OPTIMIZE** - Public blog branch is dead since GET /seo-tools/blog-public moved to wecare-blog-public (13 Oct); admin routes and daily freshness schedule remain. Routes hit $LATEST (unqualified). |
-| `wecare-site-language` | `core/site-language` | API | x86_64 | 512 MB / 30 s | 454,076 | 0 | 2 / 2 / 3 | 0.10 | **OPTIMIZE** - 454k calls/30 d; /languages returns no-store, fetched on every page load. Most calls in the sampled hour came from headless test browsers. |
+| `wecare-site-language` | `core/site-language` | API | x86_64 | 512 MB / 30 s | 454,076 | 0 | 2 / 2 / 3 | 0.10 | **KEEP** - 454k calls/30 d, 97% of them from headless test browsers in the sampled hour; client caching would not move real-user cost |
 | `wecare-scheduled-messages` | `messaging/scheduled-messages` | API | x86_64 | 256 MB / 60 s | 8,652 | 0 | 150 / 181 / 204 | 0.01 | **KEEP** |
 | `wecare-messages-read` | `core/messages-read` | API | x86_64 | 512 MB / 60 s | 6,776 | 0 | 671 / 1136 / 1324 | 0.04 | **KEEP** |
 | `wecare-contacts` | `core/contacts` | API | x86_64 | 256 MB / 60 s | 6,496 | 0 | 364 / 526 / 645 | 0.01 | **KEEP** |
@@ -426,8 +501,8 @@ Costs are estimated from 30-day invocations × average duration × memory at us-
 | `wecare-commerce` | `ecommerce/checkout` | API | x86_64 | 512 MB / 60 s | 4,860 | 0 | 21 / 44 / 665 | 0.00 | **KEEP** - Strangler target; now owns the checkout + invoice routes (23). |
 | `wecare-inbound-whatsapp` | `messaging/inbound-whatsapp-handler` | API, SNS:stack-wecare-digital | x86_64 | 512 MB / 120 s | 3,494 | 0 | 29 / 1901 / 3474 | 0.01 | **KEEP** |
 | `wecare-rcs-dlr` | `messaging/rcs-dlr` | API | x86_64 | 256 MB / 15 s | 3,468 | 0 | 18 / 350 / 381 | 0.00 | **KEEP** - Unsigned MESSAGE_DELIVERY accepted until a Sinch webhook secret exists (owner action). |
-| `wecare-whatsapp-calling` | `messaging/whatsapp-calling` | API | x86_64 | 256 MB / 60 s | 3,172 | 0 | 154 / 328 / 359 | 0.00 | **OPTIMIZE** - Logs str(event)[:300] on a bad cert payload (possible phone numbers). |
-| `wecare-razorpay-webhook` | `payments/razorpay-webhook` | API | x86_64 | 256 MB / 60 s | 2,586 | 5 | 297 / 663 / 1008 | 0.00 | **OPTIMIZE** - Per-invocation GetSecretValue (shared JsonSecretCache exists); unbounded scan at handler :2526; 3-level synchronous chain. |
+| `wecare-whatsapp-calling` | `messaging/whatsapp-calling` | API | x86_64 | 256 MB / 60 s | 3,172 | 0 | 154 / 328 / 359 | 0.00 | **KEEP** - Raw-event and signature-prefix logging removed on the audit branch (needs deploy) |
+| `wecare-razorpay-webhook` | `payments/razorpay-webhook` | API | x86_64 | 256 MB / 60 s | 2,586 | 5 | 297 / 663 / 1008 | 0.00 | **OPTIMIZE** - Signing secret cached for the environment lifetime (rotation waits for recycling; a 120 s TTL cache would bound it); unbounded scan at handler :2526; 3-level synchronous chain |
 | `wecare-outbound-whatsapp` | `messaging/outbound-whatsapp` | API | x86_64 | 512 MB / 60 s | 2,405 | 0 | 67 / 1869 / 3371 | 0.01 | **KEEP** |
 | `wecare-rcs-send` | `messaging/rcs-send` | API | x86_64 | 256 MB / 30 s | 2,146 | 0 | 814 / 2193 / 2303 | 0.01 | **KEEP** |
 | `wecare-checkout` | `ecommerce/checkout` | direct invoke / none found | x86_64 | 512 MB / 60 s | 2,028 | 0 | 56 / 1667 / 2723 | 0.01 | **RETIRE CANDIDATE** - No routes since the strangler cutover to wecare-commerce (25-26 Oct); resource policy still grants API GW. Retire after an owner-approved soak. |
@@ -438,7 +513,7 @@ Costs are estimated from 30-day invocations × average duration × memory at us-
 | `wecare-mcp` | `ai/mcp` | API | x86_64 | 512 MB / 20 s | 444 | 0 | 2 / 5 / 365 | 0.00 | **KEEP** |
 | `wecare-conversation-meta` | `core/conversation-meta` | API | x86_64 | 256 MB / 30 s | 406 | 0 | 358 / 589 / 648 | 0.00 | **KEEP** |
 | `wecare-native-catalog-admin` | `ecommerce/native-catalog-admin` | API | x86_64 | 256 MB / 20 s | 393 | 0 | 462 / 702 / 842 | 0.00 | **KEEP** |
-| `wecare-plivo-answer` | `messaging/plivo-answer` | API | x86_64 | 256 MB / 15 s | 389 | 0 | 297 / 923 / 950 | 0.00 | **OPTIMIZE** - GetSecretValue per webhook (no cache); fallback token in query string. |
+| `wecare-plivo-answer` | `messaging/plivo-answer` | API | x86_64 | 256 MB / 15 s | 389 | 0 | 297 / 923 / 950 | 0.00 | **KEEP** - Signing tokens cached after the first successful lookup; fallback token accepted in the query string |
 | `wecare-invoice-engine` | `payments/invoice-engine` | direct invoke / none found | x86_64 | 512 MB / 60 s | 250 | 0 | 368 / 5985 / 9872 | 0.00 | **OPTIMIZE** - HTML-escaping fix on branch; unbounded scans (5 sites) on the webhook path; sync chain razorpay-webhook -> invoice-engine -> outbound-whatsapp. |
 | `wecare-sms-aws` | `messaging/sms-aws` | API | x86_64 | 256 MB / 30 s | 200 | 0 | 880 / 955 / 983 | 0.00 | **KEEP** |
 | `wecare-whatsapp-template-management` | `messaging/whatsapp-template-management` | API | x86_64 | 512 MB / 60 s | 194 | 0 | 154 / 801 / 3817 | 0.00 | **KEEP** |
@@ -462,7 +537,7 @@ Costs are estimated from 30-day invocations × average duration × memory at us-
 | `wecare-partner-token-refresh` | `messaging/partner-token-refresh` | EB:ENABLED | x86_64 | 256 MB / 120 s | 30 | 0 | 158 / 171 / 173 | 0.00 | **KEEP** |
 | `wecare-system-cleanup` | `operations/system-cleanup` | API | x86_64 | 512 MB / 300 s | 29 | 0 | 1433 / 6159 / 9115 | 0.00 | **KEEP** |
 | `wecare-product-image-gen` | `ecommerce/product-image-gen` | API | x86_64 | 512 MB / 60 s | 27 | 0 | 2 / 3 / 12 | 0.00 | **KEEP** |
-| `wecare-bulk-worker` | `operations/bulk-worker` | API, ESM:stack-wecare-digital-bulk-qu(Enabled) | x86_64 | 512 MB / 120 s | 22 | 0 | 2 / 3 / 3 | 0.00 | **KEEP** |
+| `wecare-bulk-worker` | `operations/bulk-worker` | API, ESM:stack-wecare-digital-bulk-qu(Enabled) | x86_64 | 512 MB / 120 s | 22 | 0 | 2 / 3 / 3 | 0.00 | **OPTIMIZE** - Swallows per-record errors and returns success, so the DLQ never fires; queue visibility 2.5x timeout (guidance 6x) |
 | `wecare-waba-management` | `messaging/waba-management` | API | x86_64 | 256 MB / 30 s | 21 | 0 | 2 / 1532 / 2511 | 0.00 | **KEEP** |
 | `wecare-crm` | `core/crm` | API | x86_64 | 256 MB / 30 s | 20 | 0 | 2 / 2 / 4 | 0.00 | **KEEP** |
 | `wecare-customer-registration` | `auth/customer-registration` | API | x86_64 | 256 MB / 15 s | 18 | 0 | 2 / 657 / 660 | 0.00 | **KEEP** |
