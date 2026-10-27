@@ -312,6 +312,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
   const [ custSaving, setCustSaving ] = useState( false );
   const [ selCustomer, setSelCustomer ] = useState<Contact | null>( null );
   const [ invForm, setInvForm ] = useState( { ...EMPTY_INV } );
+  const [ showAdvancedTax, setShowAdvancedTax ] = useState( false );
   const [ creating, setCreating ] = useState( false );
   const [ invoices, setInvoices ] = useState<Invoice[]>( [] );
   const [ invLoading, setInvLoading ] = useState( false );
@@ -514,6 +515,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
         setCreatedDelivery( 'saved' );
         setCreatedDeliveryMessage( '' );
         setInvForm( { ...EMPTY_INV, items: [ NEW_ITEM() ] } );
+        setShowAdvancedTax( false );
         setSelCustomer( null );
         if ( sendAfterCreate ) {
           setCreatedDelivery( 'sending' );
@@ -544,7 +546,20 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
             showMsg( 'Sending is not confirmed. Open this saved invoice and check its status before retrying.', 'error' );
           }
         }
-        loadInvoices();
+        // Avoid an immediate full invoice-list reload after create. One detail read gives us the
+        // authoritative stored row and lets the existing list update in place; this removes a
+        // redundant list scan from the hottest staff collection path.
+        try {
+          const createdInvoice = await api.getInvoiceEngine( r.invoiceId );
+          if ( createdInvoice ) {
+            setInvoices( current => [
+              createdInvoice,
+              ...current.filter( row => row.invoiceId !== createdInvoice.invoiceId ),
+            ] );
+          }
+        } catch {
+          // The create itself succeeded; a failed enrichment read must not turn success into error.
+        }
       }
       else
       {
@@ -844,11 +859,19 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                  * produces a discount.
                  */ }
               { redemption && (
-                <div className="inner-card" style={ { marginBottom: 16, maxWidth: 500, padding: '10px 14px' } }>
-                  <h4 style={ { margin: '0 0 6px', fontSize: 13, color: '#1a3a2a' } }>Invoice { redemption.invoiceNumber } created</h4>
-                  <p>{ createdDelivery === 'sent' ? ( createdDeliveryMessage || 'WhatsApp payment request sent.' ) : createdDelivery === 'sending' ? 'Sending the WhatsApp payment request…' : createdDelivery === 'unconfirmed' ? `${createdDeliveryMessage || 'Sending is not confirmed.'} Open this saved invoice and check its status before retrying.` : 'Invoice saved without sending a WhatsApp payment request.' }</p>
-                  <p>{ redemption.referenceId } { '\u2014' } { fmtMoney( redemption.total ) }</p>
-                  <Button variant="primary" size="sm" loading={ openingCreated } onClick={ openCreatedInvoice }>{ createdDelivery === 'saved' ? 'Review and send payment request' : 'View invoice and delivery status' }</Button>
+                <div className="inner-card pf-created-card">
+                  <div className="pf-created-head">
+                    <div>
+                      <div className="pf-created-kicker">Invoice created</div>
+                      <h4>{ redemption.invoiceNumber }</h4>
+                      <div className="pf-created-ref">{ redemption.referenceId }</div>
+                    </div>
+                    <div className="pf-created-amount">{ fmtMoney( redemption.total ) }</div>
+                  </div>
+                  <div className={ `pf-created-state ${createdDelivery}` }>
+                    { createdDelivery === 'sent' ? ( createdDeliveryMessage || 'WhatsApp payment request sent.' ) : createdDelivery === 'sending' ? 'Sending the WhatsApp payment request…' : createdDelivery === 'unconfirmed' ? `${createdDeliveryMessage || 'Sending is not confirmed.'} Open this saved invoice and check its status before retrying.` : 'Invoice saved without sending a WhatsApp payment request.' }
+                  </div>
+                  <Button variant="primary" size="sm" loading={ openingCreated } onClick={ openCreatedInvoice }>{ createdDelivery === 'saved' ? 'Review and send payment request' : 'View payment request' }</Button>
                   { typeof redemption.couponDiscount === 'number' && redemption.couponDiscount > 0 && (
                     <>
                       <p>Applied on the last invoice</p>
@@ -897,33 +920,73 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                       </div>
                     </div>
                   ) }
-                  <h3 style={ { margin: '0 0 12px', fontSize: 'var(--text-xl)' } }>Step 2 { '\u2014' } Invoice Details</h3>
-                  <div className="table-container" style={ { marginBottom: 16 } }>
-                    <table className="inner-table">
-                      <thead><tr><th>#</th><th>Item Name</th><th>Unit amount ({ '\u20B9' })</th><th>Qty</th><th>GST %</th><th>HSN/SAC</th><th></th></tr></thead>
-                      <tbody>
-                        { invForm.items.map( ( it, i ) => {
-                          return (
-                            <tr key={ i }>
-                              <td>{ i + 1 }</td>
-                              <td><input type="text" value={ it.name } onChange={ e => updateItem( i, 'name', e.target.value ) } placeholder={ config.default_item_name } className="pf-inline-input" /></td>
-                              <td><input type="number" value={ it.unitPrice } onChange={ e => updateItem( i, 'unitPrice', e.target.value ) } className="pf-num-input" /></td>
-                              <td><input type="number" value={ it.quantity } onChange={ e => updateItem( i, 'quantity', e.target.value ) } className="pf-num-input-sm" /></td>
-                              <td><input type="number" value={ it.gstRate } onChange={ e => updateItem( i, 'gstRate', e.target.value ) } className="pf-num-input-sm" /></td>
-                              <td><input type="text" inputMode="numeric" value={ it.hsnSac } onChange={ e => updateItem( i, 'hsnSac', e.target.value.replace( /\D/g, '' ).slice( 0, 8 ) ) } placeholder="Internal" className="pf-num-input" /></td>
-                              <td>{ invForm.items.length > 1 && <button onClick={ () => removeItem( i ) } className="pf-remove-btn">{ '\u2715' }</button> }</td>
-                            </tr>
-                          );
-                        } ) }
-                      </tbody>
-                    </table>
+                  <div className="pf-composer-heading">
+                    <div>
+                      <div className="pf-composer-kicker">Step 2</div>
+                      <h3>Invoice composer</h3>
+                      <p>Add the goods being collected for. Pricing, Delight, GST, convenience fee and the final payable remain server-authoritative.</p>
+                    </div>
                   </div>
-                  <Button variant="secondary" size="sm" onClick={ addItem } style={ { marginBottom: 4 } }>+ Add Item</Button>
-                  { ' ' }
 
-                  <h4 style={ { margin: '12px 0 8px', fontSize: 'var(--text-md)' } }>Additional Charges</h4>
-                  <div className="pf-form-grid">
-                    <div className="form-group"><label htmlFor="pf-shipping">Shipping input ({ '\u20B9' })</label><input id="pf-shipping" type="number" value={ invForm.shipping } onChange={ e => setInvForm( { ...invForm, shipping: e.target.value } ) } /></div>
+                  <div className="pf-composer-card">
+                    <div className="pf-composer-card-head">
+                      <div>
+                        <h4>Items</h4>
+                        <p>Use one card per line. HSN/SAC stays under Advanced tax details.</p>
+                      </div>
+                      <Button variant="secondary" size="sm" onClick={ addItem }>+ Add item</Button>
+                    </div>
+                    <div className="pf-item-card-list">
+                      { invForm.items.map( ( it, i ) => (
+                        <div className="pf-item-card" key={ i }>
+                          <div className="pf-item-card-top">
+                            <span className="pf-item-index">Item { i + 1 }</span>
+                            { invForm.items.length > 1 && <button type="button" onClick={ () => removeItem( i ) } className="pf-remove-btn" aria-label={ `Remove item ${i + 1}` }>{ '\u2715' }</button> }
+                          </div>
+                          <div className="form-group pf-item-name">
+                            <label htmlFor={ `pf-item-name-${i}` }>Description</label>
+                            <input id={ `pf-item-name-${i}` } type="text" value={ it.name } onChange={ e => updateItem( i, 'name', e.target.value ) } placeholder={ config.default_item_name } />
+                          </div>
+                          <div className="pf-item-fields">
+                            <div className="form-group">
+                              <label htmlFor={ `pf-item-price-${i}` }>Unit amount ({ '\u20B9' })</label>
+                              <input id={ `pf-item-price-${i}` } type="number" min="0" step="0.01" value={ it.unitPrice } onChange={ e => updateItem( i, 'unitPrice', e.target.value ) } />
+                            </div>
+                            <div className="form-group">
+                              <label htmlFor={ `pf-item-qty-${i}` }>Qty</label>
+                              <input id={ `pf-item-qty-${i}` } type="number" min="1" step="1" value={ it.quantity } onChange={ e => updateItem( i, 'quantity', e.target.value ) } />
+                            </div>
+                            <div className="form-group">
+                              <label htmlFor={ `pf-item-gst-${i}` }>GST %</label>
+                              <input id={ `pf-item-gst-${i}` } type="number" min="0" max="100" step="0.01" value={ it.gstRate } onChange={ e => updateItem( i, 'gstRate', e.target.value ) } />
+                            </div>
+                          </div>
+                          { showAdvancedTax && (
+                            <div className="pf-advanced-tax">
+                              <div className="form-group">
+                                <label htmlFor={ `pf-item-hsn-${i}` }>HSN/SAC <span>internal accounting</span></label>
+                                <input id={ `pf-item-hsn-${i}` } type="text" inputMode="numeric" value={ it.hsnSac } onChange={ e => updateItem( i, 'hsnSac', e.target.value.replace( /\D/g, '' ).slice( 0, 8 ) ) } placeholder="4, 6 or 8 digits" />
+                              </div>
+                            </div>
+                          ) }
+                        </div>
+                      ) ) }
+                    </div>
+                    <button type="button" className="pf-advanced-toggle" onClick={ () => setShowAdvancedTax( value => !value ) } aria-expanded={ showAdvancedTax }>
+                      { showAdvancedTax ? 'Hide advanced tax details' : 'Advanced tax details' }
+                    </button>
+                  </div>
+
+                  <div className="pf-composer-card">
+                    <div className="pf-composer-card-head">
+                      <div>
+                        <h4>Delivery</h4>
+                        <p>Physical-goods collection stays mandatory-address. Express is the customer-facing delivery charge.</p>
+                      </div>
+                    </div>
+                    <div className="pf-form-grid">
+                      <div className="form-group"><label htmlFor="pf-shipping">Express ({ '\u20B9' })</label><input id="pf-shipping" type="number" min="0" step="0.01" value={ invForm.shipping } onChange={ e => setInvForm( { ...invForm, shipping: e.target.value } ) } /><span className="pf-field-help">Delivery / shipping charge shown to the customer as Express.</span></div>
+                    </div>
                   </div>
                   {/* No coupon field and no manual-adjustment field: there is no coupon system and
                       manual discount entry is retired. The always-on Delight discount (0.5% up to
