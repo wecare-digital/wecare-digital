@@ -313,6 +313,10 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
   const [ selCustomer, setSelCustomer ] = useState<Contact | null>( null );
   const [ invForm, setInvForm ] = useState( { ...EMPTY_INV } );
   const [ showAdvancedTax, setShowAdvancedTax ] = useState( false );
+  const [ invoicePreview, setInvoicePreview ] = useState<api.InvoiceEnginePreview | null>( null );
+  const [ previewLoading, setPreviewLoading ] = useState( false );
+  const [ previewError, setPreviewError ] = useState( '' );
+  const previewRequestSeq = useRef( 0 );
   const [ creating, setCreating ] = useState( false );
   const [ invoices, setInvoices ] = useState<Invoice[]>( [] );
   const [ invLoading, setInvLoading ] = useState( false );
@@ -456,6 +460,82 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
   };
 
   /* Invoice form handlers */
+  const buildInvoiceRequest = useCallback( ( referenceId?: string ): CreateInvoiceEngineRequest | null => {
+    if ( !selCustomer ) return null;
+    const a = addressFieldsFromContact( selCustomer );
+    const req: CreateInvoiceEngineRequest = {
+      customerPhone: selCustomer.phone,
+      customerEmail: selCustomer.email || '',
+      customerName: selCustomer.name,
+      contactId: selCustomer.id,
+      shippingAddress: contactDeliveryAddress( selCustomer ),
+      billingAddress: contactDeliveryAddress( selCustomer ) || selCustomer.billingAddress || '',
+      addressLine1: a.addressLine1,
+      addressLine2: a.addressLine2,
+      city: a.city,
+      state: a.state,
+      postalCode: a.postalCode,
+      landmark: a.locality,
+      countryCode: a.countryCode || countryCodeForName( a.country ),
+      goodsType,
+      items: invForm.items.map( it => ( {
+        name: it.name || config.default_item_name,
+        amount: parseFloat( it.unitPrice ) || 0,
+        quantity: parseInt( it.quantity ) || 1,
+        gstRate: it.gstRate.trim() === '' ? config.default_gst_rate : Number( it.gstRate ),
+        hsnSac: it.hsnSac.trim(),
+      } ) ),
+      shipping: parseFloat( invForm.shipping ) || 0,
+      gstRate: config.default_gst_rate,
+      purpose: DEFAULT_BRAND,
+      orderId: invForm.orderId,
+      gstin: config.gstin,
+      buyerGstin: ( selCustomer as Contact & { gstin?: string } ).gstin || undefined,
+      entryPoint: 'pay_flow',
+    };
+    if ( referenceId ) req.referenceId = referenceId;
+    return req;
+  }, [ selCustomer, invForm, config.default_item_name, config.default_gst_rate, config.gstin ] );
+
+  useEffect( () => {
+    if ( !selCustomer || !hasPayableDeliveryAddress( selCustomer )
+      || !invForm.items.some( it => parseFloat( it.unitPrice ) > 0 ) ) {
+      previewRequestSeq.current += 1;
+      setInvoicePreview( null );
+      setPreviewLoading( false );
+      setPreviewError( '' );
+      return;
+    }
+
+    const request = buildInvoiceRequest();
+    if ( !request ) return;
+    const seq = ++previewRequestSeq.current;
+    setPreviewLoading( true );
+    setPreviewError( '' );
+
+    const timer = window.setTimeout( async () => {
+      try {
+        const result = await api.previewInvoiceEngine( request, true );
+        if ( seq !== previewRequestSeq.current ) return;
+        if ( result ) {
+          setInvoicePreview( result );
+          setPreviewError( '' );
+        } else {
+          setInvoicePreview( null );
+          setPreviewError( 'Preview unavailable. The invoice can still be created from server pricing.' );
+        }
+      } catch {
+        if ( seq !== previewRequestSeq.current ) return;
+        setInvoicePreview( null );
+        setPreviewError( 'Preview unavailable. The invoice can still be created from server pricing.' );
+      } finally {
+        if ( seq === previewRequestSeq.current ) setPreviewLoading( false );
+      }
+    }, 750 );
+
+    return () => window.clearTimeout( timer );
+  }, [ buildInvoiceRequest, selCustomer, invForm.items ] );
+
   const updateItem = ( idx: number, field: keyof IR, val: string ) => {
     const items = [ ...invForm.items ]; items[ idx ] = { ...items[ idx ], [ field ]: val }; setInvForm( { ...invForm, items } );
   };
@@ -474,34 +554,13 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
     setCreating( true );
     try
     {
-      const req: CreateInvoiceEngineRequest = {
-        referenceId: 'WD-PAY-' + crypto.randomUUID().replace( /-/g, '' ).slice( 0, 16 ).toUpperCase(),
-        customerPhone: selCustomer.phone, customerEmail: selCustomer.email || '',
-        customerName: selCustomer.name, contactId: selCustomer.id,
-        shippingAddress: contactDeliveryAddress( selCustomer ),
-        billingAddress: contactDeliveryAddress( selCustomer ) || selCustomer.billingAddress || '',
-        // One canonical contact-address projection feeds Meta shipping_info too.
-        ...(() => {
-          const a = addressFieldsFromContact( selCustomer );
-          return {
-            addressLine1: a.addressLine1,
-            addressLine2: a.addressLine2,
-            city: a.city,
-            state: a.state,
-            postalCode: a.postalCode,
-            landmark: a.locality,
-          };
-        })(),
-        goodsType: goodsType,
-        items: invForm.items.map( it => ( { name: it.name || config.default_item_name, amount: parseFloat( it.unitPrice ) || 0, quantity: parseInt( it.quantity ) || 1, gstRate: it.gstRate.trim() === '' ? config.default_gst_rate : Number( it.gstRate ), hsnSac: it.hsnSac.trim() } ) ),
-        shipping: parseFloat( invForm.shipping ) || 0,
-        gstRate: config.default_gst_rate,
-        purpose: DEFAULT_BRAND, orderId: invForm.orderId, gstin: config.gstin,
-        buyerGstin: ( selCustomer as Contact & { gstin?: string } ).gstin || undefined,
-        // No discount is sent: the invoice engine auto-applies the standalone Delight policy
-        // (0.5% up to Rs50) server-side. There is no coupon code and no manual adjustment to pass.
-      };
-      req.entryPoint = 'pay_flow';
+      const req = buildInvoiceRequest(
+        'WD-PAY-' + crypto.randomUUID().replace( /-/g, '' ).slice( 0, 16 ).toUpperCase()
+      );
+      if ( !req ) {
+        showMsg( 'Select a customer first', 'error' );
+        return;
+      }
       // The result wrapper keeps the server's refusal, so the banner can say WHY a create was
       // refused instead of "Create failed". The success body carries the applied Delight figure
       // for the preview below.
@@ -902,7 +961,8 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                   </div>
                 </div>
               ) : (
-                <div>
+                <div className="pf-create-layout">
+                  <div className="pf-composer-main">
                   <div className="info-banner" style={ { marginBottom: 16 } }>
                     <div style={ { flex: 1 } }><strong>{ selCustomer.name }</strong> { '\u2014' } { selCustomer.phone } { selCustomer.email ? ` \u00B7 ${selCustomer.email}` : '' }</div>
                     <Button variant="ghost" size="sm" onClick={ () => setSelCustomer( null ) }>Change</Button>
@@ -1028,8 +1088,48 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                     Convenience fee and final total are calculated by the server when the invoice is created. The stored invoice is the authority for subtotal, tax, Delight and total.
                   </div>
 
-                  <Button variant="primary" size="md" loading={ creating } disabled={ creating } onClick={ () => submitInvoice( true ) }>Create and send payment request</Button>
-                  <Button variant="secondary" size="md" disabled={ creating } onClick={ () => submitInvoice( false ) }>Save invoice for review</Button>
+                  <div className="pf-composer-actions">
+                    <Button variant="primary" size="md" loading={ creating } disabled={ creating } onClick={ () => submitInvoice( true ) }>Create and send payment request</Button>
+                    <Button variant="secondary" size="md" disabled={ creating } onClick={ () => submitInvoice( false ) }>Save invoice for review</Button>
+                  </div>
+                  </div>
+
+                  <aside className="pf-live-preview" aria-live="polite">
+                    <div className="pf-live-preview-head">
+                      <div>
+                        <div className="pf-composer-kicker">Live preview</div>
+                        <h4>Customer receipt</h4>
+                      </div>
+                      <span className="pf-authority-badge">Server authoritative</span>
+                    </div>
+                    <p className="pf-live-preview-note">No invoice number or record is created while previewing.</p>
+
+                    { previewLoading && <div className="pf-preview-loading">Updating server preview…</div> }
+                    { previewError && !previewLoading && <div className="pf-preview-error">{ previewError }</div> }
+                    { invoicePreview && (
+                      <>
+                        { invoicePreview.previewImageBase64 && (
+                          <div className="pf-preview-image-shell">
+                            <img
+                              src={ `data:${invoicePreview.previewImageContentType || 'image/png'};base64,${invoicePreview.previewImageBase64}` }
+                              alt="Server-rendered customer receipt preview"
+                            />
+                          </div>
+                        ) }
+                        <div className="pf-preview-totals">
+                          <div><span>Items Subtotal</span><strong>{ fmtMoney( Number( invoicePreview.subtotal ) ) }</strong></div>
+                          { Number( invoicePreview.couponDiscount || invoicePreview.discount ) > 0 && <div><span>Delight</span><strong>−{ fmtMoney( Number( invoicePreview.couponDiscount || invoicePreview.discount ) ) }</strong></div> }
+                          { Number( invoicePreview.shipping ) > 0 && <div><span>Express</span><strong>{ fmtMoney( Number( invoicePreview.shipping ) ) }</strong></div> }
+                          { Number( invoicePreview.convenienceFeeNet ) > 0 && <div><span>Convenience Fee</span><strong>{ fmtMoney( Number( invoicePreview.convenienceFeeNet ) ) }</strong></div> }
+                          <div><span>{ invoicePreview.sellerGstin }</span><strong>{ fmtMoney( Number( invoicePreview.totalGst ) ) }</strong></div>
+                          <div className="pf-preview-total"><span>Amount Payable</span><strong>{ fmtMoney( Number( invoicePreview.total ) ) }</strong></div>
+                        </div>
+                      </>
+                    ) }
+                    { !invoicePreview && !previewLoading && !previewError && (
+                      <div className="pf-preview-empty">Enter a positive item amount to generate the server preview.</div>
+                    ) }
+                  </aside>
                 </div>
               ) }
             </div>

@@ -5013,6 +5013,43 @@ export interface CreateInvoiceEngineResponse {
   couponDiscount?: number;
 }
 
+/** Pre-issue quote from the invoice engine. No invoice row/number is created. */
+export interface InvoiceEnginePreview {
+  preview: true;
+  subtotal: string;
+  discount: string;
+  shipping: string;
+  tax: string;
+  convenienceFee: string;
+  convenienceFeeNet: string;
+  convenienceFeeGst: string;
+  totalGst: string;
+  total: string;
+  couponCode?: string | null;
+  couponDiscount: string;
+  goodsType: 'digital-goods' | 'physical-goods';
+  sellerGstin: string;
+  pricingAuthority: 'invoice-engine';
+  previewImageBase64?: string;
+  previewImageContentType?: 'image/png';
+}
+
+export async function previewInvoiceEngine (
+  request: CreateInvoiceEngineRequest,
+  renderPreview = true,
+): Promise<InvoiceEnginePreview | null> {
+  return apiCall<InvoiceEnginePreview>( INVOICE_BASE, {
+    method: 'POST',
+    body: JSON.stringify( {
+      ...request,
+      referenceId: undefined,
+      paymentId: undefined,
+      _action: 'preview',
+      renderPreview,
+    } ),
+  } );
+}
+
 // Create invoice directly
 export async function createInvoiceEngine ( request: CreateInvoiceEngineRequest ): Promise<CreateInvoiceEngineResponse | null> {
   return apiCall<CreateInvoiceEngineResponse>( INVOICE_BASE, {

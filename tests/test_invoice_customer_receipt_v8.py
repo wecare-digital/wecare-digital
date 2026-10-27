@@ -154,6 +154,30 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
         self.assertIn('total_row("Items Subtotal", subtotal)', source)
         self.assertIn('total_row(str(company.get("gstin") or ""), total_gst', source)
 
+    def test_preissue_preview_is_server_rendered_before_invoice_numbering(self):
+        source = ENGINE.read_text(encoding="utf-8")
+        self.assertIn("def preview_invoice(body: Dict, request_id: str) -> Dict:", source)
+        self.assertIn("preview_body['previewOnly'] = True", source)
+        self.assertIn("preview_png = _generate_receipt_png(preview_invoice_row, list(items))", source)
+        self.assertIn("'previewImageBase64'", source)
+        self.assertIn("'pricingAuthority': 'invoice-engine'", source)
+
+        preview_guard = source.index("if body.get('previewOnly'):")
+        numbering = source.index("invoice_number = _get_next_invoice_number", preview_guard)
+        put_invoice = source.index("table.put_item(", numbering)
+        self.assertLess(preview_guard, numbering)
+        self.assertLess(numbering, put_invoice)
+
+    def test_workspace_preview_uses_backend_and_keeps_hsn_advanced(self):
+        payflow = (ROOT / "src/components/workspace/pay/PayFlow.tsx").read_text(encoding="utf-8")
+        client = (ROOT / "src/api/client.ts").read_text(encoding="utf-8")
+        self.assertIn("previewInvoiceEngine( request, true )", payflow)
+        self.assertIn("Server authoritative", payflow)
+        self.assertIn("No invoice number or record is created while previewing.", payflow)
+        self.assertIn("Advanced tax details", payflow)
+        self.assertIn('Express ({', payflow)
+        self.assertIn("_action: 'preview'", client)
+
     def test_existing_png_media_keeps_png_display_extension(self):
         source = OUTBOUND.read_text(encoding="utf-8")
         self.assertIn("actual_ext = os.path.splitext(s3_key)[1].lower()", source)
