@@ -1,0 +1,98 @@
+name: Workspace MCP CI
+
+on:
+  pull_request:
+    paths:
+      - "amplify/functions/ai/workspace-mcp/**"
+      - "amplify/infra/workspace-mcp.json"
+      - "config/workspace-mcp.json"
+      - "scripts/build_workspace_mcp.py"
+      - "scripts/deploy_workspace_mcp.py"
+      - "scripts/verify_chat_mcp_auth.py"
+      - ".github/workflows/workspace-mcp-ci.yml"
+  push:
+    branches:
+      - "wecare.digital"
+    paths:
+      - "amplify/functions/ai/workspace-mcp/**"
+      - "amplify/infra/workspace-mcp.json"
+      - "config/workspace-mcp.json"
+      - "scripts/build_workspace_mcp.py"
+      - "scripts/deploy_workspace_mcp.py"
+      - "scripts/verify_chat_mcp_auth.py"
+      - ".github/workflows/workspace-mcp-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install verifier dependencies
+        run: python -m pip install --disable-pip-version-check boto3==1.40.55 cryptography==50.0.2
+      - name: Compile Workspace MCP
+        run: python -m compileall -q amplify/functions/ai/workspace-mcp
+      - name: Validate policy JSON
+        run: python -m json.tool config/workspace-mcp.json >/dev/null
+      - name: Verify Chat/MCP authorization and infrastructure contracts
+        run: python scripts/verify_chat_mcp_auth.py
+      - name: Verify scoped WhatsApp inventory policy
+        run: |
+          python - <<'PY'
+          import importlib.util, json, pathlib, sys
+          root = pathlib.Path(".").resolve()
+          source = root / "amplify/functions/ai/workspace-mcp"
+          policy = json.loads((root / "config/workspace-mcp.json").read_text())
+          sys.path.insert(0, str(source))
+          original = pathlib.Path.read_text
+          def bundled(path, *args, **kwargs):
+              if path == source / "workspace-mcp.json":
+                  return original(root / "config/workspace-mcp.json", *args, **kwargs)
+              return original(path, *args, **kwargs)
+          pathlib.Path.read_text = bundled
+          spec = importlib.util.spec_from_file_location("workspace_mcp_policy_test", source / "handler.py")
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+
+          expected = {
+              "whatsapp_biz_businesses",
+              "whatsapp_biz_accounts",
+              "whatsapp_biz_phone_numbers",
+              "whatsapp_biz_list_templates",
+              "whatsapp_biz_onboarding_status",
+          }
+          assert set(policy["connections"]["whatsapp"]["tools"]) == expected
+          module.safe_provider_args("whatsapp", "whatsapp_biz_accounts",
+                                    {"business_id": "382642103987922"})
+          module.safe_provider_args("whatsapp", "whatsapp_biz_list_templates",
+                                    {"business_id": "125951953587391",
+                                     "waba_id": "2513394156072604", "limit": "100"})
+          module.safe_provider_args("whatsapp", "whatsapp_biz_onboarding_status",
+                                    {"business_id": "382642103987922",
+                                     "app_id": "2238810740192680"})
+          for bad in (
+              {"business_id": "999"},
+              {"business_id": "382642103987922", "waba_id": "999"},
+          ):
+              try:
+                  module.safe_provider_args("whatsapp", "whatsapp_biz_phone_numbers", bad)
+              except module.Refusal:
+                  pass
+              else:
+                  raise AssertionError("out-of-scope WhatsApp read was accepted")
+          try:
+              module.safe_provider_args("whatsapp", "whatsapp_biz_accounts",
+                                        {"business_id": "382642103987922", "action": "delete"})
+          except module.Refusal:
+              pass
+          else:
+              raise AssertionError("provider write/action escaped read-only policy")
+          print("PASS: scoped WhatsApp inventory reads; writes/out-of-scope IDs refused")
+          PY
