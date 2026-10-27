@@ -139,10 +139,10 @@ evidence, remaining verification and the retained proxy path used by local clien
 ## Cost, audit and rollback
 
 No provisioned concurrency, always-on compute, NAT gateway, new AI inference or new
-certificate is included. Lambda has reserved concurrency 2 (a cap, not paid warmed
+certificate is included. Lambda has reserved concurrency 5 (a cap, not paid warmed
 instances), 256 MiB memory and a 28-second timeout. DynamoDB uses on-demand billing
 and point-in-time recovery. CloudWatch tool audit logs contain only principal hash,
-allowlisted tool name and outcome, with 14-day retention. The error alarm uses the
+allowlisted tool name and outcome, with 30-day retention. Error and throttle alarms use the
 existing human-routed SNS topic. API Gateway already has access logging and stage
 throttling. KMS, storage, backup, requests and provider usage can incur charges;
 the architecture is not guaranteed free. A dedicated KMS key has a recurring cost.
