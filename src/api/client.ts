@@ -5028,6 +5028,7 @@ export interface InvoiceEnginePreview {
   couponCode?: string | null;
   couponDiscount: string;
   goodsType: 'digital-goods' | 'physical-goods';
+  sellerGstin: string;
   pricingAuthority: 'invoice-engine';
   previewImageBase64?: string;
   previewImageContentType?: 'image/png';
