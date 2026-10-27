@@ -425,11 +425,12 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
               '<a href="https://wecare.digital/privacy/">Privacy</a><a href="https://wecare.digital/terms/">Terms</a></nav>'
               '</div></footer></body></html>')
     result = response(200, page, page=True)
-    # Browsers apply form-action to the post-login redirect chain too. Permit only
-    # this registered client's callback origin, never a caller-selected destination.
-    callback = urlparse(row['redirect'])
-    result['headers']['Content-Security-Policy'] = result['headers']['Content-Security-Policy'].replace(
-        "form-action 'self';", f"form-action 'self' {callback.scheme}://{callback.netloc};")
+    if not website:
+        # Browsers apply form-action to the post-login redirect chain too. Permit only
+        # this registered client's callback origin, never a caller-selected destination.
+        callback = urlparse(row['redirect'])
+        result['headers']['Content-Security-Policy'] = result['headers']['Content-Security-Policy'].replace(
+            "form-action 'self';", f"form-action 'self' {callback.scheme}://{callback.netloc};")
     return result
 
 
