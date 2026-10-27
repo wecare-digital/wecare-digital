@@ -15,6 +15,7 @@ interface ModalProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
   closeOnOverlay?: boolean;
   closeOnEsc?: boolean;
+  showCloseButton?: boolean;
 }
 
 const Modal: React.FC<ModalProps> = ({
@@ -26,6 +27,7 @@ const Modal: React.FC<ModalProps> = ({
   size = 'md',
   closeOnOverlay = true,
   closeOnEsc = true,
+  showCloseButton = true,
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -104,7 +106,7 @@ const Modal: React.FC<ModalProps> = ({
       >
         <div style={headerStyle}>
           <h2 id="modal-title" style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>{title}</h2>
-          <button className="ui-modal-close" onClick={onClose} style={closeButtonStyle} aria-label="Close modal">×</button>
+          {showCloseButton && <button className="ui-modal-close" onClick={onClose} style={closeButtonStyle} aria-label="Close modal">×</button>}
         </div>
         <div style={bodyStyle}>{children}</div>
         {footer && <div className="ui-modal-footer" style={footerStyle}>{footer}</div>}
