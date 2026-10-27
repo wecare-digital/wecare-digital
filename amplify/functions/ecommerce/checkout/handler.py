@@ -3060,6 +3060,7 @@ def _send_order_details(*, phone: str, contact_id: str, phone_number_id: str,
             "templateName": whatsapp_templates.PAY.name,
             "templateParams": [],
             "checkoutOrderDetails": order_details,
+            "idempotencyKey": f"payment-request:{str(order_details.get('reference_id') or '').strip()}",
         }),
     }
     from botocore.exceptions import ConnectionClosedError, ReadTimeoutError
