@@ -362,6 +362,29 @@ class DropDocsUploadUxContractTests(unittest.TestCase):
         self.assertIn("{showCloseButton &&", source)
 
 
+    def test_drop_docs_has_explicit_publish_send_and_archive_workflow(self):
+        source = (ROOT / "src" / "components" / "workspace" / "service" / "Documents.tsx").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Upload & send WhatsApp", source)
+        self.assertIn("Publish & send", source)
+        self.assertIn("recordFilter", source)
+        self.assertIn("Archived", source)
+        self.assertIn("handleArchive", source)
+        self.assertIn("handleRestore", source)
+        self.assertIn("No WhatsApp Vault offer has been created", source)
+
+    def test_document_archive_is_metadata_only_and_preserves_verification_status(self):
+        service = (FUNCTIONS / "core" / "service-api" / "handler.py").read_text(encoding="utf-8")
+        self.assertIn("document_action in ('archive', 'restore_archive')", service)
+        self.assertIn("SET archivedAt=:now, archivedBy=:by, updatedAt=:now", service)
+        self.assertIn("REMOVE archivedAt, archivedBy SET updatedAt=:now", service)
+        archive_block = service[service.index("document_action in ('archive', 'restore_archive')"):]
+        archive_block = archive_block[:archive_block.index("if document_action == 'revalidate_reference'")]
+        self.assertNotIn("delete_item", archive_block)
+        self.assertNotIn("verificationStatus=:archived", archive_block)
+
+
 
 class OrderStatusTemplateOnlyTransportTests(unittest.TestCase):
     """The automatic payment-order rail never changes transport with the service window."""
