@@ -295,6 +295,78 @@ def _resp(code: int, body: Dict, resp_origin: str = '') -> Dict:
     return {'statusCode': code, 'headers': cors_headers(resp_origin or origin), 'body': json.dumps(body, default=str)}
 
 
+def _message_history_for_wamid(phone_id: str, wamid: str) -> Dict[str, Any]:
+    """Read Meta's message-history audit trail for one known outbound WAMID.
+
+    This is reconciliation evidence only. It never sends a message and never authorizes a retry.
+    The business idempotency claim remains the primary duplicate-send guard.
+    """
+    phone_id = str(phone_id or '').strip()
+    wamid = str(wamid or '').strip()
+    if phone_id not in {PHONE1_META_ID, PHONE2_META_ID}:
+        return {'error': 'PHONE_NOT_PERMITTED'}
+    if not wamid.startswith('wamid.') or len(wamid) > 512 or any(ord(ch) < 32 or ord(ch) == 127 for ch in wamid):
+        return {'error': 'WAMID_INVALID'}
+
+    history = _graph_api(
+        f'{phone_id}/message_history',
+        params={'message_id': wamid, 'fields': 'id,message_id', 'limit': 5},
+        phone_id=phone_id,
+    )
+    if 'error' in history:
+        return {'error': 'MESSAGE_HISTORY_UNAVAILABLE'}
+    rows = history.get('data') if isinstance(history, dict) else []
+    rows = rows if isinstance(rows, list) else []
+    row = next((x for x in rows if isinstance(x, dict)
+                and str(x.get('message_id') or '') == wamid), None)
+    if not row:
+        return {'found': False, 'whatsappMessageId': wamid, 'events': []}
+
+    history_id = str(row.get('id') or '').strip()
+    if not history_id:
+        return {'found': False, 'whatsappMessageId': wamid, 'events': []}
+
+    events_result = _graph_api(
+        f'{history_id}/events',
+        params={
+            'fields': ('cursor,node{id,delivery_status,error_description,occurrence_timestamp,'
+                       'status_timestamp,application,webhook_update_state}'),
+            'limit': 100,
+        },
+        phone_id=phone_id,
+    )
+    if 'error' in events_result:
+        return {'error': 'MESSAGE_HISTORY_EVENTS_UNAVAILABLE',
+                'messageHistoryId': history_id, 'whatsappMessageId': wamid}
+
+    edges = events_result.get('data') if isinstance(events_result, dict) else []
+    edges = edges if isinstance(edges, list) else []
+    events = []
+    positive = False
+    for edge in edges:
+        node = edge.get('node') if isinstance(edge, dict) else {}
+        node = node if isinstance(node, dict) else {}
+        status = str(node.get('delivery_status') or '').upper()
+        positive = positive or status in {'ACCEPTED', 'SENT', 'DELIVERED', 'READ'}
+        application = node.get('application') if isinstance(node.get('application'), dict) else {}
+        events.append({
+            'deliveryStatus': status,
+            'occurrenceTimestamp': node.get('occurrence_timestamp'),
+            'statusTimestamp': node.get('status_timestamp'),
+            'webhookUpdateState': str(node.get('webhook_update_state') or ''),
+            'applicationId': str(application.get('id') or ''),
+            'applicationName': str(application.get('name') or '')[:120],
+            'errorDescription': redact_string(str(node.get('error_description') or ''))[:200],
+        })
+    return {
+        'found': True,
+        'messageHistoryId': history_id,
+        'whatsappMessageId': wamid,
+        'metaAcceptedOrDelivered': positive,
+        'events': events,
+    }
+
+
 def _emit_event(event_type: str, severity: str = 'info', waba_id: str = None,
                 phone_id: str = None, data: Dict = None) -> None:
     """Fail-open wrapper around the shared SystemEvent recorder."""
@@ -6734,6 +6806,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     request_id = context.aws_request_id if context else 'local'
     global origin
     origin = extract_origin(event)
+
+    if event.get('internalAction') == 'messageHistoryForWamid':
+        if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
+            return _resp(403, {'error': 'Internal invocation required'})
+        return _message_history_for_wamid(
+            str(event.get('phoneId') or ''),
+            str(event.get('whatsappMessageId') or event.get('wamid') or ''),
+        )
 
     if event.get('internalAction') == 'serviceDesignDrafts':
         from flows.service_design_drafts import handle
