@@ -220,7 +220,7 @@ const TYPE_LABELS: Record<string, string> = {
     document: 'Document', sticker: 'Sticker', location: 'Location', contacts: 'Contact card',
     order: 'Order', poll: 'Poll', reaction: 'Reaction', button: 'Button reply',
     interactive: 'Interactive reply', request_welcome: 'Started conversation', system: 'System update',
-    referral: 'Ad referral', ad_click: 'Ad click', flow_response: 'Flow response', unsupported: 'Unsupported message', unknown: 'Message',
+    referral: 'Ad referral', ad_click: 'Ad click', flow_response: 'Flow response', unsupported: 'Message content unavailable from WhatsApp', unknown: 'Message',
 };
 const prettyMsg = ( content?: string, messageType?: string ): string => {
     const raw = ( content || '' ).trim();
