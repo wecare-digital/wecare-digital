@@ -117,10 +117,12 @@ SIGNALS = [
     {
         "logGroup": "/aws/lambda/wecare-razorpay-webhook",
         # INVOICE_IMAGE_ENSURE_FAILED: the paid invoice has no customer PNG, so no receipt can go.
+        # PAID_WITHOUT_INVOICE: the sweep found a paid order whose capture webhook never made its
+        # invoice; it repairs it, but capture webhooks are not completing.
         "pattern": ('{ $.alert = "PAID_BUT_NO_ORDER" || $.alert = "PAID_BUT_NO_ORDER_RECORD" || '
                     '$.alert = "NEEDS_RECONCILIATION" || $.alert = "INVOICE_CREATE_FAILED" || '
                     '$.alert = "RECEIPT_DELIVERY_EXHAUSTED" || '
-                    '$.alert = "INVOICE_IMAGE_ENSURE_FAILED" }'),
+                    '$.alert = "INVOICE_IMAGE_ENSURE_FAILED" || $.alert = "PAID_WITHOUT_INVOICE" }'),
         "filterName": "payment-paid-state-incomplete",
         "metricName": "PaymentPaidStateIncomplete",
         "alarmName": "wecare-payment-paid-state-incomplete",

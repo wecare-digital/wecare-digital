@@ -18,22 +18,52 @@ def _key_token(value):
     return token.strip('-_.') or 'unknown'
 
 
-def expected_invoice_keys(invoice, reference):
-    """The base `image` keys invoice-engine can have written for this invoice.
+#: Upper bound on the rendition walk. The engine numbers re-renders `image#v2`, `image#v3`, ...
+#: contiguously, so the walk stops at the first missing version.
+MAX_ASSET_VERSIONS = 20
+
+
+def expected_invoice_keys(invoice, reference, version=1):
+    """The `image` keys invoice-engine can have written for this invoice at this rendition.
 
     Its stem is `wecare-digital-{reference}` for a draft and
     `wecare-digital-{invoiceNumber}__{reference}` once a number is issued, under
     INVOICE_CUSTOMER_IMAGE_PREFIX. A row first rendered as a draft keeps the draft key on its
-    base row after issue, so both stay acceptable. Both embed this order's own reference,
-    which is what binds the stored row to the order being served.
+    base row after issue, so both stay acceptable. Rendition n > 1 is `{stem}-v{n}.png`
+    (invoice-engine `_asset_target`). Every key embeds this order's own reference, which is
+    what binds the stored row to the order being served.
     """
     stem = media_paths.INVOICE_CUSTOMER_IMAGE_PREFIX + 'wecare-digital-'
     ref = _key_token(reference)
-    keys = {f'{stem}{ref}.png'}
+    suffix = f'-v{version}' if version > 1 else ''
+    keys = {f'{stem}{ref}{suffix}.png'}
     number = str(invoice.get('invoiceNumber') or '').strip()
     if number:
-        keys.add(f'{stem}{_key_token(number)}__{ref}.png')
+        keys.add(f'{stem}{_key_token(number)}__{ref}{suffix}.png')
     return keys
+
+
+def newest_invoice_image(assets, invoice_id, invoice, reference):
+    """The newest valid `image` rendition's s3 key, or None.
+
+    The base row is the first rendition; for an invoice raised before payment that is the
+    pre-payment preview, and the paid receipt is appended after capture as `image#v<n>`. The
+    invoice template delivers the newest row, so the copy sent here is the same document. A row
+    whose key does not match its expected shape is not served.
+    """
+    newest = None
+    for version in range(1, MAX_ASSET_VERSIONS + 1):
+        asset_type = 'image' if version == 1 else f'image#v{version}'
+        row = assets.get_item(Key={'invoiceId': invoice_id, 'assetType': asset_type},
+                              ConsistentRead=True).get('Item')
+        if row is None:
+            if version > 1:
+                break
+            continue
+        s3_key = row.get('s3Key')
+        if isinstance(s3_key, str) and s3_key in expected_invoice_keys(invoice, reference, version):
+            newest = s3_key
+    return newest
 
 
 def resolve(db, identity, order_id):
@@ -54,10 +84,9 @@ def resolve(db, identity, order_id):
     invoice = invoices.get_item(Key={'invoiceId': invoice_id}, ConsistentRead=True).get('Item') or {}
     if invoice.get('referenceId') != reference:
         raise customer_auth.CustomerNotAuthorized('invoice unavailable')
-    asset = db.Table('stack-wecare-digital-InvoiceAssetsTable').get_item(
-        Key={'invoiceId': invoice_id, 'assetType': 'image'}, ConsistentRead=True).get('Item') or {}
-    s3_key = asset.get('s3Key')
-    if not isinstance(s3_key, str) or s3_key not in expected_invoice_keys(invoice, reference):
+    s3_key = newest_invoice_image(db.Table('stack-wecare-digital-InvoiceAssetsTable'),
+                                  invoice_id, invoice, reference)
+    if not s3_key:
         return order, None
     return order, {'invoiceId': invoice_id, 's3Key': s3_key}
 

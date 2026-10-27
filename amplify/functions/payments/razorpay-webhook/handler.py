@@ -3633,6 +3633,13 @@ _SWEEP_PAGE_LIMIT = 25                 # per status, per run
 #: invocation as the customer-link reconcile, so it stops starting new provider lookups after this
 #: and leaves the rest for the next 5-minute run.
 _SWEEP_TIME_BUDGET_SECONDS = 30
+#: A PAID attempt whose invoice has not appeared this long after payment is treated as a lost
+#: webhook. The browser verify leg writes the order and stages ORDER_FINALIZED but never the
+#: invoice; only this webhook's post-payment step creates it. Without this pass a webhook that
+#: never arrives (or whose retries all failed) leaves a paid order with no GST invoice and no
+#: receipt. Ten minutes leaves Razorpay's own first retries room to land first.
+_PAID_WITHOUT_INVOICE_MIN_AGE_SECONDS = 10 * 60
+_PAID_SWEEP_MAX_PAGES = 4
 
 
 #: The in-flight statuses a capture can still be missing from. The invoice leg stays
@@ -3641,8 +3648,13 @@ _RECONCILABLE_STATUSES = ('PAYMENT_REQUEST_SENT', 'PAYMENT_PENDING', 'PAYMENT_RE
 
 
 def _reconcile_in_flight_attempt(attempt: Dict[str, Any], keys_table: Any,
-                                 request_id: str) -> str:
+                                 request_id: str, *, settle_paid: bool = False) -> str:
     """Settle ONE in-flight attempt from the provider's own records. Never raises.
+
+    `settle_paid` is set only by the paid-without-invoice pass of the sweep: the attempt is
+    already PAID and finalized, and the readback below re-runs the normal captured path so its
+    post-payment step creates the missing invoice. Order creation answers ORDER_ALREADY_EXISTS
+    and every write after it is claim-guarded, so this cannot create a second order or invoice.
 
     The shared body of the scheduled sweep and the Meta-payment trigger. It asks the right
     PROVIDER whether exactly one capture exists:
@@ -3666,9 +3678,9 @@ def _reconcile_in_flight_attempt(attempt: Dict[str, Any], keys_table: Any,
 
     # Skip anything that has since reached a terminal/paid state (a redelivery or the browser
     # path may have settled it between the read and here).
-    if (str(attempt.get('status') or '') not in _RECONCILABLE_STATUSES
-            or attempt.get('finalizationStage') == 'ORDER_FINALIZED'
-            or attempt.get('paidAt')):
+    if not settle_paid and (str(attempt.get('status') or '') not in _RECONCILABLE_STATUSES
+                            or attempt.get('finalizationStage') == 'ORDER_FINALIZED'
+                            or attempt.get('paidAt')):
         return 'skipped_paid'
     reference_id = str(attempt.get('referenceId') or '')
     checkout_mode = str(attempt.get('checkoutMode') or '')
@@ -3789,7 +3801,9 @@ def _sweep_stale_attempts(request_id: str) -> Dict[str, Any]:
     path. That path re-resolves the reference from the stored provider binding (never the body)
     and RE-VERIFIES against Razorpay through `_create_order_for_captured_payment` before any paid
     state is written, so the reconstructed entity is a trigger, not trusted evidence. Attempts
-    already PAID/finalized are skipped. One summary line is emitted; metrics are best-effort.
+    already PAID/finalized are skipped here; a second, separately bounded pass
+    (`_sweep_paid_without_invoice`) creates the invoice for a PAID attempt whose capture webhook
+    never produced one. One summary line is emitted; metrics are best-effort.
     The per-attempt work is `_reconcile_in_flight_attempt`, shared with the Meta-payment trigger.
     """
     from boto3.dynamodb.conditions import Key
@@ -3829,6 +3843,7 @@ def _sweep_stale_attempts(request_id: str) -> Dict[str, Any]:
                 outcome = _reconcile_in_flight_attempt(attempt, keys_table, request_id)
                 if outcome in counts:
                     counts[outcome] += 1
+        _sweep_paid_without_invoice(attempts_table, keys_table, now, deadline, counts, request_id)
     except Exception as error:  # noqa: BLE001 - the sweep itself must never raise
         counts['errors'] += 1
         logger.error(json.dumps({'event': 'sweep_stale_attempts_error',
@@ -3837,6 +3852,80 @@ def _sweep_stale_attempts(request_id: str) -> Dict[str, Any]:
                             'requestId': request_id, **counts}))
     _emit_sweep_metrics(counts, request_id)
     return counts
+
+
+def _invoice_exists_for_reference(reference_id: str) -> bool:
+    """True when an invoice row carries this reference. Raises on a read failure."""
+    items = dynamodb.Table(INVOICES_TABLE).query(
+        IndexName='referenceId-index', KeyConditionExpression='referenceId = :ref',
+        ExpressionAttributeValues={':ref': reference_id}, Limit=1).get('Items') or []
+    return bool(items)
+
+
+def _sweep_paid_without_invoice(attempts_table: Any, keys_table: Any, now: int, deadline: float,
+                                counts: Dict[str, Any], request_id: str) -> None:
+    """Create the invoice for PAID attempts whose capture webhook never produced one.
+
+    Bounded: attempts created in the sweep's 24-hour window, at most `_PAID_SWEEP_MAX_PAGES`
+    pages, inside the shared time budget. A candidate is touched only when it was paid more than
+    `_PAID_WITHOUT_INVOICE_MIN_AGE_SECONDS` ago AND no invoice carries its reference; then the
+    provider readback re-runs the captured path (`settle_paid=True`). Each one is logged with
+    alert PAID_WITHOUT_INVOICE, because it means capture webhooks are not completing.
+    """
+    from boto3.dynamodb.conditions import Key
+    from lambda_utils.ecommerce import payment_attempt
+
+    counts.setdefault('paid_without_invoice', 0)
+    counts.setdefault('invoiced', 0)
+    query = {'IndexName': 'status-index',
+             'KeyConditionExpression': (Key('status').eq(payment_attempt.PAYMENT_PAID)
+                                        & Key('createdAt').between(now - _SWEEP_MAX_AGE_SECONDS, now)),
+             'Limit': _SWEEP_PAGE_LIMIT}
+    for _ in range(_PAID_SWEEP_MAX_PAGES):
+        try:
+            page = attempts_table.query(**query)
+        except Exception as error:  # noqa: BLE001
+            counts['errors'] += 1
+            logger.warning(json.dumps({'event': 'sweep_status_query_failed',
+                                       'status': payment_attempt.PAYMENT_PAID,
+                                       'error': type(error).__name__, 'requestId': request_id}))
+            return
+        for attempt in page.get('Items') or []:
+            if time.time() > deadline:
+                counts['deferred'] += 1
+                continue
+            reference_id = str(attempt.get('referenceId') or '')
+            try:
+                paid_at = int(attempt.get('paidAt') or 0)
+            except (TypeError, ValueError):
+                paid_at = 0
+            if not reference_id or not paid_at or paid_at > now - _PAID_WITHOUT_INVOICE_MIN_AGE_SECONDS:
+                continue
+            try:
+                if _invoice_exists_for_reference(reference_id):
+                    continue
+            except Exception as error:  # noqa: BLE001 - try again on the next run
+                counts['errors'] += 1
+                logger.warning(json.dumps({'event': 'sweep_invoice_lookup_failed',
+                                           'referenceId': reference_id,
+                                           'error': type(error).__name__, 'requestId': request_id}))
+                continue
+            counts['scanned'] += 1
+            counts['paid_without_invoice'] += 1
+            logger.error(json.dumps({'event': 'paid_attempt_without_invoice',
+                                     'alert': 'PAID_WITHOUT_INVOICE',
+                                     'referenceId': reference_id,
+                                     'paymentAttemptId': str(attempt.get('paymentAttemptId') or ''),
+                                     'requestId': request_id}))
+            outcome = _reconcile_in_flight_attempt(attempt, keys_table, request_id,
+                                                   settle_paid=True)
+            if outcome == 'reconciled':
+                counts['invoiced'] += 1
+            elif outcome in counts:
+                counts[outcome] += 1
+        if 'LastEvaluatedKey' not in page:
+            return
+        query['ExclusiveStartKey'] = page['LastEvaluatedKey']
 
 
 def _emit_sweep_metrics(counts: Dict[str, Any], request_id: str) -> None:

@@ -1925,6 +1925,66 @@ def run(root: Path) -> int:
                      if (s["payload"].get("template") or {}).get("name") == INVOICE_TEMPLATE]
         check("META", "...and the buyer got exactly ONE invoice template", len(moe_sends) == 1, len(moe_sends))
 
+    # ── 10d. the capture webhook finalized the order, its post-payment step failed, and Razorpay
+    #         gave up: the sweep creates the missing invoice, once ──────────────────────────────
+    print("\n== 10d. paid order with no invoice -> the sweep creates it, exactly once")
+    nia = shop.customer(65)  # 61-64 and 70-71 belong to the other scenarios
+    mark = W.mark()
+    deliver(order_event(build, nia["digits"], "wamid.HERMETIC.NIA.1", [{"product_retailer_id": kit, "quantity": 1}]))
+    confirm_prefilled(nia, "wamid.HERMETIC.NIA.ADDR1")
+    nia_refs = _payrefs_for(nia["sub"])
+    check("SWEEP", "setup: the buyer's cart produced a payment reference", bool(nia_refs))
+    if nia_refs:
+        reference = nia_refs[0]["referenceId"]
+        nia_attempt = _attempts_for(nia["sub"])[0]
+        attempt_id = nia_attempt["paymentAttemptId"]
+        event = capture(reference, int(nia_attempt["amountPaise"]), "pay_HERMETIC5", "order_HERMETIC5",
+                        nia["phone"])
+        real_post_payment = webhook._post_payment_handler
+
+        def post_payment_down(*_args: Any, **_kwargs: Any) -> None:
+            raise RuntimeError("simulated invoice engine outage")
+
+        webhook._post_payment_handler = post_payment_down
+        try:
+            webhook.handler(json.loads(json.dumps(event)), FakeContext("wecare-razorpay-webhook"))
+        finally:
+            webhook._post_payment_handler = real_post_payment
+        stranded = post_payment_counts(reference, attempt_id)
+        check("SWEEP", "setup: the order is paid and finalized but has no invoice",
+              len(stranded["orders"]) == 1 and not stranded["invoices"],
+              f"orders={len(stranded['orders'])} invoices={len(stranded['invoices'])}")
+
+        def nia_invoice_sends() -> List[Dict[str, Any]]:
+            return [s for s in W.since(mark, "meta_sends")
+                    if (s["payload"].get("template") or {}).get("name") == INVOICE_TEMPLATE
+                    and s["payload"].get("to") == nia["phone"]]
+
+        sweep_event = {"internalAction": "sweepStaleAttempts"}
+        fresh = webhook.handler(dict(sweep_event), FakeContext("wecare-razorpay-webhook"))["sweep"]
+        check("SWEEP", "a payment younger than ten minutes is left for the webhook's own retries",
+              not fresh.get("invoiced") and not post_payment_counts(reference, attempt_id)["invoices"],
+              fresh)
+        # No redelivery is coming. Age the attempt past the ten-minute floor.
+        aged = int(time.time()) - 30 * 60
+        _table("PaymentAttemptsTable").update_item(
+            Key={"paymentAttemptId": attempt_id}, UpdateExpression="SET paidAt = :t, createdAt = :t",
+            ExpressionAttributeValues={":t": aged})
+        rzp_mark = len(W.rzp_reads)  # only the sweep's own provider reads count below
+        swept = webhook.handler(dict(sweep_event), FakeContext("wecare-razorpay-webhook"))["sweep"]
+        healed = post_payment_counts(reference, attempt_id)
+        check("SWEEP", "the sweep created ONE numbered invoice and sent the receipt ONCE",
+              swept.get("invoiced") == 1 and swept.get("paid_without_invoice") == 1
+              and len(healed["orders"]) == 1 and len(healed["invoices"]) == 1
+              and bool(healed["invoices"][0].get("invoiceNumber")) and len(nia_invoice_sends()) == 1,
+              {"sweep": swept, "invoices": len(healed["invoices"]), "sends": len(nia_invoice_sends())})
+        check("SWEEP", "...from the Razorpay readback, not the stored attempt",
+              "/payments/pay_HERMETIC5" in W.rzp_reads[rzp_mark:], W.rzp_reads[rzp_mark:][-3:])
+        again = webhook.handler(dict(sweep_event), FakeContext("wecare-razorpay-webhook"))["sweep"]
+        check("SWEEP", "a second sweep leaves it alone: still ONE invoice and ONE send",
+              not again.get("invoiced") and len(post_payment_counts(reference, attempt_id)["invoices"]) == 1
+              and len(nia_invoice_sends()) == 1, again)
+
     # ── 11. a failed payment with Razorpay's empty-notes shape is acknowledged, not retried ─────
     print("\n== 11. payment.failed with notes: []")
     body = json.dumps({"entity": "event", "event": "payment.failed", "created_at": int(time.time()),

@@ -96,8 +96,9 @@ RATE_LIMIT_TABLE = os.environ.get("RATE_LIMIT_TABLE", "stack-wecare-digital-Rate
 MEDIA_BUCKET = os.environ.get("MEDIA_BUCKET", "wecare-digital-get")
 
 #: TIGHTER than `my-orders`' 10/s, not looser, and the direction is the point: that route is
-#: a cheap list read, this one presigns and costs two Queries, a GetItem and a signature per
-#: call. A human clicking download buttons does not exceed 5 in a second.
+#: a cheap list read, this one presigns and costs two Queries, one GetItem per stored rendition
+#: (plus one miss) and a signature per call. A human clicking download buttons does not exceed
+#: 5 in a second.
 #:
 #: `table_name=` is passed EXPLICITLY at the call site for the same reason `my-orders` does
 #: it: the module default in `rate_limit.py` reads its own `RATE_LIMIT_TABLE` env var, so an
@@ -246,16 +247,41 @@ def _invoice_id(reference_id: str) -> str:
     return str(rows[0].get("invoiceId") or "") if rows else ""
 
 
-def _asset_key(invoice_id: str, fmt: str) -> str:
-    """The stored `s3Key` for one rendered asset, or `''`.
+#: How many renditions of one invoice image are looked for. The engine numbers re-renders
+#: `image#v2`, `image#v3`, ... contiguously (`_next_asset_version` is highest + 1), so the walk
+#: stops at the first missing version; this is only the upper bound.
+MAX_ASSET_VERSIONS = 20
 
-    A bare `get_item` on a fully specified `{invoiceId, assetType}` key, which is why the
-    IAM grant for it is correctly a bare table ARN: there is nothing an index would narrow.
+
+def _asset_key(invoice_id: str, fmt: str) -> str:
+    """The stored `s3Key` of the NEWEST rendition of one asset, or `''`.
+
+    The base row (`image`) is the FIRST rendition. For an invoice raised before payment that is
+    the pre-payment preview; the paid receipt is appended after capture as `image#v<n>`, and that
+    newest row is what the WhatsApp invoice template delivers. A download must hand the customer
+    the same document, so the versions are walked upward.
+
+    Bare `get_item` calls on fully specified `{invoiceId, assetType}` keys, which is why the IAM
+    grant for it is correctly a bare table ARN with no Query: there is nothing an index would
+    narrow.
     """
-    result = _table(INVOICE_ASSETS_TABLE).get_item(
-        Key={"invoiceId": invoice_id, "assetType": ASSET_TYPE[fmt]}) or {}
-    item = result.get("Item")
-    return str(item.get("s3Key") or "") if isinstance(item, dict) else ""
+    table = _table(INVOICE_ASSETS_TABLE)
+    base = ASSET_TYPE[fmt]
+
+    def stored_key(asset_type: str) -> Optional[str]:
+        """The row's key; '' for a row without one; None when no row exists."""
+        result = table.get_item(Key={"invoiceId": invoice_id, "assetType": asset_type}) or {}
+        item = result.get("Item")
+        return str(item.get("s3Key") or "") if isinstance(item, dict) else None
+
+    newest = stored_key(base) or ""
+    for version in range(2, MAX_ASSET_VERSIONS + 1):
+        key = stored_key(f"{base}#v{version}")
+        if key is None:
+            break
+        if key:
+            newest = key
+    return newest
 
 
 def _download_name(order_number: str, reference_id: str, fmt: str) -> str:

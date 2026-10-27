@@ -983,15 +983,31 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
                 expr_values[':pid'] = payment_id
 
             filter_expr = ' OR '.join(filter_parts)
-            # Full pagination to avoid DynamoDB Limit bug (Limit = items evaluated, not returned)
+            # Full pagination to avoid DynamoDB Limit bug (Limit = items evaluated, not returned).
+            # Every page is read, not just the first with a hit: a match is only safe to adopt
+            # when it is the ONLY one. The no-match path already read every page.
             existing = []
             scan_kwargs = {'FilterExpression': filter_expr, 'ExpressionAttributeValues': expr_values}
             while True:
                 result = table.scan(**scan_kwargs)
                 existing.extend(result.get('Items', []))
-                if existing or 'LastEvaluatedKey' not in result:
+                if 'LastEvaluatedKey' not in result:
                     break
                 scan_kwargs['ExclusiveStartKey'] = result['LastEvaluatedKey']
+
+            matched_ids = {str(row.get('invoiceId') or '') for row in existing}
+            if len(matched_ids) > 1:
+                # Two invoices answer to this payment. Marking either one paid would be a guess, so
+                # nothing is settled: the caller gets no invoice id and parks the capture for review.
+                logger.error(json.dumps({
+                    'event': 'invoice_dedup_ambiguous', 'alert': 'INVOICE_CREATE_FAILED',
+                    'matches': len(matched_ids), 'referenceId': reference_id,
+                    'paymentId': payment_id, 'requestId': request_id,
+                }))
+                return _resp(409, {
+                    'error': 'More than one invoice matches this payment',
+                    'errorCode': 'INVOICE_REFERENCE_AMBIGUOUS',
+                })
 
             if existing:
                 inv = existing[0]
