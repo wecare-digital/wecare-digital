@@ -89,12 +89,6 @@ const PAGE_POLICY: Readonly<Record<string, PublicPolicyCopy>> = {
     refunds: 'Browsing creates nothing to cancel; confirmed orders follow their terms.',
     disclaimer: 'Price, availability and fulfilment can change before checkout; the confirmed order controls.',
   },
-  '/account/sign-in': {
-    shipping: 'Signing in does not start fulfilment.',
-    returns: 'Signing in does not change return or replacement eligibility.',
-    refunds: 'Signing in does not create, approve or cancel a refund.',
-    disclaimer: 'Authentication does not itself confirm payment or ownership.',
-  },
   '/cart': {
     shipping: 'Fulfilment starts after the order is confirmed.',
     returns: 'Return or replacement eligibility is item-specific.',
