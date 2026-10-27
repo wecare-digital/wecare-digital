@@ -175,6 +175,35 @@ class PaymentArchitectureDriftTests(unittest.TestCase):
 
 
 
+class MessageHistoryAuditTests(unittest.TestCase):
+    """Meta Message History is audit evidence; DynamoDB send claims stay the primary dedup gate."""
+
+    def test_message_history_route_is_read_only_and_bounded(self):
+        source = (
+            FUNCTIONS / "messaging" / "whatsapp-business-api" / "handler.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("def _get_message_history_events", source)
+        self.assertIn("'/message-history/events' in path", source)
+        self.assertIn("_MESSAGE_HISTORY_DELIVERY_STATUSES", source)
+        self.assertIn("'ACCEPTED', 'SENT', 'DELIVERED', 'READ', 'ERROR'", source)
+        self.assertIn("limit must be between 1 and 100", source)
+        self.assertIn("'auditOnly': True", source)
+        route = source[source.index("elif '/message-history/events' in path"):]
+        route = route[:route.index("elif '/template-ttl/rules' in path")]
+        self.assertIn("method != 'GET'", route)
+        self.assertNotIn("_send_", route)
+
+    def test_payment_duplicate_prevention_stays_claim_first(self):
+        engine = (
+            FUNCTIONS / "payments" / "invoice-engine" / "handler.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("claim_channel = f'order-status:{target}'", engine)
+        self.assertIn("claim_invoice_delivery(", engine)
+        self.assertIn("'code': 'ORDER_STATUS_IN_FLIGHT'", engine)
+        self.assertIn("channel='whatsapp'", engine)
+        self.assertNotIn("message-history/events", engine)
+
+
 class AutomaticOrderStatusRouteTests(unittest.TestCase):
     """The payment-order route stays active for processing -> completed only."""
 
