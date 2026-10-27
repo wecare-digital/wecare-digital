@@ -12,7 +12,7 @@ This document is the maintenance authority for the PNG sent to customers after p
 - Canonical pricing calculator: `amplify/functions/shared/lambda_utils/ecommerce/checkout_pricing.py`
 - Customer PNGs: `secure/d/public/Invoice/customer_invoice/` (edge-gated; use S3/presigned access)
 - Canonical brand SVG: `o/stream/media/m/wecare-digital.svg`
-- Runtime raster logo: `o/stream/media/m/wecare-digital.png`
+- Receipt brand mark (immutable v2): `secure/d/public/Invoice/brand/wecare-digital-receipt-mark-v2.png`
 - Invoice font prefix: `secure/d/public/Invoice/fonts/`
 
 The renderer is presentation-only. It MUST render stored invoice figures and MUST NOT calculate or change a charge.
@@ -25,7 +25,7 @@ The renderer is presentation-only. It MUST render stored invoice figures and MUS
 - Four-sided scalloped/torn edge: WECARE lime `#d1f470`
 - Structural green: `#1a3a2a`
 - Lime is used for the receipt-title bar and Amount Paid bar.
-- Official WECARE.DIGITAL artwork is used from the S3 brand asset; never recreate the logo by hand.
+- The receipt masthead uses the immutable official transparent bag mark plus the canonical stacked `WECARE.` / `DIGITAL` wordmark construction from `src/components/BrandLockup.tsx`; do not substitute the generic opaque square logo or a marketing card.
 - Typography should use Inter when the invoice font assets are available. The renderer must retain a packaged-font fallback so a missing optional asset cannot prevent a paid receipt from being generated. Inter 4.1 (SIL OFL 1.1, from the rsms/inter v4.1 release) is in the font prefix as `Inter-Regular.otf`, `Inter-SemiBold.otf` and `Inter-Bold.otf`, with its licence as `Inter-LICENSE.txt`. The packaged fallback has no ₹ glyph, so amounts print as `Rs.` whenever it is in use.
 - Keep the image compact and WhatsApp-readable; do not add a drop shadow.
 - Customer PNG width: **1024 px**, matching the approved owner reference.
@@ -128,7 +128,7 @@ Use this prompt when changing the receipt:
 
 1. Change `receipt_layout.py`; keep pricing out of it.
 2. If legal identity changes, edit `business_identity.py` instead of hardcoding a second copy.
-3. Confirm the official logo objects still exist in S3.
+3. Confirm the immutable receipt brand mark exists in S3 and visually verify the rendered bag + wordmark lockup.
 4. Confirm the preferred Inter font objects exist; if they do not, verify the packaged fallback still renders.
 5. Compile the payments/shared Python and run the payment-rail verification.
 6. Inspect a local/QA PNG for clipping, transparent outside pixels, lime edge, readable totals, optional-row behavior and long customer/item text.
