@@ -1594,7 +1594,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         'idempotent': True,
                     }),
                 }
-            if existing:
+            if existing and str(existing.get('status') or '').lower() not in ('failed', 'rejected'):
                 logger.warning(json.dumps({
                     'event': 'idempotent_send_in_flight',
                     'messageId': message_id,
@@ -1603,6 +1603,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return _error_response(
                     409, 'MESSAGE_SEND_IN_FLIGHT',
                     'This message is already being reconciled; no duplicate was sent.')
+            if existing:
+                logger.info(json.dumps({
+                    'event': 'idempotent_retry_after_definite_failure',
+                    'messageId': message_id,
+                    'requestId': request_id,
+                }))
         
         # Requirement 5.3: DRY_RUN mode - log without API call
         if SEND_MODE == 'DRY_RUN':
