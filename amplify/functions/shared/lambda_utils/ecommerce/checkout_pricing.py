@@ -140,6 +140,18 @@ def _validate_currency(currency: str) -> str:
     return currency
 
 
+def validate_buyer_gstin(buyer_gstin: Optional[str]) -> Optional[str]:
+    """Public boundary validator for a buyer GSTIN.
+
+    Returns the canonical uppercase GSTIN or None. The seller GSTIN is rejected so a customer
+    field can never make the receipt label the seller as the buyer.
+    """
+    if buyer_gstin is None:
+        return None
+    value = str(buyer_gstin).strip().upper()
+    return _validate_buyer_gstin(value)
+
+
 def _validate_buyer_gstin(buyer_gstin: Optional[str]) -> Optional[str]:
     if buyer_gstin is None:
         return None
