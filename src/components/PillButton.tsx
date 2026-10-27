@@ -91,7 +91,7 @@ export interface PillButtonProps {
    * what is read aloud and what is on screen are now the same string instead of two.
    * It is deliberately NOT rendered as visually-hidden text: this repo has explicitly rejected
    * hidden text for naming elsewhere (see the note in PhoneField about the country select), and
-   * the surrounding page already supplies the context the label used to carry - /account/sign-in
+   * the surrounding page already supplies the context the label used to carry - /auth
    * is headed "Sign in to check out", and /get is headed "Collect your files".
    * Optional so new call sites need not pass it. There is NO name-override prop to reach for
    * either: `ariaLabel` was removed upstream so a caller cannot reopen the 2.5.3 failure by
@@ -142,7 +142,7 @@ const PillButton: React.FC<PillButtonProps> = ( {
    * stamped correctly, which is why the pill had its shape, its 2px edge and its dark fill but
    * NEITHER segment had its own background or colour: it rendered as one dark slab with the label
    * and the action jammed together, "Sign inSend code", with white-on-dark text falling back to
-   * near-black. Measured in the built export AND on the live site at /account/sign-in/ before this
+   * near-black. Measured in the built export AND on the live site at /auth/ before this
    * fix.
    *
    * THIS REPO ALREADY KNEW THIS FAILURE MODE. RotatingHero's docblock records it costing "a full
@@ -206,7 +206,7 @@ const PillButton: React.FC<PillButtonProps> = ( {
              - the label was font-weight:700 where the reference is 600. Measured in the built
                export, .shopd-cta, .co-btn-primary, .cs-btn-primary and the /blog/ search
                button all render 600, so this control was the single outlier - on
-               /account/sign-in/, /cart/, /get/, /orders/ and the contribute blocks, i.e. most
+               /auth/, /cart/, /get/, /orders/ and the contribute blocks, i.e. most
                of the places a customer meets a button.
              - the hover shadow was rgba(26,58,42,.18) where every other primary on the site,
                and the reference, use .12.
