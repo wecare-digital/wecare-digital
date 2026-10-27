@@ -1800,10 +1800,13 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
     contact = _notification_recipient(reference_id, contact)
     originating_phone_id = _resolve_originating_phone(reference_id) or WABA1_PHONE_ID
 
-    # Post-payment sequence:
-    #   1. PAYMENT_PAID -> OrderTable.orderStatus 'processing' (internal fulfilment state)
-    #   2. the paid invoice template, once - the statutory receipt with the Leave Review button
-    # No structured WhatsApp order_status message is emitted on capture or later staff changes.
+    # Post-payment sequence (`_post_payment_handler`), every step claim-guarded so a redelivery or
+    # a sweep re-run repeats nothing:
+    #   1. the invoice is created once, numbered, and its paid image rendered;
+    #   2. WhatsApp-paid orders only: ORDER_STATUS `processing` then `completed` through the
+    #      approved wecare_order_status_v3 template (`_start_native_fulfilment`);
+    #   3. the paid invoice template, once - the statutory receipt with the Leave Review button.
+    # Staff changes never send a WhatsApp order_status; physical/service fulfilment is internal.
     checkout_mode = str((outcome or {}).get('checkoutMode') or '')
     _post_payment_handler(payment_id, contact, email, description, notes, request_id,
                           channel=str((outcome or {}).get('channel') or ''),
@@ -3440,29 +3443,17 @@ def _fulfilment_lambda():
     return _fulfilment_client
 
 
-def _send_order_status_processing(invoice_id: str, phone_number_id: str,
-                                  request_id: str) -> None:
-    """Ask the invoice engine to send the buyer a fulfilment ORDER_STATUS of 'processing'.
-
-    BEST-EFFORT and native-only (`_start_native_fulfilment` gates the checkout mode): it never
-    raises. The engine owns idempotency and template-only transport: a 200 reports the accepted
-    template channel; a 409 ORDER_STATUS_UNCHANGED or ORDER_STATUS_IN_FLIGHT means another delivery
-    already sent or is sending it; ORDER_STATUS_DEFERRED (approved template unavailable) and
-    ORDER_STATUS_NOT_APPLICABLE are expected verdicts. All outcomes are logged WITHOUT PII -
-    only the invoice id, the engine code and the request id.
-    """
-    if not invoice_id:
-        return
-    _invoke_order_status(invoice_id, 'processing', phone_number_id, request_id,
-                         event_prefix='order_status_processing')
-
-
 def _invoke_order_status(invoice_id: str, target: str, phone_number_id: str, request_id: str,
                          *, event_prefix: str, description: str = '') -> tuple[int, str]:
     """One fulfilment ORDER_STATUS request to the engine. Returns (HTTP status, engine code).
 
-    Never raises: (0, '') means the engine could not be reached or answered with a function
-    error, so the caller cannot tell what happened and must not act on it.
+    BEST-EFFORT: it never raises. The engine owns idempotency and template-only transport: a 200
+    reports the accepted template channel; a 409 ORDER_STATUS_UNCHANGED or ORDER_STATUS_IN_FLIGHT
+    means another delivery already sent or is sending it; ORDER_STATUS_DEFERRED (approved template
+    unavailable) and ORDER_STATUS_NOT_APPLICABLE are expected verdicts. Outcomes are logged
+    without PII: the invoice id, the engine code and the request id. (0, '') means the engine
+    could not be reached or answered with a function error, so the caller cannot tell what
+    happened and must not act on it.
     """
     try:
         # The same commerce runtime the invoice create, render and delivery invokes use, so all

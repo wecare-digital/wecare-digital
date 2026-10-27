@@ -118,7 +118,8 @@ META_BATCH_PATH = "items_batch"
 META_BATCH_CHUNK = 100
 
 #: Durable owner-approval records share the existing authorization table, but use a namespaced
-#: key so they can never collide with agent tool-plan approvals. Rows intentionally omit the
+#: key (`META_CATALOG_SYNC#<catalogId>#<planHash>`) so they can never collide with agent tool-plan
+#: approvals or with the other WhatsApp catalog's approval for the same plan. Rows intentionally omit the
 #: table's expiresTtl attribute: a catalog decision is an audit record, not a 15-minute bearer
 #: approval. Exact current-plan binding still makes any ProductsTable/Meta drift invalidate the
 #: approval.
@@ -128,8 +129,17 @@ CATALOG_APPROVAL_KEY_PREFIX = "META_CATALOG_SYNC#"
 CATALOG_APPROVAL_RECORD_TYPE = "META_CATALOG_SYNC"
 
 
-def _approval_key(plan_hash: str) -> str:
-    return CATALOG_APPROVAL_KEY_PREFIX + str(plan_hash or "").strip().lower()
+def _approval_key(plan_hash: str, catalog_id: str) -> str:
+    """One approval row per (catalog, exact plan).
+
+    Both catalogs are built from the same ProductsTable, so one product change gives WABA1 and
+    WABA2 the SAME plan and the same fingerprint. Keyed by the plan alone, the second catalog's
+    proposal found the first catalog's row and could never be approved (its catalogId condition
+    failed), and a readback on one catalog rewrote the other's status. Rows written before the key
+    carried the catalog stay as history; nothing reads them.
+    """
+    return (CATALOG_APPROVAL_KEY_PREFIX + str(catalog_id or "").strip() + "#"
+            + str(plan_hash or "").strip().lower())
 
 
 def _public_approval(row: Optional[Mapping[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -168,11 +178,12 @@ class _DynamoCatalogApprovalStore:
             ).Table(self.table_name)
         return self._table
 
-    def get(self, plan_hash: str) -> Optional[Dict[str, Any]]:
+    def get(self, plan_hash: str, catalog_id: str) -> Optional[Dict[str, Any]]:
         row = self._get_table().get_item(
-            Key={"planHash": _approval_key(plan_hash)}, ConsistentRead=True
+            Key={"planHash": _approval_key(plan_hash, catalog_id)}, ConsistentRead=True
         ).get("Item")
-        if row and row.get("recordType") == CATALOG_APPROVAL_RECORD_TYPE:
+        if (row and row.get("recordType") == CATALOG_APPROVAL_RECORD_TYPE
+                and str(row.get("catalogId") or "") == str(catalog_id or "")):
             return dict(row)
         return None
 
@@ -182,7 +193,7 @@ class _DynamoCatalogApprovalStore:
         from botocore.exceptions import ClientError
         now = int(time.time())
         item = {
-            "planHash": _approval_key(plan_hash),
+            "planHash": _approval_key(plan_hash, catalog_id),
             "recordType": CATALOG_APPROVAL_RECORD_TYPE,
             "exactPlanHash": plan_hash.lower(),
             "catalogId": catalog_id,
@@ -200,7 +211,7 @@ class _DynamoCatalogApprovalStore:
         except ClientError as exc:
             if exc.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
                 raise
-            existing = self.get(plan_hash)
+            existing = self.get(plan_hash, catalog_id)
             if existing is None:
                 raise
             return existing
@@ -210,7 +221,7 @@ class _DynamoCatalogApprovalStore:
         now = int(time.time())
         try:
             result = self._get_table().update_item(
-                Key={"planHash": _approval_key(plan_hash)},
+                Key={"planHash": _approval_key(plan_hash, catalog_id)},
                 UpdateExpression=(
                     "SET #st=:approved, approvedBy=:by, approvedAt=:now, updatedAt=:now"
                 ),
@@ -237,7 +248,7 @@ class _DynamoCatalogApprovalStore:
         now = int(time.time())
         try:
             result = self._get_table().update_item(
-                Key={"planHash": _approval_key(plan_hash)},
+                Key={"planHash": _approval_key(plan_hash, catalog_id)},
                 UpdateExpression="SET #st=:applying, applyStartedAt=:now, updatedAt=:now",
                 ConditionExpression=(
                     "recordType=:type AND exactPlanHash=:hash AND catalogId=:catalog "
@@ -257,12 +268,13 @@ class _DynamoCatalogApprovalStore:
                 return None
             raise
 
-    def finish_apply(self, *, plan_hash: str, outcome: Mapping[str, Any]) -> Dict[str, Any]:
+    def finish_apply(self, *, plan_hash: str, catalog_id: str,
+                     outcome: Mapping[str, Any]) -> Dict[str, Any]:
         now = int(time.time())
         ok = bool(outcome.get("ok"))
         status = "APPLY_SUBMITTED" if ok else "APPLY_FAILED"
         result = self._get_table().update_item(
-            Key={"planHash": _approval_key(plan_hash)},
+            Key={"planHash": _approval_key(plan_hash, catalog_id)},
             UpdateExpression=(
                 "SET #st=:status, appliedAt=:now, updatedAt=:now, "
                 "batchHandles=:handles, appliedCount=:count"
@@ -277,12 +289,12 @@ class _DynamoCatalogApprovalStore:
         )
         return dict(result.get("Attributes") or {})
 
-    def record_readback(self, *, plan_hash: str, current_plan_hash: str,
+    def record_readback(self, *, plan_hash: str, catalog_id: str, current_plan_hash: str,
                         counts: Mapping[str, Any], verified: bool) -> Dict[str, Any]:
         now = int(time.time())
         status = "APPLIED" if verified else "APPLY_SUBMITTED"
         result = self._get_table().update_item(
-            Key={"planHash": _approval_key(plan_hash)},
+            Key={"planHash": _approval_key(plan_hash, catalog_id)},
             UpdateExpression=(
                 "SET #st=:status, updatedAt=:now, lastReadbackAt=:now, "
                 "lastReadbackPlanHash=:current, lastReadbackCounts=:counts"
@@ -764,7 +776,7 @@ def handler(event, context, *, graph_requester=None,
     approval_store_ready = True
     if action or (isinstance(event, Mapping) and event.get("inspect") is True):
         try:
-            approval_row = store.get(plan_hash)
+            approval_row = store.get(plan_hash, catalog_id)
         except Exception as error:  # fail closed for approval-dependent operations
             approval_store_ready = False
             logger.error(json.dumps({
@@ -806,7 +818,7 @@ def handler(event, context, *, graph_requester=None,
 
     if action == "status":
         requested = str(event.get("planHash") or plan_hash).strip().lower()
-        row = store.get(requested)
+        row = store.get(requested, catalog_id)
         return {"ok": True, "readOnly": True, "catalogId": catalog_id,
                 "currentPlanHash": plan_hash, "requestedPlanHash": requested,
                 "currentPlanMatches": hmac.compare_digest(requested, plan_hash.lower()),
@@ -834,7 +846,7 @@ def handler(event, context, *, graph_requester=None,
 
     if action == "readback":
         requested = str(event.get("planHash") or "").strip().lower()
-        row = store.get(requested)
+        row = store.get(requested, catalog_id)
         if not requested or not row:
             return {"ok": False, "reason": "approval_not_found", "catalogId": catalog_id,
                     "currentPlanHash": plan_hash, "requestedPlanHash": requested, "applied": 0}
@@ -843,7 +855,8 @@ def handler(event, context, *, graph_requester=None,
             and counts.get("update", 0) == 0 and counts.get("retire", 0) == 0
         )
         updated = store.record_readback(
-            plan_hash=requested, current_plan_hash=plan_hash, counts=counts, verified=verified)
+            plan_hash=requested, catalog_id=catalog_id, current_plan_hash=plan_hash, counts=counts,
+            verified=verified)
         return {"ok": True, "readOnly": True, "catalogId": catalog_id,
                 "currentPlanHash": plan_hash, "requestedPlanHash": requested,
                 "verified": verified, "counts": counts, "blocked": blocked,
@@ -948,7 +961,7 @@ def handler(event, context, *, graph_requester=None,
                 "blocked": blocked, "planHash": plan_hash, "approved": False, "applied": 0}
 
     outcome = _apply(plan, graph, token=token, app_secret=app_secret, catalog_id=catalog_id)
-    finished = store.finish_apply(plan_hash=plan_hash, outcome=outcome)
+    finished = store.finish_apply(plan_hash=plan_hash, catalog_id=catalog_id, outcome=outcome)
     return {"ok": outcome["ok"], "enabled": True, "dryRun": False, "catalogId": catalog_id,
             "counts": counts, "blocked": blocked, "planHash": plan_hash,
             "approved": True, "approval": _public_approval(finished),

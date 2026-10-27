@@ -17,7 +17,6 @@ const CorsSettingsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
     const [ loading, setLoading ] = useState( true );
     const [ saving, setSaving ] = useState( false );
     const [ status, setStatus ] = useState<api.CorsStatus | null>( null );
-    const [ allowAll, setAllowAll ] = useState( false );
     const [ selected, setSelected ] = useState<string[]>( [] );
     const [ customInput, setCustomInput ] = useState( '' );
 
@@ -31,8 +30,9 @@ const CorsSettingsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
                 setStatus( s );
                 const first = s.apis?.[ 0 ];
                 const isAll = !!first?.allowAll;
-                setAllowAll( isAll );
                 // Seed selection from the current allowlist (minus '*'), unioned with recommended.
+                // A live '*' is replaced by the recommended list on the next save: the server no
+                // longer accepts a wildcard.
                 const current = ( first?.allowOrigins || [] ).filter( o => o !== '*' );
                 const seed = Array.from( new Set( [ ...s.coreOrigins, ...current, ...( isAll ? s.recommendedOrigins : [] ) ] ) );
                 setSelected( seed );
@@ -65,10 +65,10 @@ const CorsSettingsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
         setSaving( true );
         try
         {
-            const res = await api.applyCors( allowAll ? { allowAll: true } : { origins: selected } );
+            const res = await api.applyCors( { origins: selected } );
             if ( res?.success )
             {
-                toast.success( allowAll ? 'CORS set to allow all origins (*)' : `Applied ${res.allowOrigins.length} allowed origins` );
+                toast.success( `Applied ${res.allowOrigins.length} allowed origins` );
                 await load();
             } else
             {
@@ -92,7 +92,7 @@ const CorsSettingsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
                 <h2 style={ { margin: '0 0 6px', color: 'var(--accent)' } }>CORS Manager</h2>
                 <p style={ { color: 'var(--text-muted)', fontSize: 'var(--text-md)', marginTop: 0 } }>
                     Control which website/app origins may call the APIs. Core origins (dashboard + native app) are always
-                    kept so you can never lock yourself out. Use <strong>Allow all</strong> only as a temporary escape hatch.
+                    kept so you can never lock yourself out. Every origin is listed exactly; allowing all origins (*) is not offered.
                 </p>
 
                 { loading ? (
@@ -112,16 +112,8 @@ const CorsSettingsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) =>
                             ) ) }
                         </div>
 
-                        {/* Allow-all toggle */ }
-                        <label style={ { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, cursor: 'pointer' } }>
-                            <input type="checkbox" checked={ allowAll } onChange={ e => setAllowAll( e.target.checked ) } style={ { width: 18, height: 18 } } />
-                            <span style={ { fontSize: 'var(--text-md)', fontWeight: 600, color: allowAll ? '#b45309' : 'var(--accent)' } }>
-                                Allow all origins (*) — permissive, not recommended for production
-                            </span>
-                        </label>
-
                         {/* Origin checklist */ }
-                        <div style={ { opacity: allowAll ? 0.45 : 1, pointerEvents: allowAll ? 'none' : 'auto' } }>
+                        <div>
                             <div style={ { fontWeight: 600, fontSize: 'var(--text-sm)', marginBottom: 8, color: 'var(--accent)' } }>Allowed origins</div>
                             { allOrigins.map( o => {
                                 const core = status?.coreOrigins.includes( o );

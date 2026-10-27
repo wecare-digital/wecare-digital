@@ -1438,6 +1438,17 @@ def _admin_send_access(file_id: str, origin: str) -> Dict[str, Any]:
         return cors_response(409, {"error": "NOT_PAID",
                                    "message": "This file has not been paid for. Request ₹49 instead."},
                              origin)
+    # The link is sent only when it opens the file: an OPEN window, or a paid window not yet
+    # started (READY). Workspace offers it in exactly those states; the server now agrees.
+    if state == "EXPIRED":
+        return cors_response(409, {"error": "WINDOW_EXPIRED",
+                                   "message": "The paid access window has ended. Send the ₹49 "
+                                              "renewal message instead."}, origin)
+    if state == "PAID_UNVERIFIED":
+        return cors_response(409, {"error": "PAID_UNVERIFIED",
+                                   "message": "A payment is recorded for this file but its access "
+                                              "could not be read. Reconcile it; nothing was sent."},
+                             origin)
     from whatsapp_delivery import send_vault_link
 
     ok, detail = send_vault_link(phone=str(item["ownerPhone"]), file_row=item)
