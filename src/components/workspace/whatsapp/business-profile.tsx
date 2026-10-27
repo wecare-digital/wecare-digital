@@ -46,7 +46,7 @@ const BusinessProfilePage: React.FC<PageProps> = ( { signOut, user, embedded = f
       const [ p, s, u, e ] = await Promise.all( [
         api.getBusinessProfile( phone.metaId ),
         api.getPhoneSettings( phone.metaId ),
-        api.getWhatsAppUsername( phone.metaId ),
+        api.getBusinessUsername( phone.metaId ),
         api.getWhatsAppFlowEncryptionStatus( phone.metaId ),
       ] );
       setProfile( p );
