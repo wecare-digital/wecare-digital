@@ -17,6 +17,8 @@ import boto3
 REGION = "us-east-1"
 ACCOUNT = "775261844268"
 EXPECTED = {
+    "wecare-commerce": "Active",
+    "wecare-checkout": "Active",
     "wecare-inbound-whatsapp": "Active",
     "wecare-outbound-whatsapp": "Active",
     "wecare-whatsapp-business-api": "Active",

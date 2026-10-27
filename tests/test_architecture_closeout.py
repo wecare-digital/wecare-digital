@@ -236,6 +236,8 @@ class PaymentArchitectureDriftTests(unittest.TestCase):
         self.assertIn('"wecare-whatsapp-delivery-outcome-unknown"', alarms)
         self.assertIn('"wecare-whatsapp-delivery-reconciliation-stuck"', alarms)
         self.assertIn('"mutationFree": True', smoke)
+        self.assertIn('"wecare-commerce": "Active"', smoke)
+        self.assertIn('"wecare-checkout": "Active"', smoke)
 
     def test_workspace_deploy_verifies_live_operational_config(self):
         workflow = (ROOT / ".github" / "workflows" / "workspace-mcp-ci.yml").read_text(

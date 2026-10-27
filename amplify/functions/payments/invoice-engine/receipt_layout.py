@@ -188,6 +188,7 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
     semibold = _font(font_paths, "semibold", 17 * scale)
     bold = _font(font_paths, "bold", 20 * scale)
     title = _font(font_paths, "bold", 30 * scale)
+    brand = _font(font_paths, "bold", 25 * scale)
     legal = _font(font_paths, "bold", 22 * scale)
     small = _font(font_paths, "regular", 14 * scale)
     small_bold = _font(font_paths, "semibold", 14 * scale)
@@ -245,15 +246,35 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
                   value, font=font, fill=FOREST)
         y += h + 15 * scale
 
-    logo_box = (width // 2 - 190 * scale, y, width // 2 + 190 * scale, y + 105 * scale)
-    if _logo(paper, logo_bytes, logo_box):
-        y += 112 * scale
-    else:
-        centered(company.get("name", "WECARE.DIGITAL"), title)
-    # Both all-caps lines start well below `y`; without clear_ink the trade name ran into the
-    # legal name and the lime rule below cut through it.
+    # Canonical receipt lockup: the immutable official transparent bag mark plus the same
+    # WECARE./DIGITAL wordmark construction used by src/components/BrandLockup.tsx.
+    mark_size = 88 * scale
+    brand_gap = 16 * scale
+    wecare_text, digital_text = "WECARE", "DIGITAL"
+    wecare_bb = draw.textbbox((0, 0), wecare_text, font=brand)
+    digital_bb = draw.textbbox((0, 0), digital_text, font=brand)
+    dot_bb = draw.textbbox((0, 0), ".", font=brand)
+    text_w = max(
+        (wecare_bb[2] - wecare_bb[0]) + (dot_bb[2] - dot_bb[0]),
+        digital_bb[2] - digital_bb[0],
+    )
+    lockup_w = mark_size + brand_gap + text_w
+    lockup_x = (width - lockup_w) // 2
+    mark_drawn = _logo(
+        paper, logo_bytes,
+        (lockup_x, y, lockup_x + mark_size, y + mark_size),
+    )
+    word_x = lockup_x + (mark_size + brand_gap if mark_drawn else 0)
+    word_y = y + 7 * scale
+    draw.text((word_x, word_y), wecare_text, font=brand, fill=INK)
+    draw.text(
+        (word_x + (wecare_bb[2] - wecare_bb[0]), word_y),
+        ".", font=brand, fill=(255, 0, 64),
+    )
+    draw.text((word_x, word_y + 31 * scale), digital_text, font=brand, fill=INK)
+    y += 101 * scale
+
     centered(company.get("legal_name", "WECARE.DIGITAL BHARATWORKS"), legal, FOREST, 2, True)
-    centered(company.get("name", "WECARE.DIGITAL"), semibold, INK, 3, True)
     draw.line((width * .27, y + 2 * scale, width * .73, y + 2 * scale),
               fill=LIME, width=4 * scale)
     y += 16 * scale

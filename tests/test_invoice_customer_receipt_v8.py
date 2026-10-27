@@ -183,17 +183,34 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
         self.assertIn("actual_ext = os.path.splitext(s3_key)[1].lower()", source)
         self.assertIn('display_filename = f"wecare-digital-{short_id}{actual_ext}"', source)
 
-    def test_receipt_uses_dedicated_immutable_masthead_asset(self):
-        source = ENGINE.read_text(encoding="utf-8")
+    def test_receipt_uses_dedicated_immutable_brand_mark_and_wordmark(self):
+        engine = ENGINE.read_text(encoding="utf-8")
+        receipt = RECEIPT.read_text(encoding="utf-8")
         self.assertIn(
-            "secure/d/public/Invoice/brand/wecare-digital-receipt-masthead-v1.png",
-            source,
+            "secure/d/public/Invoice/brand/wecare-digital-receipt-mark-v2.png",
+            engine,
         )
-        self.assertIn("'logo_s3_key': RECEIPT_MASTHEAD_KEY", source)
+        self.assertIn("'logo_s3_key': RECEIPT_BRAND_MARK_KEY", engine)
         self.assertNotIn(
             "'logo_s3_key': media_paths.public('stream/media/m/wecare-digital.png')",
-            source,
+            engine,
         )
+        self.assertIn('wecare_text, digital_text = "WECARE", "DIGITAL"', receipt)
+        self.assertIn('fill=(255, 0, 64)', receipt)
+
+
+    def test_payment_template_header_uses_single_square_thumbnail(self):
+        media = (ROOT / "amplify/functions/shared/lambda_utils/template_media.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            '"https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/wecare-catalog-icon.png"',
+            media,
+        )
+        self.assertIn('"wecare_whatapp_native_pay_template": PAYMENT_TEMPLATE_HEADER', media)
+        source = ENGINE.read_text(encoding="utf-8")
+        self.assertNotIn("entry['image'] = {'link': template_media.ORDER_ITEM_IMAGE}", source)
+
 
     def test_media_trace_id_never_collapses_to_wa_idem_prefix(self):
         source = OUTBOUND.read_text(encoding="utf-8")
