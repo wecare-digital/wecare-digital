@@ -954,7 +954,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                   <div style={ manualCustomerStyle }>
                     <div style={ { fontWeight: 600 } }>Customer not listed?</div>
                     <div style={ helperStyle }>You can enter a mobile number directly. Name is optional.</div>
-                    <div style={ { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 10, marginTop: 10 } }>
+                    <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10, marginTop: 10 } }>
                       <label style={ fieldLabelStyle }>
                         Mobile
                         <input
@@ -990,7 +990,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
               <span style={ sectionHintStyle }>Required</span>
             </div>
 
-            <div style={ { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 } }>
+            <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 } }>
               <Select
                 label="Document type"
                 value={ createForm.type }
