@@ -379,60 +379,219 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
     website = row.get('kind') == 'web-auth'
     title = ('Sign in to WECARE.DIGITAL.' if website and phase == 'phone' else
              'Connect your WECARE account.' if phase == 'phone' else 'Check your WhatsApp.')
-    options = ''.join('<option value="' + html.escape(code, quote=True) + '">' + html.escape(country + ' (' + code + ')') + '</option>' for code, country, _ in DIAL_COUNTRIES)
-    field = ('<div class="phone-fields"><label for="country">Country code<select id="country" name="country" autocomplete="tel-country-code">' + options + '</select></label>'
-             '<label for="phone">WhatsApp number<input id="phone" name="phone" type="tel" inputmode="numeric" autocomplete="tel-national" pattern="[0-9]{5,14}" maxlength="14" required placeholder="Your mobile number" aria-describedby="phone-help"></label></div>'
-             '<p class="hint" id="phone-help">Enter your number without the country code or a leading zero.</p>') if phase == 'phone' else '<label for="code">WhatsApp verification code<input id="code" name="code" type="password" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required placeholder="6-digit code"></label>'
-    description = ('Sign in or create an account with your WhatsApp number.' if phase == 'phone' else
+    description = ('Use your WhatsApp number to continue with your WECARE account.' if phase == 'phone' else
                    'Enter the 6-digit code we sent you. Keep the code on this secure page.')
     if phase == 'registration':
         description = 'Verify your WhatsApp number to create your account. A separate sign-in code will follow.'
-    lockup = BRAND_LOGO + '<span class="brand-copy"><span>WECARE<span class="brand-dot">.</span></span><span>DIGITAL</span></span>'
-    page = ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
-              '<meta name="viewport" content="width=device-width, initial-scale=1">'
-              '<meta name="robots" content="noindex,nofollow,noarchive"><title>WECARE.DIGITAL · Sign in</title>'
-              '<style>*{box-sizing:border-box}body{margin:0;background:#fff;color:#1a3a2a;font:16px/1.55 system-ui,-apple-system,sans-serif}a{color:inherit}header{max-width:1100px;margin:auto;padding:24px 28px;display:flex;align-items:center;justify-content:space-between;gap:16px}.brand{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:750;letter-spacing:.04em;text-decoration:none}.brand svg{width:60px;height:60px}.brand-copy{display:flex;flex-direction:column;line-height:1;font-size:23px;font-weight:750;letter-spacing:-.04em}.brand-dot{color:#ff0040}.brand-copy>span+span{margin-top:4px}header>a:last-child{font-size:13px;text-underline-offset:4px}main{width:min(520px,calc(100% - 32px));margin:40px auto 56px;background:#fff;border:1px solid #e5e7eb;border-radius:24px;padding:36px}.eyebrow{display:inline-block;padding:6px 12px;background:#d1f470;border-radius:24px;font-size:12px;font-weight:700;letter-spacing:.05em}h1{font-size:clamp(28px,5vw,36px);line-height:1.15;letter-spacing:-.04em;margin:24px 0 14px;max-width:350px}p{margin:0 0 22px}.destination{font-size:14px;padding-bottom:20px;border-bottom:1px solid #e5e7eb}label{display:block;font-size:13px;font-weight:650}input,select,button{width:100%;font:inherit;min-height:52px;border-radius:12px}input,select{display:block;margin-top:8px;padding:12px;border:1px solid #d9ded7;background:#fff;color:#1a3a2a;min-width:0}input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}.phone-fields{display:grid;grid-template-columns:1fr 1.2fr;gap:12px}.hint{font-size:12px;margin:10px 0 24px;color:#526052}button{margin-top:24px;padding:14px;background:#d1f470;color:#1a3a2a;border:0;font-weight:750;cursor:pointer}button:hover{background:#c5e85f}.consent{font-size:12px;color:#526052;margin:20px 0 0}.footer{font-size:12px;text-align:center;color:#526052;margin:24px 0 0}.footer a{text-underline-offset:3px}.alert{border:1px solid #b45309;border-radius:10px;padding:12px;font-size:14px}@media(max-width:480px){header{padding:18px 20px}main{margin:20px auto;padding:26px 22px;border-radius:20px}.phone-fields{grid-template-columns:1fr}header>a:last-child{font-size:12px}}.stay{max-width:520px;margin:0 auto 42px;padding:0 24px}.stay h2{display:inline-block;font-size:12px;text-transform:uppercase;letter-spacing:.06em;background:#d1f470;border-radius:20px;padding:6px 12px}.stay-links{display:flex;gap:12px;flex-wrap:wrap}.stay-links a{padding:12px 16px;border:1px solid #e5e7eb;border-radius:12px;font-size:14px;font-weight:650;text-decoration:none}.stay-links a:hover{background:#d1f470}.site-footer{border-top:1px solid #eef0e6;padding:32px 28px}.footer-in{max-width:1044px;margin:auto;display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap}.site-footer .brand svg{width:44px;height:44px}.site-footer .brand-copy{font-size:18px}.site-footer p{font-size:14px;margin:16px 0 0}.legal{display:flex;gap:20px;align-items:center;font-size:13px}</style>'
-              '</head><body><header><a class="brand" href="https://wecare.digital/" aria-label="WECARE.DIGITAL home">'
-            + lockup
-            + '</a><a href="https://wecare.digital/">Visit our website</a></header><main>'
-              '<span class="eyebrow">WECARE.DIGITAL</span><h1>'
-            + title
-            + '</h1><p>'
-            + html.escape(description)
-            + '</p>'
-            + ('' if website else '<p class="destination">Connecting to <strong>' + html.escape(client(row['client'])['name']) + '</strong></p>')
-            + ('<p class="alert" role="alert">' + html.escape(message) + '</p>' if message else '')
-            + '<form method="post" action="'
-            + ('/auth' if connect_origin() != origin() else '/oauth/authorize')
-            + '"><input type="hidden" name="csrf" value="'
-            + html.escape(csrf, quote=True)
-            + '">'
-            + field
-            + '<button type="submit">'
-            + ('Send WhatsApp code' if phase == 'phone' else ('Verify and sign in' if website else 'Verify and connect'))
-            + '</button>'
-            + ('<p class="consent">Sign in to your WECARE account. Verification messages arrive on WhatsApp.</p>' if website else
-               '<p class="consent">Connect your profile, addresses and orders to this app. It can make changes and request a WhatsApp payment only when you ask. Verification messages arrive on WhatsApp.</p>')
-            + '</form>'
-            + '<p class="footer">'
-              '<a href="https://wecare.digital/privacy/">Privacy</a> &nbsp;·&nbsp; <a href="https://wecare.digital/terms/">Terms</a>'
-              '</p></main><section class="stay" aria-label="Stay connected"><h2>Stay connected</h2><div class="stay-links">'
-              '<a href="https://wa.me/message/WUDPTMYSO6XII1" target="_blank" rel="noopener noreferrer">Subscribe on WhatsApp</a>'
-              '<a href="https://wecare.digital/contact/">Contact us</a></div></section><footer class="site-footer">'
-              '<div class="footer-in"><div><a class="brand" href="https://wecare.digital/" aria-label="WECARE.DIGITAL home">'
-            + lockup
-            + '</a><p>Trusted everyday services for Bharat</p></div><nav class="legal" aria-label="Legal">'
-              '<a href="https://wecare.digital/privacy/">Privacy</a><a href="https://wecare.digital/terms/">Terms</a></nav>'
-              '</div></footer></body></html>')
+
+    options = ''.join(
+        '<option value="' + html.escape(code, quote=True) + '">' +
+        html.escape(country + ' (' + code + ')') + '</option>'
+        for code, country, _ in DIAL_COUNTRIES
+    )
+    if phase == 'phone':
+        field = (
+            '<label class="field-label" for="phone">WhatsApp number</label>'
+            '<div class="phone-field">'
+            '<select id="country" name="country" autocomplete="tel-country-code" aria-label="Country code">' +
+            options +
+            '</select>'
+            '<input id="phone" name="phone" type="tel" inputmode="numeric" autocomplete="tel-national" '
+            'pattern="[0-9]{5,14}" maxlength="14" required placeholder="WhatsApp number" '
+            'aria-describedby="phone-help">'
+            '</div>'
+            '<p class="hint" id="phone-help">Enter your number without the country code or a leading zero.</p>'
+        )
+    else:
+        field = (
+            '<label class="field-label" for="code">WhatsApp verification code</label>'
+            '<input class="single-field" id="code" name="code" type="password" inputmode="numeric" '
+            'autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required '
+            'placeholder="6-digit code">'
+        )
+
+    lockup = BRAND_LOGO + (
+        '<span class="brand-copy"><span>WECARE<span class="brand-dot">.</span></span>'
+        '<span>DIGITAL</span></span>'
+    )
+    menu = (
+        '<details class="nav-dropdown"><summary class="nav-trigger" aria-label="Open navigation">'
+        '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+        '<path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg></summary>'
+        '<nav class="nav-menu" aria-label="Public navigation"><div class="nav-cols">'
+        '<div class="nav-col"><a class="nav-item strong" href="https://wecare.digital/">Home</a>'
+        '<a class="nav-item strong" href="https://wecare.digital/shop/">Shop</a>'
+        '<span class="nav-group-label">Products</span>'
+        '<a class="nav-item" href="https://wecare.digital/grahak-os/">Grahak OS</a>'
+        '<a class="nav-item" href="https://wecare.digital/vayulok/">VayuLok</a>'
+        '<a class="nav-item" href="https://wecare.digital/sehat/">Sehat</a>'
+        '<a class="nav-item" href="https://wecare.digital/elsewhere/visa/">Elsewhere</a>'
+        '<a class="nav-item" href="https://wecare.digital/expo-week/">Expo Week</a>'
+        '<a class="nav-item" href="https://wecare.digital/dastavez/drafting/">Dastavez</a>'
+        '<a class="nav-item" href="https://wecare.digital/ritual-guru/puja-guidance/">Ritual Guru</a>'
+        '<a class="nav-item" href="https://wecare.digital/anew/">Anew</a>'
+        '<a class="nav-item" href="https://wecare.digital/hunar/kaushal/">Hunar</a>'
+        '<a class="nav-item" href="https://wecare.digital/niji-setu/">Niji Setu</a></div>'
+        '<div class="nav-col"><span class="nav-group-label">Request</span>'
+        '<a class="nav-item" href="https://wecare.digital/orders/">Orders</a>'
+        '<a class="nav-item" href="https://wecare.digital/submit-request/">Submit Request</a>'
+        '<a class="nav-item" href="https://wecare.digital/request-amendment/">Request Amendment</a>'
+        '<a class="nav-item" href="https://wecare.digital/drop-docs/">Drop Docs</a>'
+        '<a class="nav-item" href="https://wecare.digital/vault/">Vault</a>'
+        '<a class="nav-item" href="https://wecare.digital/shipments/track/">Shipments</a>'
+        '<a class="nav-item" href="https://wecare.digital/request-pickup/">Pickup Request</a>'
+        '<a class="nav-item" href="https://wa.me/message/WUDPTMYSO6XII1">Subscribe</a></div>'
+        '<div class="nav-col"><span class="nav-group-label">Refer &amp; Earn</span>'
+        '<a class="nav-item" href="https://wa.me/message/S6A2QEXZSYXTG1">Partner</a>'
+        '<a class="nav-item" href="https://wecare.digital/shop/merchandise/">Merchandise</a>'
+        '<a class="nav-item" href="https://wecare.digital/shop/kiosk/">Kiosk</a>'
+        '<span class="nav-group-label">Contact</span>'
+        '<a class="nav-item" href="https://wecare.digital/contact/">Contact us</a>'
+        '<span class="nav-group-label">Legal Stuff</span>'
+        '<a class="nav-item" href="https://wecare.digital/terms/">Terms</a>'
+        '<a class="nav-item" href="https://wecare.digital/privacy/">Privacy</a></div>'
+        '</div></nav></details>'
+    )
+    header = (
+        '<header class="hdr"><div class="hdr-in"><div class="logo-nav">'
+        '<a class="brand logo" href="https://wecare.digital/" aria-label="WECARE.DIGITAL home">' +
+        lockup + '</a>' + menu + '</div>'
+        '<a class="cart" href="https://wecare.digital/cart/" aria-label="Open cart">'
+        '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+        '<path d="M6 8h12l1 13H5L6 8Zm3 0V6a3 3 0 0 1 6 0v2"/></svg></a>'
+        '</div></header>'
+    )
+    connect_note = (
+        '' if website else
+        '<p class="destination">Connecting to <strong>' +
+        html.escape(client(row['client'])['name']) +
+        '</strong></p>'
+    )
+    alert = '<p class="alert" role="alert">' + html.escape(message) + '</p>' if message else ''
+    button_text = 'Send WhatsApp code' if phase == 'phone' else ('Verify and sign in' if website else 'Verify and connect')
+    consent = (
+        'Sign in to your WECARE account. Verification messages arrive on WhatsApp.'
+        if website else
+        'Connect your profile, addresses and orders to this app. It can make changes and request a WhatsApp payment only when you ask. Verification messages arrive on WhatsApp.'
+    )
+    stay_connected = (
+        '<section class="public-share" aria-label="Stay connected">'
+        '<span class="ps-kicker">Stay connected</span><div class="ps-row">'
+        '<a class="ps-action ps-subscribe" href="https://wa.me/message/WUDPTMYSO6XII1" '
+        'target="_blank" rel="noopener noreferrer" aria-label="Subscribe on WhatsApp">'
+        '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+        '<path d="M12 21a2.5 2.5 0 0 0 2.4-2H9.6A2.5 2.5 0 0 0 12 21Zm6-5H6l1.5-2V9a4.5 4.5 0 0 1 9 0v5Z"/></svg>'
+        '<span class="ps-tip">Subscribe</span></a>'
+        '<a class="ps-action" href="https://wecare.digital/contact/" aria-label="Contact us">'
+        '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+        '<path d="M3 6h18v12H3Zm0 1 9 6 9-6"/></svg><span class="ps-tip">Contact</span></a>'
+        '</div></section>'
+    )
+    footer = (
+        '<footer class="site-footer"><div class="footer-in"><div class="footer-brand">'
+        '<a class="brand compact" href="https://wecare.digital/" aria-label="WECARE.DIGITAL home">' +
+        lockup + '</a>'
+        '<p class="footer-tagline">Trusted everyday services for Bharat</p>'
+        '<span class="footer-dash" aria-hidden="true"></span></div></div></footer>'
+    )
+    styles = (
+        '*{box-sizing:border-box}:root{--green:#1a3a2a;--lime:#d1f470;--hair:#e5e7eb;'
+        '--text:#1a1a1a;--body:rgba(0,0,0,.898);--muted:rgba(0,0,0,.54);--content:1300px;'
+        '--copy:560px}html{background:#fff}body{margin:0;background:#fff;color:var(--text);'
+        "font:16px/1.55 'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}"
+        'a{color:inherit}.hdr{position:fixed;top:0;inset-inline:0;z-index:1001;background:#fff}'
+        '.hdr-in{max-width:var(--content);height:108px;margin:0 auto;padding:18px 24px;display:flex;'
+        'align-items:center;justify-content:space-between;gap:16px;overflow-x:clip}.logo-nav{display:flex;'
+        'align-items:center;gap:10px;min-width:0}.brand{display:flex;align-items:center;gap:10px;'
+        'text-decoration:none;min-width:0}.brand svg{width:60px;height:60px;flex:0 0 auto}.brand-copy{'
+        'display:flex;flex-direction:column;line-height:1;font-size:23px;font-weight:750;letter-spacing:-.04em;'
+        'color:var(--green);white-space:nowrap}.brand-dot{color:#ff0040}.brand-copy>span+span{margin-top:4px}'
+        '.nav-dropdown{position:relative}.nav-dropdown summary{list-style:none}.nav-dropdown summary::-webkit-details-marker{display:none}'
+        '.nav-trigger{width:46px;height:46px;border:0;border-radius:10px;background:#f4f7ee;display:flex;'
+        'align-items:center;justify-content:center;cursor:pointer}.nav-trigger svg{width:24px;height:24px;'
+        'fill:var(--green);transition:transform .18s}.nav-dropdown[open] .nav-trigger{background:var(--lime)}'
+        '.nav-dropdown[open] .nav-trigger svg{transform:rotate(180deg)}.nav-trigger:focus-visible,.cart:focus-visible,'
+        '.nav-item:focus-visible,.ps-action:focus-visible,input:focus-visible,select:focus-visible,button:focus-visible{'
+        'outline:3px solid var(--green);outline-offset:3px}.nav-menu{display:none;position:absolute;top:58px;'
+        'inset-inline-start:0;width:min(760px,calc(100vw - 48px));max-height:min(70vh,640px);overflow:auto;padding:20px;'
+        'background:#fff;border:1px solid var(--hair);border-radius:18px;box-shadow:0 18px 46px rgba(26,58,42,.13)}'
+        '.nav-dropdown[open] .nav-menu{display:block}.nav-cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));'
+        'gap:24px}.nav-col{display:flex;flex-direction:column;min-width:0}.nav-group-label{margin:12px 10px 6px;'
+        'color:var(--muted);font-size:12px;font-weight:750;letter-spacing:.08em;text-transform:uppercase}.nav-item{'
+        'display:block;padding:9px 10px;border-radius:10px;color:var(--green);font-size:17px;font-weight:600;'
+        'text-decoration:none}.nav-item.strong{font-size:19px}.nav-item:hover{background:#f7fbe9}.cart{width:46px;'
+        'height:46px;border-radius:50%;border:2px solid var(--hair);display:flex;align-items:center;justify-content:center;'
+        'text-decoration:none;background:#fff}.cart:hover{background:var(--lime);border-color:var(--green)}.cart svg{'
+        'width:22px;height:22px;fill:none;stroke:var(--green);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}'
+        '.auth-main{padding-top:108px}.auth-hero{max-width:var(--content);margin:0 auto;padding:80px 24px 96px;'
+        'display:grid;grid-template-columns:minmax(0,1.1fr) minmax(340px,520px);gap:96px;align-items:start}.hero-copy{'
+        'min-width:0;padding-top:8px}.hero-title{margin:0;max-width:760px;color:rgba(0,0,0,.95);'
+        'font-size:clamp(36px,4.3vw,60px);font-weight:600;line-height:1.04;letter-spacing:-.04em;text-wrap:balance}'
+        '.hero-sub{max-width:var(--copy);margin:24px 0 0;color:var(--body);font-size:20px;font-weight:400;'
+        'line-height:1.4;letter-spacing:-.125px;text-wrap:balance}.sign-card{border:1px solid var(--hair);'
+        'border-top:4px solid var(--lime);border-radius:16px;background:#fff;padding:32px;box-shadow:0 4px 24px rgba(0,0,0,.06)}'
+        '.destination{margin:0 0 24px;padding:0 0 20px;border-bottom:1px solid var(--hair);color:var(--muted);'
+        'font-size:15px}.destination strong{color:var(--green)}.field-label{display:block;margin:0 0 8px;color:var(--text);'
+        'font-size:15px;font-weight:700}.phone-field{display:flex;min-height:52px;border:1px solid var(--hair);border-radius:999px;'
+        'overflow:hidden;background:#fff}.phone-field select,.phone-field input{min-width:0;border:0;background:#fff;color:var(--text);'
+        'font:17px/1.2 inherit}.phone-field select{flex:0 0 44%;max-width:190px;padding:0 12px;border-inline-end:1px solid var(--hair)}'
+        '.phone-field input{flex:1 1 auto;padding:0 16px}.phone-field:focus-within{border-color:var(--green);'
+        'box-shadow:0 0 0 3px rgba(209,244,112,.38)}.phone-field select:focus-visible,.phone-field input:focus-visible{'
+        'outline:3px solid var(--green);outline-offset:-3px}.single-field{width:100%;min-height:52px;border:1px solid var(--hair);'
+        'border-radius:999px;background:#fff;color:var(--text);padding:0 16px;font:17px/1.2 inherit}.single-field:focus-visible{'
+        'border-color:var(--green);box-shadow:0 0 0 3px rgba(209,244,112,.38)}.hint{margin:10px 0 0;color:var(--muted);'
+        'font-size:13px}.sign-card button{width:100%;min-height:52px;margin-top:24px;border:2px solid var(--green);border-radius:999px;'
+        'background:var(--lime);color:var(--green);font:600 17px/1 inherit;cursor:pointer}.sign-card button:hover{background:#fff}'
+        '.consent{margin:18px 0 0;color:var(--muted);font-size:13px;line-height:1.5}.alert{margin:0 0 20px;padding:12px 14px;'
+        'border-inline-start:4px solid var(--green);background:#f7fbe9;border-radius:8px;color:var(--text);font-size:14px}'
+        '.public-share{position:relative;max-width:var(--content);margin:0 auto;padding:0 24px 80px}.ps-kicker{display:flex;'
+        'width:max-content;max-width:100%;align-items:center;min-height:32px;padding:0 14px;margin:0 0 18px;border-radius:999px;'
+        'background:var(--lime);color:var(--green);font-size:17px;font-weight:700;line-height:1}.ps-row{display:flex;gap:12px;'
+        'width:max-content;max-width:100%;flex-wrap:wrap}.ps-action{position:relative;width:48px;height:48px;border-radius:50%;'
+        'border:2px solid var(--hair);background:#fff;color:var(--green);display:inline-flex;align-items:center;justify-content:center;'
+        'text-decoration:none;transition:background-color .18s,border-color .18s,transform .18s,box-shadow .18s}.ps-action svg{'
+        'width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.ps-subscribe{'
+        'background:var(--lime);border-color:var(--green)}.ps-action:hover{border-color:var(--green);background:var(--lime);'
+        'transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.10)}.ps-subscribe:hover{background:#fff}.ps-tip{'
+        'position:absolute;inset-inline-start:50%;bottom:calc(100% + 9px);transform:translateX(-50%) translateY(4px);padding:6px 9px;'
+        'border-radius:8px;background:var(--green);color:#fff;white-space:nowrap;font-size:14px;font-weight:650;line-height:1.2;'
+        'opacity:0;pointer-events:none;transition:opacity .15s,transform .15s}.ps-action:hover .ps-tip,.ps-action:focus-visible .ps-tip{'
+        'opacity:1;transform:translateX(-50%) translateY(0)}.site-footer{border-top:1px solid #eef0e6;padding:48px 24px 56px}'
+        '.footer-in{max-width:var(--content);margin:0 auto}.site-footer .brand svg{width:44px;height:44px}.site-footer .brand-copy{'
+        'font-size:18px}.footer-tagline{margin:18px 0 0;color:var(--muted);font-size:16px}.footer-dash{display:block;width:56px;'
+        'height:3px;margin-top:18px;border-radius:999px;background:var(--lime)}@media(max-width:767px){.hdr-in{height:96px;'
+        'padding:18px 16px}.brand svg{width:52px;height:52px}.brand-copy{font-size:20px}.auth-main{padding-top:96px}.auth-hero{'
+        'padding:48px 16px 64px;grid-template-columns:1fr;gap:48px}.hero-title{font-size:40px;line-height:1.1}.sign-card{padding:24px 20px}'
+        '.nav-menu{position:fixed;top:96px;inset-inline:16px;width:auto;max-height:calc(100vh - 112px);border-radius:16px}.nav-cols{'
+        'grid-template-columns:1fr}.public-share{padding:0 16px 64px}.site-footer{padding:40px 16px 48px}.cart{width:44px;height:44px}}'
+        '@media(max-width:380px){.hero-title{font-size:32px}.phone-field select{flex-basis:42%;padding:0 8px}.phone-field input{'
+        'padding:0 12px}.brand-copy{font-size:18px}.brand svg{width:48px;height:48px}}'
+    )
+    page = (
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
+        '<meta name="robots" content="noindex,nofollow,noarchive">'
+        '<title>WECARE.DIGITAL · Sign in</title><style>' + styles + '</style></head><body>' +
+        header +
+        '<main class="auth-main"><section class="auth-hero" aria-labelledby="auth-title">'
+        '<div class="hero-copy"><h1 class="hero-title" id="auth-title">' + html.escape(title) + '</h1>'
+        '<p class="hero-sub">' + html.escape(description) + '</p></div>'
+        '<section class="sign-card" aria-label="WECARE secure sign in">' +
+        connect_note + alert +
+        '<form method="post" action="' + ('/auth' if connect_origin() != origin() else '/oauth/authorize') + '">'
+        '<input type="hidden" name="csrf" value="' + html.escape(csrf, quote=True) + '">' +
+        field +
+        '<button type="submit">' + button_text + '</button>'
+        '<p class="consent">' + html.escape(consent) + '</p></form></section></section>' +
+        stay_connected +
+        '</main>' + footer + '</body></html>'
+    )
     result = response(200, page, page=True)
     if not website:
-        # Browsers apply form-action to the post-login redirect chain too. Permit only
-        # this registered client's callback origin, never a caller-selected destination.
         callback = urlparse(row['redirect'])
         result['headers']['Content-Security-Policy'] = result['headers']['Content-Security-Policy'].replace(
             "form-action 'self';", f"form-action 'self' {callback.scheme}://{callback.netloc};")
     return result
-
 
 def save_pending(row: dict, login: dict, message: str = '') -> dict:
     csrf = secrets.token_urlsafe(32)
