@@ -1112,6 +1112,7 @@ const WorkflowTerminal: React.FC = () => {
           overflow-x:auto;
           overflow-y:hidden;
           -webkit-overflow-scrolling:touch;
+          touch-action:pan-x;
           white-space:nowrap;
           color:#fff;
           font-size:clamp(16px,1.1vw + 14px,18px);
@@ -1342,10 +1343,17 @@ const WorkflowTerminal: React.FC = () => {
             overflow-x:auto;
             overflow-y:hidden;
             -webkit-overflow-scrolling:touch;
-            scrollbar-width:none;
+            touch-action:pan-x;
+            scrollbar-width:thin;
+            scrollbar-color:rgba(209,244,112,.72) rgba(255,255,255,.10);
             white-space:nowrap;
           }
-          .wt-bar::-webkit-scrollbar{display:none}
+          /* The title rail is horizontally scrollable only when a very narrow viewport needs it.
+             Show a real 3px lime thumb rather than hiding the scrollbar: this is the visual cue
+             that the row continues, and it uses colours already present in the terminal. */
+          .wt-bar::-webkit-scrollbar{height:3px}
+          .wt-bar::-webkit-scrollbar-track{background:rgba(255,255,255,.10)}
+          .wt-bar::-webkit-scrollbar-thumb{background:rgba(209,244,112,.72);border-radius:8px}
           .wt-light{width:9px;height:9px}
           .wt-bar-title{
             margin-left:3px;
