@@ -584,8 +584,8 @@ from the brief and not re-read; no provider-side call was made.
 
 ## 12. Changes made in this audit
 
-Branch `audit/platform-performance-cost-seo-20261027`, twelve commits on `2f7ca2979` plus one merge
-of the base:
+Branch `audit/platform-performance-cost-seo-20261027`, thirteen commits on `2f7ca2979` plus one
+merge of the base:
 
 1. `perf(web)`: Material Symbols subset with a compile-time ligature guard.
 2. `perf(web)`: Amplify, the API client and Capacitor load only where used.
@@ -606,7 +606,8 @@ of the base:
 11. `docs(audit)`: dependency audit, the 27 October egress spike and the blog-fetch cost model;
     corrected the CI history, access-log window length and Compute Optimizer count.
 12. Merge of `origin/wecare.digital` at `ddbacf8b5` into the branch (`485933cdb`). The base had
-    moved 55 commits, including remediation PRs from another session: #1722 (npm download cache
+    moved 63 commits; the merge commit's message says 55, which was the count when the conflict
+    was first found. They include remediation PRs from another session: #1722 (npm download cache
     in `amplify.yml`, immutable caching for `/_next/static`) and #1728 (SEO-table PITR
     reconciliation in `scripts/deploy_seo_tools.py`, plus
     `tests/test_platform_audit_remediations.py`, which pins both #1722 changes). #1731 has the
@@ -614,7 +615,8 @@ of the base:
     The one conflict, `amplify.yml`, keeps the base's `.npm` cache and this branch's `nvm` and
     Node assertion lines. The merged tree passes `npm run build`, `tsc --noEmit`, `eslint` (0
     errors), `compileall`, both Python test files (11 tests) and the index/schema/html checks.
-13. `docs(audit)`: this account of the merge and the scenario figures it changes.
+13. `docs(audit)`, two commits: this account of the merge and the scenario figures it changes,
+    then the corrected commit count in item 12.
 
 Not done, though offered in an earlier reply: making `tools/browser/menucheck.js:40` and
 `elsewherecheck.js:36`, which call `engine.launch()` directly, launch through `lib/browser.js`.
