@@ -623,7 +623,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                                                         action={ working === file.fileId ? 'Preparing…' : 'Download file' }
                                                         block
                                                         onClick={ () => { void handleDownload( file ); } }
-                                                        disabled={ working === file.fileId || price === null }
+                                                        disabled={ working === file.fileId }
                                                         busy={ working === file.fileId }
                                                     />
                                                     <p className="sf-fine">
