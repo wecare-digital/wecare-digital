@@ -56,7 +56,7 @@ jobs:
         run: |
           npm ci --no-audit --no-fund
           npm ci --prefix tools/browser --no-audit --no-fund
-          npx --prefix tools/browser playwright install --with-deps chromium
+          node tools/browser/node_modules/playwright-core/cli.js install --with-deps chromium
 
       - name: Build static public export
         env:
@@ -100,7 +100,7 @@ jobs:
         run: |
           npm ci --no-audit --no-fund
           npm ci --prefix tools/browser --no-audit --no-fund
-          npx --prefix tools/browser playwright install --with-deps chromium firefox webkit
+          node tools/browser/node_modules/playwright-core/cli.js install --with-deps chromium firefox webkit
 
       - name: Build static public export
         env:
@@ -143,7 +143,7 @@ jobs:
         run: |
           npm ci --no-audit --no-fund
           npm ci --prefix tools/browser --no-audit --no-fund
-          npx --prefix tools/browser playwright install --with-deps chromium
+          node tools/browser/node_modules/playwright-core/cli.js install --with-deps chromium
           npm run build
 
       - name: Expanded-copy phone stress matrix
