@@ -257,6 +257,28 @@
                     "cognito-idp:AdminListGroupsForUser"
                   ],
                   "Resource": "arn:aws:cognito-idp:us-east-1:775261844268:userpool/us-east-1_cSx0RHCIR"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "lambda:InvokeFunction"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:aws:lambda:us-east-1:${AWS::AccountId}:function:wecare-whatsapp-business-api:live"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:lambda:us-east-1:${AWS::AccountId}:function:wecare-service-api:live"
+                    }
+                  ]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "xray:PutTraceSegments",
+                    "xray:PutTelemetryRecords"
+                  ],
+                  "Resource": "*"
                 }
               ]
             }
@@ -278,7 +300,7 @@
         "Handler": "handler.handler",
         "MemorySize": 256,
         "Timeout": 28,
-        "ReservedConcurrentExecutions": 5,
+        "ReservedConcurrentExecutions": 10,
         "Role": {
           "Fn::GetAtt": [
             "Role",
@@ -356,6 +378,9 @@
               ]
             }
           }
+        },
+        "TracingConfig": {
+          "Mode": "Active"
         }
       }
     },
