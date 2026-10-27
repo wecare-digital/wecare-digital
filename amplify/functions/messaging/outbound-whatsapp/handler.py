@@ -15,6 +15,7 @@ import secrets
 import uuid
 import time
 import logging
+import hashlib
 import boto3
 import urllib.request
 import urllib.error
@@ -446,6 +447,22 @@ CUSTOMER_SERVICE_WINDOW_HOURS = 24  # Requirement 16.2
 # (dm/inbox, dm/sms, dm/broadcast). Those mean "the API accepted it", which is
 # true. Only the persisted lifecycle needed correcting.
 WA_INITIAL_STATUS = 'accepted'
+
+# A caller that owns a durable business idempotency claim can also pass a stable key down to the
+# final Meta send boundary. We hash it before using it as a DynamoDB/message id: the raw key can
+# contain invoice/reference identifiers and does not belong in logs or customer-facing records.
+# This is defense-in-depth, not the primary lock: payment/invoice callers still claim their
+# business action in CommerceKeys/PaymentAttempts before invoking outbound.
+IDEMPOTENCY_KEY_MAX_LENGTH = 256
+
+def _stable_outbound_message_id(idempotency_key: str) -> str:
+    key = str(idempotency_key or '').strip()
+    if not key:
+        return str(uuid.uuid4())
+    if len(key) > IDEMPOTENCY_KEY_MAX_LENGTH or any(ord(ch) < 32 or ord(ch) == 127 for ch in key):
+        raise ValueError('invalid idempotency key')
+    return 'wa-idem-' + hashlib.sha256(key.encode('utf-8')).hexdigest()[:40]
+
 RATE_LIMIT_PER_SECOND = 80  # Requirement 5.9
 
 # WhatsApp Payment Configurations
@@ -1528,8 +1545,64 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             except Exception as _te:
                 logger.warning(json.dumps({'event': 'pre_send_typing_error', 'error': str(_te), 'requestId': request_id}))
 
-        # Generate message ID
-        message_id = str(uuid.uuid4())
+        # Generate the outbound row id. Payment/invoice callers supply a stable idempotencyKey,
+        # so an ordinary retry resolves the same stored WAMID instead of creating a second Meta
+        # message. Calls with no key preserve the historical random-id behaviour.
+        idempotency_key = str(body.get('idempotencyKey') or '').strip()
+        try:
+            message_id = _stable_outbound_message_id(idempotency_key)
+        except ValueError:
+            return _error_response(
+                400, 'IDEMPOTENCY_KEY_INVALID',
+                'idempotencyKey is too long or contains control characters.')
+
+        # Universal idempotent read for keyed sends, before any provider side-effect. The higher
+        # payment rail claim remains the concurrency lock; this read is the final-boundary guard
+        # against a caller replay after a successful send. If DynamoDB is unavailable, fail closed
+        # rather than risk showing the customer the same payment/status/invoice message twice.
+        if idempotency_key and SEND_MODE != 'DRY_RUN':
+            try:
+                existing = dynamodb.Table(MESSAGES_TABLE).get_item(
+                    Key={'id': message_id}, ConsistentRead=True,
+                    ProjectionExpression='id,whatsappMessageId,#s',
+                    ExpressionAttributeNames={'#s': 'status'}).get('Item') or {}
+            except Exception as error:
+                logger.error(json.dumps({
+                    'event': 'idempotency_read_failed',
+                    'messageId': message_id,
+                    'error': type(error).__name__,
+                    'requestId': request_id,
+                }))
+                return _error_response(
+                    503, 'IDEMPOTENCY_STATE_UNAVAILABLE',
+                    'Message delivery state could not be verified. Nothing was sent.')
+            if existing.get('whatsappMessageId'):
+                logger.info(json.dumps({
+                    'event': 'idempotent_skip',
+                    'messageId': message_id,
+                    'requestId': request_id,
+                }))
+                return {
+                    'statusCode': 200,
+                    'headers': cors_headers(origin),
+                    'body': json.dumps({
+                        'success': True,
+                        'messageId': message_id,
+                        'whatsappMessageId': existing['whatsappMessageId'],
+                        'status': existing.get('status') or WA_INITIAL_STATUS,
+                        'mode': 'LIVE',
+                        'idempotent': True,
+                    }),
+                }
+            if existing:
+                logger.warning(json.dumps({
+                    'event': 'idempotent_send_in_flight',
+                    'messageId': message_id,
+                    'requestId': request_id,
+                }))
+                return _error_response(
+                    409, 'MESSAGE_SEND_IN_FLIGHT',
+                    'This message is already being reconciled; no duplicate was sent.')
         
         # Requirement 5.3: DRY_RUN mode - log without API call
         if SEND_MODE == 'DRY_RUN':
