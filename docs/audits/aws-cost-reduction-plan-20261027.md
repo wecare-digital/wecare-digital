@@ -4,10 +4,11 @@ Companion to `docs/audits/platform-audit-20261027.md`, which holds the evidence.
 `775261844268`, region `us-east-1`. All dollar figures are **gross list-price charges before
 credits**, computed programmatically from Cost Explorer and CloudWatch reads on 2026-10-27.
 
-**Revision, evening of 2026-10-27.** Scenario E was corrected from $9.99 to $2.63 (so F is
-$66.48, not $59.12). The blog-fetch cost in C2 and C10 is now computed rather than ranged. The
-scenario note now gives run-rates at recent build volume, and C10 covers the 27 October CI
-transfer spike.
+**Revision, evening of 2026-10-27.** Scenario E was corrected from $9.99 to $2.63. C1 now
+accounts for #1722, another session's npm-cache change that went live on the base the same
+evening. With both changes, F is $68.69 rather than $59.12. The blog-fetch cost in C2 and C10 is
+now computed rather than ranged. The scenario note now gives run-rates at recent build volume,
+and C10 covers the 27 October CI transfer spike.
 
 ## The honest framing
 
@@ -17,7 +18,9 @@ transfer spike.
   only in the Billing console (owner).
 - **Nothing in this plan has been executed against AWS.** The repository changes are on branch
   `audit/platform-performance-cost-seo-20261027` and take effect only when the owner merges and
-  pushes (Amplify then builds and deploys). "Costs actually removed" is therefore **$0.00** today.
+  pushes (Amplify then builds and deploys). "Costs actually removed" by this audit is therefore
+  **$0.00** today. One overlapping change from another session, #1722, went live on 27 October
+  and is worth an estimated $6.57/month at October-average volume (C1).
 - Labels: **ACTUAL** = measured; **ESTIMATE** = modelled from measured rates; **OWNER DECISION** =
   needs explicit authorization because it is a production, billing, provider, IAM or
   destructive change.
@@ -42,41 +45,48 @@ $2.77 of transfer.
 
 | Scenario | What changes | Gross $/30 d | Step saving |
 |---|---|---:|---:|
-| A | Nothing deployed | 175.23 | |
-| B | Merge the branch (Amplify build overhead −94 s/build) | 151.83 | 23.40 |
-| C | + path-filtered Amplify builds with a 6-hourly content rebuild | 130.21 | 21.62 |
-| D | + backup account `…5408` back to Basic support | 101.21 | 29.00 |
-| E | + right-sized shop/catalog images | 98.58 | 2.63 |
-| F | + management account to Basic support, Lambda error alarms consolidated | 66.48 | 32.10 |
+| A | October-average baseline, before #1722 | 175.23 | |
+| B | #1722's npm download cache (live since 27 October, −26.4 s/build measured) + merge this branch (`nvm`, −51 s/build) | 155.96 | 19.27 |
+| C | + path-filtered Amplify builds with a 6-hourly content rebuild | 132.42 | 23.54 |
+| D | + backup account `…5408` back to Basic support | 103.42 | 29.00 |
+| E | + right-sized shop/catalog images | 100.79 | 2.63 |
+| F | + management account to Basic support, Lambda error alarms consolidated | 68.69 | 32.10 |
 
-Correction: the first version of this table credited E with $9.99, on the assumption that
+Correction 1: the first version of this table credited E with $9.99, on the assumption that
 catalog images were about 65% of Amplify transfer. That came from a single sampled window on
 27 October, which the new CI workflow dominated. `wecare-catalog-media` has served traffic only
 since 22 October: 1,220 requests on 22-26 October at 2.4 MB each, which is $2.63 a month at that
 rate. E now removes at most that amount.
 
-Scenario F is about **$108.75 a month below A**. What remains in F is usage-dependent or
-production baseline: Amplify builds and hosting (~$35.28), Secrets Manager ($6.97), Lightsail SIP
+Correction 2: B assumed this branch removes 94 s per build (51 s `nvm` plus 43 s of
+`node_modules` cache). Another session's #1722 has since replaced that cache with npm's download
+cache on the base, measured at −26.4 s per build, and the merge keeps it. B is now $6.57 (#1722,
+already live) plus $12.70 (this branch's `nvm` change). C, D, E and F carry the higher build line
+forward.
+
+Scenario F is about **$106.54 a month below A**. What remains in F is usage-dependent or
+production baseline: Amplify builds and hosting (~$37.49), Secrets Manager ($6.97), Lightsail SIP
 server ($5.32), alarms ($4.49), KMS ($4.10), API Gateway, messaging, DynamoDB, Lambda, S3,
 Route 53 and ECR. A literal $0 is not reachable without removing production services, and this
 plan does not propose that.
 
 ## Changes
 
-### C1. Amplify build overhead (repository change, done on branch)
+### C1. Amplify build overhead (part live on the base, part on this branch)
 
 | | |
 |---|---|
-| Current state | Every BUILD step (~252 s) re-installs 1,692 default global npm packages via `nvm install` (51 s) and round-trips a `node_modules` cache that `npm ci` deletes (~43 s) |
-| Live evidence | Build logs of jobs 276-278; Cost Explorer `USE1-BuildDuration` 5,683.8 min ($56.84) Oct 1-26 |
+| Current state | Every BUILD step re-installs 1,692 default global npm packages via `nvm install` (51 s). Until job 281 it also round-tripped a `node_modules` cache that `npm ci` deletes (~43 s); #1722 on the base replaced that with npm's download cache |
+| Live evidence | Build logs of jobs 276-278; BUILD step mean 256.9 s for jobs 255-280 (24 builds, standard deviation 17.7 s) and 230.4 s for jobs 281-285 after #1722; cache upload about 35 s before, about 12.5 s after; Cost Explorer `USE1-BuildDuration` 5,683.8 min ($56.84) Oct 1-26 |
 | Repo evidence | `amplify.yml` preBuild and `cache.paths` |
-| Monthly cost | $65.58 build minutes at October's average volume |
-| Proposed state | `nvm install --skip-default-packages 24`, a Node ≥ 24 assertion, no `cache:` block |
-| Expected saving | **$23.40/month** at October-average volume (about $38.07 at 24-26 October's 81 builds a day), ESTIMATE; also ~1.5 min faster deploys |
-| Implementation | Commit `02f1e9ee5` on the audit branch |
+| Monthly cost | $65.58 build minutes at October's average volume, before #1722 |
+| Proposed state | `nvm install --skip-default-packages 24` and a Node ≥ 24 assertion (this branch), with #1722's `.npm` cache kept. This branch originally removed the cache block; the merge drops that in favour of #1722, which is measured and is pinned by `tests/test_platform_audit_remediations.py` |
+| Expected saving | **$19.27/month** at October-average volume, ESTIMATE: $6.57 already live from #1722 (26.4 s) plus $12.70 from the `nvm` change (51 s). At 24-26 October's 81 builds a day: $10.69 plus $20.66 |
+| Not adopted | Removing the cache entirely could save at most the new cache's measured 16.8 s per build (4.3 s restore, 12.5 s upload), less whatever `npm ci` gains from it. That is unmeasured, so the merge keeps #1722 |
+| Implementation | Commit `02f1e9ee5` on the audit branch; merge `485933cdb` resolves `amplify.yml` |
 | Risk | Low. If a command needed a global package the build fails before deploy and the previous deployment stays live. The new assertion fails the build instead of silently using another Node |
 | Rollback | Revert the commit |
-| Validation | First Amplify build after merge: BUILD step ≤ ~170 s; log shows no "Installing default global packages"; `node -v` v24.x |
+| Validation | First Amplify build after merge: BUILD step about 51 s below the 230 s now seen; log shows no "Installing default global packages"; `node -v` v24.x |
 | Owner approval | **Yes**: merging and pushing to `wecare.digital` is a production deploy |
 
 ### C2. Path-filtered Amplify builds
@@ -85,9 +95,9 @@ plan does not propose that.
 |---|---|
 | Current state | Auto-build on every push; 136 of 256 recent successful builds changed only backend, docs or tests, and 4 changed nothing |
 | Live evidence | Amplify job list joined to `git diff` between consecutive built commits |
-| Monthly cost | $42.18 builds after C1 at October-average volume. The builds' blog fetches add $8.67/month at 24-26 October's 81 builds a day (1,433 requests per build × $0.0000024890 per request across API Gateway, Lambda, DynamoDB and Amplify transfer) |
+| Monthly cost | $46.31 builds after C1 at October-average volume. The builds' blog fetches add $8.67/month at 24-26 October's 81 builds a day (1,433 requests per build × $0.0000024890 per request across API Gateway, Lambda, DynamoDB and Amplify transfer) |
 | Proposed state | Disable auto-build on the `wecare.digital` branch; a GitHub Actions workflow triggers `amplify start-job` only when a frontend input changes (`src/`, `public/`, `content/`, `shared/`, `config/`, `package*.json`, `next.config.js`, `tsconfig.json`, `amplify.yml`, `customHttp.yml`, `.nvmrc`, `scripts/generate-*.js`, `scripts/blog-merges.js`, `scripts/guard_braces_depth.cjs`, `scripts/checkout_release_check.py`, `scripts/sync_faq.py`, `scripts/verify_public_bundle_secrets.py`, `amplify/functions/core/faq-handler/**`), plus a scheduled rebuild every 6 hours, because blog posts reach the static site only through a build and nothing else triggers one |
-| Expected saving | **~$21.62/month** at October-average volume (ESTIMATE). The build line falls from $42.18 to $22.50: $42.18 × 116/256 = $19.11, plus $3.39 for four scheduled rebuilds a day. API Gateway, DynamoDB and Lambda fall by $1.94. At 24-26 October's volume (81 → 40.7 builds a day), the blog-fetch part alone falls by about $4.31/month |
+| Expected saving | **~$23.54/month** at October-average volume (ESTIMATE). The build line falls from $46.31 to $24.71: $46.31 × 116/256 = $20.99, plus $3.72 for four scheduled rebuilds a day. API Gateway, DynamoDB and Lambda fall by $1.94. At 24-26 October's volume (81 → 40.7 builds a day), the blog-fetch part alone falls by about $4.31/month |
 | Implementation | A GitHub OIDC role allowed only `amplify:StartJob` on `arn:aws:amplify:us-east-1:775261844268:apps/d22dm4b0jn71jw/branches/wecare.digital/jobs/*`; branch `enableAutoBuild=false` |
 | Risk | Medium: a missed path in the filter means a frontend change does not deploy until the next scheduled rebuild. Mitigation: the filter errs broad, and a manual `workflow_dispatch` stays available |
 | Rollback | Re-enable auto-build on the branch (one setting) |

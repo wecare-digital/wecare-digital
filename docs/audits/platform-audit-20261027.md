@@ -2,7 +2,9 @@
 
 Audited commit `2f7ca2979` (the tip of `wecare.digital` on 2026-10-27, after a fast-forward of 32
 commits). Repository changes from this audit are on branch
-`audit/platform-performance-cost-seo-20261027`; nothing was pushed, merged or deployed.
+`audit/platform-performance-cost-seo-20261027`; nothing was pushed, merged or deployed. The branch
+has since absorbed the base up to `ddbacf8b5` (a merge into the audit branch, not into
+`wecare.digital`; see section 12).
 
 **Revision, evening of 2026-10-27.** A re-check of the earlier claims corrected five of them:
 
@@ -12,6 +14,10 @@ commits). Repository changes from this audit are on branch
   19 were over-provisioned.
 - The blog-fetch cost is now computed rather than given as a range.
 - The cost plan's image saving fell from $9.99 to $2.63 a month.
+
+The base also moved while this audit ran: another session's #1722 made part of the build fix and
+the hashed-asset caching live. The branch now includes the base, and the cost plan's C1 and
+scenarios account for it (section 12).
 
 This revision also adds the dependency audit (section 8a) and the 27 October egress spike
 (section 7a).
@@ -46,7 +52,7 @@ P2 = meaningful reliability, UX or maintenance. P3 = cleanup.
 | 1 | P0 | Short-link service: stored XSS on the apex origin (`iosUrl: "javascript:..."` written raw into an inline script), open redirect, and any staff role could overwrite any existing code | Code | Fixed on branch, needs deploy (owner) |
 | 2 | P1 | Every public page downloaded the full Material Symbols variable font: **3,124,872 bytes** for about 17 icons, `display=block` | Local, Cloud-read | Fixed on branch: **15,788 bytes** |
 | 3 | P1 | `/shop/` cards serve 4096×4096 PNG masters (2.0-2.6 MB each, 28 images, 72 MB total); Lighthouse counts 14.6 MB of images and a 27-45 s simulated LCP | Local, Cloud-read | Needs owner-approved derivative upload |
-| 4 | P1 | Amplify builds are the largest technical cost: 5,683.8 build-minutes ($56.84) Oct 1-26; 55% of builds (140 of 256) changed no frontend file; ~94 s of each ~252 s build is fixed overhead | Cloud-read | Overhead fixed on branch; path-filtered triggers need owner |
+| 4 | P1 | Amplify builds are the largest technical cost: 5,683.8 build-minutes ($56.84) Oct 1-26; 55% of builds (140 of 256) changed no frontend file; ~94 s of each ~252 s build was fixed overhead | Cloud-read | Part live: #1722 on the base (npm download cache, −26 s measured). The branch removes 51 s more (nvm). Path-filtered triggers need owner |
 | 5 | P1 | `aws-amplify`, the 285 KB staff API client and seven Capacitor plugins shipped in the bundle every public page shares | Local | Fixed on branch: −44.7 KB brotli JS per public page |
 | 6 | P1 | Business Support+ is billed on two accounts ($29 minimum each); the backup account `…5408` started on Oct 17 | Cloud-read | Owner decision |
 | 7 | P2 | Invoice HTML (a downloadable customer deliverable) interpolated customer name/address/item names unescaped | Code | Fixed on branch, needs deploy |
@@ -115,7 +121,8 @@ P2 = meaningful reliability, UX or maintenance. P3 = cleanup.
 
 ```text
 Browser ── wecare.digital (Amplify Hosting, app d22dm4b0jn71jw, CloudFront managed by Amplify)
-   ├── /_next/static/*, *.html ........ static export (Cache-Control: no-store everywhere)
+   ├── /_next/static/*, *.html ........ static export (no-store everywhere at audit time;
+   │                                     /_next/static immutable since #1722)
    ├── /api/<*>  ── 200 rewrite ──► API Gateway zllr9lrg7j /prod ──► Lambda (`live` alias)
    ├── /get/<*>  ── 200 rewrite ──► CloudFront E2GP22R4BIFGQ3 ──► S3 wecare-digital-get
    │                                   └── Lambda@Edge wecare-get-miss-redirect (origin-response)
@@ -170,7 +177,7 @@ October to date by service and usage type:
 |---|---|---:|---|---|
 | Amplify | Build duration | 56.84 | 5,683.8 min | Optimizable (overhead + redundant builds) |
 | Business Support+ | Fee | 42.81 | $29 (4268) + $13.81 (5408, from Oct 17) | Owner-controlled subscription |
-| Amplify | Data transfer out | 13.32 | 88.8 GB | Optimizable (blog API about 20%, test traffic, `no-store` on hashed assets, oversized images) |
+| Amplify | Data transfer out | 13.32 | 88.8 GB | Optimizable (blog API about 20%, test traffic, oversized images; `no-store` on hashed assets until #1722) |
 | Secrets Manager | Secrets | 7.43 | 18.6 secret-months | Production baseline (consolidation possible) |
 | CloudWatch | Alarms | 5.00 | 60.0 alarm-months | Optimizable / owner decision |
 | API Gateway | HTTP requests | 3.73 | 3.73 M | Variable; mostly build-time blog fetches |
@@ -186,12 +193,16 @@ October to date by service and usage type:
 
 **Where the Amplify charge comes from.** Amplify's list price is $0.01 per build-minute on the
 Standard instance and $0.15 per GB served ([pricing](https://aws.amazon.com/amplify/pricing/)).
-Builds run on every push to `wecare.digital`; the last four days averaged about 70 builds a day at
-a median 4.3 minutes. Diffing each successful build against the previous one: **116 changed a
+Builds run on every push to `wecare.digital`; 24-26 October averaged 81 builds a day at a median
+4.3 minutes. Diffing each successful build against the previous one: **116 changed a
 frontend input, 136 changed only backend/docs/test paths, and 4 changed nothing**. Of each
 ~252 s BUILD step, ~51 s re-installed the image's 1,692 default global npm packages (`nvm install`)
 and ~43 s retrieved, extracted, re-created and uploaded a `node_modules` cache that `npm ci`
-deletes unread. The fetch of the blog corpus during the build (1,424 per-post requests plus 5
+deletes unread. Later on 27 October, #1722 on the base replaced that cache with npm's download
+cache (`.npm`). Measured on Amplify: the BUILD step fell from a mean of 256.9 s (jobs 255-280, 24
+builds, standard deviation 17.7 s) to 230.4 s (jobs 281-285), and the cache upload from about
+35 s to about 12.5 s. The `nvm` re-install is still in every build until this branch merges.
+The fetch of the blog corpus during the build (1,424 per-post requests plus 5
 listing requests per build, through the apex `/api` rewrite; a sampled window of ten builds
 measured 1,433 requests and 5.1 listing calls per build) is also what drives most API Gateway
 requests, Lambda invocations (`wecare-blog-public`, 2.29 M in 30 days) and DynamoDB reads. Over
@@ -244,8 +255,10 @@ requested at VeryHigh priority and competes with everything else on a 1.6 Mbps s
 Blocking only that font in the live run brought a post's FCP from 20.1 s to 3.1 s and LCP from 23.2 s
 to 8.2 s. The remaining live LCP drivers are the 590 KB of third-party script, render-blocking
 cross-origin Google Fonts CSS, and `Cache-Control: no-store` on content-hashed assets (every
-navigation re-downloads every chunk). INP is not measurable in a lab run; CrUX field data was not
-read.
+navigation re-downloads every chunk). The last of these was fixed on the base by #1722 on the
+evening of 27 October; a live `/_next/static` chunk now returns
+`public, max-age=31536000, immutable`, while HTML stays `no-store`. INP is not measurable in a
+lab run; CrUX field data was not read.
 
 Lighthouse targets: Performance ≥ 95 is met locally on the content and product routes after the
 changes; it is **not** met live until (a) the branch is deployed, (b) the shop images are resized,
@@ -571,7 +584,8 @@ from the brief and not re-read; no provider-side call was made.
 
 ## 12. Changes made in this audit
 
-Branch `audit/platform-performance-cost-seo-20261027`, eleven commits on `2f7ca2979`:
+Branch `audit/platform-performance-cost-seo-20261027`, twelve commits on `2f7ca2979` plus one merge
+of the base:
 
 1. `perf(web)`: Material Symbols subset with a compile-time ligature guard.
 2. `perf(web)`: Amplify, the API client and Capacitor load only where used.
@@ -583,13 +597,24 @@ Branch `audit/platform-performance-cost-seo-20261027`, eleven commits on `2f7ca2
 5. `fix(security)`: short-link destination validation and encoding, no overwrites, session actor,
    Operator floor, plus tests.
 6. `fix(security)`: invoice HTML escaping.
-7. `perf(build)`: Amplify `nvm --skip-default-packages`, Node ≥ 24 assertion, cache removed.
+7. `perf(build)`: Amplify `nvm --skip-default-packages`, Node ≥ 24 assertion, cache removed. The
+   cache removal was superseded at the merge (item 12) by the base's npm download cache.
 8. `docs(audit)`: this document and the cost plan.
 9. `fix(privacy)`: `whatsapp-calling` logs payload and signature shape only.
 10. `docs(audit)`: CI, queue, S3 and Compute Optimizer findings; corrected secret-caching and
     `site-language` claims.
 11. `docs(audit)`: dependency audit, the 27 October egress spike and the blog-fetch cost model;
     corrected the CI history, access-log window length and Compute Optimizer count.
+12. Merge of `origin/wecare.digital` at `ddbacf8b5` into the branch (`485933cdb`). The base had
+    moved 55 commits, including remediation PRs from another session: #1722 (npm download cache
+    in `amplify.yml`, immutable caching for `/_next/static`) and #1728 (SEO-table PITR
+    reconciliation in `scripts/deploy_seo_tools.py`, plus
+    `tests/test_platform_audit_remediations.py`, which pins both #1722 changes). #1731 has the
+    same title and no file changes of its own.
+    The one conflict, `amplify.yml`, keeps the base's `.npm` cache and this branch's `nvm` and
+    Node assertion lines. The merged tree passes `npm run build`, `tsc --noEmit`, `eslint` (0
+    errors), `compileall`, both Python test files (11 tests) and the index/schema/html checks.
+13. `docs(audit)`: this account of the merge and the scenario figures it changes.
 
 Not done, though offered in an earlier reply: making `tools/browser/menucheck.js:40` and
 `elsewherecheck.js:36`, which call `engine.launch()` directly, launch through `lib/browser.js`.
