@@ -31,6 +31,14 @@ class WhatsAppRemainingSafeContracts(unittest.TestCase):
         self.assertIn("Username Status:", PROFILE)
         self.assertIn("Flow Encryption:", PROFILE)
 
+    def test_primary_flow_encryption_binding_is_internal_and_scoped(self):
+        self.assertIn("internalAction') == 'ensurePrimaryFlowEncryption'", BIZ)
+        self.assertIn("if phone_id != PHONE1_META_ID", BIZ)
+        self.assertIn("Content-Type': 'application/x-www-form-urlencoded'", BIZ)
+        self.assertIn("FLOW_ENCRYPTION_BINDING_NOT_APPROVED_FOR_PHONE", BIZ)
+        self.assertIn("private_key.public_key().public_bytes", BIZ)
+        self.assertNotIn("'publicKey': public_pem", BIZ)
+
     def test_checkout_no_longer_claims_retired_initiation_gate(self):
         header = CHECKOUT.split('"""', 2)[1]
         self.assertIn("Initiation is live but provider-readiness gated", header)
