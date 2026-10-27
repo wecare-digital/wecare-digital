@@ -9,7 +9,7 @@
     -> `wecare_whatapp_native_pay_template` (button sub_type order_details, payment_gateway /
     Razorpay / WECAREDIGITAL) -> Razorpay `payment.captured` -> wecare-razorpay-webhook
     -> ONE order (internal fulfilment starts at processing) + ONE paid invoice
-    -> ZERO structured WhatsApp order_status messages
+    -> exactly TWO template-only WhatsApp payment-order status messages: processing -> completed
     -> `wecare_default_invoice_image_template` (its FLOW button carries an order-bound review token).
     -> the order page (`/orders/?o=<orderNumber>`, checkout's `order` action): the delivery address
     frozen at checkout, the reviewed lines and the paid status, to the order's owner only.
@@ -799,6 +799,10 @@ def run(root: Path) -> int:
               and bodies[0].get("templateName") == PAY_TEMPLATE
               and not any(k in bodies[0] for k in ("isPaymentTemplate", "isInteractivePayment", "orderDetails"))
               and "payment_settings" not in bodies[0].get("checkoutOrderDetails", {}), [sorted(b) for b in bodies])
+        check("IDEM", "payment request carries the stable reference-scoped outbound idempotency key",
+              len(bodies) == 1
+              and bodies[0].get("idempotencyKey") == f"payment-request:{ref['referenceId']}",
+              bodies[0].get("idempotencyKey") if bodies else None)
         outbound_cfg = send_calls[0]["config"] if send_calls else None
         check("IDEM", "checkout->outbound send has SDK retries disabled and a read timeout above outbound's 60 s",
               outbound_cfg is not None and (outbound_cfg.retries or {}).get("max_attempts") == 0
@@ -1313,6 +1317,21 @@ def run(root: Path) -> int:
             for s in capture_sends]
         check("R17", "the capture sent two status templates, one invoice template, then the order page",
               post_capture_kinds == ["order_status", "order_status", "invoice", "order_page"], post_capture_kinds)
+        capture_outbound_bodies = [
+            _outbound_body(call) for call in W.since(mark, "invocations")
+            if call["function"] == "wecare-outbound-whatsapp"
+        ]
+        invoice_id = str(counts["invoices"][0].get("invoiceId") or "") if counts["invoices"] else ""
+        expected_delivery_keys = [
+            f"order-status:{invoice_id}:processing",
+            f"order-status:{invoice_id}:completed",
+            f"invoice-receipt:{invoice_id}",
+            f"order-page-link:{invoice_id}",
+        ]
+        actual_delivery_keys = [body.get("idempotencyKey") for body in capture_outbound_bodies]
+        check("IDEM", "post-capture customer messages carry one stable key per logical delivery",
+              bool(invoice_id) and actual_delivery_keys == expected_delivery_keys,
+              {"expected": expected_delivery_keys, "actual": actual_delivery_keys})
         # The last message: one "View your order" button to the buyer's own order page, after the
         # invoice, never instead of it.
         page_sends = [s["payload"] for s in capture_sends
