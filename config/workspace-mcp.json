@@ -45,6 +45,18 @@
       "tools": {
         "whatsapp_biz_businesses": [
           "list"
+        ],
+        "whatsapp_biz_accounts": [
+          "read"
+        ],
+        "whatsapp_biz_phone_numbers": [
+          "read"
+        ],
+        "whatsapp_biz_list_templates": [
+          "read"
+        ],
+        "whatsapp_biz_onboarding_status": [
+          "read"
         ]
       },
       "registrationEndpoint": "https://mcp.facebook.com/.well-known/register/whatsapp_business_tools",
