@@ -6844,7 +6844,9 @@ def _workspace_scan(table_name: str, *, limit: int, cursor: str = '',
     }
 
 
-def _workspace_count(table_name: str, *, max_pages: int = 20) -> Dict[str, Any]:
+def _workspace_count(table_name: str, *, max_pages: int = 20,
+                     filter_expression=None, expression_names=None,
+                     expression_values=None) -> Dict[str, Any]:
     table = dynamodb.Table(table_name)
     total = 0
     start = None
@@ -6852,6 +6854,12 @@ def _workspace_count(table_name: str, *, max_pages: int = 20) -> Dict[str, Any]:
         args: Dict[str, Any] = {'Select': 'COUNT'}
         if start:
             args['ExclusiveStartKey'] = start
+        if filter_expression is not None:
+            args['FilterExpression'] = filter_expression
+        if expression_names:
+            args['ExpressionAttributeNames'] = expression_names
+        if expression_values:
+            args['ExpressionAttributeValues'] = expression_values
         page = table.scan(**args)
         total += int(page.get('Count') or 0)
         start = page.get('LastEvaluatedKey')
@@ -6881,9 +6889,11 @@ def _workspace_read(event: Dict[str, Any]) -> Dict[str, Any]:
             'flowSubmissions': _workspace_count(FLOW_SUBMISSIONS_TABLE),
             'statusHistory': _workspace_count(STATUS_HISTORY_TABLE),
             'unknownDeliveries': _workspace_count(
-                os.environ.get('OUTBOUND_TABLE', 'stack-wecare-digital-WhatsAppOutboundTable')
+                os.environ.get('OUTBOUND_TABLE', 'stack-wecare-digital-WhatsAppOutboundTable'),
+                filter_expression='#s = :unknown',
+                expression_names={'#s': 'status'},
+                expression_values={':unknown': 'unknown'},
             ),
-            'note': 'unknownDeliveries is total outbound rows; use scope=unknown_deliveries for unresolved rows.',
         }
 
     if scope == 'flows':
