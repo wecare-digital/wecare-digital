@@ -399,11 +399,14 @@ def _verify_webhook_signature(event: Dict[str, Any], request_id: str) -> bool:
         if hmac.compare_digest(expected_sig, signature_header):
             return True
 
-    # Neither secret matched. No prefix of the signature we expected is logged: any part of a
-    # valid HMAC for this body is something a log reader should never be handed.
+    # Neither secret matched. No part of either signature is logged: any part of a valid HMAC
+    # for this body is something a log reader should never be handed, and the RECEIVED header is
+    # exactly that when the request was genuine and only the stored secret was stale. Its shape is
+    # enough to tell a missing scheme or a truncated header from a real mismatch.
     logger.warning(json.dumps({
         'event': 'webhook_signature_mismatch',
-        'receivedPrefix': signature_header[:20],
+        'receivedScheme': 'sha256' if signature_header.startswith('sha256=') else 'other',
+        'receivedLength': len(signature_header),
         'bodyLen': len(raw_body or ''),
         'isBase64': event.get('isBase64Encoded', False),
         'requestId': request_id,
@@ -1109,7 +1112,11 @@ def _handle_cert_check(event: Dict, request_id: str) -> Dict[str, Any]:
     try:
         days = int(event.get('daysRemaining'))
     except (TypeError, ValueError):
-        logger.error(json.dumps({'event': 'cert_check_bad_payload', 'payload': str(event)[:300], 'requestId': request_id}))
+        # The payload's shape, not its text: str(event) put whatever the caller sent into the log.
+        logger.error(json.dumps({'event': 'cert_check_bad_payload',
+                                 'keys': sorted(str(k) for k in event.keys())[:20],
+                                 'daysRemainingType': type(event.get('daysRemaining')).__name__,
+                                 'requestId': request_id}))
         return {'statusCode': 400, 'body': 'daysRemaining required (int)'}
 
     host = event.get('host', 'sip.wecare.digital')
