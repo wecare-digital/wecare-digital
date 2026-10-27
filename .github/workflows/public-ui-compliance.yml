@@ -1,0 +1,154 @@
+name: Public UI compliance
+
+on:
+  pull_request:
+    paths:
+      - "src/pages/**"
+      - "src/components/**"
+      - "src/styles/**"
+      - "src/content/**"
+      - "config/public-pages.json"
+      - "tools/browser/**"
+      - "scripts/generate-public-pages.js"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/public-ui-compliance.yml"
+  push:
+    branches:
+      - "wecare.digital"
+    paths:
+      - "src/pages/**"
+      - "src/components/**"
+      - "src/styles/**"
+      - "src/content/**"
+      - "config/public-pages.json"
+      - "tools/browser/**"
+      - "scripts/generate-public-pages.js"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/public-ui-compliance.yml"
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chromium-public-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Pin repository npm version
+        run: |
+          PINNED_NPM="$(node -e "const p=require('./package.json').packageManager;process.stdout.write(p.slice(p.lastIndexOf('@')+1))")"
+          npm install --global "npm@$PINNED_NPM"
+          test "$(npm --version)" = "$PINNED_NPM"
+
+      - name: Install app and Chromium harness
+        run: |
+          npm ci --no-audit --no-fund
+          npm ci --prefix tools/browser --no-audit --no-fund
+          cd tools/browser
+          npx playwright install --with-deps chromium
+
+      - name: Build static public export
+        env:
+          NEXT_PUBLIC_GOOGLE_BROWSER_KEY: test-browser-key
+          NEXT_PUBLIC_VAYULOK_WEATHER_INSIGHTS_URL: https://example.invalid/vayulok
+        run: npm run build
+
+      - name: Full public device matrix
+        run: node tools/browser/devicecheck.js
+
+      - name: Public typography contract
+        run: node tools/browser/typecheck.js
+
+      - name: Public SEO contract
+        run: node tools/browser/seocheck.js
+
+      - name: Public section structure
+        run: node tools/browser/sectioncheck.js
+
+      - name: Menu contract
+        run: node tools/browser/menucheck.js --chromium
+
+  cross-engine-public-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Pin repository npm version
+        run: |
+          PINNED_NPM="$(node -e "const p=require('./package.json').packageManager;process.stdout.write(p.slice(p.lastIndexOf('@')+1))")"
+          npm install --global "npm@$PINNED_NPM"
+          test "$(npm --version)" = "$PINNED_NPM"
+
+      - name: Install app and browser engines
+        run: |
+          npm ci --no-audit --no-fund
+          npm ci --prefix tools/browser --no-audit --no-fund
+          cd tools/browser
+          npx playwright install --with-deps chromium firefox webkit
+
+      - name: Build static public export
+        env:
+          NEXT_PUBLIC_GOOGLE_BROWSER_KEY: test-browser-key
+          NEXT_PUBLIC_VAYULOK_WEATHER_INSIGHTS_URL: https://example.invalid/vayulok
+        run: npm run build
+
+      - name: Firefox Home and menu regression contract
+        run: |
+          node tools/browser/devicecheck.js --firefox /
+          node tools/browser/menucheck.js --firefox
+
+      - name: WebKit Home and menu regression contract
+        run: |
+          node tools/browser/devicecheck.js --webkit /
+          node tools/browser/menucheck.js --webkit
+
+  scheduled-copy-stress:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Pin repository npm version
+        run: |
+          PINNED_NPM="$(node -e "const p=require('./package.json').packageManager;process.stdout.write(p.slice(p.lastIndexOf('@')+1))")"
+          npm install --global "npm@$PINNED_NPM"
+          test "$(npm --version)" = "$PINNED_NPM"
+
+      - name: Install and build
+        env:
+          NEXT_PUBLIC_GOOGLE_BROWSER_KEY: test-browser-key
+          NEXT_PUBLIC_VAYULOK_WEATHER_INSIGHTS_URL: https://example.invalid/vayulok
+        run: |
+          npm ci --no-audit --no-fund
+          npm ci --prefix tools/browser --no-audit --no-fund
+          cd tools/browser
+          npx playwright install --with-deps chromium
+          cd ../..
+          npm run build
+
+      - name: Expanded-copy phone stress matrix
+        run: node tools/browser/devicecheck.js --stress-copy
