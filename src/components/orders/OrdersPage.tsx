@@ -53,7 +53,7 @@ import OrderDetail from './OrderDetail';
  * is correct: it is per-person and must never sit in a static artifact.
  *
  * NO CODE IS SENT FROM THIS PAGE. The sign-in control is a LINK into the existing flow at
- * /account/sign-in/ (which owns all four of its phases, the two-codes-not-one registration path
+ * /auth (which owns all four of its phases, the two-codes-not-one registration path
  * and the owner's approved failure strings). Reimplementing any of that here is the one kind of
  * near-miss that is a sign-in outage. See the note on the gate below for why the label reads
  * "Sign in on WhatsApp".
@@ -716,7 +716,7 @@ export default function OrdersPage (): React.ReactElement {
                   : 'Sign in on your WhatsApp number to see your orders.' }
               </p>
               { /* TWO WAYS IN, and each label says where it goes. "Sign in here" NAVIGATES to the
-                   on-site form (/account/sign-in/) where the shopper enters their number and the
+                   on-site form (/auth) where the shopper enters their number and the
                    code is delivered over WhatsApp - it opens the form, it does not send a code, so
                    "here" (on the site) is the honest label. The sibling "Sign in on WhatsApp" opens
                    the WhatsApp chat instead. /orders/ is in safeReturnPath's ALLOWED set, so the
@@ -724,7 +724,7 @@ export default function OrdersPage (): React.ReactElement {
                    `action`, so each string is both the visible text and the accessible name. */ }
               <PillButton
                 as="a"
-                href="/account/sign-in/?return=/orders/"
+                href="/auth?return=/orders/"
                 action="Sign in here"
               />
               <PillButton
