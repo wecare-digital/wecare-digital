@@ -6,10 +6,12 @@ Authority: this script writes ONE thing, the 30x redirect rules of Amplify app d
 the list back afterwards. Without a flag it reports; --verify is read-only (AWS read plus public
 HTTP GETs).
 
-What it manages: the host canonicalisation and the approved blog post merges in
-config/blog-merges.json, the same file the static build reads to stop emitting a merged-away
-post. Only www canonicalisation and approved merges may redirect; no legacy SEO, workspace or
-frozen-template destination may be recreated, and the retired /access entry stays unavailable.
+What it manages: the approved blog post merges in config/blog-merges.json, the same file the
+static build reads to stop emitting a merged-away post. Only approved merges may redirect here; no
+legacy SEO, workspace or frozen-template destination may be recreated, and the retired /access
+entry stays unavailable. Host canonicalisation (www -> apex) is NOT an Amplify rule: www resolves
+to the wildcard CloudFront distribution, whose function in amplify/infra/home-fallback.json owns
+it. See desired_redirects().
 
 What it preserves, byte for byte and in order: every non-30x rule. That is the internal 200
 rewrites (API, files, short links, MCP), the not-found rules for retired routes, and the terminal
@@ -67,12 +69,20 @@ def blog_merges() -> list[tuple[str, str]]:
 
 
 def desired_redirects() -> list[dict]:
-    """The approved permanent redirects: host canonicalisation first, then each merge twice.
+    """The approved permanent redirects: each approved blog merge, twice.
 
     Both the slashless and the trailing-slash source are listed so neither falls through to
     the not-found catch-all.
+
+    NO HOST RULE. This list used to open with {"source": "https://wecare.digital", "target": SITE},
+    a redirect from the apex to itself: the `www` host had been rewritten to the apex by a
+    bulk cleanup, which turned the www canonicalisation rule into a no-op that --apply kept
+    re-asserting. It cannot simply be pointed back at `www` either: www.wecare.digital is not a
+    domain of this Amplify app. Route 53 resolves it through `*.wecare.digital` to the wildcard
+    CloudFront distribution, so an Amplify rule for that host would never see a request. The
+    www -> apex redirect is owned by the CloudFront function in amplify/infra/home-fallback.json.
     """
-    rules = [{"source": "https://wecare.digital", "target": SITE, "status": "301"}]
+    rules: list[dict] = []
     for source_slug, target_slug in blog_merges():
         for source in (f"/post/{source_slug}", f"/post/{source_slug}/"):
             rules.append({"source": source, "target": f"/post/{target_slug}/", "status": "301"})

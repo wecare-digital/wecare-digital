@@ -26,10 +26,10 @@
         },
         "AutoPublish": true,
         "FunctionConfig": {
-          "Comment": "Wildcard hosts redirect to the canonical home.",
+          "Comment": "www keeps its path on the apex (301); other wildcard hosts redirect home (302).",
           "Runtime": "cloudfront-js-2.0"
         },
-        "FunctionCode": "function handler(event) {\n  var responseHeaders = {\n    'cache-control': {value: 'no-store'},\n    'x-content-type-options': {value: 'nosniff'},\n    'referrer-policy': {value: 'no-referrer'},\n    'content-security-policy': {value: \"default-src 'none'; frame-ancestors 'none'\"}\n  };\n  responseHeaders.location = {value: 'https://wecare.digital/'};\n  return {statusCode: 302, statusDescription: 'Found', headers: responseHeaders};\n}\n"
+        "FunctionCode": "function handler(event) {\n  var request = event.request || {};\n  var headers = request.headers || {};\n  var host = (headers.host && headers.host.value || '').toLowerCase();\n  host = host.replace(/:\\d+$/, '').replace(/\\.$/, '');\n  var responseHeaders = {\n    'cache-control': {value: 'no-store'},\n    'x-content-type-options': {value: 'nosniff'},\n    'referrer-policy': {value: 'no-referrer'},\n    'content-security-policy': {value: \"default-src 'none'; frame-ancestors 'none'\"}\n  };\n  // www is the historical canonical host, so its deep links are the ones search engines and old\n  // backlinks still hold: move each to the same path on the apex, permanently. Every other\n  // wildcard host is not a site of its own and still lands on the home page.\n  if (host === 'www.wecare.digital') {\n    var uri = (typeof request.uri === 'string' && request.uri.charAt(0) === '/') ? request.uri : '/';\n    responseHeaders.location = {value: 'https://wecare.digital' + uri};\n    return {statusCode: 301, statusDescription: 'Moved Permanently', headers: responseHeaders};\n  }\n  responseHeaders.location = {value: 'https://wecare.digital/'};\n  return {statusCode: 302, statusDescription: 'Found', headers: responseHeaders};\n}\n"
       }
     },
     "Distribution": {
