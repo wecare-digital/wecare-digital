@@ -21,6 +21,7 @@ on:
       - "scripts/build_workspace_mcp.py"
       - "scripts/deploy_workspace_mcp.py"
       - "scripts/verify_chat_mcp_auth.py"
+      - "scripts/verify_separate_provider_mcp.py"
       - ".github/workflows/workspace-mcp-ci.yml"
   workflow_dispatch:
 
