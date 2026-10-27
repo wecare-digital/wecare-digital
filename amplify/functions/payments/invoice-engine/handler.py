@@ -6284,6 +6284,17 @@ def _normalize_invoice(item: Dict) -> Dict:
         'gstRate': float(item.get('gstRate', 0)),
         'tax': float(item.get('tax', 0)),
         'convenienceFee': float(item.get('convenienceFee', 0)),
+        'convenienceFeeNet': float(item.get('convenienceFeeNet', item.get('convenienceFee', 0))),
+        'convenienceFeeGst': float(item.get('convenienceFeeGst', 0)),
+        'convenienceFeeTotal': float(item.get('convenienceFeeTotal', item.get('convenienceFee', 0))),
+        'totalGst': float((item.get('gstAccounting') or {}).get('totalGst', item.get('tax', 0))),
+        'gstAccounting': {
+            'supplyTax': float((item.get('gstAccounting') or {}).get('supplyTax', item.get('tax', 0))),
+            'convenienceFeeGst': float((item.get('gstAccounting') or {}).get('convenienceFeeGst', item.get('convenienceFeeGst', 0))),
+            'totalGst': float((item.get('gstAccounting') or {}).get('totalGst', item.get('tax', 0))),
+            'sellerGstin': (item.get('gstAccounting') or {}).get('sellerGstin', item.get('gstin', '')),
+            'delightTaxTreatment': (item.get('gstAccounting') or {}).get('delightTaxTreatment', ''),
+        },
         'total': float(item.get('total', 0)),
         'currency': item.get('currency', 'INR'),
         'gstin': item.get('gstin', ''),
@@ -6303,7 +6314,10 @@ def _normalize_item(item: Dict) -> Dict:
         'name': item.get('name', ''),
         'amount': float(item.get('amount', 0)),
         'quantity': int(item.get('quantity', 1)),
+        'gstRate': float(item.get('gstRate', 0)),
+        'taxAmount': float(item.get('taxAmount', 0)),
         'productId': item.get('productId', ''),
+        'isCharge': bool(item.get('isCharge', False)),
     }
 
 
