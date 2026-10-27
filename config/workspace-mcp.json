@@ -1,5 +1,5 @@
 {
-  "version": 10,
+  "version": 11,
   "account": "775261844268",
   "region": "us-east-1",
   "repository": "wecare-digital/wecare-digital",
@@ -113,21 +113,40 @@
       "_note": "WECARE Ads MCP uses the verified user-access-token Login for Business configuration with exactly ads_read, business_management and ads_mcp_management. The prior shared configuration selected a non-expiring system-user token and 32 permissions, and opened Messenger Marketing Messages onboarding. A fresh consent and authenticated MCP verification are required after deployment. Meta still reports ads_read and ads_mcp_management rejected with another submission pending; this configuration change does not establish provider approval or successful MCP access. Advertising execution remains disabled."
     },
     "plivo": {
-      "kind": "sdk",
-      "mode": "read-only",
+      "kind": "provider-native-mcp",
+      "mode": "read-only-control-plane",
       "credentialSource": "workspace-admin-runtime",
+      "sourceRepository": "https://github.com/plivo/mcp",
+      "upstreamTransport": "stdio",
+      "remoteDeployment": "wecare-managed-http-adapter-required",
+      "controlPlane": "workspace-mcp",
+      "allowedNativeTools": [
+        "get_cdr",
+        "get_mdr"
+      ],
       "tools": [
         "connection_verify"
-      ]
+      ],
+      "_note": "The existing WECARE provider endpoint is a staff-authenticated control-plane/status endpoint, not the Plivo MCP server. Production provider-native access must use a WECARE-hosted HTTP adapter around the official plivo/mcp server; do not expose PLIVO_AUTH_ID or PLIVO_AUTH_TOKEN to ChatGPT."
     },
     "sinch": {
-      "kind": "sdk",
-      "mode": "read-only",
+      "kind": "provider-native-mcp",
+      "mode": "read-only-control-plane",
       "credentialSource": "workspace-admin-runtime",
       "restriction": "Sinch India RCS only",
+      "sourceRepository": "https://github.com/sinch/sinch-mcp-server",
+      "upstreamTransport": "streamable-http",
+      "upstreamPath": "/mcp",
+      "preferredAuthMode": "sinchid-agent",
+      "fallbackAuthMode": "wecare-auth-front-door",
+      "toolTags": [
+        "rcs"
+      ],
+      "controlPlane": "workspace-mcp",
       "tools": [
         "connection_verify"
-      ]
+      ],
+      "_note": "The existing WECARE provider endpoint is a staff-authenticated control-plane/status endpoint, not the native Sinch MCP server. Production provider-native access must use the official Sinch server in a remotely safe authenticated mode; never expose single-tenant unauthenticated /mcp."
     }
   }
 }

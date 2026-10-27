@@ -510,7 +510,7 @@ def registry(owner, provider=None):
             continue
         stored = row("connection:" + owner + ":" + name)
         status = stored.get("status", "consent_required") if config["kind"] in {'remote-mcp', 'oauth-sdk'} else stored.get('status', config["kind"])
-        if config.get('credentialSource') == 'workspace-admin-runtime' and status in {'sdk', 'documentation_verified'}:
+        if config.get('credentialSource') == 'workspace-admin-runtime' and status in {'sdk', 'documentation_verified', 'provider-native-mcp'}:
             status = 'account_verification_required'
         if stored.get('expiresAt') and int(stored["expiresAt"]) <= time.time():
             status = "refresh_pending" if stored.get("hasRefreshToken") else "refresh_or_consent_required"

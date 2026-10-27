@@ -16,6 +16,13 @@ from verify_chat_mcp_auth import Cognito, token
 
 def main() -> None:
     providers = ('google-cloud', 'google-ads', 'plivo', 'sinch')
+    policy = json.loads((ROOT / 'config/workspace-mcp.json').read_text())
+    assert policy['connections']['plivo']['kind'] == 'provider-native-mcp'
+    assert policy['connections']['plivo']['sourceRepository'] == 'https://github.com/plivo/mcp'
+    assert policy['connections']['sinch']['kind'] == 'provider-native-mcp'
+    assert policy['connections']['sinch']['sourceRepository'] == 'https://github.com/sinch/sinch-mcp-server'
+    assert policy['connections']['sinch']['upstreamTransport'] == 'streamable-http'
+    assert policy['connections']['sinch']['toolTags'] == ['rcs']
     endpoints = {name: {'apiId': name + '-api', 'base': 'https://' + name + '.example.com',
         'callback': 'https://chatgpt.com/connector/oauth/' + name} for name in providers}
     env = {'PROVIDER_CHAT_ENDPOINTS': json.dumps(endpoints), 'CHAT_API_ID': 'legacy-api',
@@ -80,6 +87,34 @@ def main() -> None:
             status = gateway.run_provider_tool('fixture-owner', provider, 'connection_status', {})
             assert [item['provider'] for item in status['connections']] == [provider]
             row.assert_called_once_with('connection:fixture-owner:' + provider)
+    class UpdateSink:
+        def update_item(self, **kwargs):
+            return {}
+
+    # Exercise the real run_tool -> provider_adapters.verify path for provider-native
+    # control-plane verification instead of mocking run_tool itself.
+    with patch.object(gateway, 'table', return_value=UpdateSink()), \
+            patch.object(gateway, 'secret_json', return_value={'auth_id': 'MA123', 'auth_token': 'secret'}), \
+            patch.object(gateway, 'http', return_value=({'auth_id': 'MA123', 'account_type': 'standard',
+                'billing_mode': 'prepaid'}, {})):
+        plivo = gateway.run_tool('fixture-owner', 'connection_verify', {'provider': 'plivo'})
+        assert plivo['status'] == 'verified'
+        assert plivo['read']['liveAccountAccess'] is True
+        assert plivo['read']['accountType'] == 'standard'
+
+    sinch_secrets = {'username': 'staff', 'password': 'secret', 'project_id': 'project_1', 'app_id': 'app_1'}
+    sinch_responses = [
+        ({'access_token': 'short-lived-token'}, {}),
+        ({'id': 'app_1'}, {}),
+    ]
+    with patch.object(gateway, 'table', return_value=UpdateSink()), \
+            patch.object(gateway, 'secret_json', return_value=sinch_secrets), \
+            patch.object(gateway, 'http', side_effect=sinch_responses):
+        sinch = gateway.run_tool('fixture-owner', 'connection_verify', {'provider': 'sinch'})
+        assert sinch['status'] == 'verified'
+        assert sinch['read']['liveAccountAccess'] is True
+        assert sinch['read']['platform'] == 'sinch-india-rcs'
+
     template = json.loads((ROOT / 'amplify/infra/workspace-mcp.json').read_text())
     assert template['Parameters']['ChatRedirectUri']['MaxLength'] <= 185
     assert template['Resources']['Function']['Properties']['ReservedConcurrentExecutions'] >= 5
@@ -99,7 +134,7 @@ def main() -> None:
         assert response['statusCode'] == 200
         audit_payload = json.loads(audit.call_args.args[0])
         assert audit_payload['tool'] == 'connection_status' and audit_payload['outcome'] == 'completed'
-    print('PASS: four provider routes, anonymous denial, fixed tool schemas and cross-provider call rejection')
+    print('PASS: four control-plane routes, provider-native Plivo/Sinch policy, anonymous denial, fixed schemas and cross-provider rejection')
 
 
 if __name__ == '__main__':

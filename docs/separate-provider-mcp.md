@@ -1,18 +1,27 @@
 # Separate provider connections
 
-The optional separate endpoints provide independent ChatGPT plugin entries for
-Google Cloud, Google Ads, Plivo and Sinch India RCS. They reuse the existing
-administrative Lambda, staff Cognito authority, encrypted per-user Google grants
-and approved Plivo/Sinch runtime references. They do not share another person's
-provider grants, create provider credentials or enable provider writes.
+The optional separate endpoints provide independent ChatGPT control-plane entries
+for Google Cloud, Google Ads, Plivo and Sinch India RCS. Google Cloud and Google Ads
+are served directly by the WECARE administrative MCP implementation. Plivo and
+Sinch are control-plane/status surfaces only: the final provider integrations must
+use provider-native MCP servers. Plivo is based on https://github.com/plivo/mcp and
+Sinch India is based on https://github.com/sinch/sinch-mcp-server. They reuse the
+existing staff Cognito authority and approved runtime credential custody; no
+provider credentials are exposed to ChatGPT.
 
-Each endpoint is a distinct API Gateway resource with a distinct OAuth resource
-audience. The API ID selects the provider on the server. Its MCP schemas contain
-no provider selector. `connection_status` reads only that provider's registry row,
-and `connection_verify` performs only that provider's fixed account read. The two
-Google endpoints also expose `connection_authorize`. AWS, GitHub, Meta and the other
-providers' tools cannot be invoked through these endpoints. The original gateway,
-staff route, IAM bridge, provider callback and secret IAM policies are preserved.
+Each WECARE control-plane endpoint is a distinct API Gateway resource with a distinct
+OAuth resource audience. The API ID selects the provider on the server. Its MCP
+schemas contain no provider selector. `connection_status` reads only that provider's
+registry row and `connection_verify` performs only the provider's fixed verification
+read. The two Google endpoints also expose `connection_authorize`.
+
+For Plivo and Sinch, do not publish the control-plane endpoint as if it were the
+provider-native MCP server. Plivo's official server is stdio-first and requires a
+WECARE-managed remote HTTP adapter before ChatGPT registration. Sinch's official
+server supports native Streamable HTTP on `/mcp`; remotely reachable deployments
+must use an authenticated multi-tenant mode or an equivalent WECARE auth front door.
+Never expose Sinch single-tenant mode publicly because it has no inbound
+authentication.
 
 ## Release and register
 
@@ -24,12 +33,14 @@ staff route, IAM bridge, provider callback and secret IAM policies are preserved
    change-set process from the merged production revision. The deployer preserves
    the original callback and any already configured provider callbacks.
 3. Read `GoogleCloudEndpoint`, `GoogleAdsEndpoint`, `PlivoEndpoint` and
-   `SinchIndiaEndpoint` from the stack outputs. Verify each endpoint's public
-   OAuth metadata and anonymous 401 challenge.
-4. Register one workspace plugin per endpoint. Use OAuth public-client mode with
-   the existing `ChatClientId` and scope `aws.cognito.signin.user.admin`. Each
-   plugin has its own connection and audience. Retrieve its exact ChatGPT callback
-   from connection setup. Do not guess callbacks or use wildcards.
+   `SinchIndiaEndpoint` from the stack outputs. Treat the Plivo and Sinch values
+   as WECARE control-plane endpoints only.
+4. Register Google Cloud and Google Ads directly against their WECARE endpoints.
+   For Plivo, deploy a remote HTTP adapter around the official `plivo/mcp` server
+   and register that remote MCP URL. For Sinch India, deploy the official
+   `sinch/sinch-mcp-server` with the `rcs` tool tag and authenticated remote
+   Streamable HTTP, then register its `/mcp` URL. Preserve the WECARE control-plane
+   plugin only for status/verification/orchestration.
 5. Rebuild with `--provider-redirect google-cloud=EXACT_CALLBACK` and the equivalent
    `google-ads`, `plivo` and `sinch` arguments for the callbacks being configured.
    The builder validates callback formats and pins a configuration revision so a
