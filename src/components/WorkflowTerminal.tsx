@@ -1099,11 +1099,31 @@ const WorkflowTerminal: React.FC = () => {
            tech, not a visible label competing with the request line. clamp() scales the request
            fluidly between phone and desktop rather than being stepped down on mobile, per
            .kiro/steering/00-common.md which favours clamp() over fixed sizes. */
-        /* overflow-wrap:anywhere, not break-word, because the sentence is a flex item and only
-           anywhere lowers its min-content width. At 200% zoom on a phone, Superintelligence is
-           wider than the panel and was clipped by 41-97px; it now breaks. No effect when it fits. */
-        .wt-request{margin-bottom:28px;display:flex;gap:10px;color:#fff;font-size:clamp(16px,1.1vw + 14px,18px);line-height:1.7;overflow-wrap:anywhere}
-        .wt-caret{color:#d1f470}
+        /* The intro is part of the machine trace, so it follows the same rule as the code
+           rows below: never turn one machine line into prose just because the phone is narrow.
+           It owns its horizontal overflow, which keeps the PAGE fixed while preserving readable
+           type. This is also the correct reflow exception for code-like content: swipe the trace,
+           do not shrink it into illegibility or split the syntax across visual lines. */
+        .wt-request{
+          margin-bottom:28px;
+          display:flex;
+          gap:10px;
+          min-width:0;
+          overflow-x:auto;
+          overflow-y:hidden;
+          -webkit-overflow-scrolling:touch;
+          white-space:nowrap;
+          color:#fff;
+          font-size:clamp(16px,1.1vw + 14px,18px);
+          line-height:1.7;
+          scrollbar-width:thin;
+          scrollbar-color:rgba(255,255,255,.28) transparent;
+        }
+        .wt-request::-webkit-scrollbar{height:4px}
+        .wt-request::-webkit-scrollbar-thumb{background:rgba(255,255,255,.28);border-radius:10px}
+        .wt-request::-webkit-scrollbar-track{background:transparent}
+        .wt-request > span:last-child{flex:0 0 auto}
+        .wt-caret{color:#d1f470;flex:0 0 auto}
 
         /* Each step fades up as it arrives. The connector is a ::before rule so it
            cannot be knocked out of alignment by content height.
