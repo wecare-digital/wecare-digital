@@ -6121,6 +6121,8 @@ export interface Document {
   notes?: string;
   reviewedBy?: string;
   reviewedAt?: number;
+  archivedAt?: number;
+  archivedBy?: string;
   createdAt: number;
   updatedAt?: number;
 }
@@ -6157,6 +6159,22 @@ export async function updateDocument ( documentId: string, updates: Partial<Docu
   return !!data;
 }
 
+export async function archiveDocument ( documentId: string ): Promise<boolean> {
+  const data = await apiCall<any>( `${DOCUMENTS_BASE}/${documentId}`, {
+    method: 'PUT',
+    body: JSON.stringify( { _action: 'archive' } ),
+  } );
+  return data?.updated === true;
+}
+
+export async function restoreArchivedDocument ( documentId: string ): Promise<boolean> {
+  const data = await apiCall<any>( `${DOCUMENTS_BASE}/${documentId}`, {
+    method: 'PUT',
+    body: JSON.stringify( { _action: 'restore_archive' } ),
+  } );
+  return data?.updated === true;
+}
+
 export async function getDocumentDownloadUrl ( documentId: string ): Promise<string | null> {
   const data = await apiCall<any>( `${DOCUMENTS_BASE}/${documentId}/download` );
   return data?.url || null;
@@ -6187,7 +6205,6 @@ export async function initDocumentUpload ( input: {
   orderId?: string;
   type: string;
   typeLabel?: string;
-  vaultDisplayName?: string;
   fileName: string;
   mimeType: string;
   fileSize: number;
