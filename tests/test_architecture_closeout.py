@@ -340,7 +340,7 @@ class DropDocsUploadUxContractTests(unittest.TestCase):
         modal = source[start:end]
         self.assertNotIn("WhatsApp Vault title", modal)
         self.assertNotIn("wecare_valut_49", modal)
-        self.assertIn("Publish to Vault", modal)
+        self.assertIn("Upload & send WhatsApp", modal)
         self.assertIn("Order (optional)", modal)
         self.assertIn("Document type", modal)
         self.assertIn("File", modal)
@@ -380,7 +380,7 @@ class DropDocsUploadUxContractTests(unittest.TestCase):
         self.assertIn("SET archivedAt=:now, archivedBy=:by, updatedAt=:now", service)
         self.assertIn("REMOVE archivedAt, archivedBy SET updatedAt=:now", service)
         archive_block = service[service.index("document_action in ('archive', 'restore_archive')"):]
-        archive_block = archive_block[:archive_block.index("if document_action == 'revalidate_reference'")]
+        archive_block = archive_block[:archive_block.index("if str(body.get('_action') or '').strip().lower() == 'revalidate_reference'")]
         self.assertNotIn("delete_item", archive_block)
         self.assertNotIn("verificationStatus=:archived", archive_block)
 
