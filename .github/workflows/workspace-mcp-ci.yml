@@ -9,6 +9,7 @@ on:
       - "scripts/build_workspace_mcp.py"
       - "scripts/deploy_workspace_mcp.py"
       - "scripts/verify_chat_mcp_auth.py"
+      - "scripts/verify_separate_provider_mcp.py"
       - ".github/workflows/workspace-mcp-ci.yml"
   push:
     branches:
@@ -45,6 +46,8 @@ jobs:
         run: python -m json.tool config/workspace-mcp.json >/dev/null
       - name: Verify Chat/MCP authorization and infrastructure contracts
         run: python scripts/verify_chat_mcp_auth.py
+      - name: Verify separate provider isolation and native-provider policy
+        run: python scripts/verify_separate_provider_mcp.py
       - name: Verify scoped WhatsApp inventory policy
         run: |
           python - <<'PY'
