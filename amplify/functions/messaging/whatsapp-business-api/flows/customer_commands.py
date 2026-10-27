@@ -8,7 +8,7 @@ from lambda_utils.ecommerce import catalog_service_checkout as catalog
 from lambda_utils.identity import customer_uuid
 
 ORDERS_URL = 'https://wecare.digital/orders/'
-SIGN_IN_URL = 'https://wecare.digital/account/sign-in/'
+SIGN_IN_URL = 'https://wecare.digital/auth'
 ORDER_PAGE_SIZE = 10
 MAX_ORDER_PAGE = 10
 

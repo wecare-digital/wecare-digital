@@ -14,7 +14,7 @@ import { buildPageTitle } from '../../lib/page-title';
  *
  * THE AUTH GATE. The checkout create endpoint requires an authenticated customer
  * (customer_auth.require_customer). If getSession() is null the shopper is sent to
- * /account/sign-in/?return=/cart/ FIRST and returned here afterwards; the cart is in localStorage
+ * /auth?return=/cart/ FIRST and returned here afterwards; the cart is in localStorage
  * so it survives the redirect. A signed-in shopper proceeds directly. A test asserts that a null
  * session routes to sign-in and makes NO create call.
  *
@@ -200,7 +200,7 @@ const CONTRIBUTION_NOT_PAYABLE_MESSAGE =
  * page therefore STATES Delight and never offers an Apply control or a code field.
  */
 /** Where an unauthenticated shopper is sent, and returned from, before checkout. */
-const SIGN_IN_PATH = '/account/sign-in/?return=/cart/';
+const SIGN_IN_PATH = '/auth?return=/cart/';
 
 /**
  * THE OWNER-APPROVED INITIATION-FAILURE SENTENCE, verbatim, in one place.
@@ -743,7 +743,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
       // The sign-in flow returns to a BARE `/cart/` -- the allowlist strips the query -- so the
       // token has to be stashed here or it is lost. See the docblock above.
       rememberBasketToken( token );
-      window.location.assign( `/account/sign-in/?return=${ encodeURIComponent(
+      window.location.assign( `/auth?return=${ encodeURIComponent(
         window.location.pathname + window.location.search ) }` );
       return;
     }
@@ -1889,7 +1889,7 @@ export default function Cart ( { checkoutChannel }: CartPageProps = {} ): React.
 
               {/* THE SAME TWO-SEGMENT PILL as the sign-in CTA (PillButton), because this button is
                   the customer login gate: an anonymous shopper who clicks it is sent to
-                  /account/sign-in. Never a "pay now" claim. The visible pill reads
+                  /auth. Never a "pay now" claim. The visible pill reads
                   "Checkout | Proceed" and its accessible name is now that same visible text,
                   "Checkout Proceed".
 

@@ -305,8 +305,8 @@
         ],
         "category": "general",
         "question": "How do I create an account?",
-        "answer": "Verify your WhatsApp number at https://wecare.digital/account/sign-in/ to continue to your cart or orders.",
-        "shortAnswer": "Verify your WhatsApp number at wecare.digital/account/sign-in/"
+        "answer": "Verify your WhatsApp number at https://wecare.digital/auth to continue to your cart or orders.",
+        "shortAnswer": "Verify your WhatsApp number at wecare.digital/auth"
       },
       {
         "id": "convenience-fee",

@@ -394,7 +394,7 @@ export default function CheckoutStatus (): React.ReactElement {
             <div className="co-actions">
               {/* Back to the orders page after sign-in: the sign-in return path cannot carry this
                   page's `?a=`, and the orders page lists this payment's order once it is paid. */}
-              <Link className="co-btn co-btn-primary" href="/account/sign-in/?return=/orders/">Sign in</Link>
+              <Link className="co-btn co-btn-primary" href="/auth?return=/orders/">Sign in</Link>
               <Link className="co-btn co-btn-quiet" href="/shop/">Return to the store</Link>
             </div>
           )}

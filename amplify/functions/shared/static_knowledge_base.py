@@ -89,9 +89,9 @@ FAQ_CONFIG = {'brand': {'name': 'WECARE.DIGITAL',
            'keywords': ['account', 'login', 'register', 'signup', 'password', 'profile'],
            'category': 'general',
            'question': 'How do I create an account?',
-           'answer': 'Verify your WhatsApp number at https://wecare.digital/account/sign-in/ to '
+           'answer': 'Verify your WhatsApp number at https://wecare.digital/auth to '
                      'continue to your cart or orders.',
-           'shortAnswer': 'Verify your WhatsApp number at wecare.digital/account/sign-in/'},
+           'shortAnswer': 'Verify your WhatsApp number at wecare.digital/auth'},
           {'id': 'convenience-fee',
            'keywords': ['convenience fee', 'extra charge', 'additional fee', 'why charge'],
            'category': 'payments',
@@ -122,7 +122,7 @@ FAQ_DATABASE = [
     {"keywords": ["track", "status", "where", "order status", "tracking"], "question": "How do I track my order?", "answer": "Visit https://wecare.digital/orders/ and contact us with your order reference for the current status."},
     {"keywords": ["whatsapp", "message", "chat", "wa", "messenger"], "question": "Can I order via WhatsApp?", "answer": "Use the same WhatsApp number for Subscribe and website sign-in. Review your cart on the website, then choose Pay on WhatsApp or Pay here."},
     {"keywords": ["invoice", "bill", "receipt", "gst", "tax"], "question": "How do I get my invoice?", "answer": "For a receipt from an existing payment, contact us with your order reference through https://wecare.digital/orders/."},
-    {"keywords": ["account", "login", "register", "signup", "password", "profile"], "question": "How do I create an account?", "answer": "Verify your WhatsApp number at https://wecare.digital/account/sign-in/ to continue to your cart or orders."},
+    {"keywords": ["account", "login", "register", "signup", "password", "profile"], "question": "How do I create an account?", "answer": "Verify your WhatsApp number at https://wecare.digital/auth to continue to your cart or orders."},
     {"keywords": ["convenience fee", "extra charge", "additional fee", "why charge"], "question": "What is the convenience fee?", "answer": "The checkout policy uses a 2.5% convenience fee on the approved collection amount and 18% GST on that fee. Review the server-confirmed tax and fee breakdown before payment."},
     {"keywords": ["bulk", "wholesale", "large order", "quantity", "discount"], "question": "Do you offer bulk order discounts?", "answer": "Yes! For bulk orders, please contact us at one@wecare.digital or call +91 9330994400. We offer special pricing for large quantities."},
 ]
