@@ -811,7 +811,7 @@ const WorkflowTerminal: React.FC = () => {
           <span className="wt-light wt-light-2" />
           <span className="wt-light wt-light-3" />
           <span className="wt-bar-title">platform · runtime</span>
-          <span className="wt-bar-state"><i className="wt-state-dot" />live trace</span>
+          <span className="wt-bar-state"><i className="wt-state-dot" /><span className="wt-bar-state-label">live trace</span></span>
         </div>
 
         <div className="wt-space">
@@ -1106,8 +1106,7 @@ const WorkflowTerminal: React.FC = () => {
            do not shrink it into illegibility or split the syntax across visual lines. */
         .wt-request{
           margin-bottom:28px;
-          display:flex;
-          gap:10px;
+          display:block;
           min-width:0;
           overflow-x:auto;
           overflow-y:hidden;
@@ -1120,8 +1119,7 @@ const WorkflowTerminal: React.FC = () => {
           scrollbar-width:none;
         }
         .wt-request::-webkit-scrollbar{display:none}
-        .wt-request > span:last-child{flex:0 0 auto}
-        .wt-caret{color:#d1f470;flex:0 0 auto}
+        .wt-caret{display:inline-block;color:#d1f470;margin-right:10px}
 
         /* Each step fades up as it arrives. The connector is a ::before rule so it
            cannot be knocked out of alignment by content height.
@@ -1320,112 +1318,101 @@ const WorkflowTerminal: React.FC = () => {
         .wt-foot-right{margin-left:auto}
 
         @media(max-width:767px){
-          /* HEIGHT: size to what the visitor can actually see, not to the viewport with the
-             chrome hidden. The vh term is the fallback and is declared first; dvh is declared
-             second and tracks the visible viewport, so a browser without dvh keeps the vh value.
-             The 560px ceiling keeps the panel from dominating a tall phone. */
+          /* PHONE RUNTIME: readability wins over decorative chrome. Keep the machine panel
+             compact, but do not shrink the actual trace just to fit title-bar decoration. */
           .wt-window{height:min(560px,100vh);height:min(560px,100dvh);border-radius:12px}
-          /* Give machine output more usable width than prose. The previous 18px side padding,
-             combined with 17px monospace calls, made almost every meaningful line look clipped
-             on a 360-390px phone. */
           .wt-space{padding:20px 12px 48px}
-          /* MOBILE TITLE BAR IS ONE HORIZONTAL RAIL. Keep the real chrome sizes instead
-             of shrinking them, and let the bar itself own horizontal overflow on a phone.
-             The page never moves sideways; only this terminal rail can swipe if all controls
-             cannot fit at once. Pause remains a 44px touch target. */
+
+          /* One stable chrome row on phones. The header itself never scrolls. Decorative
+             traffic lights and the redundant "live trace" words yield on mobile; the green
+             status dot remains beside the title on normal phones, while the footer still says
+             "running" in words. The right padding reserves the accessible Pause/Play control. */
           .wt-bar{
             box-sizing:border-box;
             height:47px;
-            padding:0 76px 0 10px;
-            gap:5px;
-            overflow-x:auto;
-            overflow-y:hidden;
-            -webkit-overflow-scrolling:touch;
-            touch-action:pan-x;
-            scrollbar-width:none;
+            padding:0 82px 0 12px;
+            gap:8px;
+            overflow:hidden;
             white-space:nowrap;
           }
-          /* Horizontal swipe is still available on exceptionally narrow widths, but scrollbar
-             chrome is intentionally hidden. The machine trace already carries a subtle edge fade,
-             so bright lime bars no longer read like underlined code. */
-          .wt-bar::-webkit-scrollbar{display:none}
-          .wt-light{width:8px;height:8px}
+          .wt-light{display:none}
           .wt-bar-title{
-            margin-left:2px;
-            font-size:13px;
-            flex:0 0 auto;
-            overflow:visible;
-            text-overflow:clip;
+            margin-left:0;
+            min-width:0;
+            flex:0 1 auto;
+            overflow:hidden;
+            text-overflow:ellipsis;
+            font-size:clamp(15px,4.5vw,17px);
           }
           .wt-bar-state{
             display:flex;
             flex:0 0 auto;
-            margin-left:0;
-            font-size:12px;
-            gap:5px;
+            margin-left:auto;
+            gap:0;
           }
+          .wt-bar-state-label{display:none}
+          .wt-state-dot{width:7px;height:7px}
+
+          /* Pause/Play remains a sibling of the aria-hidden terminal for accessibility, but
+             visually belongs to the same uninterrupted brown chrome. No divider, no separate
+             box, no permanent lime rail. */
           .wt-play{
             top:0;left:auto;right:0;
-            width:72px;height:44px;
+            width:76px;height:44px;
             justify-content:center;
-            padding:0 8px;
+            padding:0 9px;
             border-radius:0 12px 0 0;
-            font-size:12px;
+            font-size:14px;
             gap:6px;
-            background:#3b271a;
-            border-left:1px solid rgba(255,255,255,.12);
+            background:transparent;
+            border-left:0;
             box-shadow:inset 0 -2px 0 transparent;
           }
           .wt-play:hover{
-            background:#3b271a;
+            background:rgba(209,244,112,.08);
             color:#fff;
             box-shadow:inset 0 -2px 0 #d1f470;
           }
           .wt-play:focus-visible{
-            background:#3b271a;
+            background:rgba(209,244,112,.08);
             color:#fff;
             outline:2px solid #d1f470;
             outline-offset:-2px;
             box-shadow:inset 0 -2px 0 #d1f470;
           }
-          .wt-play.is-paused{
-            box-shadow:inset 0 -2px 0 rgba(209,244,112,.72)
-          }
-          .wt-request{font-size:15px;line-height:1.5}
-          .wt-line{line-height:1.45;gap:7px}
-          .wt-code{gap:4px}
-          .wt-call-text{font-size:14px}
-          .wt-time{font-size:12px}
-          .wt-return .wt-line-text{font-size:13.5px}
-          .wt-note .wt-line-text,.wt-sub .wt-line-text{font-size:13px}
-          .wt-error .wt-line-text{font-size:13.5px}
-          .wt-ai-tag{font-size:12px}
-          .wt-ai-text{font-size:13.5px}
-          .wt-rollup-item{font-size:13px}
-          .wt-lane-name{font-size:14px}
-          .wt-lane-detail{font-size:13px}
-          .wt-foot{font-size:13px}
+          .wt-play.is-paused{box-shadow:inset 0 -2px 0 rgba(209,244,112,.72)}
+
+          /* Keep phone typography at the high readable side. Long machine syntax already owns
+             horizontal scrolling inside the request/code blocks, so it does not need to be
+             miniaturised to fit the viewport. */
+          .wt-request{font-size:17px;line-height:1.55}
+          .wt-line{line-height:1.5;gap:8px}
+          .wt-code{gap:5px}
+          .wt-call-text{font-size:16px}
+          .wt-time{font-size:13.5px}
+          .wt-return .wt-line-text{font-size:15px}
+          .wt-note .wt-line-text,.wt-sub .wt-line-text{font-size:14.5px}
+          .wt-error .wt-line-text{font-size:15px}
+          .wt-ai-tag{font-size:13.5px}
+          .wt-ai-text{font-size:15px}
+          .wt-rollup-item{font-size:14.5px}
+          .wt-lane-name{font-size:15px}
+          .wt-lane-detail{font-size:14px}
+          .wt-foot{font-size:14px}
           .wt-step{padding-left:25px;padding-bottom:22px}
           .wt-code::after{width:22px}
-          /* ONE LANE PER ROW ON PHONES. Five across only fits where the panel is full width
-             (>=768px). On a phone the five-across default would shrink each track below its
-             content; a single column gives each of the five lanes a clean full-width row with
-             no orphaned last cell and no clipping of the longest detail. */
           .wt-lanes{grid-template-columns:1fr}
-          /* Code calls stay one physical line on phones. Long machine output already owns
-             horizontal scrolling inside .wt-code, so wrapping the elapsed time onto a second
-             line only made the trace look like prose and changed row heights between devices. */
           .wt-call{flex-direction:row;align-items:baseline;gap:12px}
           .wt-time{margin-left:auto}
         }
-        @media(max-width:340px){
-          /* At Fold width, decorative traffic lights yield first. The title/state rail remains
-             horizontally swipeable if needed, while Pause stays pinned and fully tappable. */
-          .wt-light{display:none}
-          .wt-bar{padding-left:10px}
-          .wt-bar-title{margin-left:0;font-size:12px}
-          .wt-bar-state{font-size:11.5px}
-          .wt-play{width:70px;font-size:12px}
+        @media(max-width:319px){
+          /* 280px Fold is the only real compromise: drop the status dot before sacrificing
+             the title or the 44px control. The title gets one small step down, but machine
+             output keeps the same readable sizes because it can swipe horizontally. */
+          .wt-bar{padding-left:10px;padding-right:76px}
+          .wt-bar-state{display:none}
+          .wt-bar-title{font-size:14px}
+          .wt-play{width:70px;padding-inline:6px;font-size:13px}
         }
 
         /* Reduced motion starts on the finished state with the loop paused, so by default this
