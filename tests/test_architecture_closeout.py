@@ -203,6 +203,39 @@ class MessageHistoryAuditTests(unittest.TestCase):
         self.assertIn("channel='whatsapp'", engine)
         self.assertNotIn("message-history/events", engine)
 
+    def test_payment_messages_carry_stable_outbound_idempotency_keys(self):
+        engine = (
+            FUNCTIONS / "payments" / "invoice-engine" / "handler.py"
+        ).read_text(encoding="utf-8")
+        checkout = (
+            FUNCTIONS / "ecommerce" / "checkout" / "handler.py"
+        ).read_text(encoding="utf-8")
+        outbound = (
+            FUNCTIONS / "messaging" / "outbound-whatsapp" / "handler.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("f'payment-request:{reference_id}'", engine)
+        self.assertIn("f'order-status:{invoice_id}:{target}'", engine)
+        self.assertIn("f'invoice-receipt:{invoice_id}'", engine)
+        self.assertIn("f'order-page-link:{invoice_id}'", engine)
+        self.assertIn('"idempotencyKey": f"payment-request:', checkout)
+        self.assertIn("def _stable_outbound_message_id", outbound)
+        self.assertIn("'event': 'idempotent_skip'", outbound)
+        self.assertIn("'MESSAGE_SEND_IN_FLIGHT'", outbound)
+        self.assertIn("'idempotent_retry_after_definite_failure'", outbound)
+
+    def test_wamid_history_reconciliation_is_read_only_secondary_evidence(self):
+        source = (
+            FUNCTIONS / "messaging" / "whatsapp-business-api" / "handler.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("def _message_history_for_wamid", source)
+        self.assertIn("messageHistoryForWamid", source)
+        self.assertIn("message_id", source)
+        self.assertIn("metaAcceptedOrDelivered", source)
+        helper = source[source.index("def _message_history_for_wamid"):]
+        helper = helper[:helper.index("def _emit_event")]
+        self.assertNotIn("_send_", helper)
+        self.assertIn("business idempotency claim remains the primary duplicate-send guard", helper)
+
 
 class AutomaticOrderStatusRouteTests(unittest.TestCase):
     """The payment-order route stays active for processing -> completed only."""
