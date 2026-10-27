@@ -44,6 +44,16 @@ class WhatsAppNewWebhookFieldCaptureTests(TestCase):
         self.assertNotIn("'security', 'verification'", content)
         self.assertIn("UNSUPPORTED_UNKNOWN", content)
 
+    def test_generic_unknown_does_not_trigger_disappearing_hint(self):
+        self.assertIn(
+            "UNREADABLE_MESSAGE_LABELS = frozenset({UNSUPPORTED_DISAPPEARING})",
+            self.source,
+        )
+        self.assertNotIn(
+            "frozenset({UNSUPPORTED_UNKNOWN, UNSUPPORTED_DISAPPEARING})",
+            self.source,
+        )
+
     def test_partner_solution_changes_are_structured(self):
         self.assertIn("def _process_partner_solution_event(", self.source)
         self.assertIn("'whatsapp_partner_solution_change'", self.source)
