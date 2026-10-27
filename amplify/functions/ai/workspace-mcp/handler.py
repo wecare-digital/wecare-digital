@@ -739,7 +739,7 @@ def rpc_request(event: dict, owner: str, oauth: bool = False, provider: str | No
             result = {"tools": tools}
         elif method == "tools/call":
             tool_name = params.get("name")
-            audit_name = tool_name if tool_name in {entry[0] for entry in TOOLS} else "unknown"
+            audit_allowlist = {entry[0] for entry in (provider_tools(provider) if provider else TOOLS)}\n            audit_name = tool_name if tool_name in audit_allowlist else "unknown"
             audit_detail = None
             try:
                 value = (run_provider_tool(owner, provider, params.get('name'), params.get('arguments', {}))
