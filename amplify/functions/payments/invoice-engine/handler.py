@@ -2147,6 +2147,7 @@ def get_invoice(invoice_id: str, request_id: str) -> Dict:
     result = _normalize_invoice(invoice)
     result['items'] = [_normalize_item(i) for i in items]
     result['assets'] = [_normalize_asset(a) for a in assets]
+    result['gstWorkpaper'] = _gst_workpaper(invoice, items)
 
     return _resp(200, {'invoice': result})
 
@@ -6309,6 +6310,8 @@ def _normalize_invoice(item: Dict) -> Dict:
         'total': float(item.get('total', 0)),
         'currency': item.get('currency', 'INR'),
         'gstin': item.get('gstin', ''),
+        'buyerGstin': item.get('buyerGstin', ''),
+        'state': item.get('state', ''),
         'purpose': item.get('purpose', ''),
         'notes': item.get('notes', ''),
         'createdAt': int(item.get('createdAt', 0)),
@@ -6330,6 +6333,75 @@ def _normalize_item(item: Dict) -> Dict:
         'hsnSac': item.get('hsnSac', ''),
         'productId': item.get('productId', ''),
         'isCharge': bool(item.get('isCharge', False)),
+    }
+
+
+def _gst_workpaper(invoice: Dict, items: List[Dict]) -> Dict[str, Any]:
+    """Backend-owned GST workpaper JSON for accounting/export adapters.
+
+    This is deliberately NOT labelled as a GST-portal upload schema. It preserves the facts an
+    adapter needs without guessing missing classification or place-of-supply data. Customer-facing
+    receipt renderers do not consume this object.
+    """
+    accounting = invoice.get('gstAccounting') or {}
+    lines = []
+    line_supply_tax = Decimal('0')
+    classification_complete = True
+    for raw in items:
+        amount = _render_money(raw.get('amount', 0))
+        quantity = int(raw.get('quantity', 1))
+        rate = Decimal(str(raw.get('gstRate', 0) or 0))
+        tax = (amount * Decimal(quantity) * rate / Decimal('100')).quantize(
+            Decimal('0.01'), rounding=ROUND_HALF_UP)
+        stored_tax = raw.get('taxAmount')
+        if stored_tax is not None:
+            tax = _render_money(stored_tax)
+        hsn_sac = str(raw.get('hsnSac') or '').strip()
+        classification_complete = classification_complete and bool(hsn_sac)
+        line_supply_tax += tax
+        lines.append({
+            'lineNumber': int(raw.get('itemIndex', 0)) + 1,
+            'description': str(raw.get('name') or ''),
+            'hsnSac': hsn_sac,
+            'quantity': quantity,
+            'taxableUnitValue': _money_display(amount),
+            'taxableLineValue': _money_display(amount * Decimal(quantity)),
+            'gstRate': str(rate.normalize()) if rate else '0',
+            'taxAmount': _money_display(tax),
+        })
+
+    state = str(accounting.get('state') or invoice.get('state') or '').strip()
+    place_code = str(accounting.get('gstStateCode') or '').strip()
+    iso_subdivision = str(accounting.get('isoSubdivision') or '').strip()
+    return {
+        'schemaVersion': 'wecare-gst-workpaper-v1',
+        'portalUploadFormat': False,
+        'invoiceId': str(invoice.get('invoiceId') or ''),
+        'invoiceNumber': str(invoice.get('invoiceNumber') or ''),
+        'invoiceDateEpoch': int(invoice.get('createdAt') or 0),
+        'paidAtEpoch': int(invoice.get('paidAt') or 0),
+        'currency': str(invoice.get('currency') or 'INR'),
+        'sellerGstin': str(accounting.get('sellerGstin') or invoice.get('gstin') or ''),
+        'buyerGstin': str(invoice.get('buyerGstin') or ''),
+        'placeOfSupply': {
+            'state': state,
+            'gstStateCode': place_code,
+            'isoSubdivision': iso_subdivision,
+            'resolved': bool(place_code and iso_subdivision),
+        },
+        'classificationComplete': classification_complete,
+        'delight': _money_display(invoice.get('discount', 0)),
+        'delightTaxTreatment': str(accounting.get('delightTaxTreatment') or ''),
+        'itemsSubtotal': _money_display(invoice.get('subtotal', 0)),
+        'express': _money_display(invoice.get('shipping', 0)),
+        'supplyTax': _money_display(accounting.get('supplyTax', invoice.get('tax', 0))),
+        'lineSupplyTax': _money_display(line_supply_tax),
+        'convenienceFeeNet': _money_display(
+            invoice.get('convenienceFeeNet', invoice.get('convenienceFee', 0))),
+        'convenienceFeeGst': _money_display(invoice.get('convenienceFeeGst', 0)),
+        'totalGst': _money_display(accounting.get('totalGst', invoice.get('tax', 0))),
+        'totalPaidOrPayable': _money_display(invoice.get('total', 0)),
+        'lines': lines,
     }
 
 
