@@ -175,6 +175,22 @@ class PaymentArchitectureDriftTests(unittest.TestCase):
 
 
 
+class OrderStatusTemplateOnlyTransportTests(unittest.TestCase):
+    """The automatic payment-order rail never changes transport with the service window."""
+
+    def test_order_status_sender_is_template_only_even_on_failure(self):
+        source = (
+            FUNCTIONS / "messaging" / "outbound-whatsapp" / "handler.py"
+        ).read_text(encoding="utf-8")
+        start = source.index("def _handle_order_status_send(")
+        end = source.index("# ═══════════════════════════════════════════════════════════════════════════", start)
+        sender = source[start:end]
+        self.assertIn("channel = 'template'", sender)
+        self.assertIn("_emit_delivery_metric('failed', is_template=True)", sender)
+        self.assertNotIn("interactive\n", sender)
+        self.assertNotIn("is_template=not within_window", sender)
+
+
 class MessageHistoryAuditTests(unittest.TestCase):
     """Meta Message History is audit evidence; DynamoDB send claims stay the primary dedup gate."""
 

@@ -1847,15 +1847,12 @@ def _handle_order_status_send(message_id: str, contact_id: str, recipient_phone:
                                recipient_bsuid: Optional[str] = None,
                                template_name: str = '',
                                within_window: bool = False) -> Dict[str, Any]:
-    """Send one Meta order_status fulfilment update; business semantics live in wa_order_status.
+    """Send one Meta payment-order status update through the approved template only.
 
-    Two channels carry the SAME fulfilment update and the choice is the service window, decided
-    by the caller: INSIDE the 24-hour customer-service window it is the free-form interactive
-    `order_status` message (no template, no approval needed); OUTSIDE the window it is the
-    approved ORDER_STATUS template. The caller only passes a `template_name` when the window is
-    closed and the template read back APPROVED, and already returned 409 ORDER_STATUS_DEFERRED
-    when the window is closed and no template is approved — so a closed window with no template
-    never reaches here. Storage, metrics and BSUID handling are identical on both channels.
+    Business semantics live in `wa_order_status`. The 24-hour customer-service window is
+    observational only here; it never selects an interactive transport. Every processing/completed
+    payment-order update uses the approved `wecare_order_status_v3` ORDER_STATUS template, and a
+    missing approval is deferred before any provider send.
     """
     try:
         from lambda_utils.ecommerce import wa_order_status as _wa_os
@@ -1974,7 +1971,7 @@ def _handle_order_status_send(message_id: str, contact_id: str, recipient_phone:
             'error': error_msg,
             'requestId': request_id
         }))
-        _emit_delivery_metric('failed', is_template=not within_window)
+        _emit_delivery_metric('failed', is_template=True)
         return _error_response(500, f'Failed to send order status: {error_msg}')
 
 
