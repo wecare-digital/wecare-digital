@@ -2,7 +2,7 @@
   "_comment": "Recorded state of live Lambda environment variables, including tracked immutable alias configuration. Not deployed by anything - this is the source of truth to diff against. Regenerate with scripts/env_manifest.py --export; verify with no arguments.",
   "_region": "us-east-1",
   "_functions": 74,
-  "_variables": 520,
+  "_variables": 526,
   "_aliases": 2,
   "_alias_variables": 4,
   "_fingerprinted": 22,
@@ -188,6 +188,7 @@
       "WHATSAPP_IDENTITY_FUNCTION": "wecare-customer-registration:live"
     },
     "wecare-contacts": {
+      "ADMIN_MFA_REQUIRED": "true",
       "AWS_ACCOUNT_ID": "775261844268",
       "CONTACTS_TABLE": "stack-wecare-digital-ContactsTable",
       "LOG_LEVEL": "INFO",
@@ -351,6 +352,7 @@
       "WHATSAPP_PHONE_NUMBER_ID_1": "phone-number-id-waba1-direct-1016149501586345"
     },
     "wecare-messages-delete": {
+      "ADMIN_MFA_REQUIRED": "true",
       "AWS_ACCOUNT_ID": "775261844268",
       "MEDIA_BUCKET": "wecare-digital-get",
       "REGION": "us-east-1",

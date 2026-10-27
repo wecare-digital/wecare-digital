@@ -25,7 +25,7 @@ const PHONES = [
 
 const TABS = [
     'Schedules', 'Commerce', 'QR Codes', 'Conversational Automation',
-    'Link Preview', 'Throughput', 'Direct Send', 'Marketing (MM Lite)', 'Catalog → Flow', 'Assigned Users', 'AI Pricing Policy',
+    'Link Preview', 'Throughput', 'Direct Send', 'Marketing (MM Lite)', 'Assigned Users', 'AI Pricing Policy',
 ] as const;
 type Tab = typeof TABS[ number ];
 
@@ -97,7 +97,6 @@ export default function WAGraphTools ( { signOut, user, embedded }: PageProps ) 
                 { tab === 'Throughput' && <ThroughputTab phoneId={ phone.phoneId } toast={ toast } /> }
                 { tab === 'Direct Send' && <DirectSendTab phoneId={ phone.phoneId } wabaId={ phone.wabaId } toast={ toast } /> }
                 { tab === 'Marketing (MM Lite)' && <MarketingTab phoneId={ phone.phoneId } wabaId={ phone.wabaId } toast={ toast } /> }
-                { tab === 'Catalog → Flow' && <CatalogFlowTab toast={ toast } confirm={ confirm } /> }
                 { tab === 'Assigned Users' && <AssignedUsersTab wabaId={ phone.wabaId } toast={ toast } confirm={ confirm } /> }
                 { tab === 'AI Pricing Policy' && <AiPolicyTab toast={ toast } confirm={ confirm } /> }
             </div>
@@ -504,79 +503,6 @@ function DirectSendTab ( { phoneId, wabaId, toast }: { phoneId: string; wabaId: 
                 <div style={ { marginTop: 16, fontSize: 'var(--text-sm)', color: 'var(--text-muted)' } }>
                     Marketing Messages (MM Lite) onboarding: <b style={ { color: 'var(--text-primary)' } }>{ mm.onboardingStatus || 'unknown' }</b>{ mm.time ? ` · ${mm.time}` : '' }
                 </div>
-            ) }
-        </div>
-    );
-}
-
-// ── Catalog → Flow mapping ──
-function CatalogFlowTab ( { toast, confirm }: { toast: any; confirm: any } ) {
-    const [ map, setMap ] = useState<Record<string, api.CatalogFlowEntry>>( {} );
-    const [ loading, setLoading ] = useState( false );
-    const [ saving, setSaving ] = useState( false );
-    const [ form, setForm ] = useState( { retailerId: '', flowIdWaba1: '', flowIdWaba2: '', flowCode: '', cta: 'Complete request', body: 'Payment received! Tap below to complete your request.' } );
-
-    const load = useCallback( async () => {
-        setLoading( true );
-        try { setMap( await api.getCatalogFlowMap() ); }
-        catch ( e: any ) { toast.error( e.message || 'Failed to load mapping' ); }
-        finally { setLoading( false ); }
-    }, [ toast ] );
-    useEffect( () => { load(); }, [ load ] );
-
-    const save = async () => {
-        if ( !form.retailerId.trim() ) { toast.error( 'Product retailer_id is required' ); return; }
-        if ( !form.flowIdWaba1.trim() && !form.flowIdWaba2.trim() ) { toast.error( 'Enter at least one flow ID' ); return; }
-        setSaving( true );
-        try
-        {
-            const r = await api.upsertCatalogFlowMap( form );
-            if ( r.success ) { toast.success( 'Mapping saved' ); setMap( r.map || {} ); setForm( { retailerId: '', flowIdWaba1: '', flowIdWaba2: '', flowCode: '', cta: 'Complete request', body: 'Payment received! Tap below to complete your request.' } ); }
-            else toast.error( r.error || 'Failed' );
-        } finally { setSaving( false ); }
-    };
-
-    const edit = ( rid: string, e: api.CatalogFlowEntry ) => setForm( { retailerId: rid, flowIdWaba1: e.flowIdWaba1 || '', flowIdWaba2: e.flowIdWaba2 || '', flowCode: e.flowCode || '', cta: e.cta || 'Complete request', body: e.body || '' } );
-    const del = async ( rid: string ) => {
-        if ( !( await confirm( { title: 'Remove mapping', message: `Stop opening a flow for ${rid}?`, danger: true, confirmText: 'Remove' } ) ) ) return;
-        const r = await api.upsertCatalogFlowMap( { retailerId: rid, delete: true } );
-        r.success ? ( toast.success( 'Removed' ), setMap( r.map || {} ) ) : toast.error( r.error || 'Failed' );
-    };
-
-    return (
-        <div style={ card }>
-            <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } }>
-                <h3 style={ { margin: 0 } }>Catalog → Flow Mapping</h3>
-                <Button variant="secondary" size="sm" onClick={ load } loading={ loading }>Reload</Button>
-            </div>
-            <p style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 6 } }>
-                Map a catalog product (retailer_id) to the WhatsApp Flow that opens after the customer pays for it. Each product can open its own flow, per WABA. One flow per payment.
-            </p>
-            <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 12 } }>
-                <div><label style={ label }>Product retailer_id</label><input style={ input } placeholder="WD-SUBMIT-REQ" value={ form.retailerId } onChange={ e => setForm( { ...form, retailerId: e.target.value } ) } /></div>
-                <div><label style={ label }>Flow code (optional)</label><input style={ input } placeholder="02.WD_POSTPAY" value={ form.flowCode } onChange={ e => setForm( { ...form, flowCode: e.target.value } ) } /></div>
-                <div><label style={ label }>Flow ID — WABA 1</label><input style={ input } placeholder="1018621047428701" value={ form.flowIdWaba1 } onChange={ e => setForm( { ...form, flowIdWaba1: e.target.value } ) } /></div>
-                <div><label style={ label }>Flow ID — WABA 2</label><input style={ input } placeholder="1935472957154109" value={ form.flowIdWaba2 } onChange={ e => setForm( { ...form, flowIdWaba2: e.target.value } ) } /></div>
-                <div><label style={ label }>Button text (CTA)</label><input style={ input } maxLength={ 20 } value={ form.cta } onChange={ e => setForm( { ...form, cta: e.target.value } ) } /></div>
-                <div><label style={ label }>Message body</label><input style={ input } value={ form.body } onChange={ e => setForm( { ...form, body: e.target.value } ) } /></div>
-            </div>
-            <div style={ { marginTop: 12 } }><Button variant="primary" onClick={ save } loading={ saving }>Save mapping</Button></div>
-
-            <h4 style={ { marginTop: 20, marginBottom: 8 } }>Current mappings</h4>
-            { Object.keys( map ).length === 0 ? (
-                <p style={ { fontSize: 'var(--text-sm)', color: 'var(--text-muted)' } }>No mappings yet.</p>
-            ) : (
-                <table style={ { fontSize: 'var(--text-sm)', width: '100%' } }>
-                    <thead><tr style={ { textAlign: 'left', color: 'var(--text-muted)' } }><th>Product</th><th>WABA1 flow</th><th>WABA2 flow</th><th></th></tr></thead>
-                    <tbody>{ Object.entries( map ).map( ( [ rid, e ] ) => (
-                        <tr key={ rid } style={ { borderTop: '1px solid var(--border-light)' } }>
-                            <td style={ { fontFamily: 'var(--font-mono)', padding: '6px 8px 6px 0' } }>{ rid }</td>
-                            <td style={ { padding: '6px 8px 6px 0' } }>{ e.flowIdWaba1 || '—' }</td>
-                            <td style={ { padding: '6px 8px 6px 0' } }>{ e.flowIdWaba2 || '—' }</td>
-                            <td><Button variant="ghost" size="sm" onClick={ () => edit( rid, e ) }>Edit</Button> <Button variant="danger" size="sm" onClick={ () => del( rid ) }>Delete</Button></td>
-                        </tr>
-                    ) ) }</tbody>
-                </table>
             ) }
         </div>
     );

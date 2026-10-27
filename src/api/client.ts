@@ -6873,23 +6873,6 @@ export async function getMmConversionMetrics ( wabaId: string, opts?: { since?: 
   return data as MmConversionMetrics;
 }
 
-export interface CatalogFlowEntry { flowIdWaba1?: string; flowIdWaba2?: string; flowCode?: string; cta?: string; body?: string; }
-
-export async function getCatalogFlowMap (): Promise<Record<string, CatalogFlowEntry>> {
-  const data = await apiCall<any>( `${WA_BIZ_BASE}/catalog-flow-map` );
-  return data?.map || {};
-}
-
-export async function upsertCatalogFlowMap (
-  entry: { retailerId: string; flowIdWaba1?: string; flowIdWaba2?: string; flowCode?: string; cta?: string; body?: string; delete?: boolean }
-): Promise<{ success: boolean; map?: Record<string, CatalogFlowEntry>; error?: string }> {
-  const data = await apiCall<any>( `${WA_BIZ_BASE}/catalog-flow-map`, {
-    method: 'POST', body: JSON.stringify( entry ),
-  } );
-  if ( data?.error ) return { success: false, error: typeof data.error === 'string' ? data.error : data.error?.message };
-  return { success: true, map: data?.map };
-}
-
 export async function sendMarketingMessage (
   phoneId: string,
   payload: { to: string; templateName: string; language?: string; params?: string[]; messageActivitySharing?: boolean; productPolicy?: 'CLOUD_API_FALLBACK' | 'STRICT' }

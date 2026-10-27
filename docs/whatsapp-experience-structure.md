@@ -498,7 +498,7 @@ defaults are authoritative today.
 | `flow_triggers_config` | all 10 flows: keywords, flowId, flowId2, message, enabled |
 | `ai_hybrid_routing` | bot-vs-AI trigger sets |
 | `wa_auto_response` | fallback message (currently unreachable) |
-| `catalog_flow_map` | catalog product → post-payment flow |
+| `catalog_flow_map` | retired 2026-10-27: nothing read it at payment time; the editor and API were removed, the row is unused |
 | `whatsapp_auto_next_due` | next-due nag (off) |
 | `whatsapp_auto_thumb` | auto 👍 reaction (on) |
 

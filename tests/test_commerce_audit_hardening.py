@@ -210,20 +210,19 @@ class BusinessApiWriteGateTests(unittest.TestCase):
             self.assertTrue([c for c in self.graph_calls if c[0] in ("POST", "DELETE")],
                             f"Admin {method} {path} did not reach its Meta write")
 
-    def test_catalog_flow_map_write_needs_admin(self):
+    def test_retired_catalog_flow_map_route_is_gone(self):
+        # Nothing at payment time read the product -> Flow map, so its Workspace editor and API
+        # were removed: the route answers 404 for every role and writes nothing.
         entry = {"retailerId": "WECARE.DIGITAL:v2:AAA:BBB", "flowIdWaba1": "993862443003108"}
-        self.assertEqual(self.call("POST", "/wa-business/catalog-flow-map", role="Operator",
-                                   body=entry), 403)
-        self.assertFalse(any(t.writes for t in self.tables.values()))
         self.assertEqual(self.call("POST", "/wa-business/catalog-flow-map", role="Admin",
-                                   body=entry), 200)
-        self.assertTrue(any(t.writes for t in self.tables.values()))
+                                   body=entry), 404)
+        self.assertEqual(self.call("GET", "/wa-business/catalog-flow-map", role="Admin"), 404)
+        self.assertFalse(any(t.writes for t in self.tables.values()))
 
     def test_reads_keep_the_viewer_floor(self):
         reads = [
             ("/wa-business/catalog-products", {"catalogId": "1457045652952851"}),
             ("/wa-business/commerce-settings", {"phoneId": "1016149501586345"}),
-            ("/wa-business/catalog-flow-map", {}),
             ("/wa-business/assigned-users", {"wabaId": "2094615664435155", "business": "1"}),
         ]
         for path, query in reads:

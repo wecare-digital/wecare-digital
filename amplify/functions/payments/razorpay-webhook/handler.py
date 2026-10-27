@@ -1864,8 +1864,8 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
                             _its = []
                     if isinstance(_its, list) and _its and isinstance(_its[0], dict):
                         order_product = _its[0].get('name', '') or order_product
-                    # Carry the catalog product id so the post-payment flow resolver
-                    # can open the flow mapped to THIS product (catalog_flow_map).
+                    # Carry the catalog product id onto the payment notes (kept on the
+                    # invoice for reporting; no post-payment Flow is chosen from it).
                     _rid = _inv.get('catalogRetailerId') or ''
                     if _rid and 'catalogRetailerId' not in (notes or {}):
                         if notes is None:
