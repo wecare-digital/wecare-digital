@@ -1518,8 +1518,8 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
         'billingAddress': billing_address,
         'goodsType': ('physical-goods' if _new_collection_pricing_applies(entry_point, amount_is_tax_inclusive)
                       else body.get('goodsType', 'digital-goods')),
-        # Catalog product id (retailer_id) — used by the post-payment flow resolver
-        # to open the flow mapped to THIS product (catalog_flow_map).
+        # Catalog product id (retailer_id), recorded for reporting. No post-payment Flow is
+        # chosen from it; the receipt's Leave Review button is the only post-payment Flow.
         'catalogRetailerId': body.get('catalogRetailerId', '') or body.get('retailerId', ''),
         # Amounts (stored in rupees)
         'subtotal': _dec(subtotal),
