@@ -20,6 +20,7 @@ import Pagination from '../../../components/ui/Pagination';
 import EmptyState from '../../../components/ui/EmptyState';
 import Select, { type SelectOption } from '../../../components/ui/Select';
 import { useToastContext } from '../../../contexts/ToastContext';
+import { useConfirm } from '../../../contexts/ConfirmContext';
 import * as api from '../../../api/client';
 import type { ApiFailure } from '../../../api/client';
 import { openExternal } from '../../../lib/capacitor';
@@ -169,12 +170,14 @@ interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => {
   const toast = useToastContext();
+  const confirm = useConfirm();
   const [ docs, setDocs ] = useState<api.Document[]>( [] );
   const [ loading, setLoading ] = useState( true );
   const [ failure, setFailure ] = useState<ApiFailure | null>( null );
   const [ statusFilter, setStatusFilter ] = useState( '' );
   const [ sourceFilter, setSourceFilter ] = useState( '' );
   const [ typeFilter, setTypeFilter ] = useState( '' );
+  const [ recordFilter, setRecordFilter ] = useState<'active' | 'archived' | 'all'>( 'active' );
   const [ page, setPage ] = useState( 1 );
   const [ selected, setSelected ] = useState<api.Document | null>( null );
   // What staff typed for {{1}} of the Vault message, for the open document.
@@ -301,7 +304,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
     resetCreate();
   };
 
-  const handleCreateDocument = async () => {
+  const handleCreateDocument = async ( sendAfterUpload = false ) => {
     if ( !createForm.customerPhone && !createForm.contactId )
     {
       toast.error( 'Select a customer or enter their mobile number' );
@@ -360,7 +363,22 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
         return;
       }
 
-      toast.success( 'Document uploaded' );
+      if ( sendAfterUpload )
+      {
+        const name = defaultVaultName( confirmed.data );
+        const published = await api.publishDocumentToVault( confirmed.data.documentId, name || undefined );
+        if ( !published.ok )
+        {
+          toast.warning( 'Document uploaded, but it could not be published to Vault. Open the document and try Publish & send.' );
+        }
+        else
+        {
+          const sent = await api.requestSecureFilePayment( published.data.fileId );
+          reportVaultAction( sent );
+        }
+      }
+      else toast.success( 'Document uploaded to Drop Docs' );
+
       setShowCreate( false );
       resetCreate();
       void loadData();
@@ -533,6 +551,80 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
     }
   };
 
+  const handlePublishAndSend = async ( doc: api.Document ) => {
+    if ( actionLoading || doc.archivedAt ) return;
+    setActionLoading( true );
+    try
+    {
+      let fileId = doc.vaultFileId || '';
+      if ( !fileId )
+      {
+        const name = defaultVaultName( doc );
+        const published = await api.publishDocumentToVault( doc.documentId, name || undefined );
+        if ( !published.ok )
+        {
+          toast.error( published.failure.message || 'Could not publish this document to Vault' );
+          return;
+        }
+        fileId = published.data.fileId;
+      }
+      const sent = await api.requestSecureFilePayment( fileId );
+      reportVaultAction( sent );
+      void loadData();
+      if ( selected?.documentId === doc.documentId )
+      {
+        const next = { ...doc, vaultFileId: fileId, vaultPublishedAt: doc.vaultPublishedAt || Date.now() / 1000 };
+        setSelected( next );
+        void loadVaultFile( next );
+      }
+    } finally
+    {
+      setActionLoading( false );
+    }
+  };
+
+  const handleArchive = async ( doc: api.Document ) => {
+    if ( actionLoading ) return;
+    const ok = await confirm( {
+      title: `Archive "${doc.fileName || 'document'}"?`,
+      message: 'This removes it from the active list but keeps the private file, audit history, and any Vault/payment evidence. You can restore it later.',
+      confirmText: 'Archive',
+      danger: true,
+    } );
+    if ( !ok ) return;
+    setActionLoading( true );
+    try
+    {
+      if ( await api.archiveDocument( doc.documentId ) )
+      {
+        toast.success( 'Document archived' );
+        if ( selected?.documentId === doc.documentId ) setSelected( null );
+        void loadData();
+      }
+      else toast.error( 'Could not archive this document' );
+    } finally
+    {
+      setActionLoading( false );
+    }
+  };
+
+  const handleRestore = async ( doc: api.Document ) => {
+    if ( actionLoading ) return;
+    setActionLoading( true );
+    try
+    {
+      if ( await api.restoreArchivedDocument( doc.documentId ) )
+      {
+        toast.success( 'Document restored to Active' );
+        void loadData();
+      }
+      else toast.error( 'Could not restore this document' );
+    } finally
+    {
+      setActionLoading( false );
+    }
+  };
+
   const handleReplacementUpload = async ( doc: api.Document ) => {
     if ( actionLoading || !replacementFile ) return;
     setActionLoading( true );
@@ -574,51 +666,74 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
     }
   };
 
-  const totalPages = Math.ceil( docs.length / PAGE_SIZE );
-  const paged = docs.slice( ( page - 1 ) * PAGE_SIZE, page * PAGE_SIZE );
+  const activeDocs = docs.filter( d => !d.archivedAt );
+  const archivedDocs = docs.filter( d => !!d.archivedAt );
+  const visibleDocs = recordFilter === 'all' ? docs : recordFilter === 'archived' ? archivedDocs : activeDocs;
+  const totalPages = Math.max( 1, Math.ceil( visibleDocs.length / PAGE_SIZE ) );
+  const paged = visibleDocs.slice( ( page - 1 ) * PAGE_SIZE, page * PAGE_SIZE );
 
-  // Stats
   const stats = {
-    total: docs.length,
-    uploaded: docs.filter( d => d.status === 'uploaded' ).length,
-    underReview: docs.filter( d => d.status === 'under_review' ).length,
-    approved: docs.filter( d => d.status === 'approved' ).length,
-    rejected: docs.filter( d => d.status === 'rejected' ).length,
+    active: activeDocs.length,
+    archived: archivedDocs.length,
+    inVault: activeDocs.filter( d => !!d.vaultFileId ).length,
+    needsVault: activeDocs.filter( d => !d.vaultFileId && !!d.storageKey && [ 'uploaded', 'approved' ].includes( d.status ) ).length,
   };
 
   const columns = [
     {
-      key: 'source', header: 'Src', width: '40px', render: ( d: api.Document ) => (
-        <span title={ d.source } style={ { fontSize: 'var(--text-base)' } }>{ SOURCE_ICONS[ d.source ] || '📄' }</span>
-      )
-    },
-    {
       key: 'fileName', header: 'Document', render: ( d: api.Document ) => (
-        <button onClick={ () => openDocument( d ) } style={ { background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' } }>
-          <div style={ { fontWeight: 500, fontSize: 'var(--text-md)', color: 'var(--accent)', textDecoration: 'underline' } }>{ d.fileName || 'Untitled' }</div>
-          <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>{ d.type } · { fmtSize( d.fileSize ) }</div>
+        <button onClick={ () => openDocument( d ) } style={ documentLinkStyle }>
+          <div style={ { fontWeight: 650, fontSize: 'var(--text-md)' } }>{ d.fileName || 'Untitled' }</div>
+          <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>
+            { d.documentTypeLabel || d.type } · { fmtSize( d.fileSize ) } · { fmtDate( d.createdAt ) }
+          </div>
         </button>
       )
     },
     {
-      key: 'customer', header: 'Customer', width: '140px', render: ( d: api.Document ) => (
-        <div><div style={ { fontWeight: 500, fontSize: 'var(--text-sm)' } }>{ d.customerName || '—' }</div><div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>{ d.customerPhone }</div></div>
+      key: 'customer', header: 'Customer', width: '170px', render: ( d: api.Document ) => (
+        <div><div style={ { fontWeight: 600, fontSize: 'var(--text-sm)' } }>{ d.customerName || '—' }</div><div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>{ d.customerPhone }</div></div>
       )
     },
     {
-      key: 'orderId', header: 'Order', width: '120px', render: ( d: api.Document ) => d.orderId ? (
-        <span title={ d.orderId } style={ { fontSize: 'var(--text-xs)', fontFamily: 'monospace', color: 'var(--accent)' } }>{ d.orderNumber || d.orderId.split( '-' ).pop() }</span>
-      ) : <span style={ { color: '#9ca3af' } }>—</span>
+      key: 'workflow', header: 'Review', width: '135px', render: ( d: api.Document ) => <StatusBadge status={ d.status } />
     },
-    { key: 'status', header: 'Status', width: '140px', render: ( d: api.Document ) => <StatusBadge status={ d.status } /> },
-    { key: 'createdAt', header: 'Uploaded', width: '130px', render: ( d: api.Document ) => fmtDate( d.createdAt ) },
     {
-      key: 'actions', header: '', width: '120px', render: ( d: api.Document ) => (
-        <div style={ { display: 'flex', gap: 4 } }>
-          { d.status !== 'approved' && <button onClick={ () => handleStatusAction( d, 'approved' ) } title="Approve" style={ actionBtnStyle }>✅</button> }
-          { d.status !== 'rejected' && <button onClick={ () => handleStatusAction( d, 'rejected' ) } title="Reject" style={ actionBtnStyle }>❌</button> }
-          { d.status !== 'reupload_requested' && <button onClick={ () => handleStatusAction( d, 'reupload_requested' ) } title="Request Reupload" style={ actionBtnStyle }>🔄</button> }
-          <button onClick={ () => handleDownload( d ) } title="Download" style={ actionBtnStyle }>⬇️</button>
+      key: 'delivery', header: 'Vault delivery', width: '190px', render: ( d: api.Document ) => (
+        <div>
+          <div style={ { fontWeight: 600, fontSize: 'var(--text-sm)' } }>
+            { d.vaultFileId ? 'Published to Vault' : 'Not in Vault' }
+          </div>
+          <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>
+            { d.vaultFileId ? 'Open to see payment/access state' : 'No WhatsApp Vault offer has been created' }
+          </div>
+        </div>
+      )
+    },
+    {
+      key: 'record', header: 'Record', width: '110px', render: ( d: api.Document ) => (
+        <span style={ d.archivedAt ? archivedPillStyle : activePillStyle }>{ d.archivedAt ? 'Archived' : 'Active' }</span>
+      )
+    },
+    {
+      key: 'actions', header: 'Next action', width: '280px', render: ( d: api.Document ) => (
+        <div style={ { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } }>
+          { d.archivedAt ? (
+            <button className="dd-action dd-action-primary" onClick={ () => { void handleRestore( d ); } } disabled={ actionLoading }>Restore</button>
+          ) : (
+            <>
+              { !d.vaultFileId && d.storageKey && [ 'uploaded', 'approved' ].includes( d.status ) && (
+                <button className="dd-action dd-action-primary" onClick={ () => { void handlePublishAndSend( d ); } } disabled={ actionLoading }>
+                  Publish & send
+                </button>
+              ) }
+              { d.vaultFileId && (
+                <button className="dd-action dd-action-primary" onClick={ () => openDocument( d ) }>Open Vault status</button>
+              ) }
+              <button className="dd-action" onClick={ () => { void handleDownload( d ); } }>Download</button>
+              <button className="dd-action dd-action-muted" onClick={ () => { void handleArchive( d ); } } disabled={ actionLoading }>Archive</button>
+            </>
+          ) }
         </div>
       )
     },
@@ -627,52 +742,57 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
   return (
     <MaybeLayout embedded={ embedded } user={ user } onSignOut={ signOut }>
       <SEO { ...PAGE_SEO.documents } />
-      <div style={ { padding: '24px 32px', maxWidth: 1400 } }>
-        <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 } }>
+      <div style={ pageStyle }>
+        <div style={ pageHeaderStyle }>
           <div>
-            <h1 style={ { fontSize: 'var(--text-3xl)', fontWeight: 700, color: 'var(--accent)', margin: 0 } }>Drop Docs</h1>
-            <p style={ { fontSize: 'var(--text-md)', color: 'var(--text-muted)', margin: '4px 0 0' } }>Document management — all sources</p>
+            <div style={ eyebrowStyle }>Service · Documents</div>
+            <h1 style={ pageTitleStyle }>Drop Docs</h1>
+            <p style={ pageLeadStyle }>Upload documents first. Publish to Vault only when the customer should receive a downloadable copy.</p>
           </div>
-          <div style={ { display: 'flex', gap: 8 } }>
+          <div style={ { display: 'flex', gap: 8, flexWrap: 'wrap' } }>
             <Button variant="secondary" icon="refresh" onClick={ loadData }>Refresh</Button>
-            <Button variant="primary" icon="create" onClick={ () => setShowCreate( true ) }>Add Document</Button>
+            <Button variant="primary" icon="create" onClick={ () => setShowCreate( true ) }>Upload document</Button>
           </div>
         </div>
 
-        {/* Stats */ }
-        <div style={ { display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 20 } }>
-          { [
-            { label: 'Total', value: stats.total, bg: 'var(--bg-secondary)' },
-            { label: 'Uploaded', value: stats.uploaded, bg: '#dbeafe' },
-            { label: 'Under Review', value: stats.underReview, bg: '#e0e7ff' },
-            { label: 'Approved', value: stats.approved, bg: '#d1fae5' },
-            { label: 'Rejected', value: stats.rejected, bg: '#fee2e2' },
-          ].map( s => (
-            <div key={ s.label } style={ { padding: '12px 16px', background: s.bg, borderRadius: 10, border: '2px solid #f3f4f6' } }>
-              <div style={ { fontSize: 22, fontWeight: 700, color: 'var(--accent)' } }>{ s.value }</div>
-              <div style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)' } }>{ s.label }</div>
-            </div>
-          ) ) }
+        <div className="dd-summary" style={ summaryStripStyle }>
+          <div><strong>{ stats.active }</strong><span>Active</span></div>
+          <div><strong>{ stats.needsVault }</strong><span>Ready to publish</span></div>
+          <div><strong>{ stats.inVault }</strong><span>In Vault</span></div>
+          <div><strong>{ stats.archived }</strong><span>Archived</span></div>
         </div>
 
-        {/* Filters */ }
-        <div style={ { display: 'flex', gap: 12, marginBottom: 16 } }>
-          <Select ariaLabel="Document status" value={ statusFilter }
-            onChange={ v => { setStatusFilter( v ); setPage( 1 ); } }
-            options={ STATUS_FILTER_OPTIONS } style={ FILTER_STYLE } />
-          <Select ariaLabel="Source" value={ sourceFilter }
-            onChange={ v => { setSourceFilter( v ); setPage( 1 ); } }
-            options={ SOURCE_FILTER_OPTIONS } style={ FILTER_STYLE } />
-          <Select ariaLabel="Document type" value={ typeFilter }
-            onChange={ v => { setTypeFilter( v ); setPage( 1 ); } }
-            options={ TYPE_FILTER_OPTIONS } style={ FILTER_STYLE } />
+        <div style={ toolbarStyle }>
+          <div style={ segmentedStyle } aria-label="Record visibility">
+            { ( [ [ 'active', 'Active' ], [ 'archived', 'Archived' ], [ 'all', 'All' ] ] as const ).map( ( [ value, label ] ) => (
+              <button
+                key={ value }
+                type="button"
+                onClick={ () => { setRecordFilter( value ); setPage( 1 ); } }
+                style={ recordFilter === value ? segmentActiveStyle : segmentStyle }
+              >
+                { label }
+              </button>
+            ) ) }
+          </div>
+          <div style={ { display: 'flex', gap: 8, flexWrap: 'wrap' } }>
+            <Select ariaLabel="Document status" value={ statusFilter }
+              onChange={ v => { setStatusFilter( v ); setPage( 1 ); } }
+              options={ STATUS_FILTER_OPTIONS } style={ FILTER_STYLE } />
+            <Select ariaLabel="Source" value={ sourceFilter }
+              onChange={ v => { setSourceFilter( v ); setPage( 1 ); } }
+              options={ SOURCE_FILTER_OPTIONS } style={ FILTER_STYLE } />
+            <Select ariaLabel="Document type" value={ typeFilter }
+              onChange={ v => { setTypeFilter( v ); setPage( 1 ); } }
+              options={ TYPE_FILTER_OPTIONS } style={ FILTER_STYLE } />
+          </div>
         </div>
 
         <ServiceDataState
           loading={ loading }
           failure={ failure }
-          empty={ docs.length === 0 }
-          emptyLabel="No documents"
+          empty={ visibleDocs.length === 0 }
+          emptyLabel={ recordFilter === 'archived' ? 'No archived documents' : 'No documents here' }
           emptyIcon="default"
           onRetry={ loadData }
         >
@@ -819,6 +939,11 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                   Publish to Vault
                 </Button>
               ) }
+              { !selected.archivedAt && !selected.vaultFileId && selected.storageKey && [ 'uploaded', 'approved' ].includes( selected.status ) && (
+                <Button variant="primary" loading={ actionLoading } onClick={ () => handlePublishAndSend( selected ) }>
+                  Publish & send WhatsApp
+                </Button>
+              ) }
               { selected.vaultFileId && vaultActionsFor( vaultFile ).ask && (
                 <Button
                   variant="primary"
@@ -861,19 +986,26 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
           <>
             <Button variant="secondary" onClick={ closeCreate } disabled={ creating }>Cancel</Button>
             <Button
+              variant="secondary"
+              disabled={ creating || !createReady }
+              onClick={ () => { void handleCreateDocument( false ); } }
+            >
+              Upload only
+            </Button>
+            <Button
               variant="primary"
               loading={ creating }
               disabled={ creating || !createReady }
-              onClick={ handleCreateDocument }
+              onClick={ () => { void handleCreateDocument( true ); } }
             >
-              Upload document
+              Upload & send WhatsApp
             </Button>
           </>
         }
       >
         <div style={ { display: 'flex', flexDirection: 'column', gap: 18 } }>
           <div style={ uploadIntroStyle }>
-            Add a document to the customer’s private Drop Docs record. Publishing or charging for Vault happens later, from the document record.
+            Add a document to private Drop Docs storage. Choose <strong>Upload only</strong> for intake, or <strong>Upload & send WhatsApp</strong> to publish it to Vault and send the customer the Unlock Vault offer immediately.
           </div>
 
           <section style={ sectionStyle }>
@@ -1056,10 +1188,32 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
           </section>
 
           <div style={ uploadFooterNoteStyle }>
-            <strong>Next:</strong> review the uploaded document. If the customer should receive a downloadable copy, use <strong>Publish to Vault</strong> from that document later.
+            <strong>Upload only</strong> keeps this as intake. <strong>Upload & send WhatsApp</strong> publishes the same document to Vault and sends the customer the offer; payment happens only after the customer taps Unlock Vault.
           </div>
         </div>
       </Modal>
+      <style jsx global>{`
+        .dd-summary > div{background:var(--bg-primary);padding:14px 16px;display:grid;gap:3px}
+        .dd-summary strong{font-size:22px;color:var(--accent)}
+        .dd-summary span{font-size:var(--text-xs);color:var(--text-muted)}
+        .dd-action{
+          min-height:34px;
+          border:1px solid var(--border);
+          background:var(--bg-primary);
+          color:var(--accent);
+          border-radius:8px;
+          padding:6px 10px;
+          font-size:var(--text-sm);
+          font-weight:600;
+          cursor:pointer;
+        }
+        .dd-action:hover{background:var(--bg-secondary)}
+        .dd-action:disabled{opacity:.55;cursor:not-allowed}
+        .dd-action-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+        .dd-action-primary:hover{filter:brightness(.96);background:var(--accent)}
+        .dd-action-muted{color:var(--text-muted)}
+        .dd-action-danger{color:#991b1b}
+      `}</style>
     </MaybeLayout>
   );
 };
@@ -1078,6 +1232,19 @@ const manualCustomerStyle: React.CSSProperties = { marginTop: 10, padding: 12, b
 const fileSummaryStyle: React.CSSProperties = { padding: '10px 12px', borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border)' };
 const uploadIntroStyle: React.CSSProperties = { fontSize: 'var(--text-sm)', lineHeight: 1.5, color: 'var(--text-muted)' };
 const uploadFooterNoteStyle: React.CSSProperties = { padding: 12, borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border)', fontSize: 'var(--text-sm)', lineHeight: 1.5 };
+const pageStyle: React.CSSProperties = { padding: '28px 32px', maxWidth: 1480 };
+const pageHeaderStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 24, marginBottom: 22 };
+const eyebrowStyle: React.CSSProperties = { fontSize: 'var(--text-xs)', fontWeight: 650, color: 'var(--text-muted)', letterSpacing: '.04em', textTransform: 'uppercase', marginBottom: 6 };
+const pageTitleStyle: React.CSSProperties = { fontSize: 'var(--text-3xl)', lineHeight: 1.1, fontWeight: 720, color: 'var(--accent)', margin: 0, letterSpacing: '-.02em' };
+const pageLeadStyle: React.CSSProperties = { maxWidth: 720, fontSize: 'var(--text-md)', lineHeight: 1.5, color: 'var(--text-muted)', margin: '7px 0 0' };
+const summaryStripStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 1, overflow: 'hidden', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--border)', marginBottom: 16 };
+const toolbarStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 14 };
+const segmentedStyle: React.CSSProperties = { display: 'inline-flex', padding: 3, gap: 2, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 10 };
+const segmentStyle: React.CSSProperties = { border: 0, background: 'transparent', color: 'var(--text-muted)', padding: '7px 12px', borderRadius: 7, cursor: 'pointer', fontWeight: 600 };
+const segmentActiveStyle: React.CSSProperties = { ...segmentStyle, background: 'var(--bg-primary)', color: 'var(--accent)', boxShadow: '0 1px 2px rgba(0,0,0,.08)' };
+const documentLinkStyle: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', color: 'var(--accent)' };
+const activePillStyle: React.CSSProperties = { display: 'inline-flex', padding: '4px 8px', borderRadius: 999, background: '#dcfce7', color: '#166534', fontSize: 'var(--text-xs)', fontWeight: 650 };
+const archivedPillStyle: React.CSSProperties = { display: 'inline-flex', padding: '4px 8px', borderRadius: 999, background: '#f3f4f6', color: '#6b7280', fontSize: 'var(--text-xs)', fontWeight: 650 };
 const vaultBoxStyle: React.CSSProperties = { marginBottom: 16, padding: 12, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-secondary)' };
 const resultListStyle: React.CSSProperties = { marginTop: 6, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', maxHeight: 220, overflowY: 'auto' };
 const resultButtonStyle: React.CSSProperties = { width: '100%', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', gap: 12, padding: '10px 12px', border: 0, borderBottom: '1px solid var(--border)', background: 'var(--bg-primary)', cursor: 'pointer', textAlign: 'left' };
