@@ -119,6 +119,8 @@ jobs:
           python tools/customer-commerce/verify_oauth.py
           python tools/customer-commerce/prepare_release.py --output /tmp/customer-commerce-release
           python tools/customer-commerce/verify_release.py /tmp/customer-commerce-release/index.py
+          cmp /tmp/customer-commerce-release/index.py amplify/functions/ai/customer-commerce-mcp/index.py
+          python -c "import json; assert json.load(open('/tmp/customer-commerce-release/customer-commerce-stack.json')) == json.load(open('amplify/functions/ai/customer-commerce-mcp/template.json'))"
 
       - name: Verify commerce audit hardening
         run: python -m unittest discover -s tests -p 'test_commerce_audit_hardening.py'
