@@ -30,6 +30,17 @@ DISPLAY_LABEL = "Delight"
 #: Stored on the invoice/order row so a receipt can name the discount line. Upper-cased on write.
 DELIGHT_CODE = "DELIGHT"
 
+#: GST/accounting treatment for the fixed goodwill reduction.
+#:
+#: Delight is computed from the GST-inclusive eligible-goods value so the CUSTOMER saving is the
+#: same on every channel. It is then applied AFTER supply GST for accounting: it reduces the
+#: collection and therefore the convenience-fee base, but it does not silently rewrite the supply
+#: GST that was computed from the item tax rates. This makes mixed-rate invoices deterministic
+#: and keeps the customer-visible Delight figure equal to the actual reduction in amount payable.
+#: Internal invoice/tax snapshots persist this literal so filing/review code never has to infer the
+#: treatment from arithmetic.
+DELIGHT_TAX_TREATMENT = "POST_TAX_COMMERCIAL_DISCOUNT"
+
 #: 100 paise to the rupee. Local, so this module depends on nothing else for its arithmetic.
 PAISE_PER_RUPEE = 100
 
@@ -85,6 +96,7 @@ def delight_definition() -> Dict[str, Any]:
 
 __all__ = [
     "DELIGHT_CODE",
+    "DELIGHT_TAX_TREATMENT",
     "DELIGHT_MAXIMUM_DISCOUNT_PAISE",
     "DELIGHT_PERCENT_OFF_BPS",
     "DISPLAY_LABEL",
