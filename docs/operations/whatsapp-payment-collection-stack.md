@@ -241,6 +241,12 @@ The `secure_file_download` early return in the Razorpay webhook is retained only
 
 A verified paid commerce invoice must have at least one `image` / `image#vN` asset even if WhatsApp delivery is unavailable. The webhook calls the invoice engine's internal `ensure-image` action on every verified capture. That action reuses an existing image and renders only when no image exists, so webhook replay does not create duplicate renditions. The customer-invoice download service remains read-only and never advances the GST sequence.
 
+### Workspace pre-issue preview
+
+Workspace Collect may call the invoice engine with `_action=preview` to obtain a live authoritative quote before issuance. The preview uses the same server pricing path for Items Subtotal, Delight, Express, supply GST, convenience fee and fee GST, then returns **before** invoice numbering, DynamoDB persistence or asset generation. The browser renders those returned figures and must not reproduce payment arithmetic.
+
+A preview is not an invoice, does not reserve a payment reference, and does not consume the GST sequence. Physical-goods address validation remains in force.
+
 ## 5A. Duplicate-send prevention and Meta Message History audit
 
 Customer-visible payment messages use layered idempotency. The layers have different authority and
@@ -522,7 +528,7 @@ Before production promotion, prove:
 
 - [ ] payment request is `wecare_whatapp_native_pay_template`
 - [ ] large header is `whatsapp-header.png`
-- [ ] manual/non-catalog item image is `wecare-catalog-icon.png` with no synthetic retailer ID
+- [ ] manual/non-catalog service and fee rows carry **no synthetic item thumbnail** and no synthetic retailer ID
 - [ ] true catalog items retain catalog identity/image
 - [ ] capture sends status template `processing` then `completed`
 - [ ] zero interactive order-status messages are used
