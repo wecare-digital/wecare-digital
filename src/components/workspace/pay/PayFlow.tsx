@@ -1061,7 +1061,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                         <div className="pf-section-title">Items</div>
                         { selInvoice.items.map( ( it, i ) => (
                           <div key={ i } style={ { display: 'flex', justifyContent: 'space-between', fontSize: 'var(--text-xs)', marginBottom: 4 } }>
-                            <span>{ it.name } { '\u00D7' }{ it.quantity }</span><span>{ fmtMoney( it.amount * it.quantity ) }</span>
+                            <span>{ it.name } { '\u00D7' }{ it.quantity }{ typeof it.gstRate === 'number' ? ` · GST ${it.gstRate}%` : '' }</span><span>{ fmtMoney( it.amount * it.quantity ) }</span>
                           </div>
                         ) ) }
                       </div>
