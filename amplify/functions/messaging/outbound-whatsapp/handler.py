@@ -21,6 +21,7 @@ import urllib.request
 import urllib.error
 from typing import Dict, Any, Optional, Tuple
 from decimal import Decimal, InvalidOperation
+from botocore.exceptions import ClientError
 
 # Configure logging
 from lambda_utils.logging import get_logger
@@ -462,6 +463,60 @@ def _stable_outbound_message_id(idempotency_key: str) -> str:
     if len(key) > IDEMPOTENCY_KEY_MAX_LENGTH or any(ord(ch) < 32 or ord(ch) == 127 for ch in key):
         raise ValueError('invalid idempotency key')
     return 'wa-idem-' + hashlib.sha256(key.encode('utf-8')).hexdigest()[:40]
+
+
+def _claim_keyed_outbound_send(message_id: str, request_id: str) -> Tuple[str, str]:
+    """Atomically reserve a keyed send before any provider side effect.
+
+    A successful provider acknowledgement is immutable. Definite failures may be retried by the
+    same key; sending/accepted/unknown rows stay blocked until reconciliation. There is no
+    time-based auto-reclaim because an expired local lease does not prove Meta rejected the send.
+    """
+    now = int(time.time())
+    table = dynamodb.Table(MESSAGES_TABLE)
+    try:
+        table.update_item(
+            Key={'id': message_id},
+            UpdateExpression=(
+                'SET messageId = if_not_exists(messageId, :mid), #s = :sending, '
+                'sendClaimOwner = :owner, sendClaimAt = :now, '
+                'createdAt = if_not_exists(createdAt, :now), '
+                'expiresAt = if_not_exists(expiresAt, :ttl)'
+            ),
+            ConditionExpression=(
+                'attribute_not_exists(id) OR #s = :failed OR #s = :rejected'
+            ),
+            ExpressionAttributeNames={'#s': 'status'},
+            ExpressionAttributeValues={
+                ':mid': message_id,
+                ':sending': 'sending',
+                ':failed': 'failed',
+                ':rejected': 'rejected',
+                ':owner': request_id,
+                ':now': Decimal(str(now)),
+                ':ttl': Decimal(str(now + MESSAGE_TTL_SECONDS)),
+            },
+        )
+        return 'CLAIMED', ''
+    except ClientError as exc:
+        if exc.response.get('Error', {}).get('Code') != 'ConditionalCheckFailedException':
+            logger.error(json.dumps({
+                'event': 'idempotency_claim_failed',
+                'messageId': message_id,
+                'error': type(exc).__name__,
+                'requestId': request_id,
+            }))
+            raise
+        existing = table.get_item(
+            Key={'id': message_id},
+            ConsistentRead=True,
+            ProjectionExpression='whatsappMessageId,#s',
+            ExpressionAttributeNames={'#s': 'status'},
+        ).get('Item') or {}
+        wamid = str(existing.get('whatsappMessageId') or '')
+        if wamid:
+            return 'SENT', wamid
+        return 'BLOCKED', str(existing.get('status') or '')
 
 RATE_LIMIT_PER_SECOND = 80  # Requirement 5.9
 
@@ -1556,27 +1611,16 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 400, 'IDEMPOTENCY_KEY_INVALID',
                 'idempotencyKey is too long or contains control characters.')
 
-        # Universal idempotent read for keyed sends, before any provider side-effect. The higher
-        # payment rail claim remains the concurrency lock; this read is the final-boundary guard
-        # against a caller replay after a successful send. If DynamoDB is unavailable, fail closed
-        # rather than risk showing the customer the same payment/status/invoice message twice.
+        # Atomically reserve keyed sends before any provider side effect. A read-before-send check is
+        # racy under concurrent retries, so the final send boundary owns a conditional write.
         if idempotency_key and SEND_MODE != 'DRY_RUN':
             try:
-                existing = dynamodb.Table(MESSAGES_TABLE).get_item(
-                    Key={'id': message_id}, ConsistentRead=True,
-                    ProjectionExpression='id,whatsappMessageId,#s',
-                    ExpressionAttributeNames={'#s': 'status'}).get('Item') or {}
-            except Exception as error:
-                logger.error(json.dumps({
-                    'event': 'idempotency_read_failed',
-                    'messageId': message_id,
-                    'error': type(error).__name__,
-                    'requestId': request_id,
-                }))
+                claim_state, claim_value = _claim_keyed_outbound_send(message_id, request_id)
+            except Exception:
                 return _error_response(
                     503, 'IDEMPOTENCY_STATE_UNAVAILABLE',
-                    'Message delivery state could not be verified. Nothing was sent.')
-            if existing.get('whatsappMessageId'):
+                    'Message delivery state could not be reserved. Nothing was sent.')
+            if claim_state == 'SENT':
                 logger.info(json.dumps({
                     'event': 'idempotent_skip',
                     'messageId': message_id,
@@ -1588,27 +1632,22 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'body': json.dumps({
                         'success': True,
                         'messageId': message_id,
-                        'whatsappMessageId': existing['whatsappMessageId'],
-                        'status': existing.get('status') or WA_INITIAL_STATUS,
+                        'whatsappMessageId': claim_value,
+                        'status': WA_INITIAL_STATUS,
                         'mode': 'LIVE',
                         'idempotent': True,
                     }),
                 }
-            if existing and str(existing.get('status') or '').lower() not in ('failed', 'rejected'):
+            if claim_state == 'BLOCKED':
                 logger.warning(json.dumps({
-                    'event': 'idempotent_send_in_flight',
+                    'event': 'idempotent_send_blocked',
                     'messageId': message_id,
+                    'status': claim_value or 'unknown',
                     'requestId': request_id,
                 }))
                 return _error_response(
                     409, 'MESSAGE_SEND_IN_FLIGHT',
-                    'This message is already being reconciled; no duplicate was sent.')
-            if existing:
-                logger.info(json.dumps({
-                    'event': 'idempotent_retry_after_definite_failure',
-                    'messageId': message_id,
-                    'requestId': request_id,
-                }))
+                    'This message is already sending or awaiting reconciliation; no duplicate was sent.')
         
         # Requirement 5.3: DRY_RUN mode - log without API call
         if SEND_MODE == 'DRY_RUN':
@@ -2673,39 +2712,31 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
             'requestId': request_id
         }))
         
-        # Idempotency: check if this message_id was already sent (prevents duplicates on retry)
-        try:
-            messages_table = dynamodb.Table(MESSAGES_TABLE)
-            existing = messages_table.get_item(Key={'id': message_id}, ProjectionExpression='id,whatsappMessageId,#s', ExpressionAttributeNames={'#s': 'status'})
-            if existing.get('Item') and existing['Item'].get('whatsappMessageId'):
-                logger.info(json.dumps({'event': 'idempotent_skip', 'messageId': message_id, 'requestId': request_id}))
-                return {
-                    'statusCode': 200,
-                    'headers': cors_headers(''),
-                    'body': json.dumps({'success': True, 'messageId': message_id, 'whatsappMessageId': existing['Item']['whatsappMessageId'], 'idempotent': True})
-                }
-        except Exception as e:
-            logger.warning(f'Idempotency check failed (proceeding): {e}')
-
-        # Retry with exponential backoff for transient failures
-        max_retries = 3
+        # Retry only explicit HTTP throttling/service responses. Network timeouts and connection
+        # loss are ambiguous: Meta may already have accepted the message, so retrying can duplicate
+        # it. Keyed business sends never retry at this boundary; their caller must reconcile first.
+        keyed_send = message_id.startswith('wa-idem-')
+        max_retries = 0 if keyed_send else 3
         last_error = None
+        provider_call_started = False
         for attempt in range(max_retries + 1):
             try:
-                # Direct API — send via Meta Graph API
+                provider_call_started = True
                 response = _send_direct_api(phone_number_id, message_json)
                 last_error = None
                 break
             except Exception as e:
-                error_str = str(e).lower()
-                is_transient = any(kw in error_str for kw in ['timeout', 'service unavailable', '503', '429', 'throttl'])
-                if is_transient and attempt < max_retries:
+                retryable_http = (
+                    isinstance(e, urllib.error.HTTPError)
+                    and getattr(e, 'code', 0) in (429, 500, 502, 503, 504)
+                )
+                if retryable_http and attempt < max_retries:
                     wait_time = min(2 ** attempt, 8)
                     logger.warning(json.dumps({
-                        'event': 'send_transient_retry',
+                        'event': 'send_http_retry',
                         'attempt': attempt + 1,
                         'waitSeconds': wait_time,
-                        'error': str(e)[:200],
+                        'httpCode': getattr(e, 'code', None),
                         'messageId': message_id,
                         'requestId': request_id
                     }))
@@ -3083,16 +3114,29 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
             'requestId': request_id
         }))
         
+        ambiguous_keyed_send = bool(
+            message_id.startswith('wa-idem-')
+            and locals().get('provider_call_started')
+        )
+        stored_status = 'unknown' if ambiguous_keyed_send else 'failed'
         _store_message_record(
             message_id=message_id,
             contact_id=contact_id,
             content=content,
-            status='failed',
-            error_details={'type': error_type, 'message': error_msg},
+            status=stored_status,
+            error_details={
+                'type': 'ambiguous_delivery' if ambiguous_keyed_send else error_type,
+                'message': error_msg,
+            },
             phone_number_id=phone_number_id
         )
-        # Emit failure metric
+        # Unknown provider outcomes are alarm-worthy but must stay non-retryable until reconciled.
         _emit_delivery_metric('failed', is_template)
+        if ambiguous_keyed_send:
+            return _error_response(
+                503,
+                'DELIVERY_OUTCOME_UNKNOWN',
+                'Provider outcome is unknown. Reconcile message history before retrying.')
         return _error_response(500, f'Failed to send message: {error_msg}')
 
 

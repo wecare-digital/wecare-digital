@@ -157,6 +157,25 @@ class PaymentArchitectureDriftTests(unittest.TestCase):
         self.assertIn("There is no interactive", doc)
         self.assertIn("Workspace has no manual payment-order status sender", doc)
 
+    def test_keyed_whatsapp_send_uses_atomic_claim(self):
+        source = (ROOT / "amplify" / "functions" / "messaging" / "outbound-whatsapp" / "handler.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("def _claim_keyed_outbound_send(", source)
+        self.assertIn("ConditionExpression=(", source)
+        self.assertIn("attribute_not_exists(id) OR #s = :failed OR #s = :rejected", source)
+        self.assertIn("MESSAGE_SEND_IN_FLIGHT", source)
+        self.assertNotIn("Idempotency check failed (proceeding)", source)
+
+    def test_keyed_whatsapp_send_never_retries_ambiguous_transport_failure(self):
+        source = (ROOT / "amplify" / "functions" / "messaging" / "outbound-whatsapp" / "handler.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("max_retries = 0 if keyed_send else 3", source)
+        self.assertIn("retryable_http = (", source)
+        self.assertIn("DELIVERY_OUTCOME_UNKNOWN", source)
+        self.assertIn("status=stored_status", source)
+
     def test_payment_ci_triggers_on_template_registry_for_pr_and_push(self):
         workflow = (ROOT / ".github" / "workflows" / "payment-rail-ci.yml").read_text(
             encoding="utf-8"
@@ -237,7 +256,9 @@ class MessageHistoryAuditTests(unittest.TestCase):
         self.assertIn("def _stable_outbound_message_id", outbound)
         self.assertIn("'event': 'idempotent_skip'", outbound)
         self.assertIn("'MESSAGE_SEND_IN_FLIGHT'", outbound)
-        self.assertIn("'idempotent_retry_after_definite_failure'", outbound)
+        self.assertIn("def _claim_keyed_outbound_send", outbound)
+        self.assertIn("attribute_not_exists(id) OR #s = :failed OR #s = :rejected", outbound)
+        self.assertIn("max_retries = 0 if keyed_send else 3", outbound)
 
     def test_wamid_history_reconciliation_is_read_only_secondary_evidence(self):
         source = (
