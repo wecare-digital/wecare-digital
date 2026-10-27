@@ -352,6 +352,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         body = {}
 
     try:
+        # POST /invoices with _action=preview — authoritative pre-issue quote.
+        # This deliberately returns before invoice numbering/storage; the browser gets exact
+        # server pricing without creating a statutory document or duplicating arithmetic.
+        if method == 'POST' and body.get('_action') == 'preview':
+            return preview_invoice(body, request_id)
+
         # POST /invoices with _action=initiate-refund — irreversible provider command.
         # Uses the existing authenticated invoice collection route so shipping this dormant
         # capability does not create an unaudited API-Gateway route. The feature flag is false
@@ -901,6 +907,21 @@ def _invoice_input_error(body: Dict) -> str:
 
 
 # ─── Create Invoice ───
+
+def preview_invoice(body: Dict, request_id: str) -> Dict:
+    """Return the canonical invoice quote without issuing or persisting an invoice."""
+    preview_body = dict(body or {})
+    preview_body.pop('_action', None)
+    # A preview may never claim a dedupe identity or mutate a captured-payment invoice.
+    preview_body['referenceId'] = ''
+    preview_body['paymentId'] = ''
+    preview_body['previewOnly'] = True
+    preview_body['status'] = 'created'
+    preview_body['paymentStatus'] = 'pending'
+    preview_body.pop('amountIsTaxInclusive', None)
+    preview_body.pop('expectedTotalPaise', None)
+    return _create_invoice(preview_body, request_id, {})
+
 
 def create_invoice(body: Dict, request_id: str) -> Dict:
     """Create a new invoice from direct input. Includes deduplication by referenceId/paymentId.
@@ -1477,6 +1498,24 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
                 'expectedTotalPaise': expected_total_paise,
                 'computedTotalPaise': computed_total_paise,
             })
+    if body.get('previewOnly'):
+        return _resp(200, {
+            'preview': True,
+            'subtotal': _money_display(subtotal),
+            'discount': _money_display(discount),
+            'shipping': _money_display(shipping),
+            'tax': _money_display(tax),
+            'convenienceFee': _money_display(convenience_fee),
+            'convenienceFeeNet': _money_display(convenience_fee_net),
+            'convenienceFeeGst': _money_display(convenience_fee_gst),
+            'totalGst': _money_display(tax + convenience_fee_gst),
+            'total': _money_display(total),
+            'couponCode': stored_coupon_code or None,
+            'couponDiscount': _money_display(coupon_discount_rupees),
+            'goodsType': body.get('goodsType') or 'physical-goods',
+            'pricingAuthority': 'invoice-engine',
+        })
+
     # ── Only now is a GST invoice number consumed ──
     #
     # Every refusal above has already answered. This is the last thing that can fail, and it is
