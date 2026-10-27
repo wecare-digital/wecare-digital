@@ -203,7 +203,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
   const [ replacementFile, setReplacementFile ] = useState<File | null>( null );
   const [ createForm, setCreateForm ] = useState( {
     contactId: '', customerName: '', customerPhone: '', orderId: '',
-    type: '', typeLabel: '', fileName: '', vaultDisplayName: '', notes: '',
+    type: '', typeLabel: '', notes: '',
   } );
 
   const loadData = useCallback( async () => {
@@ -276,7 +276,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
   const resetCreate = () => {
     setCreateForm( {
       contactId: '', customerName: '', customerPhone: '', orderId: '',
-      type: '', typeLabel: '', fileName: '', vaultDisplayName: '', notes: '',
+      type: '', typeLabel: '', notes: '',
     } );
     setContactQuery( '' );
     setContactResults( [] );
@@ -294,6 +294,17 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
     } ) );
     setContactQuery( contact.name || contact.phone || '' );
     setContactResults( [] );
+  };
+
+  const createCustomerReady = Boolean( createForm.contactId || createForm.customerPhone.trim() );
+  const createTypeReady = Boolean( createForm.type
+    && ( createForm.type !== 'other' || createForm.typeLabel.trim() ) );
+  const createReady = createCustomerReady && createTypeReady && Boolean( createFile );
+
+  const closeCreate = () => {
+    if ( creating ) return;
+    setShowCreate( false );
+    resetCreate();
   };
 
   const handleCreateDocument = async () => {
@@ -329,7 +340,6 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
         orderId: createForm.orderId || undefined,
         type: createForm.type,
         typeLabel: createForm.type === 'other' ? createForm.typeLabel.trim() : undefined,
-        vaultDisplayName: vaultMessageName( createForm.vaultDisplayName ) || undefined,
         fileName: createFile.name,
         mimeType,
         fileSize: createFile.size,
@@ -843,173 +853,216 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
         ) }
       </Modal>
 
-      {/* Create Document Modal */ }
+      {/* Create Document Modal
+          Task modal: no accidental overlay/Escape/top-right dismissal. Cancel is explicit. */ }
       <Modal
         isOpen={ showCreate }
-        onClose={ () => { if ( !creating ) { setShowCreate( false ); resetCreate(); } } }
-        title="Add Document"
+        onClose={ closeCreate }
+        title="Upload to Drop Docs"
         size="lg"
+        closeOnOverlay={ false }
+        closeOnEsc={ false }
+        showCloseButton={ false }
         footer={
           <>
-            <Button variant="secondary" onClick={ () => { setShowCreate( false ); resetCreate(); } } disabled={ creating }>Cancel</Button>
-            <Button variant="primary" loading={ creating } onClick={ handleCreateDocument }>Upload document</Button>
+            <Button variant="secondary" onClick={ closeCreate } disabled={ creating }>Cancel</Button>
+            <Button
+              variant="primary"
+              loading={ creating }
+              disabled={ creating || !createReady }
+              onClick={ handleCreateDocument }
+            >
+              Upload document
+            </Button>
           </>
         }
       >
-        <div style={ { display: 'flex', flexDirection: 'column', gap: 14 } }>
-          <div>
-            <label style={ { fontSize: 'var(--text-md)' } }>
-              Find customer
-              <input
-                type="search"
-                value={ contactQuery }
-                onChange={ e => setContactQuery( e.target.value ) }
-                placeholder="Search name or mobile"
-                style={ inputStyle }
-                disabled={ creating }
-              />
-            </label>
-            { contactSearching && <div style={ helperStyle }>Searching contacts…</div> }
-            { !contactSearching && /^[+0-9() .-]+$/.test( contactQuery.trim() ) && contactQuery.replace( /\D/g, '' ).length > 0 && (
-              ( contactQuery.trim().startsWith( '+' ) || contactQuery.trim().startsWith( '00' ) )
-                ? contactQuery.replace( /\D/g, '' ).length < 7
-                : contactQuery.replace( /\D/g, '' ).length < 10
-            ) && (
-              <div style={ helperStyle }>
-                { contactQuery.trim().startsWith( '+' ) || contactQuery.trim().startsWith( '00' )
-                  ? 'Enter more of the international number to search.'
-                  : 'Enter the full 10-digit mobile number to search.' }
+        <div style={ { display: 'flex', flexDirection: 'column', gap: 18 } }>
+          <div style={ uploadIntroStyle }>
+            Add a document to the customer’s private Drop Docs record. Publishing or charging for Vault happens later, from the document record.
+          </div>
+
+          <section style={ sectionStyle }>
+            <div style={ sectionHeadingStyle }>
+              <strong>1. Customer</strong>
+              <span style={ sectionHintStyle }>Required</span>
+            </div>
+
+            { createForm.contactId || createForm.customerPhone ? (
+              <div style={ selectedCustomerStyle }>
+                <div style={ { minWidth: 0 } }>
+                  <div style={ { fontWeight: 650 } }>{ createForm.customerName || 'Customer' }</div>
+                  <div style={ helperStyle }>{ createForm.customerPhone || 'Customer record selected' }</div>
+                </div>
+                <Button
+                  variant="secondary"
+                  onClick={ () => {
+                    setCreateForm( form => ( {
+                      ...form,
+                      contactId: '', customerName: '', customerPhone: '', orderId: '',
+                    } ) );
+                    setContactQuery( '' );
+                    setCustomerOrders( [] );
+                  } }
+                  disabled={ creating }
+                >
+                  Change
+                </Button>
+              </div>
+            ) : (
+              <div>
+                <label style={ fieldLabelStyle }>
+                  Search customer
+                  <input
+                    type="text"
+                    value={ contactQuery }
+                    onChange={ e => setContactQuery( e.target.value ) }
+                    placeholder="Name or mobile number"
+                    autoComplete="off"
+                    style={ inputStyle }
+                    disabled={ creating }
+                  />
+                </label>
+                { contactSearching && <div style={ helperStyle }>Searching contacts…</div> }
+                { !contactSearching && /^[+0-9() .-]+$/.test( contactQuery.trim() ) && contactQuery.replace( /\D/g, '' ).length > 0 && (
+                  ( contactQuery.trim().startsWith( '+' ) || contactQuery.trim().startsWith( '00' ) )
+                    ? contactQuery.replace( /\D/g, '' ).length < 7
+                    : contactQuery.replace( /\D/g, '' ).length < 10
+                ) && (
+                  <div style={ helperStyle }>
+                    { contactQuery.trim().startsWith( '+' ) || contactQuery.trim().startsWith( '00' )
+                      ? 'Enter more of the international number to search.'
+                      : 'Enter the full 10-digit mobile number to search.' }
+                  </div>
+                ) }
+                { contactResults.length > 0 && (
+                  <div style={ resultListStyle }>
+                    { contactResults.map( contact => (
+                      <button
+                        key={ contact.contactId || contact.id }
+                        type="button"
+                        onClick={ () => selectContact( contact ) }
+                        style={ resultButtonStyle }
+                      >
+                        <strong>{ contact.name || [ contact.firstName, contact.lastName ].filter( Boolean ).join( ' ' ) || 'Unnamed contact' }</strong>
+                        <span style={ { color: 'var(--text-muted)' } }>{ contact.phone || 'No phone' }</span>
+                      </button>
+                    ) ) }
+                  </div>
+                ) }
+                { !contactSearching && contactQuery.trim() && contactResults.length === 0 && (
+                  <div style={ manualCustomerStyle }>
+                    <div style={ { fontWeight: 600 } }>Customer not listed?</div>
+                    <div style={ helperStyle }>You can enter a mobile number directly. Name is optional.</div>
+                    <div style={ { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 10, marginTop: 10 } }>
+                      <label style={ fieldLabelStyle }>
+                        Mobile
+                        <input
+                          type="tel"
+                          value={ createForm.customerPhone }
+                          onChange={ e => setCreateForm( form => ( { ...form, customerPhone: e.target.value, contactId: '', orderId: '' } ) ) }
+                          placeholder="+91…"
+                          style={ inputStyle }
+                          disabled={ creating }
+                        />
+                      </label>
+                      <label style={ fieldLabelStyle }>
+                        Name <span style={ sectionHintStyle }>(optional)</span>
+                        <input
+                          type="text"
+                          value={ createForm.customerName }
+                          onChange={ e => setCreateForm( form => ( { ...form, customerName: e.target.value, contactId: '' } ) ) }
+                          placeholder="Customer name"
+                          style={ inputStyle }
+                          disabled={ creating }
+                        />
+                      </label>
+                    </div>
+                  </div>
+                ) }
               </div>
             ) }
-            { contactResults.length > 0 && (
-              <div style={ resultListStyle }>
-                { contactResults.map( contact => (
-                  <button
-                    key={ contact.contactId || contact.id }
-                    type="button"
-                    onClick={ () => selectContact( contact ) }
-                    style={ resultButtonStyle }
-                  >
-                    <strong>{ contact.name || [ contact.firstName, contact.lastName ].filter( Boolean ).join( ' ' ) || 'Unnamed contact' }</strong>
-                    <span style={ { color: 'var(--text-muted)' } }>{ contact.phone || 'No phone' }</span>
-                  </button>
-                ) ) }
+          </section>
+
+          <section style={ sectionStyle }>
+            <div style={ sectionHeadingStyle }>
+              <strong>2. Document</strong>
+              <span style={ sectionHintStyle }>Required</span>
+            </div>
+
+            <div style={ { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 } }>
+              <Select
+                label="Document type"
+                value={ createForm.type }
+                onChange={ value => setCreateForm( form => ( { ...form, type: value, typeLabel: value === 'other' ? form.typeLabel : '' } ) ) }
+                options={ TYPE_SELECT_OPTIONS }
+                disabled={ creating }
+              />
+              <Select
+                label="Order (optional)"
+                value={ createForm.orderId }
+                onChange={ value => setCreateForm( form => ( { ...form, orderId: value } ) ) }
+                options={ [
+                  { value: '', label: ordersLoading ? 'Loading orders…' : 'No linked order' },
+                  ...customerOrders.map( order => ( {
+                    value: order.orderId,
+                    label: fmtOrderLabel( order ),
+                  } ) ),
+                ] }
+                disabled={ creating || ordersLoading || !createForm.customerPhone }
+              />
+            </div>
+
+            { createForm.type === 'other' && (
+              <label style={ fieldLabelStyle }>
+                Document name
+                <input
+                  type="text"
+                  value={ createForm.typeLabel }
+                  onChange={ e => setCreateForm( form => ( { ...form, typeLabel: e.target.value } ) ) }
+                  placeholder="e.g. Trade licence, PAN card, agreement"
+                  style={ inputStyle }
+                  disabled={ creating }
+                />
+              </label>
+            ) }
+
+            <label style={ fieldLabelStyle }>
+              File
+              <input
+                type="file"
+                onChange={ e => setCreateFile( e.target.files?.[ 0 ] || null ) }
+                style={ inputStyle }
+                disabled={ creating }
+              />
+            </label>
+            { createFile && (
+              <div style={ fileSummaryStyle }>
+                <div style={ { fontWeight: 600, overflowWrap: 'anywhere' } }>{ createFile.name }</div>
+                <div style={ helperStyle }>{ fmtSize( createFile.size ) } · { createFile.type || 'File' }</div>
+                <div style={ helperStyle }>Private upload. A six-digit WECARE reference is generated automatically.</div>
               </div>
             ) }
-          </div>
+          </section>
 
-          <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } }>
-            <label style={ { fontSize: 'var(--text-md)' } }>
-              Customer Name
-              <input
-                type="text"
-                value={ createForm.customerName }
-                onChange={ e => setCreateForm( form => ( { ...form, customerName: e.target.value, contactId: '' } ) ) }
-                style={ inputStyle }
-                disabled={ creating }
-              />
-            </label>
-            <label style={ { fontSize: 'var(--text-md)' } }>
-              Phone
-              <input
-                type="tel"
-                value={ createForm.customerPhone }
-                onChange={ e => setCreateForm( form => ( { ...form, customerPhone: e.target.value, contactId: '', orderId: '' } ) ) }
-                placeholder="+91..."
-                style={ inputStyle }
-                disabled={ creating }
-              />
-            </label>
-          </div>
-
-          <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } }>
-            <Select
-              label="Document Type"
-              value={ createForm.type }
-              onChange={ value => setCreateForm( form => ( { ...form, type: value, typeLabel: value === 'other' ? form.typeLabel : '' } ) ) }
-              options={ TYPE_SELECT_OPTIONS }
-              disabled={ creating }
-            />
-            <Select
-              label="Order (optional)"
-              value={ createForm.orderId }
-              onChange={ value => setCreateForm( form => ( { ...form, orderId: value } ) ) }
-              options={ [
-                { value: '', label: ordersLoading ? 'Loading orders…' : 'No order / standalone document' },
-                ...customerOrders.map( order => ( {
-                  value: order.orderId,
-                  label: fmtOrderLabel( order ),
-                } ) ),
-              ] }
-              disabled={ creating || ordersLoading || !createForm.customerPhone }
-            />
-          </div>
-
-          { createForm.type === 'other' && (
-            <label style={ { fontSize: 'var(--text-md)' } }>
-              Document type/name
-              <input
-                type="text"
-                value={ createForm.typeLabel }
-                onChange={ e => setCreateForm( form => ( { ...form, typeLabel: e.target.value } ) ) }
-                placeholder="e.g. Trade licence, PAN card, agreement"
-                style={ inputStyle }
-                disabled={ creating }
-              />
-            </label>
-          ) }
-
-          <label style={ { fontSize: 'var(--text-md)' } }>
-            WhatsApp Vault title <span style={ { color: 'var(--text-muted)' } }>({ '{{1}}' } in wecare_valut_49)</span>
-            <input
-              type="text"
-              value={ createForm.vaultDisplayName }
-              maxLength={ 60 }
-              onChange={ e => setCreateForm( form => ( { ...form, vaultDisplayName: e.target.value } ) ) }
-              placeholder={ createForm.typeLabel || createFile?.name || 'e.g. Trade licence, PAN card, Medical report' }
-              style={ inputStyle }
-              disabled={ creating }
-            />
-            <div style={ helperStyle }>
-              Preview: “Your <strong>{ vaultMessageName( createForm.vaultDisplayName ) || createForm.typeLabel || createFile?.name || 'document' }</strong> copy is ready! Pay <strong>₹49</strong>…”
+          <section style={ sectionStyle }>
+            <div style={ sectionHeadingStyle }>
+              <strong>3. Note</strong>
+              <span style={ sectionHintStyle }>Optional</span>
             </div>
-          </label>
-
-          <label style={ { fontSize: 'var(--text-md)' } }>
-            Choose file
-            <input
-              type="file"
-              onChange={ e => {
-                const next = e.target.files?.[ 0 ] || null;
-                setCreateFile( next );
-                setCreateForm( form => ( { ...form, fileName: next?.name || '' } ) );
-              } }
-              style={ inputStyle }
-              disabled={ creating }
-            />
-          </label>
-          { createFile && (
-            <div style={ { ...helperStyle, display: 'grid', gap: 3 } }>
-              <div><strong>Selected:</strong> { createFile.name } · { fmtSize( createFile.size ) } · { createFile.type || 'unknown type' }</div>
-              <div><strong>Saved as:</strong> <span style={ { fontFamily: 'monospace' } }>wecare-digital-######{ fileExtension( createFile.name ) }</span></div>
-              <div>The six-digit reference is generated by the server when upload starts.</div>
-            </div>
-          ) }
-
-          <label style={ { fontSize: 'var(--text-md)' } }>
-            Notes
             <textarea
+              aria-label="Internal note"
               value={ createForm.notes }
               onChange={ e => setCreateForm( form => ( { ...form, notes: e.target.value } ) ) }
               rows={ 2 }
-              placeholder="Any remarks about this document..."
-              style={ { ...inputStyle, resize: 'vertical' } }
+              placeholder="Internal note about this upload"
+              style={ { ...inputStyle, resize: 'vertical', marginTop: 0 } }
               disabled={ creating }
             />
-          </label>
+          </section>
 
-          <div style={ { padding: 12, background: '#ecfccb', borderRadius: 8, fontSize: 'var(--text-sm)', color: '#365314' } }>
-            The file is uploaded into private Drop Docs storage and linked to the selected customer and, when chosen, their order.
+          <div style={ uploadFooterNoteStyle }>
+            <strong>Next:</strong> review the uploaded document. If the customer should receive a downloadable copy, use <strong>Publish to Vault</strong> from that document later.
           </div>
         </div>
       </Modal>
@@ -1022,6 +1075,15 @@ const labelStyle: React.CSSProperties = { fontSize: 'var(--text-xs)', color: 'va
 const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 'var(--text-md)', marginTop: 4 };
 const actionBtnStyle: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', fontSize: 'var(--text-base)', padding: '2px 4px' };
 const helperStyle: React.CSSProperties = { fontSize: 'var(--text-sm)', color: 'var(--text-muted)', marginTop: 6 };
+const fieldLabelStyle: React.CSSProperties = { fontSize: 'var(--text-md)', display: 'block' };
+const sectionStyle: React.CSSProperties = { display: 'grid', gap: 12, padding: 14, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--bg-primary)' };
+const sectionHeadingStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 };
+const sectionHintStyle: React.CSSProperties = { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', fontWeight: 500 };
+const selectedCustomerStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px', borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border)' };
+const manualCustomerStyle: React.CSSProperties = { marginTop: 10, padding: 12, border: '1px dashed var(--border)', borderRadius: 10, background: 'var(--bg-secondary)' };
+const fileSummaryStyle: React.CSSProperties = { padding: '10px 12px', borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border)' };
+const uploadIntroStyle: React.CSSProperties = { fontSize: 'var(--text-sm)', lineHeight: 1.5, color: 'var(--text-muted)' };
+const uploadFooterNoteStyle: React.CSSProperties = { padding: 12, borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border)', fontSize: 'var(--text-sm)', lineHeight: 1.5 };
 const vaultBoxStyle: React.CSSProperties = { marginBottom: 16, padding: 12, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-secondary)' };
 const resultListStyle: React.CSSProperties = { marginTop: 6, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', maxHeight: 220, overflowY: 'auto' };
 const resultButtonStyle: React.CSSProperties = { width: '100%', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', gap: 12, padding: '10px 12px', border: 0, borderBottom: '1px solid var(--border)', background: 'var(--bg-primary)', cursor: 'pointer', textAlign: 'left' };
