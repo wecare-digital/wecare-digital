@@ -34,6 +34,8 @@ const BusinessProfilePage: React.FC<PageProps> = ( { signOut, user, embedded = f
   const [ saving, setSaving ] = useState( false );
   const [ form, setForm ] = useState( { about: '', description: '', email: '', address: '', websites: '', vertical: '' } );
   const [ phoneSettings, setPhoneSettings ] = useState<any>( null );
+  const [ usernameState, setUsernameState ] = useState<any>( null );
+  const [ encryptionState, setEncryptionState ] = useState<api.WhatsAppFlowEncryptionStatus | null>( null );
   const [ loadError, setLoadError ] = useState<string | null>( null );
 
   const loadProfile = async ( phone: typeof PHONES[ 0 ] ) => {
@@ -41,12 +43,16 @@ const BusinessProfilePage: React.FC<PageProps> = ( { signOut, user, embedded = f
     setLoadError( null );
     try
     {
-      const [ p, s ] = await Promise.all( [
+      const [ p, s, u, e ] = await Promise.all( [
         api.getBusinessProfile( phone.metaId ),
         api.getPhoneSettings( phone.metaId ),
+        api.getWhatsAppUsername( phone.metaId ),
+        api.getWhatsAppFlowEncryptionStatus( phone.metaId ),
       ] );
       setProfile( p );
       setPhoneSettings( s );
+      setUsernameState( u );
+      setEncryptionState( e );
       if ( p )
       {
         setForm( {
@@ -125,6 +131,10 @@ const BusinessProfilePage: React.FC<PageProps> = ( { signOut, user, embedded = f
                   <div><span style={ { color: '#666' } }>Tier:</span> { phoneSettings.messaging_limit_tier }</div>
                   <div><span style={ { color: '#666' } }>Official:</span> { phoneSettings.is_official_business_account ? 'Yes' : 'No' }</div>
                   <div><span style={ { color: '#666' } }>Name Status:</span> { phoneSettings.name_status }</div>
+                  <div><span style={ { color: '#666' } }>Username:</span> { usernameState?.username || 'Not reserved' }</div>
+                  <div><span style={ { color: '#666' } }>Username Status:</span> { usernameState?.status || 'Unknown' }</div>
+                  <div><span style={ { color: '#666' } }>Flow Encryption:</span> { encryptionState?.configured ? 'Configured' : 'Not configured' }</div>
+                  <div><span style={ { color: '#666' } }>Key Signature:</span> { encryptionState?.signatureStatus || 'Unknown' }</div>
                 </div>
               </div>
             ) }
@@ -175,7 +185,7 @@ const BusinessProfilePage: React.FC<PageProps> = ( { signOut, user, embedded = f
                 style={ { padding: '10px 24px', background: 'var(--lime)', color: 'var(--accent)', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 'var(--text-md)', width: 'fit-content' } }>
                 { saving ? 'Saving...' : 'Save Profile' }
               </button>
-              <RawJsonDrawer data={ { profile, phoneSettings } } label="Raw profile + settings JSON" />
+              <RawJsonDrawer data={ { profile, phoneSettings, usernameState, encryptionState } } label="Raw profile + settings JSON" />
             </div>
           </>
         ) }
