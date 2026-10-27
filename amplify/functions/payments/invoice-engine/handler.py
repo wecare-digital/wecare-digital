@@ -4007,6 +4007,7 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
             # FIXED wide brand header on EVERY payment. The small order item icon is carried
             # separately in each order item as template_media.ORDER_ITEM_IMAGE.
             'headerImageUrl': template_media.PAYMENT_TEMPLATE_HEADER,
+            'idempotencyKey': f'payment-request:{reference_id}',
         })
     }
 
@@ -4320,6 +4321,7 @@ def _send_order_page_link(invoice_id: str, contact_id: str, to_phone: str,
             'contactId': contact_id,
             'recipientPhone': to_phone,
             'phoneNumberId': phone_number_id,
+            'idempotencyKey': f'order-page-link:{invoice_id}',
             'isInteractive': True,
             'interactiveType': 'cta_url',
             'interactiveData': {
@@ -4524,6 +4526,7 @@ def send_order_status(invoice_id: str, target_status: str, description: str,
             'contactId': contact_id,
             'recipientPhone': customer_phone,
             'phoneNumberId': phone_number_id,
+            'idempotencyKey': f'order-status:{invoice_id}:{target}',
             'orderStatusDetails': {
                 'reference_id': reference_id,
                 # The wire spelling Meta expects; `status_action.order.status` carries it through.
@@ -6032,6 +6035,7 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
             'templateHeaderMedia': s3_key,
             'templateHeaderType': 'image',
             'templateFlowButton': {'index': 0, 'flowToken': review_flow_token},
+            **({} if force else {'idempotencyKey': f'invoice-receipt:{invoice_id}'}),
         })
     }
 
