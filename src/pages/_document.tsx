@@ -1,6 +1,7 @@
 import { Html, Head, Main, NextScript } from 'next/document';
 
 import { META } from '../config/analytics';
+import { MATERIAL_SYMBOLS_STYLESHEET } from '../config/materialSymbols';
 
 /**
  * Custom Document — Security meta tags + Google Tag Manager.
@@ -212,7 +213,9 @@ export default function Document () {
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-        <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400..600,0..1,0&display=block" rel="stylesheet" />
+        {/* Subset to the ligatures the site renders: 15.8 KB instead of the 3.1 MB full family.
+            The list, and the type that keeps it complete, live in config/materialSymbols.ts. */}
+        <link href={ MATERIAL_SYMBOLS_STYLESHEET } rel="stylesheet" />
         { GTM_ID ? (
           <>
             {/* Consent Mode v2 must run BEFORE the container loads. */ }

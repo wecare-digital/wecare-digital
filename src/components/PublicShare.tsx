@@ -6,6 +6,7 @@ import {
 } from '../config/contribution';
 import { setContribution } from '../lib/cart';
 import { whatsappShareHref } from '../config/share';
+import { symbol } from '../config/materialSymbols';
 
 /**
  * The compact page-tail action dock.
@@ -166,7 +167,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
               aria-controls="ps-contribute-menu"
               onClick={ () => toggleMenu( 'contribute' ) }
             >
-              <span className="ps-material" aria-hidden="true">currency_rupee</span>
+              <span className="ps-material" aria-hidden="true">{ symbol( 'currency_rupee' ) }</span>
               <span className="ps-tip" aria-hidden="true">Contribute</span>
             </button>
         </section>
@@ -178,7 +179,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
           rel="noopener noreferrer"
           aria-label="Subscribe on WhatsApp"
         >
-          <span className="ps-material" aria-hidden="true">notifications_active</span>
+          <span className="ps-material" aria-hidden="true">{ symbol( 'notifications_active' ) }</span>
           <span className="ps-tip" aria-hidden="true">Subscribe</span>
         </a>
 
@@ -191,7 +192,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
           aria-controls="ps-share-menu"
           onClick={ () => toggleMenu( 'share' ) }
         >
-          <span className="ps-material" aria-hidden="true">share</span>
+          <span className="ps-material" aria-hidden="true">{ symbol( 'share' ) }</span>
           <span className="ps-tip" aria-hidden="true">{ label }</span>
         </button>
       </div>
@@ -218,13 +219,13 @@ const PublicShare: React.FC<PublicShareProps> = ( {
               aria-label={ busy ? undefined : 'Checkout contribution' }
             >
               <span className="ps-menu-icon" aria-hidden="true">
-                <span className="ps-material">shopping_cart_checkout</span>
+                <span className="ps-material">{ symbol( 'shopping_cart_checkout' ) }</span>
               </span>
               <span className="ps-menu-copy">
                 <span className="ps-menu-name">{ busy ? 'One moment…' : 'Checkout' }</span>
                 <span className="ps-menu-note">Review contribution in cart</span>
               </span>
-              <span className="ps-material ps-chevron" aria-hidden="true">chevron_right</span>
+              <span className="ps-material ps-chevron" aria-hidden="true">{ symbol( 'chevron_right' ) }</span>
             </button>
           </div>
       </div>
@@ -256,7 +257,7 @@ const PublicShare: React.FC<PublicShareProps> = ( {
               <span className="ps-menu-name">WhatsApp</span>
               <span className="ps-menu-note">Share on WhatsApp</span>
             </span>
-            <span className="ps-material ps-chevron" aria-hidden="true">chevron_right</span>
+            <span className="ps-material ps-chevron" aria-hidden="true">{ symbol( 'chevron_right' ) }</span>
           </a>
 
           { canNativeShare && (
@@ -267,13 +268,13 @@ const PublicShare: React.FC<PublicShareProps> = ( {
               aria-label="Share this page using another app"
             >
               <span className="ps-menu-icon" aria-hidden="true">
-                <span className="ps-material">ios_share</span>
+                <span className="ps-material">{ symbol( 'ios_share' ) }</span>
               </span>
               <span className="ps-menu-copy">
                 <span className="ps-menu-name">More apps</span>
                 <span className="ps-menu-note">Choose another app</span>
               </span>
-              <span className="ps-material ps-chevron" aria-hidden="true">chevron_right</span>
+              <span className="ps-material ps-chevron" aria-hidden="true">{ symbol( 'chevron_right' ) }</span>
             </button>
           ) }
 
@@ -285,13 +286,13 @@ const PublicShare: React.FC<PublicShareProps> = ( {
               aria-label={ copied ? 'Link copied' : 'Copy link to this page' }
             >
               <span className="ps-menu-icon" aria-hidden="true">
-                <span className="ps-material">{ copied ? 'check' : 'link' }</span>
+                <span className="ps-material">{ symbol( copied ? 'check' : 'link' ) }</span>
               </span>
               <span className="ps-menu-copy">
                 <span className="ps-menu-name">{ copied ? 'Copied' : 'Copy link' }</span>
                 <span className="ps-menu-note">{ copied ? 'Link copied' : 'Copy page link' }</span>
               </span>
-              <span className="ps-material ps-chevron" aria-hidden="true">chevron_right</span>
+              <span className="ps-material ps-chevron" aria-hidden="true">{ symbol( 'chevron_right' ) }</span>
             </button>
           ) }
         </div>

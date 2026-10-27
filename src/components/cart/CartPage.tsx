@@ -116,6 +116,7 @@ import {
   CLAIM_NOT_SHOWN_MESSAGE,
 } from '../../lib/whatsappBasket';
 import { CONTRIBUTION_CHOICES, CONTRIBUTION_PRODUCT_ID } from '../../config/contribution';
+import { symbol } from '../../config/materialSymbols';
 import { colors } from '../../lib/design-tokens';
 /**
  * THE OPAQUE SQUARE MARK, and it has to be that one. Razorpay composites this logo onto its own
@@ -551,7 +552,7 @@ function RedemptionPanel (): React.ReactElement {
   return (
     <section className="cart-redeem" aria-label="Discounts">
       <div className="cart-capability cart-capability-delight">
-        <span className="cart-capability-icon" aria-hidden="true">redeem</span>
+        <span className="cart-capability-icon" aria-hidden="true">{ symbol( 'redeem' ) }</span>
         <div>
           <strong>Delight</strong>
           <p>Delight discount is applied automatically at checkout.</p>

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import VoiceSearchMic from './VoiceSearchMic';
+import { symbol, type MaterialSymbol } from '../config/materialSymbols';
 
 type TravelMode = 'flights' | 'hotels' | 'activities' | 'rail' | 'car' | 'bus';
 
@@ -30,7 +31,8 @@ interface TravelResponse {
 
 interface ModeConfig {
   label: string;
-  icon: string;
+  /** A ligature in the shipped icon-font subset; see config/materialSymbols.ts. */
+  icon: MaterialSymbol;
   placeholder: string;
   understanding: string;
   chips: string[];
@@ -470,7 +472,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
                     <div className="eta-result-side">
                       <div className="eta-price" aria-label={ result.price }>
                         { hasRupeePrice( result.price ) && (
-                          <span className="eta-price-icon eta-material" aria-hidden="true">currency_rupee</span>
+                          <span className="eta-price-icon eta-material" aria-hidden="true">{ symbol( 'currency_rupee' ) }</span>
                         ) }
                         <span>{ hasRupeePrice( result.price ) ? rupeeAmount( result.price ) : result.price }</span>
                       </div>
@@ -484,7 +486,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
                           href="/cart/"
                           aria-label={ `Checkout ${result.title}` }
                         >
-                          <span className="eta-material eta-checkout-icon" aria-hidden="true">shopping_cart_checkout</span>
+                          <span className="eta-material eta-checkout-icon" aria-hidden="true">{ symbol( 'shopping_cart_checkout' ) }</span>
                           <span className="eta-action-label">Checkout</span>
                         </a>
                       ) }
@@ -496,7 +498,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
                           title={ `Checkout · ${result.price}` }
                           onClick={ () => continueWith( result ) }
                         >
-                          <span className="eta-material eta-checkout-icon" aria-hidden="true">shopping_cart_checkout</span>
+                          <span className="eta-material eta-checkout-icon" aria-hidden="true">{ symbol( 'shopping_cart_checkout' ) }</span>
                           <span className="eta-action-label">Checkout</span>
                         </button>
                       ) }
@@ -534,7 +536,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
               <span className="eta-keyhint">⌘ / Ctrl + Enter</span>
               { query.trim() && (
                 <button className="eta-clear" type="button" aria-label="Clear message" title="Clear message" onClick={ () => setQuery( '' ) }>
-                  <span className="eta-material" aria-hidden="true">close</span>
+                  <span className="eta-material" aria-hidden="true">{ symbol( 'close' ) }</span>
                 </button>
               ) }
               <span className="eta-mic-slot"><VoiceSearchMic onTranscript={ appendVoice } ariaLabel="Search by voice" showUnsupportedState /></span>
@@ -546,7 +548,7 @@ const ElsewhereTravelAssistant: React.FC = () => {
                 disabled={ !canSubmit || status === 'loading' }
                 onClick={ () => { void submit(); } }
               >
-                <span className="eta-material" aria-hidden="true">arrow_upward</span>
+                <span className="eta-material" aria-hidden="true">{ symbol( 'arrow_upward' ) }</span>
               </button>
             </div>
           </div>

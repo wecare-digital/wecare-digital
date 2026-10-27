@@ -1,4 +1,5 @@
 import React from 'react';
+import { symbol } from '../config/materialSymbols';
 
 interface CheckoutActionProps {
   children: React.ReactNode;
@@ -31,7 +32,7 @@ const CheckoutAction: React.FC<CheckoutActionProps> = ( {
       aria-busy={ busy }
       aria-label={ busy ? undefined : ariaLabel }
     >
-      <span className="checkout-action-icon" aria-hidden="true">shopping_cart_checkout</span>
+      <span className="checkout-action-icon" aria-hidden="true">{ symbol( 'shopping_cart_checkout' ) }</span>
       <span>{ busy ? 'One moment…' : children }</span>
     </button>
     <style jsx>{`
