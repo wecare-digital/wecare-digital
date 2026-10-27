@@ -275,9 +275,15 @@ def _audit_actor() -> str:
 # characters 3-12, so the two MUST stay consistent:
 #   19 AAFFW7196L 1 Z 8  ->  state 19 (West Bengal), PAN AAFFW7196L
 # Env vars allow override without a redeploy.
+RECEIPT_MASTHEAD_KEY = (
+    'secure/d/public/Invoice/brand/wecare-digital-receipt-masthead-v1.png'
+)
+
 COMPANY = {
     **business_identity.invoice_identity(),
-    'logo_s3_key': media_paths.public('stream/media/m/wecare-digital.png'),
+    # Dedicated immutable receipt artwork. Do not point this at the generic site/media logo:
+    # changing a website asset must not silently change a statutory/customer receipt rendition.
+    'logo_s3_key': RECEIPT_MASTHEAD_KEY,
 }
 
 
