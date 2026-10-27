@@ -607,7 +607,13 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
   };
   const doGenerateImage = async ( inv: Invoice ) => {
     setActionLoading( 'img' );
-    try { await api.generateInvoiceImage( inv.invoiceId ); showMsg( 'Image generated' ); } catch ( e ) { showMsg( 'Failed', 'error' ); }
+    try
+    {
+      await api.generateInvoiceImage( inv.invoiceId );
+      const refreshed = await api.getInvoiceEngine( inv.invoiceId );
+      if ( refreshed ) setSelInvoice( refreshed );
+      showMsg( 'Invoice image generated' );
+    } catch ( e ) { showMsg( 'Image generation failed', 'error' ); }
     setActionLoading( '' );
   };
   const openRemarkModal = ( inv: Invoice, type: 'remark' | 'refund' | 'credit_note' ) => {
@@ -708,7 +714,19 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
     } catch { showMsg( 'Could not open Invoices. The saved invoice remains available there.', 'error' ); }
     finally { setOpeningCreated( false ); }
   };
-  const selectInvoice = ( inv: Invoice ) => { setSelInvoice( inv ); loadDeliveryLogs( inv.invoiceId ); };
+  const selectInvoice = async ( inv: Invoice ) => {
+    // The list endpoint intentionally stays light. The detail call adds items + signed asset URLs,
+    // so the right pane shows the ACTUAL generated receipt rather than a browser imitation.
+    setSelInvoice( inv );
+    loadDeliveryLogs( inv.invoiceId );
+    try
+    {
+      const full = await api.getInvoiceEngine( inv.invoiceId );
+      if ( full ) setSelInvoice( full );
+    } catch {
+      // Keep the list row visible if detail enrichment is temporarily unavailable.
+    }
+  };
 
   /* Computed */
   const filteredCust = customers.filter( c => {
@@ -995,9 +1013,31 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                     <div className="pf-detail-row"><span className="label">Order</span><span>{ selInvoice.orderId || '\u2014' }</span></div>
                     { selInvoice.goodsType && <div className="pf-detail-row"><span className="label">Type</span><span style={ { padding: '2px 8px', borderRadius: 12, fontSize: 'var(--text-xs)', fontWeight: 500, background: selInvoice.goodsType === 'physical-goods' ? '#dbeafe' : '#f3e8ff', color: selInvoice.goodsType === 'physical-goods' ? '#1e40af' : '#6b21a8' } }>{ selInvoice.goodsType === 'physical-goods' ? 'Physical' : 'Digital' }</span></div> }
                     { selInvoice.shippingAddress && <div className="pf-detail-row" style={ { alignItems: 'flex-start' } }><span className="label">Delivery Address</span><span style={ { fontSize: 'var(--text-xs)', color: '#555', maxWidth: 200, wordBreak: 'break-word' } }>{ selInvoice.shippingAddress }</span></div> }
+                    { selInvoice.assets?.find( a => a.assetType === 'image' || a.assetType.startsWith( 'image#' ) ) && ( () => {
+                      const imageAsset = [ ...( selInvoice.assets || [] ) ]
+                        .filter( a => a.assetType === 'image' || a.assetType.startsWith( 'image#' ) )
+                        .sort( ( a, b ) => ( b.generatedAt || b.version || 0 ) - ( a.generatedAt || a.version || 0 ) )[ 0 ];
+                      return imageAsset?.url ? (
+                        <div className="pf-section-divider">
+                          <div className="pf-section-title">Customer receipt</div>
+                          <div style={ {
+                            borderRadius: 12, padding: 12, overflow: 'hidden',
+                            backgroundImage: 'linear-gradient(45deg,#f2f4f3 25%,transparent 25%),linear-gradient(-45deg,#f2f4f3 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#f2f4f3 75%),linear-gradient(-45deg,transparent 75%,#f2f4f3 75%)',
+                            backgroundSize: '20px 20px', backgroundPosition: '0 0,0 10px,10px -10px,-10px 0px',
+                          } }>
+                            <img src={ imageAsset.url } alt={ `Customer receipt ${selInvoice.referenceId || selInvoice.invoiceNumber}` }
+                              style={ { width: '100%', maxHeight: 520, objectFit: 'contain', display: 'block' } } />
+                          </div>
+                          <div style={ { display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' } }>
+                            <a className="btn btn-secondary btn-sm" href={ imageAsset.url } target="_blank" rel="noreferrer">Open receipt</a>
+                            <a className="btn btn-secondary btn-sm" href={ imageAsset.url } download>Download PNG</a>
+                          </div>
+                        </div>
+                      ) : null;
+                    } )() }
                     <div className="pf-section-divider">
-                      <div className="pf-detail-row"><span className="label">Subtotal</span><span>{ fmtMoney( selInvoice.subtotal ) }</span></div>
-                      <div className="pf-detail-row"><span className="label">GST</span><span>{ fmtMoney( selInvoice.tax ) }</span></div>
+                      <div className="pf-detail-row"><span className="label">Items subtotal</span><span>{ fmtMoney( selInvoice.subtotal ) }</span></div>
+                      <div className="pf-detail-row"><span className="label">Supply GST</span><span>{ fmtMoney( selInvoice.gstAccounting?.supplyTax ?? selInvoice.tax ) }</span></div>
                       <div className="pf-detail-row"><span className="label">Express</span><span>{ fmtMoney( selInvoice.shipping ) }</span></div>
                       { /* The Delight discount line. `couponDiscount` holds the Delight figure
                            (the field name is legacy on the stored row). A legacy invoice raised
@@ -1010,7 +1050,10 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                       { ( selInvoice.discount - ( selInvoice.couponDiscount || 0 ) ) > 0 && (
                         <div className="pf-detail-row"><span className="label">Discount</span><span>{ '\u2212' }{ fmtMoney( selInvoice.discount - ( selInvoice.couponDiscount || 0 ) ) }</span></div>
                       ) }
-                      { selInvoice.convenienceFee > 0 && <div className="pf-detail-row"><span className="label">Convenience fee</span><span>{ fmtMoney( selInvoice.convenienceFee ) }</span></div> }
+                      { ( selInvoice.convenienceFeeNet ?? selInvoice.convenienceFee ) > 0 && <div className="pf-detail-row"><span className="label">Convenience fee</span><span>{ fmtMoney( selInvoice.convenienceFeeNet ?? selInvoice.convenienceFee ) }</span></div> }
+                      { ( selInvoice.convenienceFeeGst || 0 ) > 0 && <div className="pf-detail-row"><span className="label">Fee GST</span><span>{ fmtMoney( selInvoice.convenienceFeeGst || 0 ) }</span></div> }
+                      <div className="pf-detail-row"><span className="label">Total GST</span><span>{ fmtMoney( selInvoice.totalGst ?? selInvoice.tax ) }</span></div>
+                      <div className="pf-detail-row"><span className="label">GSTIN</span><span className="mono">{ selInvoice.gstAccounting?.sellerGstin || selInvoice.gstin }</span></div>
                       <div className="pf-detail-total"><span>Total</span><span>{ fmtMoney( selInvoice.total ) }</span></div>
                     </div>
                     { selInvoice.items && selInvoice.items.length > 0 && (
