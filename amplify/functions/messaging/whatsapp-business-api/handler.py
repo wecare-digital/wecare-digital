@@ -24,6 +24,7 @@ Routes:
   POST      /wa-business/media/resumable/{sessionId}/finish → Assemble + upload (handle/media)
   POST      /wa-business/messages/send/text|template|media|flow → Send test messages
   POST      /wa-business/messages/send/interactive → REMOVED 2026-10-02, answers 410
+  GET       /wa-business/message-history/events → Read Meta delivery-history events (audit only)
   GET       /wa-business/webhooks      → Get webhook subscriptions
   POST      /wa-business/webhooks      → Subscribe to webhook fields
   DELETE    /wa-business/webhooks      → Unsubscribe webhook fields
@@ -564,6 +565,83 @@ def _list_assigned_wabas(user_id: str, params: Dict) -> Dict:
     return _resp(200, {
         'wabas': result.get('data', []),
         'paging': result.get('paging', {}),
+    })
+
+
+# ============================================================================
+# MESSAGE HISTORY DELIVERY EVENTS — READ ONLY / AUDIT ONLY
+# GET /{Version}/{Message-History-ID}/events
+# ============================================================================
+_MESSAGE_HISTORY_DELIVERY_STATUSES = frozenset({'ACCEPTED', 'SENT', 'DELIVERED', 'READ', 'ERROR'})
+_MESSAGE_HISTORY_FIELDS = (
+    'cursor,node{id,delivery_status,error_description,occurrence_timestamp,status_timestamp,'
+    'application,webhook_update_state,webhook_uri}'
+)
+
+
+def _get_message_history_events(message_history_id: str, params: Dict) -> Dict:
+    """Read Meta's delivery-event history for an explicit Message History ID.
+
+    This is deliberately secondary evidence. The payment rail's DynamoDB delivery claims remain
+    the exactly-once authority and normal sends never depend on this read being available. A WAMID
+    is not silently treated as a Message History ID; callers must provide the provider's explicit
+    history id.
+
+    Meta supports ACCEPTED/SENT/DELIVERED/READ/ERROR filters and cursor pagination. We keep the
+    fields fixed so this admin read cannot be turned into an arbitrary Graph field-expansion API.
+    """
+    history_id = str(message_history_id or '').strip()
+    if not history_id:
+        return _resp(400, {'error': 'messageHistoryId required'})
+    if len(history_id) > 512:
+        return _resp(400, {'error': 'messageHistoryId too long'})
+
+    delivery_status = str(params.get('deliveryStatus') or params.get('delivery_status') or '').upper()
+    if delivery_status and delivery_status not in _MESSAGE_HISTORY_DELIVERY_STATUSES:
+        return _resp(400, {
+            'error': 'Invalid deliveryStatus',
+            'allowed': sorted(_MESSAGE_HISTORY_DELIVERY_STATUSES),
+        })
+
+    try:
+        limit = int(params.get('limit') or 25)
+    except (TypeError, ValueError):
+        return _resp(400, {'error': 'limit must be an integer'})
+    if limit < 1 or limit > 100:
+        return _resp(400, {'error': 'limit must be between 1 and 100'})
+
+    query = {'fields': _MESSAGE_HISTORY_FIELDS, 'limit': limit}
+    if delivery_status:
+        query['delivery_status'] = delivery_status
+    for key in ('after', 'before'):
+        value = str(params.get(key) or '').strip()
+        if value:
+            query[key] = value
+
+    # Both production WhatsApp accounts use the shared WECARE.DIGITAL app credentials today.
+    # Keep wabaId explicit for future token separation without changing this route's contract.
+    waba_id = str(params.get('wabaId') or WABA1_ID)
+    result = _graph_api(
+        f'{urllib.parse.quote(history_id, safe="")}/events',
+        params=query,
+        waba_id=waba_id,
+    )
+    if 'error' in result:
+        meta_error = result.get('error') if isinstance(result.get('error'), dict) else {}
+        code = int(meta_error.get('code') or 0)
+        status = 404 if code == 803 else 403 if code == 200 else 401 if code == 190 else 400 if code == 100 else 502
+        return _resp(status, {
+            'error': 'Meta message history lookup failed',
+            'metaCode': code or None,
+            'metaSubcode': meta_error.get('error_subcode'),
+            'message': meta_error.get('message', ''),
+        })
+
+    return _resp(200, {
+        'messageHistoryId': history_id,
+        'events': result.get('data', []),
+        'paging': result.get('paging', {}),
+        'auditOnly': True,
     })
 
 
@@ -6772,6 +6850,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return _route_send_message(path, body, auth=event.get('_auth'),
                                            internal=_is_internal_invoke(event))
             return _resp(405, {'error': 'POST only'})
+
+        elif '/message-history/events' in path:
+            if method != 'GET':
+                return _resp(405, {'error': 'GET only'})
+            return _get_message_history_events(
+                params.get('messageHistoryId') or body.get('messageHistoryId') or '',
+                params,
+            )
 
         elif '/template-ttl/rules' in path:
             return _get_ttl_rules()

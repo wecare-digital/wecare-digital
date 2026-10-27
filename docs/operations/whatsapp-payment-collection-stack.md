@@ -317,6 +317,23 @@ fulfilment transition.
 
 ## 9. Idempotency and retry
 
+### Meta Message History audit (secondary evidence)
+
+The primary duplicate-prevention mechanism is still the server-owned DynamoDB delivery claim:
+one claim per invoice/channel and one claim per `order-status:<target>`. A send is not made
+conditional on Meta Message History availability.
+
+For operational reconciliation, `wecare-whatsapp-business-api` exposes a **GET-only** read of
+Meta's Message History events for an explicit provider `messageHistoryId`. It supports the
+provider delivery states `ACCEPTED`, `SENT`, `DELIVERED`, `READ`, and `ERROR`, plus
+cursor pagination. The route uses fixed fields and never sends or mutates a message.
+
+Do not infer a Message History ID from a WAMID. They are separate provider identifiers; the
+history read is used only when an explicit history ID is available. If Meta history is
+temporarily unavailable, payment/order/invoice sending continues to rely on the existing
+claim + WAMID/webhook evidence model.
+
+
 ### Capture
 
 Razorpay webhooks are deduplicated through `WebhookDedup` and provider/payment claims in
