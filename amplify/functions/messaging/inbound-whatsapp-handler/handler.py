@@ -5952,12 +5952,12 @@ def _send_ai_auto_reply(contact_id: str, content: str, phone_number_id: str, req
         }))
 
 
-#: Stored labels (modules.content) for a message WhatsApp delivered without its content:
-#: 131051 with no declared type (the measured common case) and a disappearing message.
-#: An OTP/authentication label is deliberately absent: those come from Meta, not a customer.
-UNREADABLE_MESSAGE_LABELS = frozenset({UNSUPPORTED_UNKNOWN, UNSUPPORTED_DISAPPEARING})
-UNREADABLE_HINT_TEXT = ("We couldn't read your last message. If disappearing messages are on "
-                        "in this chat, please turn them off, then send your message again as text.")
+#: Only an explicitly disappearing/ephemeral payload gets the disappearing-message hint.
+#: Generic 131051/unknown traffic carries no evidence for that diagnosis and may represent an
+#: unsupported client type or provider-generated content that WhatsApp does not expose.
+UNREADABLE_MESSAGE_LABELS = frozenset({UNSUPPORTED_DISAPPEARING})
+UNREADABLE_HINT_TEXT = ("We couldn't read your disappearing message. Please turn disappearing "
+                        "messages off in this chat, then send your message again as text.")
 #: One hint per contact per day. The cause usually persists for every message that follows.
 UNREADABLE_HINT_INTERVAL_SECONDS = 24 * 60 * 60
 
