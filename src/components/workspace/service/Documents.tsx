@@ -810,7 +810,8 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
               <div><span style={ labelStyle }>Type</span><div>{ selected.type }{ selected.documentTypeLabel ? ` · ${ selected.documentTypeLabel }` : '' }</div></div>
               <div><span style={ labelStyle }>Source</span><div>{ SOURCE_ICONS[ selected.source ] || '📄' } { selected.source }</div></div>
               <div><span style={ labelStyle }>Size</span><div>{ fmtSize( selected.fileSize ) }</div></div>
-              <div><span style={ labelStyle }>Status</span><div><StatusBadge status={ selected.status } /></div></div>
+              <div><span style={ labelStyle }>Review status</span><div><StatusBadge status={ selected.status } /></div></div>
+              <div><span style={ labelStyle }>Record</span><div><span style={ selected.archivedAt ? archivedPillStyle : activePillStyle }>{ selected.archivedAt ? 'Archived' : 'Active' }</span></div></div>
               <div><span style={ labelStyle }>Uploaded</span><div>{ fmtDate( selected.createdAt ) }</div></div>
               <div><span style={ labelStyle }>Customer</span><div>{ selected.customerName || '—' } ({ selected.customerPhone || '—' })</div></div>
               { selected.orderId && (
@@ -920,7 +921,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
               >
                 { referenceAgeSeconds( selected ) < 24 * 3600 ? 'Reference valid <24h' : 'Revalidate reference' }
               </Button>
-              { selected.vaultFileId ? (
+              { !selected.archivedAt && ( selected.vaultFileId ? (
                 <Button
                   variant="secondary"
                   loading={ actionLoading }
@@ -938,13 +939,13 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                 >
                   Publish to Vault
                 </Button>
-              ) }
+              ) ) }
               { !selected.archivedAt && !selected.vaultFileId && selected.storageKey && [ 'uploaded', 'approved' ].includes( selected.status ) && (
                 <Button variant="primary" loading={ actionLoading } onClick={ () => handlePublishAndSend( selected ) }>
                   Publish & send WhatsApp
                 </Button>
               ) }
-              { selected.vaultFileId && vaultActionsFor( vaultFile ).ask && (
+              { !selected.archivedAt && selected.vaultFileId && vaultActionsFor( vaultFile ).ask && (
                 <Button
                   variant="primary"
                   loading={ actionLoading }
@@ -954,7 +955,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                   { vaultActionsFor( vaultFile ).renewal ? 'Send ₹49 renewal message' : 'Send ₹49 Vault message' }
                 </Button>
               ) }
-              { selected.vaultFileId && vaultActionsFor( vaultFile ).resend && (
+              { !selected.archivedAt && selected.vaultFileId && vaultActionsFor( vaultFile ).resend && (
                 <Button
                   variant="secondary"
                   loading={ actionLoading }
@@ -964,9 +965,16 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                   Resend Access Vault
                 </Button>
               ) }
-              <Button variant="primary" loading={ actionLoading } onClick={ () => handleStatusAction( selected, 'approved', remarks ) }>Approve</Button>
-              <Button variant="danger" loading={ actionLoading } onClick={ () => handleStatusAction( selected, 'rejected', remarks ) }>Reject</Button>
-              <Button variant="secondary" loading={ actionLoading } onClick={ () => handleStatusAction( selected, 'reupload_requested', remarks ) }>Request Reupload</Button>
+              { selected.archivedAt ? (
+                <Button variant="primary" loading={ actionLoading } onClick={ () => { void handleRestore( selected ); } }>Restore</Button>
+              ) : (
+                <>
+                  <Button variant="primary" loading={ actionLoading } onClick={ () => handleStatusAction( selected, 'approved', remarks ) }>Approve</Button>
+                  <Button variant="danger" loading={ actionLoading } onClick={ () => handleStatusAction( selected, 'rejected', remarks ) }>Reject</Button>
+                  <Button variant="secondary" loading={ actionLoading } onClick={ () => handleStatusAction( selected, 'reupload_requested', remarks ) }>Request Reupload</Button>
+                  <Button variant="secondary" loading={ actionLoading } onClick={ () => { void handleArchive( selected ); } }>Archive</Button>
+                </>
+              ) }
             </div>
           </div>
         ) }
