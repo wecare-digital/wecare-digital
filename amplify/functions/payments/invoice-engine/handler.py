@@ -779,6 +779,8 @@ def _inclusive_itemization(spec: Any, expected_total_paise: int,
             'discount': _paise_to_rupees(discount_taxable_paise),
             'tax': _paise_to_rupees(tax_paise),
             'convenienceFee': _paise_to_rupees(fee_paise + fee_gst_paise),
+            'convenienceFeeNet': _paise_to_rupees(fee_paise),
+            'convenienceFeeGst': _paise_to_rupees(fee_gst_paise),
             'discountCode': str(spec.get('discountCode') or '') if discount_paise else '',
         }
     except (TypeError, ValueError, ArithmeticError):
@@ -1231,6 +1233,8 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
     expected_total_paise = 0
     # Set only by an itemised tax-inclusive capture (`_inclusive_itemization`).
     inclusive_convenience_fee = Decimal('0')
+    inclusive_convenience_fee_net = Decimal('0')
+    inclusive_convenience_fee_gst = Decimal('0')
     inclusive_discount_code = ''
     if amount_is_tax_inclusive:
         if body.get('expectedTotalPaise') is None:
@@ -1299,6 +1303,8 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
             discount = itemized['discount']
             tax = itemized['tax']
             inclusive_convenience_fee = itemized['convenienceFee']
+            inclusive_convenience_fee_net = itemized['convenienceFeeNet']
+            inclusive_convenience_fee_gst = itemized['convenienceFeeGst']
             inclusive_discount_code = itemized['discountCode']
     else:
         tax = sum((
@@ -1369,16 +1375,22 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
     # otherwise refuse before consuming an invoice number. Silently replacing a stale client fee
     # would let the customer preview one amount and receive an invoice for another.
     raw_convenience_fee = body.get('convenienceFee')
+    convenience_fee_net = Decimal('0')
+    convenience_fee_gst = Decimal('0')
     if amount_is_tax_inclusive:
         # The inclusive branch above converted subtotal/tax/additive components to Decimal.
         # Keep this a Decimal too: Decimal + float is a TypeError and, more importantly,
         # captured-money arithmetic must never leave exact decimal space. Zero unless an itemised
         # capture carried the fee it quoted; no fee is ever ADDED to captured money.
         convenience_fee = inclusive_convenience_fee
+        convenience_fee_net = inclusive_convenience_fee_net
+        convenience_fee_gst = inclusive_convenience_fee_gst
     elif _new_collection_pricing_applies(entry_point, amount_is_tax_inclusive):
         collection = subtotal - discount + shipping + effective_gp + effective_nf + handling + tax
         quote = checkout_pricing.compute_quote(_rupees_to_paise(collection))
         canonical_fee_paise = quote.convenience_fee_paise + quote.convenience_gst_paise
+        convenience_fee_net = _paise_to_rupees(quote.convenience_fee_paise)
+        convenience_fee_gst = _paise_to_rupees(quote.convenience_gst_paise)
 
         if raw_convenience_fee not in (None, ''):
             try:
@@ -1397,6 +1409,8 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
         convenience_fee = _paise_to_rupees(canonical_fee_paise)
     else:
         convenience_fee = Decimal(str(raw_convenience_fee or 0))
+        convenience_fee_net = convenience_fee
+        convenience_fee_gst = Decimal('0')
 
     total = subtotal - discount + shipping + effective_gp + effective_nf + handling + tax + convenience_fee
 
@@ -1509,6 +1523,16 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
         'gstRate': _dec(gst_rate),
         'tax': _dec(tax),
         'convenienceFee': _dec(convenience_fee),
+        'convenienceFeeNet': _dec(convenience_fee_net),
+        'convenienceFeeGst': _dec(convenience_fee_gst),
+        'convenienceFeeTotal': _dec(convenience_fee),
+        'gstAccounting': {
+            'supplyTax': _dec(tax),
+            'convenienceFeeGst': _dec(convenience_fee_gst),
+            'totalGst': _dec(tax + convenience_fee_gst),
+            'sellerGstin': body.get('gstin', COMPANY['gstin']),
+            'delightTaxTreatment': default_coupon.DELIGHT_TAX_TREATMENT,
+        },
         'total': _dec(total),
         'currency': body.get('currency', 'INR'),
         'gstin': body.get('gstin', COMPANY['gstin']),
@@ -1563,13 +1587,19 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
         all_items.append({'name': 'Notification Fee', 'amount': notification_fee, 'quantity': 1, 'isCharge': True})
     if all_items:
         for idx, item in enumerate(all_items):
+            item_amount = Decimal(str(item.get('amount', 0)))
+            item_quantity = int(item.get('quantity', 1))
+            item_gst_rate = Decimal(str(item.get('gstRate', gst_rate)))
+            item_tax = (item_amount * item_quantity * item_gst_rate / Decimal('100')).quantize(
+                Decimal('0.01'), rounding=ROUND_HALF_UP)
             items_table.put_item(Item={
                 'invoiceId': invoice_id,
                 'itemIndex': idx,
                 'name': item.get('name', 'Item'),
-                'amount': Decimal(str(item.get('amount', 0))),
-                'quantity': int(item.get('quantity', 1)),
-                'gstRate': Decimal(str(item.get('gstRate', gst_rate))),
+                'amount': item_amount,
+                'quantity': item_quantity,
+                'gstRate': item_gst_rate,
+                'taxAmount': item_tax,
                 'productId': item.get('productId', ''),
                 'isCharge': item.get('isCharge', False),
             })
@@ -1584,7 +1614,11 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
     _cross_link_invoice_and_order(reference_id, invoice_id, invoice_number, request_id)
     created: Dict[str, Any] = {
         'invoiceId': invoice_id, 'invoiceNumber': invoice_number, 'referenceId': reference_id,
-        'total': float(total), 'convenienceFee': float(convenience_fee),
+        'total': float(total),
+        'convenienceFee': float(convenience_fee),
+        'convenienceFeeNet': float(convenience_fee_net),
+        'convenienceFeeGst': float(convenience_fee_gst),
+        'totalGst': float(tax + convenience_fee_gst),
     }
     # The Delight discount the SERVER applied, echoed back so the form renders our figure. Present
     # only when Delight actually discounted this invoice; a fixed policy, so there is no reason
