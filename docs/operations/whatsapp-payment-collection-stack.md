@@ -239,6 +239,47 @@ The `secure_file_download` early return in the Razorpay webhook is retained only
 
 A verified paid commerce invoice must have at least one `image` / `image#vN` asset even if WhatsApp delivery is unavailable. The webhook calls the invoice engine's internal `ensure-image` action on every verified capture. That action reuses an existing image and renders only when no image exists, so webhook replay does not create duplicate renditions. The customer-invoice download service remains read-only and never advances the GST sequence.
 
+## 5A. Duplicate-send prevention and Meta Message History audit
+
+Customer-visible payment messages use layered idempotency. The layers have different authority and
+must not be collapsed:
+
+1. **Business-action claim first.** Payment requests use the PaymentAttempt/send reservation;
+   invoice/status/order-page deliveries use CommerceKeys invoice-delivery claims. A lost race means
+   no send.
+2. **Stable final-boundary key.** Payment-rail callers pass `idempotencyKey` to
+   `wecare-outbound-whatsapp:live`:
+   - `payment-request:<referenceId>`
+   - `order-status:<invoiceId>:processing`
+   - `order-status:<invoiceId>:completed`
+   - `invoice-receipt:<invoiceId>`
+   - `order-page-link:<invoiceId>`
+   The outbound Lambda hashes this value into its internal message row id. If that row already has
+   a Meta WAMID, a replay returns the existing WAMID without another Graph send. A row whose
+   outcome is still ambiguous is refused as `MESSAGE_SEND_IN_FLIGHT`. A definite `failed` or
+   `rejected` row remains retryable after the higher-level claim is released.
+3. **Webhook/status evidence.** `WhatsAppOutboundTable` stores the Meta WAMID and monotonically
+   advances accepted/sent/delivered/read/error state from Meta webhooks.
+4. **Meta Message History is secondary audit evidence only.** The authenticated
+   `GET /wa-business/message-history/events` route reads
+   `/{Message-History-ID}/events` with bounded fields/status filters/pagination. The internal
+   `messageHistoryForWamid` action first resolves a known WAMID through
+   `/{Phone-Number-ID}/message_history`, then reads its events. Neither path sends a message,
+   releases a delivery claim, or authorizes a retry.
+
+A Meta history event in `ACCEPTED`, `SENT`, `DELIVERED`, or `READ` proves that Meta has
+already accepted that WAMID and is a strong reconciliation signal to suppress a human/operator
+re-send. It is **not** sufficient as the primary exactly-once mechanism: if a network timeout
+occurs before WECARE learns the WAMID, Message History cannot be safely searched by WECARE's
+internal invoice/reference id. In that ambiguous case the existing business claim remains held and
+the system fails closed rather than blindly sending a second customer message.
+
+Operator read-only helper:
+
+```text
+python scripts/audit_whatsapp_message_history.py --wamid <Meta-WAMID>
+```
+
 ## 6. Public API routes
 
 Canonical API: `wecare-digital-api` (`zllr9lrg7j`).
