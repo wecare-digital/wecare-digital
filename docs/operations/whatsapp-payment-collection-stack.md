@@ -181,7 +181,7 @@ and retried; it is not silently changed into a different message type.
 
 | Surface | Asset |
 | --- | --- |
-| Large payment-template header | `https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/whatsapp-header.png` |
+| Payment-request header / order thumbnail | `https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/wecare-catalog-icon.png` |
 | Manual/service order-item thumbnails | **None** |
 | True catalog product image | Catalog-managed product image/identity |
 | Paid invoice template header | Generated invoice PNG under `secure/d/public/Invoice/customer_invoice/` |
@@ -192,7 +192,7 @@ Meta's item `image` is optional. The payment rail therefore uses this simpler ru
 - **Convenience Fee:** non-catalog net-fee line with no thumbnail; GST on the fee is included in the native tax row.
 - **true catalog checkout:** preserve the real catalog identity and catalog-managed product image.
 
-The large payment-template header remains the WECARE brand image. It is the single brand visual for manual/service payment requests.
+The payment-template header is the square WECARE bag image. Meta uses the message header as the order-details thumbnail, so it is the single brand visual for manual/service payment requests while the item rows remain image-free.
 
 ## 5. Canonical runtimes
 
@@ -521,8 +521,8 @@ canonical runtime target, reviewers should require this checklist before merge.
 Before production promotion, prove:
 
 - [ ] payment request is `wecare_whatapp_native_pay_template`
-- [ ] large header is `whatsapp-header.png`
-- [ ] manual/non-catalog item image is `wecare-catalog-icon.png` with no synthetic retailer ID
+- [ ] payment-request header / order thumbnail is the square `wecare-catalog-icon.png`
+- [ ] manual/non-catalog service and fee rows carry **no synthetic item thumbnail** and no synthetic retailer ID
 - [ ] true catalog items retain catalog identity/image
 - [ ] capture sends status template `processing` then `completed`
 - [ ] zero interactive order-status messages are used
