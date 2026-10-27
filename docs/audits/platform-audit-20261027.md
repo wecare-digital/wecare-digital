@@ -4,6 +4,18 @@ Audited commit `2f7ca2979` (the tip of `wecare.digital` on 2026-10-27, after a f
 commits). Repository changes from this audit are on branch
 `audit/platform-performance-cost-seo-20261027`; nothing was pushed, merged or deployed.
 
+**Revision, evening of 2026-10-27.** A re-check of the earlier claims corrected five of them:
+
+- The Public UI compliance workflow is one day old; it is not "200 runs red".
+- Each "one-hour" access-log sample covered about two hours.
+- Six of Compute Optimizer's 19 findings are under-provisioned memory; the earlier text said all
+  19 were over-provisioned.
+- The blog-fetch cost is now computed rather than given as a range.
+- The cost plan's image saving fell from $9.99 to $2.63 a month.
+
+This revision also adds the dependency audit (section 8a) and the 27 October egress spike
+(section 7a).
+
 ## How to read this document
 
 Every claim carries one of these evidence levels:
@@ -16,8 +28,11 @@ Every claim carries one of these evidence levels:
 | **Deployed / E2E** | Not reached by this audit for any change. |
 
 Live evidence collection was read-only: List/Describe/Get calls, CloudWatch `GetMetricData`,
-nine Cost Explorer requests (about $0.09), one hour of Amplify access logs aggregated in memory
-(no client IPs stored), and CloudTrail `LookupEvents` for KMS key usage. No secret value was read;
+nine Cost Explorer requests (about $0.09), Amplify access logs for sampled windows aggregated in
+memory (no client IPs stored; see section 3 for why each window is about two hours), the Amplify
+job list, CloudTrail `LookupEvents` for KMS key usage, the GitHub Actions API for workflow runs,
+the three Lambda layer archives (file names only, for package versions), and OSV.dev for
+dependency advisories. No secret value was read;
 environment variables were recorded by name only. Raw evidence stays in the gitignored
 `.scratch/audit-2026-10-27/` tree.
 
@@ -36,14 +51,16 @@ P2 = meaningful reliability, UX or maintenance. P3 = cleanup.
 | 6 | P1 | Business Support+ is billed on two accounts ($29 minimum each); the backup account `…5408` started on Oct 17 | Cloud-read | Owner decision |
 | 7 | P2 | Invoice HTML (a downloadable customer deliverable) interpolated customer name/address/item names unescaped | Code | Fixed on branch, needs deploy |
 | 8 | P2 | `www.wecare.digital/<path>` 302s to the home page, dropping the path; the redirect script kept re-asserting an apex-to-apex "host" rule | Cloud-read, Code | Fixed in IaC on branch, needs owner publish |
-| 9 | P2 | Test harnesses (CI and local) load production media and the blog API: in a sampled hour, headless Chromium caused 3.0 GB of catalog-media and 0.75 GB of `/get/` egress | Cloud-read | Recommendation |
+| 9 | P2 | Test harnesses (CI and local) load production media and the blog API: in one sampled window (05:00-07:00 UTC on 10-27), headless Chromium caused 3.03 GB of catalog-media and 0.75 GB of `/get/` egress | Cloud-read | Recommendation |
 | 10 | P2 | `/api/` Disallow in robots.txt hid every product image | Code | Fixed on branch |
 | 11 | P2 | 85 CloudWatch alarms, 75 billable ($7.50/month), all OK | Cloud-read | Owner decision |
 | 12 | P2 | Sinch RCS delivery webhook accepts unsigned `MESSAGE_DELIVERY` callbacks until a webhook secret exists | Code | Owner action (Sinch console) |
 | 13 | P3 | Structured-data and metadata defects (Organization `geo`, hard-coded `InStock`, latent FAQPage, sitemap had no noindex filter, contradictory `googlebot` meta, 46-character `/blog/` description) | Code, Local | Fixed on branch |
 | 14 | P3 | No AWS Budget exists in the account | Cloud-read | Owner decision |
-| 15 | P1 | The Public UI compliance workflow has not passed in its last 200 runs, and its builds load the production blog API: GitHub Actions runners made 67k-94k blog requests an hour in sampled hours, and some CI builds fail on HTTP 429 from that API | Cloud-read | Recommendation; the harness is another workstream's active work |
+| 15 | P1 | The Public UI compliance workflow, added on 2026-10-27, failed all 62 runs that had finished by 15:35 UTC that day (0 passed). Each run builds twice against the production blog API and loads production media: Amplify served 18.46 GB in the first 15 hours of 10-27, against 2.99 GB in the same hours on an average prior day (about 0.26 GB, $0.04, per run). Some CI builds fail on HTTP 429 from the blog API | Cloud-read | Recommendation; the harness is another workstream's active work |
 | 16 | P2 | Bulk queue: visibility 2.5x the worker timeout (AWS guidance is at least 6x), maxReceiveCount 3 (guidance at least 5), and the worker swallows per-record errors, so its dead-letter queue can never receive a message | Cloud-read, Code | Owner decision (queue config + code together) |
+| 17 | P1 | Production Lambda layers ship Pillow 12.1.1 (59 advisories, 5 critical, all fixed in 13.0.0) to `checkout`, `commerce`, `invoice-engine` and `product-image-gen`; `product-image-gen` gets it from a third-party public layer. The `cryptography` layer is 46.0.5 (3 high advisories); dev and CI pin Pillow 13.0.0 and cryptography 50.0.2 | Cloud-read, Code | Owner decision (layer rebuild + deploy) |
+| 18 | P2 | Build-time blog fetches cost about $12.13 a month at the 14-26 October rate. DynamoDB reads rose 17.6x when `wecare-blog-public` took over the blog routes on 13 October; 56% of the blog table's reads now come from the five whole-corpus listing queries each build makes | Cloud-read, Code | Recommendation |
 
 ## 1. Architecture map
 
@@ -153,7 +170,7 @@ October to date by service and usage type:
 |---|---|---:|---|---|
 | Amplify | Build duration | 56.84 | 5,683.8 min | Optimizable (overhead + redundant builds) |
 | Business Support+ | Fee | 42.81 | $29 (4268) + $13.81 (5408, from Oct 17) | Owner-controlled subscription |
-| Amplify | Data transfer out | 13.32 | 88.8 GB | Optimizable (oversized images, test traffic) |
+| Amplify | Data transfer out | 13.32 | 88.8 GB | Optimizable (blog API about 20%, test traffic, `no-store` on hashed assets, oversized images) |
 | Secrets Manager | Secrets | 7.43 | 18.6 secret-months | Production baseline (consolidation possible) |
 | CloudWatch | Alarms | 5.00 | 60.0 alarm-months | Optimizable / owner decision |
 | API Gateway | HTTP requests | 3.73 | 3.73 M | Variable; mostly build-time blog fetches |
@@ -175,14 +192,23 @@ frontend input, 136 changed only backend/docs/test paths, and 4 changed nothing*
 ~252 s BUILD step, ~51 s re-installed the image's 1,692 default global npm packages (`nvm install`)
 and ~43 s retrieved, extracted, re-created and uploaded a `node_modules` cache that `npm ci`
 deletes unread. The fetch of the blog corpus during the build (1,424 per-post requests plus 5
-listing requests per build, through the apex `/api` rewrite) is also what drives most API Gateway
-requests, Lambda invocations (`wecare-blog-public`, 2.29 M in 30 days) and DynamoDB reads.
+listing requests per build, through the apex `/api` rewrite; a sampled window of ten builds
+measured 1,433 requests and 5.1 listing calls per build) is also what drives most API Gateway
+requests, Lambda invocations (`wecare-blog-public`, 2.29 M in 30 days) and DynamoDB reads. Over
+14-26 October, `wecare-blog-public` averaged 162,440 invocations a day, 90% of all API Gateway
+requests. On 24-26 October, Amplify builds (81 a day) account for 77% of those invocations.
 
-**Where Amplify data transfer comes from.** A one-hour access-log sample (05:00-06:00 UTC,
-95,210 requests) attributed 3.03 GB to `/api/catalog-media/*` (4096 px PNGs) and 0.75 GB to
-`/get/` logo/favicon, almost all from headless Chromium on `127.0.0.1` referers, which is the
-browser test harness running against production media. 70% of requests that hour were `/api/*`
-proxying.
+**How the access-log samples were read.** Amplify's `GenerateAccessLogs` returned about two hours
+of rows for every one-hour request (for example, 05:00-06:00 UTC returned 05:00:10-06:59:59). In
+the eight windows checked, the row count matched CloudWatch `Requests` for those two hours within
+1%. The samples are therefore used for shares, not hourly rates.
+
+**Where Amplify data transfer comes from.** The window requested as 05:00-06:00 UTC on 10-27
+covered 05:00-07:00 UTC (95,210 requests). It attributed 3.03 GB to `/api/catalog-media/*` (4096 px
+PNGs) and 0.75 GB to `/get/` logo/favicon, almost all from headless Chromium on `127.0.0.1`
+referers, which is the browser test harness running against production media. 70% of requests in
+that window were `/api/*` proxying. Over 14-26 October, blog-API responses were about 20% of
+Amplify data transfer (0.64 of 3.18 GB a day: invocations × 3.92 KB per response).
 
 ## 4. Performance baseline and result
 
@@ -310,7 +336,8 @@ alone retires nothing. 63 KEEP, 10 OPTIMIZE, 1 RETIRE CANDIDATE, 0 MERGE.
 - **arm64**: 70 of 74 functions are pure Python and arm64-eligible; Pillow (`checkout`,
   `commerce`, `invoice-engine`, `product-image-gen`), `cryptography` (`whatsapp-business-api`) and
   the docs-scraper image need arm64 layers or images first. Lambda compute is ~$1.3/month, so the
-  20% GB-second saving is about $0.25/month; low priority.
+  20% GB-second saving is about $0.25/month; low priority. Those layers are also out of date; see
+  section 8a.
 - **Logging**: no whole-event dumps; default INFO. `whatsapp-calling` logged `str(event)[:300]` on a
   bad cert-check payload and the first 20 characters of a mismatched signature header; both now log
   shape only (commit on the audit branch).
@@ -319,39 +346,82 @@ alone retires nothing. 63 KEEP, 10 OPTIMIZE, 1 RETIRE CANDIDATE, 0 MERGE.
 
 ## 7a. CI, queues and other operational findings (Cloud-read, Code)
 
-**The Public UI compliance workflow is red on every run.** None of its last 200 runs succeeded.
-In the last 30 runs the failing steps were `Full public device matrix` (all 30),
-`Firefox Home and menu regression contract` (26) and `Build static public export` (3). The device
-matrix fails on the Home "Runtime" request line wrapping on phones; that contract was added on
-2026-10-27 (`4fc1f23aa`) on the same day as `#1700` "maximize mobile Platform Runtime readability",
-so the CSS and the harness disagree and someone has to decide which one is right. A gate that is
-always red cannot show a new regression. These files belong to another active workstream, so this
-audit did not change them.
+**The Public UI compliance workflow has not passed yet.** It was added on 2026-10-27 at 01:11 UTC
+(`822a22c38`). By 15:35 UTC it had run 66 times (48 pull-request runs, 17 push runs and 1
+scheduled run, across 25 branches): 62 failed, 4 were still running, none passed. Across the 62
+failures the failing steps were `Full public device matrix` (61), `Firefox Home and menu
+regression contract` (57) and `Build static public export` (4). The device matrix fails on the
+Home "Runtime" request line wrapping on phones; that contract was added the same morning
+(`4fc1f23aa`), the same day as `#1700` "maximize mobile Platform Runtime readability", so the CSS
+and the harness disagree and someone has to decide which one is right. A gate that is always red
+cannot show a new regression. These files belong to another active workstream, so this audit did
+not change them.
 
-**CI builds load the production blog API.** Each `npm run build` fetches 1,424 posts plus about
-five listing requests through `https://wecare.digital/api`, and the workflow builds twice per run
-(two jobs). Classified by published IP ranges, in sampled hours:
+**The workflow's first day multiplied Amplify data transfer.** Each run has two jobs. Each job runs
+`npm run build`, which fetches the whole blog corpus through `https://wecare.digital/api`, then
+runs browser checks against the export, which loads production media by absolute URL. Amplify
+served 18.46 GB from 00:00 to 15:00 UTC on 10-27 ($2.77), against an average of 2.99 GB for the
+same hours on the previous seven days. Hourly transfer tracks the number of runs started
+(R² 0.98): about 0.27 GB per run by regression, or 0.25-0.26 GB per run from the excess, so each
+run costs about $0.04 in transfer. Most of it is shop images: `wecare-catalog-media` served 5,706
+requests by 15:00 UTC (about 13.7 GB at 2.4 MB each), 5,231 of them in the hours when runs
+started, against 1,220 requests in the five days before. At 66 runs a day that would be about
+$74-78 a month; at 10 runs a day, about $11-12 (ESTIMATE). This audit's own Lighthouse and
+harness runs (about 09:00-10:19 UTC) fall in the 09:00 and 10:00 hours, when no workflow run
+started and the whole site served 0.75 GB ($0.11), which bounds their share.
 
-| Hour (UTC) | GitHub Actions requests | MB | Amplify-build requests | MB |
+| 10-27, hour (UTC) | 00 | 01 | 02 | 03 | 04 | 05 | 06 | 07 | 08 | 09 | 10 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Workflow runs started | 0 | 5 | 17 | 8 | 0 | 0 | 14 | 2 | 13 | 0 | 0 |
+| Amplify GB served | 0.11 | 1.50 | 4.60 | 2.08 | 0.56 | 0.03 | 4.07 | 0.63 | 3.99 | 0.64 | 0.11 |
+
+**Build-time blog fetches.** Classified by published IP ranges, in sampled windows (each about two
+hours from the start shown):
+
+| Window start (UTC) | GitHub Actions requests | MB | Amplify-build requests | MB |
 |---|---:|---:|---:|---:|
 | 10-19 15:00 | 66,993 | 261.7 | 7,192 | 28.2 |
 | 10-20 07:00 | 94,404 | 365.8 | 14,432 | 56.5 |
 | 10-21 10:00 | 91,843 | 359.1 | 17,231 | 67.6 |
 | 10-26 14:00 | 0 | 0 | 14,327 | 59.5 |
 
-Across eleven sampled hours, build-time blog fetches were about half of the Amplify data transfer
-(1,913 of 3,873 MB); three of those hours were among the month's busiest, so the monthly share is
-probably lower. They also drive most API Gateway requests, `wecare-blog-public` invocations
-and SeoToolsTable reads, roughly $10-13 a month all told (ESTIMATE). When CI and Amplify builds
-overlap, the stage's default route throttle (100 requests/second, burst 200) answers 429, the build gives up after six
-attempts, and the run fails (seen in CI run `40473775811`; none of October's 17 failed Amplify
-builds were 429s). Options, in order of effort: build once per CI run and share `out/` between
-jobs (halves the fetches); cache the corpus in CI per hour; add a paginated bulk endpoint to
-`wecare-blog-public` so a build makes about six requests instead of about 1,430.
+The GitHub Actions traffic of 19-21 October came from earlier workflows that also ran
+`npm run build` (`public-foundation.yml`, `menu-cross-browser.yml`, `mobile-build.yml`,
+`deps-upgrade.yml`, `workspace-mcp-codechange.yml`), deleted on 22-23 October (`2ca67d446`,
+`68d377555`), not from Public UI compliance. 99.5% of the sampled blog requests came from GitHub
+Actions or AWS addresses; the other 0.5% includes local builds.
 
-**Failed Amplify builds**: 17 of the 274 October jobs failed, 9 on TypeScript errors and 3 on
-`npm error code EUSAGE`, which means commits reached the production branch without passing
-`tsc`. They cost 41.4 build-minutes ($0.41).
+At the 14-26 October rate (162,440 requests a day), blog-API traffic costs about **$12.13 a
+month** (ESTIMATE from measured unit rates): API Gateway $4.87, DynamoDB reads $3.42, Amplify
+transfer $2.86, Lambda $0.97 (rounded). DynamoDB reads rose from 55,003 RRU a day (1-13 October) to
+966,749 (14-26 October), 17.6x, when `wecare-blog-public` took over the blog routes on 13 October;
+that step is the Cost Explorer DynamoDB anomaly of 14-20 October. CloudWatch splits the
+SeoToolsTable reads after the cutover:
+
+- 56% are listing queries on `recordType-createdAt-index`, which CloudWatch shows reading nothing
+  before the cutover. Each listing call now reads the whole corpus (`storage.py:148`,
+  `query_index` with `limit=0`), and a build makes five of them.
+- 26% are strongly consistent `GetItem` reads of single posts.
+- 18% are queries on `slug-createdAt-index`, which `get_blog_post` runs when the `BLOG#<slug>`
+  `GetItem` misses (`storage.py:155-158`).
+
+When CI and Amplify builds overlap, the stage's default route throttle (100 requests/second,
+burst 200) answers 429, the build gives up after six attempts, and the run fails (seen in CI run
+`40473775811`; none of the 17 failed Amplify builds below were 429s). Options, in order of effort:
+
+1. Build once per CI run and share `out/` between jobs, which halves CI fetches.
+2. Fetch the listing once per build and share it between the generators, which saves $1.64 a
+   month of DynamoDB reads.
+3. Cache the corpus in CI per hour.
+4. Add a paginated bulk endpoint to `wecare-blog-public`, so a build makes about six requests
+   instead of about 1,430. That removes most of the $5.84 a month that scales with request count
+   (API Gateway and Lambda). DynamoDB and transfer ($6.28) scale with the number of corpus
+   fetches, so only fewer fetches reduce them.
+
+**Failed Amplify builds**: 17 of the 274 jobs listed on the morning of 10-27 failed. That is every
+job since the branch was re-created on 24 October (job numbers restart at 1). 9 failed on
+TypeScript errors and 3 on `npm error code EUSAGE`, which means commits reached the production
+branch without passing `tsc`. They cost 41.4 build-minutes ($0.41).
 
 **SQS** (AWS guidance: visibility at least 6x the function timeout, maxReceiveCount at least 5):
 
@@ -366,15 +436,18 @@ deleted rather than retried and the bulk DLQ can never receive anything. Enablin
 alone is wrong (without the code nothing changes; without the mapping setting, returned failures
 are ignored).
 
-**Compute Optimizer** is active and has 19 Lambda findings, all `MemoryOverprovisioned` on old
-published versions, each with an estimated saving of $0.00. Cost Optimization Hub has none.
+**Compute Optimizer** is active and has 19 Lambda findings, each with an estimated saving of
+$0.00: 13 `MemoryOverprovisioned` and 6 `MemoryUnderprovisioned`. Five of the under-provisioned
+findings are old `wecare-razorpay-webhook` versions (85, 88, 92, 94, 107; 256 → 320 MB), while the
+`live` alias now serves version 199. The sixth is `wecare-wix-catalog-webhook:9` (128 → 160 MB), a
+function that no longer exists, so that finding is stale. Cost Optimization Hub has none.
 
 **S3**: three versioned buckets have no lifecycle rule, so noncurrent versions accumulate:
 `wecare-digital-get-replica-usw2` (1.40 GB), `wecare-maintenance-reports-…` (12 MB) and
 `wecare-credential-backups-…` (139 KB). The cost is cents a month; for the replica, keeping
 noncurrent versions may be deliberate protection, so it is an owner decision.
 
-**Corrected recommendation, `site-language`**: in the sampled hour, 12,501 of 12,827
+**Corrected recommendation, `site-language`**: in the sampled window, 12,501 of 12,827
 `/api/site-language` requests (97%) came from headless test browsers. Real-user volume is too
 small for client-side caching of the language list to matter, so it was not changed.
 
@@ -402,6 +475,54 @@ identical 401s for missing and foreign resources; MCP OAuth redirect/PKCE checks
 tree (`scripts/verify_no_secrets_in_tree.py` PASS); `scripts/scan_repo_secrets.py` reports 7
 issuer-shaped strings in git history, which is an owner-only rotation review per
 `docs/CREDENTIAL-ROTATION-RUNBOOK.md`.
+
+## 8a. Dependency audit (Cloud-read, Code)
+
+| Surface | Check | Result |
+|---|---|---|
+| npm, repository root | `npm audit`, production and all dependencies | 0 vulnerabilities |
+| npm, `tools/browser` | `npm audit` | 0 |
+| npm, `amplify/` (deploy tooling; not shipped to the site or to Lambda) | `npm audit` | 22: 19 high (`zod` < 4.6.6, GHSA-mrhx-c7xc-m3w5) and 3 moderate (`@opentelemetry/core` < 2.8.0, GHSA-8988-4f7v-96qf). These are the two dismissed Dependabot alerts (#119, #120), and `scripts/check_bundled_advisories.py --gate` passes. npm's suggested fix, `@aws-amplify/backend@0.5.1`, is a downgrade and not usable |
+| Dependabot | Repository alerts | 0 open, 2 dismissed (above), 130 fixed |
+| Python pins | 76 pinned packages in the requirement files, against OSV.dev | 0 advisories. `docs-scraper` leaves `boto3>=1.43.116` unpinned |
+| Lambda layers | Package versions read from the layer archives, against OSV.dev | Out of date; table below |
+
+| Layer | Publisher | Created | Contents | Advisories (OSV.dev) | Attached to |
+|---|---|---|---|---|---|
+| `pillow-python312:2` | This account | 2026-02-17 | Pillow 12.1.1 | 59 (5 critical, 35 high, 19 moderate), all fixed by 13.0.0 | `checkout`, `commerce`, `invoice-engine` |
+| `Klayers-p312-Pillow:10` | Third party (Klayers public layers, account `770693421928`) | 2026-02-17 | Pillow 12.1.1 | Same 59 | `product-image-gen` |
+| `cryptography-python312:1` | This account | 2026-02-23 | cryptography 46.0.5, cffi 2.0.0, pycparser 3.0 | cryptography: 6, of which 3 high (bundled OpenSSL, fixed in 48.0.1; PKCS#7 decryption oracle, fixed in 50.0.0; X.509 path-building DoS, fixed in 49.0.0). cffi and pycparser: 0 | `whatsapp-business-api`, `marketing-ads`, `partner-onboarding`, `partner-token-refresh` |
+
+**Exposure.** The five critical Pillow advisories are heap overflows in the JPEG and FlashPix
+decoders and in the TIFF writer, reuse of stale storage in multi-frame loaders, and argument
+injection into Ghostscript. `Image.open` picks a decoder from the bytes, so what matters is where
+decoded images come from. `product-image-gen` decodes flag PNGs fetched from `flagcdn.com`
+(`handler.py:169-177`, staff-only behind `require_auth` at :123). `invoice-engine` decodes the
+company logo from its own media bucket (`handler.py:284-293`, decoded at :2969 and
+`receipt_layout.py:143`). No customer-supplied image reaches Pillow on these paths, so an exploit
+needs a compromised upstream such as the flag CDN. That makes this P1 rather than P0.
+`receipt_layout.py:15` imports PIL at module level, so the layer loads on every `invoice-engine`
+cold start.
+
+For cryptography, `whatsapp-business-api` imports only RSA-OAEP, AES and PEM key loading, for
+WhatsApp Flows decryption (`handler.py:4279-4282`). The PKCS#7 and X.509 advisories are in code it
+does not call; the bundled-OpenSSL advisory applies to any use of the wheel. `marketing-ads`,
+`partner-onboarding` and `partner-token-refresh` attach the layer but nothing they run imports
+cryptography.
+
+Dev and CI already pin the fixed versions (`requirements-dev.txt:39` cryptography 50.0.2,
+`requirements-dev.txt:86` Pillow 13.0.0, `payment-rail-ci.yml:113` Pillow 13.0.0), so production
+runs older libraries than the tests exercise.
+
+Both of this account's layers were zipped with Windows path separators: all 238 and 251 entries
+use `\`. They work today (a 30-day Logs Insights search over the seven functions that attach them
+found no import errors), but a rebuilt layer should use forward slashes.
+
+**Recommendation (owner: layer publish and function deploys).** Build `pillow-python312` at
+13.0.0 and `cryptography-python312` at 50.0.2 from the pinned requirements for Linux x86_64 and
+Python 3.12, publish them as new layer versions, move `product-image-gen` off the third-party layer
+onto the account's own Pillow layer, detach cryptography from the three functions that do not use
+it, and roll out through the normal `live` alias flow.
 
 ## 9. Dead code and retained history (Code)
 
@@ -450,7 +571,7 @@ from the brief and not re-read; no provider-side call was made.
 
 ## 12. Changes made in this audit
 
-Branch `audit/platform-performance-cost-seo-20261027`, seven commits on `2f7ca2979`:
+Branch `audit/platform-performance-cost-seo-20261027`, eleven commits on `2f7ca2979`:
 
 1. `perf(web)`: Material Symbols subset with a compile-time ligature guard.
 2. `perf(web)`: Amplify, the API client and Capacitor load only where used.
@@ -467,6 +588,13 @@ Branch `audit/platform-performance-cost-seo-20261027`, seven commits on `2f7ca29
 9. `fix(privacy)`: `whatsapp-calling` logs payload and signature shape only.
 10. `docs(audit)`: CI, queue, S3 and Compute Optimizer findings; corrected secret-caching and
     `site-language` claims.
+11. `docs(audit)`: dependency audit, the 27 October egress spike and the blog-fetch cost model;
+    corrected the CI history, access-log window length and Compute Optimizer count.
+
+Not done, though offered in an earlier reply: making `tools/browser/menucheck.js:40` and
+`elsewherecheck.js:36`, which call `engine.launch()` directly, launch through `lib/browser.js`.
+`lib/browser.js` changed today in another workstream's pull request (#1667), and the change only
+helps local runs because CI installs its own browsers, so it is left to the harness workstream.
 
 
 
@@ -482,6 +610,13 @@ Branch `audit/platform-performance-cost-seo-20261027`, seven commits on `2f7ca29
 - nvm `--skip-default-packages`: [nvm CLI reference](https://www.nvmnode.com/cli/nvm-sh.html)
 - Google Fonts `icon_names` subsetting for Material Symbols: verified by direct request (15,788-byte
   subset served with the same axes).
+- OSV.dev advisory database, queried 2026-10-27 through its `query` and `querybatch` API:
+  [osv.dev](https://osv.dev/). The critical Pillow advisories:
+  [GHSA-332p-7hrc-92wf](https://github.com/advisories/GHSA-332p-7hrc-92wf),
+  [GHSA-5x8w-8jj5-q52h](https://github.com/advisories/GHSA-5x8w-8jj5-q52h),
+  [GHSA-8g5g-8vmr-9782](https://github.com/advisories/GHSA-8g5g-8vmr-9782),
+  [GHSA-v9pv-5gc8-w2m6](https://github.com/advisories/GHSA-v9pv-5gc8-w2m6),
+  [GHSA-w889-685w-c8fh](https://github.com/advisories/GHSA-w889-685w-c8fh).
 
 ## Appendix A. Lambda functions (74)
 
@@ -490,23 +625,23 @@ Costs are estimated from 30-day invocations × average duration × memory at us-
 
 | Function | Source | Trigger evidence | Arch | Mem/Timeout | Invocations 30 d | Errors | p50 / p95 / p99 ms | Est. compute $/30 d | Recommendation |
 |---|---|---|---|---|---:|---:|---|---:|---|
-| `wecare-blog-public` | `operations/blog-public` | API | x86_64 | 512 MB / 30 s | 2,291,364 | 1 | 18 / 37 / 653 | 1.69 | **OPTIMIZE** - 2.29M calls/30 d, almost all build-time fetches (Amplify + CI + local builds). Cut by path-filtered builds; 90-day log retention vs 30 elsewhere. |
+| `wecare-blog-public` | `operations/blog-public` | API | x86_64 | 512 MB / 30 s | 2,291,364 | 1 | 18 / 37 / 653 | 1.69 | **OPTIMIZE** - 2.29M calls/30 d, almost all build-time fetches (Amplify + CI + local builds); 5.6 RRU per request, mostly whole-corpus listing reads (section 7a). Cut by path-filtered builds; 90-day log retention vs 30 elsewhere. |
 | `wecare-seo-tools` | `operations/seo-tools` | API, Sched:ENABLED | x86_64 | 512 MB / 120 s | 1,738,588 | 0 | 40 / 896 / 14189 | 8.20 | **OPTIMIZE** - Public blog branch is dead since GET /seo-tools/blog-public moved to wecare-blog-public (13 Oct); admin routes and daily freshness schedule remain. Routes hit $LATEST (unqualified). |
-| `wecare-site-language` | `core/site-language` | API | x86_64 | 512 MB / 30 s | 454,076 | 0 | 2 / 2 / 3 | 0.10 | **KEEP** - 454k calls/30 d, 97% of them from headless test browsers in the sampled hour; client caching would not move real-user cost |
+| `wecare-site-language` | `core/site-language` | API | x86_64 | 512 MB / 30 s | 454,076 | 0 | 2 / 2 / 3 | 0.10 | **KEEP** - 454k calls/30 d, 97% of them from headless test browsers in the sampled window; client caching would not move real-user cost |
 | `wecare-scheduled-messages` | `messaging/scheduled-messages` | API | x86_64 | 256 MB / 60 s | 8,652 | 0 | 150 / 181 / 204 | 0.01 | **KEEP** |
 | `wecare-messages-read` | `core/messages-read` | API | x86_64 | 512 MB / 60 s | 6,776 | 0 | 671 / 1136 / 1324 | 0.04 | **KEEP** |
 | `wecare-contacts` | `core/contacts` | API | x86_64 | 256 MB / 60 s | 6,496 | 0 | 364 / 526 / 645 | 0.01 | **KEEP** |
 | `wecare-meta-catalog-sync` | `ecommerce/meta-catalog-sync` | ESM:10.307(Enabled) | x86_64 | 512 MB / 120 s | 5,868 | 0 | 590 / 1072 / 1974 | 0.03 | **OPTIMIZE** - Two aliases (live=WABA1, waba2=WABA2) by design; each stream record triggers a full ProductsTable scan + Meta read per alias (BatchSize 1, no window). Add a batching window. |
 | `wecare-catalog-media` | `ecommerce/catalog-media` | API | x86_64 | 512 MB / 15 s | 5,402 | 31 | 171 / 332 / 403 | 0.01 | **KEEP** |
-| `wecare-commerce` | `ecommerce/checkout` | API | x86_64 | 512 MB / 60 s | 4,860 | 0 | 21 / 44 / 665 | 0.00 | **KEEP** - Strangler target; now owns the checkout + invoice routes (23). |
+| `wecare-commerce` | `ecommerce/checkout` | API | x86_64 | 512 MB / 60 s | 4,860 | 0 | 21 / 44 / 665 | 0.00 | **KEEP** - Strangler target; now owns the checkout + invoice routes (23). Pillow layer is 12.1.1 (section 8a). |
 | `wecare-inbound-whatsapp` | `messaging/inbound-whatsapp-handler` | API, SNS:stack-wecare-digital | x86_64 | 512 MB / 120 s | 3,494 | 0 | 29 / 1901 / 3474 | 0.01 | **KEEP** |
 | `wecare-rcs-dlr` | `messaging/rcs-dlr` | API | x86_64 | 256 MB / 15 s | 3,468 | 0 | 18 / 350 / 381 | 0.00 | **KEEP** - Unsigned MESSAGE_DELIVERY accepted until a Sinch webhook secret exists (owner action). |
 | `wecare-whatsapp-calling` | `messaging/whatsapp-calling` | API | x86_64 | 256 MB / 60 s | 3,172 | 0 | 154 / 328 / 359 | 0.00 | **KEEP** - Raw-event and signature-prefix logging removed on the audit branch (needs deploy) |
 | `wecare-razorpay-webhook` | `payments/razorpay-webhook` | API | x86_64 | 256 MB / 60 s | 2,586 | 5 | 297 / 663 / 1008 | 0.00 | **OPTIMIZE** - Signing secret cached for the environment lifetime (rotation waits for recycling; a 120 s TTL cache would bound it); unbounded scan at handler :2526; 3-level synchronous chain |
 | `wecare-outbound-whatsapp` | `messaging/outbound-whatsapp` | API | x86_64 | 512 MB / 60 s | 2,405 | 0 | 67 / 1869 / 3371 | 0.01 | **KEEP** |
 | `wecare-rcs-send` | `messaging/rcs-send` | API | x86_64 | 256 MB / 30 s | 2,146 | 0 | 814 / 2193 / 2303 | 0.01 | **KEEP** |
-| `wecare-checkout` | `ecommerce/checkout` | direct invoke / none found | x86_64 | 512 MB / 60 s | 2,028 | 0 | 56 / 1667 / 2723 | 0.01 | **RETIRE CANDIDATE** - No routes since the strangler cutover to wecare-commerce (25-26 Oct); resource policy still grants API GW. Retire after an owner-approved soak. |
-| `wecare-whatsapp-business-api` | `messaging/whatsapp-business-api` | API | x86_64 | 256 MB / 30 s | 1,876 | 1 | 379 / 2901 / 5440 | 0.01 | **KEEP** |
+| `wecare-checkout` | `ecommerce/checkout` | direct invoke / none found | x86_64 | 512 MB / 60 s | 2,028 | 0 | 56 / 1667 / 2723 | 0.01 | **RETIRE CANDIDATE** - No routes since the strangler cutover to wecare-commerce (25-26 Oct); resource policy still grants API GW. Retire after an owner-approved soak. Pillow layer is 12.1.1 (section 8a). |
+| `wecare-whatsapp-business-api` | `messaging/whatsapp-business-api` | API | x86_64 | 256 MB / 30 s | 1,876 | 1 | 379 / 2901 / 5440 | 0.01 | **KEEP** - cryptography layer is 46.0.5; rebuild at 50.0.2 (section 8a). |
 | `wecare-workspace-mcp` | `ai/workspace-mcp` | API wecare-chat-mcp, API | arm64 | 256 MB / 28 s | 847 | 0 | 297 / 2627 / 3341 | 0.00 | **KEEP** - Only arm64 function; secrets fetched per tool call. |
 | `stack-wecare-url-shortener` | `core/url-shortener` | API | x86_64 | 256 MB / 10 s | 603 | 0 | 49 / 1813 / 1855 | 0.00 | **OPTIMIZE** - Security fix on audit branch (XSS / open redirect / overwrite); needs deploy. |
 | `wecare-billing` | `operations/billing` | API | x86_64 | 256 MB / 30 s | 500 | 0 | 829 / 1179 / 1373 | 0.00 | **KEEP** |
@@ -514,7 +649,7 @@ Costs are estimated from 30-day invocations × average duration × memory at us-
 | `wecare-conversation-meta` | `core/conversation-meta` | API | x86_64 | 256 MB / 30 s | 406 | 0 | 358 / 589 / 648 | 0.00 | **KEEP** |
 | `wecare-native-catalog-admin` | `ecommerce/native-catalog-admin` | API | x86_64 | 256 MB / 20 s | 393 | 0 | 462 / 702 / 842 | 0.00 | **KEEP** |
 | `wecare-plivo-answer` | `messaging/plivo-answer` | API | x86_64 | 256 MB / 15 s | 389 | 0 | 297 / 923 / 950 | 0.00 | **KEEP** - Signing tokens cached after the first successful lookup; fallback token accepted in the query string |
-| `wecare-invoice-engine` | `payments/invoice-engine` | direct invoke / none found | x86_64 | 512 MB / 60 s | 250 | 0 | 368 / 5985 / 9872 | 0.00 | **OPTIMIZE** - HTML-escaping fix on branch; unbounded scans (5 sites) on the webhook path; sync chain razorpay-webhook -> invoice-engine -> outbound-whatsapp. |
+| `wecare-invoice-engine` | `payments/invoice-engine` | direct invoke / none found | x86_64 | 512 MB / 60 s | 250 | 0 | 368 / 5985 / 9872 | 0.00 | **OPTIMIZE** - HTML-escaping fix on branch; unbounded scans (5 sites) on the webhook path; sync chain razorpay-webhook -> invoice-engine -> outbound-whatsapp; Pillow layer is 12.1.1 (section 8a). |
 | `wecare-sms-aws` | `messaging/sms-aws` | API | x86_64 | 256 MB / 30 s | 200 | 0 | 880 / 955 / 983 | 0.00 | **KEEP** |
 | `wecare-whatsapp-template-management` | `messaging/whatsapp-template-management` | API | x86_64 | 512 MB / 60 s | 194 | 0 | 154 / 801 / 3817 | 0.00 | **KEEP** |
 | `wecare-customer-commerce-mcp` | `ai/customer-commerce-mcp` | API wecare-customer-commerce-mcp | x86_64 | 256 MB / 30 s | 181 | 0 | 2 / 3456 / 5882 | 0.00 | **KEEP** |
@@ -536,7 +671,7 @@ Costs are estimated from 30-day invocations × average duration × memory at us-
 | `wecare-get-miss-redirect` | `edge/get-miss-redirect` | Edge:origin-response | x86_64 | 128 MB / 5 s | 31 | 0 | 2 / 2 / 2 | 0.00 | **KEEP** - Lambda@Edge origin-response on E2GP22R4BIFGQ3; no deploy script (by design, version-pinned). |
 | `wecare-partner-token-refresh` | `messaging/partner-token-refresh` | EB:ENABLED | x86_64 | 256 MB / 120 s | 30 | 0 | 158 / 171 / 173 | 0.00 | **KEEP** |
 | `wecare-system-cleanup` | `operations/system-cleanup` | API | x86_64 | 512 MB / 300 s | 29 | 0 | 1433 / 6159 / 9115 | 0.00 | **KEEP** |
-| `wecare-product-image-gen` | `ecommerce/product-image-gen` | API | x86_64 | 512 MB / 60 s | 27 | 0 | 2 / 3 / 12 | 0.00 | **KEEP** |
+| `wecare-product-image-gen` | `ecommerce/product-image-gen` | API | x86_64 | 512 MB / 60 s | 27 | 0 | 2 / 3 / 12 | 0.00 | **KEEP** - Pillow 12.1.1 from a third-party public layer (`Klayers-p312-Pillow:10`); move to the account's own layer at 13.0.0 (section 8a). |
 | `wecare-bulk-worker` | `operations/bulk-worker` | API, ESM:stack-wecare-digital-bulk-qu(Enabled) | x86_64 | 512 MB / 120 s | 22 | 0 | 2 / 3 / 3 | 0.00 | **OPTIMIZE** - Swallows per-record errors and returns success, so the DLQ never fires; queue visibility 2.5x timeout (guidance 6x) |
 | `wecare-waba-management` | `messaging/waba-management` | API | x86_64 | 256 MB / 30 s | 21 | 0 | 2 / 1532 / 2511 | 0.00 | **KEEP** |
 | `wecare-crm` | `core/crm` | API | x86_64 | 256 MB / 30 s | 20 | 0 | 2 / 2 / 4 | 0.00 | **KEEP** |
