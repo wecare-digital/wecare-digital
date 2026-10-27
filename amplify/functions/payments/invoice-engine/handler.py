@@ -287,25 +287,35 @@ COMPANY = {
 }
 
 
+_RECEIPT_LOGO_BYTES: Optional[bytes] = None
+
+
 def _load_logo_bytes() -> Optional[bytes]:
-    """Load company logo from S3 with /tmp cache for Lambda warm starts."""
-    cache_path = '/tmp/_logo_cache.png'
+    """Load the immutable receipt masthead once per warm execution environment."""
+    global _RECEIPT_LOGO_BYTES
+    if _RECEIPT_LOGO_BYTES is not None:
+        return _RECEIPT_LOGO_BYTES
+
+    cache_path = '/tmp/_receipt_masthead_v1.png'
     try:
-        with open(cache_path, 'rb') as f:
-            return f.read()
+        with open(cache_path, 'rb') as cached:
+            _RECEIPT_LOGO_BYTES = cached.read()
+            return _RECEIPT_LOGO_BYTES
     except FileNotFoundError:
         pass
+
     try:
         obj = s3.get_object(Bucket=MEDIA_BUCKET, Key=COMPANY['logo_s3_key'])
         data = obj['Body'].read()
+        _RECEIPT_LOGO_BYTES = data
         try:
-            with open(cache_path, 'wb') as f:
-                f.write(data)
-        except Exception as _e:
-            logger.debug(f"Logo cache write failed: {_e}")
+            with open(cache_path, 'wb') as cached:
+                cached.write(data)
+        except Exception as error:  # noqa: BLE001
+            logger.debug(f"Receipt masthead cache write failed: {type(error).__name__}")
         return data
-    except Exception as e:
-        logger.warning(f"Logo load error: {e}")
+    except Exception as error:  # noqa: BLE001
+        logger.warning(f"Receipt masthead load error: {type(error).__name__}")
         return None
 
 
