@@ -5,6 +5,7 @@ on:
     paths:
       - "amplify/functions/operations/whatsapp-analytics-export/**"
       - "tests/test_whatsapp_operational_analytics.py"
+      - "scripts/provision_whatsapp_operational_analytics.py"
       - ".github/workflows/whatsapp-analytics-ci.yml"
   push:
     branches: [wecare.digital]
@@ -28,8 +29,8 @@ jobs:
           python-version: "3.12"
       - name: Install test dependency
         run: python -m pip install --disable-pip-version-check boto3==1.43.116
-      - name: Compile exporter
-        run: python -m py_compile amplify/functions/operations/whatsapp-analytics-export/handler.py
+      - name: Compile exporter and provisioner
+        run: python -m py_compile amplify/functions/operations/whatsapp-analytics-export/handler.py scripts/provision_whatsapp_operational_analytics.py
       - name: Verify privacy projections
         env:
           AWS_EC2_METADATA_DISABLED: "true"
