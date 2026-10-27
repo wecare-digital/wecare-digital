@@ -413,7 +413,7 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
             + '</button>'
             + ('<p class="consent">Sign in to your WECARE account. Verification messages arrive on WhatsApp.</p>' if website else
                '<p class="consent">Connect your profile, addresses and orders to this app. It can make changes and request a WhatsApp payment only when you ask. Verification messages arrive on WhatsApp.</p>')
-              '</form>'
+            + '</form>'
             + '<p class="footer">'
               '<a href="https://wecare.digital/privacy/">Privacy</a> &nbsp;·&nbsp; <a href="https://wecare.digital/terms/">Terms</a>'
               '</p></main><section class="stay" aria-label="Stay connected"><h2>Stay connected</h2><div class="stay-links">'
