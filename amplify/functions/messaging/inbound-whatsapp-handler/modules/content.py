@@ -320,12 +320,13 @@ def extract_unsupported_content(message: Dict) -> str:
     """Extract info from unsupported message types.
 
     WhatsApp marks several message categories as 'unsupported' in the
-    Business API webhook, most notably OTP / authentication templates
-    sent by Meta itself.  We detect common patterns so the inbox can
-    render a friendlier label instead of a generic error.
+    Business API webhook. Error 131051 by itself does NOT identify the
+    underlying message as OTP/authentication; live traffic commonly reports only
+    "Message type is currently not supported." We therefore classify OTP only when
+    Meta explicitly names OTP or an authentication message/template.
     
     Common causes of unsupported:
-    - OTP / authentication templates (error 131051)
+    - Unknown/new client message types (including albums)
     - Disappearing / ephemeral messages sent to API numbers
     - Multi-image bundles
     - Polls, view-once, some interactive subtypes
@@ -359,7 +360,12 @@ def extract_unsupported_content(message: Dict) -> str:
             return '[Unsupported: This message is no longer available]'
 
         if code == 131051 or 'not supported' in error_text:
-            if any(kw in error_text for kw in ('otp', 'authentication', 'security', 'verification')):
+            explicit_auth = (
+                'otp' in error_text
+                or 'authentication template' in error_text
+                or 'authentication message' in error_text
+            )
+            if explicit_auth:
                 return '[Unsupported: OTP or authentication message — content hidden by WhatsApp for security]'
             if code == 131051 and declared_type in ('', 'unknown'):
                 return UNSUPPORTED_UNKNOWN
