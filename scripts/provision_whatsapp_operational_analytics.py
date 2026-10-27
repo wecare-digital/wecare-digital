@@ -110,7 +110,8 @@ def deploy_policy() -> dict:
 
 
 def smoke_policy() -> dict:
-    names=["wecare-inbound-whatsapp","wecare-outbound-whatsapp",
+    names=["wecare-commerce","wecare-checkout",
+           "wecare-inbound-whatsapp","wecare-outbound-whatsapp",
            "wecare-whatsapp-business-api","wecare-service-api","wecare-workspace-mcp"]
     resources=[]
     for name in names:
