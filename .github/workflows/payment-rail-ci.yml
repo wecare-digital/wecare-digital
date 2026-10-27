@@ -37,6 +37,7 @@ on:
       - "src/lib/cart.ts"
       - "src/lib/serviceEntry.ts"
       - "scripts/verify_whatsapp_catalog_payment_rail.py"
+      - "scripts/audit_whatsapp_message_history.py"
       - "scripts/commerce_release_audit.py"
       - "docs/operations/whatsapp-payment-collection-stack.md"
       - ".github/workflows/payment-rail-ci.yml"
@@ -78,6 +79,7 @@ on:
       - "src/lib/cart.ts"
       - "src/lib/serviceEntry.ts"
       - "scripts/verify_whatsapp_catalog_payment_rail.py"
+      - "scripts/audit_whatsapp_message_history.py"
       - "scripts/commerce_release_audit.py"
       - "docs/operations/whatsapp-payment-collection-stack.md"
       - ".github/workflows/payment-rail-ci.yml"
@@ -124,7 +126,7 @@ jobs:
 
       - name: Verify audit and alarm provisioning scripts
         run: |
-          python -m py_compile scripts/env_manifest.py scripts/provision_payment_rail_alarms.py
+          python -m py_compile scripts/env_manifest.py scripts/provision_payment_rail_alarms.py scripts/audit_whatsapp_message_history.py
           python -m unittest discover -s tests -p 'test_env_manifest_aliases.py'
 
       - name: Verify Drop Docs replacement invariants
