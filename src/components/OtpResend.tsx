@@ -7,7 +7,7 @@ import React, { useEffect, useState } from 'react';
  * WHY THIS EXISTS. The Phase 4 audit measured the four OTP surfaces and found three different
  * answers to the same question:
  *
- *   /account/sign-in/   "Send OTP on WhatsApp"            NO resend at all
+ *   /auth   "Send OTP on WhatsApp"            NO resend at all
  *   /get/               "Send OTP on WhatsApp"            NO resend at all
  *   BlogSubscribe       "Send OTP on WhatsApp"            resend, no cooldown, lime fill
  *   CheckoutProfile     "Send verification code by email" resend, 60s cooldown, plain button
