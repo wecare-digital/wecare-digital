@@ -13,6 +13,7 @@ import base64
 import uuid
 import hashlib
 import hmac
+import time
 from typing import Any, Dict
 import boto3
 from lambda_utils.template_media import FIXED_IMAGE_HEADERS, RETAINED_MEDIA_KEYS, fixed_image_header
@@ -49,6 +50,14 @@ from lambda_utils.meta_version import META_API_VERSION  # one source; validated 
 META_GRAPH_URL = f'https://graph.facebook.com/{META_API_VERSION}'
 META_APP_ID = '2238810740192680'
 DEFAULT_PHONE_ID = '1016149501586345'
+
+# Every Graph call is bounded. Without a timeout a stalled Meta connection held the Lambda
+# until its own 60-second timeout, long after API Gateway (29 s) had answered the caller 504.
+META_TIMEOUT_SECONDS = 20
+# The template list follows Meta's `paging.next`. It stops at this many pages or seconds and
+# answers 502 rather than returning part of the inventory as if it were all of it.
+TEMPLATE_LIST_MAX_PAGES = 60
+TEMPLATE_LIST_BUDGET_SECONDS = 20
 
 # WhatsApp media type → public folder mapping (short names for clean URLs)
 WA_MEDIA_FOLDERS = {
@@ -139,7 +148,8 @@ def _resolve_phone_id(waba_id) -> str:
     return META_WABA_TO_PHONE.get(meta_waba, DEFAULT_PHONE_ID)
 
 
-def _meta_request(url: str, method: str = 'GET', data: bytes = None, headers: dict = None) -> dict:
+def _meta_request(url: str, method: str = 'GET', data: bytes = None, headers: dict = None,
+                  timeout: float = META_TIMEOUT_SECONDS) -> dict:
     """Make an authenticated request to the Meta Graph API."""
     creds = _get_meta_creds()
     token = creds['access_token']
@@ -154,16 +164,25 @@ def _meta_request(url: str, method: str = 'GET', data: bytes = None, headers: di
 
     req = urllib.request.Request(url, data=data, headers=req_headers, method=method)
     try:
-        with urllib.request.urlopen(req) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.loads(resp.read().decode())
     except urllib.error.HTTPError as e:
-        error_body = e.read().decode()
-        logger.error(json.dumps({'event': 'meta_api_error', 'status': e.code, 'body': error_body}))
+        error_body = e.read().decode('utf-8', 'replace')
         try:
-            err = json.loads(error_body)
-            msg = err.get('error', {}).get('message', error_body)
+            err = json.loads(error_body).get('error') or {}
         except Exception:
-            msg = error_body
+            err = {}
+        err = err if isinstance(err, dict) else {}
+        from lambda_utils.privacy import redact_string
+        # The fields that classify a failure, not Meta's whole envelope: `error_data` and
+        # `error_user_msg` can echo the request, including a send-test recipient number.
+        msg = redact_string(str(err.get('message') or error_body))[:300]
+        logger.error(json.dumps({
+            'event': 'meta_api_error', 'status': e.code,
+            'metaCode': err.get('code'), 'metaSubcode': err.get('error_subcode'),
+            'metaType': err.get('type'), 'fbtraceId': err.get('fbtrace_id'),
+            'metaMessage': msg[:200],
+        }))
         raise RuntimeError(f'Meta API {e.code}: {msg}')
 
 
@@ -573,9 +592,14 @@ def _list_templates(waba_id, query_params):
     try:
         meta_waba_id = _resolve_meta_waba_id(waba_id)
         url = f'{META_GRAPH_URL}/{meta_waba_id}/message_templates?fields=name,status,category,language,components,id'
-        limit = query_params.get('maxResults', '100')
+        # A page size, not a filter: anything that is not a whole number from 1 to 1000 falls
+        # back to the default instead of being forwarded into the Graph query string.
+        limit = str(query_params.get('maxResults', '100'))
+        if not limit.isdigit() or not 1 <= int(limit) <= 1000:
+            limit = '100'
         url += f'&limit={limit}'
-        data = _meta_request(url)
+        started = time.monotonic()
+        data = _meta_request(url, timeout=min(META_TIMEOUT_SECONDS, TEMPLATE_LIST_BUDGET_SECONDS))
         templates = []
         records = list(data.get('data', []))
         seen_pages = set()
@@ -585,8 +609,13 @@ def _list_templates(waba_id, query_params):
                 raise ValueError('Repeated template pagination cursor')
             if urllib.parse.urlparse(next_url).netloc != 'graph.facebook.com':
                 raise ValueError('Invalid template pagination origin')
+            remaining = TEMPLATE_LIST_BUDGET_SECONDS - (time.monotonic() - started)
+            if len(seen_pages) + 1 >= TEMPLATE_LIST_MAX_PAGES or remaining < 1:
+                logger.warning(json.dumps({'event': 'template_list_incomplete',
+                                           'pages': len(seen_pages) + 1, 'templates': len(records)}))
+                return _error_response(502, 'Template inventory incomplete; nothing partial was returned')
             seen_pages.add(next_url)
-            page = _meta_request(next_url)
+            page = _meta_request(next_url, timeout=min(META_TIMEOUT_SECONDS, remaining))
             records.extend(page.get('data', []))
             next_url = page.get('paging', {}).get('next')
         for t in records:

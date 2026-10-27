@@ -89,7 +89,7 @@ class TemplateManagementWriteFloorTests(unittest.TestCase):
     def setUp(self):
         self.meta_calls: list = []
 
-        def meta_request(url, method="GET", data=None, headers=None):
+        def meta_request(url, method="GET", data=None, headers=None, timeout=None):
             self.meta_calls.append((method, url))
             return {"id": "1754227779211208", "success": True, "data": []}
 
