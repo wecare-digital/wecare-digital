@@ -29,6 +29,24 @@ NAMESPACE = "WECARE.DIGITAL"
 SNS_ARN = "arn:aws:sns:us-east-1:775261844268:wecare-alarm-notifications"
 
 SIGNALS = [
+    {
+        "logGroup": "/aws/lambda/wecare-outbound-whatsapp",
+        "event": "delivery_outcome_unknown",
+        "filterName": "whatsapp-delivery-outcome-unknown",
+        "metricName": "WhatsAppDeliveryOutcomeUnknown",
+        "alarmName": "wecare-whatsapp-delivery-outcome-unknown",
+        "threshold": 0.0,
+        "description": "A keyed WhatsApp send reached Meta but its immediate delivery outcome is unknown; do not resend blindly.",
+    },
+    {
+        "logGroup": "/aws/lambda/wecare-whatsapp-business-api",
+        "pattern": '{ $.event = "whatsapp_unknown_delivery_aged" && $.remaining > 0 }',
+        "filterName": "whatsapp-delivery-reconciliation-stuck",
+        "metricName": "WhatsAppDeliveryReconciliationStuck",
+        "alarmName": "wecare-whatsapp-delivery-reconciliation-stuck",
+        "threshold": 0.0,
+        "description": "An ambiguous WhatsApp delivery is still unresolved after the reconciliation grace period.",
+    },
     # The automatic payment-order status chain (processing -> completed, restored by #1662).
     {
         "logGroup": "/aws/lambda/wecare-commerce",
