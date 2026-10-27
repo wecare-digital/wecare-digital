@@ -25,6 +25,7 @@ Routes:
   /reviews/{id}            PUT
 """
 import json
+import base64
 import os
 import re
 import time
@@ -1555,10 +1556,65 @@ def _sync_review_inbox_status(review_id: str, status: str) -> None:
 # MAIN HANDLER — ROUTER
 # ============================================================================
 
+def _workspace_order_cursor_encode(key: Dict[str, Any]) -> str:
+    if not key:
+        return ''
+    raw = json.dumps(key, default=str, separators=(',', ':'), sort_keys=True).encode()
+    return base64.urlsafe_b64encode(raw).decode().rstrip('=')
+
+
+def _workspace_order_cursor_decode(raw: str) -> Dict[str, Any]:
+    raw = str(raw or '').strip()
+    if not raw:
+        return {}
+    if len(raw) > 4096 or not re.fullmatch(r'[A-Za-z0-9_-]+', raw):
+        raise ValueError('Invalid cursor')
+    padded = raw + '=' * (-len(raw) % 4)
+    value = json.loads(base64.urlsafe_b64decode(padded.encode()).decode())
+    if not isinstance(value, dict) or len(value) > 8:
+        raise ValueError('Invalid cursor')
+    return value
+
+
+def _workspace_orders(event: Dict[str, Any]) -> Dict[str, Any]:
+    try:
+        limit = int(event.get('limit') or 25)
+    except (TypeError, ValueError):
+        return {'error': 'INVALID_LIMIT'}
+    if limit < 1 or limit > 100:
+        return {'error': 'INVALID_LIMIT'}
+    table = dynamodb.Table(ORDERS_TABLE)
+    args: Dict[str, Any] = {'Limit': limit}
+    start = _workspace_order_cursor_decode(event.get('cursor') or '')
+    if start:
+        args['ExclusiveStartKey'] = start
+    page = table.scan(**args)
+    items = [order_record.view(item) for item in (page.get('Items') or [])]
+    items.sort(key=lambda item: item.get('createdAt', 0), reverse=True)
+    safe = []
+    allowed = ('orderId', 'orderNumber', 'shortId', 'channel', 'source', 'orderStatus',
+               'paymentStatus', 'amountPaise', 'currency', 'createdAt', 'updatedAt')
+    for item in items:
+        safe.append({k: item.get(k) for k in allowed if k in item})
+    return {
+        'orders': safe,
+        'count': len(safe),
+        'nextCursor': _workspace_order_cursor_encode(page.get('LastEvaluatedKey') or {}),
+    }
+
+
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     global origin
     origin = _extract_origin(event)
     request_id = context.aws_request_id if context else 'local'
+
+    if event.get('internalAction') == 'workspaceOrders':
+        if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
+            return _resp(403, {'error': 'Internal invocation required'})
+        try:
+            return _workspace_orders(event)
+        except (ValueError, TypeError, json.JSONDecodeError):
+            return {'error': 'INVALID_CURSOR'}
 
     rc = event.get('requestContext', {})
     http = rc.get('http', {})
