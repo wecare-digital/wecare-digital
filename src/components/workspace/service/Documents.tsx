@@ -76,7 +76,7 @@ function fmtOrderLabel ( order: api.Order ): string {
   return [ id, when, amount !== undefined ? `₹${amount}` : '', payment, order.source || '' ].filter( Boolean ).join( ' · ' );
 }
 
-/* {{1}} of the ₹49 Vault message (wecare_valut_49), cleaned the way the server cleans it: one
+/* {{1}} of the Vault offer (wecare_valut_49), cleaned the way the server cleans it: one
    line, at most 60 characters, no * _ ~ marks (the body wraps {{1}} in *bold*). So the preview
    below is the text the customer receives. */
 function vaultMessageName ( raw?: string ): string {
@@ -106,7 +106,7 @@ const VAULT_ACCESS_LABELS: Record<api.SecureFileAccessState, string> = {
   UNPAID: 'Not paid yet',
   OPEN: 'Paid · access window open',
   READY: 'Paid · window opens on first download',
-  EXPIRED: 'Paid · window used, ₹49 renewal needed',
+  EXPIRED: 'Paid · window used · renewal needed',
   PAID_UNVERIFIED: 'Paid · needs reconciling, do not charge again',
 };
 
@@ -122,7 +122,7 @@ function vaultStateText ( view: VaultFileView ): string {
     : VAULT_ACCESS_LABELS[ state ];
 }
 
-/* Which WhatsApp action fits the Vault file now: the ₹49 message while unpaid or used up, the
+/* Which WhatsApp action fits the Vault file now: the Vault offer while unpaid or used up, the
    Access Vault link while paid, neither while a payment needs reconciling or the file is gone.
    An unread state offers both; the server refuses the one that does not fit. */
 function vaultActionsFor ( view: VaultFileView ): { ask: boolean; resend: boolean; renewal: boolean } {
@@ -762,6 +762,22 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
           <div><strong>{ stats.archived }</strong><span>Archived</span></div>
         </div>
 
+        <section className="dd-journey" aria-label="Vault WhatsApp journey">
+          <div className="dd-journey-head">
+            <div>
+              <strong>Vault WhatsApp journey</strong>
+              <span>What the customer receives, in order</span>
+            </div>
+            <span className="dd-journey-note">Receipt image is the only intentional image message.</span>
+          </div>
+          <div className="dd-journey-grid">
+            <div><span>1</span><strong>Vault offer</strong><small>wecare_valut_49 · Unlock Vault</small></div>
+            <div><span>2</span><strong>Review & Pay</strong><small>wecare_whatapp_native_pay_template</small></div>
+            <div><span>3</span><strong>Access Vault</strong><small>wecare_default_download</small></div>
+            <div><span>4</span><strong>Receipt</strong><small>wecare_default_invoice_image_template</small></div>
+          </div>
+        </section>
+
         <div style={ toolbarStyle }>
           <div style={ segmentedStyle } aria-label="Record visibility">
             { ( [ [ 'active', 'Active' ], [ 'archived', 'Archived' ], [ 'all', 'All' ] ] as const ).map( ( [ value, label ] ) => (
@@ -850,7 +866,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
               </label>
             </div>
 
-            {/* The ₹49 Vault message. Shown for a document that is, or can be, in the Vault. */ }
+            {/* The Vault offer. Shown for a document that is, or can be, in the Vault. */ }
             { ( selected.vaultFileId || ( selected.storageKey && [ 'uploaded', 'approved' ].includes( selected.status ) ) ) && (
               <div style={ vaultBoxStyle }>
                 <label style={ { fontSize: 'var(--text-md)', fontWeight: 500 } }>
@@ -866,8 +882,8 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                   />
                 </label>
                 <div style={ helperStyle }>
-                  The customer gets: “Your <strong>{ vaultMessageName( vaultName ) || defaultVaultName( selected ) || 'document' }</strong> copy is ready!
-                  Pay <strong>₹49</strong> for instant and secure access to download it.” with an <strong>Unlock Vault</strong> button.
+                  Offer preview: “Your <strong>{ vaultMessageName( vaultName ) || defaultVaultName( selected ) || 'document' }</strong> is ready in Vault.
+                  Tap below to unlock secure access.” with an <strong>Unlock Vault</strong> button.
                 </div>
               </div>
             ) }
@@ -952,7 +968,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                   disabled={ vaultFile.status === 'loading' }
                   onClick={ () => handleSendVaultOffer( selected ) }
                 >
-                  { vaultActionsFor( vaultFile ).renewal ? 'Send ₹49 renewal message' : 'Send ₹49 Vault message' }
+                  { vaultActionsFor( vaultFile ).renewal ? 'Send renewal offer' : 'Send Vault offer' }
                 </Button>
               ) }
               { !selected.archivedAt && selected.vaultFileId && vaultActionsFor( vaultFile ).resend && (
@@ -1202,6 +1218,15 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
       </Modal>
       <style jsx global>{`
         .dd-summary > div{background:var(--bg-primary);padding:14px 16px;display:grid;gap:3px}
+        .dd-journey{margin:0 0 16px;padding:16px;border:1px solid var(--border);border-radius:12px;background:var(--bg-primary)}
+        .dd-journey-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-end;margin-bottom:12px}
+        .dd-journey-head>div{display:grid;gap:3px}
+        .dd-journey-head span,.dd-journey-note{font-size:var(--text-xs);color:var(--text-muted)}
+        .dd-journey-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}
+        .dd-journey-grid>div{display:grid;grid-template-columns:28px 1fr;grid-template-areas:"n t" "n s";column-gap:8px;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:9px;background:var(--bg-secondary)}
+        .dd-journey-grid>div>span{grid-area:n;width:26px;height:26px;border-radius:999px;display:grid;place-items:center;background:var(--accent);color:#fff;font-size:var(--text-xs);font-weight:700}
+        .dd-journey-grid strong{grid-area:t;font-size:var(--text-sm)}
+        .dd-journey-grid small{grid-area:s;color:var(--text-muted);overflow-wrap:anywhere}
         .dd-summary strong{font-size:22px;color:var(--accent)}
         .dd-summary span{font-size:var(--text-xs);color:var(--text-muted)}
         .dd-action{
