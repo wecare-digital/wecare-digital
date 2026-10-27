@@ -245,6 +245,20 @@ class PaymentArchitectureDriftTests(unittest.TestCase):
         self.assertIn('live_concurrency="$(aws lambda get-function-concurrency', workflow)
         self.assertIn('if [[ "$live_concurrency" != "10" ]]', workflow)
 
+    def test_whatsapp_reconciliation_canonical_mirror_is_monotonic(self):
+        source = (ROOT / "amplify" / "functions" / "messaging" / "whatsapp-business-api" / "handler.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("'attribute_exists(id) AND ('", source)
+        self.assertIn("+ wa_status.condition_expression() + ')'", source)
+
+    def test_workspace_deploy_role_includes_concurrency_read(self):
+        source = (ROOT / "scripts" / "provision_workspace_mcp_deploy_role.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('"lambda:GetFunctionConcurrency"', source)
+        self.assertIn('"WorkspaceMcpCodeReleaseOnly"', source)
+
     def test_payment_ci_triggers_on_template_registry_for_pr_and_push(self):
         workflow = (ROOT / ".github" / "workflows" / "payment-rail-ci.yml").read_text(
             encoding="utf-8"
