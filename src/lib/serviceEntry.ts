@@ -3,9 +3,9 @@
  *
  * Owner decision 2026-10-08: one login ("Sign in on WhatsApp") for everything, and one flow:
  *   - signed in  → go straight to the action's form/checkout (no login screen);
- *   - signed out → go to the single `/account/sign-in` (WhatsApp OTP) with a return to the
+ *   - signed out → go to the single `/auth` (WhatsApp OTP) with a return to the
  *                  SAME destination, then continue there after signing in.
- * There is no second login surface and no standalone OTP step; `/account/sign-in` IS the
+ * There is no second login surface and no standalone OTP step; `/auth` IS the
  * WhatsApp sign-in.
  *
  * WHY THE DESTINATION IS NORMALLY `/cart/`
@@ -29,7 +29,7 @@ export const CHECKOUT_PATH = '/cart/';
 /** Payment-method chooser shown only after cart review. */
 export const CHECKOUT_METHOD_PATH = '/checkout/';
 /** The one WhatsApp login. */
-export const SIGN_IN_PATH = '/account/sign-in/';
+export const SIGN_IN_PATH = '/auth';
 /** Out-of-band carrier for the pending action, so it survives the sign-in round trip. */
 const PENDING_ACTION_KEY = 'wecare.pendingServiceAction';
 
@@ -77,7 +77,7 @@ export function isSignedIn (): boolean {
 /**
  * The gate. Resolve the session, then route:
  *   signed in  → push `destination` (default `/cart/`), the real form/checkout → payment;
- *   signed out → push `/account/sign-in/?return=<destination>`, the one WhatsApp login,
+ *   signed out → push `/auth?return=<destination>`, the one WhatsApp login,
  *                which returns to `destination` after sign-in to continue.
  *
  * `action`, when given, is stashed out of band first so the checkout can preselect the service
@@ -85,7 +85,7 @@ export function isSignedIn (): boolean {
  *
  * `restoreSession` is tried only when the fast sync `getSession` is empty, because the customer
  * may have a valid server cookie whose short access token has not yet been rehydrated into this
- * tab — exactly the case `/account/sign-in` itself handles on load. A failed restore just means
+ * tab — exactly the case `/auth` itself handles on load. A failed restore just means
  * "not signed in", so the customer sees the one login rather than an error.
  */
 export async function goToServiceAction (
