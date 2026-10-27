@@ -3743,10 +3743,12 @@ def _get_flow_encryption_status(phone_id: str) -> Dict:
     result = _graph_api(f'{phone_id}/whatsapp_business_encryption', phone_id=phone_id)
     if 'error' in result:
         return _resp(400, result)
+    rows = result.get('data') if isinstance(result, dict) else None
+    record = rows[0] if isinstance(rows, list) and rows and isinstance(rows[0], dict) else result
     return _resp(200, {
         'phoneId': phone_id,
-        'configured': bool(result.get('business_public_key')),
-        'signatureStatus': result.get('business_public_key_signature_status') or 'UNKNOWN',
+        'configured': bool(record.get('business_public_key')),
+        'signatureStatus': record.get('business_public_key_signature_status') or 'UNKNOWN',
     })
 
 
