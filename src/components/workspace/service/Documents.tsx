@@ -75,12 +75,6 @@ function fmtOrderLabel ( order: api.Order ): string {
   return [ id, when, amount !== undefined ? `₹${amount}` : '', payment, order.source || '' ].filter( Boolean ).join( ' · ' );
 }
 
-function fileExtension ( name?: string ): string {
-  const value = String( name || '' );
-  const match = value.match( /\.[a-z0-9]{1,10}$/i );
-  return match ? match[ 0 ].toLowerCase() : '';
-}
-
 /* {{1}} of the ₹49 Vault message (wecare_valut_49), cleaned the way the server cleans it: one
    line, at most 60 characters, no * _ ~ marks (the body wraps {{1}} in *bold*). So the preview
    below is the text the customer receives. */
