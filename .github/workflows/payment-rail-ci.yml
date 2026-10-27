@@ -122,6 +122,15 @@ jobs:
           cmp /tmp/customer-commerce-release/index.py amplify/functions/ai/customer-commerce-mcp/index.py
           python -c "import json; assert json.load(open('/tmp/customer-commerce-release/customer-commerce-stack.json')) == json.load(open('amplify/functions/ai/customer-commerce-mcp/template.json'))"
 
+      - name: Preserve generated customer commerce release for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: customer-commerce-release
+          path: /tmp/customer-commerce-release/
+          if-no-files-found: ignore
+          retention-days: 1
+
       - name: Verify commerce audit hardening
         run: python -m unittest discover -s tests -p 'test_commerce_audit_hardening.py'
 
