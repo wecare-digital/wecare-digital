@@ -709,11 +709,10 @@ export default function App ( { Component, pageProps }: AppProps ) {
     || router.pathname === '/get'
     // The shop cart and the customer OTP sign-in step are the same kind of customer-session surface
     // as the checkout screens below: public chrome, robots:noindex set per page, and deliberately
-    // OUT of PUBLIC_PAGE_META, the sitemap and the AI manifest. /cart proceeds to the checkout
-    // create call and /auth is the auth gate in front of it - neither is marketing
+    // OUT of PUBLIC_PAGE_META, the sitemap and the AI manifest. /cart proceeds to checkout.
+    // Customer sign-in itself is served by the backend rewrite at /auth, not by this Next app.
     || router.pathname === '/cart'
     || router.pathname === '/checkout'
-    || router.pathname === '/auth'
     // Checkout status + success are customer-session screens, not marketing pages: they carry the
     // public chrome (header/footer/support widget) but are deliberately kept OUT of
     // PUBLIC_PAGE_META so they are not treated as indexable marketing surfaces. Each page sets
