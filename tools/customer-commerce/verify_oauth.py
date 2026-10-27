@@ -84,6 +84,31 @@ class OAuthContract(unittest.TestCase):
             with self.assertRaises(auth.AuthError):
                 auth.connect_origin()
 
+    def test_plain_auth_is_the_canonical_website_sign_in(self):
+        with patch.dict(os.environ, {'CUSTOMER_AUTH_ORIGIN': 'https://wecare.digital'}):
+            event = {'rawPath': '/auth', 'rawQueryString': 'return=%2Forders%2F',
+                     'requestContext': {'domainName': 'wecare.digital', 'http': {'method': 'GET'}}}
+            result = auth.route(event)
+        self.assertEqual(result['statusCode'], 200)
+        self.assertIn('Sign in to WECARE.DIGITAL.', result['body'])
+        self.assertNotIn('Connecting to <strong>', result['body'])
+        cookie = SimpleCookie(); cookie.load(result['cookies'][0])
+        row = self.store.get(auth.row_key('auth', cookie[auth.COOKIE].value))
+        self.assertEqual(row['kind'], 'web-auth')
+        self.assertEqual(row['return'], '/orders/')
+
+    def test_plain_auth_rejects_unknown_parameters_and_external_returns(self):
+        with patch.dict(os.environ, {'CUSTOMER_AUTH_ORIGIN': 'https://wecare.digital'}):
+            bad = {'rawPath': '/auth', 'rawQueryString': 'unexpected=1',
+                   'requestContext': {'domainName': 'wecare.digital', 'http': {'method': 'GET'}}}
+            self.assertEqual(auth.route(bad)['statusCode'], 400)
+            event = {'rawPath': '/auth', 'rawQueryString': 'return=https%3A%2F%2Fevil.example',
+                     'requestContext': {'domainName': 'wecare.digital', 'http': {'method': 'GET'}}}
+            result = auth.route(event)
+        cookie = SimpleCookie(); cookie.load(result['cookies'][0])
+        row = self.store.get(auth.row_key('auth', cookie[auth.COOKIE].value))
+        self.assertEqual(row['return'], '/cart/')
+
     def test_country_selection_normalizes_before_cognito(self):
         cookie, csrf = self.begin()
         with patch.object(self.cognito, 'initiate_auth', wraps=self.cognito.initiate_auth) as call:
