@@ -109,7 +109,9 @@ The approved collection is after supply GST, discount and delivery and before th
 
 ## Internal GST/accounting contract
 
-Customer simplicity must never delete filing facts. New invoice rows persist `gstAccounting` with supply GST, convenience-fee GST, total GST, seller GSTIN and the explicit Delight tax treatment. Invoice-item rows persist each line's `gstRate` and `taxAmount`. Workspace/accounting views may expose that detail; the WhatsApp/customer receipt intentionally does not.
+Customer simplicity must never delete filing facts. New invoice rows persist `gstAccounting` with supply GST, convenience-fee GST, total GST, seller GSTIN, resolved place-of-supply state/code/subdivision and the explicit Delight tax treatment. Invoice-item rows persist each line's `gstRate`, `taxAmount` and optional operator/catalog supplied `hsnSac`. HSN/SAC is never guessed from the description.
+
+The full invoice-detail API additionally returns `gstWorkpaper` (`schemaVersion=wecare-gst-workpaper-v1`). It is a backend-generated accounting/export workpaper and explicitly carries `portalUploadFormat=false`; adapters may map it to a validated filing format later. The workspace may download this JSON. Missing HSN/SAC or an unresolved place of supply remains visibly incomplete instead of being fabricated.
 
 Delight is recorded as `POST_TAX_COMMERCIAL_DISCOUNT`: it is computed from eligible GST-inclusive goods, reduces the amount collected and therefore the convenience-fee base, but does not silently rewrite supply GST already computed from the item rates. A statutory GST-invoice renderer/export must consume the stored accounting facts rather than infer them from the compact receipt.
 
