@@ -9,8 +9,18 @@ frontend:
   phases:
     preBuild:
       commands:
-        - nvm install 24 || true
+        # --skip-default-packages: the build image ships /root/.nvm/default-packages, and a plain
+        # `nvm install` re-installs that whole global set (1,692 packages: vue 2, webpack-chain,
+        # docsearch...) for the new Node on EVERY build. Measured on jobs 276-278 (2026-10-27):
+        # 51 s of each ~250 s BUILD step, roughly a fifth of every billed build minute. Nothing below
+        # uses a global package; npm, npx tsc and next all resolve from this repo, and `aws` is a
+        # system binary.
+        # nvm requires its install options directly after `install`, before the version.
+        - nvm install --skip-default-packages 24 || true
         - nvm use 24 || true
+        # The two nvm lines tolerate failure, so assert the result rather than trust it: a silent
+        # fall-back to the image's default Node must stop the build, not ship under another engine.
+        - node -e "const m=+process.versions.node.split('.')[0]; if (m < 24) { console.error('Node >= 24 required, got ' + process.version); process.exit(1); }"
         - node -v
         - npm -v
         # Node 24 floats to newer bundled npm releases, while this root lockfile is
@@ -67,23 +77,19 @@ frontend:
     baseDirectory: out
     files:
       - "**/*"
-  cache:
-    paths:
-      # node_modules is now NEAR-WORTHLESS here and is kept only to hold this change to
-      # one thing: `npm ci` removes node_modules before installing, so the restored copy
-      # is deleted unread while Amplify still pays to download and re-upload it. The
-      # canonical npm pattern is to cache the tarball cache instead
-      # (`npm ci --cache .npm --prefer-offline` + `.npm/**/*`). That is a build-time
-      # change, not a correctness one, so it belongs in its own commit.
-      - node_modules/**/*
-      # .next/cache REMOVED 2026-10-03. It holds Next's incremental compiler cache,
-      # and a stale restore was serving OLD compiled output for changed files: a fix
-      # committed to src/components/VayuLokLive.tsx (the map's waitForHost init) never
-      # reached production across many builds while edits to other files did, because
-      # Next reused the cached chunk for the "unchanged" file. Dropping this cache
-      # forces a full recompile every build (slower, but correct), ending the
-      # pushed-but-not-live drift. If re-added later, pair it with a cache key that
-      # includes the commit SHA so a changed source file cannot hit a stale entry.
+  # NO `cache:` BLOCK, deliberately (2026-10-27).
+  #
+  # The last cached path was `node_modules/**/*`, and `npm ci` deletes node_modules before it
+  # installs, so the restored copy was thrown away unread. Measured on jobs 276-278: retrieving and
+  # extracting it took ~13 s and creating plus uploading it again took ~30 s, about 43 s of every
+  # ~250 s BUILD step, for nothing - while `npm ci` itself downloads the whole tree in ~10 s. The
+  # npm tarball cache (`.npm/**/*` + `npm ci --cache .npm --prefer-offline`) was considered and not
+  # adopted: it can save at most part of those 10 s and would pay the same create/upload toll.
+  #
+  # .next/cache STAYS OUT, for the reason recorded when it was removed on 2026-10-03: a stale restore
+  # served OLD compiled output for a changed file (src/components/VayuLokLive.tsx never reached
+  # production across many builds). If a cache is ever re-added, key it on the commit SHA so a changed
+  # source file cannot hit a stale entry, and measure that it pays for its own upload.
 # ── RESPONSE HEADERS LIVE IN customHttp.yml, NOT HERE ───────────────────────────
 #
 # A `customHeaders:` block used to sit at this point in the file. It was INERT for
