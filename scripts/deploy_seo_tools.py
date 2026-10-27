@@ -58,50 +58,65 @@ ENV_VARS = {
 
 
 def ensure_table() -> None:
+    """Create the SEO table when absent and reconcile durability when present.
+
+    The old implementation returned immediately for an existing table, so PITR was
+    only enabled during first creation. A restored/imported table or later drift could
+    therefore stay unprotected indefinitely while the repository declared PITR as
+    required. Reconcile that control on every run.
+    """
     ddb = boto3.client("dynamodb", region_name=REGION)
     try:
         ddb.describe_table(TableName=TABLE_NAME)
-        print(f"[table] {TABLE_NAME} already exists — skipping create")
-        return
+        print(f"[table] {TABLE_NAME} already exists — reconciling durability")
     except ddb.exceptions.ResourceNotFoundException:
-        pass
+        print(f"[table] creating {TABLE_NAME} ...")
+        ddb.create_table(
+            TableName=TABLE_NAME,
+            BillingMode="PAY_PER_REQUEST",
+            DeletionProtectionEnabled=True,
+            AttributeDefinitions=[
+                {"AttributeName": "id", "AttributeType": "S"},
+                {"AttributeName": "recordType", "AttributeType": "S"},
+                {"AttributeName": "createdAt", "AttributeType": "S"},
+                {"AttributeName": "slug", "AttributeType": "S"},
+            ],
+            KeySchema=[{"AttributeName": "id", "KeyType": "HASH"}],
+            GlobalSecondaryIndexes=[
+                {
+                    "IndexName": "recordType-createdAt-index",
+                    "KeySchema": [
+                        {"AttributeName": "recordType", "KeyType": "HASH"},
+                        {"AttributeName": "createdAt", "KeyType": "RANGE"},
+                    ],
+                    "Projection": {"ProjectionType": "ALL"},
+                },
+                {
+                    "IndexName": "slug-createdAt-index",
+                    "KeySchema": [
+                        {"AttributeName": "slug", "KeyType": "HASH"},
+                        {"AttributeName": "createdAt", "KeyType": "RANGE"},
+                    ],
+                    "Projection": {"ProjectionType": "ALL"},
+                }
+            ],
+        )
+        ddb.get_waiter("table_exists").wait(TableName=TABLE_NAME)
 
-    print(f"[table] creating {TABLE_NAME} ...")
-    ddb.create_table(
-        TableName=TABLE_NAME,
-        BillingMode="PAY_PER_REQUEST",
-        AttributeDefinitions=[
-            {"AttributeName": "id", "AttributeType": "S"},
-            {"AttributeName": "recordType", "AttributeType": "S"},
-            {"AttributeName": "createdAt", "AttributeType": "S"},
-            {"AttributeName": "slug", "AttributeType": "S"},
-        ],
-        KeySchema=[{"AttributeName": "id", "KeyType": "HASH"}],
-        GlobalSecondaryIndexes=[
-            {
-                "IndexName": "recordType-createdAt-index",
-                "KeySchema": [
-                    {"AttributeName": "recordType", "KeyType": "HASH"},
-                    {"AttributeName": "createdAt", "KeyType": "RANGE"},
-                ],
-                "Projection": {"ProjectionType": "ALL"},
-            },
-            {
-                "IndexName": "slug-createdAt-index",
-                "KeySchema": [
-                    {"AttributeName": "slug", "KeyType": "HASH"},
-                    {"AttributeName": "createdAt", "KeyType": "RANGE"},
-                ],
-                "Projection": {"ProjectionType": "ALL"},
-            }
-        ],
+    backups = ddb.describe_continuous_backups(TableName=TABLE_NAME)
+    pitr = (
+        backups.get("ContinuousBackupsDescription", {})
+        .get("PointInTimeRecoveryDescription", {})
+        .get("PointInTimeRecoveryStatus")
     )
-    ddb.get_waiter("table_exists").wait(TableName=TABLE_NAME)
-    ddb.update_continuous_backups(
-        TableName=TABLE_NAME,
-        PointInTimeRecoverySpecification={"PointInTimeRecoveryEnabled": True},
-    )
-    print(f"[table] {TABLE_NAME} ACTIVE with PITR enabled")
+    if pitr != "ENABLED":
+        ddb.update_continuous_backups(
+            TableName=TABLE_NAME,
+            PointInTimeRecoverySpecification={"PointInTimeRecoveryEnabled": True},
+        )
+        print(f"[table] {TABLE_NAME} PITR enabled")
+    else:
+        print(f"[table] {TABLE_NAME} PITR already enabled")
 
 
 def ensure_bedrock_inference_profile_perms() -> None:
