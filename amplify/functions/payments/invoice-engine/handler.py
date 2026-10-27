@@ -32,6 +32,7 @@ import io
 from dataclasses import dataclass
 from typing import Dict, Any, Optional, List, Tuple
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from html import escape as _html_escape
 
 from lambda_utils.response import cors_response, cors_headers, options_response, extract_origin
 from lambda_utils.audit import record_audit
@@ -2228,11 +2229,17 @@ def _customer_id(invoice: Dict) -> str:
 def _build_invoice_html(invoice: Dict, items: List[Dict]) -> str:
     """Build POS receipt style HTML matching the PNG receipt design.
     Single delivery address (billing = same), no Order ID shown,
-    QR code, amount in words, paper tear zigzag, GST summary."""
-    cust_name = invoice.get('customerName', 'Customer')
-    cust_phone = invoice.get('customerPhone', '')
-    cust_email = invoice.get('customerEmail', '')
-    ship_addr = invoice.get('shippingAddress', '')
+    QR code, amount in words, paper tear zigzag, GST summary.
+
+    Every customer- or catalogue-supplied string is HTML-escaped before it is interpolated. The
+    HTML is itself a deliverable (customer_receipt.py stores it as the downloadable `html`
+    format), so a name or address holding markup used to become live markup inside an official
+    receipt. The PNG/PDF renderer (receipt_layout.render) draws from the data, not this HTML.
+    """
+    cust_name = _html_escape(str(invoice.get('customerName', 'Customer') or ''))
+    cust_phone = _html_escape(str(invoice.get('customerPhone', '') or ''))
+    cust_email = _html_escape(str(invoice.get('customerEmail', '') or ''))
+    ship_addr = _html_escape(str(invoice.get('shippingAddress', '') or ''))
     # Every money figure is read as an exact rupee Decimal off the STORED row (see
     # `_render_money`), never a float: the printed breakdown and grand total are then derived from
     # the authoritative fields the document actually carries, so they cannot drift a paise.
@@ -2297,7 +2304,7 @@ def _build_invoice_html(invoice: Dict, items: List[Dict]) -> str:
     items_html = ''
     total_qty = 0
     for i, item in enumerate(items):
-        name = item.get('name', 'Item')
+        name = _html_escape(str(item.get('name', 'Item') or ''))
         amt = _render_money(item.get('amount', 0))
         qty = int(item.get('quantity', 1))
         total_qty += qty
@@ -2330,7 +2337,7 @@ def _build_invoice_html(invoice: Dict, items: List[Dict]) -> str:
     inv_num_html = ''
     source_html = f'<div class="info-row"><span>Channel: {_source_label(invoice)}</span></div>'
     cust_id = _customer_id(invoice)
-    cust_id_html = (f'<div class="addr">Customer ID: {cust_id}</div>'
+    cust_id_html = (f'<div class="addr">Customer ID: {_html_escape(str(cust_id))}</div>'
                     if cust_id else '')
 
     # Status
