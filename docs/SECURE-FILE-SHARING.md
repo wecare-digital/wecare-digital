@@ -192,7 +192,11 @@ It reported "verified" once against a stale alias; it now fails and names the fi
 ## Asking for ₹49, and renewals (2026-10-26)
 
 A file is sold per document, one access window at a time, and every payment is the commerce
-Review and Pay for that one file (server-priced, WABA1 only). There are three ways in:
+Review and Pay for that one file (server-priced, WABA1 only). **Vault has no WhatsApp Flow.**
+ProductsTable is the only payment/display price authority: customer surfaces read
+`GET /ecommerce/service-prices`, and checkout independently re-prices the exact Vault SKU from
+ProductsTable before creating a payment attempt. Secure-files owns file identity, entitlement and
+delivery only; it has no price environment variable or fallback amount. There are three ways in:
 
 | Who | Where | What happens |
 |---|---|---|

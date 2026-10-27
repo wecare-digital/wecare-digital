@@ -53,6 +53,7 @@ import { serviceByKind } from '../../config/services';
 import { setServiceLine } from '../../lib/cart';
 import { postRequestIntent } from '../../lib/serviceRequests';
 import { CHECKOUT_PATH } from '../../lib/serviceEntry';
+import { fetchServicePrices, rupeesFromPaise } from '../../lib/servicePricing';
 import { DEFAULT_DIAL_CODE } from '../../lib/dialCodes';
 import {
     requestOtp, submitOtp, getSession, restoreSession, clearSession, normaliseMobile, nextSessionFrom,
@@ -63,13 +64,6 @@ function formatBytes ( bytes: number ): string {
     const units = [ 'B', 'KB', 'MB', 'GB' ];
     const i = Math.min( Math.floor( Math.log( bytes ) / Math.log( 1024 ) ), units.length - 1 );
     return `${( bytes / Math.pow( 1024, i ) ).toFixed( i === 0 ? 0 : 1 )} ${units[ i ]}`;
-}
-
-const rupees = ( paise: number ) => `₹${( ( paise || 0 ) / 100 ).toFixed( 0 )}`;
-
-/** A server price in paise, or null. No figure is invented on this page. */
-function serverPricePaise ( value: unknown ): number | null {
-    return typeof value === 'number' && Number.isSafeInteger( value ) && value > 0 ? value : null;
 }
 
 /** The server's access state, or what an older backend's fields imply. */
@@ -134,8 +128,8 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
     const [ error, setError ] = useState( '' );
 
     const [ files, setFiles ] = useState<SecureFile[]>( [] );
-    // The list's server price. Null until the server sends one: a checkout label never shows a
-    // number the server did not supply, and checkout does not start without one.
+    // The live catalog price. Null until ProductsTable can be read through the canonical service
+    // pricing endpoint; checkout never starts from a guessed or file-local amount.
     const [ price, setPrice ] = useState<number | null>( null );
     const [ working, setWorking ] = useState<string>( '' );
 
@@ -148,7 +142,6 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                 ? ownedFiles.filter( file => file.fileId === targetFileId )
                 : ownedFiles;
             setFiles( visibleFiles );
-            setPrice( serverPricePaise( result.data.pricePaise ) );
             setStage( 'files' );
             setError(
                 targetFileId && visibleFiles.length === 0
@@ -166,6 +159,19 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
         }
     }, [ targetFileId ] );
 
+    // Vault has no file-local or deploy-local price. This is the same ProductsTable-backed
+    // endpoint used by service pages; checkout independently re-prices again before a payment
+    // attempt exists. A missing price disables new/renewal checkout, never a paid download.
+    useEffect( () => {
+        let active = true;
+        void fetchServicePrices().then( prices => {
+            if ( !active ) return;
+            const vault = prices.vault;
+            setPrice( vault?.available ? vault.paise : null );
+        } );
+        return () => { active = false; };
+    }, [] );
+
     // Resume an existing tab session rather than making the customer re-verify.
     useEffect( () => {
         void restoreSession().then( session => session ? api.listMySecureFiles() : null ).then( result => {
@@ -177,7 +183,6 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                     ? ownedFiles.filter( file => file.fileId === targetFileId )
                     : ownedFiles;
                 setFiles( visibleFiles );
-                setPrice( serverPricePaise( result.data.pricePaise ) );
                 setStage( 'files' );
                 if ( targetFileId && visibleFiles.length === 0 )
                 {
@@ -264,13 +269,8 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
             return;
         }
         const service = serviceByKind( 'VAULT' );
-        const displayPaise = serverPricePaise( file.pricePaise ) ?? price;
-        if ( !displayPaise ) {
-            setError( 'The Vault price could not be confirmed. Nothing has been charged. Please refresh and try again.' );
-            return;
-        }
-        if ( !service ) {
-            setError( 'Vault checkout is temporarily unavailable. Nothing has been charged.' );
+        if ( !service || price === null ) {
+            setError( 'The live Vault catalogue price could not be confirmed. Nothing has been charged. Please refresh and try again.' );
             return;
         }
         setWorking( file.fileId );
@@ -293,7 +293,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                 else setError( 'We could not start Vault checkout. Nothing has been charged. Please try again.' );
                 return;
             }
-            setServiceLine( service.variantId, outcome.intent.intentId, displayPaise );
+            setServiceLine( service.variantId, outcome.intent.intentId, price );
             await router.push( CHECKOUT_PATH );
         } catch {
             setError( 'We could not start Vault checkout. Nothing has been charged. Please try again.' );
@@ -649,16 +649,16 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                                                     as="button"
                                                     type="button"
                                                     label="Vault"
-                                                    action={ ( () => {
-                                                        if ( working === file.fileId ) return 'Preparing checkout…';
-                                                        const shown = serverPricePaise( file.pricePaise ) ?? price;
-                                                        const verb = state === 'EXPIRED' ? 'Renew' : 'Checkout';
-                                                        if ( !shown ) return verb;
-                                                        return state === 'EXPIRED' ? `Renew for ${ rupees( shown ) }` : `Checkout ${ rupees( shown ) }`;
-                                                    } )() }
+                                                    action={ working === file.fileId
+                                                        ? 'Preparing checkout…'
+                                                        : price === null
+                                                            ? 'Price unavailable'
+                                                            : state === 'EXPIRED'
+                                                                ? `Renew for ₹${ rupeesFromPaise( price ) }`
+                                                                : `Checkout ₹${ rupeesFromPaise( price ) }` }
                                                     block
                                                     onClick={ () => { void handleVaultCheckout( file ); } }
-                                                    disabled={ working === file.fileId }
+                                                    disabled={ working === file.fileId || price === null }
                                                     busy={ working === file.fileId }
                                                 />
                                                 <p className="sf-fine">

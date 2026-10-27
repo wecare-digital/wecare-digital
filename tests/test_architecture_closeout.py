@@ -200,6 +200,43 @@ class PaymentArchitectureDriftTests(unittest.TestCase):
 
 
 
+class VaultPriceAuthorityTests(unittest.TestCase):
+    """Vault display/payment pricing has one live authority: ProductsTable via service pricing."""
+
+    def test_secure_files_has_no_price_authority(self):
+        handler = (FUNCTIONS / "core" / "secure-files" / "handler.py").read_text(
+            encoding="utf-8"
+        )
+        provisioner = (ROOT / "scripts" / "provision_secure_files_api.py").read_text(
+            encoding="utf-8"
+        )
+        manifest = (ROOT / "config" / "lambda-env-manifest.json").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("SECURE_FILE_PRICE_PAISE", handler)
+        self.assertNotIn("PRICE_PAISE", handler)
+        self.assertNotIn('"pricePaise"', handler)
+        self.assertNotIn("SECURE_FILE_PRICE_PAISE", provisioner)
+        self.assertNotIn("SECURE_FILE_PRICE_PAISE", manifest)
+
+    def test_vault_page_uses_canonical_service_price_and_fails_closed(self):
+        page = (ROOT / "src" / "components" / "get" / "GetPage.tsx").read_text(
+            encoding="utf-8"
+        )
+        pricing = (ROOT / "src" / "lib" / "servicePricing.ts").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("fetchServicePrices", page)
+        self.assertIn("const vault = prices.vault", page)
+        self.assertIn("price === null", page)
+        self.assertNotIn("file.pricePaise", page)
+        self.assertNotIn("result.data.pricePaise", page)
+        self.assertNotIn("serverPricePaise", page)
+        self.assertIn("/ecommerce/service-prices", pricing)
+        self.assertIn("ProductsTable", pricing)
+
+
+
 class OrderStatusTemplateOnlyTransportTests(unittest.TestCase):
     """The automatic payment-order rail never changes transport with the service window."""
 
