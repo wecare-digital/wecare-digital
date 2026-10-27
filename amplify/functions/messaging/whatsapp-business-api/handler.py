@@ -25,6 +25,8 @@ Routes:
   POST      /wa-business/messages/send/text|template|media|flow → Send test messages
   POST      /wa-business/messages/send/interactive → REMOVED 2026-10-02, answers 410
   GET       /wa-business/message-history/events → Read Meta delivery-history events (audit only)
+  GET       /wa-business/flow-encryption-status → Read Flow public-key signature readiness
+  GET       /wa-business/preverified-numbers → Read pre-verified phone inventory (diagnostic only)
   GET       /wa-business/webhooks      → Get webhook subscriptions
   POST      /wa-business/webhooks      → Subscribe to webhook fields
   DELETE    /wa-business/webhooks      → Unsubscribe webhook fields
@@ -3732,6 +3734,54 @@ def _get_username(phone_id: str) -> Dict:
     if 'error' in result:
         return _resp(400, result)
     return _resp(200, result)
+
+
+def _get_flow_encryption_status(phone_id: str) -> Dict:
+    """Read WhatsApp Flows business-public-key readiness without returning key material."""
+    if not phone_id:
+        return _resp(400, {'error': 'phoneId required'})
+    result = _graph_api(f'{phone_id}/whatsapp_business_encryption', phone_id=phone_id)
+    if 'error' in result:
+        return _resp(400, result)
+    return _resp(200, {
+        'phoneId': phone_id,
+        'configured': bool(result.get('business_public_key')),
+        'signatureStatus': result.get('business_public_key_signature_status') or 'UNKNOWN',
+    })
+
+
+def _list_preverified_numbers(business_id: str, params: Dict) -> Dict:
+    """Read Meta's pre-verified-number inventory for partner/onboarding diagnostics.
+
+    This is deliberately read-only. Claiming, sharing, requesting codes, or registering a
+    number remains an explicit onboarding operation with its existing authorization and
+    confirmation boundaries.
+    """
+    if not business_id:
+        return _resp(400, {'error': 'businessId required'})
+    try:
+        limit = max(1, min(int(params.get('limit') or 25), 100))
+    except (TypeError, ValueError):
+        return _resp(400, {'error': 'limit must be an integer between 1 and 100'})
+    graph_params = {
+        'fields': (
+            'id,display_phone_number,country_prefix,verification_status,'
+            'availability_status,country_code,region'
+        ),
+        'limit': limit,
+        'after': params.get('after'),
+        'verification_status': params.get('verificationStatus'),
+        'availability_status': params.get('availabilityStatus'),
+        'country_code': params.get('countryCode'),
+    }
+    result = _graph_api(f'{business_id}/preverified_numbers', params=graph_params)
+    if 'error' in result:
+        return _resp(400, result)
+    return _resp(200, {
+        'businessId': business_id,
+        'numbers': result.get('data') or [],
+        'paging': result.get('paging') or {},
+    })
 
 
 def _get_username_suggestions(phone_id: str) -> Dict:
@@ -7549,6 +7599,18 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if not phone_id:
                 return _resp(400, {'error': 'phoneId required'})
             return _get_username_suggestions(phone_id)
+
+        elif '/flow-encryption-status' in path:
+            phone_id = params.get('phoneId') or body.get('phoneId')
+            if method != 'GET':
+                return _resp(405, {'error': 'GET only'})
+            return _get_flow_encryption_status(phone_id or '')
+
+        elif '/preverified-numbers' in path:
+            if method != 'GET':
+                return _resp(405, {'error': 'GET only'})
+            business_id = params.get('businessId') or body.get('businessId')
+            return _list_preverified_numbers(business_id or '', params)
 
         elif '/username' in path:
             phone_id = params.get('phoneId') or body.get('phoneId')
