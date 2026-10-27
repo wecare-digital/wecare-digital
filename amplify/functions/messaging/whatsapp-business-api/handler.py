@@ -449,6 +449,62 @@ def _get_webhook_subscriptions(waba_id: str) -> Dict:
         return _resp(400, result)
     return _resp(200, {'subscriptions': result.get('data', [])})
 
+
+_MESSAGE_HISTORY_STATUSES = {'ACCEPTED', 'DELIVERED', 'ERROR', 'READ', 'SENT'}
+_MESSAGE_HISTORY_FIELDS = {
+    'cursor', 'node{id,delivery_status,error_description,occurrence_timestamp,status_timestamp,'
+    'application,webhook_update_state,webhook_uri}'
+}
+
+
+def _get_message_history_events(history_id: str, params: Dict) -> Dict:
+    """Read Meta Message History delivery events for audit/reconciliation.
+
+    This is intentionally read-only. It supplements local WhatsAppOutbound/status evidence; it is
+    never the primary send idempotency authority.
+    """
+    history_id = str(history_id or '').strip()
+    if not history_id or len(history_id) > 256:
+        return _resp(400, {'error': 'historyId required'})
+
+    query = {}
+    delivery_status = str(params.get('deliveryStatus') or params.get('delivery_status') or '').strip().upper()
+    if delivery_status:
+        if delivery_status not in _MESSAGE_HISTORY_STATUSES:
+            return _resp(400, {'error': 'Invalid delivery status'})
+        query['delivery_status'] = delivery_status
+
+    fields = str(params.get('fields') or '').strip()
+    if fields:
+        if len(fields) > 512:
+            return _resp(400, {'error': 'fields too long'})
+        query['fields'] = fields
+
+    try:
+        limit = int(params.get('limit') or 25)
+    except (TypeError, ValueError):
+        return _resp(400, {'error': 'limit must be an integer'})
+    if limit < 1 or limit > 100:
+        return _resp(400, {'error': 'limit must be between 1 and 100'})
+    query['limit'] = limit
+
+    for cursor_name in ('after', 'before'):
+        cursor = str(params.get(cursor_name) or '').strip()
+        if cursor:
+            if len(cursor) > 2048:
+                return _resp(400, {'error': f'{cursor_name} cursor too long'})
+            query[cursor_name] = cursor
+
+    result = _graph_api(f'{history_id}/events', params=query)
+    if 'error' in result:
+        return _resp(400, result)
+    return _resp(200, {
+        'historyId': history_id,
+        'events': result.get('data', []),
+        'paging': result.get('paging', {}),
+        'source': 'meta_message_history',
+    })
+
 def _subscribe_webhook(waba_id: str, body: Dict) -> Dict:
     payload = {}
     if body.get('override_callback_uri'):
@@ -6863,6 +6919,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return _update_flow(flow_id or '', body)
             elif method == 'DELETE':
                 return _delete_flow(flow_id or '')
+
+        elif '/message-history/events' in path:
+            if method != 'GET':
+                return _resp(405, {'error': 'GET only'})
+            return _get_message_history_events(
+                params.get('historyId') or params.get('messageHistoryId') or '',
+                params,
+            )
 
         elif '/webhooks' in path:
             waba_id = params.get('wabaId') or body.get('wabaId')
