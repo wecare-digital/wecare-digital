@@ -233,7 +233,8 @@ def main() -> None:
     template = json.loads((ROOT / 'amplify/infra/workspace-mcp.json').read_text())
     baseline = json.loads(subprocess.check_output(['git', 'show',
         '7bfb5cc0c9ee8fd2ddad962be5417fa948ec5424:amplify/infra/workspace-mcp.json'], cwd=ROOT, text=True))
-    # Only two runtime secret resources and Plivo's exact KMS context are added.
+    # Provider secret/KMS additions plus the explicitly approved WhatsApp read-only invoke and
+    # X-Ray telemetry permissions are allowed; everything else must remain byte-for-byte scoped.
     role = json.loads(json.dumps(template['Resources']['Role']))
     statements = role['Properties']['Policies'][0]['PolicyDocument']['Statement']
     for statement in statements:
@@ -247,6 +248,10 @@ def main() -> None:
             check(contexts == ['arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/google/ads-HuIYKY',
                 'arn:aws:secretsmanager:us-east-1:775261844268:secret:wecare/plivo/api-aIEx8b'], 'Exact KMS contexts')
             statement['Condition']['StringEquals']['kms:EncryptionContext:SecretARN'] = contexts[0]
+    statements[:] = [statement for statement in statements if statement.get('Action') not in (
+        ['lambda:InvokeFunction'],
+        ['xray:PutTraceSegments', 'xray:PutTelemetryRecords'],
+    )]
     check(role == baseline['Resources']['Role'], 'All other role permissions unchanged')
     for name in ('Authorizer', 'StaffRoute', 'IamRoute', 'CallbackRoute',
             'StaffPermission', 'IamPermission', 'CallbackPermission', 'Registry', 'TokenKey'):

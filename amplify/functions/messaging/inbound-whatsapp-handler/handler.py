@@ -4746,6 +4746,10 @@ def _process_status(status: Dict, request_id: str, contacts_map: Dict = None, wa
     recipient_id = status.get('recipient_id', '')
     recipient_user_id = status.get('recipient_user_id', '')  # BSUID
     parent_recipient_user_id = status.get('parent_recipient_user_id', '')  # Parent BSUID
+    opaque_message_id = str(status.get('biz_opaque_callback_data') or '').strip()
+    if not (opaque_message_id.startswith('wa-idem-') and len(opaque_message_id) <= 96
+            and all(32 <= ord(ch) < 127 for ch in opaque_message_id)):
+        opaque_message_id = ''
     
     # Log all status updates for debugging. The SHAPE of the status, never its values:
     # `recipient_id` is the customer's phone number, and the full object also carries the BSUID,
@@ -4757,6 +4761,7 @@ def _process_status(status: Dict, request_id: str, contacts_map: Dict = None, wa
         'whatsappMessageId': whatsapp_message_id,
         'recipientId': mask_phone(recipient_id),
         'hasPaymentData': 'payment' in status,
+        'hasOpaqueCorrelation': bool(opaque_message_id),
         'statusKeys': sorted(status) if isinstance(status, dict) else [],
         'errorCodes': [e.get('code') for e in (status.get('errors') or [])
                        if isinstance(e, dict)],
@@ -4787,23 +4792,30 @@ def _process_status(status: Dict, request_id: str, contacts_map: Dict = None, wa
         try:
             table = dynamodb.Table(table_name)
             
-            # Use GSI query for O(1) lookup
-            try:
-                response = table.query(
-                    IndexName='whatsappMessageId-index',
-                    KeyConditionExpression='whatsappMessageId = :wmid',
-                    ExpressionAttributeValues={':wmid': whatsapp_message_id},
-                    Limit=1
-                )
-            except Exception:
-                # Fallback to scan if GSI not ready
-                response = table.scan(
-                    FilterExpression='whatsappMessageId = :wmid',
-                    ExpressionAttributeValues={':wmid': whatsapp_message_id},
-                    Limit=1
-                )
-            
-            items = response.get('Items', [])
+            # A keyed send may time out after Meta accepts it, so the sender can miss the
+            # WAMID. Meta echoes biz_opaque_callback_data on status webhooks; use that stable
+            # internal id first, then fall back to the WAMID GSI for all ordinary sends.
+            items = []
+            if opaque_message_id:
+                direct = table.get_item(Key={'id': opaque_message_id}, ConsistentRead=True).get('Item')
+                if direct:
+                    items = [direct]
+            if not items:
+                try:
+                    response = table.query(
+                        IndexName='whatsappMessageId-index',
+                        KeyConditionExpression='whatsappMessageId = :wmid',
+                        ExpressionAttributeValues={':wmid': whatsapp_message_id},
+                        Limit=1
+                    )
+                except Exception:
+                    # Fallback to scan if GSI not ready.
+                    response = table.scan(
+                        FilterExpression='whatsappMessageId = :wmid',
+                        ExpressionAttributeValues={':wmid': whatsapp_message_id},
+                        Limit=1
+                    )
+                items = response.get('Items', [])
             if items:
                 message_id = items[0].get('id') or items[0].get('messageId')
                 # Build update expression  -  include recipientBsuid and parentRecipientBsuid if available
@@ -4823,6 +4835,9 @@ def _process_status(status: Dict, request_id: str, contacts_map: Dict = None, wa
                     ':ts': Decimal(str(timestamp)),
                     ':rank': Decimal(str(wa_status.rank(status_value))),
                 }
+                if opaque_message_id and whatsapp_message_id:
+                    update_expr += ', whatsappMessageId = :wmid'
+                    expr_values[':wmid'] = whatsapp_message_id
                 if recipient_user_id:
                     update_expr += ', recipientBsuid = :rbsuid'
                     expr_values[':rbsuid'] = recipient_user_id

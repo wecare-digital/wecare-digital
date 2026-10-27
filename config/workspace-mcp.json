@@ -1,5 +1,5 @@
 {
-  "version": 9,
+  "version": 10,
   "account": "775261844268",
   "region": "us-east-1",
   "repository": "wecare-digital/wecare-digital",
@@ -116,14 +116,18 @@
       "kind": "sdk",
       "mode": "read-only",
       "credentialSource": "workspace-admin-runtime",
-      "tools": ["connection_verify"]
+      "tools": [
+        "connection_verify"
+      ]
     },
     "sinch": {
       "kind": "sdk",
       "mode": "read-only",
       "credentialSource": "workspace-admin-runtime",
       "restriction": "Sinch India RCS only",
-      "tools": ["connection_verify"]
+      "tools": [
+        "connection_verify"
+      ]
     }
   }
 }
