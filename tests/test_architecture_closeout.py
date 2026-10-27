@@ -386,6 +386,36 @@ class DropDocsUploadUxContractTests(unittest.TestCase):
 
 
 
+class VaultWorkspaceMessagingUxTests(unittest.TestCase):
+    """Workspace surfaces describe the real Vault template journey and never invent a price."""
+
+    def test_documents_page_shows_the_vault_message_journey(self):
+        source = (ROOT / "src" / "components" / "workspace" / "service" / "Documents.tsx").read_text(
+            encoding="utf-8"
+        )
+        for name in (
+            "wecare_valut_49",
+            "wecare_whatapp_native_pay_template",
+            "wecare_default_download",
+            "wecare_default_invoice_image_template",
+        ):
+            self.assertIn(name, source)
+        self.assertIn("Vault WhatsApp journey", source)
+        self.assertIn("Receipt image is the only intentional image message.", source)
+        self.assertNotIn("Send ₹49 Vault message", source)
+        self.assertNotIn("Send ₹49 renewal message", source)
+
+    def test_secure_files_ui_has_no_hard_coded_vault_price(self):
+        source = (ROOT / "src" / "components" / "workspace" / "service" / "SecureFiles.tsx").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Send the Vault offer on WhatsApp after upload", source)
+        self.assertIn("Price comes from the live catalog.", source)
+        self.assertNotIn("rupees( 4900 )", source)
+        self.assertNotIn("₹49", source)
+
+
+
 class OrderStatusTemplateOnlyTransportTests(unittest.TestCase):
     """The automatic payment-order rail never changes transport with the service window."""
 
