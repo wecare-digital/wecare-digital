@@ -11,6 +11,7 @@ Emits CloudWatch metrics for delivery success/failure.
 
 import os
 import json
+import hashlib
 import secrets
 import uuid
 import time
@@ -20,6 +21,7 @@ import urllib.request
 import urllib.error
 from typing import Dict, Any, Optional, Tuple
 from decimal import Decimal, InvalidOperation
+from botocore.exceptions import ClientError
 
 # Configure logging
 from lambda_utils.logging import get_logger
@@ -1061,6 +1063,73 @@ ROUTING_OWNERSHIP_ERRORS = (2494191, 138038)
 origin = ''
 
 
+IDEMPOTENCY_KEY_MIN = 8
+IDEMPOTENCY_KEY_MAX = 160
+SEND_CLAIM_TTL_SECONDS = 120
+
+
+def _message_id_for_request(body: Dict[str, Any]) -> str:
+    """Return a stable internal message id when the caller supplies an idempotency key.
+
+    The raw key is never persisted. Without a key, preserve existing semantics: every explicit
+    send action gets a fresh id, so a deliberate repeat message remains possible.
+    """
+    raw = str(body.get('idempotencyKey') or '').strip()
+    if not raw:
+        return str(uuid.uuid4())
+    if not IDEMPOTENCY_KEY_MIN <= len(raw) <= IDEMPOTENCY_KEY_MAX:
+        raise ValueError('idempotencyKey must be 8-160 characters')
+    if any(ord(ch) < 33 or ord(ch) > 126 for ch in raw):
+        raise ValueError('idempotencyKey must contain printable ASCII without spaces')
+    return 'idem-' + hashlib.sha256(raw.encode('utf-8')).hexdigest()
+
+
+def _claim_outbound_send(message_id: str, request_id: str) -> Tuple[str, str]:
+    """Atomically claim a send before any Meta call.
+
+    Returns (state, wamid), where state is CLAIMED, SENT or IN_FLIGHT. Accepted sends are
+    immutable. Expired or explicitly failed claims may be retried. Storage errors fail closed so
+    a DynamoDB outage cannot turn into duplicate customer messages.
+    """
+    now = int(time.time())
+    expires = now + SEND_CLAIM_TTL_SECONDS
+    table = dynamodb.Table(MESSAGES_TABLE)
+    try:
+        table.update_item(
+            Key={'id': message_id},
+            UpdateExpression=(
+                'SET messageId = if_not_exists(messageId, :mid), #st = :sending, '
+                'sendClaimOwner = :owner, sendClaimAt = :now, sendClaimExpiresAt = :expires, '
+                'channel = if_not_exists(channel, :channel), direction = if_not_exists(direction, :direction), '
+                'createdAt = if_not_exists(createdAt, :now), expiresAt = if_not_exists(expiresAt, :rowttl)'
+            ),
+            ConditionExpression=(
+                'attribute_not_exists(id) OR #st = :failed OR '
+                '(attribute_not_exists(whatsappMessageId) AND sendClaimExpiresAt < :now)'
+            ),
+            ExpressionAttributeNames={'#st': 'status'},
+            ExpressionAttributeValues={
+                ':mid': message_id, ':sending': 'sending', ':failed': 'failed',
+                ':owner': request_id, ':now': Decimal(str(now)), ':expires': Decimal(str(expires)),
+                ':rowttl': Decimal(str(now + MESSAGE_TTL_SECONDS)), ':channel': 'whatsapp',
+                ':direction': 'outbound',
+            },
+        )
+        return 'CLAIMED', ''
+    except ClientError as exc:
+        if exc.response.get('Error', {}).get('Code') != 'ConditionalCheckFailedException':
+            logger.error(json.dumps({'event': 'outbound_send_claim_error',
+                                     'error': type(exc).__name__, 'requestId': request_id}))
+            raise
+        existing = table.get_item(
+            Key={'id': message_id}, ConsistentRead=True,
+            ProjectionExpression='whatsappMessageId,#st',
+            ExpressionAttributeNames={'#st': 'status'},
+        ).get('Item') or {}
+        wamid = str(existing.get('whatsappMessageId') or '')
+        return ('SENT', wamid) if wamid else ('IN_FLIGHT', '')
+
+
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
     Send WhatsApp message or reaction.
@@ -1528,8 +1597,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             except Exception as _te:
                 logger.warning(json.dumps({'event': 'pre_send_typing_error', 'error': str(_te), 'requestId': request_id}))
 
-        # Generate message ID
-        message_id = str(uuid.uuid4())
+        # Generate a stable message ID when the caller provides an idempotency key.
+        # Automated payment/status/invoice callers already provide one; ordinary manual sends
+        # without a key keep the existing fresh-id behavior.
+        try:
+            message_id = _message_id_for_request(body)
+        except ValueError as exc:
+            return _error_response(400, 'INVALID_IDEMPOTENCY_KEY', str(exc))
         
         # Requirement 5.3: DRY_RUN mode - log without API call
         if SEND_MODE == 'DRY_RUN':
@@ -1537,6 +1611,28 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return _handle_dry_run_reaction(message_id, contact_id, recipient_phone, reaction_message_id, reaction_emoji, request_id)
             return _handle_dry_run(message_id, contact_id, recipient_phone, content, is_template, request_id)
         
+        # Atomically claim before every live Meta send branch. The previous read-before-send
+        # check was racy: concurrent retries could both read "not sent" and both call Graph.
+        try:
+            claim_state, claimed_wamid = _claim_outbound_send(message_id, request_id)
+        except Exception:
+            return _error_response(503, 'IDEMPOTENCY_STORE_UNAVAILABLE',
+                                   'Send safety store unavailable; nothing was sent.')
+        if claim_state == 'SENT':
+            logger.info(json.dumps({'event': 'idempotent_skip', 'messageId': message_id,
+                                    'requestId': request_id}))
+            return {
+                'statusCode': 200,
+                'headers': cors_headers(''),
+                'body': json.dumps({'success': True, 'messageId': message_id,
+                                    'whatsappMessageId': claimed_wamid, 'idempotent': True})
+            }
+        if claim_state == 'IN_FLIGHT':
+            logger.info(json.dumps({'event': 'idempotent_in_flight', 'messageId': message_id,
+                                    'requestId': request_id}))
+            return _error_response(409, 'SEND_IN_FLIGHT',
+                                   'An identical send is already in progress. Retry with the same key.')
+
         # Handle reaction messages
         if is_reaction:
             return _handle_reaction_send(
@@ -2597,20 +2693,6 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
             'requestId': request_id
         }))
         
-        # Idempotency: check if this message_id was already sent (prevents duplicates on retry)
-        try:
-            messages_table = dynamodb.Table(MESSAGES_TABLE)
-            existing = messages_table.get_item(Key={'id': message_id}, ProjectionExpression='id,whatsappMessageId,#s', ExpressionAttributeNames={'#s': 'status'})
-            if existing.get('Item') and existing['Item'].get('whatsappMessageId'):
-                logger.info(json.dumps({'event': 'idempotent_skip', 'messageId': message_id, 'requestId': request_id}))
-                return {
-                    'statusCode': 200,
-                    'headers': cors_headers(''),
-                    'body': json.dumps({'success': True, 'messageId': message_id, 'whatsappMessageId': existing['Item']['whatsappMessageId'], 'idempotent': True})
-                }
-        except Exception as e:
-            logger.warning(f'Idempotency check failed (proceeding): {e}')
-
         # Retry with exponential backoff for transient failures
         max_retries = 3
         last_error = None
