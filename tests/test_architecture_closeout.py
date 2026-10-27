@@ -157,6 +157,27 @@ class PaymentArchitectureDriftTests(unittest.TestCase):
         self.assertIn("There is no interactive", doc)
         self.assertIn("Workspace has no manual payment-order status sender", doc)
 
+    def test_outbound_sender_uses_atomic_idempotency_claim(self):
+        source = (ROOT / "amplify" / "functions" / "messaging" / "outbound-whatsapp" / "handler.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("def _message_id_for_request(", source)
+        self.assertIn("def _claim_outbound_send(", source)
+        self.assertIn("ConditionExpression=(", source)
+        self.assertIn("IDEMPOTENCY_STORE_UNAVAILABLE", source)
+        self.assertIn("SEND_IN_FLIGHT", source)
+        self.assertNotIn("Idempotency check failed (proceeding)", source)
+
+    def test_business_api_exposes_read_only_message_history_events(self):
+        source = (ROOT / "amplify" / "functions" / "messaging" / "whatsapp-business-api" / "handler.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("def _get_message_history_events(", source)
+        self.assertIn("f'{history_id}/events'", source)
+        self.assertIn("elif '/message-history/events' in path:", source)
+        self.assertIn("return _resp(405, {'error': 'GET only'})", source)
+        self.assertIn("'source': 'meta_message_history'", source)
+
     def test_payment_ci_triggers_on_template_registry_for_pr_and_push(self):
         workflow = (ROOT / ".github" / "workflows" / "payment-rail-ci.yml").read_text(
             encoding="utf-8"
