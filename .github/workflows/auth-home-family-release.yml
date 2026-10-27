@@ -1,0 +1,43 @@
+name: One-shot customer auth Home-family release
+on:
+  push:
+    branches:
+      - auth-home-family-release-20261027
+permissions:
+  contents: write
+jobs:
+  build:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: auth-home-family-release-20261027
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify readable source
+        run: |
+          python3 tools/customer-commerce/verify.py
+          python3 tools/customer-commerce/verify_oauth.py
+      - name: Build and verify exact runtime
+        run: |
+          rm -rf /tmp/customer-commerce-release
+          python3 tools/customer-commerce/prepare_release.py --output /tmp/customer-commerce-release
+          python3 tools/customer-commerce/verify_release.py /tmp/customer-commerce-release/index.py
+          cp /tmp/customer-commerce-release/index.py amplify/functions/ai/customer-commerce-mcp/index.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          src = Path('/tmp/customer-commerce-release/customer-commerce-stack.json')
+          dst = Path('amplify/functions/ai/customer-commerce-mcp/template.json')
+          dst.write_text(json.dumps(json.loads(src.read_text()), indent=2, ensure_ascii=False) + '\n')
+          PY
+      - name: Commit generated release and remove helper
+        run: |
+          rm .github/workflows/auth-home-family-release.yml
+          git config user.name "WECARE.DIGITAL"
+          git config user.email "319896805+wecare-digital@users.noreply.github.com"
+          git add amplify/functions/ai/customer-commerce-mcp/index.py amplify/functions/ai/customer-commerce-mcp/template.json .github/workflows/auth-home-family-release.yml
+          git commit -m "build(auth): generate Home-family sign-in runtime"
+          git push origin HEAD:auth-home-family-release-20261027
