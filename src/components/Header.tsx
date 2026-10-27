@@ -267,9 +267,8 @@ const NAV_ICON_PATHS: Record<string, string> = {
   Partner: 'M160-80q-33 0-56.5-23.5T80-160v-440q0-33 23.5-56.5T160-680h200v-120q0-33 23.5-56.5T440-880h80q33 0 56.5 23.5T600-800v120h200q33 0 56.5 23.5T880-600v440q0 33-23.5 56.5T800-80H160Zm0-80h640v-440H600q0 33-23.5 56.5T520-520h-80q-33 0-56.5-23.5T360-600H160v440Zm80-80h240v-18q0-17-9.5-31.5T444-312q-20-9-40.5-13.5T360-330q-23 0-43.5 4.5T276-312q-17 8-26.5 22.5T240-258v18Zm320-60h160v-60H560v60Zm-200-60q25 0 42.5-17.5T420-420q0-25-17.5-42.5T360-480q-25 0-42.5 17.5T300-420q0 25 17.5 42.5T360-360Zm200-60h160v-60H560v60ZM440-600h80v-200h-80v200Zm40 220Z',
   Perks: 'M4 9h16v12H4ZM12 9v12M4 13h16M7 9c-2.5-2.5 1.5-5.5 5 0m5-0c2.5-2.5-1.5-5.5-5 0',
   'Google Play': 'M40-240q10-105 64-191t139-140l-77-129q-9-14-4.5-30t18.5-24q14-9 30-5t24 18l80 133q38-16 79.5-24t86.5-8q45 0 86.5 8t79.5 24l80-133q8-14 24-18t30 5q14 8 18 24t-4 30l-77 129q85 54 139 140t64 191H40Zm680.5-151.5Q722-409 711-426t-27-22q-16-5-29 4t-15 26q-2 17 9 34t27.5 22.5Q693-356 706-365t14.5-26.5ZM284-362q16-5 27-22t9.5-34.5Q319-436 306-445t-29.5-3.5Q260-443 249-426t-9 34q2 17 15 26t29 4Z',
-  ChatGPT: 'M5 5h14v11H9l-4 4V5Zm4 4h6m-6 3h4',
+  ChatGPT: 'm394-80-70-123H189l-87-154 69-123-69-123 87-154h135l70-123h172l70 123h135l87 154-69 123 69 123-87 154H636L566-80H394Zm243-429h100l54-94-54-94H637l-54 94 54 94ZM430-388h100l54-92-54-92H430l-54 92 54 92Zm0-244h100l54-94-54-94H430l-54 94 54 94ZM224-509h100l54-94-54-94H224l-54 94 54 94Zm0 246h100l54-94-55-94H223l-54 94 55 94Zm206 123h100l54-94-54-94H430l-54 94 54 94Zm207-123h100l54-94-54-94H637l-51 94 51 94Z',
   Claude: 'M12 3v18M3 12h18M5.6 5.6l12.8 12.8m0-12.8L5.6 18.4',
-  Gemini: 'M12 3c.7 4.7 3.3 7.3 8 8-4.7.7-7.3 3.3-8 8-.7-4.7-3.3-7.3-8-8 4.7-.7 7.3-3.3 8-8Z',
   'App Store': 'M160-615v-60h60v60h-60Zm0 335v-275h60v275h-60Zm292 0H347q-24.75 0-42.37-17.63Q287-315.25 287-340v-280q0-24.75 17.63-42.38Q322.25-680 347-680h105q24.75 0 42.38 17.62Q512-644.75 512-620v280q0 24.75-17.62 42.37Q476.75-280 452-280Zm-105-60h105v-280H347v280Zm228 60v-60h165v-114H635q-24.75 0-42.37-17.63Q575-489.25 575-514v-106q0-24.75 17.63-42.38Q610.25-680 635-680h165v60H635v106h105q24.75 0 42.38 17.62Q800-478.75 800-454v114q0 24.75-17.62 42.37Q764.75-280 740-280H575Z',
   'Contact us': 'M3 6h18v12H3Zm0 1 9 6 9-6',
   Terms: 'M7 3h10v18H7ZM10 8h4m-4 4h4m-4 4h4',
@@ -280,10 +279,16 @@ const SECTION_ICON_PATHS: Record<string, string> = {
   Request: 'M6 3h12v18H6ZM9 7h6M9 11h6M9 15h4',
   'Refer & Earn': 'M720-80q-50 0-85-35t-35-85q0-7 1-14.5t3-13.5L322-392q-17 15-38 23.5t-44 8.5q-50 0-85-35t-35-85q0-50 35-85t85-35q23 0 44 8.5t38 23.5l282-164q-2-6-3-13.5t-1-14.5q0-50 35-85t85-35q50 0 85 35t35 85q0 50-35 85t-85 35q-23 0-44-8.5T638-672L356-508q2 6 3 13.5t1 14.5q0 7-1 14.5t-3 13.5l282 164q17-15 38-23.5t44-8.5q50 0 85 35t35 85q0 50-35 85t-85 35Zm0-640q17 0 28.5-11.5T760-760q0-17-11.5-28.5T720-800q-17 0-28.5 11.5T680-760q0 17 11.5 28.5T720-720ZM240-440q17 0 28.5-11.5T280-480q0-17-11.5-28.5T240-520q-17 0-28.5 11.5T200-480q0 17 11.5 28.5T240-440Zm480 280q17 0 28.5-11.5T760-200q0-17-11.5-28.5T720-240q-17 0-28.5 11.5T680-200q0 17 11.5 28.5T720-160Zm0-600ZM240-480Zm480 280Z',
   Extras: 'm12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9Z',
-  'With AI': 'M12 3l1.7 4.3L18 9l-4.3 1.7L12 15l-1.7-4.3L6 9l4.3-1.7L12 3Zm6 11 .9 2.1L21 17l-2.1.9L18 20l-.9-2.1L15 17l2.1-.9L18 14Z',
   Contact: 'M3 6h18v12H3Zm0 1 9 6 9-6',
   'Legal Stuff': 'M12 3 19 6v5c0 4.7-2.8 8.2-7 10-4.2-1.8-7-5.3-7-10V6Z',
 };
+const NAV_MATERIAL_SYMBOLS: Record<string, string> = {
+  Gemini: 'diamond',
+};
+const SECTION_MATERIAL_SYMBOLS: Record<string, string> = {
+  'With AI': 'neurology',
+};
+
 const MATERIAL_NAV_ICON_LABELS = new Set( [
   'VayuLok',
   'Sehat',
@@ -293,6 +298,7 @@ const MATERIAL_NAV_ICON_LABELS = new Set( [
   'Vault',
   'Partner',
   'Google Play',
+  'ChatGPT',
   'App Store',
 ] );
 const MATERIAL_SECTION_ICON_LABELS = new Set( [ 'Refer & Earn' ] );
@@ -656,14 +662,20 @@ const Header: React.FC = () => {
                       aria-current={ isActive( link ) ? 'page' : undefined }
                       onClick={ event => handleNavClick( event, link ) }
                     >
-                      <svg
-                        className={ `nav-row-icon ${MATERIAL_NAV_ICON_LABELS.has( link.label ) ? 'nav-row-icon-material' : ''}`.trim() }
-                        viewBox={ MATERIAL_NAV_ICON_LABELS.has( link.label ) ? '0 -960 960 960' : '0 0 24 24' }
-                        aria-hidden="true"
-                        focusable="false"
-                      >
-                        <path d={ NAV_ICON_PATHS[ link.label ] || FALLBACK_NAV_ICON_PATH } />
-                      </svg>
+                      { NAV_MATERIAL_SYMBOLS[ link.label ] ? (
+                        <span className="nav-row-material-symbol" aria-hidden="true">
+                          { NAV_MATERIAL_SYMBOLS[ link.label ] }
+                        </span>
+                      ) : (
+                        <svg
+                          className={ `nav-row-icon ${MATERIAL_NAV_ICON_LABELS.has( link.label ) ? 'nav-row-icon-material' : ''}`.trim() }
+                          viewBox={ MATERIAL_NAV_ICON_LABELS.has( link.label ) ? '0 -960 960 960' : '0 0 24 24' }
+                          aria-hidden="true"
+                          focusable="false"
+                        >
+                          <path d={ NAV_ICON_PATHS[ link.label ] || FALLBACK_NAV_ICON_PATH } />
+                        </svg>
+                      ) }
                       <span className="nav-item-label">{ link.label }</span>
                     </a>
                   ) ) }
@@ -682,6 +694,7 @@ const Header: React.FC = () => {
                           section.headingHref && section.headingMatch && router.pathname === section.headingMatch
                         );
                         const sectionIconPath = SECTION_ICON_PATHS[ section.heading ];
+                        const sectionMaterialSymbol = SECTION_MATERIAL_SYMBOLS[ section.heading ];
                         const label = section.heading && ( section.headingHref
                           ? (
                             <a
@@ -691,7 +704,11 @@ const Header: React.FC = () => {
                               aria-current={ headingActive ? 'page' : undefined }
                               onClick={ close }
                             >
-                              { sectionIconPath && (
+                              { sectionMaterialSymbol ? (
+                                <span className="nav-section-material-symbol" aria-hidden="true">
+                                  { sectionMaterialSymbol }
+                                </span>
+                              ) : sectionIconPath ? (
                                 <svg
                                   className={ `nav-section-icon ${MATERIAL_SECTION_ICON_LABELS.has( section.heading ) ? 'nav-section-icon-material' : ''}`.trim() }
                                   viewBox={ MATERIAL_SECTION_ICON_LABELS.has( section.heading ) ? '0 -960 960 960' : '0 0 24 24' }
@@ -700,13 +717,17 @@ const Header: React.FC = () => {
                                 >
                                   <path d={ sectionIconPath } />
                                 </svg>
-                              ) }
+                              ) : null }
                               <span>{ section.heading }</span>
                             </a>
                           )
                           : (
                             <span className="nav-group-label">
-                              { sectionIconPath && (
+                              { sectionMaterialSymbol ? (
+                                <span className="nav-section-material-symbol" aria-hidden="true">
+                                  { sectionMaterialSymbol }
+                                </span>
+                              ) : sectionIconPath ? (
                                 <svg
                                   className={ `nav-section-icon ${MATERIAL_SECTION_ICON_LABELS.has( section.heading ) ? 'nav-section-icon-material' : ''}`.trim() }
                                   viewBox={ MATERIAL_SECTION_ICON_LABELS.has( section.heading ) ? '0 -960 960 960' : '0 0 24 24' }
@@ -715,7 +736,7 @@ const Header: React.FC = () => {
                                 >
                                   <path d={ sectionIconPath } />
                                 </svg>
-                              ) }
+                              ) : null }
                               <span>{ section.heading }</span>
                             </span>
                           )
@@ -736,14 +757,20 @@ const Header: React.FC = () => {
                                 aria-current={ isActive( link ) ? 'page' : undefined }
                                 onClick={ event => handleNavClick( event, link ) }
                               >
-                                <svg
-                                  className={ `nav-row-icon ${MATERIAL_NAV_ICON_LABELS.has( link.label ) ? 'nav-row-icon-material' : ''}`.trim() }
-                                  viewBox={ MATERIAL_NAV_ICON_LABELS.has( link.label ) ? '0 -960 960 960' : '0 0 24 24' }
-                                  aria-hidden="true"
-                                  focusable="false"
-                                >
-                                  <path d={ NAV_ICON_PATHS[ link.label ] || FALLBACK_NAV_ICON_PATH } />
-                                </svg>
+                                { NAV_MATERIAL_SYMBOLS[ link.label ] ? (
+                                  <span className="nav-row-material-symbol" aria-hidden="true">
+                                    { NAV_MATERIAL_SYMBOLS[ link.label ] }
+                                  </span>
+                                ) : (
+                                  <svg
+                                    className={ `nav-row-icon ${MATERIAL_NAV_ICON_LABELS.has( link.label ) ? 'nav-row-icon-material' : ''}`.trim() }
+                                    viewBox={ MATERIAL_NAV_ICON_LABELS.has( link.label ) ? '0 -960 960 960' : '0 0 24 24' }
+                                    aria-hidden="true"
+                                    focusable="false"
+                                  >
+                                    <path d={ NAV_ICON_PATHS[ link.label ] || FALLBACK_NAV_ICON_PATH } />
+                                  </svg>
+                                ) }
                                 <span className="nav-item-label">{ link.label }</span>
                                 { ( section.nestedLinks || link.children?.length ) ? (
                                   <svg className="nav-row-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -753,14 +780,20 @@ const Header: React.FC = () => {
                               </a>
                             ) : (
                               <span className="nav-item nav-family-label">
-                                <svg
-                                  className={ `nav-row-icon ${MATERIAL_NAV_ICON_LABELS.has( link.label ) ? 'nav-row-icon-material' : ''}`.trim() }
-                                  viewBox={ MATERIAL_NAV_ICON_LABELS.has( link.label ) ? '0 -960 960 960' : '0 0 24 24' }
-                                  aria-hidden="true"
-                                  focusable="false"
-                                >
-                                  <path d={ NAV_ICON_PATHS[ link.label ] || FALLBACK_NAV_ICON_PATH } />
-                                </svg>
+                                { NAV_MATERIAL_SYMBOLS[ link.label ] ? (
+                                  <span className="nav-row-material-symbol" aria-hidden="true">
+                                    { NAV_MATERIAL_SYMBOLS[ link.label ] }
+                                  </span>
+                                ) : (
+                                  <svg
+                                    className={ `nav-row-icon ${MATERIAL_NAV_ICON_LABELS.has( link.label ) ? 'nav-row-icon-material' : ''}`.trim() }
+                                    viewBox={ MATERIAL_NAV_ICON_LABELS.has( link.label ) ? '0 -960 960 960' : '0 0 24 24' }
+                                    aria-hidden="true"
+                                    focusable="false"
+                                  >
+                                    <path d={ NAV_ICON_PATHS[ link.label ] || FALLBACK_NAV_ICON_PATH } />
+                                  </svg>
+                                ) }
                                 <span className="nav-item-label">{ link.label }</span>
                                 { link.children?.length ? (
                                   <svg className="nav-row-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -1100,24 +1133,31 @@ const Header: React.FC = () => {
         .nav-group-label{display:flex;align-items:center;gap:7px;padding:6px 12px 4px;font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--public-brand-green);text-transform:uppercase}
         .nav-section-icon{width:17px;height:17px;flex:0 0 17px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
         .nav-section-icon-material{fill:currentColor;stroke:none}
+        .nav-section-material-symbol{
+          width:17px;height:17px;flex:0 0 17px;display:inline-flex;align-items:center;justify-content:center;
+          font-family:'Material Symbols Rounded';font-size:18px;font-weight:400;line-height:1;
+          letter-spacing:normal;text-transform:none;white-space:nowrap;
+          font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 20;
+        }
 
         /* PRODUCTS SCROLL. Only the Products group. The catalogue is meant to reach 100+
            entries, so its list is capped and scrolls rather than making the whole panel
            grow past the viewport. With today's ~10 products it never scrolls - max-height
            is a ceiling, not a fixed height - so nothing changes until the list is long.
-           Cap is ~6 rows (6 x 46px = 276px), kept deliberately short so the open menu
-           stays compact. */
+           Desktop shows 7 rows (7 x 46px = 322px) before the dedicated Products scroller
+           takes over; mobile removes that inner cap and uses the menu's outer scroll surface. */
         .nav-group-products{min-height:0}
         /* The heading stays PINNED above its own scrolling list. Sticky against the
            scroll container's top; the #fcfdfb backer stops list rows showing through the
            label as they pass under it. z-index clears the rows. */
         .nav-group-products .nav-group-label{position:sticky;top:0;z-index:2;background:#fcfdfb}
         .nav-products-scroll{
-          /* 5 rows. 5 x 46px = 230px, on owner instruction to keep the open menu short.
-             This is a CEILING, not a fixed height: with fewer than 5 products the group
-             is only as tall as its list and does not scroll. With today's ten products it
-             does scroll, which is the accepted trade-off for a compact menu. */
-          max-height:230px;
+          /* 7 rows. The right column gained the With AI group, so Products gets two
+             more visible rows to keep the three-column desktop menu visually balanced while
+             still preserving a dedicated product scroller for the long catalogue. Mobile
+             remains uncapped below 768px and shows the full product list in the menu's single
+             outer scroll surface. */
+          max-height:322px;
           overflow-y:auto;
           -webkit-overflow-scrolling:touch;
           /* Contain the scroll chain so flicking the product list to its end does not
@@ -1189,6 +1229,12 @@ const Header: React.FC = () => {
         .nav-row-icon,.nav-sub-icon,.nav-row-chevron{fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}
         .nav-row-icon{width:20px;height:20px;flex:0 0 20px;stroke-width:1.9}
         .nav-row-icon-material{fill:currentColor;stroke:none}
+        .nav-row-material-symbol{
+          width:20px;height:20px;flex:0 0 20px;display:inline-flex;align-items:center;justify-content:center;
+          font-family:'Material Symbols Rounded';font-size:21px;font-weight:400;line-height:1;
+          letter-spacing:normal;text-transform:none;white-space:nowrap;
+          font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;
+        }
         .nav-sub-icon{width:17px;height:17px;flex:0 0 17px;stroke-width:1.8;opacity:.82}
         .nav-row-chevron{width:17px;height:17px;flex:0 0 17px;margin-inline-start:auto;stroke-width:1.9;opacity:.72}
         .nav-item-label{min-width:0;white-space:nowrap}
@@ -1269,7 +1315,7 @@ const Header: React.FC = () => {
              decorative; dropping it here returns the width to the label instead of wrapping
              a navigation destination into two lines. 17px preserves the hierarchy while
              fitting the longest current label. */
-          .nav-row-icon,.nav-sub-icon{display:none}
+          .nav-row-icon,.nav-row-material-symbol,.nav-sub-icon{display:none}
           .nav-item,.nav-child{font-size:17px;padding-inline:10px}
         }
 
