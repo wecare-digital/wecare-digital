@@ -406,18 +406,62 @@ def token(owner, provider):
     return tokens["access_token"]
 
 
+_WORKSPACE_META_APP = "2238810740192680"
+_WORKSPACE_BUSINESSES = frozenset({"382642103987922", "125951953587391"})
+_WORKSPACE_WABAS = frozenset({"2094615664435155", "2513394156072604", "493146883877692"})
+_PROVIDER_ARG_ALLOWLIST = {
+    "devtools_app_list": frozenset({"action", "limit"}),
+    "devtools_app": frozenset({"action", "app_id"}),
+    "devtools_api_usage": frozenset({"action", "app_id", "lookback_minutes"}),
+    "whatsapp_biz_businesses": frozenset({"action"}),
+    "whatsapp_biz_accounts": frozenset({"business_id", "phone_number_id", "after", "shared_after"}),
+    "whatsapp_biz_phone_numbers": frozenset(
+        {"business_id", "waba_id", "status", "phone_number", "after", "shared_after"}
+    ),
+    "whatsapp_biz_list_templates": frozenset(
+        {"business_id", "waba_id", "limit", "after", "status", "category", "language",
+         "name", "content", "name_or_content", "quality_score", "source", "since", "until"}
+    ),
+    "whatsapp_biz_onboarding_status": frozenset(
+        {"business_id", "app_id", "phone_number_id", "apps_after", "accounts_after"}
+    ),
+}
+
+
 def safe_provider_args(provider, name, args):
     config = provider_config(provider)
-    if config.get('kind') != 'remote-mcp' or name not in config.get("tools", {}) or args.get("action") not in config["tools"][name]:
+    allowed = config.get("tools", {}).get(name)
+    if config.get('kind') != 'remote-mcp' or not allowed:
         raise Refusal("Tool or action is outside the read allowlist")
-    if set(args) - {"action", "app_id", "limit", "lookback_minutes"}:
+    action = args.get("action")
+    if action is None:
+        if "read" not in allowed:
+            raise Refusal("Tool or action is outside the read allowlist")
+    elif action not in allowed:
+        raise Refusal("Tool or action is outside the read allowlist")
+    allowed_args = _PROVIDER_ARG_ALLOWLIST.get(name)
+    if allowed_args is None or set(args) - allowed_args:
         raise Refusal("Unexpected provider arguments")
-    if name in {"devtools_app", "devtools_api_usage"} and args.get("app_id") != "2238810740192680":
+    if name in {"devtools_app", "devtools_api_usage"} and args.get("app_id") != _WORKSPACE_META_APP:
         raise Refusal("App is outside the workspace")
-    if "limit" in args and (type(args["limit"]) is not int or not 1 <= args["limit"] <= 100):
-        raise Refusal("Invalid limit")
+    if name == "whatsapp_biz_onboarding_status" and args.get("app_id") not in (None, _WORKSPACE_META_APP):
+        raise Refusal("App is outside the workspace")
+    if "business_id" in args and args["business_id"] not in _WORKSPACE_BUSINESSES:
+        raise Refusal("Business is outside the workspace")
+    if "waba_id" in args and args["waba_id"] not in _WORKSPACE_WABAS:
+        raise Refusal("WhatsApp account is outside the workspace")
+    if "limit" in args:
+        limit = args["limit"]
+        if name == "whatsapp_biz_list_templates":
+            if not isinstance(limit, str) or not limit.isdigit() or not 1 <= int(limit) <= 100:
+                raise Refusal("Invalid limit")
+        elif type(limit) is not int or not 1 <= limit <= 100:
+            raise Refusal("Invalid limit")
     if "lookback_minutes" in args and (type(args["lookback_minutes"]) is not int or not 1 <= args["lookback_minutes"] <= 43200):
         raise Refusal("Invalid lookback")
+    for key in ("after", "shared_after", "apps_after", "accounts_after"):
+        if key in args and (not isinstance(args[key], str) or len(args[key]) > 2048):
+            raise Refusal("Invalid pagination cursor")
     return config
 
 
