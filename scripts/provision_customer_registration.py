@@ -70,7 +70,7 @@ SENDER_FUNCTION = "wecare-whatsapp-business-api"
 OTP_TEMPLATE_NAME = "wecare_otp"
 OTP_TEMPLATE_LANGUAGE = "en"
 
-#: The HTTP API the website calls through `/api/*`. `src/components/account/SignInPage.tsx` posts
+#: The HTTP API the website calls through `/api/*`. the canonical `/auth` backend posts
 #: `{action: 'request'|'verify'}` to `/auth/customer-registration` for a number Cognito does not
 #: know yet, so without these routes no new customer can ever sign in. Same shape as the
 #: email-verification door: POST plus the CORS preflight, both on the `live` alias.
