@@ -90,7 +90,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
     const [ loadError, setLoadError ] = useState( '' );
     const [ filterMobile, setFilterMobile ] = useState( '' );
     const [ truncated, setTruncated ] = useState( false );
-    // On by default: an unpaid document is only useful once its owner is asked for ₹49.
+    // On by default: an unpaid document is only useful once its owner receives the Vault offer.
     const [ requestAfterUpload, setRequestAfterUpload ] = useState( true );
     // The fileId whose WhatsApp action is in flight, so one click cannot send twice.
     const [ acting, setActing ] = useState( '' );
@@ -244,7 +244,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
             toast.success( `${displayName.trim() || file.name} registered to ${name.trim()}` );
             if ( requestAfterUpload )
             {
-                setStep( 'Sending the ₹49 Vault message on WhatsApp…' );
+                setStep( 'Sending the Vault offer on WhatsApp…' );
                 reportAction( await api.requestSecureFilePayment( ticket.data.fileId ) );
             }
             resetForm();
@@ -346,8 +346,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                 disabled={ uploading }
                             />
                             <p className="sf-hint">
-                                Shown to the customer as &ldquo;Your { displayName.trim() || file?.name || 'document' } copy
-                                is ready!&rdquo; and in their Vault. Empty uses the file name.
+                                Used as the document name in the Vault offer and customer Vault. Empty uses the file name.
                             </p>
                         </div>
 
@@ -394,12 +393,11 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                     onChange={ e => setRequestAfterUpload( e.target.checked ) }
                                     disabled={ uploading }
                                 />
-                                <span>Send the { rupees( 4900 ) } Vault message on WhatsApp after upload</span>
+                                <span>Send the Vault offer on WhatsApp after upload</span>
                             </label>
                             <p className="sf-hint">
-                                The customer gets &ldquo;Your { displayName.trim() || file?.name || 'document' } copy
-                                is ready! Pay { rupees( 4900 ) }…&rdquo; with an Unlock Vault button. Tapping it opens
-                                Review and Pay for this file; Access Vault follows once paid.
+                                The customer gets a text-first Vault offer with an <strong>Unlock Vault</strong> button.
+                                Tapping it opens Review &amp; Pay for this exact file; Access Vault follows once paid.
                             </p>
                         </div>
                     </div>
@@ -411,7 +409,7 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                         <span className="sf-aside">
                             { uploading && step
                                 ? step
-                                : `Customer pays ${rupees( 4900 )} per 24-hour access window — unlimited downloads inside it.` }
+                                : 'Price comes from the live catalog. One paid access window allows unlimited downloads while open.' }
                         </span>
                     </div>
                 </section>
@@ -530,8 +528,8 @@ export default function SecureFilesPage ( { signOut, user, embedded }: PageProps
                                                                 { acting === row.fileId
                                                                     ? 'Sending…'
                                                                     : accessStateOf( row ) === 'EXPIRED'
-                                                                        ? `Send ${ rupees( 4900 ) } renewal message`
-                                                                        : `Send ${ rupees( 4900 ) } Vault message` }
+                                                                        ? 'Send renewal offer'
+                                                                        : 'Send Vault offer' }
                                                             </button>
                                                         ) }
                                                         { row.status === 'active' && ( accessStateOf( row ) === 'OPEN' || accessStateOf( row ) === 'READY' ) && (
