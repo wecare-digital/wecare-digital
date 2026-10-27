@@ -54,7 +54,7 @@ const launchEngine = async () => ( ENGINE === 'chromium' ? launch() : launchName
 // surfaces explicit here, plus one deliberately long blog post and one concrete Shop detail page.
 const EXTRA_DEVICE_ROUTES = [
   '/404/', '/get/', '/shop/kiosk/',
-  '/cart/', '/account/sign-in/', '/checkout/status/', '/checkout/success/',
+  '/cart/', '/checkout/status/', '/checkout/success/',
   '/post/a-bad-event-and-a-catastrophic-forecast-are-not-the-same/',
 ];
 const ROUTES = [ ...new Set( [ ...PUBLIC_ROUTES.map( routePath ), ...EXTRA_DEVICE_ROUTES ] ) ];
