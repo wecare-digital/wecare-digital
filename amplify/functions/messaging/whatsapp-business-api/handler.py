@@ -4329,7 +4329,7 @@ from base64 import b64decode, b64encode
 from cryptography.hazmat.primitives.asymmetric.padding import OAEP, MGF1
 from cryptography.hazmat.primitives.asymmetric.padding import hashes as asym_hashes
 from cryptography.hazmat.primitives.ciphers import Cipher as AESCipher, algorithms, modes
-from cryptography.hazmat.primitives.serialization import load_pem_private_key
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat, load_pem_private_key
 
 FLOW_PRIVATE_KEY_SECRET = os.environ.get('FLOW_PRIVATE_KEY_SECRET', 'wecare/flow-private-key')
 FLOW_PRIVATE_KEY_PASSPHRASE = os.environ.get('FLOW_PRIVATE_KEY_PASSPHRASE', '')
@@ -4350,6 +4350,77 @@ def _get_flow_private_key():
     except Exception as e:
         logger.error(f'Failed to load flow private key: {e}')
         return None
+
+
+def _ensure_primary_flow_encryption_binding(phone_id: str) -> Dict[str, Any]:
+    """Bind the existing WECARE Flow RSA public key to the primary published-Flow sender.
+
+    Internal invocation only. The private key never leaves Lambda and the derived public key is
+    never returned or logged. The secondary business account is deliberately refused: Meta
+    recommends separate keypairs when independently managed accounts use Flow data exchange.
+    """
+    phone_id = str(phone_id or '').strip()
+    if phone_id != PHONE1_META_ID:
+        return {'error': 'FLOW_ENCRYPTION_BINDING_NOT_APPROVED_FOR_PHONE'}
+
+    private_key = _get_flow_private_key()
+    if not private_key:
+        return {'error': 'FLOW_PRIVATE_KEY_UNAVAILABLE'}
+    try:
+        public_pem = private_key.public_key().public_bytes(
+            encoding=Encoding.PEM,
+            format=PublicFormat.SubjectPublicKeyInfo,
+        ).decode('utf-8')
+    except Exception:
+        return {'error': 'FLOW_PUBLIC_KEY_DERIVATION_FAILED'}
+
+    token = _get_meta_token(phone_id=phone_id)
+    app_secret = _get_app_secret(phone_id=phone_id)
+    params = {}
+    if app_secret:
+        params['appsecret_proof'] = hmac.new(
+            app_secret.encode('utf-8'), token.encode('utf-8'), hashlib.sha256
+        ).hexdigest()
+    url = f'{GRAPH_BASE}/{phone_id}/whatsapp_business_encryption'
+    if params:
+        url += '?' + urllib.parse.urlencode(params)
+    data = urllib.parse.urlencode({'business_public_key': public_pem}).encode('utf-8')
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers={
+            'Authorization': f'Bearer {token}',
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        method='POST',
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            result = json.loads(resp.read().decode('utf-8'))
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode('utf-8') if exc.fp else ''
+        try:
+            parsed = json.loads(body)
+            err = parsed.get('error') if isinstance(parsed, dict) else {}
+        except Exception:
+            err = {}
+        logger.error(json.dumps({
+            'event': 'flow_encryption_binding_failed',
+            'phoneId': phone_id,
+            'httpCode': exc.code,
+            'metaCode': err.get('code') if isinstance(err, dict) else None,
+            'metaSubcode': err.get('error_subcode') if isinstance(err, dict) else None,
+            'fbtraceId': err.get('fbtrace_id') if isinstance(err, dict) else None,
+        }))
+        return {'error': 'FLOW_ENCRYPTION_BINDING_FAILED', 'httpCode': exc.code}
+
+    success = bool(result.get('success'))
+    logger.info(json.dumps({
+        'event': 'flow_encryption_binding_completed',
+        'phoneId': phone_id,
+        'success': success,
+    }))
+    return {'success': success, 'phoneId': phone_id}
 
 
 def _decrypt_flow_request(encrypted_flow_data_b64: str, encrypted_aes_key_b64: str, initial_vector_b64: str):
@@ -7044,6 +7115,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     request_id = context.aws_request_id if context else 'local'
     global origin
     origin = extract_origin(event)
+
+    if event.get('internalAction') == 'ensurePrimaryFlowEncryption':
+        if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
+            return _resp(403, {'error': 'Internal invocation required'})
+        return _ensure_primary_flow_encryption_binding(str(event.get('phoneId') or ''))
 
     if event.get('internalAction') == 'reconcileUnknownDeliveries':
         if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
