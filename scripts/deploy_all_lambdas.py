@@ -91,7 +91,10 @@ FUNCTIONS = ROOT / "amplify" / "functions"
 SHARED = FUNCTIONS / "shared"
 LAMBDA_UTILS = SHARED / "lambda_utils"
 STATIC_KB = SHARED / "static_knowledge_base.py"
-PILLOW_LAYER_ARN = "arn:aws:lambda:us-east-1:775261844268:layer:pillow-python312:2"
+# v3 (2026-10-27): Pillow 13.0.0 from manylinux wheels, zipped with `/` separators. v2 carried
+# Pillow 12.1.1 (59 OSV advisories, 5 critical) in a Windows-built zip. product-image-gen also
+# uses this layer now instead of the third-party Klayers one.
+PILLOW_LAYER_ARN = "arn:aws:lambda:us-east-1:775261844268:layer:pillow-python312:3"
 
 # Fixed timestamp so identical content yields an identical CodeSha256.
 ZIP_DATE = (2026, 1, 1, 0, 0, 0)
@@ -439,9 +442,9 @@ SPECS: List[Spec] = [
     Spec("wecare-razorpay-webhook", "payments/razorpay-webhook"),
     Spec("wecare-payments-read", "payments/payments-read"),
     Spec("wecare-invoice-engine", "payments/invoice-engine", extra_dirs=("fonts",),
-         extra_files=("receipt_layout.py",)),
+         extra_files=("receipt_layout.py",), required_layers=[PILLOW_LAYER_ARN]),
     # --- ecommerce ---
-    Spec("wecare-product-image-gen", "ecommerce/product-image-gen"),
+    Spec("wecare-product-image-gen", "ecommerce/product-image-gen", required_layers=[PILLOW_LAYER_ARN]),
     Spec("wecare-catalog-management", "ecommerce/catalog-management"),
 ]
 
