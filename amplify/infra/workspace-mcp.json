@@ -138,7 +138,7 @@
       "Type": "AWS::Logs::LogGroup",
       "Properties": {
         "LogGroupName": "/aws/lambda/wecare-workspace-mcp",
-        "RetentionInDays": 14
+        "RetentionInDays": 30
       }
     },
     "Role": {
@@ -278,7 +278,7 @@
         "Handler": "handler.handler",
         "MemorySize": 256,
         "Timeout": 28,
-        "ReservedConcurrentExecutions": 2,
+        "ReservedConcurrentExecutions": 5,
         "Role": {
           "Fn::GetAtt": [
             "Role",
@@ -548,6 +548,34 @@
         "AlarmName": "wecare-workspace-mcp-errors",
         "Namespace": "AWS/Lambda",
         "MetricName": "Errors",
+        "Dimensions": [
+          {
+            "Name": "FunctionName",
+            "Value": {
+              "Ref": "Function"
+            }
+          }
+        ],
+        "Statistic": "Sum",
+        "Period": 300,
+        "EvaluationPeriods": 1,
+        "Threshold": 1,
+        "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+        "TreatMissingData": "notBreaching",
+        "AlarmActions": [
+          {
+            "Ref": "AlarmTopic"
+          }
+        ]
+      }
+    },
+    "Throttles": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "Properties": {
+        "AlarmName": "wecare-workspace-mcp-throttles",
+        "AlarmDescription": "Workspace MCP throttles detected; reserved concurrency may be saturated.",
+        "Namespace": "AWS/Lambda",
+        "MetricName": "Throttles",
         "Dimensions": [
           {
             "Name": "FunctionName",
