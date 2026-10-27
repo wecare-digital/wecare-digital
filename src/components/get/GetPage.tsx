@@ -53,6 +53,7 @@ import { serviceByKind } from '../../config/services';
 import { setServiceLine } from '../../lib/cart';
 import { postRequestIntent } from '../../lib/serviceRequests';
 import { CHECKOUT_PATH } from '../../lib/serviceEntry';
+import { fetchServicePrices } from '../../lib/servicePricing';
 import { DEFAULT_DIAL_CODE } from '../../lib/dialCodes';
 import {
     requestOtp, submitOtp, getSession, restoreSession, clearSession, normaliseMobile, nextSessionFrom,
@@ -129,7 +130,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
     const [ error, setError ] = useState( '' );
 
     const [ files, setFiles ] = useState<SecureFile[]>( [] );
-    const [ price, setPrice ] = useState( 4900 );
+    const [ price, setPrice ] = useState<number | null>( null );
     const [ working, setWorking ] = useState<string>( '' );
 
     const loadFiles = useCallback( async () => {
@@ -141,7 +142,6 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                 ? ownedFiles.filter( file => file.fileId === targetFileId )
                 : ownedFiles;
             setFiles( visibleFiles );
-            setPrice( result.data.pricePaise || 4900 );
             setStage( 'files' );
             setError(
                 targetFileId && visibleFiles.length === 0
@@ -159,6 +159,19 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
         }
     }, [ targetFileId ] );
 
+    // Vault has no file-local or deploy-local price. Read the same public catalogue endpoint
+    // used by every service page; checkout independently re-prices from ProductsTable before any
+    // payment attempt exists. A missing catalogue price disables the CTA rather than guessing.
+    useEffect( () => {
+        let active = true;
+        void fetchServicePrices().then( prices => {
+            if ( !active ) return;
+            const vault = prices.vault;
+            setPrice( vault?.available ? vault.paise : null );
+        } );
+        return () => { active = false; };
+    }, [] );
+
     // Resume an existing tab session rather than making the customer re-verify.
     useEffect( () => {
         void restoreSession().then( session => session ? api.listMySecureFiles() : null ).then( result => {
@@ -170,7 +183,6 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                     ? ownedFiles.filter( file => file.fileId === targetFileId )
                     : ownedFiles;
                 setFiles( visibleFiles );
-                setPrice( result.data.pricePaise || 4900 );
                 setStage( 'files' );
                 if ( targetFileId && visibleFiles.length === 0 )
                 {
@@ -257,8 +269,8 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
             return;
         }
         const service = serviceByKind( 'VAULT' );
-        if ( !service ) {
-            setError( 'Vault checkout is temporarily unavailable. Nothing has been charged.' );
+        if ( !service || price === null ) {
+            setError( 'Vault checkout is temporarily unavailable because the live catalogue price could not be verified. Nothing has been charged.' );
             return;
         }
         setWorking( file.fileId );
@@ -281,8 +293,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                 else setError( 'We could not start Vault checkout. Nothing has been charged. Please try again.' );
                 return;
             }
-            const displayPaise = file.pricePaise || price;
-            setServiceLine( service.variantId, outcome.intent.intentId, displayPaise );
+            setServiceLine( service.variantId, outcome.intent.intentId, price );
             await router.push( CHECKOUT_PATH );
         } catch {
             setError( 'We could not start Vault checkout. Nothing has been charged. Please try again.' );
@@ -597,7 +608,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                                         one control. The price is the ACTION segment because the
                                         amount is the thing being agreed to, and the action segment
                                         is the control's accessible name - so the button answers to
-                                        "Checkout ₹49", which is what it does. */}
+                                        "Checkout <live price>", which is what it does. */}
                                     { ( () => {
                                         const state = accessStateOf( file );
                                         if ( state === 'OPEN' || state === 'READY' )
@@ -612,7 +623,7 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                                                         action={ working === file.fileId ? 'Preparing…' : 'Download file' }
                                                         block
                                                         onClick={ () => { void handleDownload( file ); } }
-                                                        disabled={ working === file.fileId }
+                                                        disabled={ working === file.fileId || price === null }
                                                         busy={ working === file.fileId }
                                                     />
                                                     <p className="sf-fine">
@@ -641,8 +652,8 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                                                     action={ working === file.fileId
                                                         ? 'Preparing checkout…'
                                                         : state === 'EXPIRED'
-                                                            ? `Renew for ${ rupees( file.pricePaise || price ) }`
-                                                            : `Checkout ${ rupees( file.pricePaise || price ) }` }
+                                                            ? price === null ? 'Price unavailable' : `Renew for ${ rupees( price ) }`
+                                                            : price === null ? 'Price unavailable' : `Checkout ${ rupees( price ) }` }
                                                     block
                                                     onClick={ () => { void handleVaultCheckout( file ); } }
                                                     disabled={ working === file.fileId }
