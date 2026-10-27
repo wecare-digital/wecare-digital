@@ -7366,7 +7366,6 @@ export interface SecureFile {
   originalFilename: string;
   contentType: string;
   sizeBytes: number;
-  pricePaise: number;
   status: 'pending' | 'active' | 'revoked';
   createdAt: string;
   downloadCount: number;
@@ -7629,7 +7628,7 @@ async function customerApiCall<T> ( url: string, options?: RequestInit ): Promis
 
 /** The signed-in customer's own files. Requires a customer-pool token. */
 export async function listMySecureFiles (): Promise<ApiResult<{
-  files: SecureFile[]; count: number; pricePaise: number;
+  files: SecureFile[]; count: number;
 }>> {
   return customerApiCall( `${API_BASE}/secure-files/mine` );
 }
