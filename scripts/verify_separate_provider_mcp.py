@@ -87,6 +87,34 @@ def main() -> None:
             status = gateway.run_provider_tool('fixture-owner', provider, 'connection_status', {})
             assert [item['provider'] for item in status['connections']] == [provider]
             row.assert_called_once_with('connection:fixture-owner:' + provider)
+    class UpdateSink:
+        def update_item(self, **kwargs):
+            return {}
+
+    # Exercise the real run_tool -> provider_adapters.verify path for provider-native
+    # control-plane verification instead of mocking run_tool itself.
+    with patch.object(gateway, 'table', return_value=UpdateSink()), \
+            patch.object(gateway, 'secret_json', return_value={'auth_id': 'MA123', 'auth_token': 'secret'}), \
+            patch.object(gateway, 'http', return_value=({'auth_id': 'MA123', 'account_type': 'standard',
+                'billing_mode': 'prepaid'}, {})):
+        plivo = gateway.run_tool('fixture-owner', 'connection_verify', {'provider': 'plivo'})
+        assert plivo['status'] == 'verified'
+        assert plivo['read']['liveAccountAccess'] is True
+        assert plivo['read']['accountType'] == 'standard'
+
+    sinch_secrets = {'username': 'staff', 'password': 'secret', 'project_id': 'project_1', 'app_id': 'app_1'}
+    sinch_responses = [
+        ({'access_token': 'short-lived-token'}, {}),
+        ({'id': 'app_1'}, {}),
+    ]
+    with patch.object(gateway, 'table', return_value=UpdateSink()), \
+            patch.object(gateway, 'secret_json', return_value=sinch_secrets), \
+            patch.object(gateway, 'http', side_effect=sinch_responses):
+        sinch = gateway.run_tool('fixture-owner', 'connection_verify', {'provider': 'sinch'})
+        assert sinch['status'] == 'verified'
+        assert sinch['read']['liveAccountAccess'] is True
+        assert sinch['read']['platform'] == 'sinch-india-rcs'
+
     template = json.loads((ROOT / 'amplify/infra/workspace-mcp.json').read_text())
     assert template['Parameters']['ChatRedirectUri']['MaxLength'] <= 185
     assert template['Resources']['Function']['Properties']['ReservedConcurrentExecutions'] >= 5
