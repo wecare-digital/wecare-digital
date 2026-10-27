@@ -16,6 +16,7 @@ PRIMARY_ACCOUNT_ID = "2094615664435155"
 SECONDARY_ACCOUNT_ID = "2513394156072604"
 ENABLED_BOTH = f"{PRIMARY_ACCOUNT_ID},{SECONDARY_ACCOUNT_ID}"
 PRODUCTION_ENABLED = ""
+PRODUCTION_AUTHENTICATION_ENABLED = ""
 
 
 def _load_direct_send():
@@ -94,4 +95,28 @@ class DirectSendDualAccountRegressionTests(TestCase):
                 functions[function_name]["DIRECT_SEND_ENABLED_WABAS"],
                 PRODUCTION_ENABLED,
                 function_name,
+            )
+        self.assertEqual(
+            functions["wecare-whatsapp-business-api"][
+                "DIRECT_SEND_AUTHENTICATION_ENABLED_WABAS"
+            ],
+            PRODUCTION_AUTHENTICATION_ENABLED,
+            "authentication Direct Send must remain off until Meta actually enables it",
+        )
+
+    def test_authentication_allowlist_fails_closed_when_empty(self):
+        with patch.dict(
+            os.environ,
+            {"DIRECT_SEND_AUTHENTICATION_ENABLED_WABAS": ""},
+            clear=False,
+        ):
+            self.assertFalse(
+                self.direct_send.enabled_for_waba(
+                    PRIMARY_ACCOUNT_ID, self.direct_send.AUTHENTICATION
+                )
+            )
+            self.assertFalse(
+                self.direct_send.enabled_for_waba(
+                    SECONDARY_ACCOUNT_ID, self.direct_send.AUTHENTICATION
+                )
             )

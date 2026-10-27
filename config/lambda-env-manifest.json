@@ -628,7 +628,7 @@
       "ADMIN_MFA_REQUIRED": "true",
       "AUTH_SKIP_PATHS": "/wa-business/flow-data",
       "COMMERCE_KEYS_TABLE": "stack-wecare-digital-CommerceKeys",
-      "DIRECT_SEND_AUTHENTICATION_ENABLED_WABAS": "2094615664435155,2513394156072604",
+      "DIRECT_SEND_AUTHENTICATION_ENABLED_WABAS": "",
       "DIRECT_SEND_ENABLED_WABAS": "",
       "FLOW_LOGS_TABLE": "stack-wecare-digital-FlowLogTable",
       "FLOW_PRIVATE_KEY_PASSPHRASE": "",
