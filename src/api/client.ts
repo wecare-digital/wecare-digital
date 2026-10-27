@@ -4884,6 +4884,9 @@ export interface Invoice {
   total: number;
   currency: string;
   gstin: string;
+  buyerGstin?: string;
+  state?: string;
+  gstWorkpaper?: Record<string, unknown>;
   purpose: string;
   notes: string;
   createdAt: number;
