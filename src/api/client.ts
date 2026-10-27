@@ -4939,6 +4939,7 @@ export interface CreateInvoiceEngineRequest {
   entryPoint?: string;
   paymentId?: string;
   gstin?: string;
+  buyerGstin?: string;
   currency?: string;
   /** Structured address fields for WhatsApp Payments shipping_info */
   addressLine1?: string;

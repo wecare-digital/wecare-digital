@@ -28,6 +28,9 @@ The renderer is presentation-only. It MUST render stored invoice figures and MUS
 - Official WECARE.DIGITAL artwork is used from the S3 brand asset; never recreate the logo by hand.
 - Typography should use Inter when the invoice font assets are available. The renderer must retain a packaged-font fallback so a missing optional asset cannot prevent a paid receipt from being generated. Inter 4.1 (SIL OFL 1.1, from the rsms/inter v4.1 release) is in the font prefix as `Inter-Regular.otf`, `Inter-SemiBold.otf` and `Inter-Bold.otf`, with its licence as `Inter-LICENSE.txt`. The packaged fallback has no ₹ glyph, so amounts print as `Rs.` whenever it is in use.
 - Keep the image compact and WhatsApp-readable; do not add a drop shadow.
+- Customer PNG width: **1024 px**, matching the approved owner reference.
+- Preserve the approved hierarchy: centered brand block, lime PAYMENT RECEIPT bar, split receipt facts, slim pale BILL TO header with two white columns and a vertical divider, pale/green item header, compact totals, lime AMOUNT PAID bar, PAID stamp + trace block, and Thank You / Visit Again footer.
+- The approved mock is a visual/layout reference only. Its old Taxable Value / CGST / SGST / Total Tax rows are retired for the compact customer copy; v8 accounting rows remain authoritative.
 
 ## Seller identity
 
@@ -119,7 +122,7 @@ Delight is recorded as `POST_TAX_COMMERCIAL_DISCOUNT`: it is computed from eligi
 
 Use this prompt when changing the receipt:
 
-> Update the WECARE.DIGITAL customer PAYMENT RECEIPT only through the invoice-engine renderer. Preserve the v7 customer/privacy contract and render stored figures without pricing anything. Keep the official S3 logo, formal seller identity, lime #d1f470 edge, forest #1a3a2a structure, off-white paper with transparent outside, optional rows only when values exist, the compact Items Subtotal / Delight / Express / Convenience Fee / seller-GSTIN total-GST summary, and Amount Paid for captured payments. Never expose invoiceNumber, invoiceId, orderId, customer UUID or provider order id. Do not introduce HSN/SAC until an authoritative source field exists. Check fonts/logo assets, compile the payment Python, run payment-rail verification, build deterministic packages, publish immutable Lambda versions, move the live aliases with revision guards, and verify the live code hashes and one rendered PNG before closing the change. Update this document if the approved contract changes.
+> Update the WECARE.DIGITAL customer PAYMENT RECEIPT only through the invoice-engine renderer. Preserve the v8 customer/privacy contract and render stored figures without pricing anything. Keep the official S3 logo, formal seller identity, lime #d1f470 edge, forest #1a3a2a structure, off-white paper with transparent outside, optional rows only when values exist, the compact Items Subtotal / Delight / Express / Convenience Fee / seller-GSTIN total-GST summary, and Amount Paid for captured payments. Never expose invoiceNumber, invoiceId, orderId, customer UUID or provider order id. Do not introduce HSN/SAC until an authoritative source field exists. Check fonts/logo assets, compile the payment Python, run payment-rail verification, build deterministic packages, publish immutable Lambda versions, move the live aliases with revision guards, and verify the live code hashes and one rendered PNG before closing the change. Update this document if the approved contract changes.
 
 ## Change procedure
 

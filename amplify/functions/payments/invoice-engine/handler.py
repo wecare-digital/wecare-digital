@@ -956,6 +956,15 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
     if input_error:
         return _resp(400, {'error': input_error, 'errorCode': 'INVALID_AMOUNT'})
 
+    try:
+        buyer_gstin = checkout_pricing.validate_buyer_gstin(
+            str(body.get('buyerGstin') or '').strip() or None)
+    except checkout_pricing.PricingError:
+        return _resp(400, {
+            'error': 'Buyer GSTIN is invalid',
+            'errorCode': 'INVALID_BUYER_GSTIN',
+        })
+
     # ── A physical staff order needs a payable delivery address, refused BEFORE anything is claimed ──
     #
     # `goodsType` for a fresh staff collection is forced to `physical-goods` further down, and the
@@ -1543,6 +1552,7 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
         'total': _dec(total),
         'currency': body.get('currency', 'INR'),
         'gstin': body.get('gstin', COMPANY['gstin']),
+        'buyerGstin': buyer_gstin or '',
         'purpose': body.get('purpose', ''),
         'notes': body.get('notes', ''),
         # WhatsApp payment routing is server-owned: WABA1 + WECAREDIGITAL + Razorpay.

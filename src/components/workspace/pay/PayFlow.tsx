@@ -496,6 +496,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
         shipping: parseFloat( invForm.shipping ) || 0,
         gstRate: config.default_gst_rate,
         purpose: DEFAULT_BRAND, orderId: invForm.orderId, gstin: config.gstin,
+        buyerGstin: ( selCustomer as Contact & { gstin?: string } ).gstin || undefined,
         // No discount is sent: the invoice engine auto-applies the standalone Delight policy
         // (0.5% up to Rs50) server-side. There is no coupon code and no manual adjustment to pass.
       };
