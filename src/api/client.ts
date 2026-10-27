@@ -5013,6 +5013,32 @@ export interface CreateInvoiceEngineResponse {
   couponDiscount?: number;
 }
 
+export interface InvoiceEnginePreview {
+  preview: true;
+  subtotal: number;
+  discount: number;
+  shipping: number;
+  tax: number;
+  convenienceFee: number;
+  convenienceFeeNet: number;
+  convenienceFeeGst: number;
+  totalGst: number;
+  total: number;
+  couponCode?: string | null;
+  couponDiscount?: number;
+  goodsType: 'physical-goods' | 'digital-goods';
+  pricingAuthority: 'invoice-engine';
+}
+
+export async function previewInvoiceEngine (
+  request: CreateInvoiceEngineRequest,
+): Promise<InvoiceEnginePreview | null> {
+  return apiCall<InvoiceEnginePreview>( INVOICE_BASE, {
+    method: 'POST',
+    body: JSON.stringify( { ...request, _action: 'preview', referenceId: undefined, paymentId: undefined } ),
+  } );
+}
+
 // Create invoice directly
 export async function createInvoiceEngine ( request: CreateInvoiceEngineRequest ): Promise<CreateInvoiceEngineResponse | null> {
   return apiCall<CreateInvoiceEngineResponse>( INVOICE_BASE, {
