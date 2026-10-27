@@ -26,6 +26,10 @@ User-agent: *
 Allow: /
 
 Disallow: /api/
+# The public catalogue artwork is served from under /api/ (the catalog-media Lambda), and the shop
+# pages render it. Without this line the Disallow above hid every product image from image search.
+# The longer (more specific) rule wins, so this opens that one read-only prefix and nothing else.
+Allow: /api/catalog-media/
 # Retired public paths intentionally fall through to the
 # 404 document; only the host canonicalisation remains an explicit redirect.
 # /api/ stays separate because it is a live root path, not a moved one.
@@ -79,6 +83,7 @@ User-agent: DuckAssistBot
 User-agent: MistralAI-User
 Allow: /
 Disallow: /api/
+Allow: /api/catalog-media/
 Disallow: /workspace/
 
 Sitemap: https://wecare.digital/sitemap.xml

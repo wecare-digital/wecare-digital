@@ -144,13 +144,28 @@ function isPublicRoute ( route ) {
 // A sitemap lists CANONICAL URLs only. A page whose rel=canonical names another URL is a duplicate
 // by its own declaration - since catalog v2, /shop/anew/ canonicalises to /anew/ - and listing it is
 // the "Duplicate, Google chose different canonical than user" signal this file exists to stop.
-function canonicalElsewhere ( file, route ) {
-  const html = fs.readFileSync( file, 'utf8' );
+function canonicalElsewhere ( html, route ) {
   const tag = ( html.match( /<link\b[^>]*\brel="canonical"[^>]*>/i ) || [] )[ 0 ];
   const href = tag && ( tag.match( /\bhref="([^"]+)"/i ) || [] )[ 1 ];
   if ( !href ) return false;
   try { return normalizeRoute( new URL( href, 'https://wecare.digital' ).pathname ) !== route; }
   catch { return false; }
+}
+
+// A page that tells crawlers not to index it does not belong in the list of pages to index.
+// Post robots values come from the blog API (post/[slug].tsx), so a post switched to noindex there
+// must drop out of the sitemap on the next build rather than keep being advertised.
+function isNoindex ( html ) {
+  for ( const tag of html.match( /<meta\b[^>]*\bname="(?:robots|googlebot)"[^>]*>/gi ) || [] ) {
+    const content = ( tag.match( /\bcontent="([^"]*)"/i ) || [] )[ 1 ] || '';
+    if ( /(^|[\s,])(noindex|none)([\s,]|$)/i.test( content ) ) return true;
+  }
+  return false;
+}
+
+function excludedFromSitemap ( file, route ) {
+  const html = fs.readFileSync( file, 'utf8' );
+  return canonicalElsewhere( html, route ) || isNoindex( html );
 }
 
 function findHtmlFiles ( dir, base = '' ) {
@@ -171,7 +186,7 @@ function findHtmlFiles ( dir, base = '' ) {
     else if ( entry.name === 'index.html' )
     {
       const route = normalizeRoute( base );
-      if ( isPublicRoute( route ) && !canonicalElsewhere( fullPath, route ) ) urls.push( route );
+      if ( isPublicRoute( route ) && !excludedFromSitemap( fullPath, route ) ) urls.push( route );
     }
   }
   return urls;

@@ -953,8 +953,12 @@ export default function App ( { Component, pageProps }: AppProps ) {
           <meta name="twitter:image:alt" content="WECARE.DIGITAL — building digital railroads for Everyday Bharat" />
 
           {/* SEO */ }
+          {/* `robots` is keyed by name, so a noindex page's own robots meta replaces this one. A
+              separate `googlebot` meta used to sit here saying "index, follow"; next/head dedupes
+              that name independently, so it SURVIVED on /cart, /checkout, /get and the other
+              noindex pages and contradicted their own directive. Google applies the most
+              restrictive rule, so it was never harmful, only noise; robots alone says it. */}
           <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
-          <meta name="googlebot" content="index, follow" />
           <meta name="author" content="WECARE.DIGITAL" />
           <meta name="publisher" content="WECARE.DIGITAL" />
           <meta name="language" content="English" />

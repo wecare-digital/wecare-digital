@@ -95,7 +95,10 @@ export const shopProductSchema = (
       url,
       price: product.price,
       priceCurrency: product.currency,
-      availability: 'https://schema.org/InStock',
+      // NO `availability`. It used to say InStock for every product unconditionally, and stock
+      // tracking was removed from the catalogue on 2026-10-23, so nothing on the page or in the
+      // data backs that claim. Structured data must not assert facts the page cannot support;
+      // emit availability again only from a real per-product stock field.
       seller: { '@id': ORG_ID },
     },
   } ] : [];

@@ -112,7 +112,11 @@ const BASE_ORGANIZATION = {
   image: LOGO_URL,
   description: COMPANY_DESCRIPTION,
   address: POSTAL_ADDRESS,
-  geo: GEO,
+  // The coordinates sit on a Place, not on the Organization. schema.org defines `geo` for Place
+  // (and LocalBusiness, which is a Place), not for Organization, so `geo` here was an undefined
+  // property that validators flag and Google ignores. `location` is the Organization property
+  // whose range is Place, which is exactly "where this company is".
+  location: { '@type': 'Place', address: POSTAL_ADDRESS, geo: GEO },
   contactPoint: {
     '@type': 'ContactPoint',
     contactType: 'customer service',

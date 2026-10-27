@@ -63,7 +63,11 @@ import {
  */
 
 const ORIGIN = 'https://wecare.digital';
-const DESCRIPTION = 'Ideas, guides and updates from WECARE.DIGITAL.';
+/* The blog's own visible subtitle (BlogIndexView's hero `sub`), so the search snippet says what the
+   page says. It used to read "Ideas, guides and updates from WECARE.DIGITAL." - 46 characters, under
+   the 50-170 range tools/browser/seocheck.js holds every public description to, and a sentence that
+   could describe any company blog. The brand is already in the title. */
+const DESCRIPTION = 'Short pieces on the distinctions that change how a thing is seen — written by the people doing the work.';
 
 interface BlogIndexHeadProps {
   page: number;

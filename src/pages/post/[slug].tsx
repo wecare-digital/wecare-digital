@@ -306,9 +306,11 @@ export default function BlogPostPage ( {
             dangerouslySetInnerHTML={ ld( entity ) } />
         ) ) }
         <script type="application/ld+json" dangerouslySetInnerHTML={ ld( articleSchema ) } />
-        { ( post.jsonLd?.faqSchema?.mainEntity?.length || 0 ) > 0 && (
-          <script type="application/ld+json" dangerouslySetInnerHTML={ ld( post.jsonLd?.faqSchema ) } />
-        ) }
+        {/* NO FAQPage here, even when the API attaches `jsonLd.faqSchema`. This template renders
+            no FAQ section, so emitting the API's FAQ markup would describe questions a reader
+            cannot see, which structured-data policy forbids (and Google no longer shows FAQ rich
+            results anyway). Re-add it only together with a visible FAQ block that renders the
+            same questions and answers. No exported post carried one on 2026-10-27. */}
       </Head>
       {/* UNIFIED HERO (owner 2026-10-13): the post carries the same frame + ROTATING lime pill +
           one-shot entrance as every other hero, via the shared RotatingHero. Frame is "Read" and
