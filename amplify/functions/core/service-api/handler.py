@@ -846,6 +846,50 @@ def _update_document(doc_id: str, body: Dict) -> Dict:
                 'message': 'Revoke the published Vault file before requesting a replacement.',
             })
 
+    document_action = str(body.get('_action') or '').strip().lower()
+    if document_action in ('archive', 'restore_archive'):
+        current = table.get_item(Key={'documentId': doc_id}, ConsistentRead=True).get('Item') or {}
+        if not current:
+            return _resp(404, {'error': 'Document not found'})
+        if document_action == 'archive':
+            if current.get('archivedAt'):
+                return _resp(200, {'updated': True, 'archived': True, 'documentId': doc_id})
+            # Archive is intentionally metadata-only. The private object and any Vault/payment
+            # evidence remain intact; hard deletion would destroy the audit trail.
+            table.update_item(
+                Key={'documentId': doc_id},
+                UpdateExpression='SET archivedAt=:now, archivedBy=:by, updatedAt=:now',
+                ConditionExpression='attribute_exists(documentId)',
+                ExpressionAttributeValues={
+                    ':now': now,
+                    ':by': str(body.get('reviewedBy') or 'admin')[:128],
+                },
+            )
+            action_name = 'archived'
+            archived = True
+        else:
+            table.update_item(
+                Key={'documentId': doc_id},
+                UpdateExpression='REMOVE archivedAt, archivedBy SET updatedAt=:now',
+                ConditionExpression='attribute_exists(documentId)',
+                ExpressionAttributeValues={':now': now},
+            )
+            action_name = 'restored'
+            archived = False
+        try:
+            dynamodb.Table(DOCUMENT_HISTORY_TABLE).put_item(Item={
+                'historyId': str(uuid.uuid4()),
+                'documentId': doc_id,
+                'action': action_name,
+                'actorType': 'admin',
+                'actorId': str(body.get('reviewedBy') or 'admin')[:128],
+                'remarks': str(body.get('notes') or ''),
+                'createdAt': now,
+            })
+        except Exception:
+            pass
+        return _resp(200, {'updated': True, 'archived': archived, 'documentId': doc_id})
+
     if str(body.get('_action') or '').strip().lower() == 'revalidate_reference':
         current = table.get_item(Key={'documentId': doc_id}, ConsistentRead=True).get('Item') or {}
         if not current:
