@@ -2,10 +2,11 @@
 
 Prepared 25 October 2026. This is a reviewable build, not an executed deployment or public listing.
 
-Status, 26 October 2026: this review predates the deployment. The stack `wecare-customer-commerce-mcp`
-(HTTP API `mtx59syrt6`) is deployed. Its v9 (`shopping-brand-redirect-20261026-v9`) runs with
-`WhatsAppPaymentsEnabled` and `RegistrationEnabled` set to `true` and `ConnectOrigin` set to
-`https://connect.wecare.digital`, as parameter values; the template defaults stay off.
+Status, 27 October 2026: this review predates the deployment. The stack `wecare-customer-commerce-mcp`
+(HTTP API `mtx59syrt6`) is deployed. Its v12 (`main-site-auth-stable-routes-20261027-v12`) runs with
+`WhatsAppPaymentsEnabled` and `RegistrationEnabled` set to `true` and `AuthOrigin` set to
+`https://wecare.digital` (sign-in on `wecare.digital/auth`; the v9 `connect.wecare.digital` domain
+is gone), as parameter values; the template defaults stay off.
 `amplify/functions/ai/customer-commerce-mcp/README.md` has the current release steps.
 Owner direction: conversation-only customer experience; WhatsApp template payment fallback;
 all available listing countries; review/improve the build before publication.

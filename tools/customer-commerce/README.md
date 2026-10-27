@@ -102,10 +102,11 @@ The source export and runtime ZIP are not installable or submission-ready public
 
 ## Branded secure connection
 
-ConnectOrigin optionally enables https://connect.wecare.digital using the existing wildcard
-certificate and hosted zone. Discovery sends authorization to that origin; the issuer, MCP
-audience and registered host callbacks remain unchanged. Cached legacy authorization GETs
-redirect before creating cookies. Existing pending POSTs remain supported on the original host.
+AuthOrigin optionally enables sign-in on https://wecare.digital/auth, served through the existing
+Amplify Hosting rewrite to this API (no subdomain, certificate or DNS record). Discovery sends
+authorization to that page; the issuer, MCP audience and registered host callbacks remain
+unchanged. Cached legacy `/oauth/authorize` GETs redirect to `/auth` before creating cookies.
+Existing pending POSTs remain supported on the original host.
 The secure page embeds the canonical WECARE logo and src/lib/dialCodes.ts country list at build
 time, without a website request or new tracking. Server validation combines dial code and
 national number before calling the existing identity service. This screen is only for sign-in;

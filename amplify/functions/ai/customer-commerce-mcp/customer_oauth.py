@@ -44,10 +44,11 @@ def resource() -> str:
 
 
 def connect_origin() -> str:
-    value = os.environ.get('CUSTOMER_CONNECT_ORIGIN', '').rstrip('/')
-    # Only the deployed, owner-controlled sign-in alias is permitted. The issuer
-    # and token audience remain stable for existing host registrations.
-    if value and value != 'https://connect.wecare.digital':
+    value = os.environ.get('CUSTOMER_AUTH_ORIGIN', '').rstrip('/')
+    # Only the main site is permitted: wecare.digital/auth reaches this API through the
+    # existing Amplify Hosting rewrite, so no sign-in subdomain is needed. The issuer and
+    # token audience remain stable for existing host registrations.
+    if value and value != 'https://wecare.digital':
         raise AuthError('Connection origin unavailable')
     return value or origin()
 
@@ -146,16 +147,39 @@ STORE = Store()
 
 def capsule(data: dict, client_id: str, key: str) -> str:
     context = {'app': 'wecare-customer-commerce', 'resource': resource(), 'client': client_id, 'record': key}
+    plain = json.dumps(data).encode()
+    if len(plain) > 32768:
+        raise AuthError('Custody payload too large')
+    # KMS Encrypt accepts at most 4,096 bytes of plaintext. A larger record is split into
+    # 3,000-byte parts, each bound to its index and the part count, and stored as `kms2:`
+    # followed by the JSON list of ciphertexts.
+    if len(plain) > 4096:
+        parts = [plain[i:i + 3000] for i in range(0, len(plain), 3000)]
+        encrypted = [base64.b64encode(aws('kms').encrypt(KeyId=os.environ['CUSTOMER_SESSION_KMS_KEY_ID'],
+            EncryptionContext={**context, 'part': str(i), 'parts': str(len(parts))},
+            Plaintext=part)['CiphertextBlob']).decode() for i, part in enumerate(parts)]
+        return 'kms2:' + json.dumps(encrypted, separators=(',', ':'))
     result = aws('kms').encrypt(KeyId=os.environ['CUSTOMER_SESSION_KMS_KEY_ID'],
-        EncryptionContext=context, Plaintext=json.dumps(data).encode())
+        EncryptionContext=context, Plaintext=plain)
     return base64.b64encode(result['CiphertextBlob']).decode()
 
 
 def uncapsule(cipher: str, client_id: str, key: str) -> dict:
     context = {'app': 'wecare-customer-commerce', 'resource': resource(), 'client': client_id, 'record': key}
-    result = aws('kms').decrypt(KeyId=os.environ['CUSTOMER_SESSION_KMS_KEY_ID'],
-        EncryptionContext=context, CiphertextBlob=base64.b64decode(cipher, validate=True))
-    value = json.loads(result['Plaintext'])
+    if cipher.startswith('kms2:'):
+        parts = json.loads(cipher[5:])
+        if not isinstance(parts, list) or not 2 <= len(parts) <= 11 or any(
+                (not isinstance(p, str) or len(p) > 12000 for p in parts)):
+            raise AuthError('Invalid custody parts')
+        plain = b''.join((aws('kms').decrypt(KeyId=os.environ['CUSTOMER_SESSION_KMS_KEY_ID'],
+            EncryptionContext={**context, 'part': str(i), 'parts': str(len(parts))},
+            CiphertextBlob=base64.b64decode(part, validate=True))['Plaintext'] for i, part in enumerate(parts)))
+        if len(plain) > 32768:
+            raise AuthError('Custody payload too large')
+    else:
+        plain = aws('kms').decrypt(KeyId=os.environ['CUSTOMER_SESSION_KMS_KEY_ID'],
+            EncryptionContext=context, CiphertextBlob=base64.b64decode(cipher, validate=True))['Plaintext']
+    value = json.loads(plain)
     if not isinstance(value, dict):
         raise AuthError('Invalid custody')
     return value
@@ -168,6 +192,8 @@ def response(status: int, data, *, page: bool = False) -> dict:
         # Navigation POSTs under no-referrer lose Origin in Chromium and fail CSRF.
         'Referrer-Policy': 'strict-origin' if page else 'no-referrer',
         'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY',
+        # The sign-in page is served on the main site, so it must never be indexed.
+        'X-Robots-Tag': 'noindex, nofollow, noarchive',
         'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
     }, 'body': data if page or isinstance(data, str) else json.dumps(data)}
 
@@ -200,7 +226,8 @@ def validate_authorize(params: dict) -> dict:
 
 def auth_metadata() -> dict:
     base = origin()
-    return {'issuer': base, 'authorization_endpoint': connect_origin() + '/oauth/authorize',
+    # On the main site the sign-in page is `/auth`; directly on the API it stays `/oauth/authorize`.
+    return {'issuer': base, 'authorization_endpoint': connect_origin() + ('/auth' if connect_origin() != base else '/oauth/authorize'),
             'token_endpoint': base + '/oauth/token', 'revocation_endpoint': base + '/oauth/revoke',
             'response_types_supported': ['code'], 'grant_types_supported': ['authorization_code', 'refresh_token'],
             'token_endpoint_auth_methods_supported': ['none'], 'code_challenge_methods_supported': ['S256'],
@@ -346,15 +373,43 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
                    'Enter the 6-digit code we sent you. Keep the code on this secure page.')
     if phase == 'registration':
         description = 'Verify your WhatsApp number to create your account. A separate sign-in code will follow.'
-    page = ('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Connect WECARE</title>'
-            '<style>*{box-sizing:border-box}body{margin:0;background:#f8faf5;color:#1a3a2a;font:16px/1.55 system-ui,-apple-system,sans-serif}a{color:inherit}header{max-width:1100px;margin:auto;padding:24px 28px;display:flex;align-items:center;justify-content:space-between;gap:16px}.brand{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:750;letter-spacing:.04em;text-decoration:none}.brand svg{width:40px;height:40px}header>a:last-child{font-size:13px;text-underline-offset:4px}main{width:min(520px,calc(100% - 32px));margin:40px auto 56px;background:#fff;border:1px solid #e5e7eb;border-radius:24px;padding:36px}.eyebrow{display:inline-block;padding:6px 12px;background:#d1f470;border-radius:24px;font-size:12px;font-weight:700;letter-spacing:.05em}h1{font-size:clamp(28px,5vw,36px);line-height:1.15;letter-spacing:-.04em;margin:24px 0 14px;max-width:350px}p{margin:0 0 22px}.destination{font-size:14px;padding-bottom:20px;border-bottom:1px solid #e5e7eb}label{display:block;font-size:13px;font-weight:650}input,select,button{width:100%;font:inherit;min-height:52px;border-radius:12px}input,select{display:block;margin-top:8px;padding:12px;border:1px solid #d9ded7;background:#fff;color:#1a3a2a;min-width:0}input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}.phone-fields{display:grid;grid-template-columns:1fr 1.2fr;gap:12px}.hint{font-size:12px;margin:10px 0 24px;color:#526052}button{margin-top:24px;padding:14px;background:#d1f470;color:#1a3a2a;border:0;font-weight:750;cursor:pointer}button:hover{background:#c5e85f}.consent{font-size:12px;color:#526052;margin:20px 0 0}.footer{font-size:12px;text-align:center;color:#526052;margin:24px 0 0}.footer a{text-underline-offset:3px}.alert{border:1px solid #b45309;border-radius:10px;padding:12px;font-size:14px}@media(max-width:480px){header{padding:18px 20px}main{margin:20px auto;padding:26px 22px;border-radius:20px}.phone-fields{grid-template-columns:1fr}header>a:last-child{font-size:12px}}</style></head><body>'
-            '<header><a class="brand" href="https://wecare.digital/" aria-label="WECARE.DIGITAL home">' + BRAND_LOGO + '<span>WECARE.DIGITAL</span></a><a href="https://wecare.digital/">Visit our website</a></header>'
-            '<main><span class="eyebrow">WECARE SHOPPING</span><h1>' + title + '</h1><p>' + html.escape(description) + '</p><p class="destination">Connecting to <strong>' + html.escape(client(row['client'])['name']) + '</strong></p>'
+    lockup = BRAND_LOGO + '<span class="brand-copy"><span>WECARE<span class="brand-dot">.</span></span><span>DIGITAL</span></span>'
+    page = ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
+              '<meta name="viewport" content="width=device-width, initial-scale=1">'
+              '<meta name="robots" content="noindex,nofollow,noarchive"><title>WECARE.DIGITAL · Sign in</title>'
+              '<style>*{box-sizing:border-box}body{margin:0;background:#fff;color:#1a3a2a;font:16px/1.55 system-ui,-apple-system,sans-serif}a{color:inherit}header{max-width:1100px;margin:auto;padding:24px 28px;display:flex;align-items:center;justify-content:space-between;gap:16px}.brand{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:750;letter-spacing:.04em;text-decoration:none}.brand svg{width:60px;height:60px}.brand-copy{display:flex;flex-direction:column;line-height:1;font-size:23px;font-weight:750;letter-spacing:-.04em}.brand-dot{color:#ff0040}.brand-copy>span+span{margin-top:4px}header>a:last-child{font-size:13px;text-underline-offset:4px}main{width:min(520px,calc(100% - 32px));margin:40px auto 56px;background:#fff;border:1px solid #e5e7eb;border-radius:24px;padding:36px}.eyebrow{display:inline-block;padding:6px 12px;background:#d1f470;border-radius:24px;font-size:12px;font-weight:700;letter-spacing:.05em}h1{font-size:clamp(28px,5vw,36px);line-height:1.15;letter-spacing:-.04em;margin:24px 0 14px;max-width:350px}p{margin:0 0 22px}.destination{font-size:14px;padding-bottom:20px;border-bottom:1px solid #e5e7eb}label{display:block;font-size:13px;font-weight:650}input,select,button{width:100%;font:inherit;min-height:52px;border-radius:12px}input,select{display:block;margin-top:8px;padding:12px;border:1px solid #d9ded7;background:#fff;color:#1a3a2a;min-width:0}input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}.phone-fields{display:grid;grid-template-columns:1fr 1.2fr;gap:12px}.hint{font-size:12px;margin:10px 0 24px;color:#526052}button{margin-top:24px;padding:14px;background:#d1f470;color:#1a3a2a;border:0;font-weight:750;cursor:pointer}button:hover{background:#c5e85f}.consent{font-size:12px;color:#526052;margin:20px 0 0}.footer{font-size:12px;text-align:center;color:#526052;margin:24px 0 0}.footer a{text-underline-offset:3px}.alert{border:1px solid #b45309;border-radius:10px;padding:12px;font-size:14px}@media(max-width:480px){header{padding:18px 20px}main{margin:20px auto;padding:26px 22px;border-radius:20px}.phone-fields{grid-template-columns:1fr}header>a:last-child{font-size:12px}}.stay{max-width:520px;margin:0 auto 42px;padding:0 24px}.stay h2{display:inline-block;font-size:12px;text-transform:uppercase;letter-spacing:.06em;background:#d1f470;border-radius:20px;padding:6px 12px}.stay-links{display:flex;gap:12px;flex-wrap:wrap}.stay-links a{padding:12px 16px;border:1px solid #e5e7eb;border-radius:12px;font-size:14px;font-weight:650;text-decoration:none}.stay-links a:hover{background:#d1f470}.site-footer{border-top:1px solid #eef0e6;padding:32px 28px}.footer-in{max-width:1044px;margin:auto;display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap}.site-footer .brand svg{width:44px;height:44px}.site-footer .brand-copy{font-size:18px}.site-footer p{font-size:14px;margin:16px 0 0}.legal{display:flex;gap:20px;align-items:center;font-size:13px}</style>'
+              '</head><body><header><a class="brand" href="https://wecare.digital/" aria-label="WECARE.DIGITAL home">'
+            + lockup
+            + '</a><a href="https://wecare.digital/">Visit our website</a></header><main>'
+              '<span class="eyebrow">WECARE.DIGITAL</span><h1>'
+            + title
+            + '</h1><p>'
+            + html.escape(description)
+            + '</p><p class="destination">Connecting to <strong>'
+            + html.escape(client(row['client'])['name'])
+            + '</strong></p>'
             + ('<p class="alert" role="alert">' + html.escape(message) + '</p>' if message else '')
-            + '<form method="post" action="/oauth/authorize"><input type="hidden" name="csrf" value="' + html.escape(csrf, quote=True) + '">' + field
-            + '<button type="submit">' + ('Send WhatsApp code' if phase == 'phone' else 'Verify and connect') + '</button>'
-            + '<p class="consent">Connect your profile, addresses and orders to this app. It can make changes and request a WhatsApp payment only when you ask. Verification messages arrive on WhatsApp.</p></form>'
-            + '<p class="footer"><a href="https://wecare.digital/privacy/">Privacy</a> &nbsp;·&nbsp; <a href="https://wecare.digital/terms/">Terms</a></p></main></body></html>')
+            + '<form method="post" action="'
+            + ('/auth' if connect_origin() != origin() else '/oauth/authorize')
+            + '"><input type="hidden" name="csrf" value="'
+            + html.escape(csrf, quote=True)
+            + '">'
+            + field
+            + '<button type="submit">'
+            + ('Send WhatsApp code' if phase == 'phone' else 'Verify and connect')
+            + '</button>'
+            + '<p class="consent">Connect your profile, addresses and orders to this app. It can make changes and request a WhatsApp payment only when you ask. Verification messages arrive on WhatsApp.</p>'
+              '</form>'
+            + '<p class="footer">'
+              '<a href="https://wecare.digital/privacy/">Privacy</a> &nbsp;·&nbsp; <a href="https://wecare.digital/terms/">Terms</a>'
+              '</p></main><section class="stay" aria-label="Stay connected"><h2>Stay connected</h2><div class="stay-links">'
+              '<a href="https://wa.me/message/WUDPTMYSO6XII1" target="_blank" rel="noopener noreferrer">Subscribe on WhatsApp</a>'
+              '<a href="https://wecare.digital/contact/">Contact us</a></div></section><footer class="site-footer">'
+              '<div class="footer-in"><div><a class="brand" href="https://wecare.digital/" aria-label="WECARE.DIGITAL home">'
+            + lockup
+            + '</a><p>Trusted everyday services for Bharat</p></div><nav class="legal" aria-label="Legal">'
+              '<a href="https://wecare.digital/privacy/">Privacy</a><a href="https://wecare.digital/terms/">Terms</a></nav>'
+              '</div></footer></body></html>')
     result = response(200, page, page=True)
     # Browsers apply form-action to the post-login redirect chain too. Permit only
     # this registered client's callback origin, never a caller-selected destination.
@@ -399,6 +454,9 @@ def authorize_post(params: dict, event: dict) -> dict:
     login = uncapsule(row['cipher'], row['client'], key)
     if STORE.take(key) is None:
         raise AuthError('Authorization step already used')
+    # Which step failed, for the failure log line below. A step name and an exception class
+    # only: never a number, code, session or provider message.
+    stage = 'phone' if login.get('phase') == 'phone' else 'challenge'
     try:
         if login.get('phase') == 'phone':
             try:
@@ -431,13 +489,16 @@ def authorize_post(params: dict, event: dict) -> dict:
             login['session'] = result['Session']
             return save_pending(row, login, 'Check the code and try again.')
         auth = result['AuthenticationResult']
+        stage = 'identity_check'
         _, subject = checked_cognito(auth)
         now = int(time.time())
+        stage = 'custody'
         grant_key = PREFIX + 'grant:' + secrets.token_urlsafe(32)
         grant = {'sidHash': grant_key, 'kind': 'grant', 'client': row['client'], 'resource': resource(),
                  'scope': row['scope'], 'subject': subject, 'absoluteExpiresAt': now + 30 * 86400,
                  'cipher': capsule(auth, row['client'], grant_key)}
         STORE.put(grant)
+        stage = 'authorization_code'
         code = 'wcc_' + secrets.token_urlsafe(32)
         STORE.put({'sidHash': row_key('code', code), 'kind': 'code', 'client': row['client'], 'resource': resource(),
                    'redirect': row['redirect'], 'challenge': row['challenge'], 'grant': grant_key, 'absoluteExpiresAt': now + 120})
@@ -446,29 +507,33 @@ def authorize_post(params: dict, event: dict) -> dict:
         result['headers']['Location'] = row['redirect'] + separator + urlencode({'code': code, 'state': row['state']})
         result['cookies'] = [f'{COOKIE}=; Secure; HttpOnly; SameSite=Lax; Path=/; Max-Age=0']
         return result
-    except Exception:
-        # Never reflect provider error strings, session credentials, numbers or codes.
+    except Exception as error:
+        # Never reflect provider error strings, session credentials, numbers or codes. The log
+        # line carries the step and a sanitised exception class name only.
+        category = re.sub('[^A-Za-z0-9_]', '', type(error).__name__)[:64]
+        print(json.dumps({'event': 'customer_authorization_failed', 'stage': stage, 'category': category}))
         return save_pending(row, {'phase': 'phone'}, 'We could not complete verification. Please try again shortly.')
 
 
 def route(event: dict) -> dict | None:
     path = str(event.get('rawPath') or '')
-    if path not in {'/.well-known/oauth-authorization-server', '/oauth/authorize', '/oauth/token', '/oauth/revoke'}:
+    # `/auth` is the main-site sign-in path (wecare.digital/auth, through the Amplify Hosting
+    # rewrite); `/oauth/authorize` stays for hosts that cached the earlier discovery document.
+    if path not in {'/.well-known/oauth-authorization-server', '/auth', '/oauth/authorize', '/oauth/token', '/oauth/revoke'}:
         return None
     method = str(((event.get('requestContext') or {}).get('http') or {}).get('method') or '').upper()
     try:
         if path == '/.well-known/oauth-authorization-server' and method == 'GET':
             return response(200, auth_metadata())
-        if path == '/oauth/authorize' and method == 'GET':
+        if path in {'/auth', '/oauth/authorize'} and method == 'GET':
             params = parse(event.get('rawQueryString', ''))
             target = connect_origin()
-            # Hosts cache discovery. Redirect the initial GET before creating a
-            # session so cookies and the subsequent POST stay on the branded host.
-            # requestContext.domainName comes from API Gateway, never the caller.
-            if target != origin() and (event.get('requestContext') or {}).get('domainName') == urlparse(origin()).netloc:
+            # Hosts cache discovery. Redirect an initial GET on the legacy path before creating
+            # a session, so cookies and the subsequent POST stay on the main-site `/auth` page.
+            if target != origin() and path == '/oauth/authorize':
                 validate_authorize(params)
                 result = response(302, '')
-                result['headers']['Location'] = target + '/oauth/authorize?' + urlencode(params)
+                result['headers']['Location'] = target + '/auth?' + urlencode(params)
                 return result
             return authorize_get(params)
         if method != 'POST':
@@ -480,7 +545,7 @@ def route(event: dict) -> dict | None:
         if event.get('isBase64Encoded'):
             raw = base64.b64decode(raw, validate=True).decode()
         params = parse(raw)
-        if path == '/oauth/authorize':
+        if path in {'/auth', '/oauth/authorize'}:
             return authorize_post(params, event)
         if path == '/oauth/token':
             return response(200, token_exchange(params))
