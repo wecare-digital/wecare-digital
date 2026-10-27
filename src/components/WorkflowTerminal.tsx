@@ -1330,44 +1330,63 @@ const WorkflowTerminal: React.FC = () => {
              combined with 17px monospace calls, made almost every meaningful line look clipped
              on a 360-390px phone. */
           .wt-space{padding:20px 12px 48px}
-          /* MOBILE TITLE BAR IS A TWO-ROW RAIL, NOT A SQUEEZED DESKTOP ROW.
-             Row 1 keeps the real chrome hierarchy at readable sizes: window lights,
-             platform · runtime, then live trace. Row 2 belongs to the Pause/Play control.
-             Splitting the jobs lets the labels keep their normal 14/13.5px scale instead
-             of shrinking to 10-11px just to satisfy one-line geometry. */
+          /* MOBILE TITLE BAR IS ONE HORIZONTAL RAIL. Keep the real chrome sizes instead
+             of shrinking them, and let the bar itself own horizontal overflow on a phone.
+             The page never moves sideways; only this terminal rail can swipe if all controls
+             cannot fit at once. Pause remains a 44px touch target. */
           .wt-bar{
             box-sizing:border-box;
-            height:84px;
-            padding:0 12px 37px;
+            height:47px;
+            padding:0 84px 0 12px;
             gap:7px;
+            overflow-x:auto;
+            overflow-y:hidden;
+            -webkit-overflow-scrolling:touch;
+            scrollbar-width:none;
+            white-space:nowrap;
           }
+          .wt-bar::-webkit-scrollbar{display:none}
           .wt-light{width:9px;height:9px}
-          .wt-bar-title{margin-left:3px;font-size:14px}
-          .wt-bar-state{display:flex;font-size:13px;gap:6px}
+          .wt-bar-title{
+            margin-left:3px;
+            font-size:14px;
+            flex:0 0 auto;
+            overflow:visible;
+            text-overflow:clip;
+          }
+          .wt-bar-state{
+            display:flex;
+            flex:0 0 auto;
+            margin-left:0;
+            font-size:13px;
+            gap:6px;
+          }
           .wt-play{
-            top:47px;left:10px;right:10px;
+            top:0;left:auto;right:0;
             width:auto;height:44px;
-            justify-content:flex-end;
-            padding:0 4px;
-            border-radius:0;
+            justify-content:center;
+            padding:0 10px;
+            border-radius:0 12px 0 0;
             font-size:13px;
             gap:7px;
-            background:transparent;
-            box-shadow:inset 0 -2px 0 transparent;
+            background:#3b271a;
+            box-shadow:inset 2px 0 0 rgba(209,244,112,.22),inset 0 -2px 0 transparent;
           }
           .wt-play:hover{
-            background:transparent;
+            background:#3b271a;
             color:#fff;
-            box-shadow:inset 0 -2px 0 #d1f470;
+            box-shadow:inset 2px 0 0 rgba(209,244,112,.22),inset 0 -2px 0 #d1f470;
           }
           .wt-play:focus-visible{
-            background:transparent;
+            background:#3b271a;
             color:#fff;
             outline:2px solid #d1f470;
             outline-offset:-2px;
-            box-shadow:inset 0 -2px 0 #d1f470;
+            box-shadow:inset 2px 0 0 rgba(209,244,112,.22),inset 0 -2px 0 #d1f470;
           }
-          .wt-play.is-paused{box-shadow:inset 0 -2px 0 rgba(209,244,112,.72)}
+          .wt-play.is-paused{
+            box-shadow:inset 2px 0 0 rgba(209,244,112,.22),inset 0 -2px 0 rgba(209,244,112,.72)
+          }
           .wt-request{font-size:15px;line-height:1.5}
           .wt-line{line-height:1.45;gap:7px}
           .wt-code{gap:4px}
@@ -1396,8 +1415,8 @@ const WorkflowTerminal: React.FC = () => {
           .wt-time{margin-left:auto}
         }
         @media(max-width:340px){
-          /* At Fold width, remove only decorative traffic lights. The two-row rail means
-             the actual labels do not need a smaller typography rung. */
+          /* At Fold width, remove only decorative traffic lights. The title bar remains
+             one scrollable row and the actual labels keep their readable typography. */
           .wt-light{display:none}
           .wt-bar-title{margin-left:0;font-size:13px}
           .wt-bar-state{font-size:12px}
