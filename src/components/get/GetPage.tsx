@@ -53,7 +53,7 @@ import { serviceByKind } from '../../config/services';
 import { setServiceLine } from '../../lib/cart';
 import { postRequestIntent } from '../../lib/serviceRequests';
 import { CHECKOUT_PATH } from '../../lib/serviceEntry';
-import { fetchServicePrices } from '../../lib/servicePricing';
+import { fetchServicePrices, rupeesFromPaise } from '../../lib/servicePricing';
 import { DEFAULT_DIAL_CODE } from '../../lib/dialCodes';
 import {
     requestOtp, submitOtp, getSession, restoreSession, clearSession, normaliseMobile, nextSessionFrom,
@@ -66,7 +66,7 @@ function formatBytes ( bytes: number ): string {
     return `${( bytes / Math.pow( 1024, i ) ).toFixed( i === 0 ? 0 : 1 )} ${units[ i ]}`;
 }
 
-const rupees = ( paise: number ) => `₹${( ( paise || 0 ) / 100 ).toFixed( 0 )}`;
+
 
 /** The server's access state, or what an older backend's fields imply. */
 function accessStateOf ( file: SecureFile ): SecureFileAccessState {
@@ -652,11 +652,11 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                                                     action={ working === file.fileId
                                                         ? 'Preparing checkout…'
                                                         : state === 'EXPIRED'
-                                                            ? price === null ? 'Price unavailable' : `Renew for ${ rupees( price ) }`
-                                                            : price === null ? 'Price unavailable' : `Checkout ${ rupees( price ) }` }
+                                                            ? price === null ? 'Price unavailable' : `Renew for ₹${ rupeesFromPaise( price ) }`
+                                                            : price === null ? 'Price unavailable' : `Checkout ₹${ rupeesFromPaise( price ) }` }
                                                     block
                                                     onClick={ () => { void handleVaultCheckout( file ); } }
-                                                    disabled={ working === file.fileId }
+                                                    disabled={ working === file.fileId || price === null }
                                                     busy={ working === file.fileId }
                                                 />
                                                 <p className="sf-fine">
