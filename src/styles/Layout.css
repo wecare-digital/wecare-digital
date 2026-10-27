@@ -141,7 +141,7 @@ button, a, input[type="checkbox"], input[type="radio"], select {
    segments and BlogSearch's input ALL declare 17px - the site's field size, chosen so a field
    matches the 17px CTA it feeds - and every one of them painted at 16px. Four components, four
    deliberate declarations, none of them reaching the page. Read with
-   CSS.getMatchedStylesForNode on /account/sign-in/, where `.pf-code.jsx-<hash>{font-size:17px}`
+   CSS.getMatchedStylesForNode on /auth, where `.pf-code.jsx-<hash>{font-size:17px}`
    sat under this rule and lost to the !important.
    
    THE RULE'S PURPOSE IS A FLOOR, NOT A CEILING. 16px is the size below which iOS Safari zooms
