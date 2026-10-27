@@ -1513,6 +1513,7 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
             'couponCode': stored_coupon_code or None,
             'couponDiscount': _money_display(coupon_discount_rupees),
             'goodsType': body.get('goodsType') or 'physical-goods',
+            'sellerGstin': body.get('gstin') or COMPANY['gstin'],
             'pricingAuthority': 'invoice-engine',
         }
 
