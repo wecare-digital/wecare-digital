@@ -275,15 +275,15 @@ def _audit_actor() -> str:
 # characters 3-12, so the two MUST stay consistent:
 #   19 AAFFW7196L 1 Z 8  ->  state 19 (West Bengal), PAN AAFFW7196L
 # Env vars allow override without a redeploy.
-RECEIPT_MASTHEAD_KEY = (
-    'secure/d/public/Invoice/brand/wecare-digital-receipt-masthead-v1.png'
+RECEIPT_BRAND_MARK_KEY = (
+    'secure/d/public/Invoice/brand/wecare-digital-receipt-mark-v2.png'
 )
 
 COMPANY = {
     **business_identity.invoice_identity(),
-    # Dedicated immutable receipt artwork. Do not point this at the generic site/media logo:
+    # Dedicated immutable receipt brand mark. Do not point this at the generic site/media logo:
     # changing a website asset must not silently change a statutory/customer receipt rendition.
-    'logo_s3_key': RECEIPT_MASTHEAD_KEY,
+    'logo_s3_key': RECEIPT_BRAND_MARK_KEY,
 }
 
 
@@ -296,7 +296,7 @@ def _load_logo_bytes() -> Optional[bytes]:
     if _RECEIPT_LOGO_BYTES is not None:
         return _RECEIPT_LOGO_BYTES
 
-    cache_path = '/tmp/_receipt_masthead_v1.png'
+    cache_path = '/tmp/_receipt_brand_mark_v2.png'
     try:
         with open(cache_path, 'rb') as cached:
             _RECEIPT_LOGO_BYTES = cached.read()
@@ -312,10 +312,10 @@ def _load_logo_bytes() -> Optional[bytes]:
             with open(cache_path, 'wb') as cached:
                 cached.write(data)
         except Exception as error:  # noqa: BLE001
-            logger.debug(f"Receipt masthead cache write failed: {type(error).__name__}")
+            logger.debug(f"Receipt brand-mark cache write failed: {type(error).__name__}")
         return data
     except Exception as error:  # noqa: BLE001
-        logger.warning(f"Receipt masthead load error: {type(error).__name__}")
+        logger.warning(f"Receipt brand-mark load error: {type(error).__name__}")
         return None
 
 
