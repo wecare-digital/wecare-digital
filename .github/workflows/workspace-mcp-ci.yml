@@ -8,6 +8,7 @@ on:
       - "config/workspace-mcp.json"
       - "scripts/build_workspace_mcp.py"
       - "scripts/deploy_workspace_mcp.py"
+      - "scripts/provision_workspace_mcp_deploy_role.py"
       - "scripts/verify_chat_mcp_auth.py"
       - ".github/workflows/workspace-mcp-ci.yml"
   push:
@@ -19,6 +20,7 @@ on:
       - "config/workspace-mcp.json"
       - "scripts/build_workspace_mcp.py"
       - "scripts/deploy_workspace_mcp.py"
+      - "scripts/provision_workspace_mcp_deploy_role.py"
       - "scripts/verify_chat_mcp_auth.py"
       - ".github/workflows/workspace-mcp-ci.yml"
   workflow_dispatch:
