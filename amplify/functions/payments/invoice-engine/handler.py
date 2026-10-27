@@ -1499,7 +1499,7 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
                 'computedTotalPaise': computed_total_paise,
             })
     if body.get('previewOnly'):
-        return _resp(200, {
+        preview = {
             'preview': True,
             'subtotal': _money_display(subtotal),
             'discount': _money_display(discount),
@@ -1514,7 +1514,54 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
             'couponDiscount': _money_display(coupon_discount_rupees),
             'goodsType': body.get('goodsType') or 'physical-goods',
             'pricingAuthority': 'invoice-engine',
-        })
+        }
+
+        # Optional visual preview: use the SAME receipt renderer as the paid document, but keep
+        # everything in memory. No invoice number, DynamoDB row, S3 object or asset row is minted.
+        # The browser therefore previews presentation, while all monetary facts still come from
+        # this function's canonical pricing path.
+        if body.get('renderPreview'):
+            preview_invoice_row = {
+                'invoiceId': '',
+                'invoiceNumber': '',
+                'referenceId': 'PREVIEW',
+                'entryPoint': body.get('entryPoint', 'pay_flow'),
+                'channel': order_channel.canonical(body.get('channel')),
+                'status': 'created',
+                'paymentStatus': 'pending',
+                'customerName': body.get('customerName', ''),
+                'customerPhone': body.get('customerPhone', ''),
+                'customerEmail': body.get('customerEmail', ''),
+                'shippingAddress': body.get('shippingAddress', ''),
+                'billingAddress': body.get('billingAddress', ''),
+                'addressLine1': body.get('addressLine1', ''),
+                'addressLine2': body.get('addressLine2', ''),
+                'city': body.get('city', ''),
+                'state': body.get('state', ''),
+                'postalCode': body.get('postalCode', ''),
+                'buyerGstin': buyer_gstin or '',
+                'subtotal': _dec(subtotal),
+                'discount': _dec(discount),
+                'shipping': _dec(shipping),
+                'handling': _dec(handling),
+                'tax': _dec(tax),
+                'convenienceFee': _dec(convenience_fee),
+                'convenienceFeeNet': _dec(convenience_fee_net),
+                'convenienceFeeGst': _dec(convenience_fee_gst),
+                'total': _dec(total),
+                'createdAt': now,
+            }
+            preview_png = _generate_receipt_png(preview_invoice_row, list(items))
+            preview['previewImageBase64'] = base64.b64encode(preview_png).decode('ascii')
+            preview['previewImageContentType'] = 'image/png'
+
+        logger.info(json.dumps({
+            'event': 'invoice_preview_rendered' if body.get('renderPreview') else 'invoice_preview_quoted',
+            'itemCount': len(items),
+            'rendered': bool(body.get('renderPreview')),
+            'requestId': request_id,
+        }))
+        return _resp(200, preview)
 
     # ── Only now is a GST invoice number consumed ──
     #
