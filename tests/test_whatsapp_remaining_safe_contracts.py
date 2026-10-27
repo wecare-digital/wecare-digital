@@ -13,8 +13,8 @@ class WhatsAppRemainingSafeContracts(unittest.TestCase):
     def test_flow_encryption_status_is_read_only_and_redacted(self):
         self.assertIn("def _get_flow_encryption_status", BIZ)
         self.assertIn("/whatsapp_business_encryption", BIZ)
-        self.assertIn("'configured': bool(result.get('business_public_key'))", BIZ)
-        self.assertIn("'signatureStatus': result.get('business_public_key_signature_status')", BIZ)
+        self.assertIn("'configured': bool(record.get('business_public_key'))", BIZ)
+        self.assertIn("'signatureStatus': record.get('business_public_key_signature_status')", BIZ)
         self.assertIn("'/flow-encryption-status' in path", BIZ)
         self.assertIn("return _resp(405, {'error': 'GET only'})", BIZ)
 
