@@ -24,6 +24,8 @@ COOKIE = '__Host-wecare-connect'
 CUSTOMER_POOL = 'us-east-1_46ULYuukt'
 CUSTOMER_CLIENT = '4avmt9n4gpmkvkdk88qbtit33o'
 SCOPES = {'commerce:read', 'commerce:write'}
+WEBSITE_CLIENT = 'wecare-website'
+WEBSITE_RETURNS = {'/', '/cart/', '/checkout/', '/orders/', '/blog/', '/submit-request/', '/request-amendment/', '/drop-docs/', '/vault/', '/request-pickup/'}
 _CLIENTS = {}
 
 
@@ -67,6 +69,16 @@ def normalized_phone(params: dict) -> str:
     if not re.fullmatch(r'\+[1-9][0-9]{7,14}', number):
         raise AuthError('Invalid international number')
     return number
+
+
+def website_return(value: str) -> str:
+    """Allow only the same customer destinations the website sign-in flow already accepted."""
+    if not value:
+        return '/'
+    normalized = value if value.endswith('/') else value + '/'
+    if normalized not in WEBSITE_RETURNS or any(ch in value for ch in ('%', '?', '#', '\\')) or value.startswith('//'):
+        return '/cart/'
+    return normalized
 
 
 def digest(value: str) -> str:
@@ -364,7 +376,9 @@ def customer_event(event: dict, scope: str) -> dict:
 def form(row: dict, csrf: str, message: str = '') -> dict:
     login = uncapsule(row['cipher'], row['client'], row['sidHash'])
     phase = login.get('phase', 'phone')
-    title = 'Connect your WECARE account.' if phase == 'phone' else 'Check your WhatsApp.'
+    website = row.get('kind') == 'web-auth'
+    title = ('Sign in to WECARE.DIGITAL.' if website and phase == 'phone' else
+             'Connect your WECARE account.' if phase == 'phone' else 'Check your WhatsApp.')
     options = ''.join('<option value="' + html.escape(code, quote=True) + '">' + html.escape(country + ' (' + code + ')') + '</option>' for code, country, _ in DIAL_COUNTRIES)
     field = ('<div class="phone-fields"><label for="country">Country code<select id="country" name="country" autocomplete="tel-country-code">' + options + '</select></label>'
              '<label for="phone">WhatsApp number<input id="phone" name="phone" type="tel" inputmode="numeric" autocomplete="tel-national" pattern="[0-9]{5,14}" maxlength="14" required placeholder="Your mobile number" aria-describedby="phone-help"></label></div>'
@@ -385,9 +399,8 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
             + title
             + '</h1><p>'
             + html.escape(description)
-            + '</p><p class="destination">Connecting to <strong>'
-            + html.escape(client(row['client'])['name'])
-            + '</strong></p>'
+            + '</p>'
+            + ('' if website else '<p class="destination">Connecting to <strong>' + html.escape(client(row['client'])['name']) + '</strong></p>')
             + ('<p class="alert" role="alert">' + html.escape(message) + '</p>' if message else '')
             + '<form method="post" action="'
             + ('/auth' if connect_origin() != origin() else '/oauth/authorize')
@@ -396,9 +409,10 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
             + '">'
             + field
             + '<button type="submit">'
-            + ('Send WhatsApp code' if phase == 'phone' else 'Verify and connect')
+            + ('Send WhatsApp code' if phase == 'phone' else ('Verify and sign in' if website else 'Verify and connect'))
             + '</button>'
-            + '<p class="consent">Connect your profile, addresses and orders to this app. It can make changes and request a WhatsApp payment only when you ask. Verification messages arrive on WhatsApp.</p>'
+            + ('<p class="consent">Sign in to your WECARE account. Verification messages arrive on WhatsApp.</p>' if website else
+               '<p class="consent">Connect your profile, addresses and orders to this app. It can make changes and request a WhatsApp payment only when you ask. Verification messages arrive on WhatsApp.</p>')
               '</form>'
             + '<p class="footer">'
               '<a href="https://wecare.digital/privacy/">Privacy</a> &nbsp;·&nbsp; <a href="https://wecare.digital/terms/">Terms</a>'
@@ -427,11 +441,65 @@ def save_pending(row: dict, login: dict, message: str = '') -> dict:
     return form(row, csrf, message)
 
 
+def website_get(params: dict) -> dict:
+    if set(params) - {'return'}:
+        raise AuthError('Invalid website sign-in request')
+    cookie = secrets.token_urlsafe(32)
+    key = row_key('auth', cookie)
+    row = {'sidHash': key, 'kind': 'web-auth', 'client': WEBSITE_CLIENT,
+           'return': website_return(params.get('return', '')), 'absoluteExpiresAt': int(time.time()) + 600}
+    result = save_pending(row, {'phase': 'phone'})
+    result['cookies'] = [f'{COOKIE}={cookie}; Secure; HttpOnly; SameSite=Lax; Path=/; Max-Age=600']
+    return result
+
+
+def website_finish(row: dict, login: dict, auth: dict, event: dict) -> dict:
+    """Create the established website session, then hydrate the browser without exposing refresh custody."""
+    http = (event.get('requestContext') or {}).get('http') or {}
+    payload = {'rawPath': '/ecommerce/customer-session', 'httpMethod': 'POST',
+               'requestContext': {'http': {'method': 'POST', 'sourceIp': str(http.get('sourceIp') or '')}},
+               'headers': {'origin': 'https://wecare.digital', 'content-type': 'application/json',
+                           'authorization': 'Bearer ' + auth['AccessToken']},
+               'body': json.dumps({'action': 'exchange', 'refreshToken': auth['RefreshToken'], 'persistent': True})}
+    invoked = aws('lambda').invoke(FunctionName='wecare-customer-session:live', InvocationType='RequestResponse',
+                                   Payload=json.dumps(payload).encode())
+    if invoked.get('FunctionError'):
+        raise AuthError('Website session unavailable')
+    reply = json.loads(invoked['Payload'].read())
+    if not isinstance(reply.get('statusCode'), int) or not 200 <= reply['statusCode'] < 300:
+        raise AuthError('Website session unavailable')
+    body = json.loads(reply.get('body') or '{}')
+    csrf, expires_at = body.get('csrfToken'), body.get('expiresAt')
+    if not isinstance(csrf, str) or not csrf or not isinstance(expires_at, (int, float)):
+        raise AuthError('Website session unavailable')
+    destination = website_return(row.get('return', ''))
+    nonce = secrets.token_urlsafe(24)
+    script = (
+        "const hint={csrfToken:" + json.dumps(csrf) + ",expiresAt:" + str(int(expires_at)) + ",persistent:true};"
+        "localStorage.setItem('wecare.customer.sessionHint',JSON.stringify(hint));"
+        "fetch('/api/ecommerce/customer-session',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-Customer-CSRF':hint.csrfToken},body:JSON.stringify({action:'refresh'})})"
+        ".then(r=>{if(!r.ok)throw new Error('refresh');return r.json()})"
+        ".then(async s=>{sessionStorage.setItem('wecare.customer.accessToken',s.accessToken);sessionStorage.setItem('wecare.customer.expiresAt',String(s.expiresAt));"
+        "try{await fetch('/api/customer/profile',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+s.accessToken},body:'{}'})}catch(e){}"
+        "location.replace(" + json.dumps(destination) + ")})"
+        ".catch(()=>{document.getElementById('status').textContent='Sign-in completed, but the website session could not be restored. Please try again.'})"
+    )
+    page = ('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
+            '<meta name="robots" content="noindex,nofollow,noarchive"><title>WECARE.DIGITAL · Signing in</title></head>'
+            '<body><main id="status" style="max-width:520px;margin:15vh auto;padding:24px;font:16px/1.5 system-ui;color:#1a3a2a">Completing your secure sign-in…</main>'
+            '<script nonce="' + html.escape(nonce, quote=True) + '">' + script + '</script></body></html>')
+    result = response(200, page, page=True)
+    result['cookies'] = list(reply.get('cookies') or []) + [f'{COOKIE}=; Secure; HttpOnly; SameSite=Lax; Path=/; Max-Age=0']
+    result['headers']['Content-Security-Policy'] = ("default-src 'none'; script-src 'nonce-" + nonce +
+        "'; connect-src 'self'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'")
+    return result
+
+
 def authorize_get(params: dict) -> dict:
     params = validate_authorize(params)
     cookie = secrets.token_urlsafe(32)
     key = row_key('auth', cookie)
-    row = {'sidHash': key, 'kind': 'auth', 'client': params['client_id'], 'resource': resource(),
+    row = {'sidHash': key, 'kind': 'oauth-auth', 'client': params['client_id'], 'resource': resource(),
            'redirect': params['redirect_uri'], 'state': params['state'], 'scope': params['scope'],
            'challenge': params['code_challenge'], 'absoluteExpiresAt': int(time.time()) + 600}
     result = save_pending(row, {'phase': 'phone'})
@@ -452,6 +520,7 @@ def authorize_post(params: dict, event: dict) -> dict:
     if not row or not hmac.compare_digest(row['csrfHash'], digest(params.get('csrf', ''))):
         raise AuthError('Invalid authorization session')
     login = uncapsule(row['cipher'], row['client'], key)
+    website = row.get('kind') == 'web-auth'
     if STORE.take(key) is None:
         raise AuthError('Authorization step already used')
     # Which step failed, for the failure log line below. A step name and an exception class
@@ -491,6 +560,8 @@ def authorize_post(params: dict, event: dict) -> dict:
         auth = result['AuthenticationResult']
         stage = 'identity_check'
         _, subject = checked_cognito(auth)
+        if website:
+            return website_finish(row, login, auth, event)
         now = int(time.time())
         stage = 'custody'
         grant_key = PREFIX + 'grant:' + secrets.token_urlsafe(32)
@@ -527,6 +598,8 @@ def route(event: dict) -> dict | None:
             return response(200, auth_metadata())
         if path in {'/auth', '/oauth/authorize'} and method == 'GET':
             params = parse(event.get('rawQueryString', ''))
+            if path == '/auth' and not {'client_id', 'redirect_uri', 'response_type', 'scope', 'state', 'resource', 'code_challenge', 'code_challenge_method'}.intersection(params):
+                return website_get(params)
             target = connect_origin()
             # Hosts cache discovery. Redirect an initial GET on the legacy path before creating
             # a session, so cookies and the subsequent POST stay on the main-site `/auth` page.
