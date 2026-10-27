@@ -1,7 +1,7 @@
 /**
  * `safeLocalReturnPath` — the value a post-sign-in redirect may actually navigate to.
  *
- * WHY THIS EXISTS, 2026-10-01. `src/pages/account/sign-in.tsx` reads a `return` query
+ * WHY THIS EXISTS, 2026-10-01. The canonical `/auth` flow reads a `return` query
  * parameter and currently validates it with
  *
  *     /^\/[a-zA-Z0-9/_-]*\/?$/.test( raw ) ? raw : '/cart/'
@@ -46,8 +46,8 @@
  * customer-authentication workstream that owned `src/pages/account/**` aborted before
  * reaching implementation, so there was no live owner to collide with, and the owner
  * cleared the boundary explicitly rather than leaving a live open redirect documented as a
- * handoff. `src/pages/account/sign-in.tsx` now calls this function in
- * `returnPathFromUrl()`, and `src/test/SafeReturnPath.test.ts` asserts that the caller
+ * handoff. The canonical `/auth` flow applies the same allowlist, and
+ * `src/test/SafeReturnPath.test.ts` asserts that the caller
  * EXISTS and routes through here — the inversion of the test that used to fail the moment a
  * caller appeared. The rationale above is kept rather than deleted because it explains why
  * the module shipped dormant, which is otherwise a strange shape to find in a diff.
