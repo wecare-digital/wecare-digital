@@ -3378,6 +3378,17 @@ def _upload_media(media_file: str, media_type: str, message_id: str, phone_numbe
         if is_s3_key:
             s3_key = media_file.replace('s3://', '').replace(f'{MEDIA_BUCKET}/', '')
             s3_key = media_paths.canonical(s3_key)
+
+            # A generic media category ("image") used to generate a .jpeg display filename before
+            # we discovered that an existing S3 object was actually PNG. Keep the display name in
+            # lockstep with the source object's extension so transparent invoice PNGs remain PNG
+            # end-to-end in logs and Meta multipart metadata.
+            if not (filename and filename.strip() and filename not in ['undefined', 'null', 'File', 'Blob']):
+                actual_ext = os.path.splitext(s3_key)[1].lower()
+                if actual_ext in ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.mp4', '.pdf',
+                                  '.ogg', '.mp3', '.m4a', '.aac', '.amr', '.3gp', '.txt',
+                                  '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx'):
+                    display_filename = f"wecare-digital-{short_id}{actual_ext}"
             
             # Get file size from S3 for validation
             try:
