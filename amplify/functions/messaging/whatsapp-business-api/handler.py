@@ -6802,10 +6802,133 @@ def _require_admin_write(event: Dict[str, Any], path: str, method: str):
     return require_auth(event, required_role='Admin')
 
 
+def _workspace_cursor_encode(key: Dict[str, Any]) -> str:
+    if not key:
+        return ''
+    raw = json.dumps(key, default=str, separators=(',', ':'), sort_keys=True).encode()
+    return base64.urlsafe_b64encode(raw).decode().rstrip('=')
+
+
+def _workspace_cursor_decode(raw: str) -> Dict[str, Any]:
+    raw = str(raw or '').strip()
+    if not raw:
+        return {}
+    if len(raw) > 4096 or not re.fullmatch(r'[A-Za-z0-9_-]+', raw):
+        raise ValueError('Invalid cursor')
+    padded = raw + '=' * (-len(raw) % 4)
+    value = json.loads(base64.urlsafe_b64decode(padded.encode()).decode())
+    if not isinstance(value, dict) or len(value) > 8:
+        raise ValueError('Invalid cursor')
+    return value
+
+
+def _workspace_scan(table_name: str, *, limit: int, cursor: str = '',
+                    filter_expression=None, expression_names=None,
+                    expression_values=None) -> Dict[str, Any]:
+    table = dynamodb.Table(table_name)
+    args: Dict[str, Any] = {'Limit': limit}
+    start = _workspace_cursor_decode(cursor)
+    if start:
+        args['ExclusiveStartKey'] = start
+    if filter_expression is not None:
+        args['FilterExpression'] = filter_expression
+    if expression_names:
+        args['ExpressionAttributeNames'] = expression_names
+    if expression_values:
+        args['ExpressionAttributeValues'] = expression_values
+    page = table.scan(**args)
+    return {
+        'items': page.get('Items') or [],
+        'nextCursor': _workspace_cursor_encode(page.get('LastEvaluatedKey') or {}),
+        'scannedCount': int(page.get('ScannedCount') or 0),
+    }
+
+
+def _workspace_count(table_name: str, *, max_pages: int = 20) -> Dict[str, Any]:
+    table = dynamodb.Table(table_name)
+    total = 0
+    start = None
+    for _ in range(max_pages):
+        args: Dict[str, Any] = {'Select': 'COUNT'}
+        if start:
+            args['ExclusiveStartKey'] = start
+        page = table.scan(**args)
+        total += int(page.get('Count') or 0)
+        start = page.get('LastEvaluatedKey')
+        if not start:
+            return {'count': total, 'complete': True}
+    return {'count': total, 'complete': False}
+
+
+def _workspace_read(event: Dict[str, Any]) -> Dict[str, Any]:
+    """Bounded read-only operational surface for the Workspace MCP.
+
+    No customer message content, form answers, phone numbers, tokens or write action is returned.
+    """
+    scope = str(event.get('scope') or 'snapshot').strip()
+    try:
+        limit = int(event.get('limit') or 25)
+    except (TypeError, ValueError):
+        return {'error': 'INVALID_LIMIT'}
+    if limit < 1 or limit > 100:
+        return {'error': 'INVALID_LIMIT'}
+    cursor = str(event.get('cursor') or '')
+
+    if scope == 'snapshot':
+        return {
+            'scope': scope,
+            'flows': _workspace_count(FLOW_REGISTRY_TABLE),
+            'flowSubmissions': _workspace_count(FLOW_SUBMISSIONS_TABLE),
+            'statusHistory': _workspace_count(STATUS_HISTORY_TABLE),
+            'unknownDeliveries': _workspace_count(
+                os.environ.get('OUTBOUND_TABLE', 'stack-wecare-digital-WhatsAppOutboundTable')
+            ),
+            'note': 'unknownDeliveries is total outbound rows; use scope=unknown_deliveries for unresolved rows.',
+        }
+
+    if scope == 'flows':
+        page = _workspace_scan(FLOW_REGISTRY_TABLE, limit=limit, cursor=cursor)
+        allowed = ('flowId', 'flowCode', 'name', 'status', 'category', 'wabaId',
+                   'version', 'publishedVersion', 'updatedAt', 'createdAt')
+        page['items'] = [{k: item.get(k) for k in allowed if k in item} for item in page['items']]
+        return {'scope': scope, **page}
+
+    if scope == 'flow_submissions':
+        page = _workspace_scan(FLOW_SUBMISSIONS_TABLE, limit=limit, cursor=cursor)
+        allowed = ('submissionId', 'submissionNumber', 'flowId', 'flowCode', 'status',
+                   'paymentStatus', 'orderId', 'createdAt', 'updatedAt')
+        page['items'] = [{k: item.get(k) for k in allowed if k in item} for item in page['items']]
+        return {'scope': scope, **page}
+
+    if scope == 'unknown_deliveries':
+        page = _workspace_scan(
+            os.environ.get('OUTBOUND_TABLE', 'stack-wecare-digital-WhatsAppOutboundTable'),
+            limit=limit,
+            cursor=cursor,
+            filter_expression='#s = :unknown',
+            expression_names={'#s': 'status'},
+            expression_values={':unknown': 'unknown'},
+        )
+        allowed = ('id', 'messageId', 'whatsappMessageId', 'status', 'awsPhoneNumberId',
+                   'createdAt', 'statusUpdatedAt', 'errorCode')
+        page['items'] = [{k: item.get(k) for k in allowed if k in item} for item in page['items']]
+        return {'scope': scope, **page}
+
+    return {'error': 'INVALID_SCOPE'}
+
+
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     request_id = context.aws_request_id if context else 'local'
     global origin
     origin = extract_origin(event)
+
+    if event.get('internalAction') == 'workspaceRead':
+        if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
+            return _resp(403, {'error': 'Internal invocation required'})
+        try:
+            return _workspace_read(event)
+        except (ValueError, TypeError, json.JSONDecodeError):
+            return {'error': 'INVALID_CURSOR'}
 
     if event.get('internalAction') == 'messageHistoryForWamid':
         if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
