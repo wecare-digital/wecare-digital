@@ -59,11 +59,24 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
             "'totalGst': _dec(tax + convenience_fee_gst)",
             "'delightTaxTreatment': default_coupon.DELIGHT_TAX_TREATMENT",
             "'taxAmount': item_tax",
+            "'hsnSac': str(item.get('hsnSac') or '').strip()",
+            "'gstStateCode': gst_code",
+            "'portalUploadFormat': False",
+            "'gstWorkpaper'] = _gst_workpaper(invoice, items)",
         ):
             self.assertIn(token, source)
 
         coupon = DEFAULT_COUPON.read_text(encoding="utf-8")
         self.assertIn('DELIGHT_TAX_TREATMENT = "POST_TAX_COMMERCIAL_DISCOUNT"', coupon)
+
+    def test_gst_workpaper_refuses_to_guess_classification_or_portal_schema(self):
+        source = ENGINE.read_text(encoding="utf-8")
+        self.assertIn("'schemaVersion': 'wecare-gst-workpaper-v1'", source)
+        self.assertIn("'portalUploadFormat': False", source)
+        self.assertIn("'classificationComplete': classification_complete", source)
+        self.assertIn("'resolved': bool(place_code and iso_subdivision)", source)
+        self.assertIn("'hsnSac': hsn_sac", source)
+        self.assertIn("'lineSupplyTax': _money_display(line_supply_tax)", source)
 
     def test_customer_receipt_is_compact_and_uses_customer_labels(self):
         source = RECEIPT.read_text(encoding="utf-8")
