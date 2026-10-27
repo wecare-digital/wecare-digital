@@ -1,7 +1,10 @@
 # wecare-customer-commerce-mcp
 
 The customer commerce MCP server behind the "ChatGPT WECARE Shopping" connector: `POST /mcp`
-and the OAuth routes on HTTP API `mtx59syrt6`. Customers sign in on `connect.wecare.digital`.
+and the OAuth routes on HTTP API `mtx59syrt6`. Customers sign in on `https://wecare.digital/auth`,
+which the Amplify Hosting custom rules `/auth` and `/auth/` rewrite (status 200) to
+`https://mtx59syrt6.execute-api.us-east-1.amazonaws.com/auth`. Those rules live in the Amplify
+app, not in this repository.
 
 It is deployed by the CloudFormation stack `wecare-customer-commerce-mcp`, not by
 `scripts/deploy_all_lambdas.py`. The code is inline in the template (`Function.Code.ZipFile`),
@@ -15,16 +18,18 @@ which CloudFormation writes into the package as `index.py`.
   merges the two modules, writes the logo and country list in as constants, strips comments and
   docstrings, compacts whitespace, and fails if the result's Python AST differs from the source's.
   `scripts/check_deployed_source.py` compares the live package with this file.
-- `template.json`: the stack template as deployed for v9 (`DeploymentRevision`
-  `shopping-brand-redirect-20261026-v9`). Its `ZipFile` is `index.py`.
+- `template.json`: the stack template as deployed for v12 (`DeploymentRevision`
+  `main-site-auth-stable-routes-20261027-v12`, source hash `3b99b7ce…`). Its `ZipFile` is
+  `index.py`.
 
 The template defaults are off: no approved products, no OAuth clients, no registration, no
-WhatsApp payment requests and no `ConnectOrigin`. Production sets its own values on the stack
-(on 2026-10-26: payment requests and registration on, `ConnectOrigin`
-`https://connect.wecare.digital`). With `ConnectOrigin` set, the template also creates the API
-Gateway domain `connect.wecare.digital`, its API mapping and the Route 53 alias record.
-Discovery then sends authorization there; the issuer, token endpoint and MCP audience stay on
-the `execute-api` origin.
+WhatsApp payment requests and no `AuthOrigin`. Production sets its own values on the stack
+(on 2026-10-27: payment requests and registration on, `AuthOrigin` `https://wecare.digital`).
+With `AuthOrigin` set, discovery sends authorization to `https://wecare.digital/auth`, and a GET
+on the legacy `/oauth/authorize` path (from a host that cached older discovery) redirects there
+before any session exists. The issuer, token endpoint and MCP audience stay on the
+`execute-api` origin. There is no sign-in subdomain: v12 removed the `connect.wecare.digital`
+API domain, API mapping and Route 53 alias that v9 created.
 
 To change the function:
 
@@ -43,14 +48,14 @@ To change the function:
    and `live` keeps the old version.
 
 The compact template is over CloudFormation's 51,200-byte limit for a template sent in the
-request (v9: 60,745 bytes; `template.json` is pretty-printed, 69,443 bytes), and the release
-manifest says so in `templateRequiresS3`. Upload it to the private CDK assets bucket as
-`s3://cdk-hnb659fds-assets-775261844268-us-east-1/customer-commerce/<sourceSha256>/stack.json`,
-where v9's template is, and pass that object as the change set's template URL.
+request (v12: 63,658 bytes), and the release manifest says so in `templateRequiresS3`. Upload it
+to the private CDK assets bucket as
+`s3://cdk-hnb659fds-assets-775261844268-us-east-1/customer-commerce/<sourceSha256>/stack.json`
+and pass that object as the change set's template URL.
 
 The builder derives `SOURCE_SHA256`, the `Version` description and the `DeploymentRevision`
-default from the hash of the generated code. For v9 the generated template equals the deployed
-one exactly.
+default from the hash of the generated code. For v12 the generated `index.py` is byte-identical
+to the live package and the generated template equals the deployed one exactly.
 
 The live environment is recorded in `config/lambda-env-manifest.json`.
 
@@ -61,6 +66,15 @@ v4 added the three `wecare-commerce:live` call targets (`d96c8fe1c`). v6 to v9 w
 that Codex branch before they reached this repository: `b895b11` (sign-in page referrer),
 `230dabf` (OAuth `ui_locales`) and `f7215b0` (branded sign-in on `connect.wecare.digital`), which
 is v9.
+
+v10 to v12 were deployed on 2026-10-27 (04:07 to 04:17 IST) through AWS MCP change sets whose
+source was never committed, so for a while production ran code this repository did not have.
+It was reconstructed from the live stack the same day: the readable source, the builder and the
+logo asset now regenerate live v12 exactly. v12 moved sign-in to the main site (`/auth`, the
+`AuthOrigin` parameter, `CUSTOMER_AUTH_ORIGIN`), split custody records over 4,096 bytes into
+per-part KMS ciphertexts (`kms2:`), added `X-Robots-Tag: noindex` to every response, logs the
+failing sign-in step and exception class (never a number, code or provider message), and
+replaced the logo and sign-in page design. `verify_oauth.py` pins the `/auth` behaviour.
 
 ## Payment handoff
 

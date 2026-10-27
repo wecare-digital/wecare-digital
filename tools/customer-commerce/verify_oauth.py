@@ -68,15 +68,21 @@ class FakeCognito:
 
 class OAuthContract(unittest.TestCase):
     def test_cached_host_authorization_link_redirects_only_to_configured_brand_origin(self):
-        with patch.dict(os.environ, {'CUSTOMER_CONNECT_ORIGIN': 'https://connect.wecare.digital'}):
+        # Since v12 the sign-in page is wecare.digital/auth (Amplify rewrite to this API). A host
+        # that cached the old discovery document still opens /oauth/authorize: that GET redirects
+        # to the main-site /auth page before any session exists, and /auth itself never redirects.
+        with patch.dict(os.environ, {'CUSTOMER_AUTH_ORIGIN': 'https://wecare.digital'}):
             event = {'rawPath': '/oauth/authorize', 'rawQueryString': urlencode(self.params),
                      'requestContext': {'domainName': 'commerce.example.com', 'http': {'method': 'GET'}}}
             result = auth.route(event)
             self.assertEqual(result['statusCode'], 302)
-            self.assertEqual(result['headers']['Location'], 'https://connect.wecare.digital/oauth/authorize?' + urlencode(self.params))
+            self.assertEqual(result['headers']['Location'], 'https://wecare.digital/auth?' + urlencode(self.params))
             self.assertEqual(self.store.rows, {})
-            event['requestContext']['domainName'] = 'connect.wecare.digital'
+            event['rawPath'] = '/auth'
             self.assertEqual(auth.route(event)['statusCode'], 200)
+        with patch.dict(os.environ, {'CUSTOMER_AUTH_ORIGIN': 'https://connect.wecare.digital'}):
+            with self.assertRaises(auth.AuthError):
+                auth.connect_origin()
 
     def test_country_selection_normalizes_before_cognito(self):
         cookie, csrf = self.begin()
@@ -93,12 +99,14 @@ class OAuthContract(unittest.TestCase):
         self.assertEqual(self.cognito.sends, 0)
 
     def test_branded_authorization_origin_keeps_resource_binding(self):
-        with patch.dict(os.environ, {'CUSTOMER_CONNECT_ORIGIN': 'https://connect.wecare.digital'}):
-            self.assertEqual(auth.auth_metadata()['authorization_endpoint'], 'https://connect.wecare.digital/oauth/authorize')
+        with patch.dict(os.environ, {'CUSTOMER_AUTH_ORIGIN': 'https://wecare.digital'}):
+            self.assertEqual(auth.auth_metadata()['authorization_endpoint'], 'https://wecare.digital/auth')
             self.assertEqual(auth.auth_metadata()['issuer'], BASE)
             cookie, csrf = self.begin()
-            result = self.post(cookie, {'csrf': csrf, 'phone': '+447700900123'}, 'https://connect.wecare.digital')
+            result = self.post(cookie, {'csrf': csrf, 'phone': '+447700900123'}, 'https://wecare.digital')
             self.assertIn('WhatsApp verification code', result['body'])
+        # Without a main-site origin the API host keeps its own authorization endpoint.
+        self.assertEqual(auth.auth_metadata()['authorization_endpoint'], BASE + '/oauth/authorize')
 
     def test_host_language_hint_does_not_change_authorization(self):
         params = {**self.params, 'ui_locales': 'en-US'}

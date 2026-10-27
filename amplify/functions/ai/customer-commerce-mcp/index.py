@@ -31,8 +31,8 @@ def resource()->str:
  return origin()+'/mcp'
 
 def connect_origin()->str:
- value=os.environ.get('CUSTOMER_CONNECT_ORIGIN','').rstrip('/')
- if value and value!='https://connect.wecare.digital':
+ value=os.environ.get('CUSTOMER_AUTH_ORIGIN','').rstrip('/')
+ if value and value!='https://wecare.digital':
   raise AuthError('Connection origin unavailable')
  return value or origin()
 
@@ -120,19 +120,34 @@ STORE=Store()
 
 def capsule(data:dict,client_id:str,key:str)->str:
  context={'app':'wecare-customer-commerce','resource':resource(),'client':client_id,'record':key}
- result=aws('kms').encrypt(KeyId=os.environ['CUSTOMER_SESSION_KMS_KEY_ID'],EncryptionContext=context,Plaintext=json.dumps(data).encode())
+ plain=json.dumps(data).encode()
+ if len(plain)>32768:
+  raise AuthError('Custody payload too large')
+ if len(plain)>4096:
+  parts=[plain[i:i+3000]for i in range(0,len(plain),3000)]
+  encrypted=[base64.b64encode(aws('kms').encrypt(KeyId=os.environ['CUSTOMER_SESSION_KMS_KEY_ID'],EncryptionContext={**context,'part':str(i),'parts':str(len(parts))},Plaintext=part)['CiphertextBlob']).decode()for i,part in enumerate(parts)]
+  return'kms2:'+json.dumps(encrypted,separators=(',',':'))
+ result=aws('kms').encrypt(KeyId=os.environ['CUSTOMER_SESSION_KMS_KEY_ID'],EncryptionContext=context,Plaintext=plain)
  return base64.b64encode(result['CiphertextBlob']).decode()
 
 def uncapsule(cipher:str,client_id:str,key:str)->dict:
  context={'app':'wecare-customer-commerce','resource':resource(),'client':client_id,'record':key}
- result=aws('kms').decrypt(KeyId=os.environ['CUSTOMER_SESSION_KMS_KEY_ID'],EncryptionContext=context,CiphertextBlob=base64.b64decode(cipher,validate=True))
- value=json.loads(result['Plaintext'])
+ if cipher.startswith('kms2:'):
+  parts=json.loads(cipher[5:])
+  if not isinstance(parts,list)or not 2<=len(parts)<=11 or any((not isinstance(p,str)or len(p)>12000 for p in parts)):
+   raise AuthError('Invalid custody parts')
+  plain=b''.join((aws('kms').decrypt(KeyId=os.environ['CUSTOMER_SESSION_KMS_KEY_ID'],EncryptionContext={**context,'part':str(i),'parts':str(len(parts))},CiphertextBlob=base64.b64decode(part,validate=True))['Plaintext']for i,part in enumerate(parts)))
+  if len(plain)>32768:
+   raise AuthError('Custody payload too large')
+ else:
+  plain=aws('kms').decrypt(KeyId=os.environ['CUSTOMER_SESSION_KMS_KEY_ID'],EncryptionContext=context,CiphertextBlob=base64.b64decode(cipher,validate=True))['Plaintext']
+ value=json.loads(plain)
  if not isinstance(value,dict):
   raise AuthError('Invalid custody')
  return value
 
 def response(status:int,data,*,page:bool=False)->dict:
- return{'statusCode':status,'headers':{'Content-Type':'text/html; charset=utf-8'if page else'application/json','Cache-Control':'no-store','Pragma':'no-cache','Referrer-Policy':'strict-origin'if page else'no-referrer','X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"},'body':data if page or isinstance(data,str)else json.dumps(data)}
+ return{'statusCode':status,'headers':{'Content-Type':'text/html; charset=utf-8'if page else'application/json','Cache-Control':'no-store','Pragma':'no-cache','Referrer-Policy':'strict-origin'if page else'no-referrer','X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','X-Robots-Tag':'noindex, nofollow, noarchive','Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"},'body':data if page or isinstance(data,str)else json.dumps(data)}
 
 def parse(value:str)->dict:
  if not isinstance(value,str)or len(value.encode())>8192:
@@ -159,7 +174,7 @@ def validate_authorize(params:dict)->dict:
 
 def auth_metadata()->dict:
  base=origin()
- return{'issuer':base,'authorization_endpoint':connect_origin()+'/oauth/authorize','token_endpoint':base+'/oauth/token','revocation_endpoint':base+'/oauth/revoke','response_types_supported':['code'],'grant_types_supported':['authorization_code','refresh_token'],'token_endpoint_auth_methods_supported':['none'],'code_challenge_methods_supported':['S256'],'scopes_supported':sorted(SCOPES)}
+ return{'issuer':base,'authorization_endpoint':connect_origin()+('/auth'if connect_origin()!=base else'/oauth/authorize'),'token_endpoint':base+'/oauth/token','revocation_endpoint':base+'/oauth/revoke','response_types_supported':['code'],'grant_types_supported':['authorization_code','refresh_token'],'token_endpoint_auth_methods_supported':['none'],'code_challenge_methods_supported':['S256'],'scopes_supported':sorted(SCOPES)}
 
 def registration_call(action:str,phone:str,event:dict,code:str='')->bool:
  if os.environ.get('CUSTOMER_REGISTRATION_ENABLED')!='true':
@@ -280,7 +295,8 @@ def form(row:dict,csrf:str,message:str='')->dict:
  description='Sign in or create an account with your WhatsApp number.'if phase=='phone'else'Enter the 6-digit code we sent you. Keep the code on this secure page.'
  if phase=='registration':
   description='Verify your WhatsApp number to create your account. A separate sign-in code will follow.'
- page='<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Connect WECARE</title><style>*{box-sizing:border-box}body{margin:0;background:#f8faf5;color:#1a3a2a;font:16px/1.55 system-ui,-apple-system,sans-serif}a{color:inherit}header{max-width:1100px;margin:auto;padding:24px 28px;display:flex;align-items:center;justify-content:space-between;gap:16px}.brand{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:750;letter-spacing:.04em;text-decoration:none}.brand svg{width:40px;height:40px}header>a:last-child{font-size:13px;text-underline-offset:4px}main{width:min(520px,calc(100% - 32px));margin:40px auto 56px;background:#fff;border:1px solid #e5e7eb;border-radius:24px;padding:36px}.eyebrow{display:inline-block;padding:6px 12px;background:#d1f470;border-radius:24px;font-size:12px;font-weight:700;letter-spacing:.05em}h1{font-size:clamp(28px,5vw,36px);line-height:1.15;letter-spacing:-.04em;margin:24px 0 14px;max-width:350px}p{margin:0 0 22px}.destination{font-size:14px;padding-bottom:20px;border-bottom:1px solid #e5e7eb}label{display:block;font-size:13px;font-weight:650}input,select,button{width:100%;font:inherit;min-height:52px;border-radius:12px}input,select{display:block;margin-top:8px;padding:12px;border:1px solid #d9ded7;background:#fff;color:#1a3a2a;min-width:0}input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}.phone-fields{display:grid;grid-template-columns:1fr 1.2fr;gap:12px}.hint{font-size:12px;margin:10px 0 24px;color:#526052}button{margin-top:24px;padding:14px;background:#d1f470;color:#1a3a2a;border:0;font-weight:750;cursor:pointer}button:hover{background:#c5e85f}.consent{font-size:12px;color:#526052;margin:20px 0 0}.footer{font-size:12px;text-align:center;color:#526052;margin:24px 0 0}.footer a{text-underline-offset:3px}.alert{border:1px solid #b45309;border-radius:10px;padding:12px;font-size:14px}@media(max-width:480px){header{padding:18px 20px}main{margin:20px auto;padding:26px 22px;border-radius:20px}.phone-fields{grid-template-columns:1fr}header>a:last-child{font-size:12px}}</style></head><body><header><a class="brand" href="https://wecare.digital/" aria-label="WECARE.DIGITAL home">'+BRAND_LOGO+'<span>WECARE.DIGITAL</span></a><a href="https://wecare.digital/">Visit our website</a></header><main><span class="eyebrow">WECARE SHOPPING</span><h1>'+title+'</h1><p>'+html.escape(description)+'</p><p class="destination">Connecting to <strong>'+html.escape(client(row['client'])['name'])+'</strong></p>'+('<p class="alert" role="alert">'+html.escape(message)+'</p>'if message else'')+'<form method="post" action="/oauth/authorize"><input type="hidden" name="csrf" value="'+html.escape(csrf,quote=True)+'">'+field+'<button type="submit">'+('Send WhatsApp code'if phase=='phone'else'Verify and connect')+'</button>'+'<p class="consent">Connect your profile, addresses and orders to this app. It can make changes and request a WhatsApp payment only when you ask. Verification messages arrive on WhatsApp.</p></form>'+'<p class="footer"><a href="https://wecare.digital/privacy/">Privacy</a> &nbsp;·&nbsp; <a href="https://wecare.digital/terms/">Terms</a></p></main></body></html>'
+ lockup=BRAND_LOGO+'<span class="brand-copy"><span>WECARE<span class="brand-dot">.</span></span><span>DIGITAL</span></span>'
+ page='<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex,nofollow,noarchive"><title>WECARE.DIGITAL · Sign in</title><style>*{box-sizing:border-box}body{margin:0;background:#fff;color:#1a3a2a;font:16px/1.55 system-ui,-apple-system,sans-serif}a{color:inherit}header{max-width:1100px;margin:auto;padding:24px 28px;display:flex;align-items:center;justify-content:space-between;gap:16px}.brand{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:750;letter-spacing:.04em;text-decoration:none}.brand svg{width:60px;height:60px}.brand-copy{display:flex;flex-direction:column;line-height:1;font-size:23px;font-weight:750;letter-spacing:-.04em}.brand-dot{color:#ff0040}.brand-copy>span+span{margin-top:4px}header>a:last-child{font-size:13px;text-underline-offset:4px}main{width:min(520px,calc(100% - 32px));margin:40px auto 56px;background:#fff;border:1px solid #e5e7eb;border-radius:24px;padding:36px}.eyebrow{display:inline-block;padding:6px 12px;background:#d1f470;border-radius:24px;font-size:12px;font-weight:700;letter-spacing:.05em}h1{font-size:clamp(28px,5vw,36px);line-height:1.15;letter-spacing:-.04em;margin:24px 0 14px;max-width:350px}p{margin:0 0 22px}.destination{font-size:14px;padding-bottom:20px;border-bottom:1px solid #e5e7eb}label{display:block;font-size:13px;font-weight:650}input,select,button{width:100%;font:inherit;min-height:52px;border-radius:12px}input,select{display:block;margin-top:8px;padding:12px;border:1px solid #d9ded7;background:#fff;color:#1a3a2a;min-width:0}input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}.phone-fields{display:grid;grid-template-columns:1fr 1.2fr;gap:12px}.hint{font-size:12px;margin:10px 0 24px;color:#526052}button{margin-top:24px;padding:14px;background:#d1f470;color:#1a3a2a;border:0;font-weight:750;cursor:pointer}button:hover{background:#c5e85f}.consent{font-size:12px;color:#526052;margin:20px 0 0}.footer{font-size:12px;text-align:center;color:#526052;margin:24px 0 0}.footer a{text-underline-offset:3px}.alert{border:1px solid #b45309;border-radius:10px;padding:12px;font-size:14px}@media(max-width:480px){header{padding:18px 20px}main{margin:20px auto;padding:26px 22px;border-radius:20px}.phone-fields{grid-template-columns:1fr}header>a:last-child{font-size:12px}}.stay{max-width:520px;margin:0 auto 42px;padding:0 24px}.stay h2{display:inline-block;font-size:12px;text-transform:uppercase;letter-spacing:.06em;background:#d1f470;border-radius:20px;padding:6px 12px}.stay-links{display:flex;gap:12px;flex-wrap:wrap}.stay-links a{padding:12px 16px;border:1px solid #e5e7eb;border-radius:12px;font-size:14px;font-weight:650;text-decoration:none}.stay-links a:hover{background:#d1f470}.site-footer{border-top:1px solid #eef0e6;padding:32px 28px}.footer-in{max-width:1044px;margin:auto;display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap}.site-footer .brand svg{width:44px;height:44px}.site-footer .brand-copy{font-size:18px}.site-footer p{font-size:14px;margin:16px 0 0}.legal{display:flex;gap:20px;align-items:center;font-size:13px}</style></head><body><header><a class="brand" href="https://wecare.digital/" aria-label="WECARE.DIGITAL home">'+lockup+'</a><a href="https://wecare.digital/">Visit our website</a></header><main><span class="eyebrow">WECARE.DIGITAL</span><h1>'+title+'</h1><p>'+html.escape(description)+'</p><p class="destination">Connecting to <strong>'+html.escape(client(row['client'])['name'])+'</strong></p>'+('<p class="alert" role="alert">'+html.escape(message)+'</p>'if message else'')+'<form method="post" action="'+('/auth'if connect_origin()!=origin()else'/oauth/authorize')+'"><input type="hidden" name="csrf" value="'+html.escape(csrf,quote=True)+'">'+field+'<button type="submit">'+('Send WhatsApp code'if phase=='phone'else'Verify and connect')+'</button>'+'<p class="consent">Connect your profile, addresses and orders to this app. It can make changes and request a WhatsApp payment only when you ask. Verification messages arrive on WhatsApp.</p></form>'+'<p class="footer"><a href="https://wecare.digital/privacy/">Privacy</a> &nbsp;·&nbsp; <a href="https://wecare.digital/terms/">Terms</a></p></main><section class="stay" aria-label="Stay connected"><h2>Stay connected</h2><div class="stay-links"><a href="https://wa.me/message/WUDPTMYSO6XII1" target="_blank" rel="noopener noreferrer">Subscribe on WhatsApp</a><a href="https://wecare.digital/contact/">Contact us</a></div></section><footer class="site-footer"><div class="footer-in"><div><a class="brand" href="https://wecare.digital/" aria-label="WECARE.DIGITAL home">'+lockup+'</a><p>Trusted everyday services for Bharat</p></div><nav class="legal" aria-label="Legal"><a href="https://wecare.digital/privacy/">Privacy</a><a href="https://wecare.digital/terms/">Terms</a></nav></div></footer></body></html>'
  result=response(200,page,page=True)
  callback=urlparse(row['redirect'])
  result['headers']['Content-Security-Policy']=result['headers']['Content-Security-Policy'].replace("form-action 'self';",f"form-action 'self' {callback.scheme}://{callback.netloc};")
@@ -317,6 +333,7 @@ def authorize_post(params:dict,event:dict)->dict:
  login=uncapsule(row['cipher'],row['client'],key)
  if STORE.take(key)is None:
   raise AuthError('Authorization step already used')
+ stage='phone'if login.get('phase')=='phone'else'challenge'
  try:
   if login.get('phase')=='phone':
    try:
@@ -346,11 +363,14 @@ def authorize_post(params:dict,event:dict)->dict:
    login['session']=result['Session']
    return save_pending(row,login,'Check the code and try again.')
   auth=result['AuthenticationResult']
+  stage='identity_check'
   _,subject=checked_cognito(auth)
   now=int(time.time())
+  stage='custody'
   grant_key=PREFIX+'grant:'+secrets.token_urlsafe(32)
   grant={'sidHash':grant_key,'kind':'grant','client':row['client'],'resource':resource(),'scope':row['scope'],'subject':subject,'absoluteExpiresAt':now+30*86400,'cipher':capsule(auth,row['client'],grant_key)}
   STORE.put(grant)
+  stage='authorization_code'
   code='wcc_'+secrets.token_urlsafe(32)
   STORE.put({'sidHash':row_key('code',code),'kind':'code','client':row['client'],'resource':resource(),'redirect':row['redirect'],'challenge':row['challenge'],'grant':grant_key,'absoluteExpiresAt':now+120})
   separator='&'if urlparse(row['redirect']).query else'?'
@@ -358,24 +378,26 @@ def authorize_post(params:dict,event:dict)->dict:
   result['headers']['Location']=row['redirect']+separator+urlencode({'code':code,'state':row['state']})
   result['cookies']=[f'{COOKIE}=; Secure; HttpOnly; SameSite=Lax; Path=/; Max-Age=0']
   return result
- except Exception:
+ except Exception as error:
+  category=re.sub('[^A-Za-z0-9_]','',type(error).__name__)[:64]
+  print(json.dumps({'event':'customer_authorization_failed','stage':stage,'category':category}))
   return save_pending(row,{'phase':'phone'},'We could not complete verification. Please try again shortly.')
 
 def route(event:dict)->dict|None:
  path=str(event.get('rawPath')or'')
- if path not in{'/.well-known/oauth-authorization-server','/oauth/authorize','/oauth/token','/oauth/revoke'}:
+ if path not in{'/.well-known/oauth-authorization-server','/auth','/oauth/authorize','/oauth/token','/oauth/revoke'}:
   return None
  method=str(((event.get('requestContext')or{}).get('http')or{}).get('method')or'').upper()
  try:
   if path=='/.well-known/oauth-authorization-server'and method=='GET':
    return response(200,auth_metadata())
-  if path=='/oauth/authorize'and method=='GET':
+  if path in{'/auth','/oauth/authorize'}and method=='GET':
    params=parse(event.get('rawQueryString',''))
    target=connect_origin()
-   if target!=origin()and(event.get('requestContext')or{}).get('domainName')==urlparse(origin()).netloc:
+   if target!=origin()and path=='/oauth/authorize':
     validate_authorize(params)
     result=response(302,'')
-    result['headers']['Location']=target+'/oauth/authorize?'+urlencode(params)
+    result['headers']['Location']=target+'/auth?'+urlencode(params)
     return result
    return authorize_get(params)
   if method!='POST':
@@ -387,7 +409,7 @@ def route(event:dict)->dict|None:
   if event.get('isBase64Encoded'):
    raw=base64.b64decode(raw,validate=True).decode()
   params=parse(raw)
-  if path=='/oauth/authorize':
+  if path in{'/auth','/oauth/authorize'}:
    return authorize_post(params,event)
   if path=='/oauth/token':
    return response(200,token_exchange(params))
@@ -408,7 +430,7 @@ def route(event:dict)->dict|None:
   return response(400,{'error':'invalid_grant'if path=='/oauth/token'else'invalid_request'})
  except Exception:
   return response(503,{'error':'temporarily_unavailable'})
-BRAND_LOGO='<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"><rect width="256" height="256" rx="56" fill="#d1f470"/><svg x="72" y="57" width="112" height="140" viewBox="1816 1604 1451 1718"><path fill="#1a3a2a" d="M2524.196 3083.583c89.824-28.082 214.575-72.662 287.321-129 53.236-41.233 99.161-103.18 101.664-172.809.796-22.372-3.38-45.236-14.335-64.942-10.361-18.656-25.932-32.872-44.973-42.391-66.158-33.06-158.937-8.694-223.133 17.287l-63.458 25.686-34.933-58.987c-37.008-62.448-96.947-117.498-170.937-128.835-24.433-3.741-49.989-2.321-73.206 6.573-20.708 7.933-38.139 21.371-50.946 39.535-38.666 54.819-29.74 136.898-13.733 197.789 29.88 113.608 110.787 198.923 208.002 260.281 29.666 18.721 60.744 35.258 92.667 49.813m336.536-65.811 34.218 44.588c-47.887 36.794-116.537 72.062-194.188 103.476 55.436 12.086 104.428 17.105 140.05 16.179v-.533h112.847c5.076 0 9.244-.116 12.535-.344 44.359-3.103 85.7-22.609 115.947-52.367 29.133-28.664 47.583-66.92 47.583-108.802 0-4.266-.098-7.687-.272-10.254l-50.553-723.594c-3.551-50.915-24.595-97.069-57.508-129.984-30.487-30.493-71.542-49.386-118.285-49.386H2179.53c-46.756 0-87.801 18.893-118.294 49.377-32.916 32.916-53.959 79.078-57.519 129.993l-50.544 723.594c-.165 2.567-.263 5.997-.263 10.271 0 41.896 18.442 80.146 47.583 108.81 30.232 29.746 71.573 49.239 115.93 52.342 3.308.229 7.475.344 12.546.344l1.123.22c55.623 1.198 139.066-10.468 230.843-31.008l-2.197-1.363c-122.421-77.275-227.229-188.264-267.354-341.066-35.645-135.309-15.99-240.252 34.088-311.227 29.437-41.742 68.954-71.448 114.011-88.701 43.916-16.827 92.811-21.634 142.324-14.055 86.082 13.178 174.899 64.008 241.679 154.506 121.003-39.665 219.646-32.232 291.398 3.626 45.772 22.882 80.459 56.984 103.288 98.055 22.488 40.429 33.211 87.199 31.454 136.128-3.363 93.795-52.972 196.487-154.234 275.533l-34.652-44.368-.008.01zm-23.883-1047.939c-10.723-56.312-38.435-106.816-77.57-145.957-50.897-50.889-121.041-82.485-198.159-82.485-77.125 0-147.277 31.596-198.165 82.485-39.126 39.141-66.847 89.644-77.578 145.957h551.472zm139.584 8.845c53.849 13.313 102.368 41.257 141.763 80.653 57.904 57.903 91.442 136.235 97.129 217.62l50.544 723.593c.451 6.457.77 12.963.77 19.426 0 78.586-33.101 151.456-88.716 206.185-54.13 53.25-126.786 86.099-202.558 91.399-7.209.501-14.471.845-21.706.845l-103.438-.008c-104.107 4.095-235.928-28.893-333.818-66.147-107.867 30.78-250.116 63.713-364.949 65.935v.22h-22.485c-7.23 0-14.488-.344-21.701-.845-75.781-5.299-148.42-38.131-202.555-91.384-55.632-54.729-88.719-127.605-88.719-206.182 0-6.48.318-12.978.77-19.443l50.544-723.593c5.687-81.385 39.216-159.717 97.12-217.62 49.627-49.627 112.888-80.358 182.178-87.75 11.273-92.493 53.401-178.371 119.542-244.512 78.438-78.43 183.958-122.592 294.973-122.592 111.01 0 216.529 44.154 294.967 122.592 67.87 67.87 110.409 156.464 120.345 251.608z"/></svg></svg>'
+BRAND_LOGO='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 5000 5000" version="1.2" baseProfile="tiny-ps" xmlns:xlink="http://www.w3.org/1999/xlink">\n    <title>wecare.digital</title><rect x="0" y="0" width="100%" height="100%" fill="#ffffff" /><g>\n<path d="M2524.196 3083.583c89.824-28.082 214.575-72.662 287.321-129 53.236-41.233 99.161-103.18 101.664-172.809.796-22.372-3.38-45.236-14.335-64.942-10.361-18.656-25.932-32.872-44.973-42.391-66.158-33.06-158.937-8.694-223.133 17.287l-63.458 25.686-34.933-58.987c-37.008-62.448-96.947-117.498-170.937-128.835-24.433-3.741-49.989-2.321-73.206 6.573-20.708 7.933-38.139 21.371-50.946 39.535-38.666 54.819-29.74 136.898-13.733 197.789 29.88 113.608 110.787 198.923 208.002 260.281 29.666 18.721 60.744 35.258 92.667 49.813m336.536-65.811 34.218 44.588c-47.887 36.794-116.537 72.062-194.188 103.476 55.436 12.086 104.428 17.105 140.05 16.179v-.533h112.847c5.076 0 9.244-.116 12.535-.344 44.359-3.103 85.7-22.609 115.947-52.367 29.133-28.664 47.583-66.92 47.583-108.802 0-4.266-.098-7.687-.272-10.254l-50.553-723.594c-3.551-50.915-24.595-97.069-57.508-129.984-30.487-30.493-71.542-49.386-118.285-49.386H2179.53c-46.756 0-87.801 18.893-118.294 49.377-32.916 32.916-53.959 79.078-57.519 129.993l-50.544 723.594c-.165 2.567-.263 5.997-.263 10.271 0 41.896 18.442 80.146 47.583 108.81 30.232 29.746 71.573 49.239 115.93 52.342 3.308.229 7.475.344 12.546.344l1.123.22c55.623 1.198 139.066-10.468 230.843-31.008l-2.197-1.363c-122.421-77.275-227.229-188.264-267.354-341.066-35.645-135.309-15.99-240.252 34.088-311.227 29.437-41.742 68.954-71.448 114.011-88.701 43.916-16.827 92.811-21.634 142.324-14.055 86.082 13.178 174.899 64.008 241.679 154.506 121.003-39.665 219.646-32.232 291.398 3.626 45.772 22.882 80.459 56.984 103.288 98.055 22.488 40.429 33.211 87.199 31.454 136.128-3.363 93.795-52.972 196.487-154.234 275.533l-34.652-44.368-.008.01zm-23.883-1047.939c-10.723-56.312-38.435-106.816-77.57-145.957-50.897-50.889-121.041-82.485-198.159-82.485-77.125 0-147.277 31.596-198.165 82.485-39.126 39.141-66.847 89.644-77.578 145.957h551.472zm139.584 8.845c53.849 13.313 102.368 41.257 141.763 80.653 57.904 57.903 91.442 136.235 97.129 217.62l50.544 723.593c.451 6.457.77 12.963.77 19.426 0 78.586-33.101 151.456-88.716 206.185-54.13 53.25-126.786 86.099-202.558 91.399-7.209.501-14.471.845-21.706.845l-103.438-.008c-104.107 4.095-235.928-28.893-333.818-66.147-107.867 30.78-250.116 63.713-364.949 65.935v.22h-22.485c-7.23 0-14.488-.344-21.701-.845-75.781-5.299-148.42-38.131-202.555-91.384-55.632-54.729-88.719-127.605-88.719-206.182 0-6.48.318-12.978.77-19.443l50.544-723.593c5.687-81.385 39.216-159.717 97.12-217.62 49.627-49.627 112.888-80.358 182.178-87.75 11.273-92.493 53.401-178.371 119.542-244.512 78.438-78.43 183.958-122.592 294.973-122.592 111.01 0 216.529 44.154 294.967 122.592 67.87 67.87 110.409 156.464 120.345 251.608z" fill-rule="evenodd" />\n    </g>\n</svg>'
 DIAL_COUNTRIES=[('+91','India',[10]),('+971','United Arab Emirates',[8,9]),('+966','Saudi Arabia',[9]),('+974','Qatar',[8]),('+965','Kuwait',[8]),('+968','Oman',[8]),('+973','Bahrain',[8]),('+1','United States / Canada',[10]),('+44','United Kingdom',[9,10]),('+61','Australia',[9]),('+64','New Zealand',[8,9]),('+353','Ireland',[9]),('+880','Bangladesh',[10]),('+94','Sri Lanka',[9]),('+977','Nepal',[10]),('+960','Maldives',[7]),('+975','Bhutan',[8]),('+65','Singapore',[8]),('+60','Malaysia',[9,10]),('+62','Indonesia',[9,10,11]),('+63','Philippines',[10]),('+66','Thailand',[9]),('+84','Vietnam',[9]),('+81','Japan',[10]),('+82','South Korea',[9,10]),('+852','Hong Kong',[8]),('+49','Germany',[10,11]),('+33','France',[9]),('+34','Spain',[9]),('+39','Italy',[9,10]),('+31','Netherlands',[9]),('+41','Switzerland',[9]),('+46','Sweden',[7,8,9]),('+47','Norway',[8]),('+45','Denmark',[8]),('+351','Portugal',[9]),('+48','Poland',[9]),('+30','Greece',[10]),('+90','Türkiye',[10]),('+27','South Africa',[9]),('+234','Nigeria',[10]),('+254','Kenya',[9]),('+255','Tanzania',[9]),('+256','Uganda',[9]),('+233','Ghana',[9]),('+20','Egypt',[10]),('+212','Morocco',[9]),('+230','Mauritius',[7,8]),('+55','Brazil',[10,11]),('+52','Mexico',[10]),('+54','Argentina',[10]),('+56','Chile',[9]),('+57','Colombia',[10]),('+51','Peru',[9]),('+972','Israel',[9]),('+7','Russia / Kazakhstan',[10]),('+380','Ukraine',[9]),('+998','Uzbekistan',[9]),('+679','Fiji',[7])]
 import types
 customer_oauth=types.SimpleNamespace(route=route,AuthError=AuthError,customer_event=customer_event,SCOPES=SCOPES)

@@ -210,15 +210,15 @@
     },
     "wecare-customer-commerce-mcp": {
       "CHATGPT_APPROVED_PRODUCT_IDS": "sha256:c08fd1bdf0bd",
+      "CUSTOMER_AUTH_ORIGIN": "https://wecare.digital",
       "CUSTOMER_COMMERCE_ORIGIN": "sha256:52c9c67e8d6b",
-      "CUSTOMER_CONNECT_ORIGIN": "https://connect.wecare.digital",
-      "CUSTOMER_OAUTH_CLIENTS": "sha256:a34c89066a9d",
+      "CUSTOMER_OAUTH_CLIENTS": "sha256:db5651585f1d",
       "CUSTOMER_REGISTRATION_ENABLED": "true",
       "CUSTOMER_SESSIONS_TABLE": "stack-wecare-digital-CustomerSessionsTable",
       "CUSTOMER_SESSION_KMS_KEY_ID": "arn:aws:kms:us-east-1:775261844268:key/b749509f-f93f-4451-9015-60ec29c4b9c1",
-      "DEPLOYMENT_REVISION": "sha256:954350e5c0c6",
+      "DEPLOYMENT_REVISION": "sha256:f81481068dac",
       "PRODUCTS_TABLE": "stack-wecare-digital-ProductsTable",
-      "SOURCE_SHA256": "sha256:cec836d3a3cc",
+      "SOURCE_SHA256": "sha256:dd4f92bcc07f",
       "WHATSAPP_PAYMENT_REQUESTS_ENABLED": "true"
     },
     "wecare-customer-invoice": {
