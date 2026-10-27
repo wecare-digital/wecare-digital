@@ -1,6 +1,8 @@
-"""WECARE.DIGITAL customer payment receipt v7.
+"""WECARE.DIGITAL customer payment receipt v8.
 
 Presentation only: renders persisted invoice figures; never prices a payment.
+The visual hierarchy follows the owner-approved 1024px receipt mock while the money rows follow
+the v8 accounting contract (Items Subtotal / Delight / Express / Convenience Fee / seller GSTIN).
 Internal statutory invoice numbers and order/customer UUIDs stay stored but are intentionally
 omitted from this customer-facing WhatsApp receipt.
 """
@@ -153,13 +155,32 @@ def _logo(canvas, logo_bytes, box):
         return False
 
 
+def _gradient_roundrect(canvas, box, left, right, radius):
+    """Draw a horizontal brand gradient clipped to a rounded rectangle."""
+    x0, y0, x1, y1 = [int(v) for v in box]
+    w, h = max(1, x1 - x0), max(1, y1 - y0)
+    band = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    pixels = band.load()
+    for x in range(w):
+        t = x / max(1, w - 1)
+        color = tuple(round(left[i] * (1 - t) + right[i] * t) for i in range(3)) + (255,)
+        for y in range(h):
+            pixels[x, y] = color
+    mask = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, w - 1, h - 1), radius=radius, fill=255)
+    band.putalpha(mask)
+    canvas.alpha_composite(band, (x0, y0))
+
+
 def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
            canonical_status, amount_in_words, source_label):
     """Render the approved branded WhatsApp PAYMENT RECEIPT."""
     scale = 2
-    width = 920 * scale
+    # 956 + 2*34 => 1024 px after the 2x antialiasing downsample. This matches the approved
+    # reference width exactly while still rendering internally at 2x for clean WhatsApp text.
+    width = 956 * scale
     margin = 34 * scale
-    inner = 54 * scale
+    inner = 58 * scale
     content_w = width - 2 * inner
     paper_h = (1580 + max(0, len(items) - 2) * 90) * scale
 
@@ -217,8 +238,8 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
     def bar(value, font):
         nonlocal y
         h = 58 * scale
-        draw.rounded_rectangle(
-            (inner, y, width - inner, y + h), radius=12 * scale, fill=LIME)
+        _gradient_roundrect(paper, (inner, y, width - inner, y + h),
+                            (196, 244, 71), (170, 239, 45), 12 * scale)
         bb = draw.textbbox((0, 0), value, font=font)
         draw.text(((width - (bb[2] - bb[0])) // 2, y + (h - (bb[3] - bb[1])) // 2 - 3 * scale),
                   value, font=font, fill=FOREST)
@@ -272,12 +293,16 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
               fill=LINE, width=2 * scale)
     y = facts_y + 3 * fact_line + 15 * scale
 
+    # The approved mock uses a slim pale BILL TO band and white customer/address columns below,
+    # separated by a vertical rule. Keep that hierarchy instead of tinting the whole customer card.
     card_top = y
-    card_h = (55 + 29 * (3 + (1 if buyer_gstin or place else 0))) * scale
-    draw.rounded_rectangle((inner, card_top, width - inner, card_top + card_h),
-                           radius=12 * scale, fill=PALE)
-    draw.text((inner + 16 * scale, y + 10 * scale), "BILL TO", font=semibold, fill=FOREST)
-    y += 45 * scale
+    header_card_h = 38 * scale
+    body_card_h = (92 + (28 if buyer_gstin or place else 0)) * scale
+    draw.rounded_rectangle((inner, card_top, width - inner, card_top + header_card_h),
+                           radius=9 * scale, fill=PALE)
+    draw.text((inner + 14 * scale, card_top + 6 * scale), "BILL TO",
+              font=semibold, fill=FOREST)
+    y = card_top + header_card_h + 13 * scale
     ly = y
     for value, font in (
         (invoice.get("customerName") or "Customer", semibold),
@@ -288,23 +313,28 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
             for line in _fit(draw, value, font, int(content_w * .45), 1):
                 draw.text((inner + 16 * scale, ly), line, font=font, fill=INK)
                 ly += 27 * scale
-    ax, ay = width // 2 + 25 * scale, y
+    divider_x = width // 2
+    draw.line((divider_x, y - 4 * scale, divider_x,
+               card_top + header_card_h + body_card_h - 10 * scale),
+              fill=LINE, width=2 * scale)
+    ax, ay = divider_x + 28 * scale, y
     for line in _fit(draw, address, regular, width - inner - ax - 15 * scale, 3):
         draw.text((ax, ay), line, font=regular, fill=INK)
         ay += 27 * scale
+    info_y = card_top + header_card_h + body_card_h - 30 * scale
     if buyer_gstin:
-        draw.text((inner + 16 * scale, card_top + card_h - 34 * scale),
+        draw.text((inner + 16 * scale, info_y),
                   f"Buyer GSTIN: {buyer_gstin}", font=small_bold, fill=INK)
     if place:
         value = f"Place of Supply: {place}"
         bb = draw.textbbox((0, 0), value, font=small_bold)
         draw.text((width - inner - 16 * scale - (bb[2] - bb[0]),
-                   card_top + card_h - 34 * scale), value, font=small_bold, fill=INK)
-    y = card_top + card_h + 18 * scale
+                   info_y), value, font=small_bold, fill=INK)
+    y = card_top + header_card_h + body_card_h + 18 * scale
 
     header_h = 42 * scale
-    draw.rounded_rectangle((inner, y, width - inner, y + header_h),
-                           radius=9 * scale, fill=PALE)
+    _gradient_roundrect(paper, (inner, y, width - inner, y + header_h),
+                        (237, 246, 236), (221, 239, 221), 9 * scale)
     x_no = inner + 14 * scale
     x_desc = inner + 55 * scale
     x_qty = width - inner - 315 * scale
@@ -378,8 +408,8 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
 
     hero_label = "AMOUNT PAID" if status == "PAID" else "AMOUNT PAYABLE"
     hero_h = 62 * scale
-    draw.rounded_rectangle((inner, y, width - inner, y + hero_h),
-                           radius=11 * scale, fill=LIME)
+    _gradient_roundrect(paper, (inner, y, width - inner, y + hero_h),
+                        (196, 244, 71), (170, 239, 45), 11 * scale)
     draw.text((inner + 16 * scale, y + 10 * scale), hero_label, font=bold, fill=FOREST)
     total_s = _money(total, symbol)
     tb = draw.textbbox((0, 0), total_s, font=total_font)
@@ -422,7 +452,7 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
     y += 112 * scale
     draw.line((inner, y, width - inner, y), fill=LIME, width=4 * scale)
     y += 18 * scale
-    centered("Thank You!", footer_font, FOREST, 5)
+    centered("Thank You!", footer_font, INK, 5)
     y += 5 * scale
     centered("VISIT AGAIN", small_bold, INK, 3)
     y += 2 * scale
