@@ -888,7 +888,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
               <span style={ sectionHintStyle }>Required</span>
             </div>
 
-            { createForm.contactId || createForm.customerPhone ? (
+            { createForm.contactId ? (
               <div style={ selectedCustomerStyle }>
                 <div style={ { minWidth: 0 } }>
                   <div style={ { fontWeight: 650 } }>{ createForm.customerName || 'Customer' }</div>
