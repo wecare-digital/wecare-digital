@@ -2705,7 +2705,13 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
             'requestId': request_id
         }))
         
-        # Requirement 5.8: Call SendWhatsAppMessage API
+        # Requirement 5.8: Call SendWhatsAppMessage API.
+        # For durable keyed sends, attach the stable internal id as Meta's opaque callback data.
+        # Meta echoes this field on status webhooks, so an ambiguous local timeout can reconcile
+        # the original row even when the HTTP response (and therefore WAMID) was never observed.
+        keyed_send = message_id.startswith('wa-idem-')
+        if keyed_send:
+            message_payload['biz_opaque_callback_data'] = message_id
         # Note: message parameter should be a string, not bytes
         message_json = json.dumps(message_payload)
         
@@ -2720,7 +2726,6 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
         # Retry only explicit HTTP throttling/service responses. Network timeouts and connection
         # loss are ambiguous: Meta may already have accepted the message, so retrying can duplicate
         # it. Keyed business sends never retry at this boundary; their caller must reconcile first.
-        keyed_send = message_id.startswith('wa-idem-')
         max_retries = 0 if keyed_send else 3
         last_error = None
         provider_call_started = False
@@ -3138,10 +3143,16 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
         # Unknown provider outcomes are alarm-worthy but must stay non-retryable until reconciled.
         _emit_delivery_metric('failed', is_template)
         if ambiguous_keyed_send:
+            logger.error(json.dumps({
+                'event': 'delivery_outcome_unknown',
+                'messageId': message_id,
+                'phoneNumberId': phone_number_id,
+                'requestId': request_id,
+            }))
             return _error_response(
                 503,
                 'DELIVERY_OUTCOME_UNKNOWN',
-                'Provider outcome is unknown. Reconcile message history before retrying.')
+                'Provider outcome is unknown. Await the status webhook or reconcile before retrying.')
         return _error_response(500, f'Failed to send message: {error_msg}')
 
 
