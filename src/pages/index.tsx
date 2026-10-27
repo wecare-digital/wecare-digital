@@ -836,19 +836,21 @@ const HomePage: React.FC = () => {
           :global(.public-share .ps-menu-note){font-size:15px}
         }
 
-        /* COMMON PHONE MEASURE. 320-399px phones used to choose different greedy line breaks
-           for the same Home copy because each device handed the heading a different full-width
-           measure. Keep the text node intact for translation, but cap the known short headings
-           to one shared 288px measure on that range. built&nbsp;for remains one unit, so the hero
-           breaks after "AI," rather than orphaning "for". The section heading stays on the same
-           28px rung across those phones, so its two-line composition no longer changes just
-           because a handset is 360 vs 390px wide. The 280px Fold is narrower than this measure
-           and still shrinks naturally rather than overflowing. */
-        @media(max-width:399px){
-          .home-head-line{max-width:min(288px,100%)}
+        /* COMMON PHONE HERO. The old 288px cap below 400px forced the frame into
+           "Everyday AI," / "built for" on the exact 360-390px phones where the design now
+           requires one line. Keep the frame on one line at real phone widths, and scale it
+           fluidly from 27px on the 280px Fold to 32px on common phones. The pill remains its
+           own line, so rotation never changes h1 height.
+           Do NOT carry nowrap below 280 CSS px: browser zoom/reflow can shrink the layout
+           viewport far below a physical phone width, and wrapping there is preferable to
+           horizontal page overflow. */
+        @media(min-width:280px) and (max-width:399px){
+          .home-head{font-size:clamp(27px,9.4vw,32px)}
+          .home-head-line{max-width:none;white-space:nowrap;text-wrap:nowrap}
           .home-flow-title{font-size:28px;max-width:min(288px,100%);text-wrap:balance}
         }
-        @media(max-width:300px){
+        @media(max-width:279px){
+          .home-head-line{white-space:normal}
           .home-flow-title{font-size:26px}
         }
       `}</style>
