@@ -33,6 +33,17 @@ class WhatsAppNewWebhookFieldCaptureTests(TestCase):
         self.assertIn("'whatsapp_history_chunk'", self.source)
         self.assertIn("_AUDIT_ONLY_REPLAY_FIELDS", self.source)
 
+    def test_generic_131051_is_not_inferred_as_otp(self):
+        content = (
+            ROOT / "amplify" / "functions" / "messaging" /
+            "inbound-whatsapp-handler" / "modules" / "content.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("explicit_auth = (", content)
+        self.assertIn("'authentication template' in error_text", content)
+        self.assertIn("'authentication message' in error_text", content)
+        self.assertNotIn("'security', 'verification'", content)
+        self.assertIn("UNSUPPORTED_UNKNOWN", content)
+
     def test_partner_solution_changes_are_structured(self):
         self.assertIn("def _process_partner_solution_event(", self.source)
         self.assertIn("'whatsapp_partner_solution_change'", self.source)
