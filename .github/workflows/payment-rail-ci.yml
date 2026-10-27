@@ -136,6 +136,9 @@ jobs:
           if-no-files-found: ignore
           retention-days: 1
 
+      - name: Verify generated FAQ backend is current
+        run: python scripts/sync_faq.py --check
+
       - name: Verify commerce audit hardening
         run: python -m unittest discover -s tests -p 'test_commerce_audit_hardening.py'
 
