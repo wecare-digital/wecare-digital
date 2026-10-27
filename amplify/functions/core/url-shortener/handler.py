@@ -21,8 +21,10 @@ Tables:
 - LinkClicksTable: shortCode (PK), clickedAt (SK)
 """
 
+import html
 import json
 import os
+import re
 import time
 import logging
 import uuid
@@ -30,6 +32,9 @@ import secrets
 import string
 import boto3
 from datetime import datetime, timezone
+from urllib.parse import urlsplit
+
+from botocore.exceptions import ClientError
 
 from lambda_utils import short_link_lifecycle as lifecycle
 
@@ -149,6 +154,99 @@ HEADERS = {
 FALLBACK_URL = "https://wecare.digital/contact/"
 
 
+# ── Destination validation ──────────────────────────────────────────────────────
+#
+# A short link is an apex URL (wecare.digital/r/<code>) that sends a visitor somewhere else, and
+# the deep-link page below is HTML served from that same apex origin. So a stored destination
+# is not inert data: before 2026-10-27 `originalUrl`, `iosUrl` and `androidUrl` were stored as
+# typed and then written raw into a `Location` header, an inline `<script>` string and an
+# `href`. `iosUrl: "javascript:..."` ran script on wecare.digital, where the staff session lives.
+#
+# Validated at WRITE time so bad data is refused with a reason, and again at READ time so a row
+# written before this check (or edited outside this API) still cannot redirect anywhere unsafe.
+
+#: A short code is a path segment published on printed cards and QR codes: a plain URL-safe
+#: alphabet only. Every live code matched this on 2026-10-27.
+_CODE_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
+#: Schemes that run or embed content in whatever opens them. Never a link destination.
+_ACTIVE_SCHEMES = frozenset({"javascript", "vbscript", "data", "blob", "file", "about", "filesystem"})
+
+_MAX_URL_LENGTH = 2048
+
+
+def _clean_url(value):
+    """The stripped string, or None when it is empty, oversized or carries control characters.
+
+    Browsers drop tabs and newlines inside a scheme ("java\\tscript:"), so any control character
+    is a refusal rather than something to normalise.
+    """
+    if not isinstance(value, str):
+        return None
+    url = value.strip()
+    if not url or len(url) > _MAX_URL_LENGTH or any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in url):
+        return None
+    return url
+
+
+def web_destination(value):
+    """`value` if it is an absolute https URL with a host, else None. The redirect target rule."""
+    url = _clean_url(value)
+    if url is None:
+        return None
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return None
+    if parts.scheme.lower() != "https" or not parts.hostname:
+        return None
+    return url
+
+
+def app_destination(value):
+    """A deep-link target: an https URL, or an app's own scheme (myapp://, intent://).
+
+    Never a script-bearing scheme and never plain http.
+    """
+    url = _clean_url(value)
+    if url is None:
+        return None
+    match = re.match(r"^([A-Za-z][A-Za-z0-9+.-]*):", url)
+    if not match:
+        return None
+    scheme = match.group(1).lower()
+    if scheme in _ACTIVE_SCHEMES or scheme == "http":
+        return None
+    if scheme == "https":
+        return web_destination(url)
+    return url
+
+
+def _bad_request(message):
+    return {"statusCode": 400, "headers": HEADERS, "body": json.dumps({"error": message})}
+
+
+def _validate_destinations(fields):
+    """Return an error message for the first unsafe destination in `fields`, or None.
+
+    `originalUrl` is checked only when present (update bodies are partial); empty app URLs are
+    allowed because deep links are optional.
+    """
+    if "originalUrl" in fields and web_destination(fields.get("originalUrl")) is None:
+        return "originalUrl must be an absolute https:// URL"
+    for key in ("iosUrl", "androidUrl"):
+        raw = fields.get(key)
+        if raw not in (None, "") and app_destination(raw) is None:
+            return f"{key} must be an https:// URL or an app link (javascript:, data: and http: are refused)"
+    return None
+
+
+def _actor(event):
+    """Who is acting, from the verified session. Never from the request body."""
+    auth = event.get("_auth") or {}
+    return str(auth.get("email") or auth.get("username") or "system")
+
+
 def handler(event, context):
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
@@ -204,13 +302,21 @@ def handler(event, context):
             # management is neither.
             from lambda_utils.middleware import require_auth
 
-            required_role = 'Admin' if method == 'DELETE' else None
+            # Reads need any staff role; creating or repointing a public apex link needs Operator,
+            # the same floor every other staff write in this account uses; retiring needs Admin.
+            # Writes used to accept Viewer, so any staff account could mint a phishing link.
+            if method == 'DELETE':
+                required_role = 'Admin'
+            elif method in ('POST', 'PUT'):
+                required_role = 'Operator'
+            else:
+                required_role = 'Viewer'
             auth_failure = require_auth(event, required_role=required_role)
             if auth_failure is not None:
                 return auth_failure
 
         if method == "POST" and "links" in path:
-            return create_link(body)
+            return create_link(body, actor=_actor(event))
         if method == "GET" and "links" in path:
             code = path.split("/links/")[-1].strip("/") if "/links/" in path else None
             if code:
@@ -256,12 +362,20 @@ def generate_code(length=6):
     return "".join(secrets.choice(chars) for _ in range(length))
 
 
-def create_link(body):
+def create_link(body, actor="system"):
     original_url = body.get("originalUrl")
     if not original_url:
         return {"statusCode": 400, "headers": HEADERS, "body": json.dumps({"error": "originalUrl required"})}
+    problem = _validate_destinations(body)
+    if problem:
+        return _bad_request(problem)
+    original_url = web_destination(original_url)
 
-    short_code = body.get("shortCode", generate_code())
+    requested_code = body.get("shortCode")
+    if requested_code not in (None, ""):
+        if not isinstance(requested_code, str) or not _CODE_RE.fullmatch(requested_code):
+            return _bad_request("shortCode may use only letters, digits, '-' and '_' (1-64 characters)")
+    short_code = requested_code or generate_code()
     now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
 
     # Attachment: a link may optionally point at the record it was minted for. "general" is the
@@ -280,10 +394,12 @@ def create_link(body):
         "relatedId": related_id,
         "clicks": 0,
         "createdAt": now,
-        "createdBy": body.get("userId", "admin"),
+        # The verified session, not `body.userId`: a client-supplied creator made the audit trail
+        # say whatever the caller wanted.
+        "createdBy": actor,
         "deepLink": body.get("deepLink", False),
-        "iosUrl": body.get("iosUrl", ""),
-        "androidUrl": body.get("androidUrl", ""),
+        "iosUrl": app_destination(body.get("iosUrl")) or "",
+        "androidUrl": app_destination(body.get("androidUrl")) or "",
         "expiresAt": body.get("expiresAt", ""),
         # A new link is born ACTIVE. `active` is kept in sync with the lifecycle for the redirect
         # fast-path and any older reader that still consults the boolean.
@@ -291,7 +407,22 @@ def create_link(body):
         "active": True,
     }
 
-    links_table.put_item(Item=item)
+    # CREATE MEANS CREATE. An unconditional put let any POST that named an existing code replace
+    # its destination - including codes printed on cards and the checkout's /r/wa - with no
+    # trace of the old target. Repointing is PUT /links/{code}, which keeps the lifecycle rules.
+    # A generated code that collides is simply drawn again.
+    for attempt in range(5):
+        try:
+            links_table.put_item(Item=item, ConditionExpression="attribute_not_exists(shortCode)")
+            break
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
+                raise
+            if requested_code or attempt == 4:
+                return {"statusCode": 409, "headers": HEADERS,
+                        "body": json.dumps({"error": "That short code is already in use"})}
+            item["shortCode"] = generate_code()
+            item["shortUrl"] = f"https://{SHORT_LINK_BASE}/{item['shortCode']}"
 
     return {"statusCode": 200, "headers": HEADERS, "body": json.dumps({"success": True, "link": item})}
 
@@ -377,6 +508,10 @@ def update_link(code, body):
 
     current_state = lifecycle.state_from_record(item)
 
+    problem = _validate_destinations(body)
+    if problem:
+        return _bad_request(problem)
+
     # Resolve the requested lifecycle move. An explicit `lifecycleState` wins; otherwise a legacy
     # `active` boolean maps to ACTIVE/INACTIVE so existing callers keep working unchanged.
     target_state = None
@@ -404,8 +539,14 @@ def update_link(code, body):
     if current_state != lifecycle.STATE_RETIRED:
         for field in editable:
             if field in body:
+                value = body[field]
+                # Store the normalised destination that passed _validate_destinations above.
+                if field == "originalUrl":
+                    value = web_destination(value)
+                elif field in ("iosUrl", "androidUrl"):
+                    value = app_destination(value) or ""
                 update_expr.append(f"{field} = :{field}")
-                expr_values[f":{field}"] = body[field]
+                expr_values[f":{field}"] = value
         if "relatedType" in body:
             update_expr.append("relatedType = :relatedType")
             expr_values[":relatedType"] = lifecycle.canonical_related_type(body["relatedType"])
@@ -495,32 +636,63 @@ def redirect(code, event):
     except Exception as e:
         logging.getLogger(__name__).warning(f"click tracking failed for {code}: {e}")
 
+    # Re-checked on the way out: a row stored before write-time validation existed, or edited
+    # outside this API, must still not send a visitor to a non-https destination.
+    destination = web_destination(item.get("originalUrl"))
+    if destination is None:
+        logging.getLogger(__name__).warning(json.dumps({"event": "short_link_unsafe_destination", "code": code}))
+        return {
+            "statusCode": 302,
+            "headers": {**HEADERS, "Location": FALLBACK_URL},
+            "body": "",
+        }
+
     # Deep link routing
     if item.get("deepLink"):
         if platform == "ios" and item.get("iosUrl"):
             # Return HTML that tries app scheme first, falls back to web
-            return deep_link_html(item["iosUrl"], item["originalUrl"], "ios")
+            return deep_link_html(item["iosUrl"], destination, "ios")
         elif platform == "android" and item.get("androidUrl"):
-            return deep_link_html(item["androidUrl"], item["originalUrl"], "android")
+            return deep_link_html(item["androidUrl"], destination, "android")
 
     # Standard redirect
     return {
         "statusCode": 302,
-        "headers": {**HEADERS, "Location": item["originalUrl"]},
+        "headers": {**HEADERS, "Location": destination},
         "body": "",
     }
 
 
+def _js_string(value):
+    """A JavaScript string literal that cannot end the <script> element it sits in.
+
+    json.dumps gives a valid JS string (and, with ensure_ascii, escapes U+2028/U+2029); `<`, `>`
+    and `&` are escaped as well so the value cannot spell `</script>` or an HTML comment.
+    """
+    return (json.dumps(value)
+            .replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026"))
+
+
 def deep_link_html(app_url, fallback_url, platform):
-    """Return HTML page that attempts app deep link, falls back to web."""
-    html = f"""<!DOCTYPE html>
+    """Return HTML page that attempts app deep link, falls back to web.
+
+    Both values are validated again here and encoded for the context they land in: a JS string
+    literal for the script, an escaped attribute for the href. An unusable app URL degrades to a
+    plain redirect rather than a page.
+    """
+    web_url = web_destination(fallback_url) or FALLBACK_URL
+    app = app_destination(app_url)
+    if app is None:
+        return {"statusCode": 302, "headers": {**HEADERS, "Location": web_url}, "body": ""}
+    page = f"""<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
 <title>Redirecting...</title>
 <script>
-  var appUrl = "{app_url}";
-  var webUrl = "{fallback_url}";
+  var appUrl = {_js_string(app)};
+  var webUrl = {_js_string(web_url)};
   var start = Date.now();
   window.location.href = appUrl;
   setTimeout(function() {{
@@ -529,13 +701,22 @@ def deep_link_html(app_url, fallback_url, platform):
 </script>
 </head>
 <body style="font-family:sans-serif;text-align:center;padding:60px 20px;color:#1a3a2a">
-<p>Redirecting to Stack CRM...</p>
+<p>Redirecting...</p>
 <p style="font-size:13px;color:#6b7280;margin-top:12px">
-  <a href="{fallback_url}" style="color:#1a3a2a">Click here</a> if not redirected
+  <a href="{html.escape(web_url, quote=True)}" style="color:#1a3a2a">Click here</a> if not redirected
 </p>
 </body></html>"""
     return {
         "statusCode": 200,
-        "headers": {"Content-Type": "text/html", "Access-Control-Allow-Origin": "*"},
-        "body": html,
+        "headers": {
+            "Content-Type": "text/html; charset=utf-8",
+            # Nothing on this page needs to load or send anything: one inline script that
+            # navigates, inline styles, and a link.
+            "Content-Security-Policy": ("default-src 'none'; script-src 'unsafe-inline'; "
+                                        "style-src 'unsafe-inline'; base-uri 'none'; "
+                                        "form-action 'none'; frame-ancestors 'none'"),
+            "X-Content-Type-Options": "nosniff",
+            "Referrer-Policy": "no-referrer",
+        },
+        "body": page,
     }
