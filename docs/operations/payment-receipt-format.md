@@ -1,6 +1,6 @@
 # WECARE.DIGITAL Payment Receipt Format
 
-Current owner-approved customer receipt contract: **v7, 2026-10-26**.
+Current owner-approved customer receipt contract: **v8, 2026-10-27**.
 
 This document is the maintenance authority for the PNG sent to customers after payment. Historical invoice-layout notes may describe older appearances; when they conflict with this file, this file wins.
 
@@ -63,13 +63,11 @@ Show when present:
 - Buyer GSTIN only when a real buyer GSTIN is stored; never label the seller GSTIN as the buyer's
 - Place of Supply when the stored address supplies a state
 - line description, quantity, rate and amount
-- Subtotal
-- Discount only when non-zero
-- Shipping/Handling only when non-zero
-- Taxable Value
-- one supply-tax breakdown: CGST + SGST for intra-state, or IGST for inter-state
-- Total Tax
-- Convenience Fee only when non-zero
+- **Items Subtotal**
+- **Delight** only when non-zero
+- **Express** / Handling only when non-zero
+- **Convenience Fee** as the net fee only when non-zero
+- one compact seller-GSTIN row (for example `19AAFFW7196L1Z8`) whose amount is the stored **total GST** for the collection: supply GST + convenience-fee GST
 - Amount Paid for captured payments; Amount Payable otherwise
 - amount in words
 - PAID stamp and paid timestamp when captured
@@ -83,7 +81,11 @@ Do not show:
 - internal `orderId`
 - internal customer UUID / Customer ID
 - provider order id
-- HSN/SAC unless the invoice engine later stores an authoritative HSN/SAC supplied by the collection/catalogue path
+- HSN/SAC (stored internally when explicitly supplied by staff/catalogue; never guessed and not printed on the compact customer receipt)
+- Taxable Value
+- CGST/SGST/IGST detail rows
+- per-item GST amounts/rates
+- convenience-fee GST as a separate customer row
 - a duplicate GST Summary
 - Razorpay or bank branding
 
@@ -93,7 +95,7 @@ These values may remain stored internally for statutory records, reconciliation 
 
 Customer label: **Convenience Fee**.
 
-The customer receipt currently receives the combined convenience-fee amount already stored by the engine. Pricing has one authority: `checkout_pricing.compute_quote`.
+New invoices persist the convenience fee as three exact facts: net fee, GST on fee, and their combined total. The **customer receipt shows only the net Convenience Fee**, then includes fee GST in the single compact GSTIN row together with supply GST. Legacy invoices that predate the split retain their stored combined amount without reverse-engineering a tax component. Pricing has one authority: `checkout_pricing.compute_quote`.
 
 Current policy:
 
@@ -105,11 +107,19 @@ total payable   = approved collection + convenience fee + GST on fee
 
 The approved collection is after supply GST, discount and delivery and before the convenience fee. Never re-derive this formula in the renderer.
 
+## Internal GST/accounting contract
+
+Customer simplicity must never delete filing facts. New invoice rows persist `gstAccounting` with supply GST, convenience-fee GST, total GST, seller GSTIN, resolved place-of-supply state/code/subdivision and the explicit Delight tax treatment. Invoice-item rows persist each line's `gstRate`, `taxAmount` and optional operator/catalog supplied `hsnSac`. HSN/SAC is never guessed from the description.
+
+The full invoice-detail API additionally returns `gstWorkpaper` (`schemaVersion=wecare-gst-workpaper-v1`). It is a backend-generated accounting/export workpaper and explicitly carries `portalUploadFormat=false`; adapters may map it to a validated filing format later. The workspace may download this JSON. Missing HSN/SAC or an unresolved place of supply remains visibly incomplete instead of being fabricated.
+
+Delight is recorded as `POST_TAX_COMMERCIAL_DISCOUNT`: it is computed from eligible GST-inclusive goods, reduces the amount collected and therefore the convenience-fee base, but does not silently rewrite supply GST already computed from the item rates. A statutory GST-invoice renderer/export must consume the stored accounting facts rather than infer them from the compact receipt.
+
 ## Future-change prompt
 
 Use this prompt when changing the receipt:
 
-> Update the WECARE.DIGITAL customer PAYMENT RECEIPT only through the invoice-engine renderer. Preserve the v7 customer/privacy contract and render stored figures without pricing anything. Keep the official S3 logo, formal seller identity, lime #d1f470 edge, forest #1a3a2a structure, off-white paper with transparent outside, optional rows only when values exist, one CGST/SGST-or-IGST tax breakdown, the exact label "Convenience Fee", and Amount Paid for captured payments. Never expose invoiceNumber, invoiceId, orderId, customer UUID or provider order id. Do not introduce HSN/SAC until an authoritative source field exists. Check fonts/logo assets, compile the payment Python, run payment-rail verification, build deterministic packages, publish immutable Lambda versions, move the live aliases with revision guards, and verify the live code hashes and one rendered PNG before closing the change. Update this document if the approved contract changes.
+> Update the WECARE.DIGITAL customer PAYMENT RECEIPT only through the invoice-engine renderer. Preserve the v7 customer/privacy contract and render stored figures without pricing anything. Keep the official S3 logo, formal seller identity, lime #d1f470 edge, forest #1a3a2a structure, off-white paper with transparent outside, optional rows only when values exist, the compact Items Subtotal / Delight / Express / Convenience Fee / seller-GSTIN total-GST summary, and Amount Paid for captured payments. Never expose invoiceNumber, invoiceId, orderId, customer UUID or provider order id. Do not introduce HSN/SAC until an authoritative source field exists. Check fonts/logo assets, compile the payment Python, run payment-rail verification, build deterministic packages, publish immutable Lambda versions, move the live aliases with revision guards, and verify the live code hashes and one rendered PNG before closing the change. Update this document if the approved contract changes.
 
 ## Change procedure
 

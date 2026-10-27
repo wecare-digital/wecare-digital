@@ -18,6 +18,7 @@ on:
       - "tests/test_direct_send_dual_account_regression.py"
       - "tests/test_whatsapp_marketing_policy.py"
       - "tests/test_commerce_audit_hardening.py"
+      - "tests/test_invoice_customer_receipt_v8.py"
       - "tests/test_architecture_closeout.py"
       - "tests/test_order_status_single_producer.py"
       - "tests/test_staff_api_authorization.py"
@@ -58,6 +59,7 @@ on:
       - "tests/test_env_manifest_aliases.py"
       - "tests/test_direct_send_dual_account_regression.py"
       - "tests/test_commerce_audit_hardening.py"
+      - "tests/test_invoice_customer_receipt_v8.py"
       - "tests/test_architecture_closeout.py"
       - "tests/test_order_status_single_producer.py"
       - "tests/test_staff_api_authorization.py"
@@ -100,7 +102,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install hermetic test dependencies
-        run: python -m pip install --disable-pip-version-check boto3==1.43.116 "moto[dynamodb,cognitoidp]==5.2.4"
+        run: python -m pip install --disable-pip-version-check boto3==1.43.116 "moto[dynamodb,cognitoidp]==5.2.4" pillow==13.0.0
 
       - name: Compile payment Python
         run: |
@@ -108,6 +110,9 @@ jobs:
 
       - name: Verify commerce audit hardening
         run: python -m unittest discover -s tests -p 'test_commerce_audit_hardening.py'
+
+      - name: Verify invoice customer receipt v8
+        run: python -m unittest discover -s tests -p 'test_invoice_customer_receipt_v8.py'
 
       - name: Verify architecture closeout (payment-order rail, invoice claim, alarms)
         run: |

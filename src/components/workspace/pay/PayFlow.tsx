@@ -17,7 +17,7 @@ import {
 
 interface PP { signOut?: () => void; user?: any; embedded?: boolean; mode?: 'collect' | 'invoices'; }
 interface FC { default_gst_rate: number; default_shipping: number; gstin: string; default_item_name: string; purposes: string[]; }
-interface IR { name: string; unitPrice: string; quantity: string; gstRate: string; }
+interface IR { name: string; unitPrice: string; quantity: string; gstRate: string; hsnSac: string; }
 
 /*
  * ONE ADDRESS FIELD SET, shared with the Contacts form through src/lib/address-format.ts.
@@ -35,7 +35,7 @@ const EMPTY_FORM = {
   name: '', phone: '', email: '', shippingAddress: '', billingAddress: '', gstin: '',
   ...EMPTY_ADDRESS_FIELDS,
 };
-const NEW_ITEM = (): IR => ( { name: '', unitPrice: '', quantity: '1', gstRate: '18' } );
+const NEW_ITEM = (): IR => ( { name: '', unitPrice: '', quantity: '1', gstRate: '18', hsnSac: '' } );
 /*
  * THE ONE BRAND, hardcoded. The owner asked for the brand section removed with WECARE.DIGITAL as
  * the default, so the nine-entry list (BNB Club, No Fault, Expo Week, Ritual Guru, Legal Champ,
@@ -492,7 +492,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
           };
         })(),
         goodsType: goodsType,
-        items: invForm.items.map( it => ( { name: it.name || config.default_item_name, amount: parseFloat( it.unitPrice ) || 0, quantity: parseInt( it.quantity ) || 1, gstRate: it.gstRate.trim() === '' ? config.default_gst_rate : Number( it.gstRate ) } ) ),
+        items: invForm.items.map( it => ( { name: it.name || config.default_item_name, amount: parseFloat( it.unitPrice ) || 0, quantity: parseInt( it.quantity ) || 1, gstRate: it.gstRate.trim() === '' ? config.default_gst_rate : Number( it.gstRate ), hsnSac: it.hsnSac.trim() } ) ),
         shipping: parseFloat( invForm.shipping ) || 0,
         gstRate: config.default_gst_rate,
         purpose: DEFAULT_BRAND, orderId: invForm.orderId, gstin: config.gstin,
@@ -607,9 +607,28 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
   };
   const doGenerateImage = async ( inv: Invoice ) => {
     setActionLoading( 'img' );
-    try { await api.generateInvoiceImage( inv.invoiceId ); showMsg( 'Image generated' ); } catch ( e ) { showMsg( 'Failed', 'error' ); }
+    try
+    {
+      await api.generateInvoiceImage( inv.invoiceId );
+      const refreshed = await api.getInvoiceEngine( inv.invoiceId );
+      if ( refreshed ) setSelInvoice( refreshed );
+      showMsg( 'Invoice image generated' );
+    } catch ( e ) { showMsg( 'Image generation failed', 'error' ); }
     setActionLoading( '' );
   };
+  const downloadGstWorkpaper = ( inv: Invoice ) => {
+    if ( !inv.gstWorkpaper ) { showMsg( 'GST workpaper is unavailable for this invoice', 'error' ); return; }
+    const blob = new Blob( [ JSON.stringify( inv.gstWorkpaper, null, 2 ) + '\n' ], { type: 'application/json' } );
+    const url = URL.createObjectURL( blob );
+    const link = document.createElement( 'a' );
+    link.href = url;
+    link.download = `wecare-gst-workpaper-${inv.referenceId || inv.invoiceNumber || inv.invoiceId}.json`;
+    document.body.appendChild( link );
+    link.click();
+    link.remove();
+    URL.revokeObjectURL( url );
+  };
+
   const openRemarkModal = ( inv: Invoice, type: 'remark' | 'refund' | 'credit_note' ) => {
     setRemarkModal( { inv, type } );
     setRemarkText( '' );
@@ -708,7 +727,19 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
     } catch { showMsg( 'Could not open Invoices. The saved invoice remains available there.', 'error' ); }
     finally { setOpeningCreated( false ); }
   };
-  const selectInvoice = ( inv: Invoice ) => { setSelInvoice( inv ); loadDeliveryLogs( inv.invoiceId ); };
+  const selectInvoice = async ( inv: Invoice ) => {
+    // The list endpoint intentionally stays light. The detail call adds items + signed asset URLs,
+    // so the right pane shows the ACTUAL generated receipt rather than a browser imitation.
+    setSelInvoice( inv );
+    loadDeliveryLogs( inv.invoiceId );
+    try
+    {
+      const full = await api.getInvoiceEngine( inv.invoiceId );
+      if ( full ) setSelInvoice( full );
+    } catch {
+      // Keep the list row visible if detail enrichment is temporarily unavailable.
+    }
+  };
 
   /* Computed */
   const filteredCust = customers.filter( c => {
@@ -868,7 +899,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                   <h3 style={ { margin: '0 0 12px', fontSize: 'var(--text-xl)' } }>Step 2 { '\u2014' } Invoice Details</h3>
                   <div className="table-container" style={ { marginBottom: 16 } }>
                     <table className="inner-table">
-                      <thead><tr><th>#</th><th>Item Name</th><th>Unit amount ({ '\u20B9' })</th><th>Qty</th><th>GST %</th><th></th></tr></thead>
+                      <thead><tr><th>#</th><th>Item Name</th><th>Unit amount ({ '\u20B9' })</th><th>Qty</th><th>GST %</th><th>HSN/SAC</th><th></th></tr></thead>
                       <tbody>
                         { invForm.items.map( ( it, i ) => {
                           return (
@@ -878,6 +909,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                               <td><input type="number" value={ it.unitPrice } onChange={ e => updateItem( i, 'unitPrice', e.target.value ) } className="pf-num-input" /></td>
                               <td><input type="number" value={ it.quantity } onChange={ e => updateItem( i, 'quantity', e.target.value ) } className="pf-num-input-sm" /></td>
                               <td><input type="number" value={ it.gstRate } onChange={ e => updateItem( i, 'gstRate', e.target.value ) } className="pf-num-input-sm" /></td>
+                              <td><input type="text" inputMode="numeric" value={ it.hsnSac } onChange={ e => updateItem( i, 'hsnSac', e.target.value.replace( /\D/g, '' ).slice( 0, 8 ) ) } placeholder="Internal" className="pf-num-input" /></td>
                               <td>{ invForm.items.length > 1 && <button onClick={ () => removeItem( i ) } className="pf-remove-btn">{ '\u2715' }</button> }</td>
                             </tr>
                           );
@@ -995,9 +1027,32 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                     <div className="pf-detail-row"><span className="label">Order</span><span>{ selInvoice.orderId || '\u2014' }</span></div>
                     { selInvoice.goodsType && <div className="pf-detail-row"><span className="label">Type</span><span style={ { padding: '2px 8px', borderRadius: 12, fontSize: 'var(--text-xs)', fontWeight: 500, background: selInvoice.goodsType === 'physical-goods' ? '#dbeafe' : '#f3e8ff', color: selInvoice.goodsType === 'physical-goods' ? '#1e40af' : '#6b21a8' } }>{ selInvoice.goodsType === 'physical-goods' ? 'Physical' : 'Digital' }</span></div> }
                     { selInvoice.shippingAddress && <div className="pf-detail-row" style={ { alignItems: 'flex-start' } }><span className="label">Delivery Address</span><span style={ { fontSize: 'var(--text-xs)', color: '#555', maxWidth: 200, wordBreak: 'break-word' } }>{ selInvoice.shippingAddress }</span></div> }
+                    { selInvoice.assets?.find( a => a.assetType === 'image' || a.assetType.startsWith( 'image#' ) ) && ( () => {
+                      const imageAsset = [ ...( selInvoice.assets || [] ) ]
+                        .filter( a => a.assetType === 'image' || a.assetType.startsWith( 'image#' ) )
+                        .sort( ( a, b ) => ( b.generatedAt || b.version || 0 ) - ( a.generatedAt || a.version || 0 ) )[ 0 ];
+                      return imageAsset?.url ? (
+                        <div className="pf-section-divider">
+                          <div className="pf-section-title">Customer receipt</div>
+                          <div style={ {
+                            borderRadius: 12, padding: 12, overflow: 'hidden',
+                            backgroundImage: 'linear-gradient(45deg,#f2f4f3 25%,transparent 25%),linear-gradient(-45deg,#f2f4f3 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#f2f4f3 75%),linear-gradient(-45deg,transparent 75%,#f2f4f3 75%)',
+                            backgroundSize: '20px 20px', backgroundPosition: '0 0,0 10px,10px -10px,-10px 0px',
+                          } }>
+                            <img src={ imageAsset.url } alt={ `Customer receipt ${selInvoice.referenceId || selInvoice.invoiceNumber}` }
+                              style={ { width: '100%', maxHeight: 520, objectFit: 'contain', display: 'block' } } />
+                          </div>
+                          <div style={ { display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' } }>
+                            <a className="btn btn-secondary btn-sm" href={ imageAsset.url } target="_blank" rel="noreferrer">Open receipt</a>
+                            <a className="btn btn-secondary btn-sm" href={ imageAsset.url } download>Download PNG</a>
+                            { selInvoice.gstWorkpaper && <Button variant="secondary" size="sm" onClick={ () => downloadGstWorkpaper( selInvoice ) }>Download GST JSON</Button> }
+                          </div>
+                        </div>
+                      ) : null;
+                    } )() }
                     <div className="pf-section-divider">
-                      <div className="pf-detail-row"><span className="label">Subtotal</span><span>{ fmtMoney( selInvoice.subtotal ) }</span></div>
-                      <div className="pf-detail-row"><span className="label">GST</span><span>{ fmtMoney( selInvoice.tax ) }</span></div>
+                      <div className="pf-detail-row"><span className="label">Items subtotal</span><span>{ fmtMoney( selInvoice.subtotal ) }</span></div>
+                      <div className="pf-detail-row"><span className="label">Supply GST</span><span>{ fmtMoney( selInvoice.gstAccounting?.supplyTax ?? selInvoice.tax ) }</span></div>
                       <div className="pf-detail-row"><span className="label">Express</span><span>{ fmtMoney( selInvoice.shipping ) }</span></div>
                       { /* The Delight discount line. `couponDiscount` holds the Delight figure
                            (the field name is legacy on the stored row). A legacy invoice raised
@@ -1010,7 +1065,10 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                       { ( selInvoice.discount - ( selInvoice.couponDiscount || 0 ) ) > 0 && (
                         <div className="pf-detail-row"><span className="label">Discount</span><span>{ '\u2212' }{ fmtMoney( selInvoice.discount - ( selInvoice.couponDiscount || 0 ) ) }</span></div>
                       ) }
-                      { selInvoice.convenienceFee > 0 && <div className="pf-detail-row"><span className="label">Convenience fee</span><span>{ fmtMoney( selInvoice.convenienceFee ) }</span></div> }
+                      { ( selInvoice.convenienceFeeNet ?? selInvoice.convenienceFee ) > 0 && <div className="pf-detail-row"><span className="label">Convenience fee</span><span>{ fmtMoney( selInvoice.convenienceFeeNet ?? selInvoice.convenienceFee ) }</span></div> }
+                      { ( selInvoice.convenienceFeeGst || 0 ) > 0 && <div className="pf-detail-row"><span className="label">Fee GST</span><span>{ fmtMoney( selInvoice.convenienceFeeGst || 0 ) }</span></div> }
+                      <div className="pf-detail-row"><span className="label">Total GST</span><span>{ fmtMoney( selInvoice.totalGst ?? selInvoice.tax ) }</span></div>
+                      <div className="pf-detail-row"><span className="label">GSTIN</span><span className="mono">{ selInvoice.gstAccounting?.sellerGstin || selInvoice.gstin }</span></div>
                       <div className="pf-detail-total"><span>Total</span><span>{ fmtMoney( selInvoice.total ) }</span></div>
                     </div>
                     { selInvoice.items && selInvoice.items.length > 0 && (
@@ -1018,7 +1076,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
                         <div className="pf-section-title">Items</div>
                         { selInvoice.items.map( ( it, i ) => (
                           <div key={ i } style={ { display: 'flex', justifyContent: 'space-between', fontSize: 'var(--text-xs)', marginBottom: 4 } }>
-                            <span>{ it.name } { '\u00D7' }{ it.quantity }</span><span>{ fmtMoney( it.amount * it.quantity ) }</span>
+                            <span>{ it.name } { '\u00D7' }{ it.quantity }{ typeof it.gstRate === 'number' ? ` · GST ${it.gstRate}%` : '' }{ it.hsnSac ? ` · HSN/SAC ${it.hsnSac}` : '' }</span><span>{ fmtMoney( it.amount * it.quantity ) }</span>
                           </div>
                         ) ) }
                       </div>

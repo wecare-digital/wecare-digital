@@ -196,20 +196,14 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
     discount = Decimal(str(invoice.get("discount") or 0))
     shipping = Decimal(str(invoice.get("shipping") or 0))
     handling = Decimal(str(invoice.get("handling") or 0))
-    tax = Decimal(str(invoice.get("tax") or 0))
-    rate = Decimal(str(invoice.get("gstRate") or 0))
-    convenience = Decimal(str(invoice.get("convenienceFee") or 0))
+    supply_tax = Decimal(str(invoice.get("tax") or 0))
+    convenience_net = Decimal(str(
+        invoice.get("convenienceFeeNet")
+        if invoice.get("convenienceFeeNet") is not None
+        else invoice.get("convenienceFee") or 0))
+    convenience_gst = Decimal(str(invoice.get("convenienceFeeGst") or 0))
+    total_gst = supply_tax + convenience_gst
     total = Decimal(str(invoice.get("total") or 0))
-    taxable = subtotal - discount + shipping + handling
-
-    state = str(invoice.get("state") or invoice.get("shippingState") or "").strip().casefold()
-    intra_state = not state or state in {"west bengal", "wb"}
-    if intra_state:
-        sgst = (tax / 2).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        cgst = tax - sgst
-        tax_rows = [(f"CGST @ {rate / 2:g}%", cgst), (f"SGST @ {rate / 2:g}%", sgst)]
-    else:
-        tax_rows = [(f"IGST @ {rate:g}%", tax)]
 
     def centered(value, font, fill=INK, gap=5, clear_ink=False):
         nonlocal y
@@ -370,21 +364,17 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
         draw.text((val_x - (bb[2] - bb[0]), y), text_value, font=vf, fill=fill)
         y += 34 * scale
 
-    total_row("Subtotal", subtotal)
+    total_row("Items Subtotal", subtotal)
     if discount:
-        total_row("Discount", -discount, fill=PAID_GREEN)
+        total_row("Delight", -discount, fill=PAID_GREEN)
     if shipping:
-        total_row("Shipping", shipping)
+        total_row("Express", shipping)
     if handling:
         total_row("Handling", handling)
-    if convenience:
-        total_row("Convenience Fee", convenience)
-    total_row("Taxable Value", taxable, top_pad=4)
-    if tax or rate:
-        for label, value in tax_rows:
-            total_row(label, value)
-    if tax:
-        total_row("Total Tax", tax, semibold, semibold, band=True)
+    if convenience_net:
+        total_row("Convenience Fee", convenience_net)
+    if total_gst:
+        total_row(str(company.get("gstin") or ""), total_gst, semibold, semibold, band=True)
 
     hero_label = "AMOUNT PAID" if status == "PAID" else "AMOUNT PAYABLE"
     hero_h = 62 * scale

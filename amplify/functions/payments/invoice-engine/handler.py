@@ -75,7 +75,7 @@ from lambda_utils.integrations import razorpay_refund
 # Map a contact carries (with a legacy flat-column fallback) rather than re-deriving the address
 # shape here — the same convergence `customer_orders.update_profile` and the WhatsApp Address
 # Message writer are on.
-from lambda_utils.ecommerce import contact_address, payment_address
+from lambda_utils.ecommerce import contact_address, payment_address, india_address
 # The PUBLIC customer id, and the validator that keeps a junk one off a tax invoice. Only
 # `is_customer_uuid` and `ATTRIBUTE` are used here: the engine NEVER mints one, the same rule
 # that stops a renderer minting an invoice number.
@@ -779,6 +779,8 @@ def _inclusive_itemization(spec: Any, expected_total_paise: int,
             'discount': _paise_to_rupees(discount_taxable_paise),
             'tax': _paise_to_rupees(tax_paise),
             'convenienceFee': _paise_to_rupees(fee_paise + fee_gst_paise),
+            'convenienceFeeNet': _paise_to_rupees(fee_paise),
+            'convenienceFeeGst': _paise_to_rupees(fee_gst_paise),
             'discountCode': str(spec.get('discountCode') or '') if discount_paise else '',
         }
     except (TypeError, ValueError, ArithmeticError):
@@ -1202,6 +1204,12 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
             return _resp(400, {'error': f'Item {idx_v+1} amount cannot be negative'})
         if int(it_v.get('quantity', 1)) < 1:
             return _resp(400, {'error': f'Item {idx_v+1} quantity must be at least 1'})
+        hsn_sac = str(it_v.get('hsnSac') or '').strip()
+        if hsn_sac and (not hsn_sac.isdigit() or len(hsn_sac) not in (4, 6, 8)):
+            return _resp(400, {
+                'error': f'Item {idx_v+1} HSN/SAC must be blank or a 4, 6 or 8 digit code',
+                'errorCode': 'INVALID_HSN_SAC',
+            })
 
     # ── Tax-inclusive mode (opt-in): the figure given is ALREADY the total ──
     #
@@ -1231,6 +1239,8 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
     expected_total_paise = 0
     # Set only by an itemised tax-inclusive capture (`_inclusive_itemization`).
     inclusive_convenience_fee = Decimal('0')
+    inclusive_convenience_fee_net = Decimal('0')
+    inclusive_convenience_fee_gst = Decimal('0')
     inclusive_discount_code = ''
     if amount_is_tax_inclusive:
         if body.get('expectedTotalPaise') is None:
@@ -1299,6 +1309,8 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
             discount = itemized['discount']
             tax = itemized['tax']
             inclusive_convenience_fee = itemized['convenienceFee']
+            inclusive_convenience_fee_net = itemized['convenienceFeeNet']
+            inclusive_convenience_fee_gst = itemized['convenienceFeeGst']
             inclusive_discount_code = itemized['discountCode']
     else:
         tax = sum((
@@ -1369,16 +1381,22 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
     # otherwise refuse before consuming an invoice number. Silently replacing a stale client fee
     # would let the customer preview one amount and receive an invoice for another.
     raw_convenience_fee = body.get('convenienceFee')
+    convenience_fee_net = Decimal('0')
+    convenience_fee_gst = Decimal('0')
     if amount_is_tax_inclusive:
         # The inclusive branch above converted subtotal/tax/additive components to Decimal.
         # Keep this a Decimal too: Decimal + float is a TypeError and, more importantly,
         # captured-money arithmetic must never leave exact decimal space. Zero unless an itemised
         # capture carried the fee it quoted; no fee is ever ADDED to captured money.
         convenience_fee = inclusive_convenience_fee
+        convenience_fee_net = inclusive_convenience_fee_net
+        convenience_fee_gst = inclusive_convenience_fee_gst
     elif _new_collection_pricing_applies(entry_point, amount_is_tax_inclusive):
         collection = subtotal - discount + shipping + effective_gp + effective_nf + handling + tax
         quote = checkout_pricing.compute_quote(_rupees_to_paise(collection))
         canonical_fee_paise = quote.convenience_fee_paise + quote.convenience_gst_paise
+        convenience_fee_net = _paise_to_rupees(quote.convenience_fee_paise)
+        convenience_fee_gst = _paise_to_rupees(quote.convenience_gst_paise)
 
         if raw_convenience_fee not in (None, ''):
             try:
@@ -1397,6 +1415,8 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
         convenience_fee = _paise_to_rupees(canonical_fee_paise)
     else:
         convenience_fee = Decimal(str(raw_convenience_fee or 0))
+        convenience_fee_net = convenience_fee
+        convenience_fee_gst = Decimal('0')
 
     total = subtotal - discount + shipping + effective_gp + effective_nf + handling + tax + convenience_fee
 
@@ -1509,6 +1529,17 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
         'gstRate': _dec(gst_rate),
         'tax': _dec(tax),
         'convenienceFee': _dec(convenience_fee),
+        'convenienceFeeNet': _dec(convenience_fee_net),
+        'convenienceFeeGst': _dec(convenience_fee_gst),
+        'convenienceFeeTotal': _dec(convenience_fee),
+        'gstAccounting': {
+            'supplyTax': _dec(tax),
+            'convenienceFeeGst': _dec(convenience_fee_gst),
+            'totalGst': _dec(tax + convenience_fee_gst),
+            'sellerGstin': body.get('gstin', COMPANY['gstin']),
+            **_gst_place_of_supply(body.get('state') or body.get('shippingState')),
+            'delightTaxTreatment': default_coupon.DELIGHT_TAX_TREATMENT,
+        },
         'total': _dec(total),
         'currency': body.get('currency', 'INR'),
         'gstin': body.get('gstin', COMPANY['gstin']),
@@ -1563,13 +1594,20 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
         all_items.append({'name': 'Notification Fee', 'amount': notification_fee, 'quantity': 1, 'isCharge': True})
     if all_items:
         for idx, item in enumerate(all_items):
+            item_amount = Decimal(str(item.get('amount', 0)))
+            item_quantity = int(item.get('quantity', 1))
+            item_gst_rate = Decimal(str(item.get('gstRate', gst_rate)))
+            item_tax = (item_amount * item_quantity * item_gst_rate / Decimal('100')).quantize(
+                Decimal('0.01'), rounding=ROUND_HALF_UP)
             items_table.put_item(Item={
                 'invoiceId': invoice_id,
                 'itemIndex': idx,
                 'name': item.get('name', 'Item'),
-                'amount': Decimal(str(item.get('amount', 0))),
-                'quantity': int(item.get('quantity', 1)),
-                'gstRate': Decimal(str(item.get('gstRate', gst_rate))),
+                'amount': item_amount,
+                'quantity': item_quantity,
+                'gstRate': item_gst_rate,
+                'taxAmount': item_tax,
+                'hsnSac': str(item.get('hsnSac') or '').strip(),
                 'productId': item.get('productId', ''),
                 'isCharge': item.get('isCharge', False),
             })
@@ -1584,7 +1622,11 @@ def _create_invoice(body: Dict, request_id: str, claim: Dict[str, Any]) -> Dict:
     _cross_link_invoice_and_order(reference_id, invoice_id, invoice_number, request_id)
     created: Dict[str, Any] = {
         'invoiceId': invoice_id, 'invoiceNumber': invoice_number, 'referenceId': reference_id,
-        'total': float(total), 'convenienceFee': float(convenience_fee),
+        'total': float(total),
+        'convenienceFee': float(convenience_fee),
+        'convenienceFeeNet': float(convenience_fee_net),
+        'convenienceFeeGst': float(convenience_fee_gst),
+        'totalGst': float(tax + convenience_fee_gst),
     }
     # The Delight discount the SERVER applied, echoed back so the form renders our figure. Present
     # only when Delight actually discounted this invoice; a fixed policy, so there is no reason
@@ -2105,6 +2147,7 @@ def get_invoice(invoice_id: str, request_id: str) -> Dict:
     result = _normalize_invoice(invoice)
     result['items'] = [_normalize_item(i) for i in items]
     result['assets'] = [_normalize_asset(a) for a in assets]
+    result['gstWorkpaper'] = _gst_workpaper(invoice, items)
 
     return _resp(200, {'invoice': result})
 
@@ -3705,11 +3748,10 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
         order_items = []
         subtotal_paise = 0
         for entry in merged_items:
-            # This invoice/manual collection path is non-catalog. Meta permits a custom item
-            # image only when retailer_id/catalog_id are absent, so do not manufacture ITEM_n
-            # catalog identifiers. The small icon is intentionally separate from the large
-            # payment-template header.
-            entry['image'] = {'link': template_media.ORDER_ITEM_IMAGE}
+            # Manual/service lines intentionally carry no thumbnail. Repeating the same corporate
+            # icon made unrelated services and fees look like one product and WhatsApp resampled
+            # it poorly. True catalog items use the catalog checkout path and retain their real
+            # product identity/image there.
             line_paise = entry['amount']['value'] * entry['quantity']
             subtotal_paise += line_paise
             order_items.append(entry)
@@ -3720,21 +3762,34 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
         # checkout-template send path does NOT recompute them, so we MUST populate the
         # order_details here — otherwise the customer sees only the bare item price
         # (missing GST + convenience fee, and a total that mismatches the invoice).
-        gst_paise = _paise(invoice.get('tax', 0))
-        conv_paise = _paise(invoice.get('convenienceFee', 0))
-        # Meta's order_details has no dedicated fee field, so add the convenience fee as
-        # a transparent line item (its own GST is already baked into convenienceFee).
-        if conv_paise > 0:
+        supply_gst_paise = _paise(invoice.get('tax', 0))
+        conv_net_paise = _paise(invoice.get('convenienceFeeNet', invoice.get('convenienceFee', 0)))
+        conv_gst_paise = _paise(invoice.get('convenienceFeeGst', 0))
+        # Meta has no dedicated fee field, so the NET convenience fee is a non-catalog line item.
+        # Its GST belongs in the native tax row, not hidden inside the fee line.
+        if conv_net_paise > 0:
             order_items.append({
                 'name': 'Convenience Fee',
-                'amount': {'value': conv_paise, 'offset': 100},
+                'amount': {'value': conv_net_paise, 'offset': 100},
                 'quantity': 1,
-                'image': {'link': template_media.ORDER_ITEM_IMAGE},
             })
-            subtotal_paise += conv_paise
-        # Internally-consistent total, as an INTEGER SUM (Meta validates
-        # total == subtotal + tax + shipping - discount).
-        total_paise = subtotal_paise + gst_paise + shipping_paise - discount_paise
+            subtotal_paise += conv_net_paise
+        total_gst_paise = supply_gst_paise + conv_gst_paise
+        # Meta validates total == subtotal + tax + shipping - discount.
+        total_paise = subtotal_paise + total_gst_paise + shipping_paise - discount_paise
+        invoice_total_paise = _paise(invoice.get('total', 0))
+        if invoice_total_paise and total_paise != invoice_total_paise:
+            logger.error(json.dumps({
+                'event': 'payment_link_total_reconciliation_failed',
+                'invoiceId': invoice_id,
+                'computedPaise': total_paise,
+                'storedPaise': invoice_total_paise,
+                'requestId': request_id,
+            }))
+            return _resp(409, {
+                'error': 'WhatsApp order details do not reconcile to the stored invoice total',
+                'code': 'ORDER_TOTAL_MISMATCH',
+            })
     except wa_payment_request.PaymentRequestRefused as refused:
         # The FIELD NAME and the invoice id, never the value. An invoice total that cannot be
         # expressed in exact paise has to be corrected before it can be collected against.
@@ -3999,7 +4054,7 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
                                          if invoice.get('couponCode') == default_coupon.DELIGHT_CODE
                                          else 'Discount')},
             'shipping': {'value': shipping_paise, 'offset': 100, 'description': 'Express'},
-            'tax': {'value': gst_paise, 'offset': 100, 'description': f'GSTIN: {COMPANY["gstin"]}'},
+            'tax': {'value': total_gst_paise, 'offset': 100, 'description': COMPANY["gstin"]},
         },
     }
 
@@ -4020,8 +4075,8 @@ def send_payment_link(invoice_id: str, phone_number_id: str,
             'templateName': WA_PAY_TEMPLATE,
             'templateParams': [],  # native-pay template has no body variables
             'checkoutOrderDetails': order_details_obj,
-            # FIXED wide brand header on EVERY payment. The small order item icon is carried
-            # separately in each order item as template_media.ORDER_ITEM_IMAGE.
+            # Fixed wide brand header on every payment. Manual/service rows intentionally carry
+            # no repeated thumbnail; catalog checkout keeps real catalog product imagery.
             'headerImageUrl': template_media.PAYMENT_TEMPLATE_HEADER,
             'idempotencyKey': f'payment-request:{reference_id}',
         })
@@ -6238,9 +6293,25 @@ def _normalize_invoice(item: Dict) -> Dict:
         'gstRate': float(item.get('gstRate', 0)),
         'tax': float(item.get('tax', 0)),
         'convenienceFee': float(item.get('convenienceFee', 0)),
+        'convenienceFeeNet': float(item.get('convenienceFeeNet', item.get('convenienceFee', 0))),
+        'convenienceFeeGst': float(item.get('convenienceFeeGst', 0)),
+        'convenienceFeeTotal': float(item.get('convenienceFeeTotal', item.get('convenienceFee', 0))),
+        'totalGst': float((item.get('gstAccounting') or {}).get('totalGst', item.get('tax', 0))),
+        'gstAccounting': {
+            'supplyTax': float((item.get('gstAccounting') or {}).get('supplyTax', item.get('tax', 0))),
+            'convenienceFeeGst': float((item.get('gstAccounting') or {}).get('convenienceFeeGst', item.get('convenienceFeeGst', 0))),
+            'totalGst': float((item.get('gstAccounting') or {}).get('totalGst', item.get('tax', 0))),
+            'sellerGstin': (item.get('gstAccounting') or {}).get('sellerGstin', item.get('gstin', '')),
+            'state': (item.get('gstAccounting') or {}).get('state', item.get('state', '')),
+            'gstStateCode': (item.get('gstAccounting') or {}).get('gstStateCode', ''),
+            'isoSubdivision': (item.get('gstAccounting') or {}).get('isoSubdivision', ''),
+            'delightTaxTreatment': (item.get('gstAccounting') or {}).get('delightTaxTreatment', ''),
+        },
         'total': float(item.get('total', 0)),
         'currency': item.get('currency', 'INR'),
         'gstin': item.get('gstin', ''),
+        'buyerGstin': item.get('buyerGstin', ''),
+        'state': item.get('state', ''),
         'purpose': item.get('purpose', ''),
         'notes': item.get('notes', ''),
         'createdAt': int(item.get('createdAt', 0)),
@@ -6257,7 +6328,80 @@ def _normalize_item(item: Dict) -> Dict:
         'name': item.get('name', ''),
         'amount': float(item.get('amount', 0)),
         'quantity': int(item.get('quantity', 1)),
+        'gstRate': float(item.get('gstRate', 0)),
+        'taxAmount': float(item.get('taxAmount', 0)),
+        'hsnSac': item.get('hsnSac', ''),
         'productId': item.get('productId', ''),
+        'isCharge': bool(item.get('isCharge', False)),
+    }
+
+
+def _gst_workpaper(invoice: Dict, items: List[Dict]) -> Dict[str, Any]:
+    """Backend-owned GST workpaper JSON for accounting/export adapters.
+
+    This is deliberately NOT labelled as a GST-portal upload schema. It preserves the facts an
+    adapter needs without guessing missing classification or place-of-supply data. Customer-facing
+    receipt renderers do not consume this object.
+    """
+    accounting = invoice.get('gstAccounting') or {}
+    lines = []
+    line_supply_tax = Decimal('0')
+    classification_complete = True
+    for raw in items:
+        amount = _render_money(raw.get('amount', 0))
+        quantity = int(raw.get('quantity', 1))
+        rate = Decimal(str(raw.get('gstRate', 0) or 0))
+        tax = (amount * Decimal(quantity) * rate / Decimal('100')).quantize(
+            Decimal('0.01'), rounding=ROUND_HALF_UP)
+        stored_tax = raw.get('taxAmount')
+        if stored_tax is not None:
+            tax = _render_money(stored_tax)
+        hsn_sac = str(raw.get('hsnSac') or '').strip()
+        classification_complete = classification_complete and bool(hsn_sac)
+        line_supply_tax += tax
+        lines.append({
+            'lineNumber': int(raw.get('itemIndex', 0)) + 1,
+            'description': str(raw.get('name') or ''),
+            'hsnSac': hsn_sac,
+            'quantity': quantity,
+            'taxableUnitValue': _money_display(amount),
+            'taxableLineValue': _money_display(amount * Decimal(quantity)),
+            'gstRate': str(rate.normalize()) if rate else '0',
+            'taxAmount': _money_display(tax),
+        })
+
+    state = str(accounting.get('state') or invoice.get('state') or '').strip()
+    place_code = str(accounting.get('gstStateCode') or '').strip()
+    iso_subdivision = str(accounting.get('isoSubdivision') or '').strip()
+    return {
+        'schemaVersion': 'wecare-gst-workpaper-v1',
+        'portalUploadFormat': False,
+        'invoiceId': str(invoice.get('invoiceId') or ''),
+        'invoiceNumber': str(invoice.get('invoiceNumber') or ''),
+        'invoiceDateEpoch': int(invoice.get('createdAt') or 0),
+        'paidAtEpoch': int(invoice.get('paidAt') or 0),
+        'currency': str(invoice.get('currency') or 'INR'),
+        'sellerGstin': str(accounting.get('sellerGstin') or invoice.get('gstin') or ''),
+        'buyerGstin': str(invoice.get('buyerGstin') or ''),
+        'placeOfSupply': {
+            'state': state,
+            'gstStateCode': place_code,
+            'isoSubdivision': iso_subdivision,
+            'resolved': bool(place_code and iso_subdivision),
+        },
+        'classificationComplete': classification_complete,
+        'delight': _money_display(invoice.get('discount', 0)),
+        'delightTaxTreatment': str(accounting.get('delightTaxTreatment') or ''),
+        'itemsSubtotal': _money_display(invoice.get('subtotal', 0)),
+        'express': _money_display(invoice.get('shipping', 0)),
+        'supplyTax': _money_display(accounting.get('supplyTax', invoice.get('tax', 0))),
+        'lineSupplyTax': _money_display(line_supply_tax),
+        'convenienceFeeNet': _money_display(
+            invoice.get('convenienceFeeNet', invoice.get('convenienceFee', 0))),
+        'convenienceFeeGst': _money_display(invoice.get('convenienceFeeGst', 0)),
+        'totalGst': _money_display(accounting.get('totalGst', invoice.get('tax', 0))),
+        'totalPaidOrPayable': _money_display(invoice.get('total', 0)),
+        'lines': lines,
     }
 
 
@@ -6287,6 +6431,22 @@ def _normalize_asset(item: Dict) -> Dict:
         'version': int(item.get('version', 0)),
         'generatedAt': int(item.get('generatedAt', 0)),
     }
+
+
+def _gst_place_of_supply(state: Any) -> Dict[str, str]:
+    """Internal GST filing projection from the canonical India subdivision table.
+
+    This never guesses. A legacy/imported invoice with no resolvable state remains blank and the
+    filing/export layer can flag it for review instead of receiving a plausible wrong state code.
+    """
+    raw = str(state or '').strip()
+    if not raw:
+        return {'state': '', 'gstStateCode': '', 'isoSubdivision': ''}
+    try:
+        iso, gst_code = india_address.india_subdivision(raw)
+        return {'state': raw, 'gstStateCode': gst_code, 'isoSubdivision': iso}
+    except india_address.UnmappableAddress:
+        return {'state': raw, 'gstStateCode': '', 'isoSubdivision': ''}
 
 
 def _dec(value) -> Decimal:

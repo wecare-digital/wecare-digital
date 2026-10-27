@@ -182,15 +182,17 @@ and retried; it is not silently changed into a different message type.
 | Surface | Asset |
 | --- | --- |
 | Large payment-template header | `https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/whatsapp-header.png` |
-| Small non-catalog/manual order item image | `https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/wecare-catalog-icon.png` |
+| Manual/service order-item thumbnails | **None** |
+| True catalog product image | Catalog-managed product image/identity |
 | Paid invoice template header | Generated invoice PNG under `secure/d/public/Invoice/customer_invoice/` |
 
-Meta does not allow custom item `image` together with `retailer_id` / `catalog_id`. Therefore:
+Meta's item `image` is optional. The payment rail therefore uses this simpler rule:
 
-- **non-catalog/manual invoice collection:** no synthetic `ITEM_n` retailer IDs; use the fixed small icon.
+- **non-catalog/manual invoice collection:** no synthetic `ITEM_n` retailer IDs and **no repeated WECARE thumbnail** on service/fee rows.
+- **Convenience Fee:** non-catalog net-fee line with no thumbnail; GST on the fee is included in the native tax row.
 - **true catalog checkout:** preserve the real catalog identity and catalog-managed product image.
 
-Do not use the small item thumbnail as the large payment header.
+The large payment-template header remains the WECARE brand image. It is the single brand visual for manual/service payment requests.
 
 ## 5. Canonical runtimes
 
