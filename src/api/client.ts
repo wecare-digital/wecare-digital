@@ -4683,6 +4683,42 @@ export async function getPhoneSettings ( phoneId: string ): Promise<any> {
   return data?.settings || null;
 }
 
+
+export interface WhatsAppFlowEncryptionStatus {
+  phoneId: string;
+  configured: boolean;
+  signatureStatus: string;
+}
+
+export async function getWhatsAppFlowEncryptionStatus ( phoneId: string ): Promise<WhatsAppFlowEncryptionStatus | null> {
+  return apiCall<WhatsAppFlowEncryptionStatus>(
+    `${API_BASE}/wa-business/flow-encryption-status?phoneId=${encodeURIComponent( phoneId )}`
+  );
+}
+
+export interface WhatsAppPreverifiedNumber {
+  id?: string;
+  display_phone_number?: string;
+  country_prefix?: string;
+  verification_status?: string;
+  availability_status?: string;
+  country_code?: string;
+  region?: string;
+}
+
+export async function listWhatsAppPreverifiedNumbers (
+  businessId: string,
+  options: { countryCode?: string; verificationStatus?: string; availabilityStatus?: string; limit?: number } = {},
+): Promise<WhatsAppPreverifiedNumber[]> {
+  const qs = new URLSearchParams( { businessId } );
+  if ( options.countryCode ) qs.set( 'countryCode', options.countryCode );
+  if ( options.verificationStatus ) qs.set( 'verificationStatus', options.verificationStatus );
+  if ( options.availabilityStatus ) qs.set( 'availabilityStatus', options.availabilityStatus );
+  if ( options.limit ) qs.set( 'limit', String( options.limit ) );
+  const data = await apiCall<any>( `${API_BASE}/wa-business/preverified-numbers?${qs.toString()}` );
+  return Array.isArray( data?.numbers ) ? data.numbers : [];
+}
+
 // Official Business Account status, rolled up per WABA. READ-ONLY: the green tick is
 // granted by a Meta review started in Business Suite and there is no API to request it.
 // The rollup is four-valued — UNKNOWN is not NOT_OFFICIAL.
