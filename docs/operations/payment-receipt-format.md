@@ -81,7 +81,7 @@ Do not show:
 - internal `orderId`
 - internal customer UUID / Customer ID
 - provider order id
-- HSN/SAC unless the invoice engine later stores an authoritative HSN/SAC supplied by the collection/catalogue path
+- HSN/SAC (stored internally when explicitly supplied by staff/catalogue; never guessed and not printed on the compact customer receipt)
 - Taxable Value
 - CGST/SGST/IGST detail rows
 - per-item GST amounts/rates
