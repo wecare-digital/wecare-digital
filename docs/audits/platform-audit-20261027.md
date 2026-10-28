@@ -22,6 +22,25 @@ scenarios account for it (section 12).
 This revision also adds the dependency audit (section 8a) and the 27 October egress spike
 (section 7a).
 
+**Deployment status, 2026-10-27, 17:00-17:40 UTC.** The owner approved the deploy and the
+remaining items. Now live:
+
+- The branch on `wecare.digital`, built by Amplify job 291 (BUILD step 194 s).
+- `url-shortener` v41 and `whatsapp-calling` v73.
+- Pillow 13.0.0 (`pillow-python312:3`) on `checkout`, `commerce`, `invoice-engine` and
+  `product-image-gen`, which no longer uses the third-party layer.
+- cryptography 50.0.2 (`cryptography-python312:2`) on `whatsapp-business-api`; the layer is
+  detached from the three functions that never imported it.
+- www answers 301 with the path kept, and the apex self-redirect rule is gone.
+- 30-day retention on the 10 log groups that had none; the orphan `wecare-coupons` log group is
+  deleted.
+- An ECR lifecycle policy that keeps the newest 5 `wecare-docs-scraper` images.
+- Both catalog-sync stream mappings batch 100 records over 30 s.
+- AWS Budget `wecare-monthly-gross`: $200 a month gross, credits excluded.
+- A repository ruleset for `wecare.digital` (#1633).
+
+Sections 2-11 and the cost plan describe the state before these changes.
+
 ## How to read this document
 
 Every claim carries one of these evidence levels:
