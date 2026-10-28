@@ -94,7 +94,7 @@ class OAuthContract(unittest.TestCase):
         self.assertIn('class="nav-menu"', result['body'])
         self.assertIn('class="home-shell"', result['body'])
         self.assertIn('One&nbsp;account. Anywhere&nbsp;you need&nbsp;it.', result['body'])
-        self.assertIn('Sign in once with WhatsApp.<br>Continue across WECARE.DIGITAL and connected apps.', result['body'])
+        self.assertIn('Sign in with WhatsApp. Continue anywhere.', result['body'])
         self.assertIn('WECARE.DIGITAL, WhatsApp, Android, iOS, ChatGPT, Claude, Gemini', result['body'])
         self.assertNotIn('One&nbsp;account, built&nbsp;for', result['body'])
         self.assertIn('class="home-connect"', result['body'])
