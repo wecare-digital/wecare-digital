@@ -1,3 +1,11 @@
+## Vault filenames and links
+
+- Vault customer filenames are system-owned. Staff do not type or rename them.
+- A current Drop Docs manual upload keeps its generated `wecare-digital-<reference>.<ext>` name when published to Vault. Older/non-manual rows are normalized to an opaque `wecare-digital-<file-id>.<ext>` name before a new Vault offer is sent.
+- The original upload filename remains internal metadata only.
+- Workspace Vault exposes a staff-authenticated **Download** action through the source Drop Docs document and a **Customer Vault link** at `/vault/?file=<fileId>`; S3 keys never reach the browser.
+- A customer arriving through a one-file Vault link can return to the authenticated full collection with **Back to all Vault files**.
+
 # Secure file sharing — wecare.digital/get
 
 Two tiers on one bucket. The open one is a plain CDN path; the gated one requires a

@@ -38,6 +38,7 @@ import { useToastContext } from '../../../contexts/ToastContext';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 import * as api from '../../../api/client';
 import type { SecureFile, SecureFileAccessState } from '../../../api/client';
+import { openExternal } from '../../../lib/capacitor';
 
 const MAX_BYTES = 200 * 1024 * 1024;
 
@@ -170,6 +171,21 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
         }
     };
 
+    const handleStaffDownload = async ( target: SecureFile ) => {
+        if ( !target.sourceDocumentId )
+        {
+            toast.error( 'The source Drop Docs record is not available for this Vault file.' );
+            return;
+        }
+        const url = await api.getDocumentDownloadUrl( target.sourceDocumentId );
+        if ( url ) void openExternal( url );
+        else toast.error( 'Download not available' );
+    };
+
+    const handleCustomerVaultLink = ( target: SecureFile ) => {
+        void openExternal( `https://wecare.digital/vault/?file=${encodeURIComponent( target.fileId )}` );
+    };
+
     /** The file ID is what the Vault template's button carries; copying beats retyping it. */
     const handleCopyId = async ( target: SecureFile ) => {
         try
@@ -286,7 +302,7 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
                     <h1 className="sf-title">{ manageOnly ? 'Vault' : 'Secure files' }</h1>
                     <p className="sf-lead">
                         { manageOnly
-                            ? 'Manage customer Vault delivery, payment access and the next WhatsApp action. Uploads start in Drop Docs.'
+                            ? 'Manage customer Vault delivery, payment access and the next WhatsApp action. Files use generated WECARE.DIGITAL references; uploads start in Drop Docs.'
                             : 'Files registered to one customer, who verifies on WhatsApp before downloading. Stored under an unguessable name and never reachable from a public link.' }
                     </p>
                 </header>
@@ -490,7 +506,9 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
                                             <tr key={ row.fileId }>
                                                 <td>
                                                     <span className="sf-filename">{ row.displayName }</span>
-                                                    <span className="sf-fileorig">{ row.originalFilename }</span>
+                                                    { manageOnly
+                                                        ? <span className="sf-fileorig">{ row.tag || 'Vault document' }</span>
+                                                        : <span className="sf-fileorig">{ row.originalFilename }</span> }
                                                 </td>
                                                 <td>{ row.tag ? <span className="sf-tagpill">{ row.tag }</span> : <span className="sf-muted">—</span> }</td>
                                                 <td>{ row.ownerName || '—' }</td>
@@ -549,6 +567,22 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
                                                                 aria-busy={ acting === row.fileId }
                                                             >
                                                                 { acting === row.fileId ? 'Sending…' : 'Send Access Vault' }
+                                                            </button>
+                                                        ) }
+                                                        { manageOnly && row.sourceDocumentId && (
+                                                            <button
+                                                                className="sf-act"
+                                                                onClick={ () => { void handleStaffDownload( row ); } }
+                                                            >
+                                                                Download
+                                                            </button>
+                                                        ) }
+                                                        { manageOnly && (
+                                                            <button
+                                                                className="sf-act"
+                                                                onClick={ () => handleCustomerVaultLink( row ) }
+                                                            >
+                                                                Customer Vault link
                                                             </button>
                                                         ) }
                                                         <button
