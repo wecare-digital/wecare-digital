@@ -535,7 +535,7 @@ const Footer: React.FC = () => {
       }
       @media(max-width:767px){
         .ft-footer{padding-top:40px}
-        .ft-in{padding:0 20px}
+        .ft-in{padding:0 var(--public-mobile-page-gutter)}
         .ft-grid{flex-direction:column;align-items:flex-start;gap:24px}
         /* App-first public footer: keep the meaningful tagline readable at the same 16px rung
            on phones instead of shrinking it below the shared mobile body hierarchy. */
