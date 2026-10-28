@@ -154,7 +154,7 @@ def route_flow(action: str, screen: str, data: Dict, flow_token: str,
     if flow_key in ('drop_docs',) or flow_key.startswith('drop'):
         if action == 'INIT':
             return drop_docs.handle_init(data, flow_token, request_id)
-        if screen == 'SELECT_TARGET' and action == 'data_exchange':
+        if screen == 'UPLOAD' and action == 'data_exchange':
             return drop_docs.handle_upload(data, flow_token, request_id)
         if screen == 'DOC_FORM':
             return drop_docs.handle_doc_form(data, flow_token, request_id)
