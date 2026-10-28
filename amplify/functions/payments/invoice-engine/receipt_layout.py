@@ -9,7 +9,7 @@ import io
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageChops
 
 LIME = (209, 244, 112)
 LIME_STRONG = (190, 247, 25)
@@ -24,8 +24,8 @@ RED = (255, 0, 64)  # brand dot, #ff0040 as in BrandLockup
 
 BASE_W = 1024
 BASE_H = 1536
-PAPER_X0 = 104
-PAPER_X1 = 920
+PAPER_X0 = 120
+PAPER_X1 = 904
 INNER_X0 = 158
 INNER_X1 = 866
 
@@ -125,43 +125,55 @@ def _center(draw, value, font, y, fill=INK):
 
 
 def _scalloped_frame(canvas, y_bottom):
-    draw = ImageDraw.Draw(canvas)
-    draw.rounded_rectangle((PAPER_X0, 10, PAPER_X1, y_bottom), radius=18, fill=LIME)
-    draw.rounded_rectangle((PAPER_X0 + 15, 24, PAPER_X1 - 15, y_bottom - 14), radius=13, fill=PAPER)
+    # Match the approved specimen: a 784px lime receipt body with a soft neon halo.
+    frame = Image.new("RGBA", canvas.size, (255, 255, 255, 0))
+    draw = ImageDraw.Draw(frame)
+    top = 30
+    draw.rounded_rectangle((PAPER_X0, top, PAPER_X1, y_bottom), radius=18, fill=LIME_STRONG)
+    draw.rounded_rectangle((PAPER_X0 + 15, top + 18, PAPER_X1 - 15, y_bottom - 18),
+                           radius=13, fill=PAPER)
 
-    # Cut repeated white bites through the lime to produce the approved torn/scalloped edge.
     step = 29
     r = 10
     for x in range(PAPER_X0 + 18, PAPER_X1 - 16, step):
-        draw.ellipse((x-r, 14-r, x+r, 14+r), fill=(255, 255, 255, 0))
+        draw.ellipse((x-r, top-r, x+r, top+r), fill=(255, 255, 255, 0))
         draw.ellipse((x-r, y_bottom-r, x+r, y_bottom+r), fill=(255, 255, 255, 0))
-    for y in range(35, y_bottom - 20, step):
+    for y in range(top + 20, y_bottom - 20, step):
         draw.ellipse((PAPER_X0-r, y-r, PAPER_X0+r, y+r), fill=(255, 255, 255, 0))
         draw.ellipse((PAPER_X1-r, y-r, PAPER_X1+r, y+r), fill=(255, 255, 255, 0))
+
+    alpha = frame.getchannel("A")
+    broad = alpha.filter(ImageFilter.GaussianBlur(22)).point(lambda a: int(a * .34))
+    tight = alpha.filter(ImageFilter.GaussianBlur(8)).point(lambda a: int(a * .55))
+    glow_alpha = ImageChops.lighter(broad, tight)
+    glow = Image.new("RGBA", canvas.size, LIME_STRONG + (0,))
+    glow.putalpha(glow_alpha)
+    canvas.alpha_composite(glow)
+    canvas.alpha_composite(frame)
 
 
 def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
            canonical_status, amount_in_words, source_label, customer_id=""):
     extra_rows = max(0, len(items) - 2)
     height = BASE_H + extra_rows * 58
-    paper_bottom = height - 20
+    paper_bottom = height - 60
 
     canvas = Image.new("RGBA", (BASE_W, height), (255, 255, 255, 0))
     _scalloped_frame(canvas, paper_bottom)
     draw = ImageDraw.Draw(canvas)
 
-    regular = _font(font_paths, "regular", 18)
-    semibold = _font(font_paths, "semibold", 18)
-    bold = _font(font_paths, "bold", 23)
-    small = _font(font_paths, "regular", 16)
-    small_bold = _font(font_paths, "semibold", 16)
-    fact_regular = _font(font_paths, "regular", 14)
-    fact_semibold = _font(font_paths, "semibold", 14)
-    title = _font(font_paths, "bold", 38)
-    brand = _font(font_paths, "bold", 31)
-    legal = _font(font_paths, "bold", 26)
-    total_font = _font(font_paths, "bold", 40)
-    footer_font = _font(font_paths, "bold", 31)
+    regular = _font(font_paths, "regular", 20)
+    semibold = _font(font_paths, "semibold", 20)
+    bold = _font(font_paths, "bold", 24)
+    small = _font(font_paths, "regular", 18)
+    small_bold = _font(font_paths, "semibold", 18)
+    fact_regular = _font(font_paths, "regular", 18)
+    fact_semibold = _font(font_paths, "semibold", 18)
+    title = _font(font_paths, "bold", 40)
+    brand = _font(font_paths, "bold", 38)
+    legal = _font(font_paths, "bold", 27)
+    total_font = _font(font_paths, "bold", 42)
+    footer_font = _font(font_paths, "bold", 38)
     symbol = "₹" if _draws(regular, "₹") else "Rs."
 
     raw_status = str(canonical_status(invoice.get("paymentStatus", "pending")) or "pending").upper()
@@ -170,7 +182,8 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
              or invoice.get("createdAt") or invoice.get("invoiceDate") or 0)
     date_str = ist_strftime("%d-%m-%Y", epoch) if epoch else ""
     time_str = ist_strftime("%H:%M IST", epoch) if epoch else ""
-    ref = str(invoice.get("referenceId") or "").strip()
+    full_ref = str(invoice.get("referenceId") or "").strip()
+    ref = full_ref[:15] if full_ref.startswith("WD-PAY-") and len(full_ref) > 15 else full_ref
     txn = str(invoice.get("providerPaymentId") or invoice.get("paymentId") or "").strip()
     buyer_gstin = _buyer_gstin(invoice, company.get("gstin"))
     address = _address(invoice)
@@ -190,28 +203,28 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
     total = Decimal(str(invoice.get("total") or 0))
 
     # Brand lockup.
-    _logo(canvas, logo_bytes, (345, 44, 435, 136))
-    draw.text((465, 63), "WECARE", font=brand, fill=INK)
+    _logo(canvas, logo_bytes, (355, 65, 465, 166))
+    draw.text((472, 76), "WECARE", font=brand, fill=INK)
     wbb = draw.textbbox((0, 0), "WECARE", font=brand)
-    draw.text((465 + wbb[2] - wbb[0], 63), ".", font=brand, fill=RED)
-    draw.text((465, 99), "DIGITAL", font=brand, fill=INK)
+    draw.text((472 + wbb[2] - wbb[0], 76), ".", font=brand, fill=RED)
+    draw.text((472, 116), "DIGITAL", font=brand, fill=INK)
 
-    _center(draw, company.get("legal_name", "WECARE.DIGITAL BHARATWORKS"), legal, 150, INK)
-    _center(draw, "W E C A R E . D I G I T A L", small_bold, 182, INK)
-    draw.line((250, 211, 776, 211), fill=LIME_STRONG, width=5)
+    _center(draw, company.get("legal_name", "WECARE.DIGITAL BHARATWORKS"), legal, 178, INK)
+    _center(draw, "W  E  C  A  R  E  .  D  I  G  I  T  A  L", small_bold, 207, INK)
+    draw.line((248, 230, 777, 230), fill=LIME_STRONG, width=5)
 
-    _center(draw, f"GSTIN: {company.get('gstin','')}   |   PAN: {company.get('pan','')}", small, 226)
-    _center(draw, "The W.B.S.I.D.C. Building, Unit No. 1/20", small, 251)
-    _center(draw, "81/2/7 Phears Lane, Kolkata, West Bengal - 700012, India", small, 275)
+    _center(draw, f"GSTIN: {company.get('gstin','')}   |   PAN: {company.get('pan','')}", small, 248)
+    _center(draw, "The W.B.S.I.D.C. Building, Unit No. 1/20", small, 274)
+    _center(draw, "81/2/7 Phears Lane, Kolkata, West Bengal - 700012, India", small, 299)
     _center(draw, f"{company.get('email','')}  •  {company.get('phone','')}  •  {company.get('website','')}",
-            small, 299)
+            small, 324)
 
-    draw.rounded_rectangle((157, 332, 867, 392), radius=12, fill=LIME_STRONG)
-    _center(draw, "PAYMENT RECEIPT", title, 340, (0, 0, 0))
+    draw.rounded_rectangle((157, 352, 867, 410), radius=12, fill=LIME_STRONG)
+    _center(draw, "PAYMENT RECEIPT", title, 359, (0, 0, 0))
 
     # Receipt facts.
-    fy = 414
-    lx, lv = 164, 308
+    fy = 430
+    lx, lv = 164, 309
     rx, rv = 558, 682
     for label, value, yy, strong in (
         ("Receipt Ref:", ref, fy, True),
@@ -222,7 +235,7 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
         value_font = fact_semibold if strong else fact_regular
         draw.text((lv, yy), value, font=value_font, fill=INK)
 
-    draw.line((531, 409, 531, 500), fill=MUTED, width=2)
+    draw.line((531, 429, 531, 510), fill=MUTED, width=2)
     draw.text((rx, fy), "Status:", font=regular, fill=INK)
     draw.rounded_rectangle((681, fy - 4, 778, fy + 27), radius=10,
                            fill=LIME_STRONG if status == "PAID" else PALE)
@@ -234,9 +247,9 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
     draw.text((rv, fy + 64), txn, font=regular, fill=INK)
 
     # Bill-to section.
-    bill_y = 512
+    bill_y = 527
     draw.rounded_rectangle((157, bill_y, 867, bill_y + 36), radius=8, fill=PALE)
-    draw.text((168, bill_y + 6), "BILL TO", font=semibold, fill=INK)
+    draw.text((168, bill_y + 5), "BILL TO", font=bold, fill=INK)
 
     body_y = bill_y + 49
     draw.line((531, body_y - 3, 531, body_y + 126), fill=MUTED, width=2)
@@ -268,7 +281,7 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
         draw.text((855-(bb[2]-bb[0]), bill_y + 130), ptxt, font=small_bold, fill=INK)
 
     # Item table.
-    table_y = 704
+    table_y = 738
     draw.rounded_rectangle((157, table_y, 867, table_y + 40), radius=8, fill=PALE)
     draw.text((173, table_y + 8), "#", font=small_bold, fill=INK)
     draw.text((238, table_y + 8), "DESCRIPTION", font=small_bold, fill=INK)
@@ -292,10 +305,10 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
         ab = draw.textbbox((0,0), amount_s, font=regular)
         draw.text((710-(rb[2]-rb[0]), row_y), rate, font=regular, fill=INK)
         draw.text((854-(ab[2]-ab[0]), row_y), amount_s, font=regular, fill=INK)
-        row_y += 47
+        row_y += 42
         draw.line((168, row_y-8, 856, row_y-8), fill=LINE, width=1)
 
-    totals_y = max(845, row_y + 2)
+    totals_y = max(882, row_y + 2)
     val_x = 856
 
     def total_row(label, value, *, strong=False, band=False, green=False):
@@ -311,7 +324,7 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
 
     total_row("Items Subtotal", subtotal)
     if discount:
-        total_row("Delight", -discount, green=True)
+        total_row("Delight", -discount)
     if shipping:
         total_row("Express", shipping)
     if handling:
@@ -319,10 +332,10 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
     if convenience_net:
         total_row("Convenience Fee", convenience_net)
     if total_gst:
-        total_row("GST", total_gst, strong=True, band=True)
+        total_row(str(company.get("gstin") or "GST"), total_gst)
 
-    hero_y = totals_y + 1
-    draw.rounded_rectangle((157, hero_y, 867, hero_y + 64), radius=10, fill=LIME_STRONG)
+    hero_y = max(1068, totals_y + 1)
+    draw.rounded_rectangle((157, hero_y, 867, hero_y + 65), radius=10, fill=LIME_STRONG)
     draw.text((169, hero_y + 12), "AMOUNT PAID" if status == "PAID" else "AMOUNT PAYABLE",
               font=bold, fill=(0,0,0))
     total_s = _money(total, symbol)
@@ -333,16 +346,17 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
     words = amount_in_words(total)
     draw.text((166, words_y), words, font=regular, fill=INK)
 
-    trace_y = words_y + 74
+    trace_y = words_y + 66
     if status == "PAID":
-        stamp = Image.new("RGBA", (300, 120), (0,0,0,0))
+        stamp = Image.new("RGBA", (330, 126), (0,0,0,0))
         sd = ImageDraw.Draw(stamp)
-        sd.rounded_rectangle((4, 4, 294, 114), radius=12, outline=PAID_GREEN, width=7)
-        sd.ellipse((20, 34, 76, 90), fill=PAID_GREEN)
-        sd.line((34, 62, 44, 73, 63, 48), fill=(255,255,255), width=6)
-        sd.text((96, 32), "PAID", font=total_font, fill=PAID_GREEN)
+        sd.rounded_rectangle((4, 4, 324, 120), radius=12, outline=PAID_GREEN, width=8)
+        sd.ellipse((20, 34, 82, 96), fill=PAID_GREEN)
+        sd.line((35, 64, 47, 78, 69, 50), fill=(255,255,255), width=7)
+        stamp_word = _font(font_paths, "bold", 50)
+        sd.text((100, 31), "PAID", font=stamp_word, fill=PAID_GREEN)
         stamp = stamp.rotate(7, resample=Image.Resampling.BICUBIC, expand=True)
-        canvas.alpha_composite(stamp, (168, trace_y - 8))
+        canvas.alpha_composite(stamp, (157, trace_y - 14))
 
     tx = 550
     ty = trace_y + 6
@@ -356,12 +370,21 @@ def render(invoice, items, *, company, font_paths, logo_bytes, ist_strftime,
             draw.text((684, ty), value, font=small_bold, fill=INK)
             ty += 30
 
-    footer_line_y = min(paper_bottom - 170, trace_y + 130)
-    draw.line((158, footer_line_y, 866, footer_line_y), fill=LIME_STRONG, width=4)
-    _center(draw, "Thank You!", footer_font, footer_line_y + 23, (0,0,0))
-    _center(draw, "V I S I T  A G A I N", small_bold, footer_line_y + 58, (0,0,0))
+    footer_line_y = 1323 + extra_rows * 58
+    draw.line((158, footer_line_y, 866, footer_line_y), fill=LIME_STRONG, width=5)
+    ray_y = footer_line_y + 72
+    for dx in (-145, 145):
+        sign = -1 if dx < 0 else 1
+        draw.line((BASE_W//2 + dx, ray_y, BASE_W//2 + dx + sign*18, ray_y-9),
+                  fill=LIME_STRONG, width=4)
+        draw.line((BASE_W//2 + dx + sign*3, ray_y+12,
+                   BASE_W//2 + dx + sign*23, ray_y+12), fill=LIME_STRONG, width=4)
+        draw.line((BASE_W//2 + dx + sign*2, ray_y+25,
+                   BASE_W//2 + dx + sign*17, ray_y+34), fill=LIME_STRONG, width=4)
+    _center(draw, "Thank You!", footer_font, footer_line_y + 22, (0,0,0))
+    _center(draw, "V I S I T   A G A I N", small_bold, footer_line_y + 61, (0,0,0))
     _center(draw, company.get("website", "https://wecare.digital"), semibold,
-            footer_line_y + 91, PAID_GREEN)
+            footer_line_y + 94, PAID_GREEN)
 
     out = io.BytesIO()
     canvas.save(out, format="PNG", optimize=True)

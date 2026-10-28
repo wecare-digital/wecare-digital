@@ -27,8 +27,8 @@ The renderer is presentation-only. It MUST render stored invoice figures and MUS
 - Lime is used for the receipt-title bar and Amount Paid bar.
 - The receipt masthead uses the immutable official transparent bag mark plus the canonical stacked `WECARE.` / `DIGITAL` wordmark construction from `src/components/BrandLockup.tsx`; do not substitute the generic opaque square logo or a marketing card.
 - Typography should use Inter when the invoice font assets are available. The renderer must retain a packaged-font fallback so a missing optional asset cannot prevent a paid receipt from being generated. Inter 4.1 (SIL OFL 1.1, from the rsms/inter v4.1 release) is in the font prefix as `Inter-Regular.otf`, `Inter-SemiBold.otf` and `Inter-Bold.otf`, with its licence as `Inter-LICENSE.txt`. The packaged fallback has no ₹ glyph, so amounts print as `Rs.` whenever it is in use.
-- Keep the image compact and WhatsApp-readable; do not add a drop shadow.
-- Customer PNG width: **1024 px**, matching the approved owner reference. The receipt paper itself is approximately **800 px** wide and centered with about **112 px transparent side space**.
+- Keep the image compact and WhatsApp-readable. Use the approved lime neon edge glow around the scalloped receipt; do not add a conventional black/grey drop shadow.
+- Customer PNG is fixed at **1024 × 1536 px** for the two-line reference specimen. The visible lime receipt edge is approximately `x=120..904`, with transparent/glowing exterior space.
 - Preserve the approved hierarchy: centered brand block, lime PAYMENT RECEIPT bar, split receipt facts, slim pale BILL TO header with two white columns and a vertical divider, pale/green item header, compact totals, lime AMOUNT PAID bar, PAID stamp + trace block, and Thank You / Visit Again footer.
 - The approved mock is a visual/layout reference only. Its old Taxable Value / CGST / SGST / Total Tax rows are retired for the compact customer copy; v8 accounting rows remain authoritative.
 
@@ -57,7 +57,7 @@ There is one customer receipt renderer for website checkout, WhatsApp catalog/ca
 
 Show when present:
 
-- Receipt Ref: the full WECARE payment reference, including the `WD-PAY-` prefix
+- Receipt Ref: the customer display reference `WD-PAY-` plus the first 8 canonical reference characters; the full canonical reference remains stored internally
 - paid/capture date and time in IST
 - payment status, with captured payments shown as a lime `PAID` pill
 - Channel
@@ -71,7 +71,7 @@ Show when present:
 - **Delight** only when non-zero
 - **Express** / Handling only when non-zero
 - **Convenience Fee** as the net fee only when non-zero
-- one compact **GST** row whose amount is the stored **total GST** for the collection: supply GST + convenience-fee GST; the seller GSTIN stays in the legal masthead and is not used as a charge label
+- one compact seller-GSTIN totals row whose amount is the stored **total GST** for the collection: supply GST + convenience-fee GST, matching the owner-approved receipt reference
 - Amount Paid for captured payments; Amount Payable otherwise
 - amount in words
 - PAID stamp and paid timestamp when captured
