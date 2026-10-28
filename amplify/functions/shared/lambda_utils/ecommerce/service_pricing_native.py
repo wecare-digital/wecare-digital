@@ -22,7 +22,7 @@ import json
 import logging
 from typing import Any, Callable, Dict, Mapping, Optional
 
-from lambda_utils.ecommerce import service_requests
+from lambda_utils.ecommerce import checkout_pricing, default_coupon, service_requests
 from lambda_utils.ecommerce.money import positive_paise
 
 logger = logging.getLogger(__name__)
@@ -50,6 +50,30 @@ def _variant_paise(row: Optional[Mapping[str, Any]]) -> int:
     return positive_paise(value)
 
 
+def _collect_breakdown(kind: str, item_subtotal_paise: int) -> Optional[Dict[str, int]]:
+    """Collect-style server breakdown for Vault/Drop Docs only.
+
+    Delight is based on the GST-inclusive item subtotal only. Express is added afterwards.
+    The shared checkout calculator then adds the 2.5% Convenience Fee and 18% GST on that fee.
+    """
+    if kind not in (service_requests.VAULT, service_requests.DROP_DOCS):
+        return None
+    delight = default_coupon.delight_paise(item_subtotal_paise)
+    express = service_requests.VAULT_DROP_DOCS_EXPRESS_PAISE
+    collection = item_subtotal_paise - delight + express
+    quote = checkout_pricing.compute_quote(collection, currency=SERVICE_CURRENCY)
+    return {
+        "itemSubtotalPaise": item_subtotal_paise,
+        "delightPaise": delight,
+        "expressPaise": express,
+        "collectionBeforeConveniencePaise": quote.collection_before_convenience_paise,
+        "convenienceFeePaise": quote.convenience_fee_paise,
+        "convenienceGstPaise": quote.convenience_gst_paise,
+        "convenienceGstBps": checkout_pricing.CONVENIENCE_GST_BPS,
+        "totalPayablePaise": quote.total_payable_paise,
+    }
+
+
 def resolve_all(product_reader: ProductReader) -> Dict[str, Any]:
     """Every public service slug's native price. No warm-sandbox cache here: a
     DynamoDB point read per slug is cheap and avoids serving a stale price across a
@@ -59,7 +83,11 @@ def resolve_all(product_reader: ProductReader) -> Dict[str, Any]:
         variant = service_requests.SERVICE_VARIANT_BY_KIND.get(kind, "")
         try:
             paise = _variant_paise(product_reader(variant))
-            prices[slug] = {"available": True, "paise": paise}
+            row: Dict[str, Any] = {"available": True, "paise": paise}
+            breakdown = _collect_breakdown(kind, paise)
+            if breakdown is not None:
+                row["breakdown"] = breakdown
+            prices[slug] = row
         except Exception as error:  # noqa: BLE001 - one slug must not blank the others
             logger.warning(json.dumps({"event": "service_price_unavailable_native",
                                        "slug": slug, "error": type(error).__name__}))
@@ -67,4 +95,4 @@ def resolve_all(product_reader: ProductReader) -> Dict[str, Any]:
     return {"currency": SERVICE_CURRENCY, "prices": prices}
 
 
-__all__ = ["SERVICE_CURRENCY", "resolve_all"]
+__all__ = ["SERVICE_CURRENCY", "_collect_breakdown", "resolve_all"]
