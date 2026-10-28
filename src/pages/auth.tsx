@@ -150,15 +150,13 @@ const AuthPage: React.FC = () => {
         <section className="auth-card" aria-labelledby="auth-card-title">
           <div className="auth-eyebrow" id="auth-card-title">
             <img className="auth-eyebrow-icon" src={ AUTH_LOGO_URL } alt="" aria-hidden="true" width={ 1080 } height={ 1080 } decoding="async" />
-            <span>Sign in</span>
+            <span>Access</span>
           </div>
 
           { step?.clientName && <p className="auth-context">Continue to <strong>{ step.clientName }</strong></p> }
 
           <form noValidate onSubmit={ onSubmit } aria-busy={ busy }>
-            { !step && !error && <p className="auth-status">Preparing secure sign in…</p> }
-
-            { step?.phase === 'phone' && (
+                        { step?.phase === 'phone' && (
               <>
                 <label className="auth-field-label" htmlFor="auth-phone">WhatsApp</label>
                 <div className="phone-control">
