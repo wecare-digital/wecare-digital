@@ -400,11 +400,21 @@ class DropDocsUploadUxContractTests(unittest.TestCase):
 
 
 
-    def test_drop_docs_and_vault_share_one_gigabyte_direct_upload_limit(self):
+    def test_drop_docs_and_vault_follow_meta_media_limits(self):
+        docs = (ROOT / "src" / "components" / "workspace" / "service" / "Documents.tsx").read_text(
+            encoding="utf-8"
+        )
         service = (FUNCTIONS / "core" / "service-api" / "handler.py").read_text(encoding="utf-8")
         secure = (FUNCTIONS / "core" / "secure-files" / "handler.py").read_text(encoding="utf-8")
-        self.assertIn("str(1024 * 1024 * 1024)", service)
-        self.assertIn("str(1024 * 1024 * 1024)", secure)
+        for source in (docs, service, secure):
+            self.assertIn("5 * 1024 * 1024", source)
+            self.assertIn("16 * 1024 * 1024", source)
+            self.assertIn("100 * 1024 * 1024", source)
+        self.assertIn("UNSUPPORTED_MEDIA_TYPE", service)
+        self.assertIn("UNSUPPORTED_MEDIA_TYPE", secure)
+        self.assertIn("WhatsApp limit", docs)
+        self.assertIn("toast.error", docs)
+        self.assertNotIn("1 GB", docs)
 
 
 class VaultWorkspaceMessagingUxTests(unittest.TestCase):

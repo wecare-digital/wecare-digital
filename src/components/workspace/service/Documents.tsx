@@ -50,8 +50,54 @@ const TYPE_SELECT_OPTIONS: SelectOption[] = [
   ...TYPE_OPTIONS.map( t => ( { value: t, label: t.replace( /_/g, ' ' ) } ) ),
 ];
 
-const DROP_DOCS_MAX_BYTES = 1024 * 1024 * 1024;
-const DROP_DOCS_MAX_LABEL = '1 GB';
+const DROP_DOCS_META_ACCEPT = [
+  '.jpeg', '.png',
+  '.mp4', '.3gp',
+  '.aac', '.amr', '.mp3', '.m4a', '.ogg',
+  '.pdf', '.txt', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+].join( ',' );
+
+type MetaFileRule = { supported: boolean; bytes: number; label: string; kind: string; reason?: string };
+
+function dropDocsMetaLimit ( file: Pick<File, 'type' | 'name'> ): MetaFileRule {
+  const mime = ( file.type || '' ).toLowerCase();
+  const name = ( file.name || '' ).toLowerCase();
+  const ext = name.includes( '.' ) ? name.slice( name.lastIndexOf( '.' ) ) : '';
+
+  if ( ( mime === 'image/jpeg' && ext === '.jpeg' ) || ( mime === 'image/png' && ext === '.png' ) )
+    return { supported: true, bytes: 5 * 1024 * 1024, label: '5 MB', kind: 'Image' };
+
+  if ( ( mime === 'video/mp4' && ext === '.mp4' ) || ( mime === 'video/3gpp' && ext === '.3gp' ) )
+    return { supported: true, bytes: 16 * 1024 * 1024, label: '16 MB', kind: 'Video' };
+
+  const audioPairs: Record<string, string> = {
+    '.aac': 'audio/aac', '.amr': 'audio/amr', '.mp3': 'audio/mpeg',
+    '.m4a': 'audio/mp4', '.ogg': 'audio/ogg',
+  };
+  if ( audioPairs[ ext ] === mime )
+    return { supported: true, bytes: 16 * 1024 * 1024, label: '16 MB', kind: 'Audio' };
+
+  const documentPairs: Record<string, string> = {
+    '.txt': 'text/plain',
+    '.xls': 'application/vnd.ms-excel',
+    '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    '.doc': 'application/msword',
+    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    '.ppt': 'application/vnd.ms-powerpoint',
+    '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    '.pdf': 'application/pdf',
+  };
+  if ( documentPairs[ ext ] === mime )
+    return { supported: true, bytes: 100 * 1024 * 1024, label: '100 MB', kind: 'Document' };
+
+  return {
+    supported: false,
+    bytes: 0,
+    label: '',
+    kind: 'File',
+    reason: 'WhatsApp supports JPEG/PNG images, MP4/3GP video, AAC/AMR/MP3/M4A/OGG audio, and PDF/TXT/Word/Excel/PowerPoint documents here. File extension and MIME type must match.',
+  };
+}
 
 /* LAYOUT ONLY - the three filters are flex children, and a native select sized itself to
    its widest option while the trigger shows the selected one. */
@@ -277,7 +323,8 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
 
   const createCustomerReady = Boolean( createForm.contactId || createForm.customerPhone.trim() );
   const createTypeReady = Boolean( createForm.type );
-  const createFileReady = Boolean( createFile && createFile.size <= DROP_DOCS_MAX_BYTES );
+  const createFileRule = createFile ? dropDocsMetaLimit( createFile ) : null;
+  const createFileReady = Boolean( createFile && createFileRule?.supported && createFile.size <= createFileRule.bytes );
   const createReady = createCustomerReady && createTypeReady && createFileReady;
 
   const closeCreate = () => {
@@ -302,9 +349,15 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
       toast.error( 'Choose a file to upload' );
       return;
     }
-    if ( createFile.size > DROP_DOCS_MAX_BYTES )
+    const metaRule = dropDocsMetaLimit( createFile );
+    if ( !metaRule.supported )
     {
-      toast.error( `This file is ${ fmtSize( createFile.size ) }. Drop Docs supports files up to ${ DROP_DOCS_MAX_LABEL }.` );
+      toast.error( metaRule.reason || 'This file type is not supported by WhatsApp.' );
+      return;
+    }
+    if ( createFile.size > metaRule.bytes )
+    {
+      toast.error( `${ metaRule.kind } limit is ${ metaRule.label } on WhatsApp. Selected file: ${ fmtSize( createFile.size ) }.` );
       return;
     }
 
@@ -1117,7 +1170,30 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
               File
               <input
                 type="file"
-                onChange={ e => setCreateFile( e.target.files?.[ 0 ] || null ) }
+                accept={ DROP_DOCS_META_ACCEPT }
+                onChange={ e => {
+                  const next = e.target.files?.[ 0 ] || null;
+                  setCreateFile( next );
+                  if ( !next ) return;
+                  const rule = dropDocsMetaLimit( next );
+                  if ( !rule.supported )
+                  {
+                    toast.error( rule.reason || 'This file type is not supported by WhatsApp.' );
+                    e.target.value = '';
+                    setCreateFile( null );
+                    return;
+                  }
+                  if ( next.size > rule.bytes )
+                  {
+                    toast.error( `${ rule.kind } limit is ${ rule.label } on WhatsApp. Selected file: ${ fmtSize( next.size ) }.` );
+                    e.target.value = '';
+                    setCreateFile( null );
+                  }
+                  else
+                  {
+                    toast.success( `${ rule.kind } selected · WhatsApp limit ${ rule.label }.` );
+                  }
+                } }
                 className="dd-auth-file"
                 disabled={ creating }
               />
@@ -1125,8 +1201,8 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
             { createFile && (
               <div style={ fileSummaryStyle }>
                 <div style={ { fontWeight: 650, overflowWrap: 'anywhere' } }>{ createFile.name }</div>
-                <div style={ { ...helperStyle, color: createFile.size > DROP_DOCS_MAX_BYTES ? '#991b1b' : 'var(--text-muted)' } }>
-                  { fmtSize( createFile.size ) } · { createFile.type || 'File' } · limit { DROP_DOCS_MAX_LABEL }
+                <div style={ { ...helperStyle, color: createFileRule && createFile.size > createFileRule.bytes ? '#991b1b' : 'var(--text-muted)' } }>
+                  { fmtSize( createFile.size ) } · { createFile.type || 'File' } · WhatsApp { createFileRule?.kind || 'file' } limit { createFileRule?.label || 'unsupported' }
                 </div>
                 <div style={ helperStyle }>Uploads directly to private storage. A WECARE reference and filename are generated automatically.</div>
               </div>

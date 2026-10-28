@@ -76,8 +76,37 @@ INVOICE_ENGINE_FUNCTION = os.environ.get('INVOICE_ENGINE_FUNCTION', 'wecare-comm
 # and never contacts S3, so this endpoint kept returning 200 with a URL that only broke
 # when the browser followed it.
 DOCS_S3_BUCKET = os.environ.get('DOCS_S3_BUCKET', media_paths.BUCKET)
-DOCUMENT_UPLOAD_MAX_BYTES = int(os.environ.get('DOCUMENT_UPLOAD_MAX_BYTES', str(1024 * 1024 * 1024)))
+DOCUMENT_UPLOAD_MAX_BYTES = int(os.environ.get('DOCUMENT_UPLOAD_MAX_BYTES', str(100 * 1024 * 1024)))
 DOCUMENT_UPLOAD_URL_TTL = int(os.environ.get('DOCUMENT_UPLOAD_URL_TTL_SECONDS', '900'))
+
+# Keep Drop Docs on the same media contract as WhatsApp Cloud API. These are exact
+# extension/MIME pairs from Meta; mismatches fail before a presigned upload is issued.
+_META_MEDIA_RULES = {
+    '.aac': ('audio/aac', 16 * 1024 * 1024, 'Audio', '16 MB'),
+    '.amr': ('audio/amr', 16 * 1024 * 1024, 'Audio', '16 MB'),
+    '.mp3': ('audio/mpeg', 16 * 1024 * 1024, 'Audio', '16 MB'),
+    '.m4a': ('audio/mp4', 16 * 1024 * 1024, 'Audio', '16 MB'),
+    '.ogg': ('audio/ogg', 16 * 1024 * 1024, 'Audio', '16 MB'),
+    '.txt': ('text/plain', 100 * 1024 * 1024, 'Document', '100 MB'),
+    '.xls': ('application/vnd.ms-excel', 100 * 1024 * 1024, 'Document', '100 MB'),
+    '.xlsx': ('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 100 * 1024 * 1024, 'Document', '100 MB'),
+    '.doc': ('application/msword', 100 * 1024 * 1024, 'Document', '100 MB'),
+    '.docx': ('application/vnd.openxmlformats-officedocument.wordprocessingml.document', 100 * 1024 * 1024, 'Document', '100 MB'),
+    '.ppt': ('application/vnd.ms-powerpoint', 100 * 1024 * 1024, 'Document', '100 MB'),
+    '.pptx': ('application/vnd.openxmlformats-officedocument.presentationml.presentation', 100 * 1024 * 1024, 'Document', '100 MB'),
+    '.pdf': ('application/pdf', 100 * 1024 * 1024, 'Document', '100 MB'),
+    '.jpeg': ('image/jpeg', 5 * 1024 * 1024, 'Image', '5 MB'),
+    '.png': ('image/png', 5 * 1024 * 1024, 'Image', '5 MB'),
+    '.3gp': ('video/3gpp', 16 * 1024 * 1024, 'Video', '16 MB'),
+    '.mp4': ('video/mp4', 16 * 1024 * 1024, 'Video', '16 MB'),
+}
+
+def _meta_media_rule(file_name: str, content_type: str):
+    ext = os.path.splitext(str(file_name or '').strip().lower())[1]
+    rule = _META_MEDIA_RULES.get(ext)
+    if not rule or str(content_type or '').strip().lower() != rule[0]:
+        return None
+    return rule
 
 origin = '*'
 
@@ -1113,10 +1142,16 @@ def _init_document_upload(body: Dict) -> Dict:
         return _resp(400, {'error': 'FILE_NAME_REQUIRED', 'message': 'Choose a file to upload.'})
     if size <= 0:
         return _resp(400, {'error': 'FILE_SIZE_REQUIRED', 'message': 'The selected file is empty.'})
-    if size > DOCUMENT_UPLOAD_MAX_BYTES:
+    media_rule = _meta_media_rule(file_name, content_type)
+    if not media_rule:
+        return _resp(415, {
+            'error': 'UNSUPPORTED_MEDIA_TYPE',
+            'message': 'Use a WhatsApp-supported file type with a matching extension and MIME type.',
+        })
+    if size > min(DOCUMENT_UPLOAD_MAX_BYTES, media_rule[1]):
         return _resp(413, {
             'error': 'FILE_TOO_LARGE',
-            'message': f'The selected file is larger than {DOCUMENT_UPLOAD_MAX_BYTES} bytes.',
+            'message': f'{media_rule[2]} limit is {media_rule[3]} on WhatsApp.',
         })
     if not (str(body.get('customerPhone') or '').strip() or str(body.get('contactId') or '').strip()):
         return _resp(400, {
@@ -1191,10 +1226,16 @@ def _init_document_reupload(doc_id: str, body: Dict) -> Dict:
         return _resp(400, {'error': 'FILE_NAME_REQUIRED', 'message': 'Choose a replacement file.'})
     if size <= 0:
         return _resp(400, {'error': 'FILE_SIZE_REQUIRED', 'message': 'The selected file is empty.'})
-    if size > DOCUMENT_UPLOAD_MAX_BYTES:
+    media_rule = _meta_media_rule(file_name, content_type)
+    if not media_rule:
+        return _resp(415, {
+            'error': 'UNSUPPORTED_MEDIA_TYPE',
+            'message': 'Use a WhatsApp-supported file type with a matching extension and MIME type.',
+        })
+    if size > min(DOCUMENT_UPLOAD_MAX_BYTES, media_rule[1]):
         return _resp(413, {
             'error': 'FILE_TOO_LARGE',
-            'message': f'The selected file is larger than {DOCUMENT_UPLOAD_MAX_BYTES} bytes.',
+            'message': f'{media_rule[2]} limit is {media_rule[3]} on WhatsApp.',
         })
 
     new_ref = _public_document_ref()
@@ -1268,11 +1309,16 @@ def _confirm_document_reupload(doc_id: str) -> Dict:
                            'message': 'The replacement file was not found. Please upload it again.'})
 
     size = int(head.get('ContentLength') or 0)
-    if size <= 0 or size > DOCUMENT_UPLOAD_MAX_BYTES:
-        return _resp(413, {'error': 'FILE_TOO_LARGE',
-                           'message': 'The stored replacement is empty or exceeds the upload limit.'})
     mime_type = str(head.get('ContentType') or item.get('replacementMimeType')
                     or 'application/octet-stream')
+    original_name = str(item.get('replacementOriginalFileName') or '')
+    media_rule = _meta_media_rule(original_name, mime_type)
+    if not media_rule:
+        return _resp(415, {'error': 'UNSUPPORTED_MEDIA_TYPE',
+                           'message': 'The stored replacement is not a WhatsApp-supported media type.'})
+    if size <= 0 or size > min(DOCUMENT_UPLOAD_MAX_BYTES, media_rule[1]):
+        return _resp(413, {'error': 'FILE_TOO_LARGE',
+                           'message': f'{media_rule[2]} limit is {media_rule[3]} on WhatsApp.'})
     now = _now()
     new_ref = str(item.get('replacementDocumentRef') or _public_document_ref())
     new_name = str(item.get('replacementFileName')
@@ -1351,10 +1397,15 @@ def _confirm_document_upload(doc_id: str) -> Dict:
                            'message': 'The uploaded file was not found. Please upload it again.'})
 
     size = int(head.get('ContentLength') or 0)
-    if size <= 0 or size > DOCUMENT_UPLOAD_MAX_BYTES:
-        return _resp(413, {'error': 'FILE_TOO_LARGE',
-                           'message': 'The stored file is empty or exceeds the upload limit.'})
     mime_type = str(head.get('ContentType') or item.get('mimeType') or 'application/octet-stream')
+    original_name = str(item.get('originalFileName') or '')
+    media_rule = _meta_media_rule(original_name, mime_type)
+    if not media_rule:
+        return _resp(415, {'error': 'UNSUPPORTED_MEDIA_TYPE',
+                           'message': 'The stored file is not a WhatsApp-supported media type.'})
+    if size <= 0 or size > min(DOCUMENT_UPLOAD_MAX_BYTES, media_rule[1]):
+        return _resp(413, {'error': 'FILE_TOO_LARGE',
+                           'message': f'{media_rule[2]} limit is {media_rule[3]} on WhatsApp.'})
     now = _now()
     table.update_item(
         Key={'documentId': doc_id},
