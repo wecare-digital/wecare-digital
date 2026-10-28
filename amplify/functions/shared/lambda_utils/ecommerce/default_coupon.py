@@ -56,7 +56,7 @@ DELIGHT_MAXIMUM_DISCOUNT_PAISE = 50 * PAISE_PER_RUPEE
 
 
 def delight_paise(collection_paise: int) -> int:
-    """The Delight discount in integer paise for a collection. Zero for a zero/empty collection.
+    """The Delight discount in integer paise for a collection. Zero only for zero/empty collection.
 
     THE ONE PLACE THIS FIGURE IS DECIDED. Pure integer arithmetic, no float, no table, no coupon
     engine:
@@ -73,7 +73,12 @@ def delight_paise(collection_paise: int) -> int:
     if collection <= 0:
         return 0
     raw = collection * DELIGHT_PERCENT_OFF_BPS // _BPS_DENOMINATOR
-    return min(raw, DELIGHT_MAXIMUM_DISCOUNT_PAISE, collection)
+    # "Every order carries Delight" must remain true even for a tiny controlled QA/payment.
+    # Integer flooring makes 0.5% of values below ₹2 become zero paise, which silently removes
+    # the customer-visible Delight row. Keep the percentage/cap policy but guarantee one paise
+    # whenever the eligible collection is positive.
+    effective = max(1, raw)
+    return min(effective, DELIGHT_MAXIMUM_DISCOUNT_PAISE, collection)
 
 
 def delight_definition() -> Dict[str, Any]:
