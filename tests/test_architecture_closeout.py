@@ -480,6 +480,40 @@ class VaultWorkspaceMessagingUxTests(unittest.TestCase):
 
 
 
+class VaultBackendHardeningTests(unittest.TestCase):
+    """Vault intake has one path and downloads never restore the original upload filename."""
+
+    def test_direct_vault_upload_routes_are_retired_fail_closed(self):
+        handler = (FUNCTIONS / "core" / "secure-files" / "handler.py").read_text(encoding="utf-8")
+        provision = (ROOT / "scripts" / "provision_secure_files_api.py").read_text(encoding="utf-8")
+
+        self.assertIn('"error": "VAULT_DIRECT_UPLOAD_RETIRED"', handler)
+        self.assertIn('"POST /secure-files/upload-init"', provision)
+        self.assertIn('"POST /secure-files/{fileId}/confirm"', provision)
+        routes = provision[provision.index("ROUTES = ["):provision.index("RETIRED_ROUTES = {")]
+        self.assertNotIn('/secure-files/upload-init', routes)
+        self.assertNotIn('/secure-files/{fileId}/confirm', routes)
+        self.assertIn("client.delete_route", provision)
+        self.assertIn('TracingConfig={"Mode": "Active"}', provision)
+        self.assertIn("FAIL retired route still live", provision)
+        self.assertIn("PASS retired route absent", provision)
+        self.assertIn("PASS X-Ray tracing Active", provision)
+        self.assertIn("wecare-lambda-async-dlq", provision)
+        self.assertIn("put_function_event_invoke_config", provision)
+        self.assertIn("MaximumRetryAttempts=2", provision)
+        self.assertIn("MaximumEventAgeInSeconds=21600", provision)
+        self.assertIn("PASS async failures persist to standard DLQ", provision)
+
+    def test_paid_download_uses_system_owned_vault_filename(self):
+        handler = (FUNCTIONS / "core" / "secure-files" / "handler.py").read_text(encoding="utf-8")
+        start = handler.index("def _download_url")
+        end = handler.index("\n\ndef ", start + 5)
+        helper = handler[start:end]
+        self.assertIn('_system_name_for_file(item)', helper)
+        self.assertNotIn('originalFilename', helper)
+
+
+
 class OrderStatusTemplateOnlyTransportTests(unittest.TestCase):
     """The automatic payment-order rail never changes transport with the service window."""
 

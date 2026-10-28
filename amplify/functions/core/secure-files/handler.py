@@ -1911,7 +1911,7 @@ def _download_url(item: Dict[str, Any], ttl: Optional[int] = None) -> str:
             "Bucket": BUCKET,
             "Key": item["s3Key"],
             "ResponseContentDisposition": (
-                f'attachment; filename="{item.get("originalFilename", "download")}"'
+                f'attachment; filename="{_system_name_for_file(item)}"'
             ),
         },
         ExpiresIn=int(ttl or DOWNLOAD_URL_TTL),
@@ -2458,10 +2458,24 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         if tail == ["publish-document"] and method == "POST":
             return _admin_publish_document(event, origin)
+        # Retired 2026-10-28: Vault no longer accepts a direct upload path.
+        # Drop Docs is the only intake store; Vault rows are created only by publish-document.
+        # Keep an explicit 410 during rollout so an old client cannot silently mint a second
+        # file store even before API Gateway route deletion reaches production.
         if tail == ["upload-init"] and method == "POST":
-            return _upload_init(event, origin)
+            return cors_response(
+                410,
+                {"error": "VAULT_DIRECT_UPLOAD_RETIRED",
+                 "message": "Upload through Drop Docs, then publish the document to Vault."},
+                origin,
+            )
         if len(tail) == 2 and tail[1] == "confirm" and method == "POST":
-            return _upload_confirm(tail[0], origin)
+            return cors_response(
+                410,
+                {"error": "VAULT_DIRECT_UPLOAD_RETIRED",
+                 "message": "Upload through Drop Docs, then publish the document to Vault."},
+                origin,
+            )
         if len(tail) == 2 and tail[1] == "revoke" and method == "POST":
             return _admin_revoke(tail[0], event, origin)
         if len(tail) == 2 and tail[1] == "request-payment" and method == "POST":
