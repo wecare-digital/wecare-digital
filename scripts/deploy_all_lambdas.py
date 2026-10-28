@@ -100,7 +100,7 @@ PILLOW_LAYER_ARN = "arn:aws:lambda:us-east-1:775261844268:layer:pillow-python312
 ZIP_DATE = (2026, 1, 1, 0, 0, 0)
 
 # Directories never worth shipping.
-EXCLUDE_DIRS = {"__pycache__", ".pytest_cache"}
+EXCLUDE_DIRS = {"__pycache__", "tests", ".pytest_cache"}
 
 # Modules the python3.12 runtime provides without bundling.
 RUNTIME_PROVIDED = {"boto3", "botocore", "urllib3", "dateutil", "s3transfer", "jmespath", "six"}
