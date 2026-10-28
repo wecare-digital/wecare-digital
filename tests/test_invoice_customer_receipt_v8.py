@@ -86,21 +86,20 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
         self.assertIn('total_row("Delight", -discount', source)
         self.assertIn('total_row("Express", shipping)', source)
         self.assertIn('total_row("Convenience Fee", convenience_net)', source)
-        self.assertIn('total_row("GST", total_gst', source)
+        self.assertIn('total_row(str(company.get("gstin") or "GST"), total_gst)', source)
         self.assertNotIn('total_row("Taxable Value"', source)
         self.assertNotIn('total_row("Total Tax"', source)
         self.assertNotIn('total_row("Discount"', source)
         self.assertNotIn('total_row("Shipping"', source)
 
-    def test_receipt_shows_the_full_payment_reference(self):
-        # v9 geometry is pinned by test_receipt_v9_uses_fixed_reference_canvas.
+    def test_receipt_uses_owner_approved_short_display_reference(self):
+        # The canonical payment reference remains stored in full; the customer receipt uses
+        # the owner-approved WD-PAY- + eight-character display form.
         source = RECEIPT.read_text(encoding="utf-8")
-        self.assertIn('ref = str(invoice.get("referenceId") or "").strip()', source)
-        self.assertNotIn('ref = _strip_ref(invoice.get("referenceId"))', source)
-        self.assertIn("fact_regular = _font(font_paths, \"regular\", 14)", source)
-        self.assertIn("fact_semibold = _font(font_paths, \"semibold\", 14)", source)
-        self.assertIn("value_font = fact_semibold if strong else fact_regular", source)
-        self.assertNotIn("font=semibold if strong else regular", source)
+        self.assertIn('full_ref = str(invoice.get("referenceId") or "").strip()', source)
+        self.assertIn('ref = full_ref[:15] if full_ref.startswith("WD-PAY-")', source)
+        self.assertIn('fact_regular = _font(font_paths, "regular", 18)', source)
+        self.assertIn('fact_semibold = _font(font_paths, "semibold", 18)', source)
 
     def test_preview_has_module_base64_and_tiny_delight_stays_visible(self):
         engine = ENGINE.read_text(encoding="utf-8")
@@ -298,6 +297,12 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
         source = RECEIPT.read_text(encoding="utf-8")
         self.assertIn("BASE_W = 1024", source)
         self.assertIn("BASE_H = 1536", source)
+        self.assertIn("PAPER_X0 = 120", source)
+        self.assertIn("PAPER_X1 = 904", source)
+        self.assertIn('draw.rounded_rectangle((157, 352, 867, 410)', source)
+        self.assertIn('footer_line_y = 1323 + extra_rows * 58', source)
+        self.assertIn('total_row(str(company.get("gstin") or "GST"), total_gst)', source)
+        self.assertIn("ImageFilter.GaussianBlur(22)", source)
         self.assertIn("Fresh fixed-coordinate renderer", source)
 
     def test_customer_receipt_key_uses_public_reference_date_time(self):
