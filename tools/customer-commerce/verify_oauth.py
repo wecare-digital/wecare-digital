@@ -98,9 +98,17 @@ class OAuthContract(unittest.TestCase):
         self.assertIn('class="home-connect"', result['body'])
         self.assertIn('class="connect-panel"', result['body'])
         self.assertIn('class="connect-eyebrow"', result['body'])
-        self.assertIn('>WECARE Account</span>', result['body'])
-        self.assertIn('appearance:auto', result['body'])
+        self.assertIn('>Access</span>', result['body'])
+        self.assertIn('class="country-trigger"', result['body'])
+        self.assertIn('>+91</button>', result['body'])
+        self.assertIn('class="country-panel"', result['body'])
+        self.assertNotIn('<select id="country"', result['body'])
         self.assertIn('>Get Code</button>', result['body'])
+        self.assertIn('>Verification code</span>', result['body'])
+        self.assertIn('id="wc-auth-widget"', result['body'])
+        self.assertIn('id="wc-lang-panel"', result['body'])
+        self.assertIn("connect-src 'self'", result['headers']['Content-Security-Policy'])
+        self.assertIn('width:min(100%,420px)', result['body'])
         self.assertNotIn('Sign in to WECARE.DIGITAL.', result['body'])
         self.assertNotIn('Use your WhatsApp number to continue with your WECARE account.', result['body'])
         self.assertNotIn('Enter your number without the country code or a leading zero.', result['body'])
@@ -151,14 +159,14 @@ class OAuthContract(unittest.TestCase):
         cookie, csrf = self.begin()
         with patch.object(self.cognito, 'initiate_auth', wraps=self.cognito.initiate_auth) as call:
             result = self.post(cookie, {'csrf': csrf, 'country': '+91', 'phone': '9876543210'})
-        self.assertIn('WhatsApp verification code', result['body'])
+        self.assertIn('for="code">Code</label>', result['body'])
         self.assertEqual(call.call_args.kwargs['AuthParameters']['USERNAME'], '+919876543210')
 
     def test_invalid_country_or_national_length_never_sends(self):
         for country, number in [('+999', '9876543210'), ('+91', '12345'), ('+91', '+919876543210')]:
             cookie, csrf = self.begin()
             result = self.post(cookie, {'csrf': csrf, 'country': country, 'phone': number})
-            self.assertIn('Check your country code and WhatsApp number', result['body'])
+            self.assertIn('Check the number and try again.', result['body'])
         self.assertEqual(self.cognito.sends, 0)
 
     def test_branded_authorization_origin_keeps_resource_binding(self):
@@ -167,7 +175,7 @@ class OAuthContract(unittest.TestCase):
             self.assertEqual(auth.auth_metadata()['issuer'], BASE)
             cookie, csrf = self.begin()
             result = self.post(cookie, {'csrf': csrf, 'phone': '+447700900123'}, 'https://wecare.digital')
-            self.assertIn('WhatsApp verification code', result['body'])
+            self.assertIn('for="code">Code</label>', result['body'])
         # Without a main-site origin the API host keeps its own authorization endpoint.
         self.assertEqual(auth.auth_metadata()['authorization_endpoint'], BASE + '/oauth/authorize')
 
@@ -346,15 +354,22 @@ class OAuthContract(unittest.TestCase):
             return True
         with patch.object(auth, 'registration_call', side_effect=registration) as delegate:
             result = self.post(cookie, {'csrf': csrf, 'phone': '+447700900123'})
-            self.assertIn('>Verify code</button>', result['body'])
+            self.assertIn('>Verify</button>', result['body'])
             self.assertIn('>Resend code</button>', result['body'])
             self.assertNotIn('create your account', result['body'])
             csrf = re.search(r'name="csrf" value="([^"]+)"', result['body']).group(1)
             result = self.post(cookie, {'csrf': csrf, 'code': '123456'})
             self.assertEqual(result['statusCode'], 200)
-            self.assertIn('new WhatsApp code', result['body'])
+            self.assertIn('Account ready. Enter the new code.', result['body'])
             self.assertEqual(delegate.call_args.args[0], 'verify')
             self.assertEqual(self.cognito.sends, 2)
+
+    def test_customer_failure_copy_stays_short(self):
+        cookie, csrf = self.begin()
+        with patch.object(self.cognito, 'initiate_auth', side_effect=RuntimeError('provider unavailable')):
+            result = self.post(cookie, {'csrf': csrf, 'phone': '+447700900123'})
+        self.assertIn('Couldn’t verify. Try again.', result['body'])
+        self.assertNotIn('We could not complete verification. Please try again shortly.', result['body'])
 
     def test_disabled_registration_does_not_claim_account_created(self):
         self.cognito.registered = False
