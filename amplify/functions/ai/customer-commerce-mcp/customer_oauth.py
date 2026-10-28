@@ -834,7 +834,7 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         '<div class="home-hero"><h1 class="home-head">'
         '<span class="home-head-line">One&nbsp;account. Anywhere&nbsp;you need&nbsp;it.</span>' +
         hero_pill +
-        '</h1><p class="home-sub">Sign in with WhatsApp. Continue anywhere.</p></div>' +
+        '</h1><p class="home-sub">Sign in once with WhatsApp.<br>Continue across WECARE.DIGITAL and connected apps.</p></div>' +
         sign_in +
         '</div></main>'
         '<div class="public-action-tail">' + stay_connected + '</div>' +
@@ -1019,7 +1019,7 @@ def authorize_post(params: dict, event: dict) -> dict:
         # line carries the step and a sanitised exception class name only.
         category = re.sub('[^A-Za-z0-9_]', '', type(error).__name__)[:64]
         print(json.dumps({'event': 'customer_authorization_failed', 'stage': stage, 'category': category}))
-        return save_pending(row, login, 'Couldn’t verify. Try again.')
+        return save_pending(row, login)
 
 
 def route(event: dict) -> dict | None:
