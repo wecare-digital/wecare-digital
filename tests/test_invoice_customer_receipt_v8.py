@@ -312,5 +312,18 @@ class InvoiceCustomerReceiptContractTest(unittest.TestCase):
         self.assertNotIn("-v{version}-r", target)
 
 
+    def test_receipt_v10_keeps_full_public_reference_and_plain_gst_label(self):
+        source = RECEIPT_LAYOUT.read_text(encoding="utf-8")
+        self.assertIn('ref = str(invoice.get("referenceId") or "").strip()', source)
+        self.assertNotIn("full_ref[:15]", source)
+        self.assertIn('total_row("GST", total_gst, strong=True, band=True)', source)
+        self.assertNotIn('total_row(str(company.get("gstin") or "GST")', source)
+
+    def test_receipt_v10_uses_thin_scalloped_reference_frame(self):
+        source = RECEIPT_LAYOUT.read_text(encoding="utf-8")
+        self.assertIn("PAYMENT RECEIPT v10", source)
+        self.assertIn("thin neon-lime scalloped edge", source)
+        self.assertIn("GaussianBlur(10)", source)
+
 if __name__ == "__main__":
     unittest.main()
