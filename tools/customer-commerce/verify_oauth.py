@@ -128,12 +128,12 @@ class OAuthContract(unittest.TestCase):
         first = self.post(cookie, {'csrf': csrf, 'phone': '+447700900123'})
         self.assertEqual(first['statusCode'], 200)
         self.assertIn('>Resend code</button>', first['body'])
-        cookie_obj = SimpleCookie(); cookie_obj.load(first['cookies'][0])
-        row = self.store.get(auth.row_key('auth', cookie_obj[auth.COOKIE].value))
-        second = self.post(cookie_obj[auth.COOKIE].value, {'csrf': self.csrf_from(first['body']), 'action': 'resend'})
+        csrf = re.search(r'name="csrf" value="([^"]+)"', first['body']).group(1)
+        second = self.post(cookie, {'csrf': csrf, 'action': 'resend'})
         self.assertEqual(second['statusCode'], 200)
         self.assertIn('>Resend code</button>', second['body'])
         self.assertIn('class="single-field"', second['body'])
+        self.assertEqual(self.cognito.sends, 2)
 
     def test_plain_auth_rejects_unknown_parameters_and_external_returns(self):
         with patch.dict(os.environ, {'CUSTOMER_AUTH_ORIGIN': 'https://wecare.digital'}):
@@ -346,7 +346,9 @@ class OAuthContract(unittest.TestCase):
             return True
         with patch.object(auth, 'registration_call', side_effect=registration) as delegate:
             result = self.post(cookie, {'csrf': csrf, 'phone': '+447700900123'})
-            self.assertIn('create your account', result['body'])
+            self.assertIn('>Verify code</button>', result['body'])
+            self.assertIn('>Resend code</button>', result['body'])
+            self.assertNotIn('create your account', result['body'])
             csrf = re.search(r'name="csrf" value="([^"]+)"', result['body']).group(1)
             result = self.post(cookie, {'csrf': csrf, 'code': '123456'})
             self.assertEqual(result['statusCode'], 200)
