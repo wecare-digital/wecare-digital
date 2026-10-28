@@ -968,54 +968,35 @@ def _native_quote(identity: customer_auth.CustomerIdentity, line_items: list, no
         "updatedAt": 0,  # stable across retries of the exact same basket
         "lineItems": native_lines,
     }
-    # The always-on "Delight" goodwill discount (0.5% up to ₹50), auto-applied SERVER-SIDE on
-    # every PRODUCT order so the customer cannot clear it from the browser. Priced by the one
-    # standalone computation (`default_coupon.delight_paise` via `catalog_pricing.coupon_discount_paise`),
-    # clamped at the subtotal and capped at ₹50. There is no coupon system and no gift-card system
-    # any more: the figure is pure arithmetic, no table read and no coupon engine.
+    # The always-on "Delight" goodwill discount (0.5% up to ₹50), auto-applied
+    # SERVER-SIDE so the browser cannot clear it. Vault and Drop Docs intentionally use the SAME
+    # pricing adjustments as ordinary customer collection now: their catalogue LINE price remains
+    # authoritative and unchanged in frozen_data["items"], while Delight, delivery/Express and the
+    # standard convenience-fee policy are applied around that line price.
     #
-    # SUPPRESSED for a basket that contains a SERVICE line (Submit Request / Vault / Drop Docs /
-    # Amendment / Pickup): a service is priced "to the paise" against its exact catalogue price, a
-    # contract pinned by `test_service_lines_dropdocs_vault` and the `serviceLine` PAYREF# row, so
-    # a percentage discount would move the frozen per-line price and trip `ServicePriceChanged`.
+    # Other paid service kinds retain their historical exact-line/no-Delight behaviour until their
+    # own commercial policy is changed explicitly.
     from lambda_utils.ecommerce import default_coupon, service_requests
-    coupon_definition = (None if service_requests.has_service_line(line_items)
-                         else default_coupon.delight_definition())
-    snapshot = native_checkout.quote_native_cart(
+    service_line = service_requests.service_line(line_items)
+    delight_service = (
+        service_line is not None
+        and service_line.kind in (service_requests.VAULT, service_requests.DROP_DOCS)
+    )
+    coupon_definition = (
+        default_coupon.delight_definition()
+        if service_line is None or delight_service
+        else None
+    )
+    return native_checkout.quote_native_cart(
         ephemeral_cart,
         product_reader=reader,
         customer_id=identity.customer_id,
         created_at=now,
         ttl_seconds=WEBSITE_SNAPSHOT_TTL_SECONDS,
-        shipping_policy=native_shipping.ShippingPolicy(),  # free by default; policy via config
+        shipping_policy=native_shipping.ShippingPolicy(),  # Express/delivery is server policy
         gst_bps=0,  # catalog prices are GST-inclusive today; no double-tax
         coupon_definition=coupon_definition,
     )
-
-    # Vault and Drop Docs are sold at their exact catalogue prices: the catalogue amount is the
-    # total the customer pays. Keep this at the ONE pricing seam shared by website and WhatsApp
-    # checkout so the order subtotal, payment request, invoice and Workspace order all agree.
-    service_line = service_requests.service_line(line_items)
-    if service_line is not None and service_line.kind in (
-            service_requests.VAULT, service_requests.DROP_DOCS):
-        exact_quote = checkout_pricing.exempt_quote(
-            snapshot.quote.collection_before_convenience_paise,
-            currency=snapshot.quote.currency,
-        )
-        frozen = snapshot.frozen_data
-        return checkout_pricing.build_snapshot(
-            customer_id=snapshot.customer_id,
-            cart_id=snapshot.cart_id,
-            cart_revision=snapshot.cart_revision,
-            quote=exact_quote,
-            created_at=snapshot.created_at,
-            ttl_seconds=snapshot.expires_at - snapshot.created_at,
-            site=frozen.get("site"),
-            items=frozen.get("items"),
-            address=frozen.get("address"),
-            delivery=frozen.get("delivery"),
-        )
-    return snapshot
 
 
 def _website_snapshot(identity: customer_auth.CustomerIdentity, line_items: list, now: int):
