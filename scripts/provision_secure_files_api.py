@@ -121,7 +121,7 @@ RETIRED_ROUTES = {
 # The one Lambda secure-files invokes for WhatsApp delivery.
 WA_SENDER = "wecare-outbound-whatsapp"
 
-EXCLUDE_DIRS = {"__pycache__", ".pytest_cache"}
+EXCLUDE_DIRS = {"__pycache__", "tests", ".pytest_cache"}
 
 
 def iam():
