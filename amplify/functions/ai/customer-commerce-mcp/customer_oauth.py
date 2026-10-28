@@ -568,6 +568,10 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
     )
     submit_script = (
         "(function(){const form=document.getElementById('auth-form');if(!form)return;let submitted=false;"
+        "const fresh=()=>{const flow=form.querySelector('input[name=_flow]');if(!flow)return;"
+        "const ret=form.querySelector('input[name=_return]')?.value||'';location.replace('/auth'+(ret&&ret!=='/'?'?return='+encodeURIComponent(ret):''))};"
+        "addEventListener('pageshow',e=>{const nav=performance.getEntriesByType&&performance.getEntriesByType('navigation')[0];"
+        "if(e.persisted||(nav&&nav.type==='back_forward'))fresh()});"
         "form.addEventListener('submit',e=>{if(submitted){e.preventDefault();return}submitted=true;"
         "form.querySelectorAll('button[type=submit]').forEach(b=>b.setAttribute('aria-disabled','true'))})})();"
     )
