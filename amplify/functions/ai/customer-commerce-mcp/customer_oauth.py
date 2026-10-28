@@ -377,13 +377,6 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
     login = uncapsule(row['cipher'], row['client'], row['sidHash'])
     phase = login.get('phase', 'phone')
     website = row.get('kind') == 'web-auth'
-    card_title = ('Sign in to WECARE.DIGITAL.' if website and phase == 'phone' else
-                  'Connect your WECARE account.' if phase == 'phone' else 'Check your WhatsApp.')
-    description = ('Use your WhatsApp number to continue with your WECARE account.' if phase == 'phone' else
-                   'Enter the 6-digit code we sent you. Keep the code on this secure page.')
-    if phase == 'registration':
-        description = 'Verify your WhatsApp number to create your account. A separate sign-in code will follow.'
-
     options = ''.join(
         '<option value="' + html.escape(code, quote=True) + '">' +
         html.escape(country + ' (' + code + ')') + '</option>'
@@ -397,10 +390,8 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
             options +
             '</select>'
             '<input id="phone" name="phone" type="tel" inputmode="numeric" autocomplete="tel-national" '
-            'pattern="[0-9]{5,14}" maxlength="14" required placeholder="WhatsApp number" '
-            'aria-describedby="phone-help">'
+            'pattern="[0-9]{5,14}" maxlength="14" required placeholder="WhatsApp number">'
             '</div>'
-            '<p class="hint" id="phone-help">Enter your number without the country code or a leading zero.</p>'
         )
     else:
         field = (
@@ -502,11 +493,10 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         '</strong></p>'
     )
     alert = '<p class="alert" role="alert">' + html.escape(message) + '</p>' if message else ''
-    button_text = 'Send WhatsApp code' if phase == 'phone' else ('Verify and sign in' if website else 'Verify and connect')
-    consent = (
-        'Sign in to your WECARE account. Verification messages arrive on WhatsApp.'
-        if website else
-        'Connect your profile, addresses and orders to this app. It can make changes and request a WhatsApp payment only when you ask. Verification messages arrive on WhatsApp.'
+    primary_text = 'Get Code' if phase == 'phone' else 'Verify code'
+    resend = (
+        '' if phase == 'phone' else
+        '<button class="auth-action" type="submit" name="action" value="resend" formnovalidate>Resend code</button>'
     )
     hero_words = [
         ('the website', '#fef3c7', '#f0a818'),
@@ -543,17 +533,18 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         "})();"
     )
     sign_in = (
-        '<section class="home-connect" aria-labelledby="auth-title"><div class="connect-panel">' +
-        '<p class="connect-eyebrow">WECARE account</p>'
-        '<h2 class="connect-title" id="auth-title">' + html.escape(card_title) + '</h2>'
-        '<p class="connect-lead">' + html.escape(description) + '</p>' +
-        '<span class="connect-rule" aria-hidden="true"></span>' +
+        '<section class="home-connect" aria-label="WECARE account sign in"><div class="connect-panel">' +
+        '<div class="connect-eyebrow">'
+        '<span class="connect-eyebrow-icon" aria-hidden="true">'
+        '<svg viewBox="0 0 24 24" focusable="false"><path d="M7 8h10l1 12H6L7 8Zm2.5 0V6.5a2.5 2.5 0 0 1 5 0V8"/>'
+        '<path d="M9 13.2c1.1-1.3 2.1-1.3 3 0 1-1.3 2-1.3 3 0 0 2-3 3.8-3 3.8s-3-1.8-3-3.8Z"/></svg>'
+        '</span><span>WECARE Account</span></div>' +
         connect_note + alert +
         '<form method="post" action="' + ('/auth' if connect_origin() != origin() else '/oauth/authorize') + '">'
         '<input type="hidden" name="csrf" value="' + html.escape(csrf, quote=True) + '">' +
         field +
-        '<button type="submit">' + button_text + '</button>'
-        '<p class="consent">' + html.escape(consent) + '</p></form>'
+        '<div class="auth-actions"><button class="auth-action" type="submit">' + primary_text + '</button>' +
+        resend + '</div></form>'
         '</div></section>'
     )
     stay_connected = (
@@ -644,26 +635,31 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         '.home-cyc-word.on{opacity:1;transform:translateY(0);position:static;display:inline-block}.home-sr-only{position:absolute;width:1px;height:1px;'
         'padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}.home-sub{font-size:20px;font-weight:400;line-height:1.4;'
         'letter-spacing:-.125px;color:var(--body);margin:24px 0 0;max-width:var(--copy);text-wrap:balance}'
-        '.home-connect{width:100%;min-width:0}.connect-panel{padding:clamp(28px,4vw,56px);border:2px solid var(--lime);border-radius:14px;'
-        'background:var(--lime-tint);width:100%}.connect-eyebrow{margin:0 0 14px;font-size:14px;font-weight:700;letter-spacing:.08em;'
-        'text-transform:uppercase;color:var(--green)}.connect-title{margin:0 0 16px;max-width:19ch;font-size:clamp(28px,3.2vw,40px);'
-        'font-weight:700;line-height:1.08;letter-spacing:-1.2px;color:var(--heading)}.connect-lead{margin:0;max-width:62ch;font-size:20px;'
-        'font-weight:400;line-height:1.4;letter-spacing:-.125px;color:var(--body)}.connect-rule{display:block;height:3px;margin:30px 0;background:var(--lime)}'
-        '.destination{margin:0 0 24px;color:var(--muted);font-size:15px}.destination strong{color:var(--green)}'
-        '.field-label{display:block;margin:0 0 8px;color:var(--text);font-size:15px;font-weight:700}.phone-field{display:flex;min-height:52px;'
-        'border:1px solid var(--hair);border-radius:999px;overflow:hidden;background:#fff}.phone-field select,.phone-field input{min-width:0;border:0;'
-        'background:#fff;color:var(--text);font-family:inherit;font-size:17px;line-height:1.2}.phone-field select{flex:0 0 44%;max-width:190px;padding:0 12px;'
-        'border-inline-end:1px solid var(--hair)}.phone-field input{flex:1 1 auto;padding:0 16px}.phone-field:focus-within{border-color:var(--green);'
-        'box-shadow:0 0 0 3px rgba(209,244,112,.38)}.phone-field select:focus-visible,.phone-field input:focus-visible{outline:3px solid var(--green);'
-        'outline-offset:-3px}.single-field{width:100%;min-height:52px;border:1px solid var(--hair);border-radius:999px;background:#fff;color:var(--text);'
-        'padding:0 16px;font-family:inherit;font-size:17px;line-height:1.2}.single-field:focus-visible{border-color:var(--green);'
-        'box-shadow:0 0 0 3px rgba(209,244,112,.38)}.hint{margin:10px 0 0;color:var(--muted);font-size:13px}'
-        '.connect-panel button{display:inline-flex;align-items:center;justify-content:center;width:auto;min-width:min(100%,260px);min-height:52px;margin-top:24px;'
-        'padding:0 28px;border:2px solid var(--green);border-radius:50px;background:var(--lime);color:var(--green);font-family:inherit;font-size:17px;'
-        'font-weight:600;line-height:1;cursor:pointer;transition:background-color .2s,transform .2s,box-shadow .2s}.connect-panel button:hover{background:#fff;'
-        'transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}.consent{margin:18px 0 0;max-width:62ch;color:var(--muted);font-size:14px;'
-        'line-height:1.5}.alert{margin:0 0 20px;padding:12px 14px;border-inline-start:4px solid var(--green);background:#fff;border-radius:8px;'
-        'color:var(--text);font-size:14px}'        '.public-action-tail{width:100%;max-width:var(--content);margin:0 auto;padding:0 24px;box-sizing:border-box}.public-share{position:relative;width:100%;'
+        '.home-connect{width:min(100%,460px);min-width:0;align-self:flex-start}.connect-panel{width:100%;padding:20px;'
+        'border:1px solid #e8ecdf;border-top:3px solid var(--lime);border-radius:14px;background:#fcfdfa;'
+        'box-shadow:0 14px 40px rgba(16,32,24,.08)}.connect-eyebrow{display:inline-flex;align-items:center;gap:10px;'
+        'width:max-content;max-width:100%;min-height:44px;margin:0 0 20px;padding:0 16px;border-radius:9999px;background:var(--lime);'
+        'color:var(--green);font-size:18px;font-weight:700;line-height:1.1;letter-spacing:0;text-transform:none}.connect-eyebrow-icon{'
+        'width:25px;height:25px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}.connect-eyebrow-icon svg{'
+        'width:25px;height:25px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}'
+        '.destination{margin:0 0 16px;color:var(--muted);font-size:14px}.destination strong{color:var(--green)}'
+        '.field-label{display:block;margin:0 0 8px;color:var(--text);font-size:15px;font-weight:700}.phone-field{display:flex;'
+        'width:100%;min-height:48px;border:1px solid var(--hair);border-radius:12px;overflow:hidden;background:#fff}.phone-field select,'
+        '.phone-field input{min-width:0;border:0;background:#fff;color:var(--text);font-family:inherit;font-size:16px;line-height:1.2}'
+        '.phone-field select{appearance:auto;-webkit-appearance:menulist;flex:0 0 auto;width:138px;padding:0 8px;border-inline-end:1px solid var(--hair);'
+        'border-radius:0;box-shadow:none;cursor:pointer}.phone-field input{flex:1 1 auto;width:0;padding:0 12px;border-radius:0;box-shadow:none}'
+        '.phone-field:focus-within{border-color:var(--lime)}.phone-field select:focus-visible,.phone-field input:focus-visible{outline:3px solid var(--green);'
+        'outline-offset:-3px}.single-field{width:100%;min-height:48px;border:1px solid var(--hair);border-radius:12px;background:#fff;color:var(--text);'
+        'padding:0 12px;font-family:inherit;font-size:16px;line-height:1.2;box-shadow:none}.single-field:focus-visible{border-color:var(--lime);'
+        'outline:3px solid var(--green);outline-offset:2px}.auth-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}'
+        '.auth-action{display:inline-flex;align-items:center;width:max-content;max-width:100%;min-height:44px;box-sizing:border-box;margin:0;padding:6px 9px;'
+        'border:0;border-radius:8px;background:var(--lime-tint);color:var(--green);font-family:inherit;font-size:17px;font-weight:600;line-height:1.4;'
+        'letter-spacing:-.05px;white-space:normal;overflow-wrap:anywhere;text-align:start;text-decoration:underline;text-decoration-thickness:1.5px;'
+        'text-underline-offset:3px;cursor:pointer;transition:background-color .18s,transform .18s,box-shadow .18s,text-decoration-color .18s}'
+        '.auth-action:hover{background:var(--lime);text-decoration-color:transparent;transform:translateY(-1px);box-shadow:0 5px 14px rgba(26,58,42,.1)}'
+        '.auth-action:focus-visible{background:var(--lime);text-decoration-color:transparent;outline:3px solid var(--green);outline-offset:3px}'
+        '.alert{margin:0 0 14px;padding:10px 12px;border-inline-start:3px solid var(--lime);background:#fff;border-radius:8px;color:var(--text);'
+        'font-size:14px;line-height:1.4}'        '.public-action-tail{width:100%;max-width:var(--content);margin:0 auto;padding:0 24px;box-sizing:border-box}.public-share{position:relative;width:100%;'
         'margin-top:32px;padding:12px 0 28px}.ps-kicker{display:flex;width:max-content;max-width:100%;align-items:center;min-height:32px;padding:0 14px;'
         'margin:0 0 18px;border-radius:999px;background:var(--lime);color:var(--green);font-size:17px;font-weight:700;line-height:1}.ps-row{display:flex;'
         'flex-wrap:wrap;align-items:center;gap:12px;width:max-content;max-width:100%}.ps-details{position:relative}.ps-action{position:relative;width:48px;height:48px;'
@@ -689,7 +685,7 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         'align-items:center;min-height:44px;text-decoration:none;border-radius:10px}.compact svg{width:44px;height:44px}.compact .brand-copy{font-size:18px}.ft-tagline{font-size:16px;'
         'line-height:1.6;color:var(--muted);margin:0;max-width:340px}.ft-dash{display:block;width:56px;height:3px;border-radius:999px;background:var(--lime)}'
         '@media(max-width:767px){.hdr-in{height:96px;padding:18px 16px}.brand svg{width:52px;height:52px}.brand-copy{font-size:20px}.home-shell{padding-top:96px}'
-        '.home-layout{padding:48px 16px 40px;gap:64px}.home-head{font-size:40px;line-height:1.1}.connect-panel{padding:28px}.nav-menu{position:fixed;top:96px;'
+        '.home-layout{padding:48px 16px 40px;gap:64px}.home-head{font-size:40px;line-height:1.1}.connect-panel{padding:18px}.nav-menu{position:fixed;top:96px;'
         'inset-inline:16px;width:auto;max-height:calc(100vh - 112px);border-radius:16px}.nav-cols{grid-template-columns:1fr}.public-action-tail{padding:0 16px}'
         '.ft-in{padding:0 16px}.ft-footer{padding-top:48px}.compact img{width:44px;height:44px}.compact .brand-copy{font-size:18px}.ft-tagline{font-size:16px}.cart{width:44px;height:44px}.brand img{width:58px;height:58px}.brand-copy{font-size:22px}}'
         '@media(min-width:280px) and (max-width:399px){.home-head{font-size:clamp(27px,9.4vw,32px)}.home-head-line{max-width:none;white-space:nowrap;text-wrap:nowrap}}'
@@ -821,6 +817,21 @@ def authorize_post(params: dict, event: dict) -> dict:
     # only: never a number, code, session or provider message.
     stage = 'phone' if login.get('phase') == 'phone' else 'challenge'
     try:
+        if params.get('action'):
+            if (params.get('action') != 'resend' or set(params) != {'csrf', 'action'}
+                    or login.get('phase') not in {'code', 'registration'}):
+                raise AuthError('Invalid resend request')
+            if login.get('phase') == 'registration':
+                if not registration_call('request', login['phone'], event):
+                    return save_pending(row, login, 'Could not resend the code. Try again shortly.')
+                return save_pending(row, login)
+            result = aws('cognito-idp').initiate_auth(
+                ClientId=CUSTOMER_CLIENT, AuthFlow='CUSTOM_AUTH',
+                AuthParameters={'USERNAME': login['phone']})
+            if (not result.get('Session')
+                    or result.get('ChallengeParameters', {}).get('registered') == 'false'):
+                return save_pending(row, {'phase': 'phone'}, 'Verification expired. Get a new code.')
+            return save_pending(row, {'phase': 'code', 'phone': login['phone'], 'session': result['Session']})
         if login.get('phase') == 'phone':
             try:
                 params = {'csrf': params['csrf'], 'phone': normalized_phone(params)}
