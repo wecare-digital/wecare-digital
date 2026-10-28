@@ -108,6 +108,26 @@ const fail = ( message ) => { throw new Error( message ); };
         fail( `${viewport.name}: Partner order ${partnerLabels.join( ' > ' )}` );
       }
 
+      // Mobile has one vertical scroll owner: the menu itself. A nested Products scroller
+      // traps touch momentum and makes every section after Products feel missing.
+      if ( viewport.width <= 767 ) {
+        const menuScroll = await menu.evaluate( node => ( {
+          overflowY: getComputedStyle( node ).overflowY,
+          scrollable: node.scrollHeight > node.clientHeight + 1,
+        } ) );
+        if ( !menuScroll.scrollable || ![ 'auto', 'scroll' ].includes( menuScroll.overflowY ) ) {
+          fail( `${viewport.name}: main menu is not the mobile scroll owner ${JSON.stringify( menuScroll )}` );
+        }
+
+        const productScroll = await page.locator( '.nav-products-scroll' ).evaluate( node => ( {
+          overflowY: getComputedStyle( node ).overflowY,
+          scrollable: node.scrollHeight > node.clientHeight + 1,
+        } ) );
+        if ( productScroll.scrollable || [ 'auto', 'scroll' ].includes( productScroll.overflowY ) ) {
+          fail( `${viewport.name}: Products created a nested mobile scroller ${JSON.stringify( productScroll )}` );
+        }
+      }
+
       const search = page.getByLabel( 'Search navigation' );
 
       // Simulate SupportWidget's DOM translation and prove Header harvests the rendered labels
