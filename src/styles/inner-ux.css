@@ -3579,3 +3579,104 @@ html {
     width: 100%;
   }
 }
+
+
+/* ==========================================================================
+   PAYMENTS / COLLECT — CUSTOMER AUTH VISUAL LANGUAGE
+   Same Inter + forest/lime + quiet white surfaces as /auth, without changing
+   any server-authoritative payment behavior.
+   ========================================================================== */
+.pf-auth-surface {
+  --pf-auth-green: #1a3a2a;
+  --pf-auth-lime: #d1f470;
+  --pf-auth-paper: #fcfdfa;
+  --pf-auth-field: #f8faf3;
+  --pf-auth-hair: #e8ecdf;
+  max-width: 1180px;
+  margin: 0 auto;
+  color: #1a1a1a;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.pf-auth-surface .pf-tab-body { padding: 24px 0; }
+.pf-auth-surface h3 {
+  color: var(--pf-auth-green);
+  font-size: clamp(26px, 3vw, 40px) !important;
+  line-height: 1.1;
+  letter-spacing: -.03em;
+}
+.pf-auth-surface .pf-create-layout { gap: 28px; }
+.pf-auth-surface .inner-card,
+.pf-auth-surface .pf-composer-card,
+.pf-auth-surface .pf-live-preview {
+  border: 1px solid var(--pf-auth-hair);
+  border-radius: 14px;
+  background: var(--pf-auth-paper);
+  box-shadow: 0 8px 24px rgba(16,32,24,.06);
+}
+.pf-auth-surface .pf-composer-card { padding: 22px; }
+.pf-auth-surface .pf-live-preview { padding: 18px; }
+.pf-auth-surface .pf-cust-card {
+  min-height: 72px;
+  padding: 14px 16px;
+  border: 1px solid var(--pf-auth-hair);
+  background: #fff;
+  box-shadow: none;
+}
+.pf-auth-surface .pf-cust-card:hover,
+.pf-auth-surface .pf-cust-card:focus-within {
+  border-color: var(--pf-auth-lime);
+  background: var(--pf-auth-field);
+  box-shadow: 0 6px 18px rgba(26,58,42,.08);
+  transform: translateY(-1px);
+}
+.pf-auth-surface .pf-cust-avatar {
+  background: var(--pf-auth-lime);
+  color: var(--pf-auth-green);
+}
+.pf-auth-surface input:not([type="checkbox"]):not([type="radio"]),
+.pf-auth-surface textarea,
+.pf-auth-surface select,
+.pf-auth-surface .search-input {
+  min-height: 48px;
+  border: 1px solid rgba(26,58,42,.08);
+  border-radius: 12px;
+  background: #fff;
+  color: #1a1a1a;
+  box-shadow: none;
+}
+.pf-auth-surface input:focus,
+.pf-auth-surface textarea:focus,
+.pf-auth-surface select:focus {
+  outline: 0;
+  border-color: var(--pf-auth-lime);
+  box-shadow: 0 0 0 3px rgba(209,244,112,.24);
+}
+.pf-auth-surface .pf-item-card {
+  border: 1px solid var(--pf-auth-hair);
+  border-radius: 14px;
+  background: #fff;
+}
+.pf-auth-surface .pf-authority-badge {
+  min-height: 32px;
+  padding-inline: 12px;
+  border: 0;
+  background: var(--pf-auth-lime);
+  color: var(--pf-auth-green);
+  font-size: 12px;
+}
+.pf-auth-surface .pf-preview-totals .pf-preview-total {
+  border-radius: 12px;
+  background: var(--pf-auth-lime);
+}
+.pf-auth-surface .pf-preview-image-shell {
+  border-color: var(--pf-auth-hair);
+  background: #fff;
+}
+@media (max-width: 767px) {
+  .pf-auth-surface { padding-inline: 16px; }
+  .pf-auth-surface .pf-tab-body { padding: 16px 0; }
+  .pf-auth-surface .pf-create-layout { gap: 18px; }
+  .pf-auth-surface .pf-composer-card,
+  .pf-auth-surface .pf-live-preview { padding: 16px; }
+  .pf-auth-surface h3 { font-size: 28px !important; }
+}

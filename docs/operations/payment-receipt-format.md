@@ -28,7 +28,7 @@ The renderer is presentation-only. It MUST render stored invoice figures and MUS
 - The receipt masthead uses the immutable official transparent bag mark plus the canonical stacked `WECARE.` / `DIGITAL` wordmark construction from `src/components/BrandLockup.tsx`; do not substitute the generic opaque square logo or a marketing card.
 - Typography should use Inter when the invoice font assets are available. The renderer must retain a packaged-font fallback so a missing optional asset cannot prevent a paid receipt from being generated. Inter 4.1 (SIL OFL 1.1, from the rsms/inter v4.1 release) is in the font prefix as `Inter-Regular.otf`, `Inter-SemiBold.otf` and `Inter-Bold.otf`, with its licence as `Inter-LICENSE.txt`. The packaged fallback has no ₹ glyph, so amounts print as `Rs.` whenever it is in use.
 - Keep the image compact and WhatsApp-readable; do not add a drop shadow.
-- Customer PNG width: **1024 px**, matching the approved owner reference.
+- Customer PNG width: **1024 px**, matching the approved owner reference. The receipt paper itself is approximately **800 px** wide and centered with about **112 px transparent side space**.
 - Preserve the approved hierarchy: centered brand block, lime PAYMENT RECEIPT bar, split receipt facts, slim pale BILL TO header with two white columns and a vertical divider, pale/green item header, compact totals, lime AMOUNT PAID bar, PAID stamp + trace block, and Thank You / Visit Again footer.
 - The approved mock is a visual/layout reference only. Its old Taxable Value / CGST / SGST / Total Tax rows are retired for the compact customer copy; v8 accounting rows remain authoritative.
 
@@ -57,7 +57,7 @@ There is one customer receipt renderer for website checkout, WhatsApp catalog/ca
 
 Show when present:
 
-- Receipt Ref: the WECARE payment reference with `WD-PAY-` removed for display
+- Receipt Ref: the full WECARE payment reference, including the `WD-PAY-` prefix
 - paid/capture date and time in IST
 - payment status, with captured payments shown as a lime `PAID` pill
 - Channel
@@ -71,7 +71,7 @@ Show when present:
 - **Delight** only when non-zero
 - **Express** / Handling only when non-zero
 - **Convenience Fee** as the net fee only when non-zero
-- one compact seller-GSTIN row (for example `19AAFFW7196L1Z8`) whose amount is the stored **total GST** for the collection: supply GST + convenience-fee GST
+- one compact **GST** row whose amount is the stored **total GST** for the collection: supply GST + convenience-fee GST; the seller GSTIN stays in the legal masthead and is not used as a charge label
 - Amount Paid for captured payments; Amount Payable otherwise
 - amount in words
 - PAID stamp and paid timestamp when captured
@@ -99,7 +99,7 @@ These values may remain stored internally for statutory records, reconciliation 
 
 Customer label: **Convenience Fee**.
 
-New invoices persist the convenience fee as three exact facts: net fee, GST on fee, and their combined total. The **customer receipt shows only the net Convenience Fee**, then includes fee GST in the single compact GSTIN row together with supply GST. Legacy invoices that predate the split retain their stored combined amount without reverse-engineering a tax component. Pricing has one authority: `checkout_pricing.compute_quote`.
+New invoices persist the convenience fee as three exact facts: net fee, GST on fee, and their combined total. The **customer receipt shows only the net Convenience Fee**, then includes fee GST in the single compact GST row together with supply GST. Legacy invoices that predate the split retain their stored combined amount without reverse-engineering a tax component. Pricing has one authority: `checkout_pricing.compute_quote`.
 
 Current policy:
 
@@ -123,7 +123,7 @@ Delight is recorded as `POST_TAX_COMMERCIAL_DISCOUNT`: it is computed from eligi
 
 Use this prompt when changing the receipt:
 
-> Update the WECARE.DIGITAL customer PAYMENT RECEIPT only through the invoice-engine renderer. Preserve the v8 customer/privacy contract and render stored figures without pricing anything. Keep the official S3 logo, formal seller identity, lime #d1f470 edge, forest #1a3a2a structure, off-white paper with transparent outside, optional rows only when values exist, the compact Items Subtotal / Delight / Express / Convenience Fee / seller-GSTIN total-GST summary, and Amount Paid for captured payments. Never expose invoiceNumber, invoiceId, orderId, raw customer UUID or provider order id. The only customer identifier allowed on the receipt is the canonical compact `C-XXXXXXXXXXXX` display code. Do not introduce HSN/SAC until an authoritative source field exists. Check fonts/logo assets, compile the payment Python, run payment-rail verification, build deterministic packages, publish immutable Lambda versions, move the live aliases with revision guards, and verify the live code hashes and one rendered PNG before closing the change. Update this document if the approved contract changes.
+> Update the WECARE.DIGITAL customer PAYMENT RECEIPT only through the invoice-engine renderer. Preserve the v8 customer/privacy contract and render stored figures without pricing anything. Keep the official S3 logo, formal seller identity, lime #d1f470 edge, forest #1a3a2a structure, off-white paper with transparent outside, optional rows only when values exist, the compact Items Subtotal / Delight / Express / Convenience Fee / GST summary, and Amount Paid for captured payments. Never expose invoiceNumber, invoiceId, orderId, raw customer UUID or provider order id. The only customer identifier allowed on the receipt is the canonical compact `C-XXXXXXXXXXXX` display code. Do not introduce HSN/SAC until an authoritative source field exists. Check fonts/logo assets, compile the payment Python, run payment-rail verification, build deterministic packages, publish immutable Lambda versions, move the live aliases with revision guards, and verify the live code hashes and one rendered PNG before closing the change. Update this document if the approved contract changes.
 
 ## Change procedure
 

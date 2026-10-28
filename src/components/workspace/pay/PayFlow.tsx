@@ -843,7 +843,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded, mode = 'collect' 
       showChrome={ !embedded }
     >
       { ( activeTab ) => (
-        <div className="inner-page">
+        <div className="inner-page pf-auth-surface">
           { msg && <div className={ `msg-bar ${msg.type}` } style={ { margin: '0 0 16px' } }>{ msg.text }<button onClick={ () => setMsg( null ) } style={ { background: 'none', border: 'none', cursor: 'pointer', marginLeft: 8 } }>{ '\u2715' }</button></div> }
 
           {/* CUSTOMERS TAB */ }
