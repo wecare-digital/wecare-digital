@@ -206,6 +206,53 @@ class OAuthContract(unittest.TestCase):
         self.assertIn('class="single-field"', second['body'])
         self.assertEqual(self.cognito.sends, 2)
 
+    def test_resend_accepts_browser_code_field_and_stays_on_code_step(self):
+        cookie, csrf = self.begin()
+        first = self.post(cookie, {'csrf': csrf, 'phone': '+447700900123'})
+        csrf = re.search(r'name="csrf" value="([^"]+)"', first['body']).group(1)
+        second = self.post(cookie, {'csrf': csrf, 'action': 'resend', 'code': ''})
+        self.assertEqual(second['statusCode'], 200)
+        self.assertIn('name="code"', second['body'])
+        self.assertIn('New code sent.', second['body'])
+        self.assertEqual(self.cognito.sends, 2)
+
+    def test_edit_phone_returns_to_phone_step_without_sending(self):
+        cookie, csrf = self.begin()
+        first = self.post(cookie, {'csrf': csrf, 'phone': '+447700900123'})
+        csrf = re.search(r'name="csrf" value="([^"]+)"', first['body']).group(1)
+        sends = self.cognito.sends
+        edited = self.post(cookie, {'csrf': csrf, 'action': 'edit_phone', 'code': ''})
+        self.assertEqual(edited['statusCode'], 200)
+        self.assertIn('name="phone"', edited['body'])
+        self.assertNotIn('name="code"', edited['body'])
+        self.assertEqual(self.cognito.sends, sends)
+
+    def test_plain_auth_refresh_resumes_code_step_without_resending(self):
+        with patch.dict(os.environ, {'CUSTOMER_AUTH_ORIGIN': 'https://wecare.digital'}):
+            event = {'rawPath': '/auth', 'rawQueryString': '',
+                     'requestContext': {'domainName': 'wecare.digital', 'http': {'method': 'GET'}}}
+            page = auth.route(event)
+            cookie = SimpleCookie(); cookie.load(page['cookies'][0])
+            csrf = re.search(r'name="csrf" value="([^"]+)"', page['body']).group(1)
+            post = {'rawPath': '/auth',
+                    'headers': {'origin': 'https://wecare.digital',
+                                'content-type': 'application/x-www-form-urlencoded'},
+                    'cookies': [f'{auth.COOKIE}={cookie[auth.COOKIE].value}'],
+                    'requestContext': {'http': {'method': 'POST'}},
+                    'body': urlencode({'csrf': csrf, '_flow': 'website', '_return': '/',
+                                       'country': '+44', 'phone': '7700900123'})}
+            result = auth.route(post)
+            self.assertEqual(result['statusCode'], 303)
+            self.assertEqual(result['headers']['Location'], 'https://wecare.digital/auth')
+            sends = self.cognito.sends
+            resumed = auth.route({'rawPath': '/auth', 'rawQueryString': '',
+                                  'cookies': post['cookies'],
+                                  'requestContext': {'domainName': 'wecare.digital',
+                                                     'http': {'method': 'GET'}}})
+            self.assertEqual(resumed['statusCode'], 200)
+            self.assertIn('name="code"', resumed['body'])
+            self.assertEqual(self.cognito.sends, sends)
+
     def test_plain_auth_rejects_unknown_parameters_and_external_returns(self):
         with patch.dict(os.environ, {'CUSTOMER_AUTH_ORIGIN': 'https://wecare.digital'}):
             bad = {'rawPath': '/auth', 'rawQueryString': 'unexpected=1',
