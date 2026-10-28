@@ -1071,8 +1071,8 @@ const WorkflowTerminal: React.FC = () => {
            loudest glyphs. .88/.86 on #000 clear AA comfortably (~18:1 / ~17:1). */
         /* min-width/overflow/ellipsis: when the bar has no room, which only happens at 200% zoom
            on a phone, the title truncates with an ellipsis instead of being cut mid-letter. */
-        .wt-bar-title{margin-left:8px;color:rgba(255,255,255,.88);font-size:14px;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
-        .wt-bar-state{margin-left:auto;display:flex;align-items:center;gap:7px;color:rgba(255,255,255,.86);font-size:13.5px;white-space:nowrap}
+        .wt-bar-title{margin-left:8px;color:rgba(255,255,255,.88);font-size:15px;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
+        .wt-bar-state{margin-left:auto;display:flex;align-items:center;gap:7px;color:rgba(255,255,255,.86);font-size:14.5px;white-space:nowrap}
         /* GREEN "live trace" dot. #3da35a is the third light's own value, so no new colour
            enters, and green for a live status is the one hue here that already means
            "healthy/running". Measured on this bar's #3b271a: 4.42:1, well clear of 3:1 on a
@@ -1229,39 +1229,39 @@ const WorkflowTerminal: React.FC = () => {
         .wt-call{justify-content:space-between;gap:16px}
         .wt-call-main{display:inline-flex;align-items:baseline;gap:9px;min-width:0}
         .wt-prompt{flex:0 0 auto;color:rgba(255,255,255,.70)}
-        .wt-call-text{color:#fff;font-size:15.5px}
+        .wt-call-text{color:#fff;font-size:16px}
         /* The cumulative elapsed clock. Muted but readable at .70 (~8:1 on #000), right of the call. */
-        .wt-time{flex:0 0 auto;color:rgba(255,255,255,.70);font-size:13.5px}
+        .wt-time{flex:0 0 auto;color:rgba(255,255,255,.70);font-size:14.5px}
         /* THE RETURN VALUE. Readable white at .82 (~16:1 on #000) - this is body content, the
            result of the call, so it clears AA comfortably. The "->" glyph takes the step hue. */
         .wt-return .wt-glyph{flex:0 0 auto;color:var(--ink);font-weight:600}
-        .wt-return .wt-line-text{color:rgba(255,255,255,.82);font-size:14.5px}
+        .wt-return .wt-line-text{color:rgba(255,255,255,.82);font-size:15px}
         /* THE NOTE / COMMENT. Muted on purpose - it is the aside, not the event - but still at
            .70 (~8:1 on #000), well clear of AA, so it is legible rather than a bare pass. The
            "#" prefix glyph was raised from .52 (nearly invisible) to .62 (~10:1 on #000) so the
            structural mark reads - still a touch dimmer than its own .70 note text, keeping the
            glyph-below-text hierarchy, by OPACITY ONLY (no new colour). */
         .wt-note .wt-glyph{flex:0 0 auto;color:rgba(255,255,255,.62)}
-        .wt-note .wt-line-text{color:rgba(255,255,255,.70);font-size:14px}
+        .wt-note .wt-line-text{color:rgba(255,255,255,.70);font-size:14.5px}
         /* THE SUBSTEP (step 13, ai, compose). Muted-ish white .72 (~8.6:1 on #000), the ">"
            glyph in the step hue so it reads as nested under the call. */
         .wt-sub .wt-glyph{flex:0 0 auto;color:var(--ink);font-weight:600}
-        .wt-sub .wt-line-text{color:rgba(255,255,255,.72);font-size:14px}
+        .wt-sub .wt-line-text{color:rgba(255,255,255,.72);font-size:14.5px}
         /* THE ERROR (step 17, queue, only). Red #dc2626 (4.35:1 on #000) - it is a transient failure
            that the next line recovers, so it reads as a logged error, not an alarm. The error
            TEXT is kept readable by pairing the red glyph with brighter white text. */
         .wt-error .wt-glyph{flex:0 0 auto;color:#dc2626;font-weight:700}
-        .wt-error .wt-line-text{color:rgba(255,255,255,.82);font-size:14.5px}
+        .wt-error .wt-line-text{color:rgba(255,255,255,.82);font-size:15px}
         /* THE INLINE AI DECISION. The "ai >" tag is the one place lime is spent in the panel
            body as a thread marker; the decision TEXT stays white at .82 (~16:1 on #000) so it
            reads as a legible sentence rather than an accent. */
         .wt-ai{align-items:baseline}
-        .wt-ai-tag{flex:0 0 auto;color:#d1f470;font-size:13px;font-weight:600;letter-spacing:.04em}
-        .wt-ai-text{color:rgba(255,255,255,.82);font-size:14.5px}
+        .wt-ai-tag{flex:0 0 auto;color:#d1f470;font-size:14px;font-weight:600;letter-spacing:.04em}
+        .wt-ai-text{color:rgba(255,255,255,.82);font-size:15px}
         /* THE VERIFICATION ROLLUP (step 21, platform). Lime ticks before each verified service, wrapping
            inline. The item text is readable white at .82; the tick is lime. */
         .wt-rollup{flex-wrap:wrap;white-space:normal;gap:5px 14px}
-        .wt-rollup-item{display:inline-flex;align-items:baseline;gap:5px;color:rgba(255,255,255,.82);font-size:14px}
+        .wt-rollup-item{display:inline-flex;align-items:baseline;gap:5px;color:rgba(255,255,255,.82);font-size:14.5px}
         .wt-rollup-tick{color:#d1f470;font-weight:700}
 
         /* CONCURRENCY, SHOWN AS COLUMNS. The five channel lanes read as simultaneous tracks, so
@@ -1298,17 +1298,19 @@ const WorkflowTerminal: React.FC = () => {
         /* Lane name solid white; lane detail a muted white .74 (~9:1 on #000) BELOW the name so
            the label and its sub-line keep a clear hierarchy rather than both reading as plain
            white. The voice detail now reads "skipped · not eligible". No new hex. */
-        .wt-lane-name{color:#fff;font-size:15px;font-weight:600}
-        .wt-lane-detail{color:rgba(255,255,255,.74);font-size:14px;line-height:1.45}
+        .wt-lane-name{color:#fff;font-size:15.5px;font-weight:600}
+        .wt-lane-detail{color:rgba(255,255,255,.74);font-size:14.5px;line-height:1.45}
 
         /* THE FOOTER - the ONLY count, and it is live. Running shows the lime dot + "running"
-           on the left and the live "N / 21" counter on the right (N = the shown state, frozen while
+           on the left and the live "N / 21" counter on the right. It now sits at 15px desktop
+           and 16px on phones so progress is as readable as the trace rather than looking like
+           tiny terminal chrome (N = the shown state, frozen while
            paused). Done replaces both with a single CSS-tick + the locked complete string; the
            row height grows to fit it and the text wraps on a narrow panel.
            color raised to .86 by OPACITY ONLY so the footer reads as deliberate chrome rather
            than near-invisible grey - still a muted white BELOW the solid-#fff step content.
            .86 on #000 is ~17:1, well past AA. */
-        .wt-foot{flex:0 0 auto;min-height:50px;padding:9px 24px;display:flex;align-items:center;background:#000;border-top:1px solid rgba(209,244,112,.30);color:rgba(255,255,255,.86);font-size:13.5px}
+        .wt-foot{flex:0 0 auto;min-height:50px;padding:9px 24px;display:flex;align-items:center;background:#000;border-top:1px solid rgba(209,244,112,.30);color:rgba(255,255,255,.86);font-size:15px}
         .wt-foot-left{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
         .wt-foot-tick{color:#d1f470;font-weight:700}
         /* The running dot STAYS LIME, deliberately: it reports live state on the BLACK footer,
@@ -1389,16 +1391,16 @@ const WorkflowTerminal: React.FC = () => {
           .wt-line{line-height:1.5;gap:8px}
           .wt-code{gap:5px}
           .wt-call-text{font-size:16px}
-          .wt-time{font-size:13.5px}
-          .wt-return .wt-line-text{font-size:15px}
-          .wt-note .wt-line-text,.wt-sub .wt-line-text{font-size:14.5px}
-          .wt-error .wt-line-text{font-size:15px}
-          .wt-ai-tag{font-size:13.5px}
-          .wt-ai-text{font-size:15px}
-          .wt-rollup-item{font-size:14.5px}
-          .wt-lane-name{font-size:15px}
-          .wt-lane-detail{font-size:14px}
-          .wt-foot{font-size:14px}
+          .wt-time{font-size:14.5px}
+          .wt-return .wt-line-text{font-size:15.5px}
+          .wt-note .wt-line-text,.wt-sub .wt-line-text{font-size:15px}
+          .wt-error .wt-line-text{font-size:15.5px}
+          .wt-ai-tag{font-size:14.5px}
+          .wt-ai-text{font-size:15.5px}
+          .wt-rollup-item{font-size:15px}
+          .wt-lane-name{font-size:15.5px}
+          .wt-lane-detail{font-size:14.5px}
+          .wt-foot{font-size:16px}
           .wt-step{padding-left:25px;padding-bottom:22px}
           .wt-code::after{width:22px}
           .wt-lanes{grid-template-columns:1fr}
