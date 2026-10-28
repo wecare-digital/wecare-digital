@@ -2736,7 +2736,7 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
     if catalog_session is not None:
         from lambda_utils.ecommerce.catalog_service_checkout import payment_details
         contact_id = catalog_session['contactId']
-        details = payment_details(catalog_session, snapshot.quote, reference_id,
+        details = payment_details(catalog_session, snapshot, reference_id,
                                   EXPECTED_CONFIGURATION_NAME, int(time.time()))
     else:
         contact_id = contact_key.resolve(cart_profile or {})
