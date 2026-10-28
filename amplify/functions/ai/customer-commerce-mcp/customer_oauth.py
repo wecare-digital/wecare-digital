@@ -569,10 +569,8 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
     sign_in = (
         '<section class="home-connect" aria-label="WECARE account sign in"><div class="connect-panel">' +
         '<div class="connect-eyebrow">'
-        '<span class="connect-eyebrow-icon" aria-hidden="true">'
-        '<svg viewBox="0 0 24 24" focusable="false"><path d="M7 8h10l1 12H6L7 8Zm2.5 0V6.5a2.5 2.5 0 0 1 5 0V8"/>'
-        '<path d="M9 13.2c1.1-1.3 2.1-1.3 3 0 1-1.3 2-1.3 3 0 0 2-3 3.8-3 3.8s-3-1.8-3-3.8Z"/></svg>'
-        '</span><span>Access</span></div>' +
+        '<span class="connect-eyebrow-icon" aria-hidden="true">login</span>'
+        '<span>Sign in</span></div>' +
         connect_note + alert +
         '<form method="post" action="' + ('/auth' if connect_origin() != origin() else '/oauth/authorize') + '">'
         '<input type="hidden" name="csrf" value="' + html.escape(csrf, quote=True) + '">' +
@@ -697,8 +695,8 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
     styles = (
         '*{box-sizing:border-box}:root{--green:#1a3a2a;--lime:#d1f470;--lime-tint:#f7fbe9;'
         '--hair:#e5e7eb;--text:#1a1a1a;--heading:rgba(0,0,0,.95);--body:rgba(0,0,0,.898);'
-        '--muted:rgba(0,0,0,.54);--content:1300px;--copy:560px}html{background:#fff}body{margin:0;'
-        "background:#fff;color:var(--text);font:16px/1.55 'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}"
+        '--muted:rgba(0,0,0,.54);--content:1300px;--copy:560px;--font-sans:\'Inter\',ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif;--public-hero-size:clamp(36px,4.3vw,60px);--public-hero-weight:600;--public-hero-leading:1.04;--public-hero-tracking:-.04em;--public-body-size:20px;--public-body-weight:400;--public-body-leading:1.4;--public-body-tracking:-.125px;--public-supporting-size:16px;--public-mobile-hero-size:40px;--public-mobile-cta-font-size:18px;--public-mobile-form-font-size:16px}html{background:#fff}body{margin:0;'
+        "background:#fff;color:var(--text);font:16px/1.55 var(--font-sans)}"
         'a{color:inherit}.hdr{position:fixed;top:0;inset-inline:0;z-index:1001;background:#fff}'
         '.hdr-in{max-width:var(--content);margin:0 auto;padding:18px 24px;display:flex;align-items:center;'
         'justify-content:space-between;box-sizing:border-box;height:108px;min-width:0;overflow-x:hidden;overflow-x:clip}'
@@ -726,8 +724,8 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         '.home-shell{min-height:100vh;min-height:100dvh;padding-top:108px;box-sizing:border-box;background:#fff;color:var(--text)}'
         '.home-layout{width:100%;max-width:var(--content);margin:0 auto;padding:80px 24px 48px;box-sizing:border-box;display:flex;'
         'flex-direction:column;gap:96px;min-width:0;overflow-x:hidden;overflow-x:clip}.home-hero{display:flex;flex-direction:column;align-items:flex-start;'
-        'min-width:0;max-width:100%;overflow-x:hidden;overflow-x:clip}.home-head{font-size:clamp(36px,4.3vw,60px);font-weight:600;line-height:1.04;'
-        'letter-spacing:-.04em;color:var(--heading);margin:0;max-width:min(900px,100%);min-width:0}.home-head-line{display:block;text-wrap:balance}'
+        'min-width:0;max-width:100%;overflow-x:hidden;overflow-x:clip}.home-head{font-size:var(--public-hero-size);font-weight:var(--public-hero-weight);line-height:var(--public-hero-leading);'
+        'letter-spacing:var(--public-hero-tracking);color:var(--heading);margin:0;max-width:min(900px,100%);min-width:0}.home-head-line{display:block;text-wrap:balance}'
         '.home-pill{position:relative;display:inline-block;border-radius:9999px;padding:.02em .3em .02em .22em;margin-top:.08em;white-space:nowrap;'
         'max-width:100%;transition:background-color .52s cubic-bezier(.16,1,.3,1)}.home-pill-dot{position:relative;z-index:1;display:inline-block;'
         'width:.33em;height:.33em;border-radius:50%;margin-inline-end:.18em;vertical-align:.14em;transition:background-color .52s cubic-bezier(.16,1,.3,1)}'
@@ -735,16 +733,18 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         'transition:width .52s cubic-bezier(.16,1,.3,1);will-change:width}.home-cyc-word{position:absolute;left:0;top:0;white-space:nowrap;opacity:0;'
         'transform:translateY(.42em);transition:opacity .42s cubic-bezier(.16,1,.3,1),transform .42s cubic-bezier(.16,1,.3,1)}'
         '.home-cyc-word.on{opacity:1;transform:translateY(0);position:static;display:inline-block}.home-sr-only{position:absolute;width:1px;height:1px;'
-        'padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}.home-sub{font-size:20px;font-weight:400;line-height:1.4;'
-        'letter-spacing:-.125px;color:var(--body);margin:24px 0 0;max-width:var(--copy);text-wrap:balance}'
+        'padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}.home-sub{font-size:var(--public-body-size);font-weight:var(--public-body-weight);line-height:var(--public-body-leading);'
+        'letter-spacing:var(--public-body-tracking);color:var(--body);margin:24px 0 0;max-width:var(--copy);text-wrap:balance}'
         '.home-connect{width:min(100%,420px);min-width:0;align-self:flex-start}.connect-panel{width:100%;padding:18px;'
-        'border:0;border-radius:14px;background:#fcfdfa;box-shadow:0 8px 24px rgba(16,32,24,.06)}.connect-eyebrow{display:inline-flex;align-items:center;gap:9px;'
-        'width:max-content;max-width:100%;min-height:42px;margin:0 0 18px;padding:0 15px;border-radius:9999px;background:var(--lime);'
-        'color:var(--green);font-size:18px;font-weight:700;line-height:1.1;letter-spacing:0;text-transform:none}.connect-eyebrow-icon{'
-        'width:23px;height:23px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}.connect-eyebrow-icon svg{'
-        'width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}'
+        'border:0;border-radius:14px;background:#fcfdfa;box-shadow:0 8px 24px rgba(16,32,24,.06)}.connect-eyebrow{display:inline-flex;align-items:center;gap:10px;'
+        'width:max-content;max-width:100%;margin:0 0 18px;padding:10px 17px;border-radius:9999px;background:var(--lime);'
+        'color:var(--green);font-size:14px;font-weight:600;line-height:1;letter-spacing:-.125px;text-transform:none;white-space:nowrap}.connect-eyebrow-icon{'
+        'width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;'
+        "font-family:'Material Symbols Rounded';font-style:normal;font-size:20px;font-weight:500;line-height:1;letter-spacing:normal;text-transform:none;white-space:nowrap;"
+        "font-feature-settings:'liga';-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;"
+        "font-variation-settings:'FILL' 0,'wght' 500,'GRAD' 0,'opsz' 24}"
         '.destination{margin:0 0 14px;color:var(--muted);font-size:14px}.destination strong{color:var(--green)}'
-        '.field-label{display:block;margin:0 0 7px;color:var(--text);font-size:15px;font-weight:700}.phone-field{display:flex;'
+        '.field-label{display:block;margin:0 0 7px;color:var(--text);font-size:var(--public-supporting-size);font-weight:600;line-height:1.4;letter-spacing:-.05px}.phone-field{display:flex;'
         'width:100%;min-height:48px;border:0;border-radius:12px;background:#f8faf3;position:relative;box-shadow:inset 0 0 0 1px rgba(26,58,42,.06)}.country-picker{position:relative;'
         'flex:0 0 82px;display:flex}.country-trigger{width:82px;min-height:48px;border:0;border-radius:12px 0 0 12px;background:var(--lime-tint);'
         'color:var(--green);font:700 16px/1 inherit;cursor:pointer;padding:0 10px;text-align:center}.country-trigger:focus-visible{outline:0;box-shadow:inset 0 -2px 0 rgba(26,58,42,.34)}'
@@ -795,7 +795,7 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         'align-items:center;min-height:44px;text-decoration:none;border-radius:10px}.compact svg{width:44px;height:44px}.compact .brand-copy{font-size:18px}.ft-tagline{font-size:16px;'
         'line-height:1.6;color:var(--muted);margin:0;max-width:340px}.ft-dash{display:block;width:56px;height:3px;border-radius:999px;background:var(--lime)}'
         '@media(max-width:767px){.hdr-in{height:96px;padding:18px 16px}.brand svg{width:52px;height:52px}.brand-copy{font-size:20px}.home-shell{padding-top:96px}'
-        '.home-layout{padding:48px 16px 40px;gap:64px}.home-head{font-size:40px;line-height:1.1}.connect-panel{padding:16px}.home-connect{width:min(100%,400px)}.country-panel{width:min(260px,calc(100vw - 32px))}.nav-menu{position:fixed;top:96px;'
+        '.home-layout{padding:48px 16px 40px;gap:64px}.home-head{font-size:var(--public-mobile-hero-size);line-height:1.1}.auth-action{font-size:var(--public-mobile-cta-font-size)}.phone-field>input,.single-field,.country-trigger,.country-search input,.country-row{font-size:var(--public-mobile-form-font-size)}.connect-panel{padding:16px}.home-connect{width:min(100%,400px)}.country-panel{width:min(260px,calc(100vw - 32px))}.nav-menu{position:fixed;top:96px;'
         'inset-inline:16px;width:auto;max-height:calc(100vh - 112px);border-radius:16px}.nav-cols{grid-template-columns:1fr}.public-action-tail{padding:0 16px}'
         '.ft-in{padding:0 16px}.ft-footer{padding-top:48px}.compact img{width:44px;height:44px}.compact .brand-copy{font-size:18px}.ft-tagline{font-size:16px}.cart{width:44px;height:44px}.brand img{width:58px;height:58px}.brand-copy{font-size:22px}.wc-langbar{--wc-inset:16px;bottom:calc(20px + env(safe-area-inset-bottom))}.wc-pill{padding:3px;gap:0}.wc-chip{min-width:44px;padding:0 8px}.wc-arw{display:none}.wc-sep{height:22px}}'
         '@media(min-width:280px) and (max-width:399px){.home-head{font-size:clamp(27px,9.4vw,32px)}.home-head-line{max-width:none;white-space:normal;text-wrap:balance}}'
@@ -828,13 +828,14 @@ def form(row: dict, csrf: str, message: str = '') -> dict:
         '<link rel="preconnect" href="https://fonts.googleapis.com">'
         '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
         '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">'
+        '<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400..600,0..1,0&icon_names=login&display=block" rel="stylesheet">'
         '<title>WECARE.DIGITAL · Sign in</title><style>' + styles + '</style></head><body>' +
         header +
         '<main class="home-shell"><div class="home-layout">'
         '<div class="home-hero"><h1 class="home-head">'
         '<span class="home-head-line">One&nbsp;account. Anywhere&nbsp;you need&nbsp;it.</span>' +
         hero_pill +
-        '</h1><p class="home-sub">Sign in with WhatsApp. Continue anywhere.</p></div>' +
+        '</h1><p class="home-sub">Sign in securely. Pick up where you left off.</p></div>' +
         sign_in +
         '</div></main>'
         '<div class="public-action-tail">' + stay_connected + '</div>' +
