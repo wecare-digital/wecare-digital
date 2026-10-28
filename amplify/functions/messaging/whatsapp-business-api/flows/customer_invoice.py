@@ -23,8 +23,15 @@ def _key_token(value):
 MAX_ASSET_VERSIONS = 20
 
 
+#: What invoice-engine `_asset_target` appends to `wecare-digital-{reference}` since the
+#: public-filename change of 2026-10-28: the receipt's IST date and time, then, once the invoice
+#: is issued, a random render token that makes every rendition its own immutable object. The
+#: rendition number lives only in `InvoiceAssets.assetType`, so it is not part of these keys.
+_DATED_KEY_SUFFIX = re.compile(r'-\d{2}-\d{2}-\d{4}-\d{2}-\d{2}-IST(?:-r[0-9a-f]{12})?\.png')
+
+
 def expected_invoice_keys(invoice, reference, version=1):
-    """The `image` keys invoice-engine can have written for this invoice at this rendition.
+    """The exact `image` keys invoice-engine wrote BEFORE the public-filename change.
 
     Its stem is `wecare-digital-{reference}` for a draft and
     `wecare-digital-{invoiceNumber}__{reference}` once a number is issued, under
@@ -41,6 +48,22 @@ def expected_invoice_keys(invoice, reference, version=1):
     if number:
         keys.add(f'{stem}{_key_token(number)}__{ref}{suffix}.png')
     return keys
+
+
+def is_invoice_image_key(s3_key, invoice, reference, version=1):
+    """True when `s3_key` is a key invoice-engine writes for this order's `image` rendition.
+
+    Older keys must match `expected_invoice_keys` exactly. Newer keys are
+    `wecare-digital-{reference}` followed by `_DATED_KEY_SUFFIX` and nothing else. In both
+    families the order's own reference sits directly after `wecare-digital-` and only
+    engine-written text follows it, so the binding between the stored row and the order holds.
+    """
+    if not isinstance(s3_key, str):
+        return False
+    if s3_key in expected_invoice_keys(invoice, reference, version):
+        return True
+    stem = f'{media_paths.INVOICE_CUSTOMER_IMAGE_PREFIX}wecare-digital-{_key_token(reference)}'
+    return s3_key.startswith(stem) and _DATED_KEY_SUFFIX.fullmatch(s3_key[len(stem):]) is not None
 
 
 def newest_invoice_image(assets, invoice_id, invoice, reference):
@@ -61,7 +84,7 @@ def newest_invoice_image(assets, invoice_id, invoice, reference):
                 break
             continue
         s3_key = row.get('s3Key')
-        if isinstance(s3_key, str) and s3_key in expected_invoice_keys(invoice, reference, version):
+        if is_invoice_image_key(s3_key, invoice, reference, version):
             newest = s3_key
     return newest
 
