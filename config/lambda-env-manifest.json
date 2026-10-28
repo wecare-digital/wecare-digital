@@ -2,7 +2,7 @@
   "_comment": "Recorded state of live Lambda environment variables, including tracked immutable alias configuration. Not deployed by anything - this is the source of truth to diff against. Regenerate with scripts/env_manifest.py --export; verify with no arguments.",
   "_region": "us-east-1",
   "_functions": 74,
-  "_variables": 526,
+  "_variables": 525,
   "_aliases": 2,
   "_alias_variables": 4,
   "_fingerprinted": 22,
@@ -382,7 +382,6 @@
       "PRODUCTS_TABLE": "stack-wecare-digital-ProductsTable"
     },
     "wecare-native-catalog-admin": {
-      "ADMIN_MFA_REQUIRED": "true",
       "AUTH_SKIP_PATHS": "sha256:e3b0c44298fc",
       "COGNITO_USER_POOL_ID": "us-east-1_cSx0RHCIR",
       "LOG_LEVEL": "INFO",

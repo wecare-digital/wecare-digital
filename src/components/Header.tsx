@@ -1140,20 +1140,18 @@ const Header: React.FC = () => {
           font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 20;
         }
 
-        /* PRODUCTS SCROLL. Desktop only. The catalogue is meant to reach 100+ entries,
-           so desktop caps this group at seven rows instead of letting one column dominate
-           the panel. Mobile deliberately does NOT create a nested vertical scroller here:
-           the whole fixed menu already scrolls, and a second touch scroller can trap a swipe
-           inside Products and make Request / Refer & Earn / Extras / With AI / Contact /
-           Legal Stuff appear unreachable below it. */
+        /* PRODUCTS SCROLL. The catalogue is meant to reach 100+ entries, so Products
+           keeps its own capped rail on desktop AND mobile. Desktop shows seven 46px rows;
+           mobile shows seven 52px rows. On mobile the vertical scroll chain stays AUTO so a
+           swipe can continue into the main menu after the Products rail reaches its end. */
         .nav-group-products{min-height:0}
         /* The heading stays PINNED above its own scrolling list. Sticky against the
            scroll container's top; the #fcfdfb backer stops list rows showing through the
            label as they pass under it. z-index clears the rows. */
         .nav-group-products .nav-group-label{position:sticky;top:0;z-index:2;background:#fcfdfb}
         .nav-products-scroll{
-          /* Seven desktop rows. Mobile overrides this ceiling and overflow so the main
-             menu remains the only vertical scroll container on touch screens. */
+          /* Seven desktop rows. Mobile overrides only the row-height-derived ceiling
+             (7 x 52px = 364px); the same overflow rail and continuation cue stay active. */
           max-height:322px;
           overflow-y:auto;
           -webkit-overflow-scrolling:touch;
@@ -1289,7 +1287,7 @@ const Header: React.FC = () => {
            variable - symmetric, therefore direction-neutral, therefore no rtl override
            needed. It still has to beat the base rule's compiled :lang() selector, which the
            extra .hdr-in ancestor class does. */
-        @media(max-width:767px){.hdr-in{height:96px;padding:14px 16px}.logo-nav{gap:8px}.hdr-in .nav-menu{position:fixed;top:100px;left:max(16px,var(--safe-left));right:max(16px,var(--safe-right));width:calc(100vw - max(16px,var(--safe-left)) - max(16px,var(--safe-right)));max-width:none;box-sizing:border-box;max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px - var(--safe-bottom))}.nav-cols,.nav-results{grid-template-columns:minmax(0,1fr)}.nav-item,.nav-child{font-size:19px;font-weight:600;min-height:52px}.nav-products-scroll{max-height:none;overflow-y:visible;overscroll-behavior:auto}.nav-products-cue-row{height:44px;flex-basis:44px;margin-top:4px}.nav-products-more{width:44px;height:44px;min-width:44px;min-height:44px}}
+        @media(max-width:767px){.hdr-in{height:96px;padding:14px 16px}.logo-nav{gap:8px}.hdr-in .nav-menu{position:fixed;top:100px;left:max(16px,var(--safe-left));right:max(16px,var(--safe-right));width:calc(100vw - max(16px,var(--safe-left)) - max(16px,var(--safe-right)));max-width:none;box-sizing:border-box;max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px - var(--safe-bottom))}.nav-cols,.nav-results{grid-template-columns:minmax(0,1fr)}.nav-item,.nav-child{font-size:20px;font-weight:600;min-height:52px}.nav-products-scroll{max-height:364px;overflow-y:auto;overscroll-behavior:auto}.nav-products-cue-row{height:44px;flex-basis:44px;margin-top:4px}.nav-products-more{width:44px;height:44px;min-width:44px;min-height:44px}}
 
         /* ROOM FOR THE SHOPPING BAG ON THE NARROWEST DEVICE THAT SHIPS, derived rather than
            nudged. Measured on the built header at 280px (Galaxy Fold, folded) before the bag
@@ -1313,7 +1311,7 @@ const Header: React.FC = () => {
              a navigation destination into two lines. 17px preserves the hierarchy while
              fitting the longest current label. */
           .nav-row-icon,.nav-row-material-symbol,.nav-sub-icon{display:none}
-          .nav-item,.nav-child{font-size:17px;padding-inline:10px}
+          .nav-item,.nav-child{font-size:18px;padding-inline:10px}
         }
 
         @media(prefers-reduced-motion:reduce){
