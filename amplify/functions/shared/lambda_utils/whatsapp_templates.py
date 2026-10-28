@@ -113,7 +113,7 @@ LOCATION_PIN = Template(name="wecare_location_share_pin", language="en", categor
 #: only by business-api `catalogService.sendOffer`; `wecare_vault_request_ready` is the provider-approved name.
 VAULT_OFFER = Template(name="wecare_vault_request_ready", language="en", category="UTILITY",
                        header="image", buttons=("quick_reply",))
-DROP_DOCS_FLOW = Template(name="drop_docs_flow", language="en", category="UTILITY",
+DROP_DOCS_FLOW = Template(name="drop_docs_flow", language="en", category="MARKETING",
                           header="image", buttons=("flow",))
 
 ALL: Tuple[Template, ...] = (PAY, INVOICE, ORDER_STATUS, OTP, LEAVE_REVIEW, DOWNLOAD,
