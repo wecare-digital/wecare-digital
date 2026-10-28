@@ -39,6 +39,7 @@ import { useConfirm } from '../../../contexts/ConfirmContext';
 import * as api from '../../../api/client';
 import type { SecureFile, SecureFileAccessState } from '../../../api/client';
 import { openExternal } from '../../../lib/capacitor';
+import { fetchServicePrices, rupeesFromPaise } from '../../../lib/servicePricing';
 
 const MAX_BYTES = 200 * 1024 * 1024;
 
@@ -93,6 +94,9 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
     const [ requestAfterUpload, setRequestAfterUpload ] = useState( true );
     // The fileId whose WhatsApp action is in flight, so one click cannot send twice.
     const [ acting, setActing ] = useState( '' );
+    const [ reviewFile, setReviewFile ] = useState<SecureFile | null>( null );
+    const [ vaultPricePaise, setVaultPricePaise ] = useState<number | null>( null );
+    const [ vaultPriceLoading, setVaultPriceLoading ] = useState( false );
 
     /** Refetch and replace the table. Used by the filter button and after an upload. */
     const fetchInto = useCallback( async ( mobileFilter?: string ) => {
@@ -116,6 +120,28 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
         setLoading( true );
         return fetchInto( mobileFilter );
     }, [ fetchInto ] );
+
+    useEffect( () => {
+        if ( !manageOnly ) return;
+        let cancelled = false;
+        setVaultPriceLoading( true );
+        void fetchServicePrices().then( prices => {
+            if ( cancelled ) return;
+            const vault = prices.vault;
+            setVaultPricePaise( vault?.available ? vault.paise : null );
+            setVaultPriceLoading( false );
+        } );
+        return () => { cancelled = true; };
+    }, [ manageOnly ] );
+
+    useEffect( () => {
+        if ( !reviewFile ) return;
+        const onKey = ( event: KeyboardEvent ) => {
+            if ( event.key === 'Escape' ) setReviewFile( null );
+        };
+        window.addEventListener( 'keydown', onKey );
+        return () => window.removeEventListener( 'keydown', onKey );
+    }, [ reviewFile ] );
 
     useEffect( () => {
         // Settled from the promise callback rather than the effect body: `loading`
@@ -569,6 +595,14 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
                                                                 { acting === row.fileId ? 'Sending…' : 'Send Access Vault' }
                                                             </button>
                                                         ) }
+                                                        { manageOnly && (
+                                                            <button
+                                                                className="sf-act"
+                                                                onClick={ () => setReviewFile( row ) }
+                                                            >
+                                                                Review &amp; Pay
+                                                            </button>
+                                                        ) }
                                                         { manageOnly && row.sourceDocumentId && (
                                                             <button
                                                                 className="sf-act"
@@ -612,8 +646,114 @@ export default function SecureFilesPage ( { signOut, user, embedded, manageOnly 
                 </section>
             </div>
 
+            { manageOnly && reviewFile && (
+                <div
+                    className="sf-review-backdrop"
+                    role="presentation"
+                    onMouseDown={ event => {
+                        if ( event.currentTarget === event.target ) setReviewFile( null );
+                    } }
+                >
+                    <aside
+                        className="sf-review-drawer"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="sf-review-title"
+                    >
+                        <div className="sf-review-head">
+                            <div>
+                                <p className="sf-review-eyebrow">Customer preview</p>
+                                <h2 id="sf-review-title">Review &amp; Pay</h2>
+                                <p>Exact file · live catalog price</p>
+                            </div>
+                            <button
+                                type="button"
+                                className="sf-review-close"
+                                onClick={ () => setReviewFile( null ) }
+                                aria-label="Close Review and Pay preview"
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <div className="sf-review-item">
+                            <img
+                                src="https://wecare.digital/get/secure/d/public/whatsapp/wa-tpl/WECARE_ORDER_DETAILS_THUMBNAIL_ORIGINAL_ICON_2048.png"
+                                alt=""
+                                className="sf-review-thumb"
+                            />
+                            <div className="sf-review-itemcopy">
+                                <strong>Vault</strong>
+                                <span>{ reviewFile.displayName }</span>
+                                <small>{ formatBytes( reviewFile.sizeBytes ) } · Quantity 1</small>
+                            </div>
+                        </div>
+
+                        <div className="sf-review-breakdown">
+                            <div><span>Item subtotal</span><strong>{ vaultPricePaise === null ? '—' : `₹${rupeesFromPaise( vaultPricePaise )}` }</strong></div>
+                            <div><span>Discount</span><strong>₹0</strong></div>
+                            <div><span>Express</span><strong>₹0</strong></div>
+                            <div className="sf-review-total"><span>Total</span><strong>{ vaultPricePaise === null ? '—' : `₹${rupeesFromPaise( vaultPricePaise )}` }</strong></div>
+                        </div>
+
+                        <div className="sf-review-meta">
+                            <div><span>Payment state</span><strong>{ PURCHASE_LABELS[ accessStateOf( reviewFile ) ] }</strong></div>
+                            <div><span>Customer</span><strong>{ reviewFile.ownerName || '—' }</strong></div>
+                            <div><span>Mobile</span><strong>{ reviewFile.ownerPhoneMasked || '—' }</strong></div>
+                            <div><span>Vault file ID</span><strong className="sf-mono">{ reviewFile.fileId }</strong></div>
+                        </div>
+
+                        <p className="sf-review-note">
+                            { vaultPriceLoading
+                                ? 'Reading the live Vault price from ProductsTable…'
+                                : vaultPricePaise === null
+                                    ? 'Live Vault price is unavailable. Do not send a payment request until pricing recovers.'
+                                    : 'Preview only. Vault is exact-price: discount and Express are zero, so subtotal equals total. Sending or charging happens only from the normal Vault action.' }
+                        </p>
+                    </aside>
+                </div>
+            ) }
+
             <style jsx>{ `
                 .sf-wrap{padding:24px;max-width:1100px}
+                .sf-review-backdrop{
+                  position:fixed;inset:0;z-index:var(--z-drawer,1300);
+                  background:rgba(15,23,42,.26);display:flex;justify-content:flex-end;
+                }
+                .sf-review-drawer{
+                  width:min(440px,100vw);height:100%;overflow:auto;background:#fff;
+                  padding:24px;box-sizing:border-box;box-shadow:-18px 0 48px rgba(15,23,42,.18);
+                  border-left:1px solid rgba(26,58,42,.10);
+                }
+                .sf-review-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;margin-bottom:22px}
+                .sf-review-head h2{margin:2px 0 4px;font-size:28px;line-height:1.1;color:var(--accent)}
+                .sf-review-head p{margin:0;color:var(--text-muted);font-size:var(--text-sm)}
+                .sf-review-eyebrow{text-transform:uppercase;letter-spacing:.08em;font-weight:700!important;font-size:var(--text-xs)!important;color:var(--accent)!important}
+                .sf-review-close{
+                  width:38px;height:38px;border:0;border-radius:10px;background:var(--lime-tint,#f4fbdc);
+                  color:var(--accent);font-size:26px;line-height:1;cursor:pointer;
+                }
+                .sf-review-item{
+                  display:flex;gap:14px;align-items:center;padding:14px;border-radius:14px;
+                  background:rgba(209,244,112,.20);border:1px solid rgba(26,58,42,.08);
+                }
+                .sf-review-thumb{width:58px;height:58px;object-fit:cover;border-radius:12px;background:#fff}
+                .sf-review-itemcopy{display:grid;gap:4px;min-width:0}
+                .sf-review-itemcopy strong{font-size:17px;color:var(--accent)}
+                .sf-review-itemcopy span{font-size:var(--text-sm);overflow-wrap:anywhere}
+                .sf-review-itemcopy small{color:var(--text-muted)}
+                .sf-review-breakdown{display:grid;gap:0;margin:22px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+                .sf-review-breakdown>div{display:flex;justify-content:space-between;gap:16px;padding:11px 0;font-size:var(--text-sm)}
+                .sf-review-breakdown>div+div{border-top:1px solid rgba(26,58,42,.07)}
+                .sf-review-total{font-size:17px!important;color:var(--accent)}
+                .sf-review-meta{display:grid;gap:10px}
+                .sf-review-meta>div{display:grid;grid-template-columns:110px 1fr;gap:12px;font-size:var(--text-sm)}
+                .sf-review-meta span{color:var(--text-muted)}
+                .sf-review-meta strong{overflow-wrap:anywhere}
+                .sf-review-note{
+                  margin:20px 0 0;padding:12px 14px;border-radius:12px;background:#f8faf9;
+                  color:var(--text-muted);font-size:var(--text-sm);line-height:1.5;
+                }
 
                 .sf-head{margin:0 0 28px}
                 .sf-journey{
