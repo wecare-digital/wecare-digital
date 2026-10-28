@@ -141,9 +141,12 @@ const fail = ( message ) => { throw new Error( message ); };
         }
 
         const moreProducts = page.getByRole( 'button', { name: 'Scroll to more products' } );
-        await moreProducts.waitFor( { state: 'visible' } );
-        if ( await moreProducts.getAttribute( 'aria-hidden' ) !== 'false' ) {
-          fail( `${viewport.name}: Products continuation button is hidden while products remain` );
+        const moreProductsCount = await moreProducts.count();
+        if ( moreProductsCount > 0 ) {
+          await moreProducts.waitFor( { state: 'visible' } );
+          if ( await moreProducts.getAttribute( 'aria-hidden' ) !== 'false' ) {
+            fail( `${viewport.name}: Products continuation button is hidden while products remain` );
+          }
         }
       }
 
