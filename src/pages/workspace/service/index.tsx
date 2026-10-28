@@ -2,7 +2,7 @@
  * Canonical Service workspace.
  *
  * Service is organized by operator job, not by every backend table or customer-facing step:
- * Requests | Appointments | Documents.
+ * Requests | Appointments | Drop Docs | Vault.
  *
  * Submit/Track/Amend, Sehat appointments, Secure Files, Enterprise cases, Reviews and FAQ remain real
  * capabilities, but they open contextually from the relevant mode instead of becoming fourteen
@@ -33,10 +33,10 @@ const Enterprise = lazyPanel<PageProps>( () => import( '../../../components/work
 const Reviews = lazyPanel<PageProps>( () => import( '../../../components/workspace/service/Reviews' ) );
 const Faq = lazyPanel<PageProps>( () => import( '../../../components/workspace/service/Faq' ) );
 
-type View = 'requests' | 'appointments' | 'documents';
+type View = 'requests' | 'appointments' | 'documents' | 'vault';
 type Action = 'submit' | 'track' | 'amend' | 'sehat-appointments' | 'secure-files' | 'enterprise' | 'reviews' | 'faq';
 
-const VALID_VIEWS = new Set<View>( [ 'requests', 'appointments', 'documents' ] );
+const VALID_VIEWS = new Set<View>( [ 'requests', 'appointments', 'documents', 'vault' ] );
 const VALID_ACTIONS = new Set<Action>( [
   'submit', 'track', 'amend', 'sehat-appointments', 'secure-files', 'enterprise', 'reviews', 'faq',
 ] );
@@ -60,7 +60,7 @@ const ACTION_LABELS: Record<Action, string> = {
   track: 'Track request',
   amend: 'Amend request',
   'sehat-appointments': 'Sehat appointments',
-  'secure-files': 'Secure files',
+  'secure-files': 'Vault',
   enterprise: 'Enterprise cases',
   reviews: 'Reviews',
   faq: 'FAQ',
@@ -85,7 +85,7 @@ const ServicePage: React.FC<PageProps> = ( { signOut, user } ) => {
       case 'track': return <TrackRequest signOut={ signOut } user={ user } embedded />;
       case 'amend': return <AmendRequest signOut={ signOut } user={ user } embedded />;
       case 'sehat-appointments': return <SehatAppointments signOut={ signOut } user={ user } embedded />;
-      case 'secure-files': return <SecureFiles signOut={ signOut } user={ user } embedded />;
+      case 'secure-files': return <SecureFiles signOut={ signOut } user={ user } embedded manageOnly />;
       case 'enterprise': return <Enterprise signOut={ signOut } user={ user } embedded />;
       case 'reviews': return <Reviews signOut={ signOut } user={ user } embedded />;
       case 'faq': return <Faq signOut={ signOut } user={ user } embedded />;
@@ -106,11 +106,11 @@ const ServicePage: React.FC<PageProps> = ( { signOut, user } ) => {
         </header>
 
         <nav className="service-tabs" aria-label="Service">
-          { ( [ 'requests', 'appointments', 'documents' ] as View[] ).map( ( id ) => (
+          { ( [ 'requests', 'appointments', 'documents', 'vault' ] as View[] ).map( ( id ) => (
             <button key={ id } type="button" className={ view === id && !action ? 'active' : '' }
               aria-current={ view === id && !action ? 'page' : undefined }
               onClick={ () => go( id ) }>
-              { id === 'requests' ? 'Requests' : id === 'appointments' ? 'Appointments' : 'Documents' }
+              { id === 'requests' ? 'Requests' : id === 'appointments' ? 'Appointments' : id === 'documents' ? 'Drop Docs' : 'Vault' }
             </button>
           ) ) }
         </nav>
@@ -119,7 +119,7 @@ const ServicePage: React.FC<PageProps> = ( { signOut, user } ) => {
           { action ? (
             <section aria-label={ ACTION_LABELS[ action ] }>
               <button type="button" className="service-back" onClick={ clearAction }>
-                ← { view === 'requests' ? 'Requests' : view === 'appointments' ? 'Appointments' : 'Documents' }
+                ← { view === 'requests' ? 'Requests' : view === 'appointments' ? 'Appointments' : view === 'documents' ? 'Drop Docs' : 'Vault' }
               </button>
               <div className="action-head">
                 <h2>{ ACTION_LABELS[ action ] }</h2>
@@ -159,10 +159,12 @@ const ServicePage: React.FC<PageProps> = ( { signOut, user } ) => {
               ) }
               { view === 'documents' && (
                 <section>
-                  <div className="context-actions" aria-label="Document actions">
-                    <button type="button" onClick={ () => go( 'documents', 'secure-files' ) }>Secure files</button>
-                  </div>
                   <Documents signOut={ signOut } user={ user } embedded />
+                </section>
+              ) }
+              { view === 'vault' && (
+                <section>
+                  <SecureFiles signOut={ signOut } user={ user } embedded manageOnly />
                 </section>
               ) }
             </>
@@ -177,7 +179,7 @@ const ServicePage: React.FC<PageProps> = ( { signOut, user } ) => {
         .service-head h1{margin:0;color:var(--text);font-size:clamp(28px,5vw,48px);line-height:1.05;letter-spacing:-.035em}
         .service-head>div>p:last-child{margin:8px 0 0;color:var(--text-muted);font-size:var(--text-md);max-width:720px}
         .service-tabs{display:flex;gap:6px;width:max-content;max-width:100%;padding:4px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:14px;margin-bottom:18px}
-        .service-tabs button{min-height:44px;min-width:120px;padding:8px 16px;border:0;border-radius:10px;background:transparent;color:var(--text-muted);font:inherit;font-weight:700;cursor:pointer}
+        .service-tabs button{min-height:44px;min-width:92px;padding:8px 16px;border:0;border-radius:10px;background:transparent;color:var(--text-muted);font:inherit;font-weight:700;cursor:pointer}
         .service-tabs button.active{background:#fff;color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.08)}
         .context-actions{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}
         .context-actions button,.service-back{min-height:44px;padding:8px 14px;border:1px solid var(--border);border-radius:12px;background:#fff;color:var(--text);font:inherit;font-weight:650;cursor:pointer}
