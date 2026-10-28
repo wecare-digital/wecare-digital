@@ -364,19 +364,20 @@ class PaidVaultAlertTests(unittest.TestCase):
 class OrderDetailsLineTests(unittest.TestCase):
     def test_service_payment_lines_carry_no_synthetic_retailer_id(self):
         from lambda_utils.ecommerce import catalog_service_checkout, meta_catalog_sync
-        quote = SimpleNamespace(collection_before_convenience_paise=9863,
-                                convenience_fee_paise=247, convenience_gst_paise=44,
-                                total_payable_paise=10154)
-        row = {"kind": "VAULT", "productId": "d4cfc6e8-10b3-5c47-94c8-3c69f4c1e1a1",
+        quote = SimpleNamespace(collection_before_convenience_paise=8254,
+                                convenience_fee_paise=206, convenience_gst_paise=37,
+                                total_payable_paise=8497)
+        row = {"kind": "VAULT", "productId": "d4cfc6e8-10b3-5c47-94ff-8d9fea7aa331",
                "variantId": "RVT6K4Q8"}
         invoice_lines = {
             "lines": [{"productId": row["productId"], "variantId": row["variantId"],
-                       "name": "Vault", "quantity": 1, "unitPricePaise": 7400}],
+                       "name": "Vault", "quantity": 1, "unitPricePaise": 4900}],
+            "supplyGstPaise": 882,
             "deliveryPaise": 2500,
-            "discountPaise": 37,
-            "convenienceFeePaise": 247,
-            "convenienceGstPaise": 44,
-            "totalPaise": 10154,
+            "discountPaise": 28,
+            "convenienceFeePaise": 206,
+            "convenienceGstPaise": 37,
+            "totalPaise": 8497,
         }
         details = catalog_service_checkout.payment_details(
             row, quote, "WD-PAY-TEST0001", "WECAREDIGITAL", 1_800_000_000,
@@ -384,12 +385,18 @@ class OrderDetailsLineTests(unittest.TestCase):
         lines = details["order"]["items"]
         self.assertEqual(lines[0]["retailer_id"],
                          meta_catalog_sync.retailer_id(row["productId"], row["variantId"]))
-        self.assertEqual(lines[0]["amount"]["value"], 7400)
+        self.assertEqual(lines[0]["amount"]["value"], 4900)
+        self.assertTrue(lines[0]["image"]["link"].endswith(
+            "WECARE_ORDER_DETAILS_THUMBNAIL_ORIGINAL_ICON_2048.png"))
         self.assertEqual(lines[1]["name"], "Convenience fee")
         self.assertNotIn("retailer_id", lines[1])
         self.assertEqual(details["order"]["discount"]["description"], "Delight")
         self.assertEqual(details["order"]["shipping"]["description"], "Express")
-        self.assertEqual(details["order"]["tax"]["description"], "GST on Convenience Fee (18%)")
+        self.assertEqual(details["order"]["tax"]["description"], "GST")
+        self.assertEqual(details["order"]["tax"]["value"], 919)
+        self.assertEqual(details["order"]["shipping"]["value"], 2500)
+        self.assertEqual(details["order"]["discount"]["value"], 28)
+        self.assertEqual(details["total_amount"]["value"], 8497)
 
     def test_no_runtime_mints_the_fee_retailer_id(self):
         for path in (FUNCTIONS / "ecommerce" / "checkout" / "handler.py",

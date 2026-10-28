@@ -225,6 +225,7 @@ def _workspace_order_fields(attempt):
             'subtotalPaise': subtotal,
             'pricingSnapshot': {
                 'itemsSubtotalPaise': subtotal,
+                'supplyGstPaise': integer_paise(spec.get('supplyGstPaise')) or 0,
                 'deliveryPaise': integer_paise(spec.get('deliveryPaise')) or 0,
                 'discountPaise': integer_paise(spec.get('discountPaise')) or 0,
                 'convenienceFeePaise': integer_paise(spec.get('convenienceFeePaise')) or 0,
