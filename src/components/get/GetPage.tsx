@@ -102,6 +102,16 @@ const GET_WORDS: CycleWord[] = [
     { word: 'papers', tint: '#fef3c7', dot: '#f0a818' },
 ];
 
+const AUTH_WORDS: CycleWord[] = [
+    { word: 'WECARE.DIGITAL', tint: '#fef3c7', dot: '#f0a818' },
+    { word: 'WhatsApp', tint: '#dcfce7', dot: '#22c55e' },
+    { word: 'Android', tint: '#e0f2fe', dot: '#0284c7' },
+    { word: 'iOS', tint: '#f3f4f6', dot: '#6b7280' },
+    { word: 'ChatGPT', tint: '#ede9fe', dot: '#9849e8' },
+    { word: 'Claude', tint: '#e0f7c8', dot: '#3da35a' },
+    { word: 'Gemini', tint: '#fee2e2', dot: '#dc2626' },
+];
+
 type Stage = 'mobile' | 'otp' | 'files';
 
 interface FilesPageProps {
@@ -440,10 +450,12 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                 home page removed. The old <p className="sf-eyebrow">WECARE.DIGITAL</p> is gone for
                 the same reason. */}
             <RotatingHero
-                frame="Collect your"
-                words={ GET_WORDS }
-                sub="Verify your mobile number on WhatsApp, and whatever has been shared with you is right here."
-                ariaLabel="Collect your files"
+                frame={ targetFileId ? 'One account. Anywhere you need it.' : 'Collect your' }
+                words={ targetFileId ? AUTH_WORDS : GET_WORDS }
+                sub={ targetFileId
+                    ? 'Sign in with WhatsApp. Continue anywhere.'
+                    : 'Verify your mobile number on WhatsApp, and whatever has been shared with you is right here.' }
+                ariaLabel={ targetFileId ? 'One account. Anywhere you need it.' : 'Collect your files' }
             >
                 <div className="sf-card">
                     {/* THE HEADING AND LEAD RENDER ON THE 'files' STAGE ONLY, and that is a fold
@@ -464,11 +476,22 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                         On the 'files' stage it stays: there the hero still says "Collect your",
                         the list below genuinely needs a heading, and there is no submit control
                         racing the fold. */}
-                    { stage === 'files' && (
+                    { stage === 'files' && !targetFileId && (
                         <>
                             <h2 className="sf-title">Your files</h2>
                             <p className="sf-lead">Shared with your number.</p>
                         </>
+                    ) }
+                    { stage === 'files' && targetFileId && files.length > 0 && (
+                        <div className="sf-access-eyebrow">
+                            <span className="sf-access-icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" focusable="false">
+                                    <path d="M7 3h7l4 4v14H7z"/>
+                                    <path d="M14 3v5h5M10 13h5M10 17h5"/>
+                                </svg>
+                            </span>
+                            <span>Access Vault</span>
+                        </div>
                     ) }
 
                     {/* id is load-bearing: PhoneField and PillButton above point their
@@ -596,26 +619,37 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                                 </p>
                             ) }
 
-                            { files.map( file => (
-                                <div key={ file.fileId } className="sf-file">
-                                    <div className="sf-file-name">{ file.displayName }</div>
-                                    <div className="sf-file-meta">
-                                        { formatBytes( file.sizeBytes ) }
-                                        { file.downloadCount > 0
-                                            && ` · downloaded ${file.downloadCount} time${file.downloadCount === 1 ? '' : 's'}` }
-                                    </div>
-                                    {/* THE SAME PILL AGAIN, so every primary action on this page is
-                                        one control. The price is the ACTION segment because the
-                                        amount is the thing being agreed to, and the action segment
-                                        is the control's accessible name - so the button answers to
-                                        "Checkout ₹49", which is what it does. */}
-                                    { ( () => {
-                                        const state = accessStateOf( file );
-                                        if ( state === 'OPEN' || state === 'READY' )
-                                        {
-                                            const ends = state === 'OPEN' ? windowEndLabel( file.accessWindowEndsAt ) : '';
-                                            return (
-                                                <>
+                            { files.map( file => {
+                                const state = accessStateOf( file );
+                                const isPaid = state === 'OPEN' || state === 'READY';
+                                const ends = state === 'OPEN' ? windowEndLabel( file.accessWindowEndsAt ) : '';
+
+                                return (
+                                    <div key={ file.fileId } className={ targetFileId ? 'sf-file sf-file-deep' : 'sf-file' }>
+                                        <div className="sf-file-head">
+                                            { targetFileId && (
+                                                <span className="sf-file-icon" aria-hidden="true">
+                                                    <svg viewBox="0 0 24 24" focusable="false">
+                                                        <path d="M7 3h7l4 4v14H7z"/>
+                                                        <path d="M14 3v5h5M10 13h5M10 17h5"/>
+                                                    </svg>
+                                                </span>
+                                            ) }
+                                            <div className="sf-file-copy">
+                                                <div className="sf-file-name">{ file.displayName }</div>
+                                                <div className="sf-file-meta">
+                                                    { formatBytes( file.sizeBytes ) }
+                                                    { file.contentType === 'application/pdf' ? ' · PDF' : '' }
+                                                    { file.downloadCount > 0
+                                                        && ` · downloaded ${ file.downloadCount } time${ file.downloadCount === 1 ? '' : 's' }` }
+                                                </div>
+                                            </div>
+                                            { targetFileId && isPaid && <span className="sf-paid-badge">Paid</span> }
+                                        </div>
+
+                                        { isPaid ? (
+                                            <>
+                                                <div className={ targetFileId ? 'sf-file-action' : undefined }>
                                                     <PillButton
                                                         as="button"
                                                         type="button"
@@ -626,24 +660,19 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                                                         disabled={ working === file.fileId }
                                                         busy={ working === file.fileId }
                                                     />
-                                                    <p className="sf-fine">
-                                                        { state === 'OPEN'
-                                                            ? `Paid. Download again for free${ ends ? ` until ${ ends }` : ' while your access window is open' }.`
-                                                            : 'Paid. Your access window starts with your first download.' }
-                                                    </p>
-                                                </>
-                                            );
-                                        }
-                                        if ( state === 'PAID_UNVERIFIED' )
-                                        {
-                                            return (
-                                                <p className="sf-fine">
-                                                    Your payment is recorded and its access is being confirmed.
-                                                    Do not pay again. If this does not clear soon, contact us and we will check it.
+                                                </div>
+                                                <p className={ targetFileId ? 'sf-paid-note' : 'sf-fine' }>
+                                                    { state === 'OPEN'
+                                                        ? `Paid. Download again for free${ ends ? ` until ${ ends }` : ' while your access window is open' }.`
+                                                        : 'Paid. Your access window starts with your first download.' }
                                                 </p>
-                                            );
-                                        }
-                                        return (
+                                            </>
+                                        ) : state === 'PAID_UNVERIFIED' ? (
+                                            <p className="sf-fine">
+                                                Your payment is recorded and its access is being confirmed.
+                                                Do not pay again. If this does not clear soon, contact us and we will check it.
+                                            </p>
+                                        ) : (
                                             <>
                                                 <PillButton
                                                     as="button"
@@ -662,37 +691,22 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                                                     busy={ working === file.fileId }
                                                 />
                                                 <p className="sf-fine">
-                                                    { state === 'EXPIRED'
-                                                        ? 'Your access window has ended. '
-                                                        : '' }
+                                                    { state === 'EXPIRED' ? 'Your access window has ended. ' : '' }
                                                     This exact document is bound to checkout before payment. Review the
                                                     cart, then choose Pay here or Pay on WhatsApp. The server confirms
                                                     the final payable amount before any payment starts.
                                                 </p>
                                             </>
-                                        );
-                                    } )() }
+                                        ) }
+                                    </div>
+                                );
+                            } ) }
 
-                                </div>
-                            ) ) }
-
-                            <p className="sf-fine">
-                                Purchases and renewals use the shared checkout; your downloads stay here.
-                            </p>
-                            { targetFileId && (
-                                <button
-                                    className="sf-quiet"
-                                    onClick={ () => { void router.push( '/get/' ); } }
-                                >
-                                    Back to all Vault files
-                                </button>
+                            { !targetFileId && (
+                                <p className="sf-fine">
+                                    Purchases and renewals use the shared checkout; your downloads stay here.
+                                </p>
                             ) }
-                            <button
-                                className="sf-quiet"
-                                onClick={ () => { clearSession(); setStage( 'mobile' ); setFiles( [] ); setError( '' ); setMessage( '' ); } }
-                            >
-                                Sign out
-                            </button>
                         </div>
                     ) }
                 </div>
@@ -737,6 +751,16 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                    .rh-layout's 96px gap and .rh-shell's padding are unreachable from here. Every
                    mitigation has to live in the hero's children. Do not try. */
                 .sf-card{width:100%;max-width:460px;margin:0}
+                .sf-access-eyebrow{
+                  display:inline-flex;align-items:center;gap:9px;min-height:42px;margin:0 0 18px;
+                  padding:0 15px;border-radius:999px;background:var(--public-brand-lime);
+                  color:var(--public-brand-green);font-size:18px;font-weight:700;line-height:1.1;
+                }
+                .sf-access-icon{width:23px;height:23px;display:inline-flex;align-items:center;justify-content:center}
+                .sf-access-icon svg,.sf-file-icon svg{
+                  width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.7;
+                  stroke-linecap:round;stroke-linejoin:round;
+                }
 
                 /* The site's section-heading rung, identical to .home-close-title. Now on an <h2>
                    rather than an <h1> (the hero owns the page's one h1); the rule is unchanged
@@ -826,11 +850,32 @@ export default function FilesPage ( { targetFileId = '' }: FilesPageProps ) {
                   padding:20px;margin:0 0 14px;background:#fff;
                   border:2px solid rgba(26,58,42,.12);border-radius:12px;
                 }
+                .sf-file-deep{
+                  padding:13px;border:0;box-shadow:inset 0 0 0 1px rgba(26,58,42,.07);
+                }
+                .sf-file-head{display:flex;gap:11px;align-items:flex-start}
+                .sf-file-icon{
+                  width:38px;height:38px;border-radius:10px;background:var(--public-lime-tint);
+                  color:var(--public-brand-green);display:flex;align-items:center;justify-content:center;flex:0 0 auto;
+                }
+                .sf-file-copy{min-width:0;flex:1}
                 .sf-file-name{
-                  font-size:17px;font-weight:600;letter-spacing:-.2px;color:rgba(0,0,0,.95);
+                  font-size:17px;font-weight:600;letter-spacing:-.2px;color:rgba(0,0,0,.95);overflow-wrap:anywhere;
                 }
                 .sf-file-meta{
                   margin:6px 0 16px;font-size:14px;color:rgba(26,58,42,.68);
+                }
+                .sf-file-deep .sf-file-name{font-size:15px;color:var(--public-brand-green)}
+                .sf-file-deep .sf-file-meta{margin:3px 0 0;font-size:13px}
+                .sf-paid-badge{
+                  flex:0 0 auto;padding:4px 8px;border-radius:999px;background:var(--public-lime-tint);
+                  color:var(--public-brand-green);font-size:11px;font-weight:700;
+                }
+                .sf-file-action{margin-top:13px}
+                .sf-paid-note{
+                  margin:12px 0 0;padding:10px 12px;border-radius:10px;background:#fff;
+                  box-shadow:inset 4px 0 0 var(--public-brand-lime);
+                  color:var(--public-body);font-size:14px;line-height:1.45;
                 }
 
                 /* No secondary website-checkout CTA is rendered for file delivery. */
