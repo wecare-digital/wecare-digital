@@ -492,13 +492,17 @@ class VaultWorkspaceMessagingUxTests(unittest.TestCase):
         self.assertIn("sourceDocumentId?: string", client)
         self.assertNotIn("s3Key?: string;", client[client.index("export interface SecureFile"):client.index("export type SecureFileAccessState")])
 
-    def test_customer_deep_link_is_single_file_auth_shell_without_collection_controls(self):
-        source = (ROOT / "src" / "components" / "get" / "GetPage.tsx").read_text(encoding="utf-8")
-        self.assertIn("Access Vault", source)
-        self.assertIn("One account. Anywhere you need it.", source)
-        self.assertNotIn("Back to all Vault files", source)
-        self.assertNotIn(">Sign out<", source)
-        self.assertIn("This document is not available right now.", source)
+    def test_customer_deep_link_uses_canonical_auth_and_returns_to_exact_file(self):
+        get_page = (ROOT / "src" / "components" / "get" / "GetPage.tsx").read_text(encoding="utf-8")
+        vault_page = (ROOT / "src" / "pages" / "vault.tsx").read_text(encoding="utf-8")
+        self.assertIn("/auth?return=", get_page)
+        self.assertIn("wecare.vault.authReturnFile", get_page)
+        self.assertIn("wecare.vault.authReturnFile", vault_page)
+        self.assertIn("router.replace( { pathname: '/vault/'", vault_page)
+        self.assertIn("Access Vault", get_page)
+        self.assertNotIn("Back to all Vault files", get_page)
+        self.assertNotIn(">Sign out<", get_page)
+        self.assertIn("This document is not available right now.", get_page)
 
 
 

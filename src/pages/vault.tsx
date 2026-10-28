@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import ProductPage from '../components/ProductPage';
@@ -64,10 +64,31 @@ const VaultActions: React.FC = () => (
  * HTTP 200, and in PUBLIC_EXACT in scripts/generate-sitemap.js or it is never advertised.
  * trailingSlash means the URL is /vault/.
  */
+const VAULT_AUTH_RETURN_FILE_KEY = 'wecare.vault.authReturnFile';
+const VAULT_FILE_ID_PATTERN = /^[A-Za-z0-9_-]{1,120}$/;
+
 const VaultPage: React.FC = () => {
   const router = useRouter();
   const fileParam = router.query.file;
-  const targetFileId = Array.isArray( fileParam ) ? fileParam[ 0 ] : fileParam;
+  const queryFileId = Array.isArray( fileParam ) ? fileParam[ 0 ] : fileParam;
+  const [ restoredFileId, setRestoredFileId ] = useState( '' );
+
+  useEffect( () => {
+    if ( !router.isReady || queryFileId ) return;
+    try
+    {
+      const saved = window.sessionStorage.getItem( VAULT_AUTH_RETURN_FILE_KEY ) || '';
+      if ( !VAULT_FILE_ID_PATTERN.test( saved ) ) return;
+      window.sessionStorage.removeItem( VAULT_AUTH_RETURN_FILE_KEY );
+      setRestoredFileId( saved );
+      void router.replace( { pathname: '/vault/', query: { file: saved } }, undefined, { shallow: true } );
+    } catch
+    {
+      // Storage is best-effort only; a failed restore falls back to the public Vault page.
+    }
+  }, [ router, router.isReady, queryFileId ] );
+
+  const targetFileId = queryFileId || restoredFileId;
 
   // The approved WhatsApp download template lands here with ?file={{1}}.
   // No file parameter keeps the public Vault service page unchanged; a file parameter
