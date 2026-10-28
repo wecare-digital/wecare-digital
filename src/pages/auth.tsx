@@ -150,10 +150,8 @@ const AuthPage: React.FC = () => {
         <section className="auth-card" aria-labelledby="auth-card-title">
           <div className="auth-eyebrow" id="auth-card-title">
             <img className="auth-eyebrow-icon" src={ AUTH_LOGO_URL } alt="" aria-hidden="true" width={ 1080 } height={ 1080 } decoding="async" />
-            <span>Access</span>
+            <span>Sign in</span>
           </div>
-
-          { step?.clientName && <p className="auth-context">Continue to <strong>{ step.clientName }</strong></p> }
 
           <form noValidate onSubmit={ onSubmit } aria-busy={ busy }>
                         { step?.phase === 'phone' && (
@@ -274,8 +272,7 @@ const AuthPage: React.FC = () => {
         .auth-card{width:min(100%,560px);padding:36px 40px 40px;border:1px solid var(--public-hairline);border-top:4px solid var(--public-brand-lime);border-radius:24px;background:var(--public-bg);box-shadow:0 14px 38px rgba(26,58,42,.08);color:var(--public-text);font-family:var(--font-sans)}
         .auth-eyebrow{display:inline-flex;align-items:center;gap:12px;min-height:52px;margin:0 0 34px;padding:0 22px;border-radius:999px;background:var(--public-brand-lime);color:var(--public-brand-green);font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking)}
         .auth-eyebrow-icon{width:36px;height:36px;border-radius:8px;display:block;object-fit:contain;flex:0 0 auto}
-        .auth-context,.auth-status{margin:0 0 20px;color:var(--public-muted);font-size:var(--public-supporting-size);line-height:1.45}
-        .auth-label{display:block;margin:0 0 12px;color:var(--public-text);font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking)}
+                .auth-label{display:block;margin:0 0 12px;color:var(--public-text);font-size:var(--public-card-size);font-weight:var(--public-card-weight);line-height:var(--public-card-leading);letter-spacing:var(--public-card-tracking)}
         .auth-field-label{display:block;margin:0 0 10px;color:var(--public-muted);font-size:var(--public-supporting-size);font-weight:600;line-height:1.35;letter-spacing:.01em}
         .phone-control{position:relative;display:flex;width:100%;min-height:64px;border:1px solid rgba(26,58,42,.16);border-radius:18px;background:#fff;box-shadow:none;transition:box-shadow .18s,border-color .18s}
         .phone-control:focus-within{border-color:rgba(26,58,42,.28);box-shadow:0 0 0 2px rgba(209,244,112,.32)}
